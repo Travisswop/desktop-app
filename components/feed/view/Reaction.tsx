@@ -620,7 +620,7 @@ const Reaction = memo(
                         )}
                       </div>
                       <div className="flex-1">
-                        <CommentInput
+                        {/* <CommentInput
                           postId={postId}
                           accessToken={accessToken}
                           latestCommentCount={latestCommentCount}
@@ -631,6 +631,23 @@ const Reaction = memo(
                             });
                             onClose(); // close modal after reply
                           }}
+                        /> */}
+                        {/* // Inside ModalBody, replace the CommentInput block: */}
+                        <CommentInput
+                          postId={postId}
+                          accessToken={accessToken}
+                          latestCommentCount={latestCommentCount}
+                          setLatestCommentCount={setLatestCommentCount}
+                          onCommentSubmitted={(newCommentOrTotal) => {
+                            // onCommentSubmitted now receives the new comment object (or null)
+                            // Update count manually since setLatestCommentCount is called inside CommentInput
+                            onPostInteraction?.(postId, {
+                              commentCount: latestCommentCount + 1,
+                            });
+                            onClose();
+                          }}
+                          autoFocus
+                          compact={false}
                         />
                       </div>
                     </div>

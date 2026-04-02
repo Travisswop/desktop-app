@@ -125,6 +125,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.twimg.com" },
       { protocol: "https", hostname: "**.githubusercontent.com" },
       { protocol: "https", hostname: "media.tenor.com" },
+      { protocol: "https", hostname: "xstocks-metadata.backed.fi" },
     ],
   },
 

@@ -23,7 +23,7 @@ export default function Feed({
   setIsPosting,
   isPosting,
   setIsPostLoading,
-}) {
+}: any) {
   const initialArray = initialFeedData?.data ?? [];
   const totalPages = initialFeedData?.pagination?.totalPages ?? 1;
 
@@ -34,15 +34,15 @@ export default function Feed({
   const [initialLoading, setInitialLoading] = useState(
     initialArray.length === 0,
   );
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [redeemFeedData, setRedeemFeedData] = useState({});
+  // const [isModalOpen, setIsModalOpen] = useState(false);
+  // const [redeemFeedData, setRedeemFeedData] = useState({});
 
   const observerRef = useRef(null);
   const isFetching = useRef(false);
   const pageRef = useRef(initialArray.length > 0 ? 2 : 1);
   const hasMoreRef = useRef(hasMore);
 
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  // const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   const fetchFeedData = useCallback(
     async (reset = false) => {
@@ -142,78 +142,6 @@ export default function Feed({
     );
   }, []);
 
-  const renderTransactionContent = useCallback((feed) => {
-    const {
-      transaction_type,
-      receiver_ens,
-      receiver_wallet_address,
-      amount,
-      token,
-      chain,
-      tokenPrice,
-      image,
-      name,
-      currency,
-    } = feed.content;
-    const recipientDisplay =
-      receiver_ens ??
-      (receiver_wallet_address &&
-        `${receiver_wallet_address.slice(0, 5)}...${receiver_wallet_address.slice(-5)}`);
-
-    if (transaction_type === "nft") {
-      return (
-        <div>
-          <p className="text-gray-600 text-sm">
-            Sent NFT{" "}
-            <span className="font-medium text-base">{name || "item"}</span> to{" "}
-            <span className="font-medium text-base">{recipientDisplay}</span>.
-          </p>
-          {image && (
-            <div className="w-52">
-              <Image
-                src={image}
-                alt="NFT"
-                width={300}
-                height={300}
-                className="w-full h-auto"
-              />
-              <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || "NFT"}
-              </p>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    if (transaction_type === "token") {
-      return (
-        <p className="text-black text-sm">
-          Transferred{" "}
-          <span className="font-medium">
-            {amount.toFixed(2)} {token}
-          </span>{" "}
-          {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
-          to{" "}
-          <a
-            href={`https://${recipientDisplay}`}
-            target="_blank"
-            className="font-semibold"
-          >
-            {formatEns(recipientDisplay)}
-          </a>{" "}
-          on the {chain}.
-        </p>
-      );
-    }
-
-    return (
-      <p className="text-gray-600 text-sm">
-        Executed a {transaction_type} transaction involving {amount} {currency}.
-      </p>
-    );
-  }, []);
-
   return (
     <div className="w-full flex gap-10">
       <div className="w-full flex flex-col gap-4">
@@ -223,14 +151,13 @@ export default function Feed({
             feed={feed}
             userId={userId}
             accessToken={accessToken}
-            onRedeemModalOpen={(data) => {
-              onOpen();
-              setIsModalOpen(true);
-              setRedeemFeedData(data);
-            }}
+            // onRedeemModalOpen={(data) => {
+            //   onOpen();
+            //   setIsModalOpen(true);
+            //   setRedeemFeedData(data);
+            // }}
             onRepostSuccess={() => {}}
             onDeleteSuccess={() => setIsPosting(true)}
-            renderTransactionContent={renderTransactionContent}
             onPostInteraction={handlePostInteraction}
           />
         ))}
@@ -248,13 +175,13 @@ export default function Feed({
         )}
       </div>
 
-      {isModalOpen && (
+      {/* {isModalOpen && (
         <RedeemClaimModal
           isOpen={isOpen}
           onOpenChange={onOpenChange}
           redeemFeedData={redeemFeedData}
         />
-      )}
+      )} */}
     </div>
   );
 }

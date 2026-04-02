@@ -1,5 +1,6 @@
 import { getFeedDetails } from "@/actions/postFeed";
-import FeedDetails from "@/components/feed/FeedDetails";
+// import FeedDetails from "@/components/feed/FeedDetails";
+import FeedDetailsClient from "@/components/feed/FeedDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
 import { Metadata, ResolvingMetadata } from "next";
 import { cookies } from "next/headers";
@@ -193,10 +194,14 @@ const FeedDetailsPage = async ({
 
   return (
     <div className="relative flex flex-col items-center">
-      <div className="w-[90%] sm:w-[70%] xl:w-[30%] overflow-y-auto">
+      <div className="w-full sm:w-[520px] overflow-y-auto">
         <Suspense fallback={<FeedLoading />}>
           {feedData && (
-            <FeedDetails feedData={feedData.data} feedDetails={feedData} />
+            <FeedDetailsClient
+              feedData={feedData.data}
+              userId={userId || ""}
+              accessToken={accessToken || ""}
+            />
           )}
         </Suspense>
       </div>

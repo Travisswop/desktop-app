@@ -8,7 +8,12 @@ import updateLocale from "dayjs/plugin/updateLocale";
 import { GoDotFill } from "react-icons/go";
 import { HiDotsHorizontal } from "react-icons/hi";
 import { FiPlusCircle } from "react-icons/fi";
-import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  useDisclosure,
+} from "@nextui-org/react";
 import PostTypeMedia from "./view/PostTypeMedia";
 import Reaction from "./view/Reaction";
 import DeleteFeedModal from "./DeleteFeedModal";
@@ -21,6 +26,9 @@ import TipContentModal from "./TipContent";
 import { formatEns } from "@/lib/formatEnsName";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import { useRouter } from "next/navigation";
+import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
+import RedeemClaimModal from "../modal/RedeemClaim";
+import { formatCountReaction } from "@/lib/formatFeedReactionCount";
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
 // Ideally, import FeedItemType from where it's defined (e.g., Feed.tsx or a types file).
@@ -36,11 +44,10 @@ interface FeedItemProps {
   feed: any;
   userId: string;
   accessToken: string;
-  onRedeemModalOpen: (data: any) => void;
   onRepostSuccess: () => void;
   onDeleteSuccess: () => void;
-  renderTransactionContent: (feed: any) => JSX.Element;
   onPostInteraction?: (postId: string, updates: Partial<FeedItemType>) => void;
+  isFromFeedDetailsPage?: boolean;
 }
 
 const FeedItem = memo(
@@ -48,15 +55,19 @@ const FeedItem = memo(
     feed,
     userId,
     accessToken,
-    onRedeemModalOpen,
+    // onRedeemModalOpen,
     onRepostSuccess,
     onDeleteSuccess,
-    renderTransactionContent,
     onPostInteraction,
+    isFromFeedDetailsPage = false,
   }: FeedItemProps) => {
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
-    console.log("feed from feed item", feed);
+    const { isOpen, onOpen, onOpenChange } = useDisclosure();
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [redeemFeedData, setRedeemFeedData] = useState({});
+
+    console.log("ffeed indof", feed);
 
     dayjs.extend(relativeTime);
     dayjs.extend(updateLocale);
@@ -83,9 +94,11 @@ const FeedItem = memo(
     const handleRedeemClick = useCallback(
       (e: React.MouseEvent) => {
         e.stopPropagation();
-        onRedeemModalOpen(feed.content);
+        onOpen();
+        setIsModalOpen(true);
+        setRedeemFeedData(feed.content);
       },
-      [onRedeemModalOpen, feed.content],
+      [feed.content, onOpen], // Added feed.content to dependencies,
     );
 
     const profilePic =
@@ -123,7 +136,8 @@ const FeedItem = memo(
           ) : (
             <Image
               alt="user image"
-              src={`/images/user_avator/${profilePic}.png`}
+              // src={`/images/user_avator/${profilePic}.png`}
+              src={`/images/user_avator/${profilePic}@3x.png`}
               width={300}
               height={300}
               quality={100}
@@ -301,8 +315,9 @@ const FeedItem = memo(
               )}
 
               {/* Transaction Content */}
-              {feed.postType === "transaction" &&
-                renderTransactionContent(feed)}
+              {feed.postType === "transaction" && (
+                <RenderTransactionContent feed={feed} />
+              )}
             </div>
 
             {/* Actions Menu */}
@@ -371,6 +386,22 @@ const FeedItem = memo(
             )}
           </div>
 
+          {isFromFeedDetailsPage && (
+            <div className="flex items-center gap-2 text-gray-500 text-sm mt-3 border-b pb-2 ">
+              <span>{dayjs(feed.createdAt).format("h:mm A")}</span>
+
+              <span>·</span>
+
+              <span>{dayjs(feed.createdAt).format("MMM D, YYYY")}</span>
+
+              <span>·</span>
+
+              <span className="font-medium text-gray-600">
+                {formatCountReaction(feed.viewsCount)} Views
+              </span>
+            </div>
+          )}
+
           {/* Reactions */}
           <Reaction
             postId={feed._id}
@@ -384,6 +415,14 @@ const FeedItem = memo(
             feed={feed}
           />
         </div>
+
+        {isModalOpen && (
+          <RedeemClaimModal
+            isOpen={isOpen}
+            onOpenChange={onOpenChange}
+            redeemFeedData={redeemFeedData}
+          />
+        )}
       </div>
     );
   },
