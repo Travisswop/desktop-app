@@ -5,6 +5,7 @@ import { useClobOrder, useTickSize } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import type { PolymarketMarket } from '@/hooks/polymarket';
 import type { ClobClient } from '@polymarket/clob-client';
+import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 
 import Portal from '../shared/Portal';
 import BuySellToggle, { type OrderVariant } from '../OrderModal/BuySellToggle';
@@ -261,12 +262,16 @@ export default function MarketDetailModal({
   const totalCost =
     side === 'BUY' && isLimitVariant ? shares * limitPriceNum : inputNum;
 
+  const EPSILON = 0.01 + 1e-6; // allow up to 1 cent wiggle room to avoid float/rounding disable
+
   const potentialWin = side === 'BUY' ? shares : 0;
   const amountToReceive = side === 'SELL' ? inputNum * effectivePrice : 0;
   const hasInsufficientBalance =
-    side === 'BUY' ? totalCost > balance : inputNum > activeShareBalance;
+    side === 'BUY'
+      ? totalCost - balance > EPSILON
+      : inputNum - activeShareBalance > EPSILON;
 
-  const LIMIT_MIN_SHARES = market.orderMinSize ?? 5;
+  const LIMIT_MIN_SHARES = market.orderMinSize ?? MIN_ORDER_SIZE;
 
   const handlePlaceOrder = async () => {
     if (side === 'BUY') {
@@ -564,8 +569,16 @@ export default function MarketDetailModal({
               }}
               orderType={orderType}
               onOrderTypeChange={(t) => {
+                const wasMarket = orderType === 'market' || orderType === 'fak';
                 setOrderType(t);
                 setLocalError(null);
+
+                const nowMarket = t === 'market' || t === 'fak';
+                const nowLimit = t === 'limit' || t === 'gtd';
+                if ((wasMarket && nowLimit) || (!wasMarket && nowMarket)) {
+                  setInputValue('');
+                  setLimitPrice('');
+                }
               }}
             />
 
@@ -648,7 +661,11 @@ export default function MarketDetailModal({
                     const maxShares = Math.floor(balance / limitPriceNum);
                     setInputValue(String(maxShares));
                   } else if (balance > 0) {
-                    setInputValue(balance.toFixed(2));
+                    const safeMax = Math.max(
+                      0,
+                      Math.floor((balance - 0.000001) * 100) / 100,
+                    );
+                    setInputValue(safeMax.toFixed(2));
                   }
                   setLocalError(null);
                 }}
