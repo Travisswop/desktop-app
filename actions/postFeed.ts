@@ -35,6 +35,23 @@ export async function getFeedDetails(url: string) {
   }
 }
 
+export async function getCommentDetails(url: string) {
+  try {
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      console.error("getCommentDetails failed:", res.status, res.statusText);
+      return null;
+    }
+
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error("getCommentDetails error:", error);
+    return null;
+  }
+}
+
 export async function getSmartsiteFeed(url: string, token: string) {
   try {
     const response = await fetch(`${url}`, {
