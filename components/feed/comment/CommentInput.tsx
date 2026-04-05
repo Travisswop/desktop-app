@@ -13,6 +13,7 @@ import CommentImagePicker from "./SelectImage";
 import CommentGifPickerContent from "./GifPicker";
 import Emoji from "../Emoji";
 import CommentEmoji from "../CommentEmoji";
+import { logger } from "ethers5";
 
 interface CommentInputProps {
   postId: string;
@@ -20,6 +21,8 @@ interface CommentInputProps {
   latestCommentCount: number;
   setLatestCommentCount: (count: number | ((prev: number) => number)) => void;
   onCommentSubmitted?: (newTotalCommentCount: number) => void;
+  parentCommentId?: string;
+  placeholder?: string;
 }
 
 const getFirstDuplicate = (s: string) => {
@@ -44,6 +47,8 @@ export default function CommentInput({
   latestCommentCount,
   setLatestCommentCount,
   onCommentSubmitted,
+  parentCommentId = "",
+  placeholder = "Post your reply...",
 }: CommentInputProps) {
   const { postContent, setPostContent, removeContent } =
     useCommentContentStore();
@@ -92,16 +97,10 @@ export default function CommentInput({
         })),
       );
 
-      const commentres = await postComment(
-        // {
-        //   postId,
-        //   smartsiteId: user?.primaryMicrosite,
-        //   commentText,
-        //   commentMedia: { postContent: uploadedMedia },
-        // },
+      const response = await postComment(
         {
           postId,
-          // parentCommentId: "",
+          parentCommentId: parentCommentId || "",
           userId: user?._id,
           smartsiteId: user?.primaryMicrosite,
           // smartsiteUserName: "john_doe",
@@ -114,13 +113,14 @@ export default function CommentInput({
         accessToken,
       );
 
-      console.log("Comment posted successfully:", commentres);
+      // console.log("Comment posted successfully:", response);
       toast.success("Comment posted successfully!");
 
       // Reset state after successful post
       setPostContent([]);
       setCommentText("");
       const newTotal = latestCommentCount + 1;
+      logger.info("New total comment count:", newTotal);
       setLatestCommentCount(newTotal);
       onCommentSubmitted?.(newTotal);
     } catch (error) {
@@ -140,7 +140,7 @@ export default function CommentInput({
             ? "border-red-500 focus:outline-red-500"
             : "border-gray-300 focus:outline-gray-200"
         }`}
-        placeholder="Post your reply..."
+        placeholder={placeholder}
         value={commentText}
         onChange={handleChange}
         style={{ borderWidth: 1 }}

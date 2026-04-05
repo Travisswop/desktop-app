@@ -27,7 +27,6 @@ export async function getFeedDetails(url: string) {
       headers: {
         "Content-Type": "application/json",
       },
-      cache: "no-store",
     });
     const data = await response.json();
     return data;
@@ -157,7 +156,7 @@ export async function deleteFeed(
 export async function postFeedLike(payload: any, token: string) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/reaction`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/toggle-like`,
       {
         method: "POST",
         headers: {

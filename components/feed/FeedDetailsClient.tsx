@@ -3,7 +3,6 @@ import FeedItem from "@/components/feed/FeedItem";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { IoArrowBack } from "react-icons/io5";
-import CommentInput from "./CommentInput";
 import CommentItem from "./CommentItem";
 import { FiMessageCircle } from "react-icons/fi";
 import { logger } from "ethers5";
@@ -136,14 +135,15 @@ export default function FeedDetailsClient({
     <div className="flex flex-col pb-20">
       {/* Back */}
       <button
-        className="flex items-center gap-2 py-3 sticky top-0 bg-white z-10 border-b border-gray-100"
+        className="flex items-center gap-2 py-3"
+        // className="flex items-center gap-2 py-3 fixed top-20 bg-white border-b border-gray-100 w-max"
         onClick={() => router.back()}
       >
         <IoArrowBack size={20} />
         <span className="font-semibold">Post</span>
       </button>
 
-      {/* Post */}
+      {/* Main Post Details */}
       <div className="pt-4">
         <FeedItem
           feed={feed}
@@ -155,18 +155,6 @@ export default function FeedDetailsClient({
           isFromFeedDetailsPage={true}
         />
       </div>
-
-      {/* Comment input for logged-in users */}
-      {/* {userId && accessToken && (
-        <div className="mt-2 pt-3 border-t border-gray-100">
-          <CommentInput
-            postId={feed._id}
-            userId={userId}
-            accessToken={accessToken}
-            onSuccess={handleCommentSuccess}
-          />
-        </div>
-      )} */}
 
       {/* Comments header */}
       <div className="mt-4 mb-2 flex items-center justify-between">

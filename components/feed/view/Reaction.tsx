@@ -45,6 +45,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import CommentInput from "../comment/CommentInput";
 import dayjs from "dayjs";
 import isUrl from "@/lib/isUrl";
+import { logger } from "ethers5";
 
 // Assuming FeedItemType is available or defined elsewhere
 interface FeedItemType {
@@ -188,23 +189,14 @@ const Reaction = memo(
       }
 
       try {
-        if (newLikedState) {
-          await postFeedLike({ postId, smartsiteId }, accessToken);
-          //add points for feed like
-          if (user?._id) {
-            const payloadForPoints = {
-              userId: user._id,
-              pointType: "Receiving a Like on Your Feed",
-              actionKey: "launch-swop", //use same value
-              feedPostId: postId,
-            };
-            await addFeedLikePoints(payloadForPoints, accessToken);
-          }
-        } else {
-          const payload = { postId, smartsiteId, commentId, replyId };
-          await removeFeedLike(payload, accessToken);
-        }
-        // If API call is successful, call the callback to update parent state
+        const payload = {
+          targetId: postId,
+          targetType: "post",
+          userId: user?._id,
+          smartsiteId: user?.primaryMicrosite,
+          reactionType: "like",
+        };
+        await postFeedLike(payload, accessToken);
         onPostInteraction?.(postId, {
           likeCount: newLikeCountState,
           isLiked: newLikedState,

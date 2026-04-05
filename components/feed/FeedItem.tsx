@@ -413,6 +413,7 @@ const FeedItem = memo(
             onRepostSuccess={onRepostSuccess}
             onPostInteraction={onPostInteraction}
             feed={feed}
+            isFromFeedDetails={true}
           />
         </div>
 
