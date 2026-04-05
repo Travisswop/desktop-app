@@ -41,10 +41,11 @@ export default function PositionCard({
   // positions, so we must not gate on curPrice > 0 here.
   const isRedeemable = position.redeemable;
 
-  // Show the event title for binary Yes/No outcomes.
-  // For O/U and spread outcomes, enrich the label with the threshold or spread line.
+  // BTC 5-min positions have outcome 'Up' or 'Down' (set by enrichBtcPosition).
+  // Regular markets use 'Yes' / 'No'.
+  const isBtcUpDown = position.outcome === 'Up' || position.outcome === 'Down';
   const isBinaryOutcome =
-    position.outcome === 'Yes' || position.outcome === 'No';
+    position.outcome === 'Yes' || position.outcome === 'No' || isBtcUpDown;
   const displayPick = isBinaryOutcome
     ? position.title
     : getOutcomeDisplayLabel(position.outcome, position.title, position.outcomeIndex);
@@ -61,26 +62,50 @@ export default function PositionCard({
   return (
     <>
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-        {/* Header: "[N] shares · [title/outcome]" */}
-        <div className="flex items-start justify-between px-4 pt-4 pb-3">
-          <p className="text-sm text-gray-700 leading-snug flex-1 pr-2">
-            <span className="font-bold text-gray-900">{position.size} shares</span>{' '}
+        {/* Header: icon · title · outcome badge · share */}
+        <div className="flex items-start justify-between px-4 pt-4 pb-3 gap-3">
+          {/* Bitcoin icon — only shown for BTC Up/Down positions */}
+          {isBtcUpDown && (
+            <div className="w-10 h-10 rounded-xl bg-[#F7931A] flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" className="w-6 h-6 fill-white" xmlns="http://www.w3.org/2000/svg">
+                <path d="M23.638 14.904c-1.602 6.425-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.546z"/>
+                <path fill="#F7931A" d="M17.006 10.25c.238-1.594-.975-2.45-2.635-3.02l.538-2.16-1.315-.327-.524 2.103c-.346-.086-.7-.167-1.054-.248l.528-2.117-1.314-.328-.54 2.16c-.286-.065-.567-.13-.84-.198l.002-.007-1.814-.453-.35 1.404s.975.223.954.237c.532.133.628.485.612.764l-.614 2.463c.037.01.084.023.136.044l-.138-.034-.86 3.447c-.065.161-.23.403-.6.311.013.02-.954-.238-.954-.238l-.652 1.504 1.712.427c.318.08.63.163.937.242l-.545 2.187 1.313.327.54-2.162c.36.098.71.188 1.052.274l-.537 2.151 1.315.327.545-2.183c2.244.425 3.93.254 4.639-1.776.573-1.635-.028-2.578-1.21-3.192.86-.198 1.508-.764 1.682-1.932zm-3.01 4.22c-.407 1.635-3.16.751-4.052.53l.723-2.896c.893.223 3.754.663 3.33 2.366zm.408-4.24c-.372 1.487-2.663.731-3.408.546l.655-2.626c.745.186 3.143.533 2.753 2.08z"/>
+              </svg>
+            </div>
+          )}
+
+          {/* Title + outcome badge */}
+          <div className="flex-1 min-w-0">
             <button
               onClick={onTitleClick}
               disabled={!onTitleClick}
-              className="font-bold text-[#3B82F6] line-clamp-2 text-left hover:underline disabled:no-underline disabled:cursor-default transition-all"
+              className="font-semibold text-sm text-gray-900 line-clamp-2 text-left hover:underline disabled:no-underline disabled:cursor-default transition-all leading-snug"
             >
               {displayPick}
             </button>
-          </p>
+            {/* Outcome badge row */}
+            <div className="flex items-center gap-2 mt-1">
+              {isBtcUpDown ? (
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                  position.outcome === 'Up'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-red-100 text-red-700'
+                }`}>
+                  {position.outcome === 'Up' ? '↑' : '↓'} {position.outcome} {nowCents}¢
+                </span>
+              ) : null}
+              <span className="text-xs text-gray-400">{position.size} shares</span>
+            </div>
+          </div>
+
           <button
             onClick={() => setShareOpen(true)}
-            className="w-12 h-12 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+            className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
             title="Share"
           >
             <svg
               viewBox="0 0 24 24"
-              className="w-5 h-5 text-gray-700"
+              className="w-4 h-4 text-gray-700"
               fill="none"
               stroke="currentColor"
               strokeWidth="2"

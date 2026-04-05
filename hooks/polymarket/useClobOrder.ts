@@ -210,9 +210,16 @@ export function useClobOrder(
     [clobClient, queryClient],
   );
 
+  /** Clears orderId and error — call this when resetting a form that holds this hook. */
+  const resetOrder = useCallback(() => {
+    setOrderId(null);
+    setError(null);
+  }, []);
+
   return {
     submitOrder,
     cancelOrder,
+    resetOrder,
     isSubmitting,
     error,
     orderId,
