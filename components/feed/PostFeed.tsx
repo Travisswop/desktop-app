@@ -33,19 +33,19 @@ const PostFeed = ({
   primaryMicrositeImg,
   userId,
   token,
-  setIsPosting,
-  setIsPostLoading,
+  // setIsPosting,
+  // setIsPostLoading,
 }: {
   userId: string;
   primaryMicrositeImg: string;
   token: string;
-  setIsPosting: any;
-  setIsPostLoading: any;
+  // setIsPosting: any;
+  // setIsPostLoading: any;
 }) => {
   const { user }: any = useUser();
   const pickerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { closeModal } = useModalStore();
+  const { closeModal, triggerFeedRefetch } = useModalStore();
   const [postLoading, setPostLoading] = useState<boolean>(false);
   const [primaryMicrosite, setPrimaryMicrosite] = useState<string>("");
 
@@ -124,7 +124,7 @@ const PostFeed = ({
   const handleFeedPosting = async () => {
     try {
       setPostLoading(true);
-      setIsPostLoading(true);
+      // setIsPostLoading(true);
       const updatedMediaFiles = await Promise.all(
         mediaFiles.map(async (file) => {
           if (file.type === "image") {
@@ -159,8 +159,9 @@ const PostFeed = ({
         toast.success("You posted successfully!");
         setMediaFiles([]);
         setPostContent("");
-        setIsPosting(true);
+        // setIsPosting(true);
         router.push("/");
+        triggerFeedRefetch();
         closeModal();
       }
       if (data?.state === "not-allowed") {
@@ -205,8 +206,9 @@ const PostFeed = ({
         toast.success("You posted successfully!");
         setMediaFiles([]);
         setPostContent("");
-        setIsPosting(true);
-        router.push("/?tab=feed");
+        // setIsPosting(true);
+        router.push("/");
+        triggerFeedRefetch();
         closeModal();
       }
       if (data?.state === "not-allowed") {

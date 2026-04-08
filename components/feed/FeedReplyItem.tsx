@@ -50,7 +50,7 @@ interface FeedItemProps {
   isFromFeedDetailsPage?: boolean;
 }
 
-const FeedItem = memo(
+const FeedReplyItem = memo(
   ({
     feed,
     userId,
@@ -119,7 +119,7 @@ const FeedItem = memo(
     const router = useRouter();
 
     return (
-      <div className="flex gap-2 border-b border-gray-200 py-4">
+      <div className="flex gap-2 border-b border-gray-200 pb-4">
         <Link
           href={`/sp/${feed?.smartsiteId?.ens || feed?.smartsiteEnsName}`}
           className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center"
@@ -185,10 +185,9 @@ const FeedItem = memo(
                 />
               )}
 
-              {(feed.postType === "post" || feed.postType === "repost") &&
+              {/* {(feed.postType === "post" || feed.postType === "repost") &&
                 feed.content.title && (
                   <div className="w-full text-start">
-                    {/* Render Post Content */}
                     {(feed.postType === "post" || feed.postType === "repost") &&
                       feed.content.title && (
                         <div className="w-full text-start">
@@ -202,7 +201,18 @@ const FeedItem = memo(
                         </div>
                       )}
                   </div>
-                )}
+                )} */}
+
+              {/* Post Content */}
+              {feed && feed.title && (
+                <div className="w-full text-start">
+                  {feed.title.split("\n").map((line: string, index: number) => (
+                    <p className="break-text" key={index}>
+                      {makeLinksClickable(line)}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               {/* Swap Transaction Content */}
               {feed.postType === "swapTransaction" && (
@@ -351,11 +361,9 @@ const FeedItem = memo(
 
           {/* Post Media */}
           <div>
-            {feed.postType === "post" &&
-              feed.content.post_content &&
-              feed.content.post_content.length > 0 && (
-                <PostTypeMedia mediaFiles={feed.content.post_content} />
-              )}
+            {feed.post_content && feed.post_content.length > 0 && (
+              <PostTypeMedia mediaFiles={feed.post_content} />
+            )}
             {feed.postType === "minting" && (
               <div className="w-max">
                 <p>{feed.content.title}</p>
@@ -429,6 +437,6 @@ const FeedItem = memo(
   },
 );
 
-FeedItem.displayName = "FeedItem";
+FeedReplyItem.displayName = "FeedReplyItem";
 
-export default FeedItem;
+export default FeedReplyItem;

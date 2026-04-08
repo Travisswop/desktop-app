@@ -1,17 +1,13 @@
 "use client";
 
-import React, { Suspense, useState, useMemo } from "react";
+import React, { Suspense, useMemo } from "react";
 import Feed from "./Feed";
-// import Timeline from "./Timeline";
-// import Transaction from "./Transaction";
 import { useUser } from "@/lib/UserContext";
 import { useSearchParams } from "next/navigation";
 import SpotlightMap from "./SpotlightMap";
-// import Ledger from "./Ledger";
 import PostFeed from "./PostFeed";
 import CustomModal from "../modal/CustomModal";
 import { useModalStore } from "@/zustandStore/modalstore";
-import { logger } from "ethers5";
 
 const CONTAINER_WIDTH = "w-full sm:w-[520px]";
 
@@ -23,9 +19,6 @@ type FeedMainProps = {
 
 const TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   feed: Feed,
-  //   timeline: Timeline,
-  //   transaction: Transaction,
-  //   ledger: Ledger,
   map: SpotlightMap,
 };
 
@@ -37,10 +30,6 @@ export default function FeedMainV2({
   const { user } = useUser();
   const searchParams = useSearchParams();
   const { isOpen, closeModal } = useModalStore();
-
-  const [isPosting, setIsPosting] = useState(false);
-  logger.info("FeedMainV2 rendered with isPosting:", isPosting);
-  const [isPostLoading, setIsPostLoading] = useState(false);
 
   const tab = searchParams?.get("tab") || "feed";
 
@@ -62,8 +51,6 @@ export default function FeedMainV2({
             primaryMicrositeImg={primaryMicrositeImg}
             userId={userId}
             token={accessToken}
-            setIsPosting={setIsPosting}
-            setIsPostLoading={setIsPostLoading}
           />
         </CustomModal>
 
@@ -72,10 +59,6 @@ export default function FeedMainV2({
             accessToken={accessToken}
             userId={userId}
             initialFeedData={initialFeedData}
-            isPosting={isPosting}
-            setIsPosting={setIsPosting}
-            isPostLoading={isPostLoading}
-            setIsPostLoading={setIsPostLoading}
           />
         </Suspense>
       </div>

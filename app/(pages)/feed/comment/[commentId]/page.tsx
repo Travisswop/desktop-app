@@ -1,5 +1,6 @@
 import { getCommentDetails } from "@/actions/postFeed";
 import FeedDetailsClient from "@/components/feed/FeedDetailsClient";
+import FeedReplyDetailsClient from "@/components/feed/FeedReplyDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
 import { Metadata, ResolvingMetadata } from "next";
 import { cookies } from "next/headers";
@@ -106,7 +107,7 @@ const FeedCommentDetailsPage = async ({
       <div className="w-full sm:w-[520px] overflow-y-auto">
         <Suspense fallback={<FeedLoading />}>
           {commentData && (
-            <FeedDetailsClient
+            <FeedReplyDetailsClient
               feedData={commentData.data}
               userId={userId || ""}
               accessToken={accessToken || ""}

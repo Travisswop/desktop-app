@@ -1,16 +1,14 @@
 "use client";
 
 import { getUserFeed } from "@/actions/postFeed";
-import Image from "next/image";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import dayjs from "dayjs";
-import { useDisclosure } from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
-import RedeemClaimModal from "../modal/RedeemClaim";
 import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
-import { formatEns } from "@/lib/formatEnsName";
+import { useModalStore } from "@/zustandStore/modalstore";
+import InfiniteScroll from "react-infinite-scroll-component";
 
 dayjs.extend(relativeTime);
 
@@ -20,168 +18,118 @@ export default function Feed({
   accessToken,
   userId,
   initialFeedData,
-  setIsPosting,
-  isPosting,
-  setIsPostLoading,
-}: any) {
+}: {
+  accessToken: string;
+  userId: string;
+  initialFeedData?: any;
+}) {
   const initialArray = initialFeedData?.data ?? [];
-  const totalPages = initialFeedData?.pagination?.totalPages ?? 1;
+  const initialTotalPages = initialFeedData?.pagination?.totalPages ?? 1;
+
+  const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
 
   const [feedData, setFeedData] = useState(initialArray);
-  const [hasMore, setHasMore] = useState(
-    initialArray.length > 0 && totalPages > 1,
-  );
   const [initialLoading, setInitialLoading] = useState(
     initialArray.length === 0,
   );
-  // const [isModalOpen, setIsModalOpen] = useState(false);
-  // const [redeemFeedData, setRedeemFeedData] = useState({});
 
-  const observerRef = useRef(null);
-  const isFetching = useRef(false);
+  const [hasMore, setHasMore] = useState(
+    initialArray.length > 0 && initialTotalPages > 1,
+  );
+
   const pageRef = useRef(initialArray.length > 0 ? 2 : 1);
-  const hasMoreRef = useRef(hasMore);
-
-  // const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   const fetchFeedData = useCallback(
     async (reset = false) => {
-      if (isFetching.current) return;
-      if (!reset && !hasMoreRef.current) return;
+      // console.log("reset", reset);
 
-      isFetching.current = true;
+      if (!reset && !hasMore) return;
+
       try {
         const currentPage = reset ? 1 : pageRef.current;
-        const url = `${API_URL}/api/v2/feed/user/connect/${userId}?page=${currentPage}&limit=5`;
+
+        const url = `${API_URL}/api/v2/feed/user/connect/${userId}?page=${currentPage}&limit=10`;
+        console.log("fetch url", url);
+
         const response = await getUserFeed(url, accessToken);
+
         const data = response?.data ?? [];
-        const respTotalPages = response?.pagination?.totalPages ?? 1;
+        // const totalPages = response?.pagination?.totalPages ?? 1;
 
         if (reset) {
           setFeedData(data);
           pageRef.current = 2;
-          const more = 2 <= respTotalPages;
-          setHasMore(more);
-          hasMoreRef.current = more;
-          if (isPosting) setIsPosting(false);
+          setHasMore(initialTotalPages > pageRef.current);
         } else {
-          if (data.length === 0) {
-            setHasMore(false);
-            hasMoreRef.current = false;
-          } else {
-            setFeedData((prev) => [...prev, ...data]);
-            pageRef.current += 1;
-            const more = pageRef.current <= respTotalPages;
-            setHasMore(more);
-            hasMoreRef.current = more;
-          }
+          setFeedData((prev: any[]) => [...prev, ...data]);
+          pageRef.current += 1;
+
+          // ✅ safer logic
+          setHasMore(pageRef.current <= initialTotalPages);
         }
-        setInitialLoading(false);
       } catch (error) {
-        console.error("Error fetching feed data:", error);
+        console.error(error);
         setHasMore(false);
-        hasMoreRef.current = false;
-        setInitialLoading(false);
-        if (isPosting) setIsPosting(false);
       } finally {
-        setIsPostLoading(false);
-        isFetching.current = false;
+        setInitialLoading(false);
       }
     },
-    [accessToken, userId, isPosting, setIsPosting, setIsPostLoading],
+    [hasMore, userId, accessToken, initialTotalPages],
   );
 
-  // Fetch on mount only if no initial data
+  // initial load
   useEffect(() => {
-    if (initialArray.length === 0) fetchFeedData();
-  }, []);
+    if (initialArray.length === 0) {
+      fetchFeedData();
+    }
+  }, [fetchFeedData, initialArray.length]);
 
-  // Refetch on new post / delete
+  // refetch trigger
   useEffect(() => {
-    if (!isPosting) return;
-    isFetching.current = false;
+    if (feedRefetchTrigger === 0) return;
+
     pageRef.current = 1;
     setHasMore(true);
-    hasMoreRef.current = true;
-    setIsPostLoading(true);
     fetchFeedData(true);
-  }, [isPosting]);
+  }, [feedRefetchTrigger, fetchFeedData]);
 
-  // Infinite scroll
-  useEffect(() => {
-    if (!hasMore || !observerRef.current) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isFetching.current && hasMoreRef.current) {
-          fetchFeedData();
-        }
-      },
-      { threshold: 0.1 },
+  if (initialLoading) {
+    return (
+      <div className="w-full sm:w-[520px]">
+        <FeedMainComponentLoading />
+      </div>
     );
-    observer.observe(observerRef.current);
-    return () => observer.disconnect();
-  }, [feedData, fetchFeedData]);
-
-  const handlePostInteraction = useCallback((postId, updates) => {
-    setFeedData((current) =>
-      current.map((item) => {
-        if (item._id === postId || item.repostedPostDetails?._id === postId) {
-          if (item.postType === "repost" && item.repostedPostDetails) {
-            return {
-              ...item,
-              repostedPostDetails: {
-                ...item.repostedPostDetails,
-                content: { ...item.repostedPostDetails.content, ...updates },
-              },
-            };
-          }
-          return { ...item, ...updates };
-        }
-        return item;
-      }),
-    );
-  }, []);
+  }
 
   return (
     <div className="w-full flex gap-10">
       <div className="w-full flex flex-col gap-4">
-        {feedData.map((feed) => (
-          <FeedItem
-            key={feed._id}
-            feed={feed}
-            userId={userId}
-            accessToken={accessToken}
-            // onRedeemModalOpen={(data) => {
-            //   onOpen();
-            //   setIsModalOpen(true);
-            //   setRedeemFeedData(data);
-            // }}
-            onRepostSuccess={() => {}}
-            onDeleteSuccess={() => setIsPosting(true)}
-            onPostInteraction={handlePostInteraction}
-          />
-        ))}
-
-        {hasMore && (
-          <div ref={observerRef}>
-            {initialLoading ? (
-              <div className="w-full sm:w-[520px]">
-                <FeedMainComponentLoading />
-              </div>
-            ) : (
-              <FeedLoading />
-            )}
-          </div>
-        )}
+        <InfiniteScroll
+          dataLength={feedData.length} // 🔥 VERY IMPORTANT
+          next={fetchFeedData}
+          hasMore={hasMore}
+          loader={<FeedLoading />}
+          endMessage={
+            <p className="text-center text-sm text-gray-500">No more posts</p>
+          }
+        >
+          {feedData.map((feed: any) => (
+            <FeedItem
+              key={feed._id}
+              feed={feed}
+              userId={userId}
+              accessToken={accessToken}
+              onRepostSuccess={() => {}}
+              onDeleteSuccess={() => {
+                pageRef.current = 1;
+                setHasMore(true);
+                fetchFeedData(true);
+              }}
+              onPostInteraction={() => {}}
+            />
+          ))}
+        </InfiniteScroll>
       </div>
-
-      {/* {isModalOpen && (
-        <RedeemClaimModal
-          isOpen={isOpen}
-          onOpenChange={onOpenChange}
-          redeemFeedData={redeemFeedData}
-        />
-      )} */}
     </div>
   );
 }

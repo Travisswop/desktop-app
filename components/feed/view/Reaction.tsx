@@ -92,7 +92,9 @@ const Reaction = memo(
     const [smartsiteId, setSmartsiteId] = useState(""); // Trigger for the animation
     const [primarySmartsiteData, setPrimarySmartsiteData] = useState(null); // Store the primary smartsite data
     const [isCommentInputOpen, setIsCommentInputOpen] = useState(false);
-    const [latestCommentCount, setLatestCommentCount] = useState(commentCount);
+    const [latestCommentCount, setLatestCommentCount] = useState(
+      commentCount || 0,
+    );
     const [isPopOpen, setIsPopOpen] = useState(false);
     const [isRepostPopOpen, setIsRepostPopOpen] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
@@ -316,7 +318,7 @@ const Reaction = memo(
             // commentCount={latestCommentCount ? latestCommentCount : commentCount}
             isCommentInputOpen={isCommentInputOpen}
             setIsCommentInputOpen={setIsCommentInputOpen}
-            isFromFeedDetails={isFromFeedDetails}
+            // isFromFeedDetails={isFromFeedDetails}
           />
           {/* repost */}
           <Popover
@@ -638,8 +640,8 @@ const Reaction = memo(
                             });
                             onClose();
                           }}
-                          autoFocus
-                          compact={false}
+                          // autoFocus
+                          // compact={false}
                         />
                       </div>
                     </div>

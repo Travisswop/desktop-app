@@ -114,25 +114,27 @@ export default function CommentItem({
 
       {/* ── Right column: all content ──────────────────────────────────────── */}
       <div className="flex-1 min-w-0 pb-1">
-        {/* Header */}
-        <div className="flex items-baseline gap-1.5 flex-wrap">
-          <p className="font-bold text-[15px] text-gray-900 ">{userName}</p>
-          <span className="text-[14px] text-gray-500">·</span>
-          {ensName && (
-            <span className="text-[14px] text-gray-500">{ensName}</span>
-          )}
-          <span className="text-[14px] text-gray-500">·</span>
-          <span className="text-[14px] text-gray-500">
-            {dayjs(comment.createdAt).fromNow()}
-          </span>
-        </div>
+        <Link href={`/feed/comment/${comment._id}`}>
+          {/* Header */}
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <p className="font-bold text-[15px] text-gray-900 ">{userName}</p>
+            <span className="text-[14px] text-gray-500">·</span>
+            {ensName && (
+              <span className="text-[14px] text-gray-500">{ensName}</span>
+            )}
+            <span className="text-[14px] text-gray-500">·</span>
+            <span className="text-[14px] text-gray-500">
+              {dayjs(comment.createdAt).fromNow()}
+            </span>
+          </div>
 
-        {/* Text body */}
-        {comment.title && (
-          <p className="text-[15px] text-gray-900 leading-normal mt-0.5 whitespace-pre-wrap break-words">
-            {comment.title}
-          </p>
-        )}
+          {/* Text body */}
+          {comment.title && (
+            <p className="text-[15px] text-gray-900 leading-normal mt-0.5 whitespace-pre-wrap break-words">
+              {comment.title}
+            </p>
+          )}
+        </Link>
 
         {/* Media grid — exactly like X */}
         {comment.post_content && comment.post_content.length > 0 && (

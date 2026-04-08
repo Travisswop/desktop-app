@@ -11,7 +11,6 @@ import { useUser } from "@/lib/UserContext";
 import toast from "react-hot-toast";
 import CommentImagePicker from "./SelectImage";
 import CommentGifPickerContent from "./GifPicker";
-import Emoji from "../Emoji";
 import CommentEmoji from "../CommentEmoji";
 import { logger } from "ethers5";
 
@@ -21,23 +20,9 @@ interface CommentInputProps {
   latestCommentCount: number;
   setLatestCommentCount: (count: number | ((prev: number) => number)) => void;
   onCommentSubmitted?: (newTotalCommentCount: number) => void;
-  parentCommentId?: string;
+  parentCommentId?: string | null;
   placeholder?: string;
 }
-
-const getFirstDuplicate = (s: string) => {
-  const splitValues = s.split("");
-  let duplicateStr = null;
-  let initialStr = splitValues[0];
-  for (let i = 1; i < splitValues.length; i++) {
-    if (splitValues[i] === initialStr) {
-      return (duplicateStr = splitValues[i]);
-    } else {
-      initialStr = splitValues[i];
-    }
-  }
-  return duplicateStr;
-};
 
 const MAX_LENGTH = 280;
 
@@ -47,7 +32,7 @@ export default function CommentInput({
   latestCommentCount,
   setLatestCommentCount,
   onCommentSubmitted,
-  parentCommentId = "",
+  parentCommentId = null,
   placeholder = "Post your reply...",
 }: CommentInputProps) {
   const { postContent, setPostContent, removeContent } =
@@ -100,7 +85,7 @@ export default function CommentInput({
       const response = await postComment(
         {
           postId,
-          parentCommentId: parentCommentId || "",
+          parentCommentId: parentCommentId || null,
           userId: user?._id,
           smartsiteId: user?.primaryMicrosite,
           // smartsiteUserName: "john_doe",
@@ -113,7 +98,7 @@ export default function CommentInput({
         accessToken,
       );
 
-      // console.log("Comment posted successfully:", response);
+      console.log("Comment posted successfully:", response);
       toast.success("Comment posted successfully!");
 
       // Reset state after successful post

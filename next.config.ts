@@ -126,6 +126,8 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.githubusercontent.com" },
       { protocol: "https", hostname: "media.tenor.com" },
       { protocol: "https", hostname: "xstocks-metadata.backed.fi" },
+      { protocol: "https", hostname: "www.prestocks.com" },
+      { protocol: "https", hostname: "gateway.pinata.cloud" },
     ],
   },
 
