@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { DialogTitle } from '@radix-ui/react-dialog';
 import { TokenData } from '@/types/token';
 import { ArrowUpDown } from 'lucide-react';
@@ -317,7 +318,7 @@ export default function SendBankToken({
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full">
                   <Image
-                    src={token.logoURI}
+                    src={sanitizeNextImageSrc(token.logoURI)}
                     alt={token.name}
                     width={52}
                     height={52}
@@ -416,7 +417,7 @@ export default function SendBankToken({
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full">
                   <Image
-                    src={token.logoURI}
+                    src={sanitizeNextImageSrc(token.logoURI)}
                     alt={token.name}
                     width={52}
                     height={52}

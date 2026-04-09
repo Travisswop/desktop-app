@@ -34,6 +34,7 @@ import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { formatPolymarketError } from '@/lib/polymarket';
 import { getLifiDepositQuote } from '@/actions/lifiForTokenSwap';
 import Image from 'next/image';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import {
   erc20Abi,
   parseUnits,
@@ -1152,7 +1153,7 @@ export default function DepositModal({
                   <div className="relative">
                     {token.logoURI ? (
                       <Image
-                        src={token.logoURI}
+                        src={sanitizeNextImageSrc(token.logoURI)}
                         alt={token.symbol}
                         width={40}
                         height={40}
@@ -1229,7 +1230,7 @@ export default function DepositModal({
               <div className="relative">
                 {selectedToken?.logoURI ? (
                   <Image
-                    src={selectedToken.logoURI}
+                    src={sanitizeNextImageSrc(selectedToken.logoURI)}
                     alt={selectedToken.symbol}
                     width={40}
                     height={40}

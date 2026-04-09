@@ -54,8 +54,10 @@ export async function POST(request: NextRequest) {
     // const result = NextResponse.json({ success: true, token: data.token });
     result.cookies.set("access-token", data.token, {
       httpOnly: true,
-      secure: true,
-      sameSite: "strict",
+      // In local dev (http://localhost), `secure: true` prevents the cookie
+      // from being set/sent, which breaks authenticated Next API routes.
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 86400, // 24 hours
     });
 

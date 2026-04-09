@@ -14,6 +14,7 @@ import Image from 'next/image';
 import { TokenData } from '@/types/token';
 import { NFT } from '@/types/nft';
 import toast from 'react-hot-toast';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 
 interface AssetSelectorProps {
   open: boolean;
@@ -75,7 +76,7 @@ export default function BankAssetSelector({
         <div className="flex items-center gap-3">
           {asset.logoURI && (
             <Image
-              src={asset.logoURI}
+              src={sanitizeNextImageSrc(asset.logoURI)}
               alt={asset.symbol || ''}
               width={40}
               height={40}
@@ -115,7 +116,7 @@ export default function BankAssetSelector({
         <div className="flex items-center gap-3">
           {nft.image && (
             <Image
-              src={nft.image}
+              src={sanitizeNextImageSrc(nft.image)}
               alt={nft.name || ''}
               width={40}
               height={40}

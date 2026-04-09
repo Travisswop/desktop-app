@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 
 interface TokenImageProps {
   src?: string;
@@ -25,11 +26,15 @@ const TokenImage = ({
     setImageError(true);
   };
 
+  const safeSrc = sanitizeNextImageSrc(src);
+  const safeFallbackSrc =
+    sanitizeNextImageSrc(fallbackSrc) || '/images/placeholder-photo.png';
+
   // If no src provided or image failed to load, show fallback
-  if (!src || imageError) {
+  if (!safeSrc || imageError) {
     return (
       <Image
-        src={fallbackSrc}
+        src={safeFallbackSrc}
         alt={alt}
         width={width}
         height={height}
@@ -45,7 +50,7 @@ const TokenImage = ({
   // Render the Image component with error handling
   return (
     <Image
-      src={src}
+      src={safeSrc}
       alt={alt}
       width={width}
       height={height}

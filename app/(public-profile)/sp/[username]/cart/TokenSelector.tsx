@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 import Image from 'next/image';
 import { TokenData } from '@/types/token';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 
 export default function TokenSelector({
   assets,
@@ -39,7 +40,7 @@ export default function TokenSelector({
         <div className="flex items-center gap-3">
           {asset.logoURI && (
             <Image
-              src={asset.logoURI}
+              src={sanitizeNextImageSrc(asset.logoURI)}
               alt={asset.symbol || ''}
               width={40}
               height={40}

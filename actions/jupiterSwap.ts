@@ -92,6 +92,20 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
       };
     }
 
+    // Jupiter pre-simulates the transaction server-side; if it already knows
+    // the transaction will fail, bail out immediately with the reason.
+    if (buildData.simulationError) {
+      console.error('Jupiter simulation error:', buildData.simulationError);
+      return {
+        success: false,
+        error:
+          typeof buildData.simulationError === 'string'
+            ? buildData.simulationError
+            : buildData.simulationError?.error ||
+              'Swap simulation failed. Please try again or adjust slippage.',
+      };
+    }
+
     return { success: true, data: buildData };
   } catch (error: any) {
     console.error('Error getting Jupiter build:', error);

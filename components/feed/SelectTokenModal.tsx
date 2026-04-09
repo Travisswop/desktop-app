@@ -4,6 +4,7 @@ import CustomModal from "../modal/CustomModal";
 import { Check } from "lucide-react";
 import isUrl from "@/lib/isUrl";
 import { toFixedTruncate } from "@/lib/fixedTruncateNumber";
+import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 
 interface Token {
   name: string;
@@ -77,11 +78,11 @@ const SelectTokenModal: React.FC<SelectTokenModalProps> = ({
               <div className="flex items-center space-x-3">
                 {isUrl(token?.marketData?.iconUrl) ? (
                   <Image
-                    src={
+                    src={sanitizeNextImageSrc(
                       token?.marketData?.iconUrl ||
-                      token.logoURI ||
-                      "/icons/default.png"
-                    }
+                        token.logoURI ||
+                        "/icons/default.png",
+                    )}
                     alt={token.name}
                     width={120}
                     height={120}
@@ -89,7 +90,9 @@ const SelectTokenModal: React.FC<SelectTokenModalProps> = ({
                   />
                 ) : (
                   <Image
-                    src={token.logoURI || "/icons/default.png"}
+                    src={sanitizeNextImageSrc(
+                      token.logoURI || "/icons/default.png",
+                    )}
                     alt={token.name}
                     width={120}
                     height={120}

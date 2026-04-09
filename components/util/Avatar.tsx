@@ -1,5 +1,6 @@
 import Image from "next/image";
 import React from "react";
+import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 
 interface IAvatar {
   src: string;
@@ -16,10 +17,13 @@ const UserImageAvatar = ({
   height = 100,
   className = "w-12 h-12 rounded-full bg-red-300 overflow-hidden",
 }: IAvatar) => {
+  const safeSrc =
+    sanitizeNextImageSrc(src) || "/images/placeholder-photo.png";
+
   return (
     <div className={className}>
       <Image
-        src={src}
+        src={safeSrc}
         alt={alt}
         width={width}
         height={height}

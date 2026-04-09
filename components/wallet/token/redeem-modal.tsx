@@ -562,6 +562,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Image from "next/image";
+import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
@@ -731,7 +732,7 @@ function TokenSelector({
               <div className="w-9 h-9 rounded-full bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center border border-gray-200">
                 {token.logo || token.logoURI ? (
                   <Image
-                    src={(token.logo ?? token.logoURI)!}
+                    src={sanitizeNextImageSrc((token.logo ?? token.logoURI)!)}
                     alt={token.symbol}
                     width={36}
                     height={36}
@@ -1157,7 +1158,7 @@ export default function RedeemModal(props: RedeemModalProps) {
                 </button>
               ) : logo ? (
                 <Image
-                  src={logo}
+                  src={sanitizeNextImageSrc(logo)}
                   alt={symbol ?? ""}
                   width={32}
                   height={32}
@@ -1195,7 +1196,7 @@ export default function RedeemModal(props: RedeemModalProps) {
                             <div className="w-5 h-5 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center shrink-0 border border-gray-300">
                               {logo ? (
                                 <Image
-                                  src={logo}
+                                  src={sanitizeNextImageSrc(logo)}
                                   alt={symbol ?? ""}
                                   width={20}
                                   height={20}

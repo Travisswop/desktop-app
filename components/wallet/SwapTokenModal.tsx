@@ -60,6 +60,7 @@ import {
 import { useSearchParams } from 'next/navigation';
 import bs58 from 'bs58';
 import { notifySwapFee } from '@/actions/notifySwapFee';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Chain / explorer helpers
@@ -141,11 +142,6 @@ const isNativeEvmToken = (token?: any) => {
     sym === 'AVAX' ||
     addr === '0x0000000000000000000000000000000000000000'
   );
-};
-
-const sanitizeImageUrl = (url: string | undefined): string => {
-  if (!url) return '';
-  return url.trim();
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -566,7 +562,7 @@ function TokenRow({
   };
 
   const imgSrc =
-    sanitizeImageUrl(token?.logoURI || token?.icon) ||
+    sanitizeNextImageSrc(token?.logoURI || token?.icon) ||
     getInitialSVG(token);
   // FIX: resolve network from token.network (set by filterTokensByCategory) first,
   // then fallback to chain field, then chainId
@@ -602,7 +598,7 @@ function TokenRow({
         {chainIconSrc && (
           <div className="absolute -bottom-0.5 -right-0.5 rounded-full w-4 h-4 flex items-center justify-center">
             <Image
-              src={sanitizeImageUrl(chainIconSrc)}
+              src={sanitizeNextImageSrc(chainIconSrc)}
               alt="chain"
               width={12}
               height={12}
@@ -658,7 +654,7 @@ function NetworkHeader({ network }: { network: string }) {
     <div className="flex items-center gap-2 px-4 pt-4 pb-2">
       {iconSrc && (
         <Image
-          src={sanitizeImageUrl(iconSrc)}
+          src={sanitizeNextImageSrc(iconSrc)}
           alt={network}
           width={16}
           height={16}
@@ -1380,22 +1376,25 @@ export default function SwapTokenModal({
         if (feeAccountResponse.ok) {
           const feeAccountData = await feeAccountResponse.json();
           const tokenProgramId = feeAccountData.tokenProgramId;
-          if (feeAccountData.tokenAccount) {
+          const isToken2022Input =
+            tokenProgramId === TOKEN_2022_PROGRAM_ID.toString();
+
+          // Jupiter's /swap/v2/build does not reliably support platform fees
+          // for Token-2022 tokens — the fee-deduction instruction can clash
+          // with transfer-fee / transfer-hook extensions and cause simulation
+          // failures.  Skip platform fees entirely for Token-2022 input mints.
+          if (!isToken2022Input && feeAccountData.tokenAccount) {
             const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
             if (rpcUrl) {
               const connection = new Connection(rpcUrl, {
                 commitment: 'confirmed',
                 confirmTransactionInitialTimeout: 60000,
               });
-              const programId =
-                tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
-                  ? TOKEN_2022_PROGRAM_ID
-                  : TOKEN_PROGRAM_ID;
               const accountInfo = await getAccount(
                 connection,
                 new PublicKey(feeAccountData.tokenAccount),
                 undefined,
-                programId,
+                TOKEN_PROGRAM_ID,
               );
               if (accountInfo)
                 feeAccount = feeAccountData.tokenAccount;
@@ -1407,6 +1406,28 @@ export default function SwapTokenModal({
           'Fee account verification failed, proceeding without platform fee:',
           e,
         );
+      }
+    }
+
+    // Also skip platform fees when the OUTPUT mint is Token-2022.
+    // Only do the RPC check if a fee account was actually resolved above
+    // — avoids an unnecessary network round-trip on every quote.
+    if (feeAccount) {
+      try {
+        const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+        if (rpcUrl) {
+          const conn = new Connection(rpcUrl, {
+            commitment: 'confirmed',
+          });
+          const mintInfo = await conn.getAccountInfo(
+            new PublicKey(outputMint),
+          );
+          if (mintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID)) {
+            feeAccount = undefined;
+          }
+        }
+      } catch {
+        // Non-fatal: leave feeAccount as-is if detection fails.
       }
     }
 
@@ -1761,6 +1782,25 @@ export default function SwapTokenModal({
         confirmTransactionInitialTimeout: 60000,
       });
 
+      // Detect whether the output mint uses Token-2022 so we know whether
+      // to skip Privy's preflight simulation.  Token-2022 tokens can have
+      // transfer-hook or transfer-fee extensions whose accounts are resolved
+      // by the Token-2022 program at runtime; Privy's static preflight
+      // simulation cannot see these accounts and therefore always fails for
+      // these tokens.  We skip preflight and rely on Jupiter's server-side
+      // simulation + Solana's on-chain execution instead.
+      let outputIsToken2022 = false;
+      try {
+        const outputMintInfo = await connection.getAccountInfo(
+          new PublicKey(outputMint),
+        );
+        outputIsToken2022 = Boolean(
+          outputMintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID),
+        );
+      } catch {
+        // Non-fatal — default to false (use preflight).
+      }
+
       // Warm up Privy session and run ATA pre-creation in parallel so neither
       // blocks the time-critical build → submit path.
       setSwapStatus('Preparing swap...');
@@ -1817,19 +1857,29 @@ export default function SwapTokenModal({
               ]);
 
             if (!inputAccountInfo || !outputAccountInfo) {
-              const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-              const createAta = async (mint: string) => {
+              const createAta = async (
+                mint: string,
+                tokenProgram: typeof TOKEN_PROGRAM_ID,
+              ) => {
+                const headers: Record<string, string> = {
+                  'Content-Type': 'application/json',
+                };
+                // Prefer cookie-based auth via Next API route; fall back to
+                // client token if available (e.g. when cookie isn't set yet).
+                if (accessToken) {
+                  headers.Authorization = `Bearer ${accessToken}`;
+                }
                 const resp = await fetch(
-                  `${apiUrl}/api/v5/wallet/ensure-user-token-account`,
+                  `/api/v5/wallet/ensure-user-token-account`,
                   {
                     method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      Authorization: `Bearer ${accessToken}`,
-                    },
+                    headers,
                     body: JSON.stringify({
                       userAddress: selectedSolanaWallet!.address,
                       mint,
+                      // Pass the detected program ID so the backend skips its
+                      // own on-chain detection round-trip for Token-2022 mints.
+                      tokenProgramId: tokenProgram.toString(),
                     }),
                   },
                 );
@@ -1842,9 +1892,11 @@ export default function SwapTokenModal({
                 }
               };
               await Promise.allSettled([
-                ...(!inputAccountInfo ? [createAta(inputMint)] : []),
+                ...(!inputAccountInfo
+                  ? [createAta(inputMint, inputTokenProgram)]
+                  : []),
                 ...(!outputAccountInfo
-                  ? [createAta(outputMint)]
+                  ? [createAta(outputMint, outputTokenProgram)]
                   : []),
               ]);
             }
@@ -1859,11 +1911,33 @@ export default function SwapTokenModal({
       ]);
 
       // Helper: build a VersionedTransaction from a Jupiter V2 build response.
-      const buildTransaction = (build: any): Uint8Array => {
+      // Always fetches a fresh blockhash from the RPC to avoid simulation
+      // failures caused by a stale blockhash embedded in the API response.
+      const buildTransaction = async (
+        build: any,
+      ): Promise<Uint8Array> => {
+        // Jupiter Ultra API v2 returns a pre-built serialised transaction in
+        // the `transaction` field (base64).  Older v1 endpoints use
+        // `swapTransaction`.  Prefer this path because it includes all
+        // compute-budget and setup instructions that Jupiter already optimised,
+        // and we avoid any instruction-reconstruction bugs.
+        const rawTxB64 = build.transaction ?? build.swapTransaction;
+        if (rawTxB64) {
+          const txBuffer = Buffer.from(rawTxB64, 'base64');
+          const tx = VersionedTransaction.deserialize(txBuffer);
+          // Always replace the embedded blockhash with a fresh one from the
+          // same connection that will be used by Privy for preflight/send,
+          // preventing "blockhash not found" or stale-blockhash failures.
+          const { blockhash } =
+            await connection.getLatestBlockhash('confirmed');
+          tx.message.recentBlockhash = blockhash;
+          return new Uint8Array(tx.serialize());
+        }
+
+        // Fallback: instruction-based response (older / non-Ultra endpoints).
         const {
           swapInstruction,
           otherInstructions = [],
-          blockhashWithMetadata,
           addressesByLookupTableAddress = {},
         } = build;
 
@@ -1909,10 +1983,11 @@ export default function SwapTokenModal({
             }),
         );
 
-        const rawBlockhash = blockhashWithMetadata.blockhash;
-        const recentBlockhash = Array.isArray(rawBlockhash)
-          ? bs58.encode(Buffer.from(rawBlockhash))
-          : rawBlockhash;
+        // Always fetch a fresh blockhash rather than relying on the one
+        // embedded in the API response, which may already be stale by the
+        // time simulation runs.
+        const { blockhash: recentBlockhash } =
+          await connection.getLatestBlockhash('confirmed');
 
         const message = new TransactionMessage({
           payerKey: new PublicKey(selectedSolanaWallet.address),
@@ -1929,11 +2004,24 @@ export default function SwapTokenModal({
       };
 
       const extractErrorText = (err: any) => {
+        // Solana simulation errors carry program logs inside `context.logs`
+        // (Privy / @solana/web3.js v2 shape) or `data.logs` (RPC raw shape).
+        const logs: string[] =
+          err?.context?.logs ??
+          err?.error?.context?.logs ??
+          err?.data?.logs ??
+          [];
+        if (logs.length) {
+          console.error('[Jupiter swap] simulation logs:', logs);
+        }
+
         const parts = [
           err?.message,
           err?.error?.message,
           err?.cause?.message,
           err?.data?.message,
+          // Surface the last program log line which usually names the error
+          logs.at(-1),
           err?.toString?.(),
         ]
           .filter(Boolean)
@@ -1961,11 +2049,30 @@ export default function SwapTokenModal({
       const submitTransaction = async (
         transaction: Uint8Array,
       ): Promise<string> => {
-        const result = await signAndSendTransaction({
-          transaction,
-          wallet: selectedSolanaWallet,
-        });
-        return bs58.encode(result.signature);
+        try {
+          const result = await signAndSendTransaction({
+            transaction,
+            wallet: selectedSolanaWallet,
+            // Skip Privy's preflight simulation for Token-2022 output tokens.
+            // Their transfer-hook / transfer-fee extension accounts are
+            // resolved at execution time by the on-chain program and are
+            // invisible to static preflight — causing false simulation
+            // failures.  Jupiter already simulated the tx server-side;
+            // the fresh blockhash and slippage guard protect against bad
+            // trades.
+            ...(outputIsToken2022 && {
+              options: { skipPreflight: true, sponsor: true },
+            }),
+          });
+          return bs58.encode(result.signature);
+        } catch (sendError: any) {
+          if (isSlippageError(sendError)) {
+            throw new Error(
+              `Price moved and exceeded slippage. Slippage has been increased to ${formatSlippagePct(baseSlippageBps)} — please review the updated quote and tap Swap again.`,
+            );
+          }
+          throw sendError;
+        }
       };
 
       const baseSlippageBps = Math.max(1, Math.floor(slippage * 100));
@@ -1995,11 +2102,15 @@ export default function SwapTokenModal({
       try {
         // Fetch a fresh quote immediately before building the transaction
         // so the slippage tolerance is as current as possible.
-        const freshQuote = await getJupiterQuote(true, attemptSlippageBps);
+        const freshQuote = await getJupiterQuote(
+          true,
+          attemptSlippageBps,
+        );
         if (freshQuote) activeQuote = freshQuote;
 
         setSwapStatus('Preparing swap transaction...');
-        const serializedTransaction = buildTransaction(activeQuote);
+        const serializedTransaction =
+          await buildTransaction(activeQuote);
 
         setSwapStatus('Signing and sending transaction...');
         txId = await submitTransaction(serializedTransaction);
@@ -2579,7 +2690,7 @@ export default function SwapTokenModal({
                 <div className="relative min-w-max">
                   {payToken?.logoURI && (
                     <Image
-                      src={sanitizeImageUrl(payToken.logoURI)}
+                      src={sanitizeNextImageSrc(payToken.logoURI)}
                       alt={payToken.symbol}
                       width={24}
                       height={24}
@@ -2589,7 +2700,7 @@ export default function SwapTokenModal({
                   {payToken?.chain && (
                     <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
                       <Image
-                        src={sanitizeImageUrl(
+                        src={sanitizeNextImageSrc(
                           getChainIcon(payToken.chain) || '',
                         )}
                         alt={payToken.chain}
@@ -2692,7 +2803,7 @@ export default function SwapTokenModal({
                   <div className="flex items-center">
                     <div className="relative min-w-max">
                       <Image
-                        src={sanitizeImageUrl(receiveToken.logoURI)}
+                        src={sanitizeNextImageSrc(receiveToken.logoURI)}
                         alt={receiveToken.symbol}
                         width={24}
                         height={24}
@@ -2706,7 +2817,7 @@ export default function SwapTokenModal({
                         return (
                           <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
                             <Image
-                              src={sanitizeImageUrl(
+                              src={sanitizeNextImageSrc(
                                 getChainIcon(chainName) || '',
                               )}
                               alt={chainName}
@@ -3014,7 +3125,7 @@ export default function SwapTokenModal({
                       >
                         {c.icon ? (
                           <Image
-                            src={sanitizeImageUrl(c.icon)}
+                            src={sanitizeNextImageSrc(c.icon)}
                             alt={c.name}
                             width={16}
                             height={16}
@@ -3130,7 +3241,7 @@ export default function SwapTokenModal({
                         >
                           {c.icon ? (
                             <Image
-                              src={sanitizeImageUrl(c.icon)}
+                              src={sanitizeNextImageSrc(c.icon)}
                               alt={c.name}
                               width={28}
                               height={28}

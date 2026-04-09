@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { TokenData } from '@/types/token';
 import { NFT } from '@/types/nft';
 import CustomModal from '@/components/modal/CustomModal';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 
 interface AssetSelectorProps {
   open: boolean;
@@ -57,11 +58,6 @@ export default function AssetSelector({
     return chainIcons[chainName.toUpperCase()] || null;
   };
 
-  const sanitizeImageUrl = (url: string | undefined): string => {
-    if (!url) return '';
-    return url.trim();
-  };
-
   const renderAssetItem = (asset: TokenData) => {
     if (!asset) return null;
     return (
@@ -90,7 +86,7 @@ export default function AssetSelector({
 
               <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
                 <Image
-                  src={sanitizeImageUrl(
+                  src={sanitizeNextImageSrc(
                     getChainIcon(asset.chain) || '',
                   )}
                   alt={asset.chain}
@@ -111,7 +107,7 @@ export default function AssetSelector({
             <div className="relative min-w-max">
               {(asset?.marketData?.image || asset?.logoURI) && (
                 <Image
-                  src={sanitizeImageUrl(
+                  src={sanitizeNextImageSrc(
                     asset?.marketData?.image || asset?.logoURI,
                   )}
                   alt={asset.symbol}
@@ -123,7 +119,7 @@ export default function AssetSelector({
               {asset?.chain && (
                 <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
                   <Image
-                    src={sanitizeImageUrl(
+                    src={sanitizeNextImageSrc(
                       getChainIcon(asset.chain) || '',
                     )}
                     alt={asset.chain}
@@ -169,7 +165,7 @@ export default function AssetSelector({
         <div className="flex items-center gap-3">
           {nft.image && (
             <Image
-              src={nft.image}
+              src={sanitizeNextImageSrc(nft.image)}
               alt={nft.name || ''}
               width={40}
               height={40}

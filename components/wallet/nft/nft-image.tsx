@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Image from "next/image";
+import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 
 interface NFTImageProps {
   src: string;
@@ -27,8 +28,10 @@ const NFTImage = ({
     setImageError(true);
   };
 
+  const safeSrc = sanitizeNextImageSrc(src);
+
   // If image failed to load, show placeholder
-  if (imageError) {
+  if (imageError || !safeSrc) {
     return (
       <Image
         src="/images/placeholder-nft.png"
@@ -43,7 +46,7 @@ const NFTImage = ({
   // Render the Image component with error handling
   return (
     <Image
-      src={src}
+      src={safeSrc}
       alt={alt}
       width={width}
       height={height}

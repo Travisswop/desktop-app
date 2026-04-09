@@ -31,6 +31,7 @@ import {
 import { polygon, mainnet, base } from 'viem/chains';
 import { useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import {
   Check,
   Loader2,
@@ -931,7 +932,7 @@ function DepositTab({
               <div className="relative">
                 {selectedToken.logoURI ? (
                   <Image
-                    src={selectedToken.logoURI}
+                    src={sanitizeNextImageSrc(selectedToken.logoURI)}
                     alt={selectedToken.symbol}
                     width={40}
                     height={40}
@@ -1231,7 +1232,7 @@ function DepositTab({
                   <div className="relative">
                     {token.logoURI ? (
                       <Image
-                        src={token.logoURI}
+                        src={sanitizeNextImageSrc(token.logoURI)}
                         alt={token.symbol}
                         width={40}
                         height={40}

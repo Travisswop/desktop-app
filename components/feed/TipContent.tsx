@@ -2,6 +2,7 @@
 import Image from "next/image";
 import CustomModal from "../modal/CustomModal";
 import isUrl from "@/lib/isUrl";
+import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useCallback } from "react";
 import SelectTokenModal from "./SelectTokenModal";
@@ -802,11 +803,11 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
                   <div className="bg-gray-100 p-2 rounded-full">
                     {isUrl(selectedToken?.marketData?.iconUrl) ? (
                       <Image
-                        src={
+                        src={sanitizeNextImageSrc(
                           selectedToken?.marketData?.iconUrl ||
-                          selectedToken.logoURI ||
-                          "/icons/default.png"
-                        }
+                            selectedToken.logoURI ||
+                            "/icons/default.png",
+                        )}
                         alt={selectedToken.name}
                         width={120}
                         height={120}
@@ -814,7 +815,9 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
                       />
                     ) : (
                       <Image
-                        src={selectedToken.logoURI || "/icons/default.png"}
+                        src={sanitizeNextImageSrc(
+                          selectedToken.logoURI || "/icons/default.png",
+                        )}
                         alt={selectedToken.name}
                         width={120}
                         height={120}
