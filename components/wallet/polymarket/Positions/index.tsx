@@ -8,6 +8,7 @@ import {
   useUserPositions,
   useActiveOrders,
   usePolygonBalances,
+  useNetDeposits,
   PolymarketPosition,
   type PolymarketMarket,
 } from '@/hooks/polymarket';
@@ -21,6 +22,7 @@ import PositionCard from './PositionCard';
 import OrderCard from '../Orders/OrderCard';
 import OrderPlacementModal from '../OrderModal';
 import MarketDetailModal from '../Markets/MarketDetailModal';
+import PositionOutcomeList from './PositionOutcomeList';
 
 import { createPollingInterval } from '@/lib/polymarket/polling';
 import {
@@ -68,6 +70,9 @@ export default function UserPositions() {
   } = useUserPositions(safeAddress as string | undefined);
 
   const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { data: netDeposits, isLoading: isNetDepositsLoading } = useNetDeposits(
+    safeAddress as string | undefined,
+  );
 
   // Limit orders are placed from the Safe (proxy) wallet, so maker_address matches
   // safeAddress — not eoaAddress.  Using eoaAddress here would always return [].
@@ -79,7 +84,7 @@ export default function UserPositions() {
   const [buyMorePosition, setBuyMorePosition] = useState<PolymarketPosition | null>(null);
   const [detailPosition, setDetailPosition] = useState<PolymarketPosition | null>(null);
 
-  const { redeemPosition, isRedeeming } = useRedeemPosition();
+  const { redeemPosition } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(clobClient, eoaAddress);
 
   // ── BTC 5-min position identification ────────────────────────────────────
@@ -227,12 +232,15 @@ export default function UserPositions() {
 
   // ── Portfolio stats ──────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    if (!activePositions.length) return { portfolioPct: 0, lifetimeEarned: 0, inOrdersValue: 0 };
+    const deposited = netDeposits?.totalDeposited ?? 0;
+    const withdrawn = netDeposits?.totalWithdrawn ?? 0;
+    const lifetimeEarned = usdcBalance + withdrawn - deposited;
+
+    if (!activePositions.length) return { portfolioPct: 0, lifetimeEarned, inOrdersValue: 0 };
 
     const totalInitial = activePositions.reduce((s, p) => s + (p.initialValue || p.avgPrice * p.size), 0);
     const totalPnl = activePositions.reduce((s, p) => s + p.cashPnl, 0);
     const portfolioPct = totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
-    const lifetimeEarned = activePositions.reduce((s, p) => s + p.cashPnl + p.realizedPnl, 0);
 
     const inOrdersValue = activeOrders
       .filter((o) => o.side === 'BUY')
@@ -242,7 +250,15 @@ export default function UserPositions() {
       }, 0);
 
     return { portfolioPct, lifetimeEarned, inOrdersValue };
-  }, [activePositions, activeOrders]);
+  }, [activePositions, activeOrders, netDeposits, usdcBalance]);
+
+  const hasOutcomes = useMemo(() => {
+    return (positions || []).some((p) => {
+      const totalBought = p.totalBought || 0;
+      const soldShares = Math.max(0, totalBought - (p.size || 0));
+      return totalBought > 0 && (soldShares > 0 || p.redeemable);
+    });
+  }, [positions]);
 
   if (isLoading) return <LoadingState message="Loading positions..." />;
   if (error) return <ErrorState error={error} title="Error loading positions" />;
@@ -283,6 +299,21 @@ export default function UserPositions() {
       );
     }
 
+    if (positions && hasOutcomes) {
+      return (
+        <div className="space-y-3">
+          <h3 className="text-lg font-bold text-gray-900 pt-1">Outcomes</h3>
+          <PositionOutcomeList
+            positions={positions}
+            walletAddress={safeAddress ?? undefined}
+            onRedeem={handleRedeem}
+            redeemingAsset={redeemingAsset}
+            canRedeem={!!relayClient}
+          />
+        </div>
+      );
+    }
+
     return (
       <EmptyState
         title="No Open Positions"
@@ -310,12 +341,24 @@ export default function UserPositions() {
           </p>
         </div>
 
-        {/* Lifetime Earned */}
+        {/* Lifetime P/L */}
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
-          <p className="text-xs text-gray-500 mb-1">Lifetime Earned</p>
-          <p className="text-xl font-bold text-gray-900">
-            ${stats.lifetimeEarned.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <p className="text-xs text-gray-500 mb-1">Lifetime P/L (vs deposits)</p>
+          <p className={`text-xl font-bold ${stats.lifetimeEarned >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+            {isNetDepositsLoading ? (
+              '…'
+            ) : (
+              <>
+                {stats.lifetimeEarned < 0 ? '-' : ''}$
+                {Math.abs(stats.lifetimeEarned).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </>
+            )}
           </p>
+          {!isNetDepositsLoading && netDeposits && (
+            <p className="text-[10px] text-gray-400 mt-1">
+              Deposited ${netDeposits.totalDeposited.toFixed(2)} • Withdrawn ${netDeposits.totalWithdrawn.toFixed(2)}
+            </p>
+          )}
         </div>
       </div>
 
@@ -370,6 +413,20 @@ export default function UserPositions() {
           );
         })}
       </div>
+
+      {/* ── Outcomes ──────────────────────────────────────────────────── */}
+      {hasOutcomes && (
+        <div className="space-y-3 pt-2">
+          <h3 className="text-lg font-bold text-gray-900 pt-1">Outcomes</h3>
+          <PositionOutcomeList
+            positions={positions}
+            walletAddress={safeAddress ?? undefined}
+            onRedeem={handleRedeem}
+            redeemingAsset={redeemingAsset}
+            canRedeem={!!relayClient}
+          />
+        </div>
+      )}
 
       {/* ── Buy More Modal ─────────────────────────────────────────────── */}
       {buyMorePosition && (() => {

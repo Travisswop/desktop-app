@@ -5,9 +5,8 @@ import { X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Portal from './shared/Portal';
 import PositionCard from './Positions/PositionCard';
-import SettledCard from './Positions/SettledCard';
 import OrderCard from './Orders/OrderCard';
-import TradeHistory from './Orders/TradeHistory';
+import PositionOutcomeList from './Positions/PositionOutcomeList';
 import OrderPlacementModal from './OrderModal';
 import MarketDetailModal from './Markets/MarketDetailModal';
 import {
@@ -16,6 +15,7 @@ import {
   useUserPositions,
   useActiveOrders,
   usePolygonBalances,
+  useNetDeposits,
   type PolymarketPosition,
   type PolymarketMarket,
 } from '@/hooks/polymarket';
@@ -109,8 +109,11 @@ export default function PredictionsPortfolioModal({
   const { data: positions } = useUserPositions(
     safeAddress as string | undefined,
   );
-  console.log('positions', positions);
+
   const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { data: netDeposits, isLoading: isNetDepositsLoading } = useNetDeposits(
+    safeAddress as string | undefined,
+  );
   const { data: activeOrders = [] } = useActiveOrders(
     clobClient,
     safeAddress,
@@ -150,18 +153,6 @@ export default function PredictionsPortfolioModal({
     [activePositions],
   );
 
-  // Settled history: ALL resolved positions — winners (redeemable) + losers
-  // (redeemable=false, effectively worth nothing). Sourced from the full raw
-  // positions array so losers that were filtered from activePositions are included.
-  const settledHistory = useMemo(() => {
-    if (!positions) return [];
-    return positions.filter(
-      (p) =>
-        p.size >= DUST_THRESHOLD &&
-        (p.redeemable || p.curPrice < DUST_THRESHOLD),
-    );
-  }, [positions]);
-
   const stats = useMemo(() => {
     const inOrdersValue = activeOrders
       .filter((o) => o.side === 'BUY')
@@ -171,8 +162,16 @@ export default function PredictionsPortfolioModal({
         return s + remaining * parseFloat(o.price);
       }, 0);
 
-    if (!activePositions.length)
-      return { portfolioPct: 0, lifetimeEarned: 0, inOrdersValue };
+    // Lifetime P/L (deposit-based):
+    // P/L = (current available USDC + withdrawn USDC) - total deposited USDC
+    // This matches the user's mental model: deposit $50 → available $40 => -$10.
+    const deposited = netDeposits?.totalDeposited ?? 0;
+    const withdrawn = netDeposits?.totalWithdrawn ?? 0;
+    const lifetimeEarned = usdcBalance + withdrawn - deposited;
+
+    if (!activePositions.length) {
+      return { portfolioPct: 0, lifetimeEarned, inOrdersValue };
+    }
 
     // portfolioPct reflects only open/live positions (not yet settled).
     // Settled positions should not distort the current portfolio percentage.
@@ -187,16 +186,8 @@ export default function PredictionsPortfolioModal({
     const portfolioPct =
       totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
 
-    // Lifetime P&L: sum cashPnl + realizedPnl across all API positions.
-    // cashPnl already correctly reflects losses (negative) and open gains.
-    const allApiPositions = positions || [];
-    const lifetimeEarned = allApiPositions.reduce(
-      (s, p) => s + p.cashPnl + p.realizedPnl,
-      0,
-    );
-
     return { portfolioPct, lifetimeEarned, inOrdersValue };
-  }, [positions, activePositions, activeOrders]);
+  }, [activePositions, activeOrders, netDeposits, usdcBalance]);
 
   const handleMarketSell = async (position: PolymarketPosition) => {
     setSellingAsset(position.asset);
@@ -357,26 +348,35 @@ export default function PredictionsPortfolioModal({
 
               <div className="bg-gray-50 rounded-2xl p-4">
                 <p className="text-xs text-gray-500 mb-1">
-                  {stats.lifetimeEarned >= 0
-                    ? 'Lifetime Earned'
-                    : 'Lifetime P&L'}
+                  Lifetime P/L (vs deposits)
                 </p>
                 <p
                   className={`text-xl font-bold ${
                     stats.lifetimeEarned >= 0
-                      ? 'text-gray-900'
+                      ? 'text-green-600'
                       : 'text-red-500'
                   }`}
                 >
-                  {stats.lifetimeEarned < 0 ? '-' : ''}$
-                  {Math.abs(stats.lifetimeEarned).toLocaleString(
-                    'en-US',
-                    {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    },
+                  {isNetDepositsLoading ? (
+                    '…'
+                  ) : (
+                    <>
+                      {stats.lifetimeEarned < 0 ? '-' : ''}$
+                      {Math.abs(stats.lifetimeEarned).toLocaleString(
+                        'en-US',
+                        {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        },
+                      )}
+                    </>
                   )}
                 </p>
+                {!isNetDepositsLoading && netDeposits && (
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Deposited ${netDeposits.totalDeposited.toFixed(2)} • Withdrawn ${netDeposits.totalWithdrawn.toFixed(2)}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -483,33 +483,15 @@ export default function PredictionsPortfolioModal({
             {/* Order History tab */}
             {activeTab === 'history' && (
               <div className="space-y-3">
-                {/* Settled positions — winners and losers */}
-                {settledHistory.length > 0 && (
-                  <>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1">
-                      Settled ({settledHistory.length})
-                    </p>
-                    {settledHistory.map((position) => (
-                      <SettledCard
-                        key={`${position.conditionId}-${position.outcomeIndex}`}
-                        position={position}
-                        onRedeem={handleRedeem}
-                        isRedeeming={
-                          redeemingAsset === position.asset
-                        }
-                        canRedeem={!!relayClient}
-                      />
-                    ))}
-                    <div className="border-t border-gray-100 pt-1" />
-                  </>
-                )}
-
-                {/* Trade execution history from Data API */}
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                  Trades
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1">
+                  Outcomes
                 </p>
-                <TradeHistory
+                <PositionOutcomeList
+                  positions={positions || []}
                   walletAddress={safeAddress ?? undefined}
+                  onRedeem={handleRedeem}
+                  redeemingAsset={redeemingAsset}
+                  canRedeem={!!relayClient}
                 />
               </div>
             )}

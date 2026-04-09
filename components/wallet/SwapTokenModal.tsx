@@ -23,10 +23,7 @@ import {
   fetchTokensFromLiFi,
   getLifiQuote as fetchLifiQuote,
 } from '@/actions/lifiForTokenSwap';
-import {
-  getJupiterQuote as fetchJupiterQuote,
-  getJupiterSwapTransaction as fetchJupiterSwapTransaction,
-} from '@/actions/jupiterSwap';
+import { getJupiterBuild as fetchJupiterBuild } from '@/actions/jupiterSwap';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import {
   useWallets as useSolanaWallets,
@@ -42,6 +39,9 @@ import { arbitrum, base, bsc, mainnet, polygon } from 'viem/chains';
 import {
   Connection,
   VersionedTransaction,
+  TransactionMessage,
+  TransactionInstruction,
+  AddressLookupTableAccount,
   PublicKey,
 } from '@solana/web3.js';
 import {
@@ -346,7 +346,8 @@ const FALLBACK_CHAIN_TOKENS: Record<string, any[]> = {
       chain: 'POLYGON',
       chainId: '137',
       network: 'polygon',
-      logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/assets/0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174/logo.png',
+      logoURI:
+        'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/assets/0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174/logo.png',
     },
     {
       symbol: 'USDT',
@@ -356,7 +357,8 @@ const FALLBACK_CHAIN_TOKENS: Record<string, any[]> = {
       chain: 'POLYGON',
       chainId: '137',
       network: 'polygon',
-      logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/assets/0xc2132D05D31c914a87C6611C10748AEb04B58e8F/logo.png',
+      logoURI:
+        'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/assets/0xc2132D05D31c914a87C6611C10748AEb04B58e8F/logo.png',
     },
     {
       symbol: 'DAI',
@@ -366,19 +368,22 @@ const FALLBACK_CHAIN_TOKENS: Record<string, any[]> = {
       chain: 'POLYGON',
       chainId: '137',
       network: 'polygon',
-      logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/assets/0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063/logo.png',
+      logoURI:
+        'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/assets/0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063/logo.png',
     },
   ],
 };
 
 // Lowercased lookup tables for case-insensitive matching of token addresses/ids
-const tokenCategoryAddressesLower: Record<TokenCategory, Set<string>> =
-  Object.fromEntries(
-    Object.entries(tokenCategoryAddresses).map(([cat, set]) => [
-      cat,
-      new Set(Array.from(set).map((v) => v.toLowerCase())),
-    ]),
-  ) as Record<TokenCategory, Set<string>>;
+const tokenCategoryAddressesLower: Record<
+  TokenCategory,
+  Set<string>
+> = Object.fromEntries(
+  Object.entries(tokenCategoryAddresses).map(([cat, set]) => [
+    cat,
+    new Set(Array.from(set).map((v) => v.toLowerCase())),
+  ]),
+) as Record<TokenCategory, Set<string>>;
 
 /** Bucket a flat token array into the 4 categories – mirrors RN filterTokensByCategory */
 function filterTokensByCategory(
@@ -393,12 +398,17 @@ function filterTokensByCategory(
 
   tokenArray.forEach((token) => {
     // FIX: Use address OR id – Solana tokens from Jupiter use `id`, EVM use `address`
-    const identifier = (token.address || token.id || '').toLowerCase();
+    const identifier = (
+      token.address ||
+      token.id ||
+      ''
+    ).toLowerCase();
     if (!identifier) return;
 
     // Normalize chainId: prefer explicit chainId, else derive from chain/network string
     const derivedChainId =
-      token.chainId?.toString() ?? getChainId(token.chain ?? token.network ?? '');
+      token.chainId?.toString() ??
+      getChainId(token.chain ?? token.network ?? '');
     const network = getNetworkByChainId(derivedChainId);
     if (!network) return; // skip unknown chains
 
@@ -620,7 +630,10 @@ function TokenRow({
         <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
           {priceStr && (
             <span className="text-sm text-gray-500">
-              ${(parseFloat(token.balance) * parseFloat(priceStr)).toFixed(2)}
+              $
+              {(
+                parseFloat(token.balance) * parseFloat(priceStr)
+              ).toFixed(2)}
             </span>
           )}
           <span className="text-xs font-medium text-gray-700">
@@ -681,7 +694,9 @@ export default function SwapTokenModal({
 }) {
   // ── Core swap state ──────────────────────────────────────────────────────────
   const [payToken, setPayToken] = useState<any>(token || null);
-  const [receiveToken, setReceiveToken] = useState<any>(defaultReceiveToken || null);
+  const [receiveToken, setReceiveToken] = useState<any>(
+    defaultReceiveToken || null,
+  );
   const [payAmount, setPayAmount] = useState('');
   const [receiveAmount, setReceiveAmount] = useState('');
   const [openDrawer, setOpenDrawer] = useState(false);
@@ -697,7 +712,9 @@ export default function SwapTokenModal({
   // Quote & swap
   const [isCalculating, setIsCalculating] = useState(false);
   const [chainId, setChainId] = useState('1151111081099710');
-  const [receiverChainId, setReceiverChainId] = useState(defaultReceiveChainId || '137');
+  const [receiverChainId, setReceiverChainId] = useState(
+    defaultReceiveChainId || '137',
+  );
   const [quote, setQuote] = useState<any>(null);
   const [jupiterQuote, setJupiterQuote] = useState<any>(null);
   const [swapError, setSwapError] = useState<string | null>(null);
@@ -706,7 +723,7 @@ export default function SwapTokenModal({
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
 
   // Slippage
-  const [slippage, setSlippage] = useState(0.5);
+  const [slippage, setSlippage] = useState(3.0);
   const [customSlippage, setCustomSlippage] = useState('');
   const [showSlippageModal, setShowSlippageModal] = useState(false);
 
@@ -893,22 +910,33 @@ export default function SwapTokenModal({
   const toHex = (value: bigint) => `0x${value.toString(16)}`;
 
   const ensureEvmAllowance = useCallback(
-    async (
-      params: {
-        tokenAddress: string;
-        owner: string;
-        spender: string;
-        amountWei: string; // decimal string in smallest units
-        chainId: number;
-        provider: any; // EIP-1193 provider
-        walletClientType?: string;
-        switchChain?: (chainId: number) => Promise<void>;
-      },
-    ) => {
-      const { tokenAddress, owner, spender, amountWei, chainId, provider, walletClientType, switchChain } = params;
+    async (params: {
+      tokenAddress: string;
+      owner: string;
+      spender: string;
+      amountWei: string; // decimal string in smallest units
+      chainId: number;
+      provider: any; // EIP-1193 provider
+      walletClientType?: string;
+      switchChain?: (chainId: number) => Promise<void>;
+    }) => {
+      const {
+        tokenAddress,
+        owner,
+        spender,
+        amountWei,
+        chainId,
+        provider,
+        walletClientType,
+        switchChain,
+      } = params;
 
       // Native tokens (ETH/MATIC/BNB/…) require no allowance.
-      if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') return;
+      if (
+        !tokenAddress ||
+        tokenAddress === '0x0000000000000000000000000000000000000000'
+      )
+        return;
 
       const chain = getViemChain(chainId);
       if (!chain) throw new Error('Unsupported EVM chain');
@@ -952,16 +980,19 @@ export default function SwapTokenModal({
     const loadReceiveTokens = async () => {
       setReceiveDrawerLoading(true);
       try {
-        const [ethTokens, polygonTokens, baseTokens, solanaTokens, arbitrumTokens] =
-          await Promise.all([
-            fetchTokensFromLiFi('1', '').catch(() => []),
-            fetchTokensFromLiFi('137', '').catch(() => []),
-            fetchTokensFromLiFi('8453', '').catch(() => []),
-            fetchTokensFromLiFi('1151111081099710', '').catch(
-              () => [],
-            ),
-            fetchTokensFromLiFi('42161', '').catch(() => []),
-          ]);
+        const [
+          ethTokens,
+          polygonTokens,
+          baseTokens,
+          solanaTokens,
+          arbitrumTokens,
+        ] = await Promise.all([
+          fetchTokensFromLiFi('1', '').catch(() => []),
+          fetchTokensFromLiFi('137', '').catch(() => []),
+          fetchTokensFromLiFi('8453', '').catch(() => []),
+          fetchTokensFromLiFi('1151111081099710', '').catch(() => []),
+          fetchTokensFromLiFi('42161', '').catch(() => []),
+        ]);
 
         const toArr = (v: any) => (Array.isArray(v) ? v : []);
 
@@ -1046,7 +1077,9 @@ export default function SwapTokenModal({
 
     const categoryTokens = targetList[currentCategory] ?? [];
     const resolveNetwork = (t: any) => {
-      const cid = t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? '');
+      const cid =
+        t.chainId?.toString() ??
+        getChainId(t.chain ?? t.network ?? '');
       return getNetworkByChainId(cid);
     };
 
@@ -1070,7 +1103,8 @@ export default function SwapTokenModal({
           categoryTokensCount: categoryTokens.length,
         });
       }
-      let finalList = preferred.length > 0 ? preferred : tokensOnChain;
+      let finalList =
+        preferred.length > 0 ? preferred : tokensOnChain;
 
       // Fallback: inject curated stable tokens for this chain if still empty
       if (finalList.length === 0 && currentCategory === 'stable') {
@@ -1092,7 +1126,8 @@ export default function SwapTokenModal({
     // "All" chains selected → group by network (matches RN stable grouping,
     // extended to all categories so users can see which chain each token is on)
     const groupMap: Record<string, any[]> = {};
-    const tokensToGroup = categoryTokens.length > 0 ? categoryTokens : tempTokens;
+    const tokensToGroup =
+      categoryTokens.length > 0 ? categoryTokens : tempTokens;
 
     tokensToGroup.forEach((token) => {
       const net = token.network ?? resolveNetwork(token) ?? 'unknown';
@@ -1299,13 +1334,18 @@ export default function SwapTokenModal({
 
   // ── Quote fetching helpers ────────────────────────────────────────────────────
 
-  const getJupiterQuote = async () => {
+  const getJupiterQuote = async (
+    withFeeAccount = false,
+    slippageBpsOverride?: number,
+  ) => {
     if (!payToken || !receiveToken || !payAmount)
       throw new Error('Missing required parameters');
+    if (!selectedSolanaWallet?.address)
+      throw new Error('Solana wallet not connected');
     const getTokenMint = (t: any) =>
       t.symbol === 'SOL'
         ? 'So11111111111111111111111111111111111111112'
-        : t.address;
+        : t.address || t.id;
     const inputMint = getTokenMint(payToken);
     const outputMint = getTokenMint(receiveToken);
     if (!inputMint || !outputMint)
@@ -1314,71 +1354,74 @@ export default function SwapTokenModal({
       payAmount,
       payToken.decimals || 6,
     );
-    const slippageBps = Math.floor(slippage * 100);
-    const result = await fetchJupiterQuote({
+    const baseSlippageBps = Math.floor(slippage * 100);
+    const slippageBps = Math.min(
+      Math.max(
+        Math.round(
+          Number.isFinite(slippageBpsOverride as number)
+            ? (slippageBpsOverride as number)
+            : baseSlippageBps,
+        ),
+        1,
+      ),
+      5000,
+    );
+
+    let feeAccount: string | undefined;
+    if (withFeeAccount) {
+      try {
+        const feeAccountResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
+          {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+        if (feeAccountResponse.ok) {
+          const feeAccountData = await feeAccountResponse.json();
+          const tokenProgramId = feeAccountData.tokenProgramId;
+          if (feeAccountData.tokenAccount) {
+            const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+            if (rpcUrl) {
+              const connection = new Connection(rpcUrl, {
+                commitment: 'confirmed',
+                confirmTransactionInitialTimeout: 60000,
+              });
+              const programId =
+                tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
+                  ? TOKEN_2022_PROGRAM_ID
+                  : TOKEN_PROGRAM_ID;
+              const accountInfo = await getAccount(
+                connection,
+                new PublicKey(feeAccountData.tokenAccount),
+                undefined,
+                programId,
+              );
+              if (accountInfo)
+                feeAccount = feeAccountData.tokenAccount;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(
+          'Fee account verification failed, proceeding without platform fee:',
+          e,
+        );
+      }
+    }
+
+    const result = await fetchJupiterBuild({
       inputMint,
       outputMint,
       amount: amountInSmallestUnit,
+      taker: selectedSolanaWallet.address,
       slippageBps,
+      mode: 'fast',
       platformFeeBps: 50,
-    });
-    if (!result.success)
-      throw new Error(result.error || 'Failed to get Jupiter quote');
-    return result.data;
-  };
-
-  const getJupiterSwapTransaction = async (quoteResponse: any) => {
-    if (!selectedSolanaWallet?.address)
-      throw new Error('Solana wallet not connected');
-    const inputMint = quoteResponse.inputMint;
-    let feeAccount: string | undefined;
-    try {
-      const feeAccountResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/tokenAccount/${inputMint}`,
-        {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
-      if (feeAccountResponse.ok) {
-        const feeAccountData = await feeAccountResponse.json();
-        const tokenProgramId = feeAccountData.tokenProgramId;
-        if (feeAccountData.tokenAccount) {
-          const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
-          if (rpcUrl) {
-            const connection = new Connection(rpcUrl, {
-              commitment: 'confirmed',
-              confirmTransactionInitialTimeout: 60000,
-            });
-            const programId =
-              tokenProgramId === TOKEN_2022_PROGRAM_ID.toString()
-                ? TOKEN_2022_PROGRAM_ID
-                : TOKEN_PROGRAM_ID;
-            const accountInfo = await getAccount(
-              connection,
-              new PublicKey(feeAccountData.tokenAccount),
-              undefined,
-              programId,
-            );
-            if (accountInfo) feeAccount = feeAccountData.tokenAccount;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn(
-        'Fee account verification failed, proceeding without platform fee:',
-        e,
-      );
-    }
-    const result = await fetchJupiterSwapTransaction({
-      quoteResponse,
-      userPublicKey: selectedSolanaWallet.address,
       feeAccount,
     });
     if (!result.success)
-      throw new Error(
-        result.error || 'Failed to get swap transaction',
-      );
+      throw new Error(result.error || 'Failed to get Jupiter quote');
     return result.data;
   };
 
@@ -1634,7 +1677,7 @@ export default function SwapTokenModal({
           symbol: payToken?.symbol || q.inputMint,
           amount: parseFloat(payAmount),
           decimals: payToken?.decimals || 6,
-          mint: payToken?.address || q.inputMint,
+          mint: payToken?.address || payToken?.id || q.inputMint,
           price: payToken?.price || payToken?.usdPrice || '0',
           logo: payToken?.logoURI || payToken?.symbol || '',
         },
@@ -1642,7 +1685,8 @@ export default function SwapTokenModal({
           symbol: receiveToken?.symbol || q.outputMint,
           amount: parseFloat(receiveAmount),
           decimals: receiveToken?.decimals || 6,
-          mint: receiveToken?.address || q.outputMint,
+          mint:
+            receiveToken?.address || receiveToken?.id || q.outputMint,
           price: receiveToken?.price || receiveToken?.usdPrice || '0',
           logo: receiveToken?.logoURI || receiveToken?.symbol || '',
         },
@@ -1716,169 +1760,275 @@ export default function SwapTokenModal({
         commitment: 'confirmed',
         confirmTransactionInitialTimeout: 60000,
       });
-      setSwapStatus('Checking token accounts...');
 
-      const walletPubkey = new PublicKey(
-        selectedSolanaWallet.address,
-      );
-      const inputMintPubkey = new PublicKey(inputMint);
-      const outputMintPubkey = new PublicKey(outputMint);
+      // Warm up Privy session and run ATA pre-creation in parallel so neither
+      // blocks the time-critical build → submit path.
+      setSwapStatus('Preparing swap...');
+      await Promise.allSettled([
+        safeRefreshSession(),
+        (async () => {
+          try {
+            const walletPubkey = new PublicKey(
+              selectedSolanaWallet.address,
+            );
+            const inputMintPubkey = new PublicKey(inputMint);
+            const outputMintPubkey = new PublicKey(outputMint);
 
-      const detectTokenProgram = async (
-        mintPubkey: typeof PublicKey.prototype,
-      ) => {
-        try {
-          const mintInfo =
-            await connection.getAccountInfo(mintPubkey);
-          if (!mintInfo) return TOKEN_PROGRAM_ID;
-          if (mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID))
-            return TOKEN_2022_PROGRAM_ID;
-          return TOKEN_PROGRAM_ID;
-        } catch {
-          return TOKEN_PROGRAM_ID;
-        }
-      };
+            const detectTokenProgram = async (
+              mintPubkey: typeof PublicKey.prototype,
+            ) => {
+              try {
+                const mintInfo =
+                  await connection.getAccountInfo(mintPubkey);
+                if (!mintInfo) return TOKEN_PROGRAM_ID;
+                if (mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID))
+                  return TOKEN_2022_PROGRAM_ID;
+                return TOKEN_PROGRAM_ID;
+              } catch {
+                return TOKEN_PROGRAM_ID;
+              }
+            };
 
-      const [inputTokenProgram, outputTokenProgram] =
-        await Promise.all([
-          detectTokenProgram(inputMintPubkey),
-          detectTokenProgram(outputMintPubkey),
-        ]);
+            const [inputTokenProgram, outputTokenProgram] =
+              await Promise.all([
+                detectTokenProgram(inputMintPubkey),
+                detectTokenProgram(outputMintPubkey),
+              ]);
 
-      const inputATA = await getAssociatedTokenAddress(
-        inputMintPubkey,
-        walletPubkey,
-        false,
-        inputTokenProgram,
-      );
-      const outputATA = await getAssociatedTokenAddress(
-        outputMintPubkey,
-        walletPubkey,
-        false,
-        outputTokenProgram,
-      );
-      const [inputAccountInfo, outputAccountInfo] = await Promise.all(
-        [
-          connection.getAccountInfo(inputATA),
-          connection.getAccountInfo(outputATA),
-        ],
-      );
+            const [inputATA, outputATA] = await Promise.all([
+              getAssociatedTokenAddress(
+                inputMintPubkey,
+                walletPubkey,
+                false,
+                inputTokenProgram,
+              ),
+              getAssociatedTokenAddress(
+                outputMintPubkey,
+                walletPubkey,
+                false,
+                outputTokenProgram,
+              ),
+            ]);
 
-      // Create missing token accounts via the backend so the platform signer wallet
-      // pays the ATA rent (~0.002 SOL each). This means users with zero SOL can
-      // still swap — no SOL is ever required from the user's wallet.
-      if (!inputAccountInfo || !outputAccountInfo) {
-        setSwapStatus('Creating token accounts...');
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-        const createAtaRequests: Promise<void>[] = [];
+            const [inputAccountInfo, outputAccountInfo] =
+              await Promise.all([
+                connection.getAccountInfo(inputATA),
+                connection.getAccountInfo(outputATA),
+              ]);
 
-        const createAta = async (mint: string) => {
-          const resp = await fetch(
-            `${apiUrl}/api/v5/wallet/ensure-user-token-account`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${accessToken}`,
-              },
-              body: JSON.stringify({
-                userAddress: selectedSolanaWallet!.address,
-                mint,
-              }),
-            },
-          );
-          if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            throw new Error(
-              err?.message ||
-                `Failed to create token account for mint ${mint}`,
+            if (!inputAccountInfo || !outputAccountInfo) {
+              const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+              const createAta = async (mint: string) => {
+                const resp = await fetch(
+                  `${apiUrl}/api/v5/wallet/ensure-user-token-account`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${accessToken}`,
+                    },
+                    body: JSON.stringify({
+                      userAddress: selectedSolanaWallet!.address,
+                      mint,
+                    }),
+                  },
+                );
+                if (!resp.ok) {
+                  const err = await resp.json().catch(() => ({}));
+                  throw new Error(
+                    err?.message ||
+                      `Failed to create ATA for ${mint}`,
+                  );
+                }
+              };
+              await Promise.allSettled([
+                ...(!inputAccountInfo ? [createAta(inputMint)] : []),
+                ...(!outputAccountInfo
+                  ? [createAta(outputMint)]
+                  : []),
+              ]);
+            }
+          } catch (ataError) {
+            // Non-fatal: Jupiter's CreateIdempotent handles missing ATAs.
+            console.warn(
+              'ATA pre-creation failed, Jupiter will handle it:',
+              ataError,
             );
           }
+        })(),
+      ]);
+
+      // Helper: build a VersionedTransaction from a Jupiter V2 build response.
+      const buildTransaction = (build: any): Uint8Array => {
+        const {
+          swapInstruction,
+          otherInstructions = [],
+          blockhashWithMetadata,
+          addressesByLookupTableAddress = {},
+        } = build;
+
+        if (!swapInstruction)
+          throw new Error(
+            'No swap instruction received from Jupiter API',
+          );
+
+        const deserializeInstruction = (
+          ix: any,
+        ): TransactionInstruction => {
+          const keys = (ix.accounts ?? ix.keys ?? []).map(
+            (acc: any) => ({
+              pubkey: new PublicKey(acc.pubkey ?? acc.key),
+              isSigner: Boolean(acc.isSigner),
+              isWritable: Boolean(acc.isWritable),
+            }),
+          );
+          const data =
+            typeof ix.data === 'string'
+              ? Buffer.from(ix.data, 'base64')
+              : Buffer.from(ix.data ?? []);
+          return new TransactionInstruction({
+            programId: new PublicKey(ix.programId),
+            keys,
+            data,
+          });
         };
 
-        if (!inputAccountInfo)
-          createAtaRequests.push(createAta(inputMint));
-        if (!outputAccountInfo)
-          createAtaRequests.push(createAta(outputMint));
-
-        try {
-          await Promise.all(createAtaRequests);
-        } catch (ataError: any) {
-          throw new Error(
-            `Failed to create token accounts: ${ataError.message || ataError}`,
-          );
-        }
-      }
-
-      // Re-fetch a fresh Jupiter quote immediately before building the swap tx.
-      // Stale quotes cause Jupiter error 6025 (SlippageToleranceExceeded).
-      // ATA creation is handled by Jupiter's own CreateIdempotent instruction inside
-      // the swap transaction, fully sponsored by Privy's React Hook (sponsor: true).
-      setSwapStatus('Refreshing price quote...');
-      let activeQuote = jupiterQuote;
-      try {
-        const freshQuote = await getJupiterQuote();
-        if (freshQuote) activeQuote = freshQuote;
-      } catch (quoteRefreshError) {
-        console.warn(
-          'Quote refresh failed, proceeding with original quote:',
-          quoteRefreshError,
-        );
-      }
-
-      setSwapStatus('Preparing swap transaction...');
-      const swapData = await getJupiterSwapTransaction(activeQuote);
-      if (!swapData?.swapTransaction)
-        throw new Error(
-          'No swap transaction received from Jupiter API',
+        const altAccounts = Object.entries(
+          addressesByLookupTableAddress as Record<string, string[]>,
+        ).map(
+          ([altAddress, addresses]) =>
+            new AddressLookupTableAccount({
+              key: new PublicKey(altAddress),
+              state: {
+                deactivationSlot: BigInt('0xffffffffffffffff'),
+                lastExtendedSlot: 0,
+                lastExtendedSlotStartIndex: 0,
+                authority: undefined,
+                addresses: addresses.map((a) => new PublicKey(a)),
+              },
+            }),
         );
 
-      const swapTransactionBuffer = Buffer.from(
-        swapData.swapTransaction,
-        'base64',
-      );
-      const transaction = VersionedTransaction.deserialize(
-        swapTransactionBuffer,
-      );
-      const serializedTransaction = new Uint8Array(
-        transaction.serialize(),
-      );
+        const rawBlockhash = blockhashWithMetadata.blockhash;
+        const recentBlockhash = Array.isArray(rawBlockhash)
+          ? bs58.encode(Buffer.from(rawBlockhash))
+          : rawBlockhash;
 
-      let txId: string;
-      try {
-        await safeRefreshSession();
+        const message = new TransactionMessage({
+          payerKey: new PublicKey(selectedSolanaWallet.address),
+          recentBlockhash,
+          instructions: [
+            ...otherInstructions.map(deserializeInstruction),
+            deserializeInstruction(swapInstruction),
+          ],
+        }).compileToV0Message(altAccounts);
+
+        return new Uint8Array(
+          new VersionedTransaction(message).serialize(),
+        );
+      };
+
+      const extractErrorText = (err: any) => {
+        const parts = [
+          err?.message,
+          err?.error?.message,
+          err?.cause?.message,
+          err?.data?.message,
+          err?.toString?.(),
+        ]
+          .filter(Boolean)
+          .map((v) => String(v));
+        return parts.join(' | ');
+      };
+
+      const isSlippageError = (err: any) => {
+        const msg = extractErrorText(err).toLowerCase();
+        // 6025 decimal == 0x1789 hex
+        return (
+          msg.includes('6025') ||
+          msg.includes('0x1789') ||
+          msg.includes('slippagetoleranceexceeded') ||
+          msg.includes('slippage tolerance exceeded')
+        );
+      };
+
+      const formatSlippagePct = (bps: number) => {
+        const pct = bps / 100;
+        const str = pct.toFixed(pct % 1 === 0 ? 0 : 2);
+        return `${str.replace(/\.?0+$/, '')}%`;
+      };
+
+      const submitTransaction = async (
+        transaction: Uint8Array,
+      ): Promise<string> => {
         const result = await signAndSendTransaction({
-          transaction: serializedTransaction,
+          transaction,
           wallet: selectedSolanaWallet,
-          options: { sponsor: true },
         });
-        txId = bs58.encode(result.signature);
-      } catch (sponsorError: any) {
-        const msg =
-          sponsorError?.message || sponsorError?.toString() || '';
-        const isAbort =
-          sponsorError?.name === 'AbortError' ||
-          msg.includes('aborted') ||
-          msg.includes('AbortError');
-        if (isAbort) {
-          setSwapStatus('Retrying transaction...');
-          try {
-            await safeRefreshSession();
-            const result = await signAndSendTransaction({
-              transaction: serializedTransaction,
-              wallet: selectedSolanaWallet,
-            });
-            txId = bs58.encode(result.signature);
-          } catch (retryError: any) {
-            throw new Error(
-              `Transaction failed: ${retryError.message || 'Unknown error'}`,
-            );
-          }
-        } else {
-          throw new Error(
-            `Sponsored transaction failed: ${sponsorError.message || 'Unknown error'}`,
+        return bs58.encode(result.signature);
+      };
+
+      const baseSlippageBps = Math.max(1, Math.floor(slippage * 100));
+      const maxAutoSlippageBps = 5000; // 50% max auto-bump on failure
+      const slippageAttempts = Array.from(
+        new Set(
+          [
+            baseSlippageBps,
+            100, // 1%
+            200, // 2%
+            500, // 5%
+            1000, // 10%
+            2000, // 20%
+            5000, // 50%
+          ].map((v) => Math.min(v, maxAutoSlippageBps)),
+        ),
+      ).sort((a, b) => a - b);
+
+      let txId = '';
+      let activeQuote = jupiterQuote;
+
+      const attemptSlippageBps =
+        slippageAttempts[0] ?? baseSlippageBps;
+
+      setSwapStatus('Refreshing price quote...');
+
+      try {
+        // Fetch a fresh quote immediately before building the transaction
+        // so the slippage tolerance is as current as possible.
+        const freshQuote = await getJupiterQuote(true, attemptSlippageBps);
+        if (freshQuote) activeQuote = freshQuote;
+
+        setSwapStatus('Preparing swap transaction...');
+        const serializedTransaction = buildTransaction(activeQuote);
+
+        setSwapStatus('Signing and sending transaction...');
+        txId = await submitTransaction(serializedTransaction);
+      } catch (sendError: any) {
+        if (isSlippageError(sendError)) {
+          const currentBps = Math.max(1, Math.floor(slippage * 100));
+          const nextBps =
+            slippageAttempts.find((v) => v > currentBps) ??
+            currentBps;
+          const nextPct = nextBps / 100;
+          setSlippage(nextPct);
+          setCustomSlippage(String(nextPct));
+          setSwapStatus(null);
+          setSwapError(
+            `Price moved and exceeded slippage. Slippage has been increased to ${formatSlippagePct(nextBps)} — please review the updated quote and tap Swap again.`,
           );
+          return;
         }
+        throw new Error(
+          sendError?.message ||
+            sendError?.toString() ||
+            'Transaction failed',
+        );
+      }
+
+      if (!txId) {
+        throw new Error(
+          'Swap failed. Price may have moved too much — try increasing slippage.',
+        );
       }
 
       setTxHash(txId);
@@ -1989,44 +2139,17 @@ export default function SwapTokenModal({
       const { blockhash } = await connection.getLatestBlockhash();
       transaction.message.recentBlockhash = blockhash;
 
-      setSwapStatus('Signing and sending sponsored transaction...');
+      setSwapStatus('Signing and sending transaction...');
       await safeRefreshSession();
       const serializedTransaction = new Uint8Array(
         transaction.serialize(),
       );
-      let signature: string;
 
-      try {
-        const result = await signAndSendTransaction({
-          transaction: serializedTransaction,
-          wallet: selectedSolanaWallet,
-          options: { sponsor: true },
-        });
-        signature = bs58.encode(result.signature);
-      } catch (sponsorError: any) {
-        const errorMessage =
-          sponsorError?.message || sponsorError?.toString() || '';
-        const isAbortError =
-          sponsorError?.name === 'AbortError' ||
-          errorMessage.includes('aborted') ||
-          errorMessage.includes('AbortError');
-        const isTooLarge =
-          errorMessage.includes('too large') ||
-          errorMessage.includes('Transaction too large');
-
-        if (isAbortError || isTooLarge) {
-          console.warn(
-            `Sponsored transaction failed (${isTooLarge ? 'too large' : 'aborted'}), retrying without sponsorship...`,
-          );
-          setSwapStatus('Retrying transaction...');
-          await safeRefreshSession();
-          const result = await signAndSendTransaction({
-            transaction: serializedTransaction,
-            wallet: selectedSolanaWallet,
-          });
-          signature = bs58.encode(result.signature);
-        } else throw sponsorError;
-      }
+      const result = await signAndSendTransaction({
+        transaction: serializedTransaction,
+        wallet: selectedSolanaWallet,
+      });
+      const signature = bs58.encode(result.signature);
 
       setTxHash(signature);
       setSwapStatus(
@@ -2097,9 +2220,13 @@ export default function SwapTokenModal({
 
         // --- New: ensure ERC20 allowance for LiFi contract before sending main tx ---
         const isNative = isNativeEvmToken(payToken);
-        const spender = (quote as any)?.estimate?.approvalAddress || (quote as any)?.approvalAddress;
+        const spender =
+          (quote as any)?.estimate?.approvalAddress ||
+          (quote as any)?.approvalAddress;
         const tokenAddr = payToken?.address;
-        const amountRaw = (quote as any)?.estimate?.fromAmount || (quote as any)?.fromAmount;
+        const amountRaw =
+          (quote as any)?.estimate?.fromAmount ||
+          (quote as any)?.fromAmount;
 
         if (!isNative && spender && tokenAddr && amountRaw) {
           try {
@@ -2300,7 +2427,7 @@ export default function SwapTokenModal({
       ? (quote.estimate?.toAmountUSD ?? quote.toAmountUSD)
       : null;
     const priceImpact = jupiterQuote
-      ? Number(jupiterQuote.priceImpactPct) * 100
+      ? Number(jupiterQuote.priceImpactPct ?? 0) * 100
       : fromAmountUSD && toAmountUSD
         ? ((parseFloat(toAmountUSD) - parseFloat(fromAmountUSD)) /
             parseFloat(fromAmountUSD)) *
@@ -2331,6 +2458,7 @@ export default function SwapTokenModal({
     swapStatus?.includes('confirmed') ||
     swapStatus?.includes('completed');
 
+  console.log('swapError', swapError);
   // ── Render ────────────────────────────────────────────────────────────────────
 
   // Helper to render the token list for the receive drawer
@@ -2572,7 +2700,9 @@ export default function SwapTokenModal({
                       />
                       {(() => {
                         const chainName =
-                          getNetworkByChainId(receiverChainId).toUpperCase();
+                          getNetworkByChainId(
+                            receiverChainId,
+                          ).toUpperCase();
                         return (
                           <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
                             <Image
@@ -3109,8 +3239,8 @@ export default function SwapTokenModal({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Slippage tolerance
               </label>
-              <div className="grid grid-cols-4 gap-2 mb-3">
-                {[0.1, 0.5, 1.0, 2.0].map((v) => (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
+                {[0.1, 0.5, 1.0, 2.0, 3.0].map((v) => (
                   <button
                     key={v}
                     onClick={() => {
@@ -3123,7 +3253,11 @@ export default function SwapTokenModal({
                         : 'bg-gray-100 hover:bg-gray-200'
                     }`}
                   >
-                    {v === 0.5 ? '0.5% (Auto)' : `${v}%`}
+                    {v === 0.5
+                      ? '0.5% (Auto)'
+                      : v === 3.0
+                        ? '3% (Default)'
+                        : `${v}%`}
                   </button>
                 ))}
               </div>

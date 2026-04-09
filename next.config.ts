@@ -23,7 +23,11 @@ const nextConfig: NextConfig = {
       crypto: {},
       // Polyfills needed by @polymarket libs (no browser field)
       stream: "stream-browserify",
-      buffer: "buffer",
+      // Use a shim instead of the npm `buffer` polyfill directly so Node-oriented
+      // deps that expect `buffer.constants.*` don't crash under Turbopack SSR.
+      // Note: Turbopack aliases must be resolvable as module specifiers; absolute
+      // filesystem paths are not supported.
+      buffer: "./shims/buffer.js",
       // Suppress optional peer dep warnings from ws/socket.io
       bufferutil: {},
       "utf-8-validate": {},
@@ -91,7 +95,7 @@ const nextConfig: NextConfig = {
         os: false,
         crypto: false,
         stream: require.resolve("stream-browserify"),
-        buffer: require.resolve("buffer"),
+        buffer: require.resolve("./shims/buffer.js"),
       };
     }
 
@@ -115,8 +119,7 @@ const nextConfig: NextConfig = {
     // breakage as new tokens appear in LiFi routes.
     remotePatterns: [
       { protocol: "https", hostname: "**" },
-      // Explicitly allow the internal asset host used in dev/preview
-      { protocol: "http", hostname: "172.86.93.253" },
+      { protocol: "http", hostname: "**" },
     ],
   },
 

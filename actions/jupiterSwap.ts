@@ -1,24 +1,55 @@
 'use server';
 
-interface JupiterQuoteParams {
+interface JupiterBuildParams {
   inputMint: string;
   outputMint: string;
   amount: string;
+  taker: string;
   slippageBps: number;
   platformFeeBps?: number;
-}
-
-interface JupiterSwapParams {
-  quoteResponse: any;
-  userPublicKey: string;
   feeAccount?: string;
+  mode?: 'fast';
 }
 
-export const getJupiterQuote = async (params: JupiterQuoteParams) => {
-  try {
-    const { inputMint, outputMint, amount, slippageBps, platformFeeBps = 50 } = params;
+const normalizeSlippageBps = (slippageBpsParam: unknown) => {
+  const n = Number(slippageBpsParam);
+  if (!Number.isFinite(n)) return undefined;
+  const rounded = Math.round(n);
+  // Jupiter expects basis points (0-10000). UI allows up to 50% => 5000 bps.
+  return Math.min(Math.max(rounded, 0), 10000);
+};
 
-    const url = `https://api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${slippageBps}&restrictIntermediateTokens=true&platformFeeBps=${platformFeeBps}&instructionVersion=V2`;
+export const getJupiterBuild = async (params: JupiterBuildParams) => {
+  try {
+    const {
+      inputMint,
+      outputMint,
+      amount,
+      taker,
+      slippageBps: slippageBpsParam,
+      platformFeeBps = 50,
+      feeAccount,
+      mode,
+    } = params;
+
+    const normalizedSlippageBps = normalizeSlippageBps(slippageBpsParam) ?? 300;
+
+    const searchParams = new URLSearchParams({
+      inputMint,
+      outputMint,
+      amount,
+      taker,
+      slippageBps: normalizedSlippageBps.toString(),
+    });
+    if (mode) searchParams.set('mode', mode);
+
+    // platformFeeBps requires feeAccount — only include both together
+    if (feeAccount && platformFeeBps) {
+      searchParams.set('platformFeeBps', platformFeeBps.toString());
+      searchParams.set('feeAccount', feeAccount);
+    }
+
+    const url = `https://api.jup.ag/swap/v2/build?${searchParams.toString()}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -30,81 +61,44 @@ export const getJupiterQuote = async (params: JupiterQuoteParams) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
+      console.error('Error getting Jupiter build:', errorData);
 
       let errorMessage;
       if (response.status === 429) {
-        errorMessage = 'Service is busy. Please wait a moment and try again.';
+        errorMessage =
+          'Service is busy. Please wait a moment and try again.';
       } else if (response.status === 404) {
-        errorMessage = 'This token pair is not available for swapping.';
+        errorMessage =
+          'This token pair is not available for swapping.';
       } else if (response.status >= 500) {
-        errorMessage = 'Swap service is temporarily down. Please try again later.';
+        errorMessage =
+          'Swap service is temporarily down. Please try again later.';
       } else {
-        errorMessage = errorData?.error || 'Unable to get price quote. Please try again.';
+        errorMessage =
+          errorData?.error ||
+          'Unable to get price quote. Please try again.';
       }
 
       return { success: false, error: errorMessage };
     }
 
-    const jupiterQuote = await response.json();
+    const buildData = await response.json();
 
-    if (!jupiterQuote || !jupiterQuote.outAmount) {
+    if (!buildData || !buildData.outAmount) {
       return {
         success: false,
-        error: 'Unable to calculate swap price. Please try different amounts or tokens.',
+        error:
+          'Unable to calculate swap price. Please try different amounts or tokens.',
       };
     }
 
-    return { success: true, data: jupiterQuote };
+    return { success: true, data: buildData };
   } catch (error: any) {
-    console.error('Error getting Jupiter quote:', error);
+    console.error('Error getting Jupiter build:', error);
     return {
       success: false,
-      error: error.message || 'Failed to get Jupiter quote',
+      error: error.message || 'Failed to get Jupiter swap',
     };
   }
 };
 
-export const getJupiterSwapTransaction = async (params: JupiterSwapParams) => {
-  try {
-    const { quoteResponse, userPublicKey, feeAccount } = params;
-
-    const requestBody: any = {
-      quoteResponse,
-      userPublicKey,
-      wrapAndUnwrapSol: true,
-      dynamicComputeUnitLimit: true,
-      prioritizationFeeLamports: 'auto',
-    };
-
-    if (feeAccount) {
-      requestBody.feeAccount = feeAccount;
-      requestBody.platformFeeBps = 50;
-    }
-
-    const response = await fetch('https://api.jup.ag/swap/v1/swap', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.JUPITER_API_KEY || '',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      return {
-        success: false,
-        error: errorData?.error || 'Failed to get swap transaction',
-      };
-    }
-
-    const swapData = await response.json();
-    return { success: true, data: swapData };
-  } catch (error: any) {
-    console.error('Error getting Jupiter swap transaction:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to get swap transaction',
-    };
-  }
-};
