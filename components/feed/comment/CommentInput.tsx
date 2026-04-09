@@ -13,6 +13,7 @@ import CommentImagePicker from "./SelectImage";
 import CommentGifPickerContent from "./GifPicker";
 import CommentEmoji from "../CommentEmoji";
 import { logger } from "ethers5";
+import { useModalStore } from "@/zustandStore/modalstore";
 
 interface CommentInputProps {
   postId: string;
@@ -42,6 +43,8 @@ export default function CommentInput({
   const [isLoading, setIsLoading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const { user }: any = useUser();
+
+  const { triggerFeedRefetch } = useModalStore();
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -100,6 +103,8 @@ export default function CommentInput({
 
       console.log("Comment posted successfully:", response);
       toast.success("Comment posted successfully!");
+
+      triggerFeedRefetch();
 
       // Reset state after successful post
       setPostContent([]);

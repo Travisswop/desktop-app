@@ -6,6 +6,8 @@ import { IoArrowBack } from "react-icons/io5";
 import CommentItem from "./CommentItem";
 import { FiMessageCircle } from "react-icons/fi";
 import { logger } from "ethers5";
+import { useModalStore } from "@/zustandStore/modalstore";
+import FeedLoading from "../loading/FeedLoading";
 
 interface FeedItemType {
   _id: string;
@@ -25,7 +27,7 @@ interface Comment {
   [key: string]: any;
 }
 
-const LIMIT = 10;
+const LIMIT = 5;
 
 export default function FeedDetailsClient({
   feedData,
@@ -45,6 +47,8 @@ export default function FeedDetailsClient({
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+
+  const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
 
   logger.info("FeedDetailsClient rendered with feed:", feed);
   logger.info("FeedDetailsClient rendered with comments:", comments);
@@ -86,7 +90,7 @@ export default function FeedDetailsClient({
         setInitialLoading(false);
       }
     },
-    [feed._id, userId, accessToken, comments.length],
+    [feed?._id, userId, accessToken, comments?.length],
   );
 
   // Initial load
@@ -122,14 +126,13 @@ export default function FeedDetailsClient({
     setFeed((prev: any) => ({ ...prev, ...updates }));
   };
 
-  // Prepend newly added top-level comment
-  const handleCommentSuccess = (newComment: Comment) => {
-    setComments((prev) => [newComment, ...prev]);
-    setFeed((prev: any) => ({
-      ...prev,
-      commentCount: (prev.commentCount ?? 0) + 1,
-    }));
-  };
+  // refetch trigger
+  useEffect(() => {
+    if (feedRefetchTrigger === 0) return;
+    // pageRef.current = 1;
+    setHasMore(true);
+    fetchComments(1);
+  }, [feedRefetchTrigger, fetchComments]);
 
   return (
     <div className="flex flex-col pb-20">
@@ -214,11 +217,7 @@ export default function FeedDetailsClient({
 
           <div ref={sentinelRef} className="h-4" />
 
-          {loading && comments.length > 0 && (
-            <div className="flex justify-center py-4">
-              <div className="w-5 h-5 border-2 border-gray-200 border-t-black rounded-full animate-spin" />
-            </div>
-          )}
+          {loading && comments.length > 0 && <FeedLoading />}
 
           {!hasMore && comments.length > 0 && (
             <p className="text-center text-xs text-gray-300 py-6">— end —</p>

@@ -190,7 +190,7 @@ const FeedDetailsPage = async ({
 
   const feedData = await getFeedDetails(url);
 
-  console.log("feed data", feedData);
+  console.log("feed data count 1", feedData);
 
   return (
     <div className="relative flex flex-col items-center">

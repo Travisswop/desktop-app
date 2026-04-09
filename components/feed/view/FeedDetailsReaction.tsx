@@ -38,6 +38,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import CommentInput from "../comment/CommentInput";
 import dayjs from "dayjs";
 import isUrl from "@/lib/isUrl";
+import { useModalStore } from "@/zustandStore/modalstore";
 
 // Assuming FeedItemType is available or defined elsewhere
 interface FeedItemType {
@@ -63,7 +64,8 @@ interface ReactionProps {
   feed?: any;
 }
 
-const Reaction = memo(
+//only use for feed details page
+const FeedDetailsReaction = memo(
   ({
     postId,
     likeCount: initialLikeCount,
@@ -98,6 +100,8 @@ const Reaction = memo(
     const emojiPickerRef = useRef<HTMLDivElement>(null);
     const searchParams = useSearchParams();
     const tab = searchParams && searchParams?.get("tab"); // "ledger"
+
+    const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
 
     console.log("feed feed", feed);
 
@@ -754,6 +758,6 @@ const Reaction = memo(
   },
 );
 
-Reaction.displayName = "Reaction";
+FeedDetailsReaction.displayName = "FeedDetailsReaction";
 
-export default Reaction;
+export default FeedDetailsReaction;

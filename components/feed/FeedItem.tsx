@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
 import RedeemClaimModal from "../modal/RedeemClaim";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
+import FeedDetailsReaction from "./view/FeedDetailsReaction";
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
 // Ideally, import FeedItemType from where it's defined (e.g., Feed.tsx or a types file).
@@ -403,18 +404,31 @@ const FeedItem = memo(
           )}
 
           {/* Reactions */}
-          <Reaction
-            postId={feed._id}
-            isLiked={feed.isLiked}
-            likeCount={feed.likeCount}
-            commentCount={feed.commentCount || feed.replyCount}
-            repostCount={feed.repostCount}
-            viewsCount={feed.viewsCount}
-            onRepostSuccess={onRepostSuccess}
-            onPostInteraction={onPostInteraction}
-            feed={feed}
-            isFromFeedDetails={true}
-          />
+          {isFromFeedDetailsPage ? (
+            <FeedDetailsReaction
+              postId={feed._id}
+              isLiked={feed.isLiked}
+              likeCount={feed.likeCount}
+              commentCount={feed.commentCount || feed.replyCount}
+              repostCount={feed.repostCount}
+              viewsCount={feed.viewsCount}
+              onRepostSuccess={onRepostSuccess}
+              onPostInteraction={onPostInteraction}
+              feed={feed}
+            />
+          ) : (
+            <Reaction
+              postId={feed._id}
+              isLiked={feed.isLiked}
+              likeCount={feed.likeCount}
+              commentCount={feed.commentCount || feed.replyCount}
+              repostCount={feed.repostCount}
+              viewsCount={feed.viewsCount}
+              onRepostSuccess={onRepostSuccess}
+              onPostInteraction={onPostInteraction}
+              feed={feed}
+            />
+          )}
         </div>
 
         {isModalOpen && (

@@ -1,5 +1,4 @@
 "use client";
-import FeedItem from "@/components/feed/FeedItem";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { IoArrowBack } from "react-icons/io5";
@@ -89,7 +88,7 @@ export default function FeedReplyDetailsClient({
         setInitialLoading(false);
       }
     },
-    [feed._id, userId, accessToken, comments.length],
+    [feed?._id, userId, accessToken, comments?.length],
   );
 
   // Initial load

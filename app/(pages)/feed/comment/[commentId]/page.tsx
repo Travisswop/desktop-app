@@ -102,6 +102,8 @@ const FeedCommentDetailsPage = async ({
 
   const commentData = await getCommentDetails(url);
 
+  console.log("reply data hola shit man", commentData);
+
   return (
     <div className="relative flex flex-col items-center">
       <div className="w-full sm:w-[520px] overflow-y-auto">
