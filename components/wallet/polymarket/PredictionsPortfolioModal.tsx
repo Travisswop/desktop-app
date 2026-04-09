@@ -109,6 +109,7 @@ export default function PredictionsPortfolioModal({
   const { data: positions } = useUserPositions(
     safeAddress as string | undefined,
   );
+  console.log('positions', positions);
   const { usdcBalance } = usePolygonBalances(safeAddress);
   const { data: activeOrders = [] } = useActiveOrders(
     clobClient,
@@ -507,7 +508,9 @@ export default function PredictionsPortfolioModal({
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
                   Trades
                 </p>
-                <TradeHistory walletAddress={safeAddress ?? undefined} />
+                <TradeHistory
+                  walletAddress={safeAddress ?? undefined}
+                />
               </div>
             )}
           </div>
@@ -557,8 +560,13 @@ export default function PredictionsPortfolioModal({
               ? detailPosition.size
               : 0
           }
-          initialOutcome={detailPosition.outcomeIndex === 0 ? 'yes' : 'no'}
-          initialAmount={(detailPosition.initialValue || detailPosition.size * detailPosition.avgPrice).toFixed(2)}
+          initialOutcome={
+            detailPosition.outcomeIndex === 0 ? 'yes' : 'no'
+          }
+          initialAmount={(
+            detailPosition.initialValue ||
+            detailPosition.size * detailPosition.avgPrice
+          ).toFixed(2)}
         />
       )}
     </Portal>

@@ -2,7 +2,10 @@
 
 import { useEffect } from 'react';
 
-import { isValidDecimalInput } from '@/lib/polymarket/validation';
+import {
+  isValidDecimalInput,
+  isValidCentsInput,
+} from '@/lib/polymarket/validation';
 
 interface AmountInputProps {
   amount: string;
@@ -68,10 +71,8 @@ export default function AmountInput({
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const value = e.target.value;
-    if (
-      isValidDecimalInput(value) &&
-      (value === '' || parseFloat(value) <= 99)
-    ) {
+    // Limit price input is cents (integer 1–99). Block decimals to avoid 0.xx → 0.00$ mispricing.
+    if (isValidCentsInput(value) && (value === '' || parseInt(value, 10) <= 99)) {
       onLimitPriceChange(value);
     }
   };

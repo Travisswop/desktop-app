@@ -161,7 +161,7 @@ export function useClobOrder(
         if (response.orderID) {
           setOrderId(response.orderID);
           queryClient.invalidateQueries({
-            queryKey: ['active-orders'],
+            queryKey: ['active-orders', walletAddress],
           });
           queryClient.invalidateQueries({
             queryKey: ['polymarket-positions'],
@@ -193,7 +193,7 @@ export function useClobOrder(
       try {
         await clobClient.cancelOrder({ orderID: orderId });
         queryClient.invalidateQueries({
-          queryKey: ['active-orders'],
+          queryKey: ['active-orders', walletAddress],
         });
         return { success: true };
       } catch (err: unknown) {
@@ -210,9 +210,16 @@ export function useClobOrder(
     [clobClient, queryClient],
   );
 
+  /** Clears orderId and error — call this when resetting a form that holds this hook. */
+  const resetOrder = useCallback(() => {
+    setOrderId(null);
+    setError(null);
+  }, []);
+
   return {
     submitOrder,
     cancelOrder,
+    resetOrder,
     isSubmitting,
     error,
     orderId,

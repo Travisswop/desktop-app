@@ -108,6 +108,11 @@ const nextConfig: NextConfig = {
   },
 
   images: {
+    // Single wildcard allows any HTTPS host.
+    // Token logos in the swap/bridge UI come from hundreds of arbitrary CDNs
+    // (CoinGecko, TrustWallet, 1inch, backed.fi, prestocks.com, etc.) that
+    // cannot be enumerated in advance — a whitelist approach causes constant
+    // breakage as new tokens appear in LiFi routes.
     remotePatterns: [
       { protocol: "https", hostname: "res.cloudinary.com" },
       { protocol: "https", hostname: "**.giphy.com" },

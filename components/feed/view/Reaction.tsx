@@ -110,7 +110,7 @@ const Reaction = memo(
     const searchParams = useSearchParams();
     const tab = searchParams && searchParams?.get("tab"); // "ledger"
 
-    console.log("feed primarySmartsiteData", primarySmartsiteData);
+    console.log("feed feed", feed);
 
     // Memoized formatted counts
     const formattedCounts = useMemo(

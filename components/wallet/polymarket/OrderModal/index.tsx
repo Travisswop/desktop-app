@@ -14,6 +14,7 @@ import YoullReceiveDisplay from './YoullReceiveDisplay';
 import OrderConfirmSheet, {
   type PendingOrderData,
 } from '../shared/OrderConfirmSheet';
+import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 
 import type { ClobClient } from '@polymarket/clob-client';
 
@@ -61,7 +62,7 @@ export default function OrderPlacementModal({
   balance = 0,
   yesShares = 0,
   noShares = 0,
-  orderMinSize = 5,
+  orderMinSize = MIN_ORDER_SIZE,
   yesOutcomeName = 'Yes',
   noOutcomeName = 'No',
 }: OrderPlacementModalProps) {
@@ -180,12 +181,17 @@ export default function OrderPlacementModal({
   const totalCost =
     side === 'BUY' && isLimitVariant ? shares * limitPriceNum : inputNum;
 
+  // Tiny epsilon to avoid floating-point rounding disabling the button when using Max
+  const EPSILON = 0.01 + 1e-6; // allow up to 1 cent wiggle room to avoid float/rounding disable
+
   const potentialWin = side === 'BUY' ? shares : 0;
   const amountToReceive =
     side === 'SELL' ? inputNum * effectivePrice : 0;
 
   const hasInsufficientBalance =
-    side === 'BUY' ? totalCost > balance : inputNum > activeShareBalance;
+    side === 'BUY'
+      ? totalCost - balance > EPSILON
+      : inputNum - activeShareBalance > EPSILON;
 
   const LIMIT_MIN_SHARES = orderMinSize;
 
@@ -245,7 +251,12 @@ export default function OrderPlacementModal({
       side,
       outcomeName:
         selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName,
-      cost: side === 'BUY' ? (isLimitVariant ? totalCost : inputNum) : inputNum,
+      cost:
+        side === 'SELL'
+          ? amountToReceive
+          : isLimitVariant
+            ? totalCost
+            : inputNum,
       potentialWin,
       amountToReceive,
       priceDecimal: effectivePrice,
@@ -379,8 +390,18 @@ export default function OrderPlacementModal({
               }}
               orderType={orderType}
               onOrderTypeChange={(type: OrderVariant) => {
+                const wasMarket = isMarketVariant;
                 setOrderType(type);
                 setLocalError(null);
+
+                const nowMarket = type === 'market' || type === 'fak';
+                const nowLimit = type === 'limit' || type === 'gtd';
+                // If switching between market<->limit, the meaning of the input flips (USD vs shares).
+                // Reset to avoid accidental oversizing.
+                if ((wasMarket && nowLimit) || (!wasMarket && nowMarket)) {
+                  setInputValue('');
+                  setLimitPrice('');
+                }
               }}
             />
 
@@ -432,7 +453,12 @@ export default function OrderPlacementModal({
                     const maxShares = Math.floor(balance / limitPriceNum);
                     setInputValue(String(maxShares));
                   } else if (balance > 0) {
-                    setInputValue(balance.toFixed(2));
+                    // Floor to cents and stay strictly under/on balance to avoid backend allowance errors
+                    const safeMax = Math.max(
+                      0,
+                      Math.floor((balance - 0.000001) * 100) / 100,
+                    );
+                    setInputValue(safeMax.toFixed(2));
                   }
                   setLocalError(null);
                 }}

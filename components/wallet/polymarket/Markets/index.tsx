@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Search } from 'lucide-react';
 import { useTrading } from '@/providers/polymarket';
 import {
   useMarkets,
   usePolygonBalances,
   useUserPositions,
+  useBtc5mPolymarketMarket,
   type PolymarketMarket,
 } from '@/hooks/polymarket';
 import {
@@ -16,12 +17,15 @@ import {
   DEFAULT_SPORT_SUBCATEGORY,
   getCategoryById,
   getSportSubcategoryById,
+  MIN_ORDER_SIZE,
 } from '@/constants/polymarket';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
 import LoadingState from '../shared/LoadingState';
 import MarketCard from './MarketCard';
+import BtcUpDownCard from './BtcUpDownCard';
+import BtcOrderModal from './BtcOrderModal';
 import CategoryTabs from './CategoryTabs';
 import OrderPlacementModal from '../OrderModal';
 import MarketDetailModal from './MarketDetailModal';
@@ -67,6 +71,10 @@ export default function HighVolumeMarkets({
   const [searchQuery, setSearchQuery] = useState('');
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // BTC 5-min order modal state
+  const [btcModalOpen, setBtcModalOpen] = useState(false);
+  const [btcInitialOutcome, setBtcInitialOutcome] = useState<'Up' | 'Down'>('Up');
+
   const { clobClient, isGeoblocked, safeAddress } = useTrading();
   const { usdcBalance } = usePolygonBalances(safeAddress);
   const { data: positions } = useUserPositions(safeAddress);
@@ -90,10 +98,7 @@ export default function HighVolumeMarkets({
   });
 
   // Flatten all pages into a single list
-  const allMarkets = useMemo(
-    () => data?.pages.flat() ?? [],
-    [data],
-  );
+  const allMarkets = useMemo(() => data?.pages.flat() ?? [], [data]);
 
   // Filter by search query (client-side across all loaded markets)
   const filteredMarkets = useMemo(() => {
@@ -269,19 +274,48 @@ export default function HighVolumeMarkets({
     />
   );
 
-  const loadMoreSentinel = (hasNextPage || isFetchingNextPage) ? (
-    <div
-      ref={sentinelRef}
-      className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
-    >
-      <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-      Loading more markets...
-    </div>
-  ) : allMarkets.length > 0 ? (
-    <p className="text-center text-xs text-gray-400 py-3">
-      All {allMarkets.length} markets loaded
-    </p>
-  ) : null;
+  const loadMoreSentinel =
+    hasNextPage || isFetchingNextPage ? (
+      <div
+        ref={sentinelRef}
+        className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
+      >
+        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+        Loading more markets...
+      </div>
+    ) : allMarkets.length > 0 ? (
+      <p className="text-center text-xs text-gray-400 py-3">
+        All {allMarkets.length} markets loaded
+      </p>
+    ) : null;
+
+  // ── Real BTC 5-minute Polymarket market ─────────────────────────────────────
+  // Fetches the actual current-window market from Gamma API.
+  // Token IDs come from here, NOT from a generic monthly BTC market.
+  const btc5mMarket = useBtc5mPolymarketMarket();
+
+  const btcTokenIds = useMemo(() => ({
+    upTokenId: btc5mMarket.market?.upTokenId ?? '',
+    downTokenId: btc5mMarket.market?.downTokenId ?? '',
+  }), [btc5mMarket.market]);
+
+  // Shares the user already holds for each BTC 5m outcome
+  const btcShares = useMemo(() => {
+    if (!positions) return { upShares: 0, downShares: 0 };
+    return {
+      upShares: positions.find((p) => p.asset === btcTokenIds.upTokenId)?.size ?? 0,
+      downShares: positions.find((p) => p.asset === btcTokenIds.downTokenId)?.size ?? 0,
+    };
+  }, [positions, btcTokenIds]);
+
+  const handleBtcOutcomeClick = useCallback(
+    (outcome: 'Up' | 'Down') => {
+      if (!btc5mMarket.market) return;
+      setBtcInitialOutcome(outcome);
+      setBtcModalOpen(true);
+    },
+    [btc5mMarket.market],
+  );
 
   const renderMarketCard = (market: PolymarketMarket) => (
     <MarketCard
@@ -293,6 +327,17 @@ export default function HighVolumeMarkets({
       onTitleClick={() => setDetailMarket(market)}
     />
   );
+
+  /** Pinned BTC 5-min card — only rendered in the Crypto category */
+  const btcCard =
+    activeCategory === 'crypto' ? (
+      <BtcUpDownCard
+        key="btc-5min"
+        disabled={isGeoblocked}
+        noBackingMarket={activeCategory === 'crypto' && !btc5mMarket.market && !btc5mMarket.isLoading}
+        onOutcomeClick={handleBtcOutcomeClick}
+      />
+    ) : null;
 
   const modals = (
     <>
@@ -318,6 +363,22 @@ export default function HighVolumeMarkets({
           noOutcomeName={selectedMarket.noOutcomeName}
         />
       )}
+
+      {/* BTC 5-min dedicated modal — token IDs from real 5m market, prices from live hook */}
+      <BtcOrderModal
+        isOpen={btcModalOpen}
+        onClose={() => setBtcModalOpen(false)}
+        initialOutcome={btcInitialOutcome}
+        upTokenId={btcTokenIds.upTokenId}
+        downTokenId={btcTokenIds.downTokenId}
+        negRisk={btc5mMarket.market?.negRisk ?? false}
+        orderMinSize={btc5mMarket.market?.orderMinSize ?? MIN_ORDER_SIZE}
+        clobClient={clobClient}
+        balance={usdcBalance}
+        upShares={btcShares.upShares}
+        downShares={btcShares.downShares}
+      />
+
       {detailMarket && (
         <MarketDetailModal
           isOpen={!!detailMarket}
@@ -354,7 +415,7 @@ export default function HighVolumeMarkets({
           {error && !isLoading && (
             <ErrorState error={error} title="Error loading markets" />
           )}
-          {!isLoading && !error && filteredMarkets.length === 0 && (
+          {!isLoading && !error && filteredMarkets.length === 0 && !btcCard && (
             <EmptyState
               title="No Markets"
               message={
@@ -364,8 +425,9 @@ export default function HighVolumeMarkets({
               }
             />
           )}
-          {!isLoading && !error && filteredMarkets.length > 0 && (
+          {!isLoading && !error && (btcCard || filteredMarkets.length > 0) && (
             <div className="overflow-y-auto max-h-[calc(100vh-360px)] pr-1 space-y-3">
+              {btcCard}
               {filteredMarkets.map(renderMarketCard)}
               {loadMoreSentinel}
             </div>
@@ -391,7 +453,7 @@ export default function HighVolumeMarkets({
                 title="Error loading markets"
               />
             )}
-            {!isLoading && !error && leftMarkets.length === 0 && (
+            {!isLoading && !error && leftMarkets.length === 0 && !btcCard && (
               <EmptyState
                 title="No Markets"
                 message={
@@ -401,15 +463,16 @@ export default function HighVolumeMarkets({
                 }
               />
             )}
-            {!isLoading && !error && leftMarkets.length > 0 && (
+            {!isLoading && !error && (btcCard || leftMarkets.length > 0) && (
               <div className="space-y-3">
+                {btcCard}
                 {leftMarkets.map(renderMarketCard)}
               </div>
             )}
           </div>
 
           {/* Right column — scrollable */}
-          <div className="min-w-0 overflow-y-auto max-h-[calc(100vh-360px)] pr-1">
+          <div className="min-w-0 overflow-y-auto max-h-[calc(100vh-102px)] pr-1">
             {isLoading && <LoadingState message="" />}
             {!isLoading &&
               !error &&
@@ -468,6 +531,7 @@ export default function HighVolumeMarkets({
         )}
         {!isLoading &&
           !error &&
+          !btcCard &&
           (!filteredMarkets || filteredMarkets.length === 0) && (
             <EmptyState
               title="No Markets Available"
@@ -475,11 +539,18 @@ export default function HighVolumeMarkets({
             />
           )}
 
-        {!isLoading && !error && filteredMarkets && filteredMarkets.length > 0 && (
+        {!isLoading && !error && (btcCard || (filteredMarkets && filteredMarkets.length > 0)) && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {filteredMarkets.map(renderMarketCard)}
-            </div>
+            {btcCard && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {btcCard}
+              </div>
+            )}
+            {filteredMarkets && filteredMarkets.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {filteredMarkets.map(renderMarketCard)}
+              </div>
+            )}
 
             {loadMoreSentinel}
           </>

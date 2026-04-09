@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useClobOrder,
@@ -81,6 +81,53 @@ export default function UserPositions() {
 
   const { redeemPosition, isRedeeming } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(clobClient, eoaAddress);
+
+  // ── BTC 5-min position identification ────────────────────────────────────
+  // Since orders now go to the REAL BTC 5m market (slug: btc-updown-5m-<ts>),
+  // Polymarket's /positions API will return the correct title and slug.
+  // We detect these positions by their slug pattern and normalise the outcome
+  // label to "Up"/"Down" (Polymarket returns "Yes"/"No" for binary markets).
+  /**
+   * Returns true if the position is a BTC 5-minute Up/Down market.
+   * Checks slug first (most reliable), then falls back to title keywords.
+   */
+  const isBtc5mPosition = useCallback((p: PolymarketPosition): boolean => {
+    const slug = (p.slug ?? '').toLowerCase();
+    const title = (p.title ?? '').toLowerCase();
+    const hasBtc = slug.includes('btc') || title.includes('bitcoin') || title.includes('btc');
+    const has5m =
+      slug.includes('5m') ||
+      slug.includes('updown') ||
+      slug.includes('up-down') ||
+      title.includes('5 minute') ||
+      title.includes('5-minute');
+    return hasBtc && has5m;
+  }, []);
+
+  /**
+   * For BTC 5-min positions, override the outcome label "Yes"→"Up" / "No"→"Down"
+   * and clean up the title to "Bitcoin Up or Down · <window>".
+   * For all other positions this is a no-op.
+   */
+  const enrichBtcPosition = useCallback(
+    (p: PolymarketPosition): PolymarketPosition => {
+      if (!isBtc5mPosition(p)) return p;
+      // Derive Up/Down from outcomeIndex: 0 = Up (yes/first), 1 = Down (no/second)
+      const isUp = p.outcomeIndex === 0;
+      // Extract window label from the title if Polymarket includes a time range,
+      // otherwise fall back to "Bitcoin Up or Down".
+      const cleanTitle = p.title.includes('Up or Down')
+        ? p.title   // Polymarket already names it correctly
+        : 'Bitcoin Up or Down';
+      return {
+        ...p,
+        title: cleanTitle,
+        outcome: isUp ? 'Up' : 'Down',
+        oppositeOutcome: isUp ? 'Down' : 'Up',
+      };
+    },
+    [isBtc5mPosition],
+  );
 
   const [pendingVerification, setPendingVerification] = useState<Map<string, number>>(new Map());
   const queryClient = useQueryClient();
@@ -301,45 +348,53 @@ export default function UserPositions() {
       <h3 className="text-lg font-bold text-gray-900 pt-1">Your Picks</h3>
 
       <div className="space-y-3">
-        {activePositions.map((position) => (
-          <PositionCard
-            key={`${position.conditionId}-${position.outcomeIndex}`}
-            position={position}
-            onRedeem={handleRedeem}
-            onSell={handleMarketSell}
-            onBuyMore={(p) => setBuyMorePosition(p)}
-            isSelling={sellingAsset === position.asset}
-            isRedeeming={redeemingAsset === position.asset}
-            isPendingVerification={pendingVerification.has(position.asset)}
-            isSubmitting={isSubmitting}
-            canSell={!!clobClient}
-            canRedeem={!!relayClient}
-            onTitleClick={() => setDetailPosition(position)}
-          />
-        ))}
+        {activePositions.map((position) => {
+          // Override title/outcome for BTC 5-min positions so the card shows
+          // "BTC 5 Minute Up or Down" instead of the backing market's question.
+          const enriched = enrichBtcPosition(position);
+          return (
+            <PositionCard
+              key={`${position.conditionId}-${position.outcomeIndex}`}
+              position={enriched}
+              onRedeem={handleRedeem}
+              onSell={handleMarketSell}
+              onBuyMore={(p) => setBuyMorePosition(p)}
+              isSelling={sellingAsset === position.asset}
+              isRedeeming={redeemingAsset === position.asset}
+              isPendingVerification={pendingVerification.has(position.asset)}
+              isSubmitting={isSubmitting}
+              canSell={!!clobClient}
+              canRedeem={!!relayClient}
+              onTitleClick={() => setDetailPosition(position)}
+            />
+          );
+        })}
       </div>
 
       {/* ── Buy More Modal ─────────────────────────────────────────────── */}
-      {buyMorePosition && (
-        <OrderPlacementModal
-          isOpen={!!buyMorePosition}
-          onClose={() => setBuyMorePosition(null)}
-          marketTitle={buyMorePosition.title}
-          outcome={buyMorePosition.outcome}
-          currentPrice={buyMorePosition.curPrice}
-          tokenId={buyMorePosition.asset}
-          negRisk={buyMorePosition.negativeRisk}
-          clobClient={clobClient}
-          balance={usdcBalance}
-        />
-      )}
+      {buyMorePosition && (() => {
+        const enrichedBuyMore = enrichBtcPosition(buyMorePosition);
+        return (
+          <OrderPlacementModal
+            isOpen={!!buyMorePosition}
+            onClose={() => setBuyMorePosition(null)}
+            marketTitle={enrichedBuyMore.title}
+            outcome={enrichedBuyMore.outcome}
+            currentPrice={buyMorePosition.curPrice}
+            tokenId={buyMorePosition.asset}
+            negRisk={buyMorePosition.negativeRisk}
+            clobClient={clobClient}
+            balance={usdcBalance}
+          />
+        );
+      })()}
 
       {/* ── Market Detail Modal (opened via title click) ──────────────── */}
       {detailPosition && (
         <MarketDetailModal
           isOpen={!!detailPosition}
           onClose={() => setDetailPosition(null)}
-          market={positionToMarket(detailPosition)}
+          market={positionToMarket(enrichBtcPosition(detailPosition))}
           clobClient={clobClient}
           balance={usdcBalance}
           yesShares={detailPosition.outcomeIndex === 0 ? detailPosition.size : 0}

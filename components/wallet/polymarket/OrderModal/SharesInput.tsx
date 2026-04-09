@@ -1,6 +1,6 @@
 "use client";
 
-import { isValidDecimalInput } from "@/lib/polymarket/validation";
+import { isValidDecimalInput, isValidCentsInput } from "@/lib/polymarket/validation";
 
 interface SharesInputProps {
   shares: string;
@@ -40,7 +40,8 @@ export default function SharesInput({
 
   const handleLimitPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    if (isValidDecimalInput(value) && (value === '' || parseFloat(value) <= 99)) {
+    // Limit price is whole cents; disallow decimals to prevent 0.xx entering sub-cent prices
+    if (isValidCentsInput(value) && (value === '' || parseInt(value, 10) <= 99)) {
       onLimitPriceChange(value);
     }
   };

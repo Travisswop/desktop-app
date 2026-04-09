@@ -37,10 +37,16 @@ export function useActiveOrders(
 
         // The CLOB API returns statuses in lowercase ("live", "matched",
         // "delayed"). Normalise before comparing to avoid missing orders.
-        const OPEN_STATUSES = new Set(["live", "matched", "delayed"]);
-        const activeOrders = (allOrders as any[]).filter((order) =>
-          OPEN_STATUSES.has((order.status ?? "").toLowerCase())
-        );
+        const OPEN_STATUSES = new Set(["live", "delayed"]);
+        const activeOrders = (allOrders as any[]).filter((order) => {
+          const status = (order.status ?? "").toLowerCase();
+          if (!OPEN_STATUSES.has(status)) return false;
+          const original = parseFloat(order.original_size ?? "0");
+          const matched = parseFloat(order.size_matched ?? "0");
+          return !isFinite(original) || original === 0
+            ? true
+            : matched < original; // hide fully filled orders
+        });
 
         return activeOrders as PolymarketOrder[];
       } catch (err) {
