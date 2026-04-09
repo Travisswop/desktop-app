@@ -1286,6 +1286,29 @@ export default function SwapTokenModal({
   }, [searchParams, tempTokens, tokens]);
 
   // ── Pay-token drawer helpers ──────────────────────────────────────────────────
+  const payTokenUniverse = useMemo(() => {
+    const toNumber = (v: unknown) => {
+      if (typeof v === 'number') return v;
+      if (typeof v === 'string') return parseFloat(v);
+      return 0;
+    };
+
+    const base = (tokens ?? []).filter((t) => {
+      const b = toNumber(t?.balance);
+      return Number.isFinite(b) && b > 0;
+    });
+
+    if (!payToken) return base;
+
+    const payKey = (payToken.address || payToken.id || '').toLowerCase();
+    if (!payKey) return base;
+
+    const alreadyIncluded = base.some(
+      (t) => (t.address || t.id || '').toLowerCase() === payKey,
+    );
+    return alreadyIncluded ? base : [payToken, ...base];
+  }, [tokens, payToken]);
+
   const tokenChainId = (t: any) =>
     t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? '');
 
@@ -1297,7 +1320,7 @@ export default function SwapTokenModal({
   const handlePayChainSelect = (cId: string) => {
     setSelectedPayChain(cId);
     setSearchQuery('');
-    setAvailableTokens(filterTokensByPayChain(tempTokens, cId));
+    setAvailableTokens(filterTokensByPayChain(payTokenUniverse, cId));
   };
 
   const handlePayTokenSearch = (query: string) => {
@@ -1305,13 +1328,13 @@ export default function SwapTokenModal({
     try {
       const base =
         selectedPayChain !== 'all'
-          ? filterTokensByPayChain(tempTokens, selectedPayChain)
-          : tempTokens;
+          ? filterTokensByPayChain(payTokenUniverse, selectedPayChain)
+          : payTokenUniverse;
       setAvailableTokens(
         base.filter(
           (t) =>
-            t.symbol.toLowerCase().includes(query.toLowerCase()) ||
-            t.name.toLowerCase().includes(query.toLowerCase()),
+            t.symbol?.toLowerCase().includes(query.toLowerCase()) ||
+            t.name?.toLowerCase().includes(query.toLowerCase()),
         ),
       );
     } finally {
@@ -1322,11 +1345,11 @@ export default function SwapTokenModal({
   useEffect(() => {
     if (openDrawer && selecting === 'pay') {
       setAvailableTokens(
-        filterTokensByPayChain(tempTokens, selectedPayChain),
+        filterTokensByPayChain(payTokenUniverse, selectedPayChain),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openDrawer, selecting, tempTokens, selectedPayChain]);
+  }, [openDrawer, selecting, payTokenUniverse, selectedPayChain]);
 
   // ── Quote fetching helpers ────────────────────────────────────────────────────
 
@@ -2061,7 +2084,7 @@ export default function SwapTokenModal({
             // the fresh blockhash and slippage guard protect against bad
             // trades.
             ...(outputIsToken2022 && {
-              options: { skipPreflight: true, sponsor: true },
+              options: { skipPreflight: true },
             }),
           });
           return bs58.encode(result.signature);
@@ -2803,7 +2826,9 @@ export default function SwapTokenModal({
                   <div className="flex items-center">
                     <div className="relative min-w-max">
                       <Image
-                        src={sanitizeNextImageSrc(receiveToken.logoURI)}
+                        src={sanitizeNextImageSrc(
+                          receiveToken.logoURI,
+                        )}
                         alt={receiveToken.symbol}
                         width={24}
                         height={24}
