@@ -82,7 +82,7 @@ class AlchemyServiceClass {
   static async getNFTs(
     network: string,
     apiKey: string,
-    address: string
+    address: string,
   ): Promise<NFT[]> {
     if (!apiKey) {
       logger.warn(`No Alchemy API key provided for ${network}`);
@@ -103,7 +103,7 @@ class AlchemyServiceClass {
 
       if (!response.ok) {
         throw new Error(
-          `Alchemy API error: ${response.status} ${response.statusText}`
+          `Alchemy API error: ${response.status} ${response.statusText}`,
         );
       }
 
@@ -127,7 +127,7 @@ class AlchemyServiceClass {
 
   static transformAlchemyNFT(
     originalNFT: AlchemyNftData,
-    network: string
+    network: string,
   ): NFT {
     const isSpecialContract =
       originalNFT.contract.address ===
@@ -166,7 +166,7 @@ export class MoralisService {
 
   static async getNFTs(
     address: string,
-    chain: string = 'eth'
+    chain: string = 'eth',
   ): Promise<NFT[]> {
     try {
       const apiKey = process.env.NEXT_PUBLIC_MORALIS_API_KEY;
@@ -187,14 +187,14 @@ export class MoralisService {
 
       if (!response.ok) {
         throw new Error(
-          `Moralis API error: ${response.status} ${response.statusText}`
+          `Moralis API error: ${response.status} ${response.statusText}`,
         );
       }
 
       const result = (await response.json()) as MoralisResponse;
 
       return result.result.map((nft) =>
-        this.transformMoralisNFT(nft, chain)
+        this.transformMoralisNFT(nft, chain),
       );
     } catch (error) {
       logger.error('Error fetching NFTs from Moralis:', error);
@@ -204,7 +204,7 @@ export class MoralisService {
 
   private static transformMoralisNFT(
     nft: MoralisNFT,
-    network: string
+    network: string,
   ): NFT {
     const metadata = nft.normalized_metadata || nft.metadata;
 
@@ -235,7 +235,7 @@ class SolanaNFTServiceClass {
 
   static async getNFTs(ownerAddress: string): Promise<NFT[]> {
     logger.info(
-      `🔍 Starting Solana NFT fetch for address: ${ownerAddress}`
+      `🔍 Starting Solana NFT fetch for address: ${ownerAddress}`,
     );
 
     // Try multiple providers in order
@@ -249,7 +249,7 @@ class SolanaNFTServiceClass {
       logger.info(
         `📡 Attempting to fetch NFTs from ${providerName} (provider ${
           index + 1
-        })`
+        })`,
       );
 
       try {
@@ -260,7 +260,7 @@ class SolanaNFTServiceClass {
 
         if (nfts && nfts.length > 0) {
           logger.info(
-            `✅ Successfully fetched ${nfts.length} NFTs from ${providerName} in ${duration}ms`
+            `✅ Successfully fetched ${nfts.length} NFTs from ${providerName} in ${duration}ms`,
           );
 
           // Sort NFTs by creation date (most recent first)
@@ -306,7 +306,7 @@ class SolanaNFTServiceClass {
       logger.info(
         `  ${index + 1}. ${nft.name} (${
           nft.tokenId
-        }) - Created: ${date}`
+        }) - Created: ${date}`,
       );
     });
 
@@ -316,10 +316,10 @@ class SolanaNFTServiceClass {
   }
 
   private static async getNFTsFromHelius(
-    ownerAddress: string
+    ownerAddress: string,
   ): Promise<NFT[]> {
     logger.info(
-      `🌐 Fetching NFTs from Helius for address: ${ownerAddress}`
+      `🌐 Fetching NFTs from Helius for address: ${ownerAddress}`,
     );
 
     try {
@@ -353,7 +353,7 @@ class SolanaNFTServiceClass {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(requestBody),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -364,7 +364,7 @@ class SolanaNFTServiceClass {
 
       if (data.error) {
         throw new Error(
-          `Helius API error: ${JSON.stringify(data.error)}`
+          `Helius API error: ${JSON.stringify(data.error)}`,
         );
       }
 
@@ -373,26 +373,22 @@ class SolanaNFTServiceClass {
 
       const transformedNFTs = this.transformMetaplexNFTs(assets);
       logger.info(
-        `🔄 Transformed ${transformedNFTs.length} NFTs from Helius`
+        `🔄 Transformed ${transformedNFTs.length} NFTs from Helius`,
       );
 
       return transformedNFTs;
     } catch (error) {
       logger.error(
         '❌ Error fetching Solana NFTs from Helius:',
-        error
+        error,
       );
       throw error;
     }
   }
 
   private static async getNFTsFromQuickNode(
-    ownerAddress: string
+    ownerAddress: string,
   ): Promise<NFT[]> {
-    logger.info(
-      `🌐 Fetching NFTs from QuickNode for address: ${ownerAddress}`
-    );
-
     try {
       let allNFTs: NFT[] = [];
       let page = 1;
@@ -402,7 +398,7 @@ class SolanaNFTServiceClass {
       const maxPages = 10; // Safety limit to prevent infinite loops
 
       logger.info(
-        `📋 Starting paginated fetch with limit: ${limit}, max pages: ${maxPages}`
+        `📋 Starting paginated fetch with limit: ${limit}, max pages: ${maxPages}`,
       );
 
       while (hasMoreResults && page <= maxPages) {
@@ -432,7 +428,7 @@ class SolanaNFTServiceClass {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(requestBody),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -443,7 +439,7 @@ class SolanaNFTServiceClass {
 
         if (data.error) {
           throw new Error(
-            `QuickNode API error: ${JSON.stringify(data.error)}`
+            `QuickNode API error: ${JSON.stringify(data.error)}`,
           );
         }
 
@@ -462,7 +458,7 @@ class SolanaNFTServiceClass {
 
           // Extract collection information from grouping
           const collectionInfo = asset.grouping?.find(
-            (group: any) => group.group_key === 'collection'
+            (group: any) => group.group_key === 'collection',
           );
 
           // Extract creation timestamp
@@ -503,7 +499,7 @@ class SolanaNFTServiceClass {
 
         // Log progress
         logger.info(
-          `✅ QuickNode page ${page}: Fetched ${assets.length} NFTs. Total so far: ${allNFTs.length}/${total}`
+          `✅ QuickNode page ${page}: Fetched ${assets.length} NFTs. Total so far: ${allNFTs.length}/${total}`,
         );
 
         // Check if we need to fetch more pages
@@ -511,19 +507,19 @@ class SolanaNFTServiceClass {
           // No more assets to fetch
           hasMoreResults = false;
           logger.info(
-            `🏁 QuickNode: No more assets found on page ${page}`
+            `🏁 QuickNode: No more assets found on page ${page}`,
           );
         } else if (assets.length < limit) {
           // If we got fewer items than the limit, we've reached the end
           hasMoreResults = false;
           logger.info(
-            `🏁 QuickNode: Reached end of results (${assets.length} < ${limit})`
+            `🏁 QuickNode: Reached end of results (${assets.length} < ${limit})`,
           );
         } else if (total > 0 && allNFTs.length >= total) {
           // If we've reached the total and total is known, we're done
           hasMoreResults = false;
           logger.info(
-            `🏁 QuickNode: Reached total count (${allNFTs.length}/${total})`
+            `🏁 QuickNode: Reached total count (${allNFTs.length}/${total})`,
           );
         } else {
           // Continue to next page
@@ -534,7 +530,7 @@ class SolanaNFTServiceClass {
         // Add a small delay to avoid rate limiting
         if (hasMoreResults) {
           logger.info(
-            `⏳ QuickNode: Waiting 100ms before next page...`
+            `⏳ QuickNode: Waiting 100ms before next page...`,
           );
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
@@ -544,17 +540,17 @@ class SolanaNFTServiceClass {
     } catch (error) {
       logger.error(
         '❌ Error fetching Solana NFTs from QuickNode:',
-        error
+        error,
       );
       throw error;
     }
   }
 
   private static transformMetaplexNFTs(
-    assets: MetaplexAsset[]
+    assets: MetaplexAsset[],
   ): NFT[] {
     logger.info(
-      `🔄 Transforming ${assets.length} Metaplex assets to NFTs`
+      `🔄 Transforming ${assets.length} Metaplex assets to NFTs`,
     );
 
     const mappedNFTs = assets.map((asset) => {
@@ -585,7 +581,7 @@ class SolanaNFTServiceClass {
     });
 
     logger.info(
-      `✅ Transformed ${mappedNFTs.length} Metaplex assets`
+      `✅ Transformed ${mappedNFTs.length} Metaplex assets`,
     );
     return mappedNFTs;
   }
@@ -596,7 +592,7 @@ export class NFTService {
   static async getNFTsForChain(
     network: string,
     address: string,
-    apiKey?: string
+    apiKey?: string,
   ): Promise<NFT[]> {
     if (network === 'solana') {
       return SolanaNFTServiceClass.getNFTs(address);
@@ -609,7 +605,7 @@ export class NFTService {
       () =>
         MoralisService.getNFTs(
           address,
-          this.mapNetworkToMoralis(network)
+          this.mapNetworkToMoralis(network),
         ),
     ];
 
@@ -625,7 +621,7 @@ export class NFTService {
       } catch (error) {
         logger.warn(
           `NFT provider failed for ${network}, trying next:`,
-          error
+          error,
         );
         lastError = error as Error;
         continue;
@@ -634,7 +630,7 @@ export class NFTService {
 
     logger.error(
       `All NFT providers failed for ${network}:`,
-      lastError
+      lastError,
     );
     throw (
       lastError || new Error(`Failed to fetch NFTs for ${network}`)
@@ -652,7 +648,7 @@ export class NFTService {
 }
 
 export const processNFTCollections = (
-  nfts: NFT[]
+  nfts: NFT[],
 ): {
   collections: NFTCollectionGroup[];
   standaloneNFTs: NFT[];
@@ -670,7 +666,7 @@ export const processNFTCollections = (
       const existingCollection = acc.collections.find(
         (item) =>
           item.collection.collectionName ===
-          nft.collection?.collectionName
+          nft.collection?.collectionName,
       );
 
       if (existingCollection) {
@@ -693,7 +689,7 @@ export const processNFTCollections = (
 
       return acc;
     },
-    { collections: [], standaloneNFTs: [] }
+    { collections: [], standaloneNFTs: [] },
   );
 };
 
@@ -720,10 +716,10 @@ export class NFTAnalysisUtils {
     const nftsWithoutDates = nfts.filter((nft) => !nft.createdAt);
 
     logger.info(
-      `📅 NFTs with creation dates: ${nftsWithDates.length}`
+      `📅 NFTs with creation dates: ${nftsWithDates.length}`,
     );
     logger.info(
-      `❓ NFTs without creation dates: ${nftsWithoutDates.length}`
+      `❓ NFTs without creation dates: ${nftsWithoutDates.length}`,
     );
 
     // Sort by creation date
@@ -746,24 +742,24 @@ export class NFTAnalysisUtils {
         nft.collection?.collectionName || 'Unknown Collection';
       collections.set(
         collectionName,
-        (collections.get(collectionName) || 0) + 1
+        (collections.get(collectionName) || 0) + 1,
       );
     });
 
     // Get creation date range
     const dates = nftsWithDates.map(
-      (nft) => new Date(nft.createdAt!)
+      (nft) => new Date(nft.createdAt!),
     );
     const earliest =
       dates.length > 0
         ? new Date(
-            Math.min(...dates.map((d) => d.getTime()))
+            Math.min(...dates.map((d) => d.getTime())),
           ).toISOString()
         : null;
     const latest =
       dates.length > 0
         ? new Date(
-            Math.max(...dates.map((d) => d.getTime()))
+            Math.max(...dates.map((d) => d.getTime())),
           ).toISOString()
         : null;
 
@@ -779,7 +775,7 @@ export class NFTAnalysisUtils {
     logger.info(`📈 NFT Analysis Results:`);
     logger.info(`  Total NFTs: ${analysis.totalCount}`);
     logger.info(
-      `  Date range: ${analysis.creationDateRange.earliest} to ${analysis.creationDateRange.latest}`
+      `  Date range: ${analysis.creationDateRange.earliest} to ${analysis.creationDateRange.latest}`,
     );
     logger.info(`  Collections found: ${analysis.collections.size}`);
 
@@ -799,7 +795,7 @@ export class NFTAnalysisUtils {
   static getNFTsByDateRange(
     nfts: NFT[],
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ): NFT[] {
     return nfts.filter((nft) => {
       if (!nft.createdAt) return false;
@@ -824,7 +820,7 @@ export class NFTAnalysisUtils {
       });
 
     logger.info(
-      `📅 NFT Timeline (${nftsWithDates.length} NFTs with dates):`
+      `📅 NFT Timeline (${nftsWithDates.length} NFTs with dates):`,
     );
 
     // Group by month for better visualization
@@ -833,7 +829,7 @@ export class NFTAnalysisUtils {
     nftsWithDates.forEach((nft) => {
       const date = new Date(nft.createdAt!);
       const monthKey = `${date.getFullYear()}-${String(
-        date.getMonth() + 1
+        date.getMonth() + 1,
       ).padStart(2, '0')}`;
 
       if (!monthlyGroups.has(monthKey)) {

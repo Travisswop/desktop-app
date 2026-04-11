@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { RefreshCw, Copy, Plus, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Carousel,
@@ -165,7 +166,7 @@ export default function RedeemTokenList() {
                   <div className="flex-shrink-0">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
                       <Image
-                        src={pools[0].token_logo}
+                        src={sanitizeNextImageSrc(pools[0].token_logo)}
                         alt={pools[0].token_symbol}
                         width={40}
                         height={40}
@@ -279,7 +280,7 @@ export default function RedeemTokenList() {
                         <div className="flex-shrink-0">
                           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
                             <Image
-                              src={pool.token_logo}
+                              src={sanitizeNextImageSrc(pool.token_logo)}
                               alt={pool.token_symbol}
                               width={40}
                               height={40}

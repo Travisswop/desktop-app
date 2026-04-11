@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { TokenData } from '@/types/token';
 import NetworkBadge from './network-badge';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 
 interface TokenImageProps {
   token: TokenData;
@@ -41,7 +42,7 @@ const TokenImage = ({
     }
   };
 
-  const imageSrc = getImageSrc();
+  const imageSrc = sanitizeNextImageSrc(getImageSrc());
   const networkBadgeSize = Math.max(12, Math.floor(width * 0.4));
 
   // If we have a valid image source, render the Image component

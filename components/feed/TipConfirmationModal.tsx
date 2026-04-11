@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import CustomModal from "@/components/modal/CustomModal";
 import isUrl from "@/lib/isUrl";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 
 interface TipConfirmationProps {
   open: boolean;
@@ -110,7 +111,7 @@ export default function TipConfirmation({
             <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
               <div className="flex items-center gap-3">
                 <Image
-                  src={recipientImage}
+                  src={sanitizeNextImageSrc(recipientImage)}
                   alt={recipientName}
                   width={40}
                   height={40}
@@ -151,11 +152,11 @@ export default function TipConfirmation({
                     /> */}
                     {isUrl(token?.marketData?.iconUrl) ? (
                       <Image
-                        src={
+                        src={sanitizeNextImageSrc(
                           token?.marketData?.iconUrl ||
-                          token.logoURI ||
-                          "/icons/default.png"
-                        }
+                            token.logoURI ||
+                            "/icons/default.png",
+                        )}
                         alt={token.name}
                         width={120}
                         height={120}
@@ -163,7 +164,9 @@ export default function TipConfirmation({
                       />
                     ) : (
                       <Image
-                        src={token.logoURI || "/icons/default.png"}
+                        src={sanitizeNextImageSrc(
+                          token.logoURI || "/icons/default.png",
+                        )}
                         alt={token.name}
                         width={120}
                         height={120}

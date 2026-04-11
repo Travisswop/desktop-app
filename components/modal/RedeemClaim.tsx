@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from '../ui/card';
 import Image from 'next/image';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 
@@ -193,7 +194,7 @@ export default function RedeemClaimModal({
                               {pool.token_logo && (
                                 <div className="relative h-8 w-8">
                                   <Image
-                                    src={pool.token_logo}
+                                    src={sanitizeNextImageSrc(pool.token_logo)}
                                     alt={pool.token_name}
                                     fill
                                     className="rounded-full"
@@ -228,7 +229,7 @@ export default function RedeemClaimModal({
                             {pool && pool.token_logo && (
                               <div className="relative h-12 w-12">
                                 <Image
-                                  src={pool.token_logo}
+                                  src={sanitizeNextImageSrc(pool.token_logo)}
                                   alt={pool.token_name}
                                   fill
                                   className="rounded-full"

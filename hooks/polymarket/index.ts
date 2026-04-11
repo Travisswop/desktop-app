@@ -23,3 +23,4 @@ export { useOrderHistory } from "./useOrderHistory";
 export { useTradeActivity, type TradeActivity, type ActivityType, type TradeActivityParams } from "./useTradeActivity";
 export { useBtcUpDownMarket, type BtcMarketState } from "./useBtcUpDownMarket";
 export { useBtc5mPolymarketMarket, type Btc5mMarket, type Btc5mMarketState } from "./useBtc5mPolymarketMarket";
+export { useNetDeposits } from "./useNetDeposits";
