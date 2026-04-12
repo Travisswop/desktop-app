@@ -1470,9 +1470,10 @@ export default function SwapTokenModal({
       }
     }
 
-    // Also skip platform fees when the OUTPUT mint is Token-2022.
-    // Only do the RPC check if a fee account was actually resolved above
-    // — avoids an unnecessary network round-trip on every quote.
+    // Safety guard: verify BOTH the INPUT and OUTPUT mints' program owner
+    // on-chain. This catches cases where the backend API returns incorrect
+    // tokenProgramId data for Token-2022 tokens, ensuring we never send
+    // platformFeeBps > 0 for Token-2022 mints (causes error 0x1788 / code 6024).
     if (feeAccount) {
       try {
         const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
@@ -1480,10 +1481,14 @@ export default function SwapTokenModal({
           const conn = new Connection(rpcUrl, {
             commitment: 'confirmed',
           });
-          const mintInfo = await conn.getAccountInfo(
-            new PublicKey(outputMint),
-          );
-          if (mintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID)) {
+          const [inputMintInfo, outputMintInfo] = await Promise.all([
+            conn.getAccountInfo(new PublicKey(inputMint)),
+            conn.getAccountInfo(new PublicKey(outputMint)),
+          ]);
+          if (
+            inputMintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID) ||
+            outputMintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID)
+          ) {
             feeAccount = undefined;
           }
         }
