@@ -693,6 +693,9 @@ export default function SwapTokenModal({
   const [receiveToken, setReceiveToken] = useState<any>(
     defaultReceiveToken || null,
   );
+
+  console.log('payToken', payToken);
+  console.log('receiveToken', receiveToken);
   const [payAmount, setPayAmount] = useState('');
   const [receiveAmount, setReceiveAmount] = useState('');
   const [openDrawer, setOpenDrawer] = useState(false);
@@ -823,21 +826,28 @@ export default function SwapTokenModal({
     }
 
     if (!receiveToken) {
+      const swopAddress =
+        'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB';
+      // Look up by symbol first, then by address — the token in the user's
+      // wallet may carry the same contract address under a different symbol
+      // (e.g. TSLAX). Using the wallet entry ensures the correct decimals
+      // (8 for TSLAX) are used instead of the hardcoded fallback (6).
       const defaultReceive = tokens.find(
         (t) =>
           t.symbol?.toUpperCase() === 'SWOP' &&
           t.chain?.toUpperCase() === 'SOLANA',
-      ) || {
-        symbol: 'SWOP',
-        name: 'SWOP',
-        address: 'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB',
-        chain: 'SOLANA',
-        chainId: '1151111081099710',
-        decimals: 6,
-        logoURI:
-          'https://coin-images.coingecko.com/coins/images/66773/large/Group_1000007182_copy.png?1750487480',
-        balance: null,
-      };
+      ) ||
+        tokens.find((t) => (t.address || t.id) === swopAddress) || {
+          symbol: 'SWOP',
+          name: 'SWOP',
+          address: swopAddress,
+          chain: 'SOLANA',
+          chainId: '1151111081099710',
+          decimals: 8,
+          logoURI:
+            'https://coin-images.coingecko.com/coins/images/66773/large/Group_1000007182_copy.png?1750487480',
+          balance: null,
+        };
       setReceiveToken(defaultReceive);
       setReceiverChainId('1151111081099710');
     }
@@ -1300,7 +1310,11 @@ export default function SwapTokenModal({
 
     if (!payToken) return base;
 
-    const payKey = (payToken.address || payToken.id || '').toLowerCase();
+    const payKey = (
+      payToken.address ||
+      payToken.id ||
+      ''
+    ).toLowerCase();
     if (!payKey) return base;
 
     const alreadyIncluded = base.some(
@@ -1326,17 +1340,37 @@ export default function SwapTokenModal({
   const handlePayTokenSearch = (query: string) => {
     setIsLoadingTokens(true);
     try {
-      const base =
-        selectedPayChain !== 'all'
-          ? filterTokensByPayChain(payTokenUniverse, selectedPayChain)
-          : payTokenUniverse;
-      setAvailableTokens(
-        base.filter(
-          (t) =>
-            t.symbol?.toLowerCase().includes(query.toLowerCase()) ||
-            t.name?.toLowerCase().includes(query.toLowerCase()),
-        ),
-      );
+      const q = query.toLowerCase();
+      if (q) {
+        // When searching, scan ALL known tokens (not just balance > 0) so
+        // tokens like TSLAX that exist in the wallet but weren't balance-
+        // detected still appear. Address/id matching allows paste-to-search.
+        const searchBase =
+          selectedPayChain !== 'all'
+            ? tempTokens.filter(
+                (t) => tokenChainId(t) === selectedPayChain,
+              )
+            : tempTokens;
+        setAvailableTokens(
+          searchBase.filter(
+            (t) =>
+              t.symbol?.toLowerCase().includes(q) ||
+              t.name?.toLowerCase().includes(q) ||
+              (t.address || t.id || '').toLowerCase().includes(q),
+          ),
+        );
+      } else {
+        // No query → show only tokens the user holds
+        const base =
+          selectedPayChain !== 'all'
+            ? filterTokensByPayChain(
+                payTokenUniverse,
+                selectedPayChain,
+              )
+            : payTokenUniverse;
+        console.log('base', base);
+        setAvailableTokens(base);
+      }
     } finally {
       setIsLoadingTokens(false);
     }
@@ -1369,6 +1403,10 @@ export default function SwapTokenModal({
     const outputMint = getTokenMint(receiveToken);
     if (!inputMint || !outputMint)
       throw new Error('Invalid token addresses');
+    if (inputMint.toLowerCase() === outputMint.toLowerCase())
+      throw new Error(
+        'Pay token and receive token are the same. Please select different tokens.',
+      );
     const amountInSmallestUnit = formatTokenAmount(
       payAmount,
       payToken.decimals || 6,
@@ -1461,7 +1499,10 @@ export default function SwapTokenModal({
       taker: selectedSolanaWallet.address,
       slippageBps,
       mode: 'fast',
-      platformFeeBps: 50,
+      // Token-2022 tokens are incompatible with Jupiter platform fees.
+      // When feeAccount is undefined (cleared for Token-2022 mints above),
+      // also zero out platformFeeBps to prevent error 0x1788 (code 6024).
+      platformFeeBps: feeAccount ? 50 : 0,
       feeAccount,
     });
     if (!result.success)
@@ -1660,6 +1701,36 @@ export default function SwapTokenModal({
       setReceiveAmount('');
     }
   }, [quote, jupiterQuote, receiveToken]);
+
+  // Guard: if pay and receive resolve to the same on-chain mint, clear the
+  // receive token so the user is forced to pick a different one.  This
+  // handles every entry path (defaults, URL params, manual selection) without
+  // relying solely on the handleTokenSelect auto-swap.
+  useEffect(() => {
+    if (!payToken || !receiveToken) return;
+    const payKey = (
+      payToken.address ||
+      payToken.id ||
+      ''
+    ).toLowerCase();
+    const receiveKey = (
+      receiveToken.address ||
+      receiveToken.id ||
+      ''
+    ).toLowerCase();
+    if (payKey && receiveKey && payKey === receiveKey) {
+      setReceiveToken(null);
+      setReceiverChainId('');
+      setReceiveAmount('');
+    }
+    // Only re-run when the actual mint identifiers change, not every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    payToken?.address,
+    payToken?.id,
+    receiveToken?.address,
+    receiveToken?.id,
+  ]);
 
   useEffect(() => {
     setSwapError(null);
@@ -2029,12 +2100,19 @@ export default function SwapTokenModal({
         while (cursor && causeTexts.length < 10) {
           if (cursor.message) causeTexts.push(String(cursor.message));
           // Some cause objects stringify with the full chain (e.g. "Caused by: …")
-          try { causeTexts.push(String(cursor)); } catch { /* ignore */ }
+          try {
+            causeTexts.push(String(cursor));
+          } catch {
+            /* ignore */
+          }
           // Logs may also be attached to a nested cause
           const causeLogs: string[] =
             cursor?.context?.logs ?? cursor?.data?.logs ?? [];
           if (causeLogs.length) {
-            console.error('[Jupiter swap] cause simulation logs:', causeLogs);
+            console.error(
+              '[Jupiter swap] cause simulation logs:',
+              causeLogs,
+            );
             causeTexts.push(...causeLogs);
           }
           cursor = cursor?.cause;
@@ -2086,12 +2164,32 @@ export default function SwapTokenModal({
         return bs58.encode(result.signature);
       };
 
+      // Token-2022 output tokens can incur additional slippage from transfer
+      // fees / transfer-hook extensions.  Detect this up-front so the first
+      // attempt already uses a high-enough slippage and avoids 0x1789 errors.
+      let isToken2022Output = false;
+      try {
+        const outputMintInfo = await connection.getAccountInfo(
+          new PublicKey(outputMint),
+        );
+        isToken2022Output =
+          outputMintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID) ??
+          false;
+      } catch {
+        // Non-fatal — leave isToken2022Output as false.
+      }
+
       const baseSlippageBps = Math.max(1, Math.floor(slippage * 100));
+      // For Token-2022 output tokens use at least 1000 bps (10%) as the
+      // opening slippage; otherwise use the user's configured value.
+      const effectiveBaseSlippageBps = isToken2022Output
+        ? Math.max(baseSlippageBps, 1000)
+        : baseSlippageBps;
       const maxAutoSlippageBps = 5000; // 50% max auto-bump on failure
       const slippageAttempts = Array.from(
         new Set(
           [
-            baseSlippageBps,
+            effectiveBaseSlippageBps,
             100, // 1%
             200, // 2%
             500, // 5%
@@ -2105,8 +2203,10 @@ export default function SwapTokenModal({
       let txId = '';
       let activeQuote = jupiterQuote;
 
-      const attemptSlippageBps =
-        slippageAttempts[0] ?? baseSlippageBps;
+      // Always start the first attempt at the user's configured slippage
+      // (or the Token-2022 minimum).  The ladder below 1 % exists only for
+      // the auto-bump escalation path, not for the initial attempt.
+      const attemptSlippageBps = effectiveBaseSlippageBps;
 
       setSwapStatus('Refreshing price quote...');
 
@@ -2129,10 +2229,22 @@ export default function SwapTokenModal({
         // Always log full error structure so simulation failures are diagnosable
         // without needing manual console expansion.
         console.error('[Jupiter swap] raw sendError:', sendError);
-        console.error('[Jupiter swap] sendError.context:', sendError?.context);
-        console.error('[Jupiter swap] sendError.context?.logs:', sendError?.context?.logs);
-        console.error('[Jupiter swap] sendError.data:', sendError?.data);
-        console.error('[Jupiter swap] sendError.cause:', sendError?.cause);
+        console.error(
+          '[Jupiter swap] sendError.context:',
+          sendError?.context,
+        );
+        console.error(
+          '[Jupiter swap] sendError.context?.logs:',
+          sendError?.context?.logs,
+        );
+        console.error(
+          '[Jupiter swap] sendError.data:',
+          sendError?.data,
+        );
+        console.error(
+          '[Jupiter swap] sendError.cause:',
+          sendError?.cause,
+        );
 
         if (isSlippageError(sendError)) {
           const currentBps = Math.max(1, Math.floor(slippage * 100));
@@ -2474,9 +2586,35 @@ export default function SwapTokenModal({
 
   // ── Token selection ───────────────────────────────────────────────────────────
   const handleTokenSelect = (t: any, type: 'pay' | 'receive') => {
+    const tKey = (t.address || t.id || '').toLowerCase();
+
     if (type === 'pay') {
+      const receiveKey = (
+        receiveToken?.address ||
+        receiveToken?.id ||
+        ''
+      ).toLowerCase();
+      // If the chosen pay token is the same contract as the current receive
+      // token, auto-swap them so the user never ends up with
+      // inputMint === outputMint.
+      if (tKey && tKey === receiveKey) {
+        const prevPayChainId =
+          payToken?.chainId?.toString() ??
+          getChainId(payToken?.chain ?? payToken?.network ?? '');
+        setReceiveToken(payToken ?? null);
+        setReceiverChainId(prevPayChainId);
+      }
       setPayToken(t);
     } else {
+      const payKey = (
+        payToken?.address ||
+        payToken?.id ||
+        ''
+      ).toLowerCase();
+      // Same guard for receive selection.
+      if (tKey && tKey === payKey) {
+        setPayToken(receiveToken ?? null);
+      }
       const tokenChainId =
         t.chainId?.toString() ??
         getChainId(t.chain ?? t.network ?? '');
@@ -2540,10 +2678,24 @@ export default function SwapTokenModal({
       ? jupiterQuote.outAmount
       : (quote?.estimate?.toAmount ?? quote?.toAmount);
     if (!fromAmount || !toAmount) return null;
-    const from =
-      Number(fromAmount) / Math.pow(10, payToken.decimals || 18);
-    const to =
-      Number(toAmount) / Math.pow(10, receiveToken.decimals || 18);
+    // For Jupiter (Solana) swaps the native token SOL uses 9 decimals and
+    // SPL tokens use 6.  Falling back to 18 (EVM default) gives a wildly
+    // wrong rate for Solana pairs, so use chain-aware defaults.
+    const isSolanaSwap = !!jupiterQuote;
+    const payDec =
+      payToken.decimals != null
+        ? payToken.decimals
+        : isSolanaSwap
+          ? 9
+          : 18;
+    const recvDec =
+      receiveToken.decimals != null
+        ? receiveToken.decimals
+        : isSolanaSwap
+          ? 6
+          : 18;
+    const from = Number(fromAmount) / Math.pow(10, payDec);
+    const to = Number(toAmount) / Math.pow(10, recvDec);
     return from > 0 ? to / from : null;
   };
 
@@ -3192,8 +3344,12 @@ export default function SwapTokenModal({
                     availableTokens
                       .filter(
                         (t) =>
-                          (t.address || t.id) !==
-                          (receiveToken?.address || receiveToken?.id),
+                          (t.address || t.id || '').toLowerCase() !==
+                          (
+                            receiveToken?.address ||
+                            receiveToken?.id ||
+                            ''
+                          ).toLowerCase(),
                       )
                       .map((t, i) => (
                         <TokenRow
