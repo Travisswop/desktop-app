@@ -736,9 +736,26 @@ export async function middleware(req: NextRequest) {
       });
 
       try {
-        const authToken = token || accessToken;
+        // IMPORTANT: Privy verification must only run on a Privy-issued token.
+        // If we only have our backend `access-token`, skip Privy verification to avoid
+        // spamming "Failed to verify authentication token" and misleading logs.
+        const authToken = token;
         if (!authToken) {
-          console.error('[AUTH] Both tokens are undefined');
+          console.warn(
+            '[AUTH] Access token present without privy-token; skipping Privy verification',
+          );
+          const authRedirect = await handleAuthenticatedUser(
+            req,
+            pathname,
+            userId || '',
+          );
+          if (authRedirect) {
+            console.log(`[AUTH] Redirecting authenticated user`);
+            return authRedirect;
+          }
+          console.log(
+            `[AUTH] Allowing authenticated access to: ${pathname}`,
+          );
           return response;
         }
 

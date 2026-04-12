@@ -82,7 +82,9 @@ export default async function PublicProfile({
     // Get microsite data for analytics
     const { data } = await getUserData(userName);
 
-    console.log("data user", data);
+    if (!data || !data.microsite) {
+      return <Custom404 />;
+    }
 
     // Handle analytics on server side
     await addSwopPoint({

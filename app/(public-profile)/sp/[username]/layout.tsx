@@ -15,7 +15,7 @@ export default async function Layout({
   const { data } = await getUserData(userName);
 
   return (
-    <MicrositeProvider micrositeData={data.microsite}>
+    <MicrositeProvider micrositeData={data?.microsite ?? null}>
       {children}
     </MicrositeProvider>
   );

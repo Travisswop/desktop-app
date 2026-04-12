@@ -540,6 +540,7 @@ export async function middleware(req: NextRequest) {
 
     const token = req.cookies.get("privy-token")?.value;
     const accessToken = req.cookies.get("access-token")?.value;
+    const userIdCookie = req.cookies.get("user-id")?.value;
 
     // If token cookie exists, validate it before allowing access
     if (token || accessToken) {
@@ -549,12 +550,25 @@ export async function middleware(req: NextRequest) {
       });
 
       try {
-        // Use privy-token if available, fallback to access-token
-        const authToken = token || accessToken;
+        // IMPORTANT: Privy verification must only run on a Privy-issued token.
+        // If we only have our backend `access-token`, skip Privy verification to avoid
+        // spamming "Failed to verify authentication token" and misleading logs.
+        const authToken = token;
         if (!authToken) {
-          console.error(
-            "[AUTH] Both tokens are undefined, this should not happen"
+          console.warn(
+            "[AUTH] Access token present without privy-token; skipping Privy verification"
           );
+          const authRedirect = await handleAuthenticatedUser(
+            req,
+            pathname,
+            userIdCookie || ""
+          );
+          if (authRedirect) {
+            console.log(`[AUTH] Redirecting authenticated user`);
+            return authRedirect;
+          }
+
+          console.log(`[AUTH] Allowing authenticated access to: ${pathname}`);
           return response;
         }
 

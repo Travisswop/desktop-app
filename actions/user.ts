@@ -12,7 +12,7 @@ export const getUserData = cache(async (username: string) => {
     }
   );
   if (!res.ok) {
-    throw new Error('Failed to fetch user data');
+    return { redirect: false, data: null };
   }
 
   const { data } = await res.json();

@@ -1805,25 +1805,6 @@ export default function SwapTokenModal({
         confirmTransactionInitialTimeout: 60000,
       });
 
-      // Detect whether the output mint uses Token-2022 so we know whether
-      // to skip Privy's preflight simulation.  Token-2022 tokens can have
-      // transfer-hook or transfer-fee extensions whose accounts are resolved
-      // by the Token-2022 program at runtime; Privy's static preflight
-      // simulation cannot see these accounts and therefore always fails for
-      // these tokens.  We skip preflight and rely on Jupiter's server-side
-      // simulation + Solana's on-chain execution instead.
-      let outputIsToken2022 = false;
-      try {
-        const outputMintInfo = await connection.getAccountInfo(
-          new PublicKey(outputMint),
-        );
-        outputIsToken2022 = Boolean(
-          outputMintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID),
-        );
-      } catch {
-        // Non-fatal — default to false (use preflight).
-      }
-
       // Warm up Privy session and run ATA pre-creation in parallel so neither
       // blocks the time-critical build → submit path.
       setSwapStatus('Preparing swap...');
@@ -2026,7 +2007,7 @@ export default function SwapTokenModal({
         );
       };
 
-      const extractErrorText = (err: any) => {
+      const extractErrorText = (err: any): string => {
         // Solana simulation errors carry program logs inside `context.logs`
         // (Privy / @solana/web3.js v2 shape) or `data.logs` (RPC raw shape).
         const logs: string[] =
@@ -2038,14 +2019,35 @@ export default function SwapTokenModal({
           console.error('[Jupiter swap] simulation logs:', logs);
         }
 
+        // Walk the full cause chain — Privy / @solana/kit can wrap the raw
+        // SolanaError ("Transaction simulation failed") in another layer before
+        // the actual program error ("custom program error: #6025") appears as
+        // cause.cause.  We collect every level so isSlippageError() reliably
+        // finds the error code regardless of nesting depth.
+        const causeTexts: string[] = [];
+        let cursor = err?.cause;
+        while (cursor && causeTexts.length < 10) {
+          if (cursor.message) causeTexts.push(String(cursor.message));
+          // Some cause objects stringify with the full chain (e.g. "Caused by: …")
+          try { causeTexts.push(String(cursor)); } catch { /* ignore */ }
+          // Logs may also be attached to a nested cause
+          const causeLogs: string[] =
+            cursor?.context?.logs ?? cursor?.data?.logs ?? [];
+          if (causeLogs.length) {
+            console.error('[Jupiter swap] cause simulation logs:', causeLogs);
+            causeTexts.push(...causeLogs);
+          }
+          cursor = cursor?.cause;
+        }
+
         const parts = [
           err?.message,
           err?.error?.message,
-          err?.cause?.message,
           err?.data?.message,
           // Surface the last program log line which usually names the error
           logs.at(-1),
           err?.toString?.(),
+          ...causeTexts,
         ]
           .filter(Boolean)
           .map((v) => String(v));
@@ -2072,30 +2074,16 @@ export default function SwapTokenModal({
       const submitTransaction = async (
         transaction: Uint8Array,
       ): Promise<string> => {
-        try {
-          const result = await signAndSendTransaction({
-            transaction,
-            wallet: selectedSolanaWallet,
-            // Skip Privy's preflight simulation for Token-2022 output tokens.
-            // Their transfer-hook / transfer-fee extension accounts are
-            // resolved at execution time by the on-chain program and are
-            // invisible to static preflight — causing false simulation
-            // failures.  Jupiter already simulated the tx server-side;
-            // the fresh blockhash and slippage guard protect against bad
-            // trades.
-            ...(outputIsToken2022 && {
-              options: { skipPreflight: true },
-            }),
-          });
-          return bs58.encode(result.signature);
-        } catch (sendError: any) {
-          if (isSlippageError(sendError)) {
-            throw new Error(
-              `Price moved and exceeded slippage. Slippage has been increased to ${formatSlippagePct(baseSlippageBps)} — please review the updated quote and tap Swap again.`,
-            );
-          }
-          throw sendError;
-        }
+        // Let any SolanaError propagate unchanged to the outer catch so that
+        // isSlippageError() can walk the full cause chain and find
+        // "custom program error: #6025" (SlippageToleranceExceeded, 0x1789).
+        // Privy wraps the SolanaError, so the code appears at cause.cause —
+        // wrapping here again would push it even deeper and break detection.
+        const result = await signAndSendTransaction({
+          transaction,
+          wallet: selectedSolanaWallet,
+        });
+        return bs58.encode(result.signature);
       };
 
       const baseSlippageBps = Math.max(1, Math.floor(slippage * 100));
@@ -2138,6 +2126,14 @@ export default function SwapTokenModal({
         setSwapStatus('Signing and sending transaction...');
         txId = await submitTransaction(serializedTransaction);
       } catch (sendError: any) {
+        // Always log full error structure so simulation failures are diagnosable
+        // without needing manual console expansion.
+        console.error('[Jupiter swap] raw sendError:', sendError);
+        console.error('[Jupiter swap] sendError.context:', sendError?.context);
+        console.error('[Jupiter swap] sendError.context?.logs:', sendError?.context?.logs);
+        console.error('[Jupiter swap] sendError.data:', sendError?.data);
+        console.error('[Jupiter swap] sendError.cause:', sendError?.cause);
+
         if (isSlippageError(sendError)) {
           const currentBps = Math.max(1, Math.floor(slippage * 100));
           const nextBps =

@@ -42,7 +42,7 @@ export const useMicrositeData = () => {
 
 interface MicrositeProviderProps {
   children: ReactNode;
-  micrositeData: MicrositeData;
+  micrositeData: MicrositeData | null;
 }
 
 export function MicrositeProvider({
