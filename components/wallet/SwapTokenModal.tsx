@@ -151,6 +151,7 @@ const isNativeEvmToken = (token?: any) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const formatUserFriendlyError = (error: string): string => {
+  console.log('error', error);
   const lowerError = error.toLowerCase();
   if (
     lowerError.includes('network error') ||
@@ -224,8 +225,7 @@ const formatUserFriendlyError = (error: string): string => {
     lowerError.includes('fetch error')
   )
     return 'Unable to connect to swap service. Please check your connection and try again.';
-  if (error.length > 150)
-    return error.slice(0, 147) + '...';
+  if (error.length > 150) return error.slice(0, 147) + '...';
   return (
     error.charAt(0).toUpperCase() +
     error.slice(1).replace(/[._]/g, ' ')
@@ -1890,6 +1890,52 @@ export default function SwapTokenModal({
         confirmTransactionInitialTimeout: 60000,
       });
 
+      // ── Pre-flight: verify SOL covers fees + any ATA rent ──────────────────
+      // ATA rent-exempt minimum: 2,039,280 lamports (~0.00204 SOL).
+      // TX fee buffer: 15,000 lamports (base fee + priority headroom).
+      setSwapStatus('Checking wallet balance...');
+      {
+        const ATA_RENT = 2_039_280;
+        const TX_FEE_BUFFER = 15_000;
+        const walletPubkey = new PublicKey(selectedSolanaWallet.address);
+        const outputMintPubkey = new PublicKey(outputMint);
+
+        // Fetch SOL balance and output mint info in one round trip
+        const [solLamports, outputMintAcct] = await Promise.all([
+          connection.getBalance(walletPubkey),
+          connection.getAccountInfo(outputMintPubkey).catch(() => null),
+        ]);
+
+        // Detect token program so we derive the correct ATA address
+        const outputTokenProgram = outputMintAcct?.owner.equals(
+          TOKEN_2022_PROGRAM_ID,
+        )
+          ? TOKEN_2022_PROGRAM_ID
+          : TOKEN_PROGRAM_ID;
+        const outputAtaAddr = await getAssociatedTokenAddress(
+          outputMintPubkey,
+          walletPubkey,
+          false,
+          outputTokenProgram,
+        );
+        const outputAtaAcct = await connection
+          .getAccountInfo(outputAtaAddr)
+          .catch(() => null);
+
+        const rentNeeded = outputAtaAcct ? 0 : ATA_RENT;
+        const minRequired = TX_FEE_BUFFER + rentNeeded;
+
+        if (solLamports < minRequired) {
+          const shortfall = ((minRequired - solLamports) / 1e9).toFixed(5);
+          const reason = !outputAtaAcct
+            ? `transaction fees and creating your ${receiveToken?.symbol ?? 'output token'} account`
+            : 'transaction fees';
+          throw new Error(
+            `Insufficient SOL: you need ${shortfall} more SOL to cover ${reason}.`,
+          );
+        }
+      }
+
       // Warm up Privy session and run ATA pre-creation in parallel so neither
       // blocks the time-critical build → submit path.
       setSwapStatus('Preparing swap...');
@@ -2175,8 +2221,13 @@ export default function SwapTokenModal({
       setSwapStatus('Transaction confirmed');
       onSwapComplete?.(txId);
     } catch (error: any) {
-      const rawMsg = error?.message || error?.toString() || 'Swap failed';
-      console.error('[Jupiter executeJupiterSwap] error:', rawMsg, error);
+      const rawMsg =
+        error?.message || error?.toString() || 'Swap failed';
+      console.error(
+        '[Jupiter executeJupiterSwap] error:',
+        rawMsg,
+        error,
+      );
       setSwapError(formatUserFriendlyError(rawMsg));
       setSwapStatus(null);
     } finally {
@@ -2247,6 +2298,7 @@ export default function SwapTokenModal({
 
       await saveSwapToDatabase(signature, quote);
     } catch (error: any) {
+      console.error('[Jupiter execute] error:', error);
       setSwapError(
         formatUserFriendlyError(
           error?.message || error?.toString() || 'Transaction failed',

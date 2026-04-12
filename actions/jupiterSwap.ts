@@ -148,6 +148,8 @@ export const getJupiterOrder = async (params: JupiterOrderParams) => {
 
     const url = `https://api.jup.ag/swap/v2/order?${searchParams.toString()}`;
 
+    console.log('[Jupiter /order] URL:', url);
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -157,6 +159,10 @@ export const getJupiterOrder = async (params: JupiterOrderParams) => {
     });
 
     const data = await response.json().catch(() => null);
+    console.log(
+      '[Jupiter /order] Response:',
+      JSON.stringify(data, null, 2),
+    );
     if (!response.ok) {
       let errorMessage;
       if (response.status === 429) {
@@ -193,13 +199,18 @@ export const getJupiterOrder = async (params: JupiterOrderParams) => {
     }
 
     if (!data.transaction || !data.requestId) {
+      const appError: string | undefined = data.errorMessage || data.error;
       console.warn(
-        '[Jupiter /order] response missing transaction/requestId. Full response:',
-        JSON.stringify(data),
+        '[Jupiter /order] missing transaction. errorCode:',
+        data.errorCode,
+        'errorMessage:',
+        appError,
       );
       return {
         success: false,
-        error: 'This token pair cannot be swapped via Jupiter at this time. It may be a Token-2022 or PreStocks token with limited DEX support.',
+        error:
+          appError ||
+          'This token pair cannot be swapped via Jupiter at this time.',
       };
     }
 
