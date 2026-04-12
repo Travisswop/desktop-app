@@ -193,10 +193,13 @@ export const getJupiterOrder = async (params: JupiterOrderParams) => {
     }
 
     if (!data.transaction || !data.requestId) {
+      console.warn(
+        '[Jupiter /order] response missing transaction/requestId. Full response:',
+        JSON.stringify(data),
+      );
       return {
         success: false,
-        error:
-          'Jupiter could not build a transaction for this token pair. The token may not be supported for swapping.',
+        error: 'This token pair cannot be swapped via Jupiter at this time. It may be a Token-2022 or PreStocks token with limited DEX support.',
       };
     }
 

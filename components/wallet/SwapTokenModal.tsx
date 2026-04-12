@@ -224,8 +224,8 @@ const formatUserFriendlyError = (error: string): string => {
     lowerError.includes('fetch error')
   )
     return 'Unable to connect to swap service. Please check your connection and try again.';
-  if (error.length > 100)
-    return 'Transaction failed. Please try again or contact support if the issue persists.';
+  if (error.length > 150)
+    return error.slice(0, 147) + '...';
   return (
     error.charAt(0).toUpperCase() +
     error.slice(1).replace(/[._]/g, ' ')
@@ -2091,9 +2091,22 @@ export default function SwapTokenModal({
 
       if (execStatus === 'Failed') {
         console.error('[Jupiter execute] failed:', execResult.data);
-        throw new Error(
-          `Swap failed (code ${execCode}). Price may have moved — please try again.`,
-        );
+        const codeMessages: Record<string, string> = {
+          SimulationFailed:
+            'Transaction simulation failed. The token pair may not be supported or liquidity is insufficient.',
+          TransactionExpired:
+            'Transaction expired. Please try again.',
+          SlippageToleranceExceeded:
+            'Price moved too much. Try increasing slippage or reducing the amount.',
+          InstructionError:
+            'On-chain instruction error. This token pair may not be supported.',
+        };
+        const shortMsg =
+          codeMessages[execCode] ||
+          (execCode
+            ? `Swap failed (${execCode}). Please try again.`
+            : 'Swap execution failed. Please try again.');
+        throw new Error(shortMsg);
       }
 
       const txId = txSignature;
@@ -2162,11 +2175,9 @@ export default function SwapTokenModal({
       setSwapStatus('Transaction confirmed');
       onSwapComplete?.(txId);
     } catch (error: any) {
-      setSwapError(
-        formatUserFriendlyError(
-          error?.message || error?.toString() || 'Swap failed',
-        ),
-      );
+      const rawMsg = error?.message || error?.toString() || 'Swap failed';
+      console.error('[Jupiter executeJupiterSwap] error:', rawMsg, error);
+      setSwapError(formatUserFriendlyError(rawMsg));
       setSwapStatus(null);
     } finally {
       setIsSwapping(false);
