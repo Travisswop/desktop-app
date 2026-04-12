@@ -192,6 +192,14 @@ export const getJupiterOrder = async (params: JupiterOrderParams) => {
       };
     }
 
+    if (!data.transaction || !data.requestId) {
+      return {
+        success: false,
+        error:
+          'Jupiter could not build a transaction for this token pair. The token may not be supported for swapping.',
+      };
+    }
+
     return { success: true, data };
   } catch (error: any) {
     console.error('Error getting Jupiter order:', error);

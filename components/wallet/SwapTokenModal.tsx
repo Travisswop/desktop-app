@@ -2016,7 +2016,9 @@ export default function SwapTokenModal({
       });
 
       if (!orderResult.success || !orderResult.data) {
-        throw new Error(orderResult.error || 'Failed to get swap order');
+        throw new Error(
+          orderResult.error || 'Failed to get swap order',
+        );
       }
 
       const {
@@ -2034,9 +2036,27 @@ export default function SwapTokenModal({
 
       // ── Step 2: Deserialize + replace blockhash ────────────────────────────
       setSwapStatus('Preparing transaction...');
-      const txBuffer = Buffer.from(orderTxB64, 'base64');
-      const tx = VersionedTransaction.deserialize(txBuffer);
-      const { blockhash } = await connection.getLatestBlockhash('confirmed');
+      if (!orderTxB64) {
+        throw new Error(
+          'Jupiter did not return a transaction for this token pair. Please try a different amount or try again.',
+        );
+      }
+      let tx: VersionedTransaction;
+      try {
+        const txBuffer = Buffer.from(orderTxB64, 'base64');
+        tx = VersionedTransaction.deserialize(txBuffer);
+      } catch (deserErr) {
+        console.error(
+          '[Jupiter order] tx deserialize failed. raw transaction:',
+          orderTxB64,
+          deserErr,
+        );
+        throw new Error(
+          'Failed to parse swap transaction from Jupiter. Please try again.',
+        );
+      }
+      const { blockhash } =
+        await connection.getLatestBlockhash('confirmed');
       tx.message.recentBlockhash = blockhash;
       const serializedTx = new Uint8Array(tx.serialize());
 
@@ -2050,7 +2070,8 @@ export default function SwapTokenModal({
       // ── Step 4: Submit to Jupiter /execute ─────────────────────────────────
       // Jupiter handles transaction landing, retries, and confirmation.
       setSwapStatus('Submitting swap...');
-      const signedTxB64 = Buffer.from(signedTransaction).toString('base64');
+      const signedTxB64 =
+        Buffer.from(signedTransaction).toString('base64');
       const execResult = await postJupiterExecute({
         signedTransaction: signedTxB64,
         requestId,
@@ -2114,27 +2135,27 @@ export default function SwapTokenModal({
         const outputPrice = Number(
           receiveToken?.price || receiveToken?.usdPrice || 0,
         );
-        notifySwapFee(
-          {
-            txHash: txId,
-            walletAddress: selectedSolanaWallet?.address,
-            inputTokenSymbol: payToken?.symbol,
-            inputAmount: payAmount,
-            inputUsdValue:
-              inputPrice > 0
-                ? (Number(payAmount || 0) * inputPrice).toFixed(6)
-                : undefined,
-            outputTokenSymbol: receiveToken?.symbol,
-            outputAmount: receiveAmount,
-            outputUsdValue:
-              outputPrice > 0
-                ? (Number(receiveAmount || 0) * outputPrice).toFixed(
-                    6,
-                  )
-                : undefined,
-          },
-          accessToken,
-        );
+        // notifySwapFee(
+        //   {
+        //     txHash: txId,
+        //     walletAddress: selectedSolanaWallet?.address,
+        //     inputTokenSymbol: payToken?.symbol,
+        //     inputAmount: payAmount,
+        //     inputUsdValue:
+        //       inputPrice > 0
+        //         ? (Number(payAmount || 0) * inputPrice).toFixed(6)
+        //         : undefined,
+        //     outputTokenSymbol: receiveToken?.symbol,
+        //     outputAmount: receiveAmount,
+        //     outputUsdValue:
+        //       outputPrice > 0
+        //         ? (Number(receiveAmount || 0) * outputPrice).toFixed(
+        //             6,
+        //           )
+        //         : undefined,
+        //   },
+        //   accessToken,
+        // );
       }
 
       await saveSwapToDatabase(txId, { inputMint, outputMint });
@@ -2151,7 +2172,6 @@ export default function SwapTokenModal({
       setIsSwapping(false);
     }
   };
-
 
   // ── Solana LiFi swap ──────────────────────────────────────────────────────────
   const executeSolanaSwap = async () => {
