@@ -61,6 +61,7 @@ interface ReactionProps {
   onRepostSuccess?: () => void;
   onPostInteraction?: (postId: string, updates: Partial<FeedItemType>) => void;
   feed?: any;
+  parentCommentId?: string | null;
 }
 
 const Reaction = memo(
@@ -74,6 +75,7 @@ const Reaction = memo(
     onRepostSuccess,
     onPostInteraction,
     feed,
+    parentCommentId = null,
   }: ReactionProps) => {
     const [liked, setLiked] = useState(isLiked);
     const [likeCount, setLikeCount] = useState(initialLikeCount);
@@ -629,6 +631,7 @@ const Reaction = memo(
                             });
                             onClose();
                           }}
+                          parentCommentId={parentCommentId}
                           // autoFocus
                           // compact={false}
                         />

@@ -39,6 +39,7 @@ import isUrl from "@/lib/isUrl";
 import { deleteFeed, postFeed, postFeedLike } from "@/actions/postFeed";
 import repostImg from "@/public/images/custom-icons/feed_repost.png";
 import CommentInput from "../comment/CommentInput";
+import { logger } from "ethers5";
 
 dayjs.extend(relativeTime);
 
@@ -271,7 +272,9 @@ const CommentReaction = memo(
           smartsiteId: user?.primaryMicrosite,
           reactionType: "like",
         };
-        await postFeedLike(payload, accessToken);
+        logger.info("Sending like payload:", payload);
+        const hola = await postFeedLike(payload, accessToken);
+        logger.info("Like API response:", hola);
         // onPostInteraction?.(postId, {
         //   likeCount: newLikeCountState,
         //   isLiked: newLikedState,

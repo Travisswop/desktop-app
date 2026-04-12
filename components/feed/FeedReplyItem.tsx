@@ -412,7 +412,7 @@ const FeedReplyItem = memo(
 
           {/* Reactions */}
           <Reaction
-            postId={feed._id}
+            postId={feed.postId || feed._id}
             isLiked={feed.isLiked}
             likeCount={feed.likeCount}
             commentCount={feed.commentCount || feed.replyCount}
@@ -421,7 +421,7 @@ const FeedReplyItem = memo(
             onRepostSuccess={onRepostSuccess}
             onPostInteraction={onPostInteraction}
             feed={feed}
-            isFromFeedDetails={true}
+            parentCommentId={feed._id} // Pass parentCommentId for comment reactions
           />
         </div>
 

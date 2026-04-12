@@ -36,6 +36,15 @@ export default function CommentInput({
   parentCommentId = null,
   placeholder = "Post your reply...",
 }: CommentInputProps) {
+  console.log(
+    "hola test",
+    postId,
+    // accessToken,
+    // latestCommentCount,
+    // setLatestCommentCount,
+    // onCommentSubmitted,
+    parentCommentId,
+  );
   const { postContent, setPostContent, removeContent } =
     useCommentContentStore();
   const [commentText, setCommentText] = useState("");

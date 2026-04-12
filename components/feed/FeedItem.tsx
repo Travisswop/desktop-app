@@ -404,7 +404,7 @@ const FeedItem = memo(
           )}
 
           {/* Reactions */}
-          {isFromFeedDetailsPage ? (
+          {/* {isFromFeedDetailsPage ? (
             <FeedDetailsReaction
               postId={feed._id}
               isLiked={feed.isLiked}
@@ -416,19 +416,19 @@ const FeedItem = memo(
               onPostInteraction={onPostInteraction}
               feed={feed}
             />
-          ) : (
-            <Reaction
-              postId={feed._id}
-              isLiked={feed.isLiked}
-              likeCount={feed.likeCount}
-              commentCount={feed.commentCount || feed.replyCount}
-              repostCount={feed.repostCount}
-              viewsCount={feed.viewsCount}
-              onRepostSuccess={onRepostSuccess}
-              onPostInteraction={onPostInteraction}
-              feed={feed}
-            />
-          )}
+          ) : ( */}
+          <Reaction
+            postId={feed._id}
+            isLiked={feed.isLiked}
+            likeCount={feed.likeCount}
+            commentCount={feed.commentCount || feed.replyCount}
+            repostCount={feed.repostCount}
+            viewsCount={feed.viewsCount}
+            onRepostSuccess={onRepostSuccess}
+            onPostInteraction={onPostInteraction}
+            feed={feed}
+          />
+          {/* )} */}
         </div>
 
         {isModalOpen && (

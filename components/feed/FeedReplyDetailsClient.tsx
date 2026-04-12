@@ -6,6 +6,7 @@ import CommentItem from "./CommentItem";
 import { FiMessageCircle } from "react-icons/fi";
 import { logger } from "ethers5";
 import FeedReplyItem from "./FeedReplyItem";
+import { useModalStore } from "@/zustandStore/modalstore";
 
 interface FeedItemType {
   _id: string;
@@ -45,6 +46,8 @@ export default function FeedReplyDetailsClient({
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+
+  const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
 
   logger.info("FeedDetailsClient rendered with feed:", feed);
   logger.info("FeedDetailsClient rendered with comments:", comments);
@@ -96,6 +99,15 @@ export default function FeedReplyDetailsClient({
     fetchComments(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // refetch trigger
+  useEffect(() => {
+    if (feedRefetchTrigger === 0) return;
+
+    setPage(1);
+    setHasMore(true);
+    fetchComments(1);
+  }, [feedRefetchTrigger, fetchComments]);
 
   // Scroll pagination
   useEffect(() => {
@@ -207,7 +219,7 @@ export default function FeedReplyDetailsClient({
                   key={comment._id}
                   comment={comment}
                   userId={userId}
-                  postId={feed._id}
+                  postId={feed.postId || feed._id}
                   isLast={idx === comments.length - 1 && !hasMore}
                 />
               ))}
