@@ -23,11 +23,16 @@ import {
   fetchTokensFromLiFi,
   getLifiQuote as fetchLifiQuote,
 } from '@/actions/lifiForTokenSwap';
-import { getJupiterBuild as fetchJupiterBuild } from '@/actions/jupiterSwap';
+import {
+  getJupiterBuild as fetchJupiterBuild,
+  getJupiterOrder,
+  executeJupiterOrder as postJupiterExecute,
+} from '@/actions/jupiterSwap';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import {
   useWallets as useSolanaWallets,
   useSignAndSendTransaction,
+  useSignTransaction,
 } from '@privy-io/react-auth/solana';
 import {
   createPublicClient,
@@ -39,9 +44,6 @@ import { arbitrum, base, bsc, mainnet, polygon } from 'viem/chains';
 import {
   Connection,
   VersionedTransaction,
-  TransactionMessage,
-  TransactionInstruction,
-  AddressLookupTableAccount,
   PublicKey,
 } from '@solana/web3.js';
 import {
@@ -768,6 +770,7 @@ export default function SwapTokenModal({
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
   const { signAndSendTransaction } = useSignAndSendTransaction();
+  const { signTransaction } = useSignTransaction();
   const { socket: chatSocket } = useNewSocketChat();
   const socket = chatSocket;
   const ethWallet = wallets[0]?.address;
@@ -1847,14 +1850,9 @@ export default function SwapTokenModal({
     }
   };
 
-  // ── Jupiter swap ──────────────────────────────────────────────────────────────
+  // ── Jupiter swap (/order + /execute) ─────────────────────────────────────────
   const executeJupiterSwap = async () => {
     try {
-      if (!jupiterQuote) {
-        setSwapError('No Jupiter quote available');
-        setIsSwapping(false);
-        return;
-      }
       if (!solanaReady) {
         setSwapError(
           'Solana wallet is not ready. Please wait and try again.',
@@ -1868,8 +1866,19 @@ export default function SwapTokenModal({
         return;
       }
 
-      const inputMint = jupiterQuote.inputMint;
-      const outputMint = jupiterQuote.outputMint;
+      const getTokenMint = (t: any) =>
+        t.symbol === 'SOL'
+          ? 'So11111111111111111111111111111111111111112'
+          : t.address || t.id;
+
+      const inputMint = getTokenMint(payToken);
+      const outputMint = getTokenMint(receiveToken);
+      if (!inputMint || !outputMint)
+        throw new Error('Invalid token addresses');
+      if (inputMint.toLowerCase() === outputMint.toLowerCase())
+        throw new Error(
+          'Pay token and receive token are the same. Please select different tokens.',
+        );
       const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
       if (!rpcUrl)
         throw new Error(
@@ -1990,293 +1999,87 @@ export default function SwapTokenModal({
         })(),
       ]);
 
-      // Helper: build a VersionedTransaction from a Jupiter V2 build response.
-      // Always fetches a fresh blockhash from the RPC to avoid simulation
-      // failures caused by a stale blockhash embedded in the API response.
-      const buildTransaction = async (
-        build: any,
-      ): Promise<Uint8Array> => {
-        // Jupiter Ultra API v2 returns a pre-built serialised transaction in
-        // the `transaction` field (base64).  Older v1 endpoints use
-        // `swapTransaction`.  Prefer this path because it includes all
-        // compute-budget and setup instructions that Jupiter already optimised,
-        // and we avoid any instruction-reconstruction bugs.
-        const rawTxB64 = build.transaction ?? build.swapTransaction;
-        if (rawTxB64) {
-          const txBuffer = Buffer.from(rawTxB64, 'base64');
-          const tx = VersionedTransaction.deserialize(txBuffer);
-          // Always replace the embedded blockhash with a fresh one from the
-          // same connection that will be used by Privy for preflight/send,
-          // preventing "blockhash not found" or stale-blockhash failures.
-          const { blockhash } =
-            await connection.getLatestBlockhash('confirmed');
-          tx.message.recentBlockhash = blockhash;
-          return new Uint8Array(tx.serialize());
-        }
+      // ── Step 1: Get order from Jupiter /order ──────────────────────────────
+      // Omitting slippageBps enables RTSE (Real-Time Slippage Estimator) and
+      // multi-router competition (Metis, RFQ, Dflow, OKX). Jupiter assembles a
+      // fully signed-ready base64 transaction and handles landing retries.
+      setSwapStatus('Fetching swap route...');
+      const amountInSmallestUnit = formatTokenAmount(
+        payAmount,
+        payToken.decimals || 6,
+      );
+      const orderResult = await getJupiterOrder({
+        inputMint,
+        outputMint,
+        amount: amountInSmallestUnit,
+        taker: selectedSolanaWallet.address,
+      });
 
-        // Fallback: instruction-based response (older / non-Ultra endpoints).
-        const {
-          swapInstruction,
-          otherInstructions = [],
-          addressesByLookupTableAddress = {},
-        } = build;
-
-        if (!swapInstruction)
-          throw new Error(
-            'No swap instruction received from Jupiter API',
-          );
-
-        const deserializeInstruction = (
-          ix: any,
-        ): TransactionInstruction => {
-          const keys = (ix.accounts ?? ix.keys ?? []).map(
-            (acc: any) => ({
-              pubkey: new PublicKey(acc.pubkey ?? acc.key),
-              isSigner: Boolean(acc.isSigner),
-              isWritable: Boolean(acc.isWritable),
-            }),
-          );
-          const data =
-            typeof ix.data === 'string'
-              ? Buffer.from(ix.data, 'base64')
-              : Buffer.from(ix.data ?? []);
-          return new TransactionInstruction({
-            programId: new PublicKey(ix.programId),
-            keys,
-            data,
-          });
-        };
-
-        const altAccounts = Object.entries(
-          addressesByLookupTableAddress as Record<string, string[]>,
-        ).map(
-          ([altAddress, addresses]) =>
-            new AddressLookupTableAccount({
-              key: new PublicKey(altAddress),
-              state: {
-                deactivationSlot: BigInt('0xffffffffffffffff'),
-                lastExtendedSlot: 0,
-                lastExtendedSlotStartIndex: 0,
-                authority: undefined,
-                addresses: addresses.map((a) => new PublicKey(a)),
-              },
-            }),
-        );
-
-        // Always fetch a fresh blockhash rather than relying on the one
-        // embedded in the API response, which may already be stale by the
-        // time simulation runs.
-        const { blockhash: recentBlockhash } =
-          await connection.getLatestBlockhash('confirmed');
-
-        const message = new TransactionMessage({
-          payerKey: new PublicKey(selectedSolanaWallet.address),
-          recentBlockhash,
-          instructions: [
-            ...otherInstructions.map(deserializeInstruction),
-            deserializeInstruction(swapInstruction),
-          ],
-        }).compileToV0Message(altAccounts);
-
-        return new Uint8Array(
-          new VersionedTransaction(message).serialize(),
-        );
-      };
-
-      const extractErrorText = (err: any): string => {
-        // Solana simulation errors carry program logs inside `context.logs`
-        // (Privy / @solana/web3.js v2 shape) or `data.logs` (RPC raw shape).
-        const logs: string[] =
-          err?.context?.logs ??
-          err?.error?.context?.logs ??
-          err?.data?.logs ??
-          [];
-        if (logs.length) {
-          console.error('[Jupiter swap] simulation logs:', logs);
-        }
-
-        // Walk the full cause chain — Privy / @solana/kit can wrap the raw
-        // SolanaError ("Transaction simulation failed") in another layer before
-        // the actual program error ("custom program error: #6025") appears as
-        // cause.cause.  We collect every level so isSlippageError() reliably
-        // finds the error code regardless of nesting depth.
-        const causeTexts: string[] = [];
-        let cursor = err?.cause;
-        while (cursor && causeTexts.length < 10) {
-          if (cursor.message) causeTexts.push(String(cursor.message));
-          // Some cause objects stringify with the full chain (e.g. "Caused by: …")
-          try {
-            causeTexts.push(String(cursor));
-          } catch {
-            /* ignore */
-          }
-          // Logs may also be attached to a nested cause
-          const causeLogs: string[] =
-            cursor?.context?.logs ?? cursor?.data?.logs ?? [];
-          if (causeLogs.length) {
-            console.error(
-              '[Jupiter swap] cause simulation logs:',
-              causeLogs,
-            );
-            causeTexts.push(...causeLogs);
-          }
-          cursor = cursor?.cause;
-        }
-
-        const parts = [
-          err?.message,
-          err?.error?.message,
-          err?.data?.message,
-          // Surface the last program log line which usually names the error
-          logs.at(-1),
-          err?.toString?.(),
-          ...causeTexts,
-        ]
-          .filter(Boolean)
-          .map((v) => String(v));
-        return parts.join(' | ');
-      };
-
-      const isSlippageError = (err: any) => {
-        const msg = extractErrorText(err).toLowerCase();
-        // 6025 decimal == 0x1789 hex
-        return (
-          msg.includes('6025') ||
-          msg.includes('0x1789') ||
-          msg.includes('slippagetoleranceexceeded') ||
-          msg.includes('slippage tolerance exceeded')
-        );
-      };
-
-      const formatSlippagePct = (bps: number) => {
-        const pct = bps / 100;
-        const str = pct.toFixed(pct % 1 === 0 ? 0 : 2);
-        return `${str.replace(/\.?0+$/, '')}%`;
-      };
-
-      const submitTransaction = async (
-        transaction: Uint8Array,
-      ): Promise<string> => {
-        // Let any SolanaError propagate unchanged to the outer catch so that
-        // isSlippageError() can walk the full cause chain and find
-        // "custom program error: #6025" (SlippageToleranceExceeded, 0x1789).
-        // Privy wraps the SolanaError, so the code appears at cause.cause —
-        // wrapping here again would push it even deeper and break detection.
-        const result = await signAndSendTransaction({
-          transaction,
-          wallet: selectedSolanaWallet,
-        });
-        return bs58.encode(result.signature);
-      };
-
-      // Token-2022 output tokens can incur additional slippage from transfer
-      // fees / transfer-hook extensions.  Detect this up-front so the first
-      // attempt already uses a high-enough slippage and avoids 0x1789 errors.
-      let isToken2022Output = false;
-      try {
-        const outputMintInfo = await connection.getAccountInfo(
-          new PublicKey(outputMint),
-        );
-        isToken2022Output =
-          outputMintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID) ??
-          false;
-      } catch {
-        // Non-fatal — leave isToken2022Output as false.
+      if (!orderResult.success || !orderResult.data) {
+        throw new Error(orderResult.error || 'Failed to get swap order');
       }
 
-      const baseSlippageBps = Math.max(1, Math.floor(slippage * 100));
-      // For Token-2022 output tokens use at least 1000 bps (10%) as the
-      // opening slippage; otherwise use the user's configured value.
-      const effectiveBaseSlippageBps = isToken2022Output
-        ? Math.max(baseSlippageBps, 1000)
-        : baseSlippageBps;
-      const maxAutoSlippageBps = 5000; // 50% max auto-bump on failure
-      const slippageAttempts = Array.from(
-        new Set(
-          [
-            effectiveBaseSlippageBps,
-            100, // 1%
-            200, // 2%
-            500, // 5%
-            1000, // 10%
-            2000, // 20%
-            5000, // 50%
-          ].map((v) => Math.min(v, maxAutoSlippageBps)),
-        ),
-      ).sort((a, b) => a - b);
+      const {
+        transaction: orderTxB64,
+        requestId,
+        outAmount,
+      } = orderResult.data;
 
-      let txId = '';
-      let activeQuote = jupiterQuote;
+      // Update displayed receive amount from the live order response.
+      if (outAmount && receiveToken?.decimals) {
+        const readable =
+          Number(outAmount) / Math.pow(10, receiveToken.decimals);
+        setReceiveAmount(readable.toFixed(8).replace(/\.?0+$/, ''));
+      }
 
-      // Always start the first attempt at the user's configured slippage
-      // (or the Token-2022 minimum).  The ladder below 1 % exists only for
-      // the auto-bump escalation path, not for the initial attempt.
-      const attemptSlippageBps = effectiveBaseSlippageBps;
+      // ── Step 2: Deserialize + replace blockhash ────────────────────────────
+      setSwapStatus('Preparing transaction...');
+      const txBuffer = Buffer.from(orderTxB64, 'base64');
+      const tx = VersionedTransaction.deserialize(txBuffer);
+      const { blockhash } = await connection.getLatestBlockhash('confirmed');
+      tx.message.recentBlockhash = blockhash;
+      const serializedTx = new Uint8Array(tx.serialize());
 
-      setSwapStatus('Refreshing price quote...');
+      // ── Step 3: Sign with Privy (sign only, not broadcast) ─────────────────
+      setSwapStatus('Please sign the transaction...');
+      const { signedTransaction } = await signTransaction({
+        transaction: serializedTx,
+        wallet: selectedSolanaWallet,
+      });
 
-      try {
-        // Fetch a fresh quote immediately before building the transaction
-        // so the slippage tolerance is as current as possible.
-        const freshQuote = await getJupiterQuote(
-          true,
-          attemptSlippageBps,
-        );
-        if (freshQuote) activeQuote = freshQuote;
+      // ── Step 4: Submit to Jupiter /execute ─────────────────────────────────
+      // Jupiter handles transaction landing, retries, and confirmation.
+      setSwapStatus('Submitting swap...');
+      const signedTxB64 = Buffer.from(signedTransaction).toString('base64');
+      const execResult = await postJupiterExecute({
+        signedTransaction: signedTxB64,
+        requestId,
+      });
 
-        setSwapStatus('Preparing swap transaction...');
-        const serializedTransaction =
-          await buildTransaction(activeQuote);
-
-        setSwapStatus('Signing and sending transaction...');
-        txId = await submitTransaction(serializedTransaction);
-      } catch (sendError: any) {
-        // Always log full error structure so simulation failures are diagnosable
-        // without needing manual console expansion.
-        console.error('[Jupiter swap] raw sendError:', sendError);
-        console.error(
-          '[Jupiter swap] sendError.context:',
-          sendError?.context,
-        );
-        console.error(
-          '[Jupiter swap] sendError.context?.logs:',
-          sendError?.context?.logs,
-        );
-        console.error(
-          '[Jupiter swap] sendError.data:',
-          sendError?.data,
-        );
-        console.error(
-          '[Jupiter swap] sendError.cause:',
-          sendError?.cause,
-        );
-
-        if (isSlippageError(sendError)) {
-          const currentBps = Math.max(1, Math.floor(slippage * 100));
-          const nextBps =
-            slippageAttempts.find((v) => v > currentBps) ??
-            currentBps;
-          const nextPct = nextBps / 100;
-          setSlippage(nextPct);
-          setCustomSlippage(String(nextPct));
-          setSwapStatus(null);
-          setSwapError(
-            `Price moved and exceeded slippage. Slippage has been increased to ${formatSlippagePct(nextBps)} — please review the updated quote and tap Swap again.`,
-          );
-          return;
-        }
+      if (!execResult.success || !execResult.data) {
         throw new Error(
-          sendError?.message ||
-            sendError?.toString() ||
-            'Transaction failed',
+          execResult.error || 'Failed to submit swap transaction',
         );
       }
 
-      if (!txId) {
+      const {
+        status: execStatus,
+        signature: txSignature,
+        code: execCode,
+      } = execResult.data;
+
+      if (execStatus === 'Failed') {
+        console.error('[Jupiter execute] failed:', execResult.data);
         throw new Error(
-          'Swap failed. Price may have moved too much — try increasing slippage.',
+          `Swap failed (code ${execCode}). Price may have moved — please try again.`,
         );
       }
+
+      const txId = txSignature;
+      if (!txId)
+        throw new Error(
+          'No transaction signature returned from Jupiter.',
+        );
 
       setTxHash(txId);
       setSwapStatus(
@@ -2285,9 +2088,8 @@ export default function SwapTokenModal({
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       let isConfirmed = false;
-      const confirmRpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
-      if (confirmRpcUrl) {
-        const confirmConnection = new Connection(confirmRpcUrl, {
+      if (rpcUrl) {
+        const confirmConnection = new Connection(rpcUrl, {
           commitment: 'confirmed',
           confirmTransactionInitialTimeout: 60000,
         });
@@ -2335,7 +2137,7 @@ export default function SwapTokenModal({
         );
       }
 
-      await saveSwapToDatabase(txId, activeQuote);
+      await saveSwapToDatabase(txId, { inputMint, outputMint });
       setSwapStatus('Transaction confirmed');
       onSwapComplete?.(txId);
     } catch (error: any) {
@@ -2349,6 +2151,7 @@ export default function SwapTokenModal({
       setIsSwapping(false);
     }
   };
+
 
   // ── Solana LiFi swap ──────────────────────────────────────────────────────────
   const executeSolanaSwap = async () => {
