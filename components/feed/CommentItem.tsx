@@ -8,6 +8,7 @@ import isUrl from "@/lib/isUrl";
 // import Cookies from "js-cookie";
 import CommentReaction from "./view/CommentReaction";
 import { logger } from "ethers5";
+import { formatEns } from "@/lib/formatEnsName";
 
 dayjs.extend(relativeTime);
 
@@ -120,7 +121,9 @@ export default function CommentItem({
             <p className="font-bold text-[15px] text-gray-900 ">{userName}</p>
             <span className="text-[14px] text-gray-500">·</span>
             {ensName && (
-              <span className="text-[14px] text-gray-500">{ensName}</span>
+              <span className="text-[14px] text-gray-500">
+                {formatEns(ensName)}
+              </span>
             )}
             <span className="text-[14px] text-gray-500">·</span>
             <span className="text-[14px] text-gray-500">

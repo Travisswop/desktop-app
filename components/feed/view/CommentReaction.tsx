@@ -119,6 +119,8 @@ const CommentReaction = memo(
     const [primarySmartsiteData, setPrimarySmartsiteData] = useState<any>(null);
     const [accessToken, setAccessToken] = useState("");
 
+    console.log("liked", isLiked);
+
     // Share popover
     const [isSharePopOpen, setIsSharePopOpen] = useState(false);
     const [isCopied, setIsCopied] = useState(false);

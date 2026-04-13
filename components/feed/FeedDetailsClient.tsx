@@ -8,6 +8,7 @@ import { FiMessageCircle } from "react-icons/fi";
 import { logger } from "ethers5";
 import { useModalStore } from "@/zustandStore/modalstore";
 import FeedLoading from "../loading/FeedLoading";
+import { CommentSkeleton } from "../loading/CommentLoading";
 
 interface FeedItemType {
   _id: string;
@@ -47,6 +48,7 @@ export default function FeedDetailsClient({
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [sort, setSort] = useState<"latest" | "oldest" | "popular">("latest");
 
   const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
 
@@ -57,14 +59,14 @@ export default function FeedDetailsClient({
   const fetchingRef = useRef(false);
 
   const fetchComments = useCallback(
-    async (pageNum: number) => {
+    async (pageNum: number, sortBy = sort) => {
       if (fetchingRef.current) return;
       fetchingRef.current = true;
       setLoading(true);
 
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${feed._id}/comments?userId=${userId}&page=${pageNum}&limit=${LIMIT}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${feed._id}/comments?userId=${userId}&page=${pageNum}&limit=${LIMIT}&sort=${sortBy}`,
           {
             headers: accessToken
               ? { Authorization: `Bearer ${accessToken}` }
@@ -90,7 +92,7 @@ export default function FeedDetailsClient({
         setInitialLoading(false);
       }
     },
-    [feed?._id, userId, accessToken, comments?.length],
+    [feed?._id, userId, accessToken, sort],
   );
 
   // Initial load
@@ -134,6 +136,15 @@ export default function FeedDetailsClient({
     fetchComments(1);
   }, [feedRefetchTrigger, fetchComments]);
 
+  const handleSortChange = (newSort: "latest" | "oldest" | "popular") => {
+    setSort(newSort);
+    setComments([]);
+    setPage(1);
+    setHasMore(true);
+    setInitialLoading(true);
+    fetchComments(1, newSort).finally(() => setInitialLoading(false));
+  };
+
   return (
     <div className="flex flex-col pb-20">
       {/* Back */}
@@ -169,23 +180,27 @@ export default function FeedDetailsClient({
             </span>
           )}
         </h3>
+        {/* Sort selector — X.com style */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-full p-1">
+          {(["latest", "oldest", "popular"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => handleSortChange(s)}
+              className={`px-3 py-1 text-xs font-medium rounded-full transition-all capitalize ${
+                sort === s
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Skeleton */}
-      {initialLoading && (
-        <div className="flex flex-col gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="flex gap-3 animate-pulse">
-              <div className="w-9 h-9 rounded-full bg-gray-200 shrink-0" />
-              <div className="flex-1 flex flex-col gap-2 pt-1">
-                <div className="h-3 w-28 bg-gray-200 rounded" />
-                <div className="h-3 w-full bg-gray-200 rounded" />
-                <div className="h-3 w-2/3 bg-gray-200 rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Initial load */}
+      {initialLoading && <CommentSkeleton />}
 
       {/* Replace the comment list section: */}
       {!initialLoading && (
