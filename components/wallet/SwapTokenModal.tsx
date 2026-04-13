@@ -52,9 +52,9 @@ import {
   TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddress,
 } from '@solana/spl-token';
-import { saveSwapTransaction } from '@/actions/saveTransactionData';
 import Cookies from 'js-cookie';
 import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
+import { useUser } from '@/lib/UserContext';
 import {
   getWalletNotificationService,
   formatUSDValue,
@@ -792,6 +792,7 @@ export default function SwapTokenModal({
   );
 
   const { user: PrivyUser, getAccessToken } = usePrivy();
+  const { user: userData } = useUser();
   const searchParams = useSearchParams();
 
   // ── Default token selection: SWOP (pay) → USDC (receive), both Solana ───────
@@ -1793,49 +1794,87 @@ export default function SwapTokenModal({
   // ── Save swap + socket notification ──────────────────────────────────────────
   const saveSwapToDatabase = async (signature: string, q: any) => {
     try {
-      const swapDetails = {
-        signature,
-        solanaAddress: selectedSolanaWallet?.address || '',
-        inputToken: {
-          symbol: payToken?.symbol || q.inputMint,
-          amount: parseFloat(payAmount),
-          decimals: payToken?.decimals || 6,
-          mint: payToken?.address || payToken?.id || q.inputMint,
-          price: payToken?.price || payToken?.usdPrice || '0',
-          logo: payToken?.logoURI || payToken?.symbol || '',
+      const inputChainId =
+        payToken?.chainId?.toString() ??
+        getChainId(payToken?.chain ?? '');
+      const outputChainId =
+        receiveToken?.chainId?.toString() ??
+        getChainId(receiveToken?.chain ?? '');
+      const network =
+        getNetworkByChainId(inputChainId) || 'solana';
+
+      const params = {
+        smartsiteId: userData?.primaryMicrosite || '',
+        userId: userData?._id || '',
+        postType: 'swapTransaction',
+        content: {
+          signature,
+          inputToken: {
+            symbol: payToken?.symbol || q.inputMint || '',
+            amount: parseFloat(payAmount),
+            decimals: payToken?.decimals || 6,
+            mint: payToken?.address || payToken?.id || q.inputMint || '',
+            price: payToken?.price || payToken?.usdPrice || '0',
+            tokenImg: payToken?.logoURI || '',
+            chain: inputChainId,
+          },
+          outputToken: {
+            symbol: receiveToken?.symbol || q.outputMint || '',
+            amount: parseFloat(receiveAmount),
+            decimals: receiveToken?.decimals || 6,
+            mint:
+              receiveToken?.address ||
+              receiveToken?.id ||
+              q.outputMint ||
+              '',
+            price:
+              receiveToken?.price || receiveToken?.usdPrice || '0',
+            tokenImg: receiveToken?.logoURI || '',
+            chain: outputChainId,
+          },
         },
-        outputToken: {
-          symbol: receiveToken?.symbol || q.outputMint,
-          amount: parseFloat(receiveAmount),
-          decimals: receiveToken?.decimals || 6,
-          mint:
-            receiveToken?.address || receiveToken?.id || q.outputMint,
-          price: receiveToken?.price || receiveToken?.usdPrice || '0',
-          logo: receiveToken?.logoURI || receiveToken?.symbol || '',
-        },
+        walletAddress:
+          fromWalletAddress ||
+          selectedSolanaWallet?.address ||
+          ethWallet ||
+          '',
         slippageBps: Math.floor(slippage * 100),
-        platformFeeBps: 50,
+        platformFeeBps: 0,
         timestamp: Date.now(),
+        transactionType: 'SWAP',
+        network,
       };
-      await saveSwapTransaction(swapDetails, accessToken);
+
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(params),
+        },
+      );
+
       if (socket?.connected) {
         try {
           getWalletNotificationService(socket).emitSwapCompleted({
-            inputTokenSymbol: swapDetails.inputToken.symbol,
-            inputAmount: swapDetails.inputToken.amount.toFixed(6),
-            outputTokenSymbol: swapDetails.outputToken.symbol,
-            outputAmount: swapDetails.outputToken.amount.toFixed(6),
+            inputTokenSymbol: params.content.inputToken.symbol,
+            inputAmount: params.content.inputToken.amount.toFixed(6),
+            outputTokenSymbol: params.content.outputToken.symbol,
+            outputAmount: params.content.outputToken.amount.toFixed(6),
             txSignature: signature,
             network: payToken?.chain || 'SOLANA',
-            inputTokenLogo: swapDetails.inputToken.logo,
-            outputTokenLogo: swapDetails.outputToken.logo,
+            inputTokenLogo: params.content.inputToken.tokenImg,
+            outputTokenLogo: params.content.outputToken.tokenImg,
             inputUsdValue: formatUSDValue(
-              swapDetails.inputToken.amount,
-              swapDetails.inputToken.price,
+              params.content.inputToken.amount,
+              params.content.inputToken.price,
             ),
             outputUsdValue: formatUSDValue(
-              swapDetails.outputToken.amount,
-              swapDetails.outputToken.price,
+              params.content.outputToken.amount,
+              params.content.outputToken.price,
             ),
           });
         } catch (notifError) {
@@ -1923,13 +1962,24 @@ export default function SwapTokenModal({
           .catch(() => null);
 
         const rentNeeded = outputAtaAcct ? 0 : ATA_RENT;
-        const minRequired = TX_FEE_BUFFER + rentNeeded;
+        const SOL_MINT = 'So11111111111111111111111111111111111111112';
+        const isSOLInput = inputMint === SOL_MINT;
+
+        // When the input token IS SOL, the swap amount itself is drawn from
+        // the SOL balance, so we must include it in the requirement.
+        const swapLamports = isSOLInput
+          ? Number(formatTokenAmount(payAmount, payToken?.decimals ?? 9))
+          : 0;
+
+        const minRequired = TX_FEE_BUFFER + rentNeeded + swapLamports;
 
         if (solLamports < minRequired) {
           const shortfall = ((minRequired - solLamports) / 1e9).toFixed(5);
-          const reason = !outputAtaAcct
-            ? `transaction fees and creating your ${receiveToken?.symbol ?? 'output token'} account`
-            : 'transaction fees';
+          const reason = isSOLInput
+            ? `the swap amount and fees${!outputAtaAcct ? ` (including account creation for ${receiveToken?.symbol ?? 'output token'})` : ''}`
+            : !outputAtaAcct
+              ? `transaction fees and creating your ${receiveToken?.symbol ?? 'output token'} account`
+              : 'transaction fees';
           throw new Error(
             `Insufficient SOL: you need ${shortfall} more SOL to cover ${reason}.`,
           );
@@ -2062,9 +2112,15 @@ export default function SwapTokenModal({
       });
 
       if (!orderResult.success || !orderResult.data) {
-        throw new Error(
-          orderResult.error || 'Failed to get swap order',
-        );
+        const errMsg = orderResult.error || 'Failed to get swap order';
+        // Jupiter returns "Insufficient funds" when the taker's input token
+        // balance is too low — clarify it's the token, not SOL.
+        if (errMsg.toLowerCase().includes('insufficient funds')) {
+          throw new Error(
+            `Insufficient ${payToken?.symbol ?? 'token'} balance. Please check your balance or try a smaller amount.`,
+          );
+        }
+        throw new Error(errMsg);
       }
 
       const {
@@ -2536,10 +2592,42 @@ export default function SwapTokenModal({
   };
 
   const handlePercentageClick = (pct: number) => {
-    if (payToken?.balance) {
-      setPayAmount((parseFloat(payToken.balance) * pct).toString());
-      if (receiveToken) setIsQuoteLoading(true);
+    if (!payToken?.balance) return;
+
+    const SOL_MINT = 'So11111111111111111111111111111111111111112';
+    const isSOLInput =
+      payToken.symbol === 'SOL' ||
+      (payToken.address ?? '') === SOL_MINT;
+    const decimals = payToken.decimals ?? (isSOLInput ? 9 : 6);
+
+    let amount: number;
+
+    if (isSOLInput) {
+      // Always reserve worst-case fees + ATA rent so the swap doesn't
+      // exhaust the SOL needed for the transaction itself.
+      const ATA_RENT_SOL = 2_039_280 / 1e9; // ~0.00204 SOL
+      const TX_FEE_SOL = 15_000 / 1e9;      // ~0.000015 SOL
+      const spendable = Math.max(
+        0,
+        parseFloat(payToken.balance) - ATA_RENT_SOL - TX_FEE_SOL,
+      );
+      amount = spendable * pct;
+    } else if (pct === 1) {
+      // For SPL tokens at 100%, run through the same truncation logic used
+      // when sending to Jupiter, then subtract 1 smallest unit.  This guards
+      // against display-rounding where the shown balance is 1 unit higher
+      // than the actual on-chain amount.
+      const smallestUnits = BigInt(
+        formatTokenAmount(payToken.balance.toString(), decimals),
+      );
+      const safeUnits = smallestUnits > 0n ? smallestUnits - 1n : 0n;
+      amount = Number(safeUnits) / Math.pow(10, decimals);
+    } else {
+      amount = parseFloat(payToken.balance) * pct;
     }
+
+    setPayAmount(amount > 0 ? amount.toFixed(decimals) : '0');
+    if (receiveToken) setIsQuoteLoading(true);
   };
 
   const handlePayAmountChange = (
@@ -3000,18 +3088,6 @@ export default function SwapTokenModal({
                       )}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-gray-600">
-                      <span>Fees</span>
-                      <Info className="w-4 h-4" />
-                    </div>
-                    <span className="text-gray-900">0.5%</span>
-                  </div>
-                  {(quote || jupiterQuote) && (
-                    <div className="text-xs text-gray-500 pt-2 border-t border-gray-200">
-                      Quote includes a 0.5% platform fee
-                    </div>
-                  )}
                 </div>
               ) : null;
             })()}
