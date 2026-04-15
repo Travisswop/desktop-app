@@ -159,7 +159,7 @@ interface TradeHistoryProps {
 }
 
 export default function TradeHistory({ walletAddress }: TradeHistoryProps) {
-  const [typeFilter, setTypeFilter] = useState<ActivityType | ''>('TRADE');
+  const [typeFilter, setTypeFilter] = useState<ActivityType | ''>('');
   const [sideFilter, setSideFilter] = useState<'BUY' | 'SELL' | ''>('');
   const [sort, setSort] = useState<'ASC' | 'DESC'>('DESC');
   const [offset, setOffset] = useState(0);

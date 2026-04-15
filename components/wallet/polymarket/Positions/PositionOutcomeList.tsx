@@ -10,10 +10,18 @@ function shouldInclude(position: PolymarketPosition): boolean {
   const totalBought = position.totalBought || 0;
   const size = position.size || 0;
   const soldShares = Math.max(0, totalBought - size);
-
-  // Show anything that has an actual realized exit (soldShares>0),
-  // or anything that is settled (redeemable) so we can compare to resolution.
-  return totalBought > 0 && (soldShares > 0 || position.redeemable);
+  const result = totalBought > 0 && (soldShares > 0 || position.redeemable);
+  console.log('[Outcomes][shouldInclude]', {
+    title: position.title,
+    outcome: position.outcome,
+    conditionId: position.conditionId,
+    totalBought,
+    size,
+    soldShares,
+    redeemable: position.redeemable,
+    included: result,
+  });
+  return result;
 }
 
 export default function PositionOutcomeList({
@@ -49,80 +57,138 @@ export default function PositionOutcomeList({
     sort: 'DESC',
   });
 
+  console.log('[Outcomes][raw trades from API]', trades);
+
   const tradeOutcomes: AggregatedTradeOutcome[] = useMemo(() => {
+    console.log('[Outcomes][tradeOutcomes] recomputing, trades.length=', trades.length);
     if (!trades.length) return [];
 
-    type Agg = {
-      title: string;
-      outcome: string;
-      icon?: string | null;
-      buyShares: number;
-      buyCost: number;
-      sellShares: number;
-      sellProceeds: number;
-    };
+    type RawTrade = (typeof trades)[0];
 
-    const map = new Map<string, Agg>();
+    // Step 1: group trades by conditionId-outcomeIndex
+    const groups = new Map<string, RawTrade[]>();
     for (const t of trades) {
       const key = `${t.conditionId}-${t.outcomeIndex}`;
-      const current = map.get(key) ?? {
-        title: t.title,
-        outcome: t.outcome,
-        icon: t.icon,
-        buyShares: 0,
-        buyCost: 0,
-        sellShares: 0,
-        sellProceeds: 0,
-      };
-
-      if (t.side === 'BUY') {
-        current.buyShares += Number(t.size || 0);
-        current.buyCost += Number(t.size || 0) * Number(t.price || 0);
-      } else {
-        current.sellShares += Number(t.size || 0);
-        current.sellProceeds += Number(t.size || 0) * Number(t.price || 0);
-      }
-
-      // Prefer latest non-empty metadata
-      if (t.title) current.title = t.title;
-      if (t.outcome) current.outcome = t.outcome;
-      if (t.icon) current.icon = t.icon;
-
-      map.set(key, current);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(t);
     }
 
     const out: AggregatedTradeOutcome[] = [];
-    for (const [key, a] of map.entries()) {
-      if (a.buyShares <= 0 || a.sellShares <= 0) continue; // completed outcomes need both buys and sells
-      const avgBuyPrice = a.buyCost > 0 ? a.buyCost / a.buyShares : null;
-      const avgSellPrice = a.sellProceeds > 0 ? a.sellProceeds / a.sellShares : null;
-      const realizedPnl =
-        avgBuyPrice != null && avgSellPrice != null
-          ? (avgSellPrice - avgBuyPrice) * a.sellShares
-          : 0;
 
-      out.push({
-        key,
-        title: a.title,
-        outcome: a.outcome,
-        icon: a.icon,
-        boughtShares: a.buyShares,
-        soldShares: a.sellShares,
-        avgBuyPrice,
-        avgSellPrice,
-        realizedPnl,
-      });
+    for (const [baseKey, groupTrades] of groups.entries()) {
+      // Step 2: sort oldest → newest within the group
+      const sorted = [...groupTrades].sort((a, b) => a.timestamp - b.timestamp);
+
+      // Step 3: detect per-cycle boundaries
+      // A new cycle starts when a BUY arrives after the current accumulator already
+      // has at least one SELL — i.e. the user is re-entering the same outcome.
+      let cycleIndex = 0;
+      let buyShares = 0;
+      let buyCost = 0;
+      let sellShares = 0;
+      let sellProceeds = 0;
+      let hadSell = false;
+      let title = sorted[0].title;
+      let outcome = sorted[0].outcome;
+      let icon = sorted[0].icon;
+
+      const flushCycle = () => {
+        if (buyShares <= 0 || sellShares <= 0) return; // incomplete cycle, skip
+        const avgBuyPrice = buyCost > 0 ? buyCost / buyShares : null;
+        const avgSellPrice = sellProceeds > 0 ? sellProceeds / sellShares : null;
+        const realizedPnl =
+          avgBuyPrice != null && avgSellPrice != null
+            ? (avgSellPrice - avgBuyPrice) * sellShares
+            : 0;
+
+        const result =
+          avgSellPrice == null || avgBuyPrice == null
+            ? 'UNKNOWN'
+            : avgSellPrice > avgBuyPrice + 1e-6
+              ? 'WIN'
+              : avgSellPrice < avgBuyPrice - 1e-6
+                ? 'LOSS'
+                : 'BREAKEVEN';
+
+        console.log(`[Outcomes][cycle] ${baseKey} #${cycleIndex + 1}`, {
+          title,
+          avgBuyPrice,
+          avgSellPrice,
+          realizedPnl,
+          result,
+        });
+
+        out.push({
+          key: `${baseKey}-c${cycleIndex}`,
+          title,
+          outcome,
+          icon,
+          boughtShares: buyShares,
+          soldShares: sellShares,
+          avgBuyPrice,
+          avgSellPrice,
+          realizedPnl,
+        });
+
+        cycleIndex++;
+        buyShares = 0;
+        buyCost = 0;
+        sellShares = 0;
+        sellProceeds = 0;
+        hadSell = false;
+      };
+
+      for (const t of sorted) {
+        if (t.title) title = t.title;
+        if (t.outcome) outcome = t.outcome;
+        if (t.icon) icon = t.icon;
+
+        if (t.side === 'BUY') {
+          // Re-entry: BUY after we already sold in this cycle → close current cycle first
+          if (hadSell) flushCycle();
+          buyShares += Number(t.size || 0);
+          buyCost += Number(t.size || 0) * Number(t.price || 0);
+        } else {
+          sellShares += Number(t.size || 0);
+          sellProceeds += Number(t.size || 0) * Number(t.price || 0);
+          hadSell = true;
+        }
+      }
+
+      // Flush the final cycle
+      flushCycle();
     }
 
     return out;
   }, [trades]);
 
-  // Prefer positions API (it includes settled resolution info); fall back to trade aggregation
-  // so fully-closed trades still show up in Outcomes.
-  const hasPositionOutcomes = items.length > 0;
-  const hasTradeOutcomes = tradeOutcomes.length > 0;
+  // Keys already covered by the positions API — used to deduplicate trade outcomes.
+  const positionKeys = useMemo(
+    () => new Set(items.map((p) => `${p.conditionId}-${p.outcomeIndex}`)),
+    [items],
+  );
 
-  if (!hasPositionOutcomes && !hasTradeOutcomes) {
+  // Only include trade outcomes that are NOT already shown via a position entry.
+  // Fully-closed trades disappear from the positions API (size=0), so they land
+  // here exclusively. Partially-sold positions appear in both — skip the duplicate.
+  const supplementalTradeOutcomes = useMemo(
+    () => tradeOutcomes.filter((t) => !positionKeys.has(t.key)),
+    [tradeOutcomes, positionKeys],
+  );
+
+  console.log('[Outcomes][FINAL]', {
+    allPositions: (positions || []).length,
+    positionOutcomes: items.length,
+    positionOutcomeItems: items.map((p) => ({ title: p.title, outcome: p.outcome, conditionId: p.conditionId, redeemable: p.redeemable, totalBought: p.totalBought, size: p.size, realizedPnl: p.realizedPnl, curPrice: p.curPrice })),
+    tradeOutcomesTotal: tradeOutcomes.length,
+    supplementalTradeOutcomes: supplementalTradeOutcomes.length,
+    supplementalItems: supplementalTradeOutcomes.map((t) => ({ title: t.title, outcome: t.outcome, key: t.key, avgBuyPrice: t.avgBuyPrice, avgSellPrice: t.avgSellPrice, realizedPnl: t.realizedPnl })),
+  });
+
+  const hasPositionOutcomes = items.length > 0;
+  const hasSupplementalTrades = supplementalTradeOutcomes.length > 0;
+
+  if (!hasPositionOutcomes && !hasSupplementalTrades) {
     return (
       <div className="text-center py-8">
         <p className="text-gray-400 text-sm">
@@ -134,19 +200,18 @@ export default function PositionOutcomeList({
 
   return (
     <div className="space-y-3">
-      {hasPositionOutcomes
-        ? items.map((position) => (
-          <PositionOutcomeCard
-            key={`${position.conditionId}-${position.outcomeIndex}`}
-            position={position}
-            onRedeem={onRedeem}
-            isRedeeming={redeemingAsset === position.asset}
-            canRedeem={canRedeem}
-          />
-        ))
-        : tradeOutcomes.map((item) => (
-          <TradeOutcomeCard key={item.key} item={item} />
-        ))}
+      {items.map((position) => (
+        <PositionOutcomeCard
+          key={`${position.conditionId}-${position.outcomeIndex}`}
+          position={position}
+          onRedeem={onRedeem}
+          isRedeeming={redeemingAsset === position.asset}
+          canRedeem={canRedeem}
+        />
+      ))}
+      {supplementalTradeOutcomes.map((item) => (
+        <TradeOutcomeCard key={item.key} item={item} />
+      ))}
     </div>
   );
 }

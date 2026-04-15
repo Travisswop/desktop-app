@@ -99,6 +99,28 @@ export default function PositionOutcomeCard({
 
   const result = resolveOutcomeResult(avgBuyPrice, referencePrice);
 
+  console.log('[PositionOutcomeCard]', {
+    title: position.title,
+    outcome: position.outcome,
+    conditionId: position.conditionId,
+    // raw fields from API
+    totalBought: position.totalBought,
+    size: position.size,
+    initialValue: position.initialValue,
+    avgPrice: position.avgPrice,
+    realizedPnl: position.realizedPnl,
+    curPrice: position.curPrice,
+    currentValue: position.currentValue,
+    redeemable: position.redeemable,
+    // computed
+    avgBuyPrice,
+    avgSellPrice,
+    resolvedPrice,
+    referencePrice,
+    referenceLabel,
+    result,
+  });
+
   const soldShares = Math.max(
     0,
     (position.totalBought || 0) - (position.size || 0),

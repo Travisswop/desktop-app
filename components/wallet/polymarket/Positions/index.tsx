@@ -331,12 +331,17 @@ export default function UserPositions() {
   }, [activePositions, activeOrders, netDeposits, usdcBalance]);
 
   const hasOutcomes = useMemo(() => {
+    // Also show the Outcomes section when there are no active positions but the
+    // wallet is connected — fully-sold trades disappear from the positions API
+    // (size=0 → not returned) so we can't gate on positions alone. PositionOutcomeList
+    // fetches trade activity independently and handles its own empty state.
+    if (safeAddress) return true;
     return (positions || []).some((p) => {
       const totalBought = p.totalBought || 0;
       const soldShares = Math.max(0, totalBought - (p.size || 0));
       return totalBought > 0 && (soldShares > 0 || p.redeemable);
     });
-  }, [positions]);
+  }, [positions, safeAddress]);
 
   if (isLoading)
     return <LoadingState message="Loading positions..." />;
