@@ -11,7 +11,6 @@ function formatCents(price: number): string {
 function inferResolvedPrice(
   position: PolymarketPosition,
 ): number | null {
-  if (!position.redeemable) return null;
   if (!Number.isFinite(position.curPrice)) return null;
 
   // Many feeds will report exactly 0 or 1 after settlement.
@@ -56,7 +55,9 @@ function computeAvgSellPrice(
     (position.totalBought || 0) - (position.size || 0),
   );
   if (soldShares <= 0) return null;
-  if (!Number.isFinite(position.realizedPnl)) return null;
+  // Treat missing, NaN, or zero realizedPnl as unresolvable — zero is ambiguous
+  // and a genuine break-even is exceedingly rare; prefer UNKNOWN over a false EVEN.
+  if (!Number.isFinite(position.realizedPnl) || position.realizedPnl === 0) return null;
 
   // realizedPnl ≈ (avgSell - avgBuy) * soldShares
   return avgBuyPrice + position.realizedPnl / soldShares;

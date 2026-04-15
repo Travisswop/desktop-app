@@ -152,7 +152,9 @@ export function useNetDeposits(safeAddress: string | undefined) {
       const startBlock = BigInt(deploymentBlock) > PRE_DEPLOY_LOOKBACK_BLOCKS
         ? BigInt(deploymentBlock) - PRE_DEPLOY_LOOKBACK_BLOCKS
         : 0n;
-      let lastScannedBlock = cached?.lastScannedBlock ?? (startBlock - 1n);
+      let lastScannedBlock: bigint = cached != null
+        ? BigInt(cached.lastScannedBlock)
+        : startBlock > 0n ? startBlock - 1n : 0n;
 
       if (lastScannedBlock >= latestBlock) {
         const deposited = Number(formatUnits(totalIn, USDC_E_DECIMALS));

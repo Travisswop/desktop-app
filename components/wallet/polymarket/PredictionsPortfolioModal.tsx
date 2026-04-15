@@ -103,6 +103,7 @@ export default function PredictionsPortfolioModal({
   >(new Map());
 
   const { clobClient, relayClient, safeAddress } = useTrading();
+  console.log('safe address', safeAddress);
   const { eoaAddress } = usePolymarketWallet();
   const queryClient = useQueryClient();
 
@@ -111,9 +112,8 @@ export default function PredictionsPortfolioModal({
   );
 
   const { usdcBalance } = usePolygonBalances(safeAddress);
-  const { data: netDeposits, isLoading: isNetDepositsLoading } = useNetDeposits(
-    safeAddress as string | undefined,
-  );
+  const { data: netDeposits, isLoading: isNetDepositsLoading } =
+    useNetDeposits(safeAddress as string | undefined);
   const { data: activeOrders = [] } = useActiveOrders(
     clobClient,
     safeAddress,
@@ -166,8 +166,16 @@ export default function PredictionsPortfolioModal({
     // P/L = (current available USDC + withdrawn USDC) - total deposited USDC
     // This matches the user's mental model: deposit $50 → available $40 => -$10.
     const deposited = netDeposits?.totalDeposited ?? 0;
+    console.log('deposited', deposited);
     const withdrawn = netDeposits?.totalWithdrawn ?? 0;
-    const lifetimeEarned = usdcBalance + withdrawn - deposited;
+    console.log('withdrawn', withdrawn);
+    const openPositionsValue = activePositions
+      .filter((p) => !p.redeemable)
+      .reduce((s, p) => s + p.currentValue, 0);
+    console.log('openPositionsValue', openPositionsValue);
+    const lifetimeEarned =
+      usdcBalance + openPositionsValue + withdrawn - deposited;
+    console.log('lifetimeEarned', lifetimeEarned);
 
     if (!activePositions.length) {
       return { portfolioPct: 0, lifetimeEarned, inOrdersValue };
@@ -374,7 +382,9 @@ export default function PredictionsPortfolioModal({
                 </p>
                 {!isNetDepositsLoading && netDeposits && (
                   <p className="text-[10px] text-gray-400 mt-1">
-                    Deposited ${netDeposits.totalDeposited.toFixed(2)} • Withdrawn ${netDeposits.totalWithdrawn.toFixed(2)}
+                    Deposited ${netDeposits.totalDeposited.toFixed(2)}{' '}
+                    • Withdrawn $
+                    {netDeposits.totalWithdrawn.toFixed(2)}
                   </p>
                 )}
               </div>
