@@ -39,19 +39,6 @@ export default function TradeOutcomeCard({
     item.avgSellPrice,
   );
 
-  console.log('[TradeOutcomeCard]', {
-    title: item.title,
-    outcome: item.outcome,
-    key: item.key,
-    cycleNumber: item.cycleNumber,
-    boughtShares: item.boughtShares,
-    soldShares: item.soldShares,
-    avgBuyPrice: item.avgBuyPrice,
-    avgSellPrice: item.avgSellPrice,
-    realizedPnl: item.realizedPnl,
-    result,
-  });
-
   const badge =
     result === 'WIN'
       ? { text: 'WIN', cls: 'bg-green-100 text-green-700' }
