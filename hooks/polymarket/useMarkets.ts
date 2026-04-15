@@ -1,8 +1,8 @@
 import type { CategoryId } from "@/constants/polymarket";
 import { getCategoryById, QUERY_STALE_TIMES } from "@/constants/polymarket";
 import { useTrading } from "@/providers/polymarket";
-import { Side } from "@polymarket/clob-client";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { fetchChunkedPrices } from "@/lib/polymarket/clob-prices";
 
 export type PolymarketMarket = {
   id: string;
@@ -50,14 +50,17 @@ interface UseMarketsOptions {
   categoryId?: CategoryId;
   /** Override the tag_id used for filtering (e.g. a sport subcategory tag) */
   overrideTagId?: number | null;
+  /** Set to false to skip fetching (e.g. when the sports events view is active) */
+  enabled?: boolean;
 }
 
 export function useMarkets(options: UseMarketsOptions = {}) {
-  const { categoryId = "trending", overrideTagId } = options;
+  const { categoryId = "trending", overrideTagId, enabled = true } = options;
   const { clobClient } = useTrading();
 
   return useInfiniteQuery({
     queryKey: ["high-volume-markets", categoryId, overrideTagId, !!clobClient],
+    enabled,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<PolymarketMarket[]> => {
       const category = getCategoryById(categoryId);
@@ -94,47 +97,17 @@ export function useMarkets(options: UseMarketsOptions = {}) {
           }
 
           if (allTokenIds.length > 0) {
-            const [bidPrices, askPrices] = await Promise.all([
-              clobClient.getPrices(
-                allTokenIds.map((id) => ({ token_id: id, side: Side.SELL })),
-              ),
-              clobClient.getPrices(
-                allTokenIds.map((id) => ({ token_id: id, side: Side.BUY })),
-              ),
-            ]);
+            // Use chunked fetching to stay under the CLOB payload size limit
+            const globalPriceMap = await fetchChunkedPrices(clobClient, allTokenIds);
 
             for (const market of markets) {
               if (!market.clobTokenIds) continue;
-
               try {
                 const tokenIds: string[] = JSON.parse(market.clobTokenIds);
-                const priceMap: Record<string, any> = {};
-
+                const priceMap: Record<string, typeof globalPriceMap[string]> = {};
                 for (const tokenId of tokenIds) {
-                  const bidPrice = parseFloat(
-                    (bidPrices as Record<string, string>)[tokenId] ?? "0",
-                  );
-                  const askPrice = parseFloat(
-                    (askPrices as Record<string, string>)[tokenId] ?? "0",
-                  );
-
-                  if (
-                    !isNaN(bidPrice) &&
-                    !isNaN(askPrice) &&
-                    bidPrice > 0 &&
-                    bidPrice < 1 &&
-                    askPrice > 0 &&
-                    askPrice < 1
-                  ) {
-                    priceMap[tokenId] = {
-                      bidPrice,
-                      askPrice,
-                      midPrice: (bidPrice + askPrice) / 2,
-                      spread: askPrice - bidPrice,
-                    };
-                  }
+                  if (globalPriceMap[tokenId]) priceMap[tokenId] = globalPriceMap[tokenId];
                 }
-
                 market.realtimePrices = priceMap;
               } catch {
                 // ignore malformed clobTokenIds on individual market

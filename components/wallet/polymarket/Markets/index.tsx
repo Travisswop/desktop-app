@@ -10,6 +10,9 @@ import {
   useBtc5mPolymarketMarket,
   type PolymarketMarket,
 } from '@/hooks/polymarket';
+import { useSportsEvents } from '@/hooks/polymarket/useSportsEvents';
+import { usePolymarketTeams } from '@/hooks/polymarket/usePolymarketTeams';
+import { useSportsMeta } from '@/hooks/polymarket/useSportsMeta';
 import {
   type CategoryId,
   type SportSubcategoryId,
@@ -19,18 +22,25 @@ import {
   getSportSubcategoryById,
   MIN_ORDER_SIZE,
 } from '@/constants/polymarket';
+import {
+  groupFlatMarketsIntoGames,
+  enrichGamesWithTeamLogos,
+  isValidGameCard,
+  type SportsGameGroup,
+} from '@/lib/polymarket/sports-grouping';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
 import LoadingState from '../shared/LoadingState';
 import MarketCard from './MarketCard';
+import SportsGameCard from './SportsGameCard';
 import BtcUpDownCard from './BtcUpDownCard';
 import BtcOrderModal from './BtcOrderModal';
 import CategoryTabs from './CategoryTabs';
 import OrderPlacementModal from '../OrderModal';
 import MarketDetailModal from './MarketDetailModal';
 
-/** How many markets appear in the left column when splitLayout is enabled */
+/** How many items appear in the left column when splitLayout is enabled */
 const LEFT_COLUMN_COUNT = 3;
 
 type SelectedMarket = {
@@ -79,40 +89,93 @@ export default function HighVolumeMarkets({
   const { usdcBalance } = usePolygonBalances(safeAddress);
   const { data: positions } = useUserPositions(safeAddress);
 
-  const overrideTagId = useMemo(() => {
-    if (activeCategory !== 'sports') return undefined;
-    const sub = getSportSubcategoryById(activeSportSub);
-    return sub?.tagId ?? undefined;
-  }, [activeCategory, activeSportSub]);
+  const isSportsActive = activeCategory === 'sports';
 
+  // ── Live Gamma metadata ────────────────────────────────────────────────────
+  // Fetch once, cache for 1 h. Both hooks are no-ops when sports isn't active
+  // (React Query still runs, but results are cheap and shared across mounts).
+  const { data: sportsMeta } = useSportsMeta();
+  const { data: teamsData } = usePolymarketTeams();
+
+  const overrideTagId = useMemo(() => {
+    if (!isSportsActive) return undefined;
+
+    if (activeSportSub === 'all') {
+      // "All Sports" — use the sports parent tag
+      return (
+        sportsMeta?.tagIdBySlug.get('sports') ??
+        getCategoryById('sports')?.tagId ??
+        100639
+      );
+    }
+
+    // Prefer live tag ID from /sports API, fall back to static constant
+    const liveTagId = sportsMeta?.tagIdBySlug.get(activeSportSub.toLowerCase());
+    if (liveTagId != null) return liveTagId;
+
+    const sub = getSportSubcategoryById(activeSportSub);
+    return sub?.tagId ?? getCategoryById('sports')?.tagId ?? undefined;
+  }, [isSportsActive, activeSportSub, sportsMeta]);
+
+  // ── Non-sports flat markets ───────────────────────────────────────────────
   const {
-    data,
-    isLoading,
-    error,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
+    data: marketsData,
+    isLoading: isMarketsLoading,
+    error: marketsError,
+    fetchNextPage: fetchNextMarketsPage,
+    hasNextPage: hasNextMarketsPage,
+    isFetchingNextPage: isFetchingNextMarketsPage,
   } = useMarkets({
     categoryId: activeCategory,
     overrideTagId,
+    enabled: !isSportsActive,
   });
 
-  // Flatten all pages into a single list
-  const allMarkets = useMemo(() => data?.pages.flat() ?? [], [data]);
+  const allMarkets = useMemo(() => marketsData?.pages.flat() ?? [], [marketsData]);
 
-  // Filter by search query (client-side across all loaded markets)
   const filteredMarkets = useMemo(() => {
     if (!searchQuery.trim()) return allMarkets;
     const q = searchQuery.toLowerCase();
-    return allMarkets.filter((m) =>
-      m.question.toLowerCase().includes(q),
-    );
+    return allMarkets.filter((m) => m.question.toLowerCase().includes(q));
   }, [allMarkets, searchQuery]);
 
-  // Reset pagination when category / sport sub / search changes
-  useEffect(() => {
-    // No visibleCount to reset — server pagination handles it
-  }, [activeCategory, activeSportSub, searchQuery]);
+  // ── Sports events ─────────────────────────────────────────────────────────
+  const {
+    data: sportsData,
+    isLoading: isSportsLoading,
+    error: sportsError,
+    fetchNextPage: fetchNextSportsPage,
+    hasNextPage: hasNextSportsPage,
+    isFetchingNextPage: isFetchingNextSportsPage,
+  } = useSportsEvents({
+    tagId: overrideTagId,
+    enabled: isSportsActive,
+  });
+
+  // Merge all pages of flat sports markets first, then group into games.
+  // Grouping after merging (rather than per-page) means a game whose markets
+  // span two pages will still be assembled into a single complete card.
+  // Finally, enrich with live logo URLs from the Gamma /teams API.
+  const allSportsMarkets = useMemo(() => sportsData?.pages.flat() ?? [], [sportsData]);
+  const allGames = useMemo(() => {
+    const grouped = groupFlatMarketsIntoGames(allSportsMarkets).filter(isValidGameCard);
+    return teamsData ? enrichGamesWithTeamLogos(grouped, teamsData) : grouped;
+  }, [allSportsMarkets, teamsData]);
+
+  const filteredGames = useMemo(() => {
+    if (!searchQuery.trim()) return allGames;
+    const q = searchQuery.toLowerCase();
+    return allGames.filter((g) => g.title.toLowerCase().includes(q));
+  }, [allGames, searchQuery]);
+
+  // ── Unified pagination state (drives the single sentinel) ────────────────
+  const isLoading = isSportsActive ? isSportsLoading : isMarketsLoading;
+  const error = isSportsActive ? sportsError : marketsError;
+  const hasNextPage = isSportsActive ? hasNextSportsPage : hasNextMarketsPage;
+  const isFetchingNextPage = isSportsActive
+    ? isFetchingNextSportsPage
+    : isFetchingNextMarketsPage;
+  const fetchNextPage = isSportsActive ? fetchNextSportsPage : fetchNextMarketsPage;
 
   // IntersectionObserver — fetch next page when sentinel enters viewport
   useEffect(() => {
@@ -120,14 +183,9 @@ export default function HighVolumeMarkets({
     if (!sentinel || !hasNextPage || isFetchingNextPage) return;
 
     const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          fetchNextPage();
-        }
-      },
+      (entries) => { if (entries[0].isIntersecting) fetchNextPage(); },
       { threshold: 0.1 },
     );
-
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
@@ -136,28 +194,17 @@ export default function HighVolumeMarkets({
   const categoryLabel = category?.label || 'Markets';
 
   const sectionLabel = useMemo(() => {
-    if (activeCategory !== 'sports')
-      return `${categoryLabel} Markets`;
+    if (!isSportsActive) return `${categoryLabel} Markets`;
     const sub = getSportSubcategoryById(activeSportSub);
-    return sub?.id === 'all'
-      ? 'Sports Markets'
-      : `${sub?.label ?? ''} Markets`;
-  }, [activeCategory, activeSportSub, categoryLabel]);
+    return sub?.id === 'all' ? 'Sports Markets' : `${sub?.label ?? ''} Markets`;
+  }, [isSportsActive, activeSportSub, categoryLabel]);
 
-  // Calculate share balances for selected market
+  // Calculate share balances for the order modal
   const { yesShares, noShares } = useMemo(() => {
-    if (!selectedMarket || !positions) {
-      return { yesShares: 0, noShares: 0 };
-    }
-    const yesPosition = positions.find(
-      (p) => p.asset === selectedMarket.yesTokenId,
-    );
-    const noPosition = positions.find(
-      (p) => p.asset === selectedMarket.noTokenId,
-    );
+    if (!selectedMarket || !positions) return { yesShares: 0, noShares: 0 };
     return {
-      yesShares: yesPosition?.size || 0,
-      noShares: noPosition?.size || 0,
+      yesShares: positions.find((p) => p.asset === selectedMarket.yesTokenId)?.size || 0,
+      noShares: positions.find((p) => p.asset === selectedMarket.noTokenId)?.size || 0,
     };
   }, [selectedMarket, positions]);
 
@@ -168,30 +215,16 @@ export default function HighVolumeMarkets({
     tokenId: string,
     negRisk: boolean,
   ) => {
-    const market = allMarkets?.find(
-      (m) => m.question === marketTitle,
-    );
+    const market = allMarkets?.find((m) => m.question === marketTitle);
     if (!market) return;
 
-    const tokenIds = market.clobTokenIds
-      ? JSON.parse(market.clobTokenIds)
-      : [];
+    const tokenIds = market.clobTokenIds ? JSON.parse(market.clobTokenIds) : [];
     const yesTokenId = tokenIds[0] || tokenId;
     const noTokenId = tokenIds[1] || '';
     const staticPrices: number[] = market.outcomePrices
       ? JSON.parse(market.outcomePrices).map(Number)
       : [];
-
     const isFirstOutcome = tokenId === yesTokenId;
-    const yesPrice =
-      market.realtimePrices?.[yesTokenId]?.bidPrice ??
-      staticPrices[0] ??
-      (isFirstOutcome ? price : 1 - price);
-    const noPrice =
-      market.realtimePrices?.[noTokenId]?.bidPrice ??
-      staticPrices[1] ??
-      (isFirstOutcome ? 1 - price : price);
-
     const outcomes: string[] = market.outcomes
       ? JSON.parse(market.outcomes)
       : ['Yes', 'No'];
@@ -204,8 +237,14 @@ export default function HighVolumeMarkets({
       negRisk,
       yesTokenId,
       noTokenId,
-      yesPrice,
-      noPrice,
+      yesPrice:
+        market.realtimePrices?.[yesTokenId]?.bidPrice ??
+        staticPrices[0] ??
+        (isFirstOutcome ? price : 1 - price),
+      noPrice:
+        market.realtimePrices?.[noTokenId]?.bidPrice ??
+        staticPrices[1] ??
+        (isFirstOutcome ? 1 - price : price),
       orderMinSize: market.orderMinSize || 5,
       yesOutcomeName: outcomes[0] || 'Yes',
       noOutcomeName: outcomes[1] || 'No',
@@ -218,23 +257,61 @@ export default function HighVolumeMarkets({
     setSelectedMarket(null);
   };
 
+  /** Sports game cards supply the full market directly — no allMarkets lookup needed. */
+  const handleSportsOutcomeClick = useCallback(
+    (market: PolymarketMarket, outcome: string, price: number, tokenId: string) => {
+      const tokenIds: string[] = market.clobTokenIds
+        ? JSON.parse(market.clobTokenIds)
+        : [];
+      const yesTokenId = tokenIds[0] || tokenId;
+      const noTokenId = tokenIds[1] || '';
+      const staticPrices: number[] = market.outcomePrices
+        ? JSON.parse(market.outcomePrices).map(Number)
+        : [];
+      const outcomes: string[] = market.outcomes
+        ? JSON.parse(market.outcomes)
+        : ['Yes', 'No'];
+      const isFirstOutcome = tokenId === yesTokenId;
+
+      setSelectedMarket({
+        marketTitle: market.question,
+        outcome,
+        price,
+        tokenId,
+        negRisk: market.negRisk || false,
+        yesTokenId,
+        noTokenId,
+        yesPrice:
+          market.realtimePrices?.[yesTokenId]?.bidPrice ??
+          staticPrices[0] ??
+          (isFirstOutcome ? price : 1 - price),
+        noPrice:
+          market.realtimePrices?.[noTokenId]?.bidPrice ??
+          staticPrices[1] ??
+          (isFirstOutcome ? 1 - price : price),
+        orderMinSize: market.orderMinSize || MIN_ORDER_SIZE,
+        yesOutcomeName: outcomes[0] || 'Yes',
+        noOutcomeName: outcomes[1] || 'No',
+      });
+      setIsModalOpen(true);
+    },
+    [],
+  );
+
   const detailMarketShares = useMemo(() => {
-    if (!detailMarket || !positions)
-      return { yesShares: 0, noShares: 0 };
+    if (!detailMarket || !positions) return { yesShares: 0, noShares: 0 };
     const tIds = detailMarket.clobTokenIds
       ? (JSON.parse(detailMarket.clobTokenIds) as string[])
       : [];
     return {
-      yesShares:
-        positions.find((p) => p.asset === tIds[0])?.size || 0,
+      yesShares: positions.find((p) => p.asset === tIds[0])?.size || 0,
       noShares: positions.find((p) => p.asset === tIds[1])?.size || 0,
     };
   }, [detailMarket, positions]);
 
   const handleCategoryChange = (categoryId: CategoryId) => {
     setActiveCategory(categoryId);
-    if (categoryId !== 'sports')
-      setActiveSportSub(DEFAULT_SPORT_SUBCATEGORY);
+    if (categoryId !== 'sports') setActiveSportSub(DEFAULT_SPORT_SUBCATEGORY);
     setSearchQuery('');
   };
 
@@ -242,7 +319,7 @@ export default function HighVolumeMarkets({
     setActiveSportSub(subId);
   };
 
-  // ─── Shared sub-components ──────────────────────────────────────────────────
+  // ─── Shared sub-components ───────────────────────────────────────────────
 
   const searchBar = (
     <div className="relative">
@@ -251,7 +328,7 @@ export default function HighVolumeMarkets({
         type="text"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="Search markets..."
+        placeholder={isSportsActive ? 'Search games...' : 'Search markets...'}
         className="w-full pl-9 pr-9 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-transparent"
       />
       {searchQuery && (
@@ -274,6 +351,10 @@ export default function HighVolumeMarkets({
     />
   );
 
+  // Unified sentinel — works for both sports and non-sports pagination
+  const totalLoaded = isSportsActive ? allGames.length : allMarkets.length;
+  const itemLabel = isSportsActive ? 'games' : 'markets';
+
   const loadMoreSentinel =
     hasNextPage || isFetchingNextPage ? (
       <div
@@ -281,25 +362,25 @@ export default function HighVolumeMarkets({
         className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400"
       >
         <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-        Loading more markets...
+        {`Loading more ${itemLabel}...`}
       </div>
-    ) : allMarkets.length > 0 ? (
+    ) : totalLoaded > 0 ? (
       <p className="text-center text-xs text-gray-400 py-3">
-        All {allMarkets.length} markets loaded
+        All {totalLoaded} {itemLabel} loaded
       </p>
     ) : null;
 
-  // ── Real BTC 5-minute Polymarket market ─────────────────────────────────────
-  // Fetches the actual current-window market from Gamma API.
-  // Token IDs come from here, NOT from a generic monthly BTC market.
+  // ── Real BTC 5-minute Polymarket market ──────────────────────────────────
   const btc5mMarket = useBtc5mPolymarketMarket();
 
-  const btcTokenIds = useMemo(() => ({
-    upTokenId: btc5mMarket.market?.upTokenId ?? '',
-    downTokenId: btc5mMarket.market?.downTokenId ?? '',
-  }), [btc5mMarket.market]);
+  const btcTokenIds = useMemo(
+    () => ({
+      upTokenId: btc5mMarket.market?.upTokenId ?? '',
+      downTokenId: btc5mMarket.market?.downTokenId ?? '',
+    }),
+    [btc5mMarket.market],
+  );
 
-  // Shares the user already holds for each BTC 5m outcome
   const btcShares = useMemo(() => {
     if (!positions) return { upShares: 0, downShares: 0 };
     return {
@@ -322,9 +403,18 @@ export default function HighVolumeMarkets({
       key={market.id}
       market={market}
       disabled={isGeoblocked}
-      isSportsCategory={activeCategory === 'sports'}
+      isSportsCategory={false}
       onOutcomeClick={handleOutcomeClick}
       onTitleClick={() => setDetailMarket(market)}
+    />
+  );
+
+  const renderSportsCard = (game: SportsGameGroup) => (
+    <SportsGameCard
+      key={game.eventId}
+      game={game}
+      disabled={isGeoblocked}
+      onOutcomeClick={handleSportsOutcomeClick}
     />
   );
 
@@ -334,7 +424,7 @@ export default function HighVolumeMarkets({
       <BtcUpDownCard
         key="btc-5min"
         disabled={isGeoblocked}
-        noBackingMarket={activeCategory === 'crypto' && !btc5mMarket.market && !btc5mMarket.isLoading}
+        noBackingMarket={!btc5mMarket.market && !btc5mMarket.isLoading}
         onOutcomeClick={handleBtcOutcomeClick}
       />
     ) : null;
@@ -364,7 +454,6 @@ export default function HighVolumeMarkets({
         />
       )}
 
-      {/* BTC 5-min dedicated modal — token IDs from real 5m market, prices from live hook */}
       <BtcOrderModal
         isOpen={btcModalOpen}
         onClose={() => setBtcModalOpen(false)}
@@ -393,11 +482,21 @@ export default function HighVolumeMarkets({
     </>
   );
 
-  // ─── Split layout ────────────────────────────────────────────────────────────
+  // ─── Split layout ─────────────────────────────────────────────────────────
 
   if (splitLayout) {
+    // Sports: split game cards the same way markets are split
+    const leftGames = filteredGames.slice(0, LEFT_COLUMN_COUNT);
+    const rightGames = filteredGames.slice(LEFT_COLUMN_COUNT);
+
+    // Non-sports
     const leftMarkets = filteredMarkets.slice(0, LEFT_COLUMN_COUNT);
     const rightMarkets = filteredMarkets.slice(LEFT_COLUMN_COUNT);
+
+    const leftItems = isSportsActive ? leftGames.length : leftMarkets.length;
+    const hasAnyLeft = isSportsActive
+      ? leftGames.length > 0
+      : btcCard || leftMarkets.length > 0;
 
     return (
       <>
@@ -408,16 +507,14 @@ export default function HighVolumeMarkets({
           {categoryTabs}
 
           {isLoading && (
-            <LoadingState
-              message={`Loading ${sectionLabel.toLowerCase()}...`}
-            />
+            <LoadingState message={`Loading ${sectionLabel.toLowerCase()}...`} />
           )}
           {error && !isLoading && (
-            <ErrorState error={error} title="Error loading markets" />
+            <ErrorState error={error} title={`Error loading ${itemLabel}`} />
           )}
-          {!isLoading && !error && filteredMarkets.length === 0 && !btcCard && (
+          {!isLoading && !error && !hasAnyLeft && (
             <EmptyState
-              title="No Markets"
+              title={`No ${isSportsActive ? 'Games' : 'Markets'}`}
               message={
                 searchQuery
                   ? 'No results for your search.'
@@ -425,11 +522,20 @@ export default function HighVolumeMarkets({
               }
             />
           )}
-          {!isLoading && !error && (btcCard || filteredMarkets.length > 0) && (
+          {!isLoading && !error && hasAnyLeft && (
             <div className="overflow-y-auto max-h-[calc(100vh-360px)] pr-1 space-y-3">
-              {btcCard}
-              {filteredMarkets.map(renderMarketCard)}
-              {loadMoreSentinel}
+              {isSportsActive ? (
+                <>
+                  {filteredGames.map(renderSportsCard)}
+                  {loadMoreSentinel}
+                </>
+              ) : (
+                <>
+                  {btcCard}
+                  {filteredMarkets.map(renderMarketCard)}
+                  {loadMoreSentinel}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -443,19 +549,14 @@ export default function HighVolumeMarkets({
             {categoryTabs}
 
             {isLoading && (
-              <LoadingState
-                message={`Loading ${sectionLabel.toLowerCase()}...`}
-              />
+              <LoadingState message={`Loading ${sectionLabel.toLowerCase()}...`} />
             )}
             {error && !isLoading && (
-              <ErrorState
-                error={error}
-                title="Error loading markets"
-              />
+              <ErrorState error={error} title={`Error loading ${itemLabel}`} />
             )}
-            {!isLoading && !error && leftMarkets.length === 0 && !btcCard && (
+            {!isLoading && !error && leftItems === 0 && !btcCard && (
               <EmptyState
-                title="No Markets"
+                title={`No ${isSportsActive ? 'Games' : 'Markets'}`}
                 message={
                   searchQuery
                     ? 'No results for your search.'
@@ -463,30 +564,32 @@ export default function HighVolumeMarkets({
                 }
               />
             )}
-            {!isLoading && !error && (btcCard || leftMarkets.length > 0) && (
+            {!isLoading && !error && (btcCard || leftItems > 0) && (
               <div className="space-y-3">
-                {btcCard}
-                {leftMarkets.map(renderMarketCard)}
+                {isSportsActive
+                  ? leftGames.map(renderSportsCard)
+                  : <>{btcCard}{leftMarkets.map(renderMarketCard)}</>
+                }
               </div>
             )}
           </div>
 
-          {/* Right column — scrollable */}
+          {/* Right column */}
           <div className="min-w-0 overflow-y-auto max-h-[calc(100vh-102px)] pr-1">
             {isLoading && <LoadingState message="" />}
-            {!isLoading &&
-              !error &&
-              rightMarkets.length === 0 &&
-              filteredMarkets.length > 0 && (
-                <EmptyState
-                  title=""
-                  message="All markets shown on the left."
-                />
-              )}
-            {!isLoading && !error && rightMarkets.length > 0 && (
+            {!isLoading && !error && isSportsActive && rightGames.length === 0 && filteredGames.length > LEFT_COLUMN_COUNT && (
+              <EmptyState title="" message="All games shown on the left." />
+            )}
+            {!isLoading && !error && !isSportsActive && rightMarkets.length === 0 && filteredMarkets.length > 0 && (
+              <EmptyState title="" message="All markets shown on the left." />
+            )}
+            {!isLoading && !error && (
               <div className="space-y-3">
-                {rightMarkets.map(renderMarketCard)}
-                {loadMoreSentinel}
+                {isSportsActive
+                  ? rightGames.map(renderSportsCard)
+                  : rightMarkets.map(renderMarketCard)
+                }
+                {(isSportsActive ? rightGames.length > 0 : rightMarkets.length > 0) && loadMoreSentinel}
               </div>
             )}
           </div>
@@ -497,7 +600,9 @@ export default function HighVolumeMarkets({
     );
   }
 
-  // ─── Default full-width layout ───────────────────────────────────────────────
+  // ─── Default full-width layout ────────────────────────────────────────────
+
+  const displayCount = isSportsActive ? filteredGames.length : filteredMarkets.length;
 
   return (
     <>
@@ -512,8 +617,8 @@ export default function HighVolumeMarkets({
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-gray-900">
             {sectionLabel}{' '}
-            {allMarkets.length > 0
-              ? `(${filteredMarkets.length}${hasNextPage ? '+' : ''})`
+            {displayCount > 0
+              ? `(${displayCount}${hasNextPage ? '+' : ''})`
               : ''}
           </h3>
           <p className="text-xs text-gray-500">
@@ -522,36 +627,39 @@ export default function HighVolumeMarkets({
         </div>
 
         {isLoading && (
-          <LoadingState
-            message={`Loading ${sectionLabel.toLowerCase()}...`}
-          />
+          <LoadingState message={`Loading ${sectionLabel.toLowerCase()}...`} />
         )}
         {error && !isLoading && (
-          <ErrorState error={error} title="Error loading markets" />
+          <ErrorState error={error} title={`Error loading ${itemLabel}`} />
         )}
-        {!isLoading &&
-          !error &&
-          !btcCard &&
-          (!filteredMarkets || filteredMarkets.length === 0) && (
-            <EmptyState
-              title="No Markets Available"
-              message={`No active ${sectionLabel.toLowerCase()} found.`}
-            />
-          )}
+        {!isLoading && !error && !btcCard && displayCount === 0 && (
+          <EmptyState
+            title={`No ${isSportsActive ? 'Games' : 'Markets'} Available`}
+            message={`No active ${sectionLabel.toLowerCase()} found.`}
+          />
+        )}
 
-        {!isLoading && !error && (btcCard || (filteredMarkets && filteredMarkets.length > 0)) && (
+        {!isLoading && !error && (btcCard || displayCount > 0) && (
           <>
             {btcCard && (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {btcCard}
               </div>
             )}
-            {filteredMarkets && filteredMarkets.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {filteredMarkets.map(renderMarketCard)}
+            {displayCount > 0 && (
+              <div
+                className={`grid gap-3 ${
+                  isSportsActive
+                    ? 'grid-cols-1 lg:grid-cols-2'
+                    : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+                }`}
+              >
+                {isSportsActive
+                  ? filteredGames.map(renderSportsCard)
+                  : filteredMarkets.map(renderMarketCard)
+                }
               </div>
             )}
-
             {loadMoreSentinel}
           </>
         )}

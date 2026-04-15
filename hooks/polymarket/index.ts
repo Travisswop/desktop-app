@@ -24,3 +24,6 @@ export { useTradeActivity, type TradeActivity, type ActivityType, type TradeActi
 export { useBtcUpDownMarket, type BtcMarketState } from "./useBtcUpDownMarket";
 export { useBtc5mPolymarketMarket, type Btc5mMarket, type Btc5mMarketState } from "./useBtc5mPolymarketMarket";
 export { useNetDeposits } from "./useNetDeposits";
+export { useSportsEvents, type UseSportsEventsOptions } from "./useSportsEvents";
+export { useSportsMeta, type GammaSportEntry, type SportsMeta } from "./useSportsMeta";
+export { usePolymarketTeams, type PolymarketTeam, type TeamsMap } from "./usePolymarketTeams";

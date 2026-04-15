@@ -227,7 +227,7 @@ export default function UserPositions() {
     }
   };
 
-  const handleRedeem = async (position: PolymarketPosition) => {
+  const handleRedeem = useCallback(async (position: PolymarketPosition) => {
     if (!relayClient) return;
     setRedeemingAsset(position.asset);
     try {
@@ -258,7 +258,7 @@ export default function UserPositions() {
     } finally {
       setRedeemingAsset(null);
     }
-  };
+  }, [relayClient, redeemPosition, queryClient]);
 
   const handleCancelOrder = async (orderId: string) => {
     setCancellingOrderId(orderId);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Portal from './shared/Portal';
@@ -103,7 +103,7 @@ export default function PredictionsPortfolioModal({
   >(new Map());
 
   const { clobClient, relayClient, safeAddress } = useTrading();
-  console.log('safe address', safeAddress);
+
   const { eoaAddress } = usePolymarketWallet();
   const queryClient = useQueryClient();
 
@@ -166,16 +166,15 @@ export default function PredictionsPortfolioModal({
     // P/L = (current available USDC + withdrawn USDC) - total deposited USDC
     // This matches the user's mental model: deposit $50 → available $40 => -$10.
     const deposited = netDeposits?.totalDeposited ?? 0;
-    console.log('deposited', deposited);
+
     const withdrawn = netDeposits?.totalWithdrawn ?? 0;
-    console.log('withdrawn', withdrawn);
+
     const openPositionsValue = activePositions
       .filter((p) => !p.redeemable)
       .reduce((s, p) => s + p.currentValue, 0);
-    console.log('openPositionsValue', openPositionsValue);
+
     const lifetimeEarned =
       usdcBalance + openPositionsValue + withdrawn - deposited;
-    console.log('lifetimeEarned', lifetimeEarned);
 
     if (!activePositions.length) {
       return { portfolioPct: 0, lifetimeEarned, inOrdersValue };
@@ -235,55 +234,60 @@ export default function PredictionsPortfolioModal({
     }
   };
 
-  const handleRedeem = async (position: PolymarketPosition) => {
-    if (!relayClient) return;
-    setRedeemingAsset(position.asset);
-    try {
-      await redeemPosition(relayClient, {
-        conditionId: position.conditionId,
-        outcomeIndex: position.outcomeIndex,
-        negativeRisk: position.negativeRisk,
-        size: position.size,
-      });
+  const handleRedeem = useCallback(
+    async (position: PolymarketPosition) => {
+      if (!relayClient) return;
+      setRedeemingAsset(position.asset);
+      try {
+        await redeemPosition(relayClient, {
+          conditionId: position.conditionId,
+          outcomeIndex: position.outcomeIndex,
+          negativeRisk: position.negativeRisk,
+          size: position.size,
+        });
 
-      // Optimistically add the redeemed USDC to the displayed balance immediately.
-      // The on-chain redemption has already confirmed (redeemPosition awaits the tx),
-      // so this reflects reality. The subsequent polling will reconcile any drift.
-      const redeemValue =
-        position.curPrice > 0 ? position.currentValue : position.size;
-      queryClient.setQueryData<bigint>(
-        ['usdcBalance', safeAddress as string],
-        (prev) => {
-          if (prev === undefined) return prev;
-          const addedUnits = BigInt(
-            Math.floor(redeemValue * 10 ** USDC_E_DECIMALS),
-          );
-          return prev + addedUnits;
-        },
-      );
+        // Optimistically add the redeemed USDC to the displayed balance immediately.
+        // The on-chain redemption has already confirmed (redeemPosition awaits the tx),
+        // so this reflects reality. The subsequent polling will reconcile any drift.
+        const redeemValue =
+          position.curPrice > 0
+            ? position.currentValue
+            : position.size;
+        queryClient.setQueryData<bigint>(
+          ['usdcBalance', safeAddress as string],
+          (prev) => {
+            if (prev === undefined) return prev;
+            const addedUnits = BigInt(
+              Math.floor(redeemValue * 10 ** USDC_E_DECIMALS),
+            );
+            return prev + addedUnits;
+          },
+        );
 
-      queryClient.invalidateQueries({
-        queryKey: ['polymarket-positions'],
-      });
-      queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
-      createPollingInterval(
-        () => {
-          queryClient.invalidateQueries({
-            queryKey: ['polymarket-positions'],
-          });
-          queryClient.invalidateQueries({
-            queryKey: ['usdcBalance'],
-          });
-        },
-        POLLING_INTERVAL,
-        POLLING_DURATION,
-      );
-    } catch (err) {
-      console.error('Failed to redeem position:', err);
-    } finally {
-      setRedeemingAsset(null);
-    }
-  };
+        queryClient.invalidateQueries({
+          queryKey: ['polymarket-positions'],
+        });
+        queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
+        createPollingInterval(
+          () => {
+            queryClient.invalidateQueries({
+              queryKey: ['polymarket-positions'],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ['usdcBalance'],
+            });
+          },
+          POLLING_INTERVAL,
+          POLLING_DURATION,
+        );
+      } catch (err) {
+        console.error('Failed to redeem position:', err);
+      } finally {
+        setRedeemingAsset(null);
+      }
+    },
+    [relayClient, redeemPosition, queryClient, safeAddress],
+  );
 
   const handleCancelOrder = async (orderId: string) => {
     setCancellingOrderId(orderId);
