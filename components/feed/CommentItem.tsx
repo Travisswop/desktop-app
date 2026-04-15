@@ -9,6 +9,11 @@ import isUrl from "@/lib/isUrl";
 import CommentReaction from "./view/CommentReaction";
 import { logger } from "ethers5";
 import { formatEns } from "@/lib/formatEnsName";
+import { HiDotsHorizontal } from "react-icons/hi";
+import DeleteFeedModal from "./DeleteFeedModal";
+import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
+import tipImg from "@/public/images/tip.png";
+import TipContentModal from "./TipContent";
 
 dayjs.extend(relativeTime);
 
@@ -45,6 +50,8 @@ interface CommentItemProps {
   userId: string;
   postId: string;
   isLast?: boolean; // controls thread line extension
+  accessToken: string;
+  onDeleteSuccess: () => void;
 }
 
 // const REPLIES_LIMIT = 5;
@@ -54,15 +61,15 @@ export default function CommentItem({
   userId,
   postId,
   isLast = false,
+  accessToken,
+  onDeleteSuccess,
 }: CommentItemProps) {
   // const accessToken = Cookies.get("access-token") || "";
 
   const [isLiked, setIsLiked] = useState(comment.isLiked ?? false);
   const [likeCount, setLikeCount] = useState(comment.likeCount ?? 0);
   const [replyCount, setReplyCount] = useState(comment.replyCount ?? 0);
-  // const [showReplyInput, setShowReplyInput] = useState(false);
-  // const [showReplies, setShowReplies] = useState(false);
-  // const [replies, setReplies] = useState<Comment[]>([]);
+  const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
   const [latestReplyCount, setLatestReplyCount] = useState(replyCount);
 
@@ -77,14 +84,12 @@ export default function CommentItem({
     comment.smartsiteId?.name || comment.smartsiteUserName || "Anonymous";
   const ensName = comment.smartsiteId?.ens || comment.smartsiteEnsName || "";
 
-  // ── New reply ──────────────────────────────────────────────────────────────
-  // const handleReplySuccess = (newReply: Comment | null) => {
-  //   // if (newReply) setReplies((prev) => [newReply, ...prev]);
-  //   setLatestReplyCount((p) => p + 1);
-  //   setReplyCount((p) => p + 1);
-  //   // setShowReplies(true);
-  //   // setShowReplyInput(false);
-  // };
+  const handleTipOpen = (e: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("open tip");
+    setIsTipModalOpen(true);
+  };
 
   return (
     <div className="flex gap-3 px-4 border-b py-2">
@@ -115,29 +120,77 @@ export default function CommentItem({
 
       {/* ── Right column: all content ──────────────────────────────────────── */}
       <div className="flex-1 min-w-0 pb-1">
-        <Link href={`/feed/comment/${comment._id}`}>
-          {/* Header */}
-          <div className="flex items-baseline gap-1.5 flex-wrap">
-            <p className="font-bold text-[15px] text-gray-900 ">{userName}</p>
-            <span className="text-[14px] text-gray-500">·</span>
+        <div className="flex items-start justify-between">
+          <Link href={`/feed/comment/${comment._id}`} className="flex-1">
+            {/* Header */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p className="font-bold text-[15px] text-gray-900 ">{userName}</p>
+              <span className="text-[14px] text-gray-500">·</span>
+              <span className="text-[14px] text-gray-500">
+                {dayjs(comment.createdAt).fromNow()}
+              </span>
+              {userId !== comment.userId && (
+                <button onClick={(e) => handleTipOpen(e)}>
+                  <Image
+                    src={tipImg}
+                    alt="tip"
+                    className="w-5 h-auto"
+                    quality={100}
+                  />
+                </button>
+              )}
+            </div>
+
             {ensName && (
               <span className="text-[14px] text-gray-500">
                 {formatEns(ensName)}
               </span>
             )}
-            <span className="text-[14px] text-gray-500">·</span>
-            <span className="text-[14px] text-gray-500">
-              {dayjs(comment.createdAt).fromNow()}
-            </span>
-          </div>
 
-          {/* Text body */}
-          {comment.title && (
-            <p className="text-[15px] text-gray-900 leading-normal mt-0.5 whitespace-pre-wrap break-words">
-              {comment.title}
-            </p>
+            {isTipModalOpen && (
+              <TipContentModal
+                isOpen={isTipModalOpen}
+                onCloseModal={setIsTipModalOpen}
+                feedItem={comment}
+              />
+            )}
+
+            {/* Text body */}
+            {comment.title && (
+              <p className="text-[15px] text-gray-900 leading-normal mt-0.5 whitespace-pre-wrap break-words">
+                {comment.title}
+              </p>
+            )}
+          </Link>
+
+          {userId === comment.userId && (
+            <div>
+              <Popover
+                backdrop="transparent"
+                placement="bottom-end"
+                showArrow
+                style={{ zIndex: 10 }}
+              >
+                <PopoverTrigger>
+                  <button onClick={(e) => e.stopPropagation()} type="button">
+                    <HiDotsHorizontal size={20} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent>
+                  <div className="px-1 py-2 flex flex-col">
+                    <DeleteFeedModal
+                      postId={comment._id}
+                      token={accessToken}
+                      onDeleteSuccess={onDeleteSuccess}
+                      userId={userId}
+                      isFromReply={true}
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           )}
-        </Link>
+        </div>
 
         {/* Media grid — exactly like X */}
         {comment.post_content && comment.post_content.length > 0 && (

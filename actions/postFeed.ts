@@ -168,6 +168,28 @@ export async function deleteFeed(
     logger.error("Error from posting feed:", error);
   }
 }
+export async function deleteReply(
+  postId: string,
+  token: string,
+  userId: string,
+) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/comment/${postId}?userId=${userId}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    logger.error("Error from posting feed:", error);
+  }
+}
 
 //reaction
 export async function postFeedLike(payload: any, token: string) {

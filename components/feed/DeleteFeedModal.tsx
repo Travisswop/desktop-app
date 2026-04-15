@@ -1,4 +1,4 @@
-import { deleteFeed } from "@/actions/postFeed";
+import { deleteFeed, deleteReply } from "@/actions/postFeed";
 import { useToast } from "@/hooks/use-toast";
 import {
   Modal,
@@ -8,7 +8,6 @@ import {
   ModalFooter,
   Button,
   useDisclosure,
-  Spinner,
 } from "@nextui-org/react";
 import { useState } from "react";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
@@ -20,6 +19,7 @@ interface DeleteFeedModalProps {
   token: string;
   onDeleteSuccess: () => void;
   userId: string;
+  isFromReply?: boolean;
 }
 
 export default function DeleteFeedModal({
@@ -27,6 +27,7 @@ export default function DeleteFeedModal({
   token,
   onDeleteSuccess,
   userId,
+  isFromReply = false,
 }: DeleteFeedModalProps) {
   const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -34,7 +35,9 @@ export default function DeleteFeedModal({
 
   const handlePostDelete = async () => {
     setDeleteLoading(true);
-    const deletePost = await deleteFeed(postId, token, userId);
+    const deletePost = isFromReply
+      ? await deleteReply(postId, token, userId)
+      : await deleteFeed(postId, token, userId);
     logger.info("Delete post response:", deletePost);
     if (deletePost.success) {
       setDeleteLoading(false);

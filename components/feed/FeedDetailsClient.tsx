@@ -221,10 +221,17 @@ export default function FeedDetailsClient({
               {comments.map((comment, idx) => (
                 <CommentItem
                   key={comment._id}
+                  postId={feed._id}
                   comment={comment}
                   userId={userId}
-                  postId={feed._id}
                   isLast={idx === comments.length - 1 && !hasMore}
+                  accessToken={accessToken}
+                  onDeleteSuccess={() => {
+                    setComments((prev) =>
+                      prev.filter((c) => c._id !== comment._id),
+                    );
+                    setTotal((prev) => prev - 1);
+                  }}
                 />
               ))}
             </div>
