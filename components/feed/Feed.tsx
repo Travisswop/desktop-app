@@ -9,6 +9,7 @@ import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
 import { useModalStore } from "@/zustandStore/modalstore";
 import InfiniteScroll from "react-infinite-scroll-component";
+import { logger } from "ethers5";
 
 dayjs.extend(relativeTime);
 
@@ -32,6 +33,8 @@ export default function Feed({
   const [initialLoading, setInitialLoading] = useState(
     initialArray.length === 0,
   );
+
+  logger.info("Feed component rendered with initial feedData:", feedData);
 
   const [hasMore, setHasMore] = useState(
     initialArray.length > 0 && initialTotalPages > 1,

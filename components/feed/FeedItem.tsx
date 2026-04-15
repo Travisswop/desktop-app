@@ -187,23 +187,37 @@ const FeedItem = memo(
               )}
 
               {(feed.postType === "post" || feed.postType === "repost") &&
-                feed.content.title && (
+                (feed.content.title || feed?.content?.quote?.title) && (
                   <div className="w-full text-start">
                     {/* Render Post Content */}
-                    {(feed.postType === "post" || feed.postType === "repost") &&
-                      feed.content.title && (
-                        <div className="w-full text-start">
-                          {feed.content.title
-                            .split("\n")
-                            .map((line: string, index: number) => (
-                              <p className="break-text" key={index}>
-                                {makeLinksClickable(line)}
-                              </p>
-                            ))}
-                        </div>
-                      )}
+                    <div className="w-full text-start">
+                      {feed.content.title ||
+                        feed?.content?.quote?.title
+                          .split("\n")
+                          .map((line: string, index: number) => (
+                            <p className="break-text" key={index}>
+                              {makeLinksClickable(line)}
+                            </p>
+                          ))}
+                    </div>
                   </div>
                 )}
+              {/* {feed.postType === "repost" &&
+                feed.repostedPostDetails.content.title && (
+                  <div className="w-full text-start">
+                    {feed.repostedPostDetails.content.title && (
+                      <div className="w-full text-start">
+                        {feed.repostedPostDetails.content.title
+                          .split("\n")
+                          .map((line: string, index: number) => (
+                            <p className="break-text" key={index}>
+                              {makeLinksClickable(line)}
+                            </p>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )} */}
 
               {/* Swap Transaction Content */}
               {feed.postType === "swapTransaction" && (
@@ -403,20 +417,6 @@ const FeedItem = memo(
             </div>
           )}
 
-          {/* Reactions */}
-          {/* {isFromFeedDetailsPage ? (
-            <FeedDetailsReaction
-              postId={feed._id}
-              isLiked={feed.isLiked}
-              likeCount={feed.likeCount}
-              commentCount={feed.commentCount || feed.replyCount}
-              repostCount={feed.repostCount}
-              viewsCount={feed.viewsCount}
-              onRepostSuccess={onRepostSuccess}
-              onPostInteraction={onPostInteraction}
-              feed={feed}
-            />
-          ) : ( */}
           <Reaction
             postId={feed._id}
             isLiked={feed.isLiked}
@@ -427,8 +427,8 @@ const FeedItem = memo(
             onRepostSuccess={onRepostSuccess}
             onPostInteraction={onPostInteraction}
             feed={feed}
+            isFromMainFeed={true}
           />
-          {/* )} */}
         </div>
 
         {isModalOpen && (

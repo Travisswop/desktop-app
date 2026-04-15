@@ -31,7 +31,7 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
     setRedeemFeedData(data);
   };
 
-  console.log("feedgg re", feed);
+  console.log("feedgg red", feed);
 
   const renderTransactionContent = (feed: any) => {
     const {
@@ -159,19 +159,17 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
               )}
             </p>
             {/* Render Post Content */}
-            {feed.repostedPostDetails.postType === "post" ||
-              (feed.repostedPostDetails.postType === "repost" &&
-                feed.repostedPostDetails.content.title && (
-                  <div className="w-full text-start">
-                    {feed.repostedPostDetails.content.title
-                      .split("\n")
-                      .map((line: string, index: number) => (
-                        <p className="break-text" key={index}>
-                          {makeLinksClickable(line)}
-                        </p>
-                      ))}
-                  </div>
-                ))}
+            {feed?.repostedPostDetails?.content?.title && (
+              <div className="w-full text-start">
+                {feed.repostedPostDetails.content.title
+                  .split("\n")
+                  .map((line: string, index: number) => (
+                    <p className="break-text" key={index}>
+                      {makeLinksClickable(line)}
+                    </p>
+                  ))}
+              </div>
+            )}
 
             {feed.repostedPostDetails.postType === "swapTransaction" && (
               <SwapTransactionCard
@@ -252,9 +250,9 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
         </div>
         <div>
           {feed.repostedPostDetails.postType === "post" &&
-            feed.repostedPostDetails.content.quote && (
+            feed.repostedPostDetails.content.post_content && (
               <PostTypeMedia
-                mediaFiles={feed.repostedPostDetails.content.quote.post_content}
+                mediaFiles={feed.repostedPostDetails.content.post_content}
                 isFromRepost={true}
               />
             )}
