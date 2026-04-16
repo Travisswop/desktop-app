@@ -466,11 +466,11 @@ const BottomNavContent = () => {
     <>
       <div
         className={`${
-          isSmartsite ? "w-[26rem]" : "w-[23rem]"
+          isSmartsite ? "w-[26rem]" : "w-[20rem]"
         } fixed bottom-2 left-1/2 transform -translate-x-1/2 `}
       >
         {(pathname === "/" || pathname?.startsWith("/feed")) && (
-          <div className="flex text-sm font-medium w-[84%] bg-white p-3 rounded-xl shadow-large items-center justify-between mb-2 mx-auto">
+          <div className="flex text-sm font-medium w-[70%] bg-white p-3 rounded-xl shadow-large items-center justify-between mb-1 mx-auto">
             <Link
               href={"/?tab=feed"}
               className="flex flex-col gap-1 items-center"
@@ -478,12 +478,12 @@ const BottomNavContent = () => {
               <div
                 className={`${
                   (tab === "feed" || !tab) && "bg-gray-100"
-                } rounded-full px-3 py-1`}
+                } rounded-full px-6 py-1.5`}
               >
                 <p>Feed</p>
               </div>
             </Link>
-            <Link
+            {/* <Link
               href={"/?tab=ledger"}
               className="flex flex-col gap-1 items-center"
             >
@@ -494,7 +494,7 @@ const BottomNavContent = () => {
               >
                 <p>Ledger</p>
               </div>
-            </Link>
+            </Link> */}
             <Link
               href={"/?tab=map"}
               className="flex flex-col gap-1 items-center"
@@ -502,7 +502,7 @@ const BottomNavContent = () => {
               <div
                 className={`${
                   tab === "map" && "bg-gray-100"
-                } rounded-full px-3 py-1`}
+                } rounded-full px-6 py-1.5`}
               >
                 <p>Map</p>
               </div>
@@ -514,7 +514,7 @@ const BottomNavContent = () => {
               <div
                 className={`${
                   tab === "create-feed" && "bg-gray-100"
-                } rounded-full px-3 py-1`}
+                } rounded-full px-6 py-1.5`}
               >
                 <BiSolidEdit size={18} />
               </div>

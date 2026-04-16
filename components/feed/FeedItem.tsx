@@ -149,59 +149,61 @@ const FeedItem = memo(
 
         <div className="flex-1">
           {/* User and Feed Info */}
-          <div
-            onClick={() => router.push(`/feed/${feed._id}`)}
-            className="w-full flex items-start justify-between cursor-pointer"
-          >
+          <div className="w-full flex items-start justify-between">
             <div className="w-full">
-              <div className="flex items-center gap-1">
+              <Link href={`/feed/${feed._id}`}>
                 <div className="flex items-center gap-1">
-                  <p className="text-black font-semibold">{userName}</p>
-                  <GoDotFill size={10} />
-                  <p className="text-black font-medium">
-                    {dayjs(feed.createdAt).fromNow()}
-                  </p>
-                </div>
-                {userId !== feed.userId && (
-                  <button onClick={(e) => handleTipOpen(e)}>
-                    <Image
-                      src={tipImg}
-                      alt="tip"
-                      className="w-5 h-auto"
-                      quality={100}
-                    />
-                  </button>
-                )}
-              </div>
-              <p className="text-gray-500 font-medium mb-1">
-                {" "}
-                {formatEns(ensName)}
-              </p>
-
-              {isTipModalOpen && (
-                <TipContentModal
-                  isOpen={isTipModalOpen}
-                  onCloseModal={setIsTipModalOpen}
-                  feedItem={feed}
-                />
-              )}
-
-              {(feed.postType === "post" || feed.postType === "repost") &&
-                (feed.content.title || feed?.content?.quote?.title) && (
-                  <div className="w-full text-start">
-                    {/* Render Post Content */}
-                    <div className="w-full text-start">
-                      {feed.content.title ||
-                        feed?.content?.quote?.title
-                          .split("\n")
-                          .map((line: string, index: number) => (
-                            <p className="break-text" key={index}>
-                              {makeLinksClickable(line)}
-                            </p>
-                          ))}
-                    </div>
+                  <div className="flex items-center gap-1">
+                    <p className="text-black font-semibold">{userName}</p>
+                    <GoDotFill size={10} />
+                    <p className="text-black font-medium">
+                      {dayjs(feed.createdAt).fromNow()}
+                    </p>
                   </div>
-                )}
+                  {userId !== feed.userId && (
+                    <button onClick={(e) => handleTipOpen(e)}>
+                      <Image
+                        src={tipImg}
+                        alt="tip"
+                        className="w-5 h-auto"
+                        quality={100}
+                      />
+                    </button>
+                  )}
+                </div>
+                <p className="text-gray-500 font-medium mb-1">
+                  {" "}
+                  {formatEns(ensName)}
+                </p>
+
+                {/* Stop propagation so modal clicks don't trigger the Link */}
+                <span onClick={(e) => e.stopPropagation()}>
+                  {isTipModalOpen && (
+                    <TipContentModal
+                      isOpen={isTipModalOpen}
+                      onCloseModal={setIsTipModalOpen}
+                      feedItem={feed}
+                    />
+                  )}
+                </span>
+
+                {(feed.postType === "post" || feed.postType === "repost") &&
+                  (feed.content.title || feed?.content?.quote?.title) && (
+                    <div className="w-full text-start">
+                      {/* Render Post Content */}
+                      <div className="w-full text-start">
+                        {feed.content.title ||
+                          feed?.content?.quote?.title
+                            .split("\n")
+                            .map((line: string, index: number) => (
+                              <p className="break-text" key={index}>
+                                {makeLinksClickable(line)}
+                              </p>
+                            ))}
+                      </div>
+                    </div>
+                  )}
+              </Link>
               {/* {feed.postType === "repost" &&
                 feed.repostedPostDetails.content.title && (
                   <div className="w-full text-start">
