@@ -28,17 +28,18 @@ export default function Feed({
   const initialTotalPages = initialFeedData?.pagination?.totalPages ?? 1;
 
   const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
+  // logger.info("Feed feedRefetchTrigger", feedRefetchTrigger);
 
   const [feedData, setFeedData] = useState(initialArray);
   const [initialLoading, setInitialLoading] = useState(
     initialArray.length === 0,
   );
 
-  logger.info("Feed component rendered with initial feedData:", feedData);
-
   const [hasMore, setHasMore] = useState(
     initialArray.length > 0 && initialTotalPages > 1,
   );
+  // logger.info("Feed component rendered with initial feedData:", feedData);
+  // logger.info("Feed component rendered with initial hasMore:", hasMore);
 
   const pageRef = useRef(initialArray.length > 0 ? 2 : 1);
 
@@ -52,17 +53,20 @@ export default function Feed({
         const currentPage = reset ? 1 : pageRef.current;
 
         const url = `${API_URL}/api/v2/feed/user/connect/${userId}?page=${currentPage}&limit=10`;
-        console.log("fetch url", url);
+        console.log("fetch urls", url);
 
         const response = await getUserFeed(url, accessToken);
 
         const data = response?.data ?? [];
         // const totalPages = response?.pagination?.totalPages ?? 1;
 
+        console.log("data fetch 1", data);
+
         if (reset) {
           setFeedData(data);
           pageRef.current = 2;
           setHasMore(initialTotalPages > pageRef.current);
+          console.log("data fetch 2", data);
         } else {
           setFeedData((prev: any[]) => [...prev, ...data]);
           pageRef.current += 1;

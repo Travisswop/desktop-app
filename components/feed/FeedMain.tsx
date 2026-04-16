@@ -297,7 +297,7 @@ const MainContentInner = memo(
         className={`${CONTAINER_WIDTH} overflow-y-auto`}
       >
         {/* post new feed Modal */}
-        <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Post">
+        <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Posts">
           <PostFeed {...postFeedProps} />
         </CustomModal>
         {/* <hr /> */}
