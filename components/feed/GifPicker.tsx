@@ -7,6 +7,7 @@ interface GifProps {
   setFileError: any;
   showGifPicker: boolean;
   setShowGifPicker: (show: boolean) => void;
+  pickerRef: React.RefObject<HTMLDivElement>;
 }
 
 const GifPickerContent = ({
@@ -15,8 +16,9 @@ const GifPickerContent = ({
   setFileError,
   showGifPicker,
   setShowGifPicker,
+  pickerRef,
 }: GifProps) => {
-  const pickerRef = useRef<HTMLDivElement>(null);
+  // const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (mediaFilesLength > 4) {
@@ -39,34 +41,36 @@ const GifPickerContent = ({
 
   // Close picker when clicking outside
   useEffect(() => {
+    if (!showGifPicker) return;
+
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        pickerRef.current &&
-        !pickerRef.current.contains(event.target as Node)
-      ) {
-        setShowGifPicker(false);
-      }
+      const target = event.target as Node;
+
+      // Check if click is inside the pickerRef
+      if (pickerRef.current && pickerRef.current.contains(target)) return;
+
+      // Also check if click is inside any gif-picker portal elements
+      // gif-picker-react renders with class "gpr-main" or inside a div with that structure
+      const gifPickerPortal = document.querySelector(".gpr-main");
+      if (gifPickerPortal && gifPickerPortal.contains(target)) return;
+
+      setShowGifPicker(false);
     };
 
-    if (showGifPicker) {
-      // Add a small delay to prevent immediate closure when opening
-      setTimeout(() => {
-        document.addEventListener("mousedown", handleClickOutside);
-      }, 0);
-    }
+    document.addEventListener("mousedown", handleClickOutside, true);
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside, true);
     };
-  }, [showGifPicker, setShowGifPicker]);
+  }, [showGifPicker, setShowGifPicker, pickerRef]);
 
   if (!showGifPicker) return null;
 
   return (
-    <div ref={pickerRef} onClick={(e) => e.stopPropagation()}>
+    <div ref={pickerRef}>
       <GifPicker
         onGifClick={handleGifClick}
-        tenorApiKey={"AIzaSyA-Xn0TwTUBNXY4EBbDCmnAs7o1XYIoZgU"}
+        tenorApiKey={process.env.NEXT_PUBLIC_TENOR_API_KEY || ""}
         width="100%"
       />
     </div>

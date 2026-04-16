@@ -1,4 +1,4 @@
-import logger from '../utils/logger';
+import logger from "../utils/logger";
 
 interface SwapDetails {
   signature: string;
@@ -30,60 +30,63 @@ interface SwapDetails {
  */
 export async function saveSwapTransaction(
   swapDetails: SwapDetails,
-  accessToken: string
+  accessToken: string,
 ) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/saveSwapTransaction`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          signature: swapDetails.signature,
-          walletAddress: swapDetails.solanaAddress,
-          inputToken: {
-            symbol: swapDetails.inputToken.symbol,
-            amount: swapDetails.inputToken.amount,
-            decimals: swapDetails.inputToken.decimals,
-            mint: swapDetails.inputToken.mint,
-            price: swapDetails.inputToken.price || '0', // Include price in USD
-            logo: swapDetails.inputToken.logo || '',
+          postType: "swapTransaction",
+          content: {
+            signature: swapDetails.signature,
+            walletAddress: swapDetails.solanaAddress,
+            inputToken: {
+              symbol: swapDetails.inputToken.symbol,
+              chain: swapDetails?.inputToken?.chain || "solana",
+              amount: swapDetails.inputToken.amount,
+              decimals: swapDetails.inputToken.decimals,
+              mint: swapDetails.inputToken.mint,
+              price: swapDetails.inputToken.price || "0", // Include price in USD
+              logo: swapDetails.inputToken.logo || "",
+            },
+            outputToken: {
+              symbol: swapDetails.outputToken.symbol,
+              chain: swapDetails?.outputToken?.chain || "solana",
+              amount: swapDetails.outputToken.amount,
+              decimals: swapDetails.outputToken.decimals,
+              mint: swapDetails.outputToken.mint,
+              price: swapDetails.outputToken.price || "0", // Include price in USD
+              logo: swapDetails.outputToken.logo || "",
+            },
           },
-          outputToken: {
-            symbol: swapDetails.outputToken.symbol,
-            amount: swapDetails.outputToken.amount,
-            decimals: swapDetails.outputToken.decimals,
-            mint: swapDetails.outputToken.mint,
-            price: swapDetails.outputToken.price || '0', // Include price in USD
-            logo: swapDetails.outputToken.logo || '',
-          },
-          slippageBps: swapDetails.slippageBps,
-          platformFeeBps: swapDetails.platformFeeBps,
-          timestamp: swapDetails.timestamp,
-          transactionType: 'SWAP',
-          network: 'solana',
+          // slippageBps: swapDetails.slippageBps,
+          // platformFeeBps: swapDetails.platformFeeBps,
+          // timestamp: swapDetails.timestamp,
+          // transactionType: 'SWAP',
+          // network: 'solana',
         }),
         // Use cache: 'no-store' to prevent caching the POST request
-        cache: 'no-store',
-      }
+        cache: "no-store",
+      },
     );
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error('Failed to save swap transaction:', errorText);
-      throw new Error(
-        `Failed to save transaction: ${response.status}`
-      );
+      logger.error("Failed to save swap transaction:", errorText);
+      throw new Error(`Failed to save transaction: ${response.status}`);
     }
 
     const data = await response.json();
-    logger.log('Transaction saved to database:', data);
+    logger.log("Transaction saved to database:", data);
     return data;
   } catch (error) {
-    logger.error('Error saving swap transaction to database:', error);
+    logger.error("Error saving swap transaction to database:", error);
     // We don't want to break the flow if saving fails
     return null;
   }
@@ -112,15 +115,15 @@ interface TokenTransferDetails {
  */
 export async function saveTokenTransferTransaction(
   transferDetails: TokenTransferDetails,
-  accessToken: string
+  accessToken: string,
 ) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/saveTokenTransferTransaction`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
@@ -132,37 +135,29 @@ export async function saveTokenTransferTransaction(
             amount: transferDetails.token.amount,
             decimals: transferDetails.token.decimals,
             mint: transferDetails.token.mint,
-            price: transferDetails.token.price || '0', // Include price in USD
+            price: transferDetails.token.price || "0", // Include price in USD
           },
           memo: transferDetails.memo,
           timestamp: transferDetails.timestamp,
-          transactionType: 'TOKEN_TRANSFER',
-          network: 'solana',
+          transactionType: "TOKEN_TRANSFER",
+          network: "solana",
         }),
         // Use cache: 'no-store' to prevent caching the POST request
-        cache: 'no-store',
-      }
+        cache: "no-store",
+      },
     );
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error(
-        'Failed to save token transfer transaction:',
-        errorText
-      );
-      throw new Error(
-        `Failed to save transaction: ${response.status}`
-      );
+      logger.error("Failed to save token transfer transaction:", errorText);
+      throw new Error(`Failed to save transaction: ${response.status}`);
     }
 
     const data = await response.json();
-    logger.log('Token transfer transaction saved to database:', data);
+    logger.log("Token transfer transaction saved to database:", data);
     return data;
   } catch (error) {
-    logger.error(
-      'Error saving token transfer transaction to database:',
-      error
-    );
+    logger.error("Error saving token transfer transaction to database:", error);
     // We don't want to break the flow if saving fails
     return null;
   }
@@ -192,15 +187,15 @@ interface NftTransferDetails {
  */
 export async function saveNftTransferTransaction(
   transferDetails: NftTransferDetails,
-  accessToken: string
+  accessToken: string,
 ) {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/saveNftTransferTransaction`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
@@ -210,41 +205,32 @@ export async function saveNftTransferTransaction(
           nft: {
             name: transferDetails.nft.name,
             mint: transferDetails.nft.mint,
-            collectionName: transferDetails.nft.collectionName || '',
-            collectionAddress:
-              transferDetails.nft.collectionAddress || '',
-            image: transferDetails.nft.image || '',
-            price: transferDetails.nft.price || '0', // Include estimated value in USD if available
+            collectionName: transferDetails.nft.collectionName || "",
+            collectionAddress: transferDetails.nft.collectionAddress || "",
+            image: transferDetails.nft.image || "",
+            price: transferDetails.nft.price || "0", // Include estimated value in USD if available
           },
           memo: transferDetails.memo,
           timestamp: transferDetails.timestamp,
-          transactionType: 'NFT_TRANSFER',
-          network: 'solana',
+          transactionType: "NFT_TRANSFER",
+          network: "solana",
         }),
         // Use cache: 'no-store' to prevent caching the POST request
-        cache: 'no-store',
-      }
+        cache: "no-store",
+      },
     );
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error(
-        'Failed to save NFT transfer transaction:',
-        errorText
-      );
-      throw new Error(
-        `Failed to save transaction: ${response.status}`
-      );
+      logger.error("Failed to save NFT transfer transaction:", errorText);
+      throw new Error(`Failed to save transaction: ${response.status}`);
     }
 
     const data = await response.json();
-    logger.log('NFT transfer transaction saved to database:', data);
+    logger.log("NFT transfer transaction saved to database:", data);
     return data;
   } catch (error) {
-    logger.error(
-      'Error saving NFT transfer transaction to database:',
-      error
-    );
+    logger.error("Error saving NFT transfer transaction to database:", error);
     // We don't want to break the flow if saving fails
     return null;
   }

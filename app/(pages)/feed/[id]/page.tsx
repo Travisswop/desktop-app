@@ -1,5 +1,6 @@
 import { getFeedDetails } from "@/actions/postFeed";
-import FeedDetails from "@/components/feed/FeedDetails";
+// import FeedDetails from "@/components/feed/FeedDetails";
+import FeedDetailsClient from "@/components/feed/FeedDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
 import { Metadata, ResolvingMetadata } from "next";
 import { cookies } from "next/headers";
@@ -16,10 +17,15 @@ export async function generateMetadata(
   parent: ResolvingMetadata,
 ): Promise<Metadata> {
   const { id } = await params;
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
+  const cookieStore = cookies();
+  const userId = (await cookieStore).get("user-id")?.value;
+  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}?userId=${userId}`;
+  console.log("url hole", url);
 
   try {
     const responseData = await getFeedDetails(url);
+    console.log("responseData", responseData);
+
     let feed = responseData?.data;
 
     // Handle repost
@@ -179,19 +185,23 @@ const FeedDetailsPage = async ({
   const userId = (await cookieStore).get("user-id")?.value;
 
   const url = userId
-    ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}?userId=${userId}`
-    : `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/${id}`;
+    ? `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}?userId=${userId}`
+    : `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}`;
 
   const feedData = await getFeedDetails(url);
 
-  // console.log("feed data", feedData);
+  console.log("feed data count 1", feedData);
 
   return (
     <div className="relative flex flex-col items-center">
-      <div className="w-[90%] sm:w-[70%] xl:w-[30%] overflow-y-auto">
+      <div className="w-full sm:w-[520px] overflow-y-auto">
         <Suspense fallback={<FeedLoading />}>
           {feedData && (
-            <FeedDetails feedData={feedData.data} feedDetails={feedData} />
+            <FeedDetailsClient
+              feedData={feedData.data}
+              userId={userId || ""}
+              accessToken={accessToken || ""}
+            />
           )}
         </Suspense>
       </div>

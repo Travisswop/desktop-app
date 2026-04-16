@@ -11,96 +11,28 @@ import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
 import Reaction from "./view/Reaction";
 import IndividualFeedContentForFeedDetails from "./IndividualFeedContentForFeedDetails";
-// import { useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { formatEns } from "@/lib/formatEnsName";
+import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
+import { IoArrowBack } from "react-icons/io5";
 
 dayjs.extend(relativeTime);
 
 const FeedDetails = ({ feedData, feedDetails }: any) => {
-  // console.log("feedData", feedData);
-
-  // const router = useRouter();
-
-  const renderTransactionContent = (feed: any) => {
-    const {
-      transaction_type,
-      receiver_ens,
-      receiver_wallet_address,
-      amount,
-      token,
-      chain,
-      tokenPrice,
-      image,
-      name,
-      currency,
-    } = feed.content;
-
-    // Use receiver ENS if available; otherwise, show a truncated wallet address.
-    const recipientDisplay = receiver_ens
-      ? receiver_ens
-      : receiver_wallet_address &&
-        `${receiver_wallet_address.slice(
-          0,
-          5,
-        )}...${receiver_wallet_address.slice(-5)}`;
-
-    if (transaction_type === "nft") {
-      return (
-        <div>
-          <p className="text-gray-600 text-sm">
-            Sent NFT{" "}
-            <span className="font-medium text-base">{name || "item"}</span> to{" "}
-            <span className="font-medium text-base">{recipientDisplay}</span>.
-          </p>
-          {image && (
-            <div className="w-52">
-              <Image
-                src={image}
-                alt="NFT"
-                width={300}
-                height={300}
-                className="w-full h-auto"
-              />
-              <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                {amount} {currency || "NFT"}
-              </p>
-            </div>
-          )}
-        </div>
-      );
-    } else if (transaction_type === "token") {
-      return (
-        <p className="text-black text-sm">
-          Transferred{" "}
-          <span className="font-medium">
-            {amount.toFixed(2)} {token}
-          </span>{" "}
-          {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
-          to{" "}
-          <a
-            href={`https://${recipientDisplay}`}
-            target="_blank"
-            className="font-semibold"
-          >
-            {formatEns(recipientDisplay)}
-          </a>{" "}
-          on the {chain}.
-        </p>
-      );
-    } else {
-      return (
-        <p className="text-gray-600 text-sm">
-          Executed a {transaction_type} transaction involving {amount}{" "}
-          {currency}.
-        </p>
-      );
-    }
-  };
+  // console.log("feedData in details", feedData);
+  const router = useRouter();
 
   return (
-    <div className="w-full flex gap-10 pt-6">
+    <div className="w-full flex gap-10 pt-2">
       <div className="w-full flex flex-col gap-4">
-        <div className="flex gap-2  pb-4">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-2"
+        >
+          <IoArrowBack size={20} />
+          <span className="font-semibold">Feed</span>
+        </button>
+        <div className="flex gap-2 pb-4">
           <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
             {(() => {
               const profilePic =
@@ -240,8 +172,9 @@ const FeedDetails = ({ feedData, feedDetails }: any) => {
                     </span>
                   </p>
                 )}
-                {feedData.postType === "transaction" &&
-                  renderTransactionContent(feedData)}
+                {feedData.postType === "transaction" && feedData && (
+                  <RenderTransactionContent feed={feedData} />
+                )}
 
                 {feedData.postType === "swapTransaction" && (
                   <div className="w-full flex justify-start mt-1">
