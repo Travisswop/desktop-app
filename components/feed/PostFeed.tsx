@@ -520,18 +520,13 @@ const PostFeed = ({
               </div>
             )}
 
-            {showGifPicker && (
-              <div className="mt-4">
-                <GifPickerContent
-                  mediaFilesLength={mediaFiles.length}
-                  setMediaFiles={setMediaFiles}
-                  setFileError={setFileError}
-                  showGifPicker={showGifPicker}
-                  setShowGifPicker={setShowGifPicker}
-                  pickerRef={pickerRef}
-                />
-              </div>
-            )}
+            <GifPickerContent
+              mediaFilesLength={mediaFiles.length}
+              setMediaFiles={setMediaFiles}
+              setFileError={setFileError}
+              showGifPicker={showGifPicker}
+              setShowGifPicker={setShowGifPicker}
+            />
           </motion.div>
 
           {isCreatePollModalOpen && (

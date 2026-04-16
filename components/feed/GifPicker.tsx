@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import GifPicker from "gif-picker-react";
+import CustomModal from "../modal/CustomModal";
 
 interface GifProps {
   mediaFilesLength: any;
@@ -7,7 +8,6 @@ interface GifProps {
   setFileError: any;
   showGifPicker: boolean;
   setShowGifPicker: (show: boolean) => void;
-  pickerRef: React.RefObject<HTMLDivElement>;
 }
 
 const GifPickerContent = ({
@@ -16,10 +16,7 @@ const GifPickerContent = ({
   setFileError,
   showGifPicker,
   setShowGifPicker,
-  pickerRef,
 }: GifProps) => {
-  // const pickerRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     if (mediaFilesLength > 4) {
       setFileError("You can select a maximum of 4 files.");
@@ -30,50 +27,24 @@ const GifPickerContent = ({
   }, [mediaFilesLength, setFileError, setShowGifPicker]);
 
   const handleGifClick = (gifData: any) => {
-    setMediaFiles((prevMediaFiles: any) => [
-      ...prevMediaFiles,
-      {
-        type: "gif",
-        src: gifData.url,
-      },
-    ]);
+    setMediaFiles((prev: any) => [...prev, { type: "gif", src: gifData.url }]);
+    setShowGifPicker(false); // auto close on select
   };
 
-  // Close picker when clicking outside
-  useEffect(() => {
-    if (!showGifPicker) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-
-      // Check if click is inside the pickerRef
-      if (pickerRef.current && pickerRef.current.contains(target)) return;
-
-      // Also check if click is inside any gif-picker portal elements
-      // gif-picker-react renders with class "gpr-main" or inside a div with that structure
-      const gifPickerPortal = document.querySelector(".gpr-main");
-      if (gifPickerPortal && gifPickerPortal.contains(target)) return;
-
-      setShowGifPicker(false);
-    };
-
-    document.addEventListener("mousedown", handleClickOutside, true);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside, true);
-    };
-  }, [showGifPicker, setShowGifPicker, pickerRef]);
-
-  if (!showGifPicker) return null;
-
   return (
-    <div ref={pickerRef}>
-      <GifPicker
-        onGifClick={handleGifClick}
-        tenorApiKey={process.env.NEXT_PUBLIC_TENOR_API_KEY || ""}
-        width="100%"
-      />
-    </div>
+    <CustomModal
+      isOpen={showGifPicker}
+      onCloseModal={setShowGifPicker}
+      title="Pick a GIF"
+    >
+      <div className="p-3">
+        <GifPicker
+          onGifClick={handleGifClick}
+          tenorApiKey={process.env.NEXT_PUBLIC_TENOR_API_KEY || ""}
+          width="100%"
+        />
+      </div>
+    </CustomModal>
   );
 };
 
