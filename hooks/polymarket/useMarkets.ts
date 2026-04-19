@@ -29,6 +29,18 @@ export type PolymarketMarket = {
   eventSlug?: string;
   eventId?: string;
   eventIcon?: string;
+  /**
+   * Per-team metadata attached by Polymarket to sports events (logo,
+   * abbreviation, brand color). Usually two entries keyed by team name.
+   */
+  eventTeams?: Array<{
+    id?: number | string;
+    name?: string;
+    league?: string;
+    logo?: string;
+    abbreviation?: string;
+    color?: string;
+  }>;
   negRisk?: boolean;
   orderMinSize?: number;
   orderPriceMinTickSize?: number;

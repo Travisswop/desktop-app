@@ -40,6 +40,18 @@ export interface GroupedMarket {
   outcomes: ParsedOutcome[];
 }
 
+/** Normalised per-team metadata from the event's `teams` array. */
+export interface ResolvedTeamMeta {
+  /** Full name as returned by Polymarket, e.g. "Kolkata Knight Riders" */
+  name: string;
+  /** Team logo URL attached by Polymarket to the event */
+  logoUrl?: string;
+  /** Polymarket-supplied abbreviation, e.g. "KOL" (already upper-cased) */
+  abbrev?: string;
+  /** Brand colour hex, e.g. "#613698" */
+  color?: string;
+}
+
 export interface SportsGameGroup {
   eventId: string;
   /** Full matchup title, e.g. "Orlando Magic vs. Philadelphia 76ers" */
@@ -54,6 +66,13 @@ export interface SportsGameGroup {
   teamALogo?: string;
   /** Team logo URL from the live Gamma /teams API — undefined when not yet loaded */
   teamBLogo?: string;
+  /**
+   * Per-team metadata (logo, abbrev, colour) resolved from the event-level
+   * `teams` array. Preferred over the static sports-teams map since it works
+   * for all leagues Polymarket covers (cricket, soccer, esports, etc.).
+   */
+  teamAMeta?: ResolvedTeamMeta;
+  teamBMeta?: ResolvedTeamMeta;
   /** null when the event has no moneyline market available */
   moneyline: GroupedMarket | null;
   spread: GroupedMarket | null;
@@ -270,13 +289,153 @@ export function groupEventMarkets(
 }
 
 /**
+ * Strip a league/competition prefix that Polymarket sometimes prepends to
+ * event titles. Examples:
+ *   "Indian Premier League: Kolkata Knight Riders" → "Kolkata Knight Riders"
+ *   "NBA: Lakers"                                  → "Lakers"
+ *   "Orlando Magic"                                → "Orlando Magic"
+ *
+ * Only strips when the prefix is clearly a league label (contains a colon and
+ * the segment before it is not itself part of the team name). The heuristic:
+ * remove everything up to and including the last colon in the string.
+ */
+function stripLeaguePrefix(name: string): string {
+  if (!name) return '';
+  const colonIdx = name.lastIndexOf(':');
+  if (colonIdx >= 0 && colonIdx < name.length - 1) {
+    return name.slice(colonIdx + 1).trim();
+  }
+  return name.trim();
+}
+
+const RESERVED_OUTCOME_LABELS = /^(yes|no|over|under|draw|tie)$/i;
+
+/**
  * Split an event title on "vs." / "vs" to extract the two team names.
- *   "Orlando Magic vs. Philadelphia 76ers" → ["Orlando Magic", "Philadelphia 76ers"]
+ * Strips any league prefix from the first side.
+ *   "Orlando Magic vs. Philadelphia 76ers"
+ *     → ["Orlando Magic", "Philadelphia 76ers"]
+ *   "Indian Premier League: Kolkata Knight Riders vs Rajasthan Royals"
+ *     → ["Kolkata Knight Riders", "Rajasthan Royals"]
  */
 export function parseTeams(title: string): [string, string] {
   if (!title) return ['', ''];
   const match = title.match(/^(.+?)\s+vs\.?\s+(.+)$/i);
-  return match ? [match[1].trim(), match[2].trim()] : [title, ''];
+  if (!match) return [stripLeaguePrefix(title), ''];
+  return [stripLeaguePrefix(match[1]), stripLeaguePrefix(match[2])];
+}
+
+/**
+ * Resolve the two team display names for a game.
+ *
+ * Priority:
+ *   1. Moneyline outcome labels — these are always clean (e.g. "Kolkata Knight Riders")
+ *      and authoritative because Polymarket uses them as order book labels.
+ *   2. Title parsing with league-prefix stripping — used when moneyline is
+ *      missing or carries generic Yes/No/Over/Under outcomes.
+ */
+function resolveTeamNames(
+  title: string,
+  moneyline: GroupedMarket | null,
+): [string, string] {
+  const outcomes = moneyline?.outcomes;
+  if (outcomes && outcomes.length >= 2) {
+    const a = outcomes[0]?.label?.trim() ?? '';
+    const b = outcomes[1]?.label?.trim() ?? '';
+    if (
+      a &&
+      b &&
+      !RESERVED_OUTCOME_LABELS.test(a) &&
+      !RESERVED_OUTCOME_LABELS.test(b)
+    ) {
+      return [stripLeaguePrefix(a), stripLeaguePrefix(b)];
+    }
+  }
+  return parseTeams(title);
+}
+
+/**
+ * Select the best icon URL for an event, falling back through the standard
+ * Polymarket priority chain: market.icon → market.image → event.icon/eventIcon.
+ * Matches how Polymarket's own UI resolves icons for consistency across cards.
+ */
+/**
+ * Raw team shape from Polymarket's event.teams array. Kept loose so the same
+ * type can represent both our typed `eventTeams` and the raw `GammaEvent.teams`.
+ */
+interface RawEventTeam {
+  name?: string;
+  logo?: string;
+  abbreviation?: string;
+  color?: string;
+}
+
+/**
+ * Find the best match for a team name in the event.teams array.
+ * Matching (case-insensitive):
+ *   1. Exact name match — "Kolkata Knight Riders" → "Kolkata Knight Riders"
+ *   2. Substring either direction — covers abbreviated outcome labels
+ *      ("Magic" in "Orlando Magic") and title-parsed names that include a
+ *      city the `teams[]` entry lacks.
+ *   3. Abbreviation match — "kol" → "Kolkata Knight Riders"
+ */
+function findEventTeam(
+  teamName: string,
+  teams: RawEventTeam[] | undefined,
+): RawEventTeam | undefined {
+  if (!teamName || !teams?.length) return undefined;
+  const needle = teamName.trim().toLowerCase();
+  if (!needle) return undefined;
+
+  // Exact name match
+  const exact = teams.find((t) => t.name?.trim().toLowerCase() === needle);
+  if (exact) return exact;
+
+  // Substring match — "magic" ⊂ "orlando magic" and vice-versa
+  const substring = teams.find((t) => {
+    const n = t.name?.trim().toLowerCase();
+    if (!n) return false;
+    return n.includes(needle) || needle.includes(n);
+  });
+  if (substring) return substring;
+
+  // Abbreviation match
+  return teams.find(
+    (t) => t.abbreviation?.trim().toLowerCase() === needle,
+  );
+}
+
+/**
+ * Convert a raw event-team entry into the normalised ResolvedTeamMeta shape.
+ * Returns undefined when the raw entry is missing so callers can tell the
+ * difference between "Polymarket gave us team meta" and "no match found"
+ * (the latter must skip the static NBA/NFL map to avoid false positives like
+ * "Rajasthan Royals" → "KC Royals").
+ */
+function toResolvedTeamMeta(
+  fallbackName: string,
+  raw: RawEventTeam | undefined,
+): ResolvedTeamMeta | undefined {
+  if (!raw) return undefined;
+  return {
+    name: raw.name ?? fallbackName,
+    logoUrl: raw.logo || undefined,
+    abbrev: raw.abbreviation ? raw.abbreviation.toUpperCase() : undefined,
+    color: raw.color || undefined,
+  };
+}
+
+function resolveEventIcon(
+  market: PolymarketMarket | GammaEventMarket,
+  eventIcon?: string,
+): string | undefined {
+  const m = market as Record<string, unknown>;
+  return (
+    (m.icon as string | undefined) ||
+    (m.image as string | undefined) ||
+    (m.eventIcon as string | undefined) ||
+    eventIcon
+  );
 }
 
 // ─── Flat-market grouping (used by useSportsEvents via /markets route) ────────
@@ -446,9 +605,12 @@ export function groupFlatMarketsIntoGames(
     // Prefer the event-level title; fall back to the market question
     const title =
       (first.eventTitle as string | undefined) ?? first.question ?? '';
-    const [teamA, teamB] = parseTeams(title);
 
     const grouped = groupPolymarketMarketsForEvent(eventMarkets);
+
+    // Derive team names from moneyline outcomes when available (clean),
+    // otherwise parse the title and strip any league prefix.
+    const [teamA, teamB] = resolveTeamNames(title, grouped.moneyline);
 
     // Align spread outcomes to the same row order as the moneyline so that
     // row A always shows teamA's spread and row B shows teamB's spread.
@@ -456,15 +618,30 @@ export function groupFlatMarketsIntoGames(
       ? alignSpreadToTeams(grouped.spread, teamA, teamB)
       : null;
 
+    // Per-team metadata from the event-level `teams` array (added by the
+    // backend). Works for every Polymarket-covered sport, unlike the static
+    // NBA/NFL map.
+    const eventTeams = first.eventTeams as RawEventTeam[] | undefined;
+    const teamAMeta = toResolvedTeamMeta(
+      teamA,
+      findEventTeam(teamA, eventTeams),
+    );
+    const teamBMeta = toResolvedTeamMeta(
+      teamB,
+      findEventTeam(teamB, eventTeams),
+    );
+
     groups.push({
       eventId,
       title,
       teamA,
       teamB,
       startDate: first.gameStartTime,
-      icon:
-        (first.eventIcon as string | undefined) ??
-        (first.icon as string | undefined),
+      icon: resolveEventIcon(first),
+      teamAMeta,
+      teamBMeta,
+      teamALogo: teamAMeta?.logoUrl,
+      teamBLogo: teamBMeta?.logoUrl,
       ...grouped,
       spread,
     });
@@ -517,10 +694,13 @@ export function enrichGamesWithTeamLogos(
   teamsMap: LiveTeamsMap,
 ): SportsGameGroup[] {
   return games.map((game) => {
+    // Prefer the per-event logo attached via `event.teams` — it is always
+    // accurate for the specific matchup.  Fall back to the global /teams map
+    // only when the event didn't include a team-specific logo.
     const teamALogo =
-      resolveLogoFromLiveMap(game.teamA, teamsMap) ?? game.teamALogo;
+      game.teamALogo ?? resolveLogoFromLiveMap(game.teamA, teamsMap);
     const teamBLogo =
-      resolveLogoFromLiveMap(game.teamB, teamsMap) ?? game.teamBLogo;
+      game.teamBLogo ?? resolveLogoFromLiveMap(game.teamB, teamsMap);
 
     if (teamALogo === game.teamALogo && teamBLogo === game.teamBLogo) {
       return game; // nothing changed — keep same reference
@@ -539,13 +719,28 @@ export function toSportsGameGroup(
   >,
 ): SportsGameGroup {
   const title = (event.title as string) ?? 'Unknown Event';
-  const [teamA, teamB] = parseTeams(title);
   const grouped = groupEventMarkets(event.markets ?? [], realtimePrices);
+  const [teamA, teamB] = resolveTeamNames(title, grouped.moneyline);
 
   // Align spread outcomes to match the moneyline row order
   const spread = grouped.spread
     ? alignSpreadToTeams(grouped.spread, teamA, teamB)
     : null;
+
+  const firstMarket = event.markets?.[0];
+  const eventLevelIcon =
+    (event.image as string | undefined) ??
+    (event.icon as string | undefined);
+
+  const eventTeams = event.teams as RawEventTeam[] | undefined;
+  const teamAMeta = toResolvedTeamMeta(
+    teamA,
+    findEventTeam(teamA, eventTeams),
+  );
+  const teamBMeta = toResolvedTeamMeta(
+    teamB,
+    findEventTeam(teamB, eventTeams),
+  );
 
   return {
     eventId: event.id,
@@ -553,7 +748,13 @@ export function toSportsGameGroup(
     teamA,
     teamB,
     startDate: event.startDate as string | undefined,
-    icon: event.icon as string | undefined,
+    icon: firstMarket
+      ? resolveEventIcon(firstMarket, eventLevelIcon)
+      : eventLevelIcon,
+    teamAMeta,
+    teamBMeta,
+    teamALogo: teamAMeta?.logoUrl,
+    teamBLogo: teamBMeta?.logoUrl,
     ...grouped,
     spread,
   };
