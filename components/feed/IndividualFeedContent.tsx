@@ -108,9 +108,49 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
       );
     }
   };
+
+  const userName =
+    feed.repostedPostDetails?.smartsiteId?.name ||
+    feed.repostedPostDetails?.smartsiteUserName ||
+    "Anonymous";
+
+  const ensName =
+    feed.repostedPostDetails?.smartsiteId?.ens ||
+    feed.repostedPostDetails?.smartsiteEnsName ||
+    "";
+
+  const caption =
+    feed?.repostedPostDetails?.content?.title ||
+    feed?.repostedPostDetails?.title ||
+    feed?.repostedPostDetails?.content?.quote?.title ||
+    "";
+
+  // const pushRoute = feed?.content.isFromFeed
+  //   ? `/feed/${feed.repostedPostDetails?.postId}`
+  //   : `/feed/comment/${feed.repostedPostDetails?._id}`;
+
+  const pushRoute = (): any => {
+    if (feed.repostedPostDetails?._id && !feed?.content.isFromFeed) {
+      return `/feed/comment/${feed.repostedPostDetails._id}`;
+    }
+    if (feed.repostedPostDetails?._id && feed?.content.isFromFeed) {
+      return `/feed/${feed.repostedPostDetails._id}`;
+    }
+    if (feed?.content.isFromFeed) {
+      if (feed.repostedPostDetails?.postId) {
+        return `/feed/${feed.repostedPostDetails.postId}`;
+      } else if (feed.repostedPostDetails?.content?.postId) {
+        return `/feed/${feed.repostedPostDetails.content.postId}`;
+      }
+    }
+  };
+
   return (
-    <div className="flex gap-2 border border-gray-200 p-3 rounded-xl mt-2">
-      <div className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center">
+    <div className="flex gap-2 border border-gray-200 p-3 rounded-xl mt-2 text-sm">
+      <Link
+        href={`${feed.repostedPostDetails?.smartsiteDetails?.profileUrl}`}
+        className="w-9 lg:w-10 h-9 lg:h-10 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center"
+      >
         {(() => {
           const profilePic =
             feed.repostedPostDetails?.smartsiteId?.profilePic ||
@@ -135,41 +175,38 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
             />
           );
         })()}
-      </div>
+      </Link>
       <div className="flex-1">
         {/* User and Feed Info */}
         <div className="w-full flex items-start justify-between">
           <div className="w-full">
-            <div className="flex items-center gap-1">
-              <p className="text-gray-700 font-semibold">
-                {feed.repostedPostDetails?.smartsiteId?.name ||
-                  feed.repostedPostDetails?.smartsiteUserName ||
-                  "Anonymous"}
-              </p>
-              <GoDotFill size={10} />
-              <p className="text-gray-500 font-normal">
-                {dayjs(feed.repostedPostDetails.createdAt).fromNow()}
-              </p>
-            </div>
-            <p className="text-gray-500 font-normal">
-              {formatEns(
-                feed.repostedPostDetails?.smartsiteId?.ens ||
-                  feed.repostedPostDetails?.smartsiteEnsName ||
-                  "n/a",
+            <div
+              onClick={() => router.push(pushRoute())}
+              className="cursor-pointer"
+            >
+              <div className="flex items-center gap-1">
+                <p className="text-gray-700 font-semibold">{userName}</p>
+                <GoDotFill size={10} />
+                <p>{dayjs(feed.repostedPostDetails.createdAt).fromNow()}</p>
+              </div>
+
+              {ensName && (
+                <p className="text-gray-500 font-normal">
+                  {formatEns(ensName)}
+                </p>
               )}
-            </p>
-            {/* Render Post Content */}
-            {feed?.repostedPostDetails?.content?.title && (
-              <div className="w-full text-start">
-                {feed.repostedPostDetails.content.title
-                  .split("\n")
-                  .map((line: string, index: number) => (
+
+              {/* Render Post Caption */}
+              {caption && (
+                <div className="w-full text-start">
+                  {caption.split("\n").map((line: string, index: number) => (
                     <p className="break-text" key={index}>
                       {makeLinksClickable(line)}
                     </p>
                   ))}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
 
             {feed.repostedPostDetails.postType === "swapTransaction" && (
               <SwapTransactionCard
