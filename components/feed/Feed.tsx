@@ -1,390 +1,141 @@
 "use client";
 
 import { getUserFeed } from "@/actions/postFeed";
-import Image from "next/image";
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  memo,
-  useMemo,
-} from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import dayjs from "dayjs";
-import { useDisclosure } from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
-import RedeemClaimModal from "../modal/RedeemClaim";
 import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
-import { formatEns } from "@/lib/formatEnsName";
+import { useModalStore } from "@/zustandStore/modalstore";
+import InfiniteScroll from "react-infinite-scroll-component";
 
 dayjs.extend(relativeTime);
-interface FeedItemType {
-  _id: string;
-  likeCount?: number;
-  commentCount?: number;
-  isLiked?: boolean;
-  // Add other properties that a feed item might have
-  [key: string]: any; // Allow other properties
-}
-
-interface FeedProps {
-  accessToken: string;
-  userId: string;
-  setIsPosting: (value: boolean) => void;
-  isPosting: boolean;
-  setIsPostLoading: (value: boolean) => void;
-  isPostLoading: boolean;
-}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-// Memoized FeedItem wrapper to prevent unnecessary rerenders
-const MemoizedFeedItem = memo(
-  ({
-    feed,
-    userId,
-    accessToken,
-    onRedeemModalOpen,
-    onRepostSuccess,
-    onDeleteSuccess,
-    renderTransactionContent,
-    onPostInteraction,
-  }: {
-    feed: any;
-    userId: string;
-    accessToken: string;
-    onRedeemModalOpen: (data: any) => void;
-    onRepostSuccess: () => void;
-    onDeleteSuccess: () => void;
-    renderTransactionContent: (feed: any) => JSX.Element;
-    onPostInteraction: (postId: string, updates: Partial<FeedItemType>) => void;
-  }) => {
-    return (
-      <FeedItem
-        key={feed._id}
-        feed={feed}
-        userId={userId}
-        accessToken={accessToken}
-        onRedeemModalOpen={onRedeemModalOpen}
-        onRepostSuccess={onRepostSuccess}
-        onDeleteSuccess={onDeleteSuccess}
-        renderTransactionContent={renderTransactionContent}
-        onPostInteraction={onPostInteraction}
-      />
-    );
-  },
-  (prevProps, nextProps) => {
-    // Custom comparison to prevent rerenders when only unrelated props change
-    return (
-      prevProps.feed._id === nextProps.feed._id &&
-      prevProps.feed.likeCount === nextProps.feed.likeCount &&
-      prevProps.feed.commentCount === nextProps.feed.commentCount &&
-      prevProps.feed.repostCount === nextProps.feed.repostCount &&
-      prevProps.feed.isLiked === nextProps.feed.isLiked &&
-      prevProps.userId === nextProps.userId &&
-      prevProps.accessToken === nextProps.accessToken
-    );
-  },
-);
+export default function Feed({
+  accessToken,
+  userId,
+  initialFeedData,
+}: {
+  accessToken: string;
+  userId: string;
+  initialFeedData?: any;
+}) {
+  const initialArray = initialFeedData?.data ?? [];
+  const initialTotalPages = initialFeedData?.pagination?.totalPages ?? 1;
 
-MemoizedFeedItem.displayName = "MemoizedFeedItem";
+  const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
+  // logger.info("Feed feedRefetchTrigger", feedRefetchTrigger);
 
-const Feed = memo(
-  ({
-    accessToken,
-    userId,
-    setIsPosting,
-    isPosting,
-    setIsPostLoading,
-  }: FeedProps) => {
-    const [feedData, setFeedData] = useState<FeedItemType[]>([]);
-    const [hasMore, setHasMore] = useState(true);
-    const observerRef = useRef<HTMLDivElement>(null);
-    const isFetching = useRef(false);
-    const pageRef = useRef(1);
-    const { isOpen, onOpen, onOpenChange } = useDisclosure();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [redeemFeedData, setRedeemFeedData] = useState({});
-    const [initiaLoading, setInitialLoading] = useState(true);
+  const [feedData, setFeedData] = useState(initialArray);
+  const [initialLoading, setInitialLoading] = useState(
+    initialArray.length === 0,
+  );
 
-    console.log("feedData from feed now", feedData);
+  const [hasMore, setHasMore] = useState(
+    initialArray.length > 0 && initialTotalPages > 1,
+  );
+  // logger.info("Feed component rendered with initial feedData:", feedData);
+  // logger.info("Feed component rendered with initial hasMore:", hasMore);
 
-    // Memoized callbacks to prevent unnecessary re-renders
-    const openRedeemModal = useCallback(
-      (data: any) => {
-        onOpen();
-        setIsModalOpen(true);
-        setRedeemFeedData(data);
-      },
-      [onOpen],
-    );
+  const pageRef = useRef(initialArray.length > 0 ? 2 : 1);
 
-    // Separate callback for repost success that doesn't trigger full refresh
-    const handleRepostSuccess = useCallback(() => {
-      // We can optionally update repost counts here without full refresh
-      // For now, we'll just show success without refreshing the entire feed
-    }, []);
+  const fetchFeedData = useCallback(
+    async (reset = false) => {
+      // console.log("reset", reset);
 
-    // Callback for delete success that triggers refresh
-    const handleDeleteSuccess = useCallback(() => {
-      setIsPosting(true);
-    }, [setIsPosting]);
+      if (!reset && !hasMore) return;
 
-    const handlePostInteraction = useCallback(
-      (postId: string, updates: Partial<FeedItemType>) => {
-        console.log("hit poll");
-        console.log("updates", updates);
+      try {
+        const currentPage = reset ? 1 : pageRef.current;
 
-        setFeedData((currentFeedData) =>
-          currentFeedData.map((item) => {
-            if (
-              item._id === postId ||
-              item.repostedPostDetails?._id === postId
-            ) {
-              // Check if this is a repost
-              if (item.postType === "repost" && item.repostedPostDetails) {
-                // Update only the content inside repostedPostDetails
-                return {
-                  ...item,
-                  repostedPostDetails: {
-                    ...item.repostedPostDetails,
-                    content: {
-                      ...item.repostedPostDetails.content,
-                      ...updates,
-                    },
-                  },
-                };
-              } else {
-                // Regular post - update at top level
-                return { ...item, ...updates };
-              }
-            }
-            return item;
-          }),
-        );
-      },
-      [],
-    );
+        const url = `${API_URL}/api/v2/feed/user/connect/${userId}?page=${currentPage}&limit=10`;
+        console.log("fetch urls", url);
 
-    // Memoized transaction content renderer
-    const renderTransactionContent = useCallback((feed: any) => {
-      const {
-        transaction_type,
-        receiver_ens,
-        receiver_wallet_address,
-        amount,
-        token,
-        chain,
-        tokenPrice,
-        image,
-        name,
-        currency,
-      } = feed.content;
+        const response = await getUserFeed(url, accessToken);
 
-      // Use receiver ENS if available; otherwise, show a truncated wallet address.
-      const recipientDisplay = receiver_ens
-        ? receiver_ens
-        : receiver_wallet_address &&
-          `${receiver_wallet_address.slice(
-            0,
-            5,
-          )}...${receiver_wallet_address.slice(-5)}`;
+        const data = response?.data ?? [];
+        // const totalPages = response?.pagination?.totalPages ?? 1;
 
-      if (transaction_type === "nft") {
-        return (
-          <div>
-            <p className="text-gray-600 text-sm">
-              Sent NFT{" "}
-              <span className="font-medium text-base">{name || "item"}</span> to{" "}
-              <span className="font-medium text-base">{recipientDisplay}</span>.
-            </p>
-            {image && (
-              <div className="w-52">
-                <Image
-                  src={image}
-                  alt="NFT"
-                  width={300}
-                  height={300}
-                  className="w-full h-auto"
-                />
-                <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-                  {amount} {currency || "NFT"}
-                </p>
-              </div>
-            )}
-          </div>
-        );
-      } else if (transaction_type === "token") {
-        return (
-          <p className="text-black text-sm">
-            Transferred{" "}
-            <span className="font-medium">
-              {amount.toFixed(2)} {token}
-            </span>{" "}
-            {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>}{" "}
-            tokens to{" "}
-            <a
-              href={`https://${recipientDisplay}`}
-              target="_blank"
-              className="font-semibold"
-            >
-              {formatEns(recipientDisplay)}
-            </a>{" "}
-            on the {chain}.
-          </p>
-        );
-      } else {
-        return (
-          <p className="text-gray-600 text-sm">
-            Executed a {transaction_type} transaction involving {amount}{" "}
-            {currency}.
-          </p>
-        );
-      }
-    }, []);
+        console.log("data fetch 1", data);
 
-    // Stable fetchFeedData that doesn't depend on setIsPostLoading
-    const fetchFeedData = useCallback(
-      async (reset = false) => {
-        if (isFetching.current) return;
-        isFetching.current = true;
+        if (reset) {
+          setFeedData(data);
+          pageRef.current = 2;
+          setHasMore(initialTotalPages > pageRef.current);
+          console.log("data fetch 2", data);
+        } else {
+          setFeedData((prev: any[]) => [...prev, ...data]);
+          pageRef.current += 1;
 
-        try {
-          const currentPage = reset ? 1 : pageRef.current;
-          const url = `${API_URL}/api/v1/feed/user/connect/post/${userId}?page=${currentPage}&limit=5`;
-          const newFeedData = await getUserFeed(url, accessToken);
-
-          console.log("newFeedData", newFeedData);
-
-          if (!newFeedData?.data) {
-            setHasMore(false);
-            return;
-          }
-
-          if (newFeedData.data.length < 5) {
-            setHasMore(false);
-          }
-
-          if (reset) {
-            setFeedData(newFeedData.data);
-            pageRef.current = 2; // Reset pagination: next page is 2
-            setHasMore(newFeedData.data.length > 0);
-          } else {
-            if (newFeedData.data.length === 0) {
-              setHasMore(false);
-            } else {
-              setFeedData((prev) => [...prev, ...newFeedData.data]);
-              pageRef.current += 1;
-            }
-          }
-
-          setInitialLoading(false);
-        } catch (error) {
-          console.error("Error fetching feed data:", error);
-          setHasMore(false);
-        } finally {
-          setIsPostLoading(false);
-          isFetching.current = false;
+          // ✅ safer logic
+          setHasMore(pageRef.current <= initialTotalPages);
         }
-      },
-      [accessToken, userId],
-    );
+      } catch (error) {
+        console.error(error);
+        setHasMore(false);
+      } finally {
+        setInitialLoading(false);
+      }
+    },
+    [hasMore, userId, accessToken, initialTotalPages],
+  );
 
-    // Initial fetch on mount.
-    useEffect(() => {
+  // initial load
+  useEffect(() => {
+    if (initialArray.length === 0) {
       fetchFeedData();
-    }, [fetchFeedData]);
+    }
+  }, [fetchFeedData, initialArray.length]);
 
-    // Refetch data when a new post is created.
-    useEffect(() => {
-      if (isPosting) {
-        setIsPostLoading(true);
-        pageRef.current = 1;
-        setHasMore(true);
-        fetchFeedData(true);
-        setIsPosting(false);
-      }
-    }, [isPosting, fetchFeedData]);
+  // refetch trigger
+  useEffect(() => {
+    if (feedRefetchTrigger === 0) return;
 
-    // Infinite scroll observer to trigger additional data fetches.
-    useEffect(() => {
-      if (!hasMore) return;
+    pageRef.current = 1;
+    setHasMore(true);
+    fetchFeedData(true);
+  }, [feedRefetchTrigger, fetchFeedData]);
 
-      const observerCallback = (entries: IntersectionObserverEntry[]) => {
-        if (entries[0].isIntersecting && !isFetching.current) {
-          fetchFeedData();
-        }
-      };
-
-      const observer = new IntersectionObserver(observerCallback, {
-        root: null,
-        rootMargin: "0px",
-        threshold: 1.0,
-      });
-
-      if (observerRef.current) {
-        observer.observe(observerRef.current);
-      }
-
-      return () => observer.disconnect();
-    }, [hasMore, fetchFeedData]);
-
-    // Memoized feed items to prevent unnecessary re-renders
-    const memoizedFeedItems = useMemo(() => {
-      return feedData.map((feed) => (
-        <MemoizedFeedItem
-          key={feed._id}
-          feed={feed}
-          userId={userId}
-          accessToken={accessToken}
-          onRedeemModalOpen={openRedeemModal}
-          onRepostSuccess={handleRepostSuccess}
-          onDeleteSuccess={handleDeleteSuccess}
-          renderTransactionContent={renderTransactionContent}
-          onPostInteraction={handlePostInteraction}
-        />
-      ));
-    }, [
-      feedData,
-      userId,
-      accessToken,
-      openRedeemModal,
-      handleRepostSuccess,
-      handleDeleteSuccess,
-      renderTransactionContent,
-      handlePostInteraction,
-    ]);
-
+  if (initialLoading) {
     return (
-      <div className="w-full flex gap-10">
-        <div className="w-full flex flex-col gap-4">
-          {memoizedFeedItems}
-          {hasMore && (
-            <div ref={observerRef}>
-              {initiaLoading ? (
-                <div className="w-full sm:w-[520px]">
-                  <FeedMainComponentLoading />
-                </div>
-              ) : (
-                <FeedLoading />
-              )}
-            </div>
-          )}
-        </div>
-        {isModalOpen && (
-          <RedeemClaimModal
-            isOpen={isOpen}
-            onOpenChange={onOpenChange}
-            redeemFeedData={redeemFeedData}
-          />
-        )}
+      <div className="w-full sm:w-[520px]">
+        <FeedMainComponentLoading />
       </div>
     );
-  },
-);
+  }
 
-Feed.displayName = "Feed";
-
-export default Feed;
+  return (
+    <div className="w-full flex gap-10">
+      <div className="w-full flex flex-col gap-4">
+        <InfiniteScroll
+          dataLength={feedData.length}
+          next={fetchFeedData}
+          hasMore={hasMore}
+          loader={<FeedLoading />}
+          endMessage={
+            <p className="text-center text-sm text-gray-500">No more posts</p>
+          }
+        >
+          {feedData.map((feed: any) => (
+            <FeedItem
+              key={feed._id}
+              feed={feed}
+              userId={userId}
+              accessToken={accessToken}
+              onRepostSuccess={() => {}}
+              onDeleteSuccess={() => {
+                pageRef.current = 1;
+                setHasMore(true);
+                fetchFeedData(true);
+              }}
+              onPostInteraction={() => {}}
+            />
+          ))}
+        </InfiniteScroll>
+      </div>
+    </div>
+  );
+}

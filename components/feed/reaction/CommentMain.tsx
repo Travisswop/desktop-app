@@ -11,12 +11,15 @@ const CommentMain = memo(
     isFromFeedDetails,
   }: any) => {
     const handleCommentOpen = () => {
-      if (isFromFeedDetails) {
-        setIsCommentInputOpen(true);
-      } else {
-        setIsCommentInputOpen(!isCommentInputOpen);
-      }
+      // if (isFromFeedDetails) {
+      //   setIsCommentInputOpen(true);
+      // } else {
+      //   setIsCommentInputOpen(!isCommentInputOpen);
+      // }
+      setIsCommentInputOpen(true);
     };
+
+    console.log("isFromFeedDetails", isFromFeedDetails);
 
     return (
       <Tooltip
@@ -34,7 +37,7 @@ const CommentMain = memo(
         </button>
       </Tooltip>
     );
-  }
+  },
 );
 
 CommentMain.displayName = "CommentMain";

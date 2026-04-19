@@ -29,7 +29,6 @@ import { useRouter } from "next/navigation";
 import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
 import RedeemClaimModal from "../modal/RedeemClaim";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
-// import FeedDetailsReaction from "./view/FeedDetailsReaction";
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
 // Ideally, import FeedItemType from where it's defined (e.g., Feed.tsx or a types file).
@@ -51,7 +50,7 @@ interface FeedItemProps {
   isFromFeedDetailsPage?: boolean;
 }
 
-const FeedItem = memo(
+const FeedReplyItem = memo(
   ({
     feed,
     userId,
@@ -120,7 +119,7 @@ const FeedItem = memo(
     const router = useRouter();
 
     return (
-      <div className="flex gap-2 border-b border-gray-200 py-4">
+      <div className="flex gap-2 border-b border-gray-200 pb-4">
         <Link
           href={`/sp/${feed?.smartsiteId?.ens || feed?.smartsiteEnsName}`}
           className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center"
@@ -149,77 +148,71 @@ const FeedItem = memo(
 
         <div className="flex-1">
           {/* User and Feed Info */}
-          <div className="w-full flex items-start justify-between">
+          <div
+            onClick={() => router.push(`/feed/${feed._id}`)}
+            className="w-full flex items-start justify-between cursor-pointer"
+          >
             <div className="w-full">
-              <Link href={`/feed/${feed._id}`}>
+              <div className="flex items-center gap-1">
                 <div className="flex items-center gap-1">
-                  <div className="flex items-center gap-1">
-                    <p className="text-black font-semibold">{userName}</p>
-                    <GoDotFill size={10} />
-                    <p className="text-black font-medium">
-                      {dayjs(feed.createdAt).fromNow()}
-                    </p>
-                  </div>
-                  {userId !== feed.userId && (
-                    <button onClick={(e) => handleTipOpen(e)}>
-                      <Image
-                        src={tipImg}
-                        alt="tip"
-                        className="w-5 h-auto"
-                        quality={100}
-                      />
-                    </button>
-                  )}
+                  <p className="text-black font-semibold">{userName}</p>
+                  <GoDotFill size={10} />
+                  <p className="text-black font-medium">
+                    {dayjs(feed.createdAt).fromNow()}
+                  </p>
                 </div>
-                <p className="text-gray-500 font-medium mb-1">
-                  {" "}
-                  {formatEns(ensName)}
-                </p>
-
-                {/* Stop propagation so modal clicks don't trigger the Link */}
-                <span onClick={(e) => e.stopPropagation()}>
-                  {isTipModalOpen && (
-                    <TipContentModal
-                      isOpen={isTipModalOpen}
-                      onCloseModal={setIsTipModalOpen}
-                      feedItem={feed}
+                {userId !== feed.userId && (
+                  <button onClick={(e) => handleTipOpen(e)}>
+                    <Image
+                      src={tipImg}
+                      alt="tip"
+                      className="w-5 h-auto"
+                      quality={100}
                     />
-                  )}
-                </span>
+                  </button>
+                )}
+              </div>
+              <p className="text-gray-500 font-medium mb-1">
+                {" "}
+                {formatEns(ensName)}
+              </p>
 
-                {(feed.postType === "post" || feed.postType === "repost") &&
-                  (feed.content.title || feed?.content?.quote?.title) && (
-                    <div className="w-full text-start">
-                      {/* Render Post Content */}
-                      <div className="w-full text-start">
-                        {feed.content.title ||
-                          feed?.content?.quote?.title
+              {isTipModalOpen && (
+                <TipContentModal
+                  isOpen={isTipModalOpen}
+                  onCloseModal={setIsTipModalOpen}
+                  feedItem={feed}
+                />
+              )}
+
+              {/* {(feed.postType === "post" || feed.postType === "repost") &&
+                feed.content.title && (
+                  <div className="w-full text-start">
+                    {(feed.postType === "post" || feed.postType === "repost") &&
+                      feed.content.title && (
+                        <div className="w-full text-start">
+                          {feed.content.title
                             .split("\n")
                             .map((line: string, index: number) => (
                               <p className="break-text" key={index}>
                                 {makeLinksClickable(line)}
                               </p>
                             ))}
-                      </div>
-                    </div>
-                  )}
-              </Link>
-              {/* {feed.postType === "repost" &&
-                feed.repostedPostDetails.content.title && (
-                  <div className="w-full text-start">
-                    {feed.repostedPostDetails.content.title && (
-                      <div className="w-full text-start">
-                        {feed.repostedPostDetails.content.title
-                          .split("\n")
-                          .map((line: string, index: number) => (
-                            <p className="break-text" key={index}>
-                              {makeLinksClickable(line)}
-                            </p>
-                          ))}
-                      </div>
-                    )}
+                        </div>
+                      )}
                   </div>
                 )} */}
+
+              {/* Post Content */}
+              {feed && feed.title && (
+                <div className="w-full text-start">
+                  {feed.title.split("\n").map((line: string, index: number) => (
+                    <p className="break-text" key={index}>
+                      {makeLinksClickable(line)}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               {/* Swap Transaction Content */}
               {feed.postType === "swapTransaction" && (
@@ -368,11 +361,9 @@ const FeedItem = memo(
 
           {/* Post Media */}
           <div>
-            {feed.postType === "post" &&
-              feed.content.post_content &&
-              feed.content.post_content.length > 0 && (
-                <PostTypeMedia mediaFiles={feed.content.post_content} />
-              )}
+            {feed.post_content && feed.post_content.length > 0 && (
+              <PostTypeMedia mediaFiles={feed.post_content} />
+            )}
             {feed.postType === "minting" && (
               <div className="w-max">
                 <p>{feed.content.title}</p>
@@ -419,8 +410,9 @@ const FeedItem = memo(
             </div>
           )}
 
+          {/* Reactions */}
           <Reaction
-            postId={feed._id}
+            postId={feed.postId || feed._id}
             isLiked={feed.isLiked}
             likeCount={feed.likeCount}
             commentCount={feed.commentCount || feed.replyCount}
@@ -429,7 +421,7 @@ const FeedItem = memo(
             onRepostSuccess={onRepostSuccess}
             onPostInteraction={onPostInteraction}
             feed={feed}
-            isFromMainFeed={true}
+            parentCommentId={feed._id} // Pass parentCommentId for comment reactions
           />
         </div>
 
@@ -445,6 +437,6 @@ const FeedItem = memo(
   },
 );
 
-FeedItem.displayName = "FeedItem";
+FeedReplyItem.displayName = "FeedReplyItem";
 
-export default FeedItem;
+export default FeedReplyItem;

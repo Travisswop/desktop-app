@@ -1,52 +1,52 @@
-'use client';
+"use client";
 
-import { useParams, usePathname } from 'next/navigation';
-import Image from 'next/image';
-import dashboard from '@/public/images/nav/dashboard.png';
-import feed from '@/public/images/nav/feed.png';
-import smartsite from '@/public/images/nav/smartsite.png';
-import wallet from '@/public/images/nav/wallet.png';
-import Link from 'next/link';
-import { BiSolidEdit } from 'react-icons/bi';
-import { TrendingUp } from 'lucide-react';
-import { VscChip } from 'react-icons/vsc';
-import { useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { useModalStore } from '@/zustandStore/modalstore';
-import { IoAdd, IoClose } from 'react-icons/io5';
-import { TbLockDollar } from 'react-icons/tb';
-import { MdPhoneIphone, MdQrCodeScanner } from 'react-icons/md';
+import { useParams, usePathname } from "next/navigation";
+import Image from "next/image";
+import dashboard from "@/public/images/nav/dashboard.png";
+import feed from "@/public/images/nav/feed.png";
+import smartsite from "@/public/images/nav/smartsite.png";
+import wallet from "@/public/images/nav/wallet.png";
+import Link from "next/link";
+import { BiSolidEdit } from "react-icons/bi";
+import { TrendingUp } from "lucide-react";
+import { VscChip } from "react-icons/vsc";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useModalStore } from "@/zustandStore/modalstore";
+import { IoAdd, IoClose } from "react-icons/io5";
+import { TbLockDollar } from "react-icons/tb";
+import { MdPhoneIphone, MdQrCodeScanner } from "react-icons/md";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import CustomModal from '../modal/CustomModal';
+} from "@/components/ui/dropdown-menu";
+import CustomModal from "../modal/CustomModal";
 //import image
-import appIconImg from '@/public/assets/smartsiteIconsPreview/app-icon.png';
-import blogImg from '@/public/assets/smartsiteIconsPreview/blog.png';
-import embedImg from '@/public/assets/smartsiteIconsPreview/embed.png';
-import feedImg from '@/public/assets/smartsiteIconsPreview/feed.png';
-import infobarImg from '@/public/assets/smartsiteIconsPreview/infobar.png';
-import marketplaceImg from '@/public/assets/smartsiteIconsPreview/marketplace.png';
-import mp3Img from '@/public/assets/smartsiteIconsPreview/mp3.png';
-import photoVideoImg from '@/public/assets/smartsiteIconsPreview/photo-video.png';
-import redeemLinkImg from '@/public/assets/smartsiteIconsPreview/redeem-link.png';
-import smallIconImg from '@/public/assets/smartsiteIconsPreview/small-icon.png';
-import AddSmallIcon from '../smartsite/EditMicrosite/AddSmallIcon';
-import AddInfoBar from '../smartsite/EditMicrosite/infoBar/AddInfoBar';
-import AddEmbed from '../smartsite/EditMicrosite/embed/AddEmbed';
-import AddAppIcon from '../smartsite/EditMicrosite/appIcon/AddAppIcon';
-import AddRedeemLink from '../smartsite/EditMicrosite/redeemLink/AddRedeemLink';
-import AddBlog from '../smartsite/EditMicrosite/blog/AddBlog';
-import AddVideo from '../smartsite/EditMicrosite/Video/AddVideo';
-import AddAudio from '../smartsite/EditMicrosite/audio/AddAudio';
-import AddMarketplace from '../smartsite/EditMicrosite/marketplace/AddMarketplace';
-import AddFeed from '../smartsite/EditMicrosite/feed/AddFeed';
-import { PrimaryButton } from '../ui/Button/PrimaryButton';
-import { FiEdit } from 'react-icons/fi';
-import { AiOutlineFileAdd } from 'react-icons/ai';
+import appIconImg from "@/public/assets/smartsiteIconsPreview/app-icon.png";
+import blogImg from "@/public/assets/smartsiteIconsPreview/blog.png";
+import embedImg from "@/public/assets/smartsiteIconsPreview/embed.png";
+import feedImg from "@/public/assets/smartsiteIconsPreview/feed.png";
+import infobarImg from "@/public/assets/smartsiteIconsPreview/infobar.png";
+import marketplaceImg from "@/public/assets/smartsiteIconsPreview/marketplace.png";
+import mp3Img from "@/public/assets/smartsiteIconsPreview/mp3.png";
+import photoVideoImg from "@/public/assets/smartsiteIconsPreview/photo-video.png";
+import redeemLinkImg from "@/public/assets/smartsiteIconsPreview/redeem-link.png";
+import smallIconImg from "@/public/assets/smartsiteIconsPreview/small-icon.png";
+import AddSmallIcon from "../smartsite/EditMicrosite/AddSmallIcon";
+import AddInfoBar from "../smartsite/EditMicrosite/infoBar/AddInfoBar";
+import AddEmbed from "../smartsite/EditMicrosite/embed/AddEmbed";
+import AddAppIcon from "../smartsite/EditMicrosite/appIcon/AddAppIcon";
+import AddRedeemLink from "../smartsite/EditMicrosite/redeemLink/AddRedeemLink";
+import AddBlog from "../smartsite/EditMicrosite/blog/AddBlog";
+import AddVideo from "../smartsite/EditMicrosite/Video/AddVideo";
+import AddAudio from "../smartsite/EditMicrosite/audio/AddAudio";
+import AddMarketplace from "../smartsite/EditMicrosite/marketplace/AddMarketplace";
+import AddFeed from "../smartsite/EditMicrosite/feed/AddFeed";
+import { PrimaryButton } from "../ui/Button/PrimaryButton";
+import { FiEdit } from "react-icons/fi";
+import { AiOutlineFileAdd } from "react-icons/ai";
 
 const BottomNavContent = () => {
   const params = useParams();
@@ -56,21 +56,18 @@ const BottomNavContent = () => {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isIconsModalOpen, setIsIconsModalOpen] = useState(false);
-  const [isActivateChipModalOpen, setIsActivateChipModalOpen] =
-    useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<
-    string | null
-  >(null);
+  const [isActivateChipModalOpen, setIsActivateChipModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
   const tab = useMemo(
-    () => searchParams && searchParams.get('tab'),
+    () => searchParams && searchParams.get("tab"),
     [searchParams],
   );
 
   // console.log("params", params);
 
-  const isSmartsite = pathname?.startsWith('/smartsite/');
+  const isSmartsite = pathname?.startsWith("/smartsite/");
 
   // Get the dynamic ID from the route
   const pageId =
@@ -80,63 +77,63 @@ const BottomNavContent = () => {
   // Template data
   const templates = [
     {
-      id: 'small-icons',
-      title: 'Small Icons',
-      description: 'Miniature Icons For Header Area',
+      id: "small-icons",
+      title: "Small Icons",
+      description: "Miniature Icons For Header Area",
       image: smallIconImg,
     },
     {
-      id: 'infobar',
-      title: 'Infobar',
-      description: 'Display Bar for your links or CTAs',
+      id: "infobar",
+      title: "Infobar",
+      description: "Display Bar for your links or CTAs",
       image: infobarImg,
     },
     {
-      id: 'embed',
-      title: 'Embed',
-      description: 'Embed Youtube videos, Spotify list and more',
+      id: "embed",
+      title: "Embed",
+      description: "Embed Youtube videos, Spotify list and more",
       image: embedImg,
     },
     {
-      id: 'app-icon',
-      title: 'App Icon',
-      description: 'Displays your links like a App',
+      id: "app-icon",
+      title: "App Icon",
+      description: "Displays your links like a App",
       image: appIconImg,
     },
     {
-      id: 'redeem-link',
-      title: 'Redeem Link',
-      description: 'Incentivize your following',
+      id: "redeem-link",
+      title: "Redeem Link",
+      description: "Incentivize your following",
       image: redeemLinkImg,
     },
     {
-      id: 'blog',
-      title: 'Blog',
-      description: 'Write a blog and host on your page',
+      id: "blog",
+      title: "Blog",
+      description: "Write a blog and host on your page",
       image: blogImg,
     },
     {
-      id: 'photo-video',
-      title: 'Photo/Video',
-      description: 'Upload videos or photos to display',
+      id: "photo-video",
+      title: "Photo/Video",
+      description: "Upload videos or photos to display",
       image: photoVideoImg,
     },
     {
-      id: 'mp3',
-      title: 'MP3',
-      description: 'Upload MP3 files and host your album',
+      id: "mp3",
+      title: "MP3",
+      description: "Upload MP3 files and host your album",
       image: mp3Img,
     },
     {
-      id: 'marketplace',
-      title: 'Marketplace',
-      description: 'Sell Products, Subscriptions and more',
+      id: "marketplace",
+      title: "Marketplace",
+      description: "Sell Products, Subscriptions and more",
       image: marketplaceImg,
     },
     {
-      id: 'feed',
-      title: 'Feed',
-      description: 'Display your Swop Feed',
+      id: "feed",
+      title: "Feed",
+      description: "Display your Swop Feed",
       image: feedImg,
     },
   ];
@@ -155,13 +152,14 @@ const BottomNavContent = () => {
 
   // Define routes where BottomNav should be hidden
   const hideOnRoutes = [
-    '/smartsite/edit/',
-    '/smartsite/create-smartsite',
-    '/smartsite/token-gated/',
-    '/dashboard/chat',
-    '/edit-profile',
-    '/subscription',
-    '/notifications',
+    "/smartsite/edit/",
+    "/smartsite/create-smartsite",
+    "/smartsite/token-gated/",
+    "/dashboard/chat",
+    "/edit-profile",
+    "/subscription",
+    "/notifications",
+    "/feed/",
   ]; // Add your routes here
 
   // Hide bottom nav on specific routes
@@ -176,7 +174,7 @@ const BottomNavContent = () => {
 
   const handleCloseIconsModal = () => {
     setIsIconsModalOpen(false);
-    setSearchQuery('');
+    setSearchQuery("");
     setSelectedTemplate(null);
   };
 
@@ -200,7 +198,7 @@ const BottomNavContent = () => {
   // Render template content based on selection
   const renderTemplateContent = () => {
     switch (selectedTemplate) {
-      case 'small-icons':
+      case "small-icons":
         return (
           <div className="p-6">
             <button
@@ -226,7 +224,7 @@ const BottomNavContent = () => {
           </div>
         );
 
-      case 'infobar':
+      case "infobar":
         return (
           <div className="p-6">
             <button
@@ -252,7 +250,7 @@ const BottomNavContent = () => {
           </div>
         );
 
-      case 'embed':
+      case "embed":
         return (
           <div className="p-6">
             <button
@@ -278,7 +276,7 @@ const BottomNavContent = () => {
           </div>
         );
 
-      case 'app-icon':
+      case "app-icon":
         return (
           <div className="p-6">
             <button
@@ -304,7 +302,7 @@ const BottomNavContent = () => {
           </div>
         );
 
-      case 'redeem-link':
+      case "redeem-link":
         return (
           <div className="p-6">
             <button
@@ -330,7 +328,7 @@ const BottomNavContent = () => {
           </div>
         );
 
-      case 'blog':
+      case "blog":
         return (
           <div className="p-6">
             <button
@@ -356,7 +354,7 @@ const BottomNavContent = () => {
           </div>
         );
 
-      case 'photo-video':
+      case "photo-video":
         return (
           <div className="p-6">
             <button
@@ -382,7 +380,7 @@ const BottomNavContent = () => {
           </div>
         );
 
-      case 'mp3':
+      case "mp3":
         return (
           <div className="p-6">
             <button
@@ -408,7 +406,7 @@ const BottomNavContent = () => {
           </div>
         );
 
-      case 'marketplace':
+      case "marketplace":
         return (
           <div className="p-6">
             <button
@@ -434,7 +432,7 @@ const BottomNavContent = () => {
           </div>
         );
 
-      case 'feed':
+      case "feed":
         return (
           <div className="p-6">
             <button
@@ -468,43 +466,43 @@ const BottomNavContent = () => {
     <>
       <div
         className={`${
-          isSmartsite ? 'w-[26rem]' : 'w-[23rem]'
+          isSmartsite ? "w-[26rem]" : "w-[20rem]"
         } fixed bottom-2 left-1/2 transform -translate-x-1/2 `}
       >
-        {(pathname === '/' || pathname?.startsWith('/feed')) && (
-          <div className="flex text-sm font-medium w-[84%] bg-white p-3 rounded-xl shadow-large items-center justify-between mb-2 mx-auto">
+        {(pathname === "/" || pathname?.startsWith("/feed")) && (
+          <div className="flex text-sm font-medium w-[70%] bg-white p-3 rounded-xl shadow-large items-center justify-between mb-1 mx-auto">
             <Link
-              href={'/?tab=feed'}
+              href={"/?tab=feed"}
               className="flex flex-col gap-1 items-center"
             >
               <div
                 className={`${
-                  (tab === 'feed' || !tab) && 'bg-gray-100'
-                } rounded-full px-3 py-1`}
+                  (tab === "feed" || !tab) && "bg-gray-100"
+                } rounded-full px-6 py-1.5`}
               >
                 <p>Feed</p>
               </div>
             </Link>
-            <Link
-              href={'/?tab=ledger'}
+            {/* <Link
+              href={"/?tab=ledger"}
               className="flex flex-col gap-1 items-center"
             >
               <div
                 className={`${
-                  tab === 'ledger' && 'bg-gray-100'
+                  tab === "ledger" && "bg-gray-100"
                 } rounded-full px-3 py-1`}
               >
                 <p>Ledger</p>
               </div>
-            </Link>
+            </Link> */}
             <Link
-              href={'/?tab=map'}
+              href={"/?tab=map"}
               className="flex flex-col gap-1 items-center"
             >
               <div
                 className={`${
-                  tab === 'map' && 'bg-gray-100'
-                } rounded-full px-3 py-1`}
+                  tab === "map" && "bg-gray-100"
+                } rounded-full px-6 py-1.5`}
               >
                 <p>Map</p>
               </div>
@@ -515,8 +513,8 @@ const BottomNavContent = () => {
             >
               <div
                 className={`${
-                  tab === 'create-feed' && 'bg-gray-100'
-                } rounded-full px-3 py-1`}
+                  tab === "create-feed" && "bg-gray-100"
+                } rounded-full px-6 py-1.5`}
               >
                 <BiSolidEdit size={18} />
               </div>
@@ -526,55 +524,39 @@ const BottomNavContent = () => {
 
         <div className="flex w-full bg-white p-3 rounded-2xl shadow-large items-center justify-between gap-2">
           <Link
-            href={'/dashboard'}
+            href={"/dashboard"}
             className="flex flex-col gap-1 items-center"
           >
             <div
               className={`border ${
-                pathname?.startsWith('/dashboard')
-                  ? 'border-gray-300'
-                  : 'border-gray-50'
+                pathname?.startsWith("/dashboard")
+                  ? "border-gray-300"
+                  : "border-gray-50"
               } bg-gray-100 rounded-lg p-3`}
             >
-              <Image
-                src={dashboard}
-                alt="dashboard"
-                className="h-5 w-auto"
-              />
+              <Image src={dashboard} alt="dashboard" className="h-5 w-auto" />
             </div>
             <p className="text-sm">Dashboard</p>
           </Link>
-          <Link
-            href={'/'}
-            className="flex flex-col gap-1 items-center"
-          >
+          <Link href={"/"} className="flex flex-col gap-1 items-center">
             <div
               className={`border ${
-                pathname === '/'
-                  ? ' border-gray-300'
-                  : ' border-gray-50'
+                pathname === "/" ? " border-gray-300" : " border-gray-50"
               } bg-gray-100 rounded-lg p-3`}
             >
               <Image src={feed} alt="feed" className="h-5 w-auto" />
             </div>
             <p className="text-sm">Feed</p>
           </Link>
-          <Link
-            href={'/wallet'}
-            className="flex flex-col gap-1 items-center"
-          >
+          <Link href={"/wallet"} className="flex flex-col gap-1 items-center">
             <div
               className={`border ${
-                pathname?.startsWith('/wallet')
-                  ? 'border-gray-300'
-                  : 'border-gray-50'
+                pathname?.startsWith("/wallet")
+                  ? "border-gray-300"
+                  : "border-gray-50"
               } bg-gray-100 rounded-lg p-3`}
             >
-              <Image
-                src={wallet}
-                alt="wallet"
-                className="h-5 w-auto"
-              />
+              <Image src={wallet} alt="wallet" className="h-5 w-auto" />
             </div>
             <p className="text-sm">Wallet</p>
           </Link>
@@ -591,46 +573,31 @@ const BottomNavContent = () => {
             <p className="text-sm">Market</p>
           </Link> */}
           <Link
-            href={'/smartsite'}
+            href={"/smartsite"}
             className={`flex flex-col gap-1 items-center ${
-              isSmartsite && 'border-r pr-3'
+              isSmartsite && "border-r pr-3"
             }`}
           >
             <div
               className={`border ${
-                pathname?.startsWith('/smartsite')
-                  ? 'border-gray-300'
-                  : 'border-gray-50'
+                pathname?.startsWith("/smartsite")
+                  ? "border-gray-300"
+                  : "border-gray-50"
               } bg-gray-100 rounded-lg p-3`}
             >
-              <Image
-                src={smartsite}
-                alt="smartsite"
-                className="h-5 w-auto"
-              />
+              <Image src={smartsite} alt="smartsite" className="h-5 w-auto" />
             </div>
             <p className="text-sm">Build</p>
           </Link>
           {isSmartsite && (
-            <DropdownMenu
-              open={isMenuOpen}
-              onOpenChange={setIsMenuOpen}
-            >
+            <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <button className="flex flex-col gap-1 items-center">
                   <div className={`border bg-black rounded-lg p-3`}>
                     {isMenuOpen ? (
-                      <IoClose
-                        size={20}
-                        color="white"
-                        className="h-5 w-auto"
-                      />
+                      <IoClose size={20} color="white" className="h-5 w-auto" />
                     ) : (
-                      <IoAdd
-                        size={20}
-                        color="white"
-                        className="h-5 w-auto"
-                      />
+                      <IoAdd size={20} color="white" className="h-5 w-auto" />
                     )}
                   </div>
                   <p className="text-sm">Add</p>
@@ -642,18 +609,13 @@ const BottomNavContent = () => {
                 align="start"
                 sideOffset={8}
               >
-                <DropdownMenuItem
-                  asChild
-                  className="cursor-pointer p-0"
-                >
+                <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <Link
                     href={`/smartsite/edit/${pageId}`}
                     className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
                   >
                     <div className="flex-1 text-start">
-                      <p className="font-semibold text-base">
-                        Edit Page
-                      </p>
+                      <p className="font-semibold text-base">Edit Page</p>
                       <p className="text-xs text-gray-500">
                         Change Backgrounds
                       </p>
@@ -662,18 +624,13 @@ const BottomNavContent = () => {
                   </Link>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem
-                  asChild
-                  className="cursor-pointer p-0"
-                >
+                <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <button
                     onClick={handleIconslistOpen}
                     className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
                   >
                     <div className="flex-1 text-start">
-                      <p className="font-semibold text-base">
-                        Add Template
-                      </p>
+                      <p className="font-semibold text-base">Add Template</p>
                       <p className="text-xs text-gray-500">
                         Design Your Smartsite
                       </p>
@@ -684,21 +641,14 @@ const BottomNavContent = () => {
                   </button>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem
-                  asChild
-                  className="cursor-pointer p-0"
-                >
+                <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <Link
                     href={`/smartsite/qr-code/${pageId}`}
                     className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
                   >
                     <div className="flex-1 text-start">
-                      <p className="font-semibold text-base">
-                        Edit QR
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Customize QR
-                      </p>
+                      <p className="font-semibold text-base">Edit QR</p>
+                      <p className="text-xs text-gray-500">Customize QR</p>
                     </div>
                     <div className="flex-shrink-0">
                       <MdQrCodeScanner className="min-w-[22px] min-h-[22px]" />
@@ -706,21 +656,14 @@ const BottomNavContent = () => {
                   </Link>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem
-                  asChild
-                  className="cursor-pointer p-0"
-                >
+                <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <button
                     onClick={handleOpenActiveChip}
                     className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
                   >
                     <div className="flex-1 text-start">
-                      <p className="font-semibold text-base">
-                        Activate
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Program Your Chip
-                      </p>
+                      <p className="font-semibold text-base">Activate</p>
+                      <p className="text-xs text-gray-500">Program Your Chip</p>
                     </div>
                     <div className="flex-shrink-0">
                       <VscChip className="min-w-[22px] min-h-[22px]" />
@@ -728,18 +671,13 @@ const BottomNavContent = () => {
                   </button>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem
-                  asChild
-                  className="cursor-pointer p-0"
-                >
+                <DropdownMenuItem asChild className="cursor-pointer p-0">
                   <Link
                     href={`/smartsite/token-gated/${pageId}`}
                     className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
                   >
                     <div className="flex-1 text-start">
-                      <p className="font-semibold text-base">
-                        Token Gate
-                      </p>
+                      <p className="font-semibold text-base">Token Gate</p>
                       <p className="text-xs text-gray-500">
                         Monetize Your Content
                       </p>
@@ -777,7 +715,7 @@ const BottomNavContent = () => {
         isOpen={isIconsModalOpen}
         onCloseModal={handleCloseIconsModal}
         removeCloseButton={true}
-        width={selectedTemplate ? 'max-w-2xl' : 'max-w-4xl'}
+        width={selectedTemplate ? "max-w-2xl" : "max-w-4xl"}
       >
         {selectedTemplate ? (
           renderTemplateContent()
@@ -819,9 +757,7 @@ const BottomNavContent = () => {
                   >
                     <div
                       className={`w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        template.title === 'Redeem Link'
-                          ? 'p-1'
-                          : 'p-3'
+                        template.title === "Redeem Link" ? "p-1" : "p-3"
                       }`}
                     >
                       <Image
@@ -843,9 +779,7 @@ const BottomNavContent = () => {
               </div>
             ) : (
               <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">
-                  No templates found
-                </p>
+                <p className="text-gray-500 text-lg">No templates found</p>
                 <p className="text-gray-400 text-sm mt-2">
                   Try searching with different keywords
                 </p>
@@ -872,15 +806,14 @@ const BottomNavContent = () => {
           </h2>
 
           <p className="text-gray-600 mb-6">
-            Chip activation is only available on mobile devices.
-            Please open this page on your smartphone to program your
-            chip.
+            Chip activation is only available on mobile devices. Please open
+            this page on your smartphone to program your chip.
           </p>
 
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
             <p className="text-sm text-blue-800">
-              <strong>Tip:</strong> Scan the QR code on your smartsite
-              from your mobile device to access this feature.
+              <strong>Tip:</strong> Scan the QR code on your smartsite from your
+              mobile device to access this feature.
             </p>
           </div>
 

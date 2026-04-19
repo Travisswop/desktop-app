@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import GifPicker from "gif-picker-react";
+import CustomModal from "../modal/CustomModal";
 
 interface GifProps {
   mediaFilesLength: any;
@@ -16,8 +17,6 @@ const GifPickerContent = ({
   showGifPicker,
   setShowGifPicker,
 }: GifProps) => {
-  const pickerRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     if (mediaFilesLength > 4) {
       setFileError("You can select a maximum of 4 files.");
@@ -28,48 +27,24 @@ const GifPickerContent = ({
   }, [mediaFilesLength, setFileError, setShowGifPicker]);
 
   const handleGifClick = (gifData: any) => {
-    setMediaFiles((prevMediaFiles: any) => [
-      ...prevMediaFiles,
-      {
-        type: "gif",
-        src: gifData.url,
-      },
-    ]);
+    setMediaFiles((prev: any) => [...prev, { type: "gif", src: gifData.url }]);
+    setShowGifPicker(false); // auto close on select
   };
 
-  // Close picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        pickerRef.current &&
-        !pickerRef.current.contains(event.target as Node)
-      ) {
-        setShowGifPicker(false);
-      }
-    };
-
-    if (showGifPicker) {
-      // Add a small delay to prevent immediate closure when opening
-      setTimeout(() => {
-        document.addEventListener("mousedown", handleClickOutside);
-      }, 0);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showGifPicker, setShowGifPicker]);
-
-  if (!showGifPicker) return null;
-
   return (
-    <div ref={pickerRef} onClick={(e) => e.stopPropagation()}>
-      <GifPicker
-        onGifClick={handleGifClick}
-        tenorApiKey={"AIzaSyA-Xn0TwTUBNXY4EBbDCmnAs7o1XYIoZgU"}
-        width="100%"
-      />
-    </div>
+    <CustomModal
+      isOpen={showGifPicker}
+      onCloseModal={setShowGifPicker}
+      title="Pick a GIF"
+    >
+      <div className="p-3">
+        <GifPicker
+          onGifClick={handleGifClick}
+          tenorApiKey={process.env.NEXT_PUBLIC_TENOR_API_KEY || ""}
+          width="100%"
+        />
+      </div>
+    </CustomModal>
   );
 };
 
