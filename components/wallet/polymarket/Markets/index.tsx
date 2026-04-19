@@ -37,26 +37,10 @@ import SportsGameCard from './SportsGameCard';
 import BtcUpDownCard from './BtcUpDownCard';
 import BtcOrderModal from './BtcOrderModal';
 import CategoryTabs from './CategoryTabs';
-import OrderPlacementModal from '../OrderModal';
 import MarketDetailModal from './MarketDetailModal';
 
 /** How many items appear in the left column when splitLayout is enabled */
 const LEFT_COLUMN_COUNT = 3;
-
-type SelectedMarket = {
-  marketTitle: string;
-  outcome: string;
-  price: number;
-  tokenId: string;
-  negRisk: boolean;
-  yesTokenId: string;
-  noTokenId: string;
-  yesPrice: number;
-  noPrice: number;
-  orderMinSize: number;
-  yesOutcomeName: string;
-  noOutcomeName: string;
-};
 
 interface HighVolumeMarketsProps {
   /** When true renders a 2-column split layout */
@@ -69,15 +53,15 @@ export default function HighVolumeMarkets({
   splitLayout = false,
   leftHeaderSlot,
 }: HighVolumeMarketsProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeCategory, setActiveCategory] =
     useState<CategoryId>(DEFAULT_CATEGORY);
   const [activeSportSub, setActiveSportSub] =
     useState<SportSubcategoryId>(DEFAULT_SPORT_SUBCATEGORY);
-  const [selectedMarket, setSelectedMarket] =
-    useState<SelectedMarket | null>(null);
   const [detailMarket, setDetailMarket] =
     useState<PolymarketMarket | null>(null);
+  const [detailInitialOutcome, setDetailInitialOutcome] = useState<
+    'yes' | 'no' | undefined
+  >(undefined);
   const [searchQuery, setSearchQuery] = useState('');
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -199,101 +183,44 @@ export default function HighVolumeMarkets({
     return sub?.id === 'all' ? 'Sports Markets' : `${sub?.label ?? ''} Markets`;
   }, [isSportsActive, activeSportSub, categoryLabel]);
 
-  // Calculate share balances for the order modal
-  const { yesShares, noShares } = useMemo(() => {
-    if (!selectedMarket || !positions) return { yesShares: 0, noShares: 0 };
-    return {
-      yesShares: positions.find((p) => p.asset === selectedMarket.yesTokenId)?.size || 0,
-      noShares: positions.find((p) => p.asset === selectedMarket.noTokenId)?.size || 0,
-    };
-  }, [selectedMarket, positions]);
-
+  /**
+   * All outcome clicks (sports + non-sports) open MarketDetailModal with the
+   * clicked side pre-selected — the detail modal is the single entry point for
+   * placing orders, so users always see the probability chart first.
+   */
   const handleOutcomeClick = (
     marketTitle: string,
-    outcome: string,
-    price: number,
+    _outcome: string,
+    _price: number,
     tokenId: string,
-    negRisk: boolean,
+    _negRisk: boolean,
   ) => {
     const market = allMarkets?.find((m) => m.question === marketTitle);
     if (!market) return;
 
-    const tokenIds = market.clobTokenIds ? JSON.parse(market.clobTokenIds) : [];
-    const yesTokenId = tokenIds[0] || tokenId;
-    const noTokenId = tokenIds[1] || '';
-    const staticPrices: number[] = market.outcomePrices
-      ? JSON.parse(market.outcomePrices).map(Number)
+    const tokenIds = market.clobTokenIds
+      ? (JSON.parse(market.clobTokenIds) as string[])
       : [];
+    const yesTokenId = tokenIds[0] || tokenId;
     const isFirstOutcome = tokenId === yesTokenId;
-    const outcomes: string[] = market.outcomes
-      ? JSON.parse(market.outcomes)
-      : ['Yes', 'No'];
-
-    setSelectedMarket({
-      marketTitle,
-      outcome,
-      price,
-      tokenId,
-      negRisk,
-      yesTokenId,
-      noTokenId,
-      yesPrice:
-        market.realtimePrices?.[yesTokenId]?.bidPrice ??
-        staticPrices[0] ??
-        (isFirstOutcome ? price : 1 - price),
-      noPrice:
-        market.realtimePrices?.[noTokenId]?.bidPrice ??
-        staticPrices[1] ??
-        (isFirstOutcome ? 1 - price : price),
-      orderMinSize: market.orderMinSize || 5,
-      yesOutcomeName: outcomes[0] || 'Yes',
-      noOutcomeName: outcomes[1] || 'No',
-    });
-    setIsModalOpen(true);
+    setDetailInitialOutcome(isFirstOutcome ? 'yes' : 'no');
+    setDetailMarket(market);
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedMarket(null);
-  };
-
-  /** Sports game cards supply the full market directly — no allMarkets lookup needed. */
+  /**
+   * Sports outcome clicks open the rich MarketDetailModal (with probability
+   * chart + team panel) instead of the compact OrderPlacementModal — the
+   * visualization only makes sense for team matchups.
+   */
   const handleSportsOutcomeClick = useCallback(
-    (market: PolymarketMarket, outcome: string, price: number, tokenId: string) => {
+    (market: PolymarketMarket, _outcome: string, _price: number, tokenId: string) => {
       const tokenIds: string[] = market.clobTokenIds
         ? JSON.parse(market.clobTokenIds)
         : [];
       const yesTokenId = tokenIds[0] || tokenId;
-      const noTokenId = tokenIds[1] || '';
-      const staticPrices: number[] = market.outcomePrices
-        ? JSON.parse(market.outcomePrices).map(Number)
-        : [];
-      const outcomes: string[] = market.outcomes
-        ? JSON.parse(market.outcomes)
-        : ['Yes', 'No'];
       const isFirstOutcome = tokenId === yesTokenId;
-
-      setSelectedMarket({
-        marketTitle: market.question,
-        outcome,
-        price,
-        tokenId,
-        negRisk: market.negRisk || false,
-        yesTokenId,
-        noTokenId,
-        yesPrice:
-          market.realtimePrices?.[yesTokenId]?.bidPrice ??
-          staticPrices[0] ??
-          (isFirstOutcome ? price : 1 - price),
-        noPrice:
-          market.realtimePrices?.[noTokenId]?.bidPrice ??
-          staticPrices[1] ??
-          (isFirstOutcome ? 1 - price : price),
-        orderMinSize: market.orderMinSize || MIN_ORDER_SIZE,
-        yesOutcomeName: outcomes[0] || 'Yes',
-        noOutcomeName: outcomes[1] || 'No',
-      });
-      setIsModalOpen(true);
+      setDetailInitialOutcome(isFirstOutcome ? 'yes' : 'no');
+      setDetailMarket(market);
     },
     [],
   );
@@ -431,29 +358,6 @@ export default function HighVolumeMarkets({
 
   const modals = (
     <>
-      {selectedMarket && (
-        <OrderPlacementModal
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-          marketTitle={selectedMarket.marketTitle}
-          outcome={selectedMarket.outcome}
-          currentPrice={selectedMarket.price}
-          tokenId={selectedMarket.tokenId}
-          negRisk={selectedMarket.negRisk}
-          clobClient={clobClient}
-          balance={usdcBalance}
-          yesPrice={selectedMarket.yesPrice}
-          noPrice={selectedMarket.noPrice}
-          yesTokenId={selectedMarket.yesTokenId}
-          noTokenId={selectedMarket.noTokenId}
-          yesShares={yesShares}
-          noShares={noShares}
-          orderMinSize={selectedMarket.orderMinSize}
-          yesOutcomeName={selectedMarket.yesOutcomeName}
-          noOutcomeName={selectedMarket.noOutcomeName}
-        />
-      )}
-
       <BtcOrderModal
         isOpen={btcModalOpen}
         onClose={() => setBtcModalOpen(false)}
@@ -471,12 +375,16 @@ export default function HighVolumeMarkets({
       {detailMarket && (
         <MarketDetailModal
           isOpen={!!detailMarket}
-          onClose={() => setDetailMarket(null)}
+          onClose={() => {
+            setDetailMarket(null);
+            setDetailInitialOutcome(undefined);
+          }}
           market={detailMarket}
           clobClient={clobClient}
           balance={usdcBalance}
           yesShares={detailMarketShares.yesShares}
           noShares={detailMarketShares.noShares}
+          initialOutcome={detailInitialOutcome}
         />
       )}
     </>

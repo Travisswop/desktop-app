@@ -269,13 +269,13 @@ function MarketCell({
           outcome.tokenId,
         )
       }
-      className={`h-9 w-full flex items-center justify-between px-2 rounded-lg text-xs transition-colors bg-gray-100 ${
+      className={`h-9 w-full flex items-center justify-center gap-1 px-1.5 rounded-lg text-xs transition-colors bg-gray-100 ${
         isDisabled
           ? 'text-gray-300 cursor-not-allowed'
           : 'hover:bg-gray-200 active:bg-gray-300 text-gray-700 cursor-pointer'
       }`}
     >
-      <span className="font-medium truncate mr-1">
+      <span className="font-medium truncate">
         {outcome.label}
       </span>
       {outcome.price > 0 && (
@@ -374,10 +374,10 @@ export default function SportsGameCard({
   // widen the team-info column and stop truncating.
   const teamColClass = onlyMoneyline
     ? 'flex items-center gap-1.5 flex-1 min-w-0'
-    : 'flex items-center gap-1.5 flex-shrink-0 w-[92px] min-w-0';
+    : 'flex items-center gap-1.5 flex-shrink-0 w-[120px] min-w-0';
   const teamNameClass = onlyMoneyline
     ? 'text-xs font-semibold text-gray-800'
-    : 'text-xs font-semibold text-gray-800 truncate';
+    : 'text-xs font-semibold text-gray-800 truncate leading-tight';
 
   return (
     <Card className="px-3 py-2.5 overflow-hidden">
@@ -411,18 +411,18 @@ export default function SportsGameCard({
         {/* Right: column labels — only render labels for available markets */}
         <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
           {/* spacer that matches the team-info column below */}
-          {!onlyMoneyline && <div className="w-[92px]" />}
+          {!onlyMoneyline && <div className="w-[120px]" />}
           {onlyMoneyline && <div className="flex-1" />}
           <span className={`${mlColClass} text-center`}>
             Moneyline
           </span>
           {game.spread != null && (
-            <span className="flex-1 text-center min-w-[64px]">
+            <span className="flex-1 text-center min-w-[56px]">
               Spread
             </span>
           )}
           {game.total != null && (
-            <span className="flex-1 text-center min-w-[64px]">
+            <span className="flex-1 text-center min-w-[56px]">
               Total
             </span>
           )}
@@ -438,6 +438,7 @@ export default function SportsGameCard({
             team: teamA,
             name: nameA,
             logoUrl: logoA,
+            record: game.teamAMeta?.record,
             ml: mlA,
             sp: spA,
             tot: totA,
@@ -446,12 +447,13 @@ export default function SportsGameCard({
             team: teamB,
             name: nameB,
             logoUrl: logoB,
+            record: game.teamBMeta?.record,
             ml: mlB,
             sp: spB,
             tot: totB,
           },
         ] as const
-      ).map(({ team, name, logoUrl, ml, sp, tot }, i) => {
+      ).map(({ team, name, logoUrl, record, ml, sp, tot }, i) => {
         // Reformat the spread label: always use the team abbreviation regardless
         // of whether the raw label is a nickname ("Magic"), abbrev+line ("ORL +1.5"),
         // or a bare line ("+1.5"). Result: "ORL", "ORL +1.5", "PHI -1.5", etc.
@@ -471,9 +473,16 @@ export default function SportsGameCard({
                 abbrev={team.abbrev}
                 color={team.color}
               />
-              <span className={teamNameClass}>
-                {name}
-              </span>
+              <div className="flex flex-col min-w-0 leading-tight">
+                <span className={teamNameClass}>
+                  {name}
+                </span>
+                {record && (
+                  <span className="text-[10px] text-gray-400 font-medium leading-tight">
+                    {record}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Market cells — only render columns for available markets */}

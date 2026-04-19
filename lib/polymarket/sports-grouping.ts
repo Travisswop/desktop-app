@@ -50,6 +50,8 @@ export interface ResolvedTeamMeta {
   abbrev?: string;
   /** Brand colour hex, e.g. "#613698" */
   color?: string;
+  /** Win-loss record string from Polymarket, e.g. "45-37" */
+  record?: string;
 }
 
 export interface SportsGameGroup {
@@ -368,6 +370,8 @@ interface RawEventTeam {
   logo?: string;
   abbreviation?: string;
   color?: string;
+  /** "<wins>-<losses>" string, e.g. "45-37" */
+  record?: string;
 }
 
 /**
@@ -422,6 +426,7 @@ function toResolvedTeamMeta(
     logoUrl: raw.logo || undefined,
     abbrev: raw.abbreviation ? raw.abbreviation.toUpperCase() : undefined,
     color: raw.color || undefined,
+    record: raw.record || undefined,
   };
 }
 
