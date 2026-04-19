@@ -7,7 +7,6 @@ import Portal from './shared/Portal';
 import PositionCard from './Positions/PositionCard';
 import OrderCard from './Orders/OrderCard';
 import PositionOutcomeList from './Positions/PositionOutcomeList';
-import OrderPlacementModal from './OrderModal';
 import MarketDetailModal from './Markets/MarketDetailModal';
 import {
   useClobOrder,
@@ -94,8 +93,6 @@ export default function PredictionsPortfolioModal({
   const [cancellingOrderId, setCancellingOrderId] = useState<
     string | null
   >(null);
-  const [buyMorePosition, setBuyMorePosition] =
-    useState<PolymarketPosition | null>(null);
   const [detailPosition, setDetailPosition] =
     useState<PolymarketPosition | null>(null);
   const [pendingVerification, setPendingVerification] = useState<
@@ -450,7 +447,7 @@ export default function PredictionsPortfolioModal({
                       position={position}
                       onRedeem={handleRedeem}
                       onSell={handleMarketSell}
-                      onBuyMore={(p) => setBuyMorePosition(p)}
+                      onBuyMore={(p) => setDetailPosition(p)}
                       isSelling={sellingAsset === position.asset}
                       isRedeeming={redeemingAsset === position.asset}
                       isPendingVerification={pendingVerification.has(
@@ -522,21 +519,6 @@ export default function PredictionsPortfolioModal({
           </div>
         </div>
       </div>
-
-      {/* Buy More Modal */}
-      {buyMorePosition && (
-        <OrderPlacementModal
-          isOpen={!!buyMorePosition}
-          onClose={() => setBuyMorePosition(null)}
-          marketTitle={buyMorePosition.title}
-          outcome={buyMorePosition.outcome}
-          currentPrice={buyMorePosition.curPrice}
-          tokenId={buyMorePosition.asset}
-          negRisk={buyMorePosition.negativeRisk}
-          clobClient={clobClient}
-          balance={usdcBalance}
-        />
-      )}
 
       {/* Market Detail Modal */}
       {detailPosition && (

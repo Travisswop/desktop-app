@@ -117,7 +117,11 @@ function resolveTeam(
 
 /** First 3 letters of the team name, upper-cased. "Kolkata..." → "KOL". */
 function firstThreeLetters(name: string): string {
-  return (name ?? '').trim().replace(/\s+/g, '').slice(0, 3).toUpperCase();
+  return (name ?? '')
+    .trim()
+    .replace(/\s+/g, '')
+    .slice(0, 3)
+    .toUpperCase();
 }
 
 /**
@@ -153,7 +157,8 @@ function resolveTeamWithEventMeta(
   }
   // Spread labels like "ORL +1.5" are still safe — they're abbreviation-first
   const bySpread = findTeam(spLabel ?? '');
-  if (bySpread) return { abbrev: bySpread.abbrev, color: bySpread.color };
+  if (bySpread)
+    return { abbrev: bySpread.abbrev, color: bySpread.color };
 
   // Priority 3: first 3 letters of the full team name
   return {
@@ -275,9 +280,7 @@ function MarketCell({
           : 'hover:bg-gray-200 active:bg-gray-300 text-gray-700 cursor-pointer'
       }`}
     >
-      <span className="font-medium truncate">
-        {outcome.label}
-      </span>
+      <span className="font-medium truncate">{outcome.label}</span>
       {outcome.price > 0 && (
         <span className="font-bold flex-shrink-0 text-gray-900">
           {centsPrice(outcome.price)}
@@ -294,32 +297,6 @@ export default function SportsGameCard({
   disabled = false,
   onOutcomeClick,
 }: SportsGameCardProps) {
-  // ─── DEBUG: team icon/abbrev resolution ─────────────────────────────────────
-  // Confirms whether backend `eventTeams` is reaching the card. If
-  // teamAMeta/teamBMeta are undefined or missing logoUrl/abbrev, the backend
-  // change isn't deployed yet — restart `polymarket-backend` so /markets
-  // includes the `eventTeams` field that Polymarket attaches to events.
-  if (typeof window !== 'undefined') {
-    // eslint-disable-next-line no-console
-    console.log('[SportsGameCard] team resolution', {
-      eventId: game.eventId,
-      title: game.title,
-      teamA: game.teamA,
-      teamB: game.teamB,
-      teamAMeta: game.teamAMeta,
-      teamBMeta: game.teamBMeta,
-      teamALogo: game.teamALogo,
-      teamBLogo: game.teamBLogo,
-      icon: game.icon,
-      // Raw eventTeams from the backend (only present when backend relays it)
-      rawEventTeams: (
-        game.moneyline?.market as unknown as {
-          eventTeams?: unknown;
-        }
-      )?.eventTeams,
-    });
-  }
-
   const { label: timeLabel, status } = formatGameTime(game.startDate);
 
   // Raw outcome data for each team
@@ -474,9 +451,7 @@ export default function SportsGameCard({
                 color={team.color}
               />
               <div className="flex flex-col min-w-0 leading-tight">
-                <span className={teamNameClass}>
-                  {name}
-                </span>
+                <span className={teamNameClass}>{name}</span>
                 {record && (
                   <span className="text-[10px] text-gray-400 font-medium leading-tight">
                     {record}
