@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import isUrl from "@/lib/isUrl";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 interface PollCardProps {
   poll: any;
@@ -45,7 +46,7 @@ export default function PollCard({
     return (
       localPoll?.options
         ?.map((opt: any, idx: number) =>
-          opt.voters?.includes(userId) ? idx : -1
+          opt.voters?.includes(userId) ? idx : -1,
         )
         .filter((idx: number) => idx !== -1) || []
     );
@@ -56,7 +57,7 @@ export default function PollCard({
   const totalVotes =
     localPoll?.options?.reduce(
       (acc: number, o: any) => acc + (o.votes || 0),
-      0
+      0,
     ) || 0;
 
   const handleVote = async (optionIndex: number) => {
@@ -76,17 +77,17 @@ export default function PollCard({
         // Remove vote
         selectedOpt.votes = Math.max((selectedOpt.votes || 1) - 1, 0);
         selectedOpt.voters = selectedOpt.voters?.filter(
-          (v: string) => v.toString() !== userId.toString()
+          (v: string) => v.toString() !== userId.toString(),
         );
 
         // Remove from totalVoters if user has no more votes
         const stillHasVotes = updatedPoll.options.some(
           (opt: any, idx: number) =>
-            idx !== optionIndex && opt.voters?.includes(userId)
+            idx !== optionIndex && opt.voters?.includes(userId),
         );
         if (!stillHasVotes) {
           updatedPoll.totalVoters = updatedPoll.totalVoters?.filter(
-            (v: string) => v.toString() !== userId.toString()
+            (v: string) => v.toString() !== userId.toString(),
           );
         }
       } else {
@@ -105,7 +106,7 @@ export default function PollCard({
     } else {
       // Single vote mode: replace previous vote
       const userPreviousVote = localPoll?.options?.findIndex((opt: any) =>
-        opt.voters?.includes(userId)
+        opt.voters?.includes(userId),
       );
 
       // Remove previous vote if exists
@@ -113,7 +114,7 @@ export default function PollCard({
         const prevOpt = updatedPoll.options[userPreviousVote];
         prevOpt.votes = Math.max((prevOpt.votes || 1) - 1, 0);
         prevOpt.voters = prevOpt.voters?.filter(
-          (v: string) => v.toString() !== userId.toString()
+          (v: string) => v.toString() !== userId.toString(),
         );
       }
 
@@ -189,47 +190,58 @@ export default function PollCard({
                   ? "bg-blue-100 border-blue-400"
                   : "hover:bg-gray-100 active:scale-[0.98]",
                 (localPoll?.isExpired || isTimeExpired(localPoll.expiresAt)) &&
-                  "opacity-60 cursor-not-allowed"
+                  "opacity-60 cursor-not-allowed",
               )}
             >
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  {localPoll?.allowMultiple && (
-                    <div
-                      className={cn(
-                        "w-4 h-4 rounded border-2 flex items-center justify-center transition-colors",
-                        userSelected
-                          ? "bg-blue-500 border-blue-500"
-                          : "border-gray-400"
-                      )}
-                    >
-                      {userSelected && (
-                        <svg
-                          className="w-3 h-3 text-white"
-                          fill="none"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path d="M5 13l4 4L19 7"></path>
-                        </svg>
-                      )}
-                    </div>
+                  {option.image && (
+                    <Image
+                      alt="poll image"
+                      src={option.image}
+                      width={120}
+                      height={120}
+                      className="w-14 h-14 rounded object-cover"
+                    />
                   )}
-                  <p className="font-medium text-gray-700">{option.text}</p>
+                  <div className="flex items-center gap-2">
+                    {localPoll?.allowMultiple && (
+                      <div
+                        className={cn(
+                          "w-4 h-4 rounded border-2 flex items-center justify-center transition-colors",
+                          userSelected
+                            ? "bg-blue-500 border-blue-500"
+                            : "border-gray-400",
+                        )}
+                      >
+                        {userSelected && (
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path d="M5 13l4 4L19 7"></path>
+                          </svg>
+                        )}
+                      </div>
+                    )}
+                    <p className="font-medium text-gray-700">{option.text}</p>
+                  </div>
                 </div>
                 <p className="text-xs text-gray-600 font-medium">{percent}%</p>
               </div>
 
-              <div className="mt-1">
+              {/* <div className="mt-1">
                 <Progress
                   value={percent}
                   color={userSelected ? "primary" : "default"}
                   className="h-2 rounded-full"
                 />
-              </div>
+              </div> */}
             </button>
           );
         })}

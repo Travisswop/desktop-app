@@ -9,7 +9,6 @@ import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
 import { useModalStore } from "@/zustandStore/modalstore";
 import InfiniteScroll from "react-infinite-scroll-component";
-import { logger } from "ethers5";
 
 dayjs.extend(relativeTime);
 
@@ -112,7 +111,7 @@ export default function Feed({
     <div className="w-full flex gap-10">
       <div className="w-full flex flex-col gap-4">
         <InfiniteScroll
-          dataLength={feedData.length} // 🔥 VERY IMPORTANT
+          dataLength={feedData.length}
           next={fetchFeedData}
           hasMore={hasMore}
           loader={<FeedLoading />}

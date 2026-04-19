@@ -277,7 +277,7 @@ export async function isPostLiked(payload: any, token: string) {
 export async function AddPollVote(payload: any, token: string) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v1/feed/vote-poll`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/vote-poll`,
       {
         method: "POST",
         headers: {
