@@ -240,6 +240,7 @@ type SportsProbabilityPanelProps = {
   volumeLabel: string | null;
   seed: string;
   enabled: boolean;
+  isLive: boolean;
 };
 
 function SportsProbabilityPanel({
@@ -257,6 +258,7 @@ function SportsProbabilityPanel({
   volumeLabel,
   seed,
   enabled,
+  isLive,
 }: SportsProbabilityPanelProps) {
   const { yesHistory, noHistory, loading } = usePriceHistory(
     yesTokenId,
@@ -396,6 +398,15 @@ function SportsProbabilityPanel({
       })
     : null;
 
+  const yesScoreRaw = yesTeam?.score;
+  const noScoreRaw = noTeam?.score;
+  const yesScoreNum =
+    yesScoreRaw != null && yesScoreRaw !== '' ? Number(yesScoreRaw) : NaN;
+  const noScoreNum =
+    noScoreRaw != null && noScoreRaw !== '' ? Number(noScoreRaw) : NaN;
+  const hasScores = isFinite(yesScoreNum) && isFinite(noScoreNum);
+  const showLiveScore = isLive && hasScores;
+
   return (
     <div className="bg-white  text-gray-900 p-4 mb-4">
       {/* ── Team matchup row ─────────────────────────────────────────────── */}
@@ -407,18 +418,34 @@ function SportsProbabilityPanel({
           align="start"
         />
         <div className="text-center">
-          {timeText && (
-            <p className="text-sm font-semibold text-gray-900 leading-tight">
-              {timeText}
-            </p>
-          )}
-          {dateText && (
-            <p className="text-xs text-gray-500 mt-0.5">{dateText}</p>
-          )}
-          {!timeText && !dateText && (
-            <p className="text-xs text-gray-400 uppercase tracking-wider">
-              vs
-            </p>
+          {showLiveScore ? (
+            <div className="flex flex-col items-center">
+              <p className="text-xl font-extrabold text-gray-900 leading-none tabular-nums">
+                {yesScoreNum} - {noScoreNum}
+              </p>
+              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-red-500 uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                Live
+              </span>
+            </div>
+          ) : (
+            <>
+              {timeText && (
+                <p className="text-sm font-semibold text-gray-900 leading-tight">
+                  {timeText}
+                </p>
+              )}
+              {dateText && (
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {dateText}
+                </p>
+              )}
+              {!timeText && !dateText && (
+                <p className="text-xs text-gray-400 uppercase tracking-wider">
+                  vs
+                </p>
+              )}
+            </>
           )}
         </div>
         <TeamBadgeBlock
@@ -967,6 +994,7 @@ export default function MarketDetailModal({
                 volumeLabel={volumeLabel}
                 seed={seed}
                 enabled={isOpen}
+                isLive={isLive}
               />
             ) : (
               <></>

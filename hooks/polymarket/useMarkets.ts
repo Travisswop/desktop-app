@@ -40,6 +40,7 @@ export type PolymarketMarket = {
     logo?: string;
     abbreviation?: string;
     color?: string;
+    score?: number | string;
   }>;
   negRisk?: boolean;
   orderMinSize?: number;

@@ -15,8 +15,10 @@ import {
   useActiveOrders,
   usePolygonBalances,
   useNetDeposits,
+  usePolymarketTeams,
   type PolymarketPosition,
   type PolymarketMarket,
+  type TeamsMap,
 } from '@/hooks/polymarket';
 import {
   usePolymarketWallet,
@@ -37,8 +39,32 @@ interface PredictionsPortfolioModalProps {
   onClose: () => void;
 }
 
+type EventTeamMeta = NonNullable<PolymarketMarket['eventTeams']>[number];
+
+function resolveTeamMeta(
+  label: string,
+  teamsMap: TeamsMap | undefined,
+): EventTeamMeta | undefined {
+  if (!teamsMap || !label) return undefined;
+  const lower = label.trim().toLowerCase();
+  if (!lower) return undefined;
+  const hit =
+    teamsMap.byKey.get(lower) ||
+    teamsMap.byKey.get(lower.split(/\s+/).pop() ?? '');
+  if (!hit) return undefined;
+  return {
+    id: hit.id,
+    name: hit.name,
+    league: hit.sport,
+    logo: hit.logoUrl,
+    abbreviation: hit.abbreviation,
+    color: (hit as any).color,
+  };
+}
+
 function positionToMarket(
   position: PolymarketPosition,
+  teamsMap: TeamsMap | undefined,
 ): PolymarketMarket {
   const isYesPos = position.outcomeIndex === 0;
   const yesTokenId = isYesPos
@@ -60,6 +86,11 @@ function positionToMarket(
     ? 1 - position.curPrice
     : position.curPrice;
 
+  const yesTeam = resolveTeamMeta(yesOutcomeName, teamsMap);
+  const noTeam = resolveTeamMeta(noOutcomeName, teamsMap);
+  const eventTeams: EventTeamMeta[] | undefined =
+    yesTeam && noTeam ? [yesTeam, noTeam] : undefined;
+
   return {
     id: position.conditionId,
     question: position.title,
@@ -76,6 +107,7 @@ function positionToMarket(
     clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
     negRisk: position.negativeRisk,
     endDateIso: position.endDate,
+    eventTeams,
   };
 }
 
@@ -107,6 +139,7 @@ export default function PredictionsPortfolioModal({
   const { data: positions } = useUserPositions(
     safeAddress as string | undefined,
   );
+  const { data: teamsData } = usePolymarketTeams();
 
   const { usdcBalance } = usePolygonBalances(safeAddress);
   const { data: netDeposits, isLoading: isNetDepositsLoading } =
@@ -525,7 +558,7 @@ export default function PredictionsPortfolioModal({
         <MarketDetailModal
           isOpen={!!detailPosition}
           onClose={() => setDetailPosition(null)}
-          market={positionToMarket(detailPosition)}
+          market={positionToMarket(detailPosition, teamsData)}
           clobClient={clobClient}
           balance={usdcBalance}
           yesShares={

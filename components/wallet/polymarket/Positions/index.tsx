@@ -9,8 +9,10 @@ import {
   useActiveOrders,
   usePolygonBalances,
   useNetDeposits,
+  usePolymarketTeams,
   PolymarketPosition,
   type PolymarketMarket,
+  type TeamsMap,
 } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useTrading } from '@/providers/polymarket';
@@ -31,9 +33,33 @@ import {
   POLLING_INTERVAL,
 } from '@/constants/polymarket';
 
+type EventTeamMeta = NonNullable<PolymarketMarket['eventTeams']>[number];
+
+function resolveTeamMeta(
+  label: string,
+  teamsMap: TeamsMap | undefined,
+): EventTeamMeta | undefined {
+  if (!teamsMap || !label) return undefined;
+  const lower = label.trim().toLowerCase();
+  if (!lower) return undefined;
+  const hit =
+    teamsMap.byKey.get(lower) ||
+    teamsMap.byKey.get(lower.split(/\s+/).pop() ?? '');
+  if (!hit) return undefined;
+  return {
+    id: hit.id,
+    name: hit.name,
+    league: hit.sport,
+    logo: hit.logoUrl,
+    abbreviation: hit.abbreviation,
+    color: (hit as any).color,
+  };
+}
+
 /** Build a synthetic PolymarketMarket from a position so the detail modal can render it. */
 function positionToMarket(
   position: PolymarketPosition,
+  teamsMap: TeamsMap | undefined,
 ): PolymarketMarket {
   // outcomeIndex 0 = user holds the "Yes" / first outcome
   const isYesPos = position.outcomeIndex === 0;
@@ -57,6 +83,11 @@ function positionToMarket(
     ? 1 - position.curPrice
     : position.curPrice;
 
+  const yesTeam = resolveTeamMeta(yesOutcomeName, teamsMap);
+  const noTeam = resolveTeamMeta(noOutcomeName, teamsMap);
+  const eventTeams: EventTeamMeta[] | undefined =
+    yesTeam && noTeam ? [yesTeam, noTeam] : undefined;
+
   return {
     id: position.conditionId,
     question: position.title,
@@ -73,6 +104,7 @@ function positionToMarket(
     clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
     negRisk: position.negativeRisk,
     endDateIso: position.endDate,
+    eventTeams,
   };
 }
 
@@ -87,6 +119,7 @@ export default function UserPositions() {
   } = useUserPositions(safeAddress as string | undefined);
 
   const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { data: teamsData } = usePolymarketTeams();
   console.log('safe address', safeAddress);
   const { data: netDeposits, isLoading: isNetDepositsLoading } =
     useNetDeposits(safeAddress as string | undefined);
@@ -573,7 +606,7 @@ export default function UserPositions() {
         <MarketDetailModal
           isOpen={!!detailPosition}
           onClose={() => setDetailPosition(null)}
-          market={positionToMarket(enrichBtcPosition(detailPosition))}
+          market={positionToMarket(enrichBtcPosition(detailPosition), teamsData)}
           clobClient={clobClient}
           balance={usdcBalance}
           yesShares={
