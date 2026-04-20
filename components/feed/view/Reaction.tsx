@@ -212,6 +212,7 @@ const Reaction = memo(
           toast.success("Reposted successfully!");
           triggerFeedRefetch();
           setIsRepostPopOpen(false);
+          router.push("/");
         } else if (data?.state === "not-allowed") {
           toast.error("You are not allowed to create a feed post!");
         }

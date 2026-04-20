@@ -26,6 +26,7 @@ interface FeedPostContentProps {
   userId: string;
   accessToken: string;
   onPostInteraction?: (postId: string, updates: Partial<FeedItemType>) => void;
+  isFromMainFeed?: boolean;
 }
 
 const FeedPostContent = ({
@@ -33,6 +34,7 @@ const FeedPostContent = ({
   userId,
   accessToken,
   onPostInteraction,
+  isFromMainFeed = true,
 }: FeedPostContentProps) => {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -50,6 +52,8 @@ const FeedPostContent = ({
 
   logger.info("feed from content", feed);
 
+  const postContent = feed?.content?.post_content || feed?.post_content || [];
+
   return (
     <>
       {/* Post / Repost title */}
@@ -66,11 +70,32 @@ const FeedPostContent = ({
           </div>
         )}
 
+      {!isFromMainFeed && feed.title && (
+        <div className="w-full text-start">
+          {feed.title.split("\n").map((line: string, index: number) => (
+            <p className="break-text" key={index}>
+              {makeLinksClickable(line)}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* comment media */}
+      {!isFromMainFeed && postContent && postContent.length > 0 && (
+        <PostTypeMedia mediaFiles={postContent} />
+      )}
+
       {/* Post media */}
-      {feed.postType === "post" &&
-        feed.content.post_content &&
-        feed.content.post_content.length > 0 && (
-          <PostTypeMedia mediaFiles={feed.content.post_content} />
+      {feed.postType === "post" && postContent && postContent.length > 0 && (
+        <PostTypeMedia mediaFiles={postContent} />
+      )}
+
+      {feed.postType === "repost" &&
+        feed?.content?.quote?.post_content?.length > 0 && (
+          <PostTypeMedia
+            mediaFiles={feed?.content?.quote?.post_content}
+            isFromRepost={true}
+          />
         )}
 
       {/* Swap transaction */}

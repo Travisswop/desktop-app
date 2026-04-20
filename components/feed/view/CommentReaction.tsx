@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Button,
   Modal,
   ModalBody,
   ModalContent,
@@ -22,16 +21,13 @@ import React, {
 } from "react";
 import { FiShare, FiMessageCircle } from "react-icons/fi";
 import { IoMdHeart, IoMdHeartEmpty } from "react-icons/io";
-import { TbCopy, TbCopyCheckFilled } from "react-icons/tb";
-import { BiEdit, BiRepost } from "react-icons/bi";
-import { BsEmojiSmile } from "react-icons/bs";
+import { TbCopy, TbCopyCheckFilled, TbEdit } from "react-icons/tb";
 import { Loader } from "lucide-react";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
 import Image from "next/image";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import EmojiPicker from "emoji-picker-react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/lib/UserContext";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
@@ -40,12 +36,15 @@ import { deleteFeed, postFeed, postFeedLike } from "@/actions/postFeed";
 import repostImg from "@/public/images/custom-icons/feed_repost.png";
 import CommentInput from "../comment/CommentInput";
 import { logger } from "ethers5";
+import RepostComposer from "../RepostComposer";
+import { useModalStore } from "@/zustandStore/modalstore";
 
 dayjs.extend(relativeTime);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CommentReactionProps {
+  comment: any; // pass the whole comment object for use in repost composer
   /** The comment or reply _id */
   commentId: string;
   /** Root post _id — for share link anchor & CommentInput */
@@ -96,6 +95,7 @@ interface CommentReactionProps {
 
 const CommentReaction = memo(
   ({
+    comment,
     commentId,
     postId,
     targetType,
@@ -119,7 +119,9 @@ const CommentReaction = memo(
     const [primarySmartsiteData, setPrimarySmartsiteData] = useState<any>(null);
     const [accessToken, setAccessToken] = useState("");
 
-    console.log("liked", isLiked);
+    const { triggerFeedRefetch } = useModalStore();
+
+    console.log("comment data", comment);
 
     // Share popover
     const [isSharePopOpen, setIsSharePopOpen] = useState(false);
@@ -127,13 +129,10 @@ const CommentReaction = memo(
 
     // Repost popover + quote modal
     const [isRepostPopOpen, setIsRepostPopOpen] = useState(false);
-    const [quoteContent, setQuoteContent] = useState("");
-    const [quoteContentError, setQuoteContentError] = useState("");
     const [repostLoading, setRepostLoading] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
 
-    const likePending = useRef(false);
     const router = useRouter();
     const { user }: any = useUser();
 
@@ -143,10 +142,11 @@ const CommentReaction = memo(
       onOpenChange: onReplyModalChange,
     } = useDisclosure();
 
+    // ── Repost composer modal ───────────────────────────────────────────────
     const {
-      isOpen: isQuoteModalOpen,
-      onOpen: onQuoteModalOpen,
-      onOpenChange: onQuoteModalChange,
+      isOpen: isRepostComposerOpen,
+      onOpen: openRepostComposer,
+      onOpenChange: onRepostComposerChange,
     } = useDisclosure();
 
     // ── Bootstrap ─────────────────────────────────────────────────────────────
@@ -202,48 +202,6 @@ const CommentReaction = memo(
       [likeCount, latestReplyCount, repostCount],
     );
 
-    // ── Like ──────────────────────────────────────────────────────────────────
-
-    // const handleLike = async () => {
-    //   if (!accessToken) return toast.error("Please Login to Continue.");
-    //   if (likePending.current) return;
-    //   likePending.current = true;
-
-    //   const wasLiked = liked;
-    //   const prevCount = likeCount;
-    //   const newLiked = !wasLiked;
-    //   const newCount = newLiked ? likeCount + 1 : Math.max(0, likeCount - 1);
-
-    //   setLiked(newLiked);
-    //   setLikeCount(newCount);
-
-    //   if (newLiked) {
-    //     setAnimate(true);
-    //     setTimeout(() => setAnimate(false), 500);
-    //   }
-
-    //   try {
-    //     await fetch(
-    //       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/comment/${commentId}/like`,
-    //       {
-    //         method: wasLiked ? "DELETE" : "POST",
-    //         headers: {
-    //           "Content-Type": "application/json",
-    //           Authorization: `Bearer ${accessToken}`,
-    //         },
-    //         body: JSON.stringify({ smartsiteId, targetType }),
-    //       },
-    //     );
-    //     onLikeUpdate?.(commentId, { likeCount: newCount, isLiked: newLiked });
-    //   } catch {
-    //     setLiked(wasLiked);
-    //     setLikeCount(prevCount);
-    //     toast.error("Failed to update like status.");
-    //   } finally {
-    //     likePending.current = false;
-    //   }
-    // };
-
     const handleLike = async () => {
       if (!accessToken) {
         return toast.error("Please Login to Continue.");
@@ -294,34 +252,31 @@ const CommentReaction = memo(
       }
     };
 
-    // ── Instant repost (no quote) ─────────────────────────────────────────────
-
     const handleInstantRepost = async () => {
       if (!accessToken) return toast.error("Please Login to Continue.");
       setRepostLoading(true);
-
-      const payload = {
-        smartsiteId: user?.primaryMicrosite,
-        userId: user?._id,
-        postType: "repost",
-        content: {
-          postId: commentId, // the comment/reply _id being reposted
-          isFromFeed: false, // always false for comment/reply reposts
-        },
-      };
-
       try {
+        const payload = {
+          smartsiteId: user?.primaryMicrosite,
+          userId: user?._id,
+          postType: "repost",
+          content: {
+            postId: commentId,
+            isFromFeed: false,
+          },
+        };
         const data = await postFeed(payload, accessToken);
         if (data?.state === "success") {
           toast.success("Reposted successfully!");
+          triggerFeedRefetch();
           setIsRepostPopOpen(false);
           onRepostSuccess?.();
-          router.refresh();
+          router.push("/");
         } else if (data?.state === "not-allowed") {
           toast.error("You are not allowed to create a feed post!");
         }
       } catch {
-        toast.error("Failed to repost. Please try again.");
+        toast.error("Repost failed. Please try again.");
       } finally {
         setRepostLoading(false);
       }
@@ -330,78 +285,25 @@ const CommentReaction = memo(
     // ── Undo repost ───────────────────────────────────────────────────────────
 
     const handleUndoRepost = async () => {
+      if (!accessToken) return toast.error("Please Login to Continue.");
       if (!myRepostId) return;
       setRepostLoading(true);
       try {
-        const result = await deleteFeed(myRepostId, accessToken);
-        if (result?.state === "success") {
-          toast.success("Undo repost successfully");
+        const result = await deleteFeed(myRepostId, accessToken, user?._id);
+        logger.info("Undo repost result", result);
+        if (result?.success === true) {
+          toast.success("Undo Repost successfully");
+          triggerFeedRefetch();
           setIsRepostPopOpen(false);
           onRepostSuccess?.();
           router.refresh();
         }
-      } catch {
-        toast.error("Failed to undo repost.");
-      } finally {
-        setRepostLoading(false);
-      }
-    };
-
-    // ── Quote repost ──────────────────────────────────────────────────────────
-
-    const QUOTE_MAX = 512;
-
-    const handleQuoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const value = e.target.value;
-      setQuoteContentError(
-        value.length > QUOTE_MAX
-          ? `** Content cannot exceed ${QUOTE_MAX} characters.`
-          : "",
-      );
-      setQuoteContent(value);
-    };
-
-    const handleQuoteRepost = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!accessToken) return toast.error("Please Login to Continue.");
-      if (!quoteContent.trim()) return;
-
-      setRepostLoading(true);
-
-      const payload = {
-        smartsiteId: user?.primaryMicrosite,
-        userId: user?._id,
-        postType: "repost",
-        content: {
-          postId: commentId, // the comment/reply _id being reposted
-          isFromFeed: false, // always false for comment/reply reposts
-          quote: {
-            title: quoteContent,
-          },
-        },
-      };
-
-      try {
-        const data = await postFeed(payload, accessToken);
-        if (data?.state === "success") {
-          toast.success("Reposted successfully!");
-          onQuoteModalChange(); // close quote modal
-          setQuoteContent("");
-          setIsRepostPopOpen(false);
-          onRepostSuccess?.();
-          router.refresh();
-        } else if (data?.state === "not-allowed") {
-          toast.error("You are not allowed to create a feed post!");
-        }
-      } catch {
-        toast.error("Failed to repost. Please try again.");
       } finally {
         setRepostLoading(false);
       }
     };
 
     // ── Share / copy link ─────────────────────────────────────────────────────
-
     const handleCopyLink = useCallback(() => {
       const link = `${window.location.origin}/feed/${postId}#${commentId}`;
       navigator.clipboard
@@ -416,15 +318,6 @@ const CommentReaction = memo(
         })
         .catch((err) => console.error("Failed to copy link:", err));
     }, [postId, commentId]);
-
-    // ── Reply submitted ───────────────────────────────────────────────────────
-
-    // const handleReplySubmitted = useCallback(
-    //   (newReply: any) => {
-    //     onReplySuccess?.(newReply);
-    //   },
-    //   [onReplySuccess],
-    // );
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -473,15 +366,17 @@ const CommentReaction = memo(
                       className="w-5 h-auto"
                       quality={100}
                     />
-                    {repostCount > 0 && (
-                      <p className="text-black">{formattedCounts.reposts}</p>
-                    )}
+                    <p>
+                      {Number(formattedCounts?.reposts) > 0
+                        ? formattedCounts.reposts
+                        : 0}
+                    </p>
                   </button>
                 </Tooltip>
               </div>
             </PopoverTrigger>
 
-            <PopoverContent className="w-52 p-2 rounded-lg shadow-lg border border-gray-200 bg-white">
+            <PopoverContent className="w-auto p-2 rounded-lg shadow-lg border border-gray-200 bg-white">
               {/* ── Already reposted by this user ── */}
               {myRepostId ? (
                 <div>
@@ -490,8 +385,13 @@ const CommentReaction = memo(
                     disabled={repostLoading}
                     className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors"
                   >
-                    <BiRepost size={24} />
-                    <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                    <Image
+                      src={repostImg}
+                      alt="repost"
+                      className="w-5 h-auto"
+                      quality={100}
+                    />
+                    <span className="text-sm font-medium text-red-600 flex items-center gap-1">
                       Undo Repost{" "}
                       {repostLoading && (
                         <Loader size={16} className="animate-spin" />
@@ -499,15 +399,19 @@ const CommentReaction = memo(
                     </span>
                   </button>
                   <button
+                    // onClick={() => {
+                    //   onQuoteModalOpen();
+                    //   setIsRepostPopOpen(false);
+                    // }}
                     onClick={() => {
-                      onQuoteModalOpen();
+                      openRepostComposer();
                       setIsRepostPopOpen(false);
                     }}
                     className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors"
                   >
-                    <BiEdit />
+                    <TbEdit size={20} />
                     <span className="text-sm font-medium text-gray-900">
-                      Repost With Content
+                      Quote
                     </span>
                   </button>
                 </div>
@@ -519,9 +423,14 @@ const CommentReaction = memo(
                     disabled={repostLoading}
                     className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors"
                   >
-                    <BiRepost size={24} />
+                    <Image
+                      src={repostImg}
+                      alt="repost"
+                      className="w-5 h-auto"
+                      quality={100}
+                    />
                     <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
-                      Instant Repost{" "}
+                      Repost{" "}
                       {repostLoading && (
                         <Loader size={16} className="animate-spin" />
                       )}
@@ -529,14 +438,18 @@ const CommentReaction = memo(
                   </button>
                   <button
                     onClick={() => {
-                      onQuoteModalOpen();
+                      openRepostComposer();
                       setIsRepostPopOpen(false);
                     }}
+                    // onClick={() => {
+                    //   onQuoteModalOpen();
+                    //   setIsRepostPopOpen(false);
+                    // }}
                     className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-100 transition-colors"
                   >
-                    <BiEdit />
+                    <TbEdit size={20} />
                     <span className="text-sm font-medium text-gray-900">
-                      Repost With Content
+                      Quote
                     </span>
                   </button>
                 </div>
@@ -759,139 +672,21 @@ const CommentReaction = memo(
           </ModalContent>
         </Modal>
 
-        {/* ════════════════════════════════════════════════════════════════════
-            QUOTE REPOST MODAL — mirrors Reaction.tsx repost modal exactly
-        ════════════════════════════════════════════════════════════════════ */}
-        <Modal
-          isOpen={isQuoteModalOpen}
-          onOpenChange={onQuoteModalChange}
-          size="lg"
-        >
-          <ModalContent className="max-w-md overflow-visible">
-            {(onClose) => (
-              <>
-                <ModalHeader className="flex flex-col gap-1 border-b border-gray-100 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Repost this {targetType}
-                  </h3>
-                  <p className="text-sm text-gray-500 font-medium">
-                    Add your thoughts here
-                  </p>
-                </ModalHeader>
-
-                <ModalBody className="p-6">
-                  {/* Original comment preview inside quote modal */}
-                  {commentSnapshot && (
-                    <div className="mb-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-sm font-bold text-gray-900">
-                          {commentSnapshot.userName || "Unknown"}
-                        </span>
-                        {commentSnapshot.ensName && (
-                          <span className="text-xs text-gray-400">
-                            · {commentSnapshot.ensName}
-                          </span>
-                        )}
-                        {commentSnapshot.createdAt && (
-                          <span className="text-xs text-gray-400">
-                            · {dayjs(commentSnapshot.createdAt).fromNow()}
-                          </span>
-                        )}
-                      </div>
-                      {commentSnapshot.title && (
-                        <p className="text-sm text-gray-600 line-clamp-3">
-                          {commentSnapshot.title}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  <form onSubmit={handleQuoteRepost}>
-                    <div className="space-y-4">
-                      <div className="relative">
-                        <textarea
-                          rows={3}
-                          className="w-full rounded-lg bg-gray-50 p-4 pr-10 text-sm focus:outline-gray-100 transition-colors"
-                          placeholder="Add your thoughts…"
-                          maxLength={QUOTE_MAX}
-                          value={quoteContent}
-                          onChange={handleQuoteChange}
-                        />
-                        {quoteContentError && (
-                          <p className="text-red-500 text-xs mt-0.5">
-                            {quoteContentError}
-                          </p>
-                        )}
-                        {/* Emoji picker button */}
-                        <div>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowEmojiPicker((p) => !p);
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            className="absolute right-3 bottom-3 p-1 text-gray-400 hover:text-gray-600"
-                          >
-                            <BsEmojiSmile size={20} />
-                          </button>
-                          {showEmojiPicker && (
-                            <div
-                              ref={emojiPickerRef}
-                              className="absolute z-[9999] top-[90px] right-0"
-                            >
-                              <EmojiPicker
-                                onEmojiClick={(emojiObject) =>
-                                  setQuoteContent(
-                                    (prev) => prev + emojiObject.emoji,
-                                  )
-                                }
-                                width={300}
-                                height={350}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs text-gray-500">
-                          {quoteContent.length}/{QUOTE_MAX}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="light"
-                            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                            onPress={onClose}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            type="submit"
-                            color="primary"
-                            className="px-4 py-2 text-sm font-medium text-white shadow-sm rounded-md"
-                            isDisabled={
-                              !quoteContent.trim() ||
-                              !!quoteContentError ||
-                              repostLoading
-                            }
-                          >
-                            {repostLoading ? (
-                              <Loader className="animate-spin" size={16} />
-                            ) : (
-                              "Repost"
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </form>
-                </ModalBody>
-              </>
-            )}
-          </ModalContent>
-        </Modal>
+        {/* ── Repost Composer Modal ── */}
+        <RepostComposer
+          isOpen={isRepostComposerOpen}
+          onOpenChange={onRepostComposerChange}
+          postId={commentId}
+          feed={comment}
+          user={user}
+          accessToken={accessToken}
+          primarySmartsiteData={primarySmartsiteData}
+          isFromMainFeed={false}
+          onRepostSuccess={() => {
+            triggerFeedRefetch();
+            onRepostSuccess?.();
+          }}
+        />
       </div>
     );
   },

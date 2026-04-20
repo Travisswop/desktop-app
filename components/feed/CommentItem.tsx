@@ -246,6 +246,7 @@ export default function CommentItem({
         )}
 
         <CommentReaction
+          comment={comment}
           commentId={comment._id}
           postId={postId}
           targetType={"reply"}

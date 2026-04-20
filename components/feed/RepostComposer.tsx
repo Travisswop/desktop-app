@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, use } from "react";
 import { Button } from "@nextui-org/react";
 import Image from "next/image";
 import { IoClose } from "react-icons/io5";
@@ -15,6 +15,9 @@ import isUrl from "@/lib/isUrl";
 import MediaPreview from "./MediaPreview";
 import FeedPostContent from "./FeedPostContent";
 import CustomModal from "../modal/CustomModal";
+import { formatEns } from "@/lib/formatEnsName";
+import { logger } from "ethers5";
+import { useRouter } from "next/navigation";
 
 dayjs.extend(relativeTime);
 
@@ -40,24 +43,28 @@ const QuotedPost = ({
   user,
   accessToken,
   onPostInteraction,
+  isFromMainFeed,
 }: {
   feed: any;
   user: any;
   accessToken: string;
   onPostInteraction?: (postId: string, updates: any) => void;
+  isFromMainFeed?: boolean;
 }) => {
   if (!feed) return null;
+
+  const feedDetails = feed?.smartsiteDetails || feed?.smartsiteId;
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden mt-2 mb-1">
       <div className="flex items-start gap-2 px-3 pt-2.5 pb-2">
         <div className="w-7 h-7 rounded-full bg-gray-200 overflow-hidden shrink-0">
-          {feed.smartsiteDetails?.profilePic && (
+          {feedDetails?.profilePic && (
             <Image
               src={
-                isUrl(feed.smartsiteDetails.profilePic)
-                  ? feed.smartsiteDetails.profilePic
-                  : `/images/user_avator/${feed.smartsiteDetails.profilePic}@3x.png`
+                isUrl(feedDetails.profilePic)
+                  ? feedDetails.profilePic
+                  : `/images/user_avator/${feedDetails.profilePic}@3x.png`
               }
               alt="avatar"
               width={28}
@@ -69,22 +76,21 @@ const QuotedPost = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-sm font-semibold text-gray-900 truncate">
-              {feed.smartsiteDetails?.name ||
-                feed.smartsiteUserName ||
-                "Unknown"}
+              {feedDetails?.name || feed.smartsiteUserName || "Unknown"}
             </span>
             <span className="text-xs text-gray-400">
               · {dayjs(feed.createdAt).fromNow()}
             </span>
           </div>
           <p className="text-xs text-gray-400 mb-1">
-            @{feed.smartsiteDetails?.ens || feed.smartsiteUserName}
+            {formatEns(feedDetails?.ens || feed.smartsiteUserName)}
           </p>
           <FeedPostContent
             feed={feed}
             userId={user?._id}
             accessToken={accessToken}
             onPostInteraction={onPostInteraction}
+            isFromMainFeed={isFromMainFeed}
           />
         </div>
       </div>
@@ -111,6 +117,8 @@ const RepostComposer = ({
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [fileError, setFileError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const router = useRouter();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -190,12 +198,17 @@ const RepostComposer = ({
         },
       };
 
+      // logger.info("Posting with payload:", payload);
+
       const data = await postFeed(payload, accessToken);
+
+      // logger.info("Post feed response:", data);
 
       if (data?.state === "success") {
         toast.success("Reposted successfully!");
         handleClose();
         onRepostSuccess?.();
+        router.push("/");
       } else if (data?.state === "not-allowed") {
         toast.error("You are not allowed to create a feed post!");
       }
@@ -280,6 +293,7 @@ const RepostComposer = ({
             user={user}
             accessToken={accessToken}
             onPostInteraction={onPostInteraction}
+            isFromMainFeed={isFromMainFeed}
           />
 
           <MediaPreview

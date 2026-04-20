@@ -19,6 +19,8 @@ import SwapTransactionCard from "./SwapTransactionCard";
 import { formatEns } from "@/lib/formatEnsName";
 import PollCard from "./PollCard";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
+import { IoMdArrowDropright } from "react-icons/io";
+import { MdArrowRight } from "react-icons/md";
 
 const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -112,11 +114,13 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
   const userName =
     feed.repostedPostDetails?.smartsiteId?.name ||
     feed.repostedPostDetails?.smartsiteUserName ||
+    feed.repostedPostDetails?.smartsiteDetails?.name ||
     "Anonymous";
 
   const ensName =
     feed.repostedPostDetails?.smartsiteId?.ens ||
     feed.repostedPostDetails?.smartsiteEnsName ||
+    feed.repostedPostDetails?.smartsiteDetails?.ens ||
     "";
 
   const caption =
@@ -124,10 +128,6 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
     feed?.repostedPostDetails?.title ||
     feed?.repostedPostDetails?.content?.quote?.title ||
     "";
-
-  // const pushRoute = feed?.content.isFromFeed
-  //   ? `/feed/${feed.repostedPostDetails?.postId}`
-  //   : `/feed/comment/${feed.repostedPostDetails?._id}`;
 
   const pushRoute = (): any => {
     if (feed.repostedPostDetails?._id && !feed?.content.isFromFeed) {
@@ -154,7 +154,8 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
         {(() => {
           const profilePic =
             feed.repostedPostDetails?.smartsiteId?.profilePic ||
-            feed.repostedPostDetails?.smartsiteProfilePic;
+            feed.repostedPostDetails?.smartsiteProfilePic ||
+            feed.repostedPostDetails?.smartsiteDetails?.profilePic;
           return profilePic && isUrl(profilePic) ? (
             <Image
               alt="user image"
@@ -205,6 +206,30 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
                     </p>
                   ))}
                 </div>
+              )}
+
+              {feed?.repostedPostDetails?.content?.quote?.post_content?.length >
+                0 && (
+                <PostTypeMedia
+                  mediaFiles={
+                    feed?.repostedPostDetails?.content?.quote?.post_content
+                  }
+                  isFromRepost={true}
+                />
+              )}
+              {feed?.repostedPostDetails?.post_content?.length > 0 && (
+                <PostTypeMedia
+                  mediaFiles={feed?.repostedPostDetails?.post_content}
+                  isFromRepost={true}
+                />
+              )}
+              {feed?.repostedPostDetails?.content?.postId && (
+                <button className="text-blue-500 mt-4 text-xs font-medium flex items-center">
+                  {feed?.repostedPostDetails?.content?.isFromFeed
+                    ? "View Post"
+                    : "View Reply"}{" "}
+                  <MdArrowRight size={20} className="-translate-x-0.5" />
+                </button>
               )}
             </div>
 
