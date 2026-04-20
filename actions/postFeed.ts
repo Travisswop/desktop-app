@@ -14,6 +14,7 @@ export async function getUserFeed(url: string, token: string) {
       cache: "no-store",
     });
     const data = await response.json();
+    logger.info("Fetched user feed data:", data);
     return data;
   } catch (error) {
     logger.error("Error from getting feed:", error);
