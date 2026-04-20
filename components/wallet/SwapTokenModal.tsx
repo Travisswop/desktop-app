@@ -151,7 +151,6 @@ const isNativeEvmToken = (token?: any) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const formatUserFriendlyError = (error: string): string => {
-  console.log('error', error);
   const lowerError = error.toLowerCase();
   if (
     lowerError.includes('network error') ||
@@ -246,6 +245,14 @@ type TokenCategory = (typeof TOKEN_CATEGORIES)[number];
 
 const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
   stock: new Set([
+    'PreLWGkkeqG1s4HEfFZSy9moCrJ7btsHuUtfcCeoRua',
+    'Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP',
+    'PreANxuXjsy2pvisWWMNB6YaJNzr7681wJJr2rHsfTh',
+    'PreweJYECqtQwBtpxHL171nL2K6umo692gTm7Q3rpgF',
+    'Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw',
+    'PreC1KtJ1sBPPqaeeqL6Qb15GTLCYVvyYEwxhdfTwfx',
+    'PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB',
+    '2CgwU3D1cPvCPs3u64JzU4mz2w6u8bk7R3BfJNvfzTK6',
     'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB',
     'Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ',
     'XsueG8BtpquVJX9LVLLEGuViXUungE6WmK5YZ3p3bd1',
@@ -253,15 +260,10 @@ const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
     'XsP7xzNPvEHS1m6qfanPUGjNmdnmsLKEoNAnHjdxxyZ',
     'Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh',
     'XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN',
-    'PreweJYECqtQwBtpxHL171nL2K6umo692gTm7Q3rpgF',
     'Xs7ZdzSHLU9ftNJsii5fCeJhoRWSC32SQGzGQtePxNu',
     'XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp',
-    'PreANxuXjsy2pvisWWMNB6YaJNzr7681wJJr2rHsfTh',
-    'Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw',
     'XsvNBAYkrDRNhA7wPHQfX3ZUXZyZLdnCQDfHZ56bzpg',
-    'PreC1KtJ1sBPPqaeeqL6Qb15GTLCYVvyYEwxhdfTwfx',
     'Xs3eBt7uRfJX8QUs4suhyU8p2M6DoUDrJyWBa8LLZsg',
-    'PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB',
     'Xsa62P5mvPszXL1krVUnU5ar38bBSVcWAB6fmPCo5Zu',
     'Xs2yquAgsHByNzx68WJC55WHjHBvG9JsMB7CWjTLyPy',
     'XsqE9cRRpzxcGKDXj1BJ7Xmg4GRhZoyY1KpmGSxAWT2',
@@ -696,8 +698,6 @@ export default function SwapTokenModal({
     defaultReceiveToken || null,
   );
 
-  console.log('payToken', payToken);
-  console.log('receiveToken', receiveToken);
   const [payAmount, setPayAmount] = useState('');
   const [receiveAmount, setReceiveAmount] = useState('');
   const [openDrawer, setOpenDrawer] = useState(false);
@@ -811,8 +811,6 @@ export default function SwapTokenModal({
           t.symbol?.toUpperCase() === 'USDC' &&
           t.chain?.toUpperCase() === 'SOLANA',
       );
-
-      console.log('userUsdc', userUSDC);
 
       const defaultPay = userUSDC || {
         symbol: 'USDC',
@@ -1372,7 +1370,7 @@ export default function SwapTokenModal({
                 selectedPayChain,
               )
             : payTokenUniverse;
-        console.log('base', base);
+
         setAvailableTokens(base);
       }
     } finally {
@@ -1800,8 +1798,7 @@ export default function SwapTokenModal({
       const outputChainId =
         receiveToken?.chainId?.toString() ??
         getChainId(receiveToken?.chain ?? '');
-      const network =
-        getNetworkByChainId(inputChainId) || 'solana';
+      const network = getNetworkByChainId(inputChainId) || 'solana';
 
       const params = {
         smartsiteId: userData?.primaryMicrosite || '',
@@ -1813,7 +1810,8 @@ export default function SwapTokenModal({
             symbol: payToken?.symbol || q.inputMint || '',
             amount: parseFloat(payAmount),
             decimals: payToken?.decimals || 6,
-            mint: payToken?.address || payToken?.id || q.inputMint || '',
+            mint:
+              payToken?.address || payToken?.id || q.inputMint || '',
             price: payToken?.price || payToken?.usdPrice || '0',
             tokenImg: payToken?.logoURI || '',
             chain: inputChainId,
@@ -1845,17 +1843,14 @@ export default function SwapTokenModal({
         network,
       };
 
-      await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(params),
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
-      );
+        body: JSON.stringify(params),
+      });
 
       if (socket?.connected) {
         try {
@@ -1863,7 +1858,8 @@ export default function SwapTokenModal({
             inputTokenSymbol: params.content.inputToken.symbol,
             inputAmount: params.content.inputToken.amount.toFixed(6),
             outputTokenSymbol: params.content.outputToken.symbol,
-            outputAmount: params.content.outputToken.amount.toFixed(6),
+            outputAmount:
+              params.content.outputToken.amount.toFixed(6),
             txSignature: signature,
             network: payToken?.chain || 'SOLANA',
             inputTokenLogo: params.content.inputToken.tokenImg,
@@ -1936,13 +1932,17 @@ export default function SwapTokenModal({
       {
         const ATA_RENT = 2_039_280;
         const TX_FEE_BUFFER = 15_000;
-        const walletPubkey = new PublicKey(selectedSolanaWallet.address);
+        const walletPubkey = new PublicKey(
+          selectedSolanaWallet.address,
+        );
         const outputMintPubkey = new PublicKey(outputMint);
 
         // Fetch SOL balance and output mint info in one round trip
         const [solLamports, outputMintAcct] = await Promise.all([
           connection.getBalance(walletPubkey),
-          connection.getAccountInfo(outputMintPubkey).catch(() => null),
+          connection
+            .getAccountInfo(outputMintPubkey)
+            .catch(() => null),
         ]);
 
         // Detect token program so we derive the correct ATA address
@@ -1962,19 +1962,25 @@ export default function SwapTokenModal({
           .catch(() => null);
 
         const rentNeeded = outputAtaAcct ? 0 : ATA_RENT;
-        const SOL_MINT = 'So11111111111111111111111111111111111111112';
+        const SOL_MINT =
+          'So11111111111111111111111111111111111111112';
         const isSOLInput = inputMint === SOL_MINT;
 
         // When the input token IS SOL, the swap amount itself is drawn from
         // the SOL balance, so we must include it in the requirement.
         const swapLamports = isSOLInput
-          ? Number(formatTokenAmount(payAmount, payToken?.decimals ?? 9))
+          ? Number(
+              formatTokenAmount(payAmount, payToken?.decimals ?? 9),
+            )
           : 0;
 
         const minRequired = TX_FEE_BUFFER + rentNeeded + swapLamports;
 
         if (solLamports < minRequired) {
-          const shortfall = ((minRequired - solLamports) / 1e9).toFixed(5);
+          const shortfall = (
+            (minRequired - solLamports) /
+            1e9
+          ).toFixed(5);
           const reason = isSOLInput
             ? `the swap amount and fees${!outputAtaAcct ? ` (including account creation for ${receiveToken?.symbol ?? 'output token'})` : ''}`
             : !outputAtaAcct
@@ -2112,7 +2118,8 @@ export default function SwapTokenModal({
       });
 
       if (!orderResult.success || !orderResult.data) {
-        const errMsg = orderResult.error || 'Failed to get swap order';
+        const errMsg =
+          orderResult.error || 'Failed to get swap order';
         // Jupiter returns "Insufficient funds" when the taker's input token
         // balance is too low — clarify it's the token, not SOL.
         if (errMsg.toLowerCase().includes('insufficient funds')) {
@@ -2606,7 +2613,7 @@ export default function SwapTokenModal({
       // Always reserve worst-case fees + ATA rent so the swap doesn't
       // exhaust the SOL needed for the transaction itself.
       const ATA_RENT_SOL = 2_039_280 / 1e9; // ~0.00204 SOL
-      const TX_FEE_SOL = 15_000 / 1e9;      // ~0.000015 SOL
+      const TX_FEE_SOL = 15_000 / 1e9; // ~0.000015 SOL
       const spendable = Math.max(
         0,
         parseFloat(payToken.balance) - ATA_RENT_SOL - TX_FEE_SOL,
@@ -2718,8 +2725,6 @@ export default function SwapTokenModal({
   const isSwapDone =
     swapStatus?.includes('confirmed') ||
     swapStatus?.includes('completed');
-
-  console.log('swapError', swapError);
   // ── Render ────────────────────────────────────────────────────────────────────
 
   // Helper to render the token list for the receive drawer

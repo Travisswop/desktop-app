@@ -48,7 +48,9 @@ function isNativeToken(address: string | null): boolean {
 }
 
 /**
- * Fetch chart data from backend CoinGecko API
+ * Fetch chart data from backend. Uses the unified chart-by-address endpoint
+ * for contract tokens so the backend can transparently fall back to Jupiter
+ * + GeckoTerminal when a Solana token isn't listed on CoinGecko.
  */
 async function fetchChartData(
   tokenAddress: string | null,
@@ -56,53 +58,40 @@ async function fetchChartData(
   period: string,
   accessToken: string
 ): Promise<ChartData> {
-  // Step 1: Determine token ID
-  let tokenId: string | null = null;
+  const days = periodToDays(period);
+  let prices: Array<{ timestamp: number; price: number }> = [];
 
-  // Check if it's a native token (no contract address)
   if (isNativeToken(tokenAddress)) {
-    // For native tokens, map directly to CoinGecko ID
-    const chainUpper = chain.toUpperCase();
-    tokenId = NATIVE_TOKEN_MAP[chainUpper];
-
+    const tokenId = NATIVE_TOKEN_MAP[chain.toUpperCase()];
     if (!tokenId) {
-      throw new Error(
-        `Native token mapping not found for chain: ${chain}`
-      );
+      throw new Error(`Native token mapping not found for chain: ${chain}`);
     }
+    const historical = await MarketService.getHistoricalPrices(
+      tokenId,
+      days,
+      accessToken
+    );
+    prices = historical.prices;
   } else {
-    // For contract tokens, resolve address to CoinGecko ID via backend
-
-    tokenId = await MarketService.resolveTokenAddress(
+    const result = await MarketService.getChartByAddress(
       tokenAddress || '',
       chain.toLowerCase(),
-      accessToken || '' // If accessToken is undefined, use an empty string
+      days,
+      accessToken || ''
     );
 
-    if (!tokenId) {
+    if (!result || !result.historical) {
       throw new Error(
-        `Could not resolve token address ${tokenAddress} on ${chain}`
+        `Could not load chart for ${tokenAddress} on ${chain}`
       );
     }
-
+    prices = result.historical.prices;
   }
 
-  // Step 2: Fetch historical data for the period
-  const days = periodToDays(period);
-  const historicalData = await MarketService.getHistoricalPrices(
-    tokenId,
-    days,
-    accessToken
-  );
-
-  // Step 3: Transform data to chart format
-  // Note: CoinGecko returns timestamps in milliseconds
-  const sparklineData: ChartDataPoint[] = historicalData.prices.map(
-    (pricePoint) => ({
-      timestamp: pricePoint.timestamp, // Keep in milliseconds for proper chart rendering
-      value: pricePoint.price,
-    })
-  );
+  const sparklineData: ChartDataPoint[] = prices.map((p) => ({
+    timestamp: p.timestamp,
+    value: p.price,
+  }));
 
   // Debug: Check for flat data (all same values)
   const uniqueValues = new Set(sparklineData.map((d) => d.value));

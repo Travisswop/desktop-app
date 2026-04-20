@@ -427,6 +427,51 @@ export class MarketService {
   }
 
   /**
+   * Get chart + market data by token address.
+   * Backend tries CoinGecko first and falls back to Jupiter + GeckoTerminal
+   * when a token isn't listed on CoinGecko. Returns null on 404 so callers
+   * can render an empty state instead of throwing.
+   */
+  static async getChartByAddress(
+    address: string,
+    chain: string,
+    days: number | 'max' = 7,
+    accessToken?: string
+  ): Promise<{
+    source: 'coingecko' | 'jupiter';
+    tokenId: string;
+    marketData: (MarketData & { price?: number }) | null;
+    historical: HistoricalData | null;
+  } | null> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+      const response = await fetch(`${MARKET_API_URL}/chart-by-address`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ address, chain, days }),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (response.status === 404) return null;
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch chart-by-address: ${response.status}`
+        );
+      }
+
+      const result = await response.json();
+      return result.data;
+    } catch (error) {
+      console.error('Error fetching chart by address:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Batch get prices for Solana tokens (convenience method)
    */
   static async getSolanaBatchPrices(
