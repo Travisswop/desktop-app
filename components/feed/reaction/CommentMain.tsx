@@ -33,7 +33,7 @@ const CommentMain = memo(
           className="flex items-center gap-1 text-sm font-medium w-12"
         >
           <FiMessageCircle size={20} color="black" />
-          <p>{latestCommentCount}</p>
+          <p>{Number(latestCommentCount) > 0 ? latestCommentCount : 0}</p>
         </button>
       </Tooltip>
     );
