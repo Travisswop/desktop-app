@@ -53,22 +53,24 @@ export default function Feed({
         const currentPage = reset ? 1 : pageRef.current;
 
         const url = `${API_URL}/api/v2/feed/user/connect/${userId}?page=${currentPage}&limit=10`;
-        console.log("fetch urls", url);
 
-        const response = await getUserFeed(url, accessToken);
-
-        const data = response?.data ?? [];
-        // const totalPages = response?.pagination?.totalPages ?? 1;
-
-        console.log("data fetch 1", data);
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${accessToken}`,
+          },
+          cache: "no-store",
+        });
+        const data = await response.json();
+        const feedItems = data?.data ?? [];
 
         if (reset) {
-          setFeedData(data);
+          setFeedData(feedItems);
           pageRef.current = 2;
           setHasMore(initialTotalPages > pageRef.current);
-          console.log("data fetch 2", data);
         } else {
-          setFeedData((prev: any[]) => [...prev, ...data]);
+          setFeedData((prev: any[]) => [...prev, ...feedItems]);
           pageRef.current += 1;
 
           // ✅ safer logic

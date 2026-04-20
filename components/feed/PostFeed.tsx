@@ -1,11 +1,6 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
-import { MdOutlineLocationOn } from "react-icons/md";
-import Emoji from "./Emoji";
-import GifPickerContent from "./GifPicker";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
-import ImageContent from "./ImageSelect";
-import { AiOutlineClose } from "react-icons/ai"; // Icon for close button
 import { postFeed } from "@/actions/postFeed";
 import { useUser } from "@/lib/UserContext";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
@@ -15,19 +10,12 @@ import isUrl from "@/lib/isUrl";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
-import { GrEmoji } from "react-icons/gr";
-import { HiOutlineGif } from "react-icons/hi2";
-import { motion } from "framer-motion";
-import { PiChartBarHorizontalBold } from "react-icons/pi";
 import CreatePoll from "./CreatePoll";
 import CustomModal from "../modal/CustomModal";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { Loader } from "lucide-react";
-import feedNft from "@/public/images/feed_nft.png";
-import feedAI from "@/public/images/feed_AI.png";
 import getSingleSmartsiteData from "@/actions/singleSmartsiteDataFetching";
 import { formatEns } from "@/lib/formatEnsName";
-import { CharacterCounter } from "./view/CharacterCountCircle";
 import MediaPreview from "./MediaPreview";
 
 const PostFeed = ({
@@ -44,14 +32,10 @@ const PostFeed = ({
   // setIsPostLoading: any;
 }) => {
   const { user }: any = useUser();
-  const pickerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { closeModal, triggerFeedRefetch } = useModalStore();
   const [postLoading, setPostLoading] = useState<boolean>(false);
   const [primaryMicrosite, setPrimaryMicrosite] = useState<string>("");
-
-  const [showGifPicker, setShowGifPicker] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const [showMintModal, setShowMintModal] = useState(false);
 
@@ -116,11 +100,6 @@ const PostFeed = ({
 
     setPrimaryMicrositeDetails(primaryMicrosite);
   }, [user]);
-
-  // Function to remove media item
-  const handleRemoveMedia = (index: number) => {
-    setMediaFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
-  };
 
   const handleFeedPosting = async () => {
     try {
