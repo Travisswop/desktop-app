@@ -23,6 +23,12 @@ interface DepositModalProps {
   masterAddress: string | null;
   /** Called when user needs to bridge funds to Arbitrum USDC — opens LiFi */
   onBridgeToArbitrum?: () => void;
+  /**
+   * Called immediately after the deposit transaction is submitted (tx hash
+   * received). Use this to start polling the Hyperliquid balance so the
+   * "Enable Trading" button unlocks automatically once funds settle.
+   */
+  onDepositSubmitted?: () => void;
 }
 
 const QUICK_AMOUNTS = ['10', '50', '100', '500'];
@@ -41,10 +47,17 @@ const QUICK_AMOUNTS = ['10', '50', '100', '500'];
  *  - Min deposit is $5 USDC
  *  - Funds arrive on Hyperliquid in ~2 minutes
  */
-export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitrum }: DepositModalProps) {
+export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitrum, onDepositSubmitted }: DepositModalProps) {
   const [amount, setAmount] = useState('');
   const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
+
+  // On testnet the user has two deposit paths: (1) bridge real USDC from
+  // Arbitrum Sepolia → HL testnet, (2) one-shot testnet faucet claim.
+  // Bridge is the default because the user must have a real deposit before
+  // approveAgent is legal; the faucet is a convenience top-up.
+  // The faucet tab is removed entirely once the address has claimed once.
+  const [testnetMethod, setTestnetMethod] = useState<'bridge' | 'faucet'>('bridge');
 
   const {
     deposit,
@@ -57,16 +70,29 @@ export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitru
     minDeposit,
   } = useHyperliquidDeposit();
 
-  const faucet = useHyperliquidFaucet();
+  const faucet = useHyperliquidFaucet(masterAddress);
+  const showFaucetTab = HL_IS_TESTNET && !faucet.alreadyClaimed;
+
+  // If the user lands on the faucet tab but then exhausts their claim, snap
+  // them back to the bridge tab so we never render an orphan faucet view.
+  useEffect(() => {
+    if (testnetMethod === 'faucet' && HL_IS_TESTNET && faucet.alreadyClaimed) {
+      setTestnetMethod('bridge');
+    }
+  }, [testnetMethod, faucet.alreadyClaimed]);
 
   // Fetch live HL balance for the testnet faucet view
   const { data: accountData, isLoading: accountLoading, refetch: refetchAccount } =
     useHyperliquidPositions(HL_IS_TESTNET ? masterAddress : null);
 
-  // Refresh the balance immediately after a successful faucet claim
+  // Refresh the balance immediately after a successful faucet claim,
+  // and notify the parent so it can start polling for agent-approval readiness.
   useEffect(() => {
-    if (faucet.success) refetchAccount();
-  }, [faucet.success, refetchAccount]);
+    if (faucet.success) {
+      refetchAccount();
+      onDepositSubmitted?.();
+    }
+  }, [faucet.success, refetchAccount, onDepositSubmitted]);
 
   // Fetch USDC balance on open
   useEffect(() => {
@@ -81,12 +107,21 @@ export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitru
     reset();
     faucet.reset();
     setAmount('');
+    setTestnetMethod('bridge');
     onClose();
   }, [reset, faucet, onClose]);
 
   const handleDeposit = useCallback(async () => {
-    await deposit(amount).catch(() => {});
-  }, [deposit, amount]);
+    try {
+      const hash = await deposit(amount);
+      if (hash) {
+        // Notify the parent so it can start polling the HL balance.
+        onDepositSubmitted?.();
+      }
+    } catch {
+      // error state is managed by useHyperliquidDeposit
+    }
+  }, [deposit, amount, onDepositSubmitted]);
 
   const amountNum = parseFloat(amount) || 0;
   const balanceNum = parseFloat(usdcBalance ?? '0');
@@ -107,7 +142,7 @@ export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitru
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
 
         {/* ── Header ──────────────────────────────────────────────── */}
-        {HL_IS_TESTNET ? (
+        {showFaucetTab && testnetMethod === 'faucet' ? (
           <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-6 py-5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -127,14 +162,46 @@ export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitru
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white">Deposit to Hyperliquid</h2>
-                <p className="text-blue-100 text-sm">USDC on Arbitrum → Hyperliquid</p>
+                <p className="text-blue-100 text-sm">
+                  {HL_IS_TESTNET ? 'USDC on Arbitrum Sepolia → HL Testnet' : 'USDC on Arbitrum → Hyperliquid'}
+                </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── Testnet: Faucet View ─────────────────────────────────── */}
-        {HL_IS_TESTNET ? (
+        {/* ── Testnet tab switcher: Bridge + Faucet ─────────────────── */}
+        {showFaucetTab && (
+          <div className="px-6 pt-4">
+            <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+              <button
+                onClick={() => setTestnetMethod('bridge')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 ${
+                  testnetMethod === 'bridge'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <ArrowDownToLine className="w-3.5 h-3.5" />
+                Deposit USDC
+              </button>
+              <button
+                onClick={() => setTestnetMethod('faucet')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 ${
+                  testnetMethod === 'faucet'
+                    ? 'bg-white text-violet-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Droplets className="w-3.5 h-3.5" />
+                Testnet Faucet
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Testnet: Faucet View (only when faucet tab active) ──── */}
+        {showFaucetTab && testnetMethod === 'faucet' ? (
           <FaucetView
             masterAddress={masterAddress}
             isClaiming={faucet.isClaiming}

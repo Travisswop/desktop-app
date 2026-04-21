@@ -10,6 +10,7 @@ import { useHyperliquidMarkets, useMarketByCoins } from './hooks/useHyperliquidM
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
 import { useHyperliquidTrading } from './hooks/useHyperliquidTrading';
 import { useAllMids, useOrderBook, useUserFills } from './hooks/useHyperliquidWebSocket';
+import type { DepositCheckStatus } from './hooks/useHyperliquidBalanceCheck';
 
 // Components
 import { AgentSetupModal } from './AgentSetupModal';
@@ -33,6 +34,10 @@ interface PerpsPanelProps {
   initializeAgent: () => Promise<hl.ExchangeClient | null>;
   onClose: () => void;
   onOpenDeposit: () => void;
+  /** Current HL balance check status — passed from WalletContent */
+  depositStatus: DepositCheckStatus;
+  /** Re-run a single balance check (e.g. user clicks "check again") */
+  onRecheckBalance: () => void;
 }
 
 type PanelView = 'trading' | 'markets';
@@ -64,11 +69,29 @@ export function PerpsPanel({
   initializeAgent,
   onClose,
   onOpenDeposit,
+  depositStatus,
+  onRecheckBalance,
 }: PerpsPanelProps) {
   const { toast } = useToast();
 
   // ── Agent setup state ──────────────────────────────────────────────
   const [showAgentModal, setShowAgentModal] = useState(false);
+
+  // When the user opens DepositModal from inside AgentSetupModal, close the
+  // agent modal. WalletContent will start polling via onOpenDeposit → startDepositPolling.
+  const handleOpenDepositFromAgentModal = useCallback(() => {
+    setShowAgentModal(false);
+    onOpenDeposit();
+  }, [onOpenDeposit]);
+
+  // Re-open AgentSetupModal after polling confirms the deposit settled.
+  // depositStatus is owned by WalletContent and transitions to 'ready' once
+  // the Hyperliquid bridge settles the deposit.
+  useEffect(() => {
+    if (depositStatus === 'ready' && !isInitialized) {
+      setShowAgentModal(true);
+    }
+  }, [depositStatus, isInitialized]);
 
   // ── Market selection ───────────────────────────────────────────────
   const [selectedCoin, setSelectedCoin] = useState<string | null>('BTC');
@@ -347,6 +370,9 @@ export function PerpsPanel({
         onConfirm={handleInitAgent}
         isInitializing={isInitializing}
         error={agentError}
+        depositStatus={depositStatus}
+        onOpenDeposit={handleOpenDepositFromAgentModal}
+        onRecheckBalance={onRecheckBalance}
       />
     </>
   );

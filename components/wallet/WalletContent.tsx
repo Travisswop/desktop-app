@@ -74,6 +74,7 @@ import { AssetsTab } from './tabs';
 
 // Perps
 import { PerpsCard, PerpsPanel, DepositModal, useHyperliquidAgent } from './perps';
+import { useHyperliquidBalanceCheck } from './perps/hooks/useHyperliquidBalanceCheck';
 import SwapTokenModal from './SwapTokenModal';
 
 // Utilities
@@ -189,6 +190,15 @@ const WalletContentInner = () => {
   // Hyperliquid agent — lives here so the ExchangeClient persists across
   // PerpsPanel open/close cycles and never triggers repeated sign messages.
   const hlAgent = useHyperliquidAgent();
+
+  // Balance check — shared between PerpsPanel (gates approveAgent) and
+  // DepositModal (starts polling after a deposit tx is submitted).
+  const {
+    status: hlDepositStatus,
+    check: hlRecheckBalance,
+    startPolling: hlStartDepositPolling,
+  } = useHyperliquidBalanceCheck(hlAgent.masterAddress);
+
   const [arbitrumBridgeOpen, setArbitrumBridgeOpen] = useState(false);
 
   // Ref to track wallet creation attempts
@@ -911,7 +921,14 @@ const WalletContentInner = () => {
             agentError={hlAgent.error}
             initializeAgent={hlAgent.initializeAgent}
             onClose={() => setPerpsPanelOpen(false)}
-            onOpenDeposit={() => setPerpsDepositOpen(true)}
+            onOpenDeposit={() => {
+              setPerpsDepositOpen(true);
+              // Begin polling so PerpsPanel re-enables "Enable Trading"
+              // automatically once the bridge settles.
+              hlStartDepositPolling();
+            }}
+            depositStatus={hlDepositStatus}
+            onRecheckBalance={hlRecheckBalance}
           />
         )}
 
@@ -924,6 +941,7 @@ const WalletContentInner = () => {
             setPerpsDepositOpen(false);
             setArbitrumBridgeOpen(true);
           }}
+          onDepositSubmitted={hlStartDepositPolling}
         />
 
         {/* Arbitrum Bridge Modal — uses existing SwapTokenModal pre-set to Arbitrum USDC */}

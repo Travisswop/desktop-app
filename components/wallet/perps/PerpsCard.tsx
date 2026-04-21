@@ -2,6 +2,7 @@
 
 import { Zap, TrendingUp, TrendingDown, AlertTriangle, ArrowDownToLine, Loader2 } from 'lucide-react';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
+import { useHyperliquidDualBalance } from './hooks/useHyperliquidDualBalance';
 import { useAllMids } from './hooks/useHyperliquidWebSocket';
 import { formatPrice, formatPnl, getLiquidationRisk } from '@/services/hyperliquid/types';
 
@@ -27,6 +28,10 @@ interface PerpsCardProps {
 export function PerpsCard({ masterAddress, isReconnecting = false, onOpenTrading, onOpenDeposit }: PerpsCardProps) {
   const { data, isLoading } = useHyperliquidPositions(masterAddress ?? null);
   const { mids } = useAllMids(!!masterAddress);
+
+  // Fetch mainnet + testnet balances in parallel so the user can see both
+  // under the main Perps Balance regardless of the active environment.
+  const { data: dualBalance } = useHyperliquidDualBalance(masterAddress);
 
   const accountValue = parseFloat(data?.accountValue ?? '0');
   const unrealizedPnl = parseFloat(data?.unrealizedPnl ?? '0');
@@ -88,7 +93,7 @@ export function PerpsCard({ masterAddress, isReconnecting = false, onOpenTrading
       ) : (
         <>
           {/* Account Value + PnL */}
-          <div className="mb-4">
+          <div className="mb-3">
             <p className="text-3xl font-bold text-gray-900">
               ${accountValue.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
@@ -110,6 +115,12 @@ export function PerpsCard({ masterAddress, isReconnecting = false, onOpenTrading
               )}
             </div>
           </div>
+
+          {/* Dual-network balance breakdown */}
+          <NetworkBalanceBar
+            mainnet={parseFloat(dualBalance?.mainnet.accountValue ?? '0')}
+            testnet={parseFloat(dualBalance?.testnet.accountValue ?? '0')}
+          />
 
           {/* Positions list */}
           {hasPositions ? (
@@ -202,6 +213,47 @@ export function PerpsCard({ masterAddress, isReconnecting = false, onOpenTrading
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+function NetworkBalanceBar({
+  mainnet,
+  testnet,
+}: {
+  mainnet: number;
+  testnet: number;
+}) {
+  const fmt = (n: number) =>
+    n.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  return (
+    <div className="flex items-stretch gap-2 mb-4">
+      <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+          <span className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">
+            Mainnet
+          </span>
+        </div>
+        <p className="text-sm font-bold text-gray-800 tabular-nums mt-0.5">
+          ${fmt(mainnet)}
+        </p>
+      </div>
+      <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 bg-violet-500 rounded-full" />
+          <span className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">
+            Testnet
+          </span>
+        </div>
+        <p className="text-sm font-bold text-gray-800 tabular-nums mt-0.5">
+          ${fmt(testnet)}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function LoadingSkeleton({ reconnecting = false }: { reconnecting?: boolean }) {
   return (
