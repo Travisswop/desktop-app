@@ -1,7 +1,7 @@
 import { getFeedDetails } from "@/actions/postFeed";
 import FeedDetailsClient from "@/components/feed/FeedDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
-import { Metadata } from "next";
+import { Metadata, ResolvingMetadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import React, { Suspense } from "react";
@@ -11,11 +11,10 @@ type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}): Promise<Metadata> {
+export async function generateMetadata(
+  { params, searchParams }: Props,
+  parent: ResolvingMetadata,
+): Promise<Metadata> {
   const { id } = await params;
   const cookieStore = await cookies();
   const userId = cookieStore.get("user-id")?.value;
@@ -25,7 +24,14 @@ export async function generateMetadata({
     : `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}`;
 
   try {
-    const responseData = await getFeedDetails(url);
+    // const responseData = await getFeedDetails(url);
+    const response = await fetch(`${url}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    const responseData = await response.json();
     let feed = responseData?.data;
 
     if (!feed) {
