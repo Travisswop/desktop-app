@@ -12,6 +12,8 @@ export { FundingRateBar } from './FundingRateBar';
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 export { useHyperliquidAgent } from './hooks/useHyperliquidAgent';
+export { useHyperliquidBalanceCheck } from './hooks/useHyperliquidBalanceCheck';
+export type { DepositCheckStatus } from './hooks/useHyperliquidBalanceCheck';
 export { useHyperliquidDeposit } from './hooks/useHyperliquidDeposit';
 export { useHyperliquidFaucet } from './hooks/useHyperliquidFaucet';
 export { useHyperliquidMarkets, useMarketContext, useMarketByCoins } from './hooks/useHyperliquidMarkets';

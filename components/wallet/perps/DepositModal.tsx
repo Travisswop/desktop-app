@@ -23,6 +23,12 @@ interface DepositModalProps {
   masterAddress: string | null;
   /** Called when user needs to bridge funds to Arbitrum USDC — opens LiFi */
   onBridgeToArbitrum?: () => void;
+  /**
+   * Called immediately after the deposit transaction is submitted (tx hash
+   * received). Use this to start polling the Hyperliquid balance so the
+   * "Enable Trading" button unlocks automatically once funds settle.
+   */
+  onDepositSubmitted?: () => void;
 }
 
 const QUICK_AMOUNTS = ['10', '50', '100', '500'];
@@ -41,7 +47,7 @@ const QUICK_AMOUNTS = ['10', '50', '100', '500'];
  *  - Min deposit is $5 USDC
  *  - Funds arrive on Hyperliquid in ~2 minutes
  */
-export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitrum }: DepositModalProps) {
+export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitrum, onDepositSubmitted }: DepositModalProps) {
   const [amount, setAmount] = useState('');
   const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
@@ -63,10 +69,14 @@ export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitru
   const { data: accountData, isLoading: accountLoading, refetch: refetchAccount } =
     useHyperliquidPositions(HL_IS_TESTNET ? masterAddress : null);
 
-  // Refresh the balance immediately after a successful faucet claim
+  // Refresh the balance immediately after a successful faucet claim,
+  // and notify the parent so it can start polling for agent-approval readiness.
   useEffect(() => {
-    if (faucet.success) refetchAccount();
-  }, [faucet.success, refetchAccount]);
+    if (faucet.success) {
+      refetchAccount();
+      onDepositSubmitted?.();
+    }
+  }, [faucet.success, refetchAccount, onDepositSubmitted]);
 
   // Fetch USDC balance on open
   useEffect(() => {
@@ -85,8 +95,16 @@ export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitru
   }, [reset, faucet, onClose]);
 
   const handleDeposit = useCallback(async () => {
-    await deposit(amount).catch(() => {});
-  }, [deposit, amount]);
+    try {
+      const hash = await deposit(amount);
+      if (hash) {
+        // Notify the parent so it can start polling the HL balance.
+        onDepositSubmitted?.();
+      }
+    } catch {
+      // error state is managed by useHyperliquidDeposit
+    }
+  }, [deposit, amount, onDepositSubmitted]);
 
   const amountNum = parseFloat(amount) || 0;
   const balanceNum = parseFloat(usdcBalance ?? '0');
