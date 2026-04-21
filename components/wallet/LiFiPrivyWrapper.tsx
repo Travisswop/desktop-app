@@ -26,14 +26,6 @@ export default function LiFiPrivyWrapper({
   useEffect(() => {
     if (ready && authenticated) {
       setIsReady(true);
-
-      // Log wallet status
-      console.log('LiFiPrivyWrapper ready with wallets:', {
-        ethWallets: wallets.length,
-        solWallets: solWallets?.length || 0,
-        authenticated,
-        ready,
-      });
     }
   }, [ready, authenticated, wallets, solWallets]);
 

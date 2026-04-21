@@ -3,9 +3,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { X, Zap, ArrowDownToLine } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import type * as hl from '@nktkas/hyperliquid';
 
 // Hooks
-import { useHyperliquidAgent } from './hooks/useHyperliquidAgent';
 import { useHyperliquidMarkets, useMarketByCoins } from './hooks/useHyperliquidMarkets';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
 import { useHyperliquidTrading } from './hooks/useHyperliquidTrading';
@@ -22,8 +22,15 @@ import { PositionsList } from './PositionsList';
 import type { HLMarket, HLPosition } from '@/services/hyperliquid/types';
 
 interface PerpsPanelProps {
-  /** The user's external wallet address = Hyperliquid master account */
-  masterAddress: string | undefined;
+  // Agent state lifted from WalletContent so the ExchangeClient persists
+  // across PerpsPanel open/close cycles (avoids repeated sign prompts).
+  agentClient: hl.ExchangeClient | null;
+  masterAddress: string | null;
+  isInitialized: boolean;
+  isInitializing: boolean;
+  isReconnecting: boolean;
+  agentError: string | null;
+  initializeAgent: () => Promise<hl.ExchangeClient | null>;
   onClose: () => void;
   onOpenDeposit: () => void;
 }
@@ -47,20 +54,21 @@ type PanelView = 'trading' | 'markets';
  *  │          Open Positions / Orders         │
  *  └──────────────────────────────────────────┘
  */
-export function PerpsPanel({ masterAddress, onClose, onOpenDeposit }: PerpsPanelProps) {
+export function PerpsPanel({
+  agentClient,
+  masterAddress,
+  isInitialized,
+  isInitializing,
+  isReconnecting,
+  agentError,
+  initializeAgent,
+  onClose,
+  onOpenDeposit,
+}: PerpsPanelProps) {
   const { toast } = useToast();
 
   // ── Agent setup state ──────────────────────────────────────────────
   const [showAgentModal, setShowAgentModal] = useState(false);
-
-  const {
-    agentClient,
-    masterAddress: agentMaster,
-    isInitialized,
-    isInitializing,
-    error: agentError,
-    initializeAgent,
-  } = useHyperliquidAgent();
 
   // ── Market selection ───────────────────────────────────────────────
   const [selectedCoin, setSelectedCoin] = useState<string | null>('BTC');
@@ -70,7 +78,7 @@ export function PerpsPanel({ masterAddress, onClose, onOpenDeposit }: PerpsPanel
   // ── Data fetching ──────────────────────────────────────────────────
   const { data: markets = [], isLoading: marketsLoading } = useHyperliquidMarkets();
 
-  const effectiveMaster = agentMaster ?? masterAddress ?? null;
+  const effectiveMaster = masterAddress;
 
   const {
     data: accountData,
@@ -98,6 +106,7 @@ export function PerpsPanel({ masterAddress, onClose, onOpenDeposit }: PerpsPanel
     placeTpSlOrder,
     updateLeverage,
     closePosition,
+    cancelOrder,
     isSubmitting,
     error: tradeError,
     clearError,
@@ -153,6 +162,25 @@ export function PerpsPanel({ masterAddress, onClose, onOpenDeposit }: PerpsPanel
     [closePosition, markets, mids, liveMarkPrice, toast, refetchPositions],
   );
 
+  // ── Handle cancel order ────────────────────────────────────────────
+  const handleCancelOrder = useCallback(
+    async (coin: string, orderId: number) => {
+      try {
+        const assetIndex = markets.find((m) => m.coin === coin)?.index ?? 0;
+        await cancelOrder(assetIndex, orderId);
+        toast({ title: 'Order cancelled', description: `${coin} order cancelled` });
+        refetchPositions();
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: 'Cancel failed',
+          description: err instanceof Error ? err.message : 'Failed to cancel order',
+        });
+      }
+    },
+    [cancelOrder, markets, toast, refetchPositions],
+  );
+
   // ── Agent init ─────────────────────────────────────────────────────
   const handleInitAgent = useCallback(async () => {
     try {
@@ -167,12 +195,12 @@ export function PerpsPanel({ masterAddress, onClose, onOpenDeposit }: PerpsPanel
     }
   }, [initializeAgent, toast]);
 
-  // Show agent modal if no external wallet address passed
+  // Show agent modal on first open if not yet initialized
   useEffect(() => {
-    if (!masterAddress && !isInitialized) {
+    if (!isInitialized) {
       setShowAgentModal(true);
     }
-  }, [masterAddress, isInitialized]);
+  }, [isInitialized]);
 
   // ── Notify on trade error ──────────────────────────────────────────
   useEffect(() => {
@@ -217,10 +245,15 @@ export function PerpsPanel({ masterAddress, onClose, onOpenDeposit }: PerpsPanel
             </button>
 
             {/* Agent status */}
-            {isInitialized ? (
+            {isReconnecting ? (
+              <span className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full font-medium">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
+                Reconnecting…
+              </span>
+            ) : isInitialized ? (
               <span className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full font-medium">
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                Agent Active
+                Active
               </span>
             ) : (
               <button
@@ -301,6 +334,7 @@ export function PerpsPanel({ masterAddress, onClose, onOpenDeposit }: PerpsPanel
             isLoading={positionsLoading}
             closingCoin={closingCoin}
             onClosePosition={handleClosePosition}
+            onCancelOrder={handleCancelOrder}
             onRefresh={refetchPositions}
           />
         </div>
@@ -311,7 +345,6 @@ export function PerpsPanel({ masterAddress, onClose, onOpenDeposit }: PerpsPanel
         isOpen={showAgentModal}
         onClose={() => setShowAgentModal(false)}
         onConfirm={handleInitAgent}
-        masterAddress={masterAddress ?? null}
         isInitializing={isInitializing}
         error={agentError}
       />

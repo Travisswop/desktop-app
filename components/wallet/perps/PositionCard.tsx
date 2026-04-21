@@ -174,14 +174,18 @@ export function PositionCard({
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs pt-2">
             <Stat label="Position Value" value={`$${parseFloat(position.positionValue ?? '0').toFixed(2)}`} />
             <Stat label="Margin Used" value={`$${parseFloat(position.marginUsed).toFixed(2)}`} />
-            <Stat label="Liq. Price" value={liqPx ? `$${formatPrice(position.liquidationPx!)}` : 'N/A'} color={colors.text} />
+            <Stat
+              label="Liq. Price"
+              value={liqPriceSummary(position)}
+              color={colors.text}
+            />
             <Stat label="Leverage Mode" value={position.leverage.type === 'cross' ? 'Cross' : 'Isolated'} />
             <Stat
               label="Funding (since open)"
               value={`$${parseFloat(position.cumFunding?.sinceOpen ?? '0').toFixed(4)}`}
               color={parseFloat(position.cumFunding?.sinceOpen ?? '0') >= 0 ? 'text-emerald-600' : 'text-red-500'}
             />
-            <Stat label="Max Trade Size" value={`${position.maxTradeSzs?.[0] ?? '—'} ${position.coin}`} />
+            <Stat label="Entry Price" value={`$${formatPrice(position.entryPx)}`} />
           </div>
 
           {/* Close position */}
@@ -240,6 +244,32 @@ function Stat({
       <p className={`font-semibold ${color}`}>{value}</p>
     </div>
   );
+}
+
+/**
+ * Returns a human-readable liquidation price string.
+ *
+ * Cross margin positions can produce astronomically high liq prices for shorts
+ * (e.g. $5,000,000 for a tiny BTC short) because the whole account backs the
+ * position. In those cases we show "Very Safe (cross)" to avoid confusion.
+ *
+ * Threshold: if liq price is > 20× entry (short) or < 5% of entry (long),
+ * treat it as effectively unreachable.
+ */
+function liqPriceSummary(position: HLPosition): string {
+  if (!position.liquidationPx) return 'N/A';
+  const liqPx = parseFloat(position.liquidationPx);
+  const entryPx = parseFloat(position.entryPx);
+  const isLong = parseFloat(position.szi) > 0;
+
+  const isEffectivelySafe = isLong
+    ? liqPx < entryPx * 0.05           // long: liq more than 95% below entry
+    : liqPx > entryPx * 20;            // short: liq more than 20× above entry
+
+  if (isEffectivelySafe) {
+    return position.leverage.type === 'cross' ? 'Very Safe (cross)' : 'Very Safe';
+  }
+  return `$${formatPrice(position.liquidationPx)}`;
 }
 
 /**

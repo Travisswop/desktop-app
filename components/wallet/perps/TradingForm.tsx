@@ -73,6 +73,22 @@ export function TradingForm({
     return (sizeUsd / markNum).toFixed(market?.szDecimals ?? 4);
   }, [size, markNum, market?.szDecimals]);
 
+  // Minimum order notional in USD — derived from the market's step size.
+  // HL requires each order >= $10. With BTC step=0.0001 at $75k,
+  // the smallest valid size is 0.0002 BTC ≈ $15. We compute and display
+  // this so the user knows before they hit the API.
+  const minOrderUsd = useMemo(() => {
+    if (!markNum || !market) return 10;
+    const szDecimals = market.szDecimals ?? 4;
+    const step = Math.pow(10, -szDecimals);
+    // Smallest number of steps whose notional >= $10
+    const minSteps = Math.ceil(10 / (markNum * step));
+    return minSteps * step * markNum;
+  }, [markNum, market]);
+
+  const sizeUsdNum = parseFloat(size) || 0;
+  const isBelowMinimum = sizeUsdNum > 0 && sizeUsdNum < minOrderUsd;
+
   const setPercent = useCallback(
     (pct: number) => {
       const usd = (accountNum * pct * leverage) / 100;
@@ -143,9 +159,14 @@ export function TradingForm({
 
   // ─── Leverage change ───────────────────────────────────────────────
 
-  const handleLeverageChange = useCallback(
+  // onChange: update local display only — no API call (avoids signing on every tick)
+  const handleLeverageChange = useCallback((newLev: number) => {
+    setLeverage(newLev);
+  }, []);
+
+  // onMouseUp / onTouchEnd: send to HL only once when slider is released
+  const handleLeverageCommit = useCallback(
     async (newLev: number) => {
-      setLeverage(newLev);
       if (market && isAgentReady) {
         await onUpdateLeverage(market.index, newLev, isCross).catch(() => {});
       }
@@ -161,7 +182,7 @@ export function TradingForm({
     );
   }
 
-  const submitDisabled = !isAgentReady || isSubmitting || !size || parseFloat(size) <= 0;
+  const submitDisabled = !isAgentReady || isSubmitting || !size || parseFloat(size) <= 0 || isBelowMinimum;
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-3 space-y-3">
@@ -246,6 +267,12 @@ export function TradingForm({
             ≈ {sizeInCoins} {market.coin}
           </p>
         )}
+        {isBelowMinimum && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+            Min order: ${minOrderUsd.toFixed(2)} ({(minOrderUsd / markNum).toFixed(market?.szDecimals ?? 4)} {market.coin} at current price)
+          </div>
+        )}
       </div>
 
       {/* ── Leverage ─────────────────────────────────────────────────── */}
@@ -273,6 +300,8 @@ export function TradingForm({
           step={1}
           value={leverage}
           onChange={(e) => handleLeverageChange(parseInt(e.target.value))}
+          onMouseUp={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
+          onTouchEnd={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
           className="w-full h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer accent-emerald-500"
         />
         <div className="flex justify-between text-xs text-gray-400">

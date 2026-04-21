@@ -1,22 +1,54 @@
 'use client';
 
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { usePrivy, useWallets, toViemAccount } from '@privy-io/react-auth';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import * as hl from '@nktkas/hyperliquid';
+import { HL_IS_TESTNET } from '@/services/hyperliquid/config';
+
+// ─── Agent key persistence ──────────────────────────────────────────────────
+//
+// We store a per-master-address agent private key in localStorage so the
+// one-time approveAgent signature is never needed again after the initial setup.
+
+function agentStorageKey(masterAddress: string) {
+  return `hl_agent_pk_${masterAddress.toLowerCase()}`;
+}
+
+function loadAgentKey(masterAddress: string): `0x${string}` | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(agentStorageKey(masterAddress)) as `0x${string}` | null;
+}
+
+function saveAgentKey(masterAddress: string, pk: `0x${string}`) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(agentStorageKey(masterAddress), pk);
+}
+
+function deleteAgentKey(masterAddress: string) {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(agentStorageKey(masterAddress));
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface AgentState {
-  /** The agent ExchangeClient — used for all order actions (L1 actions) */
+  /**
+   * ExchangeClient backed by the ephemeral agent keypair.
+   * Signs all trading L1 actions silently — no wallet popup.
+   */
   agentClient: hl.ExchangeClient | null;
-  /** The master ExchangeClient — used ONLY for approveAgent + withdrawals */
+  /**
+   * ExchangeClient backed by the Privy embedded wallet.
+   * Used only for account-level operations (withdraw, transfer).
+   */
   masterClient: hl.ExchangeClient | null;
-  /** The external (MetaMask / WalletConnect) wallet address = HL master account */
+  /** Privy embedded wallet address = Hyperliquid account address */
   masterAddress: string | null;
-  /** The Privy embedded wallet address = HL agent wallet */
-  agentAddress: string | null;
   isInitialized: boolean;
   isInitializing: boolean;
+  /** True while auto-reconnect is in progress after a brief disconnect */
+  isReconnecting: boolean;
   error: string | null;
 }
 
@@ -25,142 +57,199 @@ export interface AgentState {
 /**
  * useHyperliquidAgent
  *
- * Manages the two-wallet architecture required for Hyperliquid:
- *  - External wallet (MetaMask etc.) → Hyperliquid MASTER account
- *  - Privy embedded wallet           → Hyperliquid AGENT wallet
+ * Two-wallet architecture — eliminates the repeated "Sign message" popup:
  *
- * After `initializeAgent()` is called once, all trades go through the
- * agent client with no wallet popups. Only `approveAgent` + withdrawals
- * require the master wallet (which triggers ONE external wallet popup).
+ *  ┌──────────────────────────────────────────────────────────────────────┐
+ *  │  Master  = Privy embedded wallet                                     │
+ *  │            Signs approveAgent exactly ONCE (shown in setup modal).   │
+ *  │            The HL account address is this wallet's address.          │
+ *  │                                                                      │
+ *  │  Agent   = Ephemeral local keypair (private key in localStorage)     │
+ *  │            Signs every order / cancel / leverage update silently.    │
+ *  │            No Privy UI ever triggered for trading actions.           │
+ *  └──────────────────────────────────────────────────────────────────────┘
  *
- * Reference: https://docs.privy.io/recipes/hyperliquid/client-side-usage
+ * Reconnect behaviour:
+ *  - If the Privy wallet disappears (session refresh), the clients are reset.
+ *  - When it returns, the stored agent key is reused — no re-approval needed.
  */
 export function useHyperliquidAgent() {
-  const { user, ready } = usePrivy();
+  const { ready, authenticated } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
 
   const [state, setState] = useState<AgentState>({
     agentClient: null,
     masterClient: null,
     masterAddress: null,
-    agentAddress: null,
     isInitialized: false,
     isInitializing: false,
+    isReconnecting: false,
     error: null,
   });
 
-  // Persist clients across renders without triggering re-init
   const agentClientRef = useRef<hl.ExchangeClient | null>(null);
   const masterClientRef = useRef<hl.ExchangeClient | null>(null);
+  const wasInitializedRef = useRef(false);
 
-  // ─── Initialize (call once per session) ──────────────────────────────
+  // ─── Core init logic ───────────────────────────────────────────────────────
 
-  const initializeAgent = useCallback(async () => {
-    if (!ready || !walletsReady) return null;
-    if (agentClientRef.current) return agentClientRef.current; // already done
+  const _init = useCallback(
+    async (silent = false): Promise<hl.ExchangeClient | null> => {
+      if (!ready || !walletsReady) return null;
+      if (agentClientRef.current) return agentClientRef.current;
 
-    setState((prev) => ({ ...prev, isInitializing: true, error: null }));
-
-    try {
-      // 1. External wallet → Hyperliquid MASTER account
-      //    This is the wallet the user actually connected (MetaMask / WalletConnect)
-      const externalWallet = wallets.find(
-        (w) =>
-          w.walletClientType !== 'privy' &&
-          w.address === user?.wallet?.address,
-      );
-
-      if (!externalWallet) {
-        throw new Error(
-          'No external wallet detected. Please connect MetaMask or WalletConnect first.',
-        );
-      }
-
-      // 2. Privy embedded wallet → Hyperliquid AGENT wallet
-      //    This signs all orders silently (no popups per trade)
-      const embeddedWallet = wallets.find(
-        (w) => w.walletClientType === 'privy',
-      );
-
-      if (!embeddedWallet) {
-        throw new Error(
-          'Privy embedded wallet not found. Please refresh and try again.',
-        );
-      }
-
-      // 3. Convert both wallets to viem accounts
-      //    toViemAccount() wraps Privy's signing — no raw key access
-      const [externalViemAccount, embeddedViemAccount] = await Promise.all([
-        toViemAccount({ wallet: externalWallet }),
-        toViemAccount({ wallet: embeddedWallet }),
-      ]);
-
-      const transport = new hl.HttpTransport({
-        // Remove isTestnet for mainnet
-        // isTestnet: true,
-      });
-
-      // 4. Master client — signs agent approval (one-time) + withdrawals only
-      const masterClient = new hl.ExchangeClient({
-        wallet: externalViemAccount,
-        transport,
-      });
-
-      // 5. Approve the Privy embedded wallet as an agent on Hyperliquid
-      //    This triggers ONE MetaMask popup. Never again after this.
-      await masterClient.approveAgent({
-        agentAddress: embeddedWallet.address as `0x${string}`,
-        agentName: 'Swop Wallet Agent',
-      });
-
-      // 6. Agent client — signs all L1 actions silently via Privy embedded wallet
-      const agentClient = new hl.ExchangeClient({
-        wallet: embeddedViemAccount,
-        transport,
-      });
-
-      agentClientRef.current = agentClient;
-      masterClientRef.current = masterClient;
-
-      const nextState: AgentState = {
-        agentClient,
-        masterClient,
-        masterAddress: externalWallet.address,
-        agentAddress: embeddedWallet.address,
-        isInitialized: true,
-        isInitializing: false,
+      setState((prev) => ({
+        ...prev,
+        isInitializing: !silent,
+        isReconnecting: silent,
         error: null,
-      };
+      }));
 
-      setState(nextState);
-      return agentClient;
-    } catch (err) {
-      const error =
-        err instanceof Error ? err.message : 'Agent initialization failed';
-      setState((prev) => ({ ...prev, isInitializing: false, error }));
-      throw err;
+      try {
+        const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+        if (!embeddedWallet) {
+          throw new Error('Privy embedded wallet not found. Please refresh and try again.');
+        }
+
+        const masterAddress = embeddedWallet.address;
+        const transport = new hl.HttpTransport({ isTestnet: HL_IS_TESTNET });
+
+        // ── Agent keypair ─────────────────────────────────────────────────
+        // Load existing key or generate a new one.
+        // A new key always requires a fresh approveAgent signature.
+        let agentPk = loadAgentKey(masterAddress);
+        const isNewKey = !agentPk;
+
+        if (isNewKey) {
+          agentPk = generatePrivateKey();
+          saveAgentKey(masterAddress, agentPk);
+        }
+
+        const agentAccount = privateKeyToAccount(agentPk!);
+
+        // ── Master client (Privy wallet) ───────────────────────────────────
+        // Only used for approveAgent. All trading goes through agentClient.
+        const masterViemAccount = await toViemAccount({ wallet: embeddedWallet });
+        const masterClient = new hl.ExchangeClient({ wallet: masterViemAccount, transport });
+
+        // ── Approve agent ─────────────────────────────────────────────────
+        // Called when:
+        //  - Key is brand new (first-ever setup, or key was cleared)
+        //  - Manual init (!silent) — user clicked "Enable Trading" in modal
+        // Skipped on silent reconnect with an existing key — no popup.
+        if (isNewKey || !silent) {
+          await masterClient.approveAgent({
+            hyperliquidChain: HL_IS_TESTNET ? 'Testnet' : 'Mainnet',
+            agentAddress: agentAccount.address,
+            agentName: 'Swop',
+            nonce: BigInt(Date.now()),
+          });
+        }
+
+        // ── Agent client (local keypair — silent signing) ─────────────────
+        const agentClient = new hl.ExchangeClient({ wallet: agentAccount, transport });
+
+        agentClientRef.current = agentClient;
+        masterClientRef.current = masterClient;
+        wasInitializedRef.current = true;
+
+        setState({
+          agentClient,
+          masterClient,
+          masterAddress,
+          isInitialized: true,
+          isInitializing: false,
+          isReconnecting: false,
+          error: null,
+        });
+
+        return agentClient;
+      } catch (err) {
+        const error = err instanceof Error ? err.message : 'Setup failed';
+
+        // If approval failed for a new key, remove the stored key so the user
+        // can retry from scratch next time.
+        const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+        if (embeddedWallet) deleteAgentKey(embeddedWallet.address);
+
+        setState((prev) => ({
+          ...prev,
+          isInitializing: false,
+          isReconnecting: false,
+          error: silent ? null : error,
+        }));
+        if (!silent) throw err;
+        return null;
+      }
+    },
+    [ready, walletsReady, wallets],
+  );
+
+  // ─── Public: manual initialization ────────────────────────────────────────
+
+  const initializeAgent = useCallback(() => _init(false), [_init]);
+
+  // ─── Disconnect / reconnect detection ─────────────────────────────────────
+
+  useEffect(() => {
+    if (!walletsReady) return;
+
+    const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+
+    if (!embeddedWallet && agentClientRef.current) {
+      agentClientRef.current = null;
+      masterClientRef.current = null;
+      setState((prev) => ({
+        ...prev,
+        agentClient: null,
+        masterClient: null,
+        masterAddress: null,
+        isInitialized: false,
+        isReconnecting: wasInitializedRef.current,
+      }));
     }
-  }, [ready, walletsReady, wallets, user?.wallet?.address]);
 
-  // ─── Reset (e.g. on wallet disconnect) ───────────────────────────────
+    if (embeddedWallet && !agentClientRef.current && wasInitializedRef.current) {
+      // Wallet is back — reuse stored agent key, no re-approval
+      _init(true);
+    }
+  }, [wallets, walletsReady, _init]);
+
+  // ─── Clear on Privy logout ─────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!authenticated) {
+      agentClientRef.current = null;
+      masterClientRef.current = null;
+      wasInitializedRef.current = false;
+      setState({
+        agentClient: null,
+        masterClient: null,
+        masterAddress: null,
+        isInitialized: false,
+        isInitializing: false,
+        isReconnecting: false,
+        error: null,
+      });
+    }
+  }, [authenticated]);
+
+  // ─── Manual reset ─────────────────────────────────────────────────────────
 
   const resetAgent = useCallback(() => {
     agentClientRef.current = null;
     masterClientRef.current = null;
+    wasInitializedRef.current = false;
     setState({
       agentClient: null,
       masterClient: null,
       masterAddress: null,
-      agentAddress: null,
       isInitialized: false,
       isInitializing: false,
+      isReconnecting: false,
       error: null,
     });
   }, []);
 
-  return {
-    ...state,
-    initializeAgent,
-    resetAgent,
-  };
+  return { ...state, initializeAgent, resetAgent };
 }

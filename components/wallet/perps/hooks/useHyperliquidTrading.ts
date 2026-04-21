@@ -45,6 +45,28 @@ export interface TradingState {
  *  - Close position  (reduce-only market order)
  *  - TWAP order
  */
+/**
+ * Rounds a price to Hyperliquid's required precision.
+ *
+ * HL enforces a maximum of 6 significant figures per price. The number of
+ * allowed decimal places depends on how many digits are before the decimal:
+ *
+ *   price       digits  allowed decimals
+ *   $0.40          0        6
+ *   $3.50          1        5
+ *   $145           3        3
+ *   $3,200         4        2
+ *   $84,000        5        1
+ *   $100,000+      6        0
+ *
+ * Formula: decimals = max(0, 5 - floor(log10(price)))
+ */
+function roundPrice(price: number): string {
+  if (price <= 0) return '0';
+  const decimals = Math.max(0, 4 - Math.floor(Math.log10(price)));
+  return price.toFixed(decimals);
+}
+
 export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
   const queryClient = useQueryClient();
 
@@ -87,9 +109,10 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
 
       try {
         const priceMark = parseFloat(markPrice);
+        if (!priceMark) throw new Error('Mark price unavailable — please wait for market data to load.');
         const limitPx = isBuy
-          ? String((priceMark * 1.01).toFixed(2))
-          : String((priceMark * 0.99).toFixed(2));
+          ? roundPrice(priceMark * 1.01)
+          : roundPrice(priceMark * 0.99);
 
         const result = await agentClient!.order({
           orders: [
@@ -126,12 +149,14 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
       setSubmitting(true);
 
       try {
+        const priceNum = parseFloat(params.price);
+        if (!priceNum) throw new Error('Limit price is invalid or zero.');
         const result = await agentClient!.order({
           orders: [
             {
               a: params.assetIndex,
               b: params.isBuy,
-              p: params.price,
+              p: roundPrice(priceNum),
               s: params.size,
               r: params.reduceOnly ?? false,
               t: { limit: { tif: 'Gtc' } },
@@ -169,6 +194,10 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
       setSubmitting(true);
 
       try {
+        const entryPx  = roundPrice(parseFloat(params.entryPrice));
+        const slPx     = roundPrice(parseFloat(params.stopLossPrice));
+        const tpPx     = roundPrice(parseFloat(params.takeProfitPrice));
+
         const result = await agentClient!.order({
           grouping: 'normalTpsl',
           orders: [
@@ -177,7 +206,7 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
               a: params.assetIndex,
               b: params.isBuy,
               s: params.size,
-              p: params.entryPrice,
+              p: entryPx,
               r: false,
               t: { limit: { tif: 'Gtc' } },
             },
@@ -186,30 +215,18 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
               a: params.assetIndex,
               b: !params.isBuy,
               s: params.size,
-              p: params.stopLossPrice,
+              p: slPx,
               r: true,
-              t: {
-                trigger: {
-                  isMarket: true,
-                  tpsl: 'sl',
-                  triggerPx: params.stopLossPrice,
-                },
-              },
+              t: { trigger: { isMarket: true, tpsl: 'sl', triggerPx: slPx } },
             },
             // 3. Take-profit (opposite direction, reduce-only)
             {
               a: params.assetIndex,
               b: !params.isBuy,
               s: params.size,
-              p: params.takeProfitPrice,
+              p: tpPx,
               r: true,
-              t: {
-                trigger: {
-                  isMarket: true,
-                  tpsl: 'tp',
-                  triggerPx: params.takeProfitPrice,
-                },
-              },
+              t: { trigger: { isMarket: true, tpsl: 'tp', triggerPx: tpPx } },
             },
           ],
         });
@@ -272,10 +289,11 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
 
       try {
         const priceMark = parseFloat(markPrice);
+        if (!priceMark) throw new Error('Mark price unavailable — please wait for market data to load.');
         // Close long = sell below market | Close short = buy above market
         const limitPx = isLong
-          ? String((priceMark * 0.99).toFixed(2))
-          : String((priceMark * 1.01).toFixed(2));
+          ? roundPrice(priceMark * 0.99)
+          : roundPrice(priceMark * 1.01);
 
         const result = await agentClient!.order({
           orders: [
@@ -345,6 +363,35 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
     [agentClient],
   );
 
+  // ─── Cancel Order ────────────────────────────────────────────────────
+
+  /**
+   * Cancels a single open order by asset index + order id.
+   * Works for limit orders and trigger orders (TP/SL).
+   */
+  const cancelOrder = useCallback(
+    async (assetIndex: number, orderId: number) => {
+      assertAgent();
+      setSubmitting(true);
+
+      try {
+        const result = await agentClient!.cancel({
+          cancels: [{ a: assetIndex, o: orderId }],
+        });
+
+        setState({ isSubmitting: false, lastOrderResult: result, error: null });
+        invalidate();
+        return result;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Cancel order failed';
+        setError(msg);
+        throw err;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentClient, invalidate],
+  );
+
   // ─── Clear Error ─────────────────────────────────────────────────────
 
   const clearError = useCallback(() => {
@@ -359,6 +406,7 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
     updateLeverage,
     closePosition,
     placeTwapOrder,
+    cancelOrder,
     clearError,
   };
 }

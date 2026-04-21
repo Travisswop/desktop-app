@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Zap, AlertTriangle, ExternalLink, Loader2, CheckCircle2 } from 'lucide-react';
+import { Shield, Zap, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
 
 interface AgentSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => Promise<void>;
-  masterAddress: string | null;
   isInitializing: boolean;
   error: string | null;
 }
@@ -16,24 +15,19 @@ interface AgentSetupModalProps {
  * AgentSetupModal
  *
  * Shown once when the user first opens the trading panel.
- * Explains what the agent wallet does and prompts the user to
- * approve the one-time MetaMask signature for `approveAgent`.
+ * Explains that the Privy embedded wallet will be used as the Hyperliquid
+ * master account — no external wallet or MetaMask popup required.
  */
 export function AgentSetupModal({
   isOpen,
   onClose,
   onConfirm,
-  masterAddress,
   isInitializing,
   error,
 }: AgentSetupModalProps) {
   const [hasRead, setHasRead] = useState(false);
 
   if (!isOpen) return null;
-
-  const shortAddress = masterAddress
-    ? `${masterAddress.slice(0, 6)}…${masterAddress.slice(-4)}`
-    : '—';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -52,8 +46,8 @@ export function AgentSetupModal({
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Set Up Perps Trading</h2>
-              <p className="text-emerald-100 text-sm">One-time setup · Non-custodial</p>
+              <h2 className="text-lg font-bold text-white">Enable Perps Trading</h2>
+              <p className="text-emerald-100 text-sm">One-time setup · No wallet popup</p>
             </div>
           </div>
         </div>
@@ -71,11 +65,8 @@ export function AgentSetupModal({
                 <span className="text-xs font-bold text-emerald-600">1</span>
               </div>
               <p className="text-sm text-gray-600">
-                Your connected wallet{' '}
-                <span className="font-mono text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded text-xs">
-                  {shortAddress}
-                </span>{' '}
-                becomes your Hyperliquid master account — it owns all your funds.
+                Your <strong>Privy embedded wallet</strong> is used as your Hyperliquid
+                account — it holds all your funds and positions.
               </p>
             </div>
 
@@ -84,8 +75,8 @@ export function AgentSetupModal({
                 <span className="text-xs font-bold text-emerald-600">2</span>
               </div>
               <p className="text-sm text-gray-600">
-                Your Privy embedded wallet is authorized as an <strong>agent</strong> —
-                it can place/cancel orders silently without repeated popups.
+                Privy signs orders silently in the background — <strong>no popups</strong>,
+                no MetaMask required.
               </p>
             </div>
 
@@ -94,8 +85,8 @@ export function AgentSetupModal({
                 <span className="text-xs font-bold text-emerald-600">3</span>
               </div>
               <p className="text-sm text-gray-600">
-                The agent wallet <strong>cannot withdraw funds</strong> or transfer
-                your balance — only you can, using your master wallet.
+                Your private key is <strong>never exposed</strong> — Privy's infrastructure
+                handles all signing securely.
               </p>
             </div>
           </div>
@@ -111,18 +102,9 @@ export function AgentSetupModal({
             <div className="flex-1 bg-blue-50 rounded-xl p-3 flex items-start gap-2">
               <Shield className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-blue-700 font-medium">
-                Funds stay in your master wallet
+                Non-custodial · Privy-secured key
               </p>
             </div>
-          </div>
-
-          {/* Warning */}
-          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
-            <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-700">
-              This will trigger <strong>one MetaMask signature</strong> to register
-              the agent on Hyperliquid. You won&apos;t be asked again this session.
-            </p>
           </div>
 
           {/* Error */}
@@ -154,14 +136,13 @@ export function AgentSetupModal({
               </div>
             </div>
             <p className="text-sm text-gray-600">
-              I understand the agent wallet cannot withdraw funds, and I am
-              approving this setup voluntarily.
+              I understand my Privy wallet will be used as my Hyperliquid account.
             </p>
           </label>
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-5 flex gap-3">
+        <div className="px-6 pb-6 flex gap-3">
           <button
             onClick={onClose}
             disabled={isInitializing}
@@ -186,19 +167,6 @@ export function AgentSetupModal({
               </>
             )}
           </button>
-        </div>
-
-        {/* Footer link */}
-        <div className="px-6 pb-4 text-center">
-          <a
-            href="https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            Learn about Hyperliquid agent wallets
-            <ExternalLink className="w-3 h-3" />
-          </a>
         </div>
       </div>
     </div>

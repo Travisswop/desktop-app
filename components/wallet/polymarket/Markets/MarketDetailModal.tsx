@@ -223,6 +223,109 @@ function formatHour(ts: number): string {
   });
 }
 
+// ── Live score fetch (Gamma events proxy) ────────────────────────────────────
+
+type LiveScoreTeam = {
+  name: string | null;
+  abbreviation: string | null;
+  score: number | null;
+};
+
+type LiveScoreState = {
+  live: boolean;
+  period: string | null;
+  elapsed: string | null;
+  teams: LiveScoreTeam[];
+};
+
+const EMPTY_LIVE: LiveScoreState = {
+  live: false,
+  period: null,
+  elapsed: null,
+  teams: [],
+};
+
+/**
+ * Polls our /api/polymarket/event-live proxy (Gamma /events) for live-game
+ * fields (score, period, elapsed) that our /markets proxy does not forward.
+ * Polls every 15s while enabled AND the game is in progress; otherwise runs
+ * a single fetch.
+ */
+function useLiveEventScore(
+  eventSlug: string | undefined,
+  enabled: boolean,
+): LiveScoreState {
+  const [state, setState] = useState<LiveScoreState>(EMPTY_LIVE);
+
+  useEffect(() => {
+    if (!enabled || !eventSlug) {
+      setState(EMPTY_LIVE);
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchOnce = async () => {
+      try {
+        const res = await fetch(
+          `/api/polymarket/event-live?slug=${encodeURIComponent(eventSlug)}`,
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as LiveScoreState;
+        if (cancelled) return;
+        setState({
+          live: Boolean(json.live),
+          period: json.period ?? null,
+          elapsed: json.elapsed ?? null,
+          teams: Array.isArray(json.teams) ? json.teams : [],
+        });
+        // Only keep polling while the game is live.
+        if (!cancelled && json.live) {
+          timer = setTimeout(fetchOnce, 15_000);
+        }
+      } catch {
+        // Ignore — we gracefully hide the live score UI when data is missing.
+      }
+    };
+
+    fetchOnce();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [eventSlug, enabled]);
+
+  return state;
+}
+
+/** Match a live-score team entry to the "yes" / "no" outcome label. */
+function pickTeamScore(
+  outcomeLabel: string,
+  outcomeAbbr: string,
+  teams: LiveScoreTeam[],
+  fallbackIndex: number,
+): number | null {
+  if (!teams.length) return null;
+  const label = outcomeLabel.trim().toLowerCase();
+  const abbr = outcomeAbbr.trim().toLowerCase();
+  const byName = teams.find(
+    (t) => (t.name ?? '').toLowerCase() === label,
+  );
+  if (byName?.score != null) return byName.score;
+  const byContains = teams.find((t) => {
+    const n = (t.name ?? '').toLowerCase();
+    return n && (n.includes(label) || label.includes(n));
+  });
+  if (byContains?.score != null) return byContains.score;
+  const byAbbr = teams.find(
+    (t) => (t.abbreviation ?? '').toLowerCase() === abbr,
+  );
+  if (byAbbr?.score != null) return byAbbr.score;
+  return teams[fallbackIndex]?.score ?? null;
+}
+
 // ── Sports probability panel ──────────────────────────────────────────────────
 
 type SportsProbabilityPanelProps = {
@@ -241,6 +344,7 @@ type SportsProbabilityPanelProps = {
   seed: string;
   enabled: boolean;
   isLive: boolean;
+  eventSlug?: string;
 };
 
 function SportsProbabilityPanel({
@@ -259,7 +363,9 @@ function SportsProbabilityPanel({
   seed,
   enabled,
   isLive,
+  eventSlug,
 }: SportsProbabilityPanelProps) {
+  const liveEvent = useLiveEventScore(eventSlug, enabled && isLive);
   const { yesHistory, noHistory, loading } = usePriceHistory(
     yesTokenId,
     noTokenId,
@@ -398,14 +504,19 @@ function SportsProbabilityPanel({
       })
     : null;
 
-  const yesScoreRaw = yesTeam?.score;
-  const noScoreRaw = noTeam?.score;
-  const yesScoreNum =
-    yesScoreRaw != null && yesScoreRaw !== '' ? Number(yesScoreRaw) : NaN;
-  const noScoreNum =
-    noScoreRaw != null && noScoreRaw !== '' ? Number(noScoreRaw) : NaN;
-  const hasScores = isFinite(yesScoreNum) && isFinite(noScoreNum);
-  const showLiveScore = isLive && hasScores;
+  const yesScoreNum = pickTeamScore(
+    yesName,
+    yesAbbr,
+    liveEvent.teams,
+    0,
+  );
+  const noScoreNum = pickTeamScore(noName, noAbbr, liveEvent.teams, 1);
+  const hasScores = yesScoreNum != null && noScoreNum != null;
+  const liveNow = isLive && (liveEvent.live || hasScores);
+  const showLiveScore = liveNow && hasScores;
+  const clockText =
+    [liveEvent.period, liveEvent.elapsed].filter(Boolean).join(' • ') ||
+    null;
 
   return (
     <div className="bg-white  text-gray-900 p-4 mb-4">
@@ -427,6 +538,11 @@ function SportsProbabilityPanel({
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                 Live
               </span>
+              {clockText && (
+                <p className="text-[10px] text-gray-500 mt-0.5 tabular-nums">
+                  {clockText}
+                </p>
+              )}
             </div>
           ) : (
             <>
@@ -995,6 +1111,7 @@ export default function MarketDetailModal({
                 seed={seed}
                 enabled={isOpen}
                 isLive={isLive}
+                eventSlug={market.eventSlug}
               />
             ) : (
               <></>

@@ -2,11 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { HLOrderBook, HLOrderBookLevel, HLTradeData } from '@/services/hyperliquid/types';
-
-// ─── WS URLs ────────────────────────────────────────────────────────────────
-const HL_WS_MAINNET = 'wss://api.hyperliquid.xyz/ws';
-// const HL_WS_TESTNET = 'wss://api.hyperliquid-testnet.xyz/ws';
-const HL_WS_URL = HL_WS_MAINNET;
+import { HL_WS_URL } from '@/services/hyperliquid/config';
 
 // ─── Subscription types ─────────────────────────────────────────────────────
 

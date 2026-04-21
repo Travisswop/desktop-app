@@ -13,6 +13,7 @@ export { FundingRateBar } from './FundingRateBar';
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 export { useHyperliquidAgent } from './hooks/useHyperliquidAgent';
 export { useHyperliquidDeposit } from './hooks/useHyperliquidDeposit';
+export { useHyperliquidFaucet } from './hooks/useHyperliquidFaucet';
 export { useHyperliquidMarkets, useMarketContext, useMarketByCoins } from './hooks/useHyperliquidMarkets';
 export { useHyperliquidPositions, usePositionForCoin } from './hooks/useHyperliquidPositions';
 export { useHyperliquidTrading } from './hooks/useHyperliquidTrading';

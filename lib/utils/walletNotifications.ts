@@ -68,7 +68,7 @@ export class WalletNotificationService {
   emitTokenSent(data: TokenTransferNotificationData): void {
     if (!this.socket || !this.socket.connected) {
       console.warn(
-        'Socket not connected. Cannot emit token_sent notification.'
+        'Socket not connected. Cannot emit token_sent notification.',
       );
       return;
     }
@@ -92,10 +92,10 @@ export class WalletNotificationService {
         } else {
           console.error(
             '[WalletNotificationService] Failed to create token sent notification:',
-            response
+            response,
           );
         }
-      }
+      },
     );
   }
 
@@ -105,7 +105,7 @@ export class WalletNotificationService {
   emitNFTSent(data: NFTTransferNotificationData): void {
     if (!this.socket || !this.socket.connected) {
       console.warn(
-        'Socket not connected. Cannot emit nft_sent notification.'
+        'Socket not connected. Cannot emit nft_sent notification.',
       );
       return;
     }
@@ -126,15 +126,15 @@ export class WalletNotificationService {
       (response: any) => {
         if (response?.success) {
           console.log(
-            '[WalletNotificationService] NFT sent notification created successfully'
+            '[WalletNotificationService] NFT sent notification created successfully',
           );
         } else {
           console.error(
             '[WalletNotificationService] Failed to create NFT sent notification:',
-            response
+            response,
           );
         }
-      }
+      },
     );
   }
 
@@ -144,7 +144,7 @@ export class WalletNotificationService {
   emitSwapCompleted(data: SwapNotificationData): void {
     if (!this.socket || !this.socket.connected) {
       console.warn(
-        'Socket not connected. Cannot emit swap_completed notification.'
+        'Socket not connected. Cannot emit swap_completed notification.',
       );
       return;
     }
@@ -166,16 +166,13 @@ export class WalletNotificationService {
       },
       (response: any) => {
         if (response?.success) {
-          console.log(
-            '[WalletNotificationService] Swap completed notification created successfully'
-          );
         } else {
           console.error(
             '[WalletNotificationService] Failed to create swap completed notification:',
-            response
+            response,
           );
         }
-      }
+      },
     );
   }
 
@@ -189,11 +186,11 @@ export class WalletNotificationService {
       | 'inputAmount'
       | 'outputTokenSymbol'
       | 'network'
-    > & { reason?: string }
+    > & { reason?: string },
   ): void {
     if (!this.socket || !this.socket.connected) {
       console.warn(
-        'Socket not connected. Cannot emit swap_failed notification.'
+        'Socket not connected. Cannot emit swap_failed notification.',
       );
       return;
     }
@@ -210,16 +207,13 @@ export class WalletNotificationService {
       },
       (response: any) => {
         if (response?.success) {
-          console.log(
-            '[WalletNotificationService] Swap failed notification created successfully'
-          );
         } else {
           console.error(
             '[WalletNotificationService] Failed to create swap failed notification:',
-            response
+            response,
           );
         }
-      }
+      },
     );
   }
 }
@@ -232,7 +226,7 @@ let walletNotificationService: WalletNotificationService | null =
  * Get or create the wallet notification service instance
  */
 export function getWalletNotificationService(
-  socket?: Socket
+  socket?: Socket,
 ): WalletNotificationService {
   if (!walletNotificationService) {
     walletNotificationService = new WalletNotificationService(socket);
@@ -247,7 +241,7 @@ export function getWalletNotificationService(
  */
 export function formatUSDValue(
   amount: number | string,
-  price: number | string
+  price: number | string,
 ): string {
   const numAmount =
     typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -267,12 +261,12 @@ export function formatUSDValue(
 export function truncateAddress(
   address: string,
   startChars: number = 6,
-  endChars: number = 4
+  endChars: number = 4,
 ): string {
   if (!address || address.length < startChars + endChars) {
     return address;
   }
   return `${address.slice(0, startChars)}...${address.slice(
-    -endChars
+    -endChars,
   )}`;
 }

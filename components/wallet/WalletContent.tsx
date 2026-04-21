@@ -73,7 +73,7 @@ import {
 import { AssetsTab } from './tabs';
 
 // Perps
-import { PerpsCard, PerpsPanel, DepositModal } from './perps';
+import { PerpsCard, PerpsPanel, DepositModal, useHyperliquidAgent } from './perps';
 import SwapTokenModal from './SwapTokenModal';
 
 // Utilities
@@ -185,6 +185,10 @@ const WalletContentInner = () => {
   const [walletSetting, setWalletSetting] = useState(false);
   const [perpsPanelOpen, setPerpsPanelOpen] = useState(false);
   const [perpsDepositOpen, setPerpsDepositOpen] = useState(false);
+
+  // Hyperliquid agent — lives here so the ExchangeClient persists across
+  // PerpsPanel open/close cycles and never triggers repeated sign messages.
+  const hlAgent = useHyperliquidAgent();
   const [arbitrumBridgeOpen, setArbitrumBridgeOpen] = useState(false);
 
   // Ref to track wallet creation attempts
@@ -858,7 +862,8 @@ const WalletContentInner = () => {
 
             {/* Perps Card — Hyperliquid */}
             <PerpsCard
-              masterAddress={evmWalletAddress ?? undefined}
+              masterAddress={hlAgent.masterAddress ?? undefined}
+              isReconnecting={hlAgent.isReconnecting}
               onOpenTrading={() => setPerpsPanelOpen(true)}
               onOpenDeposit={() => setPerpsDepositOpen(true)}
             />
@@ -898,7 +903,13 @@ const WalletContentInner = () => {
         {/* Perps full-screen panel */}
         {perpsPanelOpen && (
           <PerpsPanel
-            masterAddress={evmWalletAddress ?? undefined}
+            agentClient={hlAgent.agentClient}
+            masterAddress={hlAgent.masterAddress}
+            isInitialized={hlAgent.isInitialized}
+            isInitializing={hlAgent.isInitializing}
+            isReconnecting={hlAgent.isReconnecting}
+            agentError={hlAgent.error}
+            initializeAgent={hlAgent.initializeAgent}
             onClose={() => setPerpsPanelOpen(false)}
             onOpenDeposit={() => setPerpsDepositOpen(true)}
           />
@@ -908,7 +919,7 @@ const WalletContentInner = () => {
         <DepositModal
           isOpen={perpsDepositOpen}
           onClose={() => setPerpsDepositOpen(false)}
-          masterAddress={evmWalletAddress ?? null}
+          masterAddress={hlAgent.masterAddress}
           onBridgeToArbitrum={() => {
             setPerpsDepositOpen(false);
             setArbitrumBridgeOpen(true);

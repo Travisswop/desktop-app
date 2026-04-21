@@ -48,7 +48,6 @@ const SolanaHandler: FC = () => {
       !connected &&
       (!wallet || wallet instanceof PrivyWalletAdapter === false)
     ) {
-      console.log('SolanaHandler: Auto-selecting Privy wallet');
       select('Privy' as WalletName);
     }
   }, [solWallets, wallet, connected, select, disconnect]);

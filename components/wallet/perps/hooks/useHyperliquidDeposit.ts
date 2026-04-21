@@ -3,12 +3,9 @@
 import { useState, useCallback } from 'react';
 import { useSendTransaction, useWallets } from '@privy-io/react-auth';
 import { encodeFunctionData, parseUnits, erc20Abi, createPublicClient, http, formatUnits } from 'viem';
-import { arbitrum } from 'viem/chains';
-import {
-  HYPERLIQUID_BRIDGE_ADDRESS,
-  ARBITRUM_USDC_ADDRESS,
-  ARBITRUM_CHAIN_ID,
-} from '@/services/hyperliquid/types';
+import { HL_DEPOSIT_CONFIG } from '@/services/hyperliquid/config';
+
+const { chain, chainId, bridgeAddress, usdcAddress } = HL_DEPOSIT_CONFIG;
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -57,12 +54,12 @@ export function useHyperliquidDeposit() {
     async (address: string): Promise<string> => {
       try {
         const client = createPublicClient({
-          chain: arbitrum,
+          chain,
           transport: http(),
         });
 
         const balance = await client.readContract({
-          address: ARBITRUM_USDC_ADDRESS as `0x${string}`,
+          address: usdcAddress,
           abi: erc20Abi,
           functionName: 'balanceOf',
           args: [address as `0x${string}`],
@@ -94,17 +91,14 @@ export function useHyperliquidDeposit() {
         return;
       }
 
-      // Prefer external wallet (MetaMask/WalletConnect) for the master account;
-      // fall back to Privy embedded EVM wallet. Privy's sendTransaction handles
-      // chain switching automatically when chainId is provided.
-      const evmWallet =
-        wallets.find((w) => w.walletClientType !== 'privy') ??
-        wallets.find((w) => w.type === 'ethereum');
+      // Use the Privy embedded wallet — it is the master account and signs silently.
+      // Privy's sendTransaction handles chain switching automatically via the chainId param.
+      const evmWallet = wallets.find((w) => w.walletClientType === 'privy');
 
       if (!evmWallet) {
         setState((prev) => ({
           ...prev,
-          error: 'No EVM wallet found. Please connect a wallet.',
+          error: 'Privy embedded wallet not found. Please refresh and try again.',
           step: 'error',
         }));
         return;
@@ -113,31 +107,22 @@ export function useHyperliquidDeposit() {
       setState({ isDepositing: true, txHash: null, error: null, step: 'confirming' });
 
       try {
-        // For external wallets, explicitly switch to Arbitrum first.
-        // Privy embedded wallets switch automatically via the chainId param below.
-        if (evmWallet.walletClientType !== 'privy') {
-          await evmWallet.switchChain(ARBITRUM_CHAIN_ID);
-        }
 
         // Encode ERC-20 transfer(bridgeAddress, amount) calldata
         const data = encodeFunctionData({
           abi: erc20Abi,
           functionName: 'transfer',
-          args: [
-            HYPERLIQUID_BRIDGE_ADDRESS as `0x${string}`,
-            parseUnits(amountUsd, USDC_DECIMALS),
-          ],
+          args: [bridgeAddress, parseUnits(amountUsd, USDC_DECIMALS)],
         });
 
         setState((prev) => ({ ...prev, step: 'pending' }));
 
-        // Send via Privy — gas sponsored if enabled on Arbitrum in dashboard.
-        // chainId: 42161 tells Privy to use Arbitrum One for embedded wallets.
+        // Send via Privy — gas sponsored if enabled in dashboard.
         const result = await sendTransaction(
           {
-            to: ARBITRUM_USDC_ADDRESS as `0x${string}`,
+            to: usdcAddress,
             data,
-            chainId: ARBITRUM_CHAIN_ID,
+            chainId,
           },
           { sponsor: true },
         );

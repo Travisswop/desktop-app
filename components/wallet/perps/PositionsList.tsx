@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Layers, RefreshCw } from 'lucide-react';
+import { Layers, RefreshCw, X, Loader2 } from 'lucide-react';
 import { PositionCard } from './PositionCard';
 import type { HLPosition } from '@/services/hyperliquid/types';
 import type { HLOpenOrder } from '@/services/hyperliquid/types';
@@ -17,6 +17,7 @@ interface PositionsListProps {
   isLoading?: boolean;
   closingCoin?: string | null;
   onClosePosition: (position: HLPosition) => Promise<void>;
+  onCancelOrder?: (coin: string, orderId: number) => Promise<void>;
   onRefresh?: () => void;
 }
 
@@ -42,6 +43,7 @@ export function PositionsList({
   isLoading = false,
   closingCoin,
   onClosePosition,
+  onCancelOrder,
   onRefresh,
 }: PositionsListProps) {
   const [activeTab, setActiveTab] = useState<Tab>('positions');
@@ -122,13 +124,13 @@ export function PositionsList({
               {/* Header */}
               <div className="grid grid-cols-5 text-xs text-gray-400 font-medium px-1">
                 <span>Market</span>
+                <span>Role</span>
                 <span>Side</span>
                 <span className="text-right">Price</span>
                 <span className="text-right">Size</span>
-                <span className="text-right">Type</span>
               </div>
               {openOrders.map((order) => (
-                <OpenOrderRow key={order.oid} order={order} />
+                <OpenOrderRow key={order.oid} order={order} onCancel={onCancelOrder} />
               ))}
             </div>
           )
@@ -180,17 +182,95 @@ function TabButton({
   );
 }
 
-function OpenOrderRow({ order }: { order: HLOpenOrder }) {
+function getOrderRole(order: HLOpenOrder): {
+  label: string;
+  badgeClass: string;
+  displayPrice: string;
+} {
+  const type = (order.orderType ?? '').toLowerCase();
+  const cond = (order.triggerCondition ?? '').toLowerCase();
+  const hasTrigger = order.triggerPx && parseFloat(order.triggerPx) > 0;
+
+  if (type.includes('take profit') || cond.includes('tp')) {
+    return {
+      label: 'Take Profit',
+      badgeClass: 'bg-emerald-50 text-emerald-600',
+      displayPrice: hasTrigger ? order.triggerPx : order.limitPx,
+    };
+  }
+  if (type.includes('stop') || cond.includes('sl')) {
+    return {
+      label: 'Stop Loss',
+      badgeClass: 'bg-red-50 text-red-500',
+      displayPrice: hasTrigger ? order.triggerPx : order.limitPx,
+    };
+  }
+  // Reduce-only without a recognized trigger label — treat as a closing order
+  if (order.reduceOnly) {
+    return {
+      label: 'Close',
+      badgeClass: 'bg-orange-50 text-orange-500',
+      displayPrice: order.limitPx,
+    };
+  }
+  return {
+    label: 'Entry',
+    badgeClass: 'bg-blue-50 text-blue-600',
+    displayPrice: order.limitPx,
+  };
+}
+
+function OpenOrderRow({
+  order,
+  onCancel,
+}: {
+  order: HLOpenOrder;
+  onCancel?: (coin: string, orderId: number) => Promise<void>;
+}) {
+  const [canceling, setCanceling] = useState(false);
   const isBid = order.side === 'B';
+  const role = getOrderRole(order);
+  const priceNum = parseFloat(role.displayPrice);
+
+  const handleCancel = async () => {
+    if (!onCancel || canceling) return;
+    setCanceling(true);
+    try {
+      await onCancel(order.coin, order.oid);
+    } finally {
+      setCanceling(false);
+    }
+  };
+
   return (
-    <div className="grid grid-cols-5 items-center px-1 py-2 text-xs rounded-lg hover:bg-gray-50">
-      <span className="font-medium text-gray-800">{order.coin}</span>
-      <span className={isBid ? 'text-emerald-600 font-medium' : 'text-red-500 font-medium'}>
-        {isBid ? 'Buy' : 'Sell'}
-      </span>
-      <span className="text-right text-gray-700 tabular-nums">${parseFloat(order.limitPx).toLocaleString()}</span>
-      <span className="text-right text-gray-700 tabular-nums">{order.sz}</span>
-      <span className="text-right text-gray-400">{order.orderType || order.tif}</span>
+    <div className="flex items-center gap-2 px-1 py-2 text-xs rounded-lg hover:bg-gray-50">
+      <div className="grid grid-cols-5 items-center flex-1 gap-1">
+        <span className="font-medium text-gray-800">{order.coin}</span>
+        <span className={`px-1.5 py-0.5 rounded-full font-semibold text-center w-fit ${role.badgeClass}`}>
+          {role.label}
+        </span>
+        <span className={`font-medium ${isBid ? 'text-emerald-600' : 'text-red-500'}`}>
+          {isBid ? 'Buy' : 'Sell'}
+        </span>
+        <span className="text-right text-gray-700 tabular-nums">
+          ${priceNum.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+        </span>
+        <span className="text-right text-gray-700 tabular-nums">{order.sz}</span>
+      </div>
+      {onCancel && (
+        <button
+          onClick={handleCancel}
+          disabled={canceling}
+          title="Cancel order"
+          className="flex-shrink-0 p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+        >
+          {canceling ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <X className="w-3.5 h-3.5" />
+          )}
+        </button>
+      )}
     </div>
   );
 }

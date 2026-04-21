@@ -1,13 +1,15 @@
 'use client';
 
-import { Zap, TrendingUp, TrendingDown, AlertTriangle, ArrowDownToLine } from 'lucide-react';
+import { Zap, TrendingUp, TrendingDown, AlertTriangle, ArrowDownToLine, Loader2 } from 'lucide-react';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
 import { useAllMids } from './hooks/useHyperliquidWebSocket';
 import { formatPrice, formatPnl, getLiquidationRisk } from '@/services/hyperliquid/types';
 
 interface PerpsCardProps {
-  /** The user's external wallet address = Hyperliquid master account */
+  /** Privy embedded wallet address (set after agent is initialized) */
   masterAddress: string | undefined;
+  /** True while silently reconnecting after a brief disconnect */
+  isReconnecting?: boolean;
   onOpenTrading: () => void;
   onOpenDeposit: () => void;
 }
@@ -22,7 +24,7 @@ interface PerpsCardProps {
  *  - Liquidation risk warnings
  *  - "Trade →" button to open the full PerpsPanel
  */
-export function PerpsCard({ masterAddress, onOpenTrading, onOpenDeposit }: PerpsCardProps) {
+export function PerpsCard({ masterAddress, isReconnecting = false, onOpenTrading, onOpenDeposit }: PerpsCardProps) {
   const { data, isLoading } = useHyperliquidPositions(masterAddress ?? null);
   const { mids } = useAllMids(!!masterAddress);
 
@@ -79,10 +81,10 @@ export function PerpsCard({ masterAddress, onOpenTrading, onOpenDeposit }: Perps
       </div>
 
       {/* ── Content ───────────────────────────────────────────────── */}
-      {isLoading ? (
-        <LoadingSkeleton />
+      {isLoading || isReconnecting ? (
+        <LoadingSkeleton reconnecting={isReconnecting} />
       ) : !masterAddress ? (
-        <NoWalletState onOpenTrading={onOpenTrading} />
+        <NoTradingState onOpenTrading={onOpenTrading} />
       ) : (
         <>
           {/* Account Value + PnL */}
@@ -201,9 +203,15 @@ export function PerpsCard({ masterAddress, onOpenTrading, onOpenDeposit }: Perps
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function LoadingSkeleton() {
+function LoadingSkeleton({ reconnecting = false }: { reconnecting?: boolean }) {
   return (
     <div className="flex-1 space-y-3">
+      {reconnecting && (
+        <div className="flex items-center gap-2 text-xs text-blue-500 bg-blue-50 px-3 py-2 rounded-xl">
+          <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+          Reconnecting wallet…
+        </div>
+      )}
       <div className="h-10 bg-gray-100 rounded-xl animate-pulse" />
       <div className="h-6 w-32 bg-gray-100 rounded animate-pulse" />
       <div className="space-y-2">
@@ -214,23 +222,23 @@ function LoadingSkeleton() {
   );
 }
 
-function NoWalletState({ onOpenTrading }: { onOpenTrading: () => void }) {
+function NoTradingState({ onOpenTrading }: { onOpenTrading: () => void }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
-      <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center">
-        <Zap className="w-6 h-6 text-gray-400" />
+      <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center">
+        <Zap className="w-6 h-6 text-emerald-400" />
       </div>
       <div>
-        <p className="text-sm font-medium text-gray-600">Connect Your Wallet</p>
+        <p className="text-sm font-medium text-gray-600">Start Trading Perps</p>
         <p className="text-xs text-gray-400 mt-1">
-          Connect MetaMask or WalletConnect to start trading perps
+          One-time setup to enable instant perpetuals trading
         </p>
       </div>
       <button
         onClick={onOpenTrading}
         className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-xl transition-colors"
       >
-        Get Started
+        Enable Trading
       </button>
     </div>
   );

@@ -3,9 +3,10 @@
 import { useQuery } from '@tanstack/react-query';
 import * as hl from '@nktkas/hyperliquid';
 import type { HLMarket } from '@/services/hyperliquid/types';
+import { HL_IS_TESTNET } from '@/services/hyperliquid/config';
 
 // Singleton transport + info client (no auth needed for read operations)
-const transport = new hl.HttpTransport();
+const transport = new hl.HttpTransport({ isTestnet: HL_IS_TESTNET });
 const infoClient = new hl.InfoClient({ transport });
 
 // ─── Hooks ─────────────────────────────────────────────────────────────────────

@@ -10,8 +10,12 @@ import {
   Info,
   ChevronRight,
   Wallet,
+  Droplets,
 } from 'lucide-react';
 import { useHyperliquidDeposit } from './hooks/useHyperliquidDeposit';
+import { useHyperliquidFaucet } from './hooks/useHyperliquidFaucet';
+import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
+import { HL_IS_TESTNET } from '@/services/hyperliquid/config';
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -53,6 +57,17 @@ export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitru
     minDeposit,
   } = useHyperliquidDeposit();
 
+  const faucet = useHyperliquidFaucet();
+
+  // Fetch live HL balance for the testnet faucet view
+  const { data: accountData, isLoading: accountLoading, refetch: refetchAccount } =
+    useHyperliquidPositions(HL_IS_TESTNET ? masterAddress : null);
+
+  // Refresh the balance immediately after a successful faucet claim
+  useEffect(() => {
+    if (faucet.success) refetchAccount();
+  }, [faucet.success, refetchAccount]);
+
   // Fetch USDC balance on open
   useEffect(() => {
     if (!isOpen || !masterAddress) return;
@@ -64,9 +79,10 @@ export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitru
 
   const handleClose = useCallback(() => {
     reset();
+    faucet.reset();
     setAmount('');
     onClose();
-  }, [reset, onClose]);
+  }, [reset, faucet, onClose]);
 
   const handleDeposit = useCallback(async () => {
     await deposit(amount).catch(() => {});
@@ -91,20 +107,46 @@ export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitru
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
 
         {/* ── Header ──────────────────────────────────────────────── */}
-        <div className="bg-gradient-to-r from-blue-500 to-indigo-500 px-6 py-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <ArrowDownToLine className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Deposit to Hyperliquid</h2>
-              <p className="text-blue-100 text-sm">USDC on Arbitrum → Hyperliquid</p>
+        {HL_IS_TESTNET ? (
+          <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-6 py-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Droplets className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Testnet Faucet</h2>
+                <p className="text-purple-100 text-sm">Claim $1,000 USDC on Hyperliquid testnet</p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-gradient-to-r from-blue-500 to-indigo-500 px-6 py-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <ArrowDownToLine className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Deposit to Hyperliquid</h2>
+                <p className="text-blue-100 text-sm">USDC on Arbitrum → Hyperliquid</p>
+              </div>
+            </div>
+          </div>
+        )}
 
-        {/* ── Success State ────────────────────────────────────────── */}
-        {step === 'success' && txHash ? (
+        {/* ── Testnet: Faucet View ─────────────────────────────────── */}
+        {HL_IS_TESTNET ? (
+          <FaucetView
+            masterAddress={masterAddress}
+            isClaiming={faucet.isClaiming}
+            success={faucet.success}
+            error={faucet.error}
+            accountValue={accountData?.accountValue ?? null}
+            withdrawable={accountData?.withdrawable ?? null}
+            balanceLoading={accountLoading}
+            onClaim={() => masterAddress && faucet.claimFaucet(masterAddress)}
+            onClose={handleClose}
+          />
+        ) : step === 'success' && txHash ? (
           <SuccessView txHash={txHash} onClose={handleClose} />
         ) : (
           <>
@@ -301,6 +343,142 @@ export function DepositModal({ isOpen, onClose, masterAddress, onBridgeToArbitru
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Faucet View (testnet only) ───────────────────────────────────────────────
+
+interface FaucetViewProps {
+  masterAddress: string | null;
+  isClaiming: boolean;
+  success: boolean;
+  error: string | null;
+  accountValue: string | null;
+  withdrawable: string | null;
+  balanceLoading: boolean;
+  onClaim: () => void;
+  onClose: () => void;
+}
+
+function FaucetView({
+  masterAddress,
+  isClaiming,
+  success,
+  error,
+  accountValue,
+  withdrawable,
+  balanceLoading,
+  onClaim,
+  onClose,
+}: FaucetViewProps) {
+  const accountNum = parseFloat(accountValue ?? '0');
+  const withdrawableNum = parseFloat(withdrawable ?? '0');
+
+  const BalanceRow = () => (
+    <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-500">HL Testnet Balance</span>
+        {balanceLoading ? (
+          <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />
+        ) : (
+          <span className="text-sm font-bold text-gray-800">
+            ${accountNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-400">Available to withdraw</span>
+        {balanceLoading ? (
+          <span className="text-xs text-gray-300">—</span>
+        ) : (
+          <span className="text-xs font-medium text-emerald-600">
+            ${withdrawableNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  if (success) {
+    return (
+      <div className="px-6 py-6 flex flex-col items-center text-center gap-4">
+        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+          <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-gray-800">Funds Claimed!</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            $1,000 testnet USDC has been added to your account.
+          </p>
+        </div>
+        <div className="w-full">
+          <BalanceRow />
+        </div>
+        <button
+          onClick={onClose}
+          className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl transition-colors text-sm"
+        >
+          Done
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 pb-6 pt-4 space-y-4">
+      <div className="flex items-start gap-2 bg-violet-50 border border-violet-100 rounded-xl p-3">
+        <Info className="w-4 h-4 text-violet-500 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-violet-700">
+          Claims <strong>$1,000 USDC</strong> directly on Hyperliquid testnet — no bridge
+          or Arbitrum transaction needed. One claim per address.
+        </p>
+      </div>
+
+      {masterAddress && (
+        <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-4 py-3">
+          <Wallet className="w-4 h-4 text-gray-400" />
+          <span className="text-xs text-gray-500 font-mono">
+            {masterAddress.slice(0, 6)}…{masterAddress.slice(-4)}
+          </span>
+        </div>
+      )}
+
+      <BalanceRow />
+
+      {error && (
+        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
+          <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-red-700">{error}</p>
+        </div>
+      )}
+
+      <div className="flex gap-3 pt-1">
+        <button
+          onClick={onClose}
+          disabled={isClaiming}
+          className="flex-1 py-2.5 px-4 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onClaim}
+          disabled={isClaiming || !masterAddress}
+          className="flex-1 py-2.5 px-4 bg-violet-500 hover:bg-violet-600 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {isClaiming ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Claiming…
+            </>
+          ) : (
+            <>
+              <Droplets className="w-4 h-4" />
+              Claim $1,000 USDC
+            </>
+          )}
+        </button>
       </div>
     </div>
   );

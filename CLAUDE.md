@@ -32,7 +32,7 @@ Swop Desktop Application is a comprehensive Next.js web3 platform that enables u
 - Custom onboarding flow creating "SwopID" identities
 - Key files: `app/(auth)/`, `components/onboard/`
 
-**SmartSite System** 
+**SmartSite System**
 - Customizable microsites with drag-and-drop components
 - Icon-based interface for contact info, links, marketplace items
 - Live preview functionality during editing
@@ -79,11 +79,6 @@ Swop Desktop Application is a comprehensive Next.js web3 platform that enables u
 - Expose wallet connections at app level through context providers
 - Use `providers/SyncedWalletProvider.tsx` for consistent state
 
-**XMTP Chat Integration**
-- WebAssembly-based messaging system with complex webpack configuration
-- Separate client/server handling due to WASM requirements
-- Files: `lib/context/XmtpContext.tsx`, `next.config.ts` webpack config
-
 **Image Handling**
 - Cloudinary integration for file uploads
 - Multiple image optimization patterns for different use cases
@@ -94,7 +89,7 @@ Swop Desktop Application is a comprehensive Next.js web3 platform that enables u
 ```
 app/                    # Next.js App Router pages
 ├── (auth)/            # Authentication routes
-├── (pages)/           # Protected application pages  
+├── (pages)/           # Protected application pages
 ├── (public-profile)/  # Public SmartSite pages
 └── api/               # API endpoints
 
@@ -129,7 +124,6 @@ zustandStore/         # Client state management
 5. Validate blockchain interactions in testnet before mainnet
 
 ### Common Gotchas
-- XMTP components must be client-side only due to WASM dependencies
 - Wallet state can be lost during navigation - use global context
 - Image uploads require Cloudinary configuration
 - NFT type determines checkout flow requirements
@@ -146,7 +140,6 @@ zustandStore/         # Client state management
 - **Stripe**: Subscription and payment processing
 - **Cloudinary**: Image and media storage
 - **Socket.io**: Real-time chat and notifications
-- **XMTP**: Decentralized messaging protocol
 
 ### Environment Configuration
 - Blockchain RPC endpoints and API keys required

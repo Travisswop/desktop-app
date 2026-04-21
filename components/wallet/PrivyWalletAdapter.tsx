@@ -77,10 +77,6 @@ export class PrivyWalletAdapter extends BaseWalletAdapter {
       try {
         this._publicKey = new PublicKey(this._wallet.address);
         this.emit('connect', this._publicKey);
-        console.log(
-          'PrivyWalletAdapter: Connected to',
-          this._wallet.address
-        );
       } catch (error: any) {
         throw new WalletPublicKeyError(error?.message, error);
       }
@@ -96,7 +92,6 @@ export class PrivyWalletAdapter extends BaseWalletAdapter {
     try {
       this._publicKey = null;
       this.emit('disconnect');
-      console.log('PrivyWalletAdapter: Disconnected');
     } catch (error: any) {
       this.emit('error', error);
       throw new WalletDisconnectionError(error?.message, error);
@@ -104,45 +99,36 @@ export class PrivyWalletAdapter extends BaseWalletAdapter {
   }
 
   async signTransaction<T extends Transaction | VersionedTransaction>(
-    transaction: T
+    transaction: T,
   ): Promise<T> {
     try {
       if (!this._wallet || !this.connected) {
         throw new WalletNotConnectedError();
       }
 
-      console.log(
-        'Attempting to sign transaction with Privy wallet:',
-        {
-          walletAddress: this._wallet.address,
-          transaction: transaction,
-        }
-      );
-
       // Get the global signer instance
       const signer = (window as any).__privyTransactionSigner;
       if (!signer?.signTransaction) {
         throw new WalletSignTransactionError(
-          'Privy transaction signer not initialized. Make sure PrivyTransactionSignerProvider is mounted.'
+          'Privy transaction signer not initialized. Make sure PrivyTransactionSignerProvider is mounted.',
         );
       }
 
-      const signedTransaction = await signer.signTransaction(
-        transaction
-      );
+      const signedTransaction =
+        await signer.signTransaction(transaction);
       return signedTransaction as T;
     } catch (error: any) {
       console.error('Transaction signing error:', error);
       this.emit('error', error);
       throw new WalletSignTransactionError(
         error?.message || 'Failed to sign Solana transaction',
-        error
+        error,
       );
     }
   }
 
   async signAllTransactions<
-    T extends Transaction | VersionedTransaction
+    T extends Transaction | VersionedTransaction,
   >(transactions: T[]): Promise<T[]> {
     try {
       if (!this._wallet || !this.connected) {
@@ -153,13 +139,12 @@ export class PrivyWalletAdapter extends BaseWalletAdapter {
       const signer = (window as any).__privyTransactionSigner;
       if (!signer?.signAllTransactions) {
         throw new WalletSignTransactionError(
-          'Privy transaction signer not initialized. Make sure PrivyTransactionSignerProvider is mounted.'
+          'Privy transaction signer not initialized. Make sure PrivyTransactionSignerProvider is mounted.',
         );
       }
 
-      const signedTransactions = await signer.signAllTransactions(
-        transactions
-      );
+      const signedTransactions =
+        await signer.signAllTransactions(transactions);
       return signedTransactions as T[];
     } catch (error: any) {
       console.error('Failed to sign transactions:', error);
@@ -171,7 +156,7 @@ export class PrivyWalletAdapter extends BaseWalletAdapter {
   // Implement sendTransaction to resolve abstract member
   async sendTransaction<T extends Transaction | VersionedTransaction>(
     transaction: T,
-    options?: any
+    options?: any,
   ): Promise<string> {
     throw new Error('Not implemented');
   }

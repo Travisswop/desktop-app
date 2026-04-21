@@ -40,7 +40,7 @@ export const NotificationProvider: React.FC<{
 }> = ({ children }) => {
   const { accessToken, user } = useUser();
   const [notifications, setNotifications] = useState<Notification[]>(
-    []
+    [],
   );
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -62,8 +62,6 @@ export const NotificationProvider: React.FC<{
     const API_URL =
       process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-    console.log('Initializing notification socket connection...');
-
     const socket = io(API_URL, {
       auth: { token: accessToken },
       transports: ['websocket', 'polling'],
@@ -73,41 +71,26 @@ export const NotificationProvider: React.FC<{
     });
 
     socket.on('connect', () => {
-      console.log('✅ Notification socket connected');
       isConnectedRef.current = true;
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('⚠️ Notification socket disconnected:', reason);
       isConnectedRef.current = false;
     });
 
     socket.on('connect_error', (error) => {
-      console.error('❌ Socket connection error:', error.message);
       isConnectedRef.current = false;
     });
 
     socket.on('reconnect', (attemptNumber) => {
-      console.log(
-        `🔄 Socket reconnected after ${attemptNumber} attempts`
-      );
       isConnectedRef.current = true;
     });
 
-    socket.on('reconnect_attempt', (attemptNumber) => {
-      console.log(
-        `🔄 Socket reconnection attempt ${attemptNumber}...`
-      );
-    });
+    socket.on('reconnect_attempt', (attemptNumber) => {});
 
-    socket.on('reconnect_error', (error) => {
-      console.error('❌ Socket reconnection error:', error.message);
-    });
+    socket.on('reconnect_error', (error) => {});
 
     socket.on('reconnect_failed', () => {
-      console.error(
-        '❌ Socket reconnection failed after all attempts'
-      );
       isConnectedRef.current = false;
     });
 
@@ -136,9 +119,8 @@ export const NotificationProvider: React.FC<{
     socket.on(
       'notification:badge_count',
       (data: SocketBadgeCountEvent) => {
-        console.log('Badge count updated:', data.count);
         setUnreadCount(data.count);
-      }
+      },
     );
 
     // Listen for notification read events from other sessions
@@ -147,22 +129,22 @@ export const NotificationProvider: React.FC<{
         prev.map((notif) =>
           notif._id === notificationId
             ? { ...notif, isRead: true }
-            : notif
-        )
+            : notif,
+        ),
       );
     });
 
     // Listen for notification deleted events
     socket.on('notification:deleted', ({ notificationId }) => {
       setNotifications((prev) =>
-        prev.filter((notif) => notif._id !== notificationId)
+        prev.filter((notif) => notif._id !== notificationId),
       );
     });
 
     // Listen for all notifications marked as read
     socket.on('notification:all_read', () => {
       setNotifications((prev) =>
-        prev.map((notif) => ({ ...notif, isRead: true }))
+        prev.map((notif) => ({ ...notif, isRead: true })),
       );
       setUnreadCount(0);
     });
@@ -173,8 +155,8 @@ export const NotificationProvider: React.FC<{
         prev.map((notif) =>
           notif.category === category
             ? { ...notif, isRead: true }
-            : notif
-        )
+            : notif,
+        ),
       );
     });
 
@@ -182,7 +164,6 @@ export const NotificationProvider: React.FC<{
 
     return () => {
       if (socketRef.current) {
-        console.log('Cleaning up notification socket');
         socketRef.current.disconnect();
         socketRef.current = null;
         isConnectedRef.current = false;
@@ -205,7 +186,7 @@ export const NotificationProvider: React.FC<{
           accessToken,
           page,
           20,
-          category
+          category,
         );
 
         if (result.success) {
@@ -219,19 +200,18 @@ export const NotificationProvider: React.FC<{
           }
           setCurrentPage(page);
           setHasMore(
-            result.pagination.page < result.pagination.pages
+            result.pagination.page < result.pagination.pages,
           );
         } else {
           setError('Failed to fetch notifications');
         }
       } catch (err: any) {
         setError(err.message);
-        console.error('Error fetching notifications:', err);
       } finally {
         setIsLoading(false);
       }
     },
-    [accessToken]
+    [accessToken],
   );
 
   /**
@@ -245,9 +225,7 @@ export const NotificationProvider: React.FC<{
       if (result.success) {
         setUnreadCount(result.count);
       }
-    } catch (err) {
-      console.error('Error refreshing unread count:', err);
-    }
+    } catch (err) {}
   }, [accessToken]);
 
   /**
@@ -260,7 +238,7 @@ export const NotificationProvider: React.FC<{
       try {
         const result = await markNotificationAsRead(
           accessToken,
-          notificationId
+          notificationId,
         );
 
         if (result.success) {
@@ -268,16 +246,14 @@ export const NotificationProvider: React.FC<{
             prev.map((notif) =>
               notif._id === notificationId
                 ? { ...notif, isRead: true }
-                : notif
-            )
+                : notif,
+            ),
           );
           setUnreadCount((prev) => Math.max(0, prev - 1));
         }
-      } catch (err) {
-        console.error('Error marking notification as read:', err);
-      }
+      } catch (err) {}
     },
-    [accessToken]
+    [accessToken],
   );
 
   /**
@@ -291,13 +267,12 @@ export const NotificationProvider: React.FC<{
 
       if (result.success) {
         setNotifications((prev) =>
-          prev.map((notif) => ({ ...notif, isRead: true }))
+          prev.map((notif) => ({ ...notif, isRead: true })),
         );
         setUnreadCount(0);
         toast.success('All notifications marked as read');
       }
     } catch (err) {
-      console.error('Error marking all notifications as read:', err);
       toast.error('Failed to mark all notifications as read');
     }
   }, [accessToken]);
@@ -312,7 +287,7 @@ export const NotificationProvider: React.FC<{
       try {
         const result = await markCategoryNotificationsAsRead(
           accessToken,
-          category
+          category,
         );
 
         if (result.success) {
@@ -320,19 +295,18 @@ export const NotificationProvider: React.FC<{
             prev.map((notif) =>
               notif.category === category
                 ? { ...notif, isRead: true }
-                : notif
-            )
+                : notif,
+            ),
           );
           toast.success(
-            `All ${category} notifications marked as read`
+            `All ${category} notifications marked as read`,
           );
         }
       } catch (err) {
-        console.error('Error marking category as read:', err);
         toast.error('Failed to mark category notifications as read');
       }
     },
-    [accessToken]
+    [accessToken],
   );
 
   /**
@@ -345,21 +319,20 @@ export const NotificationProvider: React.FC<{
       try {
         const result = await deleteNotificationAction(
           accessToken,
-          notificationId
+          notificationId,
         );
 
         if (result.success) {
           setNotifications((prev) =>
-            prev.filter((notif) => notif._id !== notificationId)
+            prev.filter((notif) => notif._id !== notificationId),
           );
           toast.success('Notification deleted');
         }
       } catch (err) {
-        console.error('Error deleting notification:', err);
         toast.error('Failed to delete notification');
       }
     },
-    [accessToken]
+    [accessToken],
   );
 
   /**
@@ -381,9 +354,7 @@ export const NotificationProvider: React.FC<{
       if (result.success) {
         setPreferences(result.preferences);
       }
-    } catch (err) {
-      console.error('Error fetching preferences:', err);
-    }
+    } catch (err) {}
   }, [accessToken]);
 
   /**
@@ -396,7 +367,7 @@ export const NotificationProvider: React.FC<{
       try {
         const result = await updatePreferencesAction(
           accessToken,
-          newPreferences
+          newPreferences,
         );
 
         if (result.success) {
@@ -406,11 +377,10 @@ export const NotificationProvider: React.FC<{
           toast.error('Failed to update preferences');
         }
       } catch (err) {
-        console.error('Error updating preferences:', err);
         toast.error('Failed to update preferences');
       }
     },
-    [accessToken]
+    [accessToken],
   );
 
   /**
@@ -421,7 +391,7 @@ export const NotificationProvider: React.FC<{
       category: string,
       type: string,
       channel: string,
-      value: boolean
+      value: boolean,
     ) => {
       if (!accessToken) return;
 
@@ -431,17 +401,15 @@ export const NotificationProvider: React.FC<{
           category,
           type,
           channel,
-          value
+          value,
         );
 
         if (result.success) {
           setPreferences(result.preferences);
         }
-      } catch (err) {
-        console.error('Error updating specific preference:', err);
-      }
+      } catch (err) {}
     },
-    [accessToken]
+    [accessToken],
   );
 
   // Initial data fetch
@@ -485,7 +453,7 @@ export const useNotifications = () => {
   const context = useContext(NotificationContext);
   if (context === undefined) {
     throw new Error(
-      'useNotifications must be used within a NotificationProvider'
+      'useNotifications must be used within a NotificationProvider',
     );
   }
   return context;

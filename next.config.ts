@@ -1,8 +1,8 @@
-import type { NextConfig } from "next";
-import bundleAnalyzer from "@next/bundle-analyzer";
+import type { NextConfig } from 'next';
+import bundleAnalyzer from '@next/bundle-analyzer';
 
 const withBundleAnalyzer = bundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
+  enabled: process.env.ANALYZE === 'true',
 });
 
 const nextConfig: NextConfig = {
@@ -22,57 +22,57 @@ const nextConfig: NextConfig = {
       os: {},
       crypto: {},
       // Polyfills needed by @polymarket libs (no browser field)
-      stream: "stream-browserify",
+      stream: 'stream-browserify',
       // Use a shim instead of the npm `buffer` polyfill directly so Node-oriented
       // deps that expect `buffer.constants.*` don't crash under Turbopack SSR.
       // Note: Turbopack aliases must be resolvable as module specifiers; absolute
       // filesystem paths are not supported.
-      buffer: "./shims/buffer.js",
+      buffer: './shims/buffer.js',
       // Suppress optional peer dep warnings from ws/socket.io
       bufferutil: {},
-      "utf-8-validate": {},
+      'utf-8-validate': {},
       // Suppress WASM loader stub
       wbg: {},
       // @metamask/sdk imports this React Native module in its browser build
-      "@react-native-async-storage/async-storage": {},
+      '@react-native-async-storage/async-storage': {},
     },
   },
 
   experimental: {
     optimizePackageImports: [
-      "lucide-react",
-      "react-icons",
-      "@radix-ui/react-icons",
-      "@radix-ui/react-alert-dialog",
-      "@radix-ui/react-avatar",
-      "@radix-ui/react-checkbox",
-      "@radix-ui/react-collapsible",
-      "@radix-ui/react-dialog",
-      "@radix-ui/react-dropdown-menu",
-      "@radix-ui/react-label",
-      "@radix-ui/react-popover",
-      "@radix-ui/react-scroll-area",
-      "@radix-ui/react-select",
-      "@radix-ui/react-separator",
-      "@radix-ui/react-slider",
-      "@radix-ui/react-slot",
-      "@radix-ui/react-switch",
-      "@radix-ui/react-tabs",
-      "@radix-ui/react-toast",
-      "@radix-ui/react-tooltip",
-      "@solana/web3.js",
-      "@solana/spl-token",
-      "ethers",
-      "date-fns",
-      "lodash",
-      "framer-motion",
-      "recharts",
-      "@lifi/widget",
-      "@lifi/sdk",
+      'lucide-react',
+      'react-icons',
+      '@radix-ui/react-icons',
+      '@radix-ui/react-alert-dialog',
+      '@radix-ui/react-avatar',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-collapsible',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-label',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-scroll-area',
+      '@radix-ui/react-select',
+      '@radix-ui/react-separator',
+      '@radix-ui/react-slider',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-switch',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-toast',
+      '@radix-ui/react-tooltip',
+      '@solana/web3.js',
+      '@solana/spl-token',
+      'ethers',
+      'date-fns',
+      'lodash',
+      'framer-motion',
+      'recharts',
+      '@lifi/widget',
+      '@lifi/sdk',
     ],
     webpackMemoryOptimizations: true,
     serverActions: {
-      bodySizeLimit: "2mb",
+      bodySizeLimit: '2mb',
     },
   },
 
@@ -94,18 +94,18 @@ const nextConfig: NextConfig = {
         path: false,
         os: false,
         crypto: false,
-        stream: require.resolve("stream-browserify"),
-        buffer: require.resolve("./shims/buffer.js"),
+        stream: require.resolve('stream-browserify'),
+        buffer: require.resolve('./shims/buffer.js'),
       };
     }
 
-    // Clean alias (removed XMTP + WASM hacks)
+    // Clean alias
     config.resolve.alias = {
       ...config.resolve.alias,
       wbg: false,
       bufferutil: false,
-      "utf-8-validate": false,
-      "@react-native-async-storage/async-storage": false,
+      'utf-8-validate': false,
+      '@react-native-async-storage/async-storage': false,
     };
 
     return config;
@@ -118,27 +118,27 @@ const nextConfig: NextConfig = {
     // cannot be enumerated in advance — a whitelist approach causes constant
     // breakage as new tokens appear in LiFi routes.
     remotePatterns: [
-      { protocol: "https", hostname: "res.cloudinary.com" },
-      { protocol: "https", hostname: "**.giphy.com" },
-      { protocol: "https", hostname: "app.apiswop.co" },
-      { protocol: "https", hostname: "nftstorage.link" },
-      { protocol: "https", hostname: "i.ibb.co" },
-      { protocol: "https", hostname: "ipfs.io" },
-      { protocol: "https", hostname: "i.seadn.io" },
-      { protocol: "https", hostname: "cryptologos.cc" },
-      { protocol: "https", hostname: "coin-images.coingecko.com" },
-      { protocol: "https", hostname: "i.ytimg.com" },
-      { protocol: "https", hostname: "**.youtube.com" },
-      { protocol: "https", hostname: "**.googlevideo.com" },
-      { protocol: "https", hostname: "**.twitter.com" },
-      { protocol: "https", hostname: "**.twimg.com" },
-      { protocol: "https", hostname: "**.githubusercontent.com" },
-      { protocol: "https", hostname: "media.tenor.com" },
-      { protocol: "https", hostname: "xstocks-metadata.backed.fi" },
-      { protocol: "https", hostname: "www.prestocks.com" },
-      { protocol: "https", hostname: "gateway.pinata.cloud" },
-      { protocol: "https", hostname: "**" },
-      { protocol: "http", hostname: "**" },
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
+      { protocol: 'https', hostname: '**.giphy.com' },
+      { protocol: 'https', hostname: 'app.apiswop.co' },
+      { protocol: 'https', hostname: 'nftstorage.link' },
+      { protocol: 'https', hostname: 'i.ibb.co' },
+      { protocol: 'https', hostname: 'ipfs.io' },
+      { protocol: 'https', hostname: 'i.seadn.io' },
+      { protocol: 'https', hostname: 'cryptologos.cc' },
+      { protocol: 'https', hostname: 'coin-images.coingecko.com' },
+      { protocol: 'https', hostname: 'i.ytimg.com' },
+      { protocol: 'https', hostname: '**.youtube.com' },
+      { protocol: 'https', hostname: '**.googlevideo.com' },
+      { protocol: 'https', hostname: '**.twitter.com' },
+      { protocol: 'https', hostname: '**.twimg.com' },
+      { protocol: 'https', hostname: '**.githubusercontent.com' },
+      { protocol: 'https', hostname: 'media.tenor.com' },
+      { protocol: 'https', hostname: 'xstocks-metadata.backed.fi' },
+      { protocol: 'https', hostname: 'www.prestocks.com' },
+      { protocol: 'https', hostname: 'gateway.pinata.cloud' },
+      { protocol: 'https', hostname: '**' },
+      { protocol: 'http', hostname: '**' },
     ],
   },
 
