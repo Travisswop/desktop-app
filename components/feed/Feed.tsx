@@ -9,6 +9,7 @@ import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
 import { useModalStore } from "@/zustandStore/modalstore";
 import InfiniteScroll from "react-infinite-scroll-component";
+import logger from "@/utils/logger";
 
 dayjs.extend(relativeTime);
 
@@ -37,7 +38,7 @@ export default function Feed({
   const [hasMore, setHasMore] = useState(
     initialArray.length > 0 && initialTotalPages > 1,
   );
-  // logger.info("Feed component rendered with initial feedData:", feedData);
+  logger.info("Feed component rendered with initial feedData:", feedData);
   // logger.info("Feed component rendered with initial hasMore:", hasMore);
 
   const pageRef = useRef(initialArray.length > 0 ? 2 : 1);
@@ -52,22 +53,24 @@ export default function Feed({
         const currentPage = reset ? 1 : pageRef.current;
 
         const url = `${API_URL}/api/v2/feed/user/connect/${userId}?page=${currentPage}&limit=10`;
-        console.log("fetch urls", url);
 
-        const response = await getUserFeed(url, accessToken);
-
-        const data = response?.data ?? [];
-        // const totalPages = response?.pagination?.totalPages ?? 1;
-
-        console.log("data fetch 1", data);
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${accessToken}`,
+          },
+          cache: "no-store",
+        });
+        const data = await response.json();
+        const feedItems = data?.data ?? [];
 
         if (reset) {
-          setFeedData(data);
+          setFeedData(feedItems);
           pageRef.current = 2;
           setHasMore(initialTotalPages > pageRef.current);
-          console.log("data fetch 2", data);
         } else {
-          setFeedData((prev: any[]) => [...prev, ...data]);
+          setFeedData((prev: any[]) => [...prev, ...feedItems]);
           pageRef.current += 1;
 
           // ✅ safer logic
