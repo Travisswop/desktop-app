@@ -1,7 +1,7 @@
 import { getFeedDetails } from "@/actions/postFeed";
 import FeedDetailsClient from "@/components/feed/FeedDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
-import { Metadata, ResolvingMetadata } from "next";
+import { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import React, { Suspense } from "react";
@@ -10,23 +10,121 @@ type Props = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
+// ── Extract image src based on postType ───────────────────────────────────────
+function extractOgImageSrc(feed: any): string | null {
+  const { postType, content } = feed ?? {};
+  if (!content) return null;
 
-export async function generateMetadata(
-  { params, searchParams }: Props,
-  parent: ResolvingMetadata,
-): Promise<Metadata> {
+  switch (postType) {
+    case "post":
+      return content.post_content?.[0]?.src ?? null;
+    case "repost":
+      return content.quote?.post_content?.[0]?.src ?? null;
+    case "poll":
+      return null;
+    case "minting":
+      return content.image ?? null;
+    case "transaction":
+      return content.image ?? null;
+    case "redeem":
+      return content.tokenImgUrl ?? null;
+    case "swapTransaction":
+      return (
+        content.inputToken?.tokenImg ?? content.outputToken?.tokenImg ?? null
+      );
+    case "connection":
+    case "smartsite":
+      return content.smartsiteImage ?? null;
+    default:
+      return null;
+  }
+}
+
+// ── Extract title based on postType ──────────────────────────────────────────
+function extractOgTitle(feed: any): string {
+  const { postType, content } = feed ?? {};
+  if (!content) return "Swop Feed";
+
+  switch (postType) {
+    case "post":
+      return content.title || "Swop Feed";
+    case "repost":
+      return content.quote?.title || "Repost on Swop";
+    case "poll":
+      return content.question || "Poll on Swop";
+    case "minting":
+      return content.title || "Minted on Swop";
+    case "transaction":
+      return content.name
+        ? `${content.name} Transaction`
+        : `${content.transaction_type?.toUpperCase() ?? ""} Transaction on Swop`;
+    case "swapTransaction":
+      return `Swapped ${content.inputToken?.symbol ?? ""} → ${content.outputToken?.symbol ?? ""} on Swop`;
+    case "redeem":
+      return `Redeemed ${content.redeemName ?? ""} on Swop`;
+    case "connection":
+      return `Connected on Swop`;
+    case "smartsite":
+      return `Smartsite on Swop`;
+    case "ensClaim":
+      return `Claimed ${content.claimEnsName ?? ""} on Swop`;
+    case "joiningDate":
+      return `Joined Swop`;
+    default:
+      return "Swop Feed";
+  }
+}
+
+// ── Cloudinary thumbnail helper ───────────────────────────────────────────────
+function getCloudinaryThumbnail(url: string): string {
+  const isVideo =
+    url.includes("/video/upload/") || /\.(mp4|mov|avi|webm|mkv)$/i.test(url);
+
+  if (!isVideo) {
+    if (/\.heic$/i.test(url)) {
+      const parts = url.split("/upload/");
+      if (parts.length === 2) {
+        return `${parts[0]}/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(/\.heic$/i, ".jpg")}`;
+      }
+    }
+    if (url.includes("cloudinary.com")) {
+      const parts = url.split("/upload/");
+      if (parts.length === 2) {
+        return `${parts[0]}/upload/f_auto,w_1200,h_630,c_fill,q_auto/${parts[1]}`;
+      }
+    }
+    return url;
+  }
+
+  const parts = url.split("/upload/");
+  if (parts.length !== 2) return "";
+  const publicId = parts[1].replace(/\.(mp4|mov|avi|webm|mkv)$/i, "");
+  return `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg,q_auto/${publicId}.jpg`;
+}
+
+function formatDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+// ── generateMetadata ──────────────────────────────────────────────────────────
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
 
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}`;
+  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}/og`;
 
   try {
-    // const responseData = await getFeedDetails(url);
-    const response = await fetch(`${url}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+    const response = await fetch(url, {
+      next: { revalidate: 600 }, // cache for 10 min — matches backend TTL
     });
+
+    if (!response.ok) {
+      throw new Error(`OG API returned ${response.status}`);
+    }
+
     const responseData = await response.json();
     let feed = responseData?.data;
 
@@ -37,64 +135,23 @@ export async function generateMetadata(
       };
     }
 
-    // ── REPOST: repostedPostDetails is INSIDE data, not at root
-    if (feed.postType === "repost") {
-      const repostedDetails = feed.repostedPostDetails;
-      if (repostedDetails && !feed.isOriginalDeleted) {
-        feed = repostedDetails;
-      }
+    // For reposts, use the original post's content for OG
+    if (
+      feed.postType === "repost" &&
+      feed.repostedPostDetails &&
+      !feed.isOriginalDeleted
+    ) {
+      feed = feed.repostedPostDetails;
     }
 
-    // smartsiteDetails is the populated object (from aggregate pipeline)
     const smartsiteEnsName =
       feed?.smartsiteDetails?.ens || feed?.smartsiteEnsName || "Swop";
 
-    // content.post_content for regular posts, content.question for polls
-    const postContent = feed?.content?.post_content;
-    const firstContent = Array.isArray(postContent) ? postContent[0] : null;
-    const contentSrc = firstContent?.src ?? null;
+    const contentSrc = extractOgImageSrc(feed);
     const hasImage = Boolean(contentSrc);
-
-    const feedTitle =
-      feed?.content?.title || feed?.content?.question || "Swop Feed";
-
+    const feedTitle = extractOgTitle(feed);
     const createdAt = feed?.createdAt || new Date().toISOString();
-
-    const formatDate = (dateString: string) => {
-      const date = new Date(dateString);
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    };
-
-    const getCloudinaryThumbnail = (url: string): string => {
-      const isVideo =
-        url.includes("/video/upload/") ||
-        /\.(mp4|mov|avi|webm|mkv)$/i.test(url);
-
-      if (!isVideo) {
-        if (/\.heic$/i.test(url)) {
-          const parts = url.split("/upload/");
-          if (parts.length === 2) {
-            return `${parts[0]}/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(/\.heic$/i, ".jpg")}`;
-          }
-        }
-        if (url.includes("cloudinary.com")) {
-          const parts = url.split("/upload/");
-          if (parts.length === 2) {
-            return `${parts[0]}/upload/f_auto,w_1200,h_630,c_fill,q_auto/${parts[1]}`;
-          }
-        }
-        return url;
-      }
-
-      const parts = url.split("/upload/");
-      if (parts.length !== 2) return "";
-      const publicId = parts[1].replace(/\.(mp4|mov|avi|webm|mkv)$/i, "");
-      return `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg,q_auto/${publicId}.jpg`;
-    };
+    const description = `${smartsiteEnsName} • ${formatDate(createdAt)}`;
 
     let ogImageUrl: string | undefined;
 
@@ -107,8 +164,6 @@ export async function generateMetadata(
         `&image=${encodeURIComponent(feedImage)}` +
         `&date=${encodeURIComponent(formatDate(createdAt))}`;
     }
-
-    const description = `${smartsiteEnsName} • ${formatDate(createdAt)}`;
 
     const metadata: Metadata = {
       title: feedTitle,
@@ -148,10 +203,10 @@ export async function generateMetadata(
 
     return metadata;
   } catch (error) {
-    console.error("Error generating metadata:", error);
+    console.error("generateMetadata error:", error);
     return {
       title: "Feed Details",
-      description: "Check out this feed",
+      description: "Check out this feed on Swop",
       twitter: { card: "summary" },
     };
   }
@@ -163,9 +218,9 @@ const FeedDetailsPage = async ({
   params: Promise<{ id: string }>;
 }) => {
   const { id } = await params;
-  const cookieStore = cookies();
-  const accessToken = (await cookieStore).get("access-token")?.value;
-  const userId = (await cookieStore).get("user-id")?.value;
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("access-token")?.value;
+  const userId = cookieStore.get("user-id")?.value;
 
   const url = userId
     ? `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}?userId=${userId}`
