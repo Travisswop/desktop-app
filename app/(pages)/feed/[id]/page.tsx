@@ -1,8 +1,7 @@
 import { getFeedDetails } from "@/actions/postFeed";
-// import FeedDetails from "@/components/feed/FeedDetails";
 import FeedDetailsClient from "@/components/feed/FeedDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
-import { Metadata, ResolvingMetadata } from "next";
+import { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import React, { Suspense } from "react";
@@ -12,26 +11,22 @@ type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-export async function generateMetadata(
-  { params, searchParams }: Props,
-  parent: ResolvingMetadata,
-): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
   const { id } = await params;
-  const cookieStore = cookies();
-  const userId = (await cookieStore).get("user-id")?.value;
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}?userId=${userId}`;
-  console.log("url hole", url);
+  const cookieStore = await cookies();
+  const userId = cookieStore.get("user-id")?.value;
+
+  const url = userId
+    ? `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}?userId=${userId}`
+    : `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}`;
 
   try {
     const responseData = await getFeedDetails(url);
-    console.log("responseData", responseData);
-
     let feed = responseData?.data;
-
-    // Handle repost
-    if (responseData?.data?.postType === "repost") {
-      feed = feed?.repostedPostDetails;
-    }
 
     if (!feed) {
       return {
@@ -40,22 +35,29 @@ export async function generateMetadata(
       };
     }
 
-    // First media content (if any)
-    const firstContent = feed?.content?.post_content?.[0];
-    const contentSrc = firstContent?.src;
+    // ── REPOST: repostedPostDetails is INSIDE data, not at root
+    if (feed.postType === "repost") {
+      const repostedDetails = feed.repostedPostDetails;
+      if (repostedDetails && !feed.isOriginalDeleted) {
+        feed = repostedDetails;
+      }
+    }
+
+    // smartsiteDetails is the populated object (from aggregate pipeline)
+    const smartsiteEnsName =
+      feed?.smartsiteDetails?.ens || feed?.smartsiteEnsName || "Swop";
+
+    // content.post_content for regular posts, content.question for polls
+    const postContent = feed?.content?.post_content;
+    const firstContent = Array.isArray(postContent) ? postContent[0] : null;
+    const contentSrc = firstContent?.src ?? null;
     const hasImage = Boolean(contentSrc);
 
-    // Metadata fields
-    const smartsiteEnsName =
-      feed?.smartsiteDetails?.ens ||
-      feed?.smartsiteId?.ensData?.name ||
-      feed?.smartsiteId?.ens ||
-      feed?.smartsiteEnsName;
+    const feedTitle =
+      feed?.content?.title || feed?.content?.question || "Swop Feed";
 
-    const feedTitle = feed?.content?.title || "Swop Feed";
     const createdAt = feed?.createdAt || new Date().toISOString();
 
-    // Format date
     const formatDate = (dateString: string) => {
       const date = new Date(dateString);
       return date.toLocaleDateString("en-US", {
@@ -65,44 +67,30 @@ export async function generateMetadata(
       });
     };
 
-    // Cloudinary thumbnail helper
     const getCloudinaryThumbnail = (url: string): string => {
       const isVideo =
         url.includes("/video/upload/") ||
-        url.match(/\.(mp4|mov|avi|webm|mkv)$/i);
+        /\.(mp4|mov|avi|webm|mkv)$/i.test(url);
 
-      // Image handling
       if (!isVideo) {
-        // HEIC → JPG
-        if (url.match(/\.heic$/i)) {
+        if (/\.heic$/i.test(url)) {
           const parts = url.split("/upload/");
           if (parts.length === 2) {
-            return `${
-              parts[0]
-            }/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(
-              /\.heic$/i,
-              ".jpg",
-            )}`;
+            return `${parts[0]}/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(/\.heic$/i, ".jpg")}`;
           }
         }
-
-        // Normal Cloudinary image optimization
         if (url.includes("cloudinary.com")) {
           const parts = url.split("/upload/");
           if (parts.length === 2) {
             return `${parts[0]}/upload/f_auto,w_1200,h_630,c_fill,q_auto/${parts[1]}`;
           }
         }
-
         return url;
       }
 
-      // Video → thumbnail
       const parts = url.split("/upload/");
       if (parts.length !== 2) return "";
-
       const publicId = parts[1].replace(/\.(mp4|mov|avi|webm|mkv)$/i, "");
-
       return `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg,q_auto/${publicId}.jpg`;
     };
 
@@ -110,7 +98,6 @@ export async function generateMetadata(
 
     if (hasImage && contentSrc) {
       const feedImage = getCloudinaryThumbnail(contentSrc);
-
       ogImageUrl =
         `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
         `ensName=${encodeURIComponent(smartsiteEnsName)}` +
@@ -121,7 +108,6 @@ export async function generateMetadata(
 
     const description = `${smartsiteEnsName} • ${formatDate(createdAt)}`;
 
-    // Base metadata (text-only safe)
     const metadata: Metadata = {
       title: feedTitle,
       description,
@@ -139,7 +125,6 @@ export async function generateMetadata(
       },
     };
 
-    // Attach images ONLY if media exists
     if (hasImage && ogImageUrl) {
       metadata.openGraph!.images = [
         {
@@ -150,9 +135,7 @@ export async function generateMetadata(
           type: "image/png",
         },
       ];
-
       metadata.twitter!.images = [ogImageUrl];
-
       metadata.other = {
         "og:image:secure_url": ogImageUrl,
         "og:image:type": "image/png",
@@ -164,13 +147,10 @@ export async function generateMetadata(
     return metadata;
   } catch (error) {
     console.error("Error generating metadata:", error);
-
     return {
       title: "Feed Details",
       description: "Check out this feed",
-      twitter: {
-        card: "summary",
-      },
+      twitter: { card: "summary" },
     };
   }
 }
