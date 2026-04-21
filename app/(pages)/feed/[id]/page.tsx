@@ -30,7 +30,7 @@ export async function generateMetadata(
 
     // Handle repost
     if (responseData?.data?.postType === "repost") {
-      feed = responseData?.repostedPostDetails;
+      feed = feed?.repostedPostDetails;
     }
 
     if (!feed) {
@@ -47,9 +47,10 @@ export async function generateMetadata(
 
     // Metadata fields
     const smartsiteEnsName =
-      feed?.smartsiteEnsName ||
+      feed?.smartsiteDetails?.ens ||
+      feed?.smartsiteId?.ensData?.name ||
       feed?.smartsiteId?.ens ||
-      feed?.smartsiteId?.ensData?.name;
+      feed?.smartsiteEnsName;
 
     const feedTitle = feed?.content?.title || "Swop Feed";
     const createdAt = feed?.createdAt || new Date().toISOString();
