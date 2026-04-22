@@ -105,6 +105,12 @@ export function useHyperliquidAgent() {
         error: null,
       }));
 
+      // Track whether we generated a brand-new key in *this* call so error
+      // recovery only rolls back what we created. Prevents wiping a valid
+      // pre-existing key when an unrelated step (transport, signing) fails.
+      let createdNewKey = false;
+      let masterAddrForCleanup: string | null = null;
+
       try {
         const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
         if (!embeddedWallet) {
@@ -112,20 +118,29 @@ export function useHyperliquidAgent() {
         }
 
         const masterAddress = embeddedWallet.address;
+        masterAddrForCleanup = masterAddress;
         const transport = new hl.HttpTransport({ isTestnet: HL_IS_TESTNET });
 
         // ── Agent keypair ─────────────────────────────────────────────────
-        // Load existing key or generate a new one.
-        // A new key always requires a fresh approveAgent signature.
+        // Reuse the persisted key if one exists for this master address.
+        // Silent init must never produce a wallet popup, so if no key exists
+        // we bail out and let the user trigger manual setup explicitly.
         let agentPk = loadAgentKey(masterAddress);
-        const isNewKey = !agentPk;
-
-        if (isNewKey) {
+        if (!agentPk) {
+          if (silent) {
+            setState((prev) => ({
+              ...prev,
+              isInitializing: false,
+              isReconnecting: false,
+            }));
+            return null;
+          }
           agentPk = generatePrivateKey();
           saveAgentKey(masterAddress, agentPk);
+          createdNewKey = true;
         }
 
-        const agentAccount = privateKeyToAccount(agentPk!);
+        const agentAccount = privateKeyToAccount(agentPk);
 
         // ── Master client (Privy wallet) ───────────────────────────────────
         // Only used for approveAgent. All trading goes through agentClient.
@@ -133,11 +148,10 @@ export function useHyperliquidAgent() {
         const masterClient = new hl.ExchangeClient({ wallet: masterViemAccount, transport });
 
         // ── Approve agent ─────────────────────────────────────────────────
-        // Called when:
-        //  - Key is brand new (first-ever setup, or key was cleared)
-        //  - Manual init (!silent) — user clicked "Enable Trading" in modal
-        // Skipped on silent reconnect with an existing key — no popup.
-        if (isNewKey || !silent) {
+        // ONLY when we just generated a fresh key. Re-approving an existing
+        // agent address throws "Extra agent already used." on Hyperliquid —
+        // an already-approved agent stays valid until explicitly revoked.
+        if (createdNewKey) {
           await masterClient.approveAgent({
             hyperliquidChain: HL_IS_TESTNET ? 'Testnet' : 'Mainnet',
             agentAddress: agentAccount.address,
@@ -167,10 +181,11 @@ export function useHyperliquidAgent() {
       } catch (err) {
         const error = err instanceof Error ? err.message : 'Setup failed';
 
-        // If approval failed for a new key, remove the stored key so the user
-        // can retry from scratch next time.
-        const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
-        if (embeddedWallet) deleteAgentKey(embeddedWallet.address);
+        // Only roll back a key we just created in this call. Never delete a
+        // pre-existing key — it may still be valid on Hyperliquid.
+        if (createdNewKey && masterAddrForCleanup) {
+          deleteAgentKey(masterAddrForCleanup);
+        }
 
         setState((prev) => ({
           ...prev,
@@ -209,8 +224,16 @@ export function useHyperliquidAgent() {
       }));
     }
 
-    if (embeddedWallet && !agentClientRef.current && wasInitializedRef.current) {
-      // Wallet is back — reuse stored agent key, no re-approval
+    // Silent (re)hydration. Triggers in two cases:
+    //  1. First mount after a page reload — picks up the agent key persisted
+    //     in localStorage so the user is NOT asked to re-approve and Hyperliquid
+    //     does NOT throw "Extra agent already used."
+    //  2. In-session reconnect after the Privy wallet briefly disappears.
+    if (
+      embeddedWallet &&
+      !agentClientRef.current &&
+      (wasInitializedRef.current || loadAgentKey(embeddedWallet.address))
+    ) {
       _init(true);
     }
   }, [wallets, walletsReady, _init]);
@@ -237,6 +260,13 @@ export function useHyperliquidAgent() {
   // ─── Manual reset ─────────────────────────────────────────────────────────
 
   const resetAgent = useCallback(() => {
+    // Clear the persisted agent key so the next setup generates a fresh one
+    // and triggers a new approveAgent signature. Without this, resetAgent
+    // would only clear runtime state and the next init would silently rehydrate
+    // the same key — defeating the point of "reset".
+    const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+    if (embeddedWallet) deleteAgentKey(embeddedWallet.address);
+
     agentClientRef.current = null;
     masterClientRef.current = null;
     wasInitializedRef.current = false;
@@ -249,7 +279,7 @@ export function useHyperliquidAgent() {
       isReconnecting: false,
       error: null,
     });
-  }, []);
+  }, [wallets]);
 
   return { ...state, initializeAgent, resetAgent };
 }

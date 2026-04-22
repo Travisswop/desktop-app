@@ -38,6 +38,8 @@ interface PerpsPanelProps {
   depositStatus: DepositCheckStatus;
   /** Re-run a single balance check (e.g. user clicks "check again") */
   onRecheckBalance: () => void;
+  /** Coin to focus on when the panel opens (e.g. user clicked an ETH row in PerpsCard) */
+  initialCoin?: string | null;
 }
 
 type PanelView = 'trading' | 'markets';
@@ -71,6 +73,7 @@ export function PerpsPanel({
   onOpenDeposit,
   depositStatus,
   onRecheckBalance,
+  initialCoin,
 }: PerpsPanelProps) {
   const { toast } = useToast();
 
@@ -94,7 +97,11 @@ export function PerpsPanel({
   }, [depositStatus, isInitialized]);
 
   // ── Market selection ───────────────────────────────────────────────
-  const [selectedCoin, setSelectedCoin] = useState<string | null>('BTC');
+  // Default to whatever coin the parent requested (e.g. clicked from
+  // PerpsCard) and fall back to BTC if none was provided.
+  const [selectedCoin, setSelectedCoin] = useState<string | null>(
+    initialCoin ?? 'BTC',
+  );
   const [view, setView] = useState<PanelView>('trading');
   const [closingCoin, setClosingCoin] = useState<string | null>(null);
 

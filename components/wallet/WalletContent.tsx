@@ -73,7 +73,12 @@ import {
 import { AssetsTab } from './tabs';
 
 // Perps
-import { PerpsCard, PerpsPanel, DepositModal, useHyperliquidAgent } from './perps';
+import {
+  PerpsCard,
+  PerpsPanel,
+  DepositModal,
+  useHyperliquidAgent,
+} from './perps';
 import { useHyperliquidBalanceCheck } from './perps/hooks/useHyperliquidBalanceCheck';
 import SwapTokenModal from './SwapTokenModal';
 
@@ -186,6 +191,22 @@ const WalletContentInner = () => {
   const [walletSetting, setWalletSetting] = useState(false);
   const [perpsPanelOpen, setPerpsPanelOpen] = useState(false);
   const [perpsDepositOpen, setPerpsDepositOpen] = useState(false);
+  // Coin requested by the row the user clicked in PerpsCard; null = let the
+  // panel use its own default. Cleared back to null on close so the next
+  // top-level "Trade" press doesn't re-open on a stale coin.
+  const [perpsInitialCoin, setPerpsInitialCoin] = useState<
+    string | null
+  >(null);
+
+  const openPerpsPanel = (coin?: string) => {
+    setPerpsInitialCoin(coin ?? null);
+    setPerpsPanelOpen(true);
+  };
+
+  const closePerpsPanel = () => {
+    setPerpsPanelOpen(false);
+    setPerpsInitialCoin(null);
+  };
 
   // Hyperliquid agent — lives here so the ExchangeClient persists across
   // PerpsPanel open/close cycles and never triggers repeated sign messages.
@@ -320,6 +341,8 @@ const WalletContentInner = () => {
     evmWalletAddress,
     SUPPORTED_CHAINS,
   );
+
+  console.log('tokens', tokens);
 
   const {
     nfts,
@@ -874,8 +897,9 @@ const WalletContentInner = () => {
             <PerpsCard
               masterAddress={hlAgent.masterAddress ?? undefined}
               isReconnecting={hlAgent.isReconnecting}
-              onOpenTrading={() => setPerpsPanelOpen(true)}
-              onOpenDeposit={() => setPerpsDepositOpen(true)}
+              onOpenTrading={openPerpsPanel}
+              onBridgeToArbitrum={() => setArbitrumBridgeOpen(true)}
+              onDepositSubmitted={hlStartDepositPolling}
             />
           </div>
         </div>
@@ -920,7 +944,8 @@ const WalletContentInner = () => {
             isReconnecting={hlAgent.isReconnecting}
             agentError={hlAgent.error}
             initializeAgent={hlAgent.initializeAgent}
-            onClose={() => setPerpsPanelOpen(false)}
+            initialCoin={perpsInitialCoin}
+            onClose={closePerpsPanel}
             onOpenDeposit={() => {
               setPerpsDepositOpen(true);
               // Begin polling so PerpsPanel re-enables "Enable Trading"
@@ -968,11 +993,13 @@ const WalletContentInner = () => {
                 defaultReceiveToken={{
                   symbol: 'USDC',
                   name: 'USD Coin',
-                  address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+                  address:
+                    '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
                   decimals: 6,
                   chain: 'ARBITRUM',
                   chainId: 42161,
-                  logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/arbitrum/assets/0xaf88d065e77c8cC2239327C5EDb3A432268e5831/logo.png',
+                  logoURI:
+                    'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/arbitrum/assets/0xaf88d065e77c8cC2239327C5EDb3A432268e5831/logo.png',
                 }}
                 defaultReceiveChainId="42161"
                 onSwapComplete={() => {
