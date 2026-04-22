@@ -181,7 +181,6 @@
 //     );
 //   }
 // }
-
 import { ImageResponse } from "next/og";
 
 export async function GET(request: Request) {
@@ -251,70 +250,67 @@ export async function GET(request: Request) {
               display: "flex",
               flex: 1,
               margin: "0 60px 30px 60px",
-              backgroundColor: "#f8f9ff",
+              backgroundColor: "#ffffff",
               borderRadius: "16px",
-              border: "2px solid #e8eaff",
-              padding: "40px 60px",
+              border: "1.5px solid #e2e8f0",
+              padding: "0 60px",
               alignItems: "center",
               justifyContent: "space-between",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
             }}
           >
-            {/* Input Token */}
+            {/* Input Token — You sent */}
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
-                gap: "16px",
+                gap: "12px",
               }}
             >
+              {/* Token icon + name row */}
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "16px",
-                }}
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
               >
                 {inputImg && (
                   <img
                     src={inputImg}
-                    width="64"
-                    height="64"
+                    width="52"
+                    height="52"
                     style={{
                       borderRadius: "50%",
-                      width: "64px",
-                      height: "64px",
+                      width: "52px",
+                      height: "52px",
+                      objectFit: "cover",
                     }}
                     alt={inputSymbol}
                   />
                 )}
                 <div
                   style={{
+                    fontSize: "26px",
+                    fontWeight: "600",
+                    color: "#1a202c",
                     display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: "22px",
-                      color: "#888888",
-                      display: "flex",
-                    }}
-                  >
-                    You sent
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "42px",
-                      fontWeight: "bold",
-                      color: "#e53e3e",
-                      display: "flex",
-                    }}
-                  >
-                    {inputAmount} {inputSymbol}
-                  </div>
+                  {inputSymbol}
                 </div>
+              </div>
+
+              <div
+                style={{ fontSize: "22px", color: "#718096", display: "flex" }}
+              >
+                You sent
+              </div>
+              <div
+                style={{
+                  fontSize: "44px",
+                  fontWeight: "bold",
+                  color: "#e53e3e",
+                  display: "flex",
+                }}
+              >
+                {inputAmount} {inputSymbol}
               </div>
             </div>
 
@@ -324,72 +320,66 @@ export async function GET(request: Request) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: "80px",
-                height: "80px",
-                borderRadius: "50%",
-                backgroundColor: "#eef0ff",
-                fontSize: "36px",
+                fontSize: "48px",
+                color: "#a0aec0",
               }}
             >
               →
             </div>
 
-            {/* Output Token */}
+            {/* Output Token — You received */}
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
-                gap: "16px",
+                gap: "12px",
+                alignItems: "flex-end",
               }}
             >
+              {/* Token icon + name row */}
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "16px",
-                }}
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
               >
                 {outputImg && (
                   <img
                     src={outputImg}
-                    width="64"
-                    height="64"
+                    width="52"
+                    height="52"
                     style={{
                       borderRadius: "50%",
-                      width: "64px",
-                      height: "64px",
+                      width: "52px",
+                      height: "52px",
+                      objectFit: "cover",
                     }}
                     alt={outputSymbol}
                   />
                 )}
                 <div
                   style={{
+                    fontSize: "26px",
+                    fontWeight: "600",
+                    color: "#1a202c",
                     display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: "22px",
-                      color: "#888888",
-                      display: "flex",
-                    }}
-                  >
-                    You received
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "42px",
-                      fontWeight: "bold",
-                      color: "#38a169",
-                      display: "flex",
-                    }}
-                  >
-                    {outputAmount} {outputSymbol}
-                  </div>
+                  {outputSymbol}
                 </div>
+              </div>
+
+              <div
+                style={{ fontSize: "22px", color: "#718096", display: "flex" }}
+              >
+                You received
+              </div>
+              <div
+                style={{
+                  fontSize: "44px",
+                  fontWeight: "bold",
+                  color: "#38a169",
+                  display: "flex",
+                }}
+              >
+                {outputAmount} {outputSymbol}
               </div>
             </div>
           </div>
