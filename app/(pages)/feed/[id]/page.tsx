@@ -1,6 +1,7 @@
 import { getFeedDetails } from "@/actions/postFeed";
 import FeedDetailsClient from "@/components/feed/FeedDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
+import { logger } from "ethers5";
 import { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -23,18 +24,44 @@ function extractOgImageSrc(feed: any): {
     case "post": {
       const postContents: any[] = content.post_content ?? [];
 
-      // Priority 1: first actual image
       const image = postContents.find((c) => c.type === "image");
       if (image) return { src: image.src, type: "image" };
 
-      // Priority 2: first video
       const video = postContents.find((c) => c.type === "video");
       if (video) return { src: video.src, type: "video" };
 
-      // Priority 3: only GIFs available
       const gif = postContents.find((c) => c.type === "gif");
       if (gif) return { src: "", type: "gif" };
 
+      return { src: "", type: null };
+    }
+
+    case "repost": {
+      // ── Check quote first ─────────────────────────────────────────────
+      const quote = content.quote;
+      const hasQuoteTitle = Boolean(quote?.title?.trim());
+      const hasQuoteMedia =
+        Array.isArray(quote?.post_content) && quote.post_content.length > 0;
+
+      if (hasQuoteTitle || hasQuoteMedia) {
+        // Quote exists — use quote's media
+        const quoteContents: any[] = quote?.post_content ?? [];
+
+        const image = quoteContents.find((c) => c.type === "image");
+        if (image) return { src: image.src, type: "image" };
+
+        const video = quoteContents.find((c) => c.type === "video");
+        if (video) return { src: video.src, type: "video" };
+
+        const gif = quoteContents.find((c) => c.type === "gif");
+        if (gif) return { src: "", type: "gif" };
+
+        // Quote has title but no media — no image
+        return { src: "", type: null };
+      }
+
+      // ── No quote — fall through to repostedPostDetails ────────────────
+      // This is handled in generateMetadata by swapping feed to repostedPostDetails
       return { src: "", type: null };
     }
 
@@ -63,7 +90,6 @@ function extractOgImageSrc(feed: any): {
   }
 }
 
-// ── Extract title based on postType ──────────────────────────────────────────
 function extractOgTitle(feed: any): string {
   const { postType, content } = feed ?? {};
   if (!content) return "Swop Feed";
@@ -71,8 +97,22 @@ function extractOgTitle(feed: any): string {
   switch (postType) {
     case "post":
       return content.title || "Swop Feed";
-    case "repost":
-      return content.quote?.title || "Repost on Swop";
+
+    case "repost": {
+      // ── Check quote first ─────────────────────────────────────────────
+      const quote = content.quote;
+      const hasQuoteTitle = Boolean(quote?.title?.trim());
+      const hasQuoteMedia =
+        Array.isArray(quote?.post_content) && quote.post_content.length > 0;
+
+      if (hasQuoteTitle || hasQuoteMedia) {
+        return quote?.title || "Repost on Swop";
+      }
+
+      // ── No quote — repostedPostDetails title handled below ────────────
+      return "Repost on Swop";
+    }
+
     case "poll":
       return content.question || "Poll on Swop";
     case "minting":
@@ -166,13 +206,30 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       };
     }
 
+    logger.info("Feed data in generateMetadata", feed);
+
     // For reposts, use the original post's content for OG
-    if (
-      feed.postType === "repost" &&
-      feed.repostedPostDetails &&
-      !feed.isOriginalDeleted
-    ) {
-      feed = feed.repostedPostDetails;
+    // if (
+    //   feed.postType === "repost" &&
+    //   feed.repostedPostDetails &&
+    //   !feed.isOriginalDeleted
+    // ) {
+    //   feed = feed.repostedPostDetails;
+    // }
+
+    // ── Repost logic ──────────────────────────────────────────────────────────
+    if (feed.postType === "repost") {
+      const quote = feed.content?.quote;
+      const hasQuoteTitle = Boolean(quote?.title?.trim());
+      const hasQuoteMedia =
+        Array.isArray(quote?.post_content) && quote.post_content.length > 0;
+      const hasQuote = hasQuoteTitle || hasQuoteMedia;
+
+      if (!hasQuote && feed.repostedPostDetails && !feed.isOriginalDeleted) {
+        // Simple repost with no quote — use original post's content for OG
+        feed = feed.repostedPostDetails;
+      }
+      // If quote exists — keep feed as-is, extractOgImageSrc/Title handles it
     }
 
     const smartsiteEnsName =
