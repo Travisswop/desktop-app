@@ -29,11 +29,62 @@ export function useHyperliquidWebSocket(
   const reconnectRef = useRef<ReturnType<typeof setTimeout>>();
   const onMessageRef = useRef(onMessage);
   const subsRef = useRef(subscriptions);
+  // Tracks subscriptions actually live on the current socket (serialized keys).
+  // Compared against the desired set on every reconcile to compute a diff
+  // and send the minimum necessary subscribe/unsubscribe frames.
+  const activeSubsRef = useRef<Set<string>>(new Set());
   const [connected, setConnected] = useState(false);
 
-  // Keep refs fresh so closures in connect() never go stale
+  // Keep refs fresh so closures never see a stale subs array
   onMessageRef.current = onMessage;
   subsRef.current = subscriptions;
+
+  // Stable string key for the *content* of the desired subscriptions, so the
+  // reconcile effect only runs when the subscription set actually changes
+  // (not on every parent re-render that produces a new array reference).
+  const desiredKey = subscriptions
+    .map((s) => JSON.stringify(s))
+    .sort()
+    .join('|');
+
+  const reconcileSubscriptions = useCallback(() => {
+    const ws = wsRef.current;
+    if (ws?.readyState !== WebSocket.OPEN) return;
+
+    const desired = new Map<string, Subscription>();
+    for (const sub of subsRef.current) {
+      desired.set(JSON.stringify(sub), sub);
+    }
+
+    // Unsubscribe from channels we no longer want (e.g. previously-selected coin)
+    for (const key of Array.from(activeSubsRef.current)) {
+      if (!desired.has(key)) {
+        try {
+          ws.send(
+            JSON.stringify({
+              method: 'unsubscribe',
+              subscription: JSON.parse(key) as Subscription,
+            }),
+          );
+        } catch {
+          // ignore send errors — socket may have just closed
+        }
+        activeSubsRef.current.delete(key);
+      }
+    }
+
+    // Subscribe to new channels (e.g. newly-selected coin)
+    for (const [key, sub] of desired) {
+      if (!activeSubsRef.current.has(key)) {
+        try {
+          ws.send(JSON.stringify({ method: 'subscribe', subscription: sub }));
+        } catch {
+          // ignore — handled by reconnect
+        }
+        activeSubsRef.current.add(key);
+      }
+    }
+  }, []);
 
   const connect = useCallback(() => {
     if (!enabled) return;
@@ -44,10 +95,10 @@ export function useHyperliquidWebSocket(
     ws.onopen = () => {
       setConnected(true);
       clearTimeout(reconnectRef.current);
-      // Subscribe to all channels at once
-      subsRef.current.forEach((sub) =>
-        ws.send(JSON.stringify({ method: 'subscribe', subscription: sub })),
-      );
+      // Fresh socket = no live subscriptions on the wire. Clear the tracking
+      // set so reconcile re-sends every desired subscription from scratch.
+      activeSubsRef.current.clear();
+      reconcileSubscriptions();
     };
 
     ws.onmessage = (event: MessageEvent<string>) => {
@@ -64,6 +115,7 @@ export function useHyperliquidWebSocket(
     ws.onclose = () => {
       setConnected(false);
       wsRef.current = null;
+      activeSubsRef.current.clear();
       // Exponential-ish back-off: 2s
       reconnectRef.current = setTimeout(connect, 2_000);
     };
@@ -71,7 +123,7 @@ export function useHyperliquidWebSocket(
     ws.onerror = () => ws.close();
 
     wsRef.current = ws;
-  }, [enabled]); // stable — intentional
+  }, [enabled, reconcileSubscriptions]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -80,8 +132,17 @@ export function useHyperliquidWebSocket(
       clearTimeout(reconnectRef.current);
       wsRef.current?.close();
       wsRef.current = null;
+      activeSubsRef.current.clear();
     };
   }, [connect, enabled]);
+
+  // React to subscription set changes while the socket is already open.
+  // Without this, switching coin would leave the old l2Book subscription
+  // active and never start the new one — incoming frames would be dropped
+  // by the consumer's coin guard.
+  useEffect(() => {
+    reconcileSubscriptions();
+  }, [desiredKey, reconcileSubscriptions]);
 
   return { connected };
 }
@@ -126,6 +187,12 @@ const MAX_LEVELS = 15; // levels per side to keep
 export function useOrderBook(coin: string | null, enabled = true) {
   const [book, setBook] = useState<HLOrderBook | null>(null);
 
+  // Drop the stale book the moment the user switches markets so the UI shows
+  // a loading state instead of the previous coin's depth labelled as the new one.
+  useEffect(() => {
+    setBook(null);
+  }, [coin]);
+
   const handleMessage = useCallback(
     (channel: string, data: unknown) => {
       if (channel === 'l2Book') {
@@ -165,6 +232,12 @@ const MAX_TRADES = 50;
 
 export function useRecentTrades(coin: string | null, enabled = true) {
   const [trades, setTrades] = useState<HLTradeData[]>([]);
+
+  // Wipe the trade tape on coin change so the new market doesn't inherit
+  // the previous market's tape briefly.
+  useEffect(() => {
+    setTrades([]);
+  }, [coin]);
 
   const handleMessage = useCallback(
     (channel: string, data: unknown) => {
