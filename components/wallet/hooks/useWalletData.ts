@@ -1,6 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { WalletItem } from '@/types/wallet';
-import { isWalletAccount } from '../utils/typeGuards';
+import {
+  PrivyLinkedAccount,
+  isSolanaWalletAccount,
+  isEthereumWalletAccount,
+  isPrivyEmbeddedWallet,
+} from '@/types/privy';
 
 // Custom hook for wallet addresses
 export const useWalletAddresses = (
@@ -20,7 +25,7 @@ export const useWalletAddresses = (
   }, [walletData]);
 };
 
-// Custom hook for wallet data management
+// Custom hook for wallet data management — returns only embedded Privy wallets
 export const useWalletData = (
   authenticated: boolean,
   ready: boolean,
@@ -33,22 +38,38 @@ export const useWalletData = (
   useEffect(() => {
     if (!authenticated || !ready || !PrivyUser) return;
 
-    const linkWallet = PrivyUser.linkedAccounts
-      .filter(isWalletAccount)
-      .filter(
-        (item: any) =>
-          item.chainType === 'ethereum' || item.chainType === 'solana'
-      )
-      .map((item: any) => ({
-        address: item.address,
-        isActive:
-          item.walletClientType === 'privy' ||
-          item.connectorType === 'embedded',
-        isEVM: item.chainType === 'ethereum',
-        walletClientType: item.walletClientType,
-      }));
+    const linkedAccounts = (PrivyUser.linkedAccounts ||
+      []) as PrivyLinkedAccount[];
 
-    setWalletData(linkWallet as WalletItem[]);
+    // Find the embedded Privy wallet for each chain.
+    // walletClientType === 'privy' is the canonical identifier for embedded wallets.
+    const embeddedSolana = linkedAccounts
+      .filter(isSolanaWalletAccount)
+      .find(isPrivyEmbeddedWallet);
+
+    const embeddedEvm = linkedAccounts
+      .filter(isEthereumWalletAccount)
+      .find(isPrivyEmbeddedWallet);
+
+    const wallets: WalletItem[] = [];
+
+    if (embeddedSolana) {
+      wallets.push({
+        address: embeddedSolana.address,
+        isActive: true,
+        isEVM: false,
+      });
+    }
+
+    if (embeddedEvm) {
+      wallets.push({
+        address: embeddedEvm.address,
+        isActive: true,
+        isEVM: true,
+      });
+    }
+
+    setWalletData(wallets);
   }, [PrivyUser, authenticated, ready]);
 
   return walletData;

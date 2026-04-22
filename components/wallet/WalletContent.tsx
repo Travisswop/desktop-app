@@ -255,10 +255,8 @@ const WalletContentInner = () => {
 
   // Custom hooks
   const walletData = useWalletData(authenticated, ready, PrivyUser);
-  console.log('wallet data', walletData);
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
-  console.log('solana address', solWalletAddress);
   const { payload } = useTransactionPayload(user);
   const {
     handlePointsUpdate,
@@ -343,8 +341,6 @@ const WalletContentInner = () => {
     evmWalletAddress,
     SUPPORTED_CHAINS,
   );
-
-  console.log('tokens', tokens);
 
   const {
     nfts,
