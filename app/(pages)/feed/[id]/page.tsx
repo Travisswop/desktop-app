@@ -10,33 +10,56 @@ type Props = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
+
 // ── Extract image src based on postType ───────────────────────────────────────
-function extractOgImageSrc(feed: any): string | null {
+function extractOgImageSrc(feed: any): {
+  src: string;
+  type: "image" | "video" | "gif" | null;
+} {
   const { postType, content } = feed ?? {};
-  if (!content) return null;
+  if (!content) return { src: "", type: null };
 
   switch (postType) {
-    case "post":
-      return content.post_content?.[0]?.src ?? null;
-    case "repost":
-      return content.quote?.post_content?.[0]?.src ?? null;
-    case "poll":
-      return null;
+    case "post": {
+      const postContents: any[] = content.post_content ?? [];
+
+      // Priority 1: first actual image
+      const image = postContents.find((c) => c.type === "image");
+      if (image) return { src: image.src, type: "image" };
+
+      // Priority 2: first video
+      const video = postContents.find((c) => c.type === "video");
+      if (video) return { src: video.src, type: "video" };
+
+      // Priority 3: only GIFs available
+      const gif = postContents.find((c) => c.type === "gif");
+      if (gif) return { src: "", type: "gif" };
+
+      return { src: "", type: null };
+    }
+
     case "minting":
-      return content.image ?? null;
+      return { src: content.image ?? "", type: "image" };
+
     case "transaction":
-      return content.image ?? null;
+      return { src: content.image ?? "", type: "image" };
+
     case "redeem":
-      return content.tokenImgUrl ?? null;
+      return { src: content.tokenImgUrl ?? "", type: "image" };
+
     case "swapTransaction":
-      return (
-        content.inputToken?.tokenImg ?? content.outputToken?.tokenImg ?? null
-      );
+      return {
+        src:
+          content.inputToken?.tokenImg ?? content.outputToken?.tokenImg ?? "",
+        type: "image",
+      };
+
     case "connection":
     case "smartsite":
-      return content.smartsiteImage ?? null;
+      return { src: content.smartsiteImage ?? "", type: "image" };
+
     default:
-      return null;
+      return { src: "", type: null };
   }
 }
 
@@ -59,7 +82,9 @@ function extractOgTitle(feed: any): string {
         ? `${content.name} Transaction`
         : `${content.transaction_type?.toUpperCase() ?? ""} Transaction on Swop`;
     case "swapTransaction":
-      return `Swapped ${content.inputToken?.symbol ?? ""} → ${content.outputToken?.symbol ?? ""} on Swop`;
+      return `Swapped ${content.inputToken?.symbol ?? ""} → ${
+        content.outputToken?.symbol ?? ""
+      } on Swop`;
     case "redeem":
       return `Redeemed ${content.redeemName ?? ""} on Swop`;
     case "connection":
@@ -76,30 +101,31 @@ function extractOgTitle(feed: any): string {
 }
 
 // ── Cloudinary thumbnail helper ───────────────────────────────────────────────
-function getCloudinaryThumbnail(url: string): string {
-  const isVideo =
-    url.includes("/video/upload/") || /\.(mp4|mov|avi|webm|mkv)$/i.test(url);
-
-  if (!isVideo) {
-    if (/\.heic$/i.test(url)) {
-      const parts = url.split("/upload/");
-      if (parts.length === 2) {
-        return `${parts[0]}/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(/\.heic$/i, ".jpg")}`;
-      }
-    }
-    if (url.includes("cloudinary.com")) {
-      const parts = url.split("/upload/");
-      if (parts.length === 2) {
-        return `${parts[0]}/upload/f_auto,w_1200,h_630,c_fill,q_auto/${parts[1]}`;
-      }
-    }
-    return url;
+function getCloudinaryThumbnail(url: string, type: "image" | "video"): string {
+  if (type === "video") {
+    const parts = url.split("/upload/");
+    if (parts.length !== 2) return "";
+    const publicId = parts[1].replace(/\.(mp4|mov|avi|webm|mkv)$/i, "");
+    return `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg,q_auto/${publicId}.jpg`;
   }
 
-  const parts = url.split("/upload/");
-  if (parts.length !== 2) return "";
-  const publicId = parts[1].replace(/\.(mp4|mov|avi|webm|mkv)$/i, "");
-  return `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg,q_auto/${publicId}.jpg`;
+  // Image
+  if (/\.heic$/i.test(url)) {
+    const parts = url.split("/upload/");
+    if (parts.length === 2) {
+      return `${parts[0]}/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(
+        /\.heic$/i,
+        ".jpg",
+      )}`;
+    }
+  }
+  if (url.includes("cloudinary.com")) {
+    const parts = url.split("/upload/");
+    if (parts.length === 2) {
+      return `${parts[0]}/upload/f_auto,w_1200,h_630,c_fill,q_auto/${parts[1]}`;
+    }
+  }
+  return url;
 }
 
 function formatDate(dateString: string): string {
@@ -118,7 +144,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   try {
     const response = await fetch(url, {
-      next: { revalidate: 600 }, // cache for 10 min — matches backend TTL
+      next: { revalidate: 600 },
     });
 
     if (!response.ok) {
@@ -147,8 +173,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const smartsiteEnsName =
       feed?.smartsiteDetails?.ens || feed?.smartsiteEnsName || "Swop";
 
-    const contentSrc = extractOgImageSrc(feed);
-    const hasImage = Boolean(contentSrc);
+    const { src: contentSrc, type: contentType } = extractOgImageSrc(feed);
+    const hasImage =
+      (contentType === "image" || contentType === "video") &&
+      Boolean(contentSrc);
+    const isGifOnly = contentType === "gif";
+
     const feedTitle = extractOgTitle(feed);
     const createdAt = feed?.createdAt || new Date().toISOString();
     const description = `${smartsiteEnsName} • ${formatDate(createdAt)}`;
@@ -156,12 +186,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     let ogImageUrl: string | undefined;
 
     if (hasImage && contentSrc) {
-      const feedImage = getCloudinaryThumbnail(contentSrc);
+      const feedImage = getCloudinaryThumbnail(
+        contentSrc,
+        contentType as "image" | "video",
+      );
       ogImageUrl =
         `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
         `ensName=${encodeURIComponent(smartsiteEnsName)}` +
         `&title=${encodeURIComponent(feedTitle)}` +
         `&image=${encodeURIComponent(feedImage)}` +
+        `&date=${encodeURIComponent(formatDate(createdAt))}`;
+    } else if (isGifOnly) {
+      ogImageUrl =
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
+        `ensName=${encodeURIComponent(smartsiteEnsName)}` +
+        `&title=${encodeURIComponent(feedTitle)}` +
+        `&showGifPlaceholder=true` +
         `&date=${encodeURIComponent(formatDate(createdAt))}`;
     }
 
@@ -176,13 +216,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         siteName: "Swop",
       },
       twitter: {
-        card: hasImage ? "summary_large_image" : "summary",
+        card: hasImage || isGifOnly ? "summary_large_image" : "summary",
         title: feedTitle,
         description,
       },
     };
 
-    if (hasImage && ogImageUrl) {
+    if (ogImageUrl) {
       metadata.openGraph!.images = [
         {
           url: ogImageUrl,
@@ -212,6 +252,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
+// ── Page Component ────────────────────────────────────────────────────────────
 const FeedDetailsPage = async ({
   params,
 }: {
@@ -227,8 +268,6 @@ const FeedDetailsPage = async ({
     : `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}`;
 
   const feedData = await getFeedDetails(url);
-
-  console.log("feed data count 1", feedData);
 
   return (
     <div className="relative flex flex-col items-center">

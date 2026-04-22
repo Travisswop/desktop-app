@@ -165,7 +165,11 @@ export async function GET(request: Request) {
     const title = searchParams.get("title") || "Swop Feed";
     const imageUrl = searchParams.get("image") || "";
     const date = searchParams.get("date") || "";
+    const showGifPlaceholder =
+      searchParams.get("showGifPlaceholder") === "true";
+
     const hasImage = Boolean(imageUrl);
+    const hasMedia = hasImage || showGifPlaceholder;
 
     return new ImageResponse(
       <div
@@ -183,7 +187,7 @@ export async function GET(request: Request) {
             fontSize: "38px",
             fontWeight: "bold",
             color: "#000000",
-            padding: hasImage ? "40px 60px 16px 60px" : "60px 60px 24px 60px",
+            padding: hasMedia ? "40px 60px 16px 60px" : "60px 60px 24px 60px",
             display: "flex",
           }}
         >
@@ -193,19 +197,18 @@ export async function GET(request: Request) {
         {/* Title */}
         <div
           style={{
-            fontSize: hasImage ? "26px" : "42px",
+            fontSize: hasMedia ? "26px" : "42px",
             color: "#333333",
-            padding: hasImage ? "0 60px 24px 60px" : "0 60px 0 60px",
+            padding: hasMedia ? "0 60px 24px 60px" : "0 60px 0 60px",
             display: "flex",
             lineHeight: "1.5",
-            flex: hasImage ? undefined : 1,
-            alignItems: hasImage ? undefined : "flex-start",
+            flex: hasMedia ? undefined : 1,
           }}
         >
           {title}
         </div>
 
-        {/* Main Image — only when imageUrl exists */}
+        {/* Real image or video thumbnail */}
         {hasImage && (
           <div
             style={{
@@ -223,11 +226,48 @@ export async function GET(request: Request) {
                 width: "100%",
                 height: "100%",
                 objectFit: "cover",
-                // ✅ apply borderRadius directly on img, not wrapper
                 borderRadius: "12px",
               }}
               alt="Feed"
             />
+          </div>
+        )}
+
+        {/* GIF placeholder */}
+        {!hasImage && showGifPlaceholder && (
+          <div
+            style={{
+              display: "flex",
+              flex: 1,
+              margin: "0 60px 24px 60px",
+              backgroundColor: "#f0f0f0",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "12px",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
+            <div style={{ fontSize: "64px", display: "flex" }}>🎞️</div>
+            <div
+              style={{
+                fontSize: "28px",
+                color: "#888888",
+                display: "flex",
+                fontWeight: "bold",
+              }}
+            >
+              GIF
+            </div>
+            <div
+              style={{
+                fontSize: "18px",
+                color: "#aaaaaa",
+                display: "flex",
+              }}
+            >
+              View on Swop
+            </div>
           </div>
         )}
 
@@ -238,10 +278,9 @@ export async function GET(request: Request) {
             alignItems: "center",
             padding: "0 60px 40px 60px",
             gap: "14px",
-            marginTop: hasImage ? undefined : "auto",
+            marginTop: "auto",
           }}
         >
-          {/* Logo with fallback */}
           <div
             style={{
               width: "40px",
@@ -261,22 +300,12 @@ export async function GET(request: Request) {
               alt="swop"
             />
           </div>
-
-          <div
-            style={{
-              fontSize: "22px",
-              color: "#666666",
-              display: "flex",
-            }}
-          >
+          <div style={{ fontSize: "22px", color: "#666666", display: "flex" }}>
             Swop • {date}
           </div>
         </div>
       </div>,
-      {
-        width: 1200,
-        height: 630,
-      },
+      { width: 1200, height: 630 },
     );
   } catch (e: any) {
     console.error("OG Image generation error:", e);
