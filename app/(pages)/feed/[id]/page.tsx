@@ -265,6 +265,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         `&title=${encodeURIComponent(feedTitle)}` +
         `&showGifPlaceholder=true` +
         `&date=${encodeURIComponent(formatDate(createdAt))}`;
+
+      // ── ADD THIS ──────────────────────────────────────────────────────────────
+    } else if (feed.postType === "swapTransaction" && feed.content) {
+      const c = feed.content;
+      ogImageUrl =
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
+        `ensName=${encodeURIComponent(smartsiteEnsName)}` +
+        `&title=${encodeURIComponent(feedTitle)}` +
+        `&date=${encodeURIComponent(formatDate(createdAt))}` +
+        `&type=swap` +
+        `&inputSymbol=${encodeURIComponent(c.inputToken?.symbol ?? "")}` +
+        `&inputAmount=${encodeURIComponent(c.inputToken?.amount ?? "")}` +
+        `&inputImg=${encodeURIComponent(c.inputToken?.tokenImg ?? "")}` +
+        `&outputSymbol=${encodeURIComponent(c.outputToken?.symbol ?? "")}` +
+        `&outputAmount=${encodeURIComponent(c.outputToken?.amount ?? "")}` +
+        `&outputImg=${encodeURIComponent(c.outputToken?.tokenImg ?? "")}`;
     }
 
     const metadata: Metadata = {
