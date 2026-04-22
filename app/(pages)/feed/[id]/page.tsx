@@ -104,27 +104,32 @@ function extractOgTitle(feed: any): string {
 function getCloudinaryThumbnail(url: string, type: "image" | "video"): string {
   if (type === "video") {
     const parts = url.split("/upload/");
-    if (parts.length !== 2) return "";
+    if (parts.length !== 2) return url;
     const publicId = parts[1].replace(/\.(mp4|mov|avi|webm|mkv)$/i, "");
     return `${parts[0]}/upload/so_1.0,w_1200,h_630,c_fill,f_jpg,q_auto/${publicId}.jpg`;
   }
 
-  // Image
+  // HEIC → JPG
   if (/\.heic$/i.test(url)) {
     const parts = url.split("/upload/");
     if (parts.length === 2) {
-      return `${parts[0]}/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(
-        /\.heic$/i,
-        ".jpg",
-      )}`;
+      return `${parts[0]}/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${parts[1].replace(/\.heic$/i, ".jpg")}`;
     }
   }
+
+  // Cloudinary image — force f_jpg, never f_auto (Satori doesn't support webp)
   if (url.includes("cloudinary.com")) {
     const parts = url.split("/upload/");
     if (parts.length === 2) {
-      return `${parts[0]}/upload/f_auto,w_1200,h_630,c_fill,q_auto/${parts[1]}`;
+      // Strip any existing transformations and replace with safe ones
+      const publicIdWithVersion = parts[1].replace(
+        /^(v\d+\/)?([^/]+\/)*/, // strip existing transform segments
+        (match) => match,
+      );
+      return `${parts[0]}/upload/f_jpg,w_1200,h_630,c_fill,q_auto/${publicIdWithVersion}`;
     }
   }
+
   return url;
 }
 
