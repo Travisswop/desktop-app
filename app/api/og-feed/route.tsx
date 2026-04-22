@@ -165,7 +165,11 @@ export async function GET(request: Request) {
     const title = searchParams.get("title") || "Swop Feed";
     const imageUrl = searchParams.get("image") || "";
     const date = searchParams.get("date") || "";
+    const showGifPlaceholder =
+      searchParams.get("showGifPlaceholder") === "true";
+
     const hasImage = Boolean(imageUrl);
+    const hasMedia = hasImage || showGifPlaceholder;
 
     return new ImageResponse(
       <div
@@ -180,10 +184,10 @@ export async function GET(request: Request) {
         {/* ENS Name */}
         <div
           style={{
-            fontSize: "38px",
+            fontSize: "40px",
             fontWeight: "bold",
             color: "#000000",
-            padding: hasImage ? "40px 60px 16px 60px" : "60px 60px 24px 60px",
+            padding: "40px 60px 20px 60px",
             display: "flex",
           }}
         >
@@ -193,41 +197,79 @@ export async function GET(request: Request) {
         {/* Title */}
         <div
           style={{
-            fontSize: hasImage ? "26px" : "42px",
+            fontSize: "28px",
             color: "#333333",
-            padding: hasImage ? "0 60px 24px 60px" : "0 60px 0 60px",
+            padding: "0 60px 30px 60px",
             display: "flex",
-            lineHeight: "1.5",
-            flex: hasImage ? undefined : 1,
-            alignItems: hasImage ? undefined : "flex-start",
+            lineHeight: "1.4",
           }}
         >
           {title}
         </div>
 
-        {/* Main Image — only when imageUrl exists */}
+        {/* Real image */}
         {hasImage && (
           <div
             style={{
               display: "flex",
               flex: 1,
-              margin: "0 60px 24px 60px",
+              margin: "0 60px 30px 60px",
               backgroundColor: "#f5f5f5",
               alignItems: "center",
               justifyContent: "center",
+              borderRadius: "12px",
+              overflow: "hidden",
             }}
           >
             <img
               src={imageUrl}
+              width="1080"
+              height="350"
               style={{
                 width: "100%",
                 height: "100%",
                 objectFit: "cover",
-                // ✅ apply borderRadius directly on img, not wrapper
-                borderRadius: "12px",
               }}
               alt="Feed"
             />
+          </div>
+        )}
+
+        {/* GIF placeholder */}
+        {!hasImage && showGifPlaceholder && (
+          <div
+            style={{
+              display: "flex",
+              flex: 1,
+              margin: "0 60px 30px 60px",
+              backgroundColor: "#f0f0f0",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "12px",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
+            <div style={{ fontSize: "64px", display: "flex" }}>🎞️</div>
+            <div
+              style={{
+                fontSize: "28px",
+                color: "#888888",
+                fontWeight: "bold",
+                display: "flex",
+              }}
+            >
+              GIF
+            </div>
+            <div
+              style={{
+                fontSize: "18px",
+                color: "#aaaaaa",
+                display: "flex",
+              }}
+            >
+              View on Swop
+            </div>
           </div>
         )}
 
@@ -237,11 +279,9 @@ export async function GET(request: Request) {
             display: "flex",
             alignItems: "center",
             padding: "0 60px 40px 60px",
-            gap: "14px",
-            marginTop: hasImage ? undefined : "auto",
+            gap: "15px",
           }}
         >
-          {/* Logo with fallback */}
           <div
             style={{
               width: "40px",
@@ -251,17 +291,19 @@ export async function GET(request: Request) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              overflow: "hidden",
-              flexShrink: 0,
+              fontSize: "24px",
+              fontWeight: "bold",
+              color: "white",
             }}
           >
             <img
               src={`${process.env.NEXT_PUBLIC_APP_URL}/astro-agent.png`}
+              width="200"
+              height="200"
               style={{ width: "100%", height: "100%" }}
               alt="swop"
             />
           </div>
-
           <div
             style={{
               fontSize: "22px",
@@ -273,10 +315,7 @@ export async function GET(request: Request) {
           </div>
         </div>
       </div>,
-      {
-        width: 1200,
-        height: 630,
-      },
+      { width: 1200, height: 630 },
     );
   } catch (e: any) {
     console.error("OG Image generation error:", e);
@@ -288,13 +327,12 @@ export async function GET(request: Request) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#f0f4ff",
-          fontSize: "48px",
-          fontWeight: "bold",
-          color: "#333",
+          backgroundColor: "#fee",
+          fontSize: "30px",
+          color: "#c00",
         }}
       >
-        Swop
+        Error: {e.message}
       </div>,
       { width: 1200, height: 630 },
     );

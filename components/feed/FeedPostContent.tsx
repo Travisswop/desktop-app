@@ -54,6 +54,8 @@ const FeedPostContent = ({
 
   const postContent = feed?.content?.post_content || feed?.post_content || [];
 
+  logger.info("postContent in FeedPostContent", postContent);
+
   return (
     <>
       {/* Post / Repost title */}
