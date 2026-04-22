@@ -5,6 +5,7 @@ import {
   ModalContent,
   useDisclosure,
 } from "@nextui-org/react";
+import { logger } from "ethers5";
 import Image from "next/image";
 import React, { useState } from "react";
 
@@ -12,6 +13,8 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [image, setImage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+
+  logger.info("mediaFiles in PostTypeMedia", mediaFiles);
 
   const handleOpenImage = (image: string) => {
     setIsLoading(true);
@@ -130,12 +133,14 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
           )}
 
           {/* 4 media items */}
+          {/* 4 media items */}
           {mediaFiles.length === 4 && (
-            <div className="grid grid-cols-2 gap-[2px] border rounded-2xl overflow-hidden relative h-auto sm:h-72 md:h-96 xl:h-[30rem] bg-black/5">
+            <div className="grid grid-cols-2 gap-[2px] border rounded-2xl overflow-hidden relative h-72 sm:h-80 md:h-96 w-full">
               {mediaFiles.map((file: any, index: number) => (
                 <div
                   key={index}
-                  className="relative w-full h-full overflow-hidden group"
+                  className="relative w-full overflow-hidden group" // remove h-full, add explicit height
+                  style={{ height: "100%" }} // ensure fill has a real height anchor
                 >
                   {renderMedia(file, index)}
                 </div>
