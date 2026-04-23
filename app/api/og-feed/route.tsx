@@ -207,6 +207,11 @@ export async function GET(request: Request) {
     const hasMedia = hasImage || showGifPlaceholder;
     const isSwap = type === "swap";
 
+    // Add to params extraction
+    const priceChange = searchParams.get("priceChange") || "0.00";
+    const priceChangeNum = parseFloat(priceChange);
+    const isPositive = priceChangeNum >= 0;
+
     return new ImageResponse(
       <div
         style={{
@@ -256,18 +261,13 @@ export async function GET(request: Request) {
               padding: "0 60px",
               alignItems: "center",
               justifyContent: "space-between",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+              position: "relative", // for badge positioning
             }}
           >
             {/* Input Token — You sent */}
             <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-              }}
+              style={{ display: "flex", flexDirection: "column", gap: "12px" }}
             >
-              {/* Token icon + name row */}
               <div
                 style={{ display: "flex", alignItems: "center", gap: "12px" }}
               >
@@ -296,7 +296,6 @@ export async function GET(request: Request) {
                   {inputSymbol}
                 </div>
               </div>
-
               <div
                 style={{ fontSize: "22px", color: "#718096", display: "flex" }}
               >
@@ -336,7 +335,6 @@ export async function GET(request: Request) {
                 alignItems: "flex-end",
               }}
             >
-              {/* Token icon + name row */}
               <div
                 style={{ display: "flex", alignItems: "center", gap: "12px" }}
               >
@@ -365,7 +363,6 @@ export async function GET(request: Request) {
                   {outputSymbol}
                 </div>
               </div>
-
               <div
                 style={{ fontSize: "22px", color: "#718096", display: "flex" }}
               >
@@ -380,6 +377,32 @@ export async function GET(request: Request) {
                 }}
               >
                 {outputAmount} {outputSymbol}
+              </div>
+
+              {/* ── Percentage badge — bottom right ──────────────────────────── */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isPositive ? "#f0fff4" : "#fff5f5",
+                  border: `1.5px solid ${isPositive ? "#9ae6b4" : "#feb2b2"}`,
+                  borderRadius: "999px",
+                  padding: "6px 20px",
+                  marginTop: "4px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "26px",
+                    fontWeight: "600",
+                    color: isPositive ? "#38a169" : "#e53e3e",
+                    display: "flex",
+                  }}
+                >
+                  {isPositive ? "+" : ""}
+                  {priceChange}%
+                </span>
               </div>
             </div>
           </div>
