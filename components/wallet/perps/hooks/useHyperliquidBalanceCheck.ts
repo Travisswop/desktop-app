@@ -3,9 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWallets } from '@privy-io/react-auth';
 import * as hl from '@nktkas/hyperliquid';
-import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
+import { getHLApiUrl } from '@/services/hyperliquid/config';
 
-const transport = new hl.HttpTransport({ isTestnet: HL_IS_TESTNET, apiUrl: getHLApiUrl(HL_IS_TESTNET) });
+// Always check mainnet HL balance regardless of HL_IS_TESTNET.
+// The deposit bridge is always mainnet-to-mainnet, so the balance that reflects
+// a completed deposit is always the mainnet clearinghouse balance.
+// Testnet trading funds come from the HL testnet faucet after the mainnet
+// account is activated — that is a separate step from this gate.
+const transport = new hl.HttpTransport({ isTestnet: false, apiUrl: getHLApiUrl(false) });
 const infoClient = new hl.InfoClient({ transport });
 
 export type DepositCheckStatus =
