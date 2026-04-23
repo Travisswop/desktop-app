@@ -254,6 +254,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // ── Swap gets its own card — check first ─────────────────────────────────
     if (feed.postType === "swapTransaction" && feed.content) {
       const c = feed.content;
+      // ── Calculate price change percentage ──────────────────────────────────
+      const inputValueUsd =
+        (Number(c.inputToken?.amount) ?? 0) *
+        (Number(c.inputToken?.price) ?? 0);
+      const outputValueUsd =
+        (Number(c.outputToken?.amount) ?? 0) *
+        (Number(c.outputToken?.price) ?? 0);
+
+      let priceChangePercent = "0.00";
+      if (inputValueUsd > 0) {
+        const change = ((outputValueUsd - inputValueUsd) / inputValueUsd) * 100;
+        priceChangePercent = change.toFixed(2);
+      }
       ogImageUrl =
         `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
         `ensName=${encodeURIComponent(smartsiteEnsName)}` +
@@ -265,7 +278,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         `&inputImg=${encodeURIComponent(c.inputToken?.tokenImg ?? "")}` +
         `&outputSymbol=${encodeURIComponent(c.outputToken?.symbol ?? "")}` +
         `&outputAmount=${encodeURIComponent(Number(c.outputToken?.amount ?? 0).toFixed(4))}` +
-        `&outputImg=${encodeURIComponent(c.outputToken?.tokenImg ?? "")}`;
+        `&outputImg=${encodeURIComponent(c.outputToken?.tokenImg ?? "")}` +
+        `&priceChange=${encodeURIComponent(priceChangePercent)}`;
     } else if (hasImage && contentSrc) {
       const feedImage = getCloudinaryThumbnail(
         contentSrc,
