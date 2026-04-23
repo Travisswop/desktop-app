@@ -23,8 +23,8 @@ const NetworkBadge = ({
         return '/assets/icons/base.png';
       case 'SOLANA':
         return '/assets/icons/solana.png';
-      case 'SEPOLIA':
-        return '/assets/icons/ethereum.png'; // Sepolia is Ethereum testnet
+      case 'ARBITRUM':
+        return '/assets/icons/arbitrum.png';
       default:
         return null;
     }

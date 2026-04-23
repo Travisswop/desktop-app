@@ -89,8 +89,8 @@ export function AgentSetupModal({
                 <div>
                   <p className="text-sm font-semibold text-amber-800">Deposit required first</p>
                   <p className="text-xs text-amber-700 mt-1">
-                    Your Hyperliquid account has no balance. You must deposit USDC before
-                    enabling trading.
+                    Your Hyperliquid account has no balance. Deposit USDC on Arbitrum to
+                    activate your account. On testnet, claim the faucet after depositing.
                   </p>
                 </div>
               </div>
@@ -120,8 +120,8 @@ export function AgentSetupModal({
               <div>
                 <p className="text-sm font-semibold text-blue-800">Deposit pending…</p>
                 <p className="text-xs text-blue-700 mt-1">
-                  Waiting for your deposit to settle on Hyperliquid. This typically takes
-                  2–5 minutes. The button will unlock automatically.
+                  Waiting for your deposit to settle on Hyperliquid mainnet. This
+                  typically takes 2–5 minutes. The button will unlock automatically.
                 </p>
               </div>
             </div>

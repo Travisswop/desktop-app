@@ -12,6 +12,7 @@ import {
   Wallet,
   Droplets,
 } from 'lucide-react';
+import { useWallets } from '@privy-io/react-auth';
 import { useHyperliquidDeposit } from './hooks/useHyperliquidDeposit';
 import { useHyperliquidFaucet } from './hooks/useHyperliquidFaucet';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
@@ -36,12 +37,19 @@ const QUICK_AMOUNTS = ['10', '50', '100', '500'];
  * the form logic or breaking the existing single-purpose DepositModal.
  */
 export function DepositForm({
-  masterAddress,
+  masterAddress: masterAddressProp,
   onClose,
   onBridgeToArbitrum,
   onDepositSubmitted,
   showHeader = true,
 }: DepositFormProps) {
+  // Resolve the address from the Privy embedded wallet when the parent hasn't
+  // provided one yet (e.g. deposit modal opened before agent initialization).
+  const { wallets, ready: walletsReady } = useWallets();
+  const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+  const masterAddress =
+    masterAddressProp ?? (walletsReady ? (embeddedWallet?.address ?? null) : null);
+
   const [amount, setAmount] = useState('');
   const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
@@ -136,11 +144,7 @@ export function DepositForm({
                 <h2 className="text-lg font-bold text-white">
                   Deposit to Hyperliquid
                 </h2>
-                <p className="text-blue-100 text-sm">
-                  {HL_IS_TESTNET
-                    ? 'USDC on Arbitrum Sepolia → HL Testnet'
-                    : 'USDC on Arbitrum → Hyperliquid'}
-                </p>
+                <p className="text-blue-100 text-sm">USDC on Arbitrum → Hyperliquid</p>
               </div>
             </div>
           </div>

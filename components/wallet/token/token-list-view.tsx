@@ -1,16 +1,19 @@
-"use client";
-import React from "react";
-import { TokenData } from "@/types/token";
-import TokenImage from "./token-image";
-import { BsThreeDots } from "react-icons/bs";
-import { useBalanceVisibilityStore } from "@/zustandStore/useBalanceVisibilityStore";
+'use client';
+import React from 'react';
+import { TokenData } from '@/types/token';
+import TokenImage from './token-image';
+import { BsThreeDots } from 'react-icons/bs';
+import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
 
 interface TokenCardProps {
   token: TokenData;
   onClick: () => void;
 }
 
-export default function TokenListView({ token, onClick }: TokenCardProps) {
+export default function TokenListView({
+  token,
+  onClick,
+}: TokenCardProps) {
   const { showBalance } = useBalanceVisibilityStore();
 
   // const data = token.sparklineData;
@@ -103,12 +106,14 @@ export default function TokenListView({ token, onClick }: TokenCardProps) {
                 {token.marketData?.price !== undefined &&
                 token.marketData?.price !== null ? (
                   `$${
-                    typeof token.marketData?.price === "number"
+                    typeof token.marketData?.price === 'number'
                       ? token.marketData?.price
-                      : "0.0000"
+                      : '0.0000'
                   }`
                 ) : (
-                  <span className="text-gray-500">Price unavailable</span>
+                  <span className="text-gray-500">
+                    Price unavailable
+                  </span>
                 )}
               </>
             )}
@@ -116,19 +121,24 @@ export default function TokenListView({ token, onClick }: TokenCardProps) {
           <div
             className={`text-xs ${
               token.marketData?.priceChangePercentage24h &&
-              parseFloat(token.marketData?.priceChangePercentage24h) >= 0
-                ? " text-green-700"
-                : " text-red-700"
+              parseFloat(
+                token.marketData?.priceChangePercentage24h,
+              ) >= 0
+                ? ' text-green-700'
+                : ' text-red-700'
             }`}
           >
             {token.marketData?.priceChangePercentage24h ? (
               <>
                 {parseFloat(
-                  token.marketData?.priceChangePercentage24h || "0",
+                  token.marketData?.priceChangePercentage24h || '0',
                 ) >= 0
-                  ? "+"
-                  : ""}
-                {parseFloat(token.marketData?.priceChangePercentage24h || "0")}%
+                  ? '+'
+                  : ''}
+                {parseFloat(
+                  token.marketData?.priceChangePercentage24h || '0',
+                ).toFixed(2)}
+                %
               </>
             ) : (
               <div className="text-gray-500">No data available</div>

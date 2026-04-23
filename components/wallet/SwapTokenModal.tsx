@@ -245,6 +245,7 @@ type TokenCategory = (typeof TOKEN_CATEGORIES)[number];
 
 const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
   stock: new Set([
+    'PrekqLJvJ3qVdXmBGDiexvwUTF4rLFDa6HWS4HJbw9S',
     'PreLWGkkeqG1s4HEfFZSy9moCrJ7btsHuUtfcCeoRua',
     'Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP',
     'PreANxuXjsy2pvisWWMNB6YaJNzr7681wJJr2rHsfTh',

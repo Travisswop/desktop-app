@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import * as hl from '@nktkas/hyperliquid';
+import { getHLApiUrl } from '@/services/hyperliquid/config';
 
 // ─── Clients ───────────────────────────────────────────────────────────────────
 //
@@ -9,10 +10,10 @@ import * as hl from '@nktkas/hyperliquid';
 // regardless of which environment the app is currently pointed at.
 
 const mainnetClient = new hl.InfoClient({
-  transport: new hl.HttpTransport({ isTestnet: false }),
+  transport: new hl.HttpTransport({ isTestnet: false, apiUrl: getHLApiUrl(false) }),
 });
 const testnetClient = new hl.InfoClient({
-  transport: new hl.HttpTransport({ isTestnet: true }),
+  transport: new hl.HttpTransport({ isTestnet: true, apiUrl: getHLApiUrl(true) }),
 });
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
