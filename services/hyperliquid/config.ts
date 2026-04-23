@@ -22,6 +22,29 @@ export const HL_WS_URL = HL_IS_TESTNET
 // The bridge contract is deployed at the same address on both networks.
 // Testnet USDC: Circle's official Arbitrum Sepolia deployment.
 
+// ─── Transport URL helper ──────────────────────────────────────────────────────
+//
+// In the browser, direct fetch to api.hyperliquid.xyz is blocked by CORS.
+// Route all HTTP transport calls through a Next.js proxy route instead.
+// On the server (SSR), there is no CORS restriction so we use the direct URL.
+//
+// The HL library constructs the endpoint URL as:
+//   new URL("exchange", apiUrl)  →  apiUrl must end with "/" to keep the prefix
+//
+// Proxy route: /api/hyperliquid/<network>/<endpoint>
+//   e.g. POST /api/hyperliquid/mainnet/exchange → api.hyperliquid.xyz/exchange
+
+export function getHLApiUrl(isTestnet: boolean): string {
+  if (typeof window !== 'undefined') {
+    const network = isTestnet ? 'testnet' : 'mainnet';
+    return `${window.location.origin}/api/hyperliquid/${network}/`;
+  }
+  // Server-side: no CORS, use direct URL (trailing slash keeps URL resolution correct)
+  return isTestnet
+    ? 'https://api.hyperliquid-testnet.xyz/'
+    : 'https://api.hyperliquid.xyz/';
+}
+
 export const HL_DEPOSIT_CONFIG = HL_IS_TESTNET
   ? {
       chain: arbitrumSepolia,

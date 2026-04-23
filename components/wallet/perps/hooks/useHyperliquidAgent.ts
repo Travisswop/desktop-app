@@ -4,7 +4,7 @@ import { useCallback, useState, useRef, useEffect } from 'react';
 import { usePrivy, useWallets, toViemAccount } from '@privy-io/react-auth';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import * as hl from '@nktkas/hyperliquid';
-import { HL_IS_TESTNET } from '@/services/hyperliquid/config';
+import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
 
 // ─── Agent key persistence ──────────────────────────────────────────────────
 //
@@ -119,7 +119,7 @@ export function useHyperliquidAgent() {
 
         const masterAddress = embeddedWallet.address;
         masterAddrForCleanup = masterAddress;
-        const transport = new hl.HttpTransport({ isTestnet: HL_IS_TESTNET });
+        const transport = new hl.HttpTransport({ isTestnet: HL_IS_TESTNET, apiUrl: getHLApiUrl(HL_IS_TESTNET) });
 
         // ── Agent keypair ─────────────────────────────────────────────────
         // Reuse the persisted key if one exists for this master address.

@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWallets } from '@privy-io/react-auth';
 import * as hl from '@nktkas/hyperliquid';
-import { HL_IS_TESTNET } from '@/services/hyperliquid/config';
+import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
 
-const transport = new hl.HttpTransport({ isTestnet: HL_IS_TESTNET });
+const transport = new hl.HttpTransport({ isTestnet: HL_IS_TESTNET, apiUrl: getHLApiUrl(HL_IS_TESTNET) });
 const infoClient = new hl.InfoClient({ transport });
 
 export type DepositCheckStatus =
