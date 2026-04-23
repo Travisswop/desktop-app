@@ -12,6 +12,7 @@ import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
 import RedeemClaimModal from "../modal/RedeemClaim";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import logger from "@/utils/logger";
+import PredictionFeedCard from "./PredictionFeedCard";
 
 interface FeedItemType {
   _id: string;
@@ -230,6 +231,18 @@ const FeedPostContent = ({
           onVoteSuccess={(updated) => {
             onPostInteraction?.(feed._id, updated);
           }}
+        />
+      )}
+
+      {/* Prediction */}
+      {feed.postType === "prediction" && (
+        <PredictionFeedCard
+          content={feed.content}
+          userName={
+            feed.smartsiteDetails?.name ||
+            feed.smartsiteUserName ||
+            undefined
+          }
         />
       )}
 

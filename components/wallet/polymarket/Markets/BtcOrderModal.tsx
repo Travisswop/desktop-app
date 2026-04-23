@@ -19,6 +19,9 @@ import type { ClobClient } from '@polymarket/clob-client';
 import { useBtcUpDownMarket } from '@/hooks/polymarket/useBtcUpDownMarket';
 import { useClobOrder, useTickSize } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
+import { usePrivy } from '@privy-io/react-auth';
+import { useUser } from '@/lib/UserContext';
+import { postFeed } from '@/actions/postFeed';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 
 import Portal from '../shared/Portal';
@@ -111,6 +114,8 @@ export default function BtcOrderModal({
   const [pendingOrder, setPendingOrder] = useState<PendingOrderData | null>(null);
 
   const { eoaAddress } = usePolymarketWallet();
+  const { getAccessToken } = usePrivy();
+  const { user }: any = useUser();
   const modalRef = useRef<HTMLDivElement>(null);
 
   const activeTokenId = selectedOutcome === 'up' ? upTokenId : downTokenId;
@@ -288,7 +293,7 @@ export default function BtcOrderModal({
   const handleConfirm = async () => {
     if (!pendingOrder) return;
     try {
-      await submitOrder({
+      const result = await submitOrder({
         tokenId: pendingOrder.tokenId,
         size: pendingOrder.size,
         price: pendingOrder.price,
@@ -298,6 +303,35 @@ export default function BtcOrderModal({
         fillType: pendingOrder.fillType,
         expiration: pendingOrder.expiration,
       });
+
+      // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
+      if (result?.success && user?.primaryMicrosite && user?._id) {
+        getAccessToken()
+          .then((token) => {
+            if (!token) return;
+            return postFeed(
+              {
+                postType: 'prediction',
+                smartsiteId: user.primaryMicrosite,
+                userId: user._id,
+                content: {
+                  marketTitle: `BTC 5-Minute Up or Down`,
+                  outcome: pendingOrder.outcomeName,
+                  side: pendingOrder.side,
+                  cost: pendingOrder.cost,
+                  potentialWin: pendingOrder.potentialWin,
+                  price: pendingOrder.priceDecimal,
+                  orderId: result.orderId,
+                  orderType,
+                },
+              },
+              token,
+            );
+          })
+          .catch((err) =>
+            console.error('[BtcOrderModal] Failed to post to feed:', err),
+          );
+      }
     } catch (err) {
       console.error('[BtcOrderModal] Order failed:', err);
     }

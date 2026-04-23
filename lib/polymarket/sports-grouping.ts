@@ -176,35 +176,81 @@ function formatTotalLabel(outcome: string, question: string): string {
 /**
  * Format a spread outcome label.
  *
- * If the outcome already carries a point value (e.g. "ORL +1.5") it is
- * returned unchanged.  When the outcome is a plain "Yes"/"No" (Polymarket's
- * binary format for spread markets) we extract the spread line from the
- * question text so the UI shows something like "-1.5" and "+1.5" instead of
- * the unhelpful "Yes" / "No".
+ * Polymarket uses several shapes for spread markets and we need to normalise
+ * each into a label that ends with a signed line (e.g. "Knicks -1.5") so the
+ * UI's extractSpreadLine helper can pull the number into the cell.
  *
- *   "Yes"  + "Will Magic cover -1.5 vs 76ers?" → "-1.5"
- *   "No"   + same question                     → "+1.5"
+ *   1. Already-formatted label — kept as-is
+ *        "ORL +1.5"                                 → "ORL +1.5"
+ *
+ *   2. Team-name outcomes (NBA / NFL / NHL / MLB style)
+ *        question:  "Spread: Knicks (-1.5)"
+ *        outcomes:  ["Knicks", "Hawks"]
+ *        → "Knicks -1.5", "Hawks +1.5"
+ *      The team inside the parentheses is the *favored* side and gets the
+ *      listed sign; the other side gets the flipped sign.
+ *
+ *   3. Yes/No outcomes
+ *        question:  "Will Magic cover -1.5 vs 76ers?"
+ *        outcomes:  ["Yes", "No"]
+ *        → "-1.5", "+1.5"
+ *      "Yes" covers the listed line; "No" is the opposite side.
  */
 function formatSpreadLabel(outcome: string, question: string): string {
   const trimmed = outcome.trim();
 
-  // Already has a spread value in the label — keep as-is
+  // 1. Already has a spread value in the label — keep as-is
   if (/[+-]\d+\.?\d*$/.test(trimmed)) return trimmed;
 
-  // Only reformat plain Yes/No outcomes
-  if (!/^(yes|no)$/i.test(trimmed)) return trimmed;
+  // Helpers
+  const normalizeLine = (line: string): string =>
+    line.startsWith('+') || line.startsWith('-') ? line : `+${line}`;
+  const oppositeLine = (line: string): string => {
+    const n = normalizeLine(line);
+    return n.startsWith('-') ? `+${n.slice(1)}` : `-${n.slice(1)}`;
+  };
 
-  // Try to extract the line: "−1.5", "+3", "−6.5", etc.
-  const lineMatch = question.match(/([+-]\d+\.?\d*)/) ?? question.match(/\b(\d+\.?\d*)\s*(?:spread|point|pt)/i);
-  if (!lineMatch) return trimmed; // nothing to extract — keep "Yes"/"No"
+  // Try the parenthesised form first: "Spread: <team> (<±line>)"
+  const parenMatch = question.match(
+    /([A-Za-z0-9][A-Za-z0-9 .'&/-]*?)\s*\(([+-]?\d+\.?\d*)\)/,
+  );
+  // Fallback: any signed number in the question ("cover -1.5")
+  const plainLineMatch = !parenMatch
+    ? (question.match(/([+-]\d+\.?\d*)/) ??
+      question.match(/\b(\d+\.?\d*)\s*(?:spread|point|pt)/i))
+    : null;
 
-  const raw = lineMatch[1];
-  const isNeg = raw.startsWith('-');
-  const isYes = /^yes$/i.test(trimmed);
+  const rawLine = parenMatch?.[2] ?? plainLineMatch?.[1];
+  if (!rawLine) return trimmed; // nothing to extract
 
-  // "Yes" means covering the listed line; "No" means the opposite side
-  const label = isYes ? raw : (isNeg ? raw.replace('-', '+') : raw.replace('+', '-'));
-  return label.startsWith('+') || label.startsWith('-') ? label : `+${label}`;
+  // 3. Yes/No outcomes
+  if (/^(yes|no)$/i.test(trimmed)) {
+    const isYes = /^yes$/i.test(trimmed);
+    return isYes ? normalizeLine(rawLine) : oppositeLine(rawLine);
+  }
+
+  // Skip other reserved labels (Over/Under/Draw/Tie don't belong here)
+  if (/^(over|under|draw|tie)$/i.test(trimmed)) return trimmed;
+
+  // 2. Team-name outcome: decide which side gets the listed line
+  const outLower = trimmed.toLowerCase();
+  const favoredName = parenMatch?.[1]?.trim().toLowerCase();
+
+  let matchesFavored = false;
+  if (favoredName) {
+    // "Knicks" ⇄ "Knicks" / "New York Knicks"
+    matchesFavored =
+      favoredName === outLower ||
+      favoredName.includes(outLower) ||
+      outLower.includes(favoredName);
+  } else {
+    // No parenthesised team — use first mention in the question as the subject
+    const qLower = question.toLowerCase();
+    matchesFavored = qLower.includes(outLower);
+  }
+
+  const line = matchesFavored ? normalizeLine(rawLine) : oppositeLine(rawLine);
+  return `${trimmed} ${line}`;
 }
 
 /** Convert a raw Gamma event market to PolymarketMarket for order-modal compatibility. */

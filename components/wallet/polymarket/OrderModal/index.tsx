@@ -3,6 +3,9 @@
 import { useClobOrder, useTickSize } from '@/hooks/polymarket';
 import { useState, useEffect, useRef } from 'react';
 import { usePolymarketWallet } from '@/providers/polymarket';
+import { usePrivy } from '@privy-io/react-auth';
+import { useUser } from '@/lib/UserContext';
+import { postFeed } from '@/actions/postFeed';
 
 import Portal from '../shared/Portal';
 import BuySellToggle, { type OrderVariant } from './BuySellToggle';
@@ -44,6 +47,8 @@ type OrderPlacementModalProps = {
   orderMinSize?: number;
   yesOutcomeName?: string;
   noOutcomeName?: string;
+  /** Optional Polymarket market/condition ID stored with the feed post */
+  marketId?: string;
 };
 
 export default function OrderPlacementModal({
@@ -65,6 +70,7 @@ export default function OrderPlacementModal({
   orderMinSize = MIN_ORDER_SIZE,
   yesOutcomeName = 'Yes',
   noOutcomeName = 'No',
+  marketId,
 }: OrderPlacementModalProps) {
   const [inputValue, setInputValue] = useState<string>('');
   const [orderType, setOrderType] = useState<OrderVariant>('market');
@@ -81,6 +87,8 @@ export default function OrderPlacementModal({
     useState<PendingOrderData | null>(null);
 
   const { eoaAddress } = usePolymarketWallet();
+  const { getAccessToken } = usePrivy();
+  const { user }: any = useUser();
   const modalRef = useRef<HTMLDivElement>(null);
 
   const activeTokenId =
@@ -274,7 +282,7 @@ export default function OrderPlacementModal({
   const handleConfirm = async () => {
     if (!pendingOrder) return;
     try {
-      await submitOrder({
+      const result = await submitOrder({
         tokenId: pendingOrder.tokenId,
         size: pendingOrder.size,
         price: pendingOrder.price,
@@ -284,6 +292,40 @@ export default function OrderPlacementModal({
         fillType: pendingOrder.fillType,
         expiration: pendingOrder.expiration,
       });
+
+      // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
+      if (result?.success && user?.primaryMicrosite && user?._id) {
+        const outcomeName =
+          pendingOrder.outcomeName ||
+          (pendingOrder.side === 'BUY' ? yesOutcomeName : noOutcomeName);
+
+        getAccessToken()
+          .then((token) => {
+            if (!token) return;
+            return postFeed(
+              {
+                postType: 'prediction',
+                smartsiteId: user.primaryMicrosite,
+                userId: user._id,
+                content: {
+                  marketId: marketId,
+                  marketTitle,
+                  outcome: outcomeName,
+                  side: pendingOrder.side,
+                  cost: pendingOrder.cost,
+                  potentialWin: pendingOrder.potentialWin,
+                  price: pendingOrder.priceDecimal,
+                  orderId: result.orderId,
+                  orderType: orderType,
+                },
+              },
+              token,
+            );
+          })
+          .catch((err) =>
+            console.error('Failed to post prediction to feed:', err),
+          );
+      }
     } catch (err) {
       console.error('Error placing order:', err);
     }

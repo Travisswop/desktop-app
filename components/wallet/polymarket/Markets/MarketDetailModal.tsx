@@ -3,6 +3,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useClobOrder, useTickSize } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
+import { usePrivy } from '@privy-io/react-auth';
+import { useUser } from '@/lib/UserContext';
+import { postFeed } from '@/actions/postFeed';
 import type { PolymarketMarket } from '@/hooks/polymarket';
 import type { ClobClient } from '@polymarket/clob-client';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
@@ -893,6 +896,8 @@ export default function MarketDetailModal({
   const [showSuccess, setShowSuccess] = useState(false);
 
   const { eoaAddress } = usePolymarketWallet();
+  const { getAccessToken } = usePrivy();
+  const { user }: any = useUser();
 
   const activeTokenId =
     selectedOutcome === 'yes' ? yesTokenId : noTokenId;
@@ -1038,7 +1043,7 @@ export default function MarketDetailModal({
         orderType === 'gtd'
           ? Math.floor(Date.now() / 1000) + 60 + gtdHours * 3600
           : undefined;
-      await submitOrder({
+      const result = await submitOrder({
         tokenId: activeTokenId,
         size: orderSize,
         price: isLimitVariant ? limitPriceNum : undefined,
@@ -1048,6 +1053,42 @@ export default function MarketDetailModal({
         fillType: orderType === 'fak' ? 'FAK' : 'FOK',
         expiration: gtdExpiration,
       });
+
+      // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
+      if (result?.success && user?.primaryMicrosite && user?._id) {
+        const outcomeName =
+          selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName;
+        const cost =
+          side === 'SELL' ? amountToReceive : isLimitVariant ? totalCost : inputNum;
+        const win = side === 'BUY' ? shares : 0;
+
+        getAccessToken()
+          .then((token) => {
+            if (!token) return;
+            return postFeed(
+              {
+                postType: 'prediction',
+                smartsiteId: user.primaryMicrosite,
+                userId: user._id,
+                content: {
+                  marketId: market.conditionId || market.id,
+                  marketTitle: market.question,
+                  outcome: outcomeName,
+                  side,
+                  cost,
+                  potentialWin: win,
+                  price: effectivePrice,
+                  orderId: result.orderId,
+                  orderType,
+                },
+              },
+              token,
+            );
+          })
+          .catch((err) =>
+            console.error('Failed to post prediction to feed:', err),
+          );
+      }
     } catch (err) {
       console.error('Error placing order:', err);
     }

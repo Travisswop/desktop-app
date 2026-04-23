@@ -18,6 +18,7 @@ import { FiPlusCircle } from "react-icons/fi";
 import SwapTransactionCard from "./SwapTransactionCard";
 import { formatEns } from "@/lib/formatEnsName";
 import PollCard from "./PollCard";
+import PredictionFeedCard from "./PredictionFeedCard";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import { IoMdArrowDropright } from "react-icons/io";
 import { MdArrowRight } from "react-icons/md";
@@ -306,6 +307,17 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
                 userId={userId}
                 token={token}
                 onVoteSuccess={onVoteSuccess}
+              />
+            )}
+            {feed.repostedPostDetails.postType === "prediction" && (
+              <PredictionFeedCard
+                content={feed.repostedPostDetails.content}
+                userName={
+                  feed.repostedPostDetails?.smartsiteId?.name ||
+                  feed.repostedPostDetails?.smartsiteUserName ||
+                  feed.repostedPostDetails?.smartsiteDetails?.name ||
+                  undefined
+                }
               />
             )}
           </div>
