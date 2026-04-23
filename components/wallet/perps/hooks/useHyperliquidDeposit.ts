@@ -2,15 +2,14 @@
 
 import { useState, useCallback } from 'react';
 import { useSendTransaction, useWallets } from '@privy-io/react-auth';
-import { encodeFunctionData, parseUnits, erc20Abi, createPublicClient, http, formatUnits } from 'viem';
-import { HL_DEPOSIT_CONFIG, HL_IS_TESTNET } from '@/services/hyperliquid/config';
+import { encodeFunctionData, parseUnits, erc20Abi } from 'viem';
+import { HL_DEPOSIT_CONFIG } from '@/services/hyperliquid/config';
 
-const { chain, chainId, bridgeAddress, usdcAddress } = HL_DEPOSIT_CONFIG;
+const { chainId, bridgeAddress, usdcAddress } = HL_DEPOSIT_CONFIG;
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const MIN_DEPOSIT_USDC = 5; // Hyperliquid minimum
-const USDC_DECIMALS = 6;
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -49,27 +48,25 @@ export function useHyperliquidDeposit() {
   });
 
   // ─── Fetch USDC balance on Arbitrum ──────────────────────────────────
+  //
+  // Calls a Next.js server-side API route instead of hitting the RPC
+  // directly from the browser. This avoids CORS issues with public RPC
+  // endpoints and ensures the Alchemy key is always used server-side,
+  // even if NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL is missing from the client
+  // bundle in a production build.
 
   const fetchArbitrumUsdcBalance = useCallback(
     async (address: string): Promise<string> => {
       try {
-        const client = createPublicClient({
-          chain,
-          transport: http(
-            HL_IS_TESTNET
-              ? undefined // use chain default for Arbitrum Sepolia testnet
-              : process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL,
-          ),
-        });
-
-        const balance = await client.readContract({
-          address: usdcAddress,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [address as `0x${string}`],
-        });
-
-        return formatUnits(balance as bigint, USDC_DECIMALS);
+        // Always check mainnet Arbitrum USDC regardless of HL_IS_TESTNET.
+        // The Hyperliquid bridge deposit is always mainnet-to-mainnet; testnet
+        // trading is funded separately via the HL testnet faucet after the
+        // mainnet account is activated with a real deposit.
+        const params = new URLSearchParams({ address });
+        const res = await fetch(`/api/arbitrum-usdc-balance?${params}`);
+        if (!res.ok) return '0';
+        const { balance } = await res.json();
+        return balance ?? '0';
       } catch {
         return '0';
       }
@@ -116,7 +113,7 @@ export function useHyperliquidDeposit() {
         const data = encodeFunctionData({
           abi: erc20Abi,
           functionName: 'transfer',
-          args: [bridgeAddress, parseUnits(amountUsd, USDC_DECIMALS)],
+          args: [bridgeAddress, parseUnits(amountUsd, 6)],
         });
 
         setState((prev) => ({ ...prev, step: 'pending' }));

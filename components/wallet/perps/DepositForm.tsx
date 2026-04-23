@@ -144,11 +144,7 @@ export function DepositForm({
                 <h2 className="text-lg font-bold text-white">
                   Deposit to Hyperliquid
                 </h2>
-                <p className="text-blue-100 text-sm">
-                  {HL_IS_TESTNET
-                    ? 'USDC on Arbitrum Sepolia → HL Testnet'
-                    : 'USDC on Arbitrum → Hyperliquid'}
-                </p>
+                <p className="text-blue-100 text-sm">USDC on Arbitrum → Hyperliquid</p>
               </div>
             </div>
           </div>
