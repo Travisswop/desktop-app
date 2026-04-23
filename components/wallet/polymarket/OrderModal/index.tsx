@@ -49,6 +49,8 @@ type OrderPlacementModalProps = {
   noOutcomeName?: string;
   /** Optional Polymarket market/condition ID stored with the feed post */
   marketId?: string;
+  /** Gamma event slug used to fetch live scores in the feed card */
+  eventSlug?: string;
 };
 
 export default function OrderPlacementModal({
@@ -71,6 +73,7 @@ export default function OrderPlacementModal({
   yesOutcomeName = 'Yes',
   noOutcomeName = 'No',
   marketId,
+  eventSlug,
 }: OrderPlacementModalProps) {
   const [inputValue, setInputValue] = useState<string>('');
   const [orderType, setOrderType] = useState<OrderVariant>('market');
@@ -317,6 +320,7 @@ export default function OrderPlacementModal({
                   price: pendingOrder.priceDecimal,
                   orderId: result.orderId,
                   orderType: orderType,
+                  eventSlug,
                 },
               },
               token,

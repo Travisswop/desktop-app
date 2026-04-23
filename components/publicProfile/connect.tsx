@@ -1,20 +1,21 @@
-"use client";
-import { FC, useState, useEffect } from "react";
-import Image from "next/image";
-import { CheckCircle, Link2, Loader } from "lucide-react";
-import { Toaster } from "@/components/ui/toaster";
-import { useToast } from "@/components/ui/use-toast";
+'use client';
+import { FC, useState, useEffect } from 'react';
+import Image from 'next/image';
+import { CheckCircle, Link2, Loader } from 'lucide-react';
+import { Toaster } from '@/components/ui/toaster';
+import { useToast } from '@/components/ui/use-toast';
 import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { addSwopPoint } from "@/actions/addPoint";
-import Cookies from "js-cookie";
-import { postConnectSmartsite } from "@/actions/connectMicrosite";
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { addSwopPoint } from '@/actions/addPoint';
+import Cookies from 'js-cookie';
+import { postConnectSmartsite } from '@/actions/connectMicrosite';
 
-const wait = () => new Promise((resolve) => setTimeout(resolve, 2500));
+const wait = () =>
+  new Promise((resolve) => setTimeout(resolve, 2500));
 interface Props {
   data: {
     name: string;
@@ -27,46 +28,30 @@ interface Props {
 
 const Connect: FC<Props> = ({ data, handler }) => {
   const { toast } = useToast();
-  const [userId, setUserId] = useState("");
-  const [accessToken, setAccessToken] = useState("");
+  const [userId, setUserId] = useState('');
+  const [accessToken, setAccessToken] = useState('');
   const [success, setSuccess] = useState(false);
   const [loader, setLoader] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
-  const [connectInfo, setConnectInfo] = useState({
+
+  const [connectInfo] = useState({
     pId: data.parentId,
     cId: data.micrositeId,
-    name: "",
-    email: "",
-    lat: 0,
-    lng: 0,
   });
 
   useEffect(() => {
     if (window !== undefined) {
       const getUserId = async () => {
-        const id = Cookies.get("user-id");
-        setUserId(id || "");
+        const id = Cookies.get('user-id');
+        setUserId(id || '');
       };
       getUserId();
 
       const getAccessToken = async () => {
-        const token = Cookies.get("access-token");
-        setAccessToken(token || "");
+        const token = Cookies.get('access-token');
+        setAccessToken(token || '');
       };
       getAccessToken();
-    }
-  }, []);
-
-  useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(({ coords }) => {
-        const { latitude, longitude } = coords;
-        setConnectInfo({
-          ...connectInfo,
-          lat: latitude,
-          lng: longitude,
-        });
-      });
     }
   }, []);
 
@@ -74,7 +59,7 @@ const Connect: FC<Props> = ({ data, handler }) => {
     setRedirecting(true);
     setTimeout(() => {
       window.location.href =
-        "https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322";
+        'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
     }, 3000);
   };
 
@@ -89,30 +74,29 @@ const Connect: FC<Props> = ({ data, handler }) => {
         pId: connectInfo.pId,
         cId: connectInfo.cId,
         userId: userId,
-        lat: connectInfo.lat.toString(),
-        lng: connectInfo.lng.toString(),
       };
 
       const res = await postConnectSmartsite(payload, accessToken);
+      console.log('res', res);
 
-      if (res?.state === "success") {
+      if (res?.state === 'success') {
         setLoader(false);
         setSuccess(true);
         await addSwopPoint({
           userId: userId || data.parentId,
-          pointType: "Gaining a Follower",
-          actionKey: "launch-swop",
+          pointType: 'Gaining a Follower',
+          actionKey: 'launch-swop',
         });
         wait().then(() => handler(true));
       } else {
-        throw new Error(res?.message || "Failed to connect");
+        throw new Error(res?.message || 'Failed to connect');
       }
     } catch (error: any) {
       setLoader(false);
       toast({
-        title: "Connection failed",
-        description: error.message || "Please try again later",
-        variant: "destructive",
+        title: 'Connection failed',
+        description: error.message || 'Please try again later',
+        variant: 'destructive',
       });
     }
   };
@@ -124,7 +108,7 @@ const Connect: FC<Props> = ({ data, handler }) => {
           <Image
             className="object-cover rounded-full"
             src={
-              data.avatar.includes("https")
+              data.avatar.includes('https')
                 ? data.avatar
                 : `/images/user_avator/${data.avatar}.png`
             }
@@ -158,7 +142,7 @@ const Connect: FC<Props> = ({ data, handler }) => {
           <Image
             className="object-cover rounded-full"
             src={
-              data.avatar.includes("https")
+              data.avatar.includes('https')
                 ? data.avatar
                 : `/images/user_avator/${data.avatar}.png`
             }
@@ -183,7 +167,7 @@ const Connect: FC<Props> = ({ data, handler }) => {
             disabled={loader || success}
             size="lg"
             className={`w-full max-w-xs ${
-              success ? "bg-emerald-100 hover:bg-emerald-100" : ""
+              success ? 'bg-emerald-100 hover:bg-emerald-100' : ''
             }`}
           >
             {loader ? (

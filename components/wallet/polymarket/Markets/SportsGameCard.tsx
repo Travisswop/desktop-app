@@ -48,7 +48,7 @@ function extractSpreadLine(label: string): string {
  */
 function spreadLabel(abbrev: string, rawLabel: string): string {
   const line = extractSpreadLine(rawLabel);
-  return line ? `${abbrev} ${line}` : abbrev;
+  return line ? `${line}` : abbrev;
 }
 
 /** 0.47 → "47¢",  0.50 → "50¢" */
@@ -434,6 +434,7 @@ export default function SportsGameCard({
         // Reformat the spread label: always use the team abbreviation regardless
         // of whether the raw label is a nickname ("Magic"), abbrev+line ("ORL +1.5"),
         // or a bare line ("+1.5"). Result: "ORL", "ORL +1.5", "PHI -1.5", etc.
+
         const spFormatted = sp
           ? { ...sp, label: spreadLabel(team.abbrev, sp.label) }
           : undefined;

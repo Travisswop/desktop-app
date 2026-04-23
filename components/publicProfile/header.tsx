@@ -1,16 +1,20 @@
-"use client";
-import { FC, useEffect, useState } from "react";
-import Image from "next/image";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import Subscribe from "./subscribe";
-import Connect from "./connect";
-import { FaRegStar } from "react-icons/fa6";
-import { useParams, usePathname, useRouter } from "next/navigation";
-import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartContext";
-import { useUser } from "@/lib/UserContext";
-import { getEnsDataUsingEns } from "../../actions/getEnsData";
-import isUrl from "@/lib/isUrl";
-import { MdOutlineShoppingCart } from "react-icons/md";
+'use client';
+import { FC, useEffect, useState } from 'react';
+import Image from 'next/image';
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import Subscribe from './subscribe';
+import Connect from './connect';
+import { FaRegStar } from 'react-icons/fa6';
+import { useParams, usePathname, useRouter } from 'next/navigation';
+import { useCart } from '@/app/(public-profile)/sp/[username]/cart/context/CartContext';
+import { useUser } from '@/lib/UserContext';
+import { getEnsDataUsingEns } from '../../actions/getEnsData';
+import isUrl from '@/lib/isUrl';
+import { MdOutlineShoppingCart } from 'react-icons/md';
 
 interface Props {
   avatar: string;
@@ -24,14 +28,20 @@ interface Props {
 }
 
 // Simple profile image component
-const ProfileImage: FC<{ avatar: string; name: string; size?: string }> = ({
-  avatar,
-  name,
-  size = "w-24 h-24",
-}) => (
-  <div className={`border-4 rounded-full border-white shadow-medium ${size}`}>
+const ProfileImage: FC<{
+  avatar: string;
+  name: string;
+  size?: string;
+}> = ({ avatar, name, size = 'w-24 h-24' }) => (
+  <div
+    className={`border-4 rounded-full border-white shadow-medium ${size}`}
+  >
     <Image
-      src={isUrl(avatar) ? avatar : `/images/user_avator/${avatar}@3x.png`}
+      src={
+        isUrl(avatar)
+          ? avatar
+          : `/images/user_avator/${avatar}@3x.png`
+      }
       alt={name}
       className="w-full h-full rounded-full"
       width={320}
@@ -58,20 +68,18 @@ const PublicProfileHeader: FC<Props> = ({
   const params = useParams<{ username: string }>();
   const userName = params?.username;
 
-  console.log("isAlreadyConnected", isAlreadyConnected);
-  console.log("user", user);
-
   useEffect(() => {
     if (user && userName) {
       const fetchEnsData = async () => {
         const res = await getEnsDataUsingEns(userName);
         const resId = res.domainOwner._id;
+        console.log('resId', resId);
 
-        const isAlreadySubscribe = user?.connections?.followers?.find(
+        const isAlreadySubscribe = user?.connections?.following?.find(
           (item) => item?.account?._id === resId,
         );
 
-        if (isAlreadySubscribe || user?.connectionIds?.includes(resId)) {
+        if (isAlreadySubscribe) {
           setIsAlreadyConnected(true);
         } else {
           setIsAlreadyConnected(false);
@@ -129,33 +137,35 @@ const PublicProfileHeader: FC<Props> = ({
         <div className="relative">
           <ProfileImage avatar={avatar} name={name} />
 
-          {user && user?.ensName !== userName && !isAlreadyConnected && (
-            <div className="absolute -right-3 bottom-2 ml-2">
-              <Dialog open={openDC} onOpenChange={setOpenDC}>
-                <DialogTrigger>
-                  <div className="bg-white border-2 rounded-full border-black p-1">
-                    <Image
-                      src="/add-btn-dark.svg"
-                      alt="Add"
-                      width={20}
-                      height={20}
+          {user &&
+            user?.ensName !== userName &&
+            !isAlreadyConnected && (
+              <div className="absolute -right-3 bottom-2 ml-2">
+                <Dialog open={openDC} onOpenChange={setOpenDC}>
+                  <DialogTrigger>
+                    <div className="bg-white border-2 rounded-full border-black p-1">
+                      <Image
+                        src="/add-btn-dark.svg"
+                        alt="Add"
+                        width={20}
+                        height={20}
+                      />
+                    </div>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <Connect
+                      data={{
+                        name,
+                        parentId,
+                        micrositeId,
+                        avatar,
+                      }}
+                      handler={() => setOpenDC(false)}
                     />
-                  </div>
-                </DialogTrigger>
-                <DialogContent>
-                  <Connect
-                    data={{
-                      name,
-                      parentId,
-                      micrositeId,
-                      avatar,
-                    }}
-                    handler={() => setOpenDC(false)}
-                  />
-                </DialogContent>
-              </Dialog>
-            </div>
-          )}
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
         </div>
       </div>
     </div>
@@ -163,7 +173,10 @@ const PublicProfileHeader: FC<Props> = ({
 };
 
 // Main Header component
-const Header: FC<Props> = ({ isFromPublicProfile = true, ...props }) => {
+const Header: FC<Props> = ({
+  isFromPublicProfile = true,
+  ...props
+}) => {
   // If not from public profile, just show the profile image
   if (!isFromPublicProfile) {
     return (

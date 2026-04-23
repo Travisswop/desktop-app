@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { FC } from "react";
-import Image from "next/image";
-import { motion } from "framer-motion";
-import toast from "react-hot-toast";
-import InfoCardContent from "./InfoCardContent";
+import { FC } from 'react';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
+import InfoCardContent from './InfoCardContent';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -40,7 +40,6 @@ const Ens: FC<Props> = ({
   onClick,
 }) => {
   const { _id, domain } = data;
-  console.log("ens domain data", data);
 
   const openlink = async () => {
     // if (!accessToken) {
@@ -49,13 +48,13 @@ const Ens: FC<Props> = ({
     //   return;
     // }
     navigator.clipboard.writeText(domain);
-    toast.success("Copied to clipboard");
+    toast.success('Copied to clipboard');
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           socialType,
@@ -90,12 +89,12 @@ const Ens: FC<Props> = ({
       transition={{
         duration: 0.4,
         delay: 0.2,
-        type: "easeInOut",
+        type: 'easeInOut',
       }}
     >
       <motion.div
         transition={{
-          type: "spring",
+          type: 'spring',
           stiffness: 400,
           damping: 10,
         }}

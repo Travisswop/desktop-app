@@ -1080,6 +1080,32 @@ export default function MarketDetailModal({
                   price: effectivePrice,
                   orderId: result.orderId,
                   orderType,
+                  eventSlug: market.eventSlug,
+                  // Sports panel data
+                  yesOutcome: yesOutcomeName,
+                  noOutcome: noOutcomeName,
+                  yesTokenId,
+                  noTokenId,
+                  yesPrice,
+                  noPrice,
+                  gameStartTime: market.gameStartTime,
+                  volume: volumeLabel ?? undefined,
+                  yesTeam: yesTeamMeta
+                    ? {
+                        name: yesTeamMeta.name,
+                        abbreviation: yesTeamMeta.abbreviation,
+                        color: yesTeamMeta.color,
+                        logo: yesTeamMeta.logo,
+                      }
+                    : undefined,
+                  noTeam: noTeamMeta
+                    ? {
+                        name: noTeamMeta.name,
+                        abbreviation: noTeamMeta.abbreviation,
+                        color: noTeamMeta.color,
+                        logo: noTeamMeta.logo,
+                      }
+                    : undefined,
                 },
               },
               token,
