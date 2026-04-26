@@ -1830,7 +1830,7 @@ export default function SwapTokenModal({
               q.outputMint ||
               '',
             price:
-              receiveToken?.price || receiveToken?.usdPrice || '0',
+              receiveToken?.price || receiveToken?.priceUSD || '0',
             tokenImg: receiveToken?.logoURI || '',
             chain: outputChainId,
           },

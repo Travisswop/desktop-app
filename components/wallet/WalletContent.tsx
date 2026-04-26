@@ -236,7 +236,6 @@ const WalletContentInner = () => {
     ready,
     user: PrivyUser,
     getAccessToken,
-    unlinkWallet,
   } = usePrivy();
 
   const { ready: solanaReady, wallets: directSolanaWallets } =
@@ -869,12 +868,31 @@ const WalletContentInner = () => {
     [setSendFlow],
   );
 
-  // [TEMP] Unlink a Solana wallet by address
+  // [TEMP] Unlink an embedded Solana wallet via the backend Admin API
+  // (client-side unlinkWallet only works for SIWS/external wallets)
   const handleUnlinkSolanaWallet = useCallback(
     async (address: string) => {
       setDeletingSolanaAddress(address);
       try {
-        await unlinkWallet(address);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+        const res = await fetch(
+          `${apiUrl}/api/v5/wallet/unlink-solana-wallet`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ address }),
+          },
+        );
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(
+            (data as { message?: string }).message ||
+              `Server error ${res.status}`,
+          );
+        }
         toast({ title: 'Wallet removed', description: address });
       } catch (err) {
         toast({
@@ -887,7 +905,7 @@ const WalletContentInner = () => {
         setDeletingSolanaAddress(null);
       }
     },
-    [unlinkWallet, toast],
+    [accessToken, toast],
   );
 
   return (
