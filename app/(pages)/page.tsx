@@ -24,7 +24,7 @@ const FeedPage = async () => {
         </div>
       }
     >
-      <FeedMainV2
+      <FeedMainV2 
         accessToken={accessToken}
         userId={userId || ""}
         initialFeedData={newFeedData}

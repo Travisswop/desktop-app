@@ -26,13 +26,14 @@ import {
 
 import { CartProvider } from "./cart/context/CartContext";
 import { useUser } from "@/lib/UserContext";
-import LivePreviewTimeline from "@/components/feed/LivePreviewTimeline";
 import { useMicrositeData } from "./context/MicrositeContext";
 import TokenGateVerification from "@/components/publicProfile/TokenGateVerification";
 import distributeSmallIcons from "@/components/util/distributeSmallIcons";
 import { fontMap } from "@/lib/fonts";
 import getMediaType from "@/utils/getMediaType";
 import MediaList from "@/components/publicProfile/MediaList";
+import EmbeddedFeed from "./_EmbeddedFeed";
+import Cookies from "js-cookie";
 
 interface ClientProfileProps {
   userName: string;
@@ -41,6 +42,7 @@ interface ClientProfileProps {
 export default function ClientProfile({ userName }: ClientProfileProps) {
   const { micrositeData } = useMicrositeData();
   const { user, accessToken } = useUser();
+  const accessUserIdFromCookie = Cookies.get("user-id");
 
   if (!micrositeData) {
     return <div>Loading...</div>;
@@ -417,15 +419,20 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
             )}
 
             {micrositeData?.showFeed && (
-              <LivePreviewTimeline
+              // <LivePreviewTimeline
+              //   accessToken={accessToken || ""}
+              //   userId={user?._id || ""}
+              //   micrositeId={micrositeData._id}
+              //   isPostLoading={false}
+              //   isPosting={false}
+              //   setIsPostLoading={() => {}}
+              //   setIsPosting={() => {}}
+              //   isFromPublicProfile={true}
+              // />
+              <EmbeddedFeed
                 accessToken={accessToken || ""}
-                userId={user?._id || ""}
+                userId={user?._id || accessUserIdFromCookie || ""}
                 micrositeId={micrositeData._id}
-                isPostLoading={false}
-                isPosting={false}
-                setIsPostLoading={() => {}}
-                setIsPosting={() => {}}
-                isFromPublicProfile={true}
               />
             )}
 
