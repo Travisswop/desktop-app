@@ -152,7 +152,7 @@ const FeedItem = memo(
           {/* User and Feed Info */}
           <div className="w-full flex items-start justify-between">
             <div className="w-full">
-              <Link href={`/feed/${feed._id}`}>
+              <Link href={`/feed/${feed?._id}`}>
                 <div className="flex items-center gap-1">
                   <div className="flex items-center gap-1">
                     <p className="text-black font-semibold">{userName}</p>

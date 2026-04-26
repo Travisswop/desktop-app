@@ -121,7 +121,7 @@ export default function CommentItem({
       {/* ── Right column: all content ──────────────────────────────────────── */}
       <div className="flex-1 min-w-0 pb-1">
         <div className="flex items-start justify-between">
-          <Link href={`/feed/comment/${comment._id}`} className="flex-1">
+          <Link href={`/feed/comment/${comment?._id}`} className="flex-1">
             {/* Header */}
             <div className="flex items-center gap-1.5 flex-wrap">
               <p className="font-bold text-[15px] text-gray-900 ">{userName}</p>
