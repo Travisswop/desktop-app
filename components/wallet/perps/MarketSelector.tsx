@@ -14,7 +14,21 @@ interface MarketSelectorProps {
 }
 
 // Pinned / featured markets shown first
-const FEATURED_COINS = ['BTC', 'ETH', 'SOL', 'ARB', 'OP', 'DOGE', 'AVAX'];
+const FEATURED_COINS = [
+  'BTC',
+  'ETH',
+  'SOL',
+  'PAXG',
+  'ARB',
+  'OP',
+  'DOGE',
+  'AVAX',
+];
+
+// Human-readable display names for tickers that aren't self-explanatory
+const COIN_DISPLAY_NAMES: Record<string, string> = {
+  PAXG: 'Gold',
+};
 
 /**
  * MarketSelector
@@ -49,7 +63,8 @@ export function MarketSelector({
       (m) =>
         !q ||
         m.coin.includes(q) ||
-        m.name.includes(q),
+        m.name.includes(q) ||
+        (COIN_DISPLAY_NAMES[m.coin] ?? '').toUpperCase().includes(q),
     );
 
     // Sort: featured first, then alphabetical
@@ -125,9 +140,13 @@ export function MarketSelector({
                   )}
                   <div>
                     <p className="font-semibold text-gray-800 text-xs">
-                      {market.coin}
+                      {COIN_DISPLAY_NAMES[market.coin] ?? market.coin}
                     </p>
-                    <p className="text-xs text-gray-400">{market.maxLeverage}x max</p>
+                    <p className="text-xs text-gray-400">
+                      {COIN_DISPLAY_NAMES[market.coin]
+                        ? `${market.coin} · ${market.maxLeverage}x max`
+                        : `${market.maxLeverage}x max`}
+                    </p>
                   </div>
                 </div>
 
@@ -150,7 +169,8 @@ export function MarketSelector({
                     ) : (
                       <TrendingDown className="w-3 h-3" />
                     )}
-                    {isUp ? '+' : ''}{change.toFixed(2)}%
+                    {isUp ? '+' : ''}
+                    {change.toFixed(2)}%
                   </span>
                 </div>
               </button>

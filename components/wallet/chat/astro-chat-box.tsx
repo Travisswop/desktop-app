@@ -625,65 +625,22 @@ export default function AstroChatBox() {
                 <div className="mt-2 text-xs text-purple-700 space-y-1">
                   {pendingAction.action === 'swap_tokens' ? (
                     <>
-                      {pendingAction.transactionData.swapMode ===
-                      'ExactOut' ? (
-                        <>
-                          <p>
-                            • You pay: ~
-                            {pendingAction.transactionData.quote
-                              ?.inputAmount
-                              ? (
-                                  Number(
-                                    pendingAction.transactionData
-                                      .quote.inputAmount,
-                                  ) / Math.pow(10, 9)
-                                ).toFixed(4)
-                              : '...'}{' '}
-                            {
-                              pendingAction.transactionData
-                                .fromTokenSymbol
-                            }
-                          </p>
-                          <p>
-                            • You receive:{' '}
-                            {
-                              pendingAction.transactionData
-                                .outputAmount
-                            }{' '}
-                            {
-                              pendingAction.transactionData
-                                .toTokenSymbol
-                            }
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p>
-                            • You pay:{' '}
-                            {pendingAction.transactionData.amount}{' '}
-                            {
-                              pendingAction.transactionData
-                                .fromTokenSymbol
-                            }
-                          </p>
-                          <p>
-                            • You receive: ~
-                            {pendingAction.transactionData.quote
-                              ?.outputAmount
-                              ? (
-                                  Number(
-                                    pendingAction.transactionData
-                                      .quote.outputAmount,
-                                  ) / Math.pow(10, 9)
-                                ).toFixed(4)
-                              : '...'}{' '}
-                            {
-                              pendingAction.transactionData
-                                .toTokenSymbol
-                            }
-                          </p>
-                        </>
-                      )}
+                      <p>
+                        • You pay:{' '}
+                        {pendingAction.transactionData.amount != null
+                          ? `${pendingAction.transactionData.amount} ${pendingAction.transactionData.fromTokenSymbol}`
+                          : pendingAction.transactionData.quote?.inputAmount
+                            ? `~${(Number(pendingAction.transactionData.quote.inputAmount) / Math.pow(10, 9)).toFixed(4)} ${pendingAction.transactionData.fromTokenSymbol}`
+                            : `... ${pendingAction.transactionData.fromTokenSymbol}`}
+                      </p>
+                      <p>
+                        • You receive:{' '}
+                        {pendingAction.transactionData.quote?.outputAmount
+                          ? `~${(Number(pendingAction.transactionData.quote.outputAmount) / Math.pow(10, 9)).toFixed(4)} ${pendingAction.transactionData.toTokenSymbol}`
+                          : pendingAction.transactionData.outputAmount != null
+                            ? `~${pendingAction.transactionData.outputAmount} ${pendingAction.transactionData.toTokenSymbol}`
+                            : `... ${pendingAction.transactionData.toTokenSymbol}`}
+                      </p>
                     </>
                   ) : (
                     <>

@@ -1801,6 +1801,9 @@ export default function SwapTokenModal({
         getChainId(receiveToken?.chain ?? '');
       const network = getNetworkByChainId(inputChainId) || 'solana';
 
+      console.log('payToken', payToken);
+      console.log('receiveToken', receiveToken);
+
       const params = {
         smartsiteId: userData?.primaryMicrosite || '',
         userId: userData?._id || '',
@@ -1827,7 +1830,7 @@ export default function SwapTokenModal({
               q.outputMint ||
               '',
             price:
-              receiveToken?.price || receiveToken?.usdPrice || '0',
+              receiveToken?.price || receiveToken?.priceUSD || '0',
             tokenImg: receiveToken?.logoURI || '',
             chain: outputChainId,
           },
@@ -2201,13 +2204,142 @@ export default function SwapTokenModal({
 
       if (execStatus === 'Failed') {
         console.error('[Jupiter execute] failed:', execResult.data);
-        const codeMessages: Record<string, string> = {
+
+        // Numeric code 8010 = SlippageToleranceExceeded from Jupiter /execute
+        const isSlippageError =
+          execCode === 8010 ||
+          execCode === 'SlippageToleranceExceeded' ||
+          (execResult.data?.error ?? '')
+            .toLowerCase()
+            .includes('slippage');
+
+        if (isSlippageError) {
+          // Auto-retry once with explicit slippageBps (2× current, capped at 1000 = 10%)
+          const retrySlippageBps = Math.min(
+            Math.floor(slippage * 100) * 2,
+            1000,
+          );
+          setSwapStatus(
+            `Price moved, retrying with ${retrySlippageBps / 100}% slippage…`,
+          );
+
+          const retryOrderResult = await getJupiterOrder({
+            inputMint,
+            outputMint,
+            amount: amountInSmallestUnit,
+            taker: selectedSolanaWallet.address,
+            slippageBps: retrySlippageBps,
+          });
+
+          if (!retryOrderResult.success || !retryOrderResult.data) {
+            throw new Error(
+              retryOrderResult.error ||
+                'Failed to get swap order on retry',
+            );
+          }
+
+          const {
+            transaction: retryTxB64,
+            requestId: retryRequestId,
+            outAmount: retryOutAmount,
+          } = retryOrderResult.data;
+
+          if (retryOutAmount && receiveToken?.decimals) {
+            const readable =
+              Number(retryOutAmount) /
+              Math.pow(10, receiveToken.decimals);
+            setReceiveAmount(
+              readable.toFixed(8).replace(/\.?0+$/, ''),
+            );
+          }
+
+          const retryTx = VersionedTransaction.deserialize(
+            Buffer.from(retryTxB64, 'base64'),
+          );
+          const { blockhash: retryBlockhash } =
+            await connection.getLatestBlockhash('confirmed');
+          retryTx.message.recentBlockhash = retryBlockhash;
+
+          setSwapStatus('Please sign the transaction…');
+          const { signedTransaction: retrySignedTx } =
+            await signTransaction({
+              transaction: new Uint8Array(retryTx.serialize()),
+              wallet: selectedSolanaWallet,
+            });
+
+          setSwapStatus('Submitting swap…');
+          const retryExecResult = await postJupiterExecute({
+            signedTransaction:
+              Buffer.from(retrySignedTx).toString('base64'),
+            requestId: retryRequestId,
+          });
+
+          if (!retryExecResult.success || !retryExecResult.data) {
+            throw new Error(
+              retryExecResult.error ||
+                'Failed to submit swap transaction',
+            );
+          }
+
+          const {
+            status: retryStatus,
+            signature: retrySignature,
+            code: retryCode,
+          } = retryExecResult.data;
+
+          if (retryStatus === 'Failed') {
+            const retryIsSlippage =
+              retryCode === 8010 ||
+              retryCode === 'SlippageToleranceExceeded';
+            throw new Error(
+              retryIsSlippage
+                ? 'Price is moving too fast. Try increasing slippage in settings or reduce the amount.'
+                : `Swap failed (${retryCode ?? 'unknown'}). Please try again.`,
+            );
+          }
+
+          const retryTxId = retrySignature;
+          if (!retryTxId)
+            throw new Error(
+              'No transaction signature returned from Jupiter.',
+            );
+
+          setTxHash(retryTxId);
+          setSwapStatus('Transaction submitted!');
+          setIsSwapping(false);
+          onSwapComplete?.(retryTxId);
+
+          (async () => {
+            if (rpcUrl) {
+              try {
+                const confirmConn = new Connection(rpcUrl, {
+                  commitment: 'confirmed',
+                  confirmTransactionInitialTimeout: 30000,
+                });
+                await confirmConn.confirmTransaction(
+                  retryTxId,
+                  'confirmed',
+                );
+                setSwapStatus('Transaction confirmed');
+              } catch {
+                setSwapStatus('Transaction submitted successfully');
+              }
+            } else {
+              setSwapStatus('Transaction submitted successfully');
+            }
+            await saveSwapToDatabase(retryTxId, {
+              inputMint,
+              outputMint,
+            });
+          })();
+          return;
+        }
+
+        const codeMessages: Record<string | number, string> = {
           SimulationFailed:
             'Transaction simulation failed. The token pair may not be supported or liquidity is insufficient.',
           TransactionExpired:
             'Transaction expired. Please try again.',
-          SlippageToleranceExceeded:
-            'Price moved too much. Try increasing slippage or reducing the amount.',
           InstructionError:
             'On-chain instruction error. This token pair may not be supported.',
         };
@@ -2226,64 +2358,33 @@ export default function SwapTokenModal({
         );
 
       setTxHash(txId);
-      setSwapStatus(
-        'Transaction submitted! Waiting for confirmation...',
-      );
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      setSwapStatus('Transaction submitted!');
 
-      let isConfirmed = false;
-      if (rpcUrl) {
-        const confirmConnection = new Connection(rpcUrl, {
-          commitment: 'confirmed',
-          confirmTransactionInitialTimeout: 60000,
-        });
-        try {
-          await confirmConnection.confirmTransaction(
-            txId,
-            'finalized',
-          );
-          isConfirmed = true;
-          setSwapStatus('Transaction confirmed');
-        } catch {
+      // Unfreeze UI immediately — confirmation and database save run in background
+      setIsSwapping(false);
+      onSwapComplete?.(txId);
+
+      // Background: wait for on-chain confirmation then persist the swap
+      (async () => {
+        if (rpcUrl) {
+          try {
+            const confirmConnection = new Connection(rpcUrl, {
+              commitment: 'confirmed',
+              confirmTransactionInitialTimeout: 30000,
+            });
+            await confirmConnection.confirmTransaction(
+              txId,
+              'confirmed',
+            );
+            setSwapStatus('Transaction confirmed');
+          } catch {
+            setSwapStatus('Transaction submitted successfully');
+          }
+        } else {
           setSwapStatus('Transaction submitted successfully');
         }
-      } else {
-        setSwapStatus('Transaction submitted successfully');
-      }
-
-      if (isConfirmed && accessToken) {
-        const inputPrice = Number(
-          payToken?.price || payToken?.usdPrice || 0,
-        );
-        const outputPrice = Number(
-          receiveToken?.price || receiveToken?.usdPrice || 0,
-        );
-        // notifySwapFee(
-        //   {
-        //     txHash: txId,
-        //     walletAddress: selectedSolanaWallet?.address,
-        //     inputTokenSymbol: payToken?.symbol,
-        //     inputAmount: payAmount,
-        //     inputUsdValue:
-        //       inputPrice > 0
-        //         ? (Number(payAmount || 0) * inputPrice).toFixed(6)
-        //         : undefined,
-        //     outputTokenSymbol: receiveToken?.symbol,
-        //     outputAmount: receiveAmount,
-        //     outputUsdValue:
-        //       outputPrice > 0
-        //         ? (Number(receiveAmount || 0) * outputPrice).toFixed(
-        //             6,
-        //           )
-        //         : undefined,
-        //   },
-        //   accessToken,
-        // );
-      }
-
-      await saveSwapToDatabase(txId, { inputMint, outputMint });
-      setSwapStatus('Transaction confirmed');
-      onSwapComplete?.(txId);
+        await saveSwapToDatabase(txId, { inputMint, outputMint });
+      })();
     } catch (error: any) {
       const rawMsg =
         error?.message || error?.toString() || 'Swap failed';
@@ -2348,19 +2449,20 @@ export default function SwapTokenModal({
       const signature = bs58.encode(result.signature);
 
       setTxHash(signature);
-      setSwapStatus(
-        'Transaction submitted! Waiting for confirmation...',
-      );
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      setSwapStatus('Transaction submitted!');
 
-      try {
-        await connection.confirmTransaction(signature, 'confirmed');
-        setSwapStatus('Transaction confirmed');
-      } catch {
-        setSwapStatus('Transaction submitted successfully');
-      }
+      // Unfreeze UI immediately — confirmation runs in background
+      setIsSwapping(false);
 
-      await saveSwapToDatabase(signature, quote);
+      (async () => {
+        try {
+          await connection.confirmTransaction(signature, 'confirmed');
+          setSwapStatus('Transaction confirmed');
+        } catch {
+          setSwapStatus('Transaction submitted successfully');
+        }
+        await saveSwapToDatabase(signature, quote);
+      })();
     } catch (error: any) {
       console.error('[Jupiter execute] error:', error);
       setSwapError(

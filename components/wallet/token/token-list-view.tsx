@@ -103,18 +103,19 @@ export default function TokenListView({
               </div>
             ) : (
               <>
-                {token.marketData?.price !== undefined &&
-                token.marketData?.price !== null ? (
-                  `$${
-                    typeof token.marketData?.price === 'number'
-                      ? token.marketData?.price
-                      : '0.0000'
-                  }`
-                ) : (
-                  <span className="text-gray-500">
-                    Price unavailable
-                  </span>
-                )}
+                {(() => {
+                  const totalUsd =
+                    token.value ??
+                    (token.marketData?.price != null
+                      ? parseFloat(token.balance) *
+                        parseFloat(token.marketData.price)
+                      : null);
+                  return totalUsd != null ? (
+                    `$${totalUsd.toFixed(2)}`
+                  ) : (
+                    <span className="text-gray-500">Price unavailable</span>
+                  );
+                })()}
               </>
             )}
           </p>
