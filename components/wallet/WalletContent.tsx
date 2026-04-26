@@ -208,26 +208,6 @@ const WalletContentInner = () => {
     setPerpsInitialCoin(null);
   };
 
-  // [TEMP] Unlink a Solana wallet by address
-  const handleUnlinkSolanaWallet = useCallback(
-    async (address: string) => {
-      setDeletingSolanaAddress(address);
-      try {
-        await unlinkWallet(address);
-        toast({ title: 'Wallet removed', description: address });
-      } catch (err) {
-        toast({
-          variant: 'destructive',
-          title: 'Failed to remove wallet',
-          description: err instanceof Error ? err.message : 'Unknown error',
-        });
-      } finally {
-        setDeletingSolanaAddress(null);
-      }
-    },
-    [unlinkWallet, toast],
-  );
-
   // Hyperliquid agent — lives here so the ExchangeClient persists across
   // PerpsPanel open/close cycles and never triggers repeated sign messages.
   const hlAgent = useHyperliquidAgent();
@@ -243,7 +223,9 @@ const WalletContentInner = () => {
   const [arbitrumBridgeOpen, setArbitrumBridgeOpen] = useState(false);
 
   // [TEMP] Solana wallet management state
-  const [deletingSolanaAddress, setDeletingSolanaAddress] = useState<string | null>(null);
+  const [deletingSolanaAddress, setDeletingSolanaAddress] = useState<
+    string | null
+  >(null);
 
   // Ref to track wallet creation attempts
   const walletCreationAttempted = useRef(false);
@@ -885,6 +867,27 @@ const WalletContentInner = () => {
         step: 'select-method',
       })),
     [setSendFlow],
+  );
+
+  // [TEMP] Unlink a Solana wallet by address
+  const handleUnlinkSolanaWallet = useCallback(
+    async (address: string) => {
+      setDeletingSolanaAddress(address);
+      try {
+        await unlinkWallet(address);
+        toast({ title: 'Wallet removed', description: address });
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: 'Failed to remove wallet',
+          description:
+            err instanceof Error ? err.message : 'Unknown error',
+        });
+      } finally {
+        setDeletingSolanaAddress(null);
+      }
+    },
+    [unlinkWallet, toast],
   );
 
   return (
