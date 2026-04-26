@@ -14,7 +14,7 @@ interface MarketSelectorProps {
 }
 
 // Pinned / featured markets shown first
-const FEATURED_COINS = ['BTC', 'ETH', 'SOL', 'ARB', 'OP', 'DOGE', 'AVAX'];
+const FEATURED_COINS = ['BTC', 'ETH', 'SOL', 'XAU', 'WTI', 'ARB', 'OP', 'DOGE', 'AVAX'];
 
 /**
  * MarketSelector

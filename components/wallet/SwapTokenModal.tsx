@@ -1801,6 +1801,9 @@ export default function SwapTokenModal({
         getChainId(receiveToken?.chain ?? '');
       const network = getNetworkByChainId(inputChainId) || 'solana';
 
+      console.log('payToken', payToken);
+      console.log('receiveToken', receiveToken);
+
       const params = {
         smartsiteId: userData?.primaryMicrosite || '',
         userId: userData?._id || '',
@@ -2226,64 +2229,33 @@ export default function SwapTokenModal({
         );
 
       setTxHash(txId);
-      setSwapStatus(
-        'Transaction submitted! Waiting for confirmation...',
-      );
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      setSwapStatus('Transaction submitted!');
 
-      let isConfirmed = false;
-      if (rpcUrl) {
-        const confirmConnection = new Connection(rpcUrl, {
-          commitment: 'confirmed',
-          confirmTransactionInitialTimeout: 60000,
-        });
-        try {
-          await confirmConnection.confirmTransaction(
-            txId,
-            'finalized',
-          );
-          isConfirmed = true;
-          setSwapStatus('Transaction confirmed');
-        } catch {
+      // Unfreeze UI immediately — confirmation and database save run in background
+      setIsSwapping(false);
+      onSwapComplete?.(txId);
+
+      // Background: wait for on-chain confirmation then persist the swap
+      (async () => {
+        if (rpcUrl) {
+          try {
+            const confirmConnection = new Connection(rpcUrl, {
+              commitment: 'confirmed',
+              confirmTransactionInitialTimeout: 30000,
+            });
+            await confirmConnection.confirmTransaction(
+              txId,
+              'confirmed',
+            );
+            setSwapStatus('Transaction confirmed');
+          } catch {
+            setSwapStatus('Transaction submitted successfully');
+          }
+        } else {
           setSwapStatus('Transaction submitted successfully');
         }
-      } else {
-        setSwapStatus('Transaction submitted successfully');
-      }
-
-      if (isConfirmed && accessToken) {
-        const inputPrice = Number(
-          payToken?.price || payToken?.usdPrice || 0,
-        );
-        const outputPrice = Number(
-          receiveToken?.price || receiveToken?.usdPrice || 0,
-        );
-        // notifySwapFee(
-        //   {
-        //     txHash: txId,
-        //     walletAddress: selectedSolanaWallet?.address,
-        //     inputTokenSymbol: payToken?.symbol,
-        //     inputAmount: payAmount,
-        //     inputUsdValue:
-        //       inputPrice > 0
-        //         ? (Number(payAmount || 0) * inputPrice).toFixed(6)
-        //         : undefined,
-        //     outputTokenSymbol: receiveToken?.symbol,
-        //     outputAmount: receiveAmount,
-        //     outputUsdValue:
-        //       outputPrice > 0
-        //         ? (Number(receiveAmount || 0) * outputPrice).toFixed(
-        //             6,
-        //           )
-        //         : undefined,
-        //   },
-        //   accessToken,
-        // );
-      }
-
-      await saveSwapToDatabase(txId, { inputMint, outputMint });
-      setSwapStatus('Transaction confirmed');
-      onSwapComplete?.(txId);
+        await saveSwapToDatabase(txId, { inputMint, outputMint });
+      })();
     } catch (error: any) {
       const rawMsg =
         error?.message || error?.toString() || 'Swap failed';
@@ -2348,19 +2320,20 @@ export default function SwapTokenModal({
       const signature = bs58.encode(result.signature);
 
       setTxHash(signature);
-      setSwapStatus(
-        'Transaction submitted! Waiting for confirmation...',
-      );
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      setSwapStatus('Transaction submitted!');
 
-      try {
-        await connection.confirmTransaction(signature, 'confirmed');
-        setSwapStatus('Transaction confirmed');
-      } catch {
-        setSwapStatus('Transaction submitted successfully');
-      }
+      // Unfreeze UI immediately — confirmation runs in background
+      setIsSwapping(false);
 
-      await saveSwapToDatabase(signature, quote);
+      (async () => {
+        try {
+          await connection.confirmTransaction(signature, 'confirmed');
+          setSwapStatus('Transaction confirmed');
+        } catch {
+          setSwapStatus('Transaction submitted successfully');
+        }
+        await saveSwapToDatabase(signature, quote);
+      })();
     } catch (error: any) {
       console.error('[Jupiter execute] error:', error);
       setSwapError(
