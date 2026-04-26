@@ -208,6 +208,26 @@ const WalletContentInner = () => {
     setPerpsInitialCoin(null);
   };
 
+  // [TEMP] Unlink a Solana wallet by address
+  const handleUnlinkSolanaWallet = useCallback(
+    async (address: string) => {
+      setDeletingSolanaAddress(address);
+      try {
+        await unlinkWallet(address);
+        toast({ title: 'Wallet removed', description: address });
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: 'Failed to remove wallet',
+          description: err instanceof Error ? err.message : 'Unknown error',
+        });
+      } finally {
+        setDeletingSolanaAddress(null);
+      }
+    },
+    [unlinkWallet, toast],
+  );
+
   // Hyperliquid agent — lives here so the ExchangeClient persists across
   // PerpsPanel open/close cycles and never triggers repeated sign messages.
   const hlAgent = useHyperliquidAgent();
@@ -222,6 +242,9 @@ const WalletContentInner = () => {
 
   const [arbitrumBridgeOpen, setArbitrumBridgeOpen] = useState(false);
 
+  // [TEMP] Solana wallet management state
+  const [deletingSolanaAddress, setDeletingSolanaAddress] = useState<string | null>(null);
+
   // Ref to track wallet creation attempts
   const walletCreationAttempted = useRef(false);
 
@@ -231,6 +254,7 @@ const WalletContentInner = () => {
     ready,
     user: PrivyUser,
     getAccessToken,
+    unlinkWallet,
   } = usePrivy();
 
   const { ready: solanaReady, wallets: directSolanaWallets } =
@@ -452,6 +476,14 @@ const WalletContentInner = () => {
     () => evmWalletAddress || solWalletAddress,
     [evmWalletAddress, solWalletAddress],
   );
+
+  // [TEMP] All Solana wallets linked to the Privy account
+  const allSolanaWallets = useMemo(() => {
+    if (!PrivyUser?.linkedAccounts) return [];
+    return (PrivyUser.linkedAccounts as PrivyLinkedAccount[]).filter(
+      isSolanaWalletAccount,
+    );
+  }, [PrivyUser?.linkedAccounts]);
 
   // Transaction execution
   const executeTransaction = useCallback(async () => {
@@ -900,6 +932,45 @@ const WalletContentInner = () => {
               onDepositSubmitted={hlStartDepositPolling}
             />
           </div>
+
+          {/* ── TEMP: Solana wallet manager ─────────────────────────────────── */}
+          {allSolanaWallets.length > 0 && (
+            <div className="mt-4 bg-yellow-50 border border-yellow-300 rounded-xl p-4">
+              <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-3">
+                [Temp] Solana Wallets ({allSolanaWallets.length})
+              </p>
+              <ul className="space-y-2">
+                {allSolanaWallets.map((w) => {
+                  const addr = (w as { address: string }).address;
+                  const isActive = addr === solWalletAddress;
+                  const isDeleting = deletingSolanaAddress === addr;
+                  return (
+                    <li
+                      key={addr}
+                      className="flex items-center justify-between gap-2 bg-white border border-yellow-200 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <span className="font-mono text-gray-700 truncate flex-1">
+                        {addr}
+                      </span>
+                      {isActive && (
+                        <span className="shrink-0 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                          active
+                        </span>
+                      )}
+                      <button
+                        disabled={isDeleting}
+                        onClick={() => handleUnlinkSolanaWallet(addr)}
+                        className="shrink-0 text-xs bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50 px-2 py-1 rounded-lg transition-colors"
+                      >
+                        {isDeleting ? 'Removing…' : 'Remove'}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {/* ── END TEMP ─────────────────────────────────────────────────────── */}
         </div>
 
         {/* All Modals */}
