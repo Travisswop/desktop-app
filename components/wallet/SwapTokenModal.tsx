@@ -992,7 +992,12 @@ export default function SwapTokenModal({
 
       if (allowance >= BigInt(amountWei)) return; // Already approved
 
-      if (walletClientType !== 'privy' && switchChain) {
+      // Switch to the correct chain for ALL wallet types.
+      // Previously this was guarded by `walletClientType !== 'privy'`, which
+      // meant Privy wallets never switched — causing approvals to be sent on
+      // whatever chain the wallet was last used on (e.g. Polygon) instead of
+      // the source chain (e.g. Arbitrum).
+      if (switchChain) {
         await switchChain(chainId);
       }
 
@@ -1002,6 +1007,8 @@ export default function SwapTokenModal({
         args: [spender as `0x${string}`, BigInt(amountWei)],
       });
 
+      // Include chainId in the tx params so the provider knows which chain to
+      // use even if switchChain was a no-op (e.g. not supported by the wallet).
       await provider.request({
         method: 'eth_sendTransaction',
         params: [
@@ -1009,6 +1016,7 @@ export default function SwapTokenModal({
             from: owner,
             to: tokenAddress,
             data: approveData,
+            chainId: `0x${chainId.toString(16)}`,
           },
         ],
       });
@@ -2654,6 +2662,22 @@ export default function SwapTokenModal({
           setSwapError('Failed to get wallet provider');
           setIsSwapping(false);
           return;
+        }
+
+        // Switch the wallet to the source chain upfront so that both the
+        // allowance approval and the main swap transaction land on the correct
+        // network.  Without this, if the wallet was last used on a different
+        // chain (e.g. Polygon), the approval would be sent there instead of
+        // the source chain (e.g. Arbitrum).
+        try {
+          if (wallet.switchChain) {
+            await wallet.switchChain(fromChainId);
+          }
+        } catch (switchErr) {
+          console.warn(
+            'Pre-swap chain switch failed, proceeding:',
+            switchErr,
+          );
         }
 
         // --- New: ensure ERC20 allowance for LiFi contract before sending main tx ---
