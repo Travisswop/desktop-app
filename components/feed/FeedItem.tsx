@@ -152,16 +152,16 @@ const FeedItem = memo(
           {/* User and Feed Info */}
           <div className="w-full flex items-start justify-between">
             <div className="w-full">
-              <Link href={`/feed/${feed._id}`}>
+              <Link href={`/feed/${feed?._id}`}>
                 <div className="flex items-center gap-1">
                   <div className="flex items-center gap-1">
                     <p className="text-black font-semibold">{userName}</p>
                     <GoDotFill size={10} />
                     <p className="text-black font-medium">
-                      {dayjs(feed.createdAt).fromNow()}
+                      {dayjs(feed?.createdAt).fromNow()}
                     </p>
                   </div>
-                  {userId !== feed.userId && (
+                  {userId !== feed?.userId && (
                     <button onClick={(e) => handleTipOpen(e)}>
                       <Image
                         src={tipImg}
@@ -198,7 +198,7 @@ const FeedItem = memo(
             </div>
 
             {/* Actions Menu */}
-            {userId === feed.userId && (
+            {userId === feed?.userId && (
               <div>
                 <Popover
                   backdrop="transparent"
@@ -228,27 +228,27 @@ const FeedItem = memo(
 
           {isFromFeedDetailsPage && (
             <div className="flex items-center gap-2 text-gray-500 text-sm mt-3 border-b pb-2 ">
-              <span>{dayjs(feed.createdAt).format("h:mm A")}</span>
+              <span>{dayjs(feed?.createdAt).format("h:mm A")}</span>
 
               <span>·</span>
 
-              <span>{dayjs(feed.createdAt).format("MMM D, YYYY")}</span>
+              <span>{dayjs(feed?.createdAt).format("MMM D, YYYY")}</span>
 
               <span>·</span>
 
               <span className="font-medium text-gray-600">
-                {formatCountReaction(feed.viewsCount)} Views
+                {formatCountReaction(feed?.viewsCount)} Views
               </span>
             </div>
           )}
 
           <Reaction
-            postId={feed._id}
-            isLiked={feed.isLiked}
-            likeCount={feed.likeCount}
-            commentCount={feed.commentCount || feed.replyCount}
-            repostCount={feed.repostCount}
-            viewsCount={feed.viewsCount}
+            postId={feed?._id}
+            isLiked={feed?.isLiked}
+            likeCount={feed?.likeCount}
+            commentCount={feed?.commentCount || feed?.replyCount}
+            repostCount={feed?.repostCount}
+            viewsCount={feed?.viewsCount}
             onRepostSuccess={onRepostSuccess}
             onPostInteraction={onPostInteraction}
             feed={feed}

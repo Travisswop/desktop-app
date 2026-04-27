@@ -84,6 +84,11 @@ const Reaction = memo(
 
     // ── Like state ──────────────────────────────────────────────────────────
     const [liked, setLiked] = useState(isLiked);
+    logger.info(
+      `Reaction component for postId - ${postId} initialized with isLiked:`,
+      isLiked,
+      liked,
+    );
     const [likeCount, setLikeCount] = useState(initialLikeCount);
     const [animate, setAnimate] = useState(false);
 
@@ -171,7 +176,9 @@ const Reaction = memo(
           smartsiteId: user?.primaryMicrosite,
           reactionType: "like",
         };
-        await postFeedLike(payload, accessToken);
+        logger.info("Sending like request with payload:", payload);
+        const response = await postFeedLike(payload, accessToken);
+        logger.info("Like response:", response);
         onPostInteraction?.(postId, { likeCount: newCount, isLiked: newLiked });
       } catch {
         setLiked(originalLiked);
@@ -208,6 +215,7 @@ const Reaction = memo(
           },
         };
         const data = await postFeed(payload, accessToken);
+        logger.info("Repost response:", data);
         if (data?.state === "success") {
           toast.success("Reposted successfully!");
           triggerFeedRefetch();

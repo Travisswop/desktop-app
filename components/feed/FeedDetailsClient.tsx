@@ -42,6 +42,8 @@ export default function FeedDetailsClient({
   const [feed, setFeed] = useState(feedData);
   const router = useRouter();
 
+  console.log("feed data", feed);
+
   const [comments, setComments] = useState<Comment[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
