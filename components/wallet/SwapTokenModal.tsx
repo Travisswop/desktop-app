@@ -75,12 +75,16 @@ const _lifiTokenCache = new Map<
 >();
 const LIFI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-async function fetchLiFiTokensCached(chainId: string): Promise<any[]> {
+async function fetchLiFiTokensCached(
+  chainId: string,
+): Promise<any[]> {
   const cached = _lifiTokenCache.get(chainId);
   if (cached && Date.now() - cached.ts < LIFI_CACHE_TTL_MS) {
     return cached.tokens;
   }
-  const result = await fetchTokensFromLiFi(chainId, '').catch(() => []);
+  const result = await fetchTokensFromLiFi(chainId, '').catch(
+    () => [],
+  );
   const arr = Array.isArray(result) ? result : [];
   _lifiTokenCache.set(chainId, { tokens: arr, ts: Date.now() });
   return arr;
@@ -762,8 +766,12 @@ export default function SwapTokenModal({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
-  const [gasBalanceError, setGasBalanceError] = useState<string | null>(null);
-  const [estimatedGasFeeEth, setEstimatedGasFeeEth] = useState<string | null>(null);
+  const [gasBalanceError, setGasBalanceError] = useState<
+    string | null
+  >(null);
+  const [estimatedGasFeeEth, setEstimatedGasFeeEth] = useState<
+    string | null
+  >(null);
 
   // Slippage
   const [slippage, setSlippage] = useState(3.0);
@@ -1903,8 +1911,7 @@ export default function SwapTokenModal({
         );
 
         if (balance < totalRequired) {
-          const shortfallEth =
-            Number(totalRequired - balance) / 1e18;
+          const shortfallEth = Number(totalRequired - balance) / 1e18;
           setGasBalanceError(
             `Insufficient ${nativeSymbol} for gas fees. You need ~${shortfallEth.toFixed(5)} more ${nativeSymbol} on ${evmChain.name} to complete this swap.`,
           );
@@ -1999,7 +2006,11 @@ export default function SwapTokenModal({
             decimals: payToken?.decimals || 6,
             mint:
               payToken?.address || payToken?.id || q.inputMint || '',
-            price: payToken?.price || payToken?.usdPrice || '0',
+            price:
+              payToken?.price ||
+              payToken?.marketData?.price ||
+              payToken?.usdPrice ||
+              '0',
             tokenImg: payToken?.logoURI || '',
             chain: inputChainId,
           },
@@ -2013,7 +2024,10 @@ export default function SwapTokenModal({
               q.outputMint ||
               '',
             price:
-              receiveToken?.price || receiveToken?.priceUSD || '0',
+              receiveToken?.price ||
+              receiveToken?.marketData?.price ||
+              receiveToken?.priceUSD ||
+              '0',
             tokenImg: receiveToken?.logoURI || '',
             chain: outputChainId,
           },
