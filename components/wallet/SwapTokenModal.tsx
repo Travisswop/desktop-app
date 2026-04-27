@@ -18,7 +18,6 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import Image from 'next/image';
-import { debounce } from 'lodash';
 import {
   fetchTokensFromLiFi,
   getLifiQuote as fetchLifiQuote,
@@ -65,6 +64,29 @@ import { notifySwapFee } from '@/actions/notifySwapFee';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Module-level LiFi token cache
+// Persists across component re-mounts for the lifetime of the browser tab.
+// Avoids re-fetching the same token lists on every drawer open.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _lifiTokenCache = new Map<
+  string,
+  { tokens: any[]; ts: number }
+>();
+const LIFI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function fetchLiFiTokensCached(chainId: string): Promise<any[]> {
+  const cached = _lifiTokenCache.get(chainId);
+  if (cached && Date.now() - cached.ts < LIFI_CACHE_TTL_MS) {
+    return cached.tokens;
+  }
+  const result = await fetchTokensFromLiFi(chainId, '').catch(() => []);
+  const arr = Array.isArray(result) ? result : [];
+  _lifiTokenCache.set(chainId, { tokens: arr, ts: Date.now() });
+  return arr;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Chain / explorer helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -102,6 +124,14 @@ const getNetworkByChainId = (chainId: string): string => {
     '8453': 'base',
   };
   return map[chainId] || 'ethereum';
+};
+
+const getNativeTokenSymbol = (chainId: string): string => {
+  const map: Record<string, string> = {
+    '137': 'POL',
+    '56': 'BNB',
+  };
+  return map[chainId] || 'ETH';
 };
 
 const getExplorerUrl = (chainId: string, txHash: string): string => {
@@ -723,6 +753,7 @@ export default function SwapTokenModal({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
+  const [gasBalanceError, setGasBalanceError] = useState<string | null>(null);
 
   // Slippage
   const [slippage, setSlippage] = useState(3.0);
@@ -765,6 +796,7 @@ export default function SwapTokenModal({
   // ── Refs ─────────────────────────────────────────────────────────────────────
   const quoteRefreshInterval = useRef<NodeJS.Timeout | null>(null);
   const countdownInterval = useRef<NodeJS.Timeout | null>(null);
+  const searchDebounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   // ── Wallet hooks ─────────────────────────────────────────────────────────────
   const { wallets } = useWallets();
@@ -996,24 +1028,23 @@ export default function SwapTokenModal({
           solanaTokens,
           arbitrumTokens,
         ] = await Promise.all([
-          fetchTokensFromLiFi('1', '').catch(() => []),
-          fetchTokensFromLiFi('137', '').catch(() => []),
-          fetchTokensFromLiFi('8453', '').catch(() => []),
-          fetchTokensFromLiFi('1151111081099710', '').catch(() => []),
-          fetchTokensFromLiFi('42161', '').catch(() => []),
+          fetchLiFiTokensCached('1'),
+          fetchLiFiTokensCached('137'),
+          fetchLiFiTokensCached('8453'),
+          fetchLiFiTokensCached('1151111081099710'),
+          fetchLiFiTokensCached('42161'),
         ]);
-
-        const toArr = (v: any) => (Array.isArray(v) ? v : []);
 
         // FIX: Merge user tokens (which have balance) + fetched tokens.
         // Deduplicate using `address || id` to preserve Solana tokens that use `id`.
+        // fetchLiFiTokensCached always returns an array so no defensive wrap needed.
         const merged = [
           ...tokens,
-          ...toArr(ethTokens),
-          ...toArr(polygonTokens),
-          ...toArr(baseTokens),
-          ...toArr(solanaTokens),
-          ...toArr(arbitrumTokens),
+          ...ethTokens,
+          ...polygonTokens,
+          ...baseTokens,
+          ...solanaTokens,
+          ...arbitrumTokens,
         ];
         const seen = new Set<string>();
         const deduped = merged.filter((t) => {
@@ -1040,14 +1071,20 @@ export default function SwapTokenModal({
   }, [tokens.length]);
 
   // ── Debounced search across tempTokens ────────────────────────────────────────
-  const handleReceiveSearch = useMemo(
-    () =>
-      debounce((query: string, chainFilter: string) => {
-        const cid = chainFilter !== 'all' ? chainFilter : undefined;
-        const results = searchTokens(tempTokens, query, cid);
-        setFilteredList(results);
-        setIsSearching(false);
-      }, 400),
+  // useCallback (not useMemo) keeps a stable reference that always closes over
+  // the latest tempTokens.  The debounce is managed manually via a useRef timer
+  // so that updating tempTokens never resets an in-flight keystroke timer.
+  // Results are capped at FLAT_RENDER_LIMIT so the filteredList state stays small.
+  const runReceiveSearch = useCallback(
+    (query: string, chainFilter: string) => {
+      const cid = chainFilter !== 'all' ? chainFilter : undefined;
+      const results = searchTokens(tempTokens, query, cid).slice(
+        0,
+        100,
+      );
+      setFilteredList(results);
+      setIsSearching(false);
+    },
     [tempTokens],
   );
 
@@ -1056,9 +1093,14 @@ export default function SwapTokenModal({
   ) => {
     const q = e.target.value;
     setSearchQuery(q);
+    if (searchDebounceTimer.current)
+      clearTimeout(searchDebounceTimer.current);
     if (q) {
       setIsSearching(true);
-      handleReceiveSearch(q, selectedReceiveChain);
+      searchDebounceTimer.current = setTimeout(
+        () => runReceiveSearch(q, selectedReceiveChain),
+        400,
+      );
     } else {
       setFilteredList([]);
       setIsSearching(false);
@@ -1745,6 +1787,101 @@ export default function SwapTokenModal({
     setSwapStatus(null);
   }, [payAmount, payToken, receiveToken]);
 
+  // ── EVM gas balance check ─────────────────────────────────────────────────────
+  // Runs whenever the LiFi quote updates. Reads the native token balance on the
+  // source chain and compares it against the estimated gas cost from the quote.
+  // When insufficient, sets gasBalanceError to block the swap button.
+  useEffect(() => {
+    // Only applies to EVM LiFi swaps (not Solana-to-Solana Jupiter swaps)
+    const isSolSol =
+      payToken?.chain?.toUpperCase() === 'SOLANA' &&
+      (receiveToken?.chain?.toUpperCase() === 'SOLANA' ||
+        receiverChainId === '1151111081099710');
+
+    if (!quote || isSolSol || !fromWalletAddress || !chainId) {
+      setGasBalanceError(null);
+      return;
+    }
+
+    const numericChainId = parseInt(chainId);
+    const evmChain = getViemChain(numericChainId);
+    if (!evmChain) {
+      setGasBalanceError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkGasBalance = async () => {
+      try {
+        const parseHexOrNum = (v: any): bigint | null => {
+          if (v == null) return null;
+          try {
+            if (typeof v === 'bigint') return v;
+            const s = v.toString();
+            return BigInt(s.startsWith('0x') ? s : s);
+          } catch {
+            return null;
+          }
+        };
+
+        const client = createPublicClient({
+          chain: evmChain,
+          transport: http(),
+        });
+        const balance = await client.getBalance({
+          address: fromWalletAddress as `0x${string}`,
+        });
+
+        if (cancelled) return;
+
+        const txReq = quote.transactionRequest;
+        const gasLimitRaw = txReq?.gasLimit ?? txReq?.gas;
+        // EIP-1559 uses maxFeePerGas; legacy uses gasPrice
+        const gasPriceRaw = txReq?.maxFeePerGas ?? txReq?.gasPrice;
+        const valueRaw = txReq?.value;
+
+        const gasLimitBig = parseHexOrNum(gasLimitRaw);
+        const gasPriceBig = parseHexOrNum(gasPriceRaw);
+
+        if (!gasLimitBig || !gasPriceBig) {
+          setGasBalanceError(null);
+          return;
+        }
+
+        // Apply the same cap used in executeLiFiSwap
+        const EVM_MAX_GAS = 20_000_000n;
+        const cappedGasLimit =
+          gasLimitBig > EVM_MAX_GAS ? EVM_MAX_GAS : gasLimitBig;
+        const estimatedGasCost = cappedGasLimit * gasPriceBig;
+        const value = parseHexOrNum(valueRaw) ?? 0n;
+        const totalRequired = estimatedGasCost + value;
+
+        if (balance < totalRequired) {
+          const nativeSymbol = getNativeTokenSymbol(chainId);
+          const shortfallEth =
+            Number(totalRequired - balance) / 1e18;
+          setGasBalanceError(
+            `Insufficient ${nativeSymbol} for gas fees. You need ~${shortfallEth.toFixed(5)} more ${nativeSymbol} on ${evmChain.name} to complete this swap.`,
+          );
+        } else {
+          setGasBalanceError(null);
+        }
+      } catch {
+        // Non-fatal — don't block the swap if the check itself fails
+        setGasBalanceError(null);
+      }
+    };
+
+    checkGasBalance();
+    return () => {
+      cancelled = true;
+    };
+    // payToken.chain changes update chainId (separate effect) → re-triggers here.
+    // receiveToken/receiverChainId changes invalidate the quote → re-triggers here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quote, chainId, fromWalletAddress]);
+
   useEffect(() => {
     if (payToken?.chain) setChainId(getChainId(payToken.chain));
   }, [payToken]);
@@ -1786,6 +1923,8 @@ export default function SwapTokenModal({
         clearInterval(quoteRefreshInterval.current);
       if (countdownInterval.current)
         clearInterval(countdownInterval.current);
+      if (searchDebounceTimer.current)
+        clearTimeout(searchDebounceTimer.current);
     },
     [],
   );
@@ -2576,9 +2715,44 @@ export default function SwapTokenModal({
           params: [rawTxReq],
         });
         setTxHash(txHashResult);
-        setSwapStatus('Swap completed successfully!');
-        await saveSwapToDatabase(txHashResult, quote);
+        setSwapStatus('Transaction submitted!');
+
+        // Unfreeze UI immediately — confirmation and database save run in background
+        setIsSwapping(false);
         onSwapComplete?.(txHashResult);
+
+        // Background: wait for on-chain confirmation before saving / notifying.
+        // This prevents false-positive "swap successful" notifications when the
+        // transaction reverts on-chain (e.g. due to insufficient gas balance).
+        (async () => {
+          try {
+            const confirmChain = getViemChain(fromChainId);
+            if (confirmChain) {
+              const confirmClient = createPublicClient({
+                chain: confirmChain,
+                transport: http(),
+              });
+              const receipt =
+                await confirmClient.waitForTransactionReceipt({
+                  hash: txHashResult as `0x${string}`,
+                  timeout: 120_000,
+                });
+              if (receipt.status === 'reverted') {
+                setSwapStatus(null);
+                setSwapError(
+                  'Transaction failed on-chain. Your gas balance may be insufficient — please add more native tokens and try again.',
+                );
+                return;
+              }
+              setSwapStatus('Transaction confirmed');
+            } else {
+              setSwapStatus('Transaction submitted successfully');
+            }
+          } catch {
+            setSwapStatus('Transaction submitted successfully');
+          }
+          await saveSwapToDatabase(txHashResult, quote);
+        })();
       }
     } catch (error: any) {
       const friendlyError = formatUserFriendlyError(
@@ -2830,43 +3004,68 @@ export default function SwapTokenModal({
     swapStatus?.includes('completed');
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  // Maximum tokens to render per view / per network group.
+  // LiFi returns hundreds of tokens per chain; rendering all of them as DOM
+  // nodes simultaneously freezes the browser.  Users can always search to
+  // find tokens beyond these limits.
+  const FLAT_RENDER_LIMIT = 100; // single-chain or search results view
+  const GROUP_RENDER_LIMIT = 30; // per-network group in the "all chains" view
+
   // Helper to render the token list for the receive drawer
   const renderReceiveTokenList = (payAddr: string) => {
     const result = getGroupedReceiveTokens;
 
     if (!result.grouped) {
       // Flat list (search results or specific chain selected)
-      return result.tokens
-        .filter(
-          (t) => (t.address || t.id || '').toLowerCase() !== payAddr,
-        )
-        .map((t, i) => (
-          <TokenRow
-            key={(t.address || t.id || '') + i}
-            token={t}
-            onClick={() => handleTokenSelect(t, 'receive')}
-          />
-        ));
-    }
-
-    // Grouped list (all chains) – render network headers + tokens
-    return result.groups.map(({ network, tokens: groupTokens }) => (
-      <div key={network}>
-        <NetworkHeader network={network} />
-        {groupTokens
-          .filter(
-            (t) =>
-              (t.address || t.id || '').toLowerCase() !== payAddr,
-          )
-          .map((t, i) => (
+      const filtered = result.tokens.filter(
+        (t) => (t.address || t.id || '').toLowerCase() !== payAddr,
+      );
+      const visible = filtered.slice(0, FLAT_RENDER_LIMIT);
+      const overflow = filtered.length - visible.length;
+      return (
+        <>
+          {visible.map((t, i) => (
             <TokenRow
               key={(t.address || t.id || '') + i}
               token={t}
               onClick={() => handleTokenSelect(t, 'receive')}
             />
           ))}
-      </div>
-    ));
+          {overflow > 0 && (
+            <p className="text-center text-xs text-gray-400 py-3 px-4">
+              Showing {visible.length} of {filtered.length} tokens —
+              use the search bar to find more.
+            </p>
+          )}
+        </>
+      );
+    }
+
+    // Grouped list (all chains) – render network headers + tokens
+    return result.groups.map(({ network, tokens: groupTokens }) => {
+      const filtered = groupTokens.filter(
+        (t) => (t.address || t.id || '').toLowerCase() !== payAddr,
+      );
+      const visible = filtered.slice(0, GROUP_RENDER_LIMIT);
+      const overflow = filtered.length - visible.length;
+      return (
+        <div key={network}>
+          <NetworkHeader network={network} />
+          {visible.map((t, i) => (
+            <TokenRow
+              key={(t.address || t.id || '') + i}
+              token={t}
+              onClick={() => handleTokenSelect(t, 'receive')}
+            />
+          ))}
+          {overflow > 0 && (
+            <p className="text-xs text-gray-400 px-4 py-2">
+              +{overflow} more on {network} — search to find them.
+            </p>
+          )}
+        </div>
+      );
+    });
   };
 
   // Count visible tokens (for "no results" check)
@@ -3203,13 +3402,19 @@ export default function SwapTokenModal({
           {/* Error / status */}
           {(swapError ||
             swapStatus ||
-            !balanceValidation.isValid) && (
+            !balanceValidation.isValid ||
+            gasBalanceError) && (
             <div
               className={`p-3 rounded-lg border ${isSwapDone ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}
             >
               {!balanceValidation.isValid && (
                 <div className="text-red-600 text-sm mb-2 text-center">
                   {balanceValidation.error}
+                </div>
+              )}
+              {gasBalanceError && (
+                <div className="text-red-600 text-sm mb-2 text-center">
+                  {gasBalanceError}
                 </div>
               )}
               {swapError && (
@@ -3285,6 +3490,7 @@ export default function SwapTokenModal({
                     setPayAmount('');
                     setReceiveAmount('');
                     setLastQuoteTime(null);
+                    setGasBalanceError(null);
                   }
                 : executeCrossChainSwap
             }
@@ -3292,6 +3498,7 @@ export default function SwapTokenModal({
             disabled={
               isSwapping ||
               (!balanceValidation.isValid && !isSwapDone) ||
+              (!!gasBalanceError && !isSwapDone) ||
               (isSwapButtonLoading() && !isSwapDone) ||
               !payToken ||
               !receiveToken
@@ -3303,6 +3510,8 @@ export default function SwapTokenModal({
               'Swapping...'
             ) : !balanceValidation.isValid ? (
               'Insufficient Balance'
+            ) : gasBalanceError ? (
+              'Insufficient Gas Balance'
             ) : isSwapButtonLoading() ? (
               <div className="flex items-center justify-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
