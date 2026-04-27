@@ -763,6 +763,7 @@ export default function SwapTokenModal({
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
   const [gasBalanceError, setGasBalanceError] = useState<string | null>(null);
+  const [estimatedGasFeeEth, setEstimatedGasFeeEth] = useState<string | null>(null);
 
   // Slippage
   const [slippage, setSlippage] = useState(3.0);
@@ -1817,6 +1818,7 @@ export default function SwapTokenModal({
 
     if (!quote || isSolSol || !fromWalletAddress || !chainId) {
       setGasBalanceError(null);
+      setEstimatedGasFeeEth(null);
       return;
     }
 
@@ -1862,6 +1864,7 @@ export default function SwapTokenModal({
 
         if (!gasLimitBig) {
           setGasBalanceError(null);
+          setEstimatedGasFeeEth(null);
           return;
         }
 
@@ -1875,12 +1878,14 @@ export default function SwapTokenModal({
           } catch {
             // If live gas price fetch fails, skip the check rather than block
             setGasBalanceError(null);
+            setEstimatedGasFeeEth(null);
             return;
           }
         }
 
         if (!gasPriceBig) {
           setGasBalanceError(null);
+          setEstimatedGasFeeEth(null);
           return;
         }
 
@@ -1891,9 +1896,13 @@ export default function SwapTokenModal({
         const estimatedGasCost = cappedGasLimit * gasPriceBig;
         const value = parseHexOrNum(valueRaw) ?? 0n;
         const totalRequired = estimatedGasCost + value;
+        const gasCostEth = Number(estimatedGasCost) / 1e18;
+        const nativeSymbol = getNativeTokenSymbol(chainId);
+        setEstimatedGasFeeEth(
+          `~${gasCostEth < 0.00001 ? gasCostEth.toExponential(3) : gasCostEth.toFixed(6)} ${nativeSymbol}`,
+        );
 
         if (balance < totalRequired) {
-          const nativeSymbol = getNativeTokenSymbol(chainId);
           const shortfallEth =
             Number(totalRequired - balance) / 1e18;
           setGasBalanceError(
