@@ -199,6 +199,15 @@ const formatUserFriendlyError = (error: string): string => {
     lowerError.includes('user denied')
   )
     return 'Transaction was cancelled. Please try again when ready.';
+  // Gas-specific insufficient funds — must be checked BEFORE the generic
+  // 'insufficient funds' branch.  The node error is:
+  // "insufficient funds for gas * price + value: have X want Y"
+  if (
+    lowerError.includes('insufficient funds for gas') ||
+    lowerError.includes('gas * price + value') ||
+    lowerError.includes('intrinsic gas too low')
+  )
+    return 'Insufficient ETH for gas fees. Please add more ETH to your wallet to cover transaction costs.';
   if (
     lowerError.includes('insufficient funds') ||
     lowerError.includes('insufficient balance')
@@ -1850,9 +1859,27 @@ export default function SwapTokenModal({
         const valueRaw = txReq?.value;
 
         const gasLimitBig = parseHexOrNum(gasLimitRaw);
-        const gasPriceBig = parseHexOrNum(gasPriceRaw);
 
-        if (!gasLimitBig || !gasPriceBig) {
+        if (!gasLimitBig) {
+          setGasBalanceError(null);
+          return;
+        }
+
+        // LiFi same-chain quotes (e.g. Arbitrum USDC → Arbitrum ETH) often
+        // omit gas price from transactionRequest at quote time.  Fall back to
+        // the live network gas price so the check always runs.
+        let gasPriceBig = parseHexOrNum(gasPriceRaw);
+        if (!gasPriceBig || gasPriceBig === 0n) {
+          try {
+            gasPriceBig = await client.getGasPrice();
+          } catch {
+            // If live gas price fetch fails, skip the check rather than block
+            setGasBalanceError(null);
+            return;
+          }
+        }
+
+        if (!gasPriceBig) {
           setGasBalanceError(null);
           return;
         }
