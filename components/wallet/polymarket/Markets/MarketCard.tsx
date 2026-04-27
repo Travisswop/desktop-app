@@ -159,30 +159,30 @@ export default function MarketCard({
       <div className="flex items-center gap-3">
         {/* Stats */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 flex-1 min-w-0">
-          <div>
+          {/* <div>
             <p className="text-[10px] text-gray-400 leading-none mb-0.5">
               24h Volume
             </p>
             <p className="text-xs font-semibold text-green-500">
               {formatVolume(volumeUSD)}
             </p>
-          </div>
-          <div>
+          </div> */}
+          {/* <div>
             <p className="text-[10px] text-gray-400 leading-none mb-0.5">
               Liquidity
             </p>
             <p className="text-xs font-semibold text-green-500">
               {formatLiquidity(liquidityUSD)}
             </p>
-          </div>
-          <div>
+          </div> */}
+          {/* <div>
             <p className="text-[10px] text-gray-400 leading-none mb-0.5">
               Outcomes
             </p>
             <p className="text-xs font-semibold text-gray-700">
               {outcomes.length}
             </p>
-          </div>
+          </div> */}
           {isClosed && (
             <span className="text-[10px] font-bold bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">
               Closed

@@ -18,6 +18,7 @@ import AmountInput from '../OrderModal/AmountInput';
 import SharesInput from '../OrderModal/SharesInput';
 import ToWinDisplay from '../OrderModal/ToWinDisplay';
 import YoullReceiveDisplay from '../OrderModal/YoullReceiveDisplay';
+import { InfoIcon } from 'lucide-react';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -513,18 +514,24 @@ function SportsProbabilityPanel({
     liveEvent.teams,
     0,
   );
-  const noScoreNum = pickTeamScore(noName, noAbbr, liveEvent.teams, 1);
+  const noScoreNum = pickTeamScore(
+    noName,
+    noAbbr,
+    liveEvent.teams,
+    1,
+  );
   const hasScores = yesScoreNum != null && noScoreNum != null;
   const liveNow = isLive && (liveEvent.live || hasScores);
   const showLiveScore = liveNow && hasScores;
   const clockText =
-    [liveEvent.period, liveEvent.elapsed].filter(Boolean).join(' • ') ||
-    null;
+    [liveEvent.period, liveEvent.elapsed]
+      .filter(Boolean)
+      .join(' • ') || null;
 
   return (
     <div className="bg-white  text-gray-900 p-4 mb-4">
       {/* ── Team matchup row ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 items-center gap-2 mb-4">
+      <div className="grid grid-cols-3 items-center gap-2">
         <TeamBadgeBlock
           team={yesTeam}
           abbr={yesAbbr}
@@ -576,11 +583,11 @@ function SportsProbabilityPanel({
       </div>
 
       {/* ── Volume line ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-2">
+      {/* <div className="flex items-center justify-between mb-2">
         <p className="text-[13px] font-semibold text-gray-900">
           {volumeLabel ?? ''}
         </p>
-      </div>
+      </div> */}
 
       {/* ── Probability chart ───────────────────────────────────────────── */}
       <svg
@@ -590,65 +597,6 @@ function SportsProbabilityPanel({
         role="img"
         aria-label={`${yesName} vs ${noName} probability history`}
       >
-        {/* Horizontal gridlines at 0 / 25 / 50 / 75 / 100 */}
-        {[0, 0.25, 0.5, 0.75, 1].map((v) => {
-          const y = PLOT_Y + (1 - v) * PLOT_H;
-          return (
-            <line
-              key={v}
-              x1={PLOT_X}
-              x2={PLOT_X + PLOT_W}
-              y1={y}
-              y2={y}
-              stroke="#E5E7EB"
-              strokeWidth={1}
-              strokeDasharray={v === 0 || v === 1 ? '' : '2 3'}
-            />
-          );
-        })}
-
-        {/* Y-axis tick labels (on the right, inside the right pad) */}
-        {[0, 0.25, 0.5, 0.75, 1].map((v) => {
-          const y = PLOT_Y + (1 - v) * PLOT_H;
-          return (
-            <text
-              key={`yt-${v}`}
-              x={PLOT_X + PLOT_W + 6}
-              y={y + 3}
-              fontSize={9}
-              fill="#9CA3AF"
-              fontFamily="system-ui, sans-serif"
-            >
-              {Math.round(v * 100)}%
-            </text>
-          );
-        })}
-
-        {/* X-axis tick labels */}
-        {xTicks.map((t, i) => {
-          const x =
-            PLOT_X + ((t - tMin) / Math.max(1, tMax - tMin)) * PLOT_W;
-          return (
-            <text
-              key={`xt-${i}`}
-              x={x}
-              y={VB_H - 6}
-              fontSize={9}
-              fill="#9CA3AF"
-              textAnchor={
-                i === 0
-                  ? 'start'
-                  : i === xTicks.length - 1
-                    ? 'end'
-                    : 'middle'
-              }
-              fontFamily="system-ui, sans-serif"
-            >
-              {formatHour(t)}
-            </text>
-          );
-        })}
-
         {/* Lines */}
         <path
           d={noPath}
@@ -720,6 +668,193 @@ function SportsProbabilityPanel({
   );
 }
 
+// ── About section ─────────────────────────────────────────────────────────────
+
+function formatEndDate(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function extractDomain(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(
+      url.startsWith('http') ? url : `https://${url}`,
+    );
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    // if it's already a plain domain or short string, return as-is
+    return (
+      url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] || null
+    );
+  }
+}
+
+function AboutSection({
+  market,
+  showFull,
+  onToggle,
+}: {
+  market: PolymarketMarket;
+  showFull: boolean;
+  onToggle: () => void;
+}) {
+  const description: string | undefined = market.description;
+  const endDate = formatEndDate(market.endDate ?? market.endDateIso);
+  const resolutionSource: string | undefined =
+    market.resolutionSource ?? market.resolution_source;
+  const domainLabel = extractDomain(resolutionSource);
+  const category: string | undefined =
+    market.category ??
+    (Array.isArray(market.tags) && market.tags.length > 0
+      ? (market.tags[0]?.label ?? market.tags[0]?.slug)
+      : undefined);
+
+  const hasAny = description || endDate || domainLabel || category;
+  if (!hasAny) return null;
+
+  return (
+    <div className="mt-6">
+      {/* Header */}
+      <div className="flex items-center gap-1.5 mb-2">
+        <InfoIcon className="w-3.5 h-3.5 flex-shrink-0 text-gray-500" />
+        <span className="text-sm font-bold text-gray-900">About</span>
+      </div>
+
+      {/* Description */}
+      {description && (
+        <div className="bg-gray-50 rounded-xl px-3 py-2.5 mb-3">
+          <p
+            className={`text-xs text-gray-600 leading-relaxed ${
+              showFull ? '' : 'line-clamp-3'
+            }`}
+          >
+            {description}
+          </p>
+          <button
+            onClick={onToggle}
+            className="mt-1 text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-0.5"
+          >
+            {showFull ? 'Show Less' : 'Show Rules'}
+            <svg
+              className={`w-3 h-3 transition-transform ${showFull ? 'rotate-90' : ''}`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Metadata rows */}
+      {(endDate || domainLabel || category) && (
+        <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+          {endDate && (
+            <div className="flex items-center justify-between px-3 py-2.5">
+              <div className="flex items-center gap-2 text-gray-500">
+                <svg
+                  className="w-3.5 h-3.5 flex-shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span className="text-xs text-gray-500">
+                  End Date
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-gray-800">
+                {endDate}
+              </span>
+            </div>
+          )}
+          {domainLabel && (
+            <div className="flex items-center justify-between px-3 py-2.5">
+              <div className="flex items-center gap-2 text-gray-500">
+                <svg
+                  className="w-3.5 h-3.5 flex-shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                </svg>
+                <span className="text-xs text-gray-500">
+                  Res. Source
+                </span>
+              </div>
+              <a
+                href={
+                  resolutionSource?.startsWith('http')
+                    ? resolutionSource
+                    : `https://${resolutionSource}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-0.5 text-xs font-semibold text-blue-600 hover:text-blue-700"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {domainLabel}
+                <svg
+                  className="w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+              </a>
+            </div>
+          )}
+          {category && (
+            <div className="flex items-center justify-between px-3 py-2.5">
+              <div className="flex items-center gap-2 text-gray-500">
+                <svg
+                  className="w-3.5 h-3.5 flex-shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
+                  <line x1="7" y1="7" x2="7.01" y2="7" />
+                </svg>
+                <span className="text-xs text-gray-500">
+                  Category
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-gray-800 capitalize">
+                {category}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeamBadgeBlock({
   team,
   abbr,
@@ -742,15 +877,15 @@ function TeamBadgeBlock({
       }`}
     >
       <div
-        className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0"
-        style={{ backgroundColor: color }}
+        className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 "
+        style={{ backgroundColor: !logo ? color : undefined }}
       >
         {logo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={logo}
             alt={displayAbbr}
-            className="w-10 h-10 object-contain"
+            className="w-10 h-10 object-contain rounded-lg"
           />
         ) : (
           <span className="text-xs font-extrabold tracking-wide text-white">
@@ -894,6 +1029,8 @@ export default function MarketDetailModal({
   const [limitPrice, setLimitPrice] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showFullDescription, setShowFullDescription] =
+    useState(false);
 
   const { eoaAddress } = usePolymarketWallet();
   const { getAccessToken } = usePrivy();
@@ -925,6 +1062,7 @@ export default function MarketDetailModal({
       setLimitPrice('');
       setLocalError(null);
       setShowSuccess(false);
+      setShowFullDescription(false);
     }
   }, [isOpen, initialOutcome, initialAmount]);
 
@@ -1059,7 +1197,11 @@ export default function MarketDetailModal({
         const outcomeName =
           selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName;
         const cost =
-          side === 'SELL' ? amountToReceive : isLimitVariant ? totalCost : inputNum;
+          side === 'SELL'
+            ? amountToReceive
+            : isLimitVariant
+              ? totalCost
+              : inputNum;
         const win = side === 'BUY' ? shares : 0;
 
         getAccessToken()
@@ -1128,12 +1270,12 @@ export default function MarketDetailModal({
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <div className="bg-white w-full max-w-[400px] rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
+        <div className="bg-white w-full max-w-[400px] rounded-t-4xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
           {/* ── Header ─────────────────────────────────────────────────────── */}
           <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
             <button
               onClick={onClose}
-              className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+              className="w-9 h-9 flex items-center justify-center  transition-colors"
               aria-label="Close"
             >
               <svg
@@ -1183,9 +1325,6 @@ export default function MarketDetailModal({
             ) : (
               <></>
             )}
-
-            {/* ── Divider ── */}
-            <div className="border-t border-gray-100 mb-3" />
 
             {/* ── Success / Error feedback ── */}
             {showSuccess && (
@@ -1269,11 +1408,7 @@ export default function MarketDetailModal({
               >
                 {yesOutcomeName}{' '}
                 <span className="font-normal opacity-70">
-                  .
-                  {String(Math.round(yesPrice * 100)).padStart(
-                    2,
-                    '0',
-                  )}
+                  {Math.round(yesPrice * 100)}%
                 </span>
               </button>
               <button
@@ -1292,8 +1427,7 @@ export default function MarketDetailModal({
               >
                 {noOutcomeName}{' '}
                 <span className="font-normal opacity-70">
-                  .
-                  {String(Math.round(noPrice * 100)).padStart(2, '0')}
+                  {Math.round(noPrice * 100)}%
                 </span>
               </button>
             </div>
@@ -1447,6 +1581,13 @@ export default function MarketDetailModal({
                 Initialize trading session to place orders
               </p>
             )}
+
+            {/* ── About section ── */}
+            <AboutSection
+              market={market}
+              showFull={showFullDescription}
+              onToggle={() => setShowFullDescription((v) => !v)}
+            />
           </div>
         </div>
       </div>

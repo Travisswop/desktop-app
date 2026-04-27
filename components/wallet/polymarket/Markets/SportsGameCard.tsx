@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import type {
   SportsGameGroup,
@@ -51,10 +52,10 @@ function spreadLabel(abbrev: string, rawLabel: string): string {
   return line ? `${line}` : abbrev;
 }
 
-/** 0.47 → "47¢",  0.50 → "50¢" */
+/** 0.47 → "47%",  0.50 → "50%" */
 function centsPrice(price: number): string {
   if (price <= 0) return '';
-  return `${Math.round(price * 100)}¢`;
+  return `${Math.round(price * 100)}%`;
 }
 
 function formatVolume(raw: string | number | undefined): string {
@@ -77,13 +78,24 @@ function formatGameTime(startDate: string | undefined): {
   if (diffMin <= 0) return { label: 'LIVE', status: 'live' };
   if (diffMin <= 60)
     return { label: `~${Math.round(diffMin)}m`, status: 'imminent' };
-  return {
-    label: d.toLocaleTimeString(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-    }),
-    status: 'upcoming',
-  };
+
+  const timeStr = d.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const now = new Date();
+  const isToday =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+
+  const datePart = isToday
+    ? 'Today'
+    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+  return { label: `${timeStr} ${datePart}`, status: 'upcoming' };
 }
 
 /**
@@ -167,6 +179,99 @@ function resolveTeamWithEventMeta(
   };
 }
 
+// ─── Live score ───────────────────────────────────────────────────────────────
+
+type LiveScoreTeam = {
+  name: string | null;
+  abbreviation: string | null;
+  score: number | null;
+};
+
+type LiveScoreState = {
+  live: boolean;
+  period: string | null;
+  elapsed: string | null;
+  teams: LiveScoreTeam[];
+};
+
+const EMPTY_LIVE: LiveScoreState = {
+  live: false,
+  period: null,
+  elapsed: null,
+  teams: [],
+};
+
+function useLiveEventScore(
+  eventSlug: string | undefined,
+  enabled: boolean,
+): LiveScoreState {
+  const [state, setState] = useState<LiveScoreState>(EMPTY_LIVE);
+
+  useEffect(() => {
+    if (!enabled || !eventSlug) {
+      setState(EMPTY_LIVE);
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchOnce = async () => {
+      try {
+        const res = await fetch(
+          `/api/polymarket/event-live?slug=${encodeURIComponent(eventSlug)}`,
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as LiveScoreState;
+        if (cancelled) return;
+        setState({
+          live: Boolean(json.live),
+          period: json.period ?? null,
+          elapsed: json.elapsed ?? null,
+          teams: Array.isArray(json.teams) ? json.teams : [],
+        });
+        if (!cancelled && json.live) {
+          timer = setTimeout(fetchOnce, 15_000);
+        }
+      } catch {
+        // silently ignore — score UI is hidden when data is missing
+      }
+    };
+
+    fetchOnce();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [eventSlug, enabled]);
+
+  return state;
+}
+
+function pickTeamScore(
+  outcomeLabel: string,
+  outcomeAbbr: string,
+  teams: LiveScoreTeam[],
+  fallbackIndex: number,
+): number | null {
+  if (!teams.length) return null;
+  const label = outcomeLabel.trim().toLowerCase();
+  const abbr = outcomeAbbr.trim().toLowerCase();
+  const byName = teams.find((t) => (t.name ?? '').toLowerCase() === label);
+  if (byName?.score != null) return byName.score;
+  const byContains = teams.find((t) => {
+    const n = (t.name ?? '').toLowerCase();
+    return n && (n.includes(label) || label.includes(n));
+  });
+  if (byContains?.score != null) return byContains.score;
+  const byAbbr = teams.find(
+    (t) => (t.abbreviation ?? '').toLowerCase() === abbr,
+  );
+  if (byAbbr?.score != null) return byAbbr.score;
+  return teams[fallbackIndex]?.score ?? null;
+}
+
 // ─── Team badge ───────────────────────────────────────────────────────────────
 
 /**
@@ -238,13 +343,13 @@ function MoneylineBtn({
         )
       }
       style={isDisabled ? undefined : { backgroundColor: color }}
-      className={`h-9 w-full flex items-center justify-center gap-1 rounded-lg text-xs font-bold transition-opacity ${
+      className={`h-10 w-full flex items-center justify-center gap-1 rounded-lg text-xs font-bold transition-opacity ${
         isDisabled
           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
           : 'text-white hover:opacity-90 active:opacity-75'
       }`}
     >
-      <span>{abbrev}</span>
+      {/* <span>{abbrev}</span> */}
       {outcome.price > 0 && <span>{centsPrice(outcome.price)}</span>}
     </button>
   );
@@ -274,13 +379,14 @@ function MarketCell({
           outcome.tokenId,
         )
       }
-      className={`h-9 w-full flex items-center justify-center gap-1 px-1.5 rounded-lg text-xs transition-colors bg-gray-100 ${
+      className={`h-10 w-full flex flex-col items-center justify-center gap-1 py-1 rounded-lg text-xs transition-colors bg-gray-100 ${
         isDisabled
           ? 'text-gray-300 cursor-not-allowed'
           : 'hover:bg-gray-200 active:bg-gray-300 text-gray-700 cursor-pointer'
       }`}
     >
       <span className="font-medium truncate">{outcome.label}</span>
+
       {outcome.price > 0 && (
         <span className="font-bold flex-shrink-0 text-gray-900">
           {centsPrice(outcome.price)}
@@ -298,6 +404,10 @@ export default function SportsGameCard({
   onOutcomeClick,
 }: SportsGameCardProps) {
   const { label: timeLabel, status } = formatGameTime(game.startDate);
+
+  const isLive = status === 'live';
+  const eventSlug = game.moneyline?.market?.eventSlug;
+  const liveScore = useLiveEventScore(eventSlug, isLive);
 
   // Raw outcome data for each team
   const mlA = game.moneyline?.outcomes[0];
@@ -330,6 +440,14 @@ export default function SportsGameCard({
   const nameA = mlA?.label ?? game.teamA;
   const nameB = mlB?.label ?? game.teamB;
 
+  const scoreA = isLive
+    ? pickTeamScore(nameA, teamA.abbrev, liveScore.teams, 0)
+    : null;
+  const scoreB = isLive
+    ? pickTeamScore(nameB, teamB.abbrev, liveScore.teams, 1)
+    : null;
+  const hasLiveScore = scoreA != null && scoreB != null;
+
   // Team-specific logos from Polymarket's event.teams array. No event-icon
   // fallback — when a team has no dedicated logo we render the coloured
   // abbreviation badge instead (matches Polymarket's behaviour).
@@ -360,8 +478,10 @@ export default function SportsGameCard({
     <Card className="px-3 py-2.5 overflow-hidden">
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-2">
-        {/* Left: time + volume */}
-        <div className="flex items-center gap-2 text-[11px]">
+        <div className="flex flex-col items-start text-[11px]">
+          <span className="text-xs font-semibold text-gray-800">
+            {game.teamA} vs {game.teamB}
+          </span>
           {status && (
             <span
               className={`inline-flex items-center gap-1 font-semibold ${
@@ -376,37 +496,22 @@ export default function SportsGameCard({
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
               )}
               {timeLabel}
+              {status === 'live' && hasLiveScore && (
+                <span className="font-bold tabular-nums text-gray-900 ml-0.5">
+                  {scoreA} – {scoreB}
+                </span>
+              )}
             </span>
           )}
-          {volume && (
+          {/* {volume && (
             <span className="text-green-600 font-medium">
               {volume}
             </span>
-          )}
-        </div>
-
-        {/* Right: column labels — only render labels for available markets */}
-        <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-          {/* spacer that matches the team-info column below */}
-          {!onlyMoneyline && <div className="w-[120px]" />}
-          {onlyMoneyline && <div className="flex-1" />}
-          <span className={`${mlColClass} text-center`}>
-            Moneyline
-          </span>
-          {game.spread != null && (
-            <span className="flex-1 text-center min-w-[56px]">
-              Spread
-            </span>
-          )}
-          {game.total != null && (
-            <span className="flex-1 text-center min-w-[56px]">
-              Total
-            </span>
-          )}
+          )} */}
         </div>
       </div>
 
-      <div className="border-t border-gray-100 mb-1" />
+      <div className="mb-1" />
 
       {/* ── Team rows ────────────────────────────────────────────────────── */}
       {(

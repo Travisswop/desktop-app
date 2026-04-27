@@ -17,10 +17,10 @@ interface OutcomeButtonsProps {
   ) => void;
 }
 
-/** Formats 0.55 → ".55", 1.0 → "1.0" */
+/** Formats 0.039 → "3.9%", 0.962 → "96.2%" */
 function compactPrice(price: number): string {
   if (price <= 0) return '';
-  return price.toFixed(2).replace(/^0/, '');
+  return `${(price * 100).toFixed(1)}%`;
 }
 
 export default function OutcomeButtons({
@@ -37,10 +37,10 @@ export default function OutcomeButtons({
     return <p className="text-gray-400 text-xs">No outcomes</p>;
   }
 
-  // Binary markets: two stacked solid buttons on the right
+  // Binary markets: full-width rows with outcome name left, colored pill right
   if (outcomes.length === 2) {
     return (
-      <div className="flex flex-col gap-1.5 flex-shrink-0">
+      <div className="flex flex-col gap-1 w-full">
         {outcomes.map((outcome, index) => {
           const price = outcomePrices[index] || 0;
           const tokenId = tokenIds[index];
@@ -52,20 +52,38 @@ export default function OutcomeButtons({
             <button
               key={tokenId || index}
               onClick={() =>
-                onOutcomeClick(marketQuestion, outcome, price, tokenId, negRisk)
+                onOutcomeClick(
+                  marketQuestion,
+                  outcome,
+                  price,
+                  tokenId,
+                  negRisk,
+                )
               }
               disabled={isClosed || disabled || !tokenId}
-              className={`px-4 py-1.5 rounded-lg text-white text-xs font-bold whitespace-nowrap transition-all ${
+              className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl transition-all backdrop-blur-sm border ${
                 isClosed || disabled
-                  ? 'bg-gray-300 cursor-not-allowed opacity-60'
+                  ? 'bg-gray-50/50 border-gray-200/40 opacity-50 cursor-not-allowed'
                   : isYes
-                    ? 'bg-green-500 hover:bg-green-600'
-                    : 'bg-red-500 hover:bg-red-600'
+                    ? 'bg-green-50/60 border-green-100/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] hover:bg-green-50/80 cursor-pointer'
+                    : 'bg-red-50/60 border-red-100/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] hover:bg-red-50/80 cursor-pointer'
               }`}
             >
-              {outcome}
+              <span className="text-sm font-medium text-gray-800">
+                {outcome}
+              </span>
               {price > 0 && (
-                <span className="ml-1 opacity-90">({compactPrice(price)})</span>
+                <span
+                  className={`px-3 py-1 rounded-full text-sm font-bold ${
+                    isClosed || disabled
+                      ? 'bg-gray-100 text-gray-400'
+                      : isYes
+                        ? 'bg-green-100 text-green-600'
+                        : 'bg-red-100 text-red-500'
+                  }`}
+                >
+                  {compactPrice(price)}
+                </span>
               )}
             </button>
           );
@@ -85,7 +103,13 @@ export default function OutcomeButtons({
           <button
             key={tokenId || index}
             onClick={() =>
-              onOutcomeClick(marketQuestion, outcome, price, tokenId, negRisk)
+              onOutcomeClick(
+                marketQuestion,
+                outcome,
+                price,
+                tokenId,
+                negRisk,
+              )
             }
             disabled={isClosed || disabled || !tokenId}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-1 ${

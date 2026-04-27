@@ -557,31 +557,85 @@ export default function BtcOrderModal({
             )}
 
             {/* Submit */}
-            <button
-              onClick={handlePlaceOrder}
-              disabled={isSubmitting || inputNum <= 0 || !clobClient || hasInsufficientBalance}
-              className={`w-full py-3.5 font-bold rounded-xl transition-all text-base text-white ${
+            {(() => {
+              const submitDisabled =
+                isSubmitting || inputNum <= 0 || !clobClient || hasInsufficientBalance;
+
+              const glassColor =
                 side === 'BUY'
                   ? selectedOutcome === 'up'
-                    ? 'bg-green-500 hover:bg-green-600 disabled:bg-green-500/30'
-                    : 'bg-red-500 hover:bg-red-600 disabled:bg-red-500/30'
-                  : 'bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/30'
-              } disabled:cursor-not-allowed`}
-            >
-              {isSubmitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Placing Order...
-                </span>
-              ) : !clobClient ? (
-                'Connect Wallet'
-              ) : (
-                `${side === 'BUY' ? 'Buy' : 'Sell'} ${selectedOutcome === 'up' ? 'Up' : 'Down'}`
-              )}
-            </button>
+                    ? {
+                        background:
+                          'linear-gradient(135deg, rgba(134,239,172,0.35) 0%, rgba(74,222,128,0.18) 50%, rgba(255,255,255,0.25) 100%)',
+                        boxShadow:
+                          'inset 0 1px 0 rgba(255,255,255,0.6), 0 2px 8px rgba(34,197,94,0.18)',
+                        borderColor: 'rgba(74,222,128,0.4)',
+                        textColor: 'text-green-700',
+                        hoverBorder: 'hover:border-green-400/70',
+                      }
+                    : {
+                        background:
+                          'linear-gradient(135deg, rgba(252,165,165,0.35) 0%, rgba(248,113,113,0.18) 50%, rgba(255,255,255,0.25) 100%)',
+                        boxShadow:
+                          'inset 0 1px 0 rgba(255,255,255,0.6), 0 2px 8px rgba(239,68,68,0.18)',
+                        borderColor: 'rgba(248,113,113,0.4)',
+                        textColor: 'text-red-700',
+                        hoverBorder: 'hover:border-red-400/70',
+                      }
+                  : {
+                      background:
+                        'linear-gradient(135deg, rgba(147,197,253,0.35) 0%, rgba(96,165,250,0.18) 50%, rgba(255,255,255,0.25) 100%)',
+                      boxShadow:
+                        'inset 0 1px 0 rgba(255,255,255,0.6), 0 2px 8px rgba(59,130,246,0.18)',
+                      borderColor: 'rgba(96,165,250,0.4)',
+                      textColor: 'text-blue-700',
+                      hoverBorder: 'hover:border-blue-400/70',
+                    };
+
+              return (
+                <button
+                  onClick={handlePlaceOrder}
+                  disabled={submitDisabled}
+                  className={`relative w-full py-3.5 font-bold rounded-xl transition-all duration-200 text-base overflow-hidden border disabled:cursor-not-allowed active:scale-[0.98] ${
+                    submitDisabled
+                      ? 'bg-gray-100 text-gray-400 border-gray-200'
+                      : `${glassColor.textColor} ${glassColor.hoverBorder}`
+                  }`}
+                  style={
+                    submitDisabled
+                      ? undefined
+                      : {
+                          background: glassColor.background,
+                          backdropFilter: 'blur(8px)',
+                          WebkitBackdropFilter: 'blur(8px)',
+                          boxShadow: glassColor.boxShadow,
+                          borderColor: glassColor.borderColor,
+                        }
+                  }
+                >
+                  {/* Gloss sheen */}
+                  {!submitDisabled && (
+                    <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-xl bg-gradient-to-b from-white/40 to-transparent" />
+                  )}
+                  {isSubmitting ? (
+                    <span className="relative flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Placing Order...
+                    </span>
+                  ) : !clobClient ? (
+                    <span className="relative">Connect Wallet</span>
+                  ) : (
+                    <span className="relative flex items-center justify-center gap-1.5">
+                      <span>{side === 'BUY' ? (selectedOutcome === 'up' ? '▲' : '▼') : (selectedOutcome === 'up' ? '▲' : '▼')}</span>
+                      <span>{side === 'BUY' ? 'Buy' : 'Sell'} {selectedOutcome === 'up' ? 'Up' : 'Down'}</span>
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
 
             {!clobClient && (
               <p className="text-xs text-gray-400 mt-2 text-center">
