@@ -120,9 +120,9 @@ export default function SendConfirmation({
                             ? (
                                 parseFloat(amount) /
                                 parseFloat(token.marketData.price)
-                              ).toFixed(2)
-                            : '0.00'
-                          : parseFloat(amount).toFixed(2)}{' '}
+                              ).toFixed(6)
+                            : '0.000000'
+                          : parseFloat(amount || '0').toFixed(6)}{' '}
                         {token.symbol}
                       </div>
                       {token.marketData?.price && (

@@ -48,9 +48,20 @@ export default function SendTokenModal({
   const handleInput = (value: string) => {
     if (!token) return;
 
+    let stringValue = value.toString();
+
+    // Convert scientific notation (e.g. "5e-8") to full decimal string before sanitizing,
+    // otherwise the regex below strips 'e' and '-' and corrupts the value.
+    if (/e/i.test(stringValue)) {
+      const num = parseFloat(stringValue);
+      if (!isNaN(num)) {
+        stringValue =
+          num.toFixed(token.decimals || 18).replace(/\.?0+$/, "") || "0";
+      }
+    }
+
     // Remove non-numeric/decimal characters and multiple decimals
-    const sanitizedValue = value
-      .toString()
+    const sanitizedValue = stringValue
       .replace(/[^0-9.]/g, "")
       .replace(/(\..*)\./g, "$1");
 
@@ -74,9 +85,16 @@ export default function SendTokenModal({
         setAmount(normalizedValue);
       }
     } else {
-      const maxToken = parseFloat(token.balance);
+      const maxToken = parseFloat(token.balance || "0");
       if (numericValue > maxToken) {
-        setAmount(token.balance);
+        // Clamp to balance, converting scientific notation to a decimal string
+        const balanceNum = maxToken;
+        const balanceDecimal = /e/i.test(token.balance || "")
+          ? balanceNum
+              .toFixed(token.decimals || 18)
+              .replace(/\.?0+$/, "") || "0"
+          : token.balance || "0";
+        setAmount(balanceDecimal);
       } else {
         setAmount(normalizedValue);
       }
@@ -207,12 +225,12 @@ export default function SendTokenModal({
               <>
                 <div className="font-medium">${maxUSDAmount}</div>
                 <div className="text-sm text-gray-500">
-                  {parseFloat(token.balance).toFixed(4)} {token.symbol}
+                  {parseFloat(token.balance || "0").toFixed(4)} {token.symbol}
                 </div>
               </>
             ) : (
               <div className="font-medium">
-                {parseFloat(token.balance).toFixed(4)} {token.symbol}
+                {parseFloat(token.balance || "0").toFixed(4)} {token.symbol}
               </div>
             )}
           </div>

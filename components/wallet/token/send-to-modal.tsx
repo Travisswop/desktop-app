@@ -11,8 +11,6 @@ import { ReceiverData } from '@/types/wallet';
 import { truncateAddress } from '@/lib/utils';
 import RedeemModal, { RedeemConfig } from './redeem-modal';
 import { TokenData } from '@/types/token';
-
-import { TransactionService } from '@/services/transaction-service';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   useWallets as useSolanaWallets,
@@ -141,24 +139,23 @@ export default function SendToModal({
       );
     }
 
-    // const connection = new Connection(clusterApiUrl('devnet'));
-
     const connection = new Connection(
       process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
         'https://api.devnet.solana.com',
     );
 
-    // Convert amount to proper decimal format
     const totalAmount = parseFloat(config.totalAmount.toString());
 
-    // Create redemption link
+    // Detect Privy embedded wallet → backend signs server-side (0 popups)
+    const isPrivyEmbedded = solanaWallet.walletClientType === 'privy';
+    const walletId = isPrivyEmbedded ? solanaWallet.id : undefined;
+
+    // Step 0: create redemption pool
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/createRedeemptionPool`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           privyUserId: user?.id,
           tokenName: selectedToken.name,
@@ -171,6 +168,7 @@ export default function SendToModal({
           maxWallets: config.maxWallets,
           creator: solanaWallet.address,
           isNative: selectedToken.isNative,
+          walletId, // undefined for external wallets
         }),
       },
     );
@@ -179,124 +177,75 @@ export default function SendToModal({
       throw new Error('Failed to generate redeem link');
     }
 
-    // Update step 1 to completed and step 2 to processing
+    const { data } = await response.json();
+
+    // ── Privy embedded: backend handled everything, no signing needed ──────
+    if (!data.serializedTransaction) {
+      updateStep(0, 'completed');
+      updateStep(1, 'completed');
+      updateStep(2, 'completed');
+      setRedeemLink(`https://redeem.swopme.app/${data.poolId}`);
+      return;
+    }
+
+    // ── External wallet: sign the combined tx (1 popup) ───────────────────
     updateStep(0, 'completed');
     updateStep(1, 'processing');
 
-    const { data } = await response.json();
-
     try {
-      const setupTx = Transaction.from(
+      const combinedTx = Transaction.from(
         Buffer.from(data.serializedTransaction, 'base64'),
       );
-      // Serialize transaction to Uint8Array for Privy v3
-      const serializedSetupTx = new Uint8Array(
-        setupTx.serialize({
+      // Refresh blockhash so Privy's internal RPC recognises it during preflight
+      const {
+        blockhash: freshBlockhash,
+        lastValidBlockHeight,
+      } = await connection.getLatestBlockhash('finalized');
+      combinedTx.recentBlockhash = freshBlockhash;
+
+      const serializedTx = new Uint8Array(
+        combinedTx.serialize({
           requireAllSignatures: false,
           verifySignatures: false,
         }),
       );
-      // Use Privy's signAndSendTransaction with gas sponsorship
-      const setupResult = await signAndSendTransaction({
-        transaction: serializedSetupTx,
+
+      const sendResult = await signAndSendTransaction({
+        transaction: serializedTx,
         wallet: solanaWallet,
       });
-      const setupBlockhash = await connection.getLatestBlockhash();
       await connection.confirmTransaction({
-        signature: bs58.encode(setupResult.signature),
-        blockhash: setupBlockhash.blockhash,
-        lastValidBlockHeight: setupBlockhash.lastValidBlockHeight,
+        signature: bs58.encode(sendResult.signature),
+        blockhash: freshBlockhash,
+        lastValidBlockHeight,
       });
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      updateStep(1, 'completed');
+      updateStep(2, 'completed');
+      setRedeemLink(`https://redeem.swopme.app/${data.poolId}`);
     } catch (error: any) {
       await deleteRedeemLink(user?.id || '', data.poolId);
-      console.error('Setup transaction error:', error);
+      console.error('Combined transaction error:', error);
 
-      // Extract meaningful error message from SendTransactionError
-      let errorMessage = 'Failed to set up temporary account';
+      let errorMessage = 'Failed to set up token holding account';
       if (error?.logs) {
         const logs = Array.isArray(error.logs) ? error.logs : [];
-        if (
-          logs.some((log: string) =>
-            log.includes('insufficient lamports'),
-          )
-        ) {
+        if (logs.some((log: string) => log.includes('insufficient lamports'))) {
           errorMessage =
             'Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.';
-        }
-      } else if (error?.message?.includes('insufficient lamports')) {
-        errorMessage =
-          'Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.';
-      }
-
-      throw new Error(errorMessage);
-    }
-
-    // Update step 2 to completed and step 3 to processing
-    updateStep(1, 'completed');
-    updateStep(2, 'processing');
-
-    // Handle token transfer
-    try {
-      const txSignature =
-        await TransactionService.handleRedeemTransaction(
-          solanaWallet,
-          connection,
-          {
-            totalAmount:
-              totalAmount * Math.pow(10, selectedToken.decimals),
-            tokenAddress: selectedToken.address,
-            tokenDecimals: selectedToken.decimals,
-            tempAddress: data.tempAddress,
-          },
-          undefined, // signTransactionFn (unused)
-          signAndSendTransaction, // signAndSendTransactionFn with sponsor support
-        );
-
-      const transferBlockhash = await connection.getLatestBlockhash();
-      await connection.confirmTransaction({
-        signature: txSignature,
-        blockhash: transferBlockhash.blockhash,
-        lastValidBlockHeight: transferBlockhash.lastValidBlockHeight,
-      });
-
-      // Update final step to completed
-      updateStep(2, 'completed');
-      const redeemLink = `https://redeem.swopme.app/${data.poolId}`;
-      // Set the redeem link
-      setRedeemLink(redeemLink);
-    } catch (error: any) {
-      console.error('error', error);
-      await deleteRedeemLink(user?.id || '', data.poolId); // Call to delete redeem link
-
-      let errorMessage = 'Failed to transfer tokens';
-
-      if (error.name === 'SendTransactionError') {
-        const { message, logs } =
-          TransactionService.parseSendTransactionError(error);
-        console.error('Transaction error logs:', logs);
-
-        if (
-          logs.some((log) =>
-            log.includes(
-              'Please upgrade to SPL Token 2022 for immutable owner support',
-            ),
-          )
-        ) {
-          errorMessage =
-            'This token requires SPL Token 2022 support. Please try again with sufficient SOL balance for rent.';
         } else if (
-          logs.some((log) =>
+          logs.some((log: string) =>
             log.includes('insufficient funds for rent'),
           )
         ) {
           errorMessage =
-            'Insufficient SOL balance to cover rent for token account. Please add more SOL to your wallet.';
-        } else {
-          errorMessage = message || 'Failed to transfer tokens';
+            'Insufficient SOL balance to cover rent for token account. Please add more SOL.';
         }
-      } else {
-        errorMessage = error.message || 'Failed to transfer tokens';
+      } else if (error?.message?.includes('insufficient lamports')) {
+        errorMessage =
+          'Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.';
+      } else if (error?.message) {
+        errorMessage = error.message;
       }
 
       throw new Error(errorMessage);

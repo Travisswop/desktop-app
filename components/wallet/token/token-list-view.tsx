@@ -81,7 +81,7 @@ export default function TokenListView({
                 />
               </div>
             ) : (
-              `${parseFloat(token.balance).toFixed(4)} ${token.symbol}`
+              `${parseFloat(token.balance || '0').toFixed(4)} ${token.symbol}`
             )}
           </p>
         </div>
@@ -113,7 +113,9 @@ export default function TokenListView({
                   return totalUsd != null ? (
                     `$${totalUsd.toFixed(2)}`
                   ) : (
-                    <span className="text-gray-500">Price unavailable</span>
+                    <span className="text-gray-500">
+                      Price unavailable
+                    </span>
                   );
                 })()}
               </>
