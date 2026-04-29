@@ -1,22 +1,22 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import {
-  erc20Abi,
-  parseUnits,
-  encodeFunctionData,
-} from 'viem';
+import { useState, useCallback, useEffect } from 'react';
+import { erc20Abi, parseUnits, encodeFunctionData } from 'viem';
 import {
   OperationType,
   type SafeTransaction,
 } from '@polymarket/builder-relayer-client';
 import { useQueryClient } from '@tanstack/react-query';
 import CustomModal from '@/components/modal/CustomModal';
-import { useTrading, usePolymarketWallet } from '@/providers/polymarket';
+import {
+  useTrading,
+  usePolymarketWallet,
+} from '@/providers/polymarket';
 import { usePolygonBalances } from '@/hooks/polymarket';
 import {
   USDC_E_CONTRACT_ADDRESS,
   USDC_E_DECIMALS,
+  LEGACY_USDC_E_ADDRESS,
 } from '@/constants/polymarket';
 import {
   ArrowDownToLine,
@@ -42,13 +42,17 @@ type WithdrawStep =
   | 'success'
   | 'error';
 
+type SelectedToken = 'pUSD' | 'USDC.e';
+
 export default function WithdrawModal({
   open,
   onOpenChange,
 }: WithdrawModalProps) {
   const { safeAddress, relayClient } = useTrading();
   const { eoaAddress } = usePolymarketWallet();
-  const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { usdcBalance, legacyUsdcBalance } =
+    usePolygonBalances(safeAddress);
+  console.log('usePolygonBalances', usdcBalance, legacyUsdcBalance);
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<WithdrawStep>('amount');
@@ -56,13 +60,35 @@ export default function WithdrawModal({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selectedToken, setSelectedToken] =
+    useState<SelectedToken>('pUSD');
 
   const destination = eoaAddress;
+
+  // Set default token selection when balances load or modal opens
+  useEffect(() => {
+    if (legacyUsdcBalance > 0 && usdcBalance === 0) {
+      setSelectedToken('USDC.e');
+    } else {
+      setSelectedToken('pUSD');
+    }
+  }, [legacyUsdcBalance, usdcBalance, open]);
+
+  // Derived state for active token
+  const activeBalance =
+    selectedToken === 'pUSD' ? usdcBalance : legacyUsdcBalance;
+  const activeAddress =
+    selectedToken === 'pUSD'
+      ? USDC_E_CONTRACT_ADDRESS
+      : LEGACY_USDC_E_ADDRESS;
+  const activeLabel = selectedToken === 'pUSD' ? 'pUSD' : 'USDC.e';
+
+  const showTokenSelector = legacyUsdcBalance > 0;
 
   // --- Derived state ---
   const parsedAmount = parseFloat(amount) || 0;
   const isAmountValid =
-    parsedAmount > 0 && parsedAmount <= usdcBalance;
+    parsedAmount > 0 && parsedAmount <= activeBalance;
 
   // --- Helpers ---
   const truncateAddress = (addr: string) =>
@@ -76,7 +102,7 @@ export default function WithdrawModal({
   };
 
   const handleMax = () => {
-    setAmount(usdcBalance.toFixed(6));
+    setAmount(activeBalance.toFixed(6));
   };
 
   const handleClose = () => {
@@ -85,7 +111,16 @@ export default function WithdrawModal({
     setAmount('');
     setTxHash(null);
     setError(null);
+    setSelectedToken(
+      legacyUsdcBalance > 0 && usdcBalance === 0 ? 'USDC.e' : 'pUSD',
+    );
     onOpenChange(false);
+  };
+
+  // Reset amount when switching tokens
+  const handleSelectToken = (token: SelectedToken) => {
+    setSelectedToken(token);
+    setAmount('');
   };
 
   // --- Execute withdrawal via relayClient ---
@@ -112,7 +147,7 @@ export default function WithdrawModal({
       });
 
       const withdrawTx: SafeTransaction = {
-        to: USDC_E_CONTRACT_ADDRESS,
+        to: activeAddress,
         operation: OperationType.Call,
         data,
         value: '0',
@@ -120,20 +155,25 @@ export default function WithdrawModal({
 
       const response = await relayClient.execute(
         [withdrawTx],
-        `Withdraw ${parsedAmount.toFixed(2)} USDC.e to ${truncateAddress(destination)}`,
+        `Withdraw ${parsedAmount.toFixed(2)} ${activeLabel} to ${truncateAddress(destination)}`,
       );
 
       const receipt = await response.wait();
       setTxHash(
         typeof receipt === 'string'
           ? receipt
-          : (receipt as any)?.transactionHash ?? null,
+          : ((receipt as any)?.transactionHash ?? null),
       );
       setStep('success');
 
-      // Invalidate balance cache so it refreshes
+      // Invalidate balance caches so they refresh
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['usdcBalance', safeAddress] });
+        queryClient.invalidateQueries({
+          queryKey: ['usdcBalance', safeAddress],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ['legacyUsdcBalance', safeAddress],
+        });
       }, 3000);
     } catch (err: any) {
       const msg =
@@ -156,20 +196,62 @@ export default function WithdrawModal({
     destination,
     safeAddress,
     parsedAmount,
+    activeAddress,
+    activeLabel,
     queryClient,
   ]);
 
   // --- Render helpers ---
+  const renderTokenSelector = () => (
+    <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+      <button
+        onClick={() => handleSelectToken('pUSD')}
+        className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+          selectedToken === 'pUSD'
+            ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+            : 'text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        pUSD
+        <span
+          className={`text-xs ${selectedToken === 'pUSD' ? 'text-gray-600' : 'text-gray-400'}`}
+        >
+          ${usdcBalance.toFixed(2)}
+        </span>
+      </button>
+      <button
+        onClick={() => handleSelectToken('USDC.e')}
+        className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+          selectedToken === 'USDC.e'
+            ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+            : 'text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        USDC.e
+        <span
+          className={`text-xs ${selectedToken === 'USDC.e' ? 'text-gray-600' : 'text-gray-400'}`}
+        >
+          ${legacyUsdcBalance.toFixed(2)}
+        </span>
+      </button>
+    </div>
+  );
+
   const renderAmountStep = () => (
     <div className="p-5 space-y-5">
+      {/* Token selector — only shown when legacy USDC.e balance exists */}
+      {showTokenSelector && renderTokenSelector()}
+
       {/* Available balance */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
-        <p className="text-xs text-gray-500 mb-1">Available to withdraw</p>
+        <p className="text-xs text-gray-500 mb-1">
+          Available to withdraw
+        </p>
         <p className="text-2xl font-bold text-gray-900">
-          ${usdcBalance.toFixed(2)}
+          ${activeBalance.toFixed(2)}
         </p>
         <p className="text-xs text-gray-400 mt-0.5">
-          {usdcBalance.toFixed(6)} USDC.e (Safe wallet)
+          {activeBalance.toFixed(6)} {activeLabel} (Safe wallet)
         </p>
       </div>
 
@@ -181,7 +263,9 @@ export default function WithdrawModal({
         </label>
         <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
           <span className="text-sm text-gray-700 font-mono flex-1">
-            {destination ? truncateAddress(destination) : 'Not connected'}
+            {destination
+              ? truncateAddress(destination)
+              : 'Not connected'}
           </span>
           {destination && (
             <button
@@ -201,7 +285,7 @@ export default function WithdrawModal({
       {/* Amount input */}
       <div className="space-y-1">
         <label className="text-sm font-medium text-gray-700">
-          Amount (USDC.e)
+          Amount ({activeLabel})
         </label>
         <div className="relative">
           <Input
@@ -252,7 +336,7 @@ export default function WithdrawModal({
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">You withdraw</span>
           <span className="font-semibold text-gray-900">
-            {parsedAmount.toFixed(6)} USDC.e
+            {parsedAmount.toFixed(6)} {activeLabel}
           </span>
         </div>
         <div className="flex justify-between text-sm">
@@ -281,7 +365,9 @@ export default function WithdrawModal({
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">Gas fee</span>
-          <span className="text-green-600 font-medium">Sponsored</span>
+          <span className="text-green-600 font-medium">
+            Sponsored
+          </span>
         </div>
       </div>
 
@@ -309,7 +395,9 @@ export default function WithdrawModal({
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
       </div>
       <div className="text-center">
-        <p className="font-semibold text-gray-900">Processing withdrawal...</p>
+        <p className="font-semibold text-gray-900">
+          Processing withdrawal...
+        </p>
         <p className="text-sm text-gray-500 mt-1">
           Signing and submitting via Safe relay
         </p>
@@ -323,9 +411,12 @@ export default function WithdrawModal({
         <Check className="w-8 h-8 text-green-600" />
       </div>
       <div className="text-center">
-        <p className="font-semibold text-gray-900">Withdrawal successful!</p>
+        <p className="font-semibold text-gray-900">
+          Withdrawal successful!
+        </p>
         <p className="text-sm text-gray-500 mt-1">
-          {parsedAmount.toFixed(2)} USDC.e sent to your Privy wallet
+          {parsedAmount.toFixed(2)} {activeLabel} sent to your Privy
+          wallet
         </p>
       </div>
       {txHash && (
@@ -353,11 +444,17 @@ export default function WithdrawModal({
         <AlertCircle className="w-8 h-8 text-red-600" />
       </div>
       <div className="text-center">
-        <p className="font-semibold text-gray-900">Withdrawal failed</p>
+        <p className="font-semibold text-gray-900">
+          Withdrawal failed
+        </p>
         <p className="text-sm text-red-500 mt-1">{error}</p>
       </div>
       <div className="flex gap-3 w-full mt-2">
-        <Button variant="outline" className="flex-1" onClick={handleClose}>
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={handleClose}
+        >
           Close
         </Button>
         <Button
@@ -377,7 +474,7 @@ export default function WithdrawModal({
     <CustomModal
       isOpen={open}
       onClose={handleClose}
-      title="Withdraw USDC.e"
+      title="Withdraw"
       width="max-w-md"
     >
       {step === 'amount' && renderAmountStep()}

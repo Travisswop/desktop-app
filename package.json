@@ -25,7 +25,7 @@
     "@nktkas/hyperliquid": "^0.32.2",
     "@polymarket/builder-relayer-client": "^0.0.8",
     "@polymarket/builder-signing-sdk": "^0.0.8",
-    "@polymarket/clob-client": "^5.2.1",
+    "@polymarket/clob-client-v2": "^1.0.0",
     "@privy-io/node": "^0.11.0",
     "@privy-io/react-auth": "^3.18.0",
     "@privy-io/wagmi": "^2.1.3",

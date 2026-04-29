@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const POLYMARKET_API_BASE = 'https://polymarket.apiswop.co';
+import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,15 +16,21 @@ export async function GET(request: NextRequest) {
 
     // Forward all supported query params to the polymarket proxy backend
     const params = new URLSearchParams({ user });
-    ['limit', 'offset', 'type', 'side', 'start', 'end', 'sort'].forEach(
-      (key) => {
-        const val = searchParams.get(key);
-        if (val) params.set(key, val);
-      },
-    );
+    [
+      'limit',
+      'offset',
+      'type',
+      'side',
+      'start',
+      'end',
+      'sort',
+    ].forEach((key) => {
+      const val = searchParams.get(key);
+      if (val) params.set(key, val);
+    });
 
     const response = await fetch(
-      `${POLYMARKET_API_BASE}/api/prediction-markets/activity?${params}`,
+      `${POLYMARKET_BACKEND_URL}/api/prediction-markets/activity?${params}`,
       { cache: 'no-store' },
     );
 

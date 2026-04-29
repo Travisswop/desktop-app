@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Side, OrderType } from '@polymarket/clob-client';
+import { Side, OrderType } from '@polymarket/clob-client-v2';
 import type {
   ClobClient,
   UserOrder,
   UserMarketOrder,
-} from '@polymarket/clob-client';
+} from '@polymarket/clob-client-v2';
 
 const CLOB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_ORDER_MIN_TICK_SIZE:

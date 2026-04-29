@@ -19,7 +19,7 @@ import OrderConfirmSheet, {
 } from '../shared/OrderConfirmSheet';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 
-import type { ClobClient } from '@polymarket/clob-client';
+import type { ClobClient } from '@polymarket/clob-client-v2';
 
 function isValidTickPrice(price: number, tickSize: number): boolean {
   if (tickSize <= 0) return false;

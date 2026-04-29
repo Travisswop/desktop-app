@@ -362,6 +362,7 @@ const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
     '0x043eB4B75d0805c43D7C834902E335621983Cf03',
     '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
     // Polygon native stables
+    '0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB', // pUSD (Polymarket USD, Polygon)
     '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', // USDT (Polygon)
     '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', // DAI (Polygon)
     // Arbitrum native USDC
@@ -378,10 +379,35 @@ const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
   ]),
 };
 
+// pUSD is not listed on LiFi so we inject it as a curated token
+const PUSD_CURATED_TOKEN = {
+  symbol: 'pUSD',
+  name: 'Polymarket USD',
+  address: '0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB',
+  decimals: 6,
+  chain: 'POLYGON',
+  chainId: '137',
+  network: 'polygon',
+  logoURI: 'https://polymarket.com/images/polymarket-logo.png',
+  isVerified: true,
+};
+
 // Fallback tokens per chain (used when API returns no tokens for a chain/category)
 const FALLBACK_CHAIN_TOKENS: Record<string, any[]> = {
   // Polygon stables
   '137': [
+    {
+      symbol: 'pUSD',
+      name: 'Polymarket USD',
+      address: '0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB',
+      decimals: 6,
+      chain: 'POLYGON',
+      chainId: '137',
+      network: 'polygon',
+      logoURI:
+        'https://polymarket.com/images/polymarket-logo.png',
+      isVerified: true,
+    },
     {
       symbol: 'USDC',
       name: 'USD Coin',
@@ -1064,7 +1090,10 @@ export default function SwapTokenModal({
         // FIX: Merge user tokens (which have balance) + fetched tokens.
         // Deduplicate using `address || id` to preserve Solana tokens that use `id`.
         // fetchLiFiTokensCached always returns an array so no defensive wrap needed.
+        // PUSD_CURATED_TOKEN is prepended so it survives deduplication even when
+        // LiFi does not return it for Polygon.
         const merged = [
+          PUSD_CURATED_TOKEN,
           ...tokens,
           ...ethTokens,
           ...polygonTokens,

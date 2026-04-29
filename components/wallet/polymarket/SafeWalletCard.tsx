@@ -100,7 +100,7 @@ export default function SafeWalletCard() {
         </div>
 
         <p className="text-xs text-gray-400 mt-3 text-center">
-          Send USDC.e on Polygon to this address to fund your trading
+          Send pUSD on Polygon to this address to fund your trading
           account
         </p>
       </Card>
@@ -158,7 +158,7 @@ export default function SafeWalletCard() {
               )}
             </button>
             <p className="text-xs text-gray-400 text-center">
-              Only send USDC.e on the Polygon network to this address
+              Only send pUSD on the Polygon network to this address
             </p>
           </div>
         </DialogContent>

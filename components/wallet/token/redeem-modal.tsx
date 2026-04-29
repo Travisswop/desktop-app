@@ -963,7 +963,9 @@ export default function RedeemModal(props: RedeemModalProps) {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to generate redeem link");
+      const errBody = await response.json().catch(() => null);
+      const msg = errBody?.message || "Failed to generate redeem link";
+      throw new Error(msg);
     }
 
     const { data } = await response.json();
@@ -1018,7 +1020,10 @@ export default function RedeemModal(props: RedeemModalProps) {
       let errorMessage = "Failed to set up token holding account";
       if (error?.logs) {
         const logs = Array.isArray(error.logs) ? error.logs : [];
-        if (logs.some((log: string) => log.includes("insufficient lamports"))) {
+        if (logs.some((log: string) => log.includes("insufficient funds"))) {
+          errorMessage =
+            "Insufficient token balance. The amount you entered exceeds your wallet balance.";
+        } else if (logs.some((log: string) => log.includes("insufficient lamports"))) {
           errorMessage =
             "Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.";
         } else if (
@@ -1027,6 +1032,9 @@ export default function RedeemModal(props: RedeemModalProps) {
           errorMessage =
             "Insufficient SOL balance to cover rent for token account. Please add more SOL.";
         }
+      } else if (error?.message?.includes("Insufficient token balance") ||
+                 error?.message?.includes("insufficient funds")) {
+        errorMessage = error.message;
       } else if (error?.message?.includes("insufficient lamports")) {
         errorMessage =
           "Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.";
