@@ -240,3 +240,128 @@ export async function submitApprovalSignature(
 
   return res.json();
 }
+
+export interface WithdrawTypedData {
+  txHash: string;
+  safeAddress: string;
+  eoaAddress: string;
+  nonce: string;
+  to: string;
+  data: string;
+  operation: number;
+}
+
+export async function getWithdrawTypedData(
+  params: {
+    safeAddress: string;
+    eoaAddress: string;
+    toAddress: string;
+    amount: number;
+    tokenAddress?: string;
+  },
+  accessToken: string
+): Promise<WithdrawTypedData> {
+  const searchParams = new URLSearchParams({
+    safeAddress: params.safeAddress,
+    eoaAddress: params.eoaAddress,
+    toAddress: params.toAddress,
+    amount: String(params.amount),
+    ...(params.tokenAddress ? { tokenAddress: params.tokenAddress } : {}),
+  });
+  const res = await fetch(`${base()}/positions/withdraw/typed-data?${searchParams}`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to get withdraw typed data');
+  }
+  return res.json();
+}
+
+export async function submitWithdraw(
+  params: {
+    safeAddress: string;
+    eoaAddress: string;
+    toAddress: string;
+    amount: number;
+    signature: string;
+    nonce: string;
+    tokenAddress?: string;
+  },
+  accessToken: string
+): Promise<{ txId: string; success: boolean }> {
+  const res = await fetch(`${base()}/positions/withdraw`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Withdrawal failed');
+  }
+  return res.json();
+}
+
+export interface RedeemTypedData {
+  txHash: string;
+  safeAddress: string;
+  eoaAddress: string;
+  nonce: string;
+  to: string;
+  data: string;
+  operation: number;
+}
+
+export async function getRedeemTypedData(
+  params: {
+    safeAddress: string;
+    eoaAddress: string;
+    conditionId: string;
+    negRisk?: boolean;
+    outcomeIndex?: number;
+    size?: number;
+  },
+  accessToken: string
+): Promise<RedeemTypedData> {
+  const searchParams = new URLSearchParams({
+    safeAddress: params.safeAddress,
+    eoaAddress: params.eoaAddress,
+    conditionId: params.conditionId,
+    ...(params.negRisk != null ? { negRisk: String(params.negRisk) } : {}),
+    ...(params.outcomeIndex != null ? { outcomeIndex: String(params.outcomeIndex) } : {}),
+    ...(params.size != null ? { size: String(params.size) } : {}),
+  });
+  const res = await fetch(`${base()}/positions/redeem/typed-data?${searchParams}`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to get redeem typed data');
+  }
+  return res.json();
+}
+
+export async function submitRedeem(
+  params: {
+    safeAddress: string;
+    eoaAddress: string;
+    conditionId: string;
+    negRisk?: boolean;
+    outcomeIndex?: number;
+    size?: number;
+    signature: string;
+    nonce: string;
+  },
+  accessToken: string
+): Promise<{ txId: string; success: boolean }> {
+  const res = await fetch(`${base()}/positions/redeem`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Redemption failed');
+  }
+  return res.json();
+}

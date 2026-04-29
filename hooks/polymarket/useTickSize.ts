@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ClobClient } from "@polymarket/clob-client-v2";
-import { CLOB_API_URL, CLOB_WS_MARKET_URL, POLYGON_CHAIN_ID } from "@/constants/polymarket";
+import { CLOB_API_URL, CLOB_WS_MARKET_URL } from "@/constants/polymarket";
 
 export function useTickSize(tokenId: string | null) {
   const [tickSize, setTickSize] = useState<number>(0.01);
@@ -13,8 +12,10 @@ export function useTickSize(tokenId: string | null) {
 
     setIsLoading(true);
     try {
-      const client = new ClobClient({ host: CLOB_API_URL, chain: POLYGON_CHAIN_ID });
-      const result = await client.getTickSize(tokenId);
+      const res = await fetch(`${CLOB_API_URL}/tick-size?token_id=${tokenId}`);
+      if (!res.ok) throw new Error(`tick-size fetch failed: ${res.status}`);
+      const data = await res.json();
+      const result = data?.minimum_tick_size ?? data?.tick_size ?? data;
       const parsed = typeof result === "string" ? parseFloat(result) : result;
       if (parsed && !isNaN(parsed) && parsed > 0) {
         setTickSize(parsed);

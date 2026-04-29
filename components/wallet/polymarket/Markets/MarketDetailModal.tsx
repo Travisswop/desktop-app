@@ -7,7 +7,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import { postFeed } from '@/actions/postFeed';
 import type { PolymarketMarket } from '@/hooks/polymarket';
-import type { ClobClient } from '@polymarket/clob-client-v2';
+import { useTrading } from '@/providers/polymarket';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 
 import Portal from '../shared/Portal';
@@ -906,7 +906,6 @@ type MarketDetailModalProps = {
   isOpen: boolean;
   onClose: () => void;
   market: PolymarketMarket;
-  clobClient: ClobClient | null;
   balance?: number;
   yesShares?: number;
   noShares?: number;
@@ -918,13 +917,13 @@ export default function MarketDetailModal({
   isOpen,
   onClose,
   market,
-  clobClient,
   balance = 0,
   yesShares = 0,
   noShares = 0,
   initialOutcome,
   initialAmount,
 }: MarketDetailModalProps) {
+  const { clobClient } = useTrading();
   // ── Derived market data ───────────────────────────────────────────────────
   const outcomes = useMemo(
     () =>

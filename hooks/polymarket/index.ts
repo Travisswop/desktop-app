@@ -1,5 +1,4 @@
 // Core hooks
-export { useRelayClient } from "./useRelayClient";
 export { useSafeDeployment } from "./useSafeDeployment";
 export { useUserApiCredentials, type UserApiCredentials } from "./useUserApiCredentials";
 export { useTokenApprovals } from "./useTokenApprovals";

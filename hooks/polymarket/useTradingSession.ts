@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from "react";
-import { useRelayClient } from "@/hooks/polymarket/useRelayClient";
 import { usePolymarketWallet } from "@/providers/polymarket";
 import { useTokenApprovals } from "@/hooks/polymarket/useTokenApprovals";
 import { useSafeDeployment } from "@/hooks/polymarket/useSafeDeployment";
@@ -29,8 +28,6 @@ export function useTradingSession() {
   const { checkAllTokenApprovals, setAllTokenApprovals } = useTokenApprovals();
   const { derivedSafeAddressFromEoa, isSafeDeployed, deploySafe } =
     useSafeDeployment(eoaAddress);
-  const { relayClient, initializeRelayClient, clearRelayClient } =
-    useRelayClient();
 
   // Always check for an existing trading session after wallet is connected by checking
   // session object from localStorage to track the status of the user's trading session
@@ -69,21 +66,6 @@ export function useTradingSession() {
     }
   }, [eoaAddress]);
 
-  // Restores the relay client when session exists
-  useEffect(() => {
-    if (tradingSession && !relayClient && eoaAddress && walletClient) {
-      initializeRelayClient().catch((err) => {
-        console.error("Failed to restore relay client:", err);
-      });
-    }
-  }, [
-    tradingSession,
-    relayClient,
-    eoaAddress,
-    walletClient,
-    initializeRelayClient,
-  ]);
-
   // The core function that orchestrates the trading session initialization
   const initializeTradingSession = useCallback(async () => {
     if (!eoaAddress) throw new Error("Wallet not connected");
@@ -96,9 +78,8 @@ export function useTradingSession() {
       // because this function is called before the session-loading effect completes
       const storedSession = loadSession(eoaAddress);
 
-      // Step 1: Initializes relayClient with the ethers signer and
-      // Builder's credentials (via remote signing server) for authentication
-      const initializedRelayClient = await initializeRelayClient();
+      // Step 1 (removed): relay client initialization is no longer needed.
+      // All relay operations go through the polymarket-backend proxy.
 
       // Step 2: Get Safe address (deterministic derivation from EOA)
       if (!derivedSafeAddressFromEoa) {
@@ -184,7 +165,6 @@ export function useTradingSession() {
     createOrDeriveUserApiCredentials,
     checkAllTokenApprovals,
     setAllTokenApprovals,
-    initializeRelayClient,
   ]);
 
   // This function clears the trading session and resets the state
@@ -193,10 +173,9 @@ export function useTradingSession() {
 
     clearStoredSession(eoaAddress);
     setTradingSession(null);
-    clearRelayClient();
     setCurrentStep("idle");
     setSessionError(null);
-  }, [eoaAddress, clearRelayClient]);
+  }, [eoaAddress]);
 
   return {
     tradingSession,
@@ -208,6 +187,5 @@ export function useTradingSession() {
       tradingSession?.hasApprovals,
     initializeTradingSession,
     endTradingSession,
-    relayClient,
   };
 }

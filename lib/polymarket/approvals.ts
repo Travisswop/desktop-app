@@ -1,8 +1,4 @@
-import { createPublicClient, http, encodeFunctionData, erc20Abi } from "viem";
-import {
-  OperationType,
-  SafeTransaction,
-} from "@polymarket/builder-relayer-client";
+import { createPublicClient, http, erc20Abi } from "viem";
 import { polygon } from "viem/chains";
 import {
   USDC_E_CONTRACT_ADDRESS,
@@ -12,9 +8,6 @@ import {
   NEG_RISK_ADAPTER_ADDRESS,
   POLYGON_RPC_URL,
 } from "@/constants/polymarket";
-
-const MAX_UINT256 =
-  "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 
 const erc1155Abi = [
   {
@@ -135,34 +128,3 @@ export const checkAllApprovals = async (
   };
 };
 
-export const createAllApprovalTxs = (): SafeTransaction[] => {
-  const safeTxns: SafeTransaction[] = [];
-
-  for (const { address } of USDC_E_SPENDERS) {
-    safeTxns.push({
-      to: USDC_E_CONTRACT_ADDRESS,
-      operation: OperationType.Call,
-      data: encodeFunctionData({
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [address as `0x${string}`, BigInt(MAX_UINT256)],
-      }),
-      value: "0",
-    });
-  }
-
-  for (const { address } of OUTCOME_TOKEN_SPENDERS) {
-    safeTxns.push({
-      to: CTF_CONTRACT_ADDRESS,
-      operation: OperationType.Call,
-      data: encodeFunctionData({
-        abi: erc1155Abi,
-        functionName: "setApprovalForAll",
-        args: [address as `0x${string}`, true],
-      }),
-      value: "0",
-    });
-  }
-
-  return safeTxns;
-};

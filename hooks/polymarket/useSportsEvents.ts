@@ -28,10 +28,10 @@ export interface UseSportsEventsOptions {
  * duplicates are merged before grouping).
  */
 export function useSportsEvents({ tagId, enabled = true }: UseSportsEventsOptions = {}) {
-  const { clobClient } = useTrading();
+  const { isTradingSessionComplete } = useTrading();
 
   return useInfiniteQuery({
-    queryKey: ['sports-events', tagId ?? null, !!clobClient],
+    queryKey: ['sports-events', tagId ?? null, !!isTradingSessionComplete],
     enabled,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<PolymarketMarket[]> => {
@@ -43,7 +43,7 @@ export function useSportsEvents({ tagId, enabled = true }: UseSportsEventsOption
       const markets: PolymarketMarket[] = await res.json();
 
       // ── Enrich with real-time CLOB prices ────────────────────────────────
-      if (clobClient && markets.length > 0) {
+      if (isTradingSessionComplete && markets.length > 0) {
         const allTokenIds: string[] = [];
         for (const market of markets) {
           if (!market.clobTokenIds) continue;
@@ -57,7 +57,7 @@ export function useSportsEvents({ tagId, enabled = true }: UseSportsEventsOption
 
         if (allTokenIds.length > 0) {
           try {
-            const globalPriceMap = await fetchChunkedPrices(clobClient, allTokenIds);
+            const globalPriceMap = await fetchChunkedPrices(allTokenIds);
             for (const market of markets) {
               if (!market.clobTokenIds) continue;
               try {

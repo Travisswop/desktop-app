@@ -68,10 +68,10 @@ interface UseMarketsOptions {
 
 export function useMarkets(options: UseMarketsOptions = {}) {
   const { categoryId = "trending", overrideTagId, enabled = true } = options;
-  const { clobClient } = useTrading();
+  const { isTradingSessionComplete } = useTrading();
 
   return useInfiniteQuery({
-    queryKey: ["high-volume-markets", categoryId, overrideTagId, !!clobClient],
+    queryKey: ["high-volume-markets", categoryId, overrideTagId, !!isTradingSessionComplete],
     enabled,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<PolymarketMarket[]> => {
@@ -94,7 +94,7 @@ export function useMarkets(options: UseMarketsOptions = {}) {
       const markets: PolymarketMarket[] = await response.json();
 
       // Fetch realtime prices using batch API — one POST /prices call per side
-      if (clobClient && markets.length > 0) {
+      if (isTradingSessionComplete && markets.length > 0) {
         try {
           const allTokenIds: string[] = [];
           for (const market of markets) {
@@ -110,7 +110,7 @@ export function useMarkets(options: UseMarketsOptions = {}) {
 
           if (allTokenIds.length > 0) {
             // Use chunked fetching to stay under the CLOB payload size limit
-            const globalPriceMap = await fetchChunkedPrices(clobClient, allTokenIds);
+            const globalPriceMap = await fetchChunkedPrices(allTokenIds);
 
             for (const market of markets) {
               if (!market.clobTokenIds) continue;

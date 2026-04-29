@@ -69,7 +69,7 @@ export default function HighVolumeMarkets({
   const [btcModalOpen, setBtcModalOpen] = useState(false);
   const [btcInitialOutcome, setBtcInitialOutcome] = useState<'Up' | 'Down'>('Up');
 
-  const { clobClient, isGeoblocked, safeAddress } = useTrading();
+  const { isGeoblocked, safeAddress } = useTrading();
   const { usdcBalance } = usePolygonBalances(safeAddress);
   const { data: positions } = useUserPositions(safeAddress);
 
@@ -366,7 +366,6 @@ export default function HighVolumeMarkets({
         downTokenId={btcTokenIds.downTokenId}
         negRisk={btc5mMarket.market?.negRisk ?? false}
         orderMinSize={btc5mMarket.market?.orderMinSize ?? MIN_ORDER_SIZE}
-        clobClient={clobClient}
         balance={usdcBalance}
         upShares={btcShares.upShares}
         downShares={btcShares.downShares}
@@ -380,7 +379,6 @@ export default function HighVolumeMarkets({
             setDetailInitialOutcome(undefined);
           }}
           market={detailMarket}
-          clobClient={clobClient}
           balance={usdcBalance}
           yesShares={detailMarketShares.yesShares}
           noShares={detailMarketShares.noShares}
