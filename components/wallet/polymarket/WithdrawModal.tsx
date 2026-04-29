@@ -77,7 +77,7 @@ export default function WithdrawModal({
   const { accessToken } = useUser();
   const { usdcBalance, legacyUsdcBalance } =
     usePolygonBalances(safeAddress);
-  console.log('usePolygonBalances', usdcBalance, legacyUsdcBalance);
+
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<WithdrawStep>('amount');
@@ -114,7 +114,8 @@ export default function WithdrawModal({
 
   // --- Derived state ---
   const parsedAmount = parseFloat(amount) || 0;
-  const isAmountValid = parsedAmount > 0 && parsedAmount <= activeBalance;
+  const isAmountValid =
+    parsedAmount > 0 && parsedAmount <= activeBalance;
 
   // --- Helpers ---
   const truncateAddress = (addr: string) =>
@@ -151,7 +152,13 @@ export default function WithdrawModal({
 
   // --- Execute withdrawal via backend two-step flow ---
   const executeWithdraw = useCallback(async () => {
-    if (!isTradingSessionComplete || !destination || !safeAddress || !eoaAddress || !accessToken) {
+    if (
+      !isTradingSessionComplete ||
+      !destination ||
+      !safeAddress ||
+      !eoaAddress ||
+      !accessToken
+    ) {
       setError('Trading session not ready. Please try again.');
       setStep('error');
       return;
@@ -167,12 +174,18 @@ export default function WithdrawModal({
 
         // Step 1: Get SafeTx EIP-712 data with on-chain nonce from backend
         const typedData = await getLegacyWithdrawTypedData(
-          { safeAddress, toAddress: destination, amount: parsedAmount },
-          accessToken
+          {
+            safeAddress,
+            toAddress: destination,
+            amount: parsedAmount,
+          },
+          accessToken,
         );
 
         // Step 2: Sign the pre-prefixed hash as raw bytes
-        const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
+        const txHashBytes = hexToBytes(
+          typedData.txHash as `0x${string}`,
+        );
         const signature = await walletClient!.signMessage({
           account: eoaAddress as `0x${string}`,
           message: { raw: txHashBytes },
@@ -217,11 +230,13 @@ export default function WithdrawModal({
             amount: parsedAmount,
             tokenAddress: activeAddress,
           },
-          accessToken
+          accessToken,
         );
 
         // Step 2: Sign the hash with eth_sign
-        const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
+        const txHashBytes = hexToBytes(
+          typedData.txHash as `0x${string}`,
+        );
         const signature = await walletClient!.signMessage({
           account: eoaAddress as `0x${string}`,
           message: { raw: txHashBytes },
@@ -238,7 +253,7 @@ export default function WithdrawModal({
             nonce: typedData.nonce,
             tokenAddress: activeAddress,
           },
-          accessToken
+          accessToken,
         );
 
         setTxHash(result.txId ?? null);
@@ -247,16 +262,40 @@ export default function WithdrawModal({
       setStep('success');
 
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['usdcBalance', safeAddress] });
-        queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance', safeAddress] });
+        queryClient.invalidateQueries({
+          queryKey: ['usdcBalance', safeAddress],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ['legacyUsdcBalance', safeAddress],
+        });
       }, 3000);
     } catch (err: any) {
-      const msg = err?.message || err?.toString() || 'Withdrawal failed';
-      const isRejected = msg.includes('rejected') || msg.includes('denied') || msg.includes('cancelled') || msg.includes('user rejected');
-      setError(isRejected ? 'Transaction was rejected.' : `Withdrawal failed: ${msg}`);
+      const msg =
+        err?.message || err?.toString() || 'Withdrawal failed';
+      const isRejected =
+        msg.includes('rejected') ||
+        msg.includes('denied') ||
+        msg.includes('cancelled') ||
+        msg.includes('user rejected');
+      setError(
+        isRejected
+          ? 'Transaction was rejected.'
+          : `Withdrawal failed: ${msg}`,
+      );
       setStep('error');
     }
-  }, [isTradingSessionComplete, destination, safeAddress, eoaAddress, accessToken, parsedAmount, activeAddress, isLegacyUsdce, walletClient, queryClient]);
+  }, [
+    isTradingSessionComplete,
+    destination,
+    safeAddress,
+    eoaAddress,
+    accessToken,
+    parsedAmount,
+    activeAddress,
+    isLegacyUsdce,
+    walletClient,
+    queryClient,
+  ]);
 
   // --- Render helpers ---
   const renderTokenSelector = () => (
@@ -304,8 +343,9 @@ export default function WithdrawModal({
         <div className="flex gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
           <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-amber-800">
-            USDC.e withdrawal uses a direct on-chain transaction. A small amount
-            of MATIC will be deducted from your Privy wallet for gas.
+            USDC.e withdrawal uses a direct on-chain transaction. A
+            small amount of MATIC will be deducted from your Privy
+            wallet for gas.
           </p>
         </div>
       )}
@@ -383,7 +423,9 @@ export default function WithdrawModal({
 
       <Button
         onClick={() => setStep('confirm')}
-        disabled={!isAmountValid || !destination || !isTradingSessionComplete}
+        disabled={
+          !isAmountValid || !destination || !isTradingSessionComplete
+        }
         className="w-full bg-black text-white hover:bg-gray-800"
       >
         <ArrowDownToLine className="w-4 h-4 mr-2" />
