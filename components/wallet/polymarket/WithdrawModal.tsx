@@ -10,11 +10,7 @@ import {
   usePolymarketWallet,
 } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import {
-  getWithdrawTypedData,
-  getLegacyWithdrawTypedData,
-  submitWithdraw,
-} from '@/lib/polymarket/backend-session';
+import { getLegacyWithdrawTypedData } from '@/lib/polymarket/backend-session';
 import { usePolygonBalances } from '@/hooks/polymarket';
 import {
   USDC_E_CONTRACT_ADDRESS,
@@ -110,8 +106,6 @@ export default function WithdrawModal({
 
   const showTokenSelector = legacyUsdcBalance > 0;
 
-  const isLegacyUsdce = selectedToken === 'USDC.e';
-
   // --- Derived state ---
   const parsedAmount = parseFloat(amount) || 0;
   const isAmountValid =
@@ -168,97 +162,55 @@ export default function WithdrawModal({
     setError(null);
 
     try {
-      if (isLegacyUsdce) {
-        // ── USDC.e: direct execTransaction on the Safe (Polymarket relayer
-        //    does not support legacy tokens; EOA pays MATIC gas from Privy wallet) ──
+      // Direct on-chain execTransaction — works for both pUSD and USDC.e.
+      // The Polymarket builder relayer rejects arbitrary ERC20 transfer() calls,
+      // so both tokens use the Safe's on-chain nonce + walletClient.writeContract.
 
-        // Step 1: Get SafeTx EIP-712 data with on-chain nonce from backend
-        const typedData = await getLegacyWithdrawTypedData(
-          {
-            safeAddress,
-            toAddress: destination,
-            amount: parsedAmount,
-          },
-          accessToken,
-        );
+      // Step 1: Get SafeTx EIP-712 data with the Safe's on-chain nonce
+      const typedData = await getLegacyWithdrawTypedData(
+        {
+          safeAddress,
+          toAddress: destination,
+          amount: parsedAmount,
+          tokenAddress: activeAddress,
+        },
+        accessToken,
+      );
 
-        // Step 2: Sign the pre-prefixed hash as raw bytes
-        const txHashBytes = hexToBytes(
-          typedData.txHash as `0x${string}`,
-        );
-        const signature = await walletClient!.signMessage({
-          account: eoaAddress as `0x${string}`,
-          message: { raw: txHashBytes },
-        });
+      // Step 2: Sign the pre-prefixed hash as raw bytes (no additional prefix)
+      const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
+      const signature = await walletClient!.signMessage({
+        account: eoaAddress as `0x${string}`,
+        message: { raw: txHashBytes },
+      });
 
-        // Step 3: Pack signature for Gnosis Safe eth_sign type (v + 4)
-        const sigBytes = hexToBytes(signature as `0x${string}`);
-        sigBytes[64] = sigBytes[64] + 4;
-        const packedSig = bytesToHex(sigBytes);
+      // Step 3: Pack signature for Gnosis Safe eth_sign type (v + 4)
+      const sigBytes = hexToBytes(signature as `0x${string}`);
+      sigBytes[64] = sigBytes[64] + 4;
+      const packedSig = bytesToHex(sigBytes);
 
-        // Step 4: Call execTransaction directly on the Safe contract
-        const onChainTxHash = await walletClient!.writeContract({
-          address: safeAddress as `0x${string}`,
-          abi: GNOSIS_SAFE_EXEC_ABI,
-          functionName: 'execTransaction',
-          args: [
-            typedData.to as `0x${string}`,
-            BigInt(typedData.value),
-            typedData.data as `0x${string}`,
-            typedData.operation,
-            BigInt(typedData.safeTxGas),
-            BigInt(typedData.baseGas),
-            BigInt(typedData.gasPrice),
-            typedData.gasToken as `0x${string}`,
-            typedData.refundReceiver as `0x${string}`,
-            packedSig as `0x${string}`,
-          ],
-          chain: polygon,
-          account: eoaAddress as `0x${string}`,
-        });
+      // Step 4: Call execTransaction directly on the Safe contract on Polygon
+      const onChainTxHash = await walletClient!.writeContract({
+        address: safeAddress as `0x${string}`,
+        abi: GNOSIS_SAFE_EXEC_ABI,
+        functionName: 'execTransaction',
+        args: [
+          typedData.to as `0x${string}`,
+          BigInt(typedData.value),
+          typedData.data as `0x${string}`,
+          typedData.operation,
+          BigInt(typedData.safeTxGas),
+          BigInt(typedData.baseGas),
+          BigInt(typedData.gasPrice),
+          typedData.gasToken as `0x${string}`,
+          typedData.refundReceiver as `0x${string}`,
+          packedSig as `0x${string}`,
+        ],
+        chain: polygon,
+        account: eoaAddress as `0x${string}`,
+      });
 
-        setTxHash(onChainTxHash ?? null);
-      } else {
-        // ── pUSD: gasless via Polymarket builder relayer ──
-
-        // Step 1: Get SafeTx EIP-712 data from backend
-        const typedData = await getWithdrawTypedData(
-          {
-            safeAddress,
-            eoaAddress,
-            toAddress: destination,
-            amount: parsedAmount,
-            tokenAddress: activeAddress,
-          },
-          accessToken,
-        );
-
-        // Step 2: Sign the hash with eth_sign
-        const txHashBytes = hexToBytes(
-          typedData.txHash as `0x${string}`,
-        );
-        const signature = await walletClient!.signMessage({
-          account: eoaAddress as `0x${string}`,
-          message: { raw: txHashBytes },
-        });
-
-        // Step 3: Submit to backend (relayer)
-        const result = await submitWithdraw(
-          {
-            safeAddress,
-            eoaAddress,
-            toAddress: destination,
-            amount: parsedAmount,
-            signature,
-            nonce: typedData.nonce,
-            tokenAddress: activeAddress,
-          },
-          accessToken,
-        );
-
-        setTxHash(result.txId ?? null);
-      }
-
+      setTxHash(onChainTxHash ?? null);
       setStep('success');
 
       setTimeout(() => {
@@ -292,7 +244,6 @@ export default function WithdrawModal({
     accessToken,
     parsedAmount,
     activeAddress,
-    isLegacyUsdce,
     walletClient,
     queryClient,
   ]);
@@ -338,17 +289,14 @@ export default function WithdrawModal({
       {/* Token selector — only shown when legacy USDC.e balance exists */}
       {showTokenSelector && renderTokenSelector()}
 
-      {/* USDC.e direct withdrawal notice */}
-      {isLegacyUsdce && (
-        <div className="flex gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
-          <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-800">
-            USDC.e withdrawal uses a direct on-chain transaction. A
-            small amount of MATIC will be deducted from your Privy
-            wallet for gas.
-          </p>
-        </div>
-      )}
+      {/* Gas notice — withdrawals go on-chain via Safe execTransaction */}
+      <div className="flex gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+        <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-amber-800">
+          Withdrawals are executed directly on Polygon. A small amount
+          of MATIC will be deducted from your Privy wallet for gas.
+        </p>
+      </div>
 
       {/* Available balance */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
@@ -475,15 +423,9 @@ export default function WithdrawModal({
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">Gas fee</span>
-          {isLegacyUsdce ? (
-            <span className="text-amber-600 font-medium text-xs">
-              MATIC from Privy wallet
-            </span>
-          ) : (
-            <span className="text-green-600 font-medium">
-              Sponsored
-            </span>
-          )}
+          <span className="text-amber-600 font-medium text-xs">
+            MATIC from Privy wallet
+          </span>
         </div>
       </div>
 

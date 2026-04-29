@@ -321,6 +321,7 @@ export async function getLegacyWithdrawTypedData(
     safeAddress: string;
     toAddress: string;
     amount: number;
+    tokenAddress?: string;
   },
   accessToken: string
 ): Promise<LegacyWithdrawTypedData> {
@@ -328,13 +329,14 @@ export async function getLegacyWithdrawTypedData(
     safeAddress: params.safeAddress,
     toAddress: params.toAddress,
     amount: String(params.amount),
+    ...(params.tokenAddress ? { tokenAddress: params.tokenAddress } : {}),
   });
-  const res = await fetch(`${base()}/positions/withdraw/legacy/typed-data?${searchParams}`, {
+  const res = await fetch(`${base()}/positions/withdraw/direct/typed-data?${searchParams}`, {
     headers: authHeaders(accessToken),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to get legacy withdraw typed data');
+    throw new Error(err.error || 'Failed to get withdraw typed data');
   }
   return res.json();
 }
