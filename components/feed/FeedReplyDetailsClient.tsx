@@ -8,6 +8,8 @@ import { logger } from "ethers5";
 import FeedReplyItem from "./FeedReplyItem";
 import { useModalStore } from "@/zustandStore/modalstore";
 import { CommentSkeleton } from "../loading/CommentLoading";
+import { MotionDiv } from "../Motion";
+import { useScroll, useTransform } from "framer-motion";
 
 interface FeedItemType {
   _id: string;
@@ -155,17 +157,25 @@ export default function FeedReplyDetailsClient({
     fetchComments(1, newSort).finally(() => setInitialLoading(false));
   };
 
+  const { scrollY } = useScroll();
+  const opacity = useTransform(scrollY, [80, 96], [1, 1]); // 96 = top-24
+  const y = useTransform(scrollY, [80, 96], [-10, 0]);
+
   return (
     <div className="flex flex-col pb-20">
       {/* Back */}
-      <button
-        className="flex items-center gap-2 py-3"
-        // className="flex items-center gap-2 py-3 fixed top-20 bg-white border-b border-gray-100 w-max"
-        onClick={() => router.back()}
+      <MotionDiv
+        style={{ opacity, y }}
+        className="sticky top-24 z-50 bg-white transition-transform duration-700 shadow"
       >
-        <IoArrowBack size={20} />
-        <span className="font-semibold">Post</span>
-      </button>
+        <button
+          className="flex items-center gap-2 py-3 px-4 w-max"
+          onClick={() => router.back()}
+        >
+          <IoArrowBack size={20} />
+          <span className="font-semibold">Back</span>
+        </button>
+      </MotionDiv>
 
       {/* Main Post Details */}
       <div className="pt-4">

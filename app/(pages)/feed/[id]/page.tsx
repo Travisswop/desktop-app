@@ -192,13 +192,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}/og`;
 
   try {
-    const response = await fetch(url, {
-      next: { revalidate: 600 },
-    });
-
-    if (!response.ok) {
-      throw new Error(`OG API returned ${response.status}`);
-    }
+    const response = await fetch(url);
 
     const responseData = await response.json();
     let feed = responseData?.data;
@@ -209,8 +203,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description: "No feed post available.",
       };
     }
-
-    logger.info("Feed data in generateMetadata", feed);
 
     // For reposts, use the original post's content for OG
     // if (
@@ -366,7 +358,7 @@ const FeedDetailsPage = async ({
 
   return (
     <div className="relative flex flex-col items-center">
-      <div className="w-full sm:w-[520px] overflow-y-auto">
+      <div className="w-full sm:w-[520px]">
         <Suspense fallback={<FeedLoading />}>
           {feedData && (
             <FeedDetailsClient

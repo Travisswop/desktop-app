@@ -9,6 +9,8 @@ import { logger } from "ethers5";
 import { useModalStore } from "@/zustandStore/modalstore";
 import FeedLoading from "../loading/FeedLoading";
 import { CommentSkeleton } from "../loading/CommentLoading";
+import { useScroll, useTransform } from "framer-motion";
+import { MotionDiv } from "../Motion";
 
 interface FeedItemType {
   _id: string;
@@ -147,30 +149,36 @@ export default function FeedDetailsClient({
     fetchComments(1, newSort).finally(() => setInitialLoading(false));
   };
 
+  const { scrollY } = useScroll();
+  const opacity = useTransform(scrollY, [80, 96], [1, 1]); // 96 = top-24
+  const y = useTransform(scrollY, [80, 96], [-10, 0]);
+
   return (
     <div className="flex flex-col pb-20">
       {/* Back */}
-      <button
-        className="flex items-center gap-2 py-3"
-        // className="flex items-center gap-2 py-3 fixed top-20 bg-white border-b border-gray-100 w-max"
-        onClick={() => router.back()}
+      <MotionDiv
+        style={{ opacity, y }}
+        className="sticky top-24 z-50 bg-white transition-transform duration-700 shadow"
       >
-        <IoArrowBack size={20} />
-        <span className="font-semibold">Post</span>
-      </button>
+        <button
+          className="flex items-center gap-2 py-3 px-4 w-max"
+          onClick={() => router.back()}
+        >
+          <IoArrowBack size={20} />
+          <span className="font-semibold">Post</span>
+        </button>
+      </MotionDiv>
 
       {/* Main Post Details */}
-      <div className="pt-4">
-        <FeedItem
-          feed={feed}
-          userId={userId}
-          accessToken={accessToken}
-          onRepostSuccess={() => {}}
-          onDeleteSuccess={() => router.back()}
-          onPostInteraction={handlePostInteraction}
-          isFromFeedDetailsPage={true}
-        />
-      </div>
+      <FeedItem
+        feed={feed}
+        userId={userId}
+        accessToken={accessToken}
+        onRepostSuccess={() => {}}
+        onDeleteSuccess={() => router.back()}
+        onPostInteraction={handlePostInteraction}
+        isFromFeedDetailsPage={true}
+      />
 
       {/* Comments header */}
       <div className="mt-4 mb-2 flex items-center justify-between">
