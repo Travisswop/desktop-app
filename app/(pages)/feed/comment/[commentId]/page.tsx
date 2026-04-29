@@ -191,13 +191,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { commentId } = await params;
 
   const url = `https://app.apiswop.co/api/v2/feed/${commentId}/og`;
-  logger.info("Fetching feed details for OG metadata from URL:", url);
+  console.log("Fetching feed details for OG metadata from URL:", url);
 
   try {
     const response = await fetch(url);
 
     const responseData = await response.json();
-    logger.info("OG API response data", responseData);
+    console.log("OG API response data", responseData);
     let feed = responseData?.data;
 
     if (!feed) {
@@ -295,6 +295,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         `&date=${encodeURIComponent(formatDate(createdAt))}`;
     }
 
+    console.log("Generated OG image URL:", ogImageUrl);
+
     const metadata: Metadata = {
       title: feedTitle,
       description,
@@ -311,6 +313,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description,
       },
     };
+
+    console.log("Metadata before adding image:", metadata);
 
     if (ogImageUrl) {
       metadata.openGraph!.images = [
@@ -331,6 +335,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       };
     }
 
+    console.log("Final metadata with OG image:", metadata);
     return metadata;
   } catch (error) {
     console.error("generateMetadata error:", error);
