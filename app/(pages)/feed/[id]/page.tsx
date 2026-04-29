@@ -1,7 +1,6 @@
 import { getFeedDetails } from "@/actions/postFeed";
 import FeedDetailsClient from "@/components/feed/FeedDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
-import { logger } from "ethers5";
 import { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";

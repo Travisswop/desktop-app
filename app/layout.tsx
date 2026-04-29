@@ -6,7 +6,6 @@ import { Metadata } from "next";
 import { Figtree, Inter } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { Toaster as SonnerToaster } from "sonner";
-// import { Metadata } from "next";
 
 const figtree = Figtree({
   subsets: ["latin"],
