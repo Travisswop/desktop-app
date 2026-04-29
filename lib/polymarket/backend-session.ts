@@ -302,6 +302,43 @@ export async function submitWithdraw(
   return res.json();
 }
 
+export interface LegacyWithdrawTypedData {
+  txHash: string;
+  to: string;
+  value: string;
+  data: string;
+  operation: number;
+  safeTxGas: string;
+  baseGas: string;
+  gasPrice: string;
+  gasToken: string;
+  refundReceiver: string;
+  nonce: string;
+}
+
+export async function getLegacyWithdrawTypedData(
+  params: {
+    safeAddress: string;
+    toAddress: string;
+    amount: number;
+  },
+  accessToken: string
+): Promise<LegacyWithdrawTypedData> {
+  const searchParams = new URLSearchParams({
+    safeAddress: params.safeAddress,
+    toAddress: params.toAddress,
+    amount: String(params.amount),
+  });
+  const res = await fetch(`${base()}/positions/withdraw/legacy/typed-data?${searchParams}`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to get legacy withdraw typed data');
+  }
+  return res.json();
+}
+
 export interface RedeemTypedData {
   txHash: string;
   safeAddress: string;
