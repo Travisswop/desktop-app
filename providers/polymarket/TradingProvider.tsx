@@ -1,8 +1,6 @@
 "use client";
 
 import { createContext, useContext, ReactNode, useCallback } from "react";
-import type { ClobClient } from "@polymarket/clob-client-v2";
-import type { RelayClient } from "@polymarket/builder-relayer-client";
 import { usePolymarketWallet } from "./PolymarketWalletContext";
 import { useClobClient } from "@/hooks/polymarket/useClobClient";
 import { useTradingSession } from "@/hooks/polymarket/useTradingSession";
@@ -19,8 +17,8 @@ interface TradingContextType {
   isTradingSessionComplete: boolean | undefined;
   initializeTradingSession: () => Promise<void>;
   endTradingSession: () => void;
-  clobClient: ClobClient | null;
-  relayClient: RelayClient | null;
+  clobClient: object | null;
+  relayClient: object | null;
   eoaAddress: string | undefined;
   safeAddress: string | undefined;
   isGeoblocked: boolean;
@@ -53,7 +51,6 @@ export function TradingProvider({ children }: { children: ReactNode }) {
     isTradingSessionComplete,
     initializeTradingSession: initSession,
     endTradingSession,
-    relayClient,
   } = useTradingSession();
 
   const { clobClient } = useClobClient(
@@ -61,8 +58,11 @@ export function TradingProvider({ children }: { children: ReactNode }) {
     isTradingSessionComplete
   );
 
+  const clobClientAsObject = clobClient as object | null;
+  const relayClient = isTradingSessionComplete ? {} : null;
+
   // Keep open limit orders alive — Polymarket cancels them after 10s without a heartbeat
-  useClobHeartbeat(clobClient);
+  useClobHeartbeat(tradingSession, derivedSafeAddressFromEoa);
 
   // Real-time order/trade updates via user WebSocket channel
   useUserOrdersChannel(tradingSession?.apiCredentials);
@@ -85,7 +85,7 @@ export function TradingProvider({ children }: { children: ReactNode }) {
         isTradingSessionComplete,
         initializeTradingSession,
         endTradingSession,
-        clobClient,
+        clobClient: clobClientAsObject,
         relayClient,
         eoaAddress,
         safeAddress: derivedSafeAddressFromEoa,

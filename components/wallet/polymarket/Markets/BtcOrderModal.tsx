@@ -14,9 +14,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { ClobClient } from '@polymarket/clob-client-v2';
-
 import { useBtcUpDownMarket } from '@/hooks/polymarket/useBtcUpDownMarket';
+import { useTrading } from '@/providers/polymarket';
 import { useClobOrder, useTickSize } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { usePrivy } from '@privy-io/react-auth';
@@ -70,7 +69,6 @@ export interface BtcOrderModalProps {
   downTokenId: string;
   negRisk: boolean;
   orderMinSize?: number;
-  clobClient: ClobClient | null;
   balance: number;
   upShares?: number;
   downShares?: number;
@@ -86,11 +84,11 @@ export default function BtcOrderModal({
   downTokenId,
   negRisk,
   orderMinSize = MIN_ORDER_SIZE,
-  clobClient,
   balance,
   upShares = 0,
   downShares = 0,
 }: BtcOrderModalProps) {
+  const { clobClient } = useTrading();
   // ── Live BTC probability — updates every second ──────────────────────────
   const { upProbability, currentPrice, countdownSeconds, isConnected } =
     useBtcUpDownMarket();

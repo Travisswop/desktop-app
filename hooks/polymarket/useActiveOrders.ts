@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ClobClient } from "@polymarket/clob-client-v2";
+import { useTrading } from "@/providers/polymarket";
+import { useUser } from "@/lib/UserContext";
+import { POLYMARKET_BACKEND_URL } from "@/constants/polymarket";
 
 export type PolymarketOrder = {
   id: string;
@@ -20,41 +22,45 @@ export type PolymarketOrder = {
 };
 
 export function useActiveOrders(
-  clobClient: ClobClient | null,
-  walletAddress: string | undefined
+  _session: object | null,
+  _walletAddress: string | undefined,
 ) {
+  const { tradingSession, safeAddress, eoaAddress, isTradingSessionComplete } = useTrading();
+  const { accessToken } = useUser();
+
   return useQuery({
-    queryKey: ["active-orders", walletAddress],
+    queryKey: ["active-orders", safeAddress],
     queryFn: async (): Promise<PolymarketOrder[]> => {
-      if (!clobClient || !walletAddress) {
-        return [];
-      }
-
+      if (!tradingSession?.apiCredentials || !safeAddress || !eoaAddress || !accessToken) return [];
       try {
-        // getOpenOrders() is authenticated — it already returns only the
-        // current user's orders, so no maker_address filter is needed.
-        const allOrders = await clobClient.getOpenOrders();
-
-        // The CLOB API returns statuses in lowercase ("live", "matched",
-        // "delayed"). Normalise before comparing to avoid missing orders.
+        const res = await fetch(`${POLYMARKET_BACKEND_URL}/api/prediction-markets/orders/active`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            safeAddress,
+            eoaAddress,
+            apiCreds: tradingSession.apiCredentials,
+          }),
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const orders: PolymarketOrder[] = Array.isArray(data.orders) ? data.orders : [];
         const OPEN_STATUSES = new Set(["live", "delayed"]);
-        const activeOrders = (allOrders as any[]).filter((order) => {
+        return orders.filter((order) => {
           const status = (order.status ?? "").toLowerCase();
           if (!OPEN_STATUSES.has(status)) return false;
           const original = parseFloat(order.original_size ?? "0");
           const matched = parseFloat(order.size_matched ?? "0");
-          return !isFinite(original) || original === 0
-            ? true
-            : matched < original; // hide fully filled orders
+          return !isFinite(original) || original === 0 ? true : matched < original;
         });
-
-        return activeOrders as PolymarketOrder[];
-      } catch (err) {
-        console.error("Error fetching open orders:", err);
+      } catch {
         return [];
       }
     },
-    enabled: !!clobClient && !!walletAddress,
+    enabled: !!isTradingSessionComplete && !!safeAddress,
     staleTime: 2_000,
     refetchInterval: 3_000,
     refetchIntervalInBackground: true,

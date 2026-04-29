@@ -131,7 +131,7 @@ export default function PredictionsPortfolioModal({
     Map<string, number>
   >(new Map());
 
-  const { clobClient, relayClient, safeAddress } = useTrading();
+  const { clobClient, safeAddress } = useTrading();
 
   const { eoaAddress } = usePolymarketWallet();
   const queryClient = useQueryClient();
@@ -266,14 +266,15 @@ export default function PredictionsPortfolioModal({
 
   const handleRedeem = useCallback(
     async (position: PolymarketPosition) => {
-      if (!relayClient) return;
+      if (!clobClient) return;
       setRedeemingAsset(position.asset);
       try {
-        await redeemPosition(relayClient, {
+        await redeemPosition({
           conditionId: position.conditionId,
           outcomeIndex: position.outcomeIndex,
           negativeRisk: position.negativeRisk,
           size: position.size,
+          safeAddress: safeAddress!,
         });
 
         // Optimistically add the redeemed USDC to the displayed balance immediately.
@@ -316,7 +317,7 @@ export default function PredictionsPortfolioModal({
         setRedeemingAsset(null);
       }
     },
-    [relayClient, redeemPosition, queryClient, safeAddress],
+    [clobClient, safeAddress, redeemPosition, queryClient],
   );
 
   const handleCancelOrder = async (orderId: string) => {
@@ -488,7 +489,7 @@ export default function PredictionsPortfolioModal({
                       )}
                       isSubmitting={isSubmitting}
                       canSell={!!clobClient}
-                      canRedeem={!!relayClient}
+                      canRedeem={!!clobClient}
                       onTitleClick={() => setDetailPosition(position)}
                     />
                   ))
@@ -535,7 +536,7 @@ export default function PredictionsPortfolioModal({
                   walletAddress={safeAddress ?? undefined}
                   onRedeem={handleRedeem}
                   redeemingAsset={redeemingAsset}
-                  canRedeem={!!relayClient}
+                  canRedeem={!!clobClient}
                 />
               </div>
             )}
@@ -559,7 +560,6 @@ export default function PredictionsPortfolioModal({
           isOpen={!!detailPosition}
           onClose={() => setDetailPosition(null)}
           market={positionToMarket(detailPosition, teamsData)}
-          clobClient={clobClient}
           balance={usdcBalance}
           yesShares={
             detailPosition.outcomeIndex === 0

@@ -97,9 +97,21 @@ const nextConfig: NextConfig = {
         stream: require.resolve('stream-browserify'),
         buffer: require.resolve('./shims/buffer.js'),
       };
+
+      // Handle node: URI scheme - @polymarket/clob-client-v2 uses node:crypto etc.
+      // Webpack only supports data: and file: by default; node: must be aliased.
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'node:crypto': false,
+        'node:stream': require.resolve('stream-browserify'),
+        'node:buffer': require.resolve('./shims/buffer.js'),
+        'node:fs': false,
+        'node:path': false,
+        'node:os': false,
+      };
     }
 
-    // Clean alias
+    // Clean alias (applied for both client and server)
     config.resolve.alias = {
       ...config.resolve.alias,
       wbg: false,

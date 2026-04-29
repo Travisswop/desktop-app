@@ -109,7 +109,7 @@ function positionToMarket(
 }
 
 export default function UserPositions() {
-  const { clobClient, relayClient, safeAddress } = useTrading();
+  const { clobClient, safeAddress, isTradingSessionComplete } = useTrading();
   const { eoaAddress } = usePolymarketWallet();
 
   const {
@@ -261,14 +261,15 @@ export default function UserPositions() {
   };
 
   const handleRedeem = useCallback(async (position: PolymarketPosition) => {
-    if (!relayClient) return;
+    if (!isTradingSessionComplete) return;
     setRedeemingAsset(position.asset);
     try {
-      await redeemPosition(relayClient, {
+      await redeemPosition({
         conditionId: position.conditionId,
         outcomeIndex: position.outcomeIndex,
         negativeRisk: position.negativeRisk,
         size: position.size,
+        safeAddress: safeAddress!,
       });
       queryClient.invalidateQueries({
         queryKey: ['polymarket-positions'],
@@ -291,7 +292,7 @@ export default function UserPositions() {
     } finally {
       setRedeemingAsset(null);
     }
-  }, [relayClient, redeemPosition, queryClient]);
+  }, [isTradingSessionComplete, safeAddress, redeemPosition, queryClient]);
 
   const handleCancelOrder = async (orderId: string) => {
     setCancellingOrderId(orderId);
@@ -433,7 +434,7 @@ export default function UserPositions() {
             walletAddress={safeAddress ?? undefined}
             onRedeem={handleRedeem}
             redeemingAsset={redeemingAsset}
-            canRedeem={!!relayClient}
+            canRedeem={!!clobClient}
           />
         </div>
       );
@@ -559,7 +560,7 @@ export default function UserPositions() {
               )}
               isSubmitting={isSubmitting}
               canSell={!!clobClient}
-              canRedeem={!!relayClient}
+              canRedeem={!!clobClient}
               onTitleClick={() => setDetailPosition(position)}
             />
           );
@@ -577,7 +578,7 @@ export default function UserPositions() {
             walletAddress={safeAddress ?? undefined}
             onRedeem={handleRedeem}
             redeemingAsset={redeemingAsset}
-            canRedeem={!!relayClient}
+            canRedeem={!!clobClient}
           />
         </div>
       )}
@@ -595,7 +596,6 @@ export default function UserPositions() {
               currentPrice={buyMorePosition.curPrice}
               tokenId={buyMorePosition.asset}
               negRisk={buyMorePosition.negativeRisk}
-              clobClient={clobClient}
               balance={usdcBalance}
             />
           );
@@ -607,7 +607,6 @@ export default function UserPositions() {
           isOpen={!!detailPosition}
           onClose={() => setDetailPosition(null)}
           market={positionToMarket(enrichBtcPosition(detailPosition), teamsData)}
-          clobClient={clobClient}
           balance={usdcBalance}
           yesShares={
             detailPosition.outcomeIndex === 0

@@ -1,46 +1,80 @@
 import { useState, useCallback } from "react";
-import { RelayClient } from "@polymarket/builder-relayer-client";
-import { createRedeemTx, RedeemParams } from "@/lib/polymarket/redeem";
+import { hexToBytes } from "viem";
+import { usePolymarketWallet } from "@/providers/polymarket";
+import { useUser } from "@/lib/UserContext";
+import { getRedeemTypedData, submitRedeem } from "@/lib/polymarket/backend-session";
+
+export interface RedeemParams {
+  conditionId: string;
+  outcomeIndex: number;
+  negativeRisk?: boolean;
+  size?: number;
+  safeAddress: string;
+}
 
 export function useRedeemPosition() {
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  const { eoaAddress, walletClient } = usePolymarketWallet();
+  const { accessToken } = useUser();
+
   const redeemPosition = useCallback(
-    async (
-      relayClient: RelayClient,
-      params: RedeemParams
-    ): Promise<boolean> => {
+    async (params: RedeemParams): Promise<boolean> => {
+      if (!eoaAddress || !walletClient || !accessToken) {
+        throw new Error("Wallet not connected or not authenticated");
+      }
+
       setIsRedeeming(true);
       setError(null);
 
       try {
-        const redeemTx = createRedeemTx(params);
-
-        // Using execute() method as per your existing pattern
-        const response = await relayClient.execute(
-          [redeemTx],
-          `Redeem position for condition ${params.conditionId}`
+        // Step 1: Get the SafeTx EIP-712 hash from backend
+        const typedData = await getRedeemTypedData(
+          {
+            safeAddress: params.safeAddress,
+            eoaAddress,
+            conditionId: params.conditionId,
+            negRisk: params.negativeRisk,
+            outcomeIndex: params.outcomeIndex,
+            size: params.size,
+          },
+          accessToken
         );
 
-        await response.wait();
-        return true;
+        // Step 2: Sign the hash
+        const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
+        const signature = await walletClient.signMessage({
+          account: eoaAddress as `0x${string}`,
+          message: { raw: txHashBytes },
+        });
+
+        // Step 3: Submit
+        const result = await submitRedeem(
+          {
+            safeAddress: params.safeAddress,
+            eoaAddress,
+            conditionId: params.conditionId,
+            negRisk: params.negativeRisk,
+            outcomeIndex: params.outcomeIndex,
+            size: params.size,
+            signature,
+            nonce: typedData.nonce,
+          },
+          accessToken
+        );
+
+        return result.success;
       } catch (err) {
-        const error =
-          err instanceof Error ? err : new Error("Failed to redeem position");
+        const error = err instanceof Error ? err : new Error("Failed to redeem position");
         setError(error);
-        console.error("Redeem error:", error);
         throw error;
       } finally {
         setIsRedeeming(false);
       }
     },
-    []
+    [eoaAddress, walletClient, accessToken]
   );
 
-  return {
-    isRedeeming,
-    error,
-    redeemPosition,
-  };
+  return { isRedeeming, error, redeemPosition };
 }

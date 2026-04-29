@@ -2,7 +2,7 @@
 
 import { useClobOrder, useTickSize } from '@/hooks/polymarket';
 import { useState, useEffect, useRef } from 'react';
-import { usePolymarketWallet } from '@/providers/polymarket';
+import { usePolymarketWallet, useTrading } from '@/providers/polymarket';
 import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import { postFeed } from '@/actions/postFeed';
@@ -19,7 +19,6 @@ import OrderConfirmSheet, {
 } from '../shared/OrderConfirmSheet';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 
-import type { ClobClient } from '@polymarket/clob-client-v2';
 
 function isValidTickPrice(price: number, tickSize: number): boolean {
   if (tickSize <= 0) return false;
@@ -36,7 +35,6 @@ type OrderPlacementModalProps = {
   currentPrice: number;
   tokenId: string;
   negRisk?: boolean;
-  clobClient: ClobClient | null;
   yesPrice?: number;
   noPrice?: number;
   yesTokenId?: string;
@@ -61,7 +59,6 @@ export default function OrderPlacementModal({
   currentPrice,
   tokenId,
   negRisk = false,
-  clobClient,
   yesPrice = currentPrice,
   noPrice = 1 - currentPrice,
   yesTokenId = tokenId,
@@ -75,6 +72,7 @@ export default function OrderPlacementModal({
   marketId,
   eventSlug,
 }: OrderPlacementModalProps) {
+  const { clobClient } = useTrading();
   const [inputValue, setInputValue] = useState<string>('');
   const [orderType, setOrderType] = useState<OrderVariant>('market');
   // GTD expiration in hours from now (converted to UTC seconds on submit)

@@ -1,17 +1,15 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { erc20Abi, parseUnits, encodeFunctionData } from 'viem';
-import {
-  OperationType,
-  type SafeTransaction,
-} from '@polymarket/builder-relayer-client';
+import { hexToBytes } from 'viem';
 import { useQueryClient } from '@tanstack/react-query';
 import CustomModal from '@/components/modal/CustomModal';
 import {
   useTrading,
   usePolymarketWallet,
 } from '@/providers/polymarket';
+import { useUser } from '@/lib/UserContext';
+import { getWithdrawTypedData, submitWithdraw } from '@/lib/polymarket/backend-session';
 import { usePolygonBalances } from '@/hooks/polymarket';
 import {
   USDC_E_CONTRACT_ADDRESS,
@@ -48,8 +46,9 @@ export default function WithdrawModal({
   open,
   onOpenChange,
 }: WithdrawModalProps) {
-  const { safeAddress, relayClient } = useTrading();
-  const { eoaAddress } = usePolymarketWallet();
+  const { safeAddress, isTradingSessionComplete } = useTrading();
+  const { eoaAddress, walletClient } = usePolymarketWallet();
+  const { accessToken } = useUser();
   const { usdcBalance, legacyUsdcBalance } =
     usePolygonBalances(safeAddress);
   console.log('usePolygonBalances', usdcBalance, legacyUsdcBalance);
@@ -123,9 +122,9 @@ export default function WithdrawModal({
     setAmount('');
   };
 
-  // --- Execute withdrawal via relayClient ---
+  // --- Execute withdrawal via backend two-step flow ---
   const executeWithdraw = useCallback(async () => {
-    if (!relayClient || !destination || !safeAddress) {
+    if (!isTradingSessionComplete || !destination || !safeAddress || !eoaAddress || !accessToken) {
       setError('Trading session not ready. Please try again.');
       setStep('error');
       return;
@@ -135,71 +134,53 @@ export default function WithdrawModal({
     setError(null);
 
     try {
-      const amountInWei = parseUnits(
-        parsedAmount.toFixed(USDC_E_DECIMALS),
-        USDC_E_DECIMALS,
+      // Step 1: Get SafeTx EIP-712 data from backend
+      const typedData = await getWithdrawTypedData(
+        {
+          safeAddress,
+          eoaAddress,
+          toAddress: destination,
+          amount: parsedAmount,
+          tokenAddress: activeAddress,
+        },
+        accessToken
       );
 
-      const data = encodeFunctionData({
-        abi: erc20Abi,
-        functionName: 'transfer',
-        args: [destination as `0x${string}`, amountInWei],
+      // Step 2: Sign the hash with eth_sign
+      const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
+      const signature = await walletClient!.signMessage({
+        account: eoaAddress as `0x${string}`,
+        message: { raw: txHashBytes },
       });
 
-      const withdrawTx: SafeTransaction = {
-        to: activeAddress,
-        operation: OperationType.Call,
-        data,
-        value: '0',
-      };
-
-      const response = await relayClient.execute(
-        [withdrawTx],
-        `Withdraw ${parsedAmount.toFixed(2)} ${activeLabel} to ${truncateAddress(destination)}`,
+      // Step 3: Submit to backend
+      const result = await submitWithdraw(
+        {
+          safeAddress,
+          eoaAddress,
+          toAddress: destination,
+          amount: parsedAmount,
+          signature,
+          nonce: typedData.nonce,
+          tokenAddress: activeAddress,
+        },
+        accessToken
       );
 
-      const receipt = await response.wait();
-      setTxHash(
-        typeof receipt === 'string'
-          ? receipt
-          : ((receipt as any)?.transactionHash ?? null),
-      );
+      setTxHash(result.txId ?? null);
       setStep('success');
 
-      // Invalidate balance caches so they refresh
       setTimeout(() => {
-        queryClient.invalidateQueries({
-          queryKey: ['usdcBalance', safeAddress],
-        });
-        queryClient.invalidateQueries({
-          queryKey: ['legacyUsdcBalance', safeAddress],
-        });
+        queryClient.invalidateQueries({ queryKey: ['usdcBalance', safeAddress] });
+        queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance', safeAddress] });
       }, 3000);
     } catch (err: any) {
-      const msg =
-        err?.message || err?.toString() || 'Withdrawal failed';
-      const isRejected =
-        msg.includes('rejected') ||
-        msg.includes('denied') ||
-        msg.includes('cancelled') ||
-        msg.includes('user rejected');
-
-      setError(
-        isRejected
-          ? 'Transaction was rejected.'
-          : `Withdrawal failed: ${msg}`,
-      );
+      const msg = err?.message || err?.toString() || 'Withdrawal failed';
+      const isRejected = msg.includes('rejected') || msg.includes('denied') || msg.includes('cancelled') || msg.includes('user rejected');
+      setError(isRejected ? 'Transaction was rejected.' : `Withdrawal failed: ${msg}`);
       setStep('error');
     }
-  }, [
-    relayClient,
-    destination,
-    safeAddress,
-    parsedAmount,
-    activeAddress,
-    activeLabel,
-    queryClient,
-  ]);
+  }, [isTradingSessionComplete, destination, safeAddress, eoaAddress, accessToken, parsedAmount, activeAddress, walletClient, queryClient]);
 
   // --- Render helpers ---
   const renderTokenSelector = () => (
@@ -315,14 +296,14 @@ export default function WithdrawModal({
 
       <Button
         onClick={() => setStep('confirm')}
-        disabled={!isAmountValid || !destination || !relayClient}
+        disabled={!isAmountValid || !destination || !isTradingSessionComplete}
         className="w-full bg-black text-white hover:bg-gray-800"
       >
         <ArrowDownToLine className="w-4 h-4 mr-2" />
         Review Withdrawal
       </Button>
 
-      {!relayClient && (
+      {!isTradingSessionComplete && (
         <p className="text-xs text-center text-amber-600">
           Trading session must be initialized to withdraw.
         </p>
