@@ -1,12 +1,11 @@
 import "./globals.css";
 import PrivyProvider from "@/components/PrivyProvider";
 import { UserProvider } from "@/lib/UserContext";
-import { Metadata } from "next";
+// import { Metadata } from "next";
 
 import { Figtree, Inter } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { Toaster as SonnerToaster } from "sonner";
-// import { Metadata } from "next";
 
 const figtree = Figtree({
   subsets: ["latin"],
@@ -19,26 +18,26 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-export const metadata: Metadata = {
-  title: "Swop",
-  description: "Web3 ecommerce",
-  metadataBase: new URL("https://www.swopme.app"),
-  openGraph: {
-    title: "Swop",
-    description: "Web3 ecommerce",
-    url: "https://www.swopme.app",
-    siteName: "Swop",
-    // ❌ removed images — this was cascading to all pages including /feed/[id]
-    locale: "en_US",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Swop",
-    description: "Web3 ecommerce",
-    // ❌ removed images here too
-  },
-};
+// export const metadata: Metadata = {
+//   title: "Swop",
+//   description: "Web3 ecommerce",
+//   metadataBase: new URL("https://www.swopme.app"),
+//   openGraph: {
+//     title: "Swop",
+//     description: "Web3 ecommerce",
+//     url: "https://www.swopme.app",
+//     siteName: "Swop",
+//     // ❌ removed images — this was cascading to all pages including /feed/[id]
+//     locale: "en_US",
+//     type: "website",
+//   },
+//   twitter: {
+//     card: "summary_large_image",
+//     title: "Swop",
+//     description: "Web3 ecommerce",
+//     // ❌ removed images here too
+//   },
+// };
 
 export default function RootLayout({
   children,
