@@ -1,7 +1,7 @@
 import { getCommentDetails } from "@/actions/postFeed";
 import FeedReplyDetailsClient from "@/components/feed/FeedReplyDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
-import logger from "@/utils/logger";
+import { logger } from "ethers5";
 
 import { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -145,6 +145,7 @@ function extractOgTitle(feed: any): string {
   }
 }
 
+// ── Cloudinary thumbnail helper ───────────────────────────────────────────────
 function getCloudinaryThumbnail(url: string, type: "image" | "video"): string {
   if (type === "video") {
     const parts = url.split("/upload/");
@@ -185,19 +186,16 @@ function formatDate(dateString: string): string {
   });
 }
 
-// ─── Metadata ─────────────────────────────────────────────────────────────────
-
+// ── generateMetadata ──────────────────────────────────────────────────────────
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { commentId } = await params;
+  const { commentId: id } = await params;
 
-  const url = `https://app.apiswop.co/api/v2/feed/${commentId}/og`;
-  console.log("Fetching feed details for OG metadata from URL:", url);
+  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}/og`;
 
   try {
     const response = await fetch(url);
 
     const responseData = await response.json();
-    console.log("OG API response data", responseData);
     let feed = responseData?.data;
 
     if (!feed) {
@@ -235,6 +233,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       feed?.smartsiteDetails?.ens || feed?.smartsiteEnsName || "Swop";
 
     const { src: contentSrc, type: contentType } = extractOgImageSrc(feed);
+    logger.info("Extracted OG image src and type", { contentSrc, contentType });
     const hasImage =
       (contentType === "image" || contentType === "video") &&
       Boolean(contentSrc);
@@ -295,8 +294,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         `&date=${encodeURIComponent(formatDate(createdAt))}`;
     }
 
-    console.log("Generated OG image URL:", ogImageUrl);
-
     const metadata: Metadata = {
       title: feedTitle,
       description,
@@ -304,7 +301,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title: feedTitle,
         description,
         type: "article",
-        url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/comment/${commentId}`,
+        url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${id}`,
         siteName: "Swop",
       },
       twitter: {
@@ -313,8 +310,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description,
       },
     };
-
-    console.log("Metadata before adding image:", metadata);
 
     if (ogImageUrl) {
       metadata.openGraph!.images = [
@@ -335,7 +330,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       };
     }
 
-    console.log("Final metadata with OG image:", metadata);
     return metadata;
   } catch (error) {
     console.error("generateMetadata error:", error);
