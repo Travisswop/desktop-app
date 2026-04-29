@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ClobClient } from "@polymarket/clob-client";
+import type { ClobClient } from "@polymarket/clob-client-v2";
 import type { PolymarketOrder } from "./useActiveOrders";
 
 export function useOrderHistory(

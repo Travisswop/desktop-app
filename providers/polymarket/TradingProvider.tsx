@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, ReactNode, useCallback } from "react";
-import type { ClobClient } from "@polymarket/clob-client";
+import type { ClobClient } from "@polymarket/clob-client-v2";
 import type { RelayClient } from "@polymarket/builder-relayer-client";
 import { usePolymarketWallet } from "./PolymarketWalletContext";
 import { useClobClient } from "@/hooks/polymarket/useClobClient";

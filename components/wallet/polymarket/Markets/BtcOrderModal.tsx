@@ -14,7 +14,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { ClobClient } from '@polymarket/clob-client';
+import type { ClobClient } from '@polymarket/clob-client-v2';
 
 import { useBtcUpDownMarket } from '@/hooks/polymarket/useBtcUpDownMarket';
 import { useClobOrder, useTickSize } from '@/hooks/polymarket';

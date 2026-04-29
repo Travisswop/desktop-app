@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ClobClient } from "@polymarket/clob-client";
+import type { ClobClient } from "@polymarket/clob-client-v2";
 
 // Polymarket cancels all open limit orders if no heartbeat is received within
 // 10 seconds (with a 5-second buffer). Send every 5 seconds to stay safe.

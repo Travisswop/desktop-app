@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const POLYMARKET_API_BASE = 'https://polymarket.apiswop.co';
+import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,12 +10,12 @@ export async function GET(request: NextRequest) {
     if (!userAddress) {
       return NextResponse.json(
         { error: 'User address is required' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const response = await fetch(
-      `${POLYMARKET_API_BASE}/api/prediction-markets/positions?user=${userAddress}`
+      `${POLYMARKET_BACKEND_URL}/api/prediction-markets/positions?user=${userAddress}`,
     );
 
     if (!response.ok) {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching positions:', error);
     return NextResponse.json(
       { error: 'Failed to fetch positions' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

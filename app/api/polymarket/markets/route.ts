@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const POLYMARKET_API_BASE = 'https://polymarket.apiswop.co';
+import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = searchParams.get('limit') || '20';
-    const offset = searchParams.get('offset') || '0';
+    const limit = searchParams.get('limit') ?? '20';
+    const offset = searchParams.get('offset') ?? '0';
     const tagId = searchParams.get('tag_id');
 
-    let url = `${POLYMARKET_API_BASE}/api/prediction-markets/markets?limit=${limit}&offset=${offset}`;
+    let url = `${POLYMARKET_BACKEND_URL}/api/prediction-markets/markets?limit=${limit}&offset=${offset}`;
 
     if (tagId) {
       url += `&tag_id=${tagId}`;
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching markets:', error);
     return NextResponse.json(
       { error: 'Failed to fetch markets' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

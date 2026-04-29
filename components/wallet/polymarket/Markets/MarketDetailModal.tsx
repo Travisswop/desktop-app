@@ -7,7 +7,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import { postFeed } from '@/actions/postFeed';
 import type { PolymarketMarket } from '@/hooks/polymarket';
-import type { ClobClient } from '@polymarket/clob-client';
+import type { ClobClient } from '@polymarket/clob-client-v2';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 
 import Portal from '../shared/Portal';

@@ -10,7 +10,7 @@
  * parallel for each side, then merge the results.
  */
 
-import { Side } from '@polymarket/clob-client';
+import { Side } from '@polymarket/clob-client-v2';
 
 /** Maximum number of token IDs sent in one POST /prices request. */
 const CHUNK_SIZE = 20;

@@ -28,7 +28,7 @@ import {
   OperationType,
   type SafeTransaction,
 } from '@polymarket/builder-relayer-client';
-import { polygon, mainnet, base } from 'viem/chains';
+import { polygon, mainnet, base, arbitrum } from 'viem/chains';
 import { useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
@@ -57,6 +57,7 @@ import { usePolygonBalances } from '@/hooks/polymarket';
 import {
   USDC_E_CONTRACT_ADDRESS,
   USDC_E_DECIMALS,
+  LEGACY_USDC_E_ADDRESS,
 } from '@/constants/polymarket';
 import {
   Connection,
@@ -131,6 +132,7 @@ const SUPPORTED_CHAINS = [
   'ETHEREUM',
   'POLYGON',
   'BASE',
+  'ARBITRUM',
   'SOLANA',
 ] as const;
 const CHAIN_CONFIG: Record<
@@ -152,6 +154,11 @@ const CHAIN_CONFIG: Record<
     name: 'Base',
     icon: 'https://www.base.org/document/safari-pinned-tab.svg',
   },
+  ARBITRUM: {
+    id: '42161',
+    name: 'Arbitrum',
+    icon: 'https://cryptologos.cc/logos/arbitrum-arb-logo.png',
+  },
   SOLANA: {
     id: '1151111081099710',
     name: 'Solana',
@@ -161,11 +168,19 @@ const CHAIN_CONFIG: Record<
 const POLYGON_CHAIN_ID = '137';
 const VIEM_CHAINS: Record<
   string,
-  typeof mainnet | typeof polygon | typeof base
+  typeof mainnet | typeof polygon | typeof base | typeof arbitrum
 > = {
   '1': mainnet,
   '137': polygon,
   '8453': base,
+  '42161': arbitrum,
+};
+const CHAIN_MIN_DEPOSIT_USD: Record<string, number> = {
+  ETHEREUM: 7,
+  POLYGON: 2,
+  BASE: 2,
+  ARBITRUM: 2,
+  SOLANA: 2,
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -203,7 +218,7 @@ const getTokenAddressForLifi = (token: DepositToken): string => {
   if (chain === 'SOLANA' && token.symbol === 'SOL')
     return 'So11111111111111111111111111111111111111112';
   if (
-    ['ETHEREUM', 'POLYGON', 'BASE'].includes(chain) &&
+    ['ETHEREUM', 'POLYGON', 'BASE', 'ARBITRUM'].includes(chain) &&
     ['ETH', 'POL', 'MATIC'].includes(token.symbol)
   )
     return '0x0000000000000000000000000000000000000000';
@@ -373,6 +388,22 @@ function DepositTab({
       setLifiQuote(null);
       return;
     }
+    // Skip quote if insufficient balance or below chain minimum
+    const amountFloat = parseFloat(amount);
+    if (amountFloat > parseFloat(selectedToken.balance)) {
+      setLifiQuote(null);
+      return;
+    }
+    const rawPrice = parseFloat(selectedToken.marketData?.price || '0');
+    const isStable = ['USDC', 'USDT', 'USDC.E', 'PUSD', 'DAI', 'USDS', 'USDE'].includes(
+      selectedToken.symbol.toUpperCase(),
+    );
+    const tokenPrice = rawPrice > 0 ? rawPrice : isStable ? 1 : 0;
+    const minDepositUsd = CHAIN_MIN_DEPOSIT_USD[selectedToken.chain.toUpperCase()] ?? 2;
+    if (tokenPrice > 0 && amountFloat * tokenPrice < minDepositUsd - 0.01) {
+      setLifiQuote(null);
+      return;
+    }
     const timer = setTimeout(() => fetchLifiQuote(), 500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -402,6 +433,13 @@ function DepositTab({
     )
       return;
     if (isDirectUsdcE) return;
+    const _rawPrice = parseFloat(selectedToken.marketData?.price || '0');
+    const _isStable = ['USDC', 'USDT', 'USDC.E', 'PUSD', 'DAI', 'USDS', 'USDE'].includes(
+      selectedToken.symbol.toUpperCase(),
+    );
+    const _tokenPrice = _rawPrice > 0 ? _rawPrice : _isStable ? 1 : 0;
+    const _minUsd = CHAIN_MIN_DEPOSIT_USD[selectedToken.chain.toUpperCase()] ?? 2;
+    if (_tokenPrice > 0 && parseFloat(amount) * _tokenPrice < _minUsd - 0.01) return;
     setIsQuoteLoading(true);
     setQuoteError(null);
     setLifiQuote(null);
@@ -791,7 +829,7 @@ function DepositTab({
     try {
       let hash: string;
       if (isDirectUsdcE) {
-        setDepositStatus('Transferring USDC.e...');
+        setDepositStatus('Transferring pUSD...');
         hash = await executeDirectTransfer();
       } else if (selectedToken.chain.toUpperCase() === 'SOLANA') {
         hash = await executeLifiSolanaSwap();
@@ -917,10 +955,30 @@ function DepositTab({
     );
 
   if (step === 'amount' && selectedToken) {
+    const amountFloat = parseFloat(amount) || 0;
+    const tokenBalance = parseFloat(selectedToken.balance) || 0;
+    const rawPrice = parseFloat(selectedToken.marketData?.price || '0');
+    const isStable = ['USDC', 'USDT', 'USDC.E', 'PUSD', 'DAI', 'USDS', 'USDE'].includes(
+      selectedToken.symbol.toUpperCase(),
+    );
+    const tokenPrice = rawPrice > 0 ? rawPrice : isStable ? 1 : 0;
+    const amountUsd = amountFloat * tokenPrice;
+    const chainKey = selectedToken.chain.toUpperCase();
+    const minDepositUsd = CHAIN_MIN_DEPOSIT_USD[chainKey] ?? 2;
+
+    const hasInsufficientBalance = amountFloat > 0 && amountFloat > tokenBalance;
+    // Only flag below-minimum when balance is sufficient; use 0.01 tolerance for float precision
+    const belowMinimum =
+      amountFloat > 0 &&
+      !hasInsufficientBalance &&
+      tokenPrice > 0 &&
+      amountUsd < minDepositUsd - 0.01;
+
     const canDeposit =
       amount &&
-      parseFloat(amount) > 0 &&
-      parseFloat(amount) <= parseFloat(selectedToken.balance);
+      amountFloat > 0 &&
+      !hasInsufficientBalance &&
+      !belowMinimum;
     const hasValidQuote = needsBridge && lifiQuote;
     const isLoadingQuote =
       needsBridge && canDeposit && isQuoteLoading;
@@ -1012,6 +1070,27 @@ function DepositTab({
             placeholder="0.00"
             className="text-2xl font-medium h-14 text-center"
           />
+          {hasInsufficientBalance && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-2">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+                <p className="text-sm text-red-600">
+                  Insufficient balance. You have {tokenBalance.toFixed(4)} {selectedToken.symbol}.
+                </p>
+              </div>
+            </div>
+          )}
+          {belowMinimum && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-2">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+                <p className="text-sm text-red-600">
+                  Minimum deposit on {CHAIN_CONFIG[chainKey]?.name || chainKey} is ${minDepositUsd}.
+                  Current value ≈ ${amountUsd.toFixed(2)}.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {needsBridge && (
@@ -1020,7 +1099,7 @@ function DepositTab({
               <ArrowUpDown className="w-4 h-4 text-yellow-600 mt-0.5" />
               <p className="text-sm text-yellow-800">
                 Bridge & Swap required — {selectedToken.symbol} will
-                be converted to USDC.e on Polygon
+                be converted to pUSD on Polygon
               </p>
             </div>
           </div>
@@ -1058,7 +1137,7 @@ function DepositTab({
                 BigInt(lifiQuote.estimate.toAmount),
                 USDC_E_DECIMALS,
               )}{' '}
-              USDC.e
+              pUSD
             </p>
           </div>
         )}
@@ -1127,7 +1206,7 @@ function DepositTab({
   return (
     <div className="px-6 pb-6 space-y-4">
       <p className="text-sm text-gray-600 text-center">
-        Select a token from any chain to deposit as USDC.e
+        Select a token from any chain to deposit as pUSD
       </p>
       <div className="flex gap-2 overflow-x-auto pb-2">
         {['all', ...SUPPORTED_CHAINS].map((chain) => (
@@ -1294,6 +1373,8 @@ function DepositTab({
 
 // ─── Withdraw Tab ─────────────────────────────────────────────────────────────
 
+type SelectedWithdrawToken = 'pUSD' | 'USDC.e';
+
 function WithdrawTab({
   open,
   onClose,
@@ -1303,7 +1384,8 @@ function WithdrawTab({
 }) {
   const { safeAddress, relayClient } = useTrading();
   const { eoaAddress } = usePolymarketWallet();
-  const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { usdcBalance, legacyUsdcBalance } =
+    usePolygonBalances(safeAddress);
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<WithdrawStep>('amount');
@@ -1311,11 +1393,34 @@ function WithdrawTab({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selectedToken, setSelectedToken] =
+    useState<SelectedWithdrawToken>('pUSD');
 
   const destination = eoaAddress;
+
+  // Set default token selection when balances load or modal opens
+  useEffect(() => {
+    if (legacyUsdcBalance > 0 && usdcBalance === 0) {
+      setSelectedToken('USDC.e');
+    } else {
+      setSelectedToken('pUSD');
+    }
+  }, [legacyUsdcBalance, usdcBalance, open]);
+
+  // Derived state for active token
+  const activeBalance =
+    selectedToken === 'pUSD' ? usdcBalance : legacyUsdcBalance;
+  const activeAddress =
+    selectedToken === 'pUSD'
+      ? USDC_E_CONTRACT_ADDRESS
+      : LEGACY_USDC_E_ADDRESS;
+  const activeLabel = selectedToken === 'pUSD' ? 'pUSD' : 'USDC.e';
+
+  const showTokenSelector = legacyUsdcBalance > 0;
+
   const parsedAmount = parseFloat(amount) || 0;
   const isAmountValid =
-    parsedAmount > 0 && parsedAmount <= usdcBalance;
+    parsedAmount > 0 && parsedAmount <= activeBalance;
 
   const truncateAddress = (addr: string) =>
     `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -1326,14 +1431,22 @@ function WithdrawTab({
       setAmount('');
       setTxHash(null);
       setError(null);
+      setSelectedToken(
+        legacyUsdcBalance > 0 && usdcBalance === 0 ? 'USDC.e' : 'pUSD',
+      );
     }
-  }, [open]);
+  }, [open, legacyUsdcBalance, usdcBalance]);
 
   const handleCopyAddress = async () => {
     if (!destination) return;
     await navigator.clipboard.writeText(destination);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSelectToken = (token: SelectedWithdrawToken) => {
+    setSelectedToken(token);
+    setAmount('');
   };
 
   const executeWithdraw = useCallback(async () => {
@@ -1355,14 +1468,14 @@ function WithdrawTab({
         args: [destination as `0x${string}`, amountInWei],
       });
       const withdrawTx: SafeTransaction = {
-        to: USDC_E_CONTRACT_ADDRESS,
+        to: activeAddress,
         operation: OperationType.Call,
         data,
         value: '0',
       };
       const response = await relayClient.execute(
         [withdrawTx],
-        `Withdraw ${parsedAmount.toFixed(2)} USDC.e to ${truncateAddress(destination)}`,
+        `Withdraw ${parsedAmount.toFixed(2)} ${activeLabel} to ${truncateAddress(destination)}`,
       );
       const receipt = await response.wait();
       setTxHash(
@@ -1371,13 +1484,14 @@ function WithdrawTab({
           : ((receipt as any)?.transactionHash ?? null),
       );
       setStep('success');
-      setTimeout(
-        () =>
-          queryClient.invalidateQueries({
-            queryKey: ['usdcBalance', safeAddress],
-          }),
-        3000,
-      );
+      setTimeout(() => {
+        queryClient.invalidateQueries({
+          queryKey: ['usdcBalance', safeAddress],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ['legacyUsdcBalance', safeAddress],
+        });
+      }, 3000);
     } catch (err: any) {
       const msg =
         err?.message || err?.toString() || 'Withdrawal failed';
@@ -1399,6 +1513,8 @@ function WithdrawTab({
     destination,
     safeAddress,
     parsedAmount,
+    activeAddress,
+    activeLabel,
     queryClient,
   ]);
 
@@ -1430,7 +1546,8 @@ function WithdrawTab({
             Withdrawal successful!
           </p>
           <p className="text-sm text-gray-500 mt-1">
-            {parsedAmount.toFixed(2)} USDC.e sent to your Privy wallet
+            {parsedAmount.toFixed(2)} {activeLabel} sent to your Privy
+            wallet
           </p>
         </div>
         {txHash && (
@@ -1490,7 +1607,10 @@ function WithdrawTab({
       <div className="px-6 pb-6 space-y-4">
         <div className="space-y-3">
           {[
-            ['You withdraw', `${parsedAmount.toFixed(6)} USDC.e`],
+            [
+              'You withdraw',
+              `${parsedAmount.toFixed(6)} ${activeLabel}`,
+            ],
             ['USD value', `≈ $${parsedAmount.toFixed(2)}`],
             [
               'From',
@@ -1534,15 +1654,51 @@ function WithdrawTab({
   // step === 'amount'
   return (
     <div className="px-6 pb-6 space-y-5">
+      {/* Token selector — only shown when legacy USDC.e balance exists */}
+      {showTokenSelector && (
+        <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+          <button
+            onClick={() => handleSelectToken('pUSD')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+              selectedToken === 'pUSD'
+                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            pUSD
+            <span
+              className={`text-xs ${selectedToken === 'pUSD' ? 'text-gray-600' : 'text-gray-400'}`}
+            >
+              ${usdcBalance.toFixed(2)}
+            </span>
+          </button>
+          <button
+            onClick={() => handleSelectToken('USDC.e')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+              selectedToken === 'USDC.e'
+                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            USDC.e
+            <span
+              className={`text-xs ${selectedToken === 'USDC.e' ? 'text-gray-600' : 'text-gray-400'}`}
+            >
+              ${legacyUsdcBalance.toFixed(2)}
+            </span>
+          </button>
+        </div>
+      )}
+
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
         <p className="text-xs text-gray-500 mb-1">
           Available to withdraw
         </p>
         <p className="text-2xl font-bold text-gray-900">
-          ${usdcBalance.toFixed(2)}
+          ${activeBalance.toFixed(2)}
         </p>
         <p className="text-xs text-gray-400 mt-0.5">
-          {usdcBalance.toFixed(6)} USDC.e
+          {activeBalance.toFixed(6)} {activeLabel} (Safe wallet)
         </p>
       </div>
 
@@ -1574,7 +1730,7 @@ function WithdrawTab({
 
       <div className="space-y-1">
         <label className="text-sm font-medium text-gray-700">
-          Amount (USDC.e)
+          Amount ({activeLabel})
         </label>
         <div className="relative">
           <Input
@@ -1587,7 +1743,7 @@ function WithdrawTab({
             step="0.01"
           />
           <button
-            onClick={() => setAmount(usdcBalance.toFixed(6))}
+            onClick={() => setAmount(activeBalance.toFixed(6))}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-blue-600 hover:text-blue-800"
           >
             MAX
