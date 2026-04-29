@@ -1,6 +1,7 @@
 import { getCommentDetails } from "@/actions/postFeed";
 import FeedReplyDetailsClient from "@/components/feed/FeedReplyDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
+import logger from "@/utils/logger";
 
 import { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -189,12 +190,14 @@ function formatDate(dateString: string): string {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { commentId } = await params;
 
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${commentId}/og`;
+  const url = `https://app.apiswop.co/api/v2/feed/${commentId}/og`;
+  logger.info("Fetching feed details for OG metadata from URL:", url);
 
   try {
     const response = await fetch(url);
 
     const responseData = await response.json();
+    logger.info("OG API response data", responseData);
     let feed = responseData?.data;
 
     if (!feed) {
