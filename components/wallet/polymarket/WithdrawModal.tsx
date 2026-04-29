@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { hexToBytes } from 'viem';
+import { hexToBytes, bytesToHex } from 'viem';
+import { polygon } from 'viem/chains';
 import { useQueryClient } from '@tanstack/react-query';
 import CustomModal from '@/components/modal/CustomModal';
 import {
@@ -9,11 +10,14 @@ import {
   usePolymarketWallet,
 } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import { getWithdrawTypedData, submitWithdraw } from '@/lib/polymarket/backend-session';
+import {
+  getWithdrawTypedData,
+  getLegacyWithdrawTypedData,
+  submitWithdraw,
+} from '@/lib/polymarket/backend-session';
 import { usePolygonBalances } from '@/hooks/polymarket';
 import {
   USDC_E_CONTRACT_ADDRESS,
-  USDC_E_DECIMALS,
   LEGACY_USDC_E_ADDRESS,
 } from '@/constants/polymarket';
 import {
@@ -24,9 +28,31 @@ import {
   Wallet,
   Copy,
   CheckCheck,
+  Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+
+const GNOSIS_SAFE_EXEC_ABI = [
+  {
+    name: 'execTransaction',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'data', type: 'bytes' },
+      { name: 'operation', type: 'uint8' },
+      { name: 'safeTxGas', type: 'uint256' },
+      { name: 'baseGas', type: 'uint256' },
+      { name: 'gasPrice', type: 'uint256' },
+      { name: 'gasToken', type: 'address' },
+      { name: 'refundReceiver', type: 'address' },
+      { name: 'signatures', type: 'bytes' },
+    ],
+    outputs: [{ name: 'success', type: 'bool' }],
+  },
+] as const;
 
 interface WithdrawModalProps {
   open: boolean;
@@ -51,7 +77,7 @@ export default function WithdrawModal({
   const { accessToken } = useUser();
   const { usdcBalance, legacyUsdcBalance } =
     usePolygonBalances(safeAddress);
-  console.log('usePolygonBalances', usdcBalance, legacyUsdcBalance);
+
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<WithdrawStep>('amount');
@@ -83,6 +109,8 @@ export default function WithdrawModal({
   const activeLabel = selectedToken === 'pUSD' ? 'pUSD' : 'USDC.e';
 
   const showTokenSelector = legacyUsdcBalance > 0;
+
+  const isLegacyUsdce = selectedToken === 'USDC.e';
 
   // --- Derived state ---
   const parsedAmount = parseFloat(amount) || 0;
@@ -124,7 +152,13 @@ export default function WithdrawModal({
 
   // --- Execute withdrawal via backend two-step flow ---
   const executeWithdraw = useCallback(async () => {
-    if (!isTradingSessionComplete || !destination || !safeAddress || !eoaAddress || !accessToken) {
+    if (
+      !isTradingSessionComplete ||
+      !destination ||
+      !safeAddress ||
+      !eoaAddress ||
+      !accessToken
+    ) {
       setError('Trading session not ready. Please try again.');
       setStep('error');
       return;
@@ -134,53 +168,134 @@ export default function WithdrawModal({
     setError(null);
 
     try {
-      // Step 1: Get SafeTx EIP-712 data from backend
-      const typedData = await getWithdrawTypedData(
-        {
-          safeAddress,
-          eoaAddress,
-          toAddress: destination,
-          amount: parsedAmount,
-          tokenAddress: activeAddress,
-        },
-        accessToken
-      );
+      if (isLegacyUsdce) {
+        // ── USDC.e: direct execTransaction on the Safe (Polymarket relayer
+        //    does not support legacy tokens; EOA pays MATIC gas from Privy wallet) ──
 
-      // Step 2: Sign the hash with eth_sign
-      const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
-      const signature = await walletClient!.signMessage({
-        account: eoaAddress as `0x${string}`,
-        message: { raw: txHashBytes },
-      });
+        // Step 1: Get SafeTx EIP-712 data with on-chain nonce from backend
+        const typedData = await getLegacyWithdrawTypedData(
+          {
+            safeAddress,
+            toAddress: destination,
+            amount: parsedAmount,
+          },
+          accessToken,
+        );
 
-      // Step 3: Submit to backend
-      const result = await submitWithdraw(
-        {
-          safeAddress,
-          eoaAddress,
-          toAddress: destination,
-          amount: parsedAmount,
-          signature,
-          nonce: typedData.nonce,
-          tokenAddress: activeAddress,
-        },
-        accessToken
-      );
+        // Step 2: Sign the pre-prefixed hash as raw bytes
+        const txHashBytes = hexToBytes(
+          typedData.txHash as `0x${string}`,
+        );
+        const signature = await walletClient!.signMessage({
+          account: eoaAddress as `0x${string}`,
+          message: { raw: txHashBytes },
+        });
 
-      setTxHash(result.txId ?? null);
+        // Step 3: Pack signature for Gnosis Safe eth_sign type (v + 4)
+        const sigBytes = hexToBytes(signature as `0x${string}`);
+        sigBytes[64] = sigBytes[64] + 4;
+        const packedSig = bytesToHex(sigBytes);
+
+        // Step 4: Call execTransaction directly on the Safe contract
+        const onChainTxHash = await walletClient!.writeContract({
+          address: safeAddress as `0x${string}`,
+          abi: GNOSIS_SAFE_EXEC_ABI,
+          functionName: 'execTransaction',
+          args: [
+            typedData.to as `0x${string}`,
+            BigInt(typedData.value),
+            typedData.data as `0x${string}`,
+            typedData.operation,
+            BigInt(typedData.safeTxGas),
+            BigInt(typedData.baseGas),
+            BigInt(typedData.gasPrice),
+            typedData.gasToken as `0x${string}`,
+            typedData.refundReceiver as `0x${string}`,
+            packedSig as `0x${string}`,
+          ],
+          chain: polygon,
+          account: eoaAddress as `0x${string}`,
+        });
+
+        setTxHash(onChainTxHash ?? null);
+      } else {
+        // ── pUSD: gasless via Polymarket builder relayer ──
+
+        // Step 1: Get SafeTx EIP-712 data from backend
+        const typedData = await getWithdrawTypedData(
+          {
+            safeAddress,
+            eoaAddress,
+            toAddress: destination,
+            amount: parsedAmount,
+            tokenAddress: activeAddress,
+          },
+          accessToken,
+        );
+
+        // Step 2: Sign the hash with eth_sign
+        const txHashBytes = hexToBytes(
+          typedData.txHash as `0x${string}`,
+        );
+        const signature = await walletClient!.signMessage({
+          account: eoaAddress as `0x${string}`,
+          message: { raw: txHashBytes },
+        });
+
+        // Step 3: Submit to backend (relayer)
+        const result = await submitWithdraw(
+          {
+            safeAddress,
+            eoaAddress,
+            toAddress: destination,
+            amount: parsedAmount,
+            signature,
+            nonce: typedData.nonce,
+            tokenAddress: activeAddress,
+          },
+          accessToken,
+        );
+
+        setTxHash(result.txId ?? null);
+      }
+
       setStep('success');
 
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['usdcBalance', safeAddress] });
-        queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance', safeAddress] });
+        queryClient.invalidateQueries({
+          queryKey: ['usdcBalance', safeAddress],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ['legacyUsdcBalance', safeAddress],
+        });
       }, 3000);
     } catch (err: any) {
-      const msg = err?.message || err?.toString() || 'Withdrawal failed';
-      const isRejected = msg.includes('rejected') || msg.includes('denied') || msg.includes('cancelled') || msg.includes('user rejected');
-      setError(isRejected ? 'Transaction was rejected.' : `Withdrawal failed: ${msg}`);
+      const msg =
+        err?.message || err?.toString() || 'Withdrawal failed';
+      const isRejected =
+        msg.includes('rejected') ||
+        msg.includes('denied') ||
+        msg.includes('cancelled') ||
+        msg.includes('user rejected');
+      setError(
+        isRejected
+          ? 'Transaction was rejected.'
+          : `Withdrawal failed: ${msg}`,
+      );
       setStep('error');
     }
-  }, [isTradingSessionComplete, destination, safeAddress, eoaAddress, accessToken, parsedAmount, activeAddress, walletClient, queryClient]);
+  }, [
+    isTradingSessionComplete,
+    destination,
+    safeAddress,
+    eoaAddress,
+    accessToken,
+    parsedAmount,
+    activeAddress,
+    isLegacyUsdce,
+    walletClient,
+    queryClient,
+  ]);
 
   // --- Render helpers ---
   const renderTokenSelector = () => (
@@ -222,6 +337,18 @@ export default function WithdrawModal({
     <div className="p-5 space-y-5">
       {/* Token selector — only shown when legacy USDC.e balance exists */}
       {showTokenSelector && renderTokenSelector()}
+
+      {/* USDC.e direct withdrawal notice */}
+      {isLegacyUsdce && (
+        <div className="flex gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+          <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800">
+            USDC.e withdrawal uses a direct on-chain transaction. A
+            small amount of MATIC will be deducted from your Privy
+            wallet for gas.
+          </p>
+        </div>
+      )}
 
       {/* Available balance */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
@@ -296,7 +423,9 @@ export default function WithdrawModal({
 
       <Button
         onClick={() => setStep('confirm')}
-        disabled={!isAmountValid || !destination || !isTradingSessionComplete}
+        disabled={
+          !isAmountValid || !destination || !isTradingSessionComplete
+        }
         className="w-full bg-black text-white hover:bg-gray-800"
       >
         <ArrowDownToLine className="w-4 h-4 mr-2" />
@@ -346,9 +475,15 @@ export default function WithdrawModal({
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">Gas fee</span>
-          <span className="text-green-600 font-medium">
-            Sponsored
-          </span>
+          {isLegacyUsdce ? (
+            <span className="text-amber-600 font-medium text-xs">
+              MATIC from Privy wallet
+            </span>
+          ) : (
+            <span className="text-green-600 font-medium">
+              Sponsored
+            </span>
+          )}
         </div>
       </div>
 

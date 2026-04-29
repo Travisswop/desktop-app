@@ -25,6 +25,7 @@ import {
   http,
 } from 'viem';
 import { polygon, mainnet, base, arbitrum } from 'viem/chains';
+import { encodeFunctionData } from 'viem';
 import { useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
@@ -47,7 +48,10 @@ import {
   usePolymarketWallet,
 } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import { getWithdrawTypedData, submitWithdraw } from '@/lib/polymarket/backend-session';
+import {
+  getWithdrawTypedData,
+  submitWithdraw,
+} from '@/lib/polymarket/backend-session';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { formatPolymarketError } from '@/lib/polymarket';
 import { getLifiDepositQuote } from '@/actions/lifiForTokenSwap';
@@ -392,13 +396,25 @@ function DepositTab({
       setLifiQuote(null);
       return;
     }
-    const rawPrice = parseFloat(selectedToken.marketData?.price || '0');
-    const isStable = ['USDC', 'USDT', 'USDC.E', 'PUSD', 'DAI', 'USDS', 'USDE'].includes(
-      selectedToken.symbol.toUpperCase(),
+    const rawPrice = parseFloat(
+      selectedToken.marketData?.price || '0',
     );
+    const isStable = [
+      'USDC',
+      'USDT',
+      'USDC.E',
+      'PUSD',
+      'DAI',
+      'USDS',
+      'USDE',
+    ].includes(selectedToken.symbol.toUpperCase());
     const tokenPrice = rawPrice > 0 ? rawPrice : isStable ? 1 : 0;
-    const minDepositUsd = CHAIN_MIN_DEPOSIT_USD[selectedToken.chain.toUpperCase()] ?? 2;
-    if (tokenPrice > 0 && amountFloat * tokenPrice < minDepositUsd - 0.01) {
+    const minDepositUsd =
+      CHAIN_MIN_DEPOSIT_USD[selectedToken.chain.toUpperCase()] ?? 2;
+    if (
+      tokenPrice > 0 &&
+      amountFloat * tokenPrice < minDepositUsd - 0.01
+    ) {
       setLifiQuote(null);
       return;
     }
@@ -431,13 +447,26 @@ function DepositTab({
     )
       return;
     if (isDirectUsdcE) return;
-    const _rawPrice = parseFloat(selectedToken.marketData?.price || '0');
-    const _isStable = ['USDC', 'USDT', 'USDC.E', 'PUSD', 'DAI', 'USDS', 'USDE'].includes(
-      selectedToken.symbol.toUpperCase(),
+    const _rawPrice = parseFloat(
+      selectedToken.marketData?.price || '0',
     );
+    const _isStable = [
+      'USDC',
+      'USDT',
+      'USDC.E',
+      'PUSD',
+      'DAI',
+      'USDS',
+      'USDE',
+    ].includes(selectedToken.symbol.toUpperCase());
     const _tokenPrice = _rawPrice > 0 ? _rawPrice : _isStable ? 1 : 0;
-    const _minUsd = CHAIN_MIN_DEPOSIT_USD[selectedToken.chain.toUpperCase()] ?? 2;
-    if (_tokenPrice > 0 && parseFloat(amount) * _tokenPrice < _minUsd - 0.01) return;
+    const _minUsd =
+      CHAIN_MIN_DEPOSIT_USD[selectedToken.chain.toUpperCase()] ?? 2;
+    if (
+      _tokenPrice > 0 &&
+      parseFloat(amount) * _tokenPrice < _minUsd - 0.01
+    )
+      return;
     setIsQuoteLoading(true);
     setQuoteError(null);
     setLifiQuote(null);
@@ -955,16 +984,25 @@ function DepositTab({
   if (step === 'amount' && selectedToken) {
     const amountFloat = parseFloat(amount) || 0;
     const tokenBalance = parseFloat(selectedToken.balance) || 0;
-    const rawPrice = parseFloat(selectedToken.marketData?.price || '0');
-    const isStable = ['USDC', 'USDT', 'USDC.E', 'PUSD', 'DAI', 'USDS', 'USDE'].includes(
-      selectedToken.symbol.toUpperCase(),
+    const rawPrice = parseFloat(
+      selectedToken.marketData?.price || '0',
     );
+    const isStable = [
+      'USDC',
+      'USDT',
+      'USDC.E',
+      'PUSD',
+      'DAI',
+      'USDS',
+      'USDE',
+    ].includes(selectedToken.symbol.toUpperCase());
     const tokenPrice = rawPrice > 0 ? rawPrice : isStable ? 1 : 0;
     const amountUsd = amountFloat * tokenPrice;
     const chainKey = selectedToken.chain.toUpperCase();
     const minDepositUsd = CHAIN_MIN_DEPOSIT_USD[chainKey] ?? 2;
 
-    const hasInsufficientBalance = amountFloat > 0 && amountFloat > tokenBalance;
+    const hasInsufficientBalance =
+      amountFloat > 0 && amountFloat > tokenBalance;
     // Only flag below-minimum when balance is sufficient; use 0.01 tolerance for float precision
     const belowMinimum =
       amountFloat > 0 &&
@@ -1073,7 +1111,8 @@ function DepositTab({
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
                 <p className="text-sm text-red-600">
-                  Insufficient balance. You have {tokenBalance.toFixed(4)} {selectedToken.symbol}.
+                  Insufficient balance. You have{' '}
+                  {tokenBalance.toFixed(4)} {selectedToken.symbol}.
                 </p>
               </div>
             </div>
@@ -1083,8 +1122,10 @@ function DepositTab({
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
                 <p className="text-sm text-red-600">
-                  Minimum deposit on {CHAIN_CONFIG[chainKey]?.name || chainKey} is ${minDepositUsd}.
-                  Current value ≈ ${amountUsd.toFixed(2)}.
+                  Minimum deposit on{' '}
+                  {CHAIN_CONFIG[chainKey]?.name || chainKey} is $
+                  {minDepositUsd}. Current value ≈ $
+                  {amountUsd.toFixed(2)}.
                 </p>
               </div>
             </div>
@@ -1431,7 +1472,9 @@ function WithdrawTab({
       setTxHash(null);
       setError(null);
       setSelectedToken(
-        legacyUsdcBalance > 0 && usdcBalance === 0 ? 'USDC.e' : 'pUSD',
+        legacyUsdcBalance > 0 && usdcBalance === 0
+          ? 'USDC.e'
+          : 'pUSD',
       );
     }
   }, [open, legacyUsdcBalance, usdcBalance]);
@@ -1449,7 +1492,13 @@ function WithdrawTab({
   };
 
   const executeWithdraw = useCallback(async () => {
-    if (!isTradingSessionComplete || !destination || !safeAddress || !eoaAddress || !accessToken) {
+    if (
+      !isTradingSessionComplete ||
+      !destination ||
+      !safeAddress ||
+      !eoaAddress ||
+      !accessToken
+    ) {
       setError('Trading session not ready.');
       setStep('error');
       return;
@@ -1466,11 +1515,13 @@ function WithdrawTab({
           amount: parsedAmount,
           tokenAddress: activeAddress,
         },
-        accessToken
+        accessToken,
       );
 
       // Step 2: Sign the hash with eth_sign
-      const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
+      const txHashBytes = hexToBytes(
+        typedData.txHash as `0x${string}`,
+      );
       const signature = await walletClient!.signMessage({
         account: eoaAddress as `0x${string}`,
         message: { raw: txHashBytes },
@@ -1487,7 +1538,7 @@ function WithdrawTab({
           nonce: typedData.nonce,
           tokenAddress: activeAddress,
         },
-        accessToken
+        accessToken,
       );
 
       setTxHash(result.txId ?? null);
@@ -1770,7 +1821,9 @@ function WithdrawTab({
 
       <Button
         onClick={() => setStep('confirm')}
-        disabled={!isAmountValid || !destination || !isTradingSessionComplete}
+        disabled={
+          !isAmountValid || !destination || !isTradingSessionComplete
+        }
         className="w-full bg-black text-white hover:bg-gray-800"
       >
         <ArrowDownToLine className="w-4 h-4 mr-2" />
