@@ -87,9 +87,11 @@ export default function SendToModal({
       'ETHEREUM',
       'POLYGON',
       'BASE',
+      'ARBITRUM',
       'ethereum',
       'polygon',
       'base',
+      'arbitrum',
     ].includes(network) &&
       validateEthereumAddress(searchQuery)) ||
       ((network === 'SOLANA' || network === 'solana') &&
@@ -197,10 +199,8 @@ export default function SendToModal({
         Buffer.from(data.serializedTransaction, 'base64'),
       );
       // Refresh blockhash so Privy's internal RPC recognises it during preflight
-      const {
-        blockhash: freshBlockhash,
-        lastValidBlockHeight,
-      } = await connection.getLatestBlockhash('finalized');
+      const { blockhash: freshBlockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash('finalized');
       combinedTx.recentBlockhash = freshBlockhash;
 
       const serializedTx = new Uint8Array(
@@ -230,7 +230,11 @@ export default function SendToModal({
       let errorMessage = 'Failed to set up token holding account';
       if (error?.logs) {
         const logs = Array.isArray(error.logs) ? error.logs : [];
-        if (logs.some((log: string) => log.includes('insufficient lamports'))) {
+        if (
+          logs.some((log: string) =>
+            log.includes('insufficient lamports'),
+          )
+        ) {
           errorMessage =
             'Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.';
         } else if (
