@@ -223,7 +223,16 @@ const PostFeed = ({
   };
 
   return (
-    <div className="p-6 pt-2">
+    <div className="p-6 pt-2 relative">
+      {/* Loading overlay — covers the whole component while posting */}
+      {postLoading && (
+        <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-3">
+          <Loader className="animate-spin text-gray-700" size={32} />
+          <p className="text-sm font-medium text-gray-600">
+            Publishing your post...
+          </p>
+        </div>
+      )}
       <div className="flex flex-col gap-2">
         <div className="flex items-start gap-2">
           <UserImageAvatar
