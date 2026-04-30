@@ -305,7 +305,7 @@ const CommentReaction = memo(
 
     // ── Share / copy link ─────────────────────────────────────────────────────
     const handleCopyLink = useCallback(() => {
-      const link = `${window.location.origin}/feed/${postId}#${commentId}`;
+      const link = `${window.location.origin}/feed/comment/${comment?._id}`;
       navigator.clipboard
         .writeText(link)
         .then(() => {
@@ -317,7 +317,7 @@ const CommentReaction = memo(
           }, 2000);
         })
         .catch((err) => console.error("Failed to copy link:", err));
-    }, [postId, commentId]);
+    }, [comment?._id]);
 
     // ─────────────────────────────────────────────────────────────────────────
 
