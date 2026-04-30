@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { hexToBytes } from 'viem';
 import { useTrading } from '@/providers/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
@@ -102,13 +101,27 @@ export function useClobOrder(
           throw new Error(err.error || 'Failed to prepare order');
         }
 
-        const { orderHash, orderMeta } = await prepareRes.json();
+        const { orderTypedData, orderMeta } = await prepareRes.json();
 
-        // Step 2: Sign the order hash with the user's wallet
-        const orderHashBytes = hexToBytes(orderHash as `0x${string}`);
-        const signature = await walletClient.signMessage({
+        // Step 2: Sign via eth_signTypedData_v4 so no extra EIP-191 prefix is
+        // added on top of the EIP-712 hash. Using signMessage (personal_sign)
+        // would double-prefix the hash and produce an invalid signature.
+        //
+        // uint256 fields arrive as decimal strings from JSON; convert to BigInt
+        // so viem's ABI encoder receives the expected type.
+        const signature = await walletClient.signTypedData({
           account: eoaAddress as `0x${string}`,
-          message: { raw: orderHashBytes },
+          domain: orderTypedData.domain,
+          types: { Order: orderTypedData.types.Order },
+          primaryType: 'Order',
+          message: {
+            ...orderTypedData.message,
+            salt: BigInt(orderTypedData.message.salt),
+            tokenId: BigInt(orderTypedData.message.tokenId),
+            makerAmount: BigInt(orderTypedData.message.makerAmount),
+            takerAmount: BigInt(orderTypedData.message.takerAmount),
+            timestamp: BigInt(orderTypedData.message.timestamp ?? '0'),
+          },
         });
 
         // Step 3: Submit the signed order
