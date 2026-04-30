@@ -38,6 +38,7 @@ export default function WalletPredictionsSection() {
       isReady &&
       !userLoading &&
       !!accessToken &&
+      !!safeAddress &&
       !tradingSession &&
       !isTradingSessionComplete &&
       currentStep === 'idle' &&
@@ -50,6 +51,7 @@ export default function WalletPredictionsSection() {
     isReady,
     userLoading,
     accessToken,
+    safeAddress,
     tradingSession,
     isTradingSessionComplete,
     initializeTradingSession,
