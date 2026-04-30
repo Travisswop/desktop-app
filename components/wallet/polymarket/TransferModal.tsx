@@ -21,6 +21,7 @@ import {
   parseUnits,
   formatUnits,
   hexToBytes,
+  bytesToHex,
   createPublicClient,
   http,
 } from 'viem';
@@ -51,6 +52,7 @@ import { useUser } from '@/lib/UserContext';
 import {
   getWithdrawTypedData,
   submitWithdraw,
+  getLegacyWithdrawTypedData,
 } from '@/lib/polymarket/backend-session';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { formatPolymarketError } from '@/lib/polymarket';
@@ -1412,6 +1414,27 @@ function DepositTab({
 
 // ─── Withdraw Tab ─────────────────────────────────────────────────────────────
 
+const GNOSIS_SAFE_EXEC_ABI = [
+  {
+    name: 'execTransaction',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'data', type: 'bytes' },
+      { name: 'operation', type: 'uint8' },
+      { name: 'safeTxGas', type: 'uint256' },
+      { name: 'baseGas', type: 'uint256' },
+      { name: 'gasPrice', type: 'uint256' },
+      { name: 'gasToken', type: 'address' },
+      { name: 'refundReceiver', type: 'address' },
+      { name: 'signatures', type: 'bytes' },
+    ],
+    outputs: [{ name: 'success', type: 'bool' }],
+  },
+] as const;
+
 type SelectedWithdrawToken = 'pUSD' | 'USDC.e';
 
 function WithdrawTab({
@@ -1506,42 +1529,87 @@ function WithdrawTab({
     setStep('processing');
     setError(null);
     try {
-      // Step 1: Get SafeTx EIP-712 data from backend
-      const typedData = await getWithdrawTypedData(
-        {
-          safeAddress,
-          eoaAddress,
-          toAddress: destination,
-          amount: parsedAmount,
-          tokenAddress: activeAddress,
-        },
-        accessToken,
-      );
+      if (selectedToken === 'USDC.e') {
+        // USDC.e (legacy) — the Polymarket relayer rejects this token.
+        // Use the direct on-chain Safe execTransaction path instead.
+        const typedData = await getLegacyWithdrawTypedData(
+          {
+            safeAddress,
+            toAddress: destination,
+            amount: parsedAmount,
+            tokenAddress: activeAddress,
+          },
+          accessToken,
+        );
 
-      // Step 2: Sign the hash with eth_sign
-      const txHashBytes = hexToBytes(
-        typedData.txHash as `0x${string}`,
-      );
-      const signature = await walletClient!.signMessage({
-        account: eoaAddress as `0x${string}`,
-        message: { raw: txHashBytes },
-      });
+        const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
+        const signature = await walletClient!.signMessage({
+          account: eoaAddress as `0x${string}`,
+          message: { raw: txHashBytes },
+        });
 
-      // Step 3: Submit to backend
-      const result = await submitWithdraw(
-        {
-          safeAddress,
-          eoaAddress,
-          toAddress: destination,
-          amount: parsedAmount,
-          signature,
-          nonce: typedData.nonce,
-          tokenAddress: activeAddress,
-        },
-        accessToken,
-      );
+        // Adjust v-byte +4 so Safe's on-chain checkSignatures picks the
+        // eth_sign branch: ecrecover(hashMessage(safeTxHash), v-4, r, s)
+        const sigBytes = hexToBytes(signature as `0x${string}`);
+        sigBytes[64] = sigBytes[64] + 4;
+        const packedSig = bytesToHex(sigBytes);
 
-      setTxHash(result.txId ?? null);
+        const onChainTxHash = await walletClient!.writeContract({
+          address: safeAddress as `0x${string}`,
+          abi: GNOSIS_SAFE_EXEC_ABI,
+          functionName: 'execTransaction',
+          args: [
+            typedData.to as `0x${string}`,
+            BigInt(typedData.value),
+            typedData.data as `0x${string}`,
+            typedData.operation,
+            BigInt(typedData.safeTxGas),
+            BigInt(typedData.baseGas),
+            BigInt(typedData.gasPrice),
+            typedData.gasToken as `0x${string}`,
+            typedData.refundReceiver as `0x${string}`,
+            packedSig as `0x${string}`,
+          ],
+          chain: polygon,
+          account: eoaAddress as `0x${string}`,
+        });
+
+        setTxHash(onChainTxHash ?? null);
+      } else {
+        // pUSD — gasless relayer path via Polymarket builder
+        const typedData = await getWithdrawTypedData(
+          {
+            safeAddress,
+            eoaAddress,
+            toAddress: destination,
+            amount: parsedAmount,
+            tokenAddress: activeAddress,
+          },
+          accessToken,
+        );
+
+        const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
+        const signature = await walletClient!.signMessage({
+          account: eoaAddress as `0x${string}`,
+          message: { raw: txHashBytes },
+        });
+
+        const result = await submitWithdraw(
+          {
+            safeAddress,
+            eoaAddress,
+            toAddress: destination,
+            amount: parsedAmount,
+            signature,
+            nonce: typedData.nonce,
+            tokenAddress: activeAddress,
+          },
+          accessToken,
+        );
+
+        setTxHash(result.txId ?? null);
+      }
+
       setStep('success');
       setTimeout(() => {
         queryClient.invalidateQueries({
@@ -1577,6 +1645,7 @@ function WithdrawTab({
     activeAddress,
     walletClient,
     queryClient,
+    selectedToken,
   ]);
 
   if (step === 'processing')
@@ -1682,12 +1751,18 @@ function WithdrawTab({
               `${destination ? truncateAddress(destination) : '—'} (Privy wallet)`,
             ],
             ['Network', 'Polygon'],
-            ['Gas fee', 'Sponsored'],
+            ['Gas fee', selectedToken === 'USDC.e' ? 'MATIC from Privy wallet' : 'Sponsored'],
           ].map(([label, value]) => (
             <div key={label} className="flex justify-between text-sm">
               <span className="text-gray-500">{label}</span>
               <span
-                className={`font-semibold ${label === 'Gas fee' ? 'text-green-600' : 'text-gray-900'}`}
+                className={`font-semibold text-xs ${
+                  label === 'Gas fee'
+                    ? selectedToken === 'USDC.e'
+                      ? 'text-amber-600'
+                      : 'text-green-600'
+                    : 'text-gray-900'
+                }`}
               >
                 {value}
               </span>
@@ -1748,6 +1823,17 @@ function WithdrawTab({
               ${legacyUsdcBalance.toFixed(2)}
             </span>
           </button>
+        </div>
+      )}
+
+      {/* USDC.e goes on-chain — needs MATIC for gas */}
+      {selectedToken === 'USDC.e' && (
+        <div className="flex gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+          <ArrowDownToLine className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800">
+            USDC.e withdrawals are executed directly on Polygon. A small
+            amount of MATIC will be deducted from your Privy wallet for gas.
+          </p>
         </div>
       )}
 

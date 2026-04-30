@@ -4,12 +4,12 @@ interface SessionProgressProps {
   currentStep: SessionStep;
 }
 
-const steps: { id: SessionStep; label: string }[] = [
+const steps: { id: SessionStep; label: string; hint?: string }[] = [
   { id: 'checking', label: 'Checking session...' },
-  { id: 'deploying', label: 'Deploying Safe wallet...' },
-  { id: 'credentials', label: 'Creating API credentials...' },
-  { id: 'approvals', label: 'Setting token approvals...' },
-  { id: 'complete', label: 'Session ready!' },
+  { id: 'deploying', label: 'Deploying Smart Wallet...', hint: 'Sign in your wallet when prompted' },
+  { id: 'credentials', label: 'Creating trading credentials...', hint: 'Sign the message in your wallet to continue' },
+  { id: 'approvals', label: 'Approving USDC for trading...', hint: 'Sign in your wallet when prompted' },
+  { id: 'complete', label: 'Trading account ready!' },
 ];
 
 export default function SessionProgress({ currentStep }: SessionProgressProps) {
@@ -56,17 +56,22 @@ export default function SessionProgress({ currentStep }: SessionProgressProps) {
               ) : (
                 <div className="w-4 h-4 border border-gray-300 rounded-full" />
               )}
-              <span
-                className={`text-sm ${
-                  isActive
-                    ? 'text-gray-900 font-medium'
-                    : isComplete
-                      ? 'text-green-700'
-                      : 'text-gray-400'
-                }`}
-              >
-                {step.label}
-              </span>
+              <div>
+                <span
+                  className={`text-sm ${
+                    isActive
+                      ? 'text-gray-900 font-medium'
+                      : isComplete
+                        ? 'text-green-700'
+                        : 'text-gray-400'
+                  }`}
+                >
+                  {step.label}
+                </span>
+                {isActive && step.hint && (
+                  <p className="text-xs text-blue-600 mt-0.5">{step.hint}</p>
+                )}
+              </div>
             </div>
           );
         })}

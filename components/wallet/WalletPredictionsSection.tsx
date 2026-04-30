@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   useTrading,
   usePolymarketWallet,
@@ -8,11 +8,108 @@ import {
 import { useUser } from '@/lib/UserContext';
 import { usePolygonBalances } from '@/hooks/polymarket';
 import { formatPolymarketError } from '@/lib/polymarket';
-import { ArrowUpDown, LayoutList } from 'lucide-react';
+import { ArrowUpDown, LayoutList, ShieldCheck, PenLine, Wallet, CheckCircle2, X } from 'lucide-react';
 import HighVolumeMarkets from '@/components/wallet/polymarket/Markets';
 import GeoBlockedBanner from '@/components/wallet/polymarket/GeoBlockedBanner';
 import TransferModal from '@/components/wallet/polymarket/TransferModal';
 import PredictionsPortfolioModal from '@/components/wallet/polymarket/PredictionsPortfolioModal';
+
+function EnableTradingModal({
+  onConfirm,
+  onDismiss,
+}: {
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+        {/* Header */}
+        <div className="flex items-start justify-between p-5 pb-0">
+          <div className="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center">
+            <ShieldCheck className="w-5 h-5 text-blue-600" />
+          </div>
+          <button
+            onClick={onDismiss}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 pt-3 pb-5">
+          <h2 className="text-lg font-bold text-gray-900 mb-1">
+            Enable Polymarket Trading
+          </h2>
+          <p className="text-sm text-gray-500 mb-5">
+            A one-time setup is needed to activate your trading account.
+            Your wallet will ask you to sign — no funds are moved.
+          </p>
+
+          {/* Steps */}
+          <div className="space-y-3 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <PenLine className="w-4 h-4 text-gray-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  Sign to create trading credentials
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  A free signature — no gas fee, no transaction on-chain
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Wallet className="w-4 h-4 text-gray-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  Set up your Smart Wallet
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Deploys a Safe wallet to manage your positions securely
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-gray-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  Approve USDC for trading
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Allows the exchange to settle your trades
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <button
+            onClick={onConfirm}
+            className="w-full py-3 bg-black text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-colors mb-2"
+          >
+            Sign &amp; Enable Trading
+          </button>
+          <button
+            onClick={onDismiss}
+            className="w-full py-2.5 text-gray-500 text-sm hover:text-gray-700 transition-colors"
+          >
+            Maybe later
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function WalletPredictionsSection() {
   const { authenticated, isReady, isInitializing, hasWallet } = usePolymarketWallet();
@@ -31,7 +128,12 @@ export default function WalletPredictionsSection() {
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentDismissed, setConsentDismissed] = useState(false);
 
+  // Show the consent modal once all pre-conditions are met, instead of
+  // silently firing initializeTradingSession and surprising the user with
+  // an unexplained wallet signing prompt.
   useEffect(() => {
     if (
       authenticated &&
@@ -42,9 +144,11 @@ export default function WalletPredictionsSection() {
       !tradingSession &&
       !isTradingSessionComplete &&
       currentStep === 'idle' &&
-      !sessionError
+      !sessionError &&
+      !consentDismissed &&
+      !showConsentModal
     ) {
-      initializeTradingSession();
+      setShowConsentModal(true);
     }
   }, [
     authenticated,
@@ -54,10 +158,21 @@ export default function WalletPredictionsSection() {
     safeAddress,
     tradingSession,
     isTradingSessionComplete,
-    initializeTradingSession,
     currentStep,
     sessionError,
+    consentDismissed,
+    showConsentModal,
   ]);
+
+  const handleConsentConfirm = useCallback(() => {
+    setShowConsentModal(false);
+    initializeTradingSession();
+  }, [initializeTradingSession]);
+
+  const handleConsentDismiss = useCallback(() => {
+    setShowConsentModal(false);
+    setConsentDismissed(true);
+  }, []);
 
   if (!authenticated) return null;
 
@@ -173,6 +288,13 @@ export default function WalletPredictionsSection() {
       <GeoBlockedBanner />
 
       <HighVolumeMarkets splitLayout leftHeaderSlot={balanceHeader} />
+
+      {showConsentModal && (
+        <EnableTradingModal
+          onConfirm={handleConsentConfirm}
+          onDismiss={handleConsentDismiss}
+        />
+      )}
 
       <TransferModal
         open={transferModalOpen}
