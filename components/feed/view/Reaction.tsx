@@ -84,11 +84,7 @@ const Reaction = memo(
 
     // ── Like state ──────────────────────────────────────────────────────────
     const [liked, setLiked] = useState(isLiked);
-    logger.info(
-      `Reaction component for postId - ${postId} initialized with isLiked:`,
-      isLiked,
-      liked,
-    );
+    logger.info("feed data in Reaction component", feed);
     const [likeCount, setLikeCount] = useState(initialLikeCount);
     const [animate, setAnimate] = useState(false);
 
@@ -188,7 +184,10 @@ const Reaction = memo(
     };
 
     const handleCopyLink = useCallback(() => {
-      const link = `${window.location.origin}/feed/${postId}`;
+      let link = `${window.location.origin}/feed/${postId}`;
+      if (window.location.href.includes("/feed/comment")) {
+        link = `${window.location.origin}/feed/comment/${feed?._id}`;
+      }
       navigator.clipboard
         .writeText(link)
         .then(() => {
@@ -197,7 +196,7 @@ const Reaction = memo(
           setTimeout(() => setIsCopied(false), 2000);
         })
         .catch(() => toast.error("Failed to copy link."));
-    }, [postId]);
+    }, [feed?._id, postId]);
 
     // Instant repost — no quote, just postId + isFromFeed
     const handleInstantRepost = async () => {
