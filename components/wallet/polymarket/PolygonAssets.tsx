@@ -8,14 +8,15 @@ import TransferModal from './TransferModal';
 
 export default function PolygonAssets() {
   const { safeAddress } = useTrading();
-  const { formattedUsdcBalance, isLoading } = usePolygonBalances(safeAddress);
+  const { formattedUsdcBalance, isLoading } =
+    usePolygonBalances(safeAddress);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
 
   return (
     <>
       <div className="flex items-center justify-between px-1 py-2">
         <div>
-          <p className="text-sm text-gray-500">Predictions Balance</p>
+          <p className="text-sm text-gray-500">Portfolio Balance</p>
           <div className="flex items-center gap-2 mt-0.5">
             {isLoading ? (
               <div className="w-32 h-8 bg-gray-200 animate-pulse rounded" />

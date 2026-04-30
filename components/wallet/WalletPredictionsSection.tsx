@@ -6,9 +6,18 @@ import {
   usePolymarketWallet,
 } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import { usePolygonBalances } from '@/hooks/polymarket';
+import { usePolygonBalances, useWrapUsdcE } from '@/hooks/polymarket';
 import { formatPolymarketError } from '@/lib/polymarket';
-import { ArrowUpDown, LayoutList, ShieldCheck, PenLine, Wallet, CheckCircle2, X } from 'lucide-react';
+import {
+  ArrowUpDown,
+  LayoutList,
+  ShieldCheck,
+  PenLine,
+  Wallet,
+  CheckCircle2,
+  X,
+  Loader2,
+} from 'lucide-react';
 import HighVolumeMarkets from '@/components/wallet/polymarket/Markets';
 import GeoBlockedBanner from '@/components/wallet/polymarket/GeoBlockedBanner';
 import TransferModal from '@/components/wallet/polymarket/TransferModal';
@@ -43,8 +52,9 @@ function EnableTradingModal({
             Enable Polymarket Trading
           </h2>
           <p className="text-sm text-gray-500 mb-5">
-            A one-time setup is needed to activate your trading account.
-            Your wallet will ask you to sign — no funds are moved.
+            A one-time setup is needed to activate your trading
+            account. Your wallet will ask you to sign — no funds are
+            moved.
           </p>
 
           {/* Steps */}
@@ -58,7 +68,8 @@ function EnableTradingModal({
                   Sign to create trading credentials
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  A free signature — no gas fee, no transaction on-chain
+                  A free signature — no gas fee, no transaction
+                  on-chain
                 </p>
               </div>
             </div>
@@ -72,7 +83,8 @@ function EnableTradingModal({
                   Set up your Smart Wallet
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Deploys a Safe wallet to manage your positions securely
+                  Deploys a Safe wallet to manage your positions
+                  securely
                 </p>
               </div>
             </div>
@@ -111,8 +123,118 @@ function EnableTradingModal({
   );
 }
 
+function ActivateFundsModal({
+  balance,
+  onConfirm,
+  onDismiss,
+  onRetry,
+  wrapStep,
+  activationError,
+}: {
+  balance: string;
+  onConfirm: () => void;
+  onDismiss: () => void;
+  onRetry: () => void;
+  wrapStep: 'idle' | 'approving' | 'wrapping' | 'done' | 'error';
+  activationError: string | null;
+}) {
+  const isProcessing =
+    wrapStep === 'approving' || wrapStep === 'wrapping';
+
+  const statusLabel =
+    wrapStep === 'approving'
+      ? 'Approving USDC.e...'
+      : wrapStep === 'wrapping'
+        ? 'Wrapping to pUSD...'
+        : null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
+      <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between p-5 pb-0">
+          <div />
+          <button
+            onClick={onDismiss}
+            disabled={isProcessing}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/10 transition-colors disabled:opacity-30"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-6 pt-2 pb-6">
+          {wrapStep === 'done' ? (
+            <>
+              <h2 className="text-xl font-bold text-white mb-1">
+                Funds Activated
+              </h2>
+              <p className="text-sm text-gray-400 mb-6">
+                Your funds are available to trade!
+              </p>
+              <button
+                onClick={onDismiss}
+                className="w-full py-3 bg-[#0066FF] text-white rounded-xl font-semibold text-sm hover:bg-blue-600 transition-colors"
+              >
+                Start Trading
+              </button>
+            </>
+          ) : wrapStep === 'error' ? (
+            <>
+              <h2 className="text-xl font-bold text-white mb-1">
+                Activation Failed
+              </h2>
+              <p className="text-sm text-red-400 mb-6">
+                {activationError || 'Something went wrong.'}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={onDismiss}
+                  className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold text-sm hover:bg-white/20 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={onRetry}
+                  className="flex-1 py-3 bg-[#0066FF] text-white rounded-xl font-semibold text-sm hover:bg-blue-600 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-bold text-white mb-1">
+                Activate Funds
+              </h2>
+              <p className="text-sm text-gray-400 mb-6">
+                Activate your funds (${balance}) to begin trading.
+              </p>
+              {isProcessing && statusLabel && (
+                <p className="text-xs text-gray-400 mb-3 text-center">
+                  {statusLabel}
+                </p>
+              )}
+              <button
+                onClick={onConfirm}
+                disabled={isProcessing}
+                className="w-full py-3 bg-[#0066FF] text-white rounded-xl font-semibold text-sm hover:bg-blue-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {isProcessing && (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                )}
+                {isProcessing ? statusLabel : 'Continue'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function WalletPredictionsSection() {
-  const { authenticated, isReady, isInitializing, hasWallet } = usePolymarketWallet();
+  const { authenticated, isReady, isInitializing, hasWallet } =
+    usePolymarketWallet();
   const { accessToken, loading: userLoading } = useUser();
   const {
     tradingSession,
@@ -123,13 +245,20 @@ export default function WalletPredictionsSection() {
     safeAddress,
   } = useTrading();
 
-  const { formattedUsdcBalance, isLoading: balanceLoading } =
-    usePolygonBalances(safeAddress);
+  const {
+    formattedUsdcBalance,
+    legacyUsdcBalance,
+    isLoading: balanceLoading,
+  } = usePolygonBalances(safeAddress);
+
+  const { wrap, step: wrapStep, error: wrapError, reset: resetWrap } =
+    useWrapUsdcE();
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentDismissed, setConsentDismissed] = useState(false);
+  const [activateFundsOpen, setActivateFundsOpen] = useState(false);
 
   // Show the consent modal once all pre-conditions are met, instead of
   // silently firing initializeTradingSession and surprising the user with
@@ -252,7 +381,7 @@ export default function WalletPredictionsSection() {
   const balanceHeader = (
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-sm text-gray-500">Predictions Balance</p>
+        <p className="text-sm text-gray-500">Portfolio Balance</p>
         <div className="flex items-center gap-2 mt-0.5">
           {balanceLoading ? (
             <div className="w-28 h-8 bg-gray-200 animate-pulse rounded" />
@@ -262,11 +391,21 @@ export default function WalletPredictionsSection() {
                 ${formattedUsdcBalance}
               </span>
               <button
-                onClick={() => setTransferModalOpen(true)}
-                className="text-gray-500 hover:text-gray-800 transition-colors"
+                onClick={() =>
+                  legacyUsdcBalance > 0
+                    ? setActivateFundsOpen(true)
+                    : setTransferModalOpen(true)
+                }
+                className="relative text-gray-500 hover:text-gray-800 transition-colors"
                 title="Deposit / Withdraw"
               >
                 <ArrowUpDown className="w-4 h-4" />
+                {legacyUsdcBalance > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                  </span>
+                )}
               </button>
             </>
           )}
@@ -293,6 +432,22 @@ export default function WalletPredictionsSection() {
         <EnableTradingModal
           onConfirm={handleConsentConfirm}
           onDismiss={handleConsentDismiss}
+        />
+      )}
+
+      {activateFundsOpen && (
+        <ActivateFundsModal
+          balance={legacyUsdcBalance.toFixed(2)}
+          wrapStep={wrapStep}
+          activationError={wrapError}
+          onConfirm={() => wrap(legacyUsdcBalance)}
+          onDismiss={() => {
+            setActivateFundsOpen(false);
+            resetWrap();
+          }}
+          onRetry={() => {
+            resetWrap();
+          }}
         />
       )}
 
