@@ -117,23 +117,20 @@ export function useTradingSession() {
         apiCreds = await createOrDeriveUserApiCredentials();
       }
 
-      // Step 6: Set all required token approvals for trading
-      // Always verify on-chain, but skip relay call if already approved in storage
+      // Step 6: Set all required token approvals for trading.
+      // Always verify on-chain (two cheap RPC reads) — never trust the stored
+      // flag alone.  A previously cached hasApprovals:true can be stale if the
+      // relay tx was submitted but never confirmed (e.g. after a signing bug).
       setCurrentStep("approvals");
-      let hasApprovals = storedSession?.hasApprovals ?? false;
-      if (!storedSession?.hasApprovals) {
-        const approvalStatus = await checkAllTokenApprovals(
-          derivedSafeAddressFromEoa
+      const approvalStatus = await checkAllTokenApprovals(
+        derivedSafeAddressFromEoa
+      );
+      let hasApprovals = approvalStatus.allApproved;
+      if (!hasApprovals) {
+        hasApprovals = await setAllTokenApprovals(
+          derivedSafeAddressFromEoa,
+          eoaAddress
         );
-
-        if (approvalStatus.allApproved) {
-          hasApprovals = true;
-        } else {
-          hasApprovals = await setAllTokenApprovals(
-            derivedSafeAddressFromEoa,
-            eoaAddress
-          );
-        }
       }
 
       // Step 7: Create custom session object
