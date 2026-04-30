@@ -1445,7 +1445,7 @@ function WithdrawTab({
   onClose: () => void;
 }) {
   const { safeAddress, isTradingSessionComplete } = useTrading();
-  const { eoaAddress, walletClient } = usePolymarketWallet();
+  const { eoaAddress, walletClient, switchToPolygon } = usePolymarketWallet();
   const { accessToken } = useUser();
   const { usdcBalance, legacyUsdcBalance } =
     usePolygonBalances(safeAddress);
@@ -1532,6 +1532,8 @@ function WithdrawTab({
       if (selectedToken === 'USDC.e') {
         // USDC.e (legacy) — the Polymarket relayer rejects this token.
         // Use the direct on-chain Safe execTransaction path instead.
+        // Ensure the wallet is on Polygon before calling writeContract.
+        await switchToPolygon();
         const typedData = await getLegacyWithdrawTypedData(
           {
             safeAddress,
@@ -1644,6 +1646,7 @@ function WithdrawTab({
     parsedAmount,
     activeAddress,
     walletClient,
+    switchToPolygon,
     queryClient,
     selectedToken,
   ]);
