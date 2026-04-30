@@ -1445,11 +1445,12 @@ function WithdrawTab({
   onClose: () => void;
 }) {
   const { safeAddress, isTradingSessionComplete } = useTrading();
-  const { eoaAddress, walletClient, switchToPolygon } = usePolymarketWallet();
+  const { eoaAddress, walletClient } = usePolymarketWallet();
   const { accessToken } = useUser();
   const { usdcBalance, legacyUsdcBalance } =
     usePolygonBalances(safeAddress);
   const queryClient = useQueryClient();
+  const { sendTransaction } = useSendTransaction();
 
   const [step, setStep] = useState<WithdrawStep>('amount');
   const [amount, setAmount] = useState('');
@@ -1532,8 +1533,13 @@ function WithdrawTab({
       if (selectedToken === 'USDC.e') {
         // USDC.e (legacy) — the Polymarket relayer rejects this token.
         // Use the direct on-chain Safe execTransaction path instead.
-        // Ensure the wallet is on Polygon before calling writeContract.
-        await switchToPolygon();
+        //
+        // Sign FIRST (personal_sign is chain-agnostic; no chain validation).
+        // Then send via Privy's sendTransaction with chainId:polygon — Privy
+        // handles the chain switch internally without invalidating the signer.
+        // Using walletClient.writeContract + switchToPolygon() breaks because
+        // wallet.switchChain() rebuilds the underlying provider, making the
+        // walletClient's captured transport stale.
         const typedData = await getLegacyWithdrawTypedData(
           {
             safeAddress,
@@ -1544,6 +1550,7 @@ function WithdrawTab({
           accessToken,
         );
 
+        // Sign the raw safeTxHash before any chain switch
         const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
         const signature = await walletClient!.signMessage({
           account: eoaAddress as `0x${string}`,
@@ -1556,8 +1563,8 @@ function WithdrawTab({
         sigBytes[64] = sigBytes[64] + 4;
         const packedSig = bytesToHex(sigBytes);
 
-        const onChainTxHash = await walletClient!.writeContract({
-          address: safeAddress as `0x${string}`,
+        // Encode the execTransaction calldata
+        const calldata = encodeFunctionData({
           abi: GNOSIS_SAFE_EXEC_ABI,
           functionName: 'execTransaction',
           args: [
@@ -1572,11 +1579,17 @@ function WithdrawTab({
             typedData.refundReceiver as `0x${string}`,
             packedSig as `0x${string}`,
           ],
-          chain: polygon,
-          account: eoaAddress as `0x${string}`,
         });
 
-        setTxHash(onChainTxHash ?? null);
+        // Send via Privy — it prompts the chain switch to Polygon if needed
+        // without touching the walletClient's provider reference
+        const result = await sendTransaction({
+          to: safeAddress as `0x${string}`,
+          data: calldata,
+          chainId: polygon.id,
+        });
+
+        setTxHash(result.hash ?? null);
       } else {
         // pUSD — gasless relayer path via Polymarket builder
         const typedData = await getWithdrawTypedData(
@@ -1646,7 +1659,7 @@ function WithdrawTab({
     parsedAmount,
     activeAddress,
     walletClient,
-    switchToPolygon,
+    sendTransaction,
     queryClient,
     selectedToken,
   ]);
