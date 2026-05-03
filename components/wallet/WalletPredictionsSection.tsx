@@ -149,53 +149,53 @@ function ActivateFundsModal({
         : null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
-      <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-5 pb-0">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+        <div className="flex items-start justify-between p-5 pb-0">
           <div />
           <button
             onClick={onDismiss}
             disabled={isProcessing}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/10 transition-colors disabled:opacity-30"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="px-6 pt-2 pb-6">
+        <div className="px-5 pt-3 pb-5">
           {wrapStep === 'done' ? (
             <>
-              <h2 className="text-xl font-bold text-white mb-1">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
                 Funds Activated
               </h2>
-              <p className="text-sm text-gray-400 mb-6">
+              <p className="text-sm text-gray-500 mb-5">
                 Your funds are available to trade!
               </p>
               <button
                 onClick={onDismiss}
-                className="w-full py-3 bg-[#0066FF] text-white rounded-xl font-semibold text-sm hover:bg-blue-600 transition-colors"
+                className="w-full py-3 bg-black text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-colors"
               >
                 Start Trading
               </button>
             </>
           ) : wrapStep === 'error' ? (
             <>
-              <h2 className="text-xl font-bold text-white mb-1">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
                 Activation Failed
               </h2>
-              <p className="text-sm text-red-400 mb-6">
-                {activationError || 'Something went wrong.'}
+              <p className="text-sm text-red-500 mb-5">
+                {formatPolymarketError(activationError || 'Something went wrong.')}
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={onDismiss}
-                  className="flex-1 py-3 bg-white/10 text-white rounded-xl font-semibold text-sm hover:bg-white/20 transition-colors"
+                  className="flex-1 py-2.5 text-gray-500 text-sm hover:text-gray-700 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={onRetry}
-                  className="flex-1 py-3 bg-[#0066FF] text-white rounded-xl font-semibold text-sm hover:bg-blue-600 transition-colors"
+                  className="flex-1 py-3 bg-black text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-colors"
                 >
                   Try Again
                 </button>
@@ -203,10 +203,10 @@ function ActivateFundsModal({
             </>
           ) : (
             <>
-              <h2 className="text-xl font-bold text-white mb-1">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
                 Activate Funds
               </h2>
-              <p className="text-sm text-gray-400 mb-6">
+              <p className="text-sm text-gray-500 mb-5">
                 Activate your funds (${balance}) to begin trading.
               </p>
               {isProcessing && statusLabel && (
@@ -217,12 +217,19 @@ function ActivateFundsModal({
               <button
                 onClick={onConfirm}
                 disabled={isProcessing}
-                className="w-full py-3 bg-[#0066FF] text-white rounded-xl font-semibold text-sm hover:bg-blue-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-black text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isProcessing && (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 )}
                 {isProcessing ? statusLabel : 'Continue'}
+              </button>
+              <button
+                onClick={onDismiss}
+                disabled={isProcessing}
+                className="w-full py-2.5 text-gray-500 text-sm hover:text-gray-700 transition-colors disabled:opacity-30 mt-1"
+              >
+                Maybe later
               </button>
             </>
           )}

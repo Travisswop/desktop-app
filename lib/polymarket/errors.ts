@@ -24,6 +24,8 @@ const ERROR_MAP: Array<[RegExp | string, string]> = [
   [/insufficient matic/i,                  'Not enough MATIC for gas fees. Add MATIC to your wallet.'],
   [/insufficient sol/i,                    'Not enough SOL for fees. Add SOL to your wallet.'],
   [/gas required exceeds/i,                'Gas estimation failed. You may not have enough MATIC for fees.'],
+  [/gas tip cap.*minimum/i,                'Network gas price is too low. Please try again.'],
+  [/transaction gas price below minimum/i, 'Network gas price is too low. Please try again.'],
 
   // ── Safe / deployment ─────────────────────────────────────────────────────
   [/safe already deployed/i,               'Trading account already exists. Continuing setup…'],

@@ -3,19 +3,18 @@ import {
   erc20Abi,
   encodeFunctionData,
   parseUnits,
-  hexToBytes,
-  bytesToHex,
 } from 'viem';
 import { polygon } from 'viem/chains';
-import { useSendTransaction } from '@privy-io/react-auth';
 import {
   usePolymarketWallet,
   useTrading,
 } from '@/providers/polymarket';
+import { useUser } from '@/lib/UserContext';
 import {
   LEGACY_USDC_E_ADDRESS,
   USDC_E_DECIMALS,
 } from '@/constants/polymarket';
+import { relayWrapExecTransaction } from '@/lib/polymarket/backend-session';
 
 const COLLATERAL_ONRAMP_ADDRESS =
   '0x93070a847efEf7F70739046A929D47a521F5B8ee' as const;
@@ -34,31 +33,13 @@ const WRAP_ABI = [
   },
 ] as const;
 
-const SAFE_ABI = [
+const SAFE_NONCE_ABI = [
   {
     name: 'nonce',
     type: 'function',
     stateMutability: 'view',
     inputs: [],
     outputs: [{ type: 'uint256' }],
-  },
-  {
-    name: 'getTransactionHash',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [
-      { name: 'to', type: 'address' },
-      { name: 'value', type: 'uint256' },
-      { name: 'data', type: 'bytes' },
-      { name: 'operation', type: 'uint8' },
-      { name: 'safeTxGas', type: 'uint256' },
-      { name: 'baseGas', type: 'uint256' },
-      { name: 'gasPrice', type: 'uint256' },
-      { name: 'gasToken', type: 'address' },
-      { name: 'refundReceiver', type: 'address' },
-      { name: '_nonce', type: 'uint256' },
-    ],
-    outputs: [{ type: 'bytes32' }],
   },
 ] as const;
 
@@ -86,6 +67,22 @@ const GNOSIS_SAFE_EXEC_ABI = [
 const ZERO_ADDRESS =
   '0x0000000000000000000000000000000000000000' as const;
 
+// EIP-712 types for Safe transaction — same structure used by useSafeDeployment
+const SAFE_TX_TYPES = {
+  SafeTx: [
+    { name: 'to', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'data', type: 'bytes' },
+    { name: 'operation', type: 'uint8' },
+    { name: 'safeTxGas', type: 'uint256' },
+    { name: 'baseGas', type: 'uint256' },
+    { name: 'gasPrice', type: 'uint256' },
+    { name: 'gasToken', type: 'address' },
+    { name: 'refundReceiver', type: 'address' },
+    { name: 'nonce', type: 'uint256' },
+  ],
+} as const;
+
 export type WrapStep =
   | 'idle'
   | 'approving'
@@ -97,48 +94,54 @@ export function useWrapUsdcE() {
   const { publicClient, eoaAddress, walletClient } =
     usePolymarketWallet();
   const { safeAddress } = useTrading();
-  const { sendTransaction } = useSendTransaction();
+  const { accessToken } = useUser();
 
   const [step, setStep] = useState<WrapStep>('idle');
   const [error, setError] = useState<string | null>(null);
 
+  // Signs a Safe transaction via EIP-712 signTypedData, encodes the
+  // execTransaction calldata, then sends it to the backend relay endpoint.
+  //
+  // We CANNOT call walletClient.sendTransaction (or useSendTransaction) here
+  // because Privy v3.18 routes eth_sendTransaction through SignRequestScreen
+  // which crashes with "Cannot destructure property 'method' of 's.signMessage'
+  // as it is undefined" — the screen tries to access signMessage.method but
+  // that property only exists for sign requests, not transaction requests.
+  //
+  // The backend relay wallet pays gas and broadcasts the tx.  The Safe
+  // verifies the user's EIP-712 signature on-chain — the relay wallet is
+  // only the gas payer, not a signer for the Safe operation itself.
   const executeSafeTx = useCallback(
     async (
       to: `0x${string}`,
       calldata: `0x${string}`,
       nonce: bigint,
     ): Promise<`0x${string}`> => {
-      if (!safeAddress || !eoaAddress || !walletClient || !publicClient)
+      if (!safeAddress || !eoaAddress || !walletClient || !publicClient || !accessToken)
         throw new Error('Wallet not ready');
 
-      const safeTxHash = (await publicClient.readContract({
-        address: safeAddress as `0x${string}`,
-        abi: SAFE_ABI,
-        functionName: 'getTransactionHash',
-        args: [
+      // Sign the SafeTx via EIP-712
+      const signature = await walletClient.signTypedData({
+        account: eoaAddress,
+        domain: {
+          chainId: polygon.id,
+          verifyingContract: safeAddress as `0x${string}`,
+        },
+        types: SAFE_TX_TYPES,
+        primaryType: 'SafeTx',
+        message: {
           to,
-          BigInt(0),
-          calldata,
-          0,
-          BigInt(0),
-          BigInt(0),
-          BigInt(0),
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
+          value: BigInt(0),
+          data: calldata,
+          operation: 0,
+          safeTxGas: BigInt(0),
+          baseGas: BigInt(0),
+          gasPrice: BigInt(0),
+          gasToken: ZERO_ADDRESS,
+          refundReceiver: ZERO_ADDRESS,
           nonce,
-        ],
-      })) as `0x${string}`;
-
-      const txHashBytes = hexToBytes(safeTxHash);
-      const signature = await walletClient.signMessage({
-        account: eoaAddress as `0x${string}`,
-        message: { raw: txHashBytes },
+        },
       });
-
-      // Adjust v-byte +4 so Safe's checkSignatures uses eth_sign branch
-      const sigBytes = hexToBytes(signature as `0x${string}`);
-      sigBytes[64] = sigBytes[64] + 4;
-      const packedSig = bytesToHex(sigBytes);
 
       const execCalldata = encodeFunctionData({
         abi: GNOSIS_SAFE_EXEC_ABI,
@@ -153,19 +156,20 @@ export function useWrapUsdcE() {
           BigInt(0),
           ZERO_ADDRESS,
           ZERO_ADDRESS,
-          packedSig as `0x${string}`,
+          signature as `0x${string}`,
         ],
       });
 
-      const result = await sendTransaction({
-        to: safeAddress as `0x${string}`,
-        data: execCalldata,
-        chainId: polygon.id,
-      });
+      // Submit via backend relay — avoids Privy v3.18 SignRequestScreen crash
+      const { txHash } = await relayWrapExecTransaction(
+        safeAddress,
+        execCalldata,
+        accessToken,
+      );
 
-      return result.hash as `0x${string}`;
+      return txHash;
     },
-    [safeAddress, eoaAddress, walletClient, publicClient, sendTransaction],
+    [safeAddress, eoaAddress, walletClient, publicClient, accessToken],
   );
 
   const wrap = useCallback(
@@ -181,10 +185,9 @@ export function useWrapUsdcE() {
           USDC_E_DECIMALS,
         );
 
-        // Read current Safe nonce
         const nonce = (await publicClient.readContract({
           address: safeAddress as `0x${string}`,
-          abi: SAFE_ABI,
+          abi: SAFE_NONCE_ABI,
           functionName: 'nonce',
         })) as bigint;
 
@@ -210,7 +213,7 @@ export function useWrapUsdcE() {
         // Re-read nonce after approve confirms
         const newNonce = (await publicClient.readContract({
           address: safeAddress as `0x${string}`,
-          abi: SAFE_ABI,
+          abi: SAFE_NONCE_ABI,
           functionName: 'nonce',
         })) as bigint;
 

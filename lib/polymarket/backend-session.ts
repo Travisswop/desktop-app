@@ -404,3 +404,30 @@ export async function submitRedeem(
   }
   return res.json();
 }
+
+/**
+ * Submits a pre-signed Gnosis Safe execTransaction calldata to Polygon via
+ * the backend's funded relay wallet.
+ *
+ * Used for USDC.e → pUSD wrapping because the Polymarket relayer rejects
+ * legacy USDC.e, and Privy v3.18 crashes on eth_sendTransaction from the
+ * frontend (SignRequestScreen bug).
+ *
+ * The signature must already be packed into execCalldata before calling this.
+ */
+export async function relayWrapExecTransaction(
+  safeAddress: string,
+  execCalldata: `0x${string}`,
+  accessToken: string,
+): Promise<{ txHash: `0x${string}` }> {
+  const res = await fetch(`${base()}/wrap/relay`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ safeAddress, execCalldata }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Wrap relay failed');
+  }
+  return res.json();
+}
