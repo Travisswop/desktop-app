@@ -21,7 +21,6 @@ import {
   parseUnits,
   formatUnits,
   hexToBytes,
-  bytesToHex,
   createPublicClient,
   http,
 } from 'viem';
@@ -52,7 +51,6 @@ import { useUser } from '@/lib/UserContext';
 import {
   getWithdrawTypedData,
   submitWithdraw,
-  getLegacyWithdrawTypedData,
 } from '@/lib/polymarket/backend-session';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { formatPolymarketError } from '@/lib/polymarket';
@@ -61,7 +59,6 @@ import { usePolygonBalances } from '@/hooks/polymarket';
 import {
   USDC_E_CONTRACT_ADDRESS,
   USDC_E_DECIMALS,
-  LEGACY_USDC_E_ADDRESS,
 } from '@/constants/polymarket';
 import {
   Connection,
@@ -1414,28 +1411,6 @@ function DepositTab({
 
 // ─── Withdraw Tab ─────────────────────────────────────────────────────────────
 
-const GNOSIS_SAFE_EXEC_ABI = [
-  {
-    name: 'execTransaction',
-    type: 'function',
-    stateMutability: 'payable',
-    inputs: [
-      { name: 'to', type: 'address' },
-      { name: 'value', type: 'uint256' },
-      { name: 'data', type: 'bytes' },
-      { name: 'operation', type: 'uint8' },
-      { name: 'safeTxGas', type: 'uint256' },
-      { name: 'baseGas', type: 'uint256' },
-      { name: 'gasPrice', type: 'uint256' },
-      { name: 'gasToken', type: 'address' },
-      { name: 'refundReceiver', type: 'address' },
-      { name: 'signatures', type: 'bytes' },
-    ],
-    outputs: [{ name: 'success', type: 'bool' }],
-  },
-] as const;
-
-type SelectedWithdrawToken = 'pUSD' | 'USDC.e';
 
 function WithdrawTab({
   open,
@@ -1447,40 +1422,21 @@ function WithdrawTab({
   const { safeAddress, isTradingSessionComplete } = useTrading();
   const { eoaAddress, walletClient } = usePolymarketWallet();
   const { accessToken } = useUser();
-  const { usdcBalance, legacyUsdcBalance } =
-    usePolygonBalances(safeAddress);
+  const { usdcBalance } = usePolygonBalances(safeAddress);
   const queryClient = useQueryClient();
-  const { sendTransaction } = useSendTransaction();
 
   const [step, setStep] = useState<WithdrawStep>('amount');
   const [amount, setAmount] = useState('');
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [selectedToken, setSelectedToken] =
-    useState<SelectedWithdrawToken>('pUSD');
 
   const destination = eoaAddress;
 
-  // Set default token selection when balances load or modal opens
-  useEffect(() => {
-    if (legacyUsdcBalance > 0 && usdcBalance === 0) {
-      setSelectedToken('USDC.e');
-    } else {
-      setSelectedToken('pUSD');
-    }
-  }, [legacyUsdcBalance, usdcBalance, open]);
-
   // Derived state for active token
-  const activeBalance =
-    selectedToken === 'pUSD' ? usdcBalance : legacyUsdcBalance;
-  const activeAddress =
-    selectedToken === 'pUSD'
-      ? USDC_E_CONTRACT_ADDRESS
-      : LEGACY_USDC_E_ADDRESS;
-  const activeLabel = selectedToken === 'pUSD' ? 'pUSD' : 'USDC.e';
-
-  const showTokenSelector = legacyUsdcBalance > 0;
+  const activeBalance = usdcBalance;
+  const activeAddress = USDC_E_CONTRACT_ADDRESS;
+  const activeLabel = 'pUSD';
 
   const parsedAmount = parseFloat(amount) || 0;
   const isAmountValid =
@@ -1495,24 +1451,14 @@ function WithdrawTab({
       setAmount('');
       setTxHash(null);
       setError(null);
-      setSelectedToken(
-        legacyUsdcBalance > 0 && usdcBalance === 0
-          ? 'USDC.e'
-          : 'pUSD',
-      );
     }
-  }, [open, legacyUsdcBalance, usdcBalance]);
+  }, [open]);
 
   const handleCopyAddress = async () => {
     if (!destination) return;
     await navigator.clipboard.writeText(destination);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleSelectToken = (token: SelectedWithdrawToken) => {
-    setSelectedToken(token);
-    setAmount('');
   };
 
   const executeWithdraw = useCallback(async () => {
@@ -1530,108 +1476,42 @@ function WithdrawTab({
     setStep('processing');
     setError(null);
     try {
-      if (selectedToken === 'USDC.e') {
-        // USDC.e (legacy) — the Polymarket relayer rejects this token.
-        // Use the direct on-chain Safe execTransaction path instead.
-        //
-        // Sign FIRST (personal_sign is chain-agnostic; no chain validation).
-        // Then send via Privy's sendTransaction with chainId:polygon — Privy
-        // handles the chain switch internally without invalidating the signer.
-        // Using walletClient.writeContract + switchToPolygon() breaks because
-        // wallet.switchChain() rebuilds the underlying provider, making the
-        // walletClient's captured transport stale.
-        const typedData = await getLegacyWithdrawTypedData(
-          {
-            safeAddress,
-            toAddress: destination,
-            amount: parsedAmount,
-            tokenAddress: activeAddress,
-          },
-          accessToken,
-        );
+      const typedData = await getWithdrawTypedData(
+        {
+          safeAddress,
+          eoaAddress,
+          toAddress: destination,
+          amount: parsedAmount,
+          tokenAddress: activeAddress,
+        },
+        accessToken,
+      );
 
-        // Sign the raw safeTxHash before any chain switch
-        const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
-        const signature = await walletClient!.signMessage({
-          account: eoaAddress as `0x${string}`,
-          message: { raw: txHashBytes },
-        });
+      const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
+      const signature = await walletClient!.signMessage({
+        account: eoaAddress as `0x${string}`,
+        message: { raw: txHashBytes },
+      });
 
-        // Adjust v-byte +4 so Safe's on-chain checkSignatures picks the
-        // eth_sign branch: ecrecover(hashMessage(safeTxHash), v-4, r, s)
-        const sigBytes = hexToBytes(signature as `0x${string}`);
-        sigBytes[64] = sigBytes[64] + 4;
-        const packedSig = bytesToHex(sigBytes);
+      const result = await submitWithdraw(
+        {
+          safeAddress,
+          eoaAddress,
+          toAddress: destination,
+          amount: parsedAmount,
+          signature,
+          nonce: typedData.nonce,
+          tokenAddress: activeAddress,
+        },
+        accessToken,
+      );
 
-        // Encode the execTransaction calldata
-        const calldata = encodeFunctionData({
-          abi: GNOSIS_SAFE_EXEC_ABI,
-          functionName: 'execTransaction',
-          args: [
-            typedData.to as `0x${string}`,
-            BigInt(typedData.value),
-            typedData.data as `0x${string}`,
-            typedData.operation,
-            BigInt(typedData.safeTxGas),
-            BigInt(typedData.baseGas),
-            BigInt(typedData.gasPrice),
-            typedData.gasToken as `0x${string}`,
-            typedData.refundReceiver as `0x${string}`,
-            packedSig as `0x${string}`,
-          ],
-        });
-
-        // Send via Privy — it prompts the chain switch to Polygon if needed
-        // without touching the walletClient's provider reference
-        const result = await sendTransaction({
-          to: safeAddress as `0x${string}`,
-          data: calldata,
-          chainId: polygon.id,
-        });
-
-        setTxHash(result.hash ?? null);
-      } else {
-        // pUSD — gasless relayer path via Polymarket builder
-        const typedData = await getWithdrawTypedData(
-          {
-            safeAddress,
-            eoaAddress,
-            toAddress: destination,
-            amount: parsedAmount,
-            tokenAddress: activeAddress,
-          },
-          accessToken,
-        );
-
-        const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
-        const signature = await walletClient!.signMessage({
-          account: eoaAddress as `0x${string}`,
-          message: { raw: txHashBytes },
-        });
-
-        const result = await submitWithdraw(
-          {
-            safeAddress,
-            eoaAddress,
-            toAddress: destination,
-            amount: parsedAmount,
-            signature,
-            nonce: typedData.nonce,
-            tokenAddress: activeAddress,
-          },
-          accessToken,
-        );
-
-        setTxHash(result.txId ?? null);
-      }
+      setTxHash(result.txId ?? null);
 
       setStep('success');
       setTimeout(() => {
         queryClient.invalidateQueries({
           queryKey: ['usdcBalance', safeAddress],
-        });
-        queryClient.invalidateQueries({
-          queryKey: ['legacyUsdcBalance', safeAddress],
         });
       }, 3000);
     } catch (err: any) {
@@ -1657,11 +1537,8 @@ function WithdrawTab({
     eoaAddress,
     accessToken,
     parsedAmount,
-    activeAddress,
     walletClient,
-    sendTransaction,
     queryClient,
-    selectedToken,
   ]);
 
   if (step === 'processing')
@@ -1767,17 +1644,13 @@ function WithdrawTab({
               `${destination ? truncateAddress(destination) : '—'} (Privy wallet)`,
             ],
             ['Network', 'Polygon'],
-            ['Gas fee', selectedToken === 'USDC.e' ? 'MATIC from Privy wallet' : 'Sponsored'],
+            ['Gas fee', 'Sponsored'],
           ].map(([label, value]) => (
             <div key={label} className="flex justify-between text-sm">
               <span className="text-gray-500">{label}</span>
               <span
                 className={`font-semibold text-xs ${
-                  label === 'Gas fee'
-                    ? selectedToken === 'USDC.e'
-                      ? 'text-amber-600'
-                      : 'text-green-600'
-                    : 'text-gray-900'
+                  label === 'Gas fee' ? 'text-green-600' : 'text-gray-900'
                 }`}
               >
                 {value}
@@ -1806,53 +1679,6 @@ function WithdrawTab({
   // step === 'amount'
   return (
     <div className="px-6 pb-6 space-y-5">
-      {/* Token selector — only shown when legacy USDC.e balance exists */}
-      {showTokenSelector && (
-        <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-          <button
-            onClick={() => handleSelectToken('pUSD')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              selectedToken === 'pUSD'
-                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            pUSD
-            <span
-              className={`text-xs ${selectedToken === 'pUSD' ? 'text-gray-600' : 'text-gray-400'}`}
-            >
-              ${usdcBalance.toFixed(2)}
-            </span>
-          </button>
-          <button
-            onClick={() => handleSelectToken('USDC.e')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              selectedToken === 'USDC.e'
-                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            USDC.e
-            <span
-              className={`text-xs ${selectedToken === 'USDC.e' ? 'text-gray-600' : 'text-gray-400'}`}
-            >
-              ${legacyUsdcBalance.toFixed(2)}
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* USDC.e goes on-chain — needs MATIC for gas */}
-      {selectedToken === 'USDC.e' && (
-        <div className="flex gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
-          <ArrowDownToLine className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-800">
-            USDC.e withdrawals are executed directly on Polygon. A small
-            amount of MATIC will be deducted from your Privy wallet for gas.
-          </p>
-        </div>
-      )}
-
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
         <p className="text-xs text-gray-500 mb-1">
           Available to withdraw

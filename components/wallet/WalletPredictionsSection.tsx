@@ -151,18 +151,7 @@ function ActivateFundsModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-        <div className="flex items-start justify-between p-5 pb-0">
-          <div />
-          <button
-            onClick={onDismiss}
-            disabled={isProcessing}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="px-5 pt-3 pb-5">
+        <div className="px-5 pt-5 pb-5">
           {wrapStep === 'done' ? (
             <>
               <h2 className="text-lg font-bold text-gray-900 mb-1">
@@ -223,13 +212,6 @@ function ActivateFundsModal({
                   <Loader2 className="w-4 h-4 animate-spin" />
                 )}
                 {isProcessing ? statusLabel : 'Continue'}
-              </button>
-              <button
-                onClick={onDismiss}
-                disabled={isProcessing}
-                className="w-full py-2.5 text-gray-500 text-sm hover:text-gray-700 transition-colors disabled:opacity-30 mt-1"
-              >
-                Maybe later
               </button>
             </>
           )}
