@@ -9,6 +9,8 @@ import {
   QUERY_STALE_TIMES,
   USDC_E_CONTRACT_ADDRESS,
   USDC_E_DECIMALS,
+  LEGACY_USDC_E_ADDRESS,
+  COLLATERAL_ONRAMP_ADDRESS,
 } from '@/constants/polymarket';
 
 type NetDeposits = {
@@ -30,19 +32,27 @@ const TRANSFER_EVENT = parseAbiItem(
   'event Transfer(address indexed from, address indexed to, uint256 value)',
 );
 
-const EXCLUDED = new Set<string>([
+// Addresses that represent protocol-internal transfers (trading, wrapping).
+// Transfers from/to these are NOT external deposits or withdrawals.
+const TRADING_EXCLUDED = new Set<string>([
   CTF_EXCHANGE_ADDRESS.toLowerCase(),
   NEG_RISK_CTF_EXCHANGE_ADDRESS.toLowerCase(),
   CTF_CONTRACT_ADDRESS.toLowerCase(),
   NEG_RISK_ADAPTER_ADDRESS.toLowerCase(),
 ]);
 
+// The CollateralOnramp wraps USDC.e into pUSD.
+// - pUSD received FROM this address = conversion, not a new deposit.
+// - USDC.e sent TO this address = conversion, not a withdrawal.
+const WRAP_CONTRACT = COLLATERAL_ONRAMP_ADDRESS.toLowerCase();
+
 // Counterfactual Safe addresses can receive deposits before the Safe is deployed.
 // Scanning from the first "code exists" block would miss those. We scan a bit
 // before the deployment block to capture pre-deploy deposits without needing
 // to scan the entire chain history.
 const PRE_DEPLOY_LOOKBACK_BLOCKS = 500_000n;
-const CACHE_VERSION = 2;
+// Bumped to 3: now scans both pUSD and legacy USDC.e; invalidates old caches.
+const CACHE_VERSION = 3;
 
 function cacheKey(safeAddress: string) {
   return `pm-net-deposits:${safeAddress.toLowerCase()}`;
@@ -111,7 +121,8 @@ async function scanTransfers(params: {
 }) {
   const { publicClient, safeAddress, fromBlock, toBlock } = params;
 
-  const [incoming, outgoing] = await Promise.all([
+  // Scan pUSD and legacy USDC.e in parallel (both have 6 decimals, 1:1 USD value).
+  const [pusdIn, pusdOut, legacyIn, legacyOut] = await Promise.all([
     publicClient.getLogs({
       address: USDC_E_CONTRACT_ADDRESS,
       event: TRANSFER_EVENT,
@@ -126,9 +137,23 @@ async function scanTransfers(params: {
       fromBlock,
       toBlock,
     }),
+    publicClient.getLogs({
+      address: LEGACY_USDC_E_ADDRESS,
+      event: TRANSFER_EVENT,
+      args: { to: safeAddress },
+      fromBlock,
+      toBlock,
+    }),
+    publicClient.getLogs({
+      address: LEGACY_USDC_E_ADDRESS,
+      event: TRANSFER_EVENT,
+      args: { from: safeAddress },
+      fromBlock,
+      toBlock,
+    }),
   ]);
 
-  return { incoming, outgoing };
+  return { pusdIn, pusdOut, legacyIn, legacyOut };
 }
 
 export function useNetDeposits(safeAddress: string | undefined) {
@@ -168,25 +193,47 @@ export function useNetDeposits(safeAddress: string | undefined) {
 
       while (from <= latestBlock) {
         const to = from + CHUNK - 1n > latestBlock ? latestBlock : from + CHUNK - 1n;
-        const { incoming, outgoing } = await scanTransfers({
+        const { pusdIn, pusdOut, legacyIn, legacyOut } = await scanTransfers({
           publicClient,
           safeAddress: safe,
           fromBlock: from,
           toBlock: to,
         });
 
-        for (const log of incoming) {
+        const safeAddr = safe.toLowerCase();
+
+        // pUSD incoming: exclude trading contracts + wrap contract (conversion, not deposit)
+        for (const log of pusdIn) {
           const fromAddr = String(log.args?.from || '').toLowerCase();
-          if (!fromAddr || fromAddr === safe.toLowerCase()) continue;
-          if (EXCLUDED.has(fromAddr)) continue;
+          if (!fromAddr || fromAddr === safeAddr) continue;
+          if (TRADING_EXCLUDED.has(fromAddr) || fromAddr === WRAP_CONTRACT) continue;
           const v = log.args?.value as bigint | undefined;
           if (typeof v === 'bigint') totalIn += v;
         }
 
-        for (const log of outgoing) {
+        // pUSD outgoing: exclude trading contracts (bets, not withdrawals)
+        for (const log of pusdOut) {
           const toAddr = String(log.args?.to || '').toLowerCase();
-          if (!toAddr || toAddr === safe.toLowerCase()) continue;
-          if (EXCLUDED.has(toAddr)) continue;
+          if (!toAddr || toAddr === safeAddr) continue;
+          if (TRADING_EXCLUDED.has(toAddr)) continue;
+          const v = log.args?.value as bigint | undefined;
+          if (typeof v === 'bigint') totalOut += v;
+        }
+
+        // Legacy USDC.e incoming: exclude trading contracts
+        for (const log of legacyIn) {
+          const fromAddr = String(log.args?.from || '').toLowerCase();
+          if (!fromAddr || fromAddr === safeAddr) continue;
+          if (TRADING_EXCLUDED.has(fromAddr)) continue;
+          const v = log.args?.value as bigint | undefined;
+          if (typeof v === 'bigint') totalIn += v;
+        }
+
+        // Legacy USDC.e outgoing: exclude trading contracts + wrap contract (conversion, not withdrawal)
+        for (const log of legacyOut) {
+          const toAddr = String(log.args?.to || '').toLowerCase();
+          if (!toAddr || toAddr === safeAddr) continue;
+          if (TRADING_EXCLUDED.has(toAddr) || toAddr === WRAP_CONTRACT) continue;
           const v = log.args?.value as bigint | undefined;
           if (typeof v === 'bigint') totalOut += v;
         }

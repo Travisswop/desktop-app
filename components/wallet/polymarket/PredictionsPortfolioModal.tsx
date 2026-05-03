@@ -285,7 +285,7 @@ export default function PredictionsPortfolioModal({
             ? position.currentValue
             : position.size;
         queryClient.setQueryData<bigint>(
-          ['usdcBalance', safeAddress as string],
+          ['pusdBalance', safeAddress as string],
           (prev) => {
             if (prev === undefined) return prev;
             const addedUnits = BigInt(
@@ -298,7 +298,7 @@ export default function PredictionsPortfolioModal({
         queryClient.invalidateQueries({
           queryKey: ['polymarket-positions'],
         });
-        queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
+        queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
         createPollingInterval(
           () => {
             queryClient.invalidateQueries({
@@ -367,7 +367,7 @@ export default function PredictionsPortfolioModal({
               <div className="bg-gray-50 rounded-2xl p-4">
                 <div className="flex items-center gap-1.5 mb-1">
                   <span className="text-xs text-gray-500">
-                    Available
+                    Available pUSD
                   </span>
                   <span
                     className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${

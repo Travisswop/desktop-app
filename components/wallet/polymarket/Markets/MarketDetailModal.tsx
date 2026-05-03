@@ -911,6 +911,10 @@ type MarketDetailModalProps = {
   noShares?: number;
   initialOutcome?: 'yes' | 'no';
   initialAmount?: string;
+  /** Optional display-name overrides for the two outcome buttons.
+   *  Used for spread markets so the buttons show "+1.5"/"-1.5" instead of
+   *  the raw market outcome names ("Yes"/"No" or team names). */
+  outcomeLabels?: [string, string];
 };
 
 export default function MarketDetailModal({
@@ -922,6 +926,7 @@ export default function MarketDetailModal({
   noShares = 0,
   initialOutcome,
   initialAmount,
+  outcomeLabels,
 }: MarketDetailModalProps) {
   const { clobClient } = useTrading();
   // ── Derived market data ───────────────────────────────────────────────────
@@ -1405,7 +1410,7 @@ export default function MarketDetailModal({
                     : 'bg-gray-100 border-2 border-transparent text-gray-500 hover:border-gray-300'
                 }`}
               >
-                {yesOutcomeName}{' '}
+                {outcomeLabels?.[0] ?? yesOutcomeName}{' '}
                 <span className="font-normal opacity-70">
                   {Math.round(yesPrice * 100)}%
                 </span>
@@ -1424,7 +1429,7 @@ export default function MarketDetailModal({
                     : 'bg-gray-100 border-2 border-transparent text-gray-500 hover:border-gray-300'
                 }`}
               >
-                {noOutcomeName}{' '}
+                {outcomeLabels?.[1] ?? noOutcomeName}{' '}
                 <span className="font-normal opacity-70">
                   {Math.round(noPrice * 100)}%
                 </span>

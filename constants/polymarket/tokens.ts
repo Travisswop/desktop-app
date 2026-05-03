@@ -25,3 +25,9 @@ export const NEG_RISK_CTF_EXCHANGE_ADDRESS =
 // Negative Risk Adapter
 export const NEG_RISK_ADAPTER_ADDRESS =
   "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296" as const;
+
+// CollateralOnramp — wraps legacy USDC.e into pUSD.
+// Transfers FROM this address into the Safe are conversions, not new deposits.
+// Transfers TO this address from the Safe are conversions, not withdrawals.
+export const COLLATERAL_ONRAMP_ADDRESS =
+  "0x93070a847efEf7F70739046A929D47a521F5B8ee" as const;

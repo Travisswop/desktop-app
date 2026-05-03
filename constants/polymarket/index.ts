@@ -21,6 +21,7 @@ export {
   CTF_EXCHANGE_ADDRESS,
   NEG_RISK_CTF_EXCHANGE_ADDRESS,
   NEG_RISK_ADAPTER_ADDRESS,
+  COLLATERAL_ONRAMP_ADDRESS,
 } from "./tokens";
 
 // Re-export categories

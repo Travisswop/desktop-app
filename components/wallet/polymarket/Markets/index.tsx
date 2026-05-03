@@ -62,6 +62,9 @@ export default function HighVolumeMarkets({
   const [detailInitialOutcome, setDetailInitialOutcome] = useState<
     'yes' | 'no' | undefined
   >(undefined);
+  const [detailOutcomeLabels, setDetailOutcomeLabels] = useState<
+    [string, string] | undefined
+  >(undefined);
   const [searchQuery, setSearchQuery] = useState('');
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -213,7 +216,7 @@ export default function HighVolumeMarkets({
    * visualization only makes sense for team matchups.
    */
   const handleSportsOutcomeClick = useCallback(
-    (market: PolymarketMarket, _outcome: string, _price: number, tokenId: string) => {
+    (market: PolymarketMarket, outcome: string, _price: number, tokenId: string) => {
       const tokenIds: string[] = market.clobTokenIds
         ? JSON.parse(market.clobTokenIds)
         : [];
@@ -221,6 +224,24 @@ export default function HighVolumeMarkets({
       const isFirstOutcome = tokenId === yesTokenId;
       setDetailInitialOutcome(isFirstOutcome ? 'yes' : 'no');
       setDetailMarket(market);
+
+      // Derive both spread labels from the clicked label so the modal can
+      // show "+1.5" / "-1.5" instead of the raw outcome name ("Yes"/"No" or
+      // team name). The spread line always starts with + or -, so negate it
+      // to produce the counterpart.  Non-spread clicks (no leading sign) are
+      // left as-is and the modal falls back to market.outcomes names.
+      const isSpreadLine = /^[+-]\d/.test(outcome);
+      if (isSpreadLine) {
+        const other = outcome.startsWith('+')
+          ? '-' + outcome.slice(1)
+          : '+' + outcome.slice(1);
+        const labels: [string, string] = isFirstOutcome
+          ? [outcome, other]
+          : [other, outcome];
+        setDetailOutcomeLabels(labels);
+      } else {
+        setDetailOutcomeLabels(undefined);
+      }
     },
     [],
   );
@@ -377,12 +398,14 @@ export default function HighVolumeMarkets({
           onClose={() => {
             setDetailMarket(null);
             setDetailInitialOutcome(undefined);
+            setDetailOutcomeLabels(undefined);
           }}
           market={detailMarket}
           balance={usdcBalance}
           yesShares={detailMarketShares.yesShares}
           noShares={detailMarketShares.noShares}
           initialOutcome={detailInitialOutcome}
+          outcomeLabels={detailOutcomeLabels}
         />
       )}
     </>
