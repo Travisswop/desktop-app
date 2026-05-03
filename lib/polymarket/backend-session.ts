@@ -104,9 +104,15 @@ export async function getCredentialTypedData(
   return res.json();
 }
 
+const CLOB_HOST = "https://clob.polymarket.com";
+
 /**
- * Derives API credentials from the user's EIP-712 signature and stores them
- * in the server-side cache so future logins skip re-signing.
+ * Derives API credentials from the user's EIP-712 signature by calling the
+ * Polymarket CLOB API directly from the browser, then caches them on the
+ * backend so future logins skip re-signing.
+ *
+ * The CLOB call is made client-side because the polymarket-backend server IP
+ * may be geo-blocked by Cloudflare. The user's browser IP is used instead.
  */
 export async function deriveAndCacheCredentials(
   eoaAddress: string,
@@ -115,22 +121,69 @@ export async function deriveAndCacheCredentials(
   nonce: number,
   accessToken: string
 ): Promise<ClobCredentials> {
-  const res = await fetch(`${base()}/session/credentials`, {
-    method: "POST",
-    headers: authHeaders(accessToken),
-    body: JSON.stringify({ eoaAddress, signature, timestamp, nonce }),
-  });
+  const l1Headers = {
+    "POLY_ADDRESS": eoaAddress,
+    "POLY_SIGNATURE": signature,
+    "POLY_TIMESTAMP": timestamp,
+    "POLY_NONCE": String(nonce),
+  };
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || "Failed to derive credentials");
+  let creds: ClobCredentials | null = null;
+
+  // Try to derive existing credentials first (returns existing key/secret/passphrase)
+  try {
+    const deriveRes = await fetch(`${CLOB_HOST}/auth/derive-api-key`, {
+      headers: l1Headers,
+    });
+    if (deriveRes.ok) {
+      const data = await deriveRes.json();
+      const key = data.apiKey ?? data.key;
+      if (key && data.secret && data.passphrase) {
+        creds = { key, secret: data.secret, passphrase: data.passphrase };
+      }
+    }
+  } catch {
+    // Network error on derive — fall through to create
   }
 
-  const data = await res.json();
-  if (!data.key || !data.secret || !data.passphrase) {
-    throw new Error("Backend returned incomplete credentials");
+  // Create new credentials if derive didn't return valid ones
+  if (!creds) {
+    const createRes = await fetch(`${CLOB_HOST}/auth/api-key`, {
+      method: "POST",
+      headers: { ...l1Headers, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    if (!createRes.ok) {
+      const err = await createRes.json().catch(() => ({}));
+      throw new Error(
+        err.error || err.message || `CLOB API returned ${createRes.status} when creating credentials`
+      );
+    }
+
+    const data = await createRes.json();
+    const key = data.apiKey ?? data.key;
+    if (!key || !data.secret || !data.passphrase) {
+      throw new Error("CLOB API returned incomplete credentials");
+    }
+    creds = { key, secret: data.secret, passphrase: data.passphrase };
   }
-  return { key: data.key, secret: data.secret, passphrase: data.passphrase };
+
+  // Cache on the backend so future logins skip re-signing (non-blocking failure)
+  try {
+    const cacheRes = await fetch(`${base()}/session/credentials`, {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({ eoaAddress, ...creds }),
+    });
+    if (!cacheRes.ok) {
+      console.warn("[Polymarket] Failed to cache credentials on backend — trading will still work");
+    }
+  } catch {
+    console.warn("[Polymarket] Could not reach backend to cache credentials");
+  }
+
+  return creds;
 }
 
 /**
