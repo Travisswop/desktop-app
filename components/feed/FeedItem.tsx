@@ -7,33 +7,21 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import updateLocale from "dayjs/plugin/updateLocale";
 import { GoDotFill } from "react-icons/go";
 import { HiDotsHorizontal } from "react-icons/hi";
-import { FiPlusCircle } from "react-icons/fi";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
   useDisclosure,
 } from "@nextui-org/react";
-import PostTypeMedia from "./view/PostTypeMedia";
 import Reaction from "./view/Reaction";
 import DeleteFeedModal from "./DeleteFeedModal";
-import IndividualFeedContent from "./IndividualFeedContent";
-import SwapTransactionCard from "./SwapTransactionCard";
 import isUrl from "@/lib/isUrl";
-import PollCard from "./PollCard";
 import tipImg from "@/public/images/tip.png";
 import TipContentModal from "./TipContent";
 import { formatEns } from "@/lib/formatEnsName";
-import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import { useRouter } from "next/navigation";
-import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
-import RedeemClaimModal from "../modal/RedeemClaim";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
 import FeedPostContent from "./FeedPostContent";
-// import FeedDetailsReaction from "./view/FeedDetailsReaction";
-// Assuming FeedItemType is (or will be) available globally or can be imported.
-// For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
-// Ideally, import FeedItemType from where it's defined (e.g., Feed.tsx or a types file).
 interface FeedItemType {
   _id: string;
   likeCount?: number;

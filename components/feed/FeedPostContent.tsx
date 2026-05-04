@@ -239,9 +239,7 @@ const FeedPostContent = ({
         <PredictionFeedCard
           content={feed.content}
           userName={
-            feed.smartsiteDetails?.name ||
-            feed.smartsiteUserName ||
-            undefined
+            feed.smartsiteDetails?.name || feed.smartsiteUserName || undefined
           }
         />
       )}
