@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Wifi, WifiOff } from 'lucide-react';
 import type { HLOrderBook, HLOrderBookLevel } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
 
@@ -13,26 +12,20 @@ interface OrderBookProps {
   highlightPrice?: string;
 }
 
-const DISPLAY_LEVELS = 10; // levels per side
+const DISPLAY_LEVELS = 6;
 
 /**
- * OrderBook
- *
- * Live bid/ask order book fed by the `l2Book` WebSocket subscription.
- * Displays a depth bar (relative to max size in view) and colour-codes
- * bids (green) and asks (red).
- *
- * The spread is shown in the centre row.
+ * OrderBook — live bid/ask depth styled for the bento dashboard. Asks render
+ * top, spread divider in the middle, bids render bottom. Each row paints a
+ * coloured depth bar proportional to the level's relative size in view.
  */
 export function OrderBook({ book, coin, connected, highlightPrice }: OrderBookProps) {
-  // Pre-compute max size for bar width scaling
   const { asks, bids, spread, spreadPct } = useMemo(() => {
     if (!book) return { asks: [], bids: [], spread: null, spreadPct: null };
 
     const bids = book.levels[0].slice(0, DISPLAY_LEVELS);
     const asks = book.levels[1].slice(0, DISPLAY_LEVELS);
 
-    // Sort: bids descending, asks ascending
     const sortedBids = [...bids].sort((a, b) => parseFloat(b.px) - parseFloat(a.px));
     const sortedAsks = [...asks].sort((a, b) => parseFloat(a.px) - parseFloat(b.px));
 
@@ -52,34 +45,27 @@ export function OrderBook({ book, coin, connected, highlightPrice }: OrderBookPr
 
   if (!coin) {
     return (
-      <div className="flex items-center justify-center h-full text-sm text-gray-400">
+      <div className="flex items-center justify-center h-full text-sm text-gray-400 p-6">
         Select a market to view the order book
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full text-xs">
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
-        <span className="font-semibold text-gray-700">Order Book</span>
-        <div className="flex items-center gap-1.5">
-          {connected ? (
-            <Wifi className="w-3 h-3 text-emerald-500" />
-          ) : (
-            <WifiOff className="w-3 h-3 text-gray-400 animate-pulse" />
-          )}
-          <span className={`text-xs ${connected ? 'text-emerald-500' : 'text-gray-400'}`}>
-            {connected ? 'Live' : 'Connecting…'}
-          </span>
-        </div>
+      <div className="px-4 py-3.5 border-b border-black/[0.06] flex items-center justify-between">
+        <span className="text-[13px] font-semibold tracking-tight text-gray-900">
+          Order Book
+        </span>
+        <LiveDot connected={connected} />
       </div>
 
       {/* Column headers */}
-      <div className="grid grid-cols-3 px-3 py-1.5 text-gray-400 font-medium border-b border-gray-100">
-        <span>Price (USD)</span>
-        <span className="text-right">Size</span>
-        <span className="text-right">Total</span>
+      <div className="grid grid-cols-3 px-2.5 py-1.5 text-[10px] font-bold text-gray-500 font-mono tracking-wider">
+        <span>PRICE</span>
+        <span className="text-right">SIZE</span>
+        <span className="text-right">TOTAL</span>
       </div>
 
       {!book ? (
@@ -87,12 +73,12 @@ export function OrderBook({ book, coin, connected, highlightPrice }: OrderBookPr
           <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="flex-1 overflow-hidden flex flex-col">
-          {/* Asks (sell orders) — displayed in reverse so lowest ask is nearest spread */}
-          <div className="flex-1 overflow-hidden flex flex-col justify-end">
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Asks */}
+          <div className="flex-1 px-1.5 flex flex-col justify-end overflow-hidden">
             {[...asks].reverse().map((level, i) => (
-              <OrderBookRow
-                key={`ask-${i}`}
+              <Row
+                key={`a-${i}`}
                 level={level}
                 side="ask"
                 maxSz={maxSz}
@@ -101,22 +87,24 @@ export function OrderBook({ book, coin, connected, highlightPrice }: OrderBookPr
             ))}
           </div>
 
-          {/* Spread row */}
-          <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 border-y border-gray-200">
-            <span className="text-gray-500 font-medium">Spread</span>
-            <span className="text-gray-700 tabular-nums font-semibold">
-              {spread !== null ? `$${spread.toFixed(2)}` : '—'}
+          {/* Spread */}
+          <div className="px-3 py-2 bg-[#f6f6f3] flex justify-between items-center border-y border-black/[0.06]">
+            <span className="text-[11px] font-semibold text-gray-500 font-mono">
+              Spread
             </span>
-            <span className="text-gray-400">
-              {spreadPct !== null ? `${spreadPct}%` : ''}
+            <span className="text-[12px] font-mono font-semibold tabular-nums text-gray-900">
+              {spread !== null ? `$${spread.toFixed(2)}` : '—'}
+              {spreadPct !== null && (
+                <span className="text-gray-400 ml-1.5">· {spreadPct}%</span>
+              )}
             </span>
           </div>
 
-          {/* Bids (buy orders) */}
-          <div className="flex-1 overflow-hidden">
+          {/* Bids */}
+          <div className="flex-1 px-1.5 overflow-hidden">
             {bids.map((level, i) => (
-              <OrderBookRow
-                key={`bid-${i}`}
+              <Row
+                key={`b-${i}`}
                 level={level}
                 side="bid"
                 maxSz={maxSz}
@@ -130,53 +118,65 @@ export function OrderBook({ book, coin, connected, highlightPrice }: OrderBookPr
   );
 }
 
-// ─── Row component ─────────────────────────────────────────────────────────────
+function LiveDot({ connected }: { connected: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider font-mono ${
+        connected ? 'text-emerald-600' : 'text-gray-400'
+      }`}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${
+          connected ? 'bg-emerald-500' : 'bg-gray-400'
+        }`}
+        style={
+          connected
+            ? { boxShadow: '0 0 0 3px rgba(25,169,116,0.13)' }
+            : undefined
+        }
+      />
+      {connected ? 'LIVE' : 'OFFLINE'}
+    </span>
+  );
+}
 
-interface RowProps {
+function Row({
+  level,
+  side,
+  maxSz,
+  highlight,
+}: {
   level: HLOrderBookLevel;
   side: 'bid' | 'ask';
   maxSz: number;
   highlight: boolean;
-}
-
-function OrderBookRow({ level, side, maxSz, highlight }: RowProps) {
+}) {
   const price = parseFloat(level.px);
   const size = parseFloat(level.sz);
   const barWidth = maxSz > 0 ? (size / maxSz) * 100 : 0;
 
   const isAsk = side === 'ask';
-  const bgColor = isAsk ? 'bg-red-400/15' : 'bg-emerald-400/15';
-  const textColor = isAsk ? 'text-red-500' : 'text-emerald-600';
-
-  // Running total for the depth bar
+  const bg = isAsk ? 'bg-red-500/10' : 'bg-emerald-500/10';
+  const txt = isAsk ? 'text-red-500' : 'text-emerald-600';
   const total = (price * size).toFixed(0);
 
   return (
     <div
-      className={`relative grid grid-cols-3 items-center px-3 py-[3px] tabular-nums transition-colors ${
-        highlight ? 'bg-yellow-50' : 'hover:bg-gray-50'
+      className={`relative h-[22px] flex items-center px-2.5 ${
+        highlight ? 'bg-yellow-50' : ''
       }`}
     >
-      {/* Depth bar */}
       <div
-        className={`absolute inset-y-0 ${isAsk ? 'right-0' : 'right-0'} ${bgColor} transition-all`}
+        className={`absolute inset-y-0 right-0 ${bg}`}
         style={{ width: `${barWidth}%` }}
       />
-
-      {/* Price */}
-      <span className={`relative font-semibold ${textColor}`}>
-        {formatPrice(level.px)}
-      </span>
-
-      {/* Size */}
-      <span className="relative text-right text-gray-700">
-        {size.toFixed(4)}
-      </span>
-
-      {/* Total notional */}
-      <span className="relative text-right text-gray-400">
-        ${parseInt(total).toLocaleString()}
-      </span>
+      <div className="relative grid grid-cols-3 w-full font-mono text-[11.5px] font-medium tabular-nums">
+        <span className={txt}>{formatPrice(level.px)}</span>
+        <span className="text-right text-gray-900">{size.toFixed(4)}</span>
+        <span className="text-right text-gray-500">
+          ${parseInt(total).toLocaleString()}
+        </span>
+      </div>
     </div>
   );
 }

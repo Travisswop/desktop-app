@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { hexToBytes } from "viem";
-import { usePolymarketWallet } from "@/providers/polymarket";
+import { usePolymarketWallet, useTrading } from "@/providers/polymarket";
 import { useUser } from "@/lib/UserContext";
 import { getRedeemTypedData, submitRedeem } from "@/lib/polymarket/backend-session";
 
@@ -17,6 +17,7 @@ export function useRedeemPosition() {
   const [error, setError] = useState<Error | null>(null);
 
   const { eoaAddress, walletClient } = usePolymarketWallet();
+  const { walletType, depositWalletAddress } = useTrading();
   const { accessToken } = useUser();
 
   const redeemPosition = useCallback(
@@ -33,6 +34,8 @@ export function useRedeemPosition() {
         const typedData = await getRedeemTypedData(
           {
             safeAddress: params.safeAddress,
+            depositWalletAddress,
+            walletType,
             eoaAddress,
             conditionId: params.conditionId,
             negRisk: params.negativeRisk,
@@ -42,17 +45,37 @@ export function useRedeemPosition() {
           accessToken
         );
 
-        // Step 2: Sign the hash
-        const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
-        const signature = await walletClient.signMessage({
-          account: eoaAddress as `0x${string}`,
-          message: { raw: txHashBytes },
-        });
+        // Step 2: Sign using the active wallet version's required scheme.
+        const signature =
+          walletType === "deposit"
+            ? await walletClient.signTypedData({
+              account: eoaAddress as `0x${string}`,
+              domain: typedData.typedData!.domain as Parameters<typeof walletClient.signTypedData>[0]["domain"],
+              types: typedData.typedData!.types as Parameters<typeof walletClient.signTypedData>[0]["types"],
+              primaryType: typedData.typedData!.primaryType ?? "Batch",
+              message: {
+                ...typedData.typedData!.message,
+                nonce: BigInt(typedData.nonce),
+                deadline: BigInt(typedData.deadline!),
+                calls: typedData.calls!.map((call) => ({
+                  ...call,
+                  value: BigInt(call.value),
+                })),
+              } as Parameters<typeof walletClient.signTypedData>[0]["message"],
+            })
+            : await walletClient.signMessage({
+              account: eoaAddress as `0x${string}`,
+              message: {
+                raw: hexToBytes(typedData.txHash as `0x${string}`),
+              },
+            });
 
         // Step 3: Submit
         const result = await submitRedeem(
           {
             safeAddress: params.safeAddress,
+            depositWalletAddress,
+            walletType,
             eoaAddress,
             conditionId: params.conditionId,
             negRisk: params.negativeRisk,
@@ -60,6 +83,7 @@ export function useRedeemPosition() {
             size: params.size,
             signature,
             nonce: typedData.nonce,
+            deadline: typedData.deadline,
           },
           accessToken
         );
@@ -73,7 +97,7 @@ export function useRedeemPosition() {
         setIsRedeeming(false);
       }
     },
-    [eoaAddress, walletClient, accessToken]
+    [eoaAddress, walletClient, accessToken, walletType, depositWalletAddress]
   );
 
   return { isRedeeming, error, redeemPosition };

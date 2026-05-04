@@ -21,6 +21,10 @@ interface TradingContextType {
   relayClient: object | null;
   eoaAddress: string | undefined;
   safeAddress: string | undefined;
+  legacySafeAddress: string | undefined;
+  depositWalletAddress: string | undefined;
+  tradingWalletAddress: string | undefined;
+  walletType: "safe" | "deposit";
   isGeoblocked: boolean;
   isGeoblockLoading: boolean;
   geoblockStatus: GeoblockStatus | null;
@@ -61,8 +65,15 @@ export function TradingProvider({ children }: { children: ReactNode }) {
   const clobClientAsObject = clobClient as object | null;
   const relayClient = isTradingSessionComplete ? {} : null;
 
+  const walletType = tradingSession?.walletType ?? "safe";
+  const tradingWalletAddress =
+    tradingSession?.safeAddress ?? derivedSafeAddressFromEoa;
+  const legacySafeAddress =
+    tradingSession?.legacySafeAddress ?? derivedSafeAddressFromEoa;
+  const depositWalletAddress = tradingSession?.depositWalletAddress;
+
   // Keep open limit orders alive — Polymarket cancels them after 10s without a heartbeat
-  useClobHeartbeat(tradingSession, derivedSafeAddressFromEoa);
+  useClobHeartbeat(tradingSession, tradingWalletAddress);
 
   // Real-time order/trade updates via user WebSocket channel
   useUserOrdersChannel(tradingSession?.apiCredentials);
@@ -88,7 +99,11 @@ export function TradingProvider({ children }: { children: ReactNode }) {
         clobClient: clobClientAsObject,
         relayClient,
         eoaAddress,
-        safeAddress: derivedSafeAddressFromEoa,
+        safeAddress: tradingWalletAddress,
+        legacySafeAddress,
+        depositWalletAddress,
+        tradingWalletAddress,
+        walletType,
         isGeoblocked,
         isGeoblockLoading,
         geoblockStatus,

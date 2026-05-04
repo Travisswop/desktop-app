@@ -93,7 +93,7 @@ export type WrapStep =
 export function useWrapUsdcE() {
   const { publicClient, eoaAddress, walletClient } =
     usePolymarketWallet();
-  const { safeAddress } = useTrading();
+  const { safeAddress, legacySafeAddress, walletType } = useTrading();
   const { accessToken } = useUser();
 
   const [step, setStep] = useState<WrapStep>('idle');
@@ -117,7 +117,10 @@ export function useWrapUsdcE() {
       calldata: `0x${string}`,
       nonce: bigint,
     ): Promise<`0x${string}`> => {
-      if (!safeAddress || !eoaAddress || !walletClient || !publicClient || !accessToken)
+      const sourceSafeAddress =
+        walletType === 'deposit' ? legacySafeAddress : safeAddress;
+
+      if (!sourceSafeAddress || !eoaAddress || !walletClient || !publicClient || !accessToken)
         throw new Error('Wallet not ready');
 
       // Sign the SafeTx via EIP-712
@@ -125,7 +128,7 @@ export function useWrapUsdcE() {
         account: eoaAddress,
         domain: {
           chainId: polygon.id,
-          verifyingContract: safeAddress as `0x${string}`,
+          verifyingContract: sourceSafeAddress as `0x${string}`,
         },
         types: SAFE_TX_TYPES,
         primaryType: 'SafeTx',
@@ -162,19 +165,23 @@ export function useWrapUsdcE() {
 
       // Submit via backend relay — avoids Privy v3.18 SignRequestScreen crash
       const { txHash } = await relayWrapExecTransaction(
-        safeAddress,
+        sourceSafeAddress,
         execCalldata,
         accessToken,
       );
 
       return txHash;
     },
-    [safeAddress, eoaAddress, walletClient, publicClient, accessToken],
+    [safeAddress, legacySafeAddress, walletType, eoaAddress, walletClient, publicClient, accessToken],
   );
 
   const wrap = useCallback(
     async (amount: number) => {
-      if (!safeAddress || !publicClient) return;
+      const sourceSafeAddress =
+        walletType === 'deposit' ? legacySafeAddress : safeAddress;
+      const destinationAddress = safeAddress;
+
+      if (!sourceSafeAddress || !destinationAddress || !publicClient) return;
 
       setStep('approving');
       setError(null);
@@ -186,7 +193,7 @@ export function useWrapUsdcE() {
         );
 
         const nonce = (await publicClient.readContract({
-          address: safeAddress as `0x${string}`,
+          address: sourceSafeAddress as `0x${string}`,
           abi: SAFE_NONCE_ABI,
           functionName: 'nonce',
         })) as bigint;
@@ -212,18 +219,19 @@ export function useWrapUsdcE() {
 
         // Re-read nonce after approve confirms
         const newNonce = (await publicClient.readContract({
-          address: safeAddress as `0x${string}`,
+          address: sourceSafeAddress as `0x${string}`,
           abi: SAFE_NONCE_ABI,
           functionName: 'nonce',
         })) as bigint;
 
-        // Step 2: call wrap(USDC.e, safeAddress, amount) from the Safe
+        // Step 2: call wrap(USDC.e, destinationAddress, amount) from the Safe.
+        // In deposit-wallet mode this moves old Safe USDC.e into the deposit wallet as pUSD.
         const wrapCalldata = encodeFunctionData({
           abi: WRAP_ABI,
           functionName: 'wrap',
           args: [
             LEGACY_USDC_E_ADDRESS as `0x${string}`,
-            safeAddress as `0x${string}`,
+            destinationAddress as `0x${string}`,
             amountInWei,
           ],
         });
@@ -252,7 +260,7 @@ export function useWrapUsdcE() {
         setStep('error');
       }
     },
-    [safeAddress, publicClient, executeSafeTx],
+    [safeAddress, legacySafeAddress, walletType, publicClient, executeSafeTx],
   );
 
   const reset = useCallback(() => {

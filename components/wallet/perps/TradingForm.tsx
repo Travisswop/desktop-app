@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { AlertTriangle, Loader2, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import type { HLMarket, HLPosition, OrderSide, OrderMode } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
 import type {
@@ -17,24 +17,20 @@ interface TradingFormProps {
   isAgentReady: boolean;
   isSubmitting: boolean;
   error: string | null;
-  onPlaceMarket: (assetIndex: number, isBuy: boolean, size: string, markPrice: string) => Promise<void>;
-  onPlaceLimit: (params: PlaceLimitOrderParams) => Promise<void>;
-  onPlaceTpSl: (params: PlaceTpSlOrderParams) => Promise<void>;
-  onUpdateLeverage: (assetIndex: number, leverage: number, isCross: boolean) => Promise<void>;
+  /** Bubble the chosen leverage to the parent so the account stats card can
+   *  compute buying power consistently. */
+  onLeverageChange?: (lev: number, isCross: boolean) => void;
+  onPlaceMarket: (assetIndex: number, isBuy: boolean, size: string, markPrice: string) => Promise<unknown>;
+  onPlaceLimit: (params: PlaceLimitOrderParams) => Promise<unknown>;
+  onPlaceTpSl: (params: PlaceTpSlOrderParams) => Promise<unknown>;
+  onUpdateLeverage: (assetIndex: number, leverage: number, isCross?: boolean) => Promise<unknown>;
   onClearError: () => void;
 }
 
 /**
- * TradingForm
- *
- * Full order entry form for Hyperliquid perpetuals.
- *  - Long / Short toggle
- *  - Market / Limit / TP-SL mode tabs
- *  - Size input (USD) with % buttons
- *  - Leverage slider (1x – maxLeverage)
- *  - TP/SL price fields (in TP-SL mode)
- *  - Estimated liquidation price
- *  - Submit button with loading state
+ * TradingForm — order entry styled to match the bento dashboard's trade
+ * ticket card. Long/Short pill toggle, mode tabs, mono USD size input,
+ * leverage slider with risk callout, and a coloured submit pill.
  */
 export function TradingForm({
   market,
@@ -44,6 +40,7 @@ export function TradingForm({
   isAgentReady,
   isSubmitting,
   error,
+  onLeverageChange,
   onPlaceMarket,
   onPlaceLimit,
   onPlaceTpSl,
@@ -58,14 +55,11 @@ export function TradingForm({
   const [stopLoss, setStopLoss] = useState('');
   const [leverage, setLeverage] = useState(10);
   const [isCross, setIsCross] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const isBuy = side === 'long';
   const markNum = parseFloat(markPrice) || 0;
   const accountNum = parseFloat(accountValue) || 0;
   const maxLev = market?.maxLeverage ?? 50;
-
-  // ─── Size helpers ──────────────────────────────────────────────────
 
   const sizeInCoins = useMemo(() => {
     const sizeUsd = parseFloat(size);
@@ -73,15 +67,10 @@ export function TradingForm({
     return (sizeUsd / markNum).toFixed(market?.szDecimals ?? 4);
   }, [size, markNum, market?.szDecimals]);
 
-  // Minimum order notional in USD — derived from the market's step size.
-  // HL requires each order >= $10. With BTC step=0.0001 at $75k,
-  // the smallest valid size is 0.0002 BTC ≈ $15. We compute and display
-  // this so the user knows before they hit the API.
   const minOrderUsd = useMemo(() => {
     if (!markNum || !market) return 10;
     const szDecimals = market.szDecimals ?? 4;
     const step = Math.pow(10, -szDecimals);
-    // Smallest number of steps whose notional >= $10
     const minSteps = Math.ceil(10 / (markNum * step));
     return minSteps * step * markNum;
   }, [markNum, market]);
@@ -97,8 +86,6 @@ export function TradingForm({
     [accountNum, leverage],
   );
 
-  // ─── Estimated liquidation ─────────────────────────────────────────
-
   const estLiqPrice = useMemo(() => {
     if (!markNum || !leverage) return null;
     const liqBuffer = 1 / leverage;
@@ -107,7 +94,10 @@ export function TradingForm({
       : (markNum * (1 + liqBuffer)).toFixed(2);
   }, [markNum, leverage, isBuy]);
 
-  // ─── Submit ────────────────────────────────────────────────────────
+  const estFee = useMemo(() => {
+    if (!sizeUsdNum) return null;
+    return (sizeUsdNum * 0.0007).toFixed(2);
+  }, [sizeUsdNum]);
 
   const handleSubmit = useCallback(async () => {
     if (!market) return;
@@ -144,27 +134,26 @@ export function TradingForm({
         });
       }
 
-      // Reset form on success
       setSize('');
       setLimitPrice('');
       setTakeProfit('');
       setStopLoss('');
     } catch {
-      // error handled by parent via `error` prop
+      // error surfaced via parent
     }
   }, [
     market, mode, isBuy, sizeInCoins, limitPrice, markPrice, takeProfit,
     stopLoss, markNum, onPlaceMarket, onPlaceLimit, onPlaceTpSl, onClearError,
   ]);
 
-  // ─── Leverage change ───────────────────────────────────────────────
+  const handleLeverageChange = useCallback(
+    (newLev: number) => {
+      setLeverage(newLev);
+      onLeverageChange?.(newLev, isCross);
+    },
+    [onLeverageChange, isCross],
+  );
 
-  // onChange: update local display only — no API call (avoids signing on every tick)
-  const handleLeverageChange = useCallback((newLev: number) => {
-    setLeverage(newLev);
-  }, []);
-
-  // onMouseUp / onTouchEnd: send to HL only once when slider is released
   const handleLeverageCommit = useCallback(
     async (newLev: number) => {
       if (market && isAgentReady) {
@@ -174,6 +163,12 @@ export function TradingForm({
     [market, isAgentReady, isCross, onUpdateLeverage],
   );
 
+  const toggleMargin = useCallback(() => {
+    const next = !isCross;
+    setIsCross(next);
+    onLeverageChange?.(leverage, next);
+  }, [isCross, leverage, onLeverageChange]);
+
   if (!market) {
     return (
       <div className="flex items-center justify-center h-full text-sm text-gray-400 p-6 text-center">
@@ -182,15 +177,26 @@ export function TradingForm({
     );
   }
 
-  const submitDisabled = !isAgentReady || isSubmitting || !size || parseFloat(size) <= 0 || isBelowMinimum;
+  const submitDisabled =
+    !isAgentReady || isSubmitting || !size || parseFloat(size) <= 0 || isBelowMinimum;
+
+  const sideStyles = isBuy
+    ? {
+        btn: 'bg-emerald-500 hover:bg-emerald-600',
+        shadow: '0 6px 18px -6px rgba(25,169,116,0.5)',
+      }
+    : {
+        btn: 'bg-red-500 hover:bg-red-600',
+        shadow: '0 6px 18px -6px rgba(229,72,77,0.5)',
+      };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-3 space-y-3">
-      {/* ── Long / Short toggle ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-1 bg-gray-100 p-1 rounded-xl">
+    <div className="flex flex-col h-full">
+      {/* Long / Short toggle */}
+      <div className="grid grid-cols-2 gap-1 p-[3px] bg-[#f2f2f0] rounded-xl mb-3.5">
         <button
           onClick={() => setSide('long')}
-          className={`py-2 rounded-lg text-sm font-semibold transition-all ${
+          className={`py-2.5 rounded-[9px] text-[13.5px] font-semibold transition-all ${
             side === 'long'
               ? 'bg-emerald-500 text-white shadow-sm'
               : 'text-gray-500 hover:text-gray-700'
@@ -200,7 +206,7 @@ export function TradingForm({
         </button>
         <button
           onClick={() => setSide('short')}
-          className={`py-2 rounded-lg text-sm font-semibold transition-all ${
+          className={`py-2.5 rounded-[9px] text-[13.5px] font-semibold transition-all ${
             side === 'short'
               ? 'bg-red-500 text-white shadow-sm'
               : 'text-gray-500 hover:text-gray-700'
@@ -210,79 +216,96 @@ export function TradingForm({
         </button>
       </div>
 
-      {/* ── Order mode tabs ──────────────────────────────────────────── */}
-      <div className="flex border-b border-gray-100">
-        {(['market', 'limit', 'tpsl'] as OrderMode[]).map((m) => (
+      {/* Mode tabs */}
+      <div className="flex gap-3.5 text-[12px] font-medium pb-2 mb-3.5 border-b border-black/[0.06]">
+        {(['market', 'limit', 'tpsl'] as OrderMode[]).map((m) => {
+          const label = m === 'market' ? 'Market' : m === 'limit' ? 'Limit' : 'TP/SL';
+          const active = mode === m;
+          return (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`pb-2 -mb-[9px] transition-colors ${
+                active
+                  ? 'text-gray-900 border-b-2 border-gray-900'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Limit price */}
+      {(mode === 'limit' || mode === 'tpsl') && (
+        <div className="mb-3.5">
+          <Label>{mode === 'tpsl' ? 'ENTRY PRICE (USD)' : 'LIMIT PRICE (USD)'}</Label>
+          <input
+            type="number"
+            value={limitPrice}
+            onChange={(e) => setLimitPrice(e.target.value)}
+            placeholder={`≈ $${formatPrice(markPrice)}`}
+            className="mt-1.5 w-full px-3.5 py-3 text-[16px] font-mono font-semibold tabular-nums bg-[#fafafa] border border-black/[0.06] rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/30"
+          />
+          <p className="text-[10.5px] text-gray-500 mt-1 font-mono">
+            Mark ${formatPrice(markPrice)}
+          </p>
+        </div>
+      )}
+
+      {/* Size */}
+      <Label>SIZE (USD)</Label>
+      <input
+        type="number"
+        min="0"
+        step="1"
+        value={size}
+        onChange={(e) => setSize(e.target.value)}
+        placeholder="$0.00"
+        className="mt-1.5 w-full px-3.5 py-3 text-[18px] font-mono font-semibold tabular-nums tracking-tight bg-[#fafafa] border border-black/[0.06] rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/30"
+      />
+
+      {/* Quick % */}
+      <div className="grid grid-cols-4 gap-1.5 mt-2">
+        {[25, 50, 75, 100].map((p) => (
           <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={`flex-1 py-2 text-xs font-medium transition-colors border-b-2 ${
-              mode === m
-                ? 'border-emerald-500 text-emerald-600'
-                : 'border-transparent text-gray-400 hover:text-gray-600'
+            key={p}
+            onClick={() => setPercent(p)}
+            className={`py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
+              p === 50
+                ? 'bg-gray-900 text-white'
+                : 'bg-[#f2f2f0] text-gray-900 hover:bg-gray-100'
             }`}
           >
-            {m === 'market' ? 'Market' : m === 'limit' ? 'Limit' : 'TP/SL'}
+            {p}%
           </button>
         ))}
       </div>
 
-      {/* ── Limit price (limit + tpsl modes) ─────────────────────────── */}
-      {(mode === 'limit' || mode === 'tpsl') && (
-        <FormField
-          label={mode === 'tpsl' ? 'Entry Price (USD)' : 'Limit Price (USD)'}
-          value={limitPrice}
-          onChange={setLimitPrice}
-          placeholder={`≈ $${formatPrice(markPrice)}`}
-          hint={`Mark: $${formatPrice(markPrice)}`}
-        />
+      {sizeInCoins !== '0' && (
+        <p className="text-[11px] text-gray-400 mt-1 font-mono">
+          ≈ {sizeInCoins} {market.coin}
+        </p>
       )}
 
-      {/* ── Size ─────────────────────────────────────────────────────── */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-600">Size (USD)</label>
-        <input
-          type="number"
-          min="0"
-          step="1"
-          value={size}
-          onChange={(e) => setSize(e.target.value)}
-          placeholder="0.00"
-          className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 tabular-nums"
-        />
-        {/* % buttons */}
-        <div className="grid grid-cols-4 gap-1.5">
-          {[25, 50, 75, 100].map((pct) => (
-            <button
-              key={pct}
-              onClick={() => setPercent(pct)}
-              className="py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded-lg hover:bg-emerald-100 hover:text-emerald-600 transition-colors"
-            >
-              {pct}%
-            </button>
-          ))}
+      {isBelowMinimum && (
+        <div className="flex items-start gap-1.5 text-[11px] text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1.5 mt-2">
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+          <span>
+            Min order ${minOrderUsd.toFixed(2)} ({(minOrderUsd / markNum).toFixed(market?.szDecimals ?? 4)} {market.coin})
+          </span>
         </div>
-        {sizeInCoins !== '0' && (
-          <p className="text-xs text-gray-400 pl-1">
-            ≈ {sizeInCoins} {market.coin}
-          </p>
-        )}
-        {isBelowMinimum && (
-          <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-            Min order: ${minOrderUsd.toFixed(2)} ({(minOrderUsd / markNum).toFixed(market?.szDecimals ?? 4)} {market.coin} at current price)
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* ── Leverage ─────────────────────────────────────────────────── */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-gray-600">Leverage</label>
+      {/* Leverage */}
+      <div className="mt-4">
+        <div className="flex justify-between items-baseline mb-2">
+          <span className="text-[11px] text-gray-500 font-medium">Leverage</span>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsCross(!isCross)}
-              className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+              onClick={toggleMargin}
+              className={`text-[10px] px-2 py-0.5 rounded-full font-semibold transition-colors ${
                 isCross
                   ? 'bg-blue-100 text-blue-600'
                   : 'bg-orange-100 text-orange-600'
@@ -290,103 +313,105 @@ export function TradingForm({
             >
               {isCross ? 'Cross' : 'Isolated'}
             </button>
-            <span className="text-sm font-bold text-gray-800">{leverage}x</span>
+            <span className="font-mono text-[18px] font-semibold tabular-nums text-amber-600">
+              {leverage}×
+            </span>
           </div>
         </div>
-        <input
-          type="range"
-          min={1}
-          max={maxLev}
-          step={1}
-          value={leverage}
-          onChange={(e) => handleLeverageChange(parseInt(e.target.value))}
-          onMouseUp={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
-          onTouchEnd={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
-          className="w-full h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer accent-emerald-500"
-        />
-        <div className="flex justify-between text-xs text-gray-400">
-          <span>1x</span>
-          <span>{Math.round(maxLev / 2)}x</span>
-          <span>{maxLev}x</span>
+        <div className="relative h-1.5 rounded-full bg-[#f2f2f0]">
+          <div
+            className="absolute left-0 top-0 h-full rounded-full bg-amber-600"
+            style={{ width: `${(leverage / maxLev) * 100}%` }}
+          />
+          <input
+            type="range"
+            min={1}
+            max={maxLev}
+            step={1}
+            value={leverage}
+            onChange={(e) => handleLeverageChange(parseInt(e.target.value))}
+            onMouseUp={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
+            onTouchEnd={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
+            className="absolute inset-0 w-full opacity-0 cursor-pointer"
+          />
+          <div
+            className="absolute -top-[5px] w-4 h-4 rounded-full bg-white border-2 border-amber-600 shadow"
+            style={{ left: `${(leverage / maxLev) * 100}%`, transform: 'translateX(-50%)' }}
+          />
         </div>
-        {leverage > 20 && (
-          <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-            High leverage increases liquidation risk significantly
-          </div>
-        )}
+        <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 font-mono">
+          <span>1×</span>
+          <span>{Math.round(maxLev / 5)}×</span>
+          <span>{Math.round(maxLev / 2)}×</span>
+          <span>{maxLev}×</span>
+        </div>
       </div>
 
-      {/* ── TP/SL fields ─────────────────────────────────────────────── */}
+      {/* High-leverage warning */}
+      {leverage > 20 && (
+        <div className="mt-3.5 p-3 rounded-[10px] bg-[#fff8eb] border border-[#f6d999] flex items-start gap-2 text-[11.5px] text-[#78451d]">
+          <span className="text-amber-600 leading-none">⚠</span>
+          <span>High leverage increases liquidation risk significantly.</span>
+        </div>
+      )}
+
+      {/* TP/SL */}
       {mode === 'tpsl' && (
-        <div className="space-y-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
-          <p className="text-xs font-semibold text-gray-600">Take Profit / Stop Loss</p>
-          <FormField
-            label="Take Profit Price (USD)"
+        <div className="mt-3 space-y-2 p-3 rounded-xl bg-[#fafafa] border border-black/[0.06]">
+          <p className="text-[11px] font-semibold text-gray-700">Take Profit / Stop Loss</p>
+          <input
+            type="number"
             value={takeProfit}
-            onChange={setTakeProfit}
-            placeholder={isBuy
-              ? `e.g. $${(markNum * 1.1).toFixed(0)}`
-              : `e.g. $${(markNum * 0.9).toFixed(0)}`}
-            positive
+            onChange={(e) => setTakeProfit(e.target.value)}
+            placeholder={`TP ≈ $${(markNum * (isBuy ? 1.1 : 0.9)).toFixed(0)}`}
+            className="w-full px-3 py-2 text-[13px] font-mono tabular-nums bg-white border border-emerald-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/30"
           />
-          <FormField
-            label="Stop Loss Price (USD)"
+          <input
+            type="number"
             value={stopLoss}
-            onChange={setStopLoss}
-            placeholder={isBuy
-              ? `e.g. $${(markNum * 0.95).toFixed(0)}`
-              : `e.g. $${(markNum * 1.05).toFixed(0)}`}
-            negative
+            onChange={(e) => setStopLoss(e.target.value)}
+            placeholder={`SL ≈ $${(markNum * (isBuy ? 0.95 : 1.05)).toFixed(0)}`}
+            className="w-full px-3 py-2 text-[13px] font-mono tabular-nums bg-white border border-red-200 rounded-lg outline-none focus:ring-2 focus:ring-red-500/30"
           />
         </div>
       )}
 
-      {/* ── Est. liquidation ─────────────────────────────────────────── */}
-      {estLiqPrice && (
-        <div className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-xl text-xs">
-          <span className="flex items-center gap-1.5 text-gray-500">
-            <Info className="w-3.5 h-3.5" />
-            Est. Liquidation Price
-          </span>
-          <span className="font-semibold text-red-500">${formatPrice(estLiqPrice)}</span>
-        </div>
-      )}
+      {/* Summary rows */}
+      <div className="mt-3 space-y-1 text-[12px]">
+        {estLiqPrice && (
+          <SummaryRow label="Est. liquidation" value={`$${formatPrice(estLiqPrice)}`} valueColor="text-red-500" />
+        )}
+        <SummaryRow label="Slippage" value="0.04%" />
+        {estFee && <SummaryRow label="Fee" value={`$${estFee}`} />}
+      </div>
 
-      {/* ── Existing position notice ──────────────────────────────────── */}
       {existingPosition && (
-        <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-xs text-blue-700">
-          <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <div className="mt-3 flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-[11px] text-blue-700">
           <span>
             You have an open {parseFloat(existingPosition.szi) > 0 ? 'LONG' : 'SHORT'} position
             ({Math.abs(parseFloat(existingPosition.szi)).toFixed(4)} {market.coin}).
-            Use <strong>reduce-only</strong> to partially close it.
           </span>
         </div>
       )}
 
-      {/* ── Error ────────────────────────────────────────────────────── */}
       {error && (
-        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-600">
-          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <div className="mt-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-[11px] text-red-600">
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* ── Submit ───────────────────────────────────────────────────── */}
+      {/* Submit */}
       <button
         onClick={handleSubmit}
         disabled={submitDisabled}
-        className={`w-full py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-          isBuy
-            ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-            : 'bg-red-500 hover:bg-red-600 text-white'
-        }`}
+        className={`mt-3.5 w-full py-3.5 rounded-2xl text-[14.5px] font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${sideStyles.btn}`}
+        style={{ boxShadow: submitDisabled ? undefined : sideStyles.shadow }}
       >
         {isSubmitting ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
-            Placing Order…
+            Placing order…
           </>
         ) : !isAgentReady ? (
           'Connect Agent First'
@@ -394,68 +419,33 @@ export function TradingForm({
           `${isBuy ? 'Buy / Long' : 'Sell / Short'} ${market.coin}`
         )}
       </button>
-
-      {/* ── Advanced toggle ───────────────────────────────────────────── */}
-      <button
-        onClick={() => setShowAdvanced((v) => !v)}
-        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors mx-auto"
-      >
-        {showAdvanced ? 'Hide' : 'Show'} Advanced
-        {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-      </button>
-
-      {showAdvanced && (
-        <div className="text-xs text-gray-500 bg-gray-50 rounded-xl p-3 space-y-1">
-          <p>Market: <span className="font-medium text-gray-700">{market.name}</span></p>
-          <p>Asset Index: <span className="font-mono text-gray-700">{market.index}</span></p>
-          <p>Max Leverage: <span className="font-medium text-gray-700">{market.maxLeverage}x</span></p>
-          <p>Size Decimals: <span className="font-mono text-gray-700">{market.szDecimals}</span></p>
-        </div>
-      )}
     </div>
   );
 }
 
-// ─── FormField ───────────────────────────────────────────────────────────────
+function Label({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-[10.5px] font-bold tracking-[0.14em] text-gray-500 font-mono uppercase">
+      {children}
+    </span>
+  );
+}
 
-function FormField({
+function SummaryRow({
   label,
   value,
-  onChange,
-  placeholder,
-  hint,
-  positive,
-  negative,
+  valueColor = 'text-gray-900',
 }: {
   label: string;
   value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  hint?: string;
-  positive?: boolean;
-  negative?: boolean;
+  valueColor?: string;
 }) {
   return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <label className="text-xs font-medium text-gray-600">{label}</label>
-        {hint && <span className="text-xs text-gray-400">{hint}</span>}
-      </div>
-      <input
-        type="number"
-        min="0"
-        step="any"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`w-full px-3 py-2 text-sm bg-white border rounded-lg focus:outline-none focus:ring-2 transition-colors tabular-nums ${
-          positive
-            ? 'border-emerald-200 focus:ring-emerald-500/30 focus:border-emerald-400'
-            : negative
-              ? 'border-red-200 focus:ring-red-500/30 focus:border-red-400'
-              : 'border-gray-200 focus:ring-emerald-500/30 focus:border-emerald-400'
-        }`}
-      />
+    <div className="flex justify-between items-center text-gray-500">
+      <span>{label}</span>
+      <span className={`font-mono font-semibold tabular-nums ${valueColor}`}>
+        {value}
+      </span>
     </div>
   );
 }

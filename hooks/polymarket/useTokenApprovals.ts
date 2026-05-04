@@ -3,7 +3,9 @@ import { useUser } from "@/lib/UserContext";
 import { usePolymarketWallet } from "@/providers/polymarket";
 import { checkAllApprovals } from "@/lib/polymarket/approvals";
 import {
+  getDepositWalletApprovalTypedData,
   getApprovalTypedData,
+  submitDepositWalletApprovalSignature,
   submitApprovalSignature,
 } from "@/lib/polymarket/backend-session";
 import { hexToBytes } from "viem";
@@ -42,7 +44,11 @@ export function useTokenApprovals() {
    * ⚠️  One signing prompt on first call — see module docstring.
    */
   const setAllTokenApprovals = useCallback(
-    async (safeAddress: string, eoaAddress: string): Promise<boolean> => {
+    async (
+      walletAddress: string,
+      eoaAddress: string,
+      walletType: "safe" | "deposit" = "safe"
+    ): Promise<boolean> => {
       if (!walletClient) {
         throw new Error("Wallet not connected");
       }
@@ -51,9 +57,60 @@ export function useTokenApprovals() {
         throw new Error("Not authenticated — cannot reach polymarket backend");
       }
 
+      if (walletType === "deposit") {
+        const approvalData = await getDepositWalletApprovalTypedData(
+          walletAddress,
+          eoaAddress,
+          accessToken
+        );
+
+        if (approvalData.alreadyApproved) {
+          return true;
+        }
+
+        if (
+          !approvalData.typedData ||
+          !approvalData.nonce ||
+          !approvalData.deadline ||
+          !Array.isArray(approvalData.calls)
+        ) {
+          throw new Error("Backend returned incomplete deposit wallet approval typed data");
+        }
+
+        const signature = await walletClient.signTypedData({
+          account: eoaAddress as `0x${string}`,
+          domain: approvalData.typedData.domain as Parameters<typeof walletClient.signTypedData>[0]["domain"],
+          types: approvalData.typedData.types as Parameters<typeof walletClient.signTypedData>[0]["types"],
+          primaryType: "Batch",
+          message: {
+            ...approvalData.typedData.message,
+            nonce: BigInt(approvalData.nonce),
+            deadline: BigInt(approvalData.deadline),
+            calls: approvalData.calls.map((call) => ({
+              ...call,
+              value: BigInt(call.value),
+            })),
+          } as Parameters<typeof walletClient.signTypedData>[0]["message"],
+        });
+
+        const result = await submitDepositWalletApprovalSignature(
+          {
+            depositWalletAddress: walletAddress,
+            eoaAddress,
+            signature,
+            nonce: approvalData.nonce,
+            deadline: approvalData.deadline,
+            calls: approvalData.calls,
+          },
+          accessToken
+        );
+
+        return result.approvalsComplete;
+      }
+
       // Backend checks on-chain approval status and builds the SafeTx payload
       const approvalData = await getApprovalTypedData(
-        safeAddress,
+        walletAddress,
         eoaAddress,
         accessToken
       );
@@ -86,7 +143,7 @@ export function useTokenApprovals() {
 
       const result = await submitApprovalSignature(
         {
-          safeAddress,
+          safeAddress: walletAddress,
           eoaAddress,
           signature,
           nonce: approvalData.nonce,

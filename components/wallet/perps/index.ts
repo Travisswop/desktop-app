@@ -12,6 +12,10 @@ export { TradingForm } from './TradingForm';
 export { PositionCard } from './PositionCard';
 export { PositionsList } from './PositionsList';
 export { FundingRateBar } from './FundingRateBar';
+export { AssetHeader } from './AssetHeader';
+export { CandleChart } from './CandleChart';
+export { AccountStats } from './AccountStats';
+export { FocusedPositionCard } from './FocusedPositionCard';
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 export { useHyperliquidAgent } from './hooks/useHyperliquidAgent';

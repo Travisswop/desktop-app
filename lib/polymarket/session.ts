@@ -1,7 +1,11 @@
 export interface TradingSession {
   eoaAddress: string;
+  walletType?: "safe" | "deposit";
   safeAddress: string;
+  depositWalletAddress?: string;
+  legacySafeAddress?: string;
   isSafeDeployed: boolean;
+  isDepositWalletDeployed?: boolean;
   hasApiCredentials: boolean;
   hasApprovals: boolean;
   apiCredentials?: {
@@ -36,6 +40,16 @@ export const loadSession = (address: string): TradingSession | null => {
       console.warn("Session address mismatch, clearing invalid session");
       clearSession(address);
       return null;
+    }
+
+    if (!session.walletType) {
+      session.walletType = "safe";
+    }
+    if (!session.legacySafeAddress) {
+      session.legacySafeAddress = session.safeAddress;
+    }
+    if (session.walletType === "deposit" && session.depositWalletAddress) {
+      session.safeAddress = session.depositWalletAddress;
     }
 
     return session;

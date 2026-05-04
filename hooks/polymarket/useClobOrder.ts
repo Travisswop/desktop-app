@@ -45,6 +45,27 @@ export type OrderParams = {
 
 const backendBase = () => `${POLYMARKET_BACKEND_URL}/api/prediction-markets`;
 
+function normalizeOrderMessage(message: Record<string, any>) {
+  const next = { ...message };
+
+  for (const key of [
+    'salt',
+    'tokenId',
+    'makerAmount',
+    'takerAmount',
+    'timestamp',
+    'chainId',
+  ]) {
+    if (next[key] !== undefined) next[key] = BigInt(next[key]);
+  }
+
+  if (next.contents) {
+    next.contents = normalizeOrderMessage(next.contents);
+  }
+
+  return next;
+}
+
 export function useClobOrder(
   _session: object | null,
   _walletAddress: string | undefined,
@@ -54,7 +75,13 @@ export function useClobOrder(
   const [orderId, setOrderId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { tradingSession, safeAddress, eoaAddress } = useTrading();
+  const {
+    tradingSession,
+    safeAddress,
+    eoaAddress,
+    walletType,
+    depositWalletAddress,
+  } = useTrading();
   const { walletClient } = usePolymarketWallet();
   const { accessToken } = useUser();
 
@@ -91,6 +118,8 @@ export function useClobOrder(
             expiration: params.expiration,
             negRisk: params.negRisk,
             safeAddress,
+            depositWalletAddress,
+            walletType,
             eoaAddress,
             apiCreds: tradingSession.apiCredentials,
           }),
@@ -112,16 +141,9 @@ export function useClobOrder(
         const signature = await walletClient.signTypedData({
           account: eoaAddress as `0x${string}`,
           domain: orderTypedData.domain,
-          types: { Order: orderTypedData.types.Order },
-          primaryType: 'Order',
-          message: {
-            ...orderTypedData.message,
-            salt: BigInt(orderTypedData.message.salt),
-            tokenId: BigInt(orderTypedData.message.tokenId),
-            makerAmount: BigInt(orderTypedData.message.makerAmount),
-            takerAmount: BigInt(orderTypedData.message.takerAmount),
-            timestamp: BigInt(orderTypedData.message.timestamp ?? '0'),
-          },
+          types: orderTypedData.types,
+          primaryType: orderTypedData.primaryType ?? 'Order',
+          message: normalizeOrderMessage(orderTypedData.message),
         });
 
         // Step 3: Submit the signed order
@@ -155,7 +177,16 @@ export function useClobOrder(
         setIsSubmitting(false);
       }
     },
-    [tradingSession, safeAddress, eoaAddress, walletClient, accessToken, queryClient],
+    [
+      tradingSession,
+      safeAddress,
+      eoaAddress,
+      walletClient,
+      accessToken,
+      queryClient,
+      walletType,
+      depositWalletAddress,
+    ],
   );
 
   const cancelOrder = useCallback(
@@ -177,6 +208,8 @@ export function useClobOrder(
           body: JSON.stringify({
             apiCreds: tradingSession.apiCredentials,
             safeAddress,
+            depositWalletAddress,
+            walletType,
             eoaAddress,
           }),
         });
@@ -194,7 +227,15 @@ export function useClobOrder(
         setIsSubmitting(false);
       }
     },
-    [tradingSession, safeAddress, eoaAddress, accessToken, queryClient],
+    [
+      tradingSession,
+      safeAddress,
+      eoaAddress,
+      accessToken,
+      queryClient,
+      walletType,
+      depositWalletAddress,
+    ],
   );
 
   const resetOrder = useCallback(() => {

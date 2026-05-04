@@ -34,6 +34,9 @@ export function useClobHeartbeat(
           body: JSON.stringify({
             apiCreds: session!.apiCredentials,
             safeAddress,
+            depositWalletAddress: session!.depositWalletAddress,
+            walletType: session!.walletType ?? "safe",
+            eoaAddress: session!.eoaAddress,
           }),
         });
       } catch {

@@ -18,7 +18,7 @@ const formatAddress = (address: string) => {
 };
 
 export default function SafeWalletCard() {
-  const { safeAddress } = useTrading();
+  const { safeAddress, walletType } = useTrading();
   const [copied, setCopied] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
 
@@ -67,11 +67,13 @@ export default function SafeWalletCard() {
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-purple-600 text-sm font-bold">
-                S
+                {walletType === 'deposit' ? 'D' : 'S'}
               </span>
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-gray-500">Safe Address</p>
+              <p className="text-xs text-gray-500">
+                {walletType === 'deposit' ? 'Deposit Wallet' : 'Safe Address'}
+              </p>
               <p className="text-sm font-mono text-gray-900 truncate">
                 {formatAddress(safeAddress)}
               </p>
@@ -135,7 +137,7 @@ export default function SafeWalletCard() {
             </div>
             <div className="w-full bg-gray-50 rounded-lg p-3">
               <p className="text-xs text-gray-500 mb-1 text-center">
-                Safe Wallet Address
+                {walletType === 'deposit' ? 'Deposit Wallet Address' : 'Safe Wallet Address'}
               </p>
               <p className="text-sm font-mono text-gray-900 text-center break-all">
                 {safeAddress}

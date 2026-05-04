@@ -1,30 +1,40 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { X, Zap, ArrowDownToLine } from 'lucide-react';
+import { ArrowLeft, ArrowDownToLine, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type * as hl from '@nktkas/hyperliquid';
 
 // Hooks
-import { useHyperliquidMarkets, useMarketByCoins } from './hooks/useHyperliquidMarkets';
+import {
+  useHyperliquidMarkets,
+  useMarketByCoins,
+} from './hooks/useHyperliquidMarkets';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
 import { useHyperliquidTrading } from './hooks/useHyperliquidTrading';
-import { useAllMids, useOrderBook, useUserFills } from './hooks/useHyperliquidWebSocket';
+import {
+  useAllMids,
+  useOrderBook,
+  useUserFills,
+} from './hooks/useHyperliquidWebSocket';
 import type { DepositCheckStatus } from './hooks/useHyperliquidBalanceCheck';
 
 // Components
 import { AgentSetupModal } from './AgentSetupModal';
 import { MarketSelector } from './MarketSelector';
-import { FundingRateBar } from './FundingRateBar';
 import { OrderBook } from './OrderBook';
 import { TradingForm } from './TradingForm';
-import { PositionsList } from './PositionsList';
+import { AssetHeader } from './AssetHeader';
+import { CandleChart } from './CandleChart';
+import { AccountStats } from './AccountStats';
+import { FocusedPositionCard } from './FocusedPositionCard';
 
-import type { HLMarket, HLPosition } from '@/services/hyperliquid/types';
+import type {
+  HLMarket,
+  HLPosition,
+} from '@/services/hyperliquid/types';
 
 interface PerpsPanelProps {
-  // Agent state lifted from WalletContent so the ExchangeClient persists
-  // across PerpsPanel open/close cycles (avoids repeated sign prompts).
   agentClient: hl.ExchangeClient | null;
   masterAddress: string | null;
   isInitialized: boolean;
@@ -34,32 +44,25 @@ interface PerpsPanelProps {
   initializeAgent: () => Promise<hl.ExchangeClient | null>;
   onClose: () => void;
   onOpenDeposit: () => void;
-  /** Current HL balance check status — passed from WalletContent */
   depositStatus: DepositCheckStatus;
-  /** Re-run a single balance check (e.g. user clicks "check again") */
   onRecheckBalance: () => void;
   /** Coin to focus on when the panel opens (e.g. user clicked an ETH row in PerpsCard) */
   initialCoin?: string | null;
 }
 
-type PanelView = 'trading' | 'markets';
+const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1D'] as const;
+type Timeframe = (typeof TIMEFRAMES)[number];
 
 /**
- * PerpsPanel
+ * PerpsPanel — full-screen perps trading dashboard. Bento layout:
  *
- * Full-screen trading panel that integrates:
- *  - Agent wallet initialization (one-time approval)
- *  - Market selector (left column)
- *  - Live order book (centre column)
- *  - Trading form (right column)
- *  - Positions list (bottom panel)
- *
- * Layout (desktop):
- *  ┌──────────┬────────────────┬──────────────┐
- *  │ Markets  │   Order Book   │ Trade Form   │
- *  ├──────────┴────────────────┴──────────────┤
- *  │          Open Positions / Orders         │
- *  └──────────────────────────────────────────┘
+ *   ┌────────────────────────────────────────────────────────┐
+ *   │ Asset header (full width)                              │
+ *   ├──────────┬─────────────────────────────┬───────────────┤
+ *   │ Markets  │            Chart             │ Trade ticket │
+ *   ├──────────┴───────────────┬─────────────┴───────────────┤
+ *   │      Order book          │   Position   │    Account    │
+ *   └──────────────────────────┴──────────────┴───────────────┘
  */
 export function PerpsPanel({
   agentClient,
@@ -77,50 +80,47 @@ export function PerpsPanel({
 }: PerpsPanelProps) {
   const { toast } = useToast();
 
-  // ── Agent setup state ──────────────────────────────────────────────
   const [showAgentModal, setShowAgentModal] = useState(false);
+  const [selectedCoin, setSelectedCoin] = useState<string | null>(
+    initialCoin ?? 'BTC',
+  );
+  const [closingCoin, setClosingCoin] = useState<string | null>(null);
+  const [activeTimeframe, setActiveTimeframe] =
+    useState<Timeframe>('15m');
+  const [tradeLeverage, setTradeLeverage] = useState({
+    value: 10,
+    isCross: true,
+  });
 
-  // When the user opens DepositModal from inside AgentSetupModal, close the
-  // agent modal. WalletContent will start polling via onOpenDeposit → startDepositPolling.
+  // Re-open AgentSetupModal once a deposit settles.
+  useEffect(() => {
+    if (depositStatus === 'ready' && !isInitialized)
+      setShowAgentModal(true);
+  }, [depositStatus, isInitialized]);
+
+  // Show agent modal on first open if not yet initialized
+  useEffect(() => {
+    if (!isInitialized) setShowAgentModal(true);
+  }, [isInitialized]);
+
   const handleOpenDepositFromAgentModal = useCallback(() => {
     setShowAgentModal(false);
     onOpenDeposit();
   }, [onOpenDeposit]);
 
-  // Re-open AgentSetupModal after polling confirms the deposit settled.
-  // depositStatus is owned by WalletContent and transitions to 'ready' once
-  // the Hyperliquid bridge settles the deposit.
-  useEffect(() => {
-    if (depositStatus === 'ready' && !isInitialized) {
-      setShowAgentModal(true);
-    }
-  }, [depositStatus, isInitialized]);
-
-  // ── Market selection ───────────────────────────────────────────────
-  // Default to whatever coin the parent requested (e.g. clicked from
-  // PerpsCard) and fall back to BTC if none was provided.
-  const [selectedCoin, setSelectedCoin] = useState<string | null>(
-    initialCoin ?? 'BTC',
-  );
-  const [view, setView] = useState<PanelView>('trading');
-  const [closingCoin, setClosingCoin] = useState<string | null>(null);
-
-  // ── Data fetching ──────────────────────────────────────────────────
-  const { data: markets = [], isLoading: marketsLoading } = useHyperliquidMarkets();
-
+  // Data
+  const { data: markets = [], isLoading: marketsLoading } =
+    useHyperliquidMarkets();
   const effectiveMaster = masterAddress;
+  const { data: accountData, refetch: refetchPositions } =
+    useHyperliquidPositions(effectiveMaster);
 
-  const {
-    data: accountData,
-    isLoading: positionsLoading,
-    refetch: refetchPositions,
-  } = useHyperliquidPositions(effectiveMaster);
+  const { mids } = useAllMids(true);
+  const { book, connected: bookConnected } = useOrderBook(
+    selectedCoin,
+    !!selectedCoin,
+  );
 
-  // ── WebSocket ──────────────────────────────────────────────────────
-  const { mids, connected: midsConnected } = useAllMids(true);
-  const { book, connected: bookConnected } = useOrderBook(selectedCoin, !!selectedCoin);
-
-  // Listen for fills and auto-refresh positions
   useUserFills(
     effectiveMaster,
     useCallback(() => {
@@ -129,39 +129,31 @@ export function PerpsPanel({
     !!effectiveMaster,
   );
 
-  // ── Trading ────────────────────────────────────────────────────────
+  // Trading
   const {
     placeMarketOrder,
     placeLimitOrder,
     placeTpSlOrder,
     updateLeverage,
     closePosition,
-    cancelOrder,
     isSubmitting,
     error: tradeError,
     clearError,
   } = useHyperliquidTrading(agentClient);
 
-  // ── Selected market ────────────────────────────────────────────────
   const selectedMarket = useMarketByCoins(markets, selectedCoin);
-
-  // Live mark price: prefer WS, fallback to React Query
   const liveMarkPrice = selectedCoin
     ? (mids[selectedCoin] ?? selectedMarket?.markPrice ?? '0')
     : '0';
 
-  // Existing position for selected market
   const existingPosition = accountData?.positions.find(
     (p) => p.coin === selectedCoin,
   );
 
-  // ── Handle market select ───────────────────────────────────────────
   const handleMarketSelect = useCallback((market: HLMarket) => {
     setSelectedCoin(market.coin);
-    setView('trading');
   }, []);
 
-  // ── Handle close position ──────────────────────────────────────────
   const handleClosePosition = useCallback(
     async (position: HLPosition) => {
       setClosingCoin(position.coin);
@@ -183,89 +175,70 @@ export function PerpsPanel({
         toast({
           variant: 'destructive',
           title: 'Close failed',
-          description: err instanceof Error ? err.message : 'Failed to close position',
+          description:
+            err instanceof Error
+              ? err.message
+              : 'Failed to close position',
         });
       } finally {
         setClosingCoin(null);
       }
     },
-    [closePosition, markets, mids, liveMarkPrice, toast, refetchPositions],
+    [
+      closePosition,
+      markets,
+      mids,
+      liveMarkPrice,
+      toast,
+      refetchPositions,
+    ],
   );
 
-  // ── Handle cancel order ────────────────────────────────────────────
-  const handleCancelOrder = useCallback(
-    async (coin: string, orderId: number) => {
-      try {
-        const assetIndex = markets.find((m) => m.coin === coin)?.index ?? 0;
-        await cancelOrder(assetIndex, orderId);
-        toast({ title: 'Order cancelled', description: `${coin} order cancelled` });
-        refetchPositions();
-      } catch (err) {
-        toast({
-          variant: 'destructive',
-          title: 'Cancel failed',
-          description: err instanceof Error ? err.message : 'Failed to cancel order',
-        });
-      }
-    },
-    [cancelOrder, markets, toast, refetchPositions],
-  );
-
-  // ── Agent init ─────────────────────────────────────────────────────
   const handleInitAgent = useCallback(async () => {
     try {
       await initializeAgent();
       setShowAgentModal(false);
       toast({
         title: 'Trading enabled',
-        description: 'Agent wallet connected. You can now place orders instantly.',
+        description:
+          'Agent wallet connected. You can now place orders instantly.',
       });
-    } catch (err) {
-      // error shown in modal
+    } catch {
+      // surfaced in modal
     }
   }, [initializeAgent, toast]);
 
-  // Show agent modal on first open if not yet initialized
-  useEffect(() => {
-    if (!isInitialized) {
-      setShowAgentModal(true);
-    }
-  }, [isInitialized]);
-
-  // ── Notify on trade error ──────────────────────────────────────────
   useEffect(() => {
     if (tradeError) {
-      toast({ variant: 'destructive', title: 'Order failed', description: tradeError });
+      toast({
+        variant: 'destructive',
+        title: 'Order failed',
+        description: tradeError,
+      });
     }
   }, [tradeError, toast]);
 
+  const markPriceNum = parseFloat(liveMarkPrice) || 0;
+
   return (
     <>
-      {/* Full-screen overlay */}
-      <div className="fixed inset-0 z-40 bg-white flex flex-col">
-        {/* ── Top Bar ─────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0">
+      <div
+        className="fixed inset-0 z-40 flex flex-col"
+        style={{ background: '#ecebe6' }}
+      >
+        {/* ── Top bar ─────────────────────────────────────────── */}
+        <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-black/[0.06] flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-3.5 py-1.5 rounded-full border border-black/[0.06] text-[12.5px] font-semibold text-gray-900 bg-white hover:bg-gray-50 transition-colors"
             >
-              <X className="w-5 h-5" />
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back
             </button>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center">
-                <Zap className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-bold text-gray-800">Perps</span>
-              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                Hyperliquid
-              </span>
-            </div>
           </div>
 
-          {/* Top-bar actions */}
           <div className="flex items-center gap-2">
-            {/* Deposit button — always visible */}
             <button
               onClick={onOpenDeposit}
               className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full font-semibold transition-colors"
@@ -273,8 +246,6 @@ export function PerpsPanel({
               <ArrowDownToLine className="w-3.5 h-3.5" />
               Deposit
             </button>
-
-            {/* Agent status */}
             {isReconnecting ? (
               <span className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full font-medium">
                 <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
@@ -297,80 +268,100 @@ export function PerpsPanel({
           </div>
         </div>
 
-        {/* ── Main Layout ─────────────────────────────────────────── */}
-        <div className="flex-1 overflow-hidden flex">
-
-          {/* ── Left: Market Selector ─────────────────────────────── */}
-          <div className="w-52 border-r border-gray-100 flex-shrink-0 overflow-hidden">
-            <MarketSelector
-              markets={markets}
-              selectedCoin={selectedCoin}
-              onSelect={handleMarketSelect}
-              liveMids={mids}
-              isLoading={marketsLoading}
+        {/* ── Bento body (scrollable) ─────────────────────────── */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-[1380px] mx-auto px-5 py-5 space-y-3">
+            {/* Asset header */}
+            <AssetHeader
+              market={selectedMarket ?? null}
+              markPrice={liveMarkPrice}
             />
-          </div>
 
-          {/* ── Centre: Order Book + Funding Rate ─────────────────── */}
-          <div className="flex-1 border-r border-gray-100 flex flex-col overflow-hidden min-w-0">
-            {/* Funding rate + mark price bar */}
-            {selectedMarket && (
-              <FundingRateBar
-                coin={selectedMarket.coin}
-                fundingRate={selectedMarket.fundingRate}
+            {/* Row 1 — markets · chart · ticket */}
+            <div className="grid gap-3 grid-cols-[220px_minmax(0,1fr)_320px]">
+              <Card
+                pad="p-2.5"
+                className="h-[460px] self-start overflow-hidden"
+              >
+                <MarketSelector
+                  markets={markets}
+                  selectedCoin={selectedCoin}
+                  onSelect={handleMarketSelect}
+                  liveMids={mids}
+                  isLoading={marketsLoading}
+                />
+              </Card>
+
+              <Card
+                pad="p-0"
+                className="overflow-hidden flex flex-col min-h-[460px]"
+              >
+                <ChartToolbar
+                  coin={selectedCoin ?? ''}
+                  active={activeTimeframe}
+                  onPick={setActiveTimeframe}
+                  markPrice={markPriceNum}
+                />
+                <div className="relative flex-1">
+                  <ChartLegend price={markPriceNum} />
+                  <CandleChart
+                    basePrice={markPriceNum || 100}
+                    height={380}
+                  />
+                </div>
+              </Card>
+
+              <Card pad="p-[18px]">
+                <TradingForm
+                  market={selectedMarket ?? null}
+                  markPrice={liveMarkPrice}
+                  existingPosition={existingPosition}
+                  accountValue={accountData?.accountValue ?? '0'}
+                  isAgentReady={isInitialized}
+                  isSubmitting={isSubmitting}
+                  error={tradeError}
+                  onLeverageChange={(value, isCross) =>
+                    setTradeLeverage({ value, isCross })
+                  }
+                  onPlaceMarket={placeMarketOrder}
+                  onPlaceLimit={placeLimitOrder}
+                  onPlaceTpSl={placeTpSlOrder}
+                  onUpdateLeverage={updateLeverage}
+                  onClearError={clearError}
+                />
+              </Card>
+            </div>
+
+            {/* Row 2 — order book · position · account */}
+            <div className="grid gap-3 grid-cols-[1fr_1.2fr_0.9fr] min-h-[360px]">
+              <Card pad="p-0" className="overflow-hidden">
+                <OrderBook
+                  book={book}
+                  coin={selectedCoin}
+                  connected={bookConnected}
+                />
+              </Card>
+
+              <FocusedPositionCard
+                position={existingPosition}
                 markPrice={liveMarkPrice}
-                openInterest={selectedMarket.openInterest}
+                isClosing={closingCoin === existingPosition?.coin}
+                onClose={handleClosePosition}
               />
-            )}
-            {/* Order Book */}
-            <div className="flex-1 overflow-hidden">
-              <OrderBook
-                book={book}
-                coin={selectedCoin}
-                connected={bookConnected}
+
+              <AccountStats
+                accountValue={accountData?.accountValue ?? '0'}
+                unrealizedPnl={accountData?.unrealizedPnl ?? '0'}
+                marginUsed={accountData?.marginUsed ?? '0'}
+                withdrawable={accountData?.withdrawable ?? '0'}
+                leverage={tradeLeverage.value}
+                isCross={tradeLeverage.isCross}
               />
             </div>
           </div>
-
-          {/* ── Right: Trading Form ───────────────────────────────── */}
-          <div className="w-72 flex-shrink-0 overflow-hidden border-l border-gray-100">
-            <TradingForm
-              market={selectedMarket ?? null}
-              markPrice={liveMarkPrice}
-              existingPosition={existingPosition}
-              accountValue={accountData?.accountValue ?? '0'}
-              isAgentReady={isInitialized}
-              isSubmitting={isSubmitting}
-              error={tradeError}
-              onPlaceMarket={placeMarketOrder}
-              onPlaceLimit={placeLimitOrder}
-              onPlaceTpSl={placeTpSlOrder}
-              onUpdateLeverage={updateLeverage}
-              onClearError={clearError}
-            />
-          </div>
-        </div>
-
-        {/* ── Bottom: Positions ────────────────────────────────────── */}
-        <div className="h-64 border-t border-gray-200 flex-shrink-0 overflow-hidden">
-          <PositionsList
-            positions={accountData?.positions ?? []}
-            openOrders={accountData?.openOrders ?? []}
-            accountValue={accountData?.accountValue ?? '0'}
-            unrealizedPnl={accountData?.unrealizedPnl ?? '0'}
-            withdrawable={accountData?.withdrawable ?? '0'}
-            marginUsed={accountData?.marginUsed ?? '0'}
-            liveMids={mids}
-            isLoading={positionsLoading}
-            closingCoin={closingCoin}
-            onClosePosition={handleClosePosition}
-            onCancelOrder={handleCancelOrder}
-            onRefresh={refetchPositions}
-          />
         </div>
       </div>
 
-      {/* Agent Setup Modal */}
       <AgentSetupModal
         isOpen={showAgentModal}
         onClose={() => setShowAgentModal(false)}
@@ -382,5 +373,129 @@ export function PerpsPanel({
         onRecheckBalance={onRecheckBalance}
       />
     </>
+  );
+}
+
+// ─── Local layout helpers ───────────────────────────────────────────────────
+
+function Card({
+  children,
+  pad = 'p-[18px]',
+  className = '',
+}: {
+  children: React.ReactNode;
+  pad?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`bg-white border border-black/[0.06] rounded-[20px] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] ${pad} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ChartToolbar({
+  coin,
+  active,
+  onPick,
+  markPrice,
+}: {
+  coin: string;
+  active: Timeframe;
+  onPick: (tf: Timeframe) => void;
+  markPrice: number;
+}) {
+  const high = markPrice * 1.005;
+  const low = markPrice * 0.995;
+
+  return (
+    <div className="px-4 py-3 border-b border-black/[0.06] flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center gap-2.5">
+        <div className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-1 bg-[#f4f4f1] rounded-full">
+          <div className="w-[18px] h-[18px] rounded-full bg-gradient-to-br from-blue-500 to-blue-300 flex items-center justify-center text-white text-[10px] font-bold">
+            {coin?.charAt(0) ?? '?'}
+          </div>
+          <span className="text-[11.5px] font-semibold tracking-tight text-gray-900">
+            {coin ? `${coin}-PERP` : '—'}
+          </span>
+        </div>
+        <span className="w-px h-4 bg-black/10" />
+        <div className="flex gap-0.5 p-0.5 bg-[#f4f4f1] rounded-lg">
+          {TIMEFRAMES.map((tf) => (
+            <button
+              key={tf}
+              onClick={() => onPick(tf)}
+              className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
+                active === tf
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
+        <span className="w-px h-4 bg-black/10" />
+        <Chip>＋ Indicators</Chip>
+        <Chip>⌗ Drawing</Chip>
+      </div>
+      <div className="flex gap-3 text-[11px] text-gray-500 font-mono font-semibold tracking-wide">
+        <Ohlc label="O" value={markPrice} />
+        <Ohlc label="H" value={high} color="text-emerald-600" />
+        <Ohlc label="L" value={low} color="text-red-500" />
+        <Ohlc label="C" value={markPrice} />
+      </div>
+    </div>
+  );
+}
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <button className="inline-flex items-center gap-1 px-2.5 h-7 bg-white border border-black/[0.06] rounded-full text-[12px] font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+      {children}
+    </button>
+  );
+}
+
+function Ohlc({
+  label,
+  value,
+  color = 'text-gray-900',
+}: {
+  label: string;
+  value: number;
+  color?: string;
+}) {
+  return (
+    <span>
+      {label}{' '}
+      <span className={`tabular-nums ${color}`}>
+        {value.toFixed(2)}
+      </span>
+    </span>
+  );
+}
+
+function ChartLegend({ price }: { price: number }) {
+  if (!price) return null;
+  return (
+    <div className="absolute top-2.5 left-3.5 z-10 flex flex-col gap-0.5 text-[10px] font-mono font-semibold pointer-events-none">
+      <span className="inline-flex items-center gap-1.5">
+        <span className="block w-2 h-0.5 bg-purple-500" />
+        <span className="text-gray-500">EMA 20</span>
+        <span className="text-gray-900 tabular-nums">
+          {(price * 1.001).toFixed(2)}
+        </span>
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="block w-2 h-0.5 bg-orange-500" />
+        <span className="text-gray-500">EMA 50</span>
+        <span className="text-gray-900 tabular-nums">
+          {(price * 0.997).toFixed(2)}
+        </span>
+      </span>
+    </div>
   );
 }

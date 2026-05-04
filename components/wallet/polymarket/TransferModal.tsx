@@ -1419,7 +1419,12 @@ function WithdrawTab({
   open: boolean;
   onClose: () => void;
 }) {
-  const { safeAddress, isTradingSessionComplete } = useTrading();
+  const {
+    safeAddress,
+    depositWalletAddress,
+    walletType,
+    isTradingSessionComplete,
+  } = useTrading();
   const { eoaAddress, walletClient } = usePolymarketWallet();
   const { accessToken } = useUser();
   const { usdcBalance } = usePolygonBalances(safeAddress);
@@ -1437,6 +1442,7 @@ function WithdrawTab({
   const activeBalance = usdcBalance;
   const activeAddress = USDC_E_CONTRACT_ADDRESS;
   const activeLabel = 'pUSD';
+  const walletLabel = walletType === 'deposit' ? 'Deposit wallet' : 'Safe wallet';
 
   const parsedAmount = parseFloat(amount) || 0;
   const isAmountValid =
@@ -1467,6 +1473,7 @@ function WithdrawTab({
       !destination ||
       !safeAddress ||
       !eoaAddress ||
+      !walletClient ||
       !accessToken
     ) {
       setError('Trading session not ready.');
@@ -1479,6 +1486,8 @@ function WithdrawTab({
       const typedData = await getWithdrawTypedData(
         {
           safeAddress,
+          depositWalletAddress,
+          walletType,
           eoaAddress,
           toAddress: destination,
           amount: parsedAmount,
@@ -1487,20 +1496,41 @@ function WithdrawTab({
         accessToken,
       );
 
-      const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
-      const signature = await walletClient!.signMessage({
-        account: eoaAddress as `0x${string}`,
-        message: { raw: txHashBytes },
-      });
+      const signature =
+        walletType === 'deposit'
+          ? await walletClient!.signTypedData({
+            account: eoaAddress as `0x${string}`,
+            domain: typedData.typedData!.domain as Parameters<typeof walletClient.signTypedData>[0]['domain'],
+            types: typedData.typedData!.types as Parameters<typeof walletClient.signTypedData>[0]['types'],
+            primaryType: typedData.typedData!.primaryType ?? 'Batch',
+            message: {
+              ...typedData.typedData!.message,
+              nonce: BigInt(typedData.nonce),
+              deadline: BigInt(typedData.deadline!),
+              calls: typedData.calls!.map((call) => ({
+                ...call,
+                value: BigInt(call.value),
+              })),
+            } as Parameters<typeof walletClient.signTypedData>[0]['message'],
+          })
+          : await walletClient!.signMessage({
+            account: eoaAddress as `0x${string}`,
+            message: {
+              raw: hexToBytes(typedData.txHash as `0x${string}`),
+            },
+          });
 
       const result = await submitWithdraw(
         {
           safeAddress,
+          depositWalletAddress,
+          walletType,
           eoaAddress,
           toAddress: destination,
           amount: parsedAmount,
           signature,
           nonce: typedData.nonce,
+          deadline: typedData.deadline,
           tokenAddress: activeAddress,
         },
         accessToken,
@@ -1537,7 +1567,10 @@ function WithdrawTab({
     eoaAddress,
     accessToken,
     parsedAmount,
+    activeAddress,
     walletClient,
+    walletType,
+    depositWalletAddress,
     queryClient,
   ]);
 
@@ -1552,7 +1585,7 @@ function WithdrawTab({
             Processing withdrawal...
           </p>
           <p className="text-sm text-gray-500 mt-1">
-            Signing and submitting via Safe relay
+            Signing and submitting via {walletLabel}
           </p>
         </div>
       </div>
@@ -1637,7 +1670,7 @@ function WithdrawTab({
             ['USD value', `≈ $${parsedAmount.toFixed(2)}`],
             [
               'From',
-              `${safeAddress ? truncateAddress(safeAddress) : '—'} (Safe)`,
+              `${safeAddress ? truncateAddress(safeAddress) : '—'} (${walletLabel})`,
             ],
             [
               'To',
@@ -1687,7 +1720,7 @@ function WithdrawTab({
           ${activeBalance.toFixed(2)}
         </p>
         <p className="text-xs text-gray-400 mt-0.5">
-          {activeBalance.toFixed(6)} {activeLabel} (Safe wallet)
+          {activeBalance.toFixed(6)} {activeLabel} ({walletLabel})
         </p>
       </div>
 

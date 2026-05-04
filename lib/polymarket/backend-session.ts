@@ -47,6 +47,21 @@ export interface ApprovalTypedData {
   alreadyApproved?: boolean;
 }
 
+export interface DepositWalletApprovalTypedData {
+  typedData?: {
+    domain: Record<string, unknown>;
+    types: Record<string, unknown[]>;
+    primaryType?: string;
+    message: Record<string, unknown>;
+  };
+  depositWalletAddress: string;
+  eoaAddress: string;
+  nonce: string;
+  deadline: string;
+  calls: Array<{ target: string; value: string; data: string }>;
+  alreadyApproved?: boolean;
+}
+
 const base = () => `${POLYMARKET_BACKEND_URL}/api/prediction-markets`;
 
 function authHeaders(accessToken: string) {
@@ -236,6 +251,46 @@ export async function submitDeploySignature(
   return res.json();
 }
 
+export async function getDepositWalletAddress(
+  eoaAddress: string,
+  accessToken: string
+): Promise<{ depositWalletAddress: string }> {
+  const params = new URLSearchParams({ eoaAddress });
+  const res = await fetch(`${base()}/session/deposit-wallet-address?${params}`, {
+    headers: authHeaders(accessToken),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to derive deposit wallet address");
+  }
+
+  return res.json();
+}
+
+export async function deployDepositWallet(
+  eoaAddress: string,
+  accessToken: string
+): Promise<{
+  deployed: boolean;
+  depositWalletAddress: string;
+  alreadyExisted?: boolean;
+  txId?: string;
+}> {
+  const res = await fetch(`${base()}/session/deploy-deposit-wallet`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ eoaAddress }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to deploy deposit wallet");
+  }
+
+  return res.json();
+}
+
 /**
  * Returns the SafeTx EIP-712 data that the wallet must sign to authorise the
  * token approval batch.  Returns { alreadyApproved: true } when no action
@@ -294,19 +349,100 @@ export async function submitApprovalSignature(
   return res.json();
 }
 
+export async function getDepositWalletApprovalTypedData(
+  depositWalletAddress: string,
+  eoaAddress: string,
+  accessToken: string
+): Promise<DepositWalletApprovalTypedData> {
+  const params = new URLSearchParams({ depositWalletAddress, eoaAddress });
+  const res = await fetch(
+    `${base()}/session/deposit-wallet/approval-typed-data?${params}`,
+    { headers: authHeaders(accessToken) }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to get deposit wallet approval typed data");
+  }
+
+  return res.json();
+}
+
+export async function submitDepositWalletApprovalSignature(
+  params: {
+    depositWalletAddress: string;
+    eoaAddress: string;
+    signature: string;
+    nonce: string;
+    deadline: string;
+    calls: Array<{ target: string; value: string; data: string }>;
+  },
+  accessToken: string
+): Promise<{ approvalsComplete: boolean }> {
+  const res = await fetch(`${base()}/session/deposit-wallet/approvals`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(params),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to submit deposit wallet approvals");
+  }
+
+  return res.json();
+}
+
+export async function syncBalanceAllowance(
+  params: {
+    apiCreds: ClobCredentials;
+    safeAddress?: string;
+    depositWalletAddress?: string;
+    walletType?: "safe" | "deposit";
+    eoaAddress: string;
+    assetType?: "COLLATERAL" | "CONDITIONAL";
+    tokenId?: string;
+  },
+  accessToken: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(`${base()}/session/balance-allowance/sync`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(params),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to sync balance allowance");
+  }
+
+  return res.json();
+}
+
 export interface WithdrawTypedData {
-  txHash: string;
-  safeAddress: string;
+  txHash?: string;
+  typedData?: {
+    domain: Record<string, unknown>;
+    types: Record<string, unknown[]>;
+    primaryType?: string;
+    message: Record<string, unknown>;
+  };
+  safeAddress?: string;
+  depositWalletAddress?: string;
   eoaAddress: string;
   nonce: string;
-  to: string;
-  data: string;
-  operation: number;
+  deadline?: string;
+  calls?: Array<{ target: string; value: string; data: string }>;
+  to?: string;
+  data?: string;
+  operation?: number;
 }
 
 export async function getWithdrawTypedData(
   params: {
     safeAddress: string;
+    depositWalletAddress?: string;
+    walletType?: "safe" | "deposit";
     eoaAddress: string;
     toAddress: string;
     amount: number;
@@ -319,6 +455,8 @@ export async function getWithdrawTypedData(
     eoaAddress: params.eoaAddress,
     toAddress: params.toAddress,
     amount: String(params.amount),
+    ...(params.depositWalletAddress ? { depositWalletAddress: params.depositWalletAddress } : {}),
+    ...(params.walletType ? { walletType: params.walletType } : {}),
     ...(params.tokenAddress ? { tokenAddress: params.tokenAddress } : {}),
   });
   const res = await fetch(`${base()}/positions/withdraw/typed-data?${searchParams}`, {
@@ -334,11 +472,14 @@ export async function getWithdrawTypedData(
 export async function submitWithdraw(
   params: {
     safeAddress: string;
+    depositWalletAddress?: string;
+    walletType?: "safe" | "deposit";
     eoaAddress: string;
     toAddress: string;
     amount: number;
     signature: string;
     nonce: string;
+    deadline?: string;
     tokenAddress?: string;
   },
   accessToken: string
@@ -395,18 +536,29 @@ export async function getLegacyWithdrawTypedData(
 }
 
 export interface RedeemTypedData {
-  txHash: string;
-  safeAddress: string;
+  txHash?: string;
+  typedData?: {
+    domain: Record<string, unknown>;
+    types: Record<string, unknown[]>;
+    primaryType?: string;
+    message: Record<string, unknown>;
+  };
+  safeAddress?: string;
+  depositWalletAddress?: string;
   eoaAddress: string;
   nonce: string;
-  to: string;
-  data: string;
-  operation: number;
+  deadline?: string;
+  calls?: Array<{ target: string; value: string; data: string }>;
+  to?: string;
+  data?: string;
+  operation?: number;
 }
 
 export async function getRedeemTypedData(
   params: {
     safeAddress: string;
+    depositWalletAddress?: string;
+    walletType?: "safe" | "deposit";
     eoaAddress: string;
     conditionId: string;
     negRisk?: boolean;
@@ -419,6 +571,8 @@ export async function getRedeemTypedData(
     safeAddress: params.safeAddress,
     eoaAddress: params.eoaAddress,
     conditionId: params.conditionId,
+    ...(params.depositWalletAddress ? { depositWalletAddress: params.depositWalletAddress } : {}),
+    ...(params.walletType ? { walletType: params.walletType } : {}),
     ...(params.negRisk != null ? { negRisk: String(params.negRisk) } : {}),
     ...(params.outcomeIndex != null ? { outcomeIndex: String(params.outcomeIndex) } : {}),
     ...(params.size != null ? { size: String(params.size) } : {}),
@@ -436,6 +590,8 @@ export async function getRedeemTypedData(
 export async function submitRedeem(
   params: {
     safeAddress: string;
+    depositWalletAddress?: string;
+    walletType?: "safe" | "deposit";
     eoaAddress: string;
     conditionId: string;
     negRisk?: boolean;
@@ -443,6 +599,7 @@ export async function submitRedeem(
     size?: number;
     signature: string;
     nonce: string;
+    deadline?: string;
   },
   accessToken: string
 ): Promise<{ txId: string; success: boolean }> {

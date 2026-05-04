@@ -25,7 +25,14 @@ export function useActiveOrders(
   _session: object | null,
   _walletAddress: string | undefined,
 ) {
-  const { tradingSession, safeAddress, eoaAddress, isTradingSessionComplete } = useTrading();
+  const {
+    tradingSession,
+    safeAddress,
+    eoaAddress,
+    isTradingSessionComplete,
+    walletType,
+    depositWalletAddress,
+  } = useTrading();
   const { accessToken } = useUser();
 
   return useQuery({
@@ -41,6 +48,8 @@ export function useActiveOrders(
           },
           body: JSON.stringify({
             safeAddress,
+            depositWalletAddress,
+            walletType,
             eoaAddress,
             apiCreds: tradingSession.apiCredentials,
           }),

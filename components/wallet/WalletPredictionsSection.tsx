@@ -342,30 +342,6 @@ export default function WalletPredictionsSection() {
     );
   }
 
-  if (sessionError && !tradingSession) {
-    return (
-      <div className="mt-6 max-w-[855px] w-full mx-auto">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">
-          Predictions
-        </h2>
-        <div className="bg-white rounded-xl p-6 border border-red-100">
-          <div className="flex flex-col items-center text-center max-w-sm mx-auto">
-            <p className="text-gray-500 text-sm mb-4">
-              {formatPolymarketError(sessionError)}
-            </p>
-            <button
-              onClick={() => initializeTradingSession()}
-              disabled={currentStep !== 'idle'}
-              className="px-5 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
-            >
-              {currentStep !== 'idle' ? 'Retrying...' : 'Retry'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   /** Injected into the left column above the search bar */
   const balanceHeader = (
     <div className="flex items-center justify-between">
@@ -414,6 +390,28 @@ export default function WalletPredictionsSection() {
   return (
     <div className="mt-4 mb-20 max-w-[855px] w-full mx-auto space-y-3 bg-white rounded-xl p-6 drop-shadow-lg">
       <GeoBlockedBanner />
+
+      {sessionError && !tradingSession && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-900">
+                Trading is not enabled yet
+              </p>
+              <p className="text-xs text-amber-800 mt-0.5">
+                {formatPolymarketError(sessionError)}
+              </p>
+            </div>
+            <button
+              onClick={() => initializeTradingSession()}
+              disabled={currentStep !== 'idle'}
+              className="shrink-0 px-4 py-2 bg-black text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {currentStep !== 'idle' ? 'Enabling...' : 'Enable trading'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <HighVolumeMarkets splitLayout leftHeaderSlot={balanceHeader} />
 

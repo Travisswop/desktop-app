@@ -3,6 +3,7 @@ import { usePolymarketWallet } from "@/providers/polymarket";
 import { useTokenApprovals } from "@/hooks/polymarket/useTokenApprovals";
 import { useSafeDeployment } from "@/hooks/polymarket/useSafeDeployment";
 import { useUserApiCredentials } from "@/hooks/polymarket/useUserApiCredentials";
+import { useUser } from "@/lib/UserContext";
 import {
   loadSession,
   saveSession,
@@ -10,6 +11,13 @@ import {
   TradingSession,
   SessionStep,
 } from "@/lib/polymarket/session";
+import {
+  deployDepositWallet,
+  getDepositWalletAddress,
+  syncBalanceAllowance,
+} from "@/lib/polymarket/backend-session";
+
+const NEW_SESSION_WALLET_TYPE: "deposit" | "safe" = "deposit";
 
 // This is the coordination hook that manages the user's trading session
 // It orchestrates the steps for initializing both the clob and relay clients
@@ -23,7 +31,8 @@ export function useTradingSession() {
     null
   );
 
-  const { eoaAddress, walletClient } = usePolymarketWallet();
+  const { eoaAddress } = usePolymarketWallet();
+  const { accessToken } = useUser();
   const { createOrDeriveUserApiCredentials } = useUserApiCredentials();
   const { checkAllTokenApprovals, setAllTokenApprovals } = useTokenApprovals();
   const { derivedSafeAddressFromEoa, isSafeDeployed, deploySafe } =
@@ -81,14 +90,48 @@ export function useTradingSession() {
       // Step 1 (removed): relay client initialization is no longer needed.
       // All relay operations go through the polymarket-backend proxy.
 
-      // Step 2: Get Safe address (deterministic derivation from EOA)
+      const storedWalletType = storedSession?.walletType ?? "safe";
+      const walletType = storedSession ? storedWalletType : NEW_SESSION_WALLET_TYPE;
+
+      // Step 2: Get Safe address (deterministic derivation from EOA). This is
+      // still useful for legacy Safe sessions and for moving old Safe funds.
       if (!derivedSafeAddressFromEoa) {
         throw new Error("Failed to derive Safe address");
       }
 
-      // Steps 3-4: Check and deploy Safe — skip entirely if already recorded in storage
-      if (!storedSession?.isSafeDeployed) {
-        let isDeployed = await isSafeDeployed(derivedSafeAddressFromEoa);
+      let tradingWalletAddress = derivedSafeAddressFromEoa;
+      let depositWalletAddress = storedSession?.depositWalletAddress;
+      let isDepositWalletDeployed = storedSession?.isDepositWalletDeployed;
+      let isSafeDeployedFlag = storedSession?.isSafeDeployed ?? false;
+
+      if (walletType === "deposit") {
+        if (!accessToken) {
+          throw new Error("Not authenticated — cannot reach polymarket backend");
+        }
+
+        const derivedDeposit =
+          depositWalletAddress ??
+          (await getDepositWalletAddress(eoaAddress, accessToken)).depositWalletAddress;
+
+        depositWalletAddress = derivedDeposit;
+        tradingWalletAddress = derivedDeposit;
+
+        if (!isDepositWalletDeployed) {
+          setCurrentStep("deploying");
+          const deployResult = await deployDepositWallet(eoaAddress, accessToken);
+          if (!deployResult.deployed) {
+            throw new Error("Deposit wallet deployment failed");
+          }
+          depositWalletAddress = deployResult.depositWalletAddress;
+          tradingWalletAddress = deployResult.depositWalletAddress;
+          isDepositWalletDeployed = true;
+        }
+
+        // Keep this field true so old readiness checks remain compatible.
+        isSafeDeployedFlag = true;
+      } else if (!storedSession?.isSafeDeployed) {
+        // Steps 3-4: Check and deploy Safe — skip entirely if already recorded in storage
+        const isDeployed = await isSafeDeployed(derivedSafeAddressFromEoa);
 
         if (!isDeployed) {
           setCurrentStep("deploying");
@@ -103,6 +146,7 @@ export function useTradingSession() {
             }
           }
         }
+        isSafeDeployedFlag = true;
       }
 
       // Step 5: Get User API Credentials — skip if already stored
@@ -123,21 +167,44 @@ export function useTradingSession() {
       // relay tx was submitted but never confirmed (e.g. after a signing bug).
       setCurrentStep("approvals");
       const approvalStatus = await checkAllTokenApprovals(
-        derivedSafeAddressFromEoa
+        tradingWalletAddress
       );
       let hasApprovals = approvalStatus.allApproved;
       if (!hasApprovals) {
         hasApprovals = await setAllTokenApprovals(
-          derivedSafeAddressFromEoa,
-          eoaAddress
+          tradingWalletAddress,
+          eoaAddress,
+          walletType
         );
+      }
+
+      if (apiCreds && accessToken) {
+        await syncBalanceAllowance(
+          {
+            apiCreds,
+            safeAddress:
+              walletType === "safe" ? tradingWalletAddress : derivedSafeAddressFromEoa,
+            depositWalletAddress:
+              walletType === "deposit" ? tradingWalletAddress : undefined,
+            walletType,
+            eoaAddress,
+            assetType: "COLLATERAL",
+          },
+          accessToken
+        ).catch((err) => {
+          console.warn("[Polymarket] Balance allowance sync failed:", err);
+        });
       }
 
       // Step 7: Create custom session object
       const newSession: TradingSession = {
         eoaAddress: eoaAddress,
-        safeAddress: derivedSafeAddressFromEoa,
-        isSafeDeployed: true,
+        walletType,
+        safeAddress: tradingWalletAddress,
+        depositWalletAddress,
+        legacySafeAddress: derivedSafeAddressFromEoa,
+        isSafeDeployed: isSafeDeployedFlag,
+        isDepositWalletDeployed,
         hasApiCredentials: true,
         hasApprovals,
         apiCredentials: apiCreds,
@@ -157,6 +224,7 @@ export function useTradingSession() {
   }, [
     eoaAddress,
     derivedSafeAddressFromEoa,
+    accessToken,
     isSafeDeployed,
     deploySafe,
     createOrDeriveUserApiCredentials,
