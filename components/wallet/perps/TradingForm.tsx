@@ -8,6 +8,7 @@ import type {
   PlaceLimitOrderParams,
   PlaceTpSlOrderParams,
 } from './hooks/useHyperliquidTrading';
+import { OrderConfirmModal, type OrderConfirmDetails } from './OrderConfirmModal';
 
 interface TradingFormProps {
   market: HLMarket | null;
@@ -56,6 +57,12 @@ export function TradingForm({
   const [leverage, setLeverage] = useState(10);
   const [isCross, setIsCross] = useState(true);
 
+  // Pending order details snapshot — populated when the user clicks the
+  // primary CTA, drives the OrderConfirmModal. Kept as a separate piece of
+  // state (rather than computed at render) so the modal continues to show the
+  // order the user actually requested even if mark price drifts mid-confirm.
+  const [pendingOrder, setPendingOrder] = useState<OrderConfirmDetails | null>(null);
+
   const isBuy = side === 'long';
   const markNum = parseFloat(markPrice) || 0;
   const accountNum = parseFloat(accountValue) || 0;
@@ -99,10 +106,58 @@ export function TradingForm({
     return (sizeUsdNum * 0.0007).toFixed(2);
   }, [sizeUsdNum]);
 
-  const handleSubmit = useCallback(async () => {
+  // Step 1: user clicks the CTA → snapshot the order details and open the modal
+  const requestConfirm = useCallback(() => {
     if (!market) return;
+    const sizeNum = parseFloat(sizeInCoins);
+    if (!sizeNum || sizeNum <= 0) return;
+    if (mode === 'limit' && !limitPrice) return;
+    if (mode === 'tpsl' && !takeProfit && !stopLoss) return;
+
     onClearError();
 
+    const entryPxNum =
+      mode === 'market' ? markNum : parseFloat(limitPrice) || markNum;
+    const liqNum = entryPxNum
+      ? isBuy
+        ? entryPxNum * (1 - 1 / leverage)
+        : entryPxNum * (1 + 1 / leverage)
+      : 0;
+    const liqDistancePct = entryPxNum
+      ? Math.abs((entryPxNum - liqNum) / entryPxNum) * 100
+      : 0;
+    const sizeUsd = sizeNum * entryPxNum;
+    const fee = sizeUsd * 0.0007;
+    const margin = sizeUsd / leverage;
+
+    const modeLabel = `${
+      mode === 'market' ? 'Market' : mode === 'limit' ? 'Limit' : 'TP/SL'
+    } order · ${isCross ? 'Cross' : 'Isolated'} margin`;
+
+    setPendingOrder({
+      side,
+      coin: market.coin,
+      modeLabel,
+      leverage,
+      isCross,
+      sizeCoins: sizeInCoins,
+      sizeUsd: formatUsd(sizeUsd),
+      entryPrice: formatPrice(entryPxNum.toFixed(2)),
+      entrySub: mode === 'market' ? 'Mark · slip < 0.05%' : undefined,
+      liquidationPrice: formatPrice(liqNum.toFixed(2)),
+      liquidationDistance: `${liqDistancePct.toFixed(1)}%`,
+      estFees: fee.toFixed(2),
+      marginRequired: margin.toFixed(2),
+      isLimit: mode !== 'market',
+    });
+  }, [
+    market, mode, isBuy, sizeInCoins, limitPrice, markNum, takeProfit, stopLoss,
+    side, leverage, isCross, onClearError,
+  ]);
+
+  // Step 2: modal confirm → actually fire the order to Hyperliquid
+  const handleConfirmedSubmit = useCallback(async () => {
+    if (!market) return;
     const sizeNum = parseFloat(sizeInCoins);
     if (!sizeNum || sizeNum <= 0) return;
 
@@ -134,17 +189,23 @@ export function TradingForm({
         });
       }
 
+      setPendingOrder(null);
       setSize('');
       setLimitPrice('');
       setTakeProfit('');
       setStopLoss('');
     } catch {
-      // error surfaced via parent
+      // surfaced via parent error prop — leave modal open so the user can retry
     }
   }, [
     market, mode, isBuy, sizeInCoins, limitPrice, markPrice, takeProfit,
-    stopLoss, markNum, onPlaceMarket, onPlaceLimit, onPlaceTpSl, onClearError,
+    stopLoss, markNum, onPlaceMarket, onPlaceLimit, onPlaceTpSl,
   ]);
+
+  const cancelConfirm = useCallback(() => {
+    if (isSubmitting) return;
+    setPendingOrder(null);
+  }, [isSubmitting]);
 
   const handleLeverageChange = useCallback(
     (newLev: number) => {
@@ -403,7 +464,7 @@ export function TradingForm({
 
       {/* Submit */}
       <button
-        onClick={handleSubmit}
+        onClick={requestConfirm}
         disabled={submitDisabled}
         className={`mt-3.5 w-full py-3.5 rounded-2xl text-[14.5px] font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${sideStyles.btn}`}
         style={{ boxShadow: submitDisabled ? undefined : sideStyles.shadow }}
@@ -419,8 +480,26 @@ export function TradingForm({
           `${isBuy ? 'Buy / Long' : 'Sell / Short'} ${market.coin}`
         )}
       </button>
+
+      <OrderConfirmModal
+        isOpen={!!pendingOrder}
+        details={pendingOrder}
+        isSubmitting={isSubmitting}
+        onConfirm={handleConfirmedSubmit}
+        onClose={cancelConfirm}
+      />
     </div>
   );
+}
+
+function formatUsd(value: number): string {
+  if (value >= 1_000) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+  return value.toFixed(2);
 }
 
 function Label({ children }: { children: React.ReactNode }) {

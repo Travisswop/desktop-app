@@ -10,7 +10,8 @@ type Subscription =
   | { type: 'allMids' }
   | { type: 'l2Book'; coin: string }
   | { type: 'trades'; coin: string }
-  | { type: 'user'; user: string };
+  | { type: 'user'; user: string }
+  | { type: 'candle'; coin: string; interval: string };
 
 // ─── Message Handler ─────────────────────────────────────────────────────────
 

@@ -152,7 +152,7 @@ function usePriceHistory(
 
     const fetchOne = (id: string) =>
       fetch(
-        `https://clob.polymarket.com/prices-history?market=${encodeURIComponent(
+        `/api/polymarket/prices-history?tokenId=${encodeURIComponent(
           id,
         )}&interval=1d&fidelity=30`,
       )

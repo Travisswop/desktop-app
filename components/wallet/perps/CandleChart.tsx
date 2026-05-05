@@ -1,239 +1,226 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useRef } from 'react';
+import {
+  createChart,
+  CandlestickSeries,
+  HistogramSeries,
+  CrosshairMode,
+  ColorType,
+  type IChartApi,
+  type ISeriesApi,
+  type CandlestickData,
+  type HistogramData,
+  type UTCTimestamp,
+} from 'lightweight-charts';
+import { useHyperliquidCandles } from './hooks/useHyperliquidCandles';
 
 interface CandleChartProps {
-  /** Anchor price used to seed the synthetic walk. */
-  basePrice: number;
+  /** HL coin symbol (e.g. "BTC", "ETH"). */
+  coin: string | null;
+  /** UI timeframe label (e.g. "1m", "15m", "1D"). */
+  interval: string;
   /** Display height in px. */
   height?: number;
-  /** Show price ticks + current price tag on the right. */
-  showAxis?: boolean;
-  /** Render volume bars below the price plot. */
-  showVolume?: boolean;
-  /** Accent colour for the dashed mark line / price tag. */
-  accent?: string;
 }
 
+const UP = '#19a974';
+const DOWN = '#e5484d';
+
 /**
- * CandleChart — lightweight SVG candlestick visualization. Generates a
- * deterministic synthetic walk anchored on the live mark price so the chart
- * tracks the selected market without requiring a candles feed. Designed to
- * match the look of the Apple-clean perps bento dashboard.
+ * CandleChart — live TradingView-style candlestick chart powered by Hyperliquid
+ * data and `lightweight-charts`. Loads a candle snapshot for the selected
+ * (coin, interval) and streams live updates over the `candle` WS channel.
+ *
+ * Visual style follows the bento dashboard's Apple-clean look: white
+ * background, hairline grid, mono price ticks, soft green/red candles with a
+ * volume histogram underneath.
  */
-export function CandleChart({
-  basePrice,
-  height = 380,
-  showAxis = true,
-  showVolume = true,
-  accent = '#d97706',
-}: CandleChartProps) {
-  const candles = useMemo(() => buildCandles(basePrice), [basePrice]);
-  const last = candles[candles.length - 1].c;
+export function CandleChart({ coin, interval, height = 380 }: CandleChartProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
 
-  const allP = candles.flatMap((c) => [c.hi, c.lo]);
-  const minP = Math.min(...allP) - basePrice * 0.001;
-  const maxP = Math.max(...allP) + basePrice * 0.001;
+  const { bars, isLoading, connected } = useHyperliquidCandles(coin, interval, !!coin);
 
-  const W = 600;
-  const H = height;
-  const axisW = showAxis ? 56 : 0;
-  const volH = showVolume ? Math.round(H * 0.22) : 0;
-  const priceH = H - volH - (showAxis ? 18 : 0);
-  const padTop = 12;
-  const padBot = 8;
-  const plotH = priceH - padTop - padBot;
-  const plotW = W - axisW;
-  const cw = plotW / candles.length;
-  const y = (v: number) => ((maxP - v) / (maxP - minP)) * plotH + padTop;
+  // ── Initialise chart once the container is mounted ────────────────────────
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
 
-  const maxVol = Math.max(...candles.map((c) => c.vol));
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => maxP - t * (maxP - minP));
+    const chart = createChart(el, {
+      width: el.clientWidth,
+      height,
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: '#ffffff' },
+        textColor: '#6e6e76',
+        fontFamily:
+          'ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas, monospace',
+        fontSize: 11,
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: 'rgba(0,0,0,0.04)' },
+        horzLines: { color: 'rgba(0,0,0,0.04)' },
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(0,0,0,0.06)',
+        textColor: '#6e6e76',
+        scaleMargins: { top: 0.08, bottom: 0.28 },
+      },
+      timeScale: {
+        borderColor: 'rgba(0,0,0,0.06)',
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      crosshair: {
+        mode: CrosshairMode.Magnet,
+        vertLine: {
+          color: 'rgba(10,10,12,0.4)',
+          width: 1,
+          style: 3, // dashed
+          labelBackgroundColor: '#0a0a0c',
+        },
+        horzLine: {
+          color: 'rgba(10,10,12,0.4)',
+          width: 1,
+          style: 3,
+          labelBackgroundColor: '#0a0a0c',
+        },
+      },
+      handleScale: {
+        mouseWheel: true,
+        pinch: true,
+        axisPressedMouseMove: true,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
+    });
+
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor: UP,
+      downColor: DOWN,
+      borderUpColor: UP,
+      borderDownColor: DOWN,
+      wickUpColor: UP,
+      wickDownColor: DOWN,
+      priceLineStyle: 3,
+      priceLineColor: '#d97706',
+      priceLineWidth: 1,
+      priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+    });
+
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: 'volume' },
+      priceScaleId: '',
+      color: 'rgba(110,110,118,0.35)',
+    });
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.78, bottom: 0 },
+    });
+
+    chartRef.current = chart;
+    candleSeriesRef.current = candleSeries;
+    volumeSeriesRef.current = volumeSeries;
+
+    return () => {
+      chart.remove();
+      chartRef.current = null;
+      candleSeriesRef.current = null;
+      volumeSeriesRef.current = null;
+    };
+  }, [height]);
+
+  // ── Push bars into the chart whenever they change ─────────────────────────
+  useEffect(() => {
+    const candle = candleSeriesRef.current;
+    const volume = volumeSeriesRef.current;
+    const chart = chartRef.current;
+    if (!candle || !volume || !chart) return;
+
+    if (bars.length === 0) {
+      candle.setData([]);
+      volume.setData([]);
+      return;
+    }
+
+    const candleData: CandlestickData[] = bars.map((b) => ({
+      time: b.time as UTCTimestamp,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+    }));
+
+    const volumeData: HistogramData[] = bars.map((b) => ({
+      time: b.time as UTCTimestamp,
+      value: b.volume,
+      color:
+        b.close >= b.open
+          ? 'rgba(25,169,116,0.35)'
+          : 'rgba(229,72,77,0.35)',
+    }));
+
+    candle.setData(candleData);
+    volume.setData(volumeData);
+
+    // Pleasant "fit-to-content" zoom on first load / interval switch.
+    chart.timeScale().fitContent();
+  }, [bars]);
+
+  // ── Refit price decimals when the price magnitude shifts (e.g. DOGE vs BTC)
+  useEffect(() => {
+    const candle = candleSeriesRef.current;
+    if (!candle || bars.length === 0) return;
+    const last = bars[bars.length - 1].close;
+    const precision = priceFormatFor(last);
+    candle.applyOptions({
+      priceFormat: { type: 'price', precision: precision.precision, minMove: precision.minMove },
+    });
+  }, [bars]);
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
-      className="block w-full"
-      style={{ height }}
-    >
-      {/* Horizontal grid */}
-      {ticks.map((tv, i) => {
-        const yy = y(tv);
-        return (
-          <line
-            key={`hg-${i}`}
-            x1="0"
-            x2={plotW}
-            y1={yy}
-            y2={yy}
-            stroke="rgba(0,0,0,0.04)"
-            strokeWidth="1"
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="absolute inset-0" />
+      {(!coin || (isLoading && bars.length === 0)) && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-[2px]">
+          <div className="flex items-center gap-2 text-[12px] text-gray-500 font-medium">
+            <span className="w-3 h-3 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin" />
+            {coin ? 'Loading candles…' : 'Select a market'}
+          </div>
+        </div>
+      )}
+      {coin && !isLoading && bars.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center text-[12px] text-gray-400">
+          No candle data for {coin} {interval}
+        </div>
+      )}
+      {coin && bars.length > 0 && (
+        <div className="absolute top-2.5 right-3 z-10 flex items-center gap-1.5 text-[10px] font-bold tracking-wider font-mono text-gray-500 bg-white/80 backdrop-blur px-2 py-0.5 rounded-full border border-black/[0.04]">
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              connected ? 'bg-emerald-500' : 'bg-gray-400'
+            }`}
           />
-        );
-      })}
-
-      {/* Vertical grid every 10 candles */}
-      {[0, 10, 20, 30, 40, 50].map((i) => (
-        <line
-          key={`vg-${i}`}
-          x1={i * cw}
-          x2={i * cw}
-          y1={padTop}
-          y2={priceH - padBot}
-          stroke="rgba(0,0,0,0.03)"
-          strokeWidth="1"
-        />
-      ))}
-
-      {/* Candles */}
-      {candles.map((cd, i) => {
-        const up = cd.c >= cd.o;
-        const col = up ? '#19a974' : '#e5484d';
-        const x = i * cw + cw / 2;
-        return (
-          <g key={`c-${i}`}>
-            <line
-              x1={x}
-              x2={x}
-              y1={y(cd.hi)}
-              y2={y(cd.lo)}
-              stroke={col}
-              strokeWidth="1"
-            />
-            <rect
-              x={i * cw + cw * 0.15}
-              width={cw * 0.7}
-              y={y(Math.max(cd.o, cd.c))}
-              height={Math.max(1, Math.abs(y(cd.o) - y(cd.c)))}
-              fill={col}
-            />
-          </g>
-        );
-      })}
-
-      {/* Mark line */}
-      <line
-        x1="0"
-        x2={plotW}
-        y1={y(last)}
-        y2={y(last)}
-        stroke={accent}
-        strokeWidth="1"
-        strokeDasharray="3 3"
-        opacity="0.55"
-      />
-
-      {showAxis && (
-        <>
-          {ticks.map((tv, i) => (
-            <text
-              key={`axt-${i}`}
-              x={plotW + 6}
-              y={y(tv) + 3}
-              fontSize="9.5"
-              fontFamily='ui-monospace, "JetBrains Mono", Menlo, monospace'
-              fontWeight={500}
-              fill="#6e6e76"
-            >
-              {tv.toFixed(2)}
-            </text>
-          ))}
-          <g>
-            <rect
-              x={plotW + 2}
-              y={y(last) - 8}
-              width={50}
-              height={16}
-              rx={3}
-              fill={accent}
-            />
-            <text
-              x={plotW + 27}
-              y={y(last) + 3}
-              textAnchor="middle"
-              fontSize="9.5"
-              fontFamily='ui-monospace, "JetBrains Mono", Menlo, monospace'
-              fontWeight={700}
-              fill="#fff"
-            >
-              {last.toFixed(2)}
-            </text>
-          </g>
-        </>
+          {connected ? 'LIVE' : 'OFFLINE'}
+        </div>
       )}
-
-      {/* Volume bars */}
-      {showVolume &&
-        candles.map((cd, i) => {
-          const up = cd.c >= cd.o;
-          const col = up ? '#19a974' : '#e5484d';
-          const vh = (cd.vol / maxVol) * (volH - 6);
-          const vy = priceH + (volH - vh - 2);
-          return (
-            <rect
-              key={`v-${i}`}
-              x={i * cw + cw * 0.15}
-              width={cw * 0.7}
-              y={vy}
-              height={vh}
-              fill={col}
-              opacity="0.35"
-            />
-          );
-        })}
-
-      {showAxis && (
-        <>
-          {[0, 12, 24, 36, 48, 59].map((i, k) => {
-            const hour = 9 + Math.floor(i / 4);
-            const min = (i % 4) * 15;
-            const lbl = `${hour}:${String(min).padStart(2, '0')}`;
-            return (
-              <text
-                key={`xt-${k}`}
-                x={i * cw + cw / 2}
-                y={H - 4}
-                textAnchor="middle"
-                fontSize="9"
-                fontFamily='ui-monospace, "JetBrains Mono", Menlo, monospace'
-                fontWeight={500}
-                fill="#a1a1a8"
-              >
-                {lbl}
-              </text>
-            );
-          })}
-        </>
-      )}
-    </svg>
+    </div>
   );
 }
 
-interface Candle {
-  o: number;
-  c: number;
-  hi: number;
-  lo: number;
-  vol: number;
+// Pick a sensible price format precision based on magnitude.
+function priceFormatFor(price: number): { precision: number; minMove: number } {
+  if (price >= 1000) return { precision: 2, minMove: 0.01 };
+  if (price >= 10) return { precision: 3, minMove: 0.001 };
+  if (price >= 1) return { precision: 4, minMove: 0.0001 };
+  if (price >= 0.1) return { precision: 5, minMove: 0.00001 };
+  return { precision: 6, minMove: 0.000001 };
 }
 
-function buildCandles(basePrice: number): Candle[] {
-  // Scale the synthetic noise to ~0.2% of the anchor so the walk feels right
-  // for both BTC ($75k) and DOGE ($0.10).
-  const amp = Math.max(basePrice * 0.002, 0.00001);
-  const out: Candle[] = [];
-  let p = basePrice;
-  for (let i = 0; i < 60; i++) {
-    const o = p;
-    const c =
-      p + Math.sin(i * 0.7) * amp + Math.cos(i * 0.4) * amp * 0.75 + (i === 30 ? amp * 2 : 0);
-    const hi = Math.max(o, c) + Math.abs(Math.sin(i * 1.3)) * amp * 0.5;
-    const lo = Math.min(o, c) - Math.abs(Math.cos(i * 1.1)) * amp * 0.5;
-    const vol =
-      30 + Math.abs(Math.sin(i * 0.9)) * 60 + Math.abs(Math.cos(i * 0.3)) * 30;
-    out.push({ o, c, hi, lo, vol });
-    p = c;
-  }
-  return out;
-}

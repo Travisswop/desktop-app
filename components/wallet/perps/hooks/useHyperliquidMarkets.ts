@@ -21,7 +21,10 @@ export function useHyperliquidMarkets() {
     queryFn: async (): Promise<HLMarket[]> => {
       const [meta, contexts] = await infoClient.metaAndAssetCtxs();
 
-      return meta.universe.map((asset, index) => {
+      // IMPORTANT: keep the original universe index — that's the asset index HL's
+      // exchange API expects for orders. We map across the full universe and
+      // filter delisted entries afterwards so indices stay aligned.
+      const all: HLMarket[] = meta.universe.map((asset, index) => {
         const ctx = contexts[index];
         const markPrice = ctx?.markPx ?? '0';
         const prevDayPx = ctx?.prevDayPx ?? '0';
@@ -43,8 +46,13 @@ export function useHyperliquidMarkets() {
           openInterest: ctx?.openInterest ?? '0',
           dayVolume: ctx?.dayNtlVlm ?? '0',
           change24h: parseFloat(change24h.toFixed(2)),
+          isDelisted: asset.isDelisted === true,
         };
       });
+
+      // Hide delisted markets from the UI — they can't be traded and clutter
+      // the selector. (HL ships ~40 delisted entries in the universe today.)
+      return all.filter((m) => !m.isDelisted);
     },
     staleTime: 10_000,
     refetchInterval: 15_000,

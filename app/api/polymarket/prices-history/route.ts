@@ -3,36 +3,39 @@ import { NextRequest, NextResponse } from 'next/server';
 import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
 
 /**
- * GET /api/polymarket/event-live?slug=<event-slug>
+ * GET /api/polymarket/prices-history?tokenId=<TOKEN_ID>&interval=1d&fidelity=30
  *
- * Frontend proxy for polymarket-backend's event status endpoint. The backend
- * owns the Gamma API call so the app has one Polymarket integration surface.
+ * Frontend proxy for polymarket-backend's CLOB price history endpoint.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const slug = searchParams.get('slug');
+  const tokenId = searchParams.get('tokenId');
+  const interval = searchParams.get('interval') ?? '1d';
+  const fidelity = searchParams.get('fidelity') ?? '30';
 
-  if (!slug) {
+  if (!tokenId) {
     return NextResponse.json(
-      { error: 'Missing required query param: slug' },
+      { error: 'Missing required query param: tokenId' },
       { status: 400 },
     );
   }
 
   try {
+    const params = new URLSearchParams({
+      tokenId,
+      interval,
+      fidelity,
+    });
     const response = await fetch(
-      `${POLYMARKET_BACKEND_URL}/api/prediction-markets/events/live?slug=${encodeURIComponent(
-        slug,
-      )}`,
+      `${POLYMARKET_BACKEND_URL}/api/prediction-markets/prices-history?${params}`,
       { cache: 'no-store' },
     );
-
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       return NextResponse.json(
         {
-          error: data?.error || 'Failed to fetch event live data',
+          error: data?.error || 'Failed to fetch price history',
         },
         { status: response.status },
       );
@@ -40,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (err) {
-    console.error('[polymarket/event-live] Backend fetch error:', err);
+    console.error('[polymarket/prices-history] Backend fetch error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },

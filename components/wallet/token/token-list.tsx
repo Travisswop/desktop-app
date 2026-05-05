@@ -1,12 +1,12 @@
 'use client';
+
 import Cookies from 'js-cookie';
+import React, { useMemo, useState } from 'react';
 import { TokenData } from '@/types/token';
 import { AlertCircle } from 'lucide-react';
-import TokenCardView from './token-card-view';
-import React, { useMemo, useState } from 'react';
-import TokenListView from './token-list-view';
+import TokenImage from './token-image';
+import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
 
-type ViewMode = 'card' | 'list';
 interface TokenListProps {
   tokens: TokenData[];
   loading: boolean;
@@ -14,173 +14,247 @@ interface TokenListProps {
   onSelectToken: (token: TokenData) => void;
 }
 
+const POS_GREEN = '#19a974';
+const NEG_RED = '#e5484d';
+const INITIAL_VISIBLE = 6;
+
+const HEADER_GRID =
+  'grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_42px] gap-3 items-center';
+
+const CHAIN_LABELS: Record<string, string> = {
+  ETHEREUM: 'Ethereum',
+  SOLANA: 'Solana',
+  BASE: 'Base',
+  POLYGON: 'Polygon',
+  ARBITRUM: 'Arbitrum',
+};
+
+const formatUsd = (n: number, frac = 2) =>
+  n.toLocaleString('en-US', {
+    minimumFractionDigits: frac,
+    maximumFractionDigits: frac,
+  });
+
+const formatPrice = (price: string | number | null | undefined) => {
+  if (price == null || price === '') return '—';
+  const n = typeof price === 'string' ? parseFloat(price) : price;
+  if (!Number.isFinite(n)) return '—';
+  if (n >= 1) return `$${formatUsd(n, 2)}`;
+  if (n >= 0.01) return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(6)}`;
+};
+
+const formatBalance = (balance: string, symbol: string) => {
+  const n = parseFloat(balance || '0');
+  if (!Number.isFinite(n) || n === 0) return `0 ${symbol}`;
+  if (n >= 1000) return `${formatUsd(n, 2)} ${symbol}`;
+  if (n >= 1) return `${n.toFixed(4)} ${symbol}`;
+  return `${n.toFixed(6)} ${symbol}`;
+};
+
+const tokenValue = (t: TokenData): number => {
+  if (typeof t.value === 'number' && Number.isFinite(t.value))
+    return t.value;
+  const price = t.marketData?.price;
+  if (!price) return 0;
+  const n = parseFloat(t.balance) * parseFloat(price.toString());
+  return Number.isFinite(n) ? n : 0;
+};
+
 const ErrorAlert = ({ message }: { message: string }) => (
-  <div className="mb-4 p-4 bg-red-50 rounded-lg flex items-center gap-2">
-    <AlertCircle className="w-5 h-5 text-red-500" />
-    <p className="text-sm text-red-600">{message}</p>
+  <div className="m-4 p-3 bg-red-50 rounded-lg flex items-center gap-2 border border-red-100">
+    <AlertCircle className="w-4 h-4 text-red-500" />
+    <p className="text-xs text-red-600">{message}</p>
   </div>
 );
 
-// const ViewToggle = ({
-//   viewMode,
-//   onViewChange,
-// }: {
-//   viewMode: ViewMode;
-//   onViewChange: (mode: ViewMode) => void;
-// }) => (
-//   <div className="flex bg-gray-100 rounded-md">
-//     <ViewToggleButton
-//       mode="card"
-//       currentMode={viewMode}
-//       onClick={() => onViewChange('card')}
-//       icon={<LayoutGrid className="h-4 w-4" />}
-//     />
-//     <ViewToggleButton
-//       mode="list"
-//       currentMode={viewMode}
-//       onClick={() => onViewChange('list')}
-//       icon={<List className="h-4 w-4" />}
-//     />
-//   </div>
-// );
-
-// const ViewToggleButton = ({
-//   mode,
-//   currentMode,
-//   onClick,
-//   icon,
-// }: {
-//   mode: ViewMode;
-//   currentMode: ViewMode;
-//   onClick: () => void;
-//   icon: React.ReactNode;
-// }) => (
-//   <Button
-//     size="icon"
-//     onClick={onClick}
-//     className={`rounded-md w-8 h-8 hover:bg-transparent bg-transparent ${
-//       currentMode === mode ? 'text-black' : 'text-gray-300'
-//     }`}
-//   >
-//     {icon}
-//   </Button>
-// );
-
-const LoadingSkeleton = ({ viewMode }: { viewMode: ViewMode }) => {
-  const skeletonItems = Array(4).fill(0);
-  const skeletonClass =
-    viewMode === 'card' ? 'h-[200px]' : 'h-[100px]';
-  const containerClass =
-    viewMode === 'card'
-      ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
-      : 'space-y-4';
-
-  return (
-    <div className={containerClass}>
-      {skeletonItems.map((_, i) => (
-        <div
-          key={i}
-          className={`${skeletonClass} bg-gray-300 animate-pulse rounded-xl`}
-        />
-      ))}
-    </div>
-  );
-};
-
-const TokenContent = ({
-  tokens,
-  viewMode = 'list',
-  onSelectToken,
+function MiniSparkline({
+  values,
+  positive,
 }: {
-  tokens: TokenData[];
-  viewMode: ViewMode;
-  onSelectToken: (token: TokenData) => void;
-}) => {
-  // Get hidden token addresses from cookie
-  const getHiddenTokenAddresses = () => {
-    const cookie = Cookies.get('selected_tokens');
-    if (!cookie) return [];
-    try {
-      return JSON.parse(cookie);
-    } catch (e) {
-      return [];
-    }
-  };
+  values: number[];
+  positive: boolean;
+}) {
+  const color = positive ? POS_GREEN : NEG_RED;
+  const w = 56;
+  const h = 22;
 
-  // Filter out tokens that are in the cookie
-  const hiddenAddresses = getHiddenTokenAddresses();
-  const visibleTokens = tokens.filter(
-    (token) => !hiddenAddresses.includes(token.address)
-  );
-
-  if (visibleTokens.length === 0) {
+  // Fallback line when no series is available — shape signals direction.
+  if (!values || values.length < 2) {
+    const fallback = positive
+      ? `M0,${h - 4} C${w * 0.3},${h - 6} ${w * 0.6},${h * 0.5} ${w},2`
+      : `M0,2 C${w * 0.3},${h * 0.4} ${w * 0.6},${h - 6} ${w},${
+          h - 2
+        }`;
     return (
-      <div className="text-center py-8 text-gray-500">
-        No tokens found in your wallet
-      </div>
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        preserveAspectRatio="none"
+        style={{ width: w, height: h, display: 'block' }}
+        aria-hidden
+      >
+        <path
+          d={fallback}
+          stroke={color}
+          strokeWidth="1.5"
+          fill="none"
+          strokeLinecap="round"
+        />
+      </svg>
     );
   }
 
-  // Categorize tokens into Cash (USDC) and Crypto (everything else)
-  const cashTokens = visibleTokens.filter(
-    (token) => token.symbol.toUpperCase() === 'USDC'
-  );
-  const cryptoTokens = visibleTokens.filter(
-    (token) => token.symbol.toUpperCase() !== 'USDC'
-  );
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const stepX = w / (values.length - 1);
 
-  const containerClass =
-    viewMode === 'card'
-      ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
-      : 'space-y-4';
+  const pathPoints = values
+    .map(
+      (v, i) =>
+        `${i * stepX},${h - ((v - min) / range) * (h - 2) - 1}`,
+    )
+    .join(' L');
 
-  const TokenComponent =
-    viewMode === 'card' ? TokenCardView : TokenListView;
+  const stroke = `M${pathPoints}`;
+  const fill = `${stroke} L${w},${h} L0,${h} Z`;
+  // Stable but unique-enough id per row.
+  const gradId = `tspark-${positive ? 'g' : 'r'}-${values.length}-${Math.round(
+    values[0] * 1000,
+  )}`;
 
   return (
-    <div className="space-y-6">
-      {/* Cash Section */}
-      {cashTokens.length > 0 && (
-        <div>
-          <h2 className="text-lg font-bold mb-3 text-gray-900">
-            Cash
-          </h2>
-          <div className={containerClass}>
-            {cashTokens.map((token) => (
-              <TokenComponent
-                key={`${token.chain}-${token.symbol}-${
-                  token.address || Math.random()
-                }`}
-                token={token}
-                onClick={() => onSelectToken(token)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Crypto Section */}
-      {cryptoTokens.length > 0 && (
-        <div>
-          <h2 className="text-lg font-bold mb-3 text-gray-900">
-            Crypto
-          </h2>
-          <div className={containerClass}>
-            {cryptoTokens.map((token) => (
-              <TokenComponent
-                key={`${token.chain}-${token.symbol}-${
-                  token.address || Math.random()
-                }`}
-                token={token}
-                onClick={() => onSelectToken(token)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      style={{ width: w, height: h, display: 'block' }}
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={fill} fill={`url(#${gradId})`} />
+      <path
+        d={stroke}
+        stroke={color}
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
-};
+}
+
+function TokenRow({
+  token,
+  onClick,
+  isFirst,
+}: {
+  token: TokenData;
+  onClick: () => void;
+  isFirst: boolean;
+}) {
+  const { showBalance } = useBalanceVisibilityStore();
+  const change = parseFloat(
+    token.marketData?.priceChangePercentage24h || '0',
+  );
+  const positive = change >= 0;
+  const value = tokenValue(token);
+  const sparkValues = token.marketData?.sparkline ?? [];
+  const chainLabel =
+    CHAIN_LABELS[token.chain?.toUpperCase() ?? ''] || token.chain;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${HEADER_GRID} w-full text-left px-5 py-3.5 transition hover:bg-black/[0.015] ${
+        isFirst ? '' : 'border-t border-black/[0.05]'
+      }`}
+    >
+      {/* Asset */}
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="flex-shrink-0">
+          <TokenImage token={token} width={36} height={36} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-[14px] font-semibold tracking-[-0.01em] text-gray-900 truncate">
+            {token.name}
+          </div>
+          <div className="text-[11px] text-gray-500 mt-0.5 font-mono tabular-nums truncate">
+            {showBalance
+              ? formatBalance(token.balance, token.symbol)
+              : '••••'}{' '}
+            · {chainLabel}
+          </div>
+        </div>
+      </div>
+
+      {/* Price */}
+      <div className="text-right text-[13px] font-semibold font-mono tabular-nums tracking-[-0.01em] text-gray-900">
+        {formatPrice(token.marketData?.price)}
+      </div>
+
+      {/* 24h with sparkline */}
+      <div className="flex items-center justify-end gap-2">
+        <MiniSparkline values={sparkValues} positive={positive} />
+        <span
+          className="text-[12px] font-semibold font-mono tabular-nums min-w-[52px] text-right"
+          style={{ color: positive ? POS_GREEN : NEG_RED }}
+        >
+          {Number.isFinite(change)
+            ? `${positive ? '+' : ''}${change.toFixed(2)}%`
+            : '—'}
+        </span>
+      </div>
+
+      {/* Holdings */}
+      <div className="text-right text-[14px] font-semibold font-mono tabular-nums tracking-[-0.01em] text-gray-900">
+        {showBalance
+          ? value > 0
+            ? `$${formatUsd(value, 2)}`
+            : '—'
+          : '••••'}
+      </div>
+
+      {/* Action */}
+      <div className="flex justify-end">
+        <span
+          aria-hidden
+          className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg border border-black/[0.06] bg-[#fafafa] text-gray-700"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M5 12h14m-6-6 6 6-6 6" />
+          </svg>
+        </span>
+      </div>
+    </button>
+  );
+}
+
+const LoadingSkeleton = () => (
+  <div className="px-5 py-4 space-y-3">
+    {Array.from({ length: 4 }).map((_, i) => (
+      <div
+        key={i}
+        className="h-12 bg-gray-100 animate-pulse rounded-md"
+      />
+    ))}
+  </div>
+);
 
 const TokenList = ({
   tokens,
@@ -188,33 +262,125 @@ const TokenList = ({
   error,
   onSelectToken,
 }: TokenListProps) => {
-  const [viewMode] = useState<ViewMode>('card');
-  const content = useMemo(() => {
-    if (loading) {
-      return <LoadingSkeleton viewMode={viewMode} />;
+  const [showAll, setShowAll] = useState(false);
+
+  const visibleTokens = useMemo(() => {
+    const cookie = Cookies.get('selected_tokens');
+    let hidden: string[] = [];
+    try {
+      hidden = cookie ? JSON.parse(cookie) : [];
+    } catch {
+      hidden = [];
     }
+    return tokens
+      .filter((t) => !hidden.includes(t.address || ''))
+      .sort((a, b) => tokenValue(b) - tokenValue(a));
+  }, [tokens]);
+
+  const shown = showAll
+    ? visibleTokens
+    : visibleTokens.slice(0, INITIAL_VISIBLE);
+
+  const overflow = visibleTokens.slice(INITIAL_VISIBLE);
+  const remainingValue = useMemo(
+    () => overflow.reduce((sum, t) => sum + tokenValue(t), 0),
+    [overflow],
+  );
+
+  if (loading) {
     return (
-      <TokenContent
-        tokens={tokens}
-        viewMode={'list'}
-        onSelectToken={onSelectToken}
-      />
+      <div>
+        {error && (
+          <ErrorAlert message="Some tokens couldn't be loaded." />
+        )}
+        <LoadingSkeleton />
+      </div>
     );
-  }, [loading, tokens, viewMode, onSelectToken]);
+  }
+
+  if (visibleTokens.length === 0) {
+    return (
+      <div>
+        {error && (
+          <ErrorAlert message="Some tokens couldn't be loaded." />
+        )}
+        <div className="px-5 py-10 text-center text-sm text-gray-500">
+          No tokens found in your wallet
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       {error && (
-        <ErrorAlert message="Some tokens couldn't be loaded. Please try again later." />
+        <ErrorAlert message="Some tokens couldn't be loaded." />
       )}
 
-      {/* {tokens.length > 0 && !loading ? (
-          <PortfolioBalance tokens={tokens} />
-        ) : loading ? (
-          <PortfolioBalanceSkeleton />
-        ) : null} */}
+      {/* Header row */}
+      <div
+        className={`${HEADER_GRID} px-5 py-3 border-b border-black/[0.05] text-[9.5px] font-bold uppercase tracking-[1.2px] font-mono text-gray-500`}
+      >
+        <span>Asset</span>
+        <span className="text-right">Price</span>
+        <span className="text-right">24h</span>
+        <span className="text-right">Holdings</span>
+        <span />
+      </div>
 
-      {content}
+      {shown.map((token, i) => (
+        <TokenRow
+          key={`${token.chain}-${token.symbol}-${
+            token.address || i
+          }`}
+          token={token}
+          onClick={() => onSelectToken(token)}
+          isFirst={i === 0}
+        />
+      ))}
+
+      {overflow.length > 0 && !showAll && (
+        <div className="px-5 py-3 border-t border-black/[0.05] flex items-center justify-between gap-3">
+          <span className="text-[12px] text-gray-500">
+            {overflow.length} more{' '}
+            {overflow.length === 1 ? 'token' : 'tokens'}
+            {remainingValue > 0
+              ? ` — $${formatUsd(remainingValue, 2)} combined`
+              : ''}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium border border-black/[0.06] bg-white text-gray-900 hover:border-black/[0.15] transition"
+          >
+            Show all
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14m-6-6 6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {showAll && visibleTokens.length > INITIAL_VISIBLE && (
+        <div className="px-5 py-3 border-t border-black/[0.05] flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowAll(false)}
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium border border-black/[0.06] bg-white text-gray-900 hover:border-black/[0.15] transition"
+          >
+            Show less
+          </button>
+        </div>
+      )}
     </div>
   );
 };

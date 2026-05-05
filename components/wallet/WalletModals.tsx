@@ -106,13 +106,16 @@ const WalletModals: React.FC<WalletModalsProps> = ({
         onNFTNext={handleNFTNext}
       />
 
-      {/* Amount input for wallet */}
-      <SendTokenModal
-        open={sendFlow.step === "amount"}
-        onOpenChange={(open) => !open && resetSendFlow()}
-        token={sendFlow.token!}
-        onNext={handleAmountConfirm}
-      />
+      {/* Unified send modal for the wallet flow — amount + recipient + fees
+          + review in one screen, jumps directly to confirm on Review. */}
+      {sendFlow.token && sendFlow.step === "amount" && (
+        <SendTokenModal
+          open={sendFlow.step === "amount"}
+          onOpenChange={(open) => !open && resetSendFlow()}
+          token={sendFlow.token}
+          setSendFlow={setSendFlow}
+        />
+      )}
 
       {/* Bank flows */}
       {sendFlow.step === "bank-assets" && (

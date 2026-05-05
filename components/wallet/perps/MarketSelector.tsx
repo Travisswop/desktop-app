@@ -86,8 +86,18 @@ export function MarketSelector({
       </div>
 
       {/* Column headers */}
-      <div className="flex justify-between px-2.5 py-1.5 text-[10px] font-bold text-gray-500 font-mono tracking-wider">
-        <span>MARKET</span>
+      <div className="flex justify-between items-center px-2.5 py-1.5 text-[10px] font-bold text-gray-500 font-mono tracking-wider">
+        <span>
+          MARKET
+          {!isLoading && markets.length > 0 && (
+            <span className="ml-1.5 text-gray-400">
+              · {filtered.length}
+              {search && filtered.length !== markets.length
+                ? ` / ${markets.length}`
+                : ''}
+            </span>
+          )}
+        </span>
         <span>PRICE / 24H</span>
       </div>
 

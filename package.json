@@ -79,6 +79,7 @@
     "js-cookie": "^3.0.5",
     "json2csv": "^6.0.0-alpha.2",
     "libphonenumber-js": "^1.12.34",
+    "lightweight-charts": "^5.2.0",
     "lodash": "^4.17.21",
     "lottie-react": "^2.4.1",
     "lucide-react": "^0.453.0",

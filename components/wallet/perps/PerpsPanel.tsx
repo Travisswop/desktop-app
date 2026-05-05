@@ -294,7 +294,7 @@ export function PerpsPanel({
 
               <Card
                 pad="p-0"
-                className="overflow-hidden flex flex-col min-h-[460px]"
+                className="overflow-hidden flex flex-col h-[460px]"
               >
                 <ChartToolbar
                   coin={selectedCoin ?? ''}
@@ -302,12 +302,8 @@ export function PerpsPanel({
                   onPick={setActiveTimeframe}
                   markPrice={markPriceNum}
                 />
-                <div className="relative flex-1">
-                  <ChartLegend price={markPriceNum} />
-                  <CandleChart
-                    basePrice={markPriceNum || 100}
-                    height={380}
-                  />
+                <div className="relative flex-1 min-h-0">
+                  <CandleChart coin={selectedCoin} interval={activeTimeframe} />
                 </div>
               </Card>
 
@@ -478,24 +474,3 @@ function Ohlc({
   );
 }
 
-function ChartLegend({ price }: { price: number }) {
-  if (!price) return null;
-  return (
-    <div className="absolute top-2.5 left-3.5 z-10 flex flex-col gap-0.5 text-[10px] font-mono font-semibold pointer-events-none">
-      <span className="inline-flex items-center gap-1.5">
-        <span className="block w-2 h-0.5 bg-purple-500" />
-        <span className="text-gray-500">EMA 20</span>
-        <span className="text-gray-900 tabular-nums">
-          {(price * 1.001).toFixed(2)}
-        </span>
-      </span>
-      <span className="inline-flex items-center gap-1.5">
-        <span className="block w-2 h-0.5 bg-orange-500" />
-        <span className="text-gray-500">EMA 50</span>
-        <span className="text-gray-900 tabular-nums">
-          {(price * 0.997).toFixed(2)}
-        </span>
-      </span>
-    </div>
-  );
-}

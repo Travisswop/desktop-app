@@ -9,13 +9,12 @@ export type { PerpsActionTab } from './PerpsActionsModal';
 export { MarketSelector } from './MarketSelector';
 export { OrderBook } from './OrderBook';
 export { TradingForm } from './TradingForm';
-export { PositionCard } from './PositionCard';
-export { PositionsList } from './PositionsList';
-export { FundingRateBar } from './FundingRateBar';
 export { AssetHeader } from './AssetHeader';
 export { CandleChart } from './CandleChart';
 export { AccountStats } from './AccountStats';
 export { FocusedPositionCard } from './FocusedPositionCard';
+export { OrderConfirmModal } from './OrderConfirmModal';
+export type { OrderConfirmDetails } from './OrderConfirmModal';
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 export { useHyperliquidAgent } from './hooks/useHyperliquidAgent';
@@ -35,6 +34,8 @@ export {
   useRecentTrades,
   useUserFills,
 } from './hooks/useHyperliquidWebSocket';
+export { useHyperliquidCandles } from './hooks/useHyperliquidCandles';
+export type { OhlcvBar, HLInterval } from './hooks/useHyperliquidCandles';
 
 // ─── Types (re-exported from service for convenience) ─────────────────────────
 export type {

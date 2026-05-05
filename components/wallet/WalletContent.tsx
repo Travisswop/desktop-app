@@ -54,23 +54,16 @@ import { SUPPORTED_CHAINS, ERROR_MESSAGES } from './constants';
 
 // UI Components
 import TokenList from './token/token-list';
-import NFTSlider from './nft/nft-list';
 import TokenDetails from './token/token-details-view';
+import ManageTokenModal from './token/ManageTokenModal';
+import RedeemModal from './token/redeem-modal';
+import NFTSlider from './nft/nft-list';
 import NFTDetailView from './nft/nft-details-view';
+import ManageNFTModal from './nft/ManageNFTModal';
 import WalletModals from './WalletModals';
 import { Toaster } from '../ui/toaster';
-import RedeemTokenList from './redeem/token-list';
 import BalanceChart from '../dashboard/BalanceChart';
-import PortfolioChart, {
-  PortfolioAsset,
-} from '../dashboard/PortfolioChart';
-import {
-  PortfolioChartSkeleton,
-  PortfolioEmptyState,
-} from './PortfolioStates';
-
-// Tab Components
-import { AssetsTab } from './tabs';
+import { PortfolioAsset } from '../dashboard/PortfolioChart';
 
 // Perps
 import {
@@ -82,15 +75,21 @@ import {
 import { useHyperliquidBalanceCheck } from './perps/hooks/useHyperliquidBalanceCheck';
 import SwapTokenModal from './SwapTokenModal';
 
+// Stores
+import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
+
 // Utilities
 import Cookies from 'js-cookie';
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
-import { Loader } from 'lucide-react';
-import TransactionList from './transaction/transaction-list';
-import { ScrollArea } from '../ui/scroll-area';
-import CustomModal from '../modal/CustomModal';
-import { BsThreeDots } from 'react-icons/bs';
-import WalletAssetsSettings from './WalletAssetsSettings';
+import {
+  ArrowRight,
+  Coins,
+  Eye,
+  EyeOff,
+  Gift,
+  ImageIcon,
+  MoreHorizontal,
+} from 'lucide-react';
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
@@ -111,6 +110,94 @@ const TOKEN_COLORS: Record<string, string> = {
 const getTokenColor = (symbol: string): string => {
   return TOKEN_COLORS[symbol] || TOKEN_COLORS.default;
 };
+
+const HIDDEN_NFTS_KEY = 'hiddenNfts';
+
+const TOKEN_CHAIN_FILTERS: { label: string; value: string }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Ethereum', value: 'ETHEREUM' },
+  { label: 'Solana', value: 'SOLANA' },
+  { label: 'Base', value: 'BASE' },
+  { label: 'Polygon', value: 'POLYGON' },
+  { label: 'Arbitrum', value: 'ARBITRUM' },
+];
+
+// Section header — matches the wallet design's title + caption + action layout.
+function SectionHead({
+  title,
+  caption,
+  action,
+}: {
+  title: string;
+  caption?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex items-end justify-between gap-3 mb-3">
+      <div className="min-w-0">
+        <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
+          {title}
+        </h2>
+        {caption && (
+          <p className="text-[13px] text-gray-500 mt-0.5 tracking-tight">
+            {caption}
+          </p>
+        )}
+      </div>
+      {action && (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {action}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Pill-shaped chip used for filters and section actions.
+function Chip({
+  children,
+  active = false,
+  onClick,
+  className = '',
+}: {
+  children: ReactNode;
+  active?: boolean;
+  onClick?: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium whitespace-nowrap border transition ${
+        active
+          ? 'bg-gray-900 text-white border-gray-900'
+          : 'bg-white text-gray-900 border-black/[0.06] hover:border-black/[0.15]'
+      } ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// Hairline-bordered card matching the design's bento aesthetic.
+function BentoCard({
+  children,
+  className = '',
+  padding = '',
+}: {
+  children: ReactNode;
+  className?: string;
+  padding?: string;
+}) {
+  return (
+    <div
+      className={`bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] ${padding} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
 
 // Error Boundary for Wallet Component
 interface ErrorBoundaryState {
@@ -133,7 +220,6 @@ class WalletErrorBoundary extends Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Wallet component error:', error, errorInfo);
-    // TODO: Send to error tracking service (Sentry, etc.)
   }
 
   render() {
@@ -188,7 +274,18 @@ const WalletContentInner = () => {
   const [QRCodeShareModalOpen, setQRCodeShareModalOpen] =
     useState(false);
 
-  const [walletSetting, setWalletSetting] = useState(false);
+  // Section management state (lifted from the old AssetsTab)
+  const [tokenChain, setTokenChain] = useState<string>('all');
+  const [manageTokensOpen, setManageTokensOpen] = useState(false);
+  const [manageNFTModalOpen, setManageNFTModalOpen] = useState(false);
+  const [redeemModalOpen, setRedeemModalOpen] = useState(false);
+  const [assetsMenuOpen, setAssetsMenuOpen] = useState(false);
+  const [hiddenNfts, setHiddenNfts] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const { showBalance, toggleBalance } = useBalanceVisibilityStore();
+
   const [perpsPanelOpen, setPerpsPanelOpen] = useState(false);
   const [perpsDepositOpen, setPerpsDepositOpen] = useState(false);
   // Coin requested by the row the user clicked in PerpsCard; null = let the
@@ -224,6 +321,7 @@ const WalletContentInner = () => {
 
   // Ref to track wallet creation attempts
   const walletCreationAttempted = useRef(false);
+  const assetsMenuRef = useRef<HTMLDivElement>(null);
 
   // Hooks
   const {
@@ -332,6 +430,48 @@ const WalletContentInner = () => {
       });
   }, [authenticated, ready, PrivyUser, createWallet, toast]);
 
+  // Hidden NFT persistence (lifted from the old AssetsTab).
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(HIDDEN_NFTS_KEY);
+      if (stored) setHiddenNfts(new Set(JSON.parse(stored)));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      HIDDEN_NFTS_KEY,
+      JSON.stringify([...hiddenNfts]),
+    );
+  }, [hiddenNfts]);
+
+  const toggleNftVisibility = useCallback((nftId: string) => {
+    setHiddenNfts((prev) => {
+      const next = new Set(prev);
+      if (next.has(nftId)) next.delete(nftId);
+      else next.add(nftId);
+      return next;
+    });
+  }, []);
+
+  // Outside-click for the assets menu dropdown.
+  useEffect(() => {
+    if (!assetsMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        assetsMenuRef.current &&
+        !assetsMenuRef.current.contains(e.target as Node)
+      ) {
+        setAssetsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () =>
+      document.removeEventListener('mousedown', handleClickOutside);
+  }, [assetsMenuOpen]);
+
   // Data fetching hooks
   const {
     tokens,
@@ -350,6 +490,23 @@ const WalletContentInner = () => {
     error: nftError,
     refetch: refetchNFTs,
   } = useNFT(solWalletAddress, evmWalletAddress, SUPPORTED_CHAINS);
+
+  // Filter tokens by selected chain chip.
+  const filteredTokens = useMemo(() => {
+    if (tokenChain === 'all') return tokens;
+    return tokens.filter(
+      (t) =>
+        (t.chain || '').toUpperCase() === tokenChain.toUpperCase(),
+    );
+  }, [tokens, tokenChain]);
+
+  const visibleNftCount = useMemo(
+    () =>
+      ((nfts || []) as unknown as NFT[]).filter(
+        (n) => !hiddenNfts.has(String(n.tokenId ?? '')),
+      ).length,
+    [nfts, hiddenNfts],
+  );
 
   // Create a stable hash of portfolio data
   const portfolioHash = useMemo(() => {
@@ -841,7 +998,22 @@ const WalletContentInner = () => {
     setSelectedNFT(null);
   }, []);
 
+  const handleNFTNextClick = useCallback(() => {
+    if (selectedNFT) {
+      handleNFTNext(selectedNFT);
+      handleCloseNFTModal();
+    }
+  }, [selectedNFT, handleNFTNext, handleCloseNFTModal]);
+
   const handleBack = useCallback(() => setSelectedToken(null), []);
+
+  const handleTokenSend = useCallback(
+    (token: TokenData) => {
+      setSelectedToken(null);
+      handleSendClick(token);
+    },
+    [handleSendClick],
+  );
 
   const handleQRClick = useCallback(
     () => setWalletQRModalOpen(true),
@@ -857,52 +1029,187 @@ const WalletContentInner = () => {
     [setSendFlow],
   );
 
+  const tokensCaption = `${tokens?.length ?? 0} ${
+    (tokens?.length ?? 0) === 1 ? 'asset' : 'assets'
+  } across ${SUPPORTED_CHAINS.length} chains`;
+
+  const collectiblesCaption = `${visibleNftCount} ${
+    visibleNftCount === 1 ? 'item' : 'items'
+  }${hiddenNfts.size > 0 ? ` · ${hiddenNfts.size} hidden` : ''}`;
+
+  const assetsMenuItems = [
+    {
+      icon: <Coins className="w-4 h-4" />,
+      label: 'Manage Tokens',
+      onClick: () => {
+        setManageTokensOpen(true);
+        setAssetsMenuOpen(false);
+      },
+    },
+    {
+      icon: showBalance ? (
+        <EyeOff className="w-4 h-4" />
+      ) : (
+        <Eye className="w-4 h-4" />
+      ),
+      label: showBalance ? 'Hide Balance' : 'Show Balance',
+      onClick: () => {
+        toggleBalance();
+        setAssetsMenuOpen(false);
+      },
+    },
+    {
+      icon: <ImageIcon className="w-4 h-4" />,
+      label: 'Manage NFT',
+      onClick: () => {
+        setManageNFTModalOpen(true);
+        setAssetsMenuOpen(false);
+      },
+    },
+    {
+      icon: <Gift className="w-4 h-4" />,
+      label: 'Create Redeem',
+      onClick: () => {
+        setRedeemModalOpen(true);
+        setAssetsMenuOpen(false);
+      },
+    },
+  ];
+
   return (
     <div className="w-full">
-      <div className="max-w-[855px] w-full mx-auto">
-        {/* Assets Content */}
-        <div className="min-h-[400px]">
-          <TokenTicker />
-          {/* Balance Chart */}
-          <div className="bg-white rounded-xl my-4 drop-shadow-lg">
-            <BalanceChart
-              userId={user?._id}
-              currency="$"
-              totalBalance={totalBalance}
-              onSelectAsset={handleAssetSelect}
-              onQRClick={handleQRClick}
-              walletData={walletData || []}
-              tokens={tokens}
-              accessToken={accessToken}
-              onTokenRefresh={refetchTokens}
-              isButtonVisible={true}
-            />
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Assets Card */}
-            <AssetsTab
-              tokens={tokens as unknown as TokenData[]}
-              tokenLoading={tokenLoading}
-              tokenError={tokenError}
-              nfts={nfts as unknown as NFT[]}
-              nftLoading={nftLoading}
-              nftError={nftError}
-              walletAddress={currentWalletAddress}
-              onSendClick={handleSendClick}
-              onNFTNext={handleNFTNext}
-              refetchNFTs={refetchNFTs}
-            />
+      <div className="max-w-[855px] w-full mx-auto pb-8">
+        {/* <TokenTicker /> */}
 
-            {/* Perps Card — Hyperliquid */}
-            <PerpsCard
-              masterAddress={hlAgent.masterAddress ?? undefined}
-              isReconnecting={hlAgent.isReconnecting}
-              onOpenTrading={openPerpsPanel}
-              onBridgeToArbitrum={() => setArbitrumBridgeOpen(true)}
-              onDepositSubmitted={hlStartDepositPolling}
-            />
+        {/* ───────── BALANCE HERO ───────── */}
+        <BentoCard className="my-4">
+          <BalanceChart
+            userId={user?._id}
+            currency="$"
+            totalBalance={totalBalance}
+            onSelectAsset={handleAssetSelect}
+            onQRClick={handleQRClick}
+            walletData={walletData || []}
+            tokens={tokens}
+            accessToken={accessToken}
+            onTokenRefresh={refetchTokens}
+            isButtonVisible={true}
+          />
+        </BentoCard>
+
+        {/* ───────── TOKENS ───────── */}
+        <section className="mt-8">
+          <SectionHead
+            title="Tokens"
+            caption={tokensCaption}
+            action={
+              <>
+                <div className="hidden sm:flex items-center gap-1.5">
+                  {TOKEN_CHAIN_FILTERS.slice(0, 4).map((c) => (
+                    <Chip
+                      key={c.value}
+                      active={tokenChain === c.value}
+                      onClick={() => setTokenChain(c.value)}
+                    >
+                      {c.label}
+                    </Chip>
+                  ))}
+                </div>
+                <div className="relative" ref={assetsMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setAssetsMenuOpen((v) => !v)}
+                    aria-label="Asset settings"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-black/[0.06] bg-white text-gray-700 hover:border-black/[0.15] transition"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                  {assetsMenuOpen && (
+                    <div className="absolute right-0 top-9 z-50 w-44 bg-white border border-black/[0.06] rounded-xl shadow-lg py-1 overflow-hidden">
+                      {assetsMenuItems.map((item) => (
+                        <button
+                          key={item.label}
+                          onClick={item.onClick}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                        >
+                          <span className="text-gray-500">
+                            {item.icon}
+                          </span>
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            }
+          />
+          <div className="sm:hidden flex items-center gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1">
+            {TOKEN_CHAIN_FILTERS.map((c) => (
+              <Chip
+                key={c.value}
+                active={tokenChain === c.value}
+                onClick={() => setTokenChain(c.value)}
+              >
+                {c.label}
+              </Chip>
+            ))}
           </div>
-        </div>
+          <BentoCard>
+            <TokenList
+              tokens={filteredTokens as unknown as TokenData[]}
+              loading={tokenLoading}
+              error={tokenError as Error}
+              onSelectToken={handleTokenSelect}
+            />
+          </BentoCard>
+        </section>
+
+        {/* ───────── PERPS ───────── */}
+        <section className="mt-8">
+          <SectionHead
+            title="Perps"
+            caption="Open positions and margin account"
+            action={
+              <Chip onClick={() => openPerpsPanel()}>
+                Trade
+                <ArrowRight className="w-3 h-3" />
+              </Chip>
+            }
+          />
+          <PerpsCard
+            masterAddress={hlAgent.masterAddress ?? undefined}
+            isReconnecting={hlAgent.isReconnecting}
+            onOpenTrading={openPerpsPanel}
+            onBridgeToArbitrum={() => setArbitrumBridgeOpen(true)}
+            onDepositSubmitted={hlStartDepositPolling}
+          />
+        </section>
+
+        {/* ───────── COLLECTIBLES ───────── */}
+        <section className="mt-8">
+          <SectionHead
+            title="Collectibles"
+            caption={collectiblesCaption}
+            action={
+              <Chip onClick={() => setManageNFTModalOpen(true)}>
+                Manage
+                <ArrowRight className="w-3 h-3" />
+              </Chip>
+            }
+          />
+          <BentoCard padding="p-4">
+            <NFTSlider
+              onSelectNft={handleSelectNFT}
+              address={currentWalletAddress}
+              nfts={nfts as unknown as NFT[]}
+              loading={nftLoading}
+              error={nftError as Error | null}
+              refetch={refetchNFTs}
+              hiddenNfts={hiddenNfts}
+            />
+          </BentoCard>
+        </section>
 
         {/* All Modals */}
         <WalletModals
@@ -932,6 +1239,49 @@ const WalletContentInner = () => {
           qrcodeShareUrl={qrcodeShareUrl}
           setSendFlow={setSendFlow}
           solBalance={solBalance}
+        />
+
+        {/* Token details panel — full-screen overlay like PerpsPanel,
+            so the layered Swap / QR modals (z-50) appear above it. */}
+        {selectedToken && (
+          <TokenDetails
+            token={selectedToken}
+            onBack={handleBack}
+            onSend={handleTokenSend}
+          />
+        )}
+
+        {/* NFT details modal */}
+        {selectedNFT && (
+          <NFTDetailView
+            isOpen={isNFTModalOpen}
+            onClose={handleCloseNFTModal}
+            nft={selectedNFT}
+            onNext={handleNFTNextClick}
+          />
+        )}
+
+        {/* Manage tokens modal */}
+        <ManageTokenModal
+          isOpen={manageTokensOpen}
+          onClose={() => setManageTokensOpen(false)}
+          tokens={tokens as unknown as TokenData[]}
+        />
+
+        {/* Manage NFTs modal */}
+        <ManageNFTModal
+          isOpen={manageNFTModalOpen}
+          onClose={() => setManageNFTModalOpen(false)}
+          nfts={nfts as unknown as NFT[]}
+          hiddenNfts={hiddenNfts}
+          onToggle={toggleNftVisibility}
+        />
+
+        {/* Create redeem modal */}
+        <RedeemModal
+          isOpen={redeemModalOpen}
+          onClose={() => setRedeemModalOpen(false)}
+          mode="wallet"
         />
 
         {/* Perps full-screen panel */}

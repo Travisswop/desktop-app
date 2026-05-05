@@ -34,6 +34,8 @@ export interface HLMarket {
   openInterest: string;
   dayVolume: string;
   change24h: number;    // percentage
+  /** True if HL has marked the asset as delisted in `meta.universe`. */
+  isDelisted: boolean;
 }
 
 // ─── Positions ─────────────────────────────────────────────────────────────────
