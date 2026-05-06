@@ -112,18 +112,18 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
 
           {/* 3 media items */}
           {mediaFiles.length === 3 && (
-            <div className="w-full grid grid-cols-2 gap-[2px] border rounded-2xl overflow-hidden bg-black/5 h-auto sm:h-80 md:h-96">
+            <div className="w-full grid grid-cols-2 gap-[2px] border rounded-2xl overflow-hidden bg-black/5 h-64 sm:h-80 md:h-96">
               {/* Left large media */}
               <div className="relative col-span-1 h-full overflow-hidden group">
                 {renderMedia(mediaFiles[0], 0)}
               </div>
 
               {/* Right stacked media */}
-              <div className="grid grid-rows-2 gap-[2px] h-full">
+              <div className="grid grid-rows-2 gap-[2px] h-full min-h-0">
                 {mediaFiles.slice(1, 3).map((file: any, index: number) => (
                   <div
                     key={index + 1}
-                    className="relative h-full overflow-hidden group"
+                    className="relative min-h-0 overflow-hidden group"
                   >
                     {renderMedia(file, index + 1)}
                   </div>
@@ -135,7 +135,7 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
           {/* 4 media items */}
           {/* 4 media items */}
           {mediaFiles.length === 4 && (
-            <div className="grid grid-cols-2 gap-[2px] border rounded-2xl overflow-hidden relative h-72 sm:h-80 md:h-96 w-full">
+            <div className="grid grid-cols-2 gap-1 border rounded-2xl overflow-hidden relative h-72 sm:h-80 md:h-96 w-full">
               {mediaFiles.map((file: any, index: number) => (
                 <div
                   key={index}

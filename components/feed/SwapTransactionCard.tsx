@@ -300,7 +300,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
 
             {/* Copy Trade button */}
             <div
-              className="flex items-center justify-center pt-3 border-t border-gray-100"
+              className="flex items-center justify-end pt-3 border-t border-gray-100"
               onClick={(e) => e.stopPropagation()}
             >
               {onPress ? (
@@ -313,7 +313,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
               ) : (
                 <Link
                   href={`/wallet?inputToken=${inputToken?.symbol}&inputMint=${inputToken?.mint}&inputChain=${inputToken?.chain || inputToken?.chainId}&inputImg=${encodeURIComponent(resolveTokenImg(inputToken))}&inputDecimals=${inputToken?.decimals}&outputToken=${outputToken?.symbol}&outputMint=${outputToken?.mint}&outputChain=${outputToken?.chain || outputToken?.chainId}&outputImg=${encodeURIComponent(resolveTokenImg(outputToken))}&outputDecimals=${outputToken?.decimals}&amount=${inputToken?.amount}`}
-                  className="px-7 py-2 rounded-full text-sm font-medium text-gray-900 bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all"
+                  className="px-7 py-2 rounded-lg text-sm font-medium text-gray-900 bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all"
                 >
                   Copy Trade
                 </Link>
