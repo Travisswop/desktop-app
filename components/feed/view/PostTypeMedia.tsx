@@ -52,6 +52,7 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
     }
 
     // Video rendering
+    // Video rendering (non-single)
     return (
       <video
         key={`video-${index}`}
@@ -63,18 +64,16 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
         className={`${
           singleMedia
             ? `w-full h-auto ${isFromRepost ? "max-h-[26rem]" : "max-h-[30rem]"} rounded-2xl`
-            : "w-full h-full object-cover"
+            : "absolute inset-0 w-full h-full object-cover" // ✅ treat like fill image
         } transition-transform duration-300 group-hover:scale-[1.02]`}
         onError={(e) => {
           console.error("Video failed to load:", file.src);
-          // Optionally show an error message
           e.currentTarget.style.display = "none";
         }}
       >
         <source src={file.src} type="video/mp4" />
         <source src={file.src} type="video/webm" />
         <source src={file.src} type="video/ogg" />
-        Your browser does not support the video tag.
       </video>
     );
   };
@@ -135,12 +134,11 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
           {/* 4 media items */}
           {/* 4 media items */}
           {mediaFiles.length === 4 && (
-            <div className="grid grid-cols-2 gap-1 border rounded-2xl overflow-hidden relative h-72 sm:h-80 md:h-96 w-full">
+            <div className="grid grid-cols-2 grid-rows-2 gap-[2px] border rounded-2xl overflow-hidden h-64 sm:h-80 md:h-96 w-full">
               {mediaFiles.map((file: any, index: number) => (
                 <div
                   key={index}
-                  className="relative w-full overflow-hidden group" // remove h-full, add explicit height
-                  style={{ height: "100%" }} // ensure fill has a real height anchor
+                  className="relative w-full min-h-0 overflow-hidden group"
                 >
                   {renderMedia(file, index)}
                 </div>
