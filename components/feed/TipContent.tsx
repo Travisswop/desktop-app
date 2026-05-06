@@ -51,6 +51,7 @@ import { useTransactionPayload } from "../wallet/hooks/useTransactionPayload";
 import { toFixedTruncate } from "@/lib/fixedTruncateNumber";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import bs58 from "bs58";
+import logger from "@/utils/logger";
 interface TipContentModalProps {
   isOpen: boolean;
   onClose?: () => void;
@@ -69,6 +70,8 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
   const [tipAmount, setTipAmount] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
   const [accessToken, setAccessToken] = useState("");
+
+  logger.info("TipContentModal rendered with feedItem:", feedItem);
 
   const { authenticated, ready, user: PrivyUser, sendTransaction } = usePrivy();
   const { generateAuthorizationSignature } = useAuthorizationSignature();
@@ -756,6 +759,11 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
     );
   }
 
+  const profilePic =
+    feedItem?.smartsiteId?.profilePic ||
+    feedItem?.smartsiteDetails?.profilePic ||
+    feedItem?.smartsiteProfilePic;
+
   return (
     <>
       <CustomModal
@@ -768,14 +776,14 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
           <div className="flex flex-col items-center space-y-4">
             <Image
               src={
-                isUrl(feedItem.smartsiteId.profilePic)
-                  ? feedItem.smartsiteId.profilePic
-                  : `/images/user_avator/${feedItem.smartsiteId.profilePic}@3x.png`
+                isUrl(profilePic)
+                  ? profilePic
+                  : `/images/user_avator/${profilePic}@3x.png`
               }
               alt="Profile_Img"
               width={64}
               height={64}
-              className="w-16 h-16 rounded-full object-cover"
+              className="w-14 h-14 rounded-full object-cover"
             />
 
             {/* Amount Input */}
