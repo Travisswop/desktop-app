@@ -1,15 +1,19 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   useTrading,
   usePolymarketWallet,
 } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import { usePolygonBalances, useWrapUsdcE } from '@/hooks/polymarket';
+import {
+  usePolygonBalances,
+  useUserPositions,
+  useActiveOrders,
+  useWrapUsdcE,
+} from '@/hooks/polymarket';
 import { formatPolymarketError } from '@/lib/polymarket';
 import {
-  ArrowUpDown,
   LayoutList,
   ShieldCheck,
   PenLine,
@@ -17,11 +21,21 @@ import {
   CheckCircle2,
   X,
   Loader2,
+  Plus,
+  ArrowDownToLine,
+  ListOrdered,
+  Clock3,
+  History,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react';
 import HighVolumeMarkets from '@/components/wallet/polymarket/Markets';
 import GeoBlockedBanner from '@/components/wallet/polymarket/GeoBlockedBanner';
 import TransferModal from '@/components/wallet/polymarket/TransferModal';
 import PredictionsPortfolioModal from '@/components/wallet/polymarket/PredictionsPortfolioModal';
+
+type PortfolioTab = 'active' | 'orders' | 'history';
+type TransferTab = 'deposit' | 'withdraw';
 
 function EnableTradingModal({
   onConfirm,
@@ -221,6 +235,103 @@ function ActivateFundsModal({
   );
 }
 
+/** Decorative sparkline — reflects sign of current PnL. */
+function Sparkline({
+  trend,
+  className = '',
+}: {
+  trend: 'up' | 'down' | 'flat';
+  className?: string;
+}) {
+  const path =
+    trend === 'down'
+      ? 'M0,8 C20,14 35,10 50,18 C70,24 85,18 100,24 C120,30 135,26 150,32'
+      : trend === 'flat'
+        ? 'M0,20 C25,18 50,22 75,20 C100,18 125,22 150,20'
+        : 'M0,30 C20,26 30,30 45,22 C60,14 75,20 90,12 C110,6 130,14 150,8';
+  const color =
+    trend === 'down' ? '#e5484d' : trend === 'flat' ? '#9ca3af' : '#19a974';
+  return (
+    <svg
+      viewBox="0 0 150 40"
+      preserveAspectRatio="none"
+      className={`w-full h-12 block ${className}`}
+    >
+      <defs>
+        <linearGradient
+          id={`predictions-spark-${trend}`}
+          x1="0"
+          x2="0"
+          y1="0"
+          y2="1"
+        >
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path
+        d={`${path} L150,40 L0,40 Z`}
+        fill={`url(#predictions-spark-${trend})`}
+      />
+      <path
+        d={path}
+        stroke={color}
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function DeltaTag({ pct }: { pct: number }) {
+  if (!Number.isFinite(pct) || pct === 0) return null;
+  const positive = pct > 0;
+  const Arrow = positive ? TrendingUp : TrendingDown;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums ${
+        positive
+          ? 'bg-emerald-50 text-emerald-700'
+          : 'bg-red-50 text-red-600'
+      }`}
+    >
+      <Arrow className="w-3 h-3" strokeWidth={2.5} />
+      {positive ? '+' : ''}
+      {pct.toFixed(2)}%
+    </span>
+  );
+}
+
+function ChipButton({
+  active,
+  icon: Icon,
+  children,
+  onClick,
+  disabled,
+}: {
+  active?: boolean;
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${
+        active
+          ? 'bg-black text-white border-black hover:bg-gray-800'
+          : 'bg-white text-gray-900 border-gray-200 hover:bg-gray-50'
+      }`}
+    >
+      {Icon && <Icon className="w-3.5 h-3.5" />}
+      {children}
+    </button>
+  );
+}
+
 export default function WalletPredictionsSection() {
   const { authenticated, isReady, isInitializing, hasWallet } =
     usePolymarketWallet();
@@ -235,16 +346,22 @@ export default function WalletPredictionsSection() {
   } = useTrading();
 
   const {
-    formattedUsdcBalance,
+    usdcBalance,
     legacyUsdcBalance,
     isLoading: balanceLoading,
   } = usePolygonBalances(safeAddress);
+
+  const { data: positions } = useUserPositions(safeAddress);
+  const { data: activeOrders = [] } = useActiveOrders(null, safeAddress);
 
   const { wrap, step: wrapStep, error: wrapError, reset: resetWrap } =
     useWrapUsdcE();
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferTab, setTransferTab] = useState<TransferTab>('deposit');
   const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
+  const [portfolioTab, setPortfolioTab] =
+    useState<PortfolioTab>('active');
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentDismissed, setConsentDismissed] = useState(false);
   const [activateFundsOpen, setActivateFundsOpen] = useState(false);
@@ -291,6 +408,76 @@ export default function WalletPredictionsSection() {
     setShowConsentModal(false);
     setConsentDismissed(true);
   }, []);
+
+  const openTransfer = useCallback((tab: TransferTab) => {
+    setTransferTab(tab);
+    setTransferModalOpen(true);
+  }, []);
+
+  const openPortfolio = useCallback((tab: PortfolioTab) => {
+    setPortfolioTab(tab);
+    setPortfolioModalOpen(true);
+  }, []);
+
+  // ── Derived stats for the balance hero ──────────────────────────────────
+  const activePositions = useMemo(
+    () => (positions ?? []).filter((p) => p.size > 0 && !p.redeemable),
+    [positions],
+  );
+
+  const openPositionsValue = useMemo(
+    () => activePositions.reduce((s, p) => s + p.currentValue, 0),
+    [activePositions],
+  );
+
+  const totalPnl = useMemo(
+    () => activePositions.reduce((s, p) => s + p.cashPnl, 0),
+    [activePositions],
+  );
+
+  const totalCost = useMemo(
+    () =>
+      activePositions.reduce(
+        (s, p) => s + p.size * p.avgPrice,
+        0,
+      ),
+    [activePositions],
+  );
+
+  const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+  const portfolioValue = usdcBalance + openPositionsValue;
+  const trend: 'up' | 'down' | 'flat' =
+    totalPnl > 0.01 ? 'up' : totalPnl < -0.01 ? 'down' : 'flat';
+
+  // Format the big balance with a quieter decimal portion (matches the
+  // wireframe: $128,304.<span>59</span>).
+  const [intPart, decPart] = useMemo(() => {
+    const formatted = portfolioValue.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const dotIdx = formatted.lastIndexOf('.');
+    return dotIdx === -1
+      ? [formatted, '00']
+      : [formatted.slice(0, dotIdx), formatted.slice(dotIdx + 1)];
+  }, [portfolioValue]);
+
+  const openOrderCount = activeOrders.length;
+  const openBetCount = activePositions.length;
+  const stakedTotal = useMemo(
+    () =>
+      activePositions.reduce((s, p) => s + p.size * p.avgPrice, 0),
+    [activePositions],
+  );
+
+  // Top positions for the dark "Active picks" tile (right column of bento)
+  const topPicks = useMemo(
+    () =>
+      [...activePositions]
+        .sort((a, b) => b.currentValue - a.currentValue)
+        .slice(0, 3),
+    [activePositions],
+  );
 
   if (!authenticated) return null;
 
@@ -342,53 +529,213 @@ export default function WalletPredictionsSection() {
     );
   }
 
-  /** Injected into the left column above the search bar */
-  const balanceHeader = (
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm text-gray-500">Portfolio Balance</p>
-        <div className="flex items-center gap-2 mt-0.5">
+  /**
+   * Bento hero — left card is the predictions balance, right card is the
+   * dark "Active picks" tile listing the user's top open positions.
+   * Maps to wireframe screen 1 (A · Bento hero + feed).
+   */
+  const balanceHero = (
+    <div className="grid grid-cols-1 md:grid-cols-[1.35fr_1fr] gap-3">
+      {/* Left: balance hero */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)]">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 font-medium">
+              Predictions balance
+            </span>
+            <button
+              onClick={() => openPortfolio('active')}
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600"
+              title="View portfolio details"
+              aria-label="View portfolio"
+            >
+              <LayoutList className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <DeltaTag pct={totalPnlPct} />
+        </div>
+
+        <div className="mt-2 leading-none tabular-nums">
           {balanceLoading ? (
-            <div className="w-28 h-8 bg-gray-200 animate-pulse rounded" />
+            <div className="w-48 h-10 bg-gray-200 animate-pulse rounded" />
           ) : (
             <>
-              <span className="text-2xl font-bold text-gray-900">
-                ${formattedUsdcBalance}
+              <span className="text-[40px] font-semibold tracking-tight text-gray-900">
+                ${intPart}
               </span>
-              <button
-                onClick={() =>
-                  legacyUsdcBalance > 0
-                    ? setActivateFundsOpen(true)
-                    : setTransferModalOpen(true)
-                }
-                className="relative text-gray-500 hover:text-gray-800 transition-colors"
-                title="Deposit / Withdraw"
-              >
-                <ArrowUpDown className="w-4 h-4" />
-                {legacyUsdcBalance > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                  </span>
-                )}
-              </button>
+              <span className="text-[28px] font-semibold tracking-tight text-gray-400">
+                .{decPart}
+              </span>
             </>
           )}
         </div>
+
+        <Sparkline trend={trend} className="mt-4" />
+
+        {/* P/L + open bets summary strip */}
+        <div className="grid grid-cols-3 mt-4 pt-3 border-t border-gray-100">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+              Total P/L
+            </div>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span
+                className={`text-[15px] font-mono font-semibold tabular-nums ${
+                  totalPnl >= 0 ? 'text-emerald-600' : 'text-red-600'
+                }`}
+              >
+                {totalPnl >= 0 ? '+' : '−'}$
+                {Math.abs(totalPnl).toFixed(2)}
+              </span>
+            </div>
+          </div>
+          <div className="border-l border-gray-100 pl-3">
+            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+              Open bets
+            </div>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-[15px] font-mono font-semibold tabular-nums text-gray-900">
+                {openBetCount}
+              </span>
+              {stakedTotal > 0 && (
+                <span className="text-[10px] text-gray-500 font-medium">
+                  · ${stakedTotal.toFixed(0)}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="border-l border-gray-100 pl-3">
+            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+              Open orders
+            </div>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-[15px] font-mono font-semibold tabular-nums text-gray-900">
+                {openOrderCount}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Action chips */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          <ChipButton
+            active
+            icon={Plus}
+            onClick={() =>
+              legacyUsdcBalance > 0
+                ? setActivateFundsOpen(true)
+                : openTransfer('deposit')
+            }
+          >
+            Deposit
+            {legacyUsdcBalance > 0 && (
+              <span className="ml-0.5 inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            )}
+          </ChipButton>
+          <ChipButton
+            icon={ArrowDownToLine}
+            onClick={() => openTransfer('withdraw')}
+          >
+            Withdraw
+          </ChipButton>
+          <ChipButton
+            icon={ListOrdered}
+            onClick={() => openPortfolio('orders')}
+          >
+            Open orders · {openOrderCount}
+          </ChipButton>
+          <ChipButton
+            icon={Clock3}
+            onClick={() => openPortfolio('active')}
+          >
+            My bets · {openBetCount}
+          </ChipButton>
+          <ChipButton
+            icon={History}
+            onClick={() => openPortfolio('history')}
+          >
+            History
+          </ChipButton>
+        </div>
       </div>
 
-      <button
-        onClick={() => setPortfolioModalOpen(true)}
-        className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600"
-        title="View portfolio details"
-      >
-        <LayoutList className="w-4 h-4" />
-      </button>
+      {/* Right: dark Active picks tile */}
+      <div className="bg-[#0a0a0c] text-white rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)]">
+        <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 text-[10px] tracking-wider font-bold text-[#ff5a5f] font-mono">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#ff5a5f] shadow-[0_0_0_3px_rgba(255,90,95,0.18)]" />
+            ACTIVE PICKS
+          </span>
+          <span className="text-[11px] text-white/50 font-mono font-semibold tabular-nums">
+            {openBetCount} {openBetCount === 1 ? 'bet' : 'bets'}
+          </span>
+        </div>
+        <div className="px-5 py-2">
+          {topPicks.length === 0 ? (
+            <div className="py-6 text-center">
+              <p className="text-xs text-white/60 font-medium">
+                No active picks yet
+              </p>
+              <button
+                onClick={() => openTransfer('deposit')}
+                className="mt-2 text-xs text-white/90 underline-offset-4 hover:underline"
+              >
+                Deposit to start trading
+              </button>
+            </div>
+          ) : (
+            topPicks.map((pick, i) => {
+              const pnlPositive = pick.cashPnl >= 0;
+              return (
+                <button
+                  key={pick.asset}
+                  onClick={() => openPortfolio('active')}
+                  className={`w-full text-left py-2.5 ${
+                    i === 0 ? '' : 'border-t border-white/5'
+                  } hover:bg-white/[0.02] transition-colors`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-semibold tracking-tight truncate">
+                        {pick.title}
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-2 text-[10.5px] text-white/55 font-mono font-semibold uppercase tracking-wide">
+                        <span className="truncate">
+                          {pick.outcome}
+                        </span>
+                        <span className="text-white/25">·</span>
+                        <span className="tabular-nums">
+                          {pick.size.toFixed(0)} sh
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-[13px] font-mono font-semibold tabular-nums">
+                        ${pick.currentValue.toFixed(2)}
+                      </div>
+                      <div
+                        className={`text-[10.5px] font-mono font-semibold tabular-nums mt-0.5 ${
+                          pnlPositive
+                            ? 'text-emerald-400'
+                            : 'text-red-400'
+                        }`}
+                      >
+                        {pnlPositive ? '+' : '−'}$
+                        {Math.abs(pick.cashPnl).toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
     </div>
   );
 
   return (
-    <div className="mt-4 mb-20 max-w-[855px] w-full mx-auto space-y-3 bg-white rounded-xl p-6 drop-shadow-lg">
+    <div className="mt-4 mb-20 max-w-[855px] w-full mx-auto space-y-4 bg-white rounded-xl p-6 drop-shadow-lg">
       <GeoBlockedBanner />
 
       {sessionError && !tradingSession && (
@@ -413,7 +760,9 @@ export default function WalletPredictionsSection() {
         </div>
       )}
 
-      <HighVolumeMarkets splitLayout leftHeaderSlot={balanceHeader} />
+      {balanceHero}
+
+      <HighVolumeMarkets splitLayout />
 
       {showConsentModal && (
         <EnableTradingModal
@@ -441,10 +790,12 @@ export default function WalletPredictionsSection() {
       <TransferModal
         open={transferModalOpen}
         onOpenChange={setTransferModalOpen}
+        defaultTab={transferTab}
       />
       <PredictionsPortfolioModal
         isOpen={portfolioModalOpen}
         onClose={() => setPortfolioModalOpen(false)}
+        initialTab={portfolioTab}
       />
     </div>
   );

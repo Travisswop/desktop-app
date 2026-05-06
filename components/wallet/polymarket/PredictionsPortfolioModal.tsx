@@ -37,6 +37,7 @@ type TabId = 'active' | 'orders' | 'history';
 interface PredictionsPortfolioModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: TabId;
 }
 
 type EventTeamMeta = NonNullable<PolymarketMarket['eventTeams']>[number];
@@ -114,8 +115,13 @@ function positionToMarket(
 export default function PredictionsPortfolioModal({
   isOpen,
   onClose,
+  initialTab = 'active',
 }: PredictionsPortfolioModalProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('active');
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+
+  useEffect(() => {
+    if (isOpen) setActiveTab(initialTab);
+  }, [isOpen, initialTab]);
   const [redeemingAsset, setRedeemingAsset] = useState<string | null>(
     null,
   );
