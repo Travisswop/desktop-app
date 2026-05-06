@@ -139,9 +139,17 @@ function formatCents(price: number | undefined): string {
   return `${(price * 100).toFixed(1)}¢`;
 }
 
-function formatShares(shares: number | undefined): string {
-  if (shares === undefined) return '—';
-  return `${shares.toFixed(shares >= 10 ? 1 : 2)} shares`;
+function getInitials(name: string | undefined): string {
+  const parts = (name || 'Someone')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (
+    parts
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || 'S'
+  );
 }
 
 function parseList(value: unknown): string[] {
@@ -839,11 +847,12 @@ function SportsMiniPanel({
       ? currentDelta
       : tradeState.amount;
   const canOpenMarket = Boolean(marketUrl);
+  const userInitials = getInitials(userName);
   const filterId = `feed-shadow-${String(yesTokenId || yesOutcome)
     .replace(/[^a-zA-Z0-9_-]/g, '')
     .slice(0, 48)}`;
   const betButtonBase =
-    'h-8 rounded-lg px-3 text-[11px] font-bold transition-colors flex items-center justify-center min-w-0';
+    'h-[34px] rounded-lg px-3 text-[11px] font-bold transition-colors flex items-center justify-center min-w-0 shadow-sm';
   const buttonForOutcome = (
     label: string,
     price: number,
@@ -1038,16 +1047,21 @@ function SportsMiniPanel({
         </text>
       </svg>
 
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm mt-3 overflow-hidden">
-        <div className="px-3 py-2 flex items-center justify-between gap-2 border-b border-dashed border-gray-200">
-          <p className="text-[13px] font-bold text-gray-950 truncate">
-            {userName || 'Someone'}{' '}
-            {side === 'BUY' ? 'picked' : 'sold'}{' '}
-            <span className="text-blue-600">{pickedOutcome}</span>
-          </p>
+      <div className="relative mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="pointer-events-none absolute left-[-5px] top-8 h-2.5 w-2.5 rounded-full border border-gray-200 bg-gray-50" />
+        <div className="pointer-events-none absolute right-[-5px] top-8 h-2.5 w-2.5 rounded-full border border-gray-200 bg-gray-50" />
+
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-[13px] font-extrabold text-gray-950">
+              {userName || 'Someone'}{' '}
+              {side === 'BUY' ? 'picked' : 'sold'}{' '}
+              <span className="text-blue-600">{pickedOutcome}</span>
+            </p>
+          </div>
           {tradeState.state !== 'open' && (
             <span
-              className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${toneClasses(
+              className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${toneClasses(
                 tradeState.tone,
               )}`}
             >
@@ -1056,20 +1070,22 @@ function SportsMiniPanel({
           )}
         </div>
 
-        <div className="grid grid-cols-3 divide-x divide-gray-100">
-          <div className="px-3 py-2 text-center">
+        <div className="border-t border-dashed border-gray-200" />
+
+        <div className="grid grid-cols-3">
+          <div className="px-3 py-3 text-center">
             <p className="text-[10px] font-medium text-gray-500">
               Cost
             </p>
-            <p className="text-[13px] font-extrabold text-emerald-600">
+            <p className="mt-0.5 text-[13px] font-extrabold text-emerald-600">
               {formatUsd(cost)}
             </p>
           </div>
-          <div className="px-3 py-2 text-center">
+          <div className="border-x border-gray-100 px-3 py-3 text-center">
             <p className="text-[10px] font-medium text-gray-500">
               Current
             </p>
-            <p className="text-[13px] font-extrabold text-emerald-600">
+            <p className="mt-0.5 text-[13px] font-extrabold text-emerald-600">
               {formatUsd(currentValue)}
             </p>
             {selectedPnl !== undefined && (
@@ -1085,7 +1101,7 @@ function SportsMiniPanel({
               </p>
             )}
           </div>
-          <div className="px-3 py-2 text-center">
+          <div className="px-3 py-3 text-center">
             <p className="text-[10px] font-medium text-gray-500">
               {tradeState.state === 'sold' ||
               tradeState.state === 'sold-profit' ||
@@ -1097,7 +1113,7 @@ function SportsMiniPanel({
                   : 'To win'}
             </p>
             <p
-              className={`text-[13px] font-extrabold ${
+              className={`mt-0.5 text-[13px] font-extrabold ${
                 tradeState.tone === 'red'
                   ? 'text-red-600'
                   : 'text-emerald-600'
@@ -1112,18 +1128,10 @@ function SportsMiniPanel({
         </div>
       </div>
 
-      {(hasScores || tradeState.state === 'live') && (
-        <div className="grid grid-cols-2 gap-3 mt-5">
-          {buttonForOutcome(yesOutcome, yP, 'yes')}
-          {buttonForOutcome(noOutcome, nP, 'no')}
-        </div>
-      )}
-
-      {volume && (
-        <p className="mt-3 text-center text-[10px] font-semibold text-gray-400">
-          {volume}
-        </p>
-      )}
+      <div className="mt-5 grid grid-cols-2 gap-3 px-1">
+        {buttonForOutcome(yesOutcome, yP, 'yes')}
+        {buttonForOutcome(noOutcome, nP, 'no')}
+      </div>
     </div>
   );
 }
@@ -1131,23 +1139,33 @@ function SportsMiniPanel({
 function PredictionPositionPanel({
   marketTitle,
   outcome,
+  yesOutcome,
+  noOutcome,
   side,
   cost,
   potentialWin,
   entryPrice,
   currentPrice,
+  yesPrice,
+  noPrice,
   tradeState,
   marketUrl,
+  userName,
 }: {
   marketTitle: string;
   outcome: string;
+  yesOutcome?: string;
+  noOutcome?: string;
   side: 'BUY' | 'SELL';
   cost: number;
   potentialWin?: number;
   entryPrice: number;
   currentPrice: number;
+  yesPrice?: number;
+  noPrice?: number;
   tradeState: TradeStateMeta;
   marketUrl?: string;
+  userName?: string;
 }) {
   const shares = entryPrice > 0 ? cost / entryPrice : undefined;
   const currentValue =
@@ -1157,67 +1175,96 @@ function PredictionPositionPanel({
       ? currentValue - cost
       : undefined;
   const deltaPct =
-    delta !== undefined && cost > 0 ? (delta / cost) * 100 : undefined;
-  const open = tradeState.state === 'open' || tradeState.state === 'live';
-  const pickedLabel = side === 'BUY' ? outcome : `Sold ${outcome}`;
+    delta !== undefined && cost > 0
+      ? (delta / cost) * 100
+      : undefined;
+  const open =
+    tradeState.state === 'open' || tradeState.state === 'live';
+  const userInitials = getInitials(userName);
+  const renderOutcomeButton = (
+    label: string | undefined,
+    price: number | undefined,
+    tone: 'green' | 'red',
+  ) => {
+    const className =
+      tone === 'green'
+        ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+        : 'bg-red-500 text-white hover:bg-red-600';
+    const content = `${label || 'Outcome'} ${formatCents(price)}`;
+
+    if (!marketUrl || !open) {
+      return (
+        <button
+          type="button"
+          disabled
+          className={`flex h-[34px] min-w-0 items-center justify-center rounded-lg px-3 text-[12px] font-extrabold opacity-60 shadow-sm ${className}`}
+        >
+          <span className="truncate">{content}</span>
+        </button>
+      );
+    }
+
+    return (
+      <a
+        href={marketUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className={`flex h-[34px] min-w-0 items-center justify-center rounded-lg px-3 text-[12px] font-extrabold shadow-sm transition-colors ${className}`}
+      >
+        <span className="truncate">{content}</span>
+      </a>
+    );
+  };
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[14px] font-extrabold leading-snug text-gray-950 line-clamp-2">
+    <div>
+      <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="pointer-events-none absolute left-[-5px] top-12 h-2.5 w-2.5 rounded-full border border-gray-200 bg-gray-50" />
+        <div className="pointer-events-none absolute right-[-5px] top-12 h-2.5 w-2.5 rounded-full border border-gray-200 bg-gray-50" />
+
+        <div className="px-3 py-1">
+          <p className="line-clamp-2 text-[13px] font-extrabold leading-snug text-gray-950">
             {marketTitle}
-          </p>
-          <p className="mt-1 text-[11px] font-semibold text-gray-400">
-            {formatShares(shares)}
           </p>
         </div>
 
-        {marketUrl && (
-          <a
-            href={marketUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
-            title="Open market"
-          >
-            <span className="text-base leading-none">↗</span>
-          </a>
-        )}
-      </div>
-
-      <div className="mt-4 border-t border-dashed border-gray-200 pt-3">
-        <div className="grid grid-cols-4 gap-3">
-          <div>
-            <p className="text-[11px] font-bold uppercase text-gray-400">
-              Avg→Now
-            </p>
-            <p className="mt-1 text-[12px] font-extrabold text-gray-950">
-              {formatCents(entryPrice)} → {formatCents(currentPrice)}
+        <div className="flex items-center justify-between gap-2 px-3 py-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-[13px] font-extrabold text-gray-950">
+              {userName || 'Someone'}{' '}
+              {side === 'BUY' ? 'picked' : 'sold'}{' '}
+              <span className="text-blue-600">{outcome}</span>
             </p>
           </div>
-          <div>
-            <p className="text-[11px] font-bold uppercase text-gray-400">
-              Traded
+          {tradeState.state !== 'open' &&
+            tradeState.state !== 'live' && (
+              <span
+                className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${toneClasses(
+                  tradeState.tone,
+                )}`}
+              >
+                {tradeState.label}
+              </span>
+            )}
+        </div>
+
+        <div className="border-t border-dashed border-gray-200" />
+
+        <div className="grid grid-cols-3">
+          <div className="px-3 py-3 text-center">
+            <p className="text-[10px] font-medium text-gray-500">
+              Cost
             </p>
-            <p className="mt-1 text-[12px] font-extrabold text-gray-950">
+            <p className="mt-1 text-[13px] font-extrabold text-emerald-600">
               {formatUsd(cost)}
             </p>
           </div>
-          <div>
-            <p className="text-[11px] font-bold uppercase text-gray-400">
-              To Win
+          <div className="border-x border-gray-100 px-3 py-3 text-center">
+            <p className="text-[10px] font-medium text-gray-500">
+              Current
             </p>
-            <p className="mt-1 text-[12px] font-extrabold text-gray-950">
-              {formatUsd(potentialWin)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] font-bold uppercase text-gray-400">
-              Value
-            </p>
-            <p className="mt-1 text-[12px] font-extrabold text-gray-950">
+            <p className="mt-1 text-[13px] font-extrabold text-emerald-600">
               {formatUsd(currentValue)}
             </p>
             {delta !== undefined && (
@@ -1233,53 +1280,36 @@ function PredictionPositionPanel({
               </p>
             )}
           </div>
+          <div className="px-3 py-3 text-center">
+            <p className="text-[10px] font-medium text-gray-500">
+              {tradeState.state === 'sold' ||
+              tradeState.state === 'sold-profit' ||
+              tradeState.state === 'sold-loss'
+                ? 'Sold'
+                : tradeState.state === 'won' ||
+                    tradeState.state === 'lost'
+                  ? 'Result'
+                  : 'To win'}
+            </p>
+            <p
+              className={`mt-1 text-[13px] font-extrabold ${
+                tradeState.tone === 'red'
+                  ? 'text-red-600'
+                  : 'text-emerald-600'
+              }`}
+            >
+              {open
+                ? formatUsd(potentialWin)
+                : formatUsd(tradeState.amount)}
+            </p>
+          </div>
         </div>
       </div>
 
-      {open ? (
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <a
-            href={marketUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className={`flex h-10 items-center justify-center rounded-xl bg-emerald-500 px-3 text-[13px] font-extrabold text-white transition-colors hover:bg-emerald-600 ${
-              !marketUrl ? 'pointer-events-none opacity-60' : ''
-            }`}
-          >
-            Buy more {formatCents(currentPrice)}
-          </a>
-          <a
-            href={marketUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className={`flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-3 text-[13px] font-extrabold text-gray-900 transition-colors hover:bg-gray-50 ${
-              !marketUrl ? 'pointer-events-none opacity-60' : ''
-            }`}
-          >
-            Cash out
-          </a>
-        </div>
-      ) : (
-        <div
-          className={`mt-4 rounded-xl border px-3 py-2 ${toneClasses(
-            tradeState.tone,
-          )}`}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[13px] font-extrabold">
-                {tradeState.label}
-              </p>
-              <p className="text-[11px] font-medium opacity-80">
-                {pickedLabel}
-              </p>
-            </div>
-            <p className="text-[14px] font-extrabold tabular-nums">
-              {formatUsd(tradeState.amount)}
-            </p>
-          </div>
+      {(yesOutcome || noOutcome) && (
+        <div className="mt-5 grid grid-cols-2 gap-3 px-1">
+          {renderOutcomeButton(yesOutcome, yesPrice, 'green')}
+          {renderOutcomeButton(noOutcome, noPrice, 'red')}
         </div>
       )}
     </div>
@@ -1377,13 +1407,18 @@ export default function PredictionFeedCard({
         <PredictionPositionPanel
           marketTitle={content.marketTitle}
           outcome={outcome}
+          yesOutcome={yesOutcome}
+          noOutcome={noOutcome}
           side={side}
           cost={cost}
           potentialWin={potentialWin}
           entryPrice={price}
           currentPrice={currentDisplayPrice}
+          yesPrice={resolvedYesPrice}
+          noPrice={resolvedNoPrice}
           tradeState={tradeState}
           marketUrl={marketUrl}
+          userName={userName}
         />
       )}
 
