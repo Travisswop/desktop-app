@@ -1,15 +1,11 @@
 import WalletContent from '@/components/wallet/WalletContent';
-import WalletPredictionsSection from '@/components/wallet/WalletPredictionsSection';
 import { PolymarketProviders } from '@/providers/polymarket';
 
 const Wallet: React.FC = () => {
   return (
-    <div>
+    <PolymarketProviders>
       <WalletContent />
-      <PolymarketProviders>
-        <WalletPredictionsSection />
-      </PolymarketProviders>
-    </div>
+    </PolymarketProviders>
   );
 };
 

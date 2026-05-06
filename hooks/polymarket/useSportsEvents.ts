@@ -16,6 +16,14 @@ export interface UseSportsEventsOptions {
   tagId?: number | null;
   /** Set false to skip fetching (e.g. when a non-sports category is active). */
   enabled?: boolean;
+  /** Backend filter — true to keep only currently-live events. */
+  live?: boolean;
+  /** Backend filter — "gamelines" (matchups) or "futures" (championship-style). */
+  kind?: 'gamelines' | 'futures';
+  /** Backend filter — keep events whose startDate is >= this ISO timestamp. */
+  dateFrom?: string;
+  /** Backend filter — keep events whose startDate is < this ISO timestamp. */
+  dateTo?: string;
 }
 
 /**
@@ -27,16 +35,41 @@ export interface UseSportsEventsOptions {
  * groupFlatMarketsIntoGames (done in Markets/index.tsx so cross-page
  * duplicates are merged before grouping).
  */
-export function useSportsEvents({ tagId, enabled = true }: UseSportsEventsOptions = {}) {
+export function useSportsEvents({
+  tagId,
+  enabled = true,
+  live,
+  kind,
+  dateFrom,
+  dateTo,
+}: UseSportsEventsOptions = {}) {
   const { isTradingSessionComplete } = useTrading();
 
   return useInfiniteQuery({
-    queryKey: ['sports-events', tagId ?? null, !!isTradingSessionComplete],
+    queryKey: [
+      'sports-events',
+      tagId ?? null,
+      live ?? false,
+      kind ?? null,
+      dateFrom ?? null,
+      dateTo ?? null,
+      !!isTradingSessionComplete,
+    ],
     enabled,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<PolymarketMarket[]> => {
-      let url = `/api/polymarket/markets?limit=${PAGE_SIZE}&offset=${pageParam}`;
-      if (tagId != null) url += `&tag_id=${tagId}`;
+      const qs = new URLSearchParams();
+      qs.set('limit', String(PAGE_SIZE));
+      qs.set('offset', String(pageParam));
+      if (tagId != null) qs.set('tag_id', String(tagId));
+      if (live) qs.set('live', 'true');
+      if (kind) qs.set('kind', kind);
+      if (dateFrom) qs.set('date_from', dateFrom);
+      if (dateTo) qs.set('date_to', dateTo);
+      // Desktop endpoint — exposes the live / kind / date filters and the
+      // extra event-level fields the A2 sportsbook table needs. Mobile
+      // continues to call the original /markets proxy.
+      const url = `/api/polymarket/desktop/markets?${qs.toString()}`;
 
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch sports markets');

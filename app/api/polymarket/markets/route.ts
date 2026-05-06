@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
 
+/**
+ * Mobile-aligned proxy for /api/prediction-markets/markets. Kept in step
+ * with the mobile contract — desktop-specific A2 filters live on the
+ * separate /api/polymarket/desktop/markets proxy.
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

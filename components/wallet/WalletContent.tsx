@@ -75,6 +75,9 @@ import {
 import { useHyperliquidBalanceCheck } from './perps/hooks/useHyperliquidBalanceCheck';
 import SwapTokenModal from './SwapTokenModal';
 
+// Predictions (Polymarket)
+import WalletPredictionsSection from './WalletPredictionsSection';
+
 // Stores
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
 
@@ -1185,6 +1188,9 @@ const WalletContentInner = () => {
             onDepositSubmitted={hlStartDepositPolling}
           />
         </section>
+
+        {/* ───────── PREDICTIONS ───────── */}
+        <WalletPredictionsSection />
 
         {/* ───────── COLLECTIBLES ───────── */}
         <section className="mt-8">

@@ -29,6 +29,15 @@ export type PolymarketMarket = {
   eventSlug?: string;
   eventId?: string;
   eventIcon?: string;
+  /** True when Polymarket has flagged the parent event as currently live.
+   *  Drives the red "● LIVE · Q4 · 6:44" header in the A2 sports row. */
+  eventLive?: boolean;
+  /** Period string from Polymarket (e.g. "Q4", "Half"). */
+  eventPeriod?: string | null;
+  /** Elapsed-in-period string from Polymarket (e.g. "6:44"). */
+  eventElapsed?: string | null;
+  /** ISO start time for the parent event (used by the date strip filter). */
+  eventStartDate?: string | null;
   /**
    * Per-team metadata attached by Polymarket to sports events (logo,
    * abbreviation, brand color). Usually two entries keyed by team name.
@@ -76,7 +85,9 @@ export function useMarkets(options: UseMarketsOptions = {}) {
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<PolymarketMarket[]> => {
       const category = getCategoryById(categoryId);
-      let url = `/api/polymarket/markets?limit=${MARKETS_PAGE_SIZE}&offset=${pageParam}`;
+      // Desktop endpoint — adds A2 sports filters and event-level fields.
+      // Mobile continues to call the original /markets proxy.
+      let url = `/api/polymarket/desktop/markets?limit=${MARKETS_PAGE_SIZE}&offset=${pageParam}`;
 
       // overrideTagId (sport subcategory) takes priority over category-level tagId
       const tagId =

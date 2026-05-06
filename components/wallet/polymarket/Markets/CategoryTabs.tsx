@@ -12,6 +12,12 @@ interface CategoryTabsProps {
   onCategoryChange: (categoryId: CategoryId) => void;
   activeSportSub: SportSubcategoryId;
   onSportSubChange: (subId: SportSubcategoryId) => void;
+  /** Hide the top-level category row but keep sport sub-tabs (used in
+   *  the predictions panel's category drill-down view). */
+  hideMainTabs?: boolean;
+  /** Also hide the sports sub-tab row — used by the A2 drill-down view
+   *  in PredictionsPanel which renders its own A2-styled league tabs. */
+  hideSportSubTabs?: boolean;
 }
 
 export default function CategoryTabs({
@@ -19,10 +25,13 @@ export default function CategoryTabs({
   onCategoryChange,
   activeSportSub,
   onSportSubChange,
+  hideMainTabs = false,
+  hideSportSubTabs = false,
 }: CategoryTabsProps) {
   return (
     <div className="w-full min-w-0 space-y-2">
       {/* Main category tabs */}
+      {!hideMainTabs && (
       <div className="relative w-full min-w-0">
         <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-white to-transparent z-10" />
         <div className="overflow-x-scroll scrollbar-x touch-pan-x pb-2">
@@ -66,9 +75,10 @@ export default function CategoryTabs({
           </div>
         </div>
       </div>
+      )}
 
       {/* Sports subcategory pills — only visible when Sports is active */}
-      {activeCategory === 'sports' && (
+      {activeCategory === 'sports' && !hideSportSubTabs && (
         <div className="relative w-full min-w-0">
           <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-white to-transparent z-10" />
           <div className="overflow-x-scroll scrollbar-x touch-pan-x pb-2">

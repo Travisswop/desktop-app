@@ -47,16 +47,44 @@ interface HighVolumeMarketsProps {
   splitLayout?: boolean;
   /** Content injected above the search bar in the left column (balance header) */
   leftHeaderSlot?: React.ReactNode;
+  /** Pre-select a category — used by the drill-down view in PredictionsPanel */
+  initialCategory?: CategoryId;
+  /** Pre-select a sport subcategory (only applies when initialCategory === 'sports') */
+  initialSportSub?: SportSubcategoryId;
+  /** Hide only the top-level category row (Trending/Sports/Politics/...).
+   *  Sport sub-tabs still show when Sports is the active category, which
+   *  matches the wireframe's drill-down behaviour (screen A2). */
+  hideMainCategoryTabs?: boolean;
+  /** Also hide the sports sub-tab row — used when the parent renders its
+   *  own league tabs (e.g. the A2 drill-down view in PredictionsPanel). */
+  hideSportSubTabs?: boolean;
+  /** Hide the search input above the category tabs. Used when the parent
+   *  provides its own filter chrome. */
+  hideSearch?: boolean;
+  /** Hide the section title row ("X Markets · Sorted by …"). */
+  hideSectionHeader?: boolean;
+  /** Force the default (non-split) layout to a single column instead of
+   *  the responsive 2-3 col grid. Used by the A2 drill-down view. */
+  singleColumn?: boolean;
 }
 
 export default function HighVolumeMarkets({
   splitLayout = false,
   leftHeaderSlot,
+  initialCategory,
+  initialSportSub,
+  hideMainCategoryTabs = false,
+  hideSportSubTabs = false,
+  hideSearch = false,
+  hideSectionHeader = false,
+  singleColumn = false,
 }: HighVolumeMarketsProps) {
-  const [activeCategory, setActiveCategory] =
-    useState<CategoryId>(DEFAULT_CATEGORY);
-  const [activeSportSub, setActiveSportSub] =
-    useState<SportSubcategoryId>(DEFAULT_SPORT_SUBCATEGORY);
+  const [activeCategory, setActiveCategory] = useState<CategoryId>(
+    initialCategory ?? DEFAULT_CATEGORY,
+  );
+  const [activeSportSub, setActiveSportSub] = useState<SportSubcategoryId>(
+    initialSportSub ?? DEFAULT_SPORT_SUBCATEGORY,
+  );
   const [detailMarket, setDetailMarket] =
     useState<PolymarketMarket | null>(null);
   const [detailInitialOutcome, setDetailInitialOutcome] = useState<
@@ -296,6 +324,8 @@ export default function HighVolumeMarkets({
       onCategoryChange={handleCategoryChange}
       activeSportSub={activeSportSub}
       onSportSubChange={handleSportSubChange}
+      hideMainTabs={hideMainCategoryTabs}
+      hideSportSubTabs={hideSportSubTabs}
     />
   );
 
@@ -432,7 +462,7 @@ export default function HighVolumeMarkets({
         {/* ── Mobile: single scrollable column ── */}
         <div className="md:hidden space-y-3 min-w-0">
           {leftHeaderSlot}
-          {searchBar}
+          {!hideSearch && searchBar}
           {categoryTabs}
 
           {isLoading && (
@@ -474,7 +504,7 @@ export default function HighVolumeMarkets({
           {/* Left column */}
           <div className="space-y-3 min-w-0">
             {leftHeaderSlot}
-            {searchBar}
+            {!hideSearch && searchBar}
             {categoryTabs}
 
             {isLoading && (
@@ -536,24 +566,30 @@ export default function HighVolumeMarkets({
   return (
     <>
       <div className="space-y-4 min-w-0">
-        <CategoryTabs
-          activeCategory={activeCategory}
-          onCategoryChange={handleCategoryChange}
-          activeSportSub={activeSportSub}
-          onSportSubChange={handleSportSubChange}
-        />
+        {!hideMainCategoryTabs || !hideSportSubTabs ? (
+          <CategoryTabs
+            activeCategory={activeCategory}
+            onCategoryChange={handleCategoryChange}
+            activeSportSub={activeSportSub}
+            onSportSubChange={handleSportSubChange}
+            hideMainTabs={hideMainCategoryTabs}
+            hideSportSubTabs={hideSportSubTabs}
+          />
+        ) : null}
 
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900">
-            {sectionLabel}{' '}
-            {displayCount > 0
-              ? `(${displayCount}${hasNextPage ? '+' : ''})`
-              : ''}
-          </h3>
-          <p className="text-xs text-gray-500">
-            Sorted by volume + liquidity
-          </p>
-        </div>
+        {!hideSectionHeader && (
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900">
+              {sectionLabel}{' '}
+              {displayCount > 0
+                ? `(${displayCount}${hasNextPage ? '+' : ''})`
+                : ''}
+            </h3>
+            <p className="text-xs text-gray-500">
+              Sorted by volume + liquidity
+            </p>
+          </div>
+        )}
 
         {isLoading && (
           <LoadingState message={`Loading ${sectionLabel.toLowerCase()}...`} />
@@ -571,16 +607,24 @@ export default function HighVolumeMarkets({
         {!isLoading && !error && (btcCard || displayCount > 0) && (
           <>
             {btcCard && (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div
+                className={
+                  singleColumn
+                    ? 'grid grid-cols-1 gap-3'
+                    : 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3'
+                }
+              >
                 {btcCard}
               </div>
             )}
             {displayCount > 0 && (
               <div
                 className={`grid gap-3 ${
-                  isSportsActive
-                    ? 'grid-cols-1 lg:grid-cols-2'
-                    : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+                  singleColumn
+                    ? 'grid-cols-1'
+                    : isSportsActive
+                      ? 'grid-cols-1 lg:grid-cols-2'
+                      : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
                 }`}
               >
                 {isSportsActive
