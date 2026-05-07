@@ -5,7 +5,6 @@ import {
   ModalContent,
   useDisclosure,
 } from "@nextui-org/react";
-import { logger } from "ethers5";
 import Image from "next/image";
 import React, { useState } from "react";
 
@@ -14,7 +13,7 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
   const [image, setImage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  logger.info("mediaFiles in PostTypeMedia", mediaFiles);
+  //logger.info("mediaFiles in PostTypeMedia", mediaFiles);
 
   const handleOpenImage = (image: string) => {
     setIsLoading(true);
