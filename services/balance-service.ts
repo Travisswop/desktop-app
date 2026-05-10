@@ -55,7 +55,9 @@ export async function getBalance({
       const errorData = await response.json().catch(() => ({
         message: `HTTP error! status: ${response.status}`,
       }));
-      throw new Error(errorData.message || 'Failed to fetch balance data');
+      throw new Error(
+        errorData.message || 'Failed to fetch balance data',
+      );
     }
 
     const data: GetBalanceResponse = await response.json();
@@ -73,7 +75,8 @@ export async function getBalance({
  * @param userId - User ID to fetch balance for
  * @returns Query key array for React Query
  */
-export const balanceQueryKey = (userId: string) => ['balance', userId] as const;
+export const balanceQueryKey = (userId: string) =>
+  ['balance', userId] as const;
 
 // ============================================================================
 // NEW: Balance History API (uses BalanceSnapshot collection)
@@ -136,7 +139,9 @@ export async function getBalanceHistory({
       const errorData = await response.json().catch(() => ({
         message: `HTTP error! status: ${response.status}`,
       }));
-      throw new Error(errorData.message || 'Failed to fetch balance history');
+      throw new Error(
+        errorData.message || 'Failed to fetch balance history',
+      );
     }
 
     const data: GetBalanceHistoryResponse = await response.json();
@@ -158,5 +163,5 @@ export async function getBalanceHistory({
 export const balanceHistoryQueryKey = (
   userId: string,
   period: TimePeriod,
-  type: SnapshotType
+  type: SnapshotType,
 ) => ['balance-history', userId, period, type] as const;

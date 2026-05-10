@@ -120,15 +120,21 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   // const [showBalance, setShowBalance] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
   const [fundandSettings, setFundandSettings] = useState(false);
-  const [showTransactionList, setShowTransactionList] = useState(false);
+  const [showTransactionList, setShowTransactionList] =
+    useState(false);
 
   const { wallets: ethWallets } = useWallets();
-  const { ready: solanaReady, wallets: solWallets } = useSolanaWallets();
-  const solWalletAddress = solanaReady ? (solWallets[0]?.address ?? '') : '';
+  const { ready: solanaReady, wallets: solWallets } =
+    useSolanaWallets();
+  const solWalletAddress = solanaReady
+    ? (solWallets[0]?.address ?? '')
+    : '';
   const evmWalletAddress = useMemo(
     () =>
       ethWallets?.find(
-        (w) => w.walletClientType === 'privy' || w.connectorType === 'embedded',
+        (w) =>
+          w.walletClientType === 'privy' ||
+          w.connectorType === 'embedded',
       )?.address ?? '',
     [ethWallets],
   );
@@ -195,6 +201,8 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
+
+  console.log('balanceHistoryData', balanceHistoryData);
 
   // Extract balance history and current balance from query data
   const balanceHistory = balanceHistoryData?.balanceHistory || [];
