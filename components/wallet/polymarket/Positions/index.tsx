@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useClobOrder,
@@ -16,6 +17,10 @@ import {
 } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useTrading } from '@/providers/polymarket';
+import {
+  useMarketDetailStore,
+  marketRouteKey,
+} from '@/zustandStore/marketDetailStore';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
@@ -23,10 +28,13 @@ import LoadingState from '../shared/LoadingState';
 import PositionCard from './PositionCard';
 import OrderCard from '../Orders/OrderCard';
 import OrderPlacementModal from '../OrderModal';
-import MarketDetailModal from '../Markets/MarketDetailModal';
 import PositionOutcomeList from './PositionOutcomeList';
 
 import { createPollingInterval } from '@/lib/polymarket/polling';
+import {
+  hasRedeemablePayout,
+  isZeroPositionBalanceRedeemError,
+} from '@/lib/polymarket/position-payout';
 import {
   DUST_THRESHOLD,
   POLLING_DURATION,
@@ -143,8 +151,9 @@ export default function UserPositions() {
   >(null);
   const [buyMorePosition, setBuyMorePosition] =
     useState<PolymarketPosition | null>(null);
-  const [detailPosition, setDetailPosition] =
-    useState<PolymarketPosition | null>(null);
+
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((s) => s.set);
 
   const { redeemPosition } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
@@ -205,6 +214,22 @@ export default function UserPositions() {
     [isBtc5mPosition],
   );
 
+  const navigateToPosition = useCallback(
+    (p: PolymarketPosition) => {
+      const market = positionToMarket(enrichBtcPosition(p), teamsData);
+      const key = marketRouteKey(market);
+      if (!key) return;
+      stashMarketDetail(key, {
+        market,
+        initialOutcome: p.outcomeIndex === 0 ? 'yes' : 'no',
+        yesShares: p.outcomeIndex === 0 ? p.size : 0,
+        noShares: p.outcomeIndex === 1 ? p.size : 0,
+      });
+      router.push(`/prediction/market/${encodeURIComponent(key)}`);
+    },
+    [enrichBtcPosition, router, stashMarketDetail, teamsData],
+  );
+
   const [pendingVerification, setPendingVerification] = useState<
     Map<string, number>
   >(new Map());
@@ -262,10 +287,12 @@ export default function UserPositions() {
 
   const handleRedeem = useCallback(async (position: PolymarketPosition) => {
     if (!isTradingSessionComplete) return;
+    if (!hasRedeemablePayout(position)) return;
     setRedeemingAsset(position.asset);
     try {
       await redeemPosition({
         conditionId: position.conditionId,
+        asset: position.asset,
         outcomeIndex: position.outcomeIndex,
         negativeRisk: position.negativeRisk,
         size: position.size,
@@ -288,6 +315,11 @@ export default function UserPositions() {
         POLLING_DURATION,
       );
     } catch (err) {
+      if (isZeroPositionBalanceRedeemError(err)) {
+        queryClient.invalidateQueries({
+          queryKey: ['polymarket-positions'],
+        });
+      }
       console.error('Failed to redeem position:', err);
     } finally {
       setRedeemingAsset(null);
@@ -561,7 +593,7 @@ export default function UserPositions() {
               isSubmitting={isSubmitting}
               canSell={!!clobClient}
               canRedeem={!!clobClient}
-              onTitleClick={() => setDetailPosition(position)}
+              onTitleClick={() => navigateToPosition(position)}
             />
           );
         })}
@@ -601,25 +633,6 @@ export default function UserPositions() {
           );
         })()}
 
-      {/* ── Market Detail Modal (opened via title click) ──────────────── */}
-      {detailPosition && (
-        <MarketDetailModal
-          isOpen={!!detailPosition}
-          onClose={() => setDetailPosition(null)}
-          market={positionToMarket(enrichBtcPosition(detailPosition), teamsData)}
-          balance={usdcBalance}
-          yesShares={
-            detailPosition.outcomeIndex === 0
-              ? detailPosition.size
-              : 0
-          }
-          noShares={
-            detailPosition.outcomeIndex === 1
-              ? detailPosition.size
-              : 0
-          }
-        />
-      )}
     </div>
   );
 }

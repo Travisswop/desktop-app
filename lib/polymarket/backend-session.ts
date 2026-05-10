@@ -561,6 +561,7 @@ export async function getRedeemTypedData(
     walletType?: "safe" | "deposit";
     eoaAddress: string;
     conditionId: string;
+    asset?: string;
     negRisk?: boolean;
     outcomeIndex?: number;
     size?: number;
@@ -571,6 +572,7 @@ export async function getRedeemTypedData(
     safeAddress: params.safeAddress,
     eoaAddress: params.eoaAddress,
     conditionId: params.conditionId,
+    ...(params.asset ? { asset: params.asset } : {}),
     ...(params.depositWalletAddress ? { depositWalletAddress: params.depositWalletAddress } : {}),
     ...(params.walletType ? { walletType: params.walletType } : {}),
     ...(params.negRisk != null ? { negRisk: String(params.negRisk) } : {}),
@@ -594,6 +596,7 @@ export async function submitRedeem(
     walletType?: "safe" | "deposit";
     eoaAddress: string;
     conditionId: string;
+    asset?: string;
     negRisk?: boolean;
     outcomeIndex?: number;
     size?: number;
@@ -602,17 +605,20 @@ export async function submitRedeem(
     deadline?: string;
   },
   accessToken: string
-): Promise<{ txId: string; success: boolean }> {
+): Promise<{ txId: string; success: boolean; error?: string }> {
   const res = await fetch(`${base()}/positions/redeem`, {
     method: 'POST',
     headers: authHeaders(accessToken),
     body: JSON.stringify(params),
   });
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Redemption failed');
+    throw new Error(data.error || 'Redemption failed');
   }
-  return res.json();
+  if (data.success === false) {
+    throw new Error(data.error || 'Redemption failed on-chain');
+  }
+  return data;
 }
 
 /**

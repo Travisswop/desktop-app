@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -20,8 +21,10 @@ import {
   useActiveOrders,
   usePolygonBalances,
   useNetDeposits,
+  useTradeActivity,
   type PolymarketPosition,
   type PolymarketMarket,
+  type TradeActivity,
 } from '@/hooks/polymarket';
 import { useSportsMeta } from '@/hooks/polymarket/useSportsMeta';
 import {
@@ -41,13 +44,20 @@ import {
   getSportSubcategoryById,
 } from '@/constants/polymarket';
 import { createPollingInterval } from '@/lib/polymarket/polling';
+import {
+  useMarketDetailStore,
+  marketRouteKey,
+} from '@/zustandStore/marketDetailStore';
+import {
+  getRedeemablePayout,
+  hasRedeemablePayout,
+  isZeroPositionBalanceRedeemError,
+} from '@/lib/polymarket/position-payout';
 
 import HighVolumeMarkets from './Markets';
 import SportsTableView from './Markets/SportsTableView';
-import TradeHistory from './Orders/TradeHistory';
 import PositionCard from './Positions/PositionCard';
 import OrderCard from './Orders/OrderCard';
-import MarketDetailModal from './Markets/MarketDetailModal';
 import BrowseMarketsBento from './BrowseMarketsBento';
 
 /**
@@ -66,9 +76,14 @@ export type PredictionsPanelView =
 // single dark "LIVE NOW" tile as the only inverted surface.
 const CANVAS = '#ecebe6';
 const HAIR = 'rgba(0,0,0,0.06)';
+const HAIR2 = 'rgba(0,0,0,0.04)';
 const POS_GREEN = '#19a974';
+const POS_GREEN_SOFT = 'rgba(25,169,116,0.10)';
 const NEG_RED = '#e5484d';
+const NEG_RED_SOFT = 'rgba(229,72,77,0.08)';
 const LIVE_RED = '#ff5a5f';
+const SURFACE2 = '#fafafa';
+const MUTED = '#6e6e76';
 const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
 
@@ -87,8 +102,8 @@ interface PredictionsPanelProps {
 
 /**
  * PredictionsPanel — full-screen overlay covering the predictions
- * wireframe screens 1-6 (A · feed, A2 · sports, A3/A3L · ticket via
- * MarketDetailModal, A4 · open orders, A5 · history). The panel has no
+ * wireframe screens 1-6 (A · feed, A2 · sports, A3/A3L · ticket via the
+ * /prediction/market/[id] page, A4 · open orders, A5 · history). The panel has no
  * tab nav — drill-downs are triggered by the chips inside the bento
  * balance hero (Open orders / My bets / History), and each drill-down
  * view has its own back button that returns to 'main'.
@@ -137,13 +152,6 @@ export default function PredictionsPanel({
   const [pendingVerification, setPendingVerification] = useState<
     Map<string, number>
   >(new Map());
-  const [detailPosition, setDetailPosition] =
-    useState<PolymarketPosition | null>(null);
-  const [detailMarket, setDetailMarket] =
-    useState<PolymarketMarket | null>(null);
-  const [detailInitialOutcome, setDetailInitialOutcome] = useState<
-    'yes' | 'no' | undefined
-  >(undefined);
 
   // Markets drill-down — null = bento overview; otherwise the panel renders
   // a category detail view (matches wireframe screen A2).
@@ -152,6 +160,50 @@ export default function PredictionsPanel({
     | { kind: 'category'; id: CategoryId }
     | null;
   const [drillDown, setDrillDown] = useState<MarketsDrillDown>(null);
+
+  // Market detail navigation — stash the full market in the hand-off store
+  // and push to /prediction/market/[id] (the page version of the old modal).
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((s) => s.set);
+
+  const sharesForMarket = useCallback(
+    (market: PolymarketMarket) => {
+      if (!positions) return { yesShares: 0, noShares: 0 };
+      const tIds = market.clobTokenIds
+        ? (JSON.parse(market.clobTokenIds) as string[])
+        : [];
+      return {
+        yesShares: positions.find((p) => p.asset === tIds[0])?.size || 0,
+        noShares: positions.find((p) => p.asset === tIds[1])?.size || 0,
+      };
+    },
+    [positions],
+  );
+
+  const navigateToMarket = useCallback(
+    (
+      market: PolymarketMarket,
+      opts: {
+        initialOutcome?: 'yes' | 'no';
+        outcomeLabels?: [string, string];
+        yesShares?: number;
+        noShares?: number;
+      } = {},
+    ) => {
+      const key = marketRouteKey(market);
+      if (!key) return;
+      const positionsForMarket = sharesForMarket(market);
+      stashMarketDetail(key, {
+        market,
+        initialOutcome: opts.initialOutcome,
+        outcomeLabels: opts.outcomeLabels,
+        yesShares: opts.yesShares ?? positionsForMarket.yesShares,
+        noShares: opts.noShares ?? positionsForMarket.noShares,
+      });
+      router.push(`/prediction/market/${encodeURIComponent(key)}`);
+    },
+    [router, sharesForMarket, stashMarketDetail],
+  );
 
   const handleBentoOutcomeClick = useCallback(
     (
@@ -168,10 +220,22 @@ export default function PredictionsPanel({
         }
       })();
       const yesTokenId = ids[0] ?? tokenId;
-      setDetailInitialOutcome(tokenId === yesTokenId ? 'yes' : 'no');
-      setDetailMarket(market);
+      navigateToMarket(market, {
+        initialOutcome: tokenId === yesTokenId ? 'yes' : 'no',
+      });
     },
-    [],
+    [navigateToMarket],
+  );
+
+  const navigateToPosition = useCallback(
+    (p: PolymarketPosition) => {
+      const market = positionToDetailMarket(p);
+      navigateToMarket(market, {
+        yesShares: p.outcomeIndex === 0 ? p.size : 0,
+        noShares: p.outcomeIndex === 1 ? p.size : 0,
+      });
+    },
+    [navigateToMarket],
   );
 
   // Sync pending verification against latest positions (mirrors the
@@ -219,26 +283,17 @@ export default function PredictionsPanel({
       .filter((p) => !p.redeemable)
       .reduce((s, p) => s + p.currentValue, 0);
 
-    const lifetimeEarned =
+    // Cash-flow P/L: what you'd have if you closed everything right now,
+    // minus what you put in. Counts cash in your wallet, mark-to-market
+    // value of open positions, and money you've already withdrawn.
+    const totalPnl =
       usdcBalance + openPositionsValue + withdrawn - deposited;
 
-    const totalPnl = activePositions
-      .filter((p) => !p.redeemable)
-      .reduce((s, p) => s + p.cashPnl, 0);
-
-    const totalCost = activePositions
-      .filter((p) => !p.redeemable)
-      .reduce(
-        (s, p) => s + (p.initialValue || p.avgPrice * p.size),
-        0,
-      );
-
     const portfolioPct =
-      totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+      deposited > 0 ? (totalPnl / deposited) * 100 : 0;
 
     return {
       inOrdersValue,
-      lifetimeEarned,
       totalPnl,
       portfolioPct,
       portfolioValue: usdcBalance + openPositionsValue,
@@ -289,20 +344,19 @@ export default function PredictionsPanel({
   const handleRedeem = useCallback(
     async (position: PolymarketPosition) => {
       if (!clobClient || !safeAddress) return;
+      const redeemValue = getRedeemablePayout(position);
+      if (redeemValue <= 0) return;
       setRedeemingAsset(position.asset);
       try {
         await redeemPosition({
           conditionId: position.conditionId,
+          asset: position.asset,
           outcomeIndex: position.outcomeIndex,
           negativeRisk: position.negativeRisk,
           size: position.size,
           safeAddress,
         });
 
-        const redeemValue =
-          position.curPrice > 0
-            ? position.currentValue
-            : position.size;
         queryClient.setQueryData<bigint>(
           ['pusdBalance', safeAddress],
           (prev) => {
@@ -331,6 +385,11 @@ export default function PredictionsPanel({
           POLLING_DURATION,
         );
       } catch (err) {
+        if (isZeroPositionBalanceRedeemError(err)) {
+          queryClient.invalidateQueries({
+            queryKey: ['polymarket-positions'],
+          });
+        }
         console.error('Failed to redeem position:', err);
       } finally {
         setRedeemingAsset(null);
@@ -423,13 +482,12 @@ export default function PredictionsPanel({
                   onOpenOrders={() => setView('orders')}
                   onMyBets={() => setView('bets')}
                   onHistory={() => setView('history')}
-                  onPickClick={(p) => setDetailPosition(p)}
+                  onPickClick={navigateToPosition}
                 />
                 <BrowseMarketsBento
-                  onMarketClick={(m) => {
-                    setDetailInitialOutcome('yes');
-                    setDetailMarket(m);
-                  }}
+                  onMarketClick={(m) =>
+                    navigateToMarket(m, { initialOutcome: 'yes' })
+                  }
                   onSportsOutcomeClick={handleBentoOutcomeClick}
                   onBrowseSports={(sub) =>
                     setDrillDown({ kind: 'sports', sub })
@@ -467,8 +525,8 @@ export default function PredictionsPanel({
                 )}
                 onRedeem={handleRedeem}
                 onSell={handleMarketSell}
-                onBuyMore={(p) => setDetailPosition(p)}
-                onTitleClick={(p) => setDetailPosition(p)}
+                onBuyMore={navigateToPosition}
+                onTitleClick={navigateToPosition}
                 sellingAsset={sellingAsset}
                 redeemingAsset={redeemingAsset}
                 pendingVerification={pendingVerification}
@@ -490,39 +548,6 @@ export default function PredictionsPanel({
         </div>
       </div>
 
-      {detailMarket && (
-        <MarketDetailModal
-          isOpen={!!detailMarket}
-          onClose={() => {
-            setDetailMarket(null);
-            setDetailInitialOutcome(undefined);
-          }}
-          market={detailMarket}
-          balance={usdcBalance}
-          yesShares={0}
-          noShares={0}
-          initialOutcome={detailInitialOutcome}
-        />
-      )}
-
-      {detailPosition && (
-        <MarketDetailModal
-          isOpen={!!detailPosition}
-          onClose={() => setDetailPosition(null)}
-          market={positionToDetailMarket(detailPosition)}
-          balance={usdcBalance}
-          yesShares={
-            detailPosition.outcomeIndex === 0
-              ? detailPosition.size
-              : 0
-          }
-          noShares={
-            detailPosition.outcomeIndex === 1
-              ? detailPosition.size
-              : 0
-          }
-        />
-      )}
     </>
   );
 }
@@ -709,6 +734,10 @@ function MyBetsView({
   isSubmitting,
   canTrade,
 }: MyBetsViewProps) {
+  const claimable = redeemable.filter(hasRedeemablePayout);
+  const settledNoPayout = redeemable.filter(
+    (p) => !hasRedeemablePayout(p),
+  );
   const total = actionable.length + redeemable.length;
   const totalStaked = actionable.reduce(
     (s, p) => s + p.size * p.avgPrice,
@@ -725,9 +754,9 @@ function MyBetsView({
         action={
           <>
             <FilterChip active>All · {total}</FilterChip>
-            {redeemable.length > 0 && (
+            {claimable.length > 0 && (
               <FilterChip>
-                Redeemable · {redeemable.length}
+                Redeemable · {claimable.length}
               </FilterChip>
             )}
             <FilterChip>Live · {actionable.length}</FilterChip>
@@ -742,16 +771,16 @@ function MyBetsView({
         />
       ) : (
         <div className="space-y-6">
-          {redeemable.length > 0 && (
+          {claimable.length > 0 && (
             <section>
               <BentoSectionHeader
                 title="Ready to redeem"
-                caption={`${redeemable.length} settled position${
-                  redeemable.length === 1 ? '' : 's'
+                caption={`${claimable.length} settled position${
+                  claimable.length === 1 ? '' : 's'
                 } — claim your winnings`}
               />
               <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
-                {redeemable.map((p) => (
+                {claimable.map((p) => (
                   <PositionCard
                     key={`${p.conditionId}-${p.outcomeIndex}`}
                     position={p}
@@ -766,6 +795,36 @@ function MyBetsView({
                     isSubmitting={isSubmitting}
                     canSell={canTrade}
                     canRedeem={canTrade}
+                    onTitleClick={() => onTitleClick(p)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+          {settledNoPayout.length > 0 && (
+            <section>
+              <BentoSectionHeader
+                title="Settled"
+                caption={`${settledNoPayout.length} settled position${
+                  settledNoPayout.length === 1 ? '' : 's'
+                } with no payout`}
+              />
+              <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+                {settledNoPayout.map((p) => (
+                  <PositionCard
+                    key={`${p.conditionId}-${p.outcomeIndex}`}
+                    position={p}
+                    onRedeem={onRedeem}
+                    onSell={onSell}
+                    onBuyMore={onBuyMore}
+                    isSelling={sellingAsset === p.asset}
+                    isRedeeming={redeemingAsset === p.asset}
+                    isPendingVerification={pendingVerification.has(
+                      p.asset,
+                    )}
+                    isSubmitting={isSubmitting}
+                    canSell={canTrade}
+                    canRedeem={false}
                     onTitleClick={() => onTitleClick(p)}
                   />
                 ))}
@@ -809,14 +868,139 @@ function MyBetsView({
 }
 
 // ── A5 · Bet history ────────────────────────────────────────────────
+// Mirrors wire-a5-history.jsx — back button (handled at panel level),
+// page title with eyebrow + Export CSV, four summary tiles, a status
+// filter row, and a single Card containing a header row + per-trade rows
+// laid out on a fixed 6-column grid (Date / Market / Side / Shares /
+// Price / Amount). Status badges are color-coded by activity outcome.
+
+const PAGE_SIZE_HISTORY = 50;
+
+type HistoryStatusKey = 'won' | 'sold' | 'bought' | 'other';
+type HistoryStatusFilter = HistoryStatusKey | 'all';
+
+interface HistoryRow {
+  trade: TradeActivity;
+  statusKey: HistoryStatusKey;
+  statusLabel: string;
+  side: 'YES' | 'NO';
+  signedAmount: number;
+  amount: number;
+}
+
+function deriveHistoryRow(trade: TradeActivity): HistoryRow {
+  const amount =
+    trade.usdcSize != null && Number.isFinite(trade.usdcSize)
+      ? Number(trade.usdcSize)
+      : trade.size * trade.price;
+  const isBuy = trade.side === 'BUY';
+  let statusKey: HistoryStatusKey;
+  let statusLabel: string;
+  if (trade.type === 'REDEEM') {
+    statusKey = 'won';
+    statusLabel = 'WON';
+  } else if (trade.type === 'TRADE' && !isBuy) {
+    statusKey = 'sold';
+    statusLabel = 'SOLD';
+  } else if (trade.type === 'TRADE' && isBuy) {
+    statusKey = 'bought';
+    statusLabel = 'BOUGHT';
+  } else {
+    statusKey = 'other';
+    statusLabel = trade.type;
+  }
+  // Cash-flow direction — buys are outflow, everything else is inflow.
+  const signedAmount = isBuy ? -amount : amount;
+  const side: 'YES' | 'NO' = trade.outcomeIndex === 0 ? 'YES' : 'NO';
+  return { trade, statusKey, statusLabel, side, signedAmount, amount };
+}
+
+function formatHistoryDate(ts: number): string {
+  const date = new Date(ts * 1000);
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfToday.getDate() - 1);
+
+  if (date >= startOfToday) {
+    const time = date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    return `Today · ${time}`;
+  }
+  if (date >= startOfYesterday) return 'Yesterday';
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+const STATUS_TONE: Record<HistoryStatusKey, { bg: string; fg: string }> = {
+  won: { bg: POS_GREEN_SOFT, fg: POS_GREEN },
+  sold: { bg: POS_GREEN_SOFT, fg: POS_GREEN },
+  bought: { bg: SURFACE2, fg: MUTED },
+  other: { bg: SURFACE2, fg: MUTED },
+};
+
+const HISTORY_GRID =
+  '110px minmax(0,1.6fr) 70px 80px 90px 100px';
 
 function BetHistoryView({ safeAddress }: { safeAddress: string }) {
+  const [statusFilter, setStatusFilter] =
+    useState<HistoryStatusFilter>('all');
+  const [offset, setOffset] = useState(0);
+
+  const { data: trades = [], isLoading } = useTradeActivity({
+    user: safeAddress,
+    limit: PAGE_SIZE_HISTORY,
+    offset,
+    sort: 'DESC',
+  });
+
+  const rows = useMemo(
+    () => trades.map(deriveHistoryRow),
+    [trades],
+  );
+
+  const counts = useMemo(() => {
+    const c: Record<HistoryStatusKey, number> = {
+      won: 0,
+      sold: 0,
+      bought: 0,
+      other: 0,
+    };
+    for (const r of rows) c[r.statusKey] += 1;
+    return c;
+  }, [rows]);
+
+  const summary = useMemo(() => {
+    const volume = rows.reduce((s, r) => s + r.amount, 0);
+    const netFlow = rows.reduce((s, r) => s + r.signedAmount, 0);
+    return {
+      total: rows.length,
+      volume,
+      netFlow,
+    };
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    if (statusFilter === 'all') return rows;
+    return rows.filter((r) => r.statusKey === statusFilter);
+  }, [rows, statusFilter]);
+
+  const canGoBack = offset > 0;
+  const canLoadMore = trades.length === PAGE_SIZE_HISTORY;
+
   return (
     <div className="space-y-4">
       <PageTitle
         eyebrow="Predictions"
         title="Bet history"
-        caption="Settled bets, fills and cancellations"
+        caption={`${summary.total} ${
+          summary.total === 1 ? 'entry' : 'entries'
+        } · last 30 days`}
         action={
           <FilterChip>
             <Download className="w-3 h-3" />
@@ -824,13 +1008,336 @@ function BetHistoryView({ safeAddress }: { safeAddress: string }) {
           </FilterChip>
         }
       />
+
+      {/* Summary tiles — 4 across on sm+, 2 across on mobile. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <HistorySummaryTile
+          label="Net flow"
+          value={`${summary.netFlow >= 0 ? '+' : '−'}$${Math.abs(
+            summary.netFlow,
+          ).toFixed(2)}`}
+          tone={
+            summary.netFlow > 0.005
+              ? 'pos'
+              : summary.netFlow < -0.005
+                ? 'neg'
+                : 'neutral'
+          }
+        />
+        <HistorySummaryTile
+          label="Volume"
+          value={`$${summary.volume.toFixed(0)}`}
+        />
+        <HistorySummaryTile
+          label="Trades"
+          value={String(summary.total)}
+        />
+        <HistorySummaryTile
+          label="Activity"
+          value={`${counts.bought}B · ${counts.sold + counts.won}S`}
+        />
+      </div>
+
+      {/* Filter chips + sort/range placeholders pushed right. */}
+      <div className="flex gap-1.5 flex-wrap items-center">
+        <FilterChip
+          active={statusFilter === 'all'}
+          onClick={() => setStatusFilter('all')}
+        >
+          All · {summary.total}
+        </FilterChip>
+        <FilterChip
+          active={statusFilter === 'won'}
+          onClick={() => setStatusFilter('won')}
+        >
+          Won · {counts.won}
+        </FilterChip>
+        <FilterChip
+          active={statusFilter === 'sold'}
+          onClick={() => setStatusFilter('sold')}
+        >
+          Sold · {counts.sold}
+        </FilterChip>
+        <FilterChip
+          active={statusFilter === 'bought'}
+          onClick={() => setStatusFilter('bought')}
+        >
+          Bought · {counts.bought}
+        </FilterChip>
+        {counts.other > 0 && (
+          <FilterChip
+            active={statusFilter === 'other'}
+            onClick={() => setStatusFilter('other')}
+          >
+            Other · {counts.other}
+          </FilterChip>
+        )}
+        <span className="flex-1" />
+        <FilterChip>
+          30 days
+          <ChevronDown className="w-3 h-3" />
+        </FilterChip>
+      </div>
+
+      {/* History table — header row + body rows on a shared grid. */}
       <div
-        className="bg-white rounded-2xl border p-4 sm:p-5"
-        style={{ borderColor: HAIR }}
+        className="bg-white rounded-2xl border overflow-hidden"
+        style={{
+          borderColor: HAIR,
+          boxShadow:
+            '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+        }}
       >
-        <TradeHistory walletAddress={safeAddress} />
+        <div
+          className="grid gap-3 px-5 py-3 border-b text-[10.5px] font-bold uppercase tracking-[1.2px]"
+          style={{
+            gridTemplateColumns: HISTORY_GRID,
+            borderColor: HAIR2,
+            color: MUTED,
+            fontFamily: MONO,
+          }}
+        >
+          <div>Date</div>
+          <div>Market</div>
+          <div>Side</div>
+          <div>Shares</div>
+          <div>Price</div>
+          <div className="text-right">Amount</div>
+        </div>
+
+        {isLoading ? (
+          <div className="p-5 space-y-2">
+            {[...Array(4)].map((_, i) => (
+              <div
+                key={i}
+                className="h-12 rounded-md bg-gray-50 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : filteredRows.length === 0 ? (
+          <div className="py-12 px-6 text-center">
+            <div className="text-[15px] font-semibold text-gray-900 mb-1">
+              {statusFilter === 'all'
+                ? 'No history yet'
+                : 'Nothing matches that filter'}
+            </div>
+            <div className="text-[12.5px] text-gray-500 max-w-md mx-auto">
+              {statusFilter === 'all'
+                ? 'Settled bets, fills and cancellations will appear here.'
+                : 'Try switching back to All to see every trade.'}
+            </div>
+            {statusFilter !== 'all' && (
+              <button
+                onClick={() => setStatusFilter('all')}
+                className="mt-3 inline-flex items-center gap-1 h-7 px-3 rounded-full border bg-white text-[11.5px] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
+                style={{ borderColor: HAIR }}
+              >
+                Show all
+              </button>
+            )}
+          </div>
+        ) : (
+          filteredRows.map((row, i) => (
+            <HistoryTableRow
+              key={`${row.trade.transactionHash}-${row.trade.asset}-${i}`}
+              row={row}
+              isLast={i === filteredRows.length - 1}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Pagination — Prev/Next around a centered "Load older" chip. */}
+      {(canGoBack || canLoadMore) && (
+        <div className="flex justify-center items-center gap-2 pt-1">
+          {canGoBack && (
+            <FilterChip
+              onClick={() =>
+                setOffset((o) => Math.max(0, o - PAGE_SIZE_HISTORY))
+              }
+            >
+              ← Newer
+            </FilterChip>
+          )}
+          <span
+            className="text-[11px] text-gray-500 tabular-nums"
+            style={{ fontFamily: MONO }}
+          >
+            {trades.length === 0
+              ? '0'
+              : `${offset + 1}–${offset + trades.length}`}
+          </span>
+          {canLoadMore && (
+            <FilterChip
+              onClick={() => setOffset((o) => o + PAGE_SIZE_HISTORY)}
+            >
+              Load older →
+            </FilterChip>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistorySummaryTile({
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: string;
+  tone?: 'pos' | 'neg' | 'neutral';
+}) {
+  const color =
+    tone === 'pos' ? POS_GREEN : tone === 'neg' ? NEG_RED : '#0a0a0c';
+  return (
+    <div
+      className="bg-white rounded-2xl border p-4"
+      style={{
+        borderColor: HAIR,
+        boxShadow:
+          '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+      }}
+    >
+      <div
+        className="text-[10.5px] uppercase tracking-[0.5px] font-semibold"
+        style={{ color: MUTED }}
+      >
+        {label}
+      </div>
+      <div
+        className="text-[20px] font-bold tracking-[-0.4px] mt-1.5 tabular-nums"
+        style={{ fontFamily: MONO, color }}
+      >
+        {value}
       </div>
     </div>
+  );
+}
+
+function HistoryTableRow({
+  row,
+  isLast,
+}: {
+  row: HistoryRow;
+  isLast: boolean;
+}) {
+  const { trade, statusKey, statusLabel, side, signedAmount, amount } =
+    row;
+  const tone = STATUS_TONE[statusKey];
+  const sideTone =
+    side === 'YES'
+      ? { bg: POS_GREEN_SOFT, fg: POS_GREEN }
+      : { bg: NEG_RED_SOFT, fg: NEG_RED };
+  const amountColor =
+    signedAmount > 0.005
+      ? POS_GREEN
+      : signedAmount < -0.005
+        ? NEG_RED
+        : MUTED;
+  const sign =
+    signedAmount > 0.005 ? '+' : signedAmount < -0.005 ? '−' : '';
+
+  const Wrapper: React.ElementType = trade.eventSlug ? 'a' : 'div';
+  const wrapperProps = trade.eventSlug
+    ? {
+        href: `https://polymarket.com/event/${trade.eventSlug}`,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+      }
+    : {};
+
+  return (
+    <Wrapper
+      {...wrapperProps}
+      className={`grid gap-3 px-5 py-3.5 items-center transition-colors hover:bg-gray-50 no-underline ${
+        isLast ? '' : 'border-b'
+      }`}
+      style={{
+        gridTemplateColumns: HISTORY_GRID,
+        borderColor: HAIR2,
+        color: 'inherit',
+      }}
+    >
+      <div
+        className="text-[11px] tabular-nums"
+        style={{ fontFamily: MONO, color: MUTED }}
+      >
+        {formatHistoryDate(trade.timestamp)}
+      </div>
+
+      <div className="min-w-0 flex items-center gap-2.5">
+        {trade.icon ? (
+          <img
+            src={trade.icon}
+            alt=""
+            className="w-7 h-7 rounded-md flex-shrink-0 object-cover bg-gray-100"
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-md flex-shrink-0 bg-gray-200" />
+        )}
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold tracking-[-0.1px] text-gray-900 truncate">
+            {trade.title}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span
+              className="text-[9.5px] font-bold uppercase tracking-[0.6px] px-1.5 py-[2px] rounded-full"
+              style={{
+                background: tone.bg,
+                color: tone.fg,
+                fontFamily: MONO,
+              }}
+            >
+              {statusLabel}
+            </span>
+            {trade.outcome && (
+              <span
+                className="text-[10px] font-semibold uppercase tracking-[0.4px] truncate"
+                style={{ color: MUTED, fontFamily: MONO }}
+              >
+                {trade.outcome}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <span
+          className="inline-block text-[10px] font-bold tracking-[0.6px] px-2 py-[3px] rounded-full"
+          style={{
+            background: sideTone.bg,
+            color: sideTone.fg,
+            fontFamily: MONO,
+          }}
+        >
+          {side}
+        </span>
+      </div>
+
+      <div
+        className="text-[12.5px] font-semibold text-gray-900 tabular-nums"
+        style={{ fontFamily: MONO }}
+      >
+        {trade.size.toFixed(2)}
+      </div>
+
+      <div
+        className="text-[12.5px] tabular-nums"
+        style={{ fontFamily: MONO, color: MUTED }}
+      >
+        {(trade.price * 100).toFixed(0)}¢
+      </div>
+
+      <div
+        className="text-right text-[12.5px] font-bold tabular-nums"
+        style={{ fontFamily: MONO, color: amountColor }}
+      >
+        {sign}${amount.toFixed(2)}
+      </div>
+    </Wrapper>
   );
 }
 

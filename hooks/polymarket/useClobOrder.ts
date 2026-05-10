@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { usePrivy, useSigners } from '@privy-io/react-auth';
 import { useTrading } from '@/providers/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
@@ -44,6 +45,12 @@ export type OrderParams = {
 };
 
 const backendBase = () => `${POLYMARKET_BACKEND_URL}/api/prediction-markets`;
+const swopApiBase = () => (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+const delegatedSignerId = process.env.NEXT_PUBLIC_PRIVY_DELEGATED_SIGNER_ID;
+const delegatedPolicyIds = (process.env.NEXT_PUBLIC_PRIVY_DELEGATED_POLICY_IDS || '')
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
 
 function normalizeOrderMessage(message: Record<string, any>) {
   const next = { ...message };
@@ -84,6 +91,120 @@ export function useClobOrder(
   } = useTrading();
   const { walletClient } = usePolymarketWallet();
   const { accessToken } = useUser();
+  const { addSigners } = useSigners();
+  const { user: privyUser } = usePrivy();
+
+  const isEmbeddedPrivyWallet = useCallback(
+    (address: string) => {
+      const target = address.toLowerCase();
+      return (privyUser?.linkedAccounts || []).some((account: any) => {
+        if (account?.type !== 'wallet') return false;
+        if (account?.address?.toLowerCase() !== target) return false;
+        return (
+          account.walletClientType === 'privy' ||
+          account.wallet_client_type === 'privy' ||
+          account.connectorType === 'embedded' ||
+          account.connector_type === 'embedded'
+        );
+      });
+    },
+    [privyUser],
+  );
+
+  const ensureDelegatedSigner = useCallback(
+    async (address: string) => {
+      if (!delegatedSignerId || !isEmbeddedPrivyWallet(address)) return false;
+
+      const storageKey = `privy-delegated-signer:${delegatedSignerId}:${address.toLowerCase()}`;
+      if (typeof window !== 'undefined' && window.localStorage.getItem(storageKey)) {
+        return true;
+      }
+
+      await addSigners({
+        address,
+        signers: [
+          {
+            signerId: delegatedSignerId,
+            policyIds: delegatedPolicyIds,
+          },
+        ],
+      });
+
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(storageKey, 'true');
+      }
+      return true;
+    },
+    [addSigners, isEmbeddedPrivyWallet],
+  );
+
+  const signOrderTypedData = useCallback(
+    async (orderTypedData: any) => {
+      if (!eoaAddress || !walletClient || !accessToken) {
+        throw new Error('Trading session not ready');
+      }
+
+      if (delegatedSignerId && swopApiBase() && isEmbeddedPrivyWallet(eoaAddress)) {
+        try {
+          await ensureDelegatedSigner(eoaAddress);
+
+          const delegatedRes = await fetch(
+            `${swopApiBase()}/api/v5/wallet/privy/ethereum/sign-typed-data`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                address: eoaAddress,
+                typedData: {
+                  domain: orderTypedData.domain,
+                  types: orderTypedData.types,
+                  primaryType: orderTypedData.primaryType ?? 'Order',
+                  message: orderTypedData.message,
+                },
+              }),
+            },
+          );
+
+          if (delegatedRes.ok) {
+            const data = await delegatedRes.json();
+            if (data?.signature) return data.signature as `0x${string}`;
+          } else {
+            const err = await delegatedRes.json().catch(() => ({}));
+            console.warn(
+              'Delegated Privy signing failed; falling back to wallet modal:',
+              err.message || err.error || delegatedRes.status,
+            );
+          }
+        } catch (err) {
+          console.warn(
+            'Delegated Privy signing unavailable; falling back to wallet modal:',
+            err,
+          );
+        }
+      }
+
+      // Sign via eth_signTypedData_v4 so no extra EIP-191 prefix is added on
+      // top of the EIP-712 hash. uint256 fields arrive as decimal strings
+      // from JSON; viem expects BigInt for those fields.
+      return walletClient.signTypedData({
+        account: eoaAddress as `0x${string}`,
+        domain: orderTypedData.domain,
+        types: orderTypedData.types,
+        primaryType: orderTypedData.primaryType ?? 'Order',
+        message: normalizeOrderMessage(orderTypedData.message),
+      });
+    },
+    [
+      accessToken,
+      eoaAddress,
+      ensureDelegatedSigner,
+      isEmbeddedPrivyWallet,
+      walletClient,
+    ],
+  );
 
   const submitOrder = useCallback(
     async (params: OrderParams) => {
@@ -132,19 +253,7 @@ export function useClobOrder(
 
         const { orderTypedData, orderMeta } = await prepareRes.json();
 
-        // Step 2: Sign via eth_signTypedData_v4 so no extra EIP-191 prefix is
-        // added on top of the EIP-712 hash. Using signMessage (personal_sign)
-        // would double-prefix the hash and produce an invalid signature.
-        //
-        // uint256 fields arrive as decimal strings from JSON; convert to BigInt
-        // so viem's ABI encoder receives the expected type.
-        const signature = await walletClient.signTypedData({
-          account: eoaAddress as `0x${string}`,
-          domain: orderTypedData.domain,
-          types: orderTypedData.types,
-          primaryType: orderTypedData.primaryType ?? 'Order',
-          message: normalizeOrderMessage(orderTypedData.message),
-        });
+        const signature = await signOrderTypedData(orderTypedData);
 
         // Step 3: Submit the signed order
         const submitRes = await fetch(`${backendBase()}/orders/submit`, {
@@ -182,6 +291,7 @@ export function useClobOrder(
       safeAddress,
       eoaAddress,
       walletClient,
+      signOrderTypedData,
       accessToken,
       queryClient,
       walletType,

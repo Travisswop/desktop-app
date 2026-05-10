@@ -152,13 +152,14 @@ function gameTimeLabel(startDate: string | undefined): {
   };
 }
 
-/** Format a moneyline price as American odds for the cell (0.64 → +56). */
-function priceToAmerican(price: number): string {
-  if (price <= 0 || price >= 1) return '—';
-  if (price >= 0.5) {
-    return `−${Math.round((price / (1 - price)) * 100)}`;
-  }
-  return `+${Math.round(((1 - price) / price) * 100)}`;
+/** Format a 0-1 probability as a whole-percent string (0.64 → "64%").
+ *  Polymarket prices both sides as probabilities, so percentages are the
+ *  honest unit — sportsbook-style American odds and a "−110" vig don't
+ *  apply here. */
+function priceToPct(price: number | undefined): string {
+  if (price == null || !Number.isFinite(price) || price <= 0 || price >= 1)
+    return '—';
+  return `${Math.round(price * 100)}%`;
 }
 
 /** "+1.5" / "-1.5" style spread label — pulls the line off the outcome. */
@@ -388,7 +389,7 @@ function CompactGameCard({
               color: '#0a0a0c',
             }}
           >
-            {row.ml ? priceToAmerican(row.ml.price) : '—'}
+            {priceToPct(row.ml?.price)}
           </button>
 
           <button
@@ -414,7 +415,7 @@ function CompactGameCard({
             </div>
             {row.spread && (
               <div className="text-[9.5px] text-gray-500 font-medium">
-                {priceToAmerican(row.spread.price)}
+                {priceToPct(row.spread.price)}
               </div>
             )}
           </button>
@@ -442,7 +443,7 @@ function CompactGameCard({
             </div>
             {row.total && (
               <div className="text-[9.5px] text-gray-500 font-medium">
-                {priceToAmerican(row.total.price)}
+                {priceToPct(row.total.price)}
               </div>
             )}
           </button>
