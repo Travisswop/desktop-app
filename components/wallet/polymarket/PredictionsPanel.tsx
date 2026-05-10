@@ -128,7 +128,9 @@ export default function PredictionsPanel({
   const [redeemingAsset, setRedeemingAsset] = useState<string | null>(
     null,
   );
-  const [sellingAsset, setSellingAsset] = useState<string | null>(null);
+  const [sellingAsset, setSellingAsset] = useState<string | null>(
+    null,
+  );
   const [cancellingOrderId, setCancellingOrderId] = useState<
     string | null
   >(null);
@@ -226,7 +228,10 @@ export default function PredictionsPanel({
 
     const totalCost = activePositions
       .filter((p) => !p.redeemable)
-      .reduce((s, p) => s + (p.initialValue || p.avgPrice * p.size), 0);
+      .reduce(
+        (s, p) => s + (p.initialValue || p.avgPrice * p.size),
+        0,
+      );
 
     const portfolioPct =
       totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
@@ -457,7 +462,9 @@ export default function PredictionsPanel({
             {view === 'bets' && (
               <MyBetsView
                 actionable={actionablePositions}
-                redeemable={activePositions.filter((p) => p.redeemable)}
+                redeemable={activePositions.filter(
+                  (p) => p.redeemable,
+                )}
                 onRedeem={handleRedeem}
                 onSell={handleMarketSell}
                 onBuyMore={(p) => setDetailPosition(p)}
@@ -505,10 +512,14 @@ export default function PredictionsPanel({
           market={positionToDetailMarket(detailPosition)}
           balance={usdcBalance}
           yesShares={
-            detailPosition.outcomeIndex === 0 ? detailPosition.size : 0
+            detailPosition.outcomeIndex === 0
+              ? detailPosition.size
+              : 0
           }
           noShares={
-            detailPosition.outcomeIndex === 1 ? detailPosition.size : 0
+            detailPosition.outcomeIndex === 1
+              ? detailPosition.size
+              : 0
           }
         />
       )}
@@ -650,7 +661,9 @@ function OpenOrdersView({
           >
             <span className="text-[11.5px] text-gray-500">
               Filled and cancelled orders move to{' '}
-              <span className="font-semibold text-gray-900">History</span>{' '}
+              <span className="font-semibold text-gray-900">
+                History
+              </span>{' '}
               automatically.
             </span>
             <button
@@ -713,7 +726,9 @@ function MyBetsView({
           <>
             <FilterChip active>All · {total}</FilterChip>
             {redeemable.length > 0 && (
-              <FilterChip>Redeemable · {redeemable.length}</FilterChip>
+              <FilterChip>
+                Redeemable · {redeemable.length}
+              </FilterChip>
             )}
             <FilterChip>Live · {actionable.length}</FilterChip>
           </>
@@ -745,7 +760,9 @@ function MyBetsView({
                     onBuyMore={onBuyMore}
                     isSelling={sellingAsset === p.asset}
                     isRedeeming={redeemingAsset === p.asset}
-                    isPendingVerification={pendingVerification.has(p.asset)}
+                    isPendingVerification={pendingVerification.has(
+                      p.asset,
+                    )}
                     isSubmitting={isSubmitting}
                     canSell={canTrade}
                     canRedeem={canTrade}
@@ -773,7 +790,9 @@ function MyBetsView({
                     onBuyMore={onBuyMore}
                     isSelling={sellingAsset === p.asset}
                     isRedeeming={redeemingAsset === p.asset}
-                    isPendingVerification={pendingVerification.has(p.asset)}
+                    isPendingVerification={pendingVerification.has(
+                      p.asset,
+                    )}
                     isSubmitting={isSubmitting}
                     canSell={canTrade}
                     canRedeem={canTrade}
@@ -905,7 +924,11 @@ function HeroSpark({ trend }: { trend: 'up' | 'down' | 'flat' }) {
         ? 'M0,20 C25,18 50,22 75,20 C100,18 125,22 150,20'
         : 'M0,30 C20,26 30,30 45,22 C60,14 75,20 90,12 C110,6 130,14 150,8';
   const color =
-    trend === 'down' ? NEG_RED : trend === 'flat' ? '#9ca3af' : POS_GREEN;
+    trend === 'down'
+      ? NEG_RED
+      : trend === 'flat'
+        ? '#9ca3af'
+        : POS_GREEN;
   return (
     <svg
       viewBox="0 0 150 40"
@@ -924,7 +947,10 @@ function HeroSpark({ trend }: { trend: 'up' | 'down' | 'flat' }) {
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={`${path} L150,40 L0,40 Z`} fill={`url(#predspark-${trend})`} />
+      <path
+        d={`${path} L150,40 L0,40 Z`}
+        fill={`url(#predspark-${trend})`}
+      />
       <path
         d={path}
         stroke={color}
@@ -1032,7 +1058,9 @@ function BentoHero({
           <StatCell
             label="Total P/L"
             value={`${totalPnl >= 0 ? '+' : '−'}$${Math.abs(totalPnl).toFixed(2)}`}
-            tone={totalPnl >= 0 ? 'pos' : totalPnl < 0 ? 'neg' : 'neutral'}
+            tone={
+              totalPnl >= 0 ? 'pos' : totalPnl < 0 ? 'neg' : 'neutral'
+            }
           />
           <StatCell
             label="In orders"
@@ -1042,7 +1070,9 @@ function BentoHero({
           <StatCell
             label="Open bets"
             value={String(openBets)}
-            sub={openOrders > 0 ? `· ${openOrders} orders` : undefined}
+            sub={
+              openOrders > 0 ? `· ${openOrders} orders` : undefined
+            }
             divider
           />
         </div>
@@ -1145,8 +1175,12 @@ function BentoHero({
                           fontFamily: MONO,
                         }}
                       >
-                        <span className="truncate">{pick.outcome}</span>
-                        <span style={{ color: 'rgba(255,255,255,0.25)' }}>
+                        <span className="truncate">
+                          {pick.outcome}
+                        </span>
+                        <span
+                          style={{ color: 'rgba(255,255,255,0.25)' }}
+                        >
                           ·
                         </span>
                         <span className="tabular-nums">
@@ -1163,7 +1197,9 @@ function BentoHero({
                       </div>
                       <div
                         className={`text-[10.5px] font-semibold tabular-nums mt-0.5 ${
-                          positive ? 'text-emerald-400' : 'text-red-400'
+                          positive
+                            ? 'text-emerald-400'
+                            : 'text-red-400'
                         }`}
                       >
                         {positive ? '+' : '−'}$
@@ -1254,8 +1290,8 @@ function CategoryDetailView({
 }: CategoryDetailViewProps) {
   const isSports = drillDown.kind === 'sports';
   const label = isSports
-    ? getSportSubcategoryById(drillDown.sub)?.label ?? 'Sports'
-    : getCategoryById(drillDown.id)?.label ?? 'Markets';
+    ? (getSportSubcategoryById(drillDown.sub)?.label ?? 'Sports')
+    : (getCategoryById(drillDown.id)?.label ?? 'Markets');
 
   // Filter state — wired to the backend through SportsTableView (sports)
   // or HighVolumeMarkets (other categories).
@@ -1560,15 +1596,13 @@ function StatCell({
   divider?: boolean;
 }) {
   const color =
-    tone === 'pos'
-      ? POS_GREEN
-      : tone === 'neg'
-        ? NEG_RED
-        : '#0a0a0c';
+    tone === 'pos' ? POS_GREEN : tone === 'neg' ? NEG_RED : '#0a0a0c';
   return (
     <div
       className={divider ? 'pl-3.5' : ''}
-      style={divider ? { borderLeft: `1px solid ${HAIR}` } : undefined}
+      style={
+        divider ? { borderLeft: `1px solid ${HAIR}` } : undefined
+      }
     >
       <div className="text-[10.5px] uppercase tracking-[0.4px] text-gray-500 font-semibold">
         {label}
@@ -1612,7 +1646,9 @@ function positionToDetailMarket(
   const yesPrice = isYesPos
     ? position.curPrice
     : 1 - position.curPrice;
-  const noPrice = isYesPos ? 1 - position.curPrice : position.curPrice;
+  const noPrice = isYesPos
+    ? 1 - position.curPrice
+    : position.curPrice;
 
   return {
     id: position.conditionId,
@@ -1632,4 +1668,3 @@ function positionToDetailMarket(
     endDateIso: position.endDate,
   };
 }
-

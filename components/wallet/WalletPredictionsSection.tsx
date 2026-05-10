@@ -225,15 +225,16 @@ export default function WalletPredictionsSection() {
     usePolymarketWallet();
   const { accessToken, loading: userLoading } = useUser();
   const {
-    tradingSession,
     currentStep,
     sessionError,
     isTradingSessionComplete,
     initializeTradingSession,
     safeAddress,
+    legacySafeAddress,
   } = useTrading();
 
-  const { legacyUsdcBalance } = usePolygonBalances(safeAddress);
+  const legacyBalanceAddress = legacySafeAddress ?? safeAddress;
+  const { legacyUsdcBalance } = usePolygonBalances(legacyBalanceAddress);
 
   const { wrap, step: wrapStep, error: wrapError, reset: resetWrap } =
     useWrapUsdcE();
@@ -243,6 +244,10 @@ export default function WalletPredictionsSection() {
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentDismissed, setConsentDismissed] = useState(false);
   const [activateFundsOpen, setActivateFundsOpen] = useState(false);
+  const [localSessionError, setLocalSessionError] =
+    useState<Error | null>(null);
+
+  const setupError = localSessionError ?? sessionError;
 
   // Show the consent modal once all pre-conditions are met, instead of
   // silently firing initializeTradingSession and surprising the user with
@@ -254,10 +259,9 @@ export default function WalletPredictionsSection() {
       !userLoading &&
       !!accessToken &&
       !!safeAddress &&
-      !tradingSession &&
       !isTradingSessionComplete &&
       currentStep === 'idle' &&
-      !sessionError &&
+      !setupError &&
       !consentDismissed &&
       !showConsentModal
     ) {
@@ -269,18 +273,30 @@ export default function WalletPredictionsSection() {
     userLoading,
     accessToken,
     safeAddress,
-    tradingSession,
     isTradingSessionComplete,
     currentStep,
-    sessionError,
+    setupError,
     consentDismissed,
     showConsentModal,
   ]);
 
+  const handleEnableTrading = useCallback(async () => {
+    setLocalSessionError(null);
+    try {
+      await initializeTradingSession();
+    } catch (error) {
+      setLocalSessionError(
+        error instanceof Error
+          ? error
+          : new Error('Failed to enable trading'),
+      );
+    }
+  }, [initializeTradingSession]);
+
   const handleConsentConfirm = useCallback(() => {
     setShowConsentModal(false);
-    initializeTradingSession();
-  }, [initializeTradingSession]);
+    void handleEnableTrading();
+  }, [handleEnableTrading]);
 
   const handleConsentDismiss = useCallback(() => {
     setShowConsentModal(false);
@@ -384,7 +400,7 @@ export default function WalletPredictionsSection() {
 
       <GeoBlockedBanner />
 
-      {sessionError && !tradingSession && (
+      {setupError && !isTradingSessionComplete && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
             <div>
@@ -392,11 +408,11 @@ export default function WalletPredictionsSection() {
                 Trading is not enabled yet
               </p>
               <p className="text-xs text-amber-800 mt-0.5">
-                {formatPolymarketError(sessionError)}
+                {formatPolymarketError(setupError)}
               </p>
             </div>
             <button
-              onClick={() => initializeTradingSession()}
+              onClick={() => void handleEnableTrading()}
               disabled={currentStep !== 'idle'}
               className="shrink-0 px-4 py-2 bg-black text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -448,6 +464,7 @@ export default function WalletPredictionsSection() {
           }}
           onRetry={() => {
             resetWrap();
+            void wrap(legacyUsdcBalance);
           }}
         />
       )}
