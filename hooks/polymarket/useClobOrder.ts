@@ -5,6 +5,7 @@ import { useTrading } from '@/providers/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
 import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
+import { usePolygonBalances } from './usePolygonBalances';
 
 const CLOB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_ORDER_MIN_TICK_SIZE: "Price doesn't match this market's tick size. Adjust your price and try again.",
@@ -374,10 +375,15 @@ export function useClobOrder(
   const {
     tradingSession,
     safeAddress,
+    legacySafeAddress,
     eoaAddress,
     walletType,
     depositWalletAddress,
   } = useTrading();
+  const { usdcBalance: activeWalletBalance } =
+    usePolygonBalances(safeAddress);
+  const { usdcBalance: legacySafeBalance } =
+    usePolygonBalances(legacySafeAddress);
   const { walletClient } = usePolymarketWallet();
   const { accessToken } = useUser();
   const { addSigners } = useSigners();
@@ -561,6 +567,20 @@ export function useClobOrder(
         const orderType = params.isMarketOrder
           ? (params.fillType === 'FAK' ? 'FAK' : 'FOK')
           : (params.expiration ? 'GTD' : 'GTC');
+        const shouldUseLegacySafeForBuy =
+          walletType === 'deposit' &&
+          params.side === 'BUY' &&
+          !!legacySafeAddress &&
+          legacySafeAddress.toLowerCase() !== safeAddress.toLowerCase() &&
+          activeWalletBalance + 0.000001 < params.size &&
+          legacySafeBalance + 0.000001 >= params.size;
+        const orderWalletType = shouldUseLegacySafeForBuy ? 'safe' : walletType;
+        const orderSafeAddress = shouldUseLegacySafeForBuy
+          ? legacySafeAddress
+          : safeAddress;
+        const orderDepositWalletAddress = shouldUseLegacySafeForBuy
+          ? undefined
+          : depositWalletAddress;
 
         // Step 1: Prepare order (backend builds EIP-712 typed data)
         const authHeaders = {
@@ -576,9 +596,9 @@ export function useClobOrder(
           price: params.price,
           expiration: params.expiration,
           negRisk: params.negRisk,
-          safeAddress,
-          depositWalletAddress,
-          walletType,
+          safeAddress: orderSafeAddress,
+          depositWalletAddress: orderDepositWalletAddress,
+          walletType: orderWalletType,
           eoaAddress,
           apiCreds: tradingSession.apiCredentials,
         };
@@ -595,6 +615,9 @@ export function useClobOrder(
           safeAddress: prepareBody.safeAddress,
           depositWalletAddress: prepareBody.depositWalletAddress,
           walletType: prepareBody.walletType,
+          routedToLegacySafe: shouldUseLegacySafeForBuy,
+          activeWalletBalance,
+          legacySafeBalance,
           eoaAddress: prepareBody.eoaAddress,
           hasApiCreds: !!prepareBody.apiCreds,
         });
@@ -653,6 +676,7 @@ export function useClobOrder(
     [
       tradingSession,
       safeAddress,
+      legacySafeAddress,
       eoaAddress,
       walletClient,
       signOrderTypedData,
@@ -660,6 +684,8 @@ export function useClobOrder(
       queryClient,
       walletType,
       depositWalletAddress,
+      activeWalletBalance,
+      legacySafeBalance,
     ],
   );
 
