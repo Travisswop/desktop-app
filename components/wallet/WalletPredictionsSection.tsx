@@ -221,8 +221,13 @@ function ActivateFundsModal({
 
 export default function WalletPredictionsSection() {
   const router = useRouter();
-  const { authenticated, isReady, isInitializing, hasWallet } =
-    usePolymarketWallet();
+  const {
+    authenticated,
+    isReady,
+    isInitializing,
+    hasWallet,
+    retryInitialization,
+  } = usePolymarketWallet();
   const { accessToken, loading: userLoading } = useUser();
   const {
     currentStep,
@@ -367,10 +372,16 @@ export default function WalletPredictionsSection() {
         <h2 className="text-xl font-bold text-gray-900 mb-4">
           Predictions
         </h2>
-        <div className="bg-white rounded-xl p-6 border border-gray-100">
+        <div className="bg-white rounded-xl p-6 border border-gray-100 text-center">
           <p className="text-center text-gray-500 text-sm">
             Wallet found but could not initialize. Please refresh.
           </p>
+          <button
+            onClick={retryInitialization}
+            className="mt-4 px-4 py-2 bg-black text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors"
+          >
+            Retry wallet
+          </button>
         </div>
       </section>
     );

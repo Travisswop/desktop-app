@@ -28,7 +28,7 @@ export type TradeActivity = {
 };
 
 export interface TradeActivityParams {
-  user: string | undefined;
+  user: string | string[] | undefined;
   limit?: number;
   offset?: number;
   type?: ActivityType | '';
@@ -36,6 +36,18 @@ export interface TradeActivityParams {
   start?: number;
   end?: number;
   sort?: 'ASC' | 'DESC';
+}
+
+function normalizeUsers(user: string | string[] | undefined): string[] {
+  const users = Array.isArray(user) ? user : user ? [user] : [];
+  return Array.from(
+    new Map(
+      users.filter(Boolean).map((walletAddress) => [
+        walletAddress.toLowerCase(),
+        walletAddress,
+      ]),
+    ).values(),
+  );
 }
 
 export function useTradeActivity({
@@ -48,10 +60,12 @@ export function useTradeActivity({
   end,
   sort = 'DESC',
 }: TradeActivityParams) {
+  const users = normalizeUsers(user);
+
   return useQuery({
     queryKey: [
       'trade-activity',
-      user,
+      users,
       limit,
       offset,
       type,
@@ -61,28 +75,41 @@ export function useTradeActivity({
       sort,
     ],
     queryFn: async (): Promise<TradeActivity[]> => {
-      if (!user) return [];
+      if (!users.length) return [];
 
-      const params = new URLSearchParams({
-        user,
-        limit: String(limit),
-        offset: String(offset),
-        sort,
-      });
-      if (type) params.set('type', type);
-      if (side) params.set('side', side);
-      if (start) params.set('start', String(start));
-      if (end) params.set('end', String(end));
+      const activitySets = await Promise.all(
+        users.map(async (walletAddress) => {
+          const params = new URLSearchParams({
+            user: walletAddress,
+            limit: String(limit + offset),
+            offset: '0',
+            sort,
+          });
+          if (type) params.set('type', type);
+          if (side) params.set('side', side);
+          if (start) params.set('start', String(start));
+          if (end) params.set('end', String(end));
 
-      const response = await fetch(
-        `/api/polymarket/activity?${params}`,
+          const response = await fetch(
+            `/api/polymarket/activity?${params}`,
+          );
+          if (!response.ok) return [];
+
+          const data = await response.json();
+          return Array.isArray(data) ? (data as TradeActivity[]) : [];
+        }),
       );
-      if (!response.ok) return [];
 
-      const data = await response.json();
-      return Array.isArray(data) ? data : [];
+      return activitySets
+        .flat()
+        .sort((a, b) =>
+          sort === 'ASC'
+            ? a.timestamp - b.timestamp
+            : b.timestamp - a.timestamp,
+        )
+        .slice(offset, offset + limit);
     },
-    enabled: !!user,
+    enabled: users.length > 0,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });

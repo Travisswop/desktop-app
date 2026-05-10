@@ -146,13 +146,13 @@ export default function PredictionsPortfolioModal({
     Map<string, number>
   >(new Map());
 
-  const { clobClient, safeAddress } = useTrading();
+  const { clobClient, safeAddress, portfolioAddresses } = useTrading();
 
   const { eoaAddress } = usePolymarketWallet();
   const queryClient = useQueryClient();
 
   const { data: positions } = useUserPositions(
-    safeAddress as string | undefined,
+    portfolioAddresses.length ? portfolioAddresses : safeAddress,
   );
   const { data: teamsData } = usePolymarketTeams();
 
@@ -176,9 +176,11 @@ export default function PredictionsPortfolioModal({
     [router, stashMarketDetail, teamsData, onClose],
   );
 
-  const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { usdcBalance } = usePolygonBalances(
+    portfolioAddresses.length ? portfolioAddresses : safeAddress,
+  );
   const { data: netDeposits, isLoading: isNetDepositsLoading } =
-    useNetDeposits(safeAddress as string | undefined);
+    useNetDeposits(portfolioAddresses.length ? portfolioAddresses : safeAddress);
   const { data: activeOrders = [] } = useActiveOrders(
     clobClient,
     safeAddress,

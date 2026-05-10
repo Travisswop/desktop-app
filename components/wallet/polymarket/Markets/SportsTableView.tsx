@@ -72,9 +72,11 @@ export default function SportsTableView({
   dateFrom,
   dateTo,
 }: SportsTableViewProps) {
-  const { isGeoblocked, safeAddress } = useTrading();
+  const { isGeoblocked, safeAddress, portfolioAddresses } = useTrading();
   const { data: teamsData } = usePolymarketTeams();
-  const { data: positions } = useUserPositions(safeAddress);
+  const { data: positions } = useUserPositions(
+    portfolioAddresses.length ? portfolioAddresses : safeAddress,
+  );
 
   const {
     data,

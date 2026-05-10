@@ -1,18 +1,18 @@
-"use client";
-import React, { useCallback, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
-import { useDisclosure } from "@nextui-org/react";
-import PostTypeMedia from "./view/PostTypeMedia";
-import IndividualFeedContent from "./IndividualFeedContent";
-import SwapTransactionCard from "./SwapTransactionCard";
-import PollCard from "./PollCard";
-import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
-import RedeemClaimModal from "../modal/RedeemClaim";
-import { makeLinksClickable } from "@/lib/makeLinksClickable";
-import logger from "@/utils/logger";
-import PredictionFeedCard from "./PredictionFeedCard";
+'use client';
+import React, { useCallback, useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { FiPlusCircle } from 'react-icons/fi';
+import { useDisclosure } from '@nextui-org/react';
+import PostTypeMedia from './view/PostTypeMedia';
+import IndividualFeedContent from './IndividualFeedContent';
+import SwapTransactionCard from './SwapTransactionCard';
+import PollCard from './PollCard';
+import RenderTransactionContent from './view/feed-variants/RenderTransactions';
+import RedeemClaimModal from '../modal/RedeemClaim';
+import { makeLinksClickable } from '@/lib/makeLinksClickable';
+import logger from '@/utils/logger';
+import PredictionFeedCard from './PredictionFeedCard';
 
 interface FeedItemType {
   _id: string;
@@ -26,7 +26,10 @@ interface FeedPostContentProps {
   feed: any;
   userId: string;
   accessToken: string;
-  onPostInteraction?: (postId: string, updates: Partial<FeedItemType>) => void;
+  onPostInteraction?: (
+    postId: string,
+    updates: Partial<FeedItemType>,
+  ) => void;
   isFromMainFeed?: boolean;
 }
 
@@ -51,20 +54,19 @@ const FeedPostContent = ({
     [feed.content, onOpen],
   );
 
-  logger.info("feed from content", feed);
+  // logger.info('feed from content', feed);
 
-  const postContent = feed?.content?.post_content || feed?.post_content || [];
-
-  logger.info("postContent in FeedPostContent", postContent);
+  const postContent =
+    feed?.content?.post_content || feed?.post_content || [];
 
   return (
     <>
       {/* Post / Repost title */}
-      {(feed.postType === "post" || feed.postType === "repost") &&
+      {(feed.postType === 'post' || feed.postType === 'repost') &&
         (feed.content.title || feed?.content?.quote?.title) && (
           <div className="w-full text-start">
             {(feed.content.title || feed?.content?.quote?.title)
-              .split("\n")
+              .split('\n')
               .map((line: string, index: number) => (
                 <p className="break-text" key={index}>
                   {makeLinksClickable(line)}
@@ -75,11 +77,13 @@ const FeedPostContent = ({
 
       {!isFromMainFeed && feed.title && (
         <div className="w-full text-start">
-          {feed.title.split("\n").map((line: string, index: number) => (
-            <p className="break-text" key={index}>
-              {makeLinksClickable(line)}
-            </p>
-          ))}
+          {feed.title
+            .split('\n')
+            .map((line: string, index: number) => (
+              <p className="break-text" key={index}>
+                {makeLinksClickable(line)}
+              </p>
+            ))}
         </div>
       )}
 
@@ -89,11 +93,13 @@ const FeedPostContent = ({
       )}
 
       {/* Post media */}
-      {feed.postType === "post" && postContent && postContent.length > 0 && (
-        <PostTypeMedia mediaFiles={postContent} />
-      )}
+      {feed.postType === 'post' &&
+        postContent &&
+        postContent.length > 0 && (
+          <PostTypeMedia mediaFiles={postContent} />
+        )}
 
-      {feed.postType === "repost" &&
+      {feed.postType === 'repost' &&
         feed?.content?.quote?.post_content?.length > 0 && (
           <PostTypeMedia
             mediaFiles={feed?.content?.quote?.post_content}
@@ -102,12 +108,12 @@ const FeedPostContent = ({
         )}
 
       {/* Swap transaction */}
-      {feed.postType === "swapTransaction" && (
+      {feed.postType === 'swapTransaction' && (
         <SwapTransactionCard feed={feed} />
       )}
 
       {/* Repost — with content */}
-      {feed.postType === "repost" && feed.repostedPostDetails ? (
+      {feed.postType === 'repost' && feed.repostedPostDetails ? (
         <IndividualFeedContent
           feed={feed}
           userId={userId}
@@ -118,7 +124,7 @@ const FeedPostContent = ({
         />
       ) : (
         /* Repost — original deleted */
-        feed.postType === "repost" &&
+        feed.postType === 'repost' &&
         !feed.repostedPostDetails && (
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 text-blue-800 text-sm mt-1">
             <div className="flex items-start">
@@ -145,13 +151,13 @@ const FeedPostContent = ({
       )}
 
       {/* Minting */}
-      {feed.postType === "minting" && (
+      {feed.postType === 'minting' && (
         <div className="w-max">
           <p>{feed.content.title}</p>
           <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
             <Link
               onClick={(e) => e.stopPropagation()}
-              href={feed?.content?.link || ""}
+              href={feed?.content?.link || ''}
               className="w-max"
             >
               <Image
@@ -165,17 +171,20 @@ const FeedPostContent = ({
                   {feed.content.price}
                 </p>
               )}
-              <FiPlusCircle className="absolute top-2 right-2" size={24} />
+              <FiPlusCircle
+                className="absolute top-2 right-2"
+                size={24}
+              />
             </Link>
           </div>
         </div>
       )}
 
       {/* Redeem */}
-      {feed.postType === "redeem" && (
+      {feed.postType === 'redeem' && (
         <div className="flex flex-col gap-2 text-gray-600 text-sm">
           <p>
-            Created a new {feed.content.redeemName} Redeemable Link –{" "}
+            Created a new {feed.content.redeemName} Redeemable Link –{' '}
             <button
               onClick={handleRedeemClick}
               className="text-blue-500 underline"
@@ -203,9 +212,9 @@ const FeedPostContent = ({
       )}
 
       {/* Connection */}
-      {feed.postType === "connection" && (
+      {feed.postType === 'connection' && (
         <p className="text-gray-600 text-sm">
-          Connected with{" "}
+          Connected with{' '}
           <span className="text-gray-700 font-medium text-base">
             {feed.content.connectedSmartsiteName}
           </span>
@@ -213,9 +222,9 @@ const FeedPostContent = ({
       )}
 
       {/* ENS Claim */}
-      {feed.postType === "ensClaim" && (
+      {feed.postType === 'ensClaim' && (
         <p className="text-gray-600 text-sm">
-          Claim a new ENS{" "}
+          Claim a new ENS{' '}
           <span className="text-gray-700 font-medium text-base">
             {feed.content.claimEnsName}
           </span>
@@ -223,7 +232,7 @@ const FeedPostContent = ({
       )}
 
       {/* Poll */}
-      {feed.postType === "poll" && (
+      {feed.postType === 'poll' && (
         <PollCard
           poll={feed}
           userId={userId}
@@ -235,17 +244,19 @@ const FeedPostContent = ({
       )}
 
       {/* Prediction */}
-      {feed.postType === "prediction" && (
+      {feed.postType === 'prediction' && (
         <PredictionFeedCard
           content={feed.content}
           userName={
-            feed.smartsiteDetails?.name || feed.smartsiteUserName || undefined
+            feed.smartsiteDetails?.name ||
+            feed.smartsiteUserName ||
+            undefined
           }
         />
       )}
 
       {/* Transaction */}
-      {feed.postType === "transaction" && (
+      {feed.postType === 'transaction' && (
         <RenderTransactionContent feed={feed} />
       )}
 

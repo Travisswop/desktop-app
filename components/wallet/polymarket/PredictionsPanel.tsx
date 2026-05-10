@@ -121,18 +121,16 @@ export default function PredictionsPanel({
   }, [initialView]);
 
   const { eoaAddress } = usePolymarketWallet();
-  const { clobClient, safeAddress } = useTrading();
+  const { clobClient, safeAddress, portfolioAddresses } = useTrading();
   const queryClient = useQueryClient();
 
-  const { data: positions } = useUserPositions(safeAddress);
+  const { data: positions } = useUserPositions(portfolioAddresses);
   const { data: activeOrders = [] } = useActiveOrders(
     clobClient,
     safeAddress,
   );
-  const { usdcBalance } = usePolygonBalances(safeAddress);
-  const { data: netDeposits } = useNetDeposits(
-    safeAddress as string | undefined,
-  );
+  const { usdcBalance } = usePolygonBalances(portfolioAddresses);
+  const { data: netDeposits } = useNetDeposits(portfolioAddresses);
 
   const { redeemPosition } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
@@ -535,10 +533,10 @@ export default function PredictionsPanel({
               />
             )}
 
-            {view === 'history' && safeAddress && (
-              <BetHistoryView safeAddress={safeAddress} />
+            {view === 'history' && portfolioAddresses.length > 0 && (
+              <BetHistoryView safeAddress={portfolioAddresses} />
             )}
-            {view === 'history' && !safeAddress && (
+            {view === 'history' && portfolioAddresses.length === 0 && (
               <BentoEmpty
                 title="No history yet"
                 message="Your settled bets and order fills will appear here."
@@ -947,7 +945,7 @@ const STATUS_TONE: Record<HistoryStatusKey, { bg: string; fg: string }> = {
 const HISTORY_GRID =
   '110px minmax(0,1.6fr) 70px 80px 90px 100px';
 
-function BetHistoryView({ safeAddress }: { safeAddress: string }) {
+function BetHistoryView({ safeAddress }: { safeAddress: string | string[] }) {
   const [statusFilter, setStatusFilter] =
     useState<HistoryStatusFilter>('all');
   const [offset, setOffset] = useState(0);

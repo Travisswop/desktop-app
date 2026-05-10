@@ -117,20 +117,27 @@ function positionToMarket(
 }
 
 export default function UserPositions() {
-  const { clobClient, safeAddress, isTradingSessionComplete } = useTrading();
+  const {
+    clobClient,
+    safeAddress,
+    portfolioAddresses,
+    isTradingSessionComplete,
+  } = useTrading();
   const { eoaAddress } = usePolymarketWallet();
 
   const {
     data: positions,
     isLoading,
     error,
-  } = useUserPositions(safeAddress as string | undefined);
+  } = useUserPositions(portfolioAddresses.length ? portfolioAddresses : safeAddress);
 
-  const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { usdcBalance } = usePolygonBalances(
+    portfolioAddresses.length ? portfolioAddresses : safeAddress,
+  );
   const { data: teamsData } = usePolymarketTeams();
   console.log('safe address', safeAddress);
   const { data: netDeposits, isLoading: isNetDepositsLoading } =
-    useNetDeposits(safeAddress as string | undefined);
+    useNetDeposits(portfolioAddresses.length ? portfolioAddresses : safeAddress);
   console.log('netDeposits', netDeposits);
 
   // Limit orders are placed from the Safe (proxy) wallet, so maker_address matches

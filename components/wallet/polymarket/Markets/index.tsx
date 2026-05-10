@@ -99,9 +99,12 @@ export default function HighVolumeMarkets({
   const [btcModalOpen, setBtcModalOpen] = useState(false);
   const [btcInitialOutcome, setBtcInitialOutcome] = useState<'Up' | 'Down'>('Up');
 
-  const { isGeoblocked, safeAddress } = useTrading();
-  const { usdcBalance } = usePolygonBalances(safeAddress);
-  const { data: positions } = useUserPositions(safeAddress);
+  const { isGeoblocked, safeAddress, portfolioAddresses } = useTrading();
+  const portfolioAddressInput = portfolioAddresses.length
+    ? portfolioAddresses
+    : safeAddress;
+  const { usdcBalance } = usePolygonBalances(portfolioAddressInput);
+  const { data: positions } = useUserPositions(portfolioAddressInput);
 
   const isSportsActive = activeCategory === 'sports';
 
