@@ -34,6 +34,7 @@ type OrderPlacementModalProps = {
   outcome: string;
   currentPrice: number;
   tokenId: string;
+  conditionId?: string;
   negRisk?: boolean;
   yesPrice?: number;
   noPrice?: number;
@@ -58,6 +59,7 @@ export default function OrderPlacementModal({
   outcome,
   currentPrice,
   tokenId,
+  conditionId,
   negRisk = false,
   yesPrice = currentPrice,
   noPrice = 1 - currentPrice,
@@ -271,6 +273,7 @@ export default function OrderPlacementModal({
       priceDecimal: effectivePrice,
       // submit params
       tokenId: activeTokenId,
+      conditionId,
       size: orderSize,
       price: isLimitVariant ? limitPriceNum : undefined,
       negRisk,
@@ -285,6 +288,7 @@ export default function OrderPlacementModal({
     try {
       const result = await submitOrder({
         tokenId: pendingOrder.tokenId,
+        conditionId: pendingOrder.conditionId,
         size: pendingOrder.size,
         price: pendingOrder.price,
         side: pendingOrder.side,

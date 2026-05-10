@@ -268,6 +268,7 @@ export default function PredictionsPortfolioModal({
     try {
       await submitOrder({
         tokenId: position.asset,
+        conditionId: position.conditionId,
         size: position.size,
         side: 'SELL',
         negRisk: position.negativeRisk,

@@ -3092,6 +3092,7 @@ export default function MarketDetailView({
         isMarketVariant && side === 'BUY' ? inputNum : shares;
       const result = await submitOrder({
         tokenId: activeTokenId,
+        conditionId: market.conditionId || market.id,
         size: orderSize,
         price: isLimitVariant ? limitPriceNum : undefined,
         side,

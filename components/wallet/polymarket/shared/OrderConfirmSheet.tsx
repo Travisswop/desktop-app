@@ -12,6 +12,7 @@ export type PendingOrderData = {
   priceDecimal: number;
   // Submit params
   tokenId: string;
+  conditionId?: string;
   size: number;
   price?: number;
   negRisk: boolean;

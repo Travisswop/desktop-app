@@ -31,8 +31,11 @@ function MarketDetailPageInner() {
   const router = useRouter();
   const params = useParams<{ marketId: string }>();
   const marketId = decodeURIComponent(params?.marketId ?? '');
-  const { safeAddress } = useTrading();
-  const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { safeAddress, portfolioAddresses } = useTrading();
+  const portfolioAddressInput = portfolioAddresses.length
+    ? portfolioAddresses
+    : safeAddress;
+  const { usdcBalance } = usePolygonBalances(portfolioAddressInput);
 
   const entry = useMarketDetailStore((s) => s.entries[marketId]);
   const clearEntry = useMarketDetailStore((s) => s.clear);

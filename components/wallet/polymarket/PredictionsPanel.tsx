@@ -304,6 +304,7 @@ export default function PredictionsPanel({
       try {
         await submitOrder({
           tokenId: position.asset,
+          conditionId: position.conditionId,
           size: position.size,
           side: 'SELL',
           negRisk: position.negativeRisk,
