@@ -202,8 +202,6 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     refetchOnMount: false,
   });
 
-  console.log('balanceHistoryData', balanceHistoryData);
-
   // Extract balance history and current balance from query data
   const balanceHistory = balanceHistoryData?.balanceHistory || [];
   const fetchedBalance = balanceHistoryData?.currentBalance || 0;

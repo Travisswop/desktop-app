@@ -14,6 +14,7 @@ import {
   useActiveOrders,
   type PolymarketPosition,
 } from '@/hooks/polymarket';
+import { useTrading } from '@/providers/polymarket';
 
 interface PredictionsCardProps {
   safeAddress: string | undefined;
@@ -118,9 +119,13 @@ export default function PredictionsCard({
   onTransfer,
   onOpenPanel,
 }: PredictionsCardProps) {
+  const { portfolioAddresses } = useTrading();
+  const portfolioAddressInput = portfolioAddresses.length
+    ? portfolioAddresses
+    : safeAddress;
   const { usdcBalance, isLoading: balanceLoading } =
-    usePolygonBalances(safeAddress);
-  const { data: positions } = useUserPositions(safeAddress);
+    usePolygonBalances(portfolioAddressInput);
+  const { data: positions } = useUserPositions(portfolioAddressInput);
   const { data: activeOrders = [] } = useActiveOrders(null, safeAddress);
 
   const activePositions = useMemo<PolymarketPosition[]>(

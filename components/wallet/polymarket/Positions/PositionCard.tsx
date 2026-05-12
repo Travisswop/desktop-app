@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Share2 } from 'lucide-react';
 import type { PolymarketPosition } from '@/hooks/polymarket';
 import { getOutcomeDisplayLabel } from '@/lib/polymarket/formatting';
+import {
+  getRedeemablePayout,
+  hasRedeemablePayout,
+} from '@/lib/polymarket/position-payout';
 import PositionShareModal from './PositionShareModal';
 
 interface PositionCardProps {
@@ -54,7 +57,9 @@ export default function PositionCard({
   const nowCents = (position.curPrice * 100).toFixed(1);
   const traded = position.initialValue || position.size * position.avgPrice;
   const toWin = position.size; // shares × $1.00 = max payout
-  const value = position.currentValue; // shares × curPrice
+  const redeemValue = getRedeemablePayout(position);
+  const canClaimRedeem = isRedeemable && hasRedeemablePayout(position);
+  const value = isRedeemable ? redeemValue : position.currentValue;
   const pnl = position.cashPnl;
   const pnlPct = position.percentPnl;
   const isProfitable = pnl >= 0;
@@ -164,10 +169,18 @@ export default function PositionCard({
           <div className="flex gap-2 px-4 pb-4">
             <button
               onClick={() => onRedeem(position)}
-              disabled={isRedeeming || !canRedeem}
-              className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+              disabled={isRedeeming || !canRedeem || !canClaimRedeem}
+              className={`flex-1 py-2.5 disabled:cursor-not-allowed text-sm font-semibold rounded-xl transition-colors ${
+                canClaimRedeem
+                  ? 'bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
             >
-              {isRedeeming ? 'Redeeming...' : `Redeem $${Math.round(toWin)}`}
+              {isRedeeming
+                ? 'Redeeming...'
+                : canClaimRedeem
+                  ? `Redeem $${redeemValue.toFixed(2)}`
+                  : 'No payout'}
             </button>
           </div>
         ) : !position.redeemable ? (

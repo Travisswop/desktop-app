@@ -6,6 +6,7 @@ import { getRedeemTypedData, submitRedeem } from "@/lib/polymarket/backend-sessi
 
 export interface RedeemParams {
   conditionId: string;
+  asset?: string;
   outcomeIndex: number;
   negativeRisk?: boolean;
   size?: number;
@@ -38,6 +39,7 @@ export function useRedeemPosition() {
             walletType,
             eoaAddress,
             conditionId: params.conditionId,
+            asset: params.asset,
             negRisk: params.negativeRisk,
             outcomeIndex: params.outcomeIndex,
             size: params.size,
@@ -78,6 +80,7 @@ export function useRedeemPosition() {
             walletType,
             eoaAddress,
             conditionId: params.conditionId,
+            asset: params.asset,
             negRisk: params.negativeRisk,
             outcomeIndex: params.outcomeIndex,
             size: params.size,

@@ -804,6 +804,9 @@ export default function SwapTokenModal({
   const [customSlippage, setCustomSlippage] = useState('');
   const [showSlippageModal, setShowSlippageModal] = useState(false);
 
+  // Confirm-review modal (screen 16 — G8 Confirm transaction)
+  const [showConfirmReview, setShowConfirmReview] = useState(false);
+
   // Quote refresh
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [quoteCountdown, setQuoteCountdown] = useState(10);
@@ -3180,17 +3183,23 @@ export default function SwapTokenModal({
 
   return (
     <div className="flex justify-center pb-4 relative">
-      <div className="w-full text-black px-4">
-        {/* Header */}
+      <div className="w-full text-[#0a0a0c] px-4">
+        {/* Header — Tag + subtitle pattern from G3 design */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-center flex-1">
-            Swaps
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <span className="text-[10px] font-bold tracking-[1.4px] uppercase font-mono px-2 py-1 rounded-md bg-[#fafafa] border border-black/[0.06] text-[#0a0a0c]">
+              Swap
+            </span>
+            <span className="text-[11.5px] text-[#6e6e76] -tracking-[0.05px]">
+              Trade across DEXs at the best route
+            </span>
+          </div>
           <button
             onClick={() => setShowSlippageModal(true)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="w-[30px] h-[30px] rounded-lg bg-[#fafafa] border border-black/[0.06] hover:bg-gray-100 transition-colors inline-flex items-center justify-center"
+            aria-label="Slippage settings"
           >
-            <Settings className="w-5 h-5 text-gray-600" />
+            <Settings className="w-[13px] h-[13px] text-[#0a0a0c]" />
           </button>
         </div>
 
@@ -3200,155 +3209,183 @@ export default function SwapTokenModal({
           payToken &&
           receiveToken &&
           !isQuoteLoading && (
-            <div className="text-center mb-4">
-              <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-600">
+            <div className="text-center mb-3">
+              <span className="text-[10.5px] font-mono px-2 py-1 rounded-full bg-[#fafafa] border border-black/[0.06] text-[#6e6e76]">
                 Refreshing in {quoteCountdown}s
               </span>
             </div>
           )}
 
-        {/* Route badge */}
-        {payToken && receiveToken && (
-          <div className="text-center mb-4">
-            <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
-              {isSolanaToSolanaSwap() ? 'Via Jupiter' : 'Via Li.Fi'}
-            </span>
-          </div>
-        )}
-
-        <div className="space-y-4">
-          {/* ── Pay section ── */}
-          <div className="p-4 rounded-xl bg-gray-100">
-            <div className="flex justify-between items-center text-sm text-gray-500 mb-2">
-              <span>You Pay</span>
-              <span
-                className={
-                  !balanceValidation.isValid ? 'text-red-500' : ''
-                }
-              >
-                {payToken?.balance
-                  ? `${parseFloat(payToken.balance).toFixed(4)} ${payToken.symbol}`
-                  : '0'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Input
-                type="number"
-                placeholder="0.00"
-                value={payAmount}
-                onChange={handlePayAmountChange}
-                className="bg-transparent border-none text-2xl font-semibold w-full p-0 focus:outline-none focus:ring-0 focus:border-none"
-              />
-              <button
-                onClick={() => {
-                  setSelecting('pay');
-                  setOpenDrawer(true);
-                  setSearchQuery('');
-                }}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white shadow-sm hover:bg-gray-100 transition-colors"
-              >
-                <div className="relative min-w-max">
-                  {payToken?.logoURI && (
-                    <Image
-                      src={sanitizeNextImageSrc(payToken.logoURI)}
-                      alt={payToken.symbol}
-                      width={24}
-                      height={24}
-                      className="w-6 h-6 rounded-full"
-                    />
-                  )}
-                  {payToken?.chain && (
-                    <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
-                      <Image
-                        src={sanitizeNextImageSrc(
-                          getChainIcon(payToken.chain) || '',
-                        )}
-                        alt={payToken.chain}
-                        width={12}
-                        height={12}
-                        className="w-3 h-3 rounded-full"
-                      />
-                    </div>
-                  )}
-                </div>
-                <span className="font-medium">
-                  {payToken ? payToken.symbol : 'Select'}
+        <div className="space-y-1.5">
+          {/* ── Pay card ── */}
+          <div className="relative">
+            <div className="p-4 pb-[18px] rounded-2xl bg-[#fafafa] border border-black/[0.06]">
+              <div className="flex justify-between items-center">
+                <span className="text-[10.5px] font-bold tracking-[1.2px] uppercase font-mono text-[#6e6e76]">
+                  You pay
                 </span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+                <span
+                  className={`text-[10.5px] font-mono ${!balanceValidation.isValid ? 'text-red-500' : 'text-[#6e6e76]'}`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
+                  Bal ·{' '}
+                  {payToken?.balance
+                    ? `${parseFloat(payToken.balance).toFixed(4)} ${payToken.symbol}`
+                    : '0'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 mt-2.5">
+                <div className="flex-1 min-w-0">
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={payAmount}
+                    onChange={handlePayAmountChange}
+                    className="bg-transparent border-none text-[32px] font-semibold w-full p-0 h-auto leading-none -tracking-[1px] font-mono focus:outline-none focus:ring-0 focus:border-none shadow-none"
                   />
-                </svg>
-              </button>
-            </div>
-            {payAmount &&
-              payToken &&
-              getQuoteInfo()?.fromAmountUSD && (
-                <div className="text-sm text-gray-500 mt-2">
-                  ${getQuoteInfo()?.fromAmountUSD?.toFixed(2)}
+                  {payAmount &&
+                    payToken &&
+                    getQuoteInfo()?.fromAmountUSD && (
+                      <div className="text-[11.5px] text-[#6e6e76] font-mono mt-[5px]">
+                        ≈ ${getQuoteInfo()?.fromAmountUSD?.toFixed(2)}
+                      </div>
+                    )}
                 </div>
-              )}
-            <div className="flex gap-2 mt-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="px-3 py-1.5 text-xs bg-white border border-gray-200 hover:bg-gray-100 rounded-lg"
-                onClick={() => handlePercentageClick(0.5)}
-              >
-                50%
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="px-3 py-1.5 text-xs bg-white border border-gray-200 hover:bg-gray-100 rounded-lg"
-                onClick={() => handlePercentageClick(1)}
-              >
-                Max
-              </Button>
+                <button
+                  onClick={() => {
+                    setSelecting('pay');
+                    setOpenDrawer(true);
+                    setSearchQuery('');
+                  }}
+                  className="flex items-center gap-[7px] pl-[7px] pr-3 py-[7px] rounded-full bg-white border border-black/[0.06] hover:bg-gray-50 transition-colors"
+                >
+                  <div className="relative w-6 h-6 flex-shrink-0">
+                    {payToken?.logoURI ? (
+                      <Image
+                        src={sanitizeNextImageSrc(payToken.logoURI)}
+                        alt={payToken.symbol}
+                        width={24}
+                        height={24}
+                        className="w-6 h-6 rounded-full"
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-[#dfe6ef] flex items-center justify-center text-[9px] font-bold text-[#0a0a0c]">
+                        {payToken?.symbol?.slice(0, 3) || '—'}
+                      </div>
+                    )}
+                    {payToken?.chain && (
+                      <div className="absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center w-3 h-3">
+                        <Image
+                          src={sanitizeNextImageSrc(
+                            getChainIcon(payToken.chain) || '',
+                          )}
+                          alt={payToken.chain}
+                          width={12}
+                          height={12}
+                          className="w-3 h-3 rounded-full"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[12.5px] font-semibold">
+                    {payToken ? payToken.symbol : 'Select'}
+                  </span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-3 w-3 text-[#6e6e76]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button
+                  className="px-3 py-1.5 text-[11px] font-medium bg-white border border-black/[0.06] hover:bg-gray-50 rounded-lg transition-colors"
+                  onClick={() => handlePercentageClick(0.5)}
+                >
+                  50%
+                </button>
+                <button
+                  className="px-3 py-1.5 text-[11px] font-medium bg-white border border-black/[0.06] hover:bg-gray-50 rounded-lg transition-colors"
+                  onClick={() => handlePercentageClick(1)}
+                >
+                  Max
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* Flip */}
-          <div className="flex justify-center">
+            {/* Flip — floating overlap button between pay/receive cards */}
             <button
               onClick={handleFlip}
               disabled={!receiveToken}
-              className="p-2 bg-white rounded-full shadow-sm hover:shadow-md transition-shadow border border-gray-200"
+              className="absolute left-1/2 -translate-x-1/2 -bottom-[18px] z-10 w-9 h-9 rounded-[11px] bg-white border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),_0_8px_28px_-12px_rgba(10,10,12,0.10)] hover:shadow-md transition-shadow flex items-center justify-center disabled:opacity-50"
+              aria-label="Flip pay and receive"
             >
-              <ArrowUpDown className="w-5 h-5 text-gray-600" />
+              <ArrowUpDown className="w-3.5 h-3.5 text-[#0a0a0c]" />
             </button>
           </div>
 
-          {/* ── Receive section ── */}
-          <div className="p-4 rounded-xl bg-gray-100">
-            <div className="flex justify-between items-center text-sm text-gray-500 mb-2">
-              <span>You Receive</span>
-              <span>
+          {/* ── Receive card ── */}
+          <div className="p-4 pb-[18px] rounded-2xl bg-[#fafafa] border border-black/[0.06]">
+            <div className="flex justify-between items-center">
+              <span className="text-[10.5px] font-bold tracking-[1.2px] uppercase font-mono text-[#6e6e76]">
+                You receive
+              </span>
+              <span className="text-[10.5px] font-mono text-[#6e6e76]">
                 {receiveToken?.balance
-                  ? `${parseFloat(receiveToken.balance).toFixed(4)} ${receiveToken.symbol}`
+                  ? `Bal · ${parseFloat(receiveToken.balance).toFixed(4)} ${receiveToken.symbol}`
                   : receiveToken
-                    ? '0'
+                    ? `Bal · 0 ${receiveToken.symbol}`
                     : ''}
               </span>
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex-1">
+            <div className="flex items-center justify-between gap-3 mt-2.5">
+              <div className="flex-1 min-w-0">
                 {isCalculating || isQuoteLoading ? (
                   <div className="animate-pulse bg-gray-200 h-8 w-32 rounded" />
                 ) : (
-                  <div className="font-base text-gray-800 font-medium">
+                  <div className="text-[32px] font-semibold leading-none -tracking-[1px] font-mono text-[#0a0a0c]">
                     {receiveAmount || '0.00'}
                   </div>
                 )}
+                {receiveAmount &&
+                  receiveToken &&
+                  getQuoteInfo()?.toAmountUSD && (
+                    <div className="text-[11.5px] text-[#6e6e76] font-mono mt-[5px]">
+                      ≈ ${getQuoteInfo()?.toAmountUSD?.toFixed(2)}
+                      {(() => {
+                        const info = getQuoteInfo();
+                        if (
+                          info &&
+                          typeof info.priceImpact === 'number'
+                        ) {
+                          return (
+                            <>
+                              {' · '}
+                              <span
+                                className={
+                                  info.priceImpact < 0
+                                    ? 'text-[#e5484d]'
+                                    : 'text-[#19a974]'
+                                }
+                              >
+                                {info.priceImpact >= 0 ? '+' : ''}
+                                {info.priceImpact.toFixed(2)}%
+                              </span>
+                            </>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  )}
               </div>
               <button
                 onClick={() => {
@@ -3357,11 +3394,11 @@ export default function SwapTokenModal({
                   setSearchQuery('');
                   setFilteredList([]);
                 }}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white shadow-sm hover:bg-gray-100 transition-colors"
+                className="flex items-center gap-[7px] pl-[7px] pr-3 py-[7px] rounded-full bg-white border border-black/[0.06] hover:bg-gray-50 transition-colors flex-shrink-0"
               >
                 {receiveToken ? (
-                  <div className="flex items-center">
-                    <div className="relative min-w-max">
+                  <>
+                    <div className="relative w-6 h-6 flex-shrink-0">
                       <Image
                         src={sanitizeNextImageSrc(
                           receiveToken.logoURI,
@@ -3377,7 +3414,7 @@ export default function SwapTokenModal({
                             receiverChainId,
                           ).toUpperCase();
                         return (
-                          <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center w-4 h-4">
+                          <div className="absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center w-3 h-3">
                             <Image
                               src={sanitizeNextImageSrc(
                                 getChainIcon(chainName) || '',
@@ -3391,115 +3428,121 @@ export default function SwapTokenModal({
                         );
                       })()}
                     </div>
-                    <span className="font-medium ml-2">
+                    <span className="text-[12.5px] font-semibold">
                       {receiveToken.symbol}
                     </span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 ml-1 text-gray-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
+                  </>
                 ) : (
-                  <div className="flex items-center">
-                    <span className="font-medium">Select</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 ml-1 text-gray-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
+                  <span className="text-[12.5px] font-semibold">
+                    Select
+                  </span>
                 )}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-3 w-3 text-[#6e6e76]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
               </button>
             </div>
-            {receiveAmount &&
-              receiveToken &&
-              getQuoteInfo()?.toAmountUSD && (
-                <div className="text-sm text-gray-500 mt-2">
-                  ${getQuoteInfo()?.toAmountUSD?.toFixed(2)}
-                </div>
-              )}
           </div>
 
-          {/* Quote details */}
+          {/* Route summary card */}
           {payToken &&
             receiveToken &&
             (quote || jupiterQuote) &&
             (() => {
               const info = getQuoteInfo();
               const rate = info?.exchangeRate;
-              return rate ? (
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-gray-600">
-                      <span>Pricing</span>
-                      <Info className="w-4 h-4" />
-                    </div>
-                    <div className="text-right text-gray-900">
-                      1 {payToken.symbol} ≈{' '}
-                      {rate < 0.000001
-                        ? rate.toExponential(4)
-                        : rate.toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 8,
-                          })}{' '}
-                      {receiveToken.symbol}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-gray-600">
-                      <span>Slippage</span>
-                      <Info className="w-4 h-4" />
-                    </div>
-                    <span className="text-gray-900">
-                      {customSlippage
-                        ? `${customSlippage}%`
-                        : `${slippage}%`}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-gray-600">
-                      <span>Price Impact</span>
-                      <Info className="w-4 h-4" />
-                    </div>
-                    <span>
-                      {info &&
-                      typeof info.priceImpact === 'number' ? (
-                        <span
-                          className={
-                            info.priceImpact < -3
-                              ? 'text-red-500'
-                              : 'text-gray-900'
-                          }
-                        >
-                          {info.priceImpact >= 0 ? '+' : ''}
-                          {info.priceImpact.toFixed(2)}%
+              if (!rate) return null;
+              const rateLabel =
+                rate < 0.000001
+                  ? rate.toExponential(4)
+                  : rate.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 8,
+                    });
+              const slippageLabel = customSlippage
+                ? `${customSlippage}%`
+                : `${slippage}%`;
+              const networkFeeLabel = estimatedGasFeeEth
+                ? `${estimatedGasFeeEth} ${getNativeTokenSymbol(chainId)}`
+                : '—';
+              const priceImpactLabel =
+                info && typeof info.priceImpact === 'number'
+                  ? `${info.priceImpact >= 0 ? '+' : ''}${info.priceImpact.toFixed(2)}%`
+                  : '—';
+              const priceImpactNegative =
+                info &&
+                typeof info.priceImpact === 'number' &&
+                info.priceImpact < -3;
+              return (
+                <div className="pt-2.5">
+                  <div className="px-3.5 py-3 rounded-[10px] bg-white border border-black/[0.06]">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10.5px] font-mono font-bold tracking-[1.2px] uppercase text-[#6e6e76]">
+                          Route
                         </span>
-                      ) : (
-                        '-'
-                      )}
-                    </span>
+                        <span className="text-[11.5px] font-semibold">
+                          {isSolanaToSolanaSwap()
+                            ? 'Jupiter · best'
+                            : 'Li.Fi · best'}
+                        </span>
+                      </div>
+                      {info?.toAmountUSD &&
+                        info?.fromAmountUSD &&
+                        info.toAmountUSD - info.fromAmountUSD >
+                          0 && (
+                          <span className="text-[10.5px] font-mono font-semibold text-[#19a974] bg-[#19a974]/10 px-[7px] py-[3px] rounded-full">
+                            +$
+                            {(
+                              info.toAmountUSD - info.fromAmountUSD
+                            ).toFixed(2)}
+                          </span>
+                        )}
+                    </div>
+                    <div className="mt-2.5 pt-2.5 border-t border-black/[0.06]">
+                      {[
+                        [
+                          'Rate',
+                          `1 ${payToken.symbol} = ${rateLabel} ${receiveToken.symbol}`,
+                          false,
+                        ],
+                        ['Slippage', slippageLabel, false],
+                        ['Network fee', networkFeeLabel, false],
+                        [
+                          'Price impact',
+                          priceImpactLabel,
+                          priceImpactNegative,
+                        ],
+                      ].map(([k, v, danger]) => (
+                        <div
+                          key={k as string}
+                          className="flex justify-between py-1"
+                        >
+                          <span className="text-[11.5px] text-[#6e6e76]">
+                            {k}
+                          </span>
+                          <span
+                            className={`text-[11.5px] font-medium font-mono ${danger ? 'text-[#e5484d]' : 'text-[#0a0a0c]'}`}
+                          >
+                            {v}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              ) : null;
+              );
             })()}
 
           {/* Error / status */}
@@ -3582,52 +3625,73 @@ export default function SwapTokenModal({
             </div>
           )}
 
-          {/* Swap button */}
-          <Button
-            onClick={
-              isSwapDone
-                ? () => {
-                    setSwapStatus(null);
-                    setSwapError(null);
-                    setTxHash(null);
-                    setPayAmount('');
-                    setReceiveAmount('');
-                    setLastQuoteTime(null);
-                    setGasBalanceError(null);
-                  }
-                : executeCrossChainSwap
-            }
-            className={`w-full py-4 font-semibold rounded-xl ${isSwapDone ? 'bg-green-600 hover:bg-green-700' : 'bg-black hover:bg-gray-800'} disabled:opacity-50 transition-colors`}
-            disabled={
-              isSwapping ||
-              (!balanceValidation.isValid && !isSwapDone) ||
-              (!!gasBalanceError && !isSwapDone) ||
-              (isSwapButtonLoading() && !isSwapDone) ||
-              !payToken ||
-              !receiveToken
-            }
-          >
-            {isSwapDone ? (
-              'New Swap'
-            ) : isSwapping ? (
-              'Swapping...'
-            ) : !balanceValidation.isValid ? (
-              'Insufficient Balance'
-            ) : gasBalanceError ? (
-              'Insufficient Gas Balance'
-            ) : isSwapButtonLoading() ? (
-              <div className="flex items-center justify-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
-                Getting Quote...
-              </div>
-            ) : !payAmount || !receiveAmount ? (
-              'Enter Amount'
-            ) : !receiveToken ? (
-              'Select Token'
-            ) : (
-              'Swap'
-            )}
-          </Button>
+          {/* Footer — Cancel + Review swap CTA (matches G3 modal footer) */}
+          <div className="pt-4 grid grid-cols-[1fr_1.6fr] gap-2.5 border-t border-black/[0.04] mt-4">
+            <button
+              onClick={() => {
+                setSwapStatus(null);
+                setSwapError(null);
+                setTxHash(null);
+                setPayAmount('');
+                setReceiveAmount('');
+                setLastQuoteTime(null);
+                setGasBalanceError(null);
+              }}
+              className="py-3.5 rounded-xl bg-[#fafafa] border border-black/[0.06] text-sm font-semibold text-[#0a0a0c] hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <Button
+              onClick={
+                isSwapDone
+                  ? () => {
+                      setSwapStatus(null);
+                      setSwapError(null);
+                      setTxHash(null);
+                      setPayAmount('');
+                      setReceiveAmount('');
+                      setLastQuoteTime(null);
+                      setGasBalanceError(null);
+                    }
+                  : () => setShowConfirmReview(true)
+              }
+              className={`py-3.5 rounded-xl ${isSwapDone ? 'bg-green-600 hover:bg-green-700' : 'bg-[#0a0a0c] hover:bg-black/90'} text-white text-sm font-bold -tracking-[0.1px] disabled:opacity-50 transition-colors`}
+              disabled={
+                isSwapping ||
+                (!balanceValidation.isValid && !isSwapDone) ||
+                (!!gasBalanceError && !isSwapDone) ||
+                (isSwapButtonLoading() && !isSwapDone) ||
+                !payToken ||
+                !receiveToken ||
+                !payAmount ||
+                !receiveAmount
+              }
+            >
+              {isSwapDone ? (
+                'New swap'
+              ) : isSwapping ? (
+                'Swapping…'
+              ) : !balanceValidation.isValid ? (
+                'Insufficient balance'
+              ) : gasBalanceError ? (
+                'Insufficient gas'
+              ) : isSwapButtonLoading() ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  Getting quote…
+                </span>
+              ) : !payAmount || !receiveAmount ? (
+                'Enter amount'
+              ) : !receiveToken ? (
+                'Select token'
+              ) : (
+                <span className="truncate">
+                  Review swap · {payAmount} {payToken?.symbol} →{' '}
+                  {receiveAmount} {receiveToken?.symbol}
+                </span>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -3980,6 +4044,248 @@ export default function SwapTokenModal({
           </div>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          Confirm Transaction Modal — screen 16 (G8)
+          Review and sign before the swap is broadcast.
+      ═══════════════════════════════════════════════════════════════════════ */}
+      {showConfirmReview &&
+        (() => {
+          const info = getQuoteInfo();
+          const slippageLabel = customSlippage
+            ? `${customSlippage}%`
+            : `${slippage}%`;
+          const networkName =
+            getNetworkByChainId(chainId).charAt(0).toUpperCase() +
+            getNetworkByChainId(chainId).slice(1);
+          const routeName = isSolanaToSolanaSwap()
+            ? 'JUPITER'
+            : 'LI.FI';
+          const networkFeeLabel = estimatedGasFeeEth
+            ? `${estimatedGasFeeEth} ${getNativeTokenSymbol(chainId)}`
+            : 'Estimated at signing';
+          const minReceive =
+            info?.toAmountUSD &&
+            receiveAmount &&
+            !isNaN(parseFloat(receiveAmount))
+              ? (
+                  parseFloat(receiveAmount) *
+                  (1 - parseFloat(slippageLabel) / 100)
+                ).toLocaleString(undefined, {
+                  maximumFractionDigits: 6,
+                })
+              : null;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div
+                className="absolute inset-0 bg-[rgba(10,10,12,0.45)] backdrop-blur-[2px]"
+                onClick={() => setShowConfirmReview(false)}
+              />
+              <div
+                className="relative w-full max-w-[540px] mx-4 bg-white rounded-3xl shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4),_0_12px_24px_-8px_rgba(0,0,0,0.18)] border border-black/[0.06] overflow-hidden text-[#0a0a0c]"
+              >
+                {/* Header */}
+                <div className="px-6 py-5 border-b border-black/[0.06] flex justify-between items-center">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[10px] font-bold tracking-[1.4px] uppercase font-mono px-2 py-1 rounded-md bg-[#fafafa] border border-black/[0.06]">
+                      Confirm
+                    </span>
+                    <span className="text-[11.5px] text-[#6e6e76] -tracking-[0.05px]">
+                      Review and sign — this cannot be reversed
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowConfirmReview(false)}
+                    className="w-[30px] h-[30px] rounded-lg bg-[#fafafa] border border-black/[0.06] hover:bg-gray-100 inline-flex items-center justify-center"
+                    aria-label="Close confirm"
+                  >
+                    <X className="w-[13px] h-[13px] text-[#0a0a0c]" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="px-6 pt-5 pb-1 max-h-[70vh] overflow-y-auto">
+                  {/* Action summary */}
+                  <div className="px-5 py-[18px] rounded-2xl border border-black/[0.06] bg-[#fafafa] flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-xl bg-white border border-black/[0.06] inline-flex items-center justify-center flex-shrink-0">
+                      <ArrowUpDown className="w-[18px] h-[18px] text-[#0a0a0c]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-mono font-semibold tracking-[0.6px] text-[#6e6e76]">
+                        SWAP · {routeName}
+                      </div>
+                      <div className="text-base font-semibold mt-0.5 -tracking-[0.2px] truncate">
+                        {payAmount} {payToken?.symbol} →{' '}
+                        {receiveAmount} {receiveToken?.symbol}
+                      </div>
+                    </div>
+                    <span className="text-[10.5px] font-bold text-[#19a974] bg-[#19a974]/10 px-2.5 py-1 rounded-full">
+                      SAFE
+                    </span>
+                  </div>
+
+                  {/* Simulated balance changes */}
+                  <div className="mt-[18px]">
+                    <div className="text-[10.5px] font-bold tracking-[1.2px] uppercase font-mono text-[#6e6e76] mb-2">
+                      Simulated changes
+                    </div>
+                    <div className="rounded-xl border border-black/[0.06] overflow-hidden">
+                      {[
+                        {
+                          side: 'out' as const,
+                          label: 'You send',
+                          asset: payToken?.symbol || '',
+                          amt: `−${payAmount} ${payToken?.symbol || ''}`,
+                          usd: info?.fromAmountUSD
+                            ? `−$${info.fromAmountUSD.toFixed(2)}`
+                            : '',
+                        },
+                        {
+                          side: 'in' as const,
+                          label: 'You receive',
+                          asset: receiveToken?.symbol || '',
+                          amt: `+${receiveAmount} ${receiveToken?.symbol || ''}`,
+                          usd: info?.toAmountUSD
+                            ? `+$${info.toAmountUSD.toFixed(2)}`
+                            : '',
+                        },
+                      ].map((c, i) => (
+                        <div
+                          key={i}
+                          className={`px-3.5 py-3 grid grid-cols-[32px_1fr_auto] gap-3 items-center ${i === 0 ? 'border-b border-black/[0.06]' : ''} ${c.side === 'in' ? 'bg-[#19a974]/10' : 'bg-white'}`}
+                        >
+                          <div
+                            className={`w-7 h-7 rounded-lg bg-white border border-black/[0.06] inline-flex items-center justify-center ${c.side === 'in' ? 'rotate-180' : ''}`}
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke={
+                                c.side === 'in' ? '#19a974' : '#0a0a0c'
+                              }
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <line x1="12" y1="19" x2="12" y2="5" />
+                              <polyline points="5 12 12 5 19 12" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-xs text-[#6e6e76]">
+                              {c.label}
+                            </div>
+                            <div className="text-[13px] font-semibold mt-0.5 -tracking-[0.1px]">
+                              {c.asset}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div
+                              className={`text-[13px] font-semibold font-mono ${c.side === 'in' ? 'text-[#19a974]' : 'text-[#0a0a0c]'}`}
+                            >
+                              {c.amt}
+                            </div>
+                            <div className="text-[10.5px] text-[#6e6e76] font-mono mt-0.5">
+                              {c.usd}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Network + fee details */}
+                  <div className="mt-4 px-4 py-3.5 rounded-xl border border-black/[0.06] bg-[#fafafa]">
+                    {[
+                      ['Network', networkName],
+                      ['Network fee', networkFeeLabel],
+                      [
+                        'Slippage',
+                        minReceive
+                          ? `${slippageLabel} · min receive ${minReceive}`
+                          : slippageLabel,
+                      ],
+                      [
+                        'Route',
+                        `${payToken?.symbol || '—'} → ${receiveToken?.symbol || '—'} · direct`,
+                      ],
+                    ].map(([k, v], i, arr) => (
+                      <div
+                        key={k as string}
+                        className={`flex justify-between py-1.5 ${i === arr.length - 1 ? '' : 'border-b border-dashed border-black/[0.04]'}`}
+                      >
+                        <span className="text-xs text-[#6e6e76]">
+                          {k}
+                        </span>
+                        <span className="text-xs font-medium font-mono text-[#0a0a0c]">
+                          {v}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Verified contract / risk row */}
+                  <div className="mt-3 px-3 py-2.5 rounded-[10px] bg-[#19a974]/10 border border-[#19a974]/[0.18] flex items-center gap-2.5">
+                    <div className="w-[22px] h-[22px] rounded-full bg-white border-[1.5px] border-[#19a974] inline-flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="w-3 h-3 text-[#19a974]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-[#19a974] -tracking-[0.1px]">
+                        Verified route ·{' '}
+                        {isSolanaToSolanaSwap()
+                          ? 'Jupiter Aggregator'
+                          : 'Li.Fi Bridge'}
+                      </div>
+                      <div className="text-[10.5px] text-[#6e6e76] mt-0.5 font-mono truncate">
+                        {isSolanaToSolanaSwap()
+                          ? 'jup.ag · audited'
+                          : 'li.fi · audited'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Permissions footer */}
+                  <div className="mt-3.5 mb-1 text-[11px] text-[#6e6e76] leading-relaxed">
+                    You&apos;ll grant a{' '}
+                    <span className="text-[#0a0a0c] font-semibold">
+                      one-time spend approval
+                    </span>{' '}
+                    for {payAmount} {payToken?.symbol}. No further
+                    txns will be signed without your confirmation.
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 grid grid-cols-[1fr_1.6fr] gap-2.5 border-t border-black/[0.04]">
+                  <button
+                    onClick={() => setShowConfirmReview(false)}
+                    className="py-3.5 rounded-xl bg-[#fafafa] border border-black/[0.06] text-sm font-semibold text-[#0a0a0c] hover:bg-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowConfirmReview(false);
+                      executeCrossChainSwap();
+                    }}
+                    disabled={
+                      isSwapping ||
+                      !balanceValidation.isValid ||
+                      !!gasBalanceError ||
+                      !payToken ||
+                      !receiveToken
+                    }
+                    className="py-3.5 rounded-xl bg-[#0a0a0c] hover:bg-black/90 text-white text-sm font-bold -tracking-[0.1px] disabled:opacity-50 transition-colors"
+                  >
+                    Sign & confirm swap
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       {/* ── Swap in-progress overlay ── */}
       {isSwapping && (

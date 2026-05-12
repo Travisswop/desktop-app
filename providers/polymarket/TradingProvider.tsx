@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  ReactNode,
+  useCallback,
+  useMemo,
+} from "react";
 import { usePolymarketWallet } from "./PolymarketWalletContext";
 import { useClobClient } from "@/hooks/polymarket/useClobClient";
 import { useTradingSession } from "@/hooks/polymarket/useTradingSession";
@@ -24,6 +30,7 @@ interface TradingContextType {
   legacySafeAddress: string | undefined;
   depositWalletAddress: string | undefined;
   tradingWalletAddress: string | undefined;
+  portfolioAddresses: string[];
   walletType: "safe" | "deposit";
   isGeoblocked: boolean;
   isGeoblockLoading: boolean;
@@ -71,6 +78,17 @@ export function TradingProvider({ children }: { children: ReactNode }) {
   const legacySafeAddress =
     tradingSession?.legacySafeAddress ?? derivedSafeAddressFromEoa;
   const depositWalletAddress = tradingSession?.depositWalletAddress;
+  const portfolioAddresses = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          [tradingWalletAddress, legacySafeAddress]
+            .filter((addr): addr is string => !!addr)
+            .map((addr) => [addr.toLowerCase(), addr])
+        ).values()
+      ),
+    [tradingWalletAddress, legacySafeAddress]
+  );
 
   // Keep open limit orders alive — Polymarket cancels them after 10s without a heartbeat
   useClobHeartbeat(tradingSession, tradingWalletAddress);
@@ -103,6 +121,7 @@ export function TradingProvider({ children }: { children: ReactNode }) {
         legacySafeAddress,
         depositWalletAddress,
         tradingWalletAddress,
+        portfolioAddresses,
         walletType,
         isGeoblocked,
         isGeoblockLoading,

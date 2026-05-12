@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useMemo,
   ReactNode,
 } from "react";
 import {
@@ -20,6 +21,8 @@ import { polygon } from "viem/chains";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
 import { POLYGON_RPC_URL } from "@/constants/polymarket";
 
+const WALLET_PROVIDER_TIMEOUT_MS = 12_000;
+
 export interface PolymarketWalletContextType {
   eoaAddress: `0x${string}` | undefined;
   walletClient: WalletClient | null;
@@ -30,6 +33,7 @@ export interface PolymarketWalletContextType {
   hasWallet: boolean;
   authenticated: boolean;
   switchToPolygon: () => Promise<void>;
+  retryInitialization: () => void;
 }
 
 const publicClient = createPublicClient({
@@ -47,10 +51,39 @@ const PolymarketWalletContext = createContext<PolymarketWalletContextType>({
   hasWallet: false,
   authenticated: false,
   switchToPolygon: async () => {},
+  retryInitialization: () => {},
 });
 
 export function usePolymarketWallet() {
   return useContext(PolymarketWalletContext);
+}
+
+function isEvmWallet(wallet: { address?: string; walletClientType?: string }) {
+  return (
+    wallet.walletClientType !== "solana" &&
+    typeof wallet.address === "string" &&
+    wallet.address.startsWith("0x")
+  );
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const id = window.setTimeout(
+      () => reject(new Error("Timed out initializing EVM wallet")),
+      ms,
+    );
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(id);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(id);
+        reject(error);
+      },
+    );
+  });
 }
 
 export function PolymarketWalletProvider({ children }: { children: ReactNode }) {
@@ -58,14 +91,19 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
   const [ethersSigner, setEthersSigner] =
     useState<providers.JsonRpcSigner | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [initAttempt, setInitAttempt] = useState(0);
 
   const { wallets, ready } = useWallets();
   const { authenticated, user } = usePrivy();
 
   // Find the user's primary EVM wallet — prefer embedded wallet, fall back to any EVM wallet
-  const wallet =
-    wallets.find((w) => w.address === user?.wallet?.address) ??
-    wallets.find((w) => w.walletClientType !== "solana");
+  const wallet = useMemo(
+    () =>
+      wallets.find(
+        (w) => w.address === user?.wallet?.address && isEvmWallet(w),
+      ) ?? wallets.find(isEvmWallet),
+    [wallets, user?.wallet?.address],
+  );
 
   const eoaAddress =
     authenticated && wallet ? (wallet.address as `0x${string}`) : undefined;
@@ -90,17 +128,26 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
     // Wait until Privy has finished loading wallets
     if (!ready) return;
 
+    let cancelled = false;
+
     async function init() {
+      setIsInitializing(true);
+
       if (!wallet || !eoaAddress) {
         // No EVM wallet available — stop initializing, no error
-        setWalletClient(null);
-        setEthersSigner(null);
-        setIsInitializing(false);
+        if (!cancelled) {
+          setWalletClient(null);
+          setEthersSigner(null);
+          setIsInitializing(false);
+        }
         return;
       }
 
       try {
-        const provider = await wallet.getEthereumProvider();
+        const provider = await withTimeout(
+          wallet.getEthereumProvider(),
+          WALLET_PROVIDER_TIMEOUT_MS,
+        );
 
         const client = createWalletClient({
           account: eoaAddress,
@@ -108,21 +155,31 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
           transport: custom(provider),
         });
 
-        setWalletClient(client);
+        if (cancelled) return;
 
+        setWalletClient(client);
         const ethersProvider = new providers.Web3Provider(provider);
         setEthersSigner(ethersProvider.getSigner());
       } catch (err) {
         console.error("Failed to initialize Polymarket wallet client:", err);
-        setWalletClient(null);
-        setEthersSigner(null);
+        if (!cancelled) {
+          setWalletClient(null);
+          setEthersSigner(null);
+        }
       } finally {
-        setIsInitializing(false);
+        if (!cancelled) setIsInitializing(false);
       }
     }
 
     init();
-  }, [wallet, ready, eoaAddress]);
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet, ready, eoaAddress, initAttempt]);
+
+  const retryInitialization = () => {
+    setInitAttempt((attempt) => attempt + 1);
+  };
 
   return (
     <PolymarketWalletContext.Provider
@@ -136,6 +193,7 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
         hasWallet,
         authenticated,
         switchToPolygon,
+        retryInitialization,
       }}
     >
       {children}

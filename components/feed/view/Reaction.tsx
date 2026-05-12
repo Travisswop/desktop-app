@@ -1,12 +1,16 @@
-"use client";
-import { deleteFeed, postFeed, postFeedLike } from "@/actions/postFeed";
+'use client';
+import {
+  deleteFeed,
+  postFeed,
+  postFeedLike,
+} from '@/actions/postFeed';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
   Tooltip,
   useDisclosure,
-} from "@nextui-org/react";
+} from '@nextui-org/react';
 import React, {
   useEffect,
   useRef,
@@ -14,27 +18,32 @@ import React, {
   memo,
   useCallback,
   useMemo,
-} from "react";
-import { FiShare } from "react-icons/fi";
-import { IoMdHeart, IoMdHeartEmpty } from "react-icons/io";
-import CommentMain from "../reaction/CommentMain";
-import { BiEdit, BiRepost } from "react-icons/bi";
-import { useUser } from "@/lib/UserContext";
-import { formatCountReaction } from "@/lib/formatFeedReactionCount";
-import { TbCopy, TbCopyCheckFilled, TbEdit } from "react-icons/tb";
-import toast from "react-hot-toast";
-import Cookies from "js-cookie";
-import { Loader } from "lucide-react";
-import repostImg from "@/public/images/custom-icons/feed_repost.png";
-import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
-import dayjs from "dayjs";
-import isUrl from "@/lib/isUrl";
-import { useModalStore } from "@/zustandStore/modalstore";
-import { Modal, ModalBody, ModalContent, ModalHeader } from "@nextui-org/react";
-import CommentInput from "../comment/CommentInput";
-import RepostComposer from "../RepostComposer";
-import logger from "@/utils/logger";
+} from 'react';
+import { FiShare } from 'react-icons/fi';
+import { IoMdHeart, IoMdHeartEmpty } from 'react-icons/io';
+import CommentMain from '../reaction/CommentMain';
+import { BiEdit, BiRepost } from 'react-icons/bi';
+import { useUser } from '@/lib/UserContext';
+import { formatCountReaction } from '@/lib/formatFeedReactionCount';
+import { TbCopy, TbCopyCheckFilled, TbEdit } from 'react-icons/tb';
+import toast from 'react-hot-toast';
+import Cookies from 'js-cookie';
+import { Loader } from 'lucide-react';
+import repostImg from '@/public/images/custom-icons/feed_repost.png';
+import Image from 'next/image';
+import { useRouter, useSearchParams } from 'next/navigation';
+import dayjs from 'dayjs';
+import isUrl from '@/lib/isUrl';
+import { useModalStore } from '@/zustandStore/modalstore';
+import {
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalHeader,
+} from '@nextui-org/react';
+import CommentInput from '../comment/CommentInput';
+import RepostComposer from '../RepostComposer';
+import logger from '@/utils/logger';
 
 // New self-contained repost composer
 
@@ -58,7 +67,10 @@ interface ReactionProps {
   isLiked?: boolean;
   isFromFeedDetailsPage?: boolean;
   onRepostSuccess?: () => void;
-  onPostInteraction?: (postId: string, updates: Partial<FeedItemType>) => void;
+  onPostInteraction?: (
+    postId: string,
+    updates: Partial<FeedItemType>,
+  ) => void;
   feed?: any;
   parentCommentId?: string | null;
   isFromMainFeed?: boolean;
@@ -84,18 +96,20 @@ const Reaction = memo(
 
     // ── Like state ──────────────────────────────────────────────────────────
     const [liked, setLiked] = useState(isLiked);
-    logger.info("feed data in Reaction component", feed);
+    // logger.info("feed data in Reaction component", feed);
     const [likeCount, setLikeCount] = useState(initialLikeCount);
     const [animate, setAnimate] = useState(false);
 
     // ── Auth / user ─────────────────────────────────────────────────────────
-    const [accessToken, setAccessToken] = useState("");
-    const [smartsiteId, setSmartsiteId] = useState("");
-    const [primarySmartsiteData, setPrimarySmartsiteData] = useState<any>(null);
+    const [accessToken, setAccessToken] = useState('');
+    const [smartsiteId, setSmartsiteId] = useState('');
+    const [primarySmartsiteData, setPrimarySmartsiteData] =
+      useState<any>(null);
     const { user }: any = useUser();
 
     // ── Comment state ───────────────────────────────────────────────────────
-    const [isCommentInputOpen, setIsCommentInputOpen] = useState(false);
+    const [isCommentInputOpen, setIsCommentInputOpen] =
+      useState(false);
     const [latestCommentCount, setLatestCommentCount] = useState(
       commentCount || 0,
     );
@@ -128,7 +142,7 @@ const Reaction = memo(
 
     // ── Effects ─────────────────────────────────────────────────────────────
     useEffect(() => {
-      const token = Cookies.get("access-token");
+      const token = Cookies.get('access-token');
       if (token) setAccessToken(token);
     }, []);
 
@@ -150,12 +164,15 @@ const Reaction = memo(
     // ── Handlers ─────────────────────────────────────────────────────────────
 
     const handleLike = async () => {
-      if (!accessToken) return toast.error("Please Login to Continue.");
+      if (!accessToken)
+        return toast.error('Please Login to Continue.');
 
       const originalLiked = liked;
       const originalCount = likeCount;
       const newLiked = !liked;
-      const newCount = newLiked ? likeCount + 1 : Math.max(0, likeCount - 1);
+      const newCount = newLiked
+        ? likeCount + 1
+        : Math.max(0, likeCount - 1);
 
       setLiked(newLiked);
       setLikeCount(newCount);
@@ -167,46 +184,50 @@ const Reaction = memo(
       try {
         const payload = {
           targetId: postId,
-          targetType: "post",
+          targetType: 'post',
           userId: user?._id,
           smartsiteId: user?.primaryMicrosite,
-          reactionType: "like",
+          reactionType: 'like',
         };
-        logger.info("Sending like request with payload:", payload);
+        logger.info('Sending like request with payload:', payload);
         const response = await postFeedLike(payload, accessToken);
-        logger.info("Like response:", response);
-        onPostInteraction?.(postId, { likeCount: newCount, isLiked: newLiked });
+        logger.info('Like response:', response);
+        onPostInteraction?.(postId, {
+          likeCount: newCount,
+          isLiked: newLiked,
+        });
       } catch {
         setLiked(originalLiked);
         setLikeCount(originalCount);
-        toast.error("Failed to update like status.");
+        toast.error('Failed to update like status.');
       }
     };
 
     const handleCopyLink = useCallback(() => {
       let link = `${window.location.origin}/feed/${postId}`;
-      if (window.location.href.includes("/feed/comment")) {
+      if (window.location.href.includes('/feed/comment')) {
         link = `${window.location.origin}/feed/comment/${feed?._id}`;
       }
       navigator.clipboard
         .writeText(link)
         .then(() => {
           setIsCopied(true);
-          toast.success("Copied!", { position: "bottom-center" });
+          toast.success('Copied!', { position: 'bottom-center' });
           setTimeout(() => setIsCopied(false), 2000);
         })
-        .catch(() => toast.error("Failed to copy link."));
+        .catch(() => toast.error('Failed to copy link.'));
     }, [feed?._id, postId]);
 
     // Instant repost — no quote, just postId + isFromFeed
     const handleInstantRepost = async () => {
-      if (!accessToken) return toast.error("Please Login to Continue.");
+      if (!accessToken)
+        return toast.error('Please Login to Continue.');
       setRepostLoading(true);
       try {
         const payload = {
           smartsiteId: user?.primaryMicrosite,
           userId: user?._id,
-          postType: "repost",
+          postType: 'repost',
           content: {
             postId,
             isFromFeed: isFromMainFeed,
@@ -214,30 +235,35 @@ const Reaction = memo(
           },
         };
         const data = await postFeed(payload, accessToken);
-        logger.info("Repost response:", data);
-        if (data?.state === "success") {
-          toast.success("Reposted successfully!");
+        logger.info('Repost response:', data);
+        if (data?.state === 'success') {
+          toast.success('Reposted successfully!');
           triggerFeedRefetch();
           setIsRepostPopOpen(false);
-          router.push("/");
-        } else if (data?.state === "not-allowed") {
-          toast.error("You are not allowed to create a feed post!");
+          router.push('/');
+        } else if (data?.state === 'not-allowed') {
+          toast.error('You are not allowed to create a feed post!');
         }
       } catch {
-        toast.error("Repost failed. Please try again.");
+        toast.error('Repost failed. Please try again.');
       } finally {
         setRepostLoading(false);
       }
     };
 
     const handleUndoRepost = async () => {
-      if (!accessToken) return toast.error("Please Login to Continue.");
+      if (!accessToken)
+        return toast.error('Please Login to Continue.');
       setRepostLoading(true);
       try {
-        const result = await deleteFeed(postId, accessToken, user?._id);
-        logger.info("Undo repost result", result);
+        const result = await deleteFeed(
+          postId,
+          accessToken,
+          user?._id,
+        );
+        logger.info('Undo repost result', result);
         if (result.success === true) {
-          toast.success("Undo Repost successfully");
+          toast.success('Undo Repost successfully');
           triggerFeedRefetch();
           setIsRepostPopOpen(false);
           router.refresh();
@@ -290,7 +316,8 @@ const Reaction = memo(
             </PopoverTrigger>
 
             <PopoverContent className="w-auto p-2 rounded-lg shadow-lg border border-gray-200 bg-white">
-              {feed?.postType === "repost" && feed?.userId === user?._id ? (
+              {feed?.postType === 'repost' &&
+              feed?.userId === user?._id ? (
                 /* — already reposted by this user — */
                 <div>
                   <button
@@ -367,11 +394,11 @@ const Reaction = memo(
             className="text-xs font-medium"
             placement="bottom"
             showArrow
-            content={liked ? "Unlike" : "Like"}
+            content={liked ? 'Unlike' : 'Like'}
           >
             <button
               onClick={handleLike}
-              className={`relative flex items-center gap-1 text-sm font-medium w-12 ${liked ? "text-[#FF0000]" : ""}`}
+              className={`relative flex items-center gap-1 text-sm font-medium w-12 ${liked ? 'text-[#FF0000]' : ''}`}
             >
               {liked ? (
                 <IoMdHeart size={18} color="red" />
@@ -381,7 +408,7 @@ const Reaction = memo(
               <p>{formattedCounts.likes}</p>
               <span
                 className={`absolute top-[-10px] left-[10px] text-red-500 ${
-                  animate ? "animate-ping-heart" : "hidden"
+                  animate ? 'animate-ping-heart' : 'hidden'
                 }`}
               >
                 <IoMdHeart size={30} />
@@ -415,13 +442,16 @@ const Reaction = memo(
                 onClick={!isCopied ? handleCopyLink : undefined}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
                   isCopied
-                    ? "text-green-600 hover:bg-green-50"
-                    : "text-gray-700 hover:bg-gray-100"
+                    ? 'text-green-600 hover:bg-green-50'
+                    : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 {isCopied ? (
                   <>
-                    <TbCopyCheckFilled size={18} className="shrink-0" />
+                    <TbCopyCheckFilled
+                      size={18}
+                      className="shrink-0"
+                    />
                     <span>Link Copied!</span>
                   </>
                 ) : (
@@ -443,17 +473,19 @@ const Reaction = memo(
             placement="top"
             backdrop="opaque"
             classNames={{
-              base: "max-w-xl rounded-2xl overflow-visible",
-              backdrop: "bg-black/70",
-              body: "px-4 pb-4 pt-2 gap-0 overflow-visible relative",
-              header: "px-4 pt-4 pb-0 border-none",
+              base: 'max-w-xl rounded-2xl overflow-visible',
+              backdrop: 'bg-black/70',
+              body: 'px-4 pb-4 pt-2 gap-0 overflow-visible relative',
+              header: 'px-4 pt-4 pb-0 border-none',
             }}
           >
             <ModalContent>
               {(onClose) => (
                 <>
                   <ModalHeader>
-                    <span className="text-base font-bold">Send Reply</span>
+                    <span className="text-base font-bold">
+                      Send Reply
+                    </span>
                   </ModalHeader>
                   <ModalBody>
                     {/* Original post preview */}
@@ -464,7 +496,9 @@ const Reaction = memo(
                             {feed.smartsiteDetails?.profilePic && (
                               <Image
                                 src={
-                                  isUrl(feed.smartsiteDetails.profilePic)
+                                  isUrl(
+                                    feed.smartsiteDetails.profilePic,
+                                  )
                                     ? feed.smartsiteDetails.profilePic
                                     : `/images/user_avator/${feed.smartsiteDetails.profilePic}@3x.png`
                                 }
@@ -481,7 +515,7 @@ const Reaction = memo(
                             <span className="text-sm font-bold text-gray-900 truncate">
                               {feed.smartsiteDetails?.name ||
                                 feed.smartsiteUserName ||
-                                "Unknown User"}
+                                'Unknown User'}
                             </span>
                             <span className="text-xs text-gray-400">
                               · {dayjs(feed.createdAt).fromNow()}
@@ -501,13 +535,13 @@ const Reaction = memo(
                         <div className="w-0.5 bg-gray-200 mt-1.5 rounded-full min-h-[32px]" />
                       </div>
                       <p className="text-xs text-gray-400">
-                        Replying to{" "}
+                        Replying to{' '}
                         <a
-                          href={`/sp/${feed?.smartsiteDetails?.ens || feed?.smartsiteUserName || "user"}`}
+                          href={`/sp/${feed?.smartsiteDetails?.ens || feed?.smartsiteUserName || 'user'}`}
                           target="_blank"
                           className="text-blue-500 font-medium"
                         >
-                          @{feed?.smartsiteDetails?.ens || "user"}
+                          @{feed?.smartsiteDetails?.ens || 'user'}
                         </a>
                       </p>
                     </div>
@@ -534,7 +568,9 @@ const Reaction = memo(
                           postId={postId}
                           accessToken={accessToken}
                           latestCommentCount={latestCommentCount}
-                          setLatestCommentCount={setLatestCommentCount}
+                          setLatestCommentCount={
+                            setLatestCommentCount
+                          }
                           onCommentSubmitted={() => {
                             onPostInteraction?.(postId, {
                               commentCount: latestCommentCount + 1,
@@ -582,5 +618,5 @@ const Reaction = memo(
     prev.replyId === next.replyId,
 );
 
-Reaction.displayName = "Reaction";
+Reaction.displayName = 'Reaction';
 export default Reaction;

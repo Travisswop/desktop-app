@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useTrading } from '@/providers/polymarket';
 import {
@@ -21,11 +22,14 @@ import {
   FALLBACK_TEAM_COLOR,
 } from '@/lib/polymarket/sports-teams';
 import type { PolymarketMarket } from '@/hooks/polymarket';
+import {
+  useMarketDetailStore,
+  marketRouteKey,
+} from '@/zustandStore/marketDetailStore';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
 import LoadingState from '../shared/LoadingState';
-import MarketDetailModal from './MarketDetailModal';
 
 // ─── Single source of truth for the A2 hairline / mono helpers ──────────────
 const HAIR = 'rgba(0,0,0,0.06)';
@@ -68,9 +72,11 @@ export default function SportsTableView({
   dateFrom,
   dateTo,
 }: SportsTableViewProps) {
-  const { isGeoblocked, safeAddress } = useTrading();
+  const { isGeoblocked, safeAddress, portfolioAddresses } = useTrading();
   const { data: teamsData } = usePolymarketTeams();
-  const { data: positions } = useUserPositions(safeAddress);
+  const { data: positions } = useUserPositions(
+    portfolioAddresses.length ? portfolioAddresses : safeAddress,
+  );
 
   const {
     data,
@@ -112,57 +118,55 @@ export default function SportsTableView({
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Order modal state — outcome clicks open MarketDetailModal with the
-  // clicked side preselected (mirrors the existing two-column layout).
-  const [detailMarket, setDetailMarket] =
-    useState<PolymarketMarket | null>(null);
-  const [detailInitialOutcome, setDetailInitialOutcome] = useState<
-    'yes' | 'no' | undefined
-  >(undefined);
-  const [detailOutcomeLabels, setDetailOutcomeLabels] = useState<
-    [string, string] | undefined
-  >(undefined);
+  // Outcome clicks navigate to the market detail page with the clicked side
+  // preselected. The market is stashed in the zustand hand-off store so the
+  // page can read it without a separate fetch.
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((s) => s.set);
 
-  const handleOutcomeClick = (
-    market: PolymarketMarket,
-    outcome: string,
-    _price: number,
-    tokenId: string,
-  ) => {
-    const tokenIds: string[] = market.clobTokenIds
-      ? JSON.parse(market.clobTokenIds)
-      : [];
-    const yesTokenId = tokenIds[0] || tokenId;
-    const isFirstOutcome = tokenId === yesTokenId;
-    setDetailInitialOutcome(isFirstOutcome ? 'yes' : 'no');
-    setDetailMarket(market);
+  const handleOutcomeClick = useCallback(
+    (
+      market: PolymarketMarket,
+      outcome: string,
+      _price: number,
+      tokenId: string,
+    ) => {
+      const tokenIds: string[] = market.clobTokenIds
+        ? JSON.parse(market.clobTokenIds)
+        : [];
+      const yesTokenId = tokenIds[0] || tokenId;
+      const isFirstOutcome = tokenId === yesTokenId;
 
-    // Spread labels carry "+1.5" / "-1.5"; derive the counterpart so the
-    // detail modal can display both sides correctly.
-    const isSpreadLine = /^[+-]\d/.test(outcome);
-    if (isSpreadLine) {
-      const other = outcome.startsWith('+')
-        ? '-' + outcome.slice(1)
-        : '+' + outcome.slice(1);
-      setDetailOutcomeLabels(
-        isFirstOutcome ? [outcome, other] : [other, outcome],
-      );
-    } else {
-      setDetailOutcomeLabels(undefined);
-    }
-  };
+      let outcomeLabels: [string, string] | undefined;
+      const isSpreadLine = /^[+-]\d/.test(outcome);
+      if (isSpreadLine) {
+        const other = outcome.startsWith('+')
+          ? '-' + outcome.slice(1)
+          : '+' + outcome.slice(1);
+        outcomeLabels = isFirstOutcome
+          ? [outcome, other]
+          : [other, outcome];
+      }
 
-  const detailMarketShares = useMemo(() => {
-    if (!detailMarket || !positions)
-      return { yesShares: 0, noShares: 0 };
-    const tIds = detailMarket.clobTokenIds
-      ? (JSON.parse(detailMarket.clobTokenIds) as string[])
-      : [];
-    return {
-      yesShares: positions.find((p) => p.asset === tIds[0])?.size || 0,
-      noShares: positions.find((p) => p.asset === tIds[1])?.size || 0,
-    };
-  }, [detailMarket, positions]);
+      const tIds = tokenIds;
+      const yesShares =
+        positions?.find((p) => p.asset === tIds[0])?.size || 0;
+      const noShares =
+        positions?.find((p) => p.asset === tIds[1])?.size || 0;
+
+      const key = marketRouteKey(market);
+      if (!key) return;
+      stashMarketDetail(key, {
+        market,
+        initialOutcome: isFirstOutcome ? 'yes' : 'no',
+        outcomeLabels,
+        yesShares,
+        noShares,
+      });
+      router.push(`/prediction/market/${encodeURIComponent(key)}`);
+    },
+    [positions, router, stashMarketDetail],
+  );
 
   // ── Render ──────────────────────────────────────────────────────────────
 
@@ -247,23 +251,6 @@ export default function SportsTableView({
         </div>
       )}
 
-      {/* Order modal */}
-      {detailMarket && (
-        <MarketDetailModal
-          isOpen={!!detailMarket}
-          onClose={() => {
-            setDetailMarket(null);
-            setDetailInitialOutcome(undefined);
-            setDetailOutcomeLabels(undefined);
-          }}
-          market={detailMarket}
-          balance={0}
-          yesShares={detailMarketShares.yesShares}
-          noShares={detailMarketShares.noShares}
-          initialOutcome={detailInitialOutcome}
-          outcomeLabels={detailOutcomeLabels}
-        />
-      )}
     </>
   );
 }
@@ -470,7 +457,7 @@ function TeamRow({
         </div>
 
         <OddsButton
-          primary={ml ? formatMoneyline(ml.price) : ''}
+          primary={formatProbabilityPct(ml?.price)}
           disabled={disabled || !ml || !mlMarket}
           onClick={() =>
             ml &&
@@ -480,7 +467,7 @@ function TeamRow({
         />
         <OddsButton
           primary={spLine}
-          sub="−110"
+          sub={formatProbabilityPct(sp?.price) || undefined}
           disabled={disabled || !sp || !spMarket}
           onClick={() =>
             sp &&
@@ -490,7 +477,7 @@ function TeamRow({
         />
         <OddsButton
           primary={totLine ?? ''}
-          sub={totLine ? '−110' : undefined}
+          sub={totLine ? formatProbabilityPct(tot?.price) || undefined : undefined}
           disabled={disabled || !tot || !totMarket}
           onClick={() =>
             tot &&
@@ -522,7 +509,7 @@ function TeamRow({
         </div>
 
         <OddsButton
-          primary={ml ? formatMoneyline(ml.price) : ''}
+          primary={formatProbabilityPct(ml?.price)}
           compact
           disabled={disabled || !ml || !mlMarket}
           onClick={() =>
@@ -533,7 +520,7 @@ function TeamRow({
         />
         <OddsButton
           primary={spLine}
-          sub="−110"
+          sub={formatProbabilityPct(sp?.price) || undefined}
           compact
           disabled={disabled || !sp || !spMarket}
           onClick={() =>
@@ -544,7 +531,7 @@ function TeamRow({
         />
         <OddsButton
           primary={totLine ?? ''}
-          sub={totLine ? '−110' : undefined}
+          sub={totLine ? formatProbabilityPct(tot?.price) || undefined : undefined}
           compact
           disabled={disabled || !tot || !totMarket}
           onClick={() =>
@@ -647,18 +634,14 @@ function OddsButton({
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-/** Convert a 0-1 probability into an American moneyline string.
- *  0.50 → "EVEN"; favourites get a leading "−"; underdogs a leading "+". */
-function formatMoneyline(price: number): string {
-  if (!price || price <= 0 || price >= 1) return '';
-  if (Math.abs(price - 0.5) < 0.005) return 'EVEN';
-  if (price > 0.5) {
-    const odds = -Math.round((price * 100) / (1 - price)) * 1;
-    // favourites: -180  (round to nearest 5 to keep the table tidy)
-    return `−${Math.abs(odds).toFixed(0)}`;
-  }
-  const odds = Math.round((100 * (1 - price)) / price);
-  return `+${odds}`;
+/** Format a 0-1 probability as a whole-percent string (e.g. 0.64 → "64%").
+ *  Polymarket prices both sides of every market as probabilities, so this is
+ *  the honest unit to show — sportsbook-style American odds and a hardcoded
+ *  −110 vig don't apply here. */
+function formatProbabilityPct(price: number | undefined): string {
+  if (price == null || !Number.isFinite(price) || price <= 0 || price >= 1)
+    return '';
+  return `${Math.round(price * 100)}%`;
 }
 
 /** Extract just the ±line from a spread label.
