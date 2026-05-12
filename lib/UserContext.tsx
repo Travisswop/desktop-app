@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   createContext,
@@ -8,10 +8,10 @@ import {
   useCallback,
   useMemo,
   useRef,
-} from 'react';
-import { useRouter } from 'next/navigation';
-import { usePrivy } from '@privy-io/react-auth';
-import Cookies from 'js-cookie';
+} from "react";
+import { useRouter } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
+import Cookies from "js-cookie";
 export interface UserData {
   _id: string;
   address?: string;
@@ -40,20 +40,20 @@ export interface UserData {
 
   // Bot-related fields
   isBot?: boolean;
-  botType?: 'crypto' | 'ai' | 'trading' | 'defi' | 'nft' | 'custom';
+  botType?: "crypto" | "ai" | "trading" | "defi" | "nft" | "custom";
   botCapabilities?: Array<
-    | 'price_check'
-    | 'swap_tokens'
-    | 'send_crypto'
-    | 'check_balance'
-    | 'transaction_history'
-    | 'portfolio_analysis'
-    | 'defi_yields'
-    | 'nft_floor_prices'
-    | 'market_analysis'
-    | 'trading_signals'
-    | 'gas_tracker'
-    | 'bridge_tokens'
+    | "price_check"
+    | "swap_tokens"
+    | "send_crypto"
+    | "check_balance"
+    | "transaction_history"
+    | "portfolio_analysis"
+    | "defi_yields"
+    | "nft_floor_prices"
+    | "market_analysis"
+    | "trading_signals"
+    | "gas_tracker"
+    | "bridge_tokens"
   >;
   botMetadata?: {
     version?: string;
@@ -86,10 +86,10 @@ export interface UserData {
   // Social features
   reputation?: number;
   verificationStatus?:
-    | 'unverified'
-    | 'email_verified'
-    | 'wallet_verified'
-    | 'kyc_verified';
+    | "unverified"
+    | "email_verified"
+    | "wallet_verified"
+    | "kyc_verified";
 }
 
 export interface UserContextType {
@@ -101,17 +101,14 @@ export interface UserContextType {
   refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  primaryMicrositeProfilePic: string | null;
 }
 
 const UserContext = createContext<UserContextType | null>(null);
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export function UserProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,23 +127,18 @@ export function UserProvider({
   const lastFetchedEmailRef = useRef<string | null>(null);
 
   // Extract email from Privy user
-  const extractEmail = useCallback(
-    (privyUser: any): string | null => {
-      if (!privyUser) return null;
-      return (
-        privyUser.google?.email ||
-        privyUser.email?.address ||
-        privyUser.linkedAccounts?.find(
-          (acc: any) => acc.type === 'email',
-        )?.address ||
-        privyUser.linkedAccounts?.find(
-          (acc: any) => acc.type === 'google_oauth',
-        )?.email ||
-        null
-      );
-    },
-    [],
-  );
+  const extractEmail = useCallback((privyUser: any): string | null => {
+    if (!privyUser) return null;
+    return (
+      privyUser.google?.email ||
+      privyUser.email?.address ||
+      privyUser.linkedAccounts?.find((acc: any) => acc.type === "email")
+        ?.address ||
+      privyUser.linkedAccounts?.find((acc: any) => acc.type === "google_oauth")
+        ?.email ||
+      null
+    );
+  }, []);
 
   // Fetch user data from backend
   const fetchUserData = useCallback(
@@ -164,7 +156,7 @@ export function UserProvider({
         const response = await fetch(
           `${API_BASE_URL}/api/v2/desktop/user/${email}`,
           {
-            headers: { 'Content-Type': 'application/json' },
+            headers: { "Content-Type": "application/json" },
             signal: abortControllerRef.current.signal,
           },
         );
@@ -182,7 +174,7 @@ export function UserProvider({
         const { user: userData, token } = data;
 
         if (!userData || !token) {
-          throw new Error('Invalid response structure');
+          throw new Error("Invalid response structure");
         }
 
         setUser(userData);
@@ -192,13 +184,11 @@ export function UserProvider({
 
         return true;
       } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
+        if (err instanceof Error && err.name === "AbortError") {
           return false;
         }
-        console.error('Error fetching user data:', err);
-        setError(
-          err instanceof Error ? err : new Error('Unknown error'),
-        );
+        console.error("Error fetching user data:", err);
+        setError(err instanceof Error ? err : new Error("Unknown error"));
         return false;
       } finally {
         fetchInProgressRef.current = false;
@@ -217,14 +207,14 @@ export function UserProvider({
       setError(null);
       lastFetchedEmailRef.current = null;
       await privyLogout();
-      router.push('/login');
-      Cookies.remove('user-id');
-      Cookies.remove('access-token');
+      router.push("/login");
+      Cookies.remove("user-id");
+      Cookies.remove("access-token");
     } catch (err) {
-      console.error('Error during logout:', err);
-      Cookies.remove('user-id');
-      Cookies.remove('access-token');
-      router.push('/login');
+      console.error("Error during logout:", err);
+      Cookies.remove("user-id");
+      Cookies.remove("access-token");
+      router.push("/login");
     }
   }, [privyLogout, router]);
 
@@ -264,14 +254,7 @@ export function UserProvider({
     } else {
       setLoading(false);
     }
-  }, [
-    ready,
-    authenticated,
-    privyUser,
-    extractEmail,
-    fetchUserData,
-    user,
-  ]);
+  }, [ready, authenticated, privyUser, extractEmail, fetchUserData, user]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -279,6 +262,11 @@ export function UserProvider({
       abortControllerRef.current?.abort();
     };
   }, []);
+
+  const primaryMicrositeData = useMemo(
+    () => user?.microsites?.find((m) => m.primary === true) ?? null,
+    [user?.microsites],
+  );
 
   const contextValue = useMemo(
     () => ({
@@ -290,6 +278,7 @@ export function UserProvider({
       logout: handleLogout,
       isAuthenticated: authenticated && !!user,
       primaryMicrosite: user?.primaryMicrosite,
+      primaryMicrositeProfilePic: primaryMicrositeData?.profilePic ?? null,
     }),
     [
       user,
@@ -299,20 +288,19 @@ export function UserProvider({
       refreshUser,
       handleLogout,
       authenticated,
+      primaryMicrositeData,
     ],
   );
 
   return (
-    <UserContext.Provider value={contextValue}>
-      {children}
-    </UserContext.Provider>
+    <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>
   );
 }
 
 export const useUser = () => {
   const context = useContext(UserContext);
   if (!context) {
-    throw new Error('useUser must be used within a UserProvider');
+    throw new Error("useUser must be used within a UserProvider");
   }
   return context;
 };
