@@ -4,8 +4,12 @@ import { usePrivy, useSigners } from '@privy-io/react-auth';
 import { useTrading } from '@/providers/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
-import { usePolygonBalances } from './usePolygonBalances';
+import { getDepositWalletAddress } from '@/lib/polymarket/backend-session';
+import {
+  CTF_CONTRACT_ADDRESS,
+  POLYMARKET_BACKEND_URL,
+  USDC_E_DECIMALS,
+} from '@/constants/polymarket';
 
 const CLOB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_ORDER_MIN_TICK_SIZE: "Price doesn't match this market's tick size. Adjust your price and try again.",
@@ -54,6 +58,18 @@ const delegatedPolicyIds = (process.env.NEXT_PUBLIC_PRIVY_DELEGATED_POLICY_IDS |
   .map((id) => id.trim())
   .filter(Boolean);
 const DEBUG_ORDER_SIGNING = true;
+const ERC1155_BALANCE_OF_ABI = [
+  {
+    type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'account', type: 'address' },
+      { name: 'id', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
 
 function logOrderDebug(label: string, data: Record<string, any>) {
   if (!DEBUG_ORDER_SIGNING) return;
@@ -375,16 +391,11 @@ export function useClobOrder(
   const {
     tradingSession,
     safeAddress,
-    legacySafeAddress,
     eoaAddress,
     walletType,
     depositWalletAddress,
   } = useTrading();
-  const { usdcBalance: activeWalletBalance } =
-    usePolygonBalances(safeAddress);
-  const { usdcBalance: legacySafeBalance } =
-    usePolygonBalances(legacySafeAddress);
-  const { walletClient } = usePolymarketWallet();
+  const { publicClient, walletClient } = usePolymarketWallet();
   const { accessToken } = useUser();
   const { addSigners } = useSigners();
   const { user: privyUser } = usePrivy();
@@ -404,6 +415,32 @@ export function useClobOrder(
       });
     },
     [privyUser],
+  );
+
+  const readOutcomeTokenBalance = useCallback(
+    async (walletAddress: string | undefined, tokenId: string) => {
+      if (!walletAddress || !publicClient) return 0;
+      try {
+        const raw = await publicClient.readContract({
+          address: CTF_CONTRACT_ADDRESS,
+          abi: ERC1155_BALANCE_OF_ABI,
+          functionName: 'balanceOf',
+          args: [
+            walletAddress as `0x${string}`,
+            BigInt(tokenId),
+          ],
+        });
+        return Number(raw) / 10 ** USDC_E_DECIMALS;
+      } catch (error) {
+        logOrderError('failed to read outcome token balance', {
+          walletAddress,
+          tokenId,
+          error,
+        });
+        return 0;
+      }
+    },
+    [publicClient],
   );
 
   const ensureDelegatedSigner = useCallback(
@@ -558,6 +595,17 @@ export function useClobOrder(
       if (!tradingSession?.apiCredentials || !safeAddress || !eoaAddress || !walletClient || !accessToken) {
         throw new Error('Trading session not ready');
       }
+      if (
+        walletType === 'deposit' &&
+        tradingSession.apiCredentialsAddress?.toLowerCase() !==
+          eoaAddress.toLowerCase()
+      ) {
+        // CLOB API credentials are EOA-owned; POLY_1271 routes the order
+        // maker/signer through the deposit wallet.
+        throw new Error(
+          'Trading session needs to be refreshed before placing orders.',
+        );
+      }
 
       setIsSubmitting(true);
       setError(null);
@@ -567,26 +615,34 @@ export function useClobOrder(
         const orderType = params.isMarketOrder
           ? (params.fillType === 'FAK' ? 'FAK' : 'FOK')
           : (params.expiration ? 'GTD' : 'GTC');
-        const shouldUseLegacySafeForBuy =
-          walletType === 'deposit' &&
-          params.side === 'BUY' &&
-          !!legacySafeAddress &&
-          legacySafeAddress.toLowerCase() !== safeAddress.toLowerCase() &&
-          activeWalletBalance + 0.000001 < params.size &&
-          legacySafeBalance + 0.000001 >= params.size;
-        const orderWalletType = shouldUseLegacySafeForBuy ? 'safe' : walletType;
-        const orderSafeAddress = shouldUseLegacySafeForBuy
-          ? legacySafeAddress
-          : safeAddress;
-        const orderDepositWalletAddress = shouldUseLegacySafeForBuy
-          ? undefined
-          : depositWalletAddress;
+        const canonicalDepositWallet = walletType === 'deposit'
+          ? (await getDepositWalletAddress(eoaAddress, accessToken)).depositWalletAddress
+          : undefined;
+        const orderWalletAddress =
+          walletType === 'deposit'
+            ? canonicalDepositWallet
+            : safeAddress;
+        const activeOutcomeBalance =
+          params.side === 'SELL'
+            ? await readOutcomeTokenBalance(orderWalletAddress, params.tokenId)
+            : undefined;
+        const availableSellBalance = activeOutcomeBalance ?? 0;
+
+        if (
+          params.side === 'SELL' &&
+          availableSellBalance + 0.000001 < params.size
+        ) {
+          throw new Error(
+            `Insufficient shares to sell. You have ${availableSellBalance.toFixed(6)} shares in the selected wallet, but tried to sell ${params.size.toFixed(6)}.`,
+          );
+        }
 
         // Step 1: Prepare order (backend builds EIP-712 typed data)
         const authHeaders = {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         };
+
         const prepareBody = {
           tokenId: params.tokenId,
           conditionId: params.conditionId,
@@ -596,9 +652,11 @@ export function useClobOrder(
           price: params.price,
           expiration: params.expiration,
           negRisk: params.negRisk,
-          safeAddress: orderSafeAddress,
-          depositWalletAddress: orderDepositWalletAddress,
-          walletType: orderWalletType,
+          safeAddress: orderWalletAddress,
+          depositWalletAddress: walletType === 'deposit'
+            ? orderWalletAddress
+            : undefined,
+          walletType,
           eoaAddress,
           apiCreds: tradingSession.apiCredentials,
         };
@@ -614,11 +672,17 @@ export function useClobOrder(
           negRisk: prepareBody.negRisk,
           safeAddress: prepareBody.safeAddress,
           depositWalletAddress: prepareBody.depositWalletAddress,
+          sessionSafeAddress: safeAddress,
+          sessionDepositWalletAddress: depositWalletAddress,
+          canonicalDepositWallet,
           walletType: prepareBody.walletType,
-          routedToLegacySafe: shouldUseLegacySafeForBuy,
-          activeWalletBalance,
-          legacySafeBalance,
+          apiKeyOwnerAddress: eoaAddress,
+          orderFunderAddress: orderWalletAddress,
+          activeOutcomeBalance,
+          availableSellBalance:
+            params.side === 'SELL' ? availableSellBalance : undefined,
           eoaAddress: prepareBody.eoaAddress,
+          apiCredentialsAddress: tradingSession.apiCredentialsAddress,
           hasApiCreds: !!prepareBody.apiCreds,
         });
 
@@ -655,6 +719,11 @@ export function useClobOrder(
 
         if (!submitRes.ok) {
           const err = await submitRes.json().catch(() => ({}));
+          logOrderError('submit failed', {
+            status: submitRes.status,
+            error: err,
+            orderMeta,
+          });
           throw new Error(err.error || 'Failed to submit order');
         }
 
@@ -676,7 +745,6 @@ export function useClobOrder(
     [
       tradingSession,
       safeAddress,
-      legacySafeAddress,
       eoaAddress,
       walletClient,
       signOrderTypedData,
@@ -684,8 +752,7 @@ export function useClobOrder(
       queryClient,
       walletType,
       depositWalletAddress,
-      activeWalletBalance,
-      legacySafeBalance,
+      readOutcomeTokenBalance,
     ],
   );
 

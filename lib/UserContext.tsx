@@ -106,15 +106,70 @@ export interface UserContextType {
 const UserContext = createContext<UserContextType | null>(null);
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const USER_CACHE_KEY = 'swop:user-cache';
+const USER_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+type CachedUserContext = {
+  user: UserData;
+  accessToken: string | null;
+  cachedAt: number;
+};
+
+function readCachedUserContext(): CachedUserContext | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const rawCache = window.localStorage.getItem(USER_CACHE_KEY);
+    if (!rawCache) return null;
+
+    const cache = JSON.parse(rawCache) as CachedUserContext;
+    if (!cache.user || Date.now() - cache.cachedAt > USER_CACHE_MAX_AGE_MS) {
+      window.localStorage.removeItem(USER_CACHE_KEY);
+      return null;
+    }
+
+    return cache;
+  } catch (error) {
+    console.warn('Failed to read cached user context:', error);
+    window.localStorage.removeItem(USER_CACHE_KEY);
+    return null;
+  }
+}
+
+function writeCachedUserContext(user: UserData, accessToken: string | null) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(
+      USER_CACHE_KEY,
+      JSON.stringify({ user, accessToken, cachedAt: Date.now() }),
+    );
+  } catch (error) {
+    console.warn('Failed to cache user context:', error);
+  }
+}
 
 export function UserProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [user, setUser] = useState<UserData | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const initialCacheRef = useRef<CachedUserContext | null | undefined>(
+    undefined,
+  );
+  if (initialCacheRef.current === undefined) {
+    initialCacheRef.current = readCachedUserContext();
+  }
+
+  const [user, setUser] = useState<UserData | null>(
+    () => initialCacheRef.current?.user ?? null,
+  );
+  const [accessToken, setAccessToken] = useState<string | null>(
+    () => initialCacheRef.current?.accessToken ?? null,
+  );
+  const [loading, setLoading] = useState(
+    () => initialCacheRef.current === null,
+  );
   const [error, setError] = useState<Error | null>(null);
 
   const router = useRouter();
@@ -189,6 +244,7 @@ export function UserProvider({
         setAccessToken(token);
         setError(null);
         lastFetchedEmailRef.current = email;
+        writeCachedUserContext(userData, token);
 
         return true;
       } catch (err) {
@@ -215,6 +271,8 @@ export function UserProvider({
       setUser(null);
       setAccessToken(null);
       setError(null);
+      window.localStorage.removeItem(USER_CACHE_KEY);
+      window.localStorage.removeItem('swop:last-authenticated-at');
       lastFetchedEmailRef.current = null;
       await privyLogout();
       router.push('/login');
@@ -240,7 +298,7 @@ export function UserProvider({
   // Main effect - only fetch user data when authenticated
   useEffect(() => {
     if (!ready) {
-      setLoading(true);
+      setLoading(!user);
       return;
     }
 

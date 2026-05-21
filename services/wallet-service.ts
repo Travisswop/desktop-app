@@ -43,7 +43,7 @@ export interface WalletTokensResponse {
 
 export interface WalletInput {
   address: string;
-  chain: 'ethereum' | 'polygon' | 'base' | 'solana';
+  chain: 'ethereum' | 'polygon' | 'base' | 'solana' | 'arbitrum';
 }
 
 export class WalletService {

@@ -538,7 +538,7 @@ function DepositTab({
           data,
           chainId: polygon.id,
         },
-        { sponsor: true },
+        { sponsor: false },
       );
       return result.hash;
     } catch (sponsorErr: any) {
@@ -617,7 +617,7 @@ function DepositTab({
               data: approveData,
               chainId: sourceChainId,
             },
-            { sponsor: true },
+            { sponsor: false },
           );
           approvalHash = r.hash;
         } catch {
@@ -650,7 +650,7 @@ function DepositTab({
           value: txValue,
           chainId: sourceChainId,
         },
-        { sponsor: true },
+        { sponsor: false },
       );
       hash = r.hash;
     } catch (sponsorErr: any) {
@@ -1411,7 +1411,6 @@ function DepositTab({
 
 // ─── Withdraw Tab ─────────────────────────────────────────────────────────────
 
-
 function WithdrawTab({
   open,
   onClose,
@@ -1442,7 +1441,8 @@ function WithdrawTab({
   const activeBalance = usdcBalance;
   const activeAddress = USDC_E_CONTRACT_ADDRESS;
   const activeLabel = 'pUSD';
-  const walletLabel = walletType === 'deposit' ? 'Deposit wallet' : 'Safe wallet';
+  const walletLabel =
+    walletType === 'deposit' ? 'Deposit wallet' : 'Safe wallet';
 
   const parsedAmount = parseFloat(amount) || 0;
   const isAmountValid =
@@ -1499,26 +1499,33 @@ function WithdrawTab({
       const signature =
         walletType === 'deposit'
           ? await walletClient!.signTypedData({
-            account: eoaAddress as `0x${string}`,
-            domain: typedData.typedData!.domain as Parameters<typeof walletClient.signTypedData>[0]['domain'],
-            types: typedData.typedData!.types as Parameters<typeof walletClient.signTypedData>[0]['types'],
-            primaryType: typedData.typedData!.primaryType ?? 'Batch',
-            message: {
-              ...typedData.typedData!.message,
-              nonce: BigInt(typedData.nonce),
-              deadline: BigInt(typedData.deadline!),
-              calls: typedData.calls!.map((call) => ({
-                ...call,
-                value: BigInt(call.value),
-              })),
-            } as Parameters<typeof walletClient.signTypedData>[0]['message'],
-          })
+              account: eoaAddress as `0x${string}`,
+              domain: typedData.typedData!.domain as Parameters<
+                typeof walletClient.signTypedData
+              >[0]['domain'],
+              types: typedData.typedData!.types as Parameters<
+                typeof walletClient.signTypedData
+              >[0]['types'],
+              primaryType:
+                typedData.typedData!.primaryType ?? 'Batch',
+              message: {
+                ...typedData.typedData!.message,
+                nonce: BigInt(typedData.nonce),
+                deadline: BigInt(typedData.deadline!),
+                calls: typedData.calls!.map((call) => ({
+                  ...call,
+                  value: BigInt(call.value),
+                })),
+              } as Parameters<
+                typeof walletClient.signTypedData
+              >[0]['message'],
+            })
           : await walletClient!.signMessage({
-            account: eoaAddress as `0x${string}`,
-            message: {
-              raw: hexToBytes(typedData.txHash as `0x${string}`),
-            },
-          });
+              account: eoaAddress as `0x${string}`,
+              message: {
+                raw: hexToBytes(typedData.txHash as `0x${string}`),
+              },
+            });
 
       const result = await submitWithdraw(
         {
@@ -1683,7 +1690,9 @@ function WithdrawTab({
               <span className="text-gray-500">{label}</span>
               <span
                 className={`font-semibold text-xs ${
-                  label === 'Gas fee' ? 'text-green-600' : 'text-gray-900'
+                  label === 'Gas fee'
+                    ? 'text-green-600'
+                    : 'text-gray-900'
                 }`}
               >
                 {value}

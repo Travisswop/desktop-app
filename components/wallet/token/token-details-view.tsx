@@ -63,6 +63,9 @@ const CHAIN_TAGS: Record<string, string> = {
   SOLANA: 'SPL',
 };
 
+const normalizeChain = (chain: string): ChainType =>
+  chain.toUpperCase() as ChainType;
+
 // SOL-style gradient avatars per chain — matches the G5 reference look.
 const TOKEN_AVATAR_BG: Record<string, string> = {
   SOLANA: 'linear-gradient(135deg,#9945FF,#14F195)',
@@ -331,9 +334,13 @@ export default function TokenDetails({
   );
 
   // Pull this chain's transactions and filter to this token only.
-  const txChainList = useMemo<ChainType[]>(
-    () => [token.chain],
+  const tokenChain = useMemo(
+    () => normalizeChain(token.chain),
     [token.chain],
+  );
+  const txChainList = useMemo<ChainType[]>(
+    () => [tokenChain],
+    [tokenChain],
   );
   const {
     transactions: rawTransactions,
@@ -350,21 +357,35 @@ export default function TokenDetails({
     if (!rawTransactions) return [] as Transaction[];
     const sym = token.symbol?.toUpperCase();
     const addr = token.address?.toLowerCase();
+
+    const symbolMatches = (symbol?: string) =>
+      !!sym && !!symbol && sym === symbol.toUpperCase();
+    const addressMatches = (contractAddress?: string) =>
+      !!addr &&
+      !!contractAddress &&
+      contractAddress.toLowerCase() === addr;
+    const swapMatches = (tx: Transaction) => {
+      if (!tx.swapped) return false;
+      return (
+        addressMatches(tx.swapped.from.contractAddress) ||
+        addressMatches(tx.swapped.to.contractAddress) ||
+        (!addr &&
+          (symbolMatches(tx.swapped.from.symbol) ||
+            symbolMatches(tx.swapped.to.symbol)))
+      );
+    };
+
     return rawTransactions.filter((tx) => {
-      const txSym = tx.tokenSymbol?.toUpperCase();
-      if (sym && txSym && sym === txSym) return true;
-      if (
-        addr &&
-        tx.contractAddress &&
-        tx.contractAddress.toLowerCase() === addr
-      ) {
-        return true;
-      }
+      if (swapMatches(tx)) return true;
+      if (addressMatches(tx.contractAddress)) return true;
+
       // Native tokens: tx has no contractAddress and matches the symbol.
       if (!addr && (!tx.contractAddress || tx.contractAddress === '')) {
-        return sym === txSym;
+        return symbolMatches(tx.tokenSymbol);
       }
-      return false;
+
+      // Last-resort fallback for APIs that omit token contract metadata.
+      return !addr && symbolMatches(tx.tokenSymbol);
     });
   }, [rawTransactions, token.symbol, token.address]);
 
@@ -1013,8 +1034,43 @@ export default function TokenDetails({
                   ? 'Receive'
                   : 'Send';
 
-                const valueNum = parseFloat(tx.value || '0');
-                const sign = isIn && !isSwap ? '+' : isSwap ? '' : '−';
+                const selectedSymbol = token.symbol?.toUpperCase();
+                const selectedAddress = token.address?.toLowerCase();
+                const swapFromMatches =
+                  isSwap &&
+                  tx.swapped?.from &&
+                  ((selectedAddress &&
+                    tx.swapped.from.contractAddress?.toLowerCase() ===
+                      selectedAddress) ||
+                    (!selectedAddress &&
+                      tx.swapped.from.symbol?.toUpperCase() ===
+                        selectedSymbol));
+                const swapToMatches =
+                  isSwap &&
+                  tx.swapped?.to &&
+                  ((selectedAddress &&
+                    tx.swapped.to.contractAddress?.toLowerCase() ===
+                      selectedAddress) ||
+                    (!selectedAddress &&
+                      tx.swapped.to.symbol?.toUpperCase() ===
+                        selectedSymbol));
+                const swapLeg = swapFromMatches
+                  ? tx.swapped?.from
+                  : swapToMatches
+                  ? tx.swapped?.to
+                  : undefined;
+
+                const valueNum = parseFloat(
+                  swapLeg?.value || tx.value || '0',
+                );
+                const sign =
+                  isSwap && swapFromMatches
+                    ? '−'
+                    : isSwap && swapToMatches
+                    ? '+'
+                    : isIn
+                    ? '+'
+                    : '−';
                 const amtLabel = `${sign}${
                   Number.isFinite(valueNum)
                     ? valueNum.toLocaleString('en-US', {
@@ -1022,7 +1078,7 @@ export default function TokenDetails({
                         maximumFractionDigits: 4,
                       })
                     : '0'
-                } ${tx.tokenSymbol || token.symbol}`;
+                } ${swapLeg?.symbol || tx.tokenSymbol || token.symbol}`;
 
                 const usdNum =
                   Number.isFinite(valueNum) && tx.tokenPrice
@@ -1036,8 +1092,10 @@ export default function TokenDetails({
                     : '';
 
                 const counterparty = isSwap
-                  ? tx.swapped?.to?.symbol
+                  ? swapFromMatches && tx.swapped?.to?.symbol
                     ? `→ ${tx.swapped.to.symbol}`
+                    : swapToMatches && tx.swapped?.from?.symbol
+                    ? `← ${tx.swapped.from.symbol}`
                     : 'swap'
                   : isIn
                   ? truncateAddr(tx.from)

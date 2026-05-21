@@ -56,7 +56,6 @@ import {
 
 import HighVolumeMarkets from './Markets';
 import SportsTableView from './Markets/SportsTableView';
-import PositionCard from './Positions/PositionCard';
 import OrderCard from './Orders/OrderCard';
 import BrowseMarketsBento from './BrowseMarketsBento';
 
@@ -86,6 +85,19 @@ const SURFACE2 = '#fafafa';
 const MUTED = '#6e6e76';
 const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
+const CTF_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
+const ERC1155_BALANCE_OF_ABI = [
+  {
+    type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'account', type: 'address' },
+      { name: 'id', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
 
 interface PredictionsPanelProps {
   initialView?: PredictionsPanelView;
@@ -120,8 +132,14 @@ export default function PredictionsPanel({
     setView(initialView);
   }, [initialView]);
 
-  const { eoaAddress } = usePolymarketWallet();
-  const { clobClient, safeAddress, portfolioAddresses } = useTrading();
+  const { eoaAddress, publicClient } = usePolymarketWallet();
+  const {
+    clobClient,
+    safeAddress,
+    depositWalletAddress,
+    portfolioAddresses,
+    walletType,
+  } = useTrading();
   const queryClient = useQueryClient();
 
   const { data: positions } = useUserPositions(portfolioAddresses);
@@ -150,6 +168,14 @@ export default function PredictionsPanel({
   const [pendingVerification, setPendingVerification] = useState<
     Map<string, number>
   >(new Map());
+  const [onchainPositionBalances, setOnchainPositionBalances] =
+    useState<Map<string, number>>(new Map());
+
+  const positionBalanceKey = useCallback(
+    (position: PolymarketPosition) =>
+      `${(position.proxyWallet || '').toLowerCase()}:${position.asset}`,
+    [],
+  );
 
   // Markets drill-down — null = bento overview; otherwise the panel renders
   // a category detail view (matches wireframe screen A2).
@@ -170,12 +196,21 @@ export default function PredictionsPanel({
       const tIds = market.clobTokenIds
         ? (JSON.parse(market.clobTokenIds) as string[])
         : [];
+      const positionSize = (asset: string | undefined) => {
+        if (!asset) return 0;
+        const position = positions.find((p) => p.asset === asset);
+        if (!position) return 0;
+        return (
+          onchainPositionBalances.get(positionBalanceKey(position)) ??
+          position.size
+        );
+      };
       return {
-        yesShares: positions.find((p) => p.asset === tIds[0])?.size || 0,
-        noShares: positions.find((p) => p.asset === tIds[1])?.size || 0,
+        yesShares: positionSize(tIds[0]),
+        noShares: positionSize(tIds[1]),
       };
     },
-    [positions],
+    [onchainPositionBalances, positionBalanceKey, positions],
   );
 
   const navigateToMarket = useCallback(
@@ -251,14 +286,71 @@ export default function PredictionsPanel({
       setPendingVerification(stillPending);
   }, [positions, pendingVerification]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOnchainPositionBalances() {
+      if (!positions || positions.length === 0) {
+        setOnchainPositionBalances(new Map());
+        return;
+      }
+
+      const balanceEntries = await Promise.all(
+        positions.map(async (position) => {
+          const walletAddress = position.proxyWallet;
+          const key = positionBalanceKey(position);
+          if (!walletAddress) return [key, position.size] as const;
+
+          try {
+            const raw = await publicClient.readContract({
+              address: CTF_ADDRESS,
+              abi: ERC1155_BALANCE_OF_ABI,
+              functionName: 'balanceOf',
+              args: [
+                walletAddress as `0x${string}`,
+                BigInt(position.asset),
+              ],
+            });
+            return [key, Number(raw) / 10 ** USDC_E_DECIMALS] as const;
+          } catch (error) {
+            console.warn(
+              '[PredictionsPanel] Failed to read on-chain position balance',
+              {
+                walletAddress,
+                asset: position.asset,
+                error,
+              },
+            );
+            return [key, position.size] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setOnchainPositionBalances(new Map(balanceEntries));
+      }
+    }
+
+    loadOnchainPositionBalances();
+    return () => {
+      cancelled = true;
+    };
+  }, [positionBalanceKey, positions, publicClient]);
+
   const activePositions = useMemo(() => {
     if (!positions) return [];
     return positions
+      .map((p) => {
+        const onchainSize = onchainPositionBalances.get(
+          positionBalanceKey(p),
+        );
+        return onchainSize == null ? p : { ...p, size: onchainSize };
+      })
       .filter((p) => p.size >= DUST_THRESHOLD)
       .filter(
         (p) => p.redeemable || p.currentValue >= DUST_THRESHOLD,
       );
-  }, [positions]);
+  }, [onchainPositionBalances, positionBalanceKey, positions]);
 
   const actionablePositions = useMemo(
     () => activePositions.filter((p) => !p.redeemable),
@@ -345,19 +437,148 @@ export default function PredictionsPanel({
       if (!clobClient || !safeAddress) return;
       const redeemValue = getRedeemablePayout(position);
       if (redeemValue <= 0) return;
+      const positionWallet = position.proxyWallet || safeAddress;
+      const isCurrentDepositWallet =
+        walletType === 'deposit' &&
+        depositWalletAddress &&
+        positionWallet.toLowerCase() ===
+          depositWalletAddress.toLowerCase();
+      const redeemWalletType = isCurrentDepositWallet
+        ? 'deposit'
+        : 'safe';
       setRedeemingAsset(position.asset);
       try {
+        const balanceAddressCandidates: Array<{
+          label: string;
+          address?: string;
+        }> = [
+          {
+            label: 'position.proxyWallet',
+            address: position.proxyWallet,
+          },
+          {
+            label: 'resolved redeem wallet',
+            address: positionWallet,
+          },
+          { label: 'current safeAddress', address: safeAddress },
+          {
+            label: 'depositWalletAddress',
+            address: depositWalletAddress,
+          },
+          ...portfolioAddresses.map((address, index) => ({
+            label: `portfolioAddresses[${index}]`,
+            address,
+          })),
+        ];
+        const uniqueBalanceAddresses = Array.from(
+          new Map(
+            balanceAddressCandidates
+              .filter(
+                (
+                  entry,
+                ): entry is { label: string; address: string } =>
+                  Boolean(entry.address),
+              )
+              .map((entry) => [entry.address.toLowerCase(), entry]),
+          ).values(),
+        );
+        const balanceDebug = await Promise.all(
+          uniqueBalanceAddresses.map(async ({ label, address }) => {
+            try {
+              const raw = await publicClient.readContract({
+                address: CTF_ADDRESS,
+                abi: ERC1155_BALANCE_OF_ABI,
+                functionName: 'balanceOf',
+                args: [
+                  address as `0x${string}`,
+                  BigInt(position.asset),
+                ],
+              });
+              return {
+                label,
+                address,
+                raw: raw.toString(),
+                shares: Number(raw) / 1e6,
+              };
+            } catch (error) {
+              return {
+                label,
+                address,
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : String(error),
+              };
+            }
+          }),
+        );
+        const resolvedWalletBalance = balanceDebug.find(
+          (entry) =>
+            entry.address.toLowerCase() ===
+            positionWallet.toLowerCase(),
+        );
+
+        console.log('[PredictionsPanel Redeem] preflight', {
+          session: {
+            walletType,
+            safeAddress,
+            depositWalletAddress,
+            portfolioAddresses,
+          },
+          resolved: {
+            positionWallet,
+            redeemWalletType,
+            redeemDepositWalletAddress: isCurrentDepositWallet
+              ? depositWalletAddress
+              : undefined,
+          },
+          position: {
+            proxyWallet: position.proxyWallet,
+            conditionId: position.conditionId,
+            asset: position.asset,
+            outcome: position.outcome,
+            outcomeIndex: position.outcomeIndex,
+            oppositeAsset: position.oppositeAsset,
+            negativeRisk: position.negativeRisk,
+            size: position.size,
+            redeemable: position.redeemable,
+            redeemValue,
+            currentValue: position.currentValue,
+            cashPnl: position.cashPnl,
+          },
+          balanceOfAsset: balanceDebug,
+        });
+        if (
+          resolvedWalletBalance &&
+          'raw' in resolvedWalletBalance &&
+          resolvedWalletBalance.raw === '0'
+        ) {
+          console.warn(
+            '[PredictionsPanel Redeem] resolved wallet has zero ERC-1155 balance for this asset',
+            {
+              resolvedWalletBalance,
+              allCheckedBalances: balanceDebug,
+              asset: position.asset,
+              conditionId: position.conditionId,
+            },
+          );
+        }
+
         await redeemPosition({
           conditionId: position.conditionId,
           asset: position.asset,
           outcomeIndex: position.outcomeIndex,
           negativeRisk: position.negativeRisk,
           size: position.size,
-          safeAddress,
+          safeAddress: positionWallet,
+          depositWalletAddress: isCurrentDepositWallet
+            ? depositWalletAddress
+            : undefined,
+          walletType: redeemWalletType,
         });
 
         queryClient.setQueryData<bigint>(
-          ['pusdBalance', safeAddress],
+          ['pusdBalance', positionWallet],
           (prev) => {
             if (prev === undefined) return prev;
             const addedUnits = BigInt(
@@ -394,7 +615,16 @@ export default function PredictionsPanel({
         setRedeemingAsset(null);
       }
     },
-    [clobClient, safeAddress, redeemPosition, queryClient],
+    [
+      clobClient,
+      safeAddress,
+      depositWalletAddress,
+      portfolioAddresses,
+      walletType,
+      publicClient,
+      redeemPosition,
+      queryClient,
+    ],
   );
 
   const handleCancelOrder = useCallback(
@@ -524,7 +754,6 @@ export default function PredictionsPanel({
                 )}
                 onRedeem={handleRedeem}
                 onSell={handleMarketSell}
-                onBuyMore={navigateToPosition}
                 onTitleClick={navigateToPosition}
                 sellingAsset={sellingAsset}
                 redeemingAsset={redeemingAsset}
@@ -535,18 +764,26 @@ export default function PredictionsPanel({
             )}
 
             {view === 'history' && portfolioAddresses.length > 0 && (
-              <BetHistoryView safeAddress={portfolioAddresses} />
-            )}
-            {view === 'history' && portfolioAddresses.length === 0 && (
-              <BentoEmpty
-                title="No history yet"
-                message="Your settled bets and order fills will appear here."
+              <BetHistoryView
+                safeAddress={portfolioAddresses}
+                onMarketClick={(trade) =>
+                  navigateToMarket(tradeToDetailMarket(trade), {
+                    initialOutcome:
+                      trade.outcomeIndex === 0 ? 'yes' : 'no',
+                  })
+                }
               />
             )}
+            {view === 'history' &&
+              portfolioAddresses.length === 0 && (
+                <BentoEmpty
+                  title="No history yet"
+                  message="Your settled bets and order fills will appear here."
+                />
+              )}
           </div>
         </div>
       </div>
-
     </>
   );
 }
@@ -704,14 +941,73 @@ function OpenOrdersView({
   );
 }
 
-// ── My bets — A5-style page header for active picks ────────────────
+// ── My bets — A5-style table mirroring BetHistoryView ─────────────
+
+type BetStatusKey = 'live' | 'redeemable' | 'settled';
+type BetStatusFilter = BetStatusKey | 'all';
+
+interface BetRow {
+  position: PolymarketPosition;
+  statusKey: BetStatusKey;
+  statusLabel: string;
+  side: 'YES' | 'NO';
+  staked: number;
+  value: number;
+  pnl: number;
+  pnlPct: number;
+  isClaimable: boolean;
+  redeemValue: number;
+}
+
+function deriveBetRow(p: PolymarketPosition): BetRow {
+  const claimable = hasRedeemablePayout(p);
+  const redeemValue = getRedeemablePayout(p);
+  let statusKey: BetStatusKey;
+  let statusLabel: string;
+  if (p.redeemable && claimable) {
+    statusKey = 'redeemable';
+    statusLabel = 'READY';
+  } else if (p.redeemable) {
+    statusKey = 'settled';
+    statusLabel = 'SETTLED';
+  } else {
+    statusKey = 'live';
+    statusLabel = 'LIVE';
+  }
+  const side: 'YES' | 'NO' = p.outcomeIndex === 0 ? 'YES' : 'NO';
+  const staked = p.initialValue || p.size * p.avgPrice;
+  const value =
+    p.redeemable && claimable ? redeemValue : p.currentValue;
+  return {
+    position: p,
+    statusKey,
+    statusLabel,
+    side,
+    staked,
+    value,
+    pnl: p.cashPnl,
+    pnlPct: p.percentPnl,
+    isClaimable: claimable,
+    redeemValue,
+  };
+}
+
+const BET_STATUS_TONE: Record<
+  BetStatusKey,
+  { bg: string; fg: string }
+> = {
+  live: { bg: SURFACE2, fg: MUTED },
+  redeemable: { bg: POS_GREEN_SOFT, fg: POS_GREEN },
+  settled: { bg: SURFACE2, fg: MUTED },
+};
+
+const BETS_GRID = '90px minmax(0,1.4fr) 60px 70px 80px 100px 140px';
 
 interface MyBetsViewProps {
   actionable: PolymarketPosition[];
   redeemable: PolymarketPosition[];
   onRedeem: (p: PolymarketPosition) => void;
   onSell: (p: PolymarketPosition) => void;
-  onBuyMore: (p: PolymarketPosition) => void;
   onTitleClick: (p: PolymarketPosition) => void;
   sellingAsset: string | null;
   redeemingAsset: string | null;
@@ -725,7 +1021,6 @@ function MyBetsView({
   redeemable,
   onRedeem,
   onSell,
-  onBuyMore,
   onTitleClick,
   sellingAsset,
   redeemingAsset,
@@ -733,135 +1028,365 @@ function MyBetsView({
   isSubmitting,
   canTrade,
 }: MyBetsViewProps) {
-  const claimable = redeemable.filter(hasRedeemablePayout);
-  const settledNoPayout = redeemable.filter(
-    (p) => !hasRedeemablePayout(p),
+  const [statusFilter, setStatusFilter] =
+    useState<BetStatusFilter>('all');
+
+  const rows = useMemo(
+    () => [...actionable, ...redeemable].map(deriveBetRow),
+    [actionable, redeemable],
   );
-  const total = actionable.length + redeemable.length;
-  const totalStaked = actionable.reduce(
-    (s, p) => s + p.size * p.avgPrice,
-    0,
-  );
+
+  const counts = useMemo(() => {
+    const c: Record<BetStatusKey, number> = {
+      live: 0,
+      redeemable: 0,
+      settled: 0,
+    };
+    for (const r of rows) c[r.statusKey] += 1;
+    return c;
+  }, [rows]);
+
+  const summary = useMemo(() => {
+    const totalStaked = rows.reduce((s, r) => s + r.staked, 0);
+    const totalValue = rows.reduce((s, r) => s + r.value, 0);
+    const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
+    return {
+      total: rows.length,
+      totalStaked,
+      totalValue,
+      totalPnl,
+    };
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    if (statusFilter === 'all') return rows;
+    return rows.filter((r) => r.statusKey === statusFilter);
+  }, [rows, statusFilter]);
+
   return (
     <div className="space-y-4">
       <PageTitle
         eyebrow="Predictions"
         title="My bets"
-        caption={`${total} live position${
-          total === 1 ? '' : 's'
-        } · $${totalStaked.toFixed(2)} staked`}
-        action={
-          <>
-            <FilterChip active>All · {total}</FilterChip>
-            {claimable.length > 0 && (
-              <FilterChip>
-                Redeemable · {claimable.length}
-              </FilterChip>
-            )}
-            <FilterChip>Live · {actionable.length}</FilterChip>
-          </>
-        }
+        caption={`${summary.total} ${
+          summary.total === 1 ? 'position' : 'positions'
+        } · $${summary.totalStaked.toFixed(2)} staked`}
       />
 
-      {total === 0 ? (
-        <BentoEmpty
-          title="No active bets"
-          message="When you place a market or limit order, your active picks will appear here."
+      {/* Summary tiles — 4 across on sm+, 2 across on mobile. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <HistorySummaryTile
+          label="Portfolio value"
+          value={`$${summary.totalValue.toFixed(2)}`}
         />
-      ) : (
-        <div className="space-y-6">
-          {claimable.length > 0 && (
-            <section>
-              <BentoSectionHeader
-                title="Ready to redeem"
-                caption={`${claimable.length} settled position${
-                  claimable.length === 1 ? '' : 's'
-                } — claim your winnings`}
-              />
-              <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
-                {claimable.map((p) => (
-                  <PositionCard
-                    key={`${p.conditionId}-${p.outcomeIndex}`}
-                    position={p}
-                    onRedeem={onRedeem}
-                    onSell={onSell}
-                    onBuyMore={onBuyMore}
-                    isSelling={sellingAsset === p.asset}
-                    isRedeeming={redeemingAsset === p.asset}
-                    isPendingVerification={pendingVerification.has(
-                      p.asset,
-                    )}
-                    isSubmitting={isSubmitting}
-                    canSell={canTrade}
-                    canRedeem={canTrade}
-                    onTitleClick={() => onTitleClick(p)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-          {settledNoPayout.length > 0 && (
-            <section>
-              <BentoSectionHeader
-                title="Settled"
-                caption={`${settledNoPayout.length} settled position${
-                  settledNoPayout.length === 1 ? '' : 's'
-                } with no payout`}
-              />
-              <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
-                {settledNoPayout.map((p) => (
-                  <PositionCard
-                    key={`${p.conditionId}-${p.outcomeIndex}`}
-                    position={p}
-                    onRedeem={onRedeem}
-                    onSell={onSell}
-                    onBuyMore={onBuyMore}
-                    isSelling={sellingAsset === p.asset}
-                    isRedeeming={redeemingAsset === p.asset}
-                    isPendingVerification={pendingVerification.has(
-                      p.asset,
-                    )}
-                    isSubmitting={isSubmitting}
-                    canSell={canTrade}
-                    canRedeem={false}
-                    onTitleClick={() => onTitleClick(p)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-          {actionable.length > 0 && (
-            <section>
-              <BentoSectionHeader
-                title="Active picks"
-                caption={`${actionable.length} live position${
-                  actionable.length === 1 ? '' : 's'
-                }`}
-              />
-              <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
-                {actionable.map((p) => (
-                  <PositionCard
-                    key={`${p.conditionId}-${p.outcomeIndex}`}
-                    position={p}
-                    onRedeem={onRedeem}
-                    onSell={onSell}
-                    onBuyMore={onBuyMore}
-                    isSelling={sellingAsset === p.asset}
-                    isRedeeming={redeemingAsset === p.asset}
-                    isPendingVerification={pendingVerification.has(
-                      p.asset,
-                    )}
-                    isSubmitting={isSubmitting}
-                    canSell={canTrade}
-                    canRedeem={canTrade}
-                    onTitleClick={() => onTitleClick(p)}
-                  />
-                ))}
-              </div>
-            </section>
+        <HistorySummaryTile
+          label="Total staked"
+          value={`$${summary.totalStaked.toFixed(2)}`}
+        />
+        <HistorySummaryTile
+          label="Net P&L"
+          value={`${summary.totalPnl >= 0 ? '+' : '−'}$${Math.abs(
+            summary.totalPnl,
+          ).toFixed(2)}`}
+          tone={
+            summary.totalPnl > 0.005
+              ? 'pos'
+              : summary.totalPnl < -0.005
+                ? 'neg'
+                : 'neutral'
+          }
+        />
+        <HistorySummaryTile
+          label="Positions"
+          value={String(summary.total)}
+        />
+      </div>
+
+      {/* Status filter chips. */}
+      <div className="flex gap-1.5 flex-wrap items-center">
+        <FilterChip
+          active={statusFilter === 'all'}
+          onClick={() => setStatusFilter('all')}
+        >
+          All · {summary.total}
+        </FilterChip>
+        <FilterChip
+          active={statusFilter === 'live'}
+          onClick={() => setStatusFilter('live')}
+        >
+          Live · {counts.live}
+        </FilterChip>
+        {counts.redeemable > 0 && (
+          <FilterChip
+            active={statusFilter === 'redeemable'}
+            onClick={() => setStatusFilter('redeemable')}
+          >
+            Redeemable · {counts.redeemable}
+          </FilterChip>
+        )}
+        {counts.settled > 0 && (
+          <FilterChip
+            active={statusFilter === 'settled'}
+            onClick={() => setStatusFilter('settled')}
+          >
+            Settled · {counts.settled}
+          </FilterChip>
+        )}
+      </div>
+
+      {/* Bets table — header row + body rows on a shared grid. */}
+      <div
+        className="bg-white rounded-2xl border overflow-hidden"
+        style={{
+          borderColor: HAIR,
+          boxShadow:
+            '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+        }}
+      >
+        <div
+          className="grid gap-3 px-5 py-3 border-b text-[10.5px] font-bold uppercase tracking-[1.2px]"
+          style={{
+            gridTemplateColumns: BETS_GRID,
+            borderColor: HAIR2,
+            color: MUTED,
+            fontFamily: MONO,
+          }}
+        >
+          <div>Status</div>
+          <div>Market</div>
+          <div>Side</div>
+          <div>Shares</div>
+          <div>Avg</div>
+          <div>Value</div>
+          <div className="text-right">Action</div>
+        </div>
+
+        {filteredRows.length === 0 ? (
+          <div className="py-12 px-6 text-center">
+            <div className="text-[15px] font-semibold text-gray-900 mb-1">
+              {statusFilter === 'all'
+                ? 'No active bets'
+                : 'Nothing matches that filter'}
+            </div>
+            <div className="text-[12.5px] text-gray-500 max-w-md mx-auto">
+              {statusFilter === 'all'
+                ? 'When you place a market or limit order, your active picks will appear here.'
+                : 'Try switching back to All to see every position.'}
+            </div>
+            {statusFilter !== 'all' && (
+              <button
+                onClick={() => setStatusFilter('all')}
+                className="mt-3 inline-flex items-center gap-1 h-7 px-3 rounded-full border bg-white text-[11.5px] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
+                style={{ borderColor: HAIR }}
+              >
+                Show all
+              </button>
+            )}
+          </div>
+        ) : (
+          filteredRows.map((row, i) => (
+            <BetTableRow
+              key={`${row.position.conditionId}-${row.position.outcomeIndex}`}
+              row={row}
+              isLast={i === filteredRows.length - 1}
+              onRedeem={onRedeem}
+              onSell={onSell}
+              onTitleClick={onTitleClick}
+              isSelling={sellingAsset === row.position.asset}
+              isRedeeming={redeemingAsset === row.position.asset}
+              isPending={pendingVerification.has(row.position.asset)}
+              isSubmitting={isSubmitting}
+              canTrade={canTrade}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BetTableRow({
+  row,
+  isLast,
+  onRedeem,
+  onSell,
+  onTitleClick,
+  isSelling,
+  isRedeeming,
+  isPending,
+  isSubmitting,
+  canTrade,
+}: {
+  row: BetRow;
+  isLast: boolean;
+  onRedeem: (p: PolymarketPosition) => void;
+  onSell: (p: PolymarketPosition) => void;
+  onTitleClick: (p: PolymarketPosition) => void;
+  isSelling: boolean;
+  isRedeeming: boolean;
+  isPending: boolean;
+  isSubmitting: boolean;
+  canTrade: boolean;
+}) {
+  const {
+    position: p,
+    statusKey,
+    statusLabel,
+    side,
+    value,
+    pnl,
+    pnlPct,
+    isClaimable,
+    redeemValue,
+  } = row;
+  const tone = BET_STATUS_TONE[statusKey];
+  const sideTone =
+    side === 'YES'
+      ? { bg: POS_GREEN_SOFT, fg: POS_GREEN }
+      : { bg: NEG_RED_SOFT, fg: NEG_RED };
+  const pnlColor =
+    pnl > 0.005 ? POS_GREEN : pnl < -0.005 ? NEG_RED : MUTED;
+  const pnlSign = pnl > 0.005 ? '+' : pnl < -0.005 ? '−' : '';
+  const avgCents = (p.avgPrice * 100).toFixed(0);
+
+  const renderAction = () => {
+    if (statusKey === 'redeemable') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRedeem(p);
+          }}
+          disabled={isRedeeming || !canTrade || !isClaimable}
+          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold text-white bg-[#19a974] hover:bg-[#149363] disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+        >
+          {isRedeeming
+            ? 'Redeeming…'
+            : `Redeem $${redeemValue.toFixed(2)}`}
+        </button>
+      );
+    }
+    if (statusKey === 'live') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onSell(p);
+          }}
+          disabled={
+            isSelling || isPending || isSubmitting || !canTrade
+          }
+          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold border bg-white text-gray-900 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+          style={{ borderColor: HAIR }}
+        >
+          {isPending
+            ? 'Processing…'
+            : isSelling
+              ? 'Selling…'
+              : 'Cash out'}
+        </button>
+      );
+    }
+    return (
+      <span
+        className="text-[11px]"
+        style={{ color: MUTED, fontFamily: MONO }}
+      >
+        —
+      </span>
+    );
+  };
+
+  return (
+    <div
+      onClick={() => onTitleClick(p)}
+      className={`grid gap-3 px-5 py-3.5 items-center transition-colors hover:bg-gray-50 cursor-pointer ${
+        isLast ? '' : 'border-b'
+      }`}
+      style={{
+        gridTemplateColumns: BETS_GRID,
+        borderColor: HAIR2,
+      }}
+    >
+      <div>
+        <span
+          className="inline-block text-[9.5px] font-bold uppercase tracking-[0.6px] px-1.5 py-[3px] rounded-full"
+          style={{
+            background: tone.bg,
+            color: tone.fg,
+            fontFamily: MONO,
+          }}
+        >
+          {statusLabel}
+        </span>
+      </div>
+
+      <div className="min-w-0 flex items-center gap-2.5">
+        {p.icon ? (
+          <img
+            src={p.icon}
+            alt=""
+            className="w-7 h-7 rounded-md flex-shrink-0 object-cover bg-gray-100"
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-md flex-shrink-0 bg-gray-200" />
+        )}
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold tracking-[-0.1px] text-gray-900 truncate">
+            {p.title}
+          </div>
+          {p.outcome && (
+            <div
+              className="text-[10px] font-semibold uppercase tracking-[0.4px] truncate mt-0.5"
+              style={{ color: MUTED, fontFamily: MONO }}
+            >
+              {p.outcome}
+            </div>
           )}
         </div>
-      )}
+      </div>
+
+      <div>
+        <span
+          className="inline-block text-[10px] font-bold tracking-[0.6px] px-2 py-[3px] rounded-full"
+          style={{
+            background: sideTone.bg,
+            color: sideTone.fg,
+            fontFamily: MONO,
+          }}
+        >
+          {side}
+        </span>
+      </div>
+
+      <div
+        className="text-[12.5px] font-semibold text-gray-900 tabular-nums"
+        style={{ fontFamily: MONO }}
+      >
+        {p.size.toFixed(2)}
+      </div>
+
+      <div
+        className="text-[12.5px] tabular-nums"
+        style={{ fontFamily: MONO, color: MUTED }}
+      >
+        {avgCents}¢
+      </div>
+
+      <div className="tabular-nums" style={{ fontFamily: MONO }}>
+        <div className="text-[12.5px] font-bold text-gray-900">
+          ${value.toFixed(2)}
+        </div>
+        <div
+          className="text-[10.5px] font-semibold mt-0.5"
+          style={{ color: pnlColor }}
+        >
+          {pnlSign}${Math.abs(pnl).toFixed(2)} (
+          {Math.abs(pnlPct).toFixed(1)}%)
+        </div>
+      </div>
+
+      <div className="flex justify-end">{renderAction()}</div>
     </div>
   );
 }
@@ -911,7 +1436,14 @@ function deriveHistoryRow(trade: TradeActivity): HistoryRow {
   // Cash-flow direction — buys are outflow, everything else is inflow.
   const signedAmount = isBuy ? -amount : amount;
   const side: 'YES' | 'NO' = trade.outcomeIndex === 0 ? 'YES' : 'NO';
-  return { trade, statusKey, statusLabel, side, signedAmount, amount };
+  return {
+    trade,
+    statusKey,
+    statusLabel,
+    side,
+    signedAmount,
+    amount,
+  };
 }
 
 function formatHistoryDate(ts: number): string {
@@ -936,17 +1468,25 @@ function formatHistoryDate(ts: number): string {
   });
 }
 
-const STATUS_TONE: Record<HistoryStatusKey, { bg: string; fg: string }> = {
+const STATUS_TONE: Record<
+  HistoryStatusKey,
+  { bg: string; fg: string }
+> = {
   won: { bg: POS_GREEN_SOFT, fg: POS_GREEN },
   sold: { bg: POS_GREEN_SOFT, fg: POS_GREEN },
   bought: { bg: SURFACE2, fg: MUTED },
   other: { bg: SURFACE2, fg: MUTED },
 };
 
-const HISTORY_GRID =
-  '110px minmax(0,1.6fr) 70px 80px 90px 100px';
+const HISTORY_GRID = '110px minmax(0,1.6fr) 70px 80px 90px 100px';
 
-function BetHistoryView({ safeAddress }: { safeAddress: string | string[] }) {
+function BetHistoryView({
+  safeAddress,
+  onMarketClick,
+}: {
+  safeAddress: string | string[];
+  onMarketClick: (trade: TradeActivity) => void;
+}) {
   const [statusFilter, setStatusFilter] =
     useState<HistoryStatusFilter>('all');
   const [offset, setOffset] = useState(0);
@@ -958,10 +1498,7 @@ function BetHistoryView({ safeAddress }: { safeAddress: string | string[] }) {
     sort: 'DESC',
   });
 
-  const rows = useMemo(
-    () => trades.map(deriveHistoryRow),
-    [trades],
-  );
+  const rows = useMemo(() => trades.map(deriveHistoryRow), [trades]);
 
   const counts = useMemo(() => {
     const c: Record<HistoryStatusKey, number> = {
@@ -1141,6 +1678,7 @@ function BetHistoryView({ safeAddress }: { safeAddress: string | string[] }) {
               key={`${row.trade.transactionHash}-${row.trade.asset}-${i}`}
               row={row}
               isLast={i === filteredRows.length - 1}
+              onClick={() => onMarketClick(row.trade)}
             />
           ))
         )}
@@ -1218,12 +1756,20 @@ function HistorySummaryTile({
 function HistoryTableRow({
   row,
   isLast,
+  onClick,
 }: {
   row: HistoryRow;
   isLast: boolean;
+  onClick: () => void;
 }) {
-  const { trade, statusKey, statusLabel, side, signedAmount, amount } =
-    row;
+  const {
+    trade,
+    statusKey,
+    statusLabel,
+    side,
+    signedAmount,
+    amount,
+  } = row;
   const tone = STATUS_TONE[statusKey];
   const sideTone =
     side === 'YES'
@@ -1238,19 +1784,10 @@ function HistoryTableRow({
   const sign =
     signedAmount > 0.005 ? '+' : signedAmount < -0.005 ? '−' : '';
 
-  const Wrapper: React.ElementType = trade.eventSlug ? 'a' : 'div';
-  const wrapperProps = trade.eventSlug
-    ? {
-        href: `https://polymarket.com/event/${trade.eventSlug}`,
-        target: '_blank',
-        rel: 'noopener noreferrer',
-      }
-    : {};
-
   return (
-    <Wrapper
-      {...wrapperProps}
-      className={`grid gap-3 px-5 py-3.5 items-center transition-colors hover:bg-gray-50 no-underline ${
+    <div
+      onClick={onClick}
+      className={`grid gap-3 px-5 py-3.5 items-center transition-colors hover:bg-gray-50 cursor-pointer ${
         isLast ? '' : 'border-b'
       }`}
       style={{
@@ -1336,7 +1873,7 @@ function HistoryTableRow({
       >
         {sign}${amount.toFixed(2)}
       </div>
-    </Wrapper>
+    </div>
   );
 }
 
@@ -1345,29 +1882,6 @@ function HistoryTableRow({
 // Apple-clean cream canvas with white cards; the dark "LIVE NOW" tile is
 // the only inverted surface and lives inside the BentoHero.
 // ────────────────────────────────────────────────────────────────────
-
-function BentoSectionHeader({
-  title,
-  caption,
-}: {
-  title: string;
-  caption?: string;
-}) {
-  return (
-    <div className="flex items-end justify-between mb-2.5 px-1">
-      <div>
-        <div className="text-[20px] font-semibold tracking-[-0.4px] text-gray-900">
-          {title}
-        </div>
-        {caption && (
-          <div className="text-[13px] text-gray-500 mt-0.5">
-            {caption}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function BentoEmpty({
   title,
@@ -2131,6 +2645,45 @@ function StatCell({
       </div>
     </div>
   );
+}
+
+/**
+ * Build a best-effort PolymarketMarket from a trade activity row so a
+ * clicked history row routes to the internal market-detail page instead
+ * of polymarket.com. We only know the traded side (asset, price, outcome
+ * label, outcomeIndex) — the opposite slot is left empty and the detail
+ * view falls back to its Yes/No / 0.5 defaults.
+ */
+function tradeToDetailMarket(trade: TradeActivity): PolymarketMarket {
+  const isYesTrade = trade.outcomeIndex === 0;
+  const tradedOutcome = trade.outcome || (isYesTrade ? 'Yes' : 'No');
+  const oppositeOutcome = isYesTrade ? 'No' : 'Yes';
+  const tradedPrice = trade.price;
+  const oppositePrice = Math.max(0, 1 - tradedPrice);
+  const yesOutcomeName = isYesTrade ? tradedOutcome : oppositeOutcome;
+  const noOutcomeName = isYesTrade ? oppositeOutcome : tradedOutcome;
+  const yesTokenId = isYesTrade ? trade.asset : '';
+  const noTokenId = isYesTrade ? '' : trade.asset;
+  const yesPrice = isYesTrade ? tradedPrice : oppositePrice;
+  const noPrice = isYesTrade ? oppositePrice : tradedPrice;
+  const isClosed = trade.type === 'REDEEM';
+
+  return {
+    id: trade.conditionId,
+    question: trade.title,
+    slug: trade.slug,
+    active: !isClosed,
+    closed: isClosed,
+    icon: trade.icon,
+    eventSlug: trade.eventSlug,
+    outcomes: JSON.stringify([yesOutcomeName, noOutcomeName]),
+    outcomePrices: JSON.stringify([
+      String(yesPrice),
+      String(noPrice),
+    ]),
+    clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
+    conditionId: trade.conditionId,
+  };
 }
 
 function positionToDetailMarket(

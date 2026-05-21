@@ -7,6 +7,9 @@ import {
 } from '@/services/wallet-service';
 import { useUser } from '@/lib/UserContext';
 
+const normalizeChain = (chain: string): ChainType =>
+  chain.toUpperCase() as ChainType;
+
 /**
  * Simplified useMultiChainTokenData Hook
  *
@@ -29,7 +32,11 @@ export const useMultiChainTokenData = (
     for (const chain of evmChains) {
       wallets.push({
         address: evmWalletAddress,
-        chain: chain.toLowerCase() as 'ethereum' | 'polygon' | 'base',
+        chain: chain.toLowerCase() as
+          | 'ethereum'
+          | 'polygon'
+          | 'base'
+          | 'arbitrum',
       });
     }
   }
@@ -70,6 +77,7 @@ export const useMultiChainTokenData = (
   // Note: Tokens are already sorted by value on the backend
   const tokens = (data?.tokens || []).map((token: Token) => ({
     ...token,
+    chain: normalizeChain(token.chain),
     logoURI:
       token.logoURI || `/assets/crypto-icons/${token.symbol}.png`,
     // Add empty time series data structure for components that expect it

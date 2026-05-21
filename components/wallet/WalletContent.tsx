@@ -78,6 +78,9 @@ import SwapTokenModal from './SwapTokenModal';
 // Predictions (Polymarket)
 import WalletPredictionsSection from './WalletPredictionsSection';
 
+// Blinks — redeemable token links (matches design's WireG screen 6)
+import BlinksSection from './BlinksSection';
+
 // Stores
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
 
@@ -712,7 +715,7 @@ const WalletContentInner = () => {
             const result = await signAndSendTransaction({
               transaction: new Uint8Array(serializedNFTTransaction),
               wallet: selectedSolanaWallet!,
-              options: { sponsor: true },
+              options: { sponsor: false },
             });
             hash = bs58.encode(result.signature);
           } catch (privyError) {
@@ -767,7 +770,7 @@ const WalletContentInner = () => {
                 data: nftData as `0x${string}`,
                 chainId,
               },
-              { sponsor: true },
+              { sponsor: false },
             );
             hash = result.hash;
           } catch (evmError) {
@@ -806,7 +809,7 @@ const WalletContentInner = () => {
               transaction: new Uint8Array(serializedTransaction),
               wallet: selectedSolanaWallet!,
               options: {
-                sponsor: true,
+                sponsor: false,
               },
             });
 
@@ -834,7 +837,7 @@ const WalletContentInner = () => {
                   value: ethers.parseEther(sendFlow.amount),
                   chainId,
                 },
-                { sponsor: true },
+                { sponsor: false },
               );
               hash = result.hash;
             } else {
@@ -856,7 +859,7 @@ const WalletContentInner = () => {
                   data: tokenData as `0x${string}`,
                   chainId,
                 },
-                { sponsor: true },
+                { sponsor: false },
               );
               hash = result.hash;
             }
@@ -1191,6 +1194,9 @@ const WalletContentInner = () => {
 
         {/* ───────── PREDICTIONS ───────── */}
         <WalletPredictionsSection />
+
+        {/* ───────── BLINKS ───────── */}
+        <BlinksSection />
 
         {/* ───────── COLLECTIBLES ───────── */}
         <section className="mt-8">

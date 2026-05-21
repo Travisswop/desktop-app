@@ -10,7 +10,6 @@ import {
 import { usePolymarketWallet } from "./PolymarketWalletContext";
 import { useClobClient } from "@/hooks/polymarket/useClobClient";
 import { useTradingSession } from "@/hooks/polymarket/useTradingSession";
-import { useSafeDeployment } from "@/hooks/polymarket/useSafeDeployment";
 import { useGeoblock, GeoblockStatus } from "@/hooks/polymarket/useGeoblock";
 import { useClobHeartbeat } from "@/hooks/polymarket/useClobHeartbeat";
 import { useUserOrdersChannel } from "@/hooks/polymarket/useUserOrdersChannel";
@@ -47,7 +46,6 @@ export function useTrading() {
 
 export function TradingProvider({ children }: { children: ReactNode }) {
   const { eoaAddress } = usePolymarketWallet();
-  const { derivedSafeAddressFromEoa } = useSafeDeployment(eoaAddress);
 
   const {
     isBlocked: isGeoblocked,
@@ -72,22 +70,27 @@ export function TradingProvider({ children }: { children: ReactNode }) {
   const clobClientAsObject = clobClient as object | null;
   const relayClient = isTradingSessionComplete ? {} : null;
 
-  const walletType = tradingSession?.walletType ?? "safe";
+  // walletType is resolved during session init from Polymarket's
+  // /session/wallet-info — legacy Safe users keep signatureType=2, new
+  // users get signatureType=3 with deposit wallets.
+  const walletType: "safe" | "deposit" = tradingSession?.walletType ?? "deposit";
   const tradingWalletAddress =
-    tradingSession?.safeAddress ?? derivedSafeAddressFromEoa;
-  const legacySafeAddress =
-    tradingSession?.legacySafeAddress ?? derivedSafeAddressFromEoa;
-  const depositWalletAddress = tradingSession?.depositWalletAddress;
+    walletType === "deposit"
+      ? tradingSession?.depositWalletAddress ?? tradingSession?.safeAddress
+      : tradingSession?.safeAddress;
+  const legacySafeAddress = undefined;
+  const depositWalletAddress =
+    walletType === "deposit" ? tradingSession?.depositWalletAddress : undefined;
   const portfolioAddresses = useMemo(
     () =>
       Array.from(
         new Map(
-          [tradingWalletAddress, legacySafeAddress]
+          [tradingWalletAddress]
             .filter((addr): addr is string => !!addr)
             .map((addr) => [addr.toLowerCase(), addr])
         ).values()
       ),
-    [tradingWalletAddress, legacySafeAddress]
+    [tradingWalletAddress]
   );
 
   // Keep open limit orders alive — Polymarket cancels them after 10s without a heartbeat

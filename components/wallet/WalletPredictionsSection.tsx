@@ -7,7 +7,6 @@ import {
   usePolymarketWallet,
 } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import { usePolygonBalances, useWrapUsdcE } from '@/hooks/polymarket';
 import { formatPolymarketError } from '@/lib/polymarket';
 import {
   ShieldCheck,
@@ -15,7 +14,6 @@ import {
   Wallet,
   CheckCircle2,
   X,
-  Loader2,
   ArrowRight,
 } from 'lucide-react';
 import GeoBlockedBanner from '@/components/wallet/polymarket/GeoBlockedBanner';
@@ -79,11 +77,10 @@ function EnableTradingModal({
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-900">
-                  Set up your Smart Wallet
+                  Set up your Deposit Wallet
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Deploys a Safe wallet to manage your positions
-                  securely
+                  Creates your Polymarket deposit wallet for trading
                 </p>
               </div>
             </div>
@@ -121,104 +118,6 @@ function EnableTradingModal({
   );
 }
 
-function ActivateFundsModal({
-  balance,
-  onConfirm,
-  onDismiss,
-  onRetry,
-  wrapStep,
-  activationError,
-}: {
-  balance: string;
-  onConfirm: () => void;
-  onDismiss: () => void;
-  onRetry: () => void;
-  wrapStep: 'idle' | 'approving' | 'wrapping' | 'done' | 'error';
-  activationError: string | null;
-}) {
-  const isProcessing =
-    wrapStep === 'approving' || wrapStep === 'wrapping';
-
-  const statusLabel =
-    wrapStep === 'approving'
-      ? 'Approving USDC.e...'
-      : wrapStep === 'wrapping'
-        ? 'Wrapping to pUSD...'
-        : null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
-        <div className="px-5 pt-5 pb-5">
-          {wrapStep === 'done' ? (
-            <>
-              <h2 className="text-lg font-bold text-gray-900 mb-1">
-                Funds Activated
-              </h2>
-              <p className="text-sm text-gray-500 mb-5">
-                Your funds are available to trade!
-              </p>
-              <button
-                onClick={onDismiss}
-                className="w-full py-3 bg-black text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-colors"
-              >
-                Start Trading
-              </button>
-            </>
-          ) : wrapStep === 'error' ? (
-            <>
-              <h2 className="text-lg font-bold text-gray-900 mb-1">
-                Activation Failed
-              </h2>
-              <p className="text-sm text-red-500 mb-5">
-                {formatPolymarketError(activationError || 'Something went wrong.')}
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={onDismiss}
-                  className="flex-1 py-2.5 text-gray-500 text-sm hover:text-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={onRetry}
-                  className="flex-1 py-3 bg-black text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-colors"
-                >
-                  Try Again
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 className="text-lg font-bold text-gray-900 mb-1">
-                Activate Funds
-              </h2>
-              <p className="text-sm text-gray-500 mb-5">
-                Activate your funds (${balance}) to begin trading.
-              </p>
-              {isProcessing && statusLabel && (
-                <p className="text-xs text-gray-400 mb-3 text-center">
-                  {statusLabel}
-                </p>
-              )}
-              <button
-                onClick={onConfirm}
-                disabled={isProcessing}
-                className="w-full py-3 bg-black text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isProcessing && (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                )}
-                {isProcessing ? statusLabel : 'Continue'}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function WalletPredictionsSection() {
   const router = useRouter();
   const {
@@ -234,21 +133,14 @@ export default function WalletPredictionsSection() {
     sessionError,
     isTradingSessionComplete,
     initializeTradingSession,
+    eoaAddress,
     safeAddress,
-    legacySafeAddress,
   } = useTrading();
-
-  const legacyBalanceAddress = legacySafeAddress ?? safeAddress;
-  const { legacyUsdcBalance } = usePolygonBalances(legacyBalanceAddress);
-
-  const { wrap, step: wrapStep, error: wrapError, reset: resetWrap } =
-    useWrapUsdcE();
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferTab, setTransferTab] = useState<TransferTab>('deposit');
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentDismissed, setConsentDismissed] = useState(false);
-  const [activateFundsOpen, setActivateFundsOpen] = useState(false);
   const [localSessionError, setLocalSessionError] =
     useState<Error | null>(null);
 
@@ -263,7 +155,7 @@ export default function WalletPredictionsSection() {
       isReady &&
       !userLoading &&
       !!accessToken &&
-      !!safeAddress &&
+      !!eoaAddress &&
       !isTradingSessionComplete &&
       currentStep === 'idle' &&
       !setupError &&
@@ -277,7 +169,7 @@ export default function WalletPredictionsSection() {
     isReady,
     userLoading,
     accessToken,
-    safeAddress,
+    eoaAddress,
     isTradingSessionComplete,
     currentStep,
     setupError,
@@ -310,15 +202,16 @@ export default function WalletPredictionsSection() {
 
   const handleTransfer = useCallback(
     (tab: TransferTab) => {
-      // Legacy USDC.e holders need to wrap before they can deposit.
-      if (tab === 'deposit' && legacyUsdcBalance > 0) {
-        setActivateFundsOpen(true);
+      if (!isTradingSessionComplete) {
+        setConsentDismissed(false);
+        setShowConsentModal(true);
         return;
       }
+
       setTransferTab(tab);
       setTransferModalOpen(true);
     },
-    [legacyUsdcBalance],
+    [isTradingSessionComplete],
   );
 
   const openPanel = useCallback(
@@ -433,23 +326,6 @@ export default function WalletPredictionsSection() {
         </div>
       )}
 
-      {legacyUsdcBalance > 0 && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 flex items-center justify-between gap-3">
-          <p className="text-xs text-emerald-800">
-            <span className="font-semibold">
-              ${legacyUsdcBalance.toFixed(2)}
-            </span>{' '}
-            in legacy USDC.e ready to activate.
-          </p>
-          <button
-            onClick={() => setActivateFundsOpen(true)}
-            className="shrink-0 px-3 py-1.5 bg-emerald-700 text-white rounded-full text-xs font-semibold hover:bg-emerald-800 transition-colors"
-          >
-            Activate funds
-          </button>
-        </div>
-      )}
-
       <PredictionsCard
         safeAddress={safeAddress}
         onTransfer={handleTransfer}
@@ -460,23 +336,6 @@ export default function WalletPredictionsSection() {
         <EnableTradingModal
           onConfirm={handleConsentConfirm}
           onDismiss={handleConsentDismiss}
-        />
-      )}
-
-      {activateFundsOpen && (
-        <ActivateFundsModal
-          balance={legacyUsdcBalance.toFixed(2)}
-          wrapStep={wrapStep}
-          activationError={wrapError}
-          onConfirm={() => wrap(legacyUsdcBalance)}
-          onDismiss={() => {
-            setActivateFundsOpen(false);
-            resetWrap();
-          }}
-          onRetry={() => {
-            resetWrap();
-            void wrap(legacyUsdcBalance);
-          }}
         />
       )}
 

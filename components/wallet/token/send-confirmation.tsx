@@ -18,10 +18,9 @@ import Image from 'next/image';
 import { Network } from '@/types/wallet-types';
 import { TokenData } from '@/types/token';
 import CustomModal from '@/components/modal/CustomModal';
-// Gas fee imports commented out — transactions are sponsored by Swop
-// import { useEffect, useState } from 'react';
-// import { calculateEVMGasFee } from '../tools/gas_fee_evm';
-// import { calculateSolanaGasFee } from '../tools/gas_fee_solana';
+import { useEffect, useState } from 'react';
+import { calculateEVMGasFee } from '../tools/gas_fee_evm';
+import { calculateSolanaGasFee } from '../tools/gas_fee_solana';
 
 interface SendConfirmationProps {
   open: boolean;
@@ -54,23 +53,33 @@ export default function SendConfirmation({
   isUSD,
   nativeTokenPrice,
 }: SendConfirmationProps) {
-  // Gas fee fetching commented out — transactions are sponsored by Swop
-  // const [gasFeeUSD, setGasFeeUSD] = useState(0);
-  // const [dynamicNetworkFee, setDynamicNetworkFee] = useState(networkFee);
-  // useEffect(() => {
-  //   const fetchGasFee = async () => {
-  //     if (token.chain.toUpperCase() === 'SOLANA') {
-  //       const fee = await calculateSolanaGasFee();
-  //       setDynamicNetworkFee(fee);
-  //       setGasFeeUSD(Number((Number(fee) * nativeTokenPrice).toFixed(5)));
-  //     } else {
-  //       const fee = await calculateEVMGasFee(network);
-  //       setDynamicNetworkFee(fee);
-  //       setGasFeeUSD(Number((Number(fee) * nativeTokenPrice).toFixed(5)));
-  //     }
-  //   };
-  //   fetchGasFee();
-  // }, [network, nativeTokenPrice, token.chain]);
+  const [gasFeeUSD, setGasFeeUSD] = useState(0);
+  const [dynamicNetworkFee, setDynamicNetworkFee] = useState(networkFee);
+
+  useEffect(() => {
+    const fetchGasFee = async () => {
+      if (token.chain.toUpperCase() === 'SOLANA') {
+        const fee = await calculateSolanaGasFee();
+        setDynamicNetworkFee(fee);
+        setGasFeeUSD(Number((Number(fee) * nativeTokenPrice).toFixed(5)));
+      } else {
+        const fee = await calculateEVMGasFee(network);
+        setDynamicNetworkFee(fee);
+        setGasFeeUSD(Number((Number(fee) * nativeTokenPrice).toFixed(5)));
+      }
+    };
+
+    fetchGasFee();
+  }, [network, nativeTokenPrice, token.chain]);
+
+  const nativeFeeSymbol =
+    token.chain.toUpperCase() === 'SOLANA'
+      ? 'SOL'
+      : token.chain.toUpperCase() === 'ETHEREUM'
+      ? 'ETH'
+      : token.chain.toUpperCase() === 'POLYGON'
+      ? 'MATIC'
+      : 'ETH';
 
   return (
     <CustomModal
@@ -170,32 +179,33 @@ export default function SendConfirmation({
               Transaction Details
             </div>
 
-            <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+            <div className="bg-white p-4 rounded-xl border border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-700 font-medium">
+                  <span className="text-sm text-gray-600">
                     Network Fee
                   </span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
-                        <HelpCircle className="h-4 w-4 text-green-400" />
+                        <HelpCircle className="h-4 w-4 text-gray-400" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p>
-                          Swop sponsors all transaction fees on your behalf.
-                          No gas fee is required to send tokens.
+                          Network fees are required to process your
+                          transaction on the blockchain. These fees vary
+                          based on network congestion.
                         </p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-semibold text-green-600">
-                    Sponsored by Swop
+                  <div className="font-medium">
+                    {dynamicNetworkFee} {nativeFeeSymbol}
                   </div>
-                  <div className="text-xs text-green-500">
-                    No gas fee required
+                  <div className="text-sm text-gray-500">
+                    $ {gasFeeUSD}
                   </div>
                 </div>
               </div>

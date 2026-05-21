@@ -1,169 +1,154 @@
 import { Transaction } from '@/types/transaction';
-import { useEffect, useState } from 'react';
-import Image from 'next/image';
+import { ArrowRight, ArrowLeftRight } from 'lucide-react';
+import { useMemo } from 'react';
+import TokenIcon from './token-icon';
 
 interface TransactionItemProps {
   transaction: Transaction;
+  isOutgoing: boolean;
   onSelect: (transaction: Transaction) => void;
 }
 
-const truncateAddress = (address: string) => {
-  return `${address.slice(0, 8)}.....${address.slice(-8)}`;
+const truncate = (address: string) =>
+  address ? `${address.slice(0, 6)}…${address.slice(-4)}` : '';
+
+const formatAmount = (value: string, decimals = 4): string => {
+  const n = parseFloat(value);
+  if (!Number.isFinite(n)) return '0';
+  if (n === 0) return '0';
+  if (Math.abs(n) >= 0.01) return n.toFixed(decimals).replace(/\.?0+$/, '');
+  return n.toPrecision(4);
+};
+
+const formatUsd = (value: number): string => {
+  if (!Number.isFinite(value)) return '$0.00';
+  const sign = value < 0 ? '−' : '';
+  return `${sign}$${Math.abs(value).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+const formatTime = (timeStamp: string): string => {
+  const ts = parseInt(timeStamp, 10);
+  if (!ts) return '';
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const isToday = d.getTime() >= today.getTime();
+  const isYesterday =
+    !isToday && d.getTime() >= today.getTime() - 86400000;
+
+  const hh = d.getHours().toString().padStart(2, '0');
+  const mm = d.getMinutes().toString().padStart(2, '0');
+  if (isToday) return `Today · ${hh}:${mm}`;
+  if (isYesterday) return `Yesterday · ${hh}:${mm}`;
+  return `${d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })} · ${hh}:${mm}`;
 };
 
 const TransactionItem = ({
-  transaction,
+  transaction: tx,
+  isOutgoing,
   onSelect,
 }: TransactionItemProps) => {
-  const isOutgoing = transaction.flow === 'out';
+  const isPending =
+    tx.status === 'pending' ||
+    (tx.txreceipt_status === undefined && !tx.hash);
 
-  const calculateValue = (value: string, price: number) => {
-    const numericValue = parseFloat(value);
-    return (numericValue * price).toFixed(4);
-  };
-
-  const getBorderColorByNetwork = (network: string) => {
-    switch (network?.toLowerCase()) {
-      case 'ethereum':
-        return 'border-blue-400';
-      case 'polygon':
-        return 'border-purple-400';
-      case 'solana':
-        return 'border-green-400';
-      case 'base':
-        return 'border-cyan-400';
-      default:
-        return 'border-gray-400';
+  const { title, subtitle, amount, usd, sideIn } = useMemo(() => {
+    if (tx.isSwapped && tx.swapped) {
+      const fromAmt = formatAmount(tx.swapped.from.value);
+      const toAmt = formatAmount(tx.swapped.to.value);
+      return {
+        title: 'Swap',
+        subtitle: `${tx.swapped.from.symbol} → ${tx.swapped.to.symbol} · ${formatTime(
+          tx.timeStamp,
+        )}`,
+        amount: `−${fromAmt} ${tx.swapped.from.symbol}`,
+        usd: `+${toAmt} ${tx.swapped.to.symbol}`,
+        sideIn: false,
+      } as const;
     }
-  };
+    const native = tx.tokenSymbol || '';
+    const amt = formatAmount(tx.value);
+    const sign = isOutgoing ? '−' : '+';
+    const counter = isOutgoing
+      ? `To ${truncate(tx.to)}`
+      : `From ${truncate(tx.from)}`;
+    const usdNum = parseFloat(tx.value) * (tx.currentPrice || 0);
+    return {
+      title: isOutgoing ? 'Send' : 'Receive',
+      subtitle: `${counter} · ${formatTime(tx.timeStamp)}`,
+      amount: `${sign}${amt} ${native}`,
+      usd: formatUsd(isOutgoing ? -usdNum : usdNum),
+      sideIn: !isOutgoing,
+    } as const;
+  }, [tx, isOutgoing]);
 
-  const [borderClass, setBorderClass] = useState(
-    transaction?.isNew
-      ? `border-2 ${getBorderColorByNetwork(transaction.network)} animate-pulse`
-      : 'border border-gradient-to-r from-gray-200 to-gray-300',
-  );
-
-  useEffect(() => {
-    if (transaction?.isNew) {
-      const timer = setTimeout(() => {
-        setBorderClass(
-          'border border-gradient-to-r from-gray-200 to-gray-300',
-        );
-      }, 10000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [transaction?.isNew]);
+  const iconBg = sideIn ? 'bg-emerald-50' : 'bg-zinc-50';
+  const amountColor = sideIn ? 'text-emerald-600' : 'text-[#0a0a0c]';
 
   return (
-    <div
-      className={`p-2 flex items-center justify-between cursor-pointer`}
-      onClick={() => onSelect(transaction)}
+    <button
+      type="button"
+      onClick={() => onSelect(tx)}
+      className="w-full grid grid-cols-[36px_1fr_auto] gap-3.5 items-center px-6 py-3 border-t border-black/[0.04] hover:bg-zinc-50/60 transition-colors text-left"
     >
-      <div className="flex items-center gap-3">
-        {transaction.isSwapped ? (
-          <>
-            <div className="relative flex items-center">
-              {/* From Token Icon */}
-              <div className="w-6 h-6 rounded-full overflow-hidden">
-                <Image
-                  src={`/assets/crypto-icons/${transaction.swapped?.from.symbol}.png`}
-                  alt={transaction.swapped?.from.symbol || ''}
-                  width={32}
-                  height={32}
-                  className="object-cover"
-                  // onError={(e) => {
-                  //   // Fallback to default icon if token icon not found
-                  //   (e.target as HTMLImageElement).src =
-                  //     '/assets/crypto-icons/DOLLAR.png';
-                  // }}
-                />
-              </div>
-              {/* To Token Icon */}
-              <div className="w-6 h-6 rounded-full overflow-hidden -ml-2">
-                <Image
-                  src={`/assets/crypto-icons/${transaction.swapped?.to.symbol}.png`}
-                  alt={transaction.swapped?.to.symbol || ''}
-                  width={32}
-                  height={32}
-                  className="object-cover"
-                  // onError={(e) => {
-                  //   (e.target as HTMLImageElement).src =
-                  //     '/assets/crypto-icons/DOLLAR.png';
-                  // }}
-                />
-              </div>
-            </div>
-            <div>
-              <p className="font-semibold">Swapped</p>
-              <p className="text-sm text-muted-foreground">
-                {transaction.swapped?.from.symbol}{' '}
-                <span>&#x2192;</span> {transaction.swapped?.to.symbol}
-              </p>
-            </div>
-          </>
+      <div
+        className={`w-9 h-9 rounded-[10px] ${iconBg} border border-black/[0.06] inline-flex items-center justify-center shrink-0 overflow-hidden`}
+      >
+        {tx.isSwapped && tx.swapped ? (
+          <ArrowLeftRight className="w-3.5 h-3.5 text-[#0a0a0c]" />
+        ) : tx.tokenSymbol ? (
+          <TokenIcon symbol={tx.tokenSymbol} logo={tx.tokenLogo} />
         ) : (
-          <>
-            <div className="w-6 h-6 rounded-full overflow-hidden">
-              <Image
-                src={`/assets/crypto-icons/${transaction.tokenSymbol}.png`}
-                alt={transaction.tokenSymbol || ''}
-                width={40}
-                height={40}
-                className="object-cover"
-                // onError={(e) => {
-                //   (e.target as HTMLImageElement).src =
-                //     '/assets/crypto-icons/DOLLAR.png';
-                // }}
-              />
-            </div>
-            <div>
-              <p className="font-semibold">
-                {isOutgoing ? 'Sent' : 'Received'}
-              </p>
-              <p className="text-sm text-muted-foreground max-w-[200px] md:max-w-[300px]">
-                {isOutgoing ? (
-                  <span>To {truncateAddress(transaction.to)}</span>
-                ) : (
-                  <span>
-                    From {truncateAddress(transaction.from)}
-                  </span>
-                )}
-              </p>
-            </div>
-          </>
+          <ArrowRight
+            className={`w-3.5 h-3.5 ${
+              sideIn
+                ? 'text-emerald-600 rotate-180'
+                : 'text-[#0a0a0c] rotate-45'
+            }`}
+          />
         )}
       </div>
-      <div className="text-right">
-        <p
-          className={`font-medium ${
-            isOutgoing ? 'text-red-600' : 'text-green-600'
-          }`}
-        >
-          {isOutgoing ? '-' : '+'}
-          {parseFloat(transaction.value).toFixed(4)}{' '}
-          {transaction.tokenSymbol}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {transaction.isSwapped ? (
-            <>
-              $
-              {calculateValue(
-                transaction.swapped!.from.value,
-                transaction.swapped!.from.price,
-              )}
-              {' → '}$
-              {calculateValue(
-                transaction.swapped!.to.value,
-                transaction.swapped!.to.price,
-              )}
-            </>
-          ) : (
-            `$${calculateValue(transaction.value, transaction.currentPrice)}`
+
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[13.5px] font-semibold tracking-[-0.1px] text-[#0a0a0c]">
+            {title}
+          </span>
+          <span className="text-[10.5px] text-zinc-500 font-mono">
+            ·{' '}
+            {tx.isSwapped && tx.swapped
+              ? `${tx.swapped.from.symbol}→${tx.swapped.to.symbol}`
+              : tx.tokenSymbol || tx.network}
+          </span>
+          {isPending && (
+            <span className="text-[9.5px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/20 px-1.5 py-px rounded tracking-[0.5px] leading-none">
+              PENDING
+            </span>
           )}
-        </p>
+        </div>
+        <div className="text-[11px] text-zinc-500 font-mono mt-0.5 truncate">
+          {subtitle}
+        </div>
       </div>
-    </div>
+
+      <div className="text-right">
+        <div
+          className={`text-[13px] font-semibold font-mono whitespace-nowrap ${amountColor}`}
+        >
+          {amount}
+        </div>
+        <div className="text-[10.5px] text-zinc-500 font-mono mt-0.5">
+          {usd}
+        </div>
+      </div>
+    </button>
   );
 };
 

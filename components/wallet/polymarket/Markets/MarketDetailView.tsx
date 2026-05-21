@@ -8,9 +8,13 @@ import { useUser } from '@/lib/UserContext';
 import { postFeed } from '@/actions/postFeed';
 import type { PolymarketMarket } from '@/hooks/polymarket';
 import { useTrading } from '@/providers/polymarket';
-import { MIN_ORDER_SIZE } from '@/constants/polymarket';
+import {
+  CTF_CONTRACT_ADDRESS,
+  MIN_ORDER_SIZE,
+  USDC_E_DECIMALS,
+} from '@/constants/polymarket';
 
-import { InfoIcon, Clock } from 'lucide-react';
+import { InfoIcon, Clock, CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 // Order ticket variants on the detail page — A3 (Market) and A3L (Limit) only.
 // FAK / GTD are intentionally dropped here per the new wireframes; the
@@ -34,6 +38,19 @@ const D = {
   warnIcon: '#d97706',
   mono: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
 } as const;
+
+const ERC1155_BALANCE_OF_ABI = [
+  {
+    type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'account', type: 'address' },
+      { name: 'id', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -116,6 +133,484 @@ function formatVolumeLabel(
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M Vol.`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(2)}K Vol.`;
   return `$${n.toFixed(0)} Vol.`;
+}
+
+// ── Order feedback helpers ───────────────────────────────────────────────────
+//
+// Errors bubble up here from three layers: the CLOB SDK (already mapped to
+// human strings in useClobOrder), the backend /orders/prepare and /submit
+// proxies, and the wallet/signing layer. This mapper catches whatever those
+// layers leak through (network failures, wallet rejections, typed-data
+// validation, raw codes, etc.) and turns them into a `{ title, detail }`
+// pair the toast can render directly. Anything we don't recognise falls back
+// to a generic "Order failed" rather than dumping a stack/JSON to the user.
+
+interface FriendlyOrderError {
+  title: string;
+  detail: string;
+}
+
+function getFriendlyOrderError(
+  raw: string | null | undefined,
+): FriendlyOrderError {
+  const trimmed = (raw ?? '').trim();
+  const msg = trimmed.toLowerCase();
+
+  if (!msg) {
+    return {
+      title: 'Order failed',
+      detail: "Something went wrong placing your order. Please try again.",
+    };
+  }
+
+  // Wallet popup cancelled by the user
+  if (
+    msg.includes('user rejected') ||
+    msg.includes('user denied') ||
+    msg.includes('rejected the request') ||
+    msg.includes('action_rejected')
+  ) {
+    return {
+      title: 'Signature cancelled',
+      detail: "You declined to sign the order. Try again when you're ready.",
+    };
+  }
+
+  // Trading session
+  if (
+    msg.includes('session needs to be refreshed') ||
+    msg.includes('session expired') ||
+    msg.includes('session_expired')
+  ) {
+    return {
+      title: 'Trading session expired',
+      detail: 'Refresh your trading session and try again.',
+    };
+  }
+  if (
+    msg.includes('trading session not ready') ||
+    msg.includes('initialize trading')
+  ) {
+    return {
+      title: 'Wallet not ready',
+      detail: 'Initialize your trading session, then try again.',
+    };
+  }
+
+  // Balance / shares / approval
+  if (
+    (msg.includes('insufficient') || msg.includes('not enough')) &&
+    (msg.includes('share') || msg.includes('outcome'))
+  ) {
+    return {
+      title: 'Not enough shares',
+      detail: "You don't hold enough shares to sell that amount.",
+    };
+  }
+  if (
+    (msg.includes('insufficient') || msg.includes('not enough')) &&
+    (msg.includes('usdc') ||
+      msg.includes('balance') ||
+      msg.includes('funds'))
+  ) {
+    return {
+      title: 'Not enough USDC',
+      detail: 'Add USDC to your wallet to place this order.',
+    };
+  }
+  if (msg.includes('allowance') || msg.includes('approval')) {
+    return {
+      title: 'Approval needed',
+      detail: 'Approve USDC for trading, then place the order again.',
+    };
+  }
+
+  // Order book / matching
+  if (
+    msg.includes('not be fully filled') ||
+    msg.includes('fok_order_not_filled') ||
+    msg.includes('not enough liquidity')
+  ) {
+    return {
+      title: "Couldn't fill instantly",
+      detail:
+        'Not enough liquidity at this price. Try a smaller size or use a limit order.',
+    };
+  }
+  if (msg.includes('cross the spread') || msg.includes('post-only')) {
+    return {
+      title: 'Limit price too aggressive',
+      detail:
+        "A post-only order can't cross the spread. Adjust your price and try again.",
+    };
+  }
+  if (
+    msg.includes('tick size') ||
+    msg.includes('min_tick') ||
+    msg.includes('multiple of tick')
+  ) {
+    return {
+      title: 'Invalid price',
+      detail: "Adjust your limit price to match this market's tick size.",
+    };
+  }
+  if (
+    msg.includes('min_size') ||
+    msg.includes('minimum order') ||
+    msg.includes('order is below') ||
+    msg.includes('minimum shares')
+  ) {
+    return {
+      title: 'Order too small',
+      detail: "Increase the size to meet this market's minimum.",
+    };
+  }
+  if (msg.includes('duplicate')) {
+    return {
+      title: 'Duplicate order',
+      detail:
+        'An identical order is already open. Cancel it first or change the parameters.',
+    };
+  }
+  if (msg.includes('expiration') && msg.includes('past')) {
+    return {
+      title: 'Order already expired',
+      detail: 'Choose a future expiration time.',
+    };
+  }
+  if (
+    msg.includes('not yet accepting') ||
+    msg.includes('market_not_ready') ||
+    msg.includes('market not ready')
+  ) {
+    return {
+      title: 'Market not open yet',
+      detail: "This market isn't accepting orders yet. Check back soon.",
+    };
+  }
+
+  // Network / server
+  if (
+    msg.includes('failed to fetch') ||
+    msg.includes('network request failed') ||
+    msg.includes('timeout') ||
+    msg.includes('econnref')
+  ) {
+    return {
+      title: 'Network error',
+      detail: 'Check your connection and try again.',
+    };
+  }
+  if (
+    msg.includes('failed to prepare') ||
+    msg.includes('failed to submit') ||
+    msg.includes('server error') ||
+    msg.includes('execution_error')
+  ) {
+    return {
+      title: "Couldn't reach the order book",
+      detail:
+        "The exchange didn't accept the order. Wait a moment and try again.",
+    };
+  }
+  if (msg.includes('signing data is incomplete')) {
+    return {
+      title: 'Market data out of sync',
+      detail: 'Refresh this market and try placing the order again.',
+    };
+  }
+  if (msg.includes('no orderid')) {
+    return {
+      title: "Order didn't go through",
+      detail: 'The exchange returned an unexpected response. Try again.',
+    };
+  }
+
+  // Use the raw text if it already reads like a short user-facing sentence;
+  // otherwise hide it behind the generic fallback so users don't see codes.
+  const looksTechnical =
+    /0x[a-f0-9]/i.test(trimmed) ||
+    trimmed.includes('{') ||
+    trimmed.startsWith('Error:') ||
+    trimmed.length > 160;
+  if (!looksTechnical) {
+    return { title: 'Order failed', detail: trimmed };
+  }
+  return {
+    title: 'Order failed',
+    detail: "Something went wrong placing your order. Please try again.",
+  };
+}
+
+interface OrderSuccessInfo {
+  side: 'BUY' | 'SELL';
+  outcomeLabel: string;
+  outcomeAbbr: string;
+  shares: number;
+  priceCents: number;
+  usd: number;
+  isLimit: boolean;
+}
+
+function formatUsd(n: number): string {
+  return Number.isFinite(n) ? `$${n.toFixed(2)}` : '$—';
+}
+
+/**
+ * Polymarket-style success card. Shown in-flow above the order ticket once
+ * a fill comes back; auto-closes shortly after via the existing onClose
+ * timer in MarketDetailView.
+ */
+function OrderSuccessNotification({
+  info,
+  onDismiss,
+}: {
+  info: OrderSuccessInfo;
+  onDismiss: () => void;
+}) {
+  const verb =
+    info.isLimit
+      ? info.side === 'BUY'
+        ? 'Limit buy placed'
+        : 'Limit sell placed'
+      : info.side === 'BUY'
+        ? 'Order filled'
+        : 'Sell filled';
+  const action = info.side === 'BUY' ? 'Bought' : 'Sold';
+  const detail = `${action} ${info.shares.toFixed(2)} ${info.outcomeAbbr} @ ${info.priceCents}¢ · ${formatUsd(info.usd)}`;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        background: '#fff',
+        border: `1px solid rgba(25,169,116,0.30)`,
+        borderRadius: 14,
+        padding: '12px 14px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        boxShadow:
+          '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(25,169,116,0.18)',
+      }}
+    >
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          background: D.posGreenSoft,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <CheckCircle2 size={18} color={D.posGreen} strokeWidth={2.4} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 13.5,
+            fontWeight: 700,
+            color: D.ink,
+            letterSpacing: -0.1,
+          }}
+        >
+          {verb}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: D.muted,
+            marginTop: 2,
+            fontFamily: D.mono,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {detail}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 8,
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: D.muted2,
+          flexShrink: 0,
+        }}
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Polymarket-style info card. Used for actionable status messages that
+ * aren't errors — e.g. the trading session needs to be initialized before
+ * the user can place orders on this market. Amber tone so it reads as
+ * important but not destructive.
+ */
+function OrderInfoNotification({
+  title,
+  detail,
+}: {
+  title: string;
+  detail: string;
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        background: '#fff',
+        border: `1px solid ${D.warnBorder}`,
+        borderRadius: 14,
+        padding: '12px 14px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        boxShadow:
+          '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(217,119,6,0.16)',
+      }}
+    >
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          background: D.warnBg,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <InfoIcon size={18} color={D.warnIcon} strokeWidth={2.4} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 13.5,
+            fontWeight: 700,
+            color: D.ink,
+            letterSpacing: -0.1,
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: D.muted,
+            marginTop: 2,
+            lineHeight: 1.45,
+          }}
+        >
+          {detail}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Polymarket-style error card. Renders a friendly title + detail mapped from
+ * whatever raw error string the order pipeline surfaced.
+ */
+function OrderErrorNotification({
+  raw,
+  onDismiss,
+}: {
+  raw: string | null | undefined;
+  onDismiss: () => void;
+}) {
+  const { title, detail } = getFriendlyOrderError(raw);
+  return (
+    <div
+      role="alert"
+      aria-live="assertive"
+      style={{
+        background: '#fff',
+        border: `1px solid rgba(229,72,77,0.28)`,
+        borderRadius: 14,
+        padding: '12px 14px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        boxShadow:
+          '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(229,72,77,0.16)',
+      }}
+    >
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          background: 'rgba(229,72,77,0.10)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <AlertCircle size={18} color="#e5484d" strokeWidth={2.4} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 13.5,
+            fontWeight: 700,
+            color: D.ink,
+            letterSpacing: -0.1,
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: D.muted,
+            marginTop: 2,
+            lineHeight: 1.45,
+          }}
+        >
+          {detail}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 8,
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: D.muted2,
+          flexShrink: 0,
+        }}
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
 }
 
 type EventTeam = NonNullable<PolymarketMarket['eventTeams']>[number];
@@ -945,6 +1440,7 @@ type OrderTicketProps = {
   isLoadingTickSize: boolean;
   balance: number;
   activeShareBalance: number;
+  isShareBalanceLoading: boolean;
   shares: number;
   effectivePrice: number;
   totalCost: number;
@@ -1103,6 +1599,8 @@ function OrderTicket(p: OrderTicketProps) {
 
   const placeLabel = !p.clobClient
     ? 'Connect wallet'
+    : p.side === 'SELL' && p.isShareBalanceLoading
+      ? 'Checking holdings...'
     : p.isSubmitting
       ? 'Placing order...'
       : isLimit
@@ -1163,6 +1661,7 @@ function OrderTicket(p: OrderTicketProps) {
 
   const placeDisabled =
     p.isSubmitting ||
+    (p.side === 'SELL' && p.isShareBalanceLoading) ||
     inputNum <= 0 ||
     !p.clobClient ||
     p.hasInsufficientBalance ||
@@ -2829,7 +3328,7 @@ export default function MarketDetailView({
   initialAmount,
   outcomeLabels,
 }: MarketDetailViewProps) {
-  const { clobClient } = useTrading();
+  const { clobClient, portfolioAddresses } = useTrading();
   // ── Derived market data ───────────────────────────────────────────────────
   const outcomes = useMemo(
     () =>
@@ -2960,24 +3459,89 @@ export default function MarketDetailView({
   const [limitPrice, setLimitPrice] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successInfo, setSuccessInfo] = useState<OrderSuccessInfo | null>(
+    null,
+  );
   const [showFullDescription, setShowFullDescription] =
     useState(false);
 
-  const { eoaAddress } = usePolymarketWallet();
+  const { eoaAddress, publicClient } = usePolymarketWallet();
   const { getAccessToken } = usePrivy();
   const { user }: any = useUser();
 
   const activeTokenId =
     selectedOutcome === 'yes' ? yesTokenId : noTokenId;
   const activePrice = selectedOutcome === 'yes' ? yesPrice : noPrice;
-  const activeShareBalance =
+  const apiShareBalance =
     selectedOutcome === 'yes' ? yesShares : noShares;
+  const [onchainShareBalance, setOnchainShareBalance] = useState<
+    number | null
+  >(null);
+  const [isShareBalanceLoading, setIsShareBalanceLoading] =
+    useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setOnchainShareBalance(null);
+    setIsShareBalanceLoading(Boolean(activeTokenId && publicClient && portfolioAddresses.length > 0));
+    async function loadOnchainShareBalance() {
+      if (!activeTokenId || !publicClient || portfolioAddresses.length === 0) {
+        setOnchainShareBalance(null);
+        setIsShareBalanceLoading(false);
+        return;
+      }
+
+      try {
+        setIsShareBalanceLoading(true);
+        const balances = await Promise.all(
+          portfolioAddresses.map(async (address) => {
+            const raw = await publicClient.readContract({
+              address: CTF_CONTRACT_ADDRESS,
+              abi: ERC1155_BALANCE_OF_ABI,
+              functionName: 'balanceOf',
+              args: [
+                address as `0x${string}`,
+                BigInt(activeTokenId),
+              ],
+            });
+            return Number(raw) / 10 ** USDC_E_DECIMALS;
+          }),
+        );
+        if (!cancelled) {
+          // One CLOB order can only use one maker wallet, so expose the
+          // largest per-wallet balance as the sellable amount.
+          setOnchainShareBalance(Math.max(0, ...balances));
+          setIsShareBalanceLoading(false);
+        }
+      } catch (error) {
+        console.warn(
+          '[MarketDetailView] Failed to read on-chain share balance',
+          { activeTokenId, portfolioAddresses, error },
+        );
+        if (!cancelled) {
+          setOnchainShareBalance(0);
+          setIsShareBalanceLoading(false);
+        }
+      }
+    }
+
+    loadOnchainShareBalance();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTokenId, portfolioAddresses, publicClient]);
+
+  const activeShareBalance =
+    side === 'SELL'
+      ? (onchainShareBalance ?? 0)
+      : (onchainShareBalance ?? apiShareBalance);
 
   const { tickSize, isLoading: isLoadingTickSize } = useTickSize(
     activeTokenId || null,
   );
   const {
     submitOrder,
+    resetOrder,
     isSubmitting,
     error: orderError,
     orderId,
@@ -2993,6 +3557,7 @@ export default function MarketDetailView({
     setLimitPrice('');
     setLocalError(null);
     setShowSuccess(false);
+    setSuccessInfo(null);
     setShowFullDescription(false);
   }, [initialOutcome, initialAmount]);
 
@@ -3083,6 +3648,14 @@ export default function MarketDetailView({
     } else if (inputNum < 1) {
       setLocalError('Minimum shares to sell: 1');
       return;
+    } else if (isShareBalanceLoading) {
+      setLocalError('Checking your on-chain holdings. Try again in a moment.');
+      return;
+    } else if (inputNum - activeShareBalance > EPSILON) {
+      setLocalError(
+        `You only have ${activeShareBalance.toFixed(6)} shares available to sell for this outcome.`,
+      );
+      return;
     }
     try {
       // Market BUY: pass dollar amount (CLOB converts internally)
@@ -3101,6 +3674,28 @@ export default function MarketDetailView({
         fillType: 'FOK',
         expiration: undefined,
       });
+
+      // ── Capture summary for the success notification ──────────────────────
+      if (result?.success) {
+        setSuccessInfo({
+          side,
+          outcomeLabel:
+            selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName,
+          outcomeAbbr: (selectedOutcome === 'yes'
+            ? yesAbbr
+            : noAbbr
+          ).toUpperCase(),
+          shares,
+          priceCents: Math.round(effectivePrice * 100),
+          usd:
+            side === 'SELL'
+              ? amountToReceive
+              : isLimitVariant
+                ? totalCost
+                : inputNum,
+          isLimit: isLimitVariant,
+        });
+      }
 
       // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
       if (result?.success && user?.primaryMicrosite && user?._id) {
@@ -3169,6 +3764,11 @@ export default function MarketDetailView({
       }
     } catch (err) {
       console.error('Error placing order:', err);
+      setLocalError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to place order. Please try again.',
+      );
     }
   };
 
@@ -3324,37 +3924,30 @@ export default function MarketDetailView({
           </div>
         )}
 
-        {/* ── Success / Error feedback ─────────────────────────────────────── */}
-        {showSuccess && (
-          <div
-            style={{
-              background: D.posGreenSoft,
-              border: `1px solid rgba(25,169,116,0.25)`,
-              borderRadius: 12,
-              padding: 12,
-              textAlign: 'center',
-              fontSize: 13,
-              fontWeight: 600,
-              color: D.posGreen,
+        {/* ── Success / Error / Info feedback ──────────────────────────────── */}
+        {showSuccess && successInfo && (
+          <OrderSuccessNotification
+            info={successInfo}
+            onDismiss={() => {
+              setShowSuccess(false);
+              setSuccessInfo(null);
             }}
-          >
-            Order placed successfully!
-          </div>
+          />
         )}
         {(localError || orderError) && (
-          <div
-            style={{
-              background: 'rgba(229,72,77,0.08)',
-              border: `1px solid rgba(229,72,77,0.22)`,
-              borderRadius: 12,
-              padding: 12,
-              textAlign: 'center',
-              fontSize: 13,
-              color: '#c33037',
+          <OrderErrorNotification
+            raw={localError || orderError?.message}
+            onDismiss={() => {
+              setLocalError(null);
+              resetOrder();
             }}
-          >
-            {localError || orderError?.message}
-          </div>
+          />
+        )}
+        {!clobClient && !localError && !orderError && (
+          <OrderInfoNotification
+            title="Trading session not started"
+            detail="Initialize your Polymarket trading session from the Predictions panel to start placing orders on this market."
+          />
         )}
 
         {/* ── Order ticket (A3 / A3L) ──────────────────────────────────────── */}
@@ -3402,6 +3995,7 @@ export default function MarketDetailView({
           isLoadingTickSize={isLoadingTickSize}
           balance={balance}
           activeShareBalance={activeShareBalance}
+          isShareBalanceLoading={isShareBalanceLoading}
           shares={shares}
           effectivePrice={effectivePrice}
           totalCost={totalCost}
@@ -3412,19 +4006,6 @@ export default function MarketDetailView({
           onPlaceOrder={handlePlaceOrder}
           minLimitShares={LIMIT_MIN_SHARES}
         />
-
-        {!clobClient && (
-          <p
-            style={{
-              fontSize: 11,
-              textAlign: 'center',
-              color: D.muted,
-              margin: 0,
-            }}
-          >
-            Initialize trading session to place orders
-          </p>
-        )}
 
         {/* ── Order book preview ──────────────────────────────────────────── */}
         {/* <OrderBookCard

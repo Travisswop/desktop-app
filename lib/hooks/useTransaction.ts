@@ -8,7 +8,80 @@ import {
 import { CHAINS } from '@/types/config';
 import { APIUtils } from '@/utils/api';
 
+const ETHERSCAN_MIN_REQUEST_INTERVAL_MS = 400;
+const ETHERSCAN_RATE_LIMIT_MESSAGE =
+  'Max calls per sec rate limit reached';
+
+let etherscanQueue: Promise<unknown> = Promise.resolve();
+let lastEtherscanRequestAt = 0;
+
+const wait = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+const isSupportedChain = (
+  chain: string
+): chain is keyof typeof CHAINS => chain in CHAINS;
+
+const runEtherscanRequest = async <T,>(
+  request: () => Promise<T>
+): Promise<T> => {
+  const queuedRequest = etherscanQueue.then(async () => {
+    const elapsed = Date.now() - lastEtherscanRequestAt;
+    const waitTime = Math.max(
+      0,
+      ETHERSCAN_MIN_REQUEST_INTERVAL_MS - elapsed
+    );
+
+    if (waitTime > 0) {
+      await wait(waitTime);
+    }
+
+    lastEtherscanRequestAt = Date.now();
+    return request();
+  });
+
+  etherscanQueue = queuedRequest.catch(() => undefined);
+  return queuedRequest;
+};
+
 class TransactionAPI {
+  private static isEtherscanRateLimitResponse(
+    response: ERC20ApiResponse
+  ): boolean {
+    const result =
+      typeof response.result === 'string' ? response.result : '';
+
+    return (
+      response.status === '0' &&
+      (response.message?.includes(ETHERSCAN_RATE_LIMIT_MESSAGE) ||
+        result.includes(ETHERSCAN_RATE_LIMIT_MESSAGE))
+    );
+  }
+
+  private static async fetchEtherscanAccountResponse(
+    url: string,
+    options: RequestInit,
+    retries = 3
+  ): Promise<ERC20ApiResponse> {
+    const response = await runEtherscanRequest(() =>
+      APIUtils.fetchWithRetry<ERC20ApiResponse>(url, options)
+    );
+
+    if (
+      this.isEtherscanRateLimitResponse(response) &&
+      retries > 0
+    ) {
+      await wait(1100);
+      return this.fetchEtherscanAccountResponse(
+        url,
+        options,
+        retries - 1
+      );
+    }
+
+    return response;
+  }
+
   static async getSolTxDetails(
     signature: string
   ): Promise<SolTxDetails> {
@@ -40,9 +113,10 @@ class TransactionAPI {
     chain: keyof typeof CHAINS,
     address: string
   ): Promise<Transaction[]> {
-    if (CHAINS[chain].type === 'solana') return [];
-
     try {
+      if (!isSupportedChain(chain)) return [];
+      if (CHAINS[chain].type === 'solana') return [];
+
       const url = `${CHAINS[chain].transactionApiUrl}/api?address=${address}&apikey=${CHAINS[chain].accessToken}&chainid=${CHAINS[chain].chainId}&module=account&action=txlist&startblock=0&endblock=99999999&sort=asc`;
 
       const options = {
@@ -52,8 +126,10 @@ class TransactionAPI {
         },
       };
 
-      const response =
-        await APIUtils.fetchWithRetry<ERC20ApiResponse>(url, options);
+      const response = await this.fetchEtherscanAccountResponse(
+        url,
+        options
+      );
 
       if (
         response.status === '0' &&
@@ -85,9 +161,10 @@ class TransactionAPI {
     chain: keyof typeof CHAINS,
     address: string
   ): Promise<Transaction[]> {
-    if (CHAINS[chain].type === 'solana') return [];
-
     try {
+      if (!isSupportedChain(chain)) return [];
+      if (CHAINS[chain].type === 'solana') return [];
+
       const url = `${CHAINS[chain].transactionApiUrl}/api?address=${address}&apikey=${CHAINS[chain].accessToken}&chainid=${CHAINS[chain].chainId}&module=account&action=tokentx&startblock=0&endblock=99999999&sort=asc`;
 
       const options = {
@@ -97,8 +174,10 @@ class TransactionAPI {
         },
       };
 
-      const response =
-        await APIUtils.fetchWithRetry<ERC20ApiResponse>(url, options);
+      const response = await this.fetchEtherscanAccountResponse(
+        url,
+        options
+      );
 
       if (
         response.status === '0' &&
@@ -202,8 +281,10 @@ class TransactionAPI {
           gasPrice: '0',
           networkFee: '0', // We could fetch this separately if needed
           status: '1', // Assuming all transactions in this list are successful
+          contractAddress: item.token_address,
           tokenName: tokenInfo?.token_name || 'Unknown Token',
           tokenSymbol: tokenInfo?.token_symbol || 'UNKNOWN',
+          tokenLogo: tokenInfo?.token_icon,
           tokenDecimal: item.token_decimals,
           network: 'Solana',
           currentPrice: 0,
@@ -247,8 +328,10 @@ class TransactionAPI {
         gasPrice: String(fee),
         networkFee: String(networkFee),
         status: status === 'Success' ? '1' : '0',
+        contractAddress: tokenChange.token_address,
         tokenName: tokenInfo?.token_name || 'Unknown Token',
         tokenSymbol: tokenInfo?.token_symbol || 'UNKNOWN',
+        tokenLogo: tokenInfo?.token_icon,
         tokenDecimal: tokenChange.decimals,
         network: 'Solana',
         currentPrice: 0,
@@ -299,17 +382,19 @@ const formatEvmTransaction = (
   tx: Transaction,
   chain: keyof typeof CHAINS,
   walletAddress: string
-): Transaction => {
+): Transaction | null => {
   try {
     // Format EVM transactions
-    let formattedValue = '0';
     const tokenDecimal = tx.tokenDecimal
       ? Number(tx.tokenDecimal)
       : CHAINS[chain].nativeToken.decimals;
-    formattedValue = ethers.formatUnits(tx.value, tokenDecimal);
+    const rawValue = tx.value ?? '0';
+    const rawGas = tx.gas ?? '0';
+    const rawGasPrice = tx.gasPrice ?? '0';
 
-    const gasUsed = BigInt(tx.gas);
-    const gasPrice = BigInt(tx.gasPrice);
+    const formattedValue = ethers.formatUnits(rawValue, tokenDecimal);
+    const gasUsed = BigInt(rawGas || '0');
+    const gasPrice = BigInt(rawGasPrice || '0');
     const networkFee = ethers.formatUnits(
       gasUsed * gasPrice,
       CHAINS[chain].nativeToken.decimals
@@ -329,14 +414,19 @@ const formatEvmTransaction = (
       tokenDecimal:
         tx.tokenDecimal || CHAINS[chain].nativeToken.decimals,
       tokenSymbol: tx.tokenSymbol || CHAINS[chain].nativeToken.symbol,
+      tokenLogo: tx.tokenLogo,
       network: chain,
       currentPrice: 0,
       nativeTokenPrice: 0,
       flow,
     };
   } catch (error) {
-    console.error('Error formatting transaction:', error);
-    throw error;
+    console.warn('Skipping malformed EVM transaction:', {
+      chain,
+      hash: tx.hash,
+      error,
+    });
+    return null;
   }
 };
 
@@ -361,8 +451,12 @@ export const useMultiChainTransactionData = (
   chains: (keyof typeof CHAINS)[] = ['ETHEREUM'],
   options: TransactionOptions = { limit: 100, offset: 0 }
 ): TransactionResult => {
+  const normalizedChains = chains
+    .map((chain) => String(chain).toUpperCase())
+    .filter(isSupportedChain);
+
   const transactionQueries = useQueries({
-    queries: chains.map((chain) => ({
+    queries: normalizedChains.map((chain) => ({
       queryKey: [
         'transactions',
         chain,
@@ -370,13 +464,14 @@ export const useMultiChainTransactionData = (
         evmWalletAddress,
       ],
       queryFn: async () => {
-        if (!evmWalletAddress || !solWalletAddress) return [];
-
         if (chain === 'SOLANA') {
+          if (!solWalletAddress) return [];
           return TransactionAPI.getSolanaTransactions(
             solWalletAddress
           );
         }
+
+        if (!evmWalletAddress) return [];
 
         const [nativeTxs, erc20Txs] = await Promise.all([
           TransactionAPI.getNativeTransactions(
@@ -393,9 +488,14 @@ export const useMultiChainTransactionData = (
           .sort(
             (a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp)
           )
-          .map((tx) => formatEvmTransaction(tx, chain, evmWalletAddress));
+          .map((tx) => formatEvmTransaction(tx, chain, evmWalletAddress))
+          .filter((tx): tx is Transaction => Boolean(tx));
       },
-      enabled: !!evmWalletAddress,
+      enabled:
+        chain === 'SOLANA'
+          ? !!solWalletAddress
+          : !!evmWalletAddress,
+      staleTime: 60_000,
     })),
   });
 
@@ -457,7 +557,7 @@ export const useMultiChainTransactionData = (
       let primaryOut: (TokenFlow & { symbol: string }) | null = null;
       let primaryIn: (TokenFlow & { symbol: string }) | null = null;
 
-      tokenFlows.forEach((flow, symbol) => {
+      for (const [symbol, flow] of tokenFlows) {
         if (flow.net < -EPSILON) {
           // More negative net = more was sold — pick as the "from" token
           if (!primaryOut || flow.net < primaryOut.net) {
@@ -469,7 +569,7 @@ export const useMultiChainTransactionData = (
             primaryIn = { ...flow, symbol };
           }
         }
-      });
+      }
 
       // DFlow / aggregator routing quirk: the final received SPL token can
       // appear as both "in" and "out" under the same hash (e.g. USDC flows
@@ -480,14 +580,14 @@ export const useMultiChainTransactionData = (
       // token with the largest gross inflow as the true received token instead.
       if (primaryOut && (!primaryIn || primaryIn.symbol === 'SOL')) {
         let bestCancelled: (TokenFlow & { symbol: string }) | null = null;
-        tokenFlows.forEach((flow, symbol) => {
-          if (symbol === 'SOL') return;
+        for (const [symbol, flow] of tokenFlows) {
+          if (symbol === 'SOL') continue;
           if (Math.abs(flow.net) < EPSILON && flow.maxIn > 0) {
             if (!bestCancelled || flow.maxIn > bestCancelled.maxIn) {
               bestCancelled = { ...flow, symbol };
             }
           }
-        });
+        }
         if (bestCancelled) {
           primaryIn = { ...bestCancelled, net: bestCancelled.maxIn };
         }
@@ -506,12 +606,16 @@ export const useMultiChainTransactionData = (
               decimal: (primaryOut.outTx ?? txGroup[0]).tokenDecimal!,
               value: String(Math.abs(primaryOut.net)),
               price: 0,
+              logo: primaryOut.outTx?.tokenLogo,
+              contractAddress: primaryOut.outTx?.contractAddress,
             },
             to: {
               symbol: primaryIn.symbol,
               decimal: (primaryIn.inTx ?? txGroup[0]).tokenDecimal!,
               value: String(primaryIn.net),
               price: 0,
+              logo: primaryIn.inTx?.tokenLogo,
+              contractAddress: primaryIn.inTx?.contractAddress,
             },
           },
         });

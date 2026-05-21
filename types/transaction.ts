@@ -13,6 +13,7 @@ export interface Transaction {
   tokenName?: string;
   tokenDecimal?: number;
   tokenSymbol?: string;
+  tokenLogo?: string;
   network: string;
   isSwapped?: boolean;
   isRedeemable?: boolean;
@@ -34,6 +35,8 @@ interface TokenSwapInfo {
   decimal: number;
   value: string;
   price: number;
+  logo?: string;
+  contractAddress?: string;
 }
 
 interface SolanaTransfer {
