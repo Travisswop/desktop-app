@@ -443,6 +443,7 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
                       </div>
 
                       {/* Name + ENS */}
+
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-gray-900">
                           {displayName}

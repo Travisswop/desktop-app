@@ -29,9 +29,17 @@ import { TiInfoLarge } from "react-icons/ti";
 import { RiCustomerService2Line } from "react-icons/ri";
 import { LuWallet } from "react-icons/lu";
 import { IoLogOutOutline } from "react-icons/io5";
+import logger from "@/utils/logger";
 
 export default function Header() {
-  const { user, loading, logout: userLogout } = useUser();
+  const {
+    user,
+    loading,
+    logout: userLogout,
+    primaryMicrositeProfilePic,
+  } = useUser();
+
+  logger.info("primaryMicrositeProfilePic", primaryMicrositeProfilePic);
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -99,25 +107,26 @@ export default function Header() {
                   disabled={isLoggingOut}
                 >
                   <div className="relative h-8 w-8">
-                    {user.profilePic && (
-                      <>
-                        {isUrl(user?.profilePic) ? (
-                          <Image
-                            src={user.profilePic}
-                            alt={user.name || ""}
-                            fill
-                            className="rounded-full object-cover border"
-                          />
-                        ) : (
-                          <Image
-                            src={`/images/user_avator/${user.profilePic}.png`}
-                            alt={user.name || ""}
-                            fill
-                            className="rounded-full object-cover"
-                          />
-                        )}
-                      </>
-                    )}
+                    {(() => {
+                      const pic =
+                        primaryMicrositeProfilePic ?? user?.profilePic;
+                      if (!pic) return null;
+                      return isUrl(pic) ? (
+                        <Image
+                          src={pic}
+                          alt={user?.name || ""}
+                          fill
+                          className="rounded-full object-cover border"
+                        />
+                      ) : (
+                        <Image
+                          src={`/images/user_avator/${pic}.png`}
+                          alt={user?.name || ""}
+                          fill
+                          className="rounded-full object-cover"
+                        />
+                      );
+                    })()}
                   </div>
                   <span className="text-sm font-medium">{user.name}</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />

@@ -101,6 +101,7 @@ export interface UserContextType {
   refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  primaryMicrositeProfilePic: string | null;
 }
 
 const UserContext = createContext<UserContextType | null>(null);
@@ -123,7 +124,10 @@ function readCachedUserContext(): CachedUserContext | null {
     if (!rawCache) return null;
 
     const cache = JSON.parse(rawCache) as CachedUserContext;
-    if (!cache.user || Date.now() - cache.cachedAt > USER_CACHE_MAX_AGE_MS) {
+    if (
+      !cache.user ||
+      Date.now() - cache.cachedAt > USER_CACHE_MAX_AGE_MS
+    ) {
       window.localStorage.removeItem(USER_CACHE_KEY);
       return null;
     }
@@ -136,7 +140,10 @@ function readCachedUserContext(): CachedUserContext | null {
   }
 }
 
-function writeCachedUserContext(user: UserData, accessToken: string | null) {
+function writeCachedUserContext(
+  user: UserData,
+  accessToken: string | null,
+) {
   if (typeof window === 'undefined') return;
 
   try {
@@ -154,9 +161,9 @@ export function UserProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const initialCacheRef = useRef<CachedUserContext | null | undefined>(
-    undefined,
-  );
+  const initialCacheRef = useRef<
+    CachedUserContext | null | undefined
+  >(undefined);
   if (initialCacheRef.current === undefined) {
     initialCacheRef.current = readCachedUserContext();
   }
@@ -338,6 +345,11 @@ export function UserProvider({
     };
   }, []);
 
+  const primaryMicrositeData = useMemo(
+    () => user?.microsites?.find((m) => m.primary === true) ?? null,
+    [user?.microsites],
+  );
+
   const contextValue = useMemo(
     () => ({
       user,
@@ -348,6 +360,8 @@ export function UserProvider({
       logout: handleLogout,
       isAuthenticated: authenticated && !!user,
       primaryMicrosite: user?.primaryMicrosite,
+      primaryMicrositeProfilePic:
+        primaryMicrositeData?.profilePic ?? null,
     }),
     [
       user,
@@ -357,6 +371,7 @@ export function UserProvider({
       refreshUser,
       handleLogout,
       authenticated,
+      primaryMicrositeData,
     ],
   );
 
