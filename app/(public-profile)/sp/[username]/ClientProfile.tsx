@@ -94,9 +94,9 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
   return (
     <>
       {/* Token Gate Verification Modal - Shows when gatedInfo.isOn is true */}
-      {gatedInfo?.isOn && (
+      {/* {gatedInfo?.isOn && (
         <TokenGateVerification gatedInfo={gatedInfo} micrositeName={name} />
-      )}
+      )} */}
 
       <div
         style={{
