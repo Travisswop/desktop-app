@@ -673,7 +673,7 @@ export default function BlinksSection() {
         </div>
 
         {/* ── MY BLINKS list ──────────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] overflow-hidden flex flex-col">
+        <div className="h-[460px] md:h-[560px] bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] overflow-hidden flex flex-col">
           <div className="px-5 py-3.5 border-b border-black/[0.06] flex items-center justify-between gap-3 flex-wrap">
             <div className="min-w-0">
               <div className="text-[14px] font-semibold tracking-[-0.01em]">
@@ -710,7 +710,7 @@ export default function BlinksSection() {
             </div>
           </div>
 
-          <div className="flex-1 min-h-[360px] overflow-y-auto overscroll-contain">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain">
             {poolsLoading ? (
               <div className="p-5 space-y-2">
                 {[...Array(3)].map((_, i) => (

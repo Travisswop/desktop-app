@@ -24,7 +24,7 @@ const PROTECTED_ROUTES = new Set([
   "/qr-code",
   "/wallet",
   "/analytics",
-  "/mint",
+  "/products",
   "/order",
   "/content",
 ]);
@@ -849,7 +849,7 @@ export const config = {
     "/qr-code/:path*",
     "/wallet/:path*",
     "/analytics/:path*",
-    "/mint/:path*",
+    "/products/:path*",
     "/order/:path*",
     "/content/:path*",
     "/login",

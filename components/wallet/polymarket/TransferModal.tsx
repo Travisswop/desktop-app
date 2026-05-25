@@ -70,6 +70,7 @@ import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
 } from '@solana/spl-token';
 import bs58 from 'bs58';
 
@@ -735,11 +736,16 @@ function DepositTab({
     for (const { address: mintAddr, symbol } of commonMints) {
       try {
         const mintPubkey = new PublicKey(mintAddr);
+        const mintInfo = await connection.getAccountInfo(mintPubkey);
+        const tokenProgramId =
+          mintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID)
+            ? TOKEN_2022_PROGRAM_ID
+            : TOKEN_PROGRAM_ID;
         const ata = await getAssociatedTokenAddress(
           mintPubkey,
           walletPubkey,
           false,
-          TOKEN_PROGRAM_ID,
+          tokenProgramId,
         );
         const ataInfo = await connection.getAccountInfo(ata);
         if (!ataInfo) {
@@ -750,7 +756,7 @@ function DepositTab({
               ata,
               walletPubkey,
               mintPubkey,
-              TOKEN_PROGRAM_ID,
+              tokenProgramId,
             ),
           );
           const { blockhash: ataBlockhash } =
