@@ -27,6 +27,7 @@ const PROTECTED_ROUTES = new Set([
   "/products",
   "/order",
   "/content",
+  "/account-deletion",
 ]);
 
 const AUTH_ROUTES = new Set(["/login", "/onboard"]);
