@@ -106,6 +106,37 @@ export interface UserContextType {
 const UserContext = createContext<UserContextType | null>(null);
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const LEGACY_AUTH_STORAGE_KEYS = [
+  'authToken',
+  'jwt_token',
+  'accessToken',
+] as const;
+
+function clearLegacyAuthStorage() {
+  if (typeof window === 'undefined') return;
+
+  for (const key of LEGACY_AUTH_STORAGE_KEYS) {
+    window.localStorage.removeItem(key);
+  }
+}
+
+function syncBackendSession(userId?: string, token?: string) {
+  if (userId) {
+    Cookies.set('user-id', userId);
+  } else {
+    Cookies.remove('user-id');
+  }
+
+  if (token) {
+    Cookies.set('access-token', token);
+  } else {
+    Cookies.remove('access-token');
+  }
+
+  // Keep legacy localStorage auth keys empty so older code paths
+  // cannot accidentally revive a stale session after a Privy app switch.
+  clearLegacyAuthStorage();
+}
 
 export function UserProvider({
   children,
@@ -173,6 +204,7 @@ export function UserProvider({
           if (response.status === 404) {
             setUser(null);
             setAccessToken(null);
+            syncBackendSession();
             return false;
           }
           throw new Error(`HTTP ${response.status}`);
@@ -189,6 +221,7 @@ export function UserProvider({
         setAccessToken(token);
         setError(null);
         lastFetchedEmailRef.current = email;
+        syncBackendSession(userData._id?.toString(), token);
 
         return true;
       } catch (err) {
@@ -216,14 +249,12 @@ export function UserProvider({
       setAccessToken(null);
       setError(null);
       lastFetchedEmailRef.current = null;
+      syncBackendSession();
       await privyLogout();
       router.push('/login');
-      Cookies.remove('user-id');
-      Cookies.remove('access-token');
     } catch (err) {
       console.error('Error during logout:', err);
-      Cookies.remove('user-id');
-      Cookies.remove('access-token');
+      syncBackendSession();
       router.push('/login');
     }
   }, [privyLogout, router]);
@@ -248,6 +279,8 @@ export function UserProvider({
     if (!authenticated || !privyUser) {
       setUser(null);
       setAccessToken(null);
+      lastFetchedEmailRef.current = null;
+      syncBackendSession();
       setLoading(false);
       return;
     }

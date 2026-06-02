@@ -1,4 +1,6 @@
 // Chat service for API interactions with the new backend
+import Cookies from 'js-cookie';
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -22,8 +24,10 @@ interface ApiResponse<T> {
 
 class ChatApiService {
   private getAuthHeaders() {
-    // Get JWT token from localStorage (same as socket connection)
+    // Prefer the current backend JWT cookie set during login.
+    // LocalStorage may contain stale tokens after switching Privy apps.
     const token =
+      Cookies.get('access-token') ||
       localStorage.getItem('authToken') ||
       localStorage.getItem('jwt_token') ||
       localStorage.getItem('accessToken');

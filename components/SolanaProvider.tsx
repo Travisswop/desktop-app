@@ -14,6 +14,7 @@ import {
   type PropsWithChildren,
   useEffect,
   useMemo,
+  useState,
 } from 'react';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { PrivyWalletAdapter } from './wallet/PrivyWalletAdapter';
@@ -69,31 +70,47 @@ const SolanaHandler: FC = () => {
   return null;
 };
 
-export const SolanaProvider: FC<PropsWithChildren> = ({
+const SolanaProviderInner: FC<PropsWithChildren> = ({
   children,
 }) => {
   const { wallets: solWallets } = useSolanaWallets();
+  const activeWallet =
+    solWallets && solWallets.length > 0 ? solWallets[0] : null;
 
   const wallets = useMemo(() => {
-    const activeWallet =
-      solWallets && solWallets.length > 0 ? solWallets[0] : null;
+    if (!activeWallet) return [];
+
     return [
       new PrivyWalletAdapter({
         wallet: activeWallet,
       }),
     ];
-  }, [solWallets]);
+  }, [activeWallet]);
 
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider
         wallets={wallets}
         localStorageKey={SolanaConnectedWalletKey}
-        autoConnect
+        autoConnect={wallets.length > 0}
       >
         <SolanaHandler />
         {children}
       </WalletProvider>
     </ConnectionProvider>
   );
+};
+
+export const SolanaProvider: FC<PropsWithChildren> = ({ children }) => {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return <>{children}</>;
+  }
+
+  return <SolanaProviderInner>{children}</SolanaProviderInner>;
 };

@@ -48,16 +48,24 @@ This directory contains comprehensive test suites for all socket events in the S
    npm install
    ```
 
-2. **Start socket server:**
+2. **Start the backend socket server:**
    ```bash
-   cd ../swop-socket-server
+   cd ../swop-app-backend
    npm start
    ```
 
 3. **Set environment variables:**
    ```bash
-   export SOCKET_URL=http://localhost:3001
+   export SOCKET_URL=http://localhost:4000
+   export SOCKET_AUTH_TOKEN=<jwt-for-a-real-test-user>
    ```
+
+Socket integration specs are skipped by default so local and CI Jest runs do not hang against
+an unavailable or unauthenticated backend. Run them explicitly with:
+
+```bash
+RUN_SOCKET_INTEGRATION=1 SOCKET_URL=http://localhost:4000 SOCKET_AUTH_TOKEN=<jwt> npm test -- --runInBand
+```
 
 ### Run All Tests
 ```bash
@@ -204,7 +212,9 @@ describe('My Socket Test', () => {
 
 ### Environment Variables
 
-- `SOCKET_URL`: Socket server URL (default: `http://localhost:3001`)
+- `RUN_SOCKET_INTEGRATION`: Set to `1` to enable backend socket integration tests
+- `SOCKET_URL`: Socket server URL (default: `http://localhost:4000`)
+- `SOCKET_AUTH_TOKEN`: JWT for an existing backend/database user
 - `TEST_TIMEOUT`: Test timeout in milliseconds (default: 10000)
 
 ### Jest Configuration
@@ -274,14 +284,15 @@ Add to your CI pipeline:
 ```yaml
 - name: Start Socket Server
   run: |
-    cd swop-socket-server
+    cd swop-app-backend
     npm start &
     sleep 5
 
 - name: Run Socket Tests
-  run: npm test
+  run: RUN_SOCKET_INTEGRATION=1 npm test -- --runInBand
   env:
-    SOCKET_URL: http://localhost:3001
+    SOCKET_URL: http://localhost:4000
+    SOCKET_AUTH_TOKEN: ${{ secrets.SOCKET_AUTH_TOKEN }}
 ```
 
 ## 📝 Writing New Tests

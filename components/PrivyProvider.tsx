@@ -12,11 +12,41 @@ interface SolanaConfig {
   };
 }
 
+const ensureServerLocalStorage = () => {
+  if (typeof window !== 'undefined') return;
+
+  const existingStorage = globalThis.localStorage as Partial<Storage> | undefined;
+  if (existingStorage && typeof existingStorage.getItem === 'function') return;
+
+  const memoryStorage = new Map<string, string>();
+  const storageShim = {
+    get length() {
+      return memoryStorage.size;
+    },
+    clear: () => memoryStorage.clear(),
+    getItem: (key: string) => memoryStorage.get(String(key)) ?? null,
+    key: (index: number) => Array.from(memoryStorage.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      memoryStorage.delete(String(key));
+    },
+    setItem: (key: string, value: string) => {
+      memoryStorage.set(String(key), String(value));
+    },
+  };
+
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: storageShim,
+  });
+};
+
 export default function PrivyProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  ensureServerLocalStorage();
+
   const [solanaConnectors, setSolanaConnectors] =
     useState<any>(undefined);
   const [solanaConfig, setSolanaConfig] = useState<

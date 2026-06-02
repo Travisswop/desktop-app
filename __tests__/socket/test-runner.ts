@@ -7,9 +7,29 @@
 
 import { io, Socket } from 'socket.io-client';
 
+export const SOCKET_URL = process.env.SOCKET_URL || 'http://localhost:4000';
+export const SOCKET_AUTH_TOKEN =
+  process.env.SOCKET_AUTH_TOKEN || process.env.JWT_TOKEN || process.env.ACCESS_TOKEN;
+export const SOCKET_INTEGRATION_ENABLED =
+  process.env.RUN_SOCKET_INTEGRATION === '1' && Boolean(SOCKET_AUTH_TOKEN);
+export const describeSocketIntegration = SOCKET_INTEGRATION_ENABLED ? describe : describe.skip;
+
+export function socketClientOptions() {
+  return {
+    autoConnect: false,
+    transports: ['websocket'],
+    timeout: Number(process.env.SOCKET_TIMEOUT_MS || 5000),
+    auth: SOCKET_AUTH_TOKEN ? { token: SOCKET_AUTH_TOKEN } : undefined,
+  };
+}
+
+export function createTestSocket(url = SOCKET_URL): Socket {
+  return io(url, socketClientOptions());
+}
+
 export class SocketTestRunner {
   private sockets: Socket[] = [];
-  private readonly SOCKET_URL = process.env.SOCKET_URL || 'http://localhost:3001';
+  private readonly SOCKET_URL = SOCKET_URL;
 
   /**
    * Create multiple socket connections for testing
@@ -18,10 +38,7 @@ export class SocketTestRunner {
     const sockets: Socket[] = [];
 
     for (let i = 0; i < count; i++) {
-      const socket = io(this.SOCKET_URL, {
-        autoConnect: false,
-        transports: ['websocket'],
-      });
+      const socket = createTestSocket(this.SOCKET_URL);
       sockets.push(socket);
       this.sockets.push(socket);
     }

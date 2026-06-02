@@ -9,6 +9,7 @@
     "analyze": "ANALYZE=true NODE_OPTIONS='--max-old-space-size=4096' next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck:onboard-ai": "tsc --noEmit -p tsconfig.onboard-ai.json",
     "test": "jest",
     "test:watch": "jest --watch"
   },

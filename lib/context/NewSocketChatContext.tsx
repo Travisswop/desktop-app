@@ -578,7 +578,7 @@ export const SocketChatProvider = ({
           cookies.length
         );
 
-        for (let cookie of cookies) {
+        for (const cookie of cookies) {
           const [name, value] = cookie.trim().split('=');
           if (name === 'access-token') {
             const decodedValue = decodeURIComponent(value);

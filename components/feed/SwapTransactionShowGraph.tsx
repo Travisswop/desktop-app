@@ -379,7 +379,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
     const edge = 16;
     const gap = 10;
 
-    let valueX = Math.max(
+    const valueX = Math.max(
       valueW / 2 + edge,
       Math.min(chartWidth - valueW / 2 - edge, xPos),
     );
@@ -390,7 +390,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
       pos = "below";
     }
 
-    let labelX = Math.max(
+    const labelX = Math.max(
       labelW / 2 + edge,
       Math.min(chartWidth - labelW / 2 - edge, xPos),
     );
@@ -596,13 +596,13 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
             const gap = 6;
             const belowY = avatarCy + AVATAR_BORDER + gap;
             const aboveY = avatarCy - AVATAR_BORDER - gap - th;
-            let ty =
+            const ty =
               belowY + th <= chartHeight - edge
                 ? belowY
                 : aboveY >= edge
                   ? aboveY
                   : belowY;
-            let tx = Math.max(
+            const tx = Math.max(
               edge,
               Math.min(
                 (createdAtX ?? avatarCx) - tw / 2,

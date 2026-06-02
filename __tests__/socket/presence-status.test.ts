@@ -1,10 +1,10 @@
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
+import { createTestSocket, describeSocketIntegration } from './test-runner';
 
-describe('Socket Presence & Status Events', () => {
+describeSocketIntegration('Socket Presence & Status Events', () => {
   let mainSocket: Socket;
   let observerSocket1: Socket;
   let observerSocket2: Socket;
-  const SOCKET_URL = process.env.SOCKET_URL || 'http://localhost:3001';
 
   const mainUser = {
     id: 'main-user-123',
@@ -41,20 +41,11 @@ describe('Socket Presence & Status Events', () => {
       }
     };
 
-    mainSocket = io(SOCKET_URL, {
-      autoConnect: false,
-      transports: ['websocket'],
-    });
+    mainSocket = createTestSocket();
 
-    observerSocket1 = io(SOCKET_URL, {
-      autoConnect: false,
-      transports: ['websocket'],
-    });
+    observerSocket1 = createTestSocket();
 
-    observerSocket2 = io(SOCKET_URL, {
-      autoConnect: false,
-      transports: ['websocket'],
-    });
+    observerSocket2 = createTestSocket();
 
     mainSocket.on('connect', checkConnections);
     observerSocket1.on('connect', checkConnections);

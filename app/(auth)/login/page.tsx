@@ -26,6 +26,20 @@ import { RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
 import logger from '@/utils/logger';
 
+const LEGACY_AUTH_STORAGE_KEYS = [
+  'authToken',
+  'jwt_token',
+  'accessToken',
+] as const;
+
+const clearLegacyAuthStorage = () => {
+  if (typeof window === 'undefined') return;
+
+  for (const key of LEGACY_AUTH_STORAGE_KEYS) {
+    window.localStorage.removeItem(key);
+  }
+};
+
 // Login flow states
 enum LoginFlow {
   EMAIL_INPUT = 'email_input',
@@ -339,8 +353,13 @@ const Login: React.FC = () => {
 
         if (!response.ok) {
           if (response.status === 404) {
-            logger.log('User not found, redirecting to onboard');
-            router.push('/onboard');
+            const onboardingRoute =
+              process.env.NEXT_PUBLIC_USE_AI_ONBOARDING === 'true'
+                ? '/onboard-ai'
+                : '/onboard';
+
+            logger.log(`User not found, redirecting to ${onboardingRoute}`);
+            router.push(onboardingRoute);
             return;
           }
           throw new Error(`API error: ${response.status}`);
@@ -353,6 +372,7 @@ const Login: React.FC = () => {
         }
 
         // Set user ID cookie
+        clearLegacyAuthStorage();
         Cookies.set('user-id', data.user._id.toString());
         Cookies.set('access-token', data.token);
 

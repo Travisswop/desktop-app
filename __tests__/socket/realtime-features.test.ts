@@ -1,10 +1,10 @@
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
+import { createTestSocket, describeSocketIntegration } from './test-runner';
 
-describe('Socket Real-time Features', () => {
+describeSocketIntegration('Socket Real-time Features', () => {
   let userSocket1: Socket;
   let userSocket2: Socket;
   let userSocket3: Socket;
-  const SOCKET_URL = process.env.SOCKET_URL || 'http://localhost:3001';
 
   const mockUser1 = {
     id: 'user1-123',
@@ -41,20 +41,11 @@ describe('Socket Real-time Features', () => {
       }
     };
 
-    userSocket1 = io(SOCKET_URL, {
-      autoConnect: false,
-      transports: ['websocket'],
-    });
+    userSocket1 = createTestSocket();
 
-    userSocket2 = io(SOCKET_URL, {
-      autoConnect: false,
-      transports: ['websocket'],
-    });
+    userSocket2 = createTestSocket();
 
-    userSocket3 = io(SOCKET_URL, {
-      autoConnect: false,
-      transports: ['websocket'],
-    });
+    userSocket3 = createTestSocket();
 
     userSocket1.on('connect', checkConnections);
     userSocket2.on('connect', checkConnections);
