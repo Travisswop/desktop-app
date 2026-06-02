@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useTrading } from '@/providers/polymarket';
 import {
@@ -21,11 +22,14 @@ import {
   FALLBACK_TEAM_COLOR,
 } from '@/lib/polymarket/sports-teams';
 import type { PolymarketMarket } from '@/hooks/polymarket';
+import {
+  useMarketDetailStore,
+  marketRouteKey,
+} from '@/zustandStore/marketDetailStore';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
 import LoadingState from '../shared/LoadingState';
-import MarketDetailModal from './MarketDetailModal';
 
 // ─── Single source of truth for the A2 hairline / mono helpers ──────────────
 const HAIR = 'rgba(0,0,0,0.06)';
@@ -37,6 +41,77 @@ const LIVE_RED = '#ff5a5f';
 // Mobile widths shrink the right columns to fit; desktop matches A2.
 const COLS_DESKTOP = '1fr 92px 100px 100px';
 const COLS_MOBILE = '1fr 72px 78px 78px';
+
+interface FuturesMarketGroup {
+  id: string;
+  title: string;
+  markets: PolymarketMarket[];
+}
+
+interface FuturesOutcomeRow {
+  label: string;
+  price: number;
+  tokenId: string;
+}
+
+function parseJsonArray<T>(raw: unknown, fallback: T[] = []): T[] {
+  if (Array.isArray(raw)) return raw as T[];
+  if (typeof raw !== 'string' || !raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function getFuturesOutcomeRows(
+  market: PolymarketMarket,
+): FuturesOutcomeRow[] {
+  const outcomes = parseJsonArray<string>(market.outcomes);
+  const staticPrices = parseJsonArray<string | number>(
+    market.outcomePrices,
+  ).map(Number);
+  const tokenIds = parseJsonArray<string>(market.clobTokenIds);
+
+  return outcomes.map((label, index) => {
+    const tokenId = tokenIds[index] ?? '';
+    const realtime = tokenId ? market.realtimePrices?.[tokenId] : undefined;
+    const price =
+      realtime?.midPrice ??
+      realtime?.askPrice ??
+      realtime?.bidPrice ??
+      staticPrices[index] ??
+      0;
+    return { label, price, tokenId };
+  });
+}
+
+function groupFuturesMarkets(
+  markets: PolymarketMarket[],
+): FuturesMarketGroup[] {
+  const groups = new Map<string, FuturesMarketGroup>();
+
+  for (const market of markets) {
+    const title =
+      (market.eventTitle as string | undefined) ||
+      (market.events?.[0]?.title as string | undefined) ||
+      'Futures';
+    const id =
+      (market.eventId as string | undefined) ||
+      (market.eventSlug as string | undefined) ||
+      title;
+    if (!groups.has(id)) groups.set(id, { id, title, markets: [] });
+    groups.get(id)!.markets.push(market);
+  }
+
+  return Array.from(groups.values());
+}
+
+function formatCents(price: number): string {
+  if (!Number.isFinite(price) || price <= 0) return '--';
+  return `${Math.round(price * 100)}¢`;
+}
 
 interface SportsTableViewProps {
   /** Polymarket tag ID for the active sport ("All" passes the parent
@@ -68,9 +143,12 @@ export default function SportsTableView({
   dateFrom,
   dateTo,
 }: SportsTableViewProps) {
-  const { isGeoblocked, safeAddress } = useTrading();
+  const isFutures = kind === 'futures';
+  const { isGeoblocked, safeAddress, portfolioAddresses } = useTrading();
   const { data: teamsData } = usePolymarketTeams();
-  const { data: positions } = useUserPositions(safeAddress);
+  const { data: positions } = useUserPositions(
+    portfolioAddresses.length ? portfolioAddresses : safeAddress,
+  );
 
   const {
     data,
@@ -88,6 +166,10 @@ export default function SportsTableView({
   });
 
   const allMarkets = useMemo(() => data?.pages.flat() ?? [], [data]);
+  const futuresGroups = useMemo(
+    () => groupFuturesMarkets(allMarkets),
+    [allMarkets],
+  );
   const games = useMemo(() => {
     const grouped = groupFlatMarketsIntoGames(allMarkets).filter(
       isValidGameCard,
@@ -112,64 +194,66 @@ export default function SportsTableView({
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Order modal state — outcome clicks open MarketDetailModal with the
-  // clicked side preselected (mirrors the existing two-column layout).
-  const [detailMarket, setDetailMarket] =
-    useState<PolymarketMarket | null>(null);
-  const [detailInitialOutcome, setDetailInitialOutcome] = useState<
-    'yes' | 'no' | undefined
-  >(undefined);
-  const [detailOutcomeLabels, setDetailOutcomeLabels] = useState<
-    [string, string] | undefined
-  >(undefined);
+  // Outcome clicks navigate to the market detail page with the clicked side
+  // preselected. The market is stashed in the zustand hand-off store so the
+  // page can read it without a separate fetch.
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((s) => s.set);
 
-  const handleOutcomeClick = (
-    market: PolymarketMarket,
-    outcome: string,
-    _price: number,
-    tokenId: string,
-  ) => {
-    const tokenIds: string[] = market.clobTokenIds
-      ? JSON.parse(market.clobTokenIds)
-      : [];
-    const yesTokenId = tokenIds[0] || tokenId;
-    const isFirstOutcome = tokenId === yesTokenId;
-    setDetailInitialOutcome(isFirstOutcome ? 'yes' : 'no');
-    setDetailMarket(market);
+  const handleOutcomeClick = useCallback(
+    (
+      market: PolymarketMarket,
+      outcome: string,
+      _price: number,
+      tokenId: string,
+    ) => {
+      const tokenIds: string[] = market.clobTokenIds
+        ? JSON.parse(market.clobTokenIds)
+        : [];
+      const yesTokenId = tokenIds[0] || tokenId;
+      const isFirstOutcome = tokenId === yesTokenId;
 
-    // Spread labels carry "+1.5" / "-1.5"; derive the counterpart so the
-    // detail modal can display both sides correctly.
-    const isSpreadLine = /^[+-]\d/.test(outcome);
-    if (isSpreadLine) {
-      const other = outcome.startsWith('+')
-        ? '-' + outcome.slice(1)
-        : '+' + outcome.slice(1);
-      setDetailOutcomeLabels(
-        isFirstOutcome ? [outcome, other] : [other, outcome],
-      );
-    } else {
-      setDetailOutcomeLabels(undefined);
-    }
-  };
+      let outcomeLabels: [string, string] | undefined;
+      const isSpreadLine = /^[+-]\d/.test(outcome);
+      if (isSpreadLine) {
+        const other = outcome.startsWith('+')
+          ? '-' + outcome.slice(1)
+          : '+' + outcome.slice(1);
+        outcomeLabels = isFirstOutcome
+          ? [outcome, other]
+          : [other, outcome];
+      }
 
-  const detailMarketShares = useMemo(() => {
-    if (!detailMarket || !positions)
-      return { yesShares: 0, noShares: 0 };
-    const tIds = detailMarket.clobTokenIds
-      ? (JSON.parse(detailMarket.clobTokenIds) as string[])
-      : [];
-    return {
-      yesShares: positions.find((p) => p.asset === tIds[0])?.size || 0,
-      noShares: positions.find((p) => p.asset === tIds[1])?.size || 0,
-    };
-  }, [detailMarket, positions]);
+      const tIds = tokenIds;
+      const yesShares =
+        positions?.find((p) => p.asset === tIds[0])?.size || 0;
+      const noShares =
+        positions?.find((p) => p.asset === tIds[1])?.size || 0;
+
+      const key = marketRouteKey(market);
+      if (!key) return;
+      stashMarketDetail(key, {
+        market,
+        initialOutcome: isFirstOutcome ? 'yes' : 'no',
+        outcomeLabels,
+        yesShares,
+        noShares,
+      });
+      router.push(`/prediction/market/${encodeURIComponent(key)}`);
+    },
+    [positions, router, stashMarketDetail],
+  );
 
   // ── Render ──────────────────────────────────────────────────────────────
 
-  if (isLoading && games.length === 0) {
+  const visibleItemCount = isFutures ? allMarkets.length : games.length;
+
+  if (isLoading && visibleItemCount === 0) {
     return (
       <div className="px-4 py-6">
-        <LoadingState message="Loading games..." />
+        <LoadingState
+          message={isFutures ? 'Loading futures...' : 'Loading games...'}
+        />
       </div>
     );
   }
@@ -177,23 +261,63 @@ export default function SportsTableView({
   if (error) {
     return (
       <div className="px-4 py-6">
-        <ErrorState error={error} title="Error loading games" />
+        <ErrorState
+          error={error}
+          title={isFutures ? 'Error loading futures' : 'Error loading games'}
+        />
       </div>
     );
   }
 
-  if (!isLoading && games.length === 0) {
+  if (!isLoading && visibleItemCount === 0) {
     return (
       <div className="px-4 py-6">
         <EmptyState
-          title="No games"
+          title={isFutures ? 'No futures' : 'No games'}
           message={
-            liveOnly
+            isFutures
+              ? 'No futures markets found for the selected league.'
+              : liveOnly
               ? 'No games are live right now. Try a different filter.'
               : 'No games on this date for the selected league. Try another day.'
           }
         />
       </div>
+    );
+  }
+
+  if (isFutures) {
+    return (
+      <>
+        {futuresGroups.map((group, groupIndex) => (
+          <FuturesMarketGroupRows
+            key={group.id}
+            group={group}
+            firstGroup={groupIndex === 0}
+            disabled={isGeoblocked}
+            onOutcomeClick={handleOutcomeClick}
+          />
+        ))}
+
+        {(hasNextPage || isFetchingNextPage) && (
+          <div
+            ref={sentinelRef}
+            className="flex items-center justify-center py-4 gap-2 text-sm text-gray-400 border-t"
+            style={{ borderColor: HAIR }}
+          >
+            <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+            Loading more futures...
+          </div>
+        )}
+        {!hasNextPage && allMarkets.length > 0 && (
+          <div
+            className="text-center text-[11px] text-gray-400 py-3 border-t"
+            style={{ borderColor: HAIR }}
+          >
+            All {allMarkets.length} futures loaded
+          </div>
+        )}
+      </>
     );
   }
 
@@ -247,24 +371,163 @@ export default function SportsTableView({
         </div>
       )}
 
-      {/* Order modal */}
-      {detailMarket && (
-        <MarketDetailModal
-          isOpen={!!detailMarket}
-          onClose={() => {
-            setDetailMarket(null);
-            setDetailInitialOutcome(undefined);
-            setDetailOutcomeLabels(undefined);
-          }}
-          market={detailMarket}
-          balance={0}
-          yesShares={detailMarketShares.yesShares}
-          noShares={detailMarketShares.noShares}
-          initialOutcome={detailInitialOutcome}
-          outcomeLabels={detailOutcomeLabels}
-        />
-      )}
     </>
+  );
+}
+
+function FuturesMarketGroupRows({
+  group,
+  firstGroup,
+  disabled,
+  onOutcomeClick,
+}: {
+  group: FuturesMarketGroup;
+  firstGroup: boolean;
+  disabled: boolean;
+  onOutcomeClick: (
+    market: PolymarketMarket,
+    outcome: string,
+    price: number,
+    tokenId: string,
+  ) => void;
+}) {
+  return (
+    <div style={firstGroup ? undefined : { borderTop: `1px solid ${HAIR}` }}>
+      <div
+        className="px-4 sm:px-[18px] py-2.5 flex items-center justify-between gap-3"
+        style={{
+          background: '#fafafa',
+          borderBottom: `1px solid ${HAIR}`,
+        }}
+      >
+        <div className="min-w-0">
+          <div
+            className="text-[10px] font-bold uppercase text-gray-500"
+            style={{ fontFamily: MONO }}
+          >
+            Futures
+          </div>
+          <div className="text-[14px] sm:text-[15px] font-semibold text-gray-900 truncate">
+            {group.title}
+          </div>
+        </div>
+        <div
+          className="text-[10.5px] font-semibold text-gray-500 shrink-0"
+          style={{ fontFamily: MONO }}
+        >
+          {group.markets.length} markets
+        </div>
+      </div>
+
+      {group.markets.map((market, marketIndex) => (
+        <FuturesMarketRow
+          key={market.id}
+          market={market}
+          firstRow={marketIndex === 0}
+          disabled={disabled}
+          onOutcomeClick={onOutcomeClick}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FuturesMarketRow({
+  market,
+  firstRow,
+  disabled,
+  onOutcomeClick,
+}: {
+  market: PolymarketMarket;
+  firstRow: boolean;
+  disabled: boolean;
+  onOutcomeClick: (
+    market: PolymarketMarket,
+    outcome: string,
+    price: number,
+    tokenId: string,
+  ) => void;
+}) {
+  const outcomes = getFuturesOutcomeRows(market);
+  const icon = market.icon || market.image || market.eventIcon;
+  const isClosed = market.closed || market.active === false;
+
+  return (
+    <div
+      className="px-4 sm:px-[18px] py-3.5 grid gap-3 sm:grid-cols-[1fr_minmax(260px,360px)] sm:items-center"
+      style={firstRow ? undefined : { borderTop: `1px solid ${HAIR}` }}
+    >
+      <div className="flex items-start gap-3 min-w-0">
+        {icon ? (
+          <Image
+            src={icon}
+            alt=""
+            width={36}
+            height={36}
+            className="w-9 h-9 rounded-lg object-cover bg-gray-50 shrink-0"
+            unoptimized
+          />
+        ) : (
+          <div className="w-9 h-9 rounded-lg bg-gray-100 shrink-0" />
+        )}
+        <div className="min-w-0">
+          <div className="text-[14px] sm:text-[15px] font-semibold text-gray-900 leading-snug">
+            {market.question}
+          </div>
+          <div
+            className="mt-1 text-[10.5px] text-gray-500 font-semibold"
+            style={{ fontFamily: MONO }}
+          >
+            {market.eventTitle || 'NBA futures'}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {outcomes.slice(0, 4).map((outcome, index) => {
+          const isYes =
+            outcome.label.toLowerCase() === 'yes' ||
+            (outcomes.length === 2 && index === 0);
+          return (
+            <button
+              key={outcome.tokenId || `${market.id}-${index}`}
+              type="button"
+              disabled={disabled || isClosed || !outcome.tokenId}
+              onClick={() =>
+                onOutcomeClick(
+                  market,
+                  outcome.label,
+                  outcome.price,
+                  outcome.tokenId,
+                )
+              }
+              className={`min-h-12 rounded-[12px] border px-3 py-2 flex items-center justify-between gap-2 transition-colors ${
+                disabled || isClosed || !outcome.tokenId
+                  ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                  : isYes
+                    ? 'bg-emerald-50 text-gray-900 hover:bg-emerald-100 cursor-pointer'
+                    : 'bg-white text-gray-900 hover:bg-gray-50 cursor-pointer'
+              }`}
+              style={{
+                borderColor: isYes ? 'rgba(25,169,116,0.38)' : HAIR,
+              }}
+            >
+              <span className="font-semibold text-[13px] truncate">
+                {outcome.label}
+              </span>
+              <span
+                className={`font-bold text-[14px] tabular-nums ${
+                  isYes ? 'text-emerald-600' : 'text-gray-700'
+                }`}
+                style={{ fontFamily: MONO }}
+              >
+                {formatCents(outcome.price)}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -470,7 +733,7 @@ function TeamRow({
         </div>
 
         <OddsButton
-          primary={ml ? formatMoneyline(ml.price) : ''}
+          primary={formatProbabilityPct(ml?.price)}
           disabled={disabled || !ml || !mlMarket}
           onClick={() =>
             ml &&
@@ -480,7 +743,7 @@ function TeamRow({
         />
         <OddsButton
           primary={spLine}
-          sub="−110"
+          sub={formatProbabilityPct(sp?.price) || undefined}
           disabled={disabled || !sp || !spMarket}
           onClick={() =>
             sp &&
@@ -490,7 +753,7 @@ function TeamRow({
         />
         <OddsButton
           primary={totLine ?? ''}
-          sub={totLine ? '−110' : undefined}
+          sub={totLine ? formatProbabilityPct(tot?.price) || undefined : undefined}
           disabled={disabled || !tot || !totMarket}
           onClick={() =>
             tot &&
@@ -522,7 +785,7 @@ function TeamRow({
         </div>
 
         <OddsButton
-          primary={ml ? formatMoneyline(ml.price) : ''}
+          primary={formatProbabilityPct(ml?.price)}
           compact
           disabled={disabled || !ml || !mlMarket}
           onClick={() =>
@@ -533,7 +796,7 @@ function TeamRow({
         />
         <OddsButton
           primary={spLine}
-          sub="−110"
+          sub={formatProbabilityPct(sp?.price) || undefined}
           compact
           disabled={disabled || !sp || !spMarket}
           onClick={() =>
@@ -544,7 +807,7 @@ function TeamRow({
         />
         <OddsButton
           primary={totLine ?? ''}
-          sub={totLine ? '−110' : undefined}
+          sub={totLine ? formatProbabilityPct(tot?.price) || undefined : undefined}
           compact
           disabled={disabled || !tot || !totMarket}
           onClick={() =>
@@ -647,18 +910,14 @@ function OddsButton({
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-/** Convert a 0-1 probability into an American moneyline string.
- *  0.50 → "EVEN"; favourites get a leading "−"; underdogs a leading "+". */
-function formatMoneyline(price: number): string {
-  if (!price || price <= 0 || price >= 1) return '';
-  if (Math.abs(price - 0.5) < 0.005) return 'EVEN';
-  if (price > 0.5) {
-    const odds = -Math.round((price * 100) / (1 - price)) * 1;
-    // favourites: -180  (round to nearest 5 to keep the table tidy)
-    return `−${Math.abs(odds).toFixed(0)}`;
-  }
-  const odds = Math.round((100 * (1 - price)) / price);
-  return `+${odds}`;
+/** Format a 0-1 probability as a whole-percent string (e.g. 0.64 → "64%").
+ *  Polymarket prices both sides of every market as probabilities, so this is
+ *  the honest unit to show — sportsbook-style American odds and a hardcoded
+ *  −110 vig don't apply here. */
+function formatProbabilityPct(price: number | undefined): string {
+  if (price == null || !Number.isFinite(price) || price <= 0 || price >= 1)
+    return '';
+  return `${Math.round(price * 100)}%`;
 }
 
 /** Extract just the ±line from a spread label.

@@ -38,8 +38,21 @@ import PriorityFeeSelector, {
   PriorityLevel,
 } from './utils/PriorityFeeSelector';
 import TokenImage from './TokenImage';
+import { completeAgentActionFromHandoff } from '@/lib/chat/agentActionHandoff';
+
+function toPublicKeyOrNull(value?: PublicKey | string | null) {
+  if (!value) return null;
+  if (value instanceof PublicKey) return value;
+
+  try {
+    return new PublicKey(value);
+  } catch {
+    return null;
+  }
+}
 
 export default function SwapModal({
+  open = true,
   userToken,
   accessToken,
   initialInputToken,
@@ -279,8 +292,12 @@ export default function SwapModal({
   // Update mints when tokens change
   useEffect(() => {
     if (inputToken && outputToken) {
-      setInputMint(inputToken.address || inputToken.id || null);
-      setOutputMint(outputToken.address || outputToken.id || null);
+      setInputMint(
+        toPublicKeyOrNull(inputToken.address || inputToken.id || null)
+      );
+      setOutputMint(
+        toPublicKeyOrNull(outputToken.address || outputToken.id || null)
+      );
     }
   }, [inputToken, outputToken]);
 
@@ -567,6 +584,44 @@ export default function SwapModal({
         setTxStatus('Transaction completed successfully!');
         setTxSuccess(true);
         setError(null);
+
+        completeAgentActionFromHandoff(
+          {
+            status: 'executed',
+            provider: 'swop',
+            title: 'Swap confirmed',
+            subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
+            subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
+            stake: amount,
+            payout: quote?.outAmount,
+            txHash: signature,
+            txUrl: signature
+              ? `https://solscan.io/tx/${signature}`
+              : undefined,
+            explorerLabel: 'View tx',
+            executionResult: {
+              signature,
+              inputToken: selectedInputSymbol,
+              outputToken: selectedOutputSymbol,
+              amount,
+            },
+          },
+          accessToken,
+        )
+          .then((completion) => {
+            if (!completion?.groupId) return;
+            window.location.assign(
+              `/dashboard/chat?groupId=${encodeURIComponent(
+                completion.groupId,
+              )}`,
+            );
+          })
+          .catch((completionError) => {
+            console.error(
+              'Failed to report swap agent completion:',
+              completionError,
+            );
+          });
 
         // Show a success notification for the feed
         if (feedData) {

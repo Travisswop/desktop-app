@@ -18,6 +18,10 @@ import OrderConfirmSheet, {
   type PendingOrderData,
 } from '../shared/OrderConfirmSheet';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
+import {
+  getSafePolymarketMaxBuyAmount,
+  getSafePolymarketMaxLimitShares,
+} from '@/lib/polymarket/validation';
 
 
 function isValidTickPrice(price: number, tickSize: number): boolean {
@@ -34,6 +38,7 @@ type OrderPlacementModalProps = {
   outcome: string;
   currentPrice: number;
   tokenId: string;
+  conditionId?: string;
   negRisk?: boolean;
   yesPrice?: number;
   noPrice?: number;
@@ -58,6 +63,7 @@ export default function OrderPlacementModal({
   outcome,
   currentPrice,
   tokenId,
+  conditionId,
   negRisk = false,
   yesPrice = currentPrice,
   noPrice = 1 - currentPrice,
@@ -105,6 +111,7 @@ export default function OrderPlacementModal({
   const {
     submitOrder,
     isSubmitting,
+    orderStage,
     error: orderError,
     orderId,
   } = useClobOrder(clobClient, eoaAddress);
@@ -271,6 +278,7 @@ export default function OrderPlacementModal({
       priceDecimal: effectivePrice,
       // submit params
       tokenId: activeTokenId,
+      conditionId,
       size: orderSize,
       price: isLimitVariant ? limitPriceNum : undefined,
       negRisk,
@@ -285,6 +293,7 @@ export default function OrderPlacementModal({
     try {
       const result = await submitOrder({
         tokenId: pendingOrder.tokenId,
+        conditionId: pendingOrder.conditionId,
         size: pendingOrder.size,
         price: pendingOrder.price,
         side: pendingOrder.side,
@@ -345,13 +354,6 @@ export default function OrderPlacementModal({
   const handleQuickAmount = (quickAmount: number) => {
     setInputValue(quickAmount.toString());
     setLocalError(null);
-  };
-
-  const handleMaxAmount = () => {
-    if (balance > 0) {
-      setInputValue(balance.toFixed(2));
-      setLocalError(null);
-    }
   };
 
   // Sell mode: quick percentage of shares
@@ -494,15 +496,15 @@ export default function OrderPlacementModal({
                 onQuickAmount={handleQuickAmount}
                 onMaxAmount={() => {
                   if (isLimitVariant && limitPriceNum > 0) {
-                    const maxShares = Math.floor(balance / limitPriceNum);
+                    const maxShares = getSafePolymarketMaxLimitShares(
+                      balance,
+                      limitPriceNum,
+                    );
                     setInputValue(String(maxShares));
                   } else if (balance > 0) {
-                    // Floor to cents and stay strictly under/on balance to avoid backend allowance errors
-                    const safeMax = Math.max(
-                      0,
-                      Math.floor((balance - 0.000001) * 100) / 100,
+                    setInputValue(
+                      getSafePolymarketMaxBuyAmount(balance).toFixed(2),
                     );
-                    setInputValue(safeMax.toFixed(2));
                   }
                   setLocalError(null);
                 }}
@@ -624,6 +626,7 @@ export default function OrderPlacementModal({
           onClose={() => setPendingOrder(null)}
           onConfirm={handleConfirm}
           isSubmitting={isSubmitting}
+          orderStage={orderStage}
           marketTitle={marketTitle}
           order={pendingOrder}
           error={orderError?.message}

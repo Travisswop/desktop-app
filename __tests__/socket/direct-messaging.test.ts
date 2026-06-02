@@ -1,9 +1,9 @@
-import { Socket } from 'socket.io-client';
-import { createTestSocket, describeSocketIntegration } from './test-runner';
+import { io, Socket } from 'socket.io-client';
 
-describeSocketIntegration('Socket Direct Messaging Events', () => {
+describe('Socket Direct Messaging Events', () => {
   let senderSocket: Socket;
   let receiverSocket: Socket;
+  const SOCKET_URL = process.env.SOCKET_URL || 'http://localhost:3001';
 
   const mockSender = {
     id: 'sender-123',
@@ -33,9 +33,15 @@ describeSocketIntegration('Socket Direct Messaging Events', () => {
       }
     };
 
-    senderSocket = createTestSocket();
+    senderSocket = io(SOCKET_URL, {
+      autoConnect: false,
+      transports: ['websocket'],
+    });
 
-    receiverSocket = createTestSocket();
+    receiverSocket = io(SOCKET_URL, {
+      autoConnect: false,
+      transports: ['websocket'],
+    });
 
     senderSocket.on('connect', checkConnections);
     receiverSocket.on('connect', checkConnections);

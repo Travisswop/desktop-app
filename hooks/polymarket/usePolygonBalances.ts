@@ -9,28 +9,44 @@ import {
   QUERY_REFETCH_INTERVALS,
 } from '@/constants/polymarket';
 
-export function usePolygonBalances(address: string | undefined) {
+function normalizeAddresses(address: string | string[] | undefined): string[] {
+  const addresses = Array.isArray(address) ? address : address ? [address] : [];
+  return Array.from(
+    new Map(
+      addresses
+        .filter(Boolean)
+        .map((walletAddress) => [walletAddress.toLowerCase(), walletAddress]),
+    ).values(),
+  );
+}
+
+export function usePolygonBalances(address: string | string[] | undefined) {
   const { publicClient } = usePolymarketWallet();
+  const addresses = normalizeAddresses(address);
 
   const {
     data: usdcBalance,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['pusdBalance', address],
+    queryKey: ['pusdBalance', addresses],
     queryFn: async () => {
-      if (!address || !publicClient) return null;
+      if (!addresses.length || !publicClient) return null;
 
-      const balance = await publicClient.readContract({
-        address: USDC_E_CONTRACT_ADDRESS,
-        abi: erc20Abi,
-        functionName: 'balanceOf',
-        args: [address as `0x${string}`],
-      });
+      const balances = await Promise.all(
+        addresses.map((walletAddress) =>
+          publicClient.readContract({
+            address: USDC_E_CONTRACT_ADDRESS,
+            abi: erc20Abi,
+            functionName: 'balanceOf',
+            args: [walletAddress as `0x${string}`],
+          }),
+        ),
+      );
 
-      return balance;
+      return balances.reduce((sum, balance) => sum + balance, BigInt(0));
     },
-    enabled: !!address,
+    enabled: addresses.length > 0,
     staleTime: QUERY_STALE_TIMES.BALANCE,
     refetchInterval: QUERY_REFETCH_INTERVALS.BALANCE,
     refetchIntervalInBackground: true,
@@ -39,20 +55,24 @@ export function usePolygonBalances(address: string | undefined) {
 
   const { data: legacyUsdcRaw, isLoading: isLoadingLegacy } =
     useQuery({
-      queryKey: ['legacyUsdcBalance', address],
+      queryKey: ['legacyUsdcBalance', addresses],
       queryFn: async () => {
-        if (!address || !publicClient) return null;
+        if (!addresses.length || !publicClient) return null;
 
-        const balance = await publicClient.readContract({
-          address: LEGACY_USDC_E_ADDRESS,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [address as `0x${string}`],
-        });
+        const balances = await Promise.all(
+          addresses.map((walletAddress) =>
+            publicClient.readContract({
+              address: LEGACY_USDC_E_ADDRESS,
+              abi: erc20Abi,
+              functionName: 'balanceOf',
+              args: [walletAddress as `0x${string}`],
+            }),
+          ),
+        );
 
-        return balance;
+        return balances.reduce((sum, balance) => sum + balance, BigInt(0));
       },
-      enabled: !!address,
+      enabled: addresses.length > 0,
       staleTime: QUERY_STALE_TIMES.BALANCE,
       refetchInterval: QUERY_REFETCH_INTERVALS.BALANCE,
       refetchIntervalInBackground: true,

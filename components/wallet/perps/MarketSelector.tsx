@@ -17,6 +17,8 @@ const FEATURED_COINS = [
   'BTC',
   'ETH',
   'SOL',
+  'SPCX',
+  'BRENTOIL',
   'PAXG',
   'ARB',
   'OP',
@@ -26,7 +28,13 @@ const FEATURED_COINS = [
 
 const COIN_DISPLAY_NAMES: Record<string, string> = {
   PAXG: 'Gold',
+  BRENTOIL: 'Oil',
+  SPCX: 'SpaceX',
 };
+
+function displayCoinFor(market: HLMarket) {
+  return market.displayCoin ?? market.coin.split(':').pop() ?? market.coin;
+}
 
 /**
  * MarketSelector — searchable list of all Hyperliquid perpetual markets
@@ -54,20 +62,28 @@ export function MarketSelector({
   const filtered = useMemo(() => {
     const q = search.trim().toUpperCase();
     const base = enrichedMarkets.filter(
-      (m) =>
-        !q ||
-        m.coin.includes(q) ||
-        m.name.includes(q) ||
-        (COIN_DISPLAY_NAMES[m.coin] ?? '').toUpperCase().includes(q),
+      (m) => {
+        const displayCoin = displayCoinFor(m);
+        return (
+          !q ||
+          m.coin.toUpperCase().includes(q) ||
+          m.name.toUpperCase().includes(q) ||
+          displayCoin.toUpperCase().includes(q) ||
+          (m.dexName ?? '').toUpperCase().includes(q) ||
+          (COIN_DISPLAY_NAMES[displayCoin] ?? '').toUpperCase().includes(q)
+        );
+      }
     );
 
     return base.sort((a, b) => {
-      const aFeat = FEATURED_COINS.indexOf(a.coin);
-      const bFeat = FEATURED_COINS.indexOf(b.coin);
+      const aDisplay = displayCoinFor(a);
+      const bDisplay = displayCoinFor(b);
+      const aFeat = FEATURED_COINS.indexOf(aDisplay);
+      const bFeat = FEATURED_COINS.indexOf(bDisplay);
       if (aFeat !== -1 && bFeat !== -1) return aFeat - bFeat;
       if (aFeat !== -1) return -1;
       if (bFeat !== -1) return 1;
-      return a.coin.localeCompare(b.coin);
+      return aDisplay.localeCompare(bDisplay);
     });
   }, [enrichedMarkets, search]);
 
@@ -119,7 +135,8 @@ export function MarketSelector({
         ) : (
           filtered.map((market) => {
             const isSelected = market.coin === selectedCoin;
-            const isFeatured = FEATURED_COINS.includes(market.coin);
+            const displayCoin = displayCoinFor(market);
+            const isFeatured = FEATURED_COINS.includes(displayCoin);
             const change = market.change24h;
             const isUp = change >= 0;
 
@@ -133,15 +150,16 @@ export function MarketSelector({
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <CoinDot
-                    coin={market.coin}
+                    coin={displayCoin}
                     selected={isSelected}
                     featured={isFeatured && !search}
                   />
                   <div className="min-w-0">
                     <div className="text-[13px] font-semibold tracking-tight text-gray-900 truncate">
-                      {COIN_DISPLAY_NAMES[market.coin] ?? market.coin}
+                      {COIN_DISPLAY_NAMES[displayCoin] ?? displayCoin}
                     </div>
-                    <div className="text-[10px] font-bold text-gray-500 font-mono tracking-wider">
+                    <div className="text-[10px] font-bold text-gray-500 font-mono tracking-wider truncate">
+                      {market.dex ? `${market.dex.toUpperCase()} · ` : ''}
                       {market.maxLeverage}× MAX
                     </div>
                   </div>

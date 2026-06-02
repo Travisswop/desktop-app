@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ArrowUpFromLine,
@@ -12,6 +13,7 @@ import {
   Download,
   ChevronDown,
   SlidersHorizontal,
+  X,
 } from 'lucide-react';
 import {
   useClobOrder,
@@ -20,8 +22,12 @@ import {
   useActiveOrders,
   usePolygonBalances,
   useNetDeposits,
+  useTradeActivity,
+  usePolymarketTeams,
   type PolymarketPosition,
   type PolymarketMarket,
+  type TeamsMap,
+  type TradeActivity,
 } from '@/hooks/polymarket';
 import { useSportsMeta } from '@/hooks/polymarket/useSportsMeta';
 import {
@@ -41,13 +47,27 @@ import {
   getSportSubcategoryById,
 } from '@/constants/polymarket';
 import { createPollingInterval } from '@/lib/polymarket/polling';
+import {
+  useMarketDetailStore,
+  marketRouteKey,
+} from '@/zustandStore/marketDetailStore';
+import {
+  getRedeemablePayout,
+  hasRedeemablePayout,
+  isVisiblePortfolioPosition,
+  isZeroPositionBalanceRedeemError,
+} from '@/lib/polymarket/position-payout';
+import {
+  groupFlatMarketsIntoGames,
+  isValidGameCard,
+  type GroupedMarket,
+  type ParsedOutcome,
+  type SportsGameGroup,
+} from '@/lib/polymarket/sports-grouping';
 
 import HighVolumeMarkets from './Markets';
 import SportsTableView from './Markets/SportsTableView';
-import TradeHistory from './Orders/TradeHistory';
-import PositionCard from './Positions/PositionCard';
 import OrderCard from './Orders/OrderCard';
-import MarketDetailModal from './Markets/MarketDetailModal';
 import BrowseMarketsBento from './BrowseMarketsBento';
 
 /**
@@ -66,11 +86,29 @@ export type PredictionsPanelView =
 // single dark "LIVE NOW" tile as the only inverted surface.
 const CANVAS = '#ecebe6';
 const HAIR = 'rgba(0,0,0,0.06)';
+const HAIR2 = 'rgba(0,0,0,0.04)';
 const POS_GREEN = '#19a974';
+const POS_GREEN_SOFT = 'rgba(25,169,116,0.10)';
 const NEG_RED = '#e5484d';
+const NEG_RED_SOFT = 'rgba(229,72,77,0.08)';
 const LIVE_RED = '#ff5a5f';
+const SURFACE2 = '#fafafa';
+const MUTED = '#6e6e76';
 const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
+const CTF_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
+const ERC1155_BALANCE_OF_ABI = [
+  {
+    type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'account', type: 'address' },
+      { name: 'id', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
 
 interface PredictionsPanelProps {
   initialView?: PredictionsPanelView;
@@ -87,8 +125,8 @@ interface PredictionsPanelProps {
 
 /**
  * PredictionsPanel — full-screen overlay covering the predictions
- * wireframe screens 1-6 (A · feed, A2 · sports, A3/A3L · ticket via
- * MarketDetailModal, A4 · open orders, A5 · history). The panel has no
+ * wireframe screens 1-6 (A · feed, A2 · sports, A3/A3L · ticket via the
+ * /prediction/market/[id] page, A4 · open orders, A5 · history). The panel has no
  * tab nav — drill-downs are triggered by the chips inside the bento
  * balance hero (Open orders / My bets / History), and each drill-down
  * view has its own back button that returns to 'main'.
@@ -105,19 +143,24 @@ export default function PredictionsPanel({
     setView(initialView);
   }, [initialView]);
 
-  const { eoaAddress } = usePolymarketWallet();
-  const { clobClient, safeAddress } = useTrading();
+  const { eoaAddress, publicClient } = usePolymarketWallet();
+  const {
+    clobClient,
+    safeAddress,
+    depositWalletAddress,
+    portfolioAddresses,
+    walletType,
+  } = useTrading();
   const queryClient = useQueryClient();
 
-  const { data: positions } = useUserPositions(safeAddress);
+  const { data: positions } = useUserPositions(portfolioAddresses);
+  const { data: teamsData } = usePolymarketTeams();
   const { data: activeOrders = [] } = useActiveOrders(
     clobClient,
     safeAddress,
   );
-  const { usdcBalance } = usePolygonBalances(safeAddress);
-  const { data: netDeposits } = useNetDeposits(
-    safeAddress as string | undefined,
-  );
+  const { usdcBalance } = usePolygonBalances(portfolioAddresses);
+  const { data: netDeposits } = useNetDeposits(portfolioAddresses);
 
   const { redeemPosition } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
@@ -128,20 +171,23 @@ export default function PredictionsPanel({
   const [redeemingAsset, setRedeemingAsset] = useState<string | null>(
     null,
   );
-  const [sellingAsset, setSellingAsset] = useState<string | null>(null);
+  const [sellingAsset, setSellingAsset] = useState<string | null>(
+    null,
+  );
   const [cancellingOrderId, setCancellingOrderId] = useState<
     string | null
   >(null);
   const [pendingVerification, setPendingVerification] = useState<
     Map<string, number>
   >(new Map());
-  const [detailPosition, setDetailPosition] =
-    useState<PolymarketPosition | null>(null);
-  const [detailMarket, setDetailMarket] =
-    useState<PolymarketMarket | null>(null);
-  const [detailInitialOutcome, setDetailInitialOutcome] = useState<
-    'yes' | 'no' | undefined
-  >(undefined);
+  const [onchainPositionBalances, setOnchainPositionBalances] =
+    useState<Map<string, number>>(new Map());
+
+  const positionBalanceKey = useCallback(
+    (position: PolymarketPosition) =>
+      `${(position.proxyWallet || '').toLowerCase()}:${position.asset}`,
+    [],
+  );
 
   // Markets drill-down — null = bento overview; otherwise the panel renders
   // a category detail view (matches wireframe screen A2).
@@ -150,6 +196,61 @@ export default function PredictionsPanel({
     | { kind: 'category'; id: CategoryId }
     | null;
   const [drillDown, setDrillDown] = useState<MarketsDrillDown>(null);
+  const [selectedSportsGame, setSelectedSportsGame] =
+    useState<SportsGameGroup | null>(null);
+
+  // Market detail navigation — stash the full market in the hand-off store
+  // and push to /prediction/market/[id] (the page version of the old modal).
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((s) => s.set);
+
+  const sharesForMarket = useCallback(
+    (market: PolymarketMarket) => {
+      if (!positions) return { yesShares: 0, noShares: 0 };
+      const tIds = market.clobTokenIds
+        ? (JSON.parse(market.clobTokenIds) as string[])
+        : [];
+      const positionSize = (asset: string | undefined) => {
+        if (!asset) return 0;
+        const position = positions.find((p) => p.asset === asset);
+        if (!position) return 0;
+        return (
+          onchainPositionBalances.get(positionBalanceKey(position)) ??
+          position.size
+        );
+      };
+      return {
+        yesShares: positionSize(tIds[0]),
+        noShares: positionSize(tIds[1]),
+      };
+    },
+    [onchainPositionBalances, positionBalanceKey, positions],
+  );
+
+  const navigateToMarket = useCallback(
+    (
+      market: PolymarketMarket,
+      opts: {
+        initialOutcome?: 'yes' | 'no';
+        outcomeLabels?: [string, string];
+        yesShares?: number;
+        noShares?: number;
+      } = {},
+    ) => {
+      const key = marketRouteKey(market);
+      if (!key) return;
+      const positionsForMarket = sharesForMarket(market);
+      stashMarketDetail(key, {
+        market,
+        initialOutcome: opts.initialOutcome,
+        outcomeLabels: opts.outcomeLabels,
+        yesShares: opts.yesShares ?? positionsForMarket.yesShares,
+        noShares: opts.noShares ?? positionsForMarket.noShares,
+      });
+      router.push(`/prediction/market/${encodeURIComponent(key)}`);
+    },
+    [router, sharesForMarket, stashMarketDetail],
+  );
 
   const handleBentoOutcomeClick = useCallback(
     (
@@ -166,10 +267,22 @@ export default function PredictionsPanel({
         }
       })();
       const yesTokenId = ids[0] ?? tokenId;
-      setDetailInitialOutcome(tokenId === yesTokenId ? 'yes' : 'no');
-      setDetailMarket(market);
+      navigateToMarket(market, {
+        initialOutcome: tokenId === yesTokenId ? 'yes' : 'no',
+      });
     },
-    [],
+    [navigateToMarket],
+  );
+
+  const navigateToPosition = useCallback(
+    (p: PolymarketPosition) => {
+      const market = positionToDetailMarket(p, teamsData);
+      navigateToMarket(market, {
+        yesShares: p.outcomeIndex === 0 ? p.size : 0,
+        noShares: p.outcomeIndex === 1 ? p.size : 0,
+      });
+    },
+    [navigateToMarket, teamsData],
   );
 
   // Sync pending verification against latest positions (mirrors the
@@ -187,14 +300,68 @@ export default function PredictionsPanel({
       setPendingVerification(stillPending);
   }, [positions, pendingVerification]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOnchainPositionBalances() {
+      if (!positions || positions.length === 0) {
+        setOnchainPositionBalances(new Map());
+        return;
+      }
+
+      const balanceEntries = await Promise.all(
+        positions.map(async (position) => {
+          const walletAddress = position.proxyWallet;
+          const key = positionBalanceKey(position);
+          if (!walletAddress) return [key, position.size] as const;
+
+          try {
+            const raw = await publicClient.readContract({
+              address: CTF_ADDRESS,
+              abi: ERC1155_BALANCE_OF_ABI,
+              functionName: 'balanceOf',
+              args: [
+                walletAddress as `0x${string}`,
+                BigInt(position.asset),
+              ],
+            });
+            return [key, Number(raw) / 10 ** USDC_E_DECIMALS] as const;
+          } catch (error) {
+            console.warn(
+              '[PredictionsPanel] Failed to read on-chain position balance',
+              {
+                walletAddress,
+                asset: position.asset,
+                error,
+              },
+            );
+            return [key, position.size] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setOnchainPositionBalances(new Map(balanceEntries));
+      }
+    }
+
+    loadOnchainPositionBalances();
+    return () => {
+      cancelled = true;
+    };
+  }, [positionBalanceKey, positions, publicClient]);
+
   const activePositions = useMemo(() => {
     if (!positions) return [];
     return positions
-      .filter((p) => p.size >= DUST_THRESHOLD)
-      .filter(
-        (p) => p.redeemable || p.currentValue >= DUST_THRESHOLD,
-      );
-  }, [positions]);
+      .map((p) => {
+        const onchainSize = onchainPositionBalances.get(
+          positionBalanceKey(p),
+        );
+        return onchainSize == null ? p : { ...p, size: onchainSize };
+      })
+      .filter((p) => isVisiblePortfolioPosition(p, DUST_THRESHOLD));
+  }, [onchainPositionBalances, positionBalanceKey, positions]);
 
   const actionablePositions = useMemo(
     () => activePositions.filter((p) => !p.redeemable),
@@ -217,28 +384,24 @@ export default function PredictionsPanel({
       .filter((p) => !p.redeemable)
       .reduce((s, p) => s + p.currentValue, 0);
 
-    const lifetimeEarned =
+    // Cash-flow P/L: what you'd have if you closed everything right now,
+    // minus what you put in. Counts cash in your wallet, mark-to-market
+    // value of open positions, and money you've already withdrawn.
+    const totalPnl =
       usdcBalance + openPositionsValue + withdrawn - deposited;
 
-    const totalPnl = activePositions
-      .filter((p) => !p.redeemable)
-      .reduce((s, p) => s + p.cashPnl, 0);
-
-    const totalCost = activePositions
-      .filter((p) => !p.redeemable)
-      .reduce((s, p) => s + (p.initialValue || p.avgPrice * p.size), 0);
-
     const portfolioPct =
-      totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+      deposited > 0 ? (totalPnl / deposited) * 100 : 0;
 
     return {
       inOrdersValue,
-      lifetimeEarned,
       totalPnl,
       portfolioPct,
       portfolioValue: usdcBalance + openPositionsValue,
     };
   }, [activePositions, activeOrders, netDeposits, usdcBalance]);
+  const { data: liveGames = [], isLoading: isLoadingLiveGames } =
+    useLiveSportsGames();
 
   const handleMarketSell = useCallback(
     async (position: PolymarketPosition) => {
@@ -246,6 +409,7 @@ export default function PredictionsPanel({
       try {
         await submitOrder({
           tokenId: position.asset,
+          conditionId: position.conditionId,
           size: position.size,
           side: 'SELL',
           negRisk: position.negativeRisk,
@@ -284,30 +448,147 @@ export default function PredictionsPanel({
   const handleRedeem = useCallback(
     async (position: PolymarketPosition) => {
       if (!clobClient || !safeAddress) return;
+      const redeemValue = getRedeemablePayout(position);
+      if (redeemValue <= 0) return;
+      const positionWallet = position.proxyWallet || safeAddress;
+      const isCurrentDepositWallet =
+        walletType === 'deposit' &&
+        depositWalletAddress &&
+        positionWallet.toLowerCase() ===
+          depositWalletAddress.toLowerCase();
+      const redeemWalletType = isCurrentDepositWallet
+        ? 'deposit'
+        : 'safe';
       setRedeemingAsset(position.asset);
       try {
+        const balanceAddressCandidates: Array<{
+          label: string;
+          address?: string;
+        }> = [
+          {
+            label: 'position.proxyWallet',
+            address: position.proxyWallet,
+          },
+          {
+            label: 'resolved redeem wallet',
+            address: positionWallet,
+          },
+          { label: 'current safeAddress', address: safeAddress },
+          {
+            label: 'depositWalletAddress',
+            address: depositWalletAddress,
+          },
+          ...portfolioAddresses.map((address, index) => ({
+            label: `portfolioAddresses[${index}]`,
+            address,
+          })),
+        ];
+        const uniqueBalanceAddresses = Array.from(
+          new Map(
+            balanceAddressCandidates
+              .filter(
+                (
+                  entry,
+                ): entry is { label: string; address: string } =>
+                  Boolean(entry.address),
+              )
+              .map((entry) => [entry.address.toLowerCase(), entry]),
+          ).values(),
+        );
+        const balanceDebug = await Promise.all(
+          uniqueBalanceAddresses.map(async ({ label, address }) => {
+            try {
+              const raw = await publicClient.readContract({
+                address: CTF_ADDRESS,
+                abi: ERC1155_BALANCE_OF_ABI,
+                functionName: 'balanceOf',
+                args: [
+                  address as `0x${string}`,
+                  BigInt(position.asset),
+                ],
+              });
+              return {
+                label,
+                address,
+                raw: raw.toString(),
+                shares: Number(raw) / 1e6,
+              };
+            } catch (error) {
+              return {
+                label,
+                address,
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : String(error),
+              };
+            }
+          }),
+        );
+        const resolvedWalletBalance = balanceDebug.find(
+          (entry) =>
+            entry.address.toLowerCase() ===
+            positionWallet.toLowerCase(),
+        );
+
+        console.log('[PredictionsPanel Redeem] preflight', {
+          session: {
+            walletType,
+            safeAddress,
+            depositWalletAddress,
+            portfolioAddresses,
+          },
+          resolved: {
+            positionWallet,
+            redeemWalletType,
+            redeemDepositWalletAddress: isCurrentDepositWallet
+              ? depositWalletAddress
+              : undefined,
+          },
+          position: {
+            proxyWallet: position.proxyWallet,
+            conditionId: position.conditionId,
+            asset: position.asset,
+            outcome: position.outcome,
+            outcomeIndex: position.outcomeIndex,
+            oppositeAsset: position.oppositeAsset,
+            negativeRisk: position.negativeRisk,
+            size: position.size,
+            redeemable: position.redeemable,
+            redeemValue,
+            currentValue: position.currentValue,
+            cashPnl: position.cashPnl,
+          },
+          balanceOfAsset: balanceDebug,
+        });
+        if (
+          resolvedWalletBalance &&
+          'raw' in resolvedWalletBalance &&
+          resolvedWalletBalance.raw === '0'
+        ) {
+          console.warn(
+            '[PredictionsPanel Redeem] resolved wallet has zero ERC-1155 balance for this asset',
+            {
+              resolvedWalletBalance,
+              allCheckedBalances: balanceDebug,
+              asset: position.asset,
+              conditionId: position.conditionId,
+            },
+          );
+        }
+
         await redeemPosition({
           conditionId: position.conditionId,
+          asset: position.asset,
           outcomeIndex: position.outcomeIndex,
           negativeRisk: position.negativeRisk,
           size: position.size,
-          safeAddress,
+          safeAddress: positionWallet,
+          depositWalletAddress: isCurrentDepositWallet
+            ? depositWalletAddress
+            : undefined,
+          walletType: redeemWalletType,
         });
-
-        const redeemValue =
-          position.curPrice > 0
-            ? position.currentValue
-            : position.size;
-        queryClient.setQueryData<bigint>(
-          ['pusdBalance', safeAddress],
-          (prev) => {
-            if (prev === undefined) return prev;
-            const addedUnits = BigInt(
-              Math.floor(redeemValue * 10 ** USDC_E_DECIMALS),
-            );
-            return prev + addedUnits;
-          },
-        );
 
         queryClient.invalidateQueries({
           queryKey: ['polymarket-positions'],
@@ -326,12 +607,26 @@ export default function PredictionsPanel({
           POLLING_DURATION,
         );
       } catch (err) {
+        if (isZeroPositionBalanceRedeemError(err)) {
+          queryClient.invalidateQueries({
+            queryKey: ['polymarket-positions'],
+          });
+        }
         console.error('Failed to redeem position:', err);
       } finally {
         setRedeemingAsset(null);
       }
     },
-    [clobClient, safeAddress, redeemPosition, queryClient],
+    [
+      clobClient,
+      safeAddress,
+      depositWalletAddress,
+      portfolioAddresses,
+      walletType,
+      publicClient,
+      redeemPosition,
+      queryClient,
+    ],
   );
 
   const handleCancelOrder = useCallback(
@@ -409,23 +704,23 @@ export default function PredictionsPanel({
                   openBets={activePositions.length}
                   openOrders={activeOrders.length}
                   inOrdersValue={summary.inOrdersValue}
-                  topPicks={[...activePositions]
-                    .filter((p) => !p.redeemable)
-                    .sort((a, b) => b.currentValue - a.currentValue)
-                    .slice(0, 3)}
+                  liveGames={liveGames}
+                  isLoadingLiveGames={isLoadingLiveGames}
                   onDeposit={() => onOpenTransfer('deposit')}
                   onWithdraw={() => onOpenTransfer('withdraw')}
                   onOpenOrders={() => setView('orders')}
                   onMyBets={() => setView('bets')}
                   onHistory={() => setView('history')}
-                  onPickClick={(p) => setDetailPosition(p)}
+                  onLiveGameClick={(market) =>
+                    navigateToMarket(market, { initialOutcome: 'yes' })
+                  }
                 />
                 <BrowseMarketsBento
-                  onMarketClick={(m) => {
-                    setDetailInitialOutcome('yes');
-                    setDetailMarket(m);
-                  }}
+                  onMarketClick={(m) =>
+                    navigateToMarket(m, { initialOutcome: 'yes' })
+                  }
                   onSportsOutcomeClick={handleBentoOutcomeClick}
+                  onSportsGameClick={setSelectedSportsGame}
                   onBrowseSports={(sub) =>
                     setDrillDown({ kind: 'sports', sub })
                   }
@@ -457,11 +752,12 @@ export default function PredictionsPanel({
             {view === 'bets' && (
               <MyBetsView
                 actionable={actionablePositions}
-                redeemable={activePositions.filter((p) => p.redeemable)}
+                redeemable={activePositions.filter(
+                  (p) => p.redeemable,
+                )}
                 onRedeem={handleRedeem}
                 onSell={handleMarketSell}
-                onBuyMore={(p) => setDetailPosition(p)}
-                onTitleClick={(p) => setDetailPosition(p)}
+                onTitleClick={navigateToPosition}
                 sellingAsset={sellingAsset}
                 redeemingAsset={redeemingAsset}
                 pendingVerification={pendingVerification}
@@ -470,50 +766,239 @@ export default function PredictionsPanel({
               />
             )}
 
-            {view === 'history' && safeAddress && (
-              <BetHistoryView safeAddress={safeAddress} />
-            )}
-            {view === 'history' && !safeAddress && (
-              <BentoEmpty
-                title="No history yet"
-                message="Your settled bets and order fills will appear here."
+            {view === 'history' && portfolioAddresses.length > 0 && (
+              <BetHistoryView
+                safeAddress={portfolioAddresses}
+                onMarketClick={(trade) =>
+                  navigateToMarket(tradeToDetailMarket(trade), {
+                    initialOutcome:
+                      trade.outcomeIndex === 0 ? 'yes' : 'no',
+                  })
+                }
               />
             )}
+            {view === 'history' &&
+              portfolioAddresses.length === 0 && (
+                <BentoEmpty
+                  title="No history yet"
+                  message="Your settled bets and order fills will appear here."
+                />
+              )}
           </div>
         </div>
       </div>
-
-      {detailMarket && (
-        <MarketDetailModal
-          isOpen={!!detailMarket}
-          onClose={() => {
-            setDetailMarket(null);
-            setDetailInitialOutcome(undefined);
+      {selectedSportsGame && (
+        <SportsGameOddsSheet
+          game={selectedSportsGame}
+          onClose={() => setSelectedSportsGame(null)}
+          onOutcomeClick={(market, outcome, price, tokenId) => {
+            setSelectedSportsGame(null);
+            handleBentoOutcomeClick(market, outcome, price, tokenId);
           }}
-          market={detailMarket}
-          balance={usdcBalance}
-          yesShares={0}
-          noShares={0}
-          initialOutcome={detailInitialOutcome}
-        />
-      )}
-
-      {detailPosition && (
-        <MarketDetailModal
-          isOpen={!!detailPosition}
-          onClose={() => setDetailPosition(null)}
-          market={positionToDetailMarket(detailPosition)}
-          balance={usdcBalance}
-          yesShares={
-            detailPosition.outcomeIndex === 0 ? detailPosition.size : 0
-          }
-          noShares={
-            detailPosition.outcomeIndex === 1 ? detailPosition.size : 0
-          }
         />
       )}
     </>
   );
+}
+
+function SportsGameOddsSheet({
+  game,
+  onClose,
+  onOutcomeClick,
+}: {
+  game: SportsGameGroup;
+  onClose: () => void;
+  onOutcomeClick: (
+    market: PolymarketMarket,
+    outcome: string,
+    price: number,
+    tokenId: string,
+  ) => void;
+}) {
+  const marketRows = [
+    { label: 'Moneyline', kind: 'ML', grouped: game.moneyline },
+    { label: 'Spread', kind: 'Spread', grouped: game.spread },
+    { label: 'Total', kind: 'Total', grouped: game.total },
+  ].filter((row): row is { label: string; kind: string; grouped: GroupedMarket } =>
+    Boolean(row.grouped),
+  );
+  const gameTime = formatGameOddsStart(game.startDate);
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${game.title} odds`}
+        className="w-full max-w-[760px] overflow-hidden rounded-[24px] border bg-white shadow-[0_24px_80px_-40px_rgba(10,10,12,0.45)]"
+        style={{ borderColor: HAIR }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div
+          className="flex items-start justify-between gap-4 border-b px-5 py-4"
+          style={{ borderColor: HAIR }}
+        >
+          <div className="min-w-0">
+            <div
+              className="text-[10.5px] font-bold uppercase tracking-[1.4px] text-gray-500"
+              style={{ fontFamily: MONO }}
+            >
+              Game odds
+            </div>
+            <h2 className="mt-1 text-[24px] font-semibold leading-tight tracking-[-0.8px] text-gray-950">
+              {game.title}
+            </h2>
+            <div
+              className="mt-1 text-[11px] font-semibold uppercase tracking-[0.8px] text-gray-500"
+              style={{ fontFamily: MONO }}
+            >
+              {gameTime || 'TBD'} · {marketRows.length} markets
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close game odds"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-white text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+            style={{ borderColor: HAIR }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+          <div className="grid gap-3">
+            {marketRows.map((row) => (
+              <SportsGameOddsMarketRow
+                key={row.kind}
+                label={row.label}
+                shortLabel={row.kind}
+                grouped={row.grouped}
+                onOutcomeClick={onOutcomeClick}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div
+          className="flex items-center justify-between border-t px-5 py-3 text-[11px] font-medium text-gray-500"
+          style={{ borderColor: HAIR, fontFamily: MONO }}
+        >
+          <span>Tap any odd to open the trade ticket</span>
+          <span>self-custodied · swop book</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SportsGameOddsMarketRow({
+  label,
+  shortLabel,
+  grouped,
+  onOutcomeClick,
+}: {
+  label: string;
+  shortLabel: string;
+  grouped: GroupedMarket;
+  onOutcomeClick: (
+    market: PolymarketMarket,
+    outcome: string,
+    price: number,
+    tokenId: string,
+  ) => void;
+}) {
+  return (
+    <div
+      className="rounded-2xl border bg-[#fafafa] p-3"
+      style={{ borderColor: HAIR }}
+    >
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div
+            className="text-[10px] font-bold uppercase tracking-[1.2px] text-gray-500"
+            style={{ fontFamily: MONO }}
+          >
+            {shortLabel}
+          </div>
+          <div className="mt-0.5 truncate text-[14px] font-semibold tracking-[-0.25px] text-gray-950">
+            {label}
+          </div>
+        </div>
+        <div
+          className="max-w-[55%] truncate text-right text-[10.5px] font-semibold text-gray-500"
+          style={{ fontFamily: MONO }}
+          title={grouped.market.question}
+        >
+          {grouped.market.question}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {grouped.outcomes.map((outcome) => (
+          <SportsGameOddsButton
+            key={`${outcome.tokenId}:${outcome.label}`}
+            outcome={outcome}
+            onClick={() =>
+              onOutcomeClick(
+                grouped.market,
+                outcome.label,
+                outcome.price,
+                outcome.tokenId,
+              )
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SportsGameOddsButton({
+  outcome,
+  onClick,
+}: {
+  outcome: ParsedOutcome;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-14 items-center justify-between rounded-xl border bg-white px-4 text-left transition hover:border-[#19a974]/45 hover:bg-[#19a974]/5 active:bg-[#19a974]/10"
+      style={{ borderColor: HAIR }}
+    >
+      <span className="min-w-0 truncate text-[15px] font-semibold text-gray-950">
+        {outcome.label}
+      </span>
+      <span
+        className="shrink-0 text-[17px] font-bold tabular-nums text-[#19a974]"
+        style={{ fontFamily: MONO }}
+      >
+        {formatGameOddsPrice(outcome.price)}
+      </span>
+    </button>
+  );
+}
+
+function formatGameOddsPrice(price: number) {
+  if (!Number.isFinite(price) || price <= 0 || price >= 1) return '—';
+  return `${Math.round(price * 100)}%`;
+}
+
+function formatGameOddsStart(startDate?: string) {
+  if (!startDate) return '';
+  const date = new Date(startDate);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -650,7 +1135,9 @@ function OpenOrdersView({
           >
             <span className="text-[11.5px] text-gray-500">
               Filled and cancelled orders move to{' '}
-              <span className="font-semibold text-gray-900">History</span>{' '}
+              <span className="font-semibold text-gray-900">
+                History
+              </span>{' '}
               automatically.
             </span>
             <button
@@ -667,14 +1154,73 @@ function OpenOrdersView({
   );
 }
 
-// ── My bets — A5-style page header for active picks ────────────────
+// ── My bets — A5-style table mirroring BetHistoryView ─────────────
+
+type BetStatusKey = 'live' | 'redeemable' | 'settled';
+type BetStatusFilter = BetStatusKey | 'all';
+
+interface BetRow {
+  position: PolymarketPosition;
+  statusKey: BetStatusKey;
+  statusLabel: string;
+  side: 'YES' | 'NO';
+  staked: number;
+  value: number;
+  pnl: number;
+  pnlPct: number;
+  isClaimable: boolean;
+  redeemValue: number;
+}
+
+function deriveBetRow(p: PolymarketPosition): BetRow {
+  const claimable = hasRedeemablePayout(p);
+  const redeemValue = getRedeemablePayout(p);
+  let statusKey: BetStatusKey;
+  let statusLabel: string;
+  if (p.redeemable && claimable) {
+    statusKey = 'redeemable';
+    statusLabel = 'READY';
+  } else if (p.redeemable) {
+    statusKey = 'settled';
+    statusLabel = 'SETTLED';
+  } else {
+    statusKey = 'live';
+    statusLabel = 'LIVE';
+  }
+  const side: 'YES' | 'NO' = p.outcomeIndex === 0 ? 'YES' : 'NO';
+  const staked = p.initialValue || p.size * p.avgPrice;
+  const value =
+    p.redeemable && claimable ? redeemValue : p.currentValue;
+  return {
+    position: p,
+    statusKey,
+    statusLabel,
+    side,
+    staked,
+    value,
+    pnl: p.cashPnl,
+    pnlPct: p.percentPnl,
+    isClaimable: claimable,
+    redeemValue,
+  };
+}
+
+const BET_STATUS_TONE: Record<
+  BetStatusKey,
+  { bg: string; fg: string }
+> = {
+  live: { bg: SURFACE2, fg: MUTED },
+  redeemable: { bg: POS_GREEN_SOFT, fg: POS_GREEN },
+  settled: { bg: SURFACE2, fg: MUTED },
+};
+
+const BETS_GRID = '90px minmax(0,1.4fr) 60px 70px 80px 100px 140px';
 
 interface MyBetsViewProps {
   actionable: PolymarketPosition[];
   redeemable: PolymarketPosition[];
   onRedeem: (p: PolymarketPosition) => void;
   onSell: (p: PolymarketPosition) => void;
-  onBuyMore: (p: PolymarketPosition) => void;
   onTitleClick: (p: PolymarketPosition) => void;
   sellingAsset: string | null;
   redeemingAsset: string | null;
@@ -688,7 +1234,6 @@ function MyBetsView({
   redeemable,
   onRedeem,
   onSell,
-  onBuyMore,
   onTitleClick,
   sellingAsset,
   redeemingAsset,
@@ -696,108 +1241,515 @@ function MyBetsView({
   isSubmitting,
   canTrade,
 }: MyBetsViewProps) {
-  const total = actionable.length + redeemable.length;
-  const totalStaked = actionable.reduce(
-    (s, p) => s + p.size * p.avgPrice,
-    0,
+  const [statusFilter, setStatusFilter] =
+    useState<BetStatusFilter>('all');
+
+  const rows = useMemo(
+    () => [...actionable, ...redeemable].map(deriveBetRow),
+    [actionable, redeemable],
   );
+
+  const counts = useMemo(() => {
+    const c: Record<BetStatusKey, number> = {
+      live: 0,
+      redeemable: 0,
+      settled: 0,
+    };
+    for (const r of rows) c[r.statusKey] += 1;
+    return c;
+  }, [rows]);
+
+  const summary = useMemo(() => {
+    const totalStaked = rows.reduce((s, r) => s + r.staked, 0);
+    const totalValue = rows.reduce((s, r) => s + r.value, 0);
+    const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
+    return {
+      total: rows.length,
+      totalStaked,
+      totalValue,
+      totalPnl,
+    };
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    if (statusFilter === 'all') return rows;
+    return rows.filter((r) => r.statusKey === statusFilter);
+  }, [rows, statusFilter]);
+
   return (
     <div className="space-y-4">
       <PageTitle
         eyebrow="Predictions"
         title="My bets"
-        caption={`${total} live position${
-          total === 1 ? '' : 's'
-        } · $${totalStaked.toFixed(2)} staked`}
-        action={
-          <>
-            <FilterChip active>All · {total}</FilterChip>
-            {redeemable.length > 0 && (
-              <FilterChip>Redeemable · {redeemable.length}</FilterChip>
-            )}
-            <FilterChip>Live · {actionable.length}</FilterChip>
-          </>
-        }
+        caption={`${summary.total} ${
+          summary.total === 1 ? 'position' : 'positions'
+        } · $${summary.totalStaked.toFixed(2)} staked`}
       />
 
-      {total === 0 ? (
-        <BentoEmpty
-          title="No active bets"
-          message="When you place a market or limit order, your active picks will appear here."
+      {/* Summary tiles — 4 across on sm+, 2 across on mobile. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <HistorySummaryTile
+          label="Portfolio value"
+          value={`$${summary.totalValue.toFixed(2)}`}
         />
-      ) : (
-        <div className="space-y-6">
-          {redeemable.length > 0 && (
-            <section>
-              <BentoSectionHeader
-                title="Ready to redeem"
-                caption={`${redeemable.length} settled position${
-                  redeemable.length === 1 ? '' : 's'
-                } — claim your winnings`}
-              />
-              <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
-                {redeemable.map((p) => (
-                  <PositionCard
-                    key={`${p.conditionId}-${p.outcomeIndex}`}
-                    position={p}
-                    onRedeem={onRedeem}
-                    onSell={onSell}
-                    onBuyMore={onBuyMore}
-                    isSelling={sellingAsset === p.asset}
-                    isRedeeming={redeemingAsset === p.asset}
-                    isPendingVerification={pendingVerification.has(p.asset)}
-                    isSubmitting={isSubmitting}
-                    canSell={canTrade}
-                    canRedeem={canTrade}
-                    onTitleClick={() => onTitleClick(p)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-          {actionable.length > 0 && (
-            <section>
-              <BentoSectionHeader
-                title="Active picks"
-                caption={`${actionable.length} live position${
-                  actionable.length === 1 ? '' : 's'
-                }`}
-              />
-              <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
-                {actionable.map((p) => (
-                  <PositionCard
-                    key={`${p.conditionId}-${p.outcomeIndex}`}
-                    position={p}
-                    onRedeem={onRedeem}
-                    onSell={onSell}
-                    onBuyMore={onBuyMore}
-                    isSelling={sellingAsset === p.asset}
-                    isRedeeming={redeemingAsset === p.asset}
-                    isPendingVerification={pendingVerification.has(p.asset)}
-                    isSubmitting={isSubmitting}
-                    canSell={canTrade}
-                    canRedeem={canTrade}
-                    onTitleClick={() => onTitleClick(p)}
-                  />
-                ))}
-              </div>
-            </section>
+        <HistorySummaryTile
+          label="Total staked"
+          value={`$${summary.totalStaked.toFixed(2)}`}
+        />
+        <HistorySummaryTile
+          label="Net P&L"
+          value={`${summary.totalPnl >= 0 ? '+' : '−'}$${Math.abs(
+            summary.totalPnl,
+          ).toFixed(2)}`}
+          tone={
+            summary.totalPnl > 0.005
+              ? 'pos'
+              : summary.totalPnl < -0.005
+                ? 'neg'
+                : 'neutral'
+          }
+        />
+        <HistorySummaryTile
+          label="Positions"
+          value={String(summary.total)}
+        />
+      </div>
+
+      {/* Status filter chips. */}
+      <div className="flex gap-1.5 flex-wrap items-center">
+        <FilterChip
+          active={statusFilter === 'all'}
+          onClick={() => setStatusFilter('all')}
+        >
+          All · {summary.total}
+        </FilterChip>
+        <FilterChip
+          active={statusFilter === 'live'}
+          onClick={() => setStatusFilter('live')}
+        >
+          Live · {counts.live}
+        </FilterChip>
+        {counts.redeemable > 0 && (
+          <FilterChip
+            active={statusFilter === 'redeemable'}
+            onClick={() => setStatusFilter('redeemable')}
+          >
+            Redeemable · {counts.redeemable}
+          </FilterChip>
+        )}
+        {counts.settled > 0 && (
+          <FilterChip
+            active={statusFilter === 'settled'}
+            onClick={() => setStatusFilter('settled')}
+          >
+            Settled · {counts.settled}
+          </FilterChip>
+        )}
+      </div>
+
+      {/* Bets table — header row + body rows on a shared grid. */}
+      <div
+        className="bg-white rounded-2xl border overflow-hidden"
+        style={{
+          borderColor: HAIR,
+          boxShadow:
+            '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+        }}
+      >
+        <div
+          className="grid gap-3 px-5 py-3 border-b text-[10.5px] font-bold uppercase tracking-[1.2px]"
+          style={{
+            gridTemplateColumns: BETS_GRID,
+            borderColor: HAIR2,
+            color: MUTED,
+            fontFamily: MONO,
+          }}
+        >
+          <div>Status</div>
+          <div>Market</div>
+          <div>Side</div>
+          <div>Shares</div>
+          <div>Avg</div>
+          <div>Value</div>
+          <div className="text-right">Action</div>
+        </div>
+
+        {filteredRows.length === 0 ? (
+          <div className="py-12 px-6 text-center">
+            <div className="text-[15px] font-semibold text-gray-900 mb-1">
+              {statusFilter === 'all'
+                ? 'No active bets'
+                : 'Nothing matches that filter'}
+            </div>
+            <div className="text-[12.5px] text-gray-500 max-w-md mx-auto">
+              {statusFilter === 'all'
+                ? 'When you place a market or limit order, your active picks will appear here.'
+                : 'Try switching back to All to see every position.'}
+            </div>
+            {statusFilter !== 'all' && (
+              <button
+                onClick={() => setStatusFilter('all')}
+                className="mt-3 inline-flex items-center gap-1 h-7 px-3 rounded-full border bg-white text-[11.5px] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
+                style={{ borderColor: HAIR }}
+              >
+                Show all
+              </button>
+            )}
+          </div>
+        ) : (
+          filteredRows.map((row, i) => (
+            <BetTableRow
+              key={`${row.position.conditionId}-${row.position.outcomeIndex}`}
+              row={row}
+              isLast={i === filteredRows.length - 1}
+              onRedeem={onRedeem}
+              onSell={onSell}
+              onTitleClick={onTitleClick}
+              isSelling={sellingAsset === row.position.asset}
+              isRedeeming={redeemingAsset === row.position.asset}
+              isPending={pendingVerification.has(row.position.asset)}
+              isSubmitting={isSubmitting}
+              canTrade={canTrade}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BetTableRow({
+  row,
+  isLast,
+  onRedeem,
+  onSell,
+  onTitleClick,
+  isSelling,
+  isRedeeming,
+  isPending,
+  isSubmitting,
+  canTrade,
+}: {
+  row: BetRow;
+  isLast: boolean;
+  onRedeem: (p: PolymarketPosition) => void;
+  onSell: (p: PolymarketPosition) => void;
+  onTitleClick: (p: PolymarketPosition) => void;
+  isSelling: boolean;
+  isRedeeming: boolean;
+  isPending: boolean;
+  isSubmitting: boolean;
+  canTrade: boolean;
+}) {
+  const {
+    position: p,
+    statusKey,
+    statusLabel,
+    side,
+    value,
+    pnl,
+    pnlPct,
+    isClaimable,
+    redeemValue,
+  } = row;
+  const tone = BET_STATUS_TONE[statusKey];
+  const sideTone =
+    side === 'YES'
+      ? { bg: POS_GREEN_SOFT, fg: POS_GREEN }
+      : { bg: NEG_RED_SOFT, fg: NEG_RED };
+  const pnlColor =
+    pnl > 0.005 ? POS_GREEN : pnl < -0.005 ? NEG_RED : MUTED;
+  const pnlSign = pnl > 0.005 ? '+' : pnl < -0.005 ? '−' : '';
+  const avgCents = (p.avgPrice * 100).toFixed(0);
+
+  const renderAction = () => {
+    if (statusKey === 'redeemable') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRedeem(p);
+          }}
+          disabled={isRedeeming || !canTrade || !isClaimable}
+          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold text-white bg-[#19a974] hover:bg-[#149363] disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+        >
+          {isRedeeming
+            ? 'Redeeming…'
+            : `Redeem $${redeemValue.toFixed(2)}`}
+        </button>
+      );
+    }
+    if (statusKey === 'live') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onSell(p);
+          }}
+          disabled={
+            isSelling || isPending || isSubmitting || !canTrade
+          }
+          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold border bg-white text-gray-900 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+          style={{ borderColor: HAIR }}
+        >
+          {isPending
+            ? 'Processing…'
+            : isSelling
+              ? 'Selling…'
+              : 'Cash out'}
+        </button>
+      );
+    }
+    return (
+      <span
+        className="text-[11px]"
+        style={{ color: MUTED, fontFamily: MONO }}
+      >
+        —
+      </span>
+    );
+  };
+
+  return (
+    <div
+      onClick={() => onTitleClick(p)}
+      className={`grid gap-3 px-5 py-3.5 items-center transition-colors hover:bg-gray-50 cursor-pointer ${
+        isLast ? '' : 'border-b'
+      }`}
+      style={{
+        gridTemplateColumns: BETS_GRID,
+        borderColor: HAIR2,
+      }}
+    >
+      <div>
+        <span
+          className="inline-block text-[9.5px] font-bold uppercase tracking-[0.6px] px-1.5 py-[3px] rounded-full"
+          style={{
+            background: tone.bg,
+            color: tone.fg,
+            fontFamily: MONO,
+          }}
+        >
+          {statusLabel}
+        </span>
+      </div>
+
+      <div className="min-w-0 flex items-center gap-2.5">
+        {p.icon ? (
+          <img
+            src={p.icon}
+            alt=""
+            className="w-7 h-7 rounded-md flex-shrink-0 object-cover bg-gray-100"
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-md flex-shrink-0 bg-gray-200" />
+        )}
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold tracking-[-0.1px] text-gray-900 truncate">
+            {p.title}
+          </div>
+          {p.outcome && (
+            <div
+              className="text-[10px] font-semibold uppercase tracking-[0.4px] truncate mt-0.5"
+              style={{ color: MUTED, fontFamily: MONO }}
+            >
+              {p.outcome}
+            </div>
           )}
         </div>
-      )}
+      </div>
+
+      <div>
+        <span
+          className="inline-block text-[10px] font-bold tracking-[0.6px] px-2 py-[3px] rounded-full"
+          style={{
+            background: sideTone.bg,
+            color: sideTone.fg,
+            fontFamily: MONO,
+          }}
+        >
+          {side}
+        </span>
+      </div>
+
+      <div
+        className="text-[12.5px] font-semibold text-gray-900 tabular-nums"
+        style={{ fontFamily: MONO }}
+      >
+        {p.size.toFixed(2)}
+      </div>
+
+      <div
+        className="text-[12.5px] tabular-nums"
+        style={{ fontFamily: MONO, color: MUTED }}
+      >
+        {avgCents}¢
+      </div>
+
+      <div className="tabular-nums" style={{ fontFamily: MONO }}>
+        <div className="text-[12.5px] font-bold text-gray-900">
+          ${value.toFixed(2)}
+        </div>
+        <div
+          className="text-[10.5px] font-semibold mt-0.5"
+          style={{ color: pnlColor }}
+        >
+          {pnlSign}${Math.abs(pnl).toFixed(2)} (
+          {Math.abs(pnlPct).toFixed(1)}%)
+        </div>
+      </div>
+
+      <div className="flex justify-end">{renderAction()}</div>
     </div>
   );
 }
 
 // ── A5 · Bet history ────────────────────────────────────────────────
+// Mirrors wire-a5-history.jsx — back button (handled at panel level),
+// page title with eyebrow + Export CSV, four summary tiles, a status
+// filter row, and a single Card containing a header row + per-trade rows
+// laid out on a fixed 6-column grid (Date / Market / Side / Shares /
+// Price / Amount). Status badges are color-coded by activity outcome.
 
-function BetHistoryView({ safeAddress }: { safeAddress: string }) {
+const PAGE_SIZE_HISTORY = 50;
+
+type HistoryStatusKey = 'won' | 'sold' | 'bought' | 'other';
+type HistoryStatusFilter = HistoryStatusKey | 'all';
+
+interface HistoryRow {
+  trade: TradeActivity;
+  statusKey: HistoryStatusKey;
+  statusLabel: string;
+  side: 'YES' | 'NO';
+  signedAmount: number;
+  amount: number;
+}
+
+function deriveHistoryRow(trade: TradeActivity): HistoryRow {
+  const amount =
+    trade.usdcSize != null && Number.isFinite(trade.usdcSize)
+      ? Number(trade.usdcSize)
+      : trade.size * trade.price;
+  const isBuy = trade.side === 'BUY';
+  let statusKey: HistoryStatusKey;
+  let statusLabel: string;
+  if (trade.type === 'REDEEM') {
+    statusKey = 'won';
+    statusLabel = 'WON';
+  } else if (trade.type === 'TRADE' && !isBuy) {
+    statusKey = 'sold';
+    statusLabel = 'SOLD';
+  } else if (trade.type === 'TRADE' && isBuy) {
+    statusKey = 'bought';
+    statusLabel = 'BOUGHT';
+  } else {
+    statusKey = 'other';
+    statusLabel = trade.type;
+  }
+  // Cash-flow direction — buys are outflow, everything else is inflow.
+  const signedAmount = isBuy ? -amount : amount;
+  const side: 'YES' | 'NO' = trade.outcomeIndex === 0 ? 'YES' : 'NO';
+  return {
+    trade,
+    statusKey,
+    statusLabel,
+    side,
+    signedAmount,
+    amount,
+  };
+}
+
+function formatHistoryDate(ts: number): string {
+  const date = new Date(ts * 1000);
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfToday.getDate() - 1);
+
+  if (date >= startOfToday) {
+    const time = date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    return `Today · ${time}`;
+  }
+  if (date >= startOfYesterday) return 'Yesterday';
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+const STATUS_TONE: Record<
+  HistoryStatusKey,
+  { bg: string; fg: string }
+> = {
+  won: { bg: POS_GREEN_SOFT, fg: POS_GREEN },
+  sold: { bg: POS_GREEN_SOFT, fg: POS_GREEN },
+  bought: { bg: SURFACE2, fg: MUTED },
+  other: { bg: SURFACE2, fg: MUTED },
+};
+
+const HISTORY_GRID = '110px minmax(0,1.6fr) 70px 80px 90px 100px';
+
+function BetHistoryView({
+  safeAddress,
+  onMarketClick,
+}: {
+  safeAddress: string | string[];
+  onMarketClick: (trade: TradeActivity) => void;
+}) {
+  const [statusFilter, setStatusFilter] =
+    useState<HistoryStatusFilter>('all');
+  const [offset, setOffset] = useState(0);
+
+  const { data: trades = [], isLoading } = useTradeActivity({
+    user: safeAddress,
+    limit: PAGE_SIZE_HISTORY,
+    offset,
+    sort: 'DESC',
+  });
+
+  const rows = useMemo(() => trades.map(deriveHistoryRow), [trades]);
+
+  const counts = useMemo(() => {
+    const c: Record<HistoryStatusKey, number> = {
+      won: 0,
+      sold: 0,
+      bought: 0,
+      other: 0,
+    };
+    for (const r of rows) c[r.statusKey] += 1;
+    return c;
+  }, [rows]);
+
+  const summary = useMemo(() => {
+    const volume = rows.reduce((s, r) => s + r.amount, 0);
+    const netFlow = rows.reduce((s, r) => s + r.signedAmount, 0);
+    return {
+      total: rows.length,
+      volume,
+      netFlow,
+    };
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    if (statusFilter === 'all') return rows;
+    return rows.filter((r) => r.statusKey === statusFilter);
+  }, [rows, statusFilter]);
+
+  const canGoBack = offset > 0;
+  const canLoadMore = trades.length === PAGE_SIZE_HISTORY;
+
   return (
     <div className="space-y-4">
       <PageTitle
         eyebrow="Predictions"
         title="Bet history"
-        caption="Settled bets, fills and cancellations"
+        caption={`${summary.total} ${
+          summary.total === 1 ? 'entry' : 'entries'
+        } · last 30 days`}
         action={
           <FilterChip>
             <Download className="w-3 h-3" />
@@ -805,11 +1757,334 @@ function BetHistoryView({ safeAddress }: { safeAddress: string }) {
           </FilterChip>
         }
       />
+
+      {/* Summary tiles — 4 across on sm+, 2 across on mobile. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <HistorySummaryTile
+          label="Net flow"
+          value={`${summary.netFlow >= 0 ? '+' : '−'}$${Math.abs(
+            summary.netFlow,
+          ).toFixed(2)}`}
+          tone={
+            summary.netFlow > 0.005
+              ? 'pos'
+              : summary.netFlow < -0.005
+                ? 'neg'
+                : 'neutral'
+          }
+        />
+        <HistorySummaryTile
+          label="Volume"
+          value={`$${summary.volume.toFixed(0)}`}
+        />
+        <HistorySummaryTile
+          label="Trades"
+          value={String(summary.total)}
+        />
+        <HistorySummaryTile
+          label="Activity"
+          value={`${counts.bought}B · ${counts.sold + counts.won}S`}
+        />
+      </div>
+
+      {/* Filter chips + sort/range placeholders pushed right. */}
+      <div className="flex gap-1.5 flex-wrap items-center">
+        <FilterChip
+          active={statusFilter === 'all'}
+          onClick={() => setStatusFilter('all')}
+        >
+          All · {summary.total}
+        </FilterChip>
+        <FilterChip
+          active={statusFilter === 'won'}
+          onClick={() => setStatusFilter('won')}
+        >
+          Won · {counts.won}
+        </FilterChip>
+        <FilterChip
+          active={statusFilter === 'sold'}
+          onClick={() => setStatusFilter('sold')}
+        >
+          Sold · {counts.sold}
+        </FilterChip>
+        <FilterChip
+          active={statusFilter === 'bought'}
+          onClick={() => setStatusFilter('bought')}
+        >
+          Bought · {counts.bought}
+        </FilterChip>
+        {counts.other > 0 && (
+          <FilterChip
+            active={statusFilter === 'other'}
+            onClick={() => setStatusFilter('other')}
+          >
+            Other · {counts.other}
+          </FilterChip>
+        )}
+        <span className="flex-1" />
+        <FilterChip>
+          30 days
+          <ChevronDown className="w-3 h-3" />
+        </FilterChip>
+      </div>
+
+      {/* History table — header row + body rows on a shared grid. */}
       <div
-        className="bg-white rounded-2xl border p-4 sm:p-5"
-        style={{ borderColor: HAIR }}
+        className="bg-white rounded-2xl border overflow-hidden"
+        style={{
+          borderColor: HAIR,
+          boxShadow:
+            '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+        }}
       >
-        <TradeHistory walletAddress={safeAddress} />
+        <div
+          className="grid gap-3 px-5 py-3 border-b text-[10.5px] font-bold uppercase tracking-[1.2px]"
+          style={{
+            gridTemplateColumns: HISTORY_GRID,
+            borderColor: HAIR2,
+            color: MUTED,
+            fontFamily: MONO,
+          }}
+        >
+          <div>Date</div>
+          <div>Market</div>
+          <div>Side</div>
+          <div>Shares</div>
+          <div>Price</div>
+          <div className="text-right">Amount</div>
+        </div>
+
+        {isLoading ? (
+          <div className="p-5 space-y-2">
+            {[...Array(4)].map((_, i) => (
+              <div
+                key={i}
+                className="h-12 rounded-md bg-gray-50 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : filteredRows.length === 0 ? (
+          <div className="py-12 px-6 text-center">
+            <div className="text-[15px] font-semibold text-gray-900 mb-1">
+              {statusFilter === 'all'
+                ? 'No history yet'
+                : 'Nothing matches that filter'}
+            </div>
+            <div className="text-[12.5px] text-gray-500 max-w-md mx-auto">
+              {statusFilter === 'all'
+                ? 'Settled bets, fills and cancellations will appear here.'
+                : 'Try switching back to All to see every trade.'}
+            </div>
+            {statusFilter !== 'all' && (
+              <button
+                onClick={() => setStatusFilter('all')}
+                className="mt-3 inline-flex items-center gap-1 h-7 px-3 rounded-full border bg-white text-[11.5px] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
+                style={{ borderColor: HAIR }}
+              >
+                Show all
+              </button>
+            )}
+          </div>
+        ) : (
+          filteredRows.map((row, i) => (
+            <HistoryTableRow
+              key={`${row.trade.transactionHash}-${row.trade.asset}-${i}`}
+              row={row}
+              isLast={i === filteredRows.length - 1}
+              onClick={() => onMarketClick(row.trade)}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Pagination — Prev/Next around a centered "Load older" chip. */}
+      {(canGoBack || canLoadMore) && (
+        <div className="flex justify-center items-center gap-2 pt-1">
+          {canGoBack && (
+            <FilterChip
+              onClick={() =>
+                setOffset((o) => Math.max(0, o - PAGE_SIZE_HISTORY))
+              }
+            >
+              ← Newer
+            </FilterChip>
+          )}
+          <span
+            className="text-[11px] text-gray-500 tabular-nums"
+            style={{ fontFamily: MONO }}
+          >
+            {trades.length === 0
+              ? '0'
+              : `${offset + 1}–${offset + trades.length}`}
+          </span>
+          {canLoadMore && (
+            <FilterChip
+              onClick={() => setOffset((o) => o + PAGE_SIZE_HISTORY)}
+            >
+              Load older →
+            </FilterChip>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistorySummaryTile({
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: string;
+  tone?: 'pos' | 'neg' | 'neutral';
+}) {
+  const color =
+    tone === 'pos' ? POS_GREEN : tone === 'neg' ? NEG_RED : '#0a0a0c';
+  return (
+    <div
+      className="bg-white rounded-2xl border p-4"
+      style={{
+        borderColor: HAIR,
+        boxShadow:
+          '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+      }}
+    >
+      <div
+        className="text-[10.5px] uppercase tracking-[0.5px] font-semibold"
+        style={{ color: MUTED }}
+      >
+        {label}
+      </div>
+      <div
+        className="text-[20px] font-bold tracking-[-0.4px] mt-1.5 tabular-nums"
+        style={{ fontFamily: MONO, color }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function HistoryTableRow({
+  row,
+  isLast,
+  onClick,
+}: {
+  row: HistoryRow;
+  isLast: boolean;
+  onClick: () => void;
+}) {
+  const {
+    trade,
+    statusKey,
+    statusLabel,
+    side,
+    signedAmount,
+    amount,
+  } = row;
+  const tone = STATUS_TONE[statusKey];
+  const sideTone =
+    side === 'YES'
+      ? { bg: POS_GREEN_SOFT, fg: POS_GREEN }
+      : { bg: NEG_RED_SOFT, fg: NEG_RED };
+  const amountColor =
+    signedAmount > 0.005
+      ? POS_GREEN
+      : signedAmount < -0.005
+        ? NEG_RED
+        : MUTED;
+  const sign =
+    signedAmount > 0.005 ? '+' : signedAmount < -0.005 ? '−' : '';
+
+  return (
+    <div
+      onClick={onClick}
+      className={`grid gap-3 px-5 py-3.5 items-center transition-colors hover:bg-gray-50 cursor-pointer ${
+        isLast ? '' : 'border-b'
+      }`}
+      style={{
+        gridTemplateColumns: HISTORY_GRID,
+        borderColor: HAIR2,
+        color: 'inherit',
+      }}
+    >
+      <div
+        className="text-[11px] tabular-nums"
+        style={{ fontFamily: MONO, color: MUTED }}
+      >
+        {formatHistoryDate(trade.timestamp)}
+      </div>
+
+      <div className="min-w-0 flex items-center gap-2.5">
+        {trade.icon ? (
+          <img
+            src={trade.icon}
+            alt=""
+            className="w-7 h-7 rounded-md flex-shrink-0 object-cover bg-gray-100"
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-md flex-shrink-0 bg-gray-200" />
+        )}
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold tracking-[-0.1px] text-gray-900 truncate">
+            {trade.title}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span
+              className="text-[9.5px] font-bold uppercase tracking-[0.6px] px-1.5 py-[2px] rounded-full"
+              style={{
+                background: tone.bg,
+                color: tone.fg,
+                fontFamily: MONO,
+              }}
+            >
+              {statusLabel}
+            </span>
+            {trade.outcome && (
+              <span
+                className="text-[10px] font-semibold uppercase tracking-[0.4px] truncate"
+                style={{ color: MUTED, fontFamily: MONO }}
+              >
+                {trade.outcome}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <span
+          className="inline-block text-[10px] font-bold tracking-[0.6px] px-2 py-[3px] rounded-full"
+          style={{
+            background: sideTone.bg,
+            color: sideTone.fg,
+            fontFamily: MONO,
+          }}
+        >
+          {side}
+        </span>
+      </div>
+
+      <div
+        className="text-[12.5px] font-semibold text-gray-900 tabular-nums"
+        style={{ fontFamily: MONO }}
+      >
+        {trade.size.toFixed(2)}
+      </div>
+
+      <div
+        className="text-[12.5px] tabular-nums"
+        style={{ fontFamily: MONO, color: MUTED }}
+      >
+        {(trade.price * 100).toFixed(0)}¢
+      </div>
+
+      <div
+        className="text-right text-[12.5px] font-bold tabular-nums"
+        style={{ fontFamily: MONO, color: amountColor }}
+      >
+        {sign}${amount.toFixed(2)}
       </div>
     </div>
   );
@@ -820,29 +2095,6 @@ function BetHistoryView({ safeAddress }: { safeAddress: string }) {
 // Apple-clean cream canvas with white cards; the dark "LIVE NOW" tile is
 // the only inverted surface and lives inside the BentoHero.
 // ────────────────────────────────────────────────────────────────────
-
-function BentoSectionHeader({
-  title,
-  caption,
-}: {
-  title: string;
-  caption?: string;
-}) {
-  return (
-    <div className="flex items-end justify-between mb-2.5 px-1">
-      <div>
-        <div className="text-[20px] font-semibold tracking-[-0.4px] text-gray-900">
-          {title}
-        </div>
-        {caption && (
-          <div className="text-[13px] text-gray-500 mt-0.5">
-            {caption}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function BentoEmpty({
   title,
@@ -905,7 +2157,11 @@ function HeroSpark({ trend }: { trend: 'up' | 'down' | 'flat' }) {
         ? 'M0,20 C25,18 50,22 75,20 C100,18 125,22 150,20'
         : 'M0,30 C20,26 30,30 45,22 C60,14 75,20 90,12 C110,6 130,14 150,8';
   const color =
-    trend === 'down' ? NEG_RED : trend === 'flat' ? '#9ca3af' : POS_GREEN;
+    trend === 'down'
+      ? NEG_RED
+      : trend === 'flat'
+        ? '#9ca3af'
+        : POS_GREEN;
   return (
     <svg
       viewBox="0 0 150 40"
@@ -924,7 +2180,10 @@ function HeroSpark({ trend }: { trend: 'up' | 'down' | 'flat' }) {
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={`${path} L150,40 L0,40 Z`} fill={`url(#predspark-${trend})`} />
+      <path
+        d={`${path} L150,40 L0,40 Z`}
+        fill={`url(#predspark-${trend})`}
+      />
       <path
         d={path}
         stroke={color}
@@ -936,6 +2195,433 @@ function HeroSpark({ trend }: { trend: 'up' | 'down' | 'flat' }) {
   );
 }
 
+type LiveScoreTeam = {
+  name: string | null;
+  abbreviation: string | null;
+  logo?: string | null;
+  color?: string | null;
+  score: number | null;
+};
+
+type LiveScoreState = {
+  live: boolean;
+  ended?: boolean;
+  closed?: boolean;
+  period: string | null;
+  elapsed: string | null;
+  startTime?: string | null;
+  teams: LiveScoreTeam[];
+};
+
+const EMPTY_LIVE_SCORE: LiveScoreState = {
+  live: false,
+  ended: false,
+  closed: false,
+  period: null,
+  elapsed: null,
+  startTime: null,
+  teams: [],
+};
+
+function useLiveSportsGames() {
+  return useQuery({
+    queryKey: ['prediction-overview-live-games'],
+    queryFn: async (): Promise<SportsGameGroup[]> => {
+      const qs = new URLSearchParams({
+        limit: '90',
+        offset: '0',
+        tag_id: String(getCategoryById('sports')?.tagId ?? 100639),
+        live: 'true',
+        kind: 'gamelines',
+      });
+      const response = await fetch(
+        `/api/polymarket/desktop/markets?${qs.toString()}`,
+      );
+      if (!response.ok) throw new Error('Failed to load live games');
+
+      const markets = (await response.json()) as PolymarketMarket[];
+      const grouped = groupFlatMarketsIntoGames(markets)
+        .filter(isValidGameCard)
+        .sort(compareLiveSportsGames);
+
+      const liveOnly = grouped.filter(isPolymarketLiveGame);
+      const games = (liveOnly.length > 0 ? liveOnly : grouped).slice(0, 20);
+      return enrichLiveSportsGames(games);
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+}
+
+async function fetchLiveScoreForEvent(
+  eventSlug: string,
+): Promise<LiveScoreState | null> {
+  try {
+    const response = await fetch(
+      `/api/polymarket/event-live?slug=${encodeURIComponent(eventSlug)}`,
+    );
+    if (!response.ok) return null;
+    const json = (await response.json()) as LiveScoreState;
+    return {
+      live: Boolean(json.live),
+      ended: Boolean(json.ended),
+      closed: Boolean(json.closed),
+      period: json.period ?? null,
+      elapsed: json.elapsed ?? null,
+      startTime: json.startTime ?? null,
+      teams: Array.isArray(json.teams) ? json.teams : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function liveScoreTeamKey(team: LiveScoreTeam) {
+  return (
+    team.name?.trim().toLowerCase() ||
+    team.abbreviation?.trim().toLowerCase() ||
+    ''
+  );
+}
+
+function enrichMarketWithLiveScore(
+  market: PolymarketMarket,
+  liveScore: LiveScoreState,
+): PolymarketMarket {
+  const currentTeams = Array.isArray(market.eventTeams)
+    ? market.eventTeams
+    : [];
+  const existingByKey = new Map(
+    currentTeams
+      .map((team) => {
+        const key =
+          team.name?.trim().toLowerCase() ||
+          team.abbreviation?.trim().toLowerCase() ||
+          '';
+        return key ? [key, team] : null;
+      })
+      .filter((entry): entry is [string, (typeof currentTeams)[number]] =>
+        Boolean(entry),
+      ),
+  );
+
+  const eventTeams =
+    liveScore.teams.length > 0
+      ? liveScore.teams.map((team) => {
+          const key = liveScoreTeamKey(team);
+          const existing = key ? existingByKey.get(key) : undefined;
+          return {
+            ...existing,
+            name: team.name ?? existing?.name,
+            abbreviation:
+              team.abbreviation ?? existing?.abbreviation,
+            logo: team.logo ?? existing?.logo,
+            color: team.color ?? existing?.color,
+            score: team.score,
+          };
+        })
+      : currentTeams;
+
+  return {
+    ...market,
+    eventLive: liveScore.live || market.eventLive,
+    eventPeriod: liveScore.period ?? market.eventPeriod,
+    eventElapsed: liveScore.elapsed ?? market.eventElapsed,
+    eventStartDate:
+      liveScore.startTime ?? market.eventStartDate ?? null,
+    gameStartTime:
+      market.gameStartTime ?? liveScore.startTime ?? undefined,
+    eventTeams,
+  };
+}
+
+function enrichGroupedMarketWithLiveScore(
+  grouped: GroupedMarket | null,
+  liveScore: LiveScoreState,
+): GroupedMarket | null {
+  if (!grouped) return null;
+  return {
+    ...grouped,
+    market: enrichMarketWithLiveScore(grouped.market, liveScore),
+  };
+}
+
+async function enrichLiveSportsGames(
+  games: SportsGameGroup[],
+): Promise<SportsGameGroup[]> {
+  return Promise.all(
+    games.map(async (game) => {
+      const eventSlug = getGamePrimaryMarket(game)?.eventSlug;
+      if (!eventSlug) return game;
+
+      const liveScore = await fetchLiveScoreForEvent(eventSlug);
+      if (!liveScore) return game;
+
+      return {
+        ...game,
+        startDate: game.startDate ?? liveScore.startTime ?? undefined,
+        moneyline: enrichGroupedMarketWithLiveScore(
+          game.moneyline,
+          liveScore,
+        ),
+        spread: enrichGroupedMarketWithLiveScore(
+          game.spread,
+          liveScore,
+        ),
+        total: enrichGroupedMarketWithLiveScore(game.total, liveScore),
+      };
+    }),
+  );
+}
+
+function isPolymarketLiveGame(game: SportsGameGroup) {
+  const market = getGamePrimaryMarket(game);
+  return Boolean(market?.eventLive || market?.eventPeriod || market?.eventElapsed);
+}
+
+function getGameStartMs(game: SportsGameGroup) {
+  const market = getGamePrimaryMarket(game);
+  const raw =
+    market?.gameStartTime ||
+    market?.eventStartDate ||
+    game.startDate ||
+    null;
+  if (!raw) return 0;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function compareLiveSportsGames(a: SportsGameGroup, b: SportsGameGroup) {
+  const aMarket = getGamePrimaryMarket(a);
+  const bMarket = getGamePrimaryMarket(b);
+  const aLive = aMarket?.eventLive ? 1 : 0;
+  const bLive = bMarket?.eventLive ? 1 : 0;
+  if (aLive !== bLive) return bLive - aLive;
+
+  const aClock = aMarket?.eventPeriod || aMarket?.eventElapsed ? 1 : 0;
+  const bClock = bMarket?.eventPeriod || bMarket?.eventElapsed ? 1 : 0;
+  if (aClock !== bClock) return bClock - aClock;
+
+  return getGameStartMs(b) - getGameStartMs(a);
+}
+
+function useLiveEventScore(
+  eventSlug: string | undefined,
+  enabled: boolean,
+): LiveScoreState {
+  const [state, setState] = useState<LiveScoreState>(EMPTY_LIVE_SCORE);
+
+  useEffect(() => {
+    if (!enabled || !eventSlug) {
+      setState(EMPTY_LIVE_SCORE);
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchOnce = async () => {
+      try {
+        const response = await fetch(
+          `/api/polymarket/event-live?slug=${encodeURIComponent(eventSlug)}`,
+        );
+        if (!response.ok) return;
+        const json = (await response.json()) as LiveScoreState;
+        if (cancelled) return;
+        setState({
+          live: Boolean(json.live),
+          ended: Boolean(json.ended),
+          closed: Boolean(json.closed),
+          period: json.period ?? null,
+          elapsed: json.elapsed ?? null,
+          startTime: json.startTime ?? null,
+          teams: Array.isArray(json.teams) ? json.teams : [],
+        });
+        if (!cancelled && json.live) {
+          timer = setTimeout(fetchOnce, 15_000);
+        }
+      } catch {
+        // Keep the overview fast; rows fall back to event timing fields.
+      }
+    };
+
+    fetchOnce();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [eventSlug, enabled]);
+
+  return state;
+}
+
+function getGamePrimaryMarket(game: SportsGameGroup) {
+  return (
+    game.moneyline?.market ||
+    game.spread?.market ||
+    game.total?.market ||
+    null
+  );
+}
+
+function pickLiveTeamScore(
+  outcomeLabel: string,
+  outcomeAbbr: string | undefined,
+  teams: LiveScoreTeam[],
+  fallbackIndex: number,
+): number | null {
+  if (!teams.length) return null;
+  const label = outcomeLabel.trim().toLowerCase();
+  const abbr = (outcomeAbbr || '').trim().toLowerCase();
+  const byName = teams.find((team) => {
+    const name = (team.name || '').toLowerCase();
+    return name === label || Boolean(name && (name.includes(label) || label.includes(name)));
+  });
+  if (byName?.score != null) return byName.score;
+
+  if (abbr) {
+    const byAbbr = teams.find(
+      (team) => (team.abbreviation || '').toLowerCase() === abbr,
+    );
+    if (byAbbr?.score != null) return byAbbr.score;
+  }
+
+  return teams[fallbackIndex]?.score ?? null;
+}
+
+function formatLiveGameClock(
+  liveScore: LiveScoreState,
+  market?: PolymarketMarket | null,
+) {
+  const period = liveScore.period || market?.eventPeriod || null;
+  const elapsed = liveScore.elapsed || market?.eventElapsed || null;
+  return [period, elapsed].filter(Boolean).join(' ') || 'In play';
+}
+
+function LiveGameRow({
+  game,
+  isFirst,
+  onClick,
+}: {
+  game: SportsGameGroup;
+  isFirst: boolean;
+  onClick: (market: PolymarketMarket) => void;
+}) {
+  const primaryMarket = getGamePrimaryMarket(game);
+  const eventSlug = primaryMarket?.eventSlug;
+  const liveScore = useLiveEventScore(eventSlug, Boolean(eventSlug));
+  const embeddedScore: LiveScoreState = {
+    live: Boolean(primaryMarket?.eventLive),
+    period: primaryMarket?.eventPeriod ?? null,
+    elapsed: primaryMarket?.eventElapsed ?? null,
+    startTime:
+      primaryMarket?.eventStartDate ||
+      primaryMarket?.gameStartTime ||
+      null,
+    teams: Array.isArray(primaryMarket?.eventTeams)
+      ? primaryMarket.eventTeams.map((team) => ({
+          name: team.name ?? null,
+          abbreviation: team.abbreviation ?? null,
+          logo: team.logo ?? null,
+          color: team.color ?? null,
+          score:
+            typeof team.score === 'number'
+              ? team.score
+              : team.score == null
+                ? null
+                : Number(team.score),
+        }))
+      : [],
+  };
+  const liveScoreHasScores = liveScore.teams.some(
+    (team) => team.score != null,
+  );
+  const embeddedScoreHasScores = embeddedScore.teams.some(
+    (team) => team.score != null,
+  );
+  const scoreState =
+    liveScoreHasScores ||
+    (!embeddedScoreHasScores && (liveScore.period || liveScore.elapsed))
+      ? liveScore
+      : embeddedScore;
+  const scoreA = pickLiveTeamScore(
+    game.teamA,
+    game.teamAMeta?.abbrev,
+    scoreState.teams,
+    0,
+  );
+  const scoreB = pickLiveTeamScore(
+    game.teamB,
+    game.teamBMeta?.abbrev,
+    scoreState.teams,
+    1,
+  );
+  const hasScore = scoreA != null && scoreB != null;
+  const clock = formatLiveGameClock(scoreState, primaryMarket);
+
+  return (
+    <button
+      type="button"
+      disabled={!primaryMarket}
+      onClick={() => {
+        if (primaryMarket) onClick(primaryMarket);
+      }}
+      className={`w-full text-left py-2.5 ${
+        isFirst ? '' : 'border-t border-white/5'
+      } hover:bg-white/[0.02] disabled:cursor-default disabled:hover:bg-transparent transition-colors`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-[13px] font-semibold tracking-tight">
+              {game.teamA} vs. {game.teamB}
+            </span>
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400"
+              style={{ boxShadow: '0 0 0 3px rgba(255,90,95,0.16)' }}
+            />
+          </div>
+          <div
+            className="mt-0.5 flex min-w-0 items-center gap-2 text-[10.5px] font-semibold uppercase tracking-wide"
+            style={{ color: 'rgba(255,255,255,0.55)', fontFamily: MONO }}
+          >
+            <span className="shrink-0 tabular-nums text-red-300">
+              {clock}
+            </span>
+            <span style={{ color: 'rgba(255,255,255,0.25)' }}>·</span>
+            <span className="truncate">
+              {game.moneyline ? 'moneyline' : game.spread ? 'spread' : 'total'}
+            </span>
+          </div>
+        </div>
+        <div className="shrink-0 text-right" style={{ fontFamily: MONO }}>
+          {hasScore ? (
+            <>
+              <div className="text-[16px] font-bold tabular-nums">
+                {scoreA} - {scoreB}
+              </div>
+              <div className="mt-0.5 text-[10px] font-semibold text-white/45">
+                score
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-[12px] font-bold text-red-300">LIVE</div>
+              <div className="mt-0.5 text-[10px] font-semibold text-white/45">
+                odds live
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 interface BentoHeroProps {
   intPart: string;
   decPart: string;
@@ -944,13 +2630,14 @@ interface BentoHeroProps {
   openBets: number;
   openOrders: number;
   inOrdersValue: number;
-  topPicks: PolymarketPosition[];
+  liveGames: SportsGameGroup[];
+  isLoadingLiveGames: boolean;
   onDeposit: () => void;
   onWithdraw: () => void;
   onOpenOrders: () => void;
   onMyBets: () => void;
   onHistory: () => void;
-  onPickClick: (p: PolymarketPosition) => void;
+  onLiveGameClick: (market: PolymarketMarket) => void;
 }
 
 /**
@@ -968,13 +2655,14 @@ function BentoHero({
   openBets,
   openOrders,
   inOrdersValue,
-  topPicks,
+  liveGames,
+  isLoadingLiveGames,
   onDeposit,
   onWithdraw,
   onOpenOrders,
   onMyBets,
   onHistory,
-  onPickClick,
+  onLiveGameClick,
 }: BentoHeroProps) {
   const isPctPositive = portfolioPct >= 0;
   const trend: 'up' | 'down' | 'flat' =
@@ -1032,7 +2720,9 @@ function BentoHero({
           <StatCell
             label="Total P/L"
             value={`${totalPnl >= 0 ? '+' : '−'}$${Math.abs(totalPnl).toFixed(2)}`}
-            tone={totalPnl >= 0 ? 'pos' : totalPnl < 0 ? 'neg' : 'neutral'}
+            tone={
+              totalPnl >= 0 ? 'pos' : totalPnl < 0 ? 'neg' : 'neutral'
+            }
           />
           <StatCell
             label="In orders"
@@ -1042,7 +2732,9 @@ function BentoHero({
           <StatCell
             label="Open bets"
             value={String(openBets)}
-            sub={openOrders > 0 ? `· ${openOrders} orders` : undefined}
+            sub={
+              openOrders > 0 ? `· ${openOrders} orders` : undefined
+            }
             divider
           />
         </div>
@@ -1072,7 +2764,7 @@ function BentoHero({
         </div>
       </div>
 
-      {/* Right: dark "Active picks" tile (the only dark surface — matches
+      {/* Right: dark live games tile (the only dark surface — matches
           the LIVE NOW tile from the wireframe). */}
       <div
         className="rounded-2xl overflow-hidden text-white"
@@ -1097,7 +2789,7 @@ function BentoHero({
                 boxShadow: `0 0 0 3px rgba(255,90,95,0.18)`,
               }}
             />
-            ACTIVE PICKS
+            LIVE GAMES
           </span>
           <span
             className="text-[11px] font-semibold tabular-nums"
@@ -1106,74 +2798,42 @@ function BentoHero({
               fontFamily: MONO,
             }}
           >
-            {openBets} {openBets === 1 ? 'bet' : 'bets'}
+            {isLoadingLiveGames
+              ? 'loading'
+              : `${liveGames.length} ${liveGames.length === 1 ? 'game' : 'games'}`}
           </span>
         </div>
-        <div className="px-5 py-2">
-          {topPicks.length === 0 ? (
+        <div className="max-h-[255px] overflow-y-auto px-5 py-2">
+          {isLoadingLiveGames ? (
+            <div className="space-y-2 py-2">
+              {[0, 1, 2].map((index) => (
+                <div
+                  key={index}
+                  className="h-[52px] animate-pulse rounded-xl bg-white/[0.04]"
+                />
+              ))}
+            </div>
+          ) : liveGames.length === 0 ? (
             <div className="py-6 text-center">
               <p className="text-xs text-white/60 font-medium">
-                No active picks yet
+                No live games right now
               </p>
               <button
-                onClick={onDeposit}
+                onClick={onMyBets}
                 className="mt-2 text-xs text-white/90 underline-offset-4 hover:underline"
               >
-                Deposit to start trading
+                View my bets
               </button>
             </div>
           ) : (
-            topPicks.map((pick, i) => {
-              const positive = pick.cashPnl >= 0;
-              return (
-                <button
-                  key={pick.asset}
-                  onClick={() => onPickClick(pick)}
-                  className={`w-full text-left py-2.5 ${
-                    i === 0 ? '' : 'border-t border-white/5'
-                  } hover:bg-white/[0.02] transition-colors`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-semibold tracking-tight truncate">
-                        {pick.title}
-                      </div>
-                      <div
-                        className="mt-0.5 flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-wide"
-                        style={{
-                          color: 'rgba(255,255,255,0.55)',
-                          fontFamily: MONO,
-                        }}
-                      >
-                        <span className="truncate">{pick.outcome}</span>
-                        <span style={{ color: 'rgba(255,255,255,0.25)' }}>
-                          ·
-                        </span>
-                        <span className="tabular-nums">
-                          {pick.size.toFixed(0)} sh
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      className="text-right shrink-0"
-                      style={{ fontFamily: MONO }}
-                    >
-                      <div className="text-[13px] font-semibold tabular-nums">
-                        ${pick.currentValue.toFixed(2)}
-                      </div>
-                      <div
-                        className={`text-[10.5px] font-semibold tabular-nums mt-0.5 ${
-                          positive ? 'text-emerald-400' : 'text-red-400'
-                        }`}
-                      >
-                        {positive ? '+' : '−'}$
-                        {Math.abs(pick.cashPnl).toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })
+            liveGames.map((game, i) => (
+              <LiveGameRow
+                key={game.eventId || game.title}
+                game={game}
+                isFirst={i === 0}
+                onClick={onLiveGameClick}
+              />
+            ))
           )}
         </div>
       </div>
@@ -1254,8 +2914,8 @@ function CategoryDetailView({
 }: CategoryDetailViewProps) {
   const isSports = drillDown.kind === 'sports';
   const label = isSports
-    ? getSportSubcategoryById(drillDown.sub)?.label ?? 'Sports'
-    : getCategoryById(drillDown.id)?.label ?? 'Markets';
+    ? (getSportSubcategoryById(drillDown.sub)?.label ?? 'Sports')
+    : (getCategoryById(drillDown.id)?.label ?? 'Markets');
 
   // Filter state — wired to the backend through SportsTableView (sports)
   // or HighVolumeMarkets (other categories).
@@ -1296,6 +2956,7 @@ function CategoryDetailView({
   const liveOnly = isSports && filterIdx === 2;
   const kind: 'futures' | undefined =
     isSports && filterIdx === 1 ? 'futures' : undefined;
+  const showDateStrip = isSports && filterIdx === 0;
   const activeDate = dateStrip[activeDateIdx] ?? dateStrip[0];
 
   const titleText = isSports
@@ -1405,28 +3066,30 @@ function CategoryDetailView({
           <div className="flex items-center gap-2 text-[11.5px] text-gray-500 shrink-0">
             <span className="hidden sm:inline">Sort</span>
             <SubFilterChip>
-              {isSports ? 'Game time' : 'Volume'}
+              {isSports && filterIdx !== 1 ? 'Game time' : 'Volume'}
               <ChevronDown className="w-3 h-3" />
             </SubFilterChip>
           </div>
         </div>
 
-        {/* Row 3 — Date strip. One tile is always active; tapping a tile
-              passes [from, to) to the backend so today's games surface. */}
-        <div
-          className="px-3.5 py-3 flex gap-1.5 overflow-x-auto border-b"
-          style={{ borderColor: HAIR }}
-        >
-          {dateStrip.map((d, i) => (
-            <DateTile
-              key={i}
-              label={d.label}
-              sub={d.sub}
-              active={i === activeDateIdx}
-              onClick={() => setActiveDateIdx(i)}
-            />
-          ))}
-        </div>
+        {/* Row 3 — Date strip. Futures and Live are cross-date feeds, so
+              only dated game lines send a [from, to) range to the backend. */}
+        {showDateStrip && (
+          <div
+            className="px-3.5 py-3 flex gap-1.5 overflow-x-auto border-b"
+            style={{ borderColor: HAIR }}
+          >
+            {dateStrip.map((d, i) => (
+              <DateTile
+                key={i}
+                label={d.label}
+                sub={d.sub}
+                active={i === activeDateIdx}
+                onClick={() => setActiveDateIdx(i)}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Row 4 — Sportsbook table (sports) or single-column markets list.
               Sports use the dedicated A2 SportsTableView so games render as
@@ -1437,8 +3100,8 @@ function CategoryDetailView({
             tagId={sportTagId ?? null}
             liveOnly={liveOnly}
             kind={kind}
-            dateFrom={activeDate.fromIso}
-            dateTo={activeDate.toIso}
+            dateFrom={showDateStrip ? activeDate.fromIso : undefined}
+            dateTo={showDateStrip ? activeDate.toIso : undefined}
           />
         ) : (
           <div className="p-4 sm:p-5">
@@ -1560,15 +3223,13 @@ function StatCell({
   divider?: boolean;
 }) {
   const color =
-    tone === 'pos'
-      ? POS_GREEN
-      : tone === 'neg'
-        ? NEG_RED
-        : '#0a0a0c';
+    tone === 'pos' ? POS_GREEN : tone === 'neg' ? NEG_RED : '#0a0a0c';
   return (
     <div
       className={divider ? 'pl-3.5' : ''}
-      style={divider ? { borderLeft: `1px solid ${HAIR}` } : undefined}
+      style={
+        divider ? { borderLeft: `1px solid ${HAIR}` } : undefined
+      }
     >
       <div className="text-[10.5px] uppercase tracking-[0.4px] text-gray-500 font-semibold">
         {label}
@@ -1593,8 +3254,92 @@ function StatCell({
   );
 }
 
+/**
+ * Build a best-effort PolymarketMarket from a trade activity row so a
+ * clicked history row routes to the internal market-detail page instead
+ * of polymarket.com. We only know the traded side (asset, price, outcome
+ * label, outcomeIndex) — the opposite slot is left empty and the detail
+ * view falls back to its Yes/No / 0.5 defaults.
+ */
+function tradeToDetailMarket(trade: TradeActivity): PolymarketMarket {
+  const isYesTrade = trade.outcomeIndex === 0;
+  const tradedOutcome = trade.outcome || (isYesTrade ? 'Yes' : 'No');
+  const oppositeOutcome = isYesTrade ? 'No' : 'Yes';
+  const tradedPrice = trade.price;
+  const oppositePrice = Math.max(0, 1 - tradedPrice);
+  const yesOutcomeName = isYesTrade ? tradedOutcome : oppositeOutcome;
+  const noOutcomeName = isYesTrade ? oppositeOutcome : tradedOutcome;
+  const yesTokenId = isYesTrade ? trade.asset : '';
+  const noTokenId = isYesTrade ? '' : trade.asset;
+  const yesPrice = isYesTrade ? tradedPrice : oppositePrice;
+  const noPrice = isYesTrade ? oppositePrice : tradedPrice;
+  const isClosed = trade.type === 'REDEEM';
+
+  return {
+    id: trade.conditionId,
+    question: trade.title,
+    slug: trade.slug,
+    active: !isClosed,
+    closed: isClosed,
+    icon: trade.icon,
+    eventSlug: trade.eventSlug,
+    outcomes: JSON.stringify([yesOutcomeName, noOutcomeName]),
+    outcomePrices: JSON.stringify([
+      String(yesPrice),
+      String(noPrice),
+    ]),
+    clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
+    conditionId: trade.conditionId,
+  };
+}
+
+type PositionEventTeamMeta = NonNullable<
+  PolymarketMarket['eventTeams']
+>[number];
+
+function isBinaryPositionOutcome(label: string): boolean {
+  return /^(yes|no)$/i.test(label.trim());
+}
+
+function resolvePositionTeamMeta(
+  label: string,
+  teamsMap: TeamsMap | undefined,
+): PositionEventTeamMeta | undefined {
+  if (!teamsMap || !label) return undefined;
+  const lower = label.trim().toLowerCase();
+  if (!lower) return undefined;
+  const hit =
+    teamsMap.byKey.get(lower) ||
+    teamsMap.byKey.get(lower.split(/\s+/).pop() ?? '');
+  if (!hit) return undefined;
+  return {
+    id: hit.id,
+    name: hit.name,
+    league: hit.sport,
+    logo: hit.logoUrl,
+    abbreviation: hit.abbreviation,
+    color: typeof hit.color === 'string' ? hit.color : undefined,
+  };
+}
+
+function positionLooksLikeSportsMatchup(
+  position: PolymarketPosition,
+  yesOutcomeName: string,
+  noOutcomeName: string,
+): boolean {
+  if (!position.eventSlug) return false;
+  if (
+    isBinaryPositionOutcome(yesOutcomeName) ||
+    isBinaryPositionOutcome(noOutcomeName)
+  ) {
+    return false;
+  }
+  return /\b(vs\.?|v\.?|at)\b|@/i.test(position.title);
+}
+
 function positionToDetailMarket(
   position: PolymarketPosition,
+  teamsMap: TeamsMap | undefined,
 ): PolymarketMarket {
   const isYesPos = position.outcomeIndex === 0;
   const yesTokenId = isYesPos
@@ -1612,10 +3357,29 @@ function positionToDetailMarket(
   const yesPrice = isYesPos
     ? position.curPrice
     : 1 - position.curPrice;
-  const noPrice = isYesPos ? 1 - position.curPrice : position.curPrice;
+  const noPrice = isYesPos
+    ? 1 - position.curPrice
+    : position.curPrice;
+
+  const yesTeam = resolvePositionTeamMeta(yesOutcomeName, teamsMap);
+  const noTeam = resolvePositionTeamMeta(noOutcomeName, teamsMap);
+  const eventTeams: PositionEventTeamMeta[] | undefined =
+    yesTeam && noTeam
+      ? [yesTeam, noTeam]
+      : positionLooksLikeSportsMatchup(
+            position,
+            yesOutcomeName,
+            noOutcomeName,
+          )
+        ? [
+            yesTeam ?? { name: yesOutcomeName },
+            noTeam ?? { name: noOutcomeName },
+          ]
+        : undefined;
 
   return {
     id: position.conditionId,
+    conditionId: position.conditionId,
     question: position.title,
     slug: position.slug,
     active: !position.redeemable,
@@ -1630,6 +3394,6 @@ function positionToDetailMarket(
     clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
     negRisk: position.negativeRisk,
     endDateIso: position.endDate,
+    eventTeams,
   };
 }
-

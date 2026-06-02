@@ -1,10 +1,10 @@
-import { Socket } from 'socket.io-client';
-import { createTestSocket, describeSocketIntegration } from './test-runner';
+import { io, Socket } from 'socket.io-client';
 
-describeSocketIntegration('Socket Presence & Status Events', () => {
+describe('Socket Presence & Status Events', () => {
   let mainSocket: Socket;
   let observerSocket1: Socket;
   let observerSocket2: Socket;
+  const SOCKET_URL = process.env.SOCKET_URL || 'http://localhost:3001';
 
   const mainUser = {
     id: 'main-user-123',
@@ -41,11 +41,20 @@ describeSocketIntegration('Socket Presence & Status Events', () => {
       }
     };
 
-    mainSocket = createTestSocket();
+    mainSocket = io(SOCKET_URL, {
+      autoConnect: false,
+      transports: ['websocket'],
+    });
 
-    observerSocket1 = createTestSocket();
+    observerSocket1 = io(SOCKET_URL, {
+      autoConnect: false,
+      transports: ['websocket'],
+    });
 
-    observerSocket2 = createTestSocket();
+    observerSocket2 = io(SOCKET_URL, {
+      autoConnect: false,
+      transports: ['websocket'],
+    });
 
     mainSocket.on('connect', checkConnections);
     observerSocket1.on('connect', checkConnections);
@@ -341,7 +350,7 @@ describeSocketIntegration('Socket Presence & Status Events', () => {
         expect(Array.isArray(presenceData)).toBe(true);
         expect(presenceData.length).toBeGreaterThan(0);
         
-        const observerPresence = presenceData.find(p => p.userId === observer1.id);
+        const observerPresence = presenceData.find((p: any) => p.userId === observer1.id);
         expect(observerPresence).toBeDefined();
         expect(observerPresence.status).toBeDefined();
         done();
@@ -358,7 +367,7 @@ describeSocketIntegration('Socket Presence & Status Events', () => {
         expect(presenceData.length).toBe(userIds.length);
         
         userIds.forEach(userId => {
-          const userPresence = presenceData.find(p => p.userId === userId);
+          const userPresence = presenceData.find((p: any) => p.userId === userId);
           expect(userPresence).toBeDefined();
         });
         done();

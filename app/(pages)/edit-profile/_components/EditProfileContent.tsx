@@ -1,12 +1,12 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import Image from "next/image";
+// import Image from "next/image";
 import { FiUser } from "react-icons/fi";
 import { FaRegUserCircle } from "react-icons/fa";
 import { MdOutlineEmail } from "react-icons/md";
 import { SlCalender } from "react-icons/sl";
-import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
-import { useDisclosure } from "@nextui-org/react";
+// import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
+// import { useDisclosure } from "@nextui-org/react";
 import { PhoneInput } from "react-international-phone";
 import "react-international-phone/style.css";
 import ProfileLoading from "@/components/loading/ProfileLoading";
@@ -16,8 +16,8 @@ import { updateUserProfile } from "@/actions/updateUserProfile";
 import { useRouter } from "next/navigation";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import toast from "react-hot-toast";
-import isUrl from "@/lib/isUrl";
-import UploadImageButton from "@/components/Button/UploadImageButton";
+// import isUrl from "@/lib/isUrl";
+// import UploadImageButton from "@/components/Button/UploadImageButton";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -39,9 +39,9 @@ const SWOP_ID_GATEWAY = "https://swop-id-ens-gateway.swop.workers.dev";
 const EditProfileContent = ({ data, token }: any) => {
   console.log("data", data);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [galleryImage, setGalleryImage] = useState(null);
+  const [galleryImage] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -51,7 +51,7 @@ const EditProfileContent = ({ data, token }: any) => {
   const [selectedCountryCode, setSelectedCountryCode] = useState("");
   const [dobDate, setDobDate] = useState<any>(new Date().getTime());
 
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  // const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   const router = useRouter();
   const { wallets } = useWallets();
@@ -148,48 +148,48 @@ const EditProfileContent = ({ data, token }: any) => {
     }
   };
 
-  const images = [
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "10",
-    "11",
-    "12",
-    "13",
-    "14",
-    "15",
-    "16",
-    "17",
-    "18",
-    "19",
-    "20",
-    "21",
-    "22",
-    "23",
-    "24",
-    "25",
-    "26",
-    "27",
-    "28",
-    "29",
-    "30",
-    "31",
-    "32",
-    "33",
-    "34",
-    "35",
-    "36",
-    "37",
-    "38",
-    "39",
-    "40",
-  ];
+  // const images = [
+  //   "1",
+  //   "2",
+  //   "3",
+  //   "4",
+  //   "5",
+  //   "6",
+  //   "7",
+  //   "8",
+  //   "9",
+  //   "10",
+  //   "11",
+  //   "12",
+  //   "13",
+  //   "14",
+  //   "15",
+  //   "16",
+  //   "17",
+  //   "18",
+  //   "19",
+  //   "20",
+  //   "21",
+  //   "22",
+  //   "23",
+  //   "24",
+  //   "25",
+  //   "26",
+  //   "27",
+  //   "28",
+  //   "29",
+  //   "30",
+  //   "31",
+  //   "32",
+  //   "33",
+  //   "34",
+  //   "35",
+  //   "36",
+  //   "37",
+  //   "38",
+  //   "39",
+  //   "40",
+  // ];
 
   useEffect(() => {
     if (galleryImage) {
@@ -238,28 +238,28 @@ const EditProfileContent = ({ data, token }: any) => {
     }
   };
 
-  const handleSelectImage = (image: any) => {
-    setSelectedImage(image);
-    setGalleryImage(null);
-  };
+  // const handleSelectImage = (image: any) => {
+  //   setSelectedImage(image);
+  //   setGalleryImage(null);
+  // };
 
-  const handleModal = () => {
-    onOpen();
-    setIsModalOpen(true);
-  };
+  // const handleModal = () => {
+  //   onOpen();
+  //   setIsModalOpen(true);
+  // };
 
-  const handleFileChange = (event: any) => {
-    const file = event.target.files[0];
-    if (file) {
-      setIsModalOpen(false);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(null);
-        setGalleryImage(reader.result as any);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  // const handleFileChange = (event: any) => {
+  //   const file = event.target.files[0];
+  //   if (file) {
+  //     setIsModalOpen(false);
+  //     const reader = new FileReader();
+  //     reader.onloadend = () => {
+  //       setSelectedImage(null);
+  //       setGalleryImage(reader.result as any);
+  //     };
+  //     reader.readAsDataURL(file);
+  //   }
+  // };
 
   const dateInputRef = useRef<any>(null);
 
@@ -302,7 +302,7 @@ const EditProfileContent = ({ data, token }: any) => {
                   features.
                 </p>
               </div>
-              <div className="w-40 h-40 overflow-hidden rounded-full border-2 border-black border-opacity-20 relative">
+              {/* <div className="w-40 h-40 overflow-hidden rounded-full border-2 border-black border-opacity-20 relative">
                 <div className="bg-white">
                   {galleryImage && (
                     <Image
@@ -339,7 +339,7 @@ const EditProfileContent = ({ data, token }: any) => {
                     />
                   )}
                 </div>
-                {/* <div className="bg-[#3f3f3f50] absolute top-1/2 w-full h-full">
+                <div className="bg-[#3f3f3f50] absolute top-1/2 w-full h-full">
                   <button type="button" onClick={handleModal}>
                     <Image
                       src={uploadImgIcon}
@@ -348,9 +348,9 @@ const EditProfileContent = ({ data, token }: any) => {
                       className="absolute left-1/2 top-8 -translate-x-[50%]"
                     />
                   </button>
-                </div> */}
-              </div>
-              <UploadImageButton handleModal={handleModal} />
+                </div>
+              </div> */}
+              {/* <UploadImageButton handleModal={handleModal} /> */}
             </div>
             {loading ? (
               <div className="flex-1 lg:flex-[1.5] xl:flex-[2]">
@@ -665,7 +665,7 @@ const EditProfileContent = ({ data, token }: any) => {
         </div>
 
         {/* modal here  */}
-        {isModalOpen && (
+        {/* {isModalOpen && (
           <SelectAvatorModal
             isOpen={isOpen}
             onOpenChange={onOpenChange}
@@ -674,7 +674,7 @@ const EditProfileContent = ({ data, token }: any) => {
             setIsModalOpen={setIsModalOpen}
             handleFileChange={handleFileChange}
           />
-        )}
+        )} */}
       </section>
     );
   }

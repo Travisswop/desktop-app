@@ -23,9 +23,12 @@ export interface HLAssetContext {
 }
 
 export interface HLMarket {
-  index: number;
-  name: string;         // e.g. "BTC-PERP"
-  coin: string;         // e.g. "BTC"
+  index: number;        // Exchange asset id. HIP-3 dex markets use 100000+ offsets.
+  name: string;         // e.g. "BTC-PERP" or "xyz:SPCX-PERP"
+  coin: string;         // e.g. "BTC" or "xyz:SPCX" for builder markets
+  displayCoin?: string; // e.g. "SPCX"
+  dex?: string;         // e.g. "xyz" for HIP-3 builder markets
+  dexName?: string;     // User-facing dex label when provided by Hyperliquid
   markPrice: string;
   midPrice: string;
   fundingRate: string;

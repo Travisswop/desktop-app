@@ -87,6 +87,27 @@ function finiteNumber(value: unknown, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function maybeFiniteNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function firstFiniteNumber(values: unknown[], fallback = 0) {
+  for (const value of values) {
+    const number = maybeFiniteNumber(value);
+    if (number !== null) return number;
+  }
+  return fallback;
+}
+
+function normalizePositionStatus(
+  status: Partial<PerpsPositionFeedContent>['status'],
+) {
+  if (status === 'closed' || status === 'liquidated') return status;
+  return 'open';
+}
+
 function formatUsd(value: unknown, digits = 2) {
   const number = finiteNumber(value);
   if (Math.abs(number) >= 1000) {
@@ -159,70 +180,28 @@ function profileImageSrc(profilePic?: string | null) {
     : `/images/user_avator/${profilePic}@3x.png`;
 }
 
-function resolveLifecycleLabel(
-  status: PerpsPositionFeedContent['status'],
-  content: Partial<PerpsPositionFeedContent>,
-  fallbackDate?: string,
-) {
-  if (status === 'liquidated') {
-    return `Liquidated ${dayjs(
-      content.liquidatedAt || content.closedAt || content.updatedAt || fallbackDate,
-    ).fromNow()}`;
-  }
-
-  if (status === 'closed') {
-    return `Closed ${dayjs(
-      content.closedAt || content.updatedAt || fallbackDate,
-    ).fromNow()}`;
-  }
-
-  return `${content.event === 'add' ? 'Added' : 'Opened'} ${dayjs(
-    content.openedAt || content.updatedAt || fallbackDate,
-  ).fromNow()}`;
-}
-
-function calculateLeveredReturnPct({
-  side,
-  entryPrice,
-  markPrice,
-  leverage,
-  fallback,
-}: {
-  side: 'long' | 'short';
-  entryPrice: number;
-  markPrice: number;
-  leverage: number;
-  fallback: unknown;
-}) {
-  if (entryPrice > 0 && markPrice > 0) {
-    const directionReturn =
-      side === 'long'
-        ? (markPrice - entryPrice) / entryPrice
-        : (entryPrice - markPrice) / entryPrice;
-    return directionReturn * leverage * 100;
-  }
-
-  return finiteNumber(fallback);
-}
-
 export default function PerpsPositionFeedCard({
   feed,
 }: PerpsPositionFeedCardProps) {
   const content = useMemo(() => feed.content || {}, [feed.content]);
   const coin = String(content.coin || 'BTC').toUpperCase();
   const side = content.side === 'short' ? 'short' : 'long';
-  const status =
-    content.status === 'liquidated'
-      ? 'liquidated'
-      : content.status === 'closed'
-        ? 'closed'
-        : 'open';
+  const status = normalizePositionStatus(content.status);
+  const isTerminalStatus = status !== 'open';
   const leverage = Math.max(1, Math.round(finiteNumber(content.leverage, 1)));
-  const storedMarkPrice = finiteNumber(content.markPrice || content.entryPrice);
+  const storedMarkPrice = firstFiniteNumber([
+    isTerminalStatus ? content.exitPrice : null,
+    content.markPrice,
+    content.entryPrice,
+  ]);
   const profilePic =
-    feed.smartsiteDetails?.profilePic ||
-    feed.smartsiteId?.profilePic ||
-    feed.smartsiteProfilePic;
+    isTerminalStatus
+      ? feed.smartsiteDetails?.profilePic ||
+        feed.smartsiteId?.profilePic ||
+        feed.smartsiteProfilePic
+      : feed.smartsiteDetails?.profilePic ||
+        feed.smartsiteId?.profilePic ||
+        feed.smartsiteProfilePic;
   const profileSrc = profileImageSrc(profilePic);
   const userName =
     feed.smartsiteDetails?.name ||
@@ -272,7 +251,7 @@ export default function PerpsPositionFeedCard({
   }, [points.length, selectedIndex]);
 
   const displayMarkPrice =
-    status === 'open'
+    !isTerminalStatus
       ? points[points.length - 1]?.price || storedMarkPrice
       : storedMarkPrice;
 
@@ -444,33 +423,51 @@ export default function PerpsPositionFeedCard({
     [points.length],
   );
 
-  const entryPrice = finiteNumber(content.entryPrice || displayMarkPrice);
-  const returnMarkPrice =
-    status === 'liquidated'
-      ? finiteNumber(content.liquidationPrice || content.markPrice)
-      : displayMarkPrice;
-  const returnPct = calculateLeveredReturnPct({
-    side,
-    entryPrice,
-    markPrice: returnMarkPrice,
-    leverage,
-    fallback: content.returnPct,
-  });
+  const entryPrice = firstFiniteNumber([content.entryPrice, displayMarkPrice]);
+  const calculatedReturnPct =
+    entryPrice > 0
+      ? ((side === 'long'
+          ? displayMarkPrice - entryPrice
+          : entryPrice - displayMarkPrice) /
+          entryPrice) *
+        leverage *
+        100
+      : finiteNumber(content.returnPct);
+  const storedReturnPct = maybeFiniteNumber(content.returnPct);
+  const returnPct =
+    isTerminalStatus && storedReturnPct !== null
+      ? storedReturnPct
+      : calculatedReturnPct;
   const isPositive = returnPct >= 0;
-  const sideClasses =
+  const badgeClasses =
     status === 'liquidated'
-      ? 'border-red-200 bg-red-100 text-red-600'
+      ? 'border-red-200 bg-red-100 text-red-500'
       : status === 'closed'
-        ? 'border-gray-200 bg-gray-100 text-gray-600'
-        : side === 'long'
+      ? 'border-gray-200 bg-gray-100 text-gray-500'
+      : side === 'long'
       ? 'border-emerald-200 bg-emerald-100 text-emerald-600'
       : 'border-red-200 bg-red-100 text-red-500';
+  const badgeLabel =
+    status === 'liquidated'
+      ? 'Liquidated'
+      : status === 'closed'
+      ? 'Closed'
+      : side;
   const statusLabel =
     status === 'liquidated'
       ? 'Liquidated'
       : status === 'closed'
-        ? 'Closed'
-        : side;
+      ? 'Closed'
+      : 'Open';
+  const statusTimestamp =
+    status === 'liquidated'
+      ? content.liquidatedAt ||
+        content.closedAt ||
+        content.updatedAt ||
+        feed.createdAt
+      : status === 'closed'
+      ? content.closedAt || content.updatedAt || feed.createdAt
+      : content.openedAt || content.updatedAt || feed.createdAt;
   const href = `/wallet?perps=1&coin=${encodeURIComponent(coin)}&side=${side}&leverage=${leverage}`;
   const periodBar = (
     <div
@@ -514,10 +511,10 @@ export default function PerpsPositionFeedCard({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div
-	                  className={`inline-flex rounded-[10px] border px-4 py-2 text-[13px] font-semibold uppercase tracking-wide ${sideClasses}`}
-	                >
-	                  {statusLabel} {leverage}x
-	                </div>
+                  className={`inline-flex rounded-[10px] border px-4 py-2 text-[13px] font-semibold uppercase tracking-wide ${badgeClasses}`}
+                >
+                  {badgeLabel} {leverage}x
+                </div>
                 <div className="mt-2 text-[15px] font-semibold text-gray-950">
                   {formatCompactNumber(content.sizeCoins)} {coin}
                 </div>
@@ -712,10 +709,10 @@ export default function PerpsPositionFeedCard({
               </div>
             </div>
 
-	            <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-	              <div className="text-[11px] font-medium text-gray-400">
-	                {resolveLifecycleLabel(status, content, feed.createdAt)}
-	              </div>
+            <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+              <div className="text-[11px] font-medium text-gray-400">
+                {statusLabel} {dayjs(statusTimestamp).fromNow()}
+              </div>
               <Link
                 href={href}
                 className="rounded-lg bg-gray-100 px-7 py-2 text-sm font-medium text-gray-950 transition-all hover:bg-gray-200 active:scale-95"

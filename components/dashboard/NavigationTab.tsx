@@ -66,7 +66,7 @@ export const NavigationHub: React.FC<NavigationHubProps> = () => {
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:flex items-center gap-2 lg:gap-6 xl:gap-10 w-full">
             {navigationItems.map((item) => (
               <Link
-                href={"/mint"}
+                href={"/products"}
                 key={item.id}
                 // onClick={() => handleClick(item.id)}
                 className="flex flex-col items-center gap-2 group cursor-pointer transition-all hover:opacity-70 "

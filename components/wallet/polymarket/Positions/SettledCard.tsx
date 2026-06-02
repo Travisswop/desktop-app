@@ -1,6 +1,10 @@
 'use client';
 
 import type { PolymarketPosition } from '@/hooks/polymarket';
+import {
+  getPositionCost,
+  getRedeemablePayout,
+} from '@/lib/polymarket/position-payout';
 
 interface SettledCardProps {
   position: PolymarketPosition;
@@ -15,20 +19,9 @@ export default function SettledCard({
   isRedeeming,
   canRedeem,
 }: SettledCardProps) {
-  // A position is a WINNER only when the market is settled (redeemable=true)
-  // AND curPrice > 0 (winning outcome). redeemable=true alone just means the
-  // market has resolved — losing positions also have redeemable=true with curPrice=0.
-  const won = position.redeemable && position.curPrice > 0;
-  const cost = position.initialValue || position.avgPrice * position.size;
-
-  // Redemption value: only winners receive a payout.
-  // Use currentValue when curPrice is active; fall back to size×$1 for settled winners
-  // where the API has not yet zeroed the price (edge case). Losers get $0.
-  const redeemValue = won
-    ? position.curPrice > 0
-      ? position.currentValue
-      : position.size
-    : 0;
+  const redeemValue = getRedeemablePayout(position);
+  const won = redeemValue > 0;
+  const cost = getPositionCost(position);
 
   // P&L = redeemValue minus cost for winners, full loss (cashPnl) for losers.
   // Add any realizedPnl from shares sold before settlement in both cases.

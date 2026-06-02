@@ -1,5 +1,5 @@
 "use client";
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import dayjs from "dayjs";
@@ -11,7 +11,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  useDisclosure,
+  // useDisclosure,
 } from "@nextui-org/react";
 import Reaction from "./view/Reaction";
 import DeleteFeedModal from "./DeleteFeedModal";
@@ -19,7 +19,7 @@ import isUrl from "@/lib/isUrl";
 import tipImg from "@/public/images/tip.png";
 import TipContentModal from "./TipContent";
 import { formatEns } from "@/lib/formatEnsName";
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
 import FeedPostContent from "./FeedPostContent";
 interface FeedItemType {
@@ -53,9 +53,9 @@ const FeedItem = memo(
   }: FeedItemProps) => {
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
-    const { isOpen, onOpen, onOpenChange } = useDisclosure();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [redeemFeedData, setRedeemFeedData] = useState({});
+    // const { isOpen, onOpen, onOpenChange } = useDisclosure();
+    // const [isModalOpen, setIsModalOpen] = useState(false);
+    // const [redeemFeedData, setRedeemFeedData] = useState({});
 
     console.log("ffeed indof", feed);
 
@@ -81,21 +81,30 @@ const FeedItem = memo(
       },
     });
 
-    const handleRedeemClick = useCallback(
-      (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onOpen();
-        setIsModalOpen(true);
-        setRedeemFeedData(feed.content);
-      },
-      [feed?.content, onOpen], // Added feed.content to dependencies,
-    );
+    // const handleRedeemClick = useCallback(
+    //   (e: React.MouseEvent) => {
+    //     e.stopPropagation();
+    //     onOpen();
+    //     setIsModalOpen(true);
+    //     setRedeemFeedData(feed.content);
+    //   },
+    //   [feed?.content, onOpen], // Added feed.content to dependencies,
+    // );
 
     const profilePic =
-      feed?.smartsiteId?.profilePic || feed?.smartsiteProfilePic;
+      feed?.smartsiteDetails?.profilePic ||
+      feed?.smartsiteId?.profilePic ||
+      feed?.smartsiteProfilePic;
     const userName =
-      feed?.smartsiteId?.name || feed?.smartsiteUserName || "Anonymous";
-    const ensName = feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a";
+      feed?.smartsiteDetails?.name ||
+      feed?.smartsiteId?.name ||
+      feed?.smartsiteUserName ||
+      "Anonymous";
+    const ensName =
+      feed?.smartsiteDetails?.ens ||
+      feed?.smartsiteId?.ens ||
+      feed?.smartsiteEnsName ||
+      "n/a";
 
     // console.log("ensName", ensName);
 
@@ -106,7 +115,7 @@ const FeedItem = memo(
       setIsTipModalOpen(true);
     };
 
-    const router = useRouter();
+    // const router = useRouter();
 
     return (
       <div className="flex gap-2 border-b border-gray-200 py-4">

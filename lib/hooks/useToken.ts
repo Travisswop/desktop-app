@@ -7,6 +7,9 @@ import {
 } from '@/services/wallet-service';
 import { useUser } from '@/lib/UserContext';
 
+const normalizeChain = (chain: string): ChainType =>
+  chain.toUpperCase() as ChainType;
+
 /**
  * Simplified useMultiChainTokenData Hook
  *
@@ -15,23 +18,40 @@ import { useUser } from '@/lib/UserContext';
  */
 export const useMultiChainTokenData = (
   solWalletAddress?: string,
-  evmWalletAddress?: string,
+  evmWalletAddress?: string | string[],
   chains: ChainType[] = ['ETHEREUM']
 ) => {
   const { accessToken } = useUser();
 
   // Build wallet list based on provided addresses and chains
   const wallets: WalletInput[] = [];
+  const evmWalletAddresses = Array.from(
+    new Set(
+      (Array.isArray(evmWalletAddress)
+        ? evmWalletAddress
+        : [evmWalletAddress]
+      )
+        .filter((address): address is string => Boolean(address))
+        .map((address) => address.trim())
+        .filter(Boolean)
+    )
+  );
 
-  if (evmWalletAddress) {
+  if (evmWalletAddresses.length) {
     // Add requested EVM chains
     const evmChains = chains.filter((chain) => chain !== 'SOLANA');
-    for (const chain of evmChains) {
-      wallets.push({
-        address: evmWalletAddress,
-        chain: chain.toLowerCase() as 'ethereum' | 'polygon' | 'base',
-      });
-    }
+    evmWalletAddresses.forEach((address) => {
+      for (const chain of evmChains) {
+        wallets.push({
+          address,
+          chain: chain.toLowerCase() as
+            | 'ethereum'
+            | 'polygon'
+            | 'base'
+            | 'arbitrum',
+        });
+      }
+    });
   }
 
   if (solWalletAddress && chains.includes('SOLANA')) {
@@ -45,8 +65,9 @@ export const useMultiChainTokenData = (
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: [
       'walletTokens',
+      'owner-address-v3',
       solWalletAddress,
-      evmWalletAddress,
+      evmWalletAddresses,
       chains,
       accessToken,
     ],
@@ -70,6 +91,7 @@ export const useMultiChainTokenData = (
   // Note: Tokens are already sorted by value on the backend
   const tokens = (data?.tokens || []).map((token: Token) => ({
     ...token,
+    chain: normalizeChain(token.chain),
     logoURI:
       token.logoURI || `/assets/crypto-icons/${token.symbol}.png`,
     // Add empty time series data structure for components that expect it

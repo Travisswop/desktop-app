@@ -1,11 +1,14 @@
 import { io, Socket } from 'socket.io-client';
-import { createTestSocket, describeSocketIntegration } from './test-runner';
 
-describeSocketIntegration('Socket Connection Events', () => {
+describe('Socket Connection Events', () => {
   let clientSocket: Socket;
+  const SOCKET_URL = process.env.SOCKET_URL || 'http://localhost:3001';
 
   beforeEach((done) => {
-    clientSocket = createTestSocket();
+    clientSocket = io(SOCKET_URL, {
+      autoConnect: false,
+      transports: ['websocket'],
+    });
     
     clientSocket.on('connect', () => {
       done();
@@ -22,7 +25,10 @@ describeSocketIntegration('Socket Connection Events', () => {
 
   describe('Connection Lifecycle', () => {
     test('should connect successfully', (done) => {
-      const newSocket = createTestSocket();
+      const newSocket = io(SOCKET_URL, {
+        autoConnect: false,
+        transports: ['websocket'],
+      });
 
       newSocket.on('connect', () => {
         expect(newSocket.connected).toBe(true);
@@ -55,7 +61,10 @@ describeSocketIntegration('Socket Connection Events', () => {
     });
 
     test('should disconnect properly', (done) => {
-      const testSocket = createTestSocket();
+      const testSocket = io(SOCKET_URL, {
+        autoConnect: false,
+        transports: ['websocket'],
+      });
 
       testSocket.on('connect', () => {
         testSocket.disconnect();
@@ -206,9 +215,15 @@ describeSocketIntegration('Socket Connection Events', () => {
     });
 
     test('should handle multiple simultaneous connections', (done) => {
-      const socket2 = createTestSocket();
+      const socket2 = io(SOCKET_URL, {
+        autoConnect: false,
+        transports: ['websocket'],
+      });
 
-      const socket3 = createTestSocket();
+      const socket3 = io(SOCKET_URL, {
+        autoConnect: false,
+        transports: ['websocket'],
+      });
 
       let connectCount = 0;
       const checkConnections = () => {

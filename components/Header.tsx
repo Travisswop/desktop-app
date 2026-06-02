@@ -12,9 +12,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useUser } from "@/lib/UserContext";
 import { Skeleton } from "./ui/skeleton";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import isUrl from "@/lib/isUrl";
-import { useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type MouseEvent,
+} from "react";
 import swopLogo from "@/public/images/swop.png";
 import swopWorldLogo from "@/public/images/swop-world.png";
 import { AiOutlineMessage } from "react-icons/ai";
@@ -30,10 +36,92 @@ import { RiCustomerService2Line } from "react-icons/ri";
 import { LuWallet } from "react-icons/lu";
 import { IoLogOutOutline } from "react-icons/io5";
 
+let chatRouteWarmup: Promise<unknown> | null = null;
+
+function warmChatRoute() {
+  chatRouteWarmup ??= import("@/components/chat/ChatRuntime");
+  return chatRouteWarmup;
+}
+
 export default function Header() {
-  const { user, loading, logout: userLogout } = useUser();
+  const {
+    user,
+    loading,
+    logout: userLogout,
+    primaryMicrositeProfilePic,
+  } = useUser();
+
   const router = useRouter();
+  const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isOpeningMessages, setIsOpeningMessages] = useState(false);
+  const [isMessageRoutePending, startMessageRouteTransition] = useTransition();
+  const messageFallbackTimerRef = useRef<number | null>(null);
+  const showMessageSpinner = isOpeningMessages || isMessageRoutePending;
+  const connectionCounts = {
+    followers:
+      (user as any)?.connections?.followers?.length ?? user?.followers ?? 0,
+    following:
+      (user as any)?.connections?.following?.length ?? user?.following ?? 0,
+  };
+
+  useEffect(() => {
+    router.prefetch("/dashboard/chat");
+    const warmOnIdle = () => {
+      void warmChatRoute();
+    };
+    const idleId =
+      typeof window !== "undefined" && "requestIdleCallback" in window
+        ? window.requestIdleCallback(warmOnIdle, { timeout: 3500 })
+        : window.setTimeout(warmOnIdle, 1200);
+
+    return () => {
+      if ("cancelIdleCallback" in window && typeof idleId === "number") {
+        window.cancelIdleCallback(idleId);
+      } else {
+        window.clearTimeout(idleId);
+      }
+    };
+  }, [router]);
+
+  useEffect(() => {
+    setIsOpeningMessages(false);
+    if (messageFallbackTimerRef.current) {
+      window.clearTimeout(messageFallbackTimerRef.current);
+      messageFallbackTimerRef.current = null;
+    }
+  }, [pathname]);
+
+  const warmMessagesRoute = () => {
+    router.prefetch("/dashboard/chat");
+    void warmChatRoute();
+  };
+
+  const handleMessagesClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.defaultPrevented ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      event.button !== 0
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    warmMessagesRoute();
+    setIsOpeningMessages(true);
+    startMessageRouteTransition(() => {
+      router.push("/dashboard/chat");
+    });
+
+    messageFallbackTimerRef.current = window.setTimeout(() => {
+      if (window.location.pathname !== "/dashboard/chat") {
+        window.location.assign("/dashboard/chat");
+      }
+    }, 1800);
+  };
 
   const handleLogout = async () => {
     // Prevent multiple logout attempts
@@ -57,7 +145,7 @@ export default function Header() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-10">
+      <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-[70]">
         <header className="h-24 bg-white mx-8 flex items-center justify-between">
           <Skeleton className="h-7 w-7 rounded" />
 
@@ -72,7 +160,7 @@ export default function Header() {
   }
 
   return (
-    <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-10">
+    <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-[70]">
       <header className="h-24 bg-white mx-8 flex items-center justify-between">
         {/* <SidebarTrigger /> */}
         <Link href={"/"} className="flex items-center gap-2.5">
@@ -81,11 +169,24 @@ export default function Header() {
         </Link>
         <div className=" flex items-center justify-end">
           <div>
-            <Link href="/dashboard/chat">
-              <button className="rounded-full w-[38px] h-[38px] bg-black flex items-center justify-center">
+            {/* Use a hard navigation here because wallet providers can swallow App Router transitions. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a
+              href="/dashboard/chat"
+              aria-label="Open messages"
+              aria-busy={isOpeningMessages}
+              title="Open messages"
+              onClick={handleMessagesClick}
+              onPointerEnter={warmMessagesRoute}
+              onFocus={warmMessagesRoute}
+              className="relative z-[75] rounded-full w-[38px] h-[38px] bg-black flex items-center justify-center transition-transform active:scale-95"
+            >
+              {showMessageSpinner ? (
+                <Loader className="h-[18px] w-[18px] animate-spin text-white" />
+              ) : (
                 <AiOutlineMessage color="white" size={19} />
-              </button>
-            </Link>
+              )}
+            </a>
           </div>
           <div className="mx-2">
             <NotificationBell />
@@ -99,25 +200,28 @@ export default function Header() {
                   disabled={isLoggingOut}
                 >
                   <div className="relative h-8 w-8">
-                    {user.profilePic && (
-                      <>
-                        {isUrl(user?.profilePic) ? (
-                          <Image
-                            src={user.profilePic}
-                            alt={user.name || ""}
-                            fill
-                            className="rounded-full object-cover border"
-                          />
-                        ) : (
-                          <Image
-                            src={`/images/user_avator/${user.profilePic}.png`}
-                            alt={user.name || ""}
-                            fill
-                            className="rounded-full object-cover"
-                          />
-                        )}
-                      </>
-                    )}
+                    {(() => {
+                      const pic =
+                        primaryMicrositeProfilePic ?? user?.profilePic;
+                      if (!pic) return null;
+                      return isUrl(pic) ? (
+                        <Image
+                          src={pic}
+                          alt={user?.name || ""}
+                          fill
+                          sizes="32px"
+                          className="rounded-full object-cover border"
+                        />
+                      ) : (
+                        <Image
+                          src={`/images/user_avator/${pic}.png`}
+                          alt={user?.name || ""}
+                          fill
+                          sizes="32px"
+                          className="rounded-full object-cover"
+                        />
+                      );
+                    })()}
                   </div>
                   <span className="text-sm font-medium">{user.name}</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -128,18 +232,14 @@ export default function Header() {
                   <FaUserPlus />
                   <p>Followers</p>
                   <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-blue-700 flex items-center justify-center">
-                    {user
-                      ? formatCount(user?.connections?.followers?.length)
-                      : 0}
+                    {formatCount(connectionCounts.followers)}
                   </Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <FaUserCheck />
                   <p>Following</p>
                   <Badge className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums bg-green-700 flex items-center justify-center">
-                    {user
-                      ? formatCount(user?.connections?.following?.length)
-                      : 0}
+                    {formatCount(connectionCounts.following)}
                   </Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem

@@ -29,6 +29,7 @@ import { encodeFunctionData } from 'viem';
 import { useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import {
   Check,
   Loader2,
@@ -70,6 +71,7 @@ import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
 } from '@solana/spl-token';
 import bs58 from 'bs58';
 
@@ -306,6 +308,7 @@ function DepositTab({
   const { safeAddress } = useTrading();
   const { publicClient, eoaAddress, switchToPolygon } =
     usePolymarketWallet();
+  const queryClient = useQueryClient();
   const { wallets } = useWallets();
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
@@ -538,7 +541,7 @@ function DepositTab({
           data,
           chainId: polygon.id,
         },
-        { sponsor: true },
+        { sponsor: false },
       );
       return result.hash;
     } catch (sponsorErr: any) {
@@ -617,7 +620,7 @@ function DepositTab({
               data: approveData,
               chainId: sourceChainId,
             },
-            { sponsor: true },
+            { sponsor: false },
           );
           approvalHash = r.hash;
         } catch {
@@ -650,7 +653,7 @@ function DepositTab({
           value: txValue,
           chainId: sourceChainId,
         },
-        { sponsor: true },
+        { sponsor: false },
       );
       hash = r.hash;
     } catch (sponsorErr: any) {
@@ -735,11 +738,16 @@ function DepositTab({
     for (const { address: mintAddr, symbol } of commonMints) {
       try {
         const mintPubkey = new PublicKey(mintAddr);
+        const mintInfo = await connection.getAccountInfo(mintPubkey);
+        const tokenProgramId =
+          mintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID)
+            ? TOKEN_2022_PROGRAM_ID
+            : TOKEN_PROGRAM_ID;
         const ata = await getAssociatedTokenAddress(
           mintPubkey,
           walletPubkey,
           false,
-          TOKEN_PROGRAM_ID,
+          tokenProgramId,
         );
         const ataInfo = await connection.getAccountInfo(ata);
         if (!ataInfo) {
@@ -750,7 +758,7 @@ function DepositTab({
               ata,
               walletPubkey,
               mintPubkey,
-              TOKEN_PROGRAM_ID,
+              tokenProgramId,
             ),
           );
           const { blockhash: ataBlockhash } =
@@ -873,6 +881,14 @@ function DepositTab({
         });
       isTransactionInProgress.current = false;
       setStep('success');
+      queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
+        queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
+        queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+      }, 3000);
     } catch (err: any) {
       isTransactionInProgress.current = false;
       setError(formatPolymarketError(err));
@@ -1411,7 +1427,6 @@ function DepositTab({
 
 // ─── Withdraw Tab ─────────────────────────────────────────────────────────────
 
-
 function WithdrawTab({
   open,
   onClose,
@@ -1442,7 +1457,8 @@ function WithdrawTab({
   const activeBalance = usdcBalance;
   const activeAddress = USDC_E_CONTRACT_ADDRESS;
   const activeLabel = 'pUSD';
-  const walletLabel = walletType === 'deposit' ? 'Deposit wallet' : 'Safe wallet';
+  const walletLabel =
+    walletType === 'deposit' ? 'Deposit wallet' : 'Safe wallet';
 
   const parsedAmount = parseFloat(amount) || 0;
   const isAmountValid =
@@ -1462,7 +1478,12 @@ function WithdrawTab({
 
   const handleCopyAddress = async () => {
     if (!destination) return;
-    await navigator.clipboard.writeText(destination);
+    const didCopy = await copyTextToClipboard(destination);
+    if (!didCopy) {
+      setError('Could not copy address. Please try again.');
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -1499,26 +1520,33 @@ function WithdrawTab({
       const signature =
         walletType === 'deposit'
           ? await walletClient!.signTypedData({
-            account: eoaAddress as `0x${string}`,
-            domain: typedData.typedData!.domain as Parameters<typeof walletClient.signTypedData>[0]['domain'],
-            types: typedData.typedData!.types as Parameters<typeof walletClient.signTypedData>[0]['types'],
-            primaryType: typedData.typedData!.primaryType ?? 'Batch',
-            message: {
-              ...typedData.typedData!.message,
-              nonce: BigInt(typedData.nonce),
-              deadline: BigInt(typedData.deadline!),
-              calls: typedData.calls!.map((call) => ({
-                ...call,
-                value: BigInt(call.value),
-              })),
-            } as Parameters<typeof walletClient.signTypedData>[0]['message'],
-          })
+              account: eoaAddress as `0x${string}`,
+              domain: typedData.typedData!.domain as Parameters<
+                typeof walletClient.signTypedData
+              >[0]['domain'],
+              types: typedData.typedData!.types as Parameters<
+                typeof walletClient.signTypedData
+              >[0]['types'],
+              primaryType:
+                typedData.typedData!.primaryType ?? 'Batch',
+              message: {
+                ...typedData.typedData!.message,
+                nonce: BigInt(typedData.nonce),
+                deadline: BigInt(typedData.deadline!),
+                calls: typedData.calls!.map((call) => ({
+                  ...call,
+                  value: BigInt(call.value),
+                })),
+              } as Parameters<
+                typeof walletClient.signTypedData
+              >[0]['message'],
+            })
           : await walletClient!.signMessage({
-            account: eoaAddress as `0x${string}`,
-            message: {
-              raw: hexToBytes(typedData.txHash as `0x${string}`),
-            },
-          });
+              account: eoaAddress as `0x${string}`,
+              message: {
+                raw: hexToBytes(typedData.txHash as `0x${string}`),
+              },
+            });
 
       const result = await submitWithdraw(
         {
@@ -1541,7 +1569,10 @@ function WithdrawTab({
       setStep('success');
       setTimeout(() => {
         queryClient.invalidateQueries({
-          queryKey: ['usdcBalance', safeAddress],
+          queryKey: ['pusdBalance'],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ['legacyUsdcBalance'],
         });
       }, 3000);
     } catch (err: any) {
@@ -1683,7 +1714,9 @@ function WithdrawTab({
               <span className="text-gray-500">{label}</span>
               <span
                 className={`font-semibold text-xs ${
-                  label === 'Gas fee' ? 'text-green-600' : 'text-gray-900'
+                  label === 'Gas fee'
+                    ? 'text-green-600'
+                    : 'text-gray-900'
                 }`}
               >
                 {value}

@@ -1,6 +1,14 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { useTrading } from '@/providers/polymarket';
 import {
@@ -10,6 +18,10 @@ import {
   useBtc5mPolymarketMarket,
   type PolymarketMarket,
 } from '@/hooks/polymarket';
+import {
+  useMarketDetailStore,
+  marketRouteKey,
+} from '@/zustandStore/marketDetailStore';
 import { useSportsEvents } from '@/hooks/polymarket/useSportsEvents';
 import { usePolymarketTeams } from '@/hooks/polymarket/usePolymarketTeams';
 import { useSportsMeta } from '@/hooks/polymarket/useSportsMeta';
@@ -37,7 +49,6 @@ import SportsGameCard from './SportsGameCard';
 import BtcUpDownCard from './BtcUpDownCard';
 import BtcOrderModal from './BtcOrderModal';
 import CategoryTabs from './CategoryTabs';
-import MarketDetailModal from './MarketDetailModal';
 
 /** How many items appear in the left column when splitLayout is enabled */
 const LEFT_COLUMN_COUNT = 3;
@@ -79,30 +90,29 @@ export default function HighVolumeMarkets({
   hideSectionHeader = false,
   singleColumn = false,
 }: HighVolumeMarketsProps) {
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((s) => s.set);
+
   const [activeCategory, setActiveCategory] = useState<CategoryId>(
     initialCategory ?? DEFAULT_CATEGORY,
   );
   const [activeSportSub, setActiveSportSub] = useState<SportSubcategoryId>(
     initialSportSub ?? DEFAULT_SPORT_SUBCATEGORY,
   );
-  const [detailMarket, setDetailMarket] =
-    useState<PolymarketMarket | null>(null);
-  const [detailInitialOutcome, setDetailInitialOutcome] = useState<
-    'yes' | 'no' | undefined
-  >(undefined);
-  const [detailOutcomeLabels, setDetailOutcomeLabels] = useState<
-    [string, string] | undefined
-  >(undefined);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // BTC 5-min order modal state
   const [btcModalOpen, setBtcModalOpen] = useState(false);
   const [btcInitialOutcome, setBtcInitialOutcome] = useState<'Up' | 'Down'>('Up');
 
-  const { isGeoblocked, safeAddress } = useTrading();
-  const { usdcBalance } = usePolygonBalances(safeAddress);
-  const { data: positions } = useUserPositions(safeAddress);
+  const { isGeoblocked, safeAddress, portfolioAddresses } = useTrading();
+  const portfolioAddressInput = portfolioAddresses.length
+    ? portfolioAddresses
+    : safeAddress;
+  const { usdcBalance } = usePolygonBalances(portfolioAddressInput);
+  const { data: positions } = useUserPositions(portfolioAddressInput);
 
   const isSportsActive = activeCategory === 'sports';
 
@@ -120,7 +130,7 @@ export default function HighVolumeMarkets({
       return (
         sportsMeta?.tagIdBySlug.get('sports') ??
         getCategoryById('sports')?.tagId ??
-        100639
+        1
       );
     }
 
@@ -143,16 +153,17 @@ export default function HighVolumeMarkets({
   } = useMarkets({
     categoryId: activeCategory,
     overrideTagId,
+    searchQuery: deferredSearchQuery,
     enabled: !isSportsActive,
   });
 
   const allMarkets = useMemo(() => marketsData?.pages.flat() ?? [], [marketsData]);
 
   const filteredMarkets = useMemo(() => {
-    if (!searchQuery.trim()) return allMarkets;
-    const q = searchQuery.toLowerCase();
+    if (!deferredSearchQuery.trim()) return allMarkets;
+    const q = deferredSearchQuery.toLowerCase();
     return allMarkets.filter((m) => m.question.toLowerCase().includes(q));
-  }, [allMarkets, searchQuery]);
+  }, [allMarkets, deferredSearchQuery]);
 
   // ── Sports events ─────────────────────────────────────────────────────────
   const {
@@ -164,6 +175,7 @@ export default function HighVolumeMarkets({
     isFetchingNextPage: isFetchingNextSportsPage,
   } = useSportsEvents({
     tagId: overrideTagId,
+    searchQuery: deferredSearchQuery,
     enabled: isSportsActive,
   });
 
@@ -178,10 +190,10 @@ export default function HighVolumeMarkets({
   }, [allSportsMarkets, teamsData]);
 
   const filteredGames = useMemo(() => {
-    if (!searchQuery.trim()) return allGames;
-    const q = searchQuery.toLowerCase();
+    if (!deferredSearchQuery.trim()) return allGames;
+    const q = deferredSearchQuery.toLowerCase();
     return allGames.filter((g) => g.title.toLowerCase().includes(q));
-  }, [allGames, searchQuery]);
+  }, [allGames, deferredSearchQuery]);
 
   // ── Unified pagination state (drives the single sentinel) ────────────────
   const isLoading = isSportsActive ? isSportsLoading : isMarketsLoading;
@@ -215,9 +227,52 @@ export default function HighVolumeMarkets({
   }, [isSportsActive, activeSportSub, categoryLabel]);
 
   /**
-   * All outcome clicks (sports + non-sports) open MarketDetailModal with the
-   * clicked side pre-selected — the detail modal is the single entry point for
-   * placing orders, so users always see the probability chart first.
+   * Computes the user's YES/NO share count for a market. Pulled out of the
+   * old detail-modal memo so each click handler can look up positions
+   * before stashing the detail entry for the page route.
+   */
+  const sharesForMarket = useCallback(
+    (market: PolymarketMarket) => {
+      if (!positions) return { yesShares: 0, noShares: 0 };
+      const tIds = market.clobTokenIds
+        ? (JSON.parse(market.clobTokenIds) as string[])
+        : [];
+      return {
+        yesShares: positions.find((p) => p.asset === tIds[0])?.size || 0,
+        noShares: positions.find((p) => p.asset === tIds[1])?.size || 0,
+      };
+    },
+    [positions],
+  );
+
+  /** Stash market context and navigate to the detail page. */
+  const navigateToMarket = useCallback(
+    (
+      market: PolymarketMarket,
+      opts: {
+        initialOutcome?: 'yes' | 'no';
+        outcomeLabels?: [string, string];
+      } = {},
+    ) => {
+      const key = marketRouteKey(market);
+      if (!key) return;
+      const { yesShares, noShares } = sharesForMarket(market);
+      stashMarketDetail(key, {
+        market,
+        initialOutcome: opts.initialOutcome,
+        outcomeLabels: opts.outcomeLabels,
+        yesShares,
+        noShares,
+      });
+      router.push(`/prediction/market/${encodeURIComponent(key)}`);
+    },
+    [router, sharesForMarket, stashMarketDetail],
+  );
+
+  /**
+   * All outcome clicks (sports + non-sports) navigate to the detail page
+   * with the clicked side pre-selected — the detail page is the single
+   * entry point for placing orders.
    */
   const handleOutcomeClick = (
     marketTitle: string,
@@ -226,6 +281,7 @@ export default function HighVolumeMarkets({
     tokenId: string,
     _negRisk: boolean,
   ) => {
+    void _negRisk;
     const market = allMarkets?.find((m) => m.question === marketTitle);
     if (!market) return;
 
@@ -233,57 +289,47 @@ export default function HighVolumeMarkets({
       ? (JSON.parse(market.clobTokenIds) as string[])
       : [];
     const yesTokenId = tokenIds[0] || tokenId;
-    const isFirstOutcome = tokenId === yesTokenId;
-    setDetailInitialOutcome(isFirstOutcome ? 'yes' : 'no');
-    setDetailMarket(market);
+    navigateToMarket(market, {
+      initialOutcome: tokenId === yesTokenId ? 'yes' : 'no',
+    });
   };
 
   /**
-   * Sports outcome clicks open the rich MarketDetailModal (with probability
-   * chart + team panel) instead of the compact OrderPlacementModal — the
-   * visualization only makes sense for team matchups.
+   * Sports outcome clicks navigate to the same detail page; spread labels
+   * are derived so the page can show "+1.5" / "-1.5" instead of the raw
+   * outcome names.
    */
   const handleSportsOutcomeClick = useCallback(
-    (market: PolymarketMarket, outcome: string, _price: number, tokenId: string) => {
+    (
+      market: PolymarketMarket,
+      outcome: string,
+      _price: number,
+      tokenId: string,
+    ) => {
       const tokenIds: string[] = market.clobTokenIds
         ? JSON.parse(market.clobTokenIds)
         : [];
       const yesTokenId = tokenIds[0] || tokenId;
       const isFirstOutcome = tokenId === yesTokenId;
-      setDetailInitialOutcome(isFirstOutcome ? 'yes' : 'no');
-      setDetailMarket(market);
 
-      // Derive both spread labels from the clicked label so the modal can
-      // show "+1.5" / "-1.5" instead of the raw outcome name ("Yes"/"No" or
-      // team name). The spread line always starts with + or -, so negate it
-      // to produce the counterpart.  Non-spread clicks (no leading sign) are
-      // left as-is and the modal falls back to market.outcomes names.
+      let outcomeLabels: [string, string] | undefined;
       const isSpreadLine = /^[+-]\d/.test(outcome);
       if (isSpreadLine) {
         const other = outcome.startsWith('+')
           ? '-' + outcome.slice(1)
           : '+' + outcome.slice(1);
-        const labels: [string, string] = isFirstOutcome
+        outcomeLabels = isFirstOutcome
           ? [outcome, other]
           : [other, outcome];
-        setDetailOutcomeLabels(labels);
-      } else {
-        setDetailOutcomeLabels(undefined);
       }
-    },
-    [],
-  );
 
-  const detailMarketShares = useMemo(() => {
-    if (!detailMarket || !positions) return { yesShares: 0, noShares: 0 };
-    const tIds = detailMarket.clobTokenIds
-      ? (JSON.parse(detailMarket.clobTokenIds) as string[])
-      : [];
-    return {
-      yesShares: positions.find((p) => p.asset === tIds[0])?.size || 0,
-      noShares: positions.find((p) => p.asset === tIds[1])?.size || 0,
-    };
-  }, [detailMarket, positions]);
+      navigateToMarket(market, {
+        initialOutcome: isFirstOutcome ? 'yes' : 'no',
+        outcomeLabels,
+      });
+    },
+    [navigateToMarket],
+  );
 
   const handleCategoryChange = (categoryId: CategoryId) => {
     setActiveCategory(categoryId);
@@ -383,7 +429,7 @@ export default function HighVolumeMarkets({
       disabled={isGeoblocked}
       isSportsCategory={false}
       onOutcomeClick={handleOutcomeClick}
-      onTitleClick={() => setDetailMarket(market)}
+      onTitleClick={() => navigateToMarket(market)}
     />
   );
 
@@ -408,37 +454,18 @@ export default function HighVolumeMarkets({
     ) : null;
 
   const modals = (
-    <>
-      <BtcOrderModal
-        isOpen={btcModalOpen}
-        onClose={() => setBtcModalOpen(false)}
-        initialOutcome={btcInitialOutcome}
-        upTokenId={btcTokenIds.upTokenId}
-        downTokenId={btcTokenIds.downTokenId}
-        negRisk={btc5mMarket.market?.negRisk ?? false}
-        orderMinSize={btc5mMarket.market?.orderMinSize ?? MIN_ORDER_SIZE}
-        balance={usdcBalance}
-        upShares={btcShares.upShares}
-        downShares={btcShares.downShares}
-      />
-
-      {detailMarket && (
-        <MarketDetailModal
-          isOpen={!!detailMarket}
-          onClose={() => {
-            setDetailMarket(null);
-            setDetailInitialOutcome(undefined);
-            setDetailOutcomeLabels(undefined);
-          }}
-          market={detailMarket}
-          balance={usdcBalance}
-          yesShares={detailMarketShares.yesShares}
-          noShares={detailMarketShares.noShares}
-          initialOutcome={detailInitialOutcome}
-          outcomeLabels={detailOutcomeLabels}
-        />
-      )}
-    </>
+    <BtcOrderModal
+      isOpen={btcModalOpen}
+      onClose={() => setBtcModalOpen(false)}
+      initialOutcome={btcInitialOutcome}
+      upTokenId={btcTokenIds.upTokenId}
+      downTokenId={btcTokenIds.downTokenId}
+      negRisk={btc5mMarket.market?.negRisk ?? false}
+      orderMinSize={btc5mMarket.market?.orderMinSize ?? MIN_ORDER_SIZE}
+      balance={usdcBalance}
+      upShares={btcShares.upShares}
+      downShares={btcShares.downShares}
+    />
   );
 
   // ─── Split layout ─────────────────────────────────────────────────────────

@@ -2,6 +2,34 @@
 
 const LIFI_API_URL = process.env.LIFI_API_URL || 'https://li.quest/v1';
 const LIFI_API_KEY = process.env.LIFI_API_KEY || '';
+const LIFI_QUOTE_TIMEOUT_MS = 12_000;
+
+async function fetchLiFiWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = LIFI_QUOTE_TIMEOUT_MS
+) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function getLiFiQuoteError(error: unknown) {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return 'LiFi quote is taking too long. Try refreshing the quote.';
+  }
+  if (error instanceof Error) {
+    return error.message || 'Failed to get quote';
+  }
+  return 'Failed to get quote';
+}
 
 export const fetchTokensFromLiFi = async (
   chainId: string,
@@ -62,14 +90,17 @@ export const getLifiDepositQuote = async (params: LifiDepositQuoteParams) => {
       integrator: 'SWOP',
     });
 
-    const response = await fetch(`${LIFI_API_URL}/quote?${queryParams}`, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-lifi-api-key': LIFI_API_KEY,
-      },
-    });
+    const response = await fetchLiFiWithTimeout(
+      `${LIFI_API_URL}/quote?${queryParams}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'x-lifi-api-key': LIFI_API_KEY,
+        },
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
@@ -100,11 +131,11 @@ export const getLifiDepositQuote = async (params: LifiDepositQuoteParams) => {
     }
 
     return { success: true, data: quote };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error getting LiFi deposit quote:', error);
     return {
       success: false,
-      error: error.message || 'Failed to get quote',
+      error: getLiFiQuoteError(error),
     };
   }
 };
@@ -123,14 +154,17 @@ export const getLifiQuote = async (params: LifiQuoteParams) => {
     queryParams.append('integrator', 'SWOP');
     queryParams.append('fee', '0.005');
 
-    const response = await fetch(`${LIFI_API_URL}/quote?${queryParams}`, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-lifi-api-key': LIFI_API_KEY,
-      },
-    });
+    const response = await fetchLiFiWithTimeout(
+      `${LIFI_API_URL}/quote?${queryParams}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'x-lifi-api-key': LIFI_API_KEY,
+        },
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
@@ -167,11 +201,11 @@ export const getLifiQuote = async (params: LifiQuoteParams) => {
     }
 
     return { success: true, data: quote };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error getting LiFi quote:', error);
     return {
       success: false,
-      error: error.message || 'Failed to get LiFi quote',
+      error: getLiFiQuoteError(error),
     };
   }
 };

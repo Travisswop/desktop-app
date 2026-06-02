@@ -33,6 +33,10 @@ import YoullReceiveDisplay from '../OrderModal/YoullReceiveDisplay';
 import OrderConfirmSheet, {
   type PendingOrderData,
 } from '../shared/OrderConfirmSheet';
+import {
+  getSafePolymarketMaxBuyAmount,
+  getSafePolymarketMaxLimitShares,
+} from '@/lib/polymarket/validation';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -128,7 +132,7 @@ export default function BtcOrderModal({
   const { tickSize, isLoading: isLoadingTickSize } = useTickSize(
     isOpen ? activeTokenId : null,
   );
-  const { submitOrder, isSubmitting, error: orderError, orderId, resetOrder } = useClobOrder(
+  const { submitOrder, isSubmitting, orderStage, error: orderError, orderId, resetOrder } = useClobOrder(
     clobClient,
     eoaAddress,
   );
@@ -344,9 +348,11 @@ export default function BtcOrderModal({
 
   const handleMaxAmount = () => {
     if (isLimitVariant && limitPriceNum > 0) {
-      setInputValue(String(Math.floor(balance / limitPriceNum)));
+      setInputValue(
+        String(getSafePolymarketMaxLimitShares(balance, limitPriceNum)),
+      );
     } else if (balance > 0) {
-      setInputValue((Math.floor((balance - 0.000001) * 100) / 100).toFixed(2));
+      setInputValue(getSafePolymarketMaxBuyAmount(balance).toFixed(2));
     }
     setLocalError(null);
   };
@@ -651,6 +657,7 @@ export default function BtcOrderModal({
           onClose={() => setPendingOrder(null)}
           onConfirm={handleConfirm}
           isSubmitting={isSubmitting}
+          orderStage={orderStage}
           marketTitle="BTC 5 Minute Up or Down"
           order={pendingOrder}
           error={orderError?.message}

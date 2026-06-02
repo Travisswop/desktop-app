@@ -1,7 +1,9 @@
 'use client';
 import { PrivyProvider as Privy } from '@privy-io/react-auth';
 import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana';
+import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
+import { installClipboardWriteFallback } from '@/lib/clipboard';
 
 interface SolanaConfig {
   rpcs: {
@@ -12,59 +14,83 @@ interface SolanaConfig {
   };
 }
 
-const ensureServerLocalStorage = () => {
-  if (typeof window !== 'undefined') return;
+function createSolanaConnectors() {
+  if (typeof window === 'undefined') return undefined;
 
-  const existingStorage = globalThis.localStorage as Partial<Storage> | undefined;
-  if (existingStorage && typeof existingStorage.getItem === 'function') return;
-
-  const memoryStorage = new Map<string, string>();
-  const storageShim = {
-    get length() {
-      return memoryStorage.size;
-    },
-    clear: () => memoryStorage.clear(),
-    getItem: (key: string) => memoryStorage.get(String(key)) ?? null,
-    key: (index: number) => Array.from(memoryStorage.keys())[index] ?? null,
-    removeItem: (key: string) => {
-      memoryStorage.delete(String(key));
-    },
-    setItem: (key: string, value: string) => {
-      memoryStorage.set(String(key), String(value));
-    },
-  };
-
-  Object.defineProperty(globalThis, 'localStorage', {
-    configurable: true,
-    value: storageShim,
-  });
-};
+  try {
+    return toSolanaWalletConnectors();
+  } catch (error) {
+    console.warn('Failed to initialize Solana wallet connectors:', error);
+    return undefined;
+  }
+}
 
 export default function PrivyProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  ensureServerLocalStorage();
-
-  const [solanaConnectors, setSolanaConnectors] =
-    useState<any>(undefined);
+  const [solanaConnectors, setSolanaConnectors] = useState<any>();
   const [solanaConfig, setSolanaConfig] = useState<
     SolanaConfig | undefined
   >(undefined);
+  const [localOriginRedirectUrl, setLocalOriginRedirectUrl] = useState<
+    string | null
+  >(null);
   const initRef = useRef(false);
+  const pathname = usePathname();
 
   const isProduction = process.env.NODE_ENV === 'production';
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const disableExternalWallets =
+    process.env.NEXT_PUBLIC_PRIVY_DISABLE_EXTERNAL_WALLETS === 'true' ||
+    pathname?.startsWith('/dashboard/chat');
+  const externalWalletsConfig = disableExternalWallets
+    ? {
+        disableAllExternalWallets: true as const,
+      }
+    : solanaConnectors
+      ? {
+          solana: {
+            connectors: solanaConnectors,
+          },
+        }
+      : undefined;
+
+  useEffect(() => {
+    installClipboardWriteFallback();
+  }, []);
+
+  useEffect(() => {
+    if (
+      window.location.hostname !== '127.0.0.1' &&
+      window.location.hostname !== '::1'
+    ) {
+      return;
+    }
+
+    const localhostUrl = new URL(window.location.href);
+    localhostUrl.hostname = 'localhost';
+    const targetUrl = localhostUrl.toString();
+
+    setLocalOriginRedirectUrl(targetUrl);
+    window.location.replace(targetUrl);
+  }, []);
+
+  useEffect(() => {
+    if (disableExternalWallets) {
+      setSolanaConnectors(undefined);
+      return;
+    }
+    if (solanaConnectors) return;
+    setSolanaConnectors(createSolanaConnectors());
+  }, [disableExternalWallets, solanaConnectors]);
 
   // Initialize Solana config only on client side after mount
   useEffect(() => {
+    if (disableExternalWallets) return;
     if (initRef.current) return;
     initRef.current = true;
-
-    // Initialize Solana connectors synchronously
-    const connectors = toSolanaWalletConnectors();
-    setSolanaConnectors(connectors);
 
     // Initialize Solana RPC config
     const initSolanaConfig = async () => {
@@ -98,7 +124,15 @@ export default function PrivyProvider({
     };
 
     initSolanaConfig();
-  }, []);
+  }, [disableExternalWallets]);
+
+  if (localOriginRedirectUrl) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#F7F7F9] text-sm text-gray-600">
+        Redirecting to localhost...
+      </div>
+    );
+  }
 
   // Validate configuration
   if (!appId) {
@@ -137,12 +171,8 @@ export default function PrivyProvider({
           theme: 'light',
           accentColor: '#000000',
         },
-        ...(solanaConnectors && {
-          externalWallets: {
-            solana: {
-              connectors: solanaConnectors,
-            },
-          },
+        ...(externalWalletsConfig && {
+          externalWallets: externalWalletsConfig,
         }),
         ...(solanaConfig && {
           solana: solanaConfig,

@@ -7,7 +7,7 @@ export type PerpsPositionFeedEvent =
   | 'add'
   | 'reduce'
   | 'close'
-  | 'liquidated';
+  | 'liquidate';
 export type PerpsPositionFeedStatus = 'open' | 'closed' | 'liquidated';
 
 export interface PerpsPositionFeedContent {
@@ -21,12 +21,14 @@ export interface PerpsPositionFeedContent {
   marginMode: 'cross' | 'isolated';
   entryPrice: number;
   markPrice: number;
+  exitPrice?: number | null;
   liquidationPrice?: number | null;
   collateralUsd: number;
   notionalUsd: number;
   sizeCoins: number;
   returnPct: number;
   unrealizedPnl: number;
+  realizedPnl?: number;
   feeUsd?: number;
   orderId?: string;
   masterAddress?: string | null;

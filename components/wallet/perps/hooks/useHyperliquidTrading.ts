@@ -23,6 +23,14 @@ export interface PlaceTpSlOrderParams {
   takeProfitPrice: string; // trigger price for TP
 }
 
+export interface PlacePositionTpSlOrderParams {
+  assetIndex: number;
+  isLong: boolean;
+  size: string;
+  stopLossPrice?: string;
+  takeProfitPrice?: string;
+}
+
 export interface TradingState {
   isSubmitting: boolean;
   lastOrderResult: unknown | null;
@@ -244,6 +252,78 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
     [agentClient, invalidate],
   );
 
+  // ─── TP/SL For Existing Position (positionTpsl grouping) ─────────────
+
+  /**
+   * Places reduce-only trigger orders against an already-open position.
+   * This does not submit a new entry order.
+   */
+  const placePositionTpSlOrder = useCallback(
+    async (params: PlacePositionTpSlOrderParams) => {
+      assertAgent();
+      setSubmitting(true);
+
+      try {
+        const slPx = params.stopLossPrice
+          ? roundPrice(parseFloat(params.stopLossPrice))
+          : '';
+        const tpPx = params.takeProfitPrice
+          ? roundPrice(parseFloat(params.takeProfitPrice))
+          : '';
+        const orders: Array<{
+          a: number;
+          b: boolean;
+          s: string;
+          p: string;
+          r: boolean;
+          t: { trigger: { isMarket: boolean; tpsl: 'tp' | 'sl'; triggerPx: string } };
+        }> = [];
+
+        if (slPx) {
+          orders.push({
+            a: params.assetIndex,
+            b: !params.isLong,
+            s: params.size,
+            p: slPx,
+            r: true,
+            t: { trigger: { isMarket: true, tpsl: 'sl', triggerPx: slPx } },
+          });
+        }
+
+        if (tpPx) {
+          orders.push({
+            a: params.assetIndex,
+            b: !params.isLong,
+            s: params.size,
+            p: tpPx,
+            r: true,
+            t: { trigger: { isMarket: true, tpsl: 'tp', triggerPx: tpPx } },
+          });
+        }
+
+        if (!orders.length) {
+          throw new Error('Add a take-profit or stop-loss trigger price.');
+        }
+
+        const result = await agentClient!.order({
+          grouping: 'positionTpsl',
+          orders,
+        });
+
+        setState({ isSubmitting: false, lastOrderResult: result, error: null });
+        invalidate();
+        return result;
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : 'Position TP/SL order failed';
+        setError(msg);
+        throw err;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentClient, invalidate],
+  );
+
   // ─── Update Leverage ────────────────────────────────────────────────
 
   const updateLeverage = useCallback(
@@ -403,6 +483,7 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
     placeMarketOrder,
     placeLimitOrder,
     placeTpSlOrder,
+    placePositionTpSlOrder,
     updateLeverage,
     closePosition,
     placeTwapOrder,

@@ -12,19 +12,25 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
+import { copyTextToClipboard } from '@/lib/clipboard';
 
 const formatAddress = (address: string) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 };
 
 export default function SafeWalletCard() {
-  const { safeAddress, walletType } = useTrading();
+  const { safeAddress } = useTrading();
   const [copied, setCopied] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
 
   const handleCopy = async () => {
     if (!safeAddress) return;
-    await navigator.clipboard.writeText(safeAddress);
+    const didCopy = await copyTextToClipboard(safeAddress);
+    if (!didCopy) {
+      alert('Could not copy address. Please try again.');
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -67,12 +73,12 @@ export default function SafeWalletCard() {
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-purple-600 text-sm font-bold">
-                {walletType === 'deposit' ? 'D' : 'S'}
+                D
               </span>
             </div>
             <div className="min-w-0">
               <p className="text-xs text-gray-500">
-                {walletType === 'deposit' ? 'Deposit Wallet' : 'Safe Address'}
+                Deposit Wallet
               </p>
               <p className="text-sm font-mono text-gray-900 truncate">
                 {formatAddress(safeAddress)}
@@ -137,7 +143,7 @@ export default function SafeWalletCard() {
             </div>
             <div className="w-full bg-gray-50 rounded-lg p-3">
               <p className="text-xs text-gray-500 mb-1 text-center">
-                {walletType === 'deposit' ? 'Deposit Wallet Address' : 'Safe Wallet Address'}
+                Deposit Wallet Address
               </p>
               <p className="text-sm font-mono text-gray-900 text-center break-all">
                 {safeAddress}

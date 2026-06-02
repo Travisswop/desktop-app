@@ -50,7 +50,7 @@ const WRAP_CONTRACT = COLLATERAL_ONRAMP_ADDRESS.toLowerCase();
 // Scanning from the first "code exists" block would miss those. We scan a bit
 // before the deployment block to capture pre-deploy deposits without needing
 // to scan the entire chain history.
-const PRE_DEPLOY_LOOKBACK_BLOCKS = 500_000n;
+const PRE_DEPLOY_LOOKBACK_BLOCKS = BigInt(500_000);
 // Bumped to 3: now scans both pUSD and legacy USDC.e; invalidates old caches.
 const CACHE_VERSION = 3;
 
@@ -86,6 +86,17 @@ function writeCache(safeAddress: string, cache: CacheShape) {
   }
 }
 
+function normalizeAddresses(address: string | string[] | undefined): string[] {
+  const addresses = Array.isArray(address) ? address : address ? [address] : [];
+  return Array.from(
+    new Map(
+      addresses
+        .filter(Boolean)
+        .map((walletAddress) => [walletAddress.toLowerCase(), walletAddress]),
+    ).values(),
+  );
+}
+
 async function findDeploymentBlock(publicClient: any, safeAddress: `0x${string}`): Promise<number> {
   const latest = await publicClient.getBlockNumber();
 
@@ -93,12 +104,12 @@ async function findDeploymentBlock(publicClient: any, safeAddress: `0x${string}`
   const codeAtLatest = await publicClient.getCode({ address: safeAddress });
   if (!codeAtLatest || codeAtLatest === '0x') return Number(latest);
 
-  let low = 0n;
+  let low = BigInt(0);
   let high = latest;
 
   // Binary search for the first block where code exists.
-  while (low + 1n < high) {
-    const mid = (low + high) / 2n;
+  while (low + BigInt(1) < high) {
+    const mid = (low + high) / BigInt(2);
     const code = await publicClient.getCode({
       address: safeAddress,
       blockNumber: mid,
@@ -156,106 +167,156 @@ async function scanTransfers(params: {
   return { pusdIn, pusdOut, legacyIn, legacyOut };
 }
 
-export function useNetDeposits(safeAddress: string | undefined) {
+async function getNetDepositsForAddress(
+  publicClient: any,
+  safeAddress: string,
+): Promise<NetDeposits> {
+  const safe = safeAddress as `0x${string}`;
+  const latestBlock = await publicClient.getBlockNumber();
+
+  const cached = readCache(safe);
+  const deploymentBlock =
+    cached?.deploymentBlock ?? (await findDeploymentBlock(publicClient, safe));
+
+  let totalIn = cached ? BigInt(cached.totalIn) : BigInt(0);
+  let totalOut = cached ? BigInt(cached.totalOut) : BigInt(0);
+  const startBlock =
+    BigInt(deploymentBlock) > PRE_DEPLOY_LOOKBACK_BLOCKS
+      ? BigInt(deploymentBlock) - PRE_DEPLOY_LOOKBACK_BLOCKS
+      : BigInt(0);
+  let lastScannedBlock: bigint =
+    cached != null
+      ? BigInt(cached.lastScannedBlock)
+      : startBlock > BigInt(0)
+        ? startBlock - BigInt(1)
+        : BigInt(0);
+
+  if (lastScannedBlock >= latestBlock) {
+    const deposited = Number(formatUnits(totalIn, USDC_E_DECIMALS));
+    const withdrawn = Number(formatUnits(totalOut, USDC_E_DECIMALS));
+    return {
+      totalDeposited: deposited,
+      totalWithdrawn: withdrawn,
+      netDeposited: deposited - withdrawn,
+      latestBlock: Number(latestBlock),
+    };
+  }
+
+  // Polygon RPC providers often limit log ranges; scan in chunks.
+  const CHUNK = BigInt(50_000);
+  let from = lastScannedBlock + BigInt(1);
+
+  while (from <= latestBlock) {
+    const to =
+      from + CHUNK - BigInt(1) > latestBlock
+        ? latestBlock
+        : from + CHUNK - BigInt(1);
+    const { pusdIn, pusdOut, legacyIn, legacyOut } = await scanTransfers({
+      publicClient,
+      safeAddress: safe,
+      fromBlock: from,
+      toBlock: to,
+    });
+
+    const safeAddr = safe.toLowerCase();
+
+    // pUSD incoming: exclude trading contracts + wrap contract (conversion, not deposit)
+    for (const log of pusdIn) {
+      const fromAddr = String(log.args?.from || '').toLowerCase();
+      if (!fromAddr || fromAddr === safeAddr) continue;
+      if (TRADING_EXCLUDED.has(fromAddr) || fromAddr === WRAP_CONTRACT) continue;
+      const v = log.args?.value as bigint | undefined;
+      if (typeof v === 'bigint') totalIn += v;
+    }
+
+    // pUSD outgoing: exclude trading contracts (bets, not withdrawals)
+    for (const log of pusdOut) {
+      const toAddr = String(log.args?.to || '').toLowerCase();
+      if (!toAddr || toAddr === safeAddr) continue;
+      if (TRADING_EXCLUDED.has(toAddr)) continue;
+      const v = log.args?.value as bigint | undefined;
+      if (typeof v === 'bigint') totalOut += v;
+    }
+
+    // Legacy USDC.e incoming: exclude trading contracts
+    for (const log of legacyIn) {
+      const fromAddr = String(log.args?.from || '').toLowerCase();
+      if (!fromAddr || fromAddr === safeAddr) continue;
+      if (TRADING_EXCLUDED.has(fromAddr)) continue;
+      const v = log.args?.value as bigint | undefined;
+      if (typeof v === 'bigint') totalIn += v;
+    }
+
+    // Legacy USDC.e outgoing: exclude trading contracts + wrap contract (conversion, not withdrawal)
+    for (const log of legacyOut) {
+      const toAddr = String(log.args?.to || '').toLowerCase();
+      if (!toAddr || toAddr === safeAddr) continue;
+      if (TRADING_EXCLUDED.has(toAddr) || toAddr === WRAP_CONTRACT) continue;
+      const v = log.args?.value as bigint | undefined;
+      if (typeof v === 'bigint') totalOut += v;
+    }
+
+    lastScannedBlock = to;
+    writeCache(safe, {
+      v: CACHE_VERSION,
+      deploymentBlock,
+      lastScannedBlock: Number(lastScannedBlock),
+      totalIn: totalIn.toString(),
+      totalOut: totalOut.toString(),
+    });
+
+    from = to + BigInt(1);
+  }
+
+  const deposited = Number(formatUnits(totalIn, USDC_E_DECIMALS));
+  const withdrawn = Number(formatUnits(totalOut, USDC_E_DECIMALS));
+
+  return {
+    totalDeposited: deposited,
+    totalWithdrawn: withdrawn,
+    netDeposited: deposited - withdrawn,
+    latestBlock: Number(latestBlock),
+  };
+}
+
+export function useNetDeposits(safeAddress: string | string[] | undefined) {
   const { publicClient } = usePolymarketWallet();
+  const safeAddresses = normalizeAddresses(safeAddress);
 
   return useQuery({
-    queryKey: ['polymarket-net-deposits', safeAddress],
+    queryKey: ['polymarket-net-deposits', safeAddresses],
     queryFn: async (): Promise<NetDeposits> => {
-      if (!safeAddress || !publicClient) {
+      if (!safeAddresses.length || !publicClient) {
         return { totalDeposited: 0, totalWithdrawn: 0, netDeposited: 0, latestBlock: 0 };
       }
 
-      const safe = safeAddress as `0x${string}`;
-      const latestBlock = await publicClient.getBlockNumber();
+      const deposits = await Promise.all(
+        safeAddresses.map((address) =>
+          getNetDepositsForAddress(publicClient, address),
+        ),
+      );
 
-      const cached = readCache(safe);
-      const deploymentBlock = cached?.deploymentBlock ?? (await findDeploymentBlock(publicClient, safe));
+      const totalDeposited = deposits.reduce(
+        (sum, deposit) => sum + deposit.totalDeposited,
+        0,
+      );
+      const totalWithdrawn = deposits.reduce(
+        (sum, deposit) => sum + deposit.totalWithdrawn,
+        0,
+      );
+      const latestBlock = deposits.reduce(
+        (latest, deposit) => Math.max(latest, deposit.latestBlock),
+        0,
+      );
 
-      let totalIn = cached ? BigInt(cached.totalIn) : 0n;
-      let totalOut = cached ? BigInt(cached.totalOut) : 0n;
-      const startBlock = BigInt(deploymentBlock) > PRE_DEPLOY_LOOKBACK_BLOCKS
-        ? BigInt(deploymentBlock) - PRE_DEPLOY_LOOKBACK_BLOCKS
-        : 0n;
-      let lastScannedBlock: bigint = cached != null
-        ? BigInt(cached.lastScannedBlock)
-        : startBlock > 0n ? startBlock - 1n : 0n;
-
-      if (lastScannedBlock >= latestBlock) {
-        const deposited = Number(formatUnits(totalIn, USDC_E_DECIMALS));
-        const withdrawn = Number(formatUnits(totalOut, USDC_E_DECIMALS));
-        return { totalDeposited: deposited, totalWithdrawn: withdrawn, netDeposited: deposited - withdrawn, latestBlock: Number(latestBlock) };
-      }
-
-      // Polygon RPC providers often limit log ranges; scan in chunks.
-      const CHUNK = 50_000n;
-      let from = lastScannedBlock + 1n;
-
-      while (from <= latestBlock) {
-        const to = from + CHUNK - 1n > latestBlock ? latestBlock : from + CHUNK - 1n;
-        const { pusdIn, pusdOut, legacyIn, legacyOut } = await scanTransfers({
-          publicClient,
-          safeAddress: safe,
-          fromBlock: from,
-          toBlock: to,
-        });
-
-        const safeAddr = safe.toLowerCase();
-
-        // pUSD incoming: exclude trading contracts + wrap contract (conversion, not deposit)
-        for (const log of pusdIn) {
-          const fromAddr = String(log.args?.from || '').toLowerCase();
-          if (!fromAddr || fromAddr === safeAddr) continue;
-          if (TRADING_EXCLUDED.has(fromAddr) || fromAddr === WRAP_CONTRACT) continue;
-          const v = log.args?.value as bigint | undefined;
-          if (typeof v === 'bigint') totalIn += v;
-        }
-
-        // pUSD outgoing: exclude trading contracts (bets, not withdrawals)
-        for (const log of pusdOut) {
-          const toAddr = String(log.args?.to || '').toLowerCase();
-          if (!toAddr || toAddr === safeAddr) continue;
-          if (TRADING_EXCLUDED.has(toAddr)) continue;
-          const v = log.args?.value as bigint | undefined;
-          if (typeof v === 'bigint') totalOut += v;
-        }
-
-        // Legacy USDC.e incoming: exclude trading contracts
-        for (const log of legacyIn) {
-          const fromAddr = String(log.args?.from || '').toLowerCase();
-          if (!fromAddr || fromAddr === safeAddr) continue;
-          if (TRADING_EXCLUDED.has(fromAddr)) continue;
-          const v = log.args?.value as bigint | undefined;
-          if (typeof v === 'bigint') totalIn += v;
-        }
-
-        // Legacy USDC.e outgoing: exclude trading contracts + wrap contract (conversion, not withdrawal)
-        for (const log of legacyOut) {
-          const toAddr = String(log.args?.to || '').toLowerCase();
-          if (!toAddr || toAddr === safeAddr) continue;
-          if (TRADING_EXCLUDED.has(toAddr) || toAddr === WRAP_CONTRACT) continue;
-          const v = log.args?.value as bigint | undefined;
-          if (typeof v === 'bigint') totalOut += v;
-        }
-
-        lastScannedBlock = to;
-        writeCache(safe, {
-          v: CACHE_VERSION,
-          deploymentBlock,
-          lastScannedBlock: Number(lastScannedBlock),
-          totalIn: totalIn.toString(),
-          totalOut: totalOut.toString(),
-        });
-
-        from = to + 1n;
-      }
-
-      const deposited = Number(formatUnits(totalIn, USDC_E_DECIMALS));
-      const withdrawn = Number(formatUnits(totalOut, USDC_E_DECIMALS));
-
-      return { totalDeposited: deposited, totalWithdrawn: withdrawn, netDeposited: deposited - withdrawn, latestBlock: Number(latestBlock) };
+      return {
+        totalDeposited,
+        totalWithdrawn,
+        netDeposited: totalDeposited - totalWithdrawn,
+        latestBlock,
+      };
     },
-    enabled: !!safeAddress && !!publicClient,
+    enabled: safeAddresses.length > 0 && !!publicClient,
     staleTime: QUERY_STALE_TIMES.BALANCE,
     refetchOnWindowFocus: false,
   });

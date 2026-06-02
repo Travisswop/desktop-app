@@ -9,7 +9,7 @@ import type { PolymarketMarket } from '@/hooks/polymarket';
  * spread / total) are very likely to land on the same page and get grouped
  * correctly.  20 games × 3 markets = 60 markets per page.
  */
-const PAGE_SIZE = 60;
+const PAGE_SIZE = 96;
 
 export interface UseSportsEventsOptions {
   /** Polymarket tag ID for the sport (e.g. 745 = NBA, 100639 = all sports). */
@@ -24,6 +24,8 @@ export interface UseSportsEventsOptions {
   dateFrom?: string;
   /** Backend filter — keep events whose startDate is < this ISO timestamp. */
   dateTo?: string;
+  /** Server-side game/market search. */
+  searchQuery?: string;
 }
 
 /**
@@ -42,8 +44,13 @@ export function useSportsEvents({
   kind,
   dateFrom,
   dateTo,
+  searchQuery = '',
 }: UseSportsEventsOptions = {}) {
   const { isTradingSessionComplete } = useTrading();
+  const trimmedSearch = searchQuery.trim();
+  const shouldApplyDateWindow = kind !== 'futures' && !live;
+  const effectiveDateFrom = shouldApplyDateWindow ? dateFrom : undefined;
+  const effectiveDateTo = shouldApplyDateWindow ? dateTo : undefined;
 
   return useInfiniteQuery({
     queryKey: [
@@ -51,8 +58,9 @@ export function useSportsEvents({
       tagId ?? null,
       live ?? false,
       kind ?? null,
-      dateFrom ?? null,
-      dateTo ?? null,
+      effectiveDateFrom ?? null,
+      effectiveDateTo ?? null,
+      trimmedSearch,
       !!isTradingSessionComplete,
     ],
     enabled,
@@ -61,11 +69,13 @@ export function useSportsEvents({
       const qs = new URLSearchParams();
       qs.set('limit', String(PAGE_SIZE));
       qs.set('offset', String(pageParam));
+      qs.set('quality', 'relaxed');
       if (tagId != null) qs.set('tag_id', String(tagId));
       if (live) qs.set('live', 'true');
       if (kind) qs.set('kind', kind);
-      if (dateFrom) qs.set('date_from', dateFrom);
-      if (dateTo) qs.set('date_to', dateTo);
+      if (effectiveDateFrom) qs.set('date_from', effectiveDateFrom);
+      if (effectiveDateTo) qs.set('date_to', effectiveDateTo);
+      if (trimmedSearch) qs.set('q', trimmedSearch);
       // Desktop endpoint — exposes the live / kind / date filters and the
       // extra event-level fields the A2 sportsbook table needs. Mobile
       // continues to call the original /markets proxy.

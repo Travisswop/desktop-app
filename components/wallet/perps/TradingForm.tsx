@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { AlertTriangle, Loader2, Plus } from 'lucide-react';
 import type { HLMarket, HLPosition, OrderSide, OrderMode } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
 import type {
@@ -9,6 +9,11 @@ import type {
   PlaceTpSlOrderParams,
 } from './hooks/useHyperliquidTrading';
 import { OrderConfirmModal, type OrderConfirmDetails } from './OrderConfirmModal';
+import {
+  completeAgentActionFromHandoff,
+  type AgentActionCompletion,
+  type HyperliquidAgentOrderPrefill,
+} from '@/lib/chat/agentActionHandoff';
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
@@ -23,6 +28,7 @@ interface TradingFormProps {
   markPrice: string;
   existingPosition?: HLPosition;
   accountValue: string;
+  availableMargin?: string;
   isAgentReady: boolean;
   isSubmitting: boolean;
   error: string | null;
@@ -34,6 +40,9 @@ interface TradingFormProps {
   onPlaceTpSl: (params: PlaceTpSlOrderParams) => Promise<unknown>;
   onUpdateLeverage: (assetIndex: number, leverage: number, isCross?: boolean) => Promise<unknown>;
   onClearError: () => void;
+  onOpenDeposit: () => void;
+  onAgentActionComplete?: (completion: AgentActionCompletion) => void;
+  agentOrderPrefill?: HyperliquidAgentOrderPrefill | null;
   masterAddress?: string | null;
 }
 
@@ -47,6 +56,7 @@ export function TradingForm({
   markPrice,
   existingPosition,
   accountValue,
+  availableMargin,
   isAgentReady,
   isSubmitting,
   error,
@@ -56,6 +66,9 @@ export function TradingForm({
   onPlaceTpSl,
   onUpdateLeverage,
   onClearError,
+  onOpenDeposit,
+  onAgentActionComplete,
+  agentOrderPrefill,
   masterAddress,
 }: TradingFormProps) {
   const { accessToken, user, primaryMicrosite } = useUser();
@@ -73,11 +86,20 @@ export function TradingForm({
   // state (rather than computed at render) so the modal continues to show the
   // order the user actually requested even if mark price drifts mid-confirm.
   const [pendingOrder, setPendingOrder] = useState<OrderConfirmDetails | null>(null);
+  const appliedAgentPrefillKey = useRef<string | null>(null);
 
   const isBuy = side === 'long';
   const markNum = parseFloat(markPrice) || 0;
   const accountNum = parseFloat(accountValue) || 0;
-  const maxLev = market?.maxLeverage ?? 50;
+  const availableMarginNum =
+    parseFloat(availableMargin ?? accountValue) || 0;
+  const maxLev = Math.max(1, market?.maxLeverage ?? 50);
+  const safeLeverage = Math.min(Math.max(1, leverage), maxLev);
+  const leveragePct =
+    maxLev > 1 ? ((safeLeverage - 1) / (maxLev - 1)) * 100 : 100;
+  const leverageThumbLeft = `calc(${leveragePct}% - ${
+    (leveragePct / 100) * 16
+  }px + 8px)`;
 
   const sizeInCoins = useMemo(() => {
     const sizeUsd = parseFloat(size);
@@ -95,22 +117,84 @@ export function TradingForm({
 
   const sizeUsdNum = parseFloat(size) || 0;
   const isBelowMinimum = sizeUsdNum > 0 && sizeUsdNum < minOrderUsd;
+  const marginRequired =
+    sizeUsdNum > 0 ? sizeUsdNum / Math.max(1, safeLeverage) : 0;
+  const hasInsufficientMargin =
+    sizeUsdNum > 0 && marginRequired > availableMarginNum;
+  const marginShortfall = Math.max(0, marginRequired - availableMarginNum);
+
+  useEffect(() => {
+    if (!agentOrderPrefill) {
+      appliedAgentPrefillKey.current = null;
+      return;
+    }
+
+    const key = [
+      agentOrderPrefill.proposalId,
+      agentOrderPrefill.proposalNonce,
+      agentOrderPrefill.coin,
+    ]
+      .filter(Boolean)
+      .join(':');
+
+    const usdSize =
+      agentOrderPrefill.sizeUsd ||
+      (agentOrderPrefill.sizeCoins && markNum
+        ? (parseFloat(agentOrderPrefill.sizeCoins) * markNum).toFixed(2)
+        : '');
+
+    if (agentOrderPrefill.sizeCoins && !agentOrderPrefill.sizeUsd && !markNum) {
+      return;
+    }
+
+    if (appliedAgentPrefillKey.current === key) return;
+
+    if (agentOrderPrefill.side) setSide(agentOrderPrefill.side);
+    if (agentOrderPrefill.orderMode) setMode(agentOrderPrefill.orderMode);
+    if (usdSize) setSize(usdSize);
+    if (agentOrderPrefill.price) setLimitPrice(agentOrderPrefill.price);
+    if (agentOrderPrefill.leverage) {
+      const nextLeverage = Math.min(
+        Math.max(1, agentOrderPrefill.leverage),
+        maxLev,
+      );
+      setLeverage(nextLeverage);
+      onLeverageChange?.(
+        nextLeverage,
+        agentOrderPrefill.isCross ?? isCross,
+      );
+    }
+    if (agentOrderPrefill.isCross !== undefined) {
+      setIsCross(agentOrderPrefill.isCross);
+    }
+    setTakeProfit(agentOrderPrefill.takeProfitPrice || '');
+    setStopLoss(agentOrderPrefill.stopLossPrice || '');
+    setPendingOrder(null);
+    appliedAgentPrefillKey.current = key;
+  }, [agentOrderPrefill, isCross, markNum, maxLev, onLeverageChange]);
+
+  useEffect(() => {
+    if (leverage === safeLeverage) return;
+
+    setLeverage(safeLeverage);
+    onLeverageChange?.(safeLeverage, isCross);
+  }, [isCross, leverage, onLeverageChange, safeLeverage]);
 
   const setPercent = useCallback(
     (pct: number) => {
-      const usd = (accountNum * pct * leverage) / 100;
+      const usd = (accountNum * pct * safeLeverage) / 100;
       setSize(usd.toFixed(2));
     },
-    [accountNum, leverage],
+    [accountNum, safeLeverage],
   );
 
   const estLiqPrice = useMemo(() => {
-    if (!markNum || !leverage) return null;
-    const liqBuffer = 1 / leverage;
+    if (!markNum || !safeLeverage) return null;
+    const liqBuffer = 1 / safeLeverage;
     return isBuy
       ? (markNum * (1 - liqBuffer)).toFixed(2)
       : (markNum * (1 + liqBuffer)).toFixed(2);
-  }, [markNum, leverage, isBuy]);
+  }, [markNum, safeLeverage, isBuy]);
 
   const estFee = useMemo(() => {
     if (!sizeUsdNum) return null;
@@ -120,6 +204,7 @@ export function TradingForm({
   // Step 1: user clicks the CTA → snapshot the order details and open the modal
   const requestConfirm = useCallback(() => {
     if (!market) return;
+    if (hasInsufficientMargin) return;
     const sizeNum = parseFloat(sizeInCoins);
     if (!sizeNum || sizeNum <= 0) return;
     if (mode === 'limit' && !limitPrice) return;
@@ -131,15 +216,15 @@ export function TradingForm({
       mode === 'market' ? markNum : parseFloat(limitPrice) || markNum;
     const liqNum = entryPxNum
       ? isBuy
-        ? entryPxNum * (1 - 1 / leverage)
-        : entryPxNum * (1 + 1 / leverage)
+        ? entryPxNum * (1 - 1 / safeLeverage)
+        : entryPxNum * (1 + 1 / safeLeverage)
       : 0;
     const liqDistancePct = entryPxNum
       ? Math.abs((entryPxNum - liqNum) / entryPxNum) * 100
       : 0;
     const sizeUsd = sizeNum * entryPxNum;
     const fee = sizeUsd * 0.0007;
-    const margin = sizeUsd / leverage;
+    const margin = sizeUsd / safeLeverage;
 
     const modeLabel = `${
       mode === 'market' ? 'Market' : mode === 'limit' ? 'Limit' : 'TP/SL'
@@ -149,7 +234,7 @@ export function TradingForm({
       side,
       coin: market.coin,
       modeLabel,
-      leverage,
+      leverage: safeLeverage,
       isCross,
       sizeCoins: sizeInCoins,
       sizeUsd: formatUsd(sizeUsd),
@@ -162,8 +247,8 @@ export function TradingForm({
       isLimit: mode !== 'market',
     });
   }, [
-    market, mode, isBuy, sizeInCoins, limitPrice, markNum, takeProfit, stopLoss,
-    side, leverage, isCross, onClearError,
+    market, hasInsufficientMargin, mode, isBuy, sizeInCoins, limitPrice, markNum,
+    takeProfit, stopLoss, side, safeLeverage, isCross, onClearError,
   ]);
 
   // Step 2: modal confirm → actually fire the order to Hyperliquid
@@ -175,12 +260,7 @@ export function TradingForm({
     try {
       let orderResult: unknown = null;
       if (mode === 'market') {
-        orderResult = await onPlaceMarket(
-          market.index,
-          isBuy,
-          sizeInCoins,
-          markPrice,
-        );
+        orderResult = await onPlaceMarket(market.index, isBuy, sizeInCoins, markPrice);
       } else if (mode === 'limit') {
         if (!limitPrice) return;
         orderResult = await onPlaceLimit({
@@ -210,11 +290,11 @@ export function TradingForm({
       const entryPxNum =
         mode === 'market' ? markNum : parseFloat(limitPrice) || markNum;
       const notionalUsd = sizeNum * entryPxNum;
-      const marginUsd = notionalUsd / Math.max(1, leverage);
+      const marginUsd = notionalUsd / Math.max(1, safeLeverage);
       const existingSizeCoins = Math.abs(
         toPerpsFeedNumber(existingPosition?.szi),
       );
-      const existingSide: OrderSide | null =
+      const existingSide =
         existingPosition && toPerpsFeedNumber(existingPosition.szi) < 0
           ? 'short'
           : existingPosition
@@ -239,7 +319,7 @@ export function TradingForm({
               : 'open';
       const status: PerpsPositionFeedStatus =
         event === 'close' ? 'closed' : 'open';
-      const feedSide: OrderSide = existingSide || side;
+      const feedSide = existingSide || side;
       const weightedEntry =
         event === 'add' && existingSizeCoins > 0
           ? (toPerpsFeedNumber(existingPosition?.entryPx) * existingSizeCoins +
@@ -288,10 +368,11 @@ export function TradingForm({
           side: feedSide,
           status,
           event,
-          leverage,
+          leverage: safeLeverage,
           marginMode: isCross ? 'cross' : 'isolated',
           entryPrice: weightedEntry,
           markPrice: entryPxNum,
+          exitPrice: status === 'closed' ? entryPxNum : undefined,
           liquidationPrice: estLiqPrice ? parseFloat(estLiqPrice) : null,
           collateralUsd: feedCollateralUsd,
           notionalUsd: feedNotionalUsd,
@@ -310,6 +391,46 @@ export function TradingForm({
         console.warn('Failed to update perps feed card:', feedError);
       });
 
+      if (agentOrderPrefill?.proposalId) {
+        try {
+          const completion = await completeAgentActionFromHandoff({
+            proposalId: agentOrderPrefill.proposalId,
+            status: 'executed',
+            provider: 'hyperliquid',
+            title: `${market.coin}-PERP`,
+            subtitle: `${side} ${mode} · ${safeLeverage}x ${
+              isCross ? 'cross' : 'isolated'
+            }`,
+            subject: `${market.coin}-PERP`,
+            side,
+            stake: parseFloat(pendingOrder?.marginRequired || '0') || 0,
+            payout: parseFloat(pendingOrder?.sizeUsd?.replace(/,/g, '') || '0') || 0,
+            placedAt: new Date().toISOString(),
+            orderId,
+            explorerLabel: 'View order',
+            executionResult: {
+              orderResult: summarizeExecutionResult(orderResult),
+              coin: market.coin,
+              side,
+              mode,
+              leverage: safeLeverage,
+              isCross,
+              sizeCoins: sizeInCoins,
+              sizeUsd: pendingOrder?.sizeUsd,
+              entryPrice: pendingOrder?.entryPrice,
+            },
+          });
+          if (completion) {
+            onAgentActionComplete?.(completion);
+          }
+        } catch (completionError) {
+          console.error(
+            'Failed to report Hyperliquid agent completion:',
+            completionError,
+          );
+        }
+      }
+
       setPendingOrder(null);
       setSize('');
       setLimitPrice('');
@@ -319,10 +440,12 @@ export function TradingForm({
       // surfaced via parent error prop — leave modal open so the user can retry
     }
   }, [
-    market, mode, isBuy, sizeInCoins, limitPrice, markPrice, takeProfit,
-    stopLoss, markNum, onPlaceMarket, onPlaceLimit, onPlaceTpSl, leverage,
-    existingPosition, side, isCross, estLiqPrice, accessToken, user?._id,
-    user?.primaryMicrosite, primaryMicrosite, masterAddress,
+    agentOrderPrefill?.proposalId, isCross, safeLeverage, market, mode, isBuy,
+    sizeInCoins, limitPrice, markPrice, takeProfit, stopLoss, markNum,
+    onAgentActionComplete, onPlaceMarket, onPlaceLimit, onPlaceTpSl,
+    pendingOrder?.entryPrice, pendingOrder?.marginRequired, pendingOrder?.sizeUsd,
+    side, accessToken, user?._id, user?.primaryMicrosite, primaryMicrosite,
+    masterAddress, existingPosition, estLiqPrice,
   ]);
 
   const cancelConfirm = useCallback(() => {
@@ -332,26 +455,28 @@ export function TradingForm({
 
   const handleLeverageChange = useCallback(
     (newLev: number) => {
-      setLeverage(newLev);
-      onLeverageChange?.(newLev, isCross);
+      const nextLeverage = Math.min(Math.max(1, newLev), maxLev);
+      setLeverage(nextLeverage);
+      onLeverageChange?.(nextLeverage, isCross);
     },
-    [onLeverageChange, isCross],
+    [maxLev, onLeverageChange, isCross],
   );
 
   const handleLeverageCommit = useCallback(
     async (newLev: number) => {
+      const nextLeverage = Math.min(Math.max(1, newLev), maxLev);
       if (market && isAgentReady) {
-        await onUpdateLeverage(market.index, newLev, isCross).catch(() => {});
+        await onUpdateLeverage(market.index, nextLeverage, isCross).catch(() => {});
       }
     },
-    [market, isAgentReady, isCross, onUpdateLeverage],
+    [market, isAgentReady, isCross, maxLev, onUpdateLeverage],
   );
 
   const toggleMargin = useCallback(() => {
     const next = !isCross;
     setIsCross(next);
-    onLeverageChange?.(leverage, next);
-  }, [isCross, leverage, onLeverageChange]);
+    onLeverageChange?.(safeLeverage, next);
+  }, [isCross, safeLeverage, onLeverageChange]);
 
   if (!market) {
     return (
@@ -362,7 +487,12 @@ export function TradingForm({
   }
 
   const submitDisabled =
-    !isAgentReady || isSubmitting || !size || parseFloat(size) <= 0 || isBelowMinimum;
+    !isAgentReady ||
+    isSubmitting ||
+    !size ||
+    parseFloat(size) <= 0 ||
+    isBelowMinimum ||
+    hasInsufficientMargin;
 
   const sideStyles = isBuy
     ? {
@@ -376,6 +506,13 @@ export function TradingForm({
 
   return (
     <div className="flex flex-col h-full">
+      {/* Long / Short toggle */}
+      {agentOrderPrefill && (
+        <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11.5px] font-medium text-blue-700">
+          Agent proposal loaded. Review every field before confirming.
+        </div>
+      )}
+
       {/* Long / Short toggle */}
       <div className="grid grid-cols-2 gap-1 p-[3px] bg-[#f2f2f0] rounded-xl mb-3.5">
         <button
@@ -482,6 +619,27 @@ export function TradingForm({
         </div>
       )}
 
+      {hasInsufficientMargin && (
+        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+          <div className="flex items-start gap-1.5">
+            <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
+            <span>
+              Add funds first. This order needs about ${marginRequired.toFixed(2)} margin;
+              available margin is ${availableMarginNum.toFixed(2)}
+              {marginShortfall > 0 ? ` (${marginShortfall.toFixed(2)} short).` : '.'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenDeposit}
+            className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-lg bg-gray-900 px-3 text-[11px] font-semibold text-white"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add funds
+          </button>
+        </div>
+      )}
+
       {/* Leverage */}
       <div className="mt-4">
         <div className="flex justify-between items-baseline mb-2">
@@ -498,29 +656,31 @@ export function TradingForm({
               {isCross ? 'Cross' : 'Isolated'}
             </button>
             <span className="font-mono text-[18px] font-semibold tabular-nums text-amber-600">
-              {leverage}×
+              {safeLeverage}×
             </span>
           </div>
         </div>
-        <div className="relative h-1.5 rounded-full bg-[#f2f2f0]">
+        <div className="relative h-1.5 overflow-hidden rounded-full bg-[#f2f2f0]">
           <div
             className="absolute left-0 top-0 h-full rounded-full bg-amber-600"
-            style={{ width: `${(leverage / maxLev) * 100}%` }}
+            style={{ width: `${leveragePct}%` }}
           />
           <input
             type="range"
             min={1}
             max={maxLev}
             step={1}
-            value={leverage}
+            value={safeLeverage}
             onChange={(e) => handleLeverageChange(parseInt(e.target.value))}
             onMouseUp={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
             onTouchEnd={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
             className="absolute inset-0 w-full opacity-0 cursor-pointer"
           />
+        </div>
+        <div className="relative h-4">
           <div
-            className="absolute -top-[5px] w-4 h-4 rounded-full bg-white border-2 border-amber-600 shadow"
-            style={{ left: `${(leverage / maxLev) * 100}%`, transform: 'translateX(-50%)' }}
+            className="absolute -top-[13px] h-4 w-4 rounded-full border-2 border-amber-600 bg-white shadow"
+            style={{ left: leverageThumbLeft }}
           />
         </div>
         <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 font-mono">
@@ -532,7 +692,7 @@ export function TradingForm({
       </div>
 
       {/* High-leverage warning */}
-      {leverage > 20 && (
+      {safeLeverage > 20 && (
         <div className="mt-3.5 p-3 rounded-[10px] bg-[#fff8eb] border border-[#f6d999] flex items-start gap-2 text-[11.5px] text-[#78451d]">
           <span className="text-amber-600 leading-none">⚠</span>
           <span>High leverage increases liquidation risk significantly.</span>
@@ -625,6 +785,25 @@ function formatUsd(value: number): string {
   return value.toFixed(2);
 }
 
+function summarizeExecutionResult(value: unknown) {
+  if (!value || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  return {
+    status: record.status,
+    response: record.response,
+    data: record.data,
+  };
+}
+
+function extractHyperliquidOrderId(value: unknown) {
+  if (!value || typeof value !== 'object') return undefined;
+  const text = JSON.stringify(value);
+  const oidMatch = text.match(/"oid"\s*:\s*"?([0-9A-Za-z_-]+)"?/);
+  if (oidMatch?.[1]) return oidMatch[1];
+  const orderIdMatch = text.match(/"orderId"\s*:\s*"?([0-9A-Za-z_-]+)"?/);
+  return orderIdMatch?.[1];
+}
+
 function Label({ children }: { children: React.ReactNode }) {
   return (
     <span className="text-[10.5px] font-bold tracking-[0.14em] text-gray-500 font-mono uppercase">
@@ -650,13 +829,4 @@ function SummaryRow({
       </span>
     </div>
   );
-}
-
-function extractHyperliquidOrderId(value: unknown) {
-  if (!value || typeof value !== 'object') return undefined;
-  const text = JSON.stringify(value);
-  const oidMatch = text.match(/"oid"\s*:\s*"?([0-9A-Za-z_-]+)"?/);
-  if (oidMatch?.[1]) return oidMatch[1];
-  const orderIdMatch = text.match(/"orderId"\s*:\s*"?([0-9A-Za-z_-]+)"?/);
-  return orderIdMatch?.[1];
 }

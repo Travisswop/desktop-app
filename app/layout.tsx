@@ -3,7 +3,7 @@ import PrivyProvider from "@/components/PrivyProvider";
 import { UserProvider } from "@/lib/UserContext";
 import { Metadata } from "next";
 
-import { Figtree, Inter } from "next/font/google";
+import { Figtree, Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { Toaster as SonnerToaster } from "sonner";
 
@@ -16,6 +16,12 @@ const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-inter",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-jetbrains-mono",
 });
 
 export const metadata: Metadata = {
@@ -45,7 +51,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${figtree.className} ${inter.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${figtree.className} ${inter.variable} ${jetbrainsMono.variable}`}
+    >
       <body className={`font-[figtree] bg-[#F7F7F9]`}>
         <Toaster position="top-center" reverseOrder={false} />
         <SonnerToaster position="top-right" richColors />

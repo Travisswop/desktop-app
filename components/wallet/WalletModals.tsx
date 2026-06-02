@@ -114,6 +114,7 @@ const WalletModals: React.FC<WalletModalsProps> = ({
           onOpenChange={(open) => !open && resetSendFlow()}
           token={sendFlow.token}
           setSendFlow={setSendFlow}
+          solBalance={solBalance}
         />
       )}
 

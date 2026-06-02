@@ -1,6 +1,10 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -92,12 +96,6 @@ function toAmericanOdds(price: number): string {
   return `+${Math.round(((1 - price) / price) * 100)}`;
 }
 
-function formatGraphPrice(price: number): string {
-  if (price <= 0) return '0%';
-  if (price >= 1) return '100%';
-  return toAmericanOdds(price);
-}
-
 function seededRand(seed: string, idx: number): number {
   let h = 5381;
   const s = seed + String(idx);
@@ -128,28 +126,9 @@ function formatUsd(value: number | undefined): string {
   return `${sign}$${Math.abs(value).toFixed(2)}`;
 }
 
-function formatCompactUsd(value: number | undefined): string {
-  if (value === undefined) return '—';
-  const sign = value < 0 ? '-' : '';
-  return `${sign}$${Math.abs(value).toFixed(0)}`;
-}
-
 function formatCents(price: number | undefined): string {
   if (price === undefined) return '—';
   return `${(price * 100).toFixed(1)}¢`;
-}
-
-function getInitials(name: string | undefined): string {
-  const parts = (name || 'Someone')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  return (
-    parts
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join('') || 'S'
-  );
 }
 
 function parseList(value: unknown): string[] {
@@ -528,7 +507,7 @@ function usePriceHistory(
       fetch(
         `/api/polymarket/prices-history?tokenId=${encodeURIComponent(
           id,
-        )}&interval=1d&fidelity=30`,
+        )}&interval=max&fidelity=30`,
       )
         .then((r) => (r.ok ? r.json() : { history: [] }))
         .then((j) => {
@@ -592,44 +571,177 @@ function historyToPath(
   return d;
 }
 
-// ─── Team badge ───────────────────────────────────────────────────────────────
+function clampProbability(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(Math.max(value, 0), 1);
+}
 
-function TeamBadge({
+function formatPercent(price: number): string {
+  return `${Math.round(clampProbability(price) * 100)}%`;
+}
+
+function formatSignedUsd(value: number | undefined): string {
+  if (value === undefined) return '—';
+  return `${value >= 0 ? '+' : ''}${formatUsd(value)}`;
+}
+
+function initials(value?: string): string {
+  if (!value) return 'AS';
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  const next = parts.length >= 2
+    ? `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`
+    : value.slice(0, 2);
+  return next.toUpperCase();
+}
+
+function formatClock(date: Date, includeMeridiem = true): string {
+  const formatted = date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return includeMeridiem ? formatted : formatted.replace(/\s?[AP]M$/i, '');
+}
+
+function formatGameCenter(gameStartTime?: string): string {
+  if (!gameStartTime) return 'Market open';
+  const date = new Date(gameStartTime);
+  if (Number.isNaN(date.getTime())) return 'Market open';
+  const day = date
+    .toLocaleDateString([], { weekday: 'short' })
+    .toUpperCase();
+  return `${day} · ${formatClock(date)}`;
+}
+
+function inferLeagueLabel(
+  marketTitle: string,
+  eventSlug?: string,
+): string {
+  const source = `${marketTitle} ${eventSlug ?? ''}`.toLowerCase();
+  const leagues = [
+    'nba',
+    'wnba',
+    'nfl',
+    'mlb',
+    'nhl',
+    'ncaab',
+    'ncaaf',
+    'epl',
+    'mls',
+    'ipl',
+  ];
+  const found = leagues.find((league) =>
+    new RegExp(`(^|[^a-z])${league}([^a-z]|$)`).test(source),
+  );
+  return found ? found.toUpperCase() : 'SPORTS';
+}
+
+function inferMarketKind(marketTitle: string): string {
+  const lower = marketTitle.toLowerCase();
+  if (lower.includes('spread')) return 'SPREAD';
+  if (lower.includes('total') || lower.includes('over/under'))
+    return 'TOTAL';
+  return 'MONEYLINE';
+}
+
+function statusPill(
+  tradeState: TradeStateMeta,
+  liveScore: LiveScore | null,
+  gameStartTime?: string,
+): {
+  label: string;
+  className: string;
+  dotClassName?: string;
+} {
+  if (liveScore?.live) {
+    const suffix = liveScore.period || liveScore.elapsed;
+    return {
+      label: suffix ? `LIVE · ${suffix}` : 'LIVE',
+      className: 'bg-red-50 text-red-500 border-red-100',
+      dotClassName: 'bg-red-400',
+    };
+  }
+
+  if (
+    liveScore?.ended ||
+    liveScore?.closed ||
+    tradeState.state === 'won' ||
+    tradeState.state === 'lost'
+  ) {
+    return {
+      label: 'FINAL',
+      className: 'bg-gray-50 text-gray-500 border-gray-100',
+    };
+  }
+
+  if (
+    tradeState.state === 'sold' ||
+    tradeState.state === 'sold-profit' ||
+    tradeState.state === 'sold-loss'
+  ) {
+    return {
+      label: 'SOLD',
+      className: 'bg-blue-50 text-blue-600 border-blue-100',
+    };
+  }
+
+  if (gameStartTime) {
+    const date = new Date(gameStartTime);
+    if (!Number.isNaN(date.getTime()) && date.getTime() > Date.now()) {
+      return {
+        label: `TIP-OFF ${formatClock(date, false)}`,
+        className: 'bg-amber-50 text-amber-600 border-amber-100',
+      };
+    }
+  }
+
+  return {
+    label: 'OPEN',
+    className: 'bg-gray-50 text-gray-500 border-gray-100',
+  };
+}
+
+function splitProbabilities(yesPrice: number, noPrice: number) {
+  const yes = clampProbability(yesPrice);
+  const no = clampProbability(noPrice);
+  const total = yes + no;
+  if (total <= 0) {
+    return { yes: 50, no: 50 };
+  }
+  return {
+    yes: (yes / total) * 100,
+    no: (no / total) * 100,
+  };
+}
+
+function TeamMark({
   team,
   abbr,
-  name,
 }: {
   team?: TeamMeta;
   abbr: string;
-  name: string;
 }) {
   const color = team?.color || '#374151';
   const logo = team?.logo;
   const displayAbbr = team?.abbreviation || abbr;
-  const displayName = team?.name || name;
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div
-        className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0"
-        style={{ backgroundColor: color }}
-      >
-        {logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={logo}
-            alt={displayAbbr}
-            className="w-8 h-8 object-contain"
-          />
-        ) : (
-          <span className="text-[10px] font-extrabold tracking-wide text-white">
-            {displayAbbr}
-          </span>
-        )}
-      </div>
-      <p className="text-[11px] font-semibold text-gray-700 text-center leading-tight max-w-[64px] truncate">
-        {displayName}
-      </p>
+    <div
+      className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-[0_4px_10px_rgba(15,23,42,0.16)]"
+      style={{ backgroundColor: color }}
+    >
+      {logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logo}
+          alt={displayAbbr}
+          className="h-7 w-7 object-contain"
+        />
+      ) : (
+        <span className="font-mono text-[10px] font-black text-white">
+          {displayAbbr}
+        </span>
+      )}
     </div>
   );
 }
@@ -637,6 +749,8 @@ function TeamBadge({
 // ─── Sports mini panel ────────────────────────────────────────────────────────
 
 function SportsMiniPanel({
+  marketTitle,
+  eventSlug,
   yesOutcome,
   noOutcome,
   yesPrice: yP,
@@ -644,7 +758,6 @@ function SportsMiniPanel({
   yesTeam,
   noTeam,
   gameStartTime,
-  volume,
   yesTokenId,
   noTokenId,
   liveScore,
@@ -652,11 +765,12 @@ function SportsMiniPanel({
   userName,
   side,
   cost,
-  potentialWin,
   entryPrice,
   tradeState,
   marketUrl,
 }: {
+  marketTitle: string;
+  eventSlug?: string;
   yesOutcome: string;
   noOutcome: string;
   yesPrice: number;
@@ -664,7 +778,6 @@ function SportsMiniPanel({
   yesTeam?: TeamMeta;
   noTeam?: TeamMeta;
   gameStartTime?: string;
-  volume?: string;
   yesTokenId?: string;
   noTokenId?: string;
   liveScore: LiveScore | null;
@@ -672,7 +785,6 @@ function SportsMiniPanel({
   userName?: string;
   side: 'BUY' | 'SELL';
   cost: number;
-  potentialWin?: number;
   entryPrice: number;
   tradeState: TradeStateMeta;
   marketUrl?: string;
@@ -683,15 +795,14 @@ function SportsMiniPanel({
     true,
   );
 
-  // Chart geometry - designed for a narrow feed card (~340px wide)
+  // Chart geometry - tuned for the compact card in the feed.
   const VB_W = 300;
-  const VB_H = 166;
+  const VB_H = 72;
   const PLOT_X = 2;
-  const PLOT_Y = 12;
-  const RIGHT_PAD = 62; // room for end labels
-  const BOTTOM_PAD = 10;
-  const PLOT_W = VB_W - PLOT_X - RIGHT_PAD;
-  const PLOT_H = VB_H - PLOT_Y - BOTTOM_PAD;
+  const PLOT_Y = 8;
+  const PLOT_W = VB_W - PLOT_X * 2;
+  const PLOT_H = 48;
+  const BASELINE_Y = PLOT_Y + PLOT_H + 6;
 
   const seed = (yesTokenId || yesOutcome) + 'feedseed';
 
@@ -739,8 +850,11 @@ function SportsMiniPanel({
     };
   }, [yesHistory, noHistory, yP, nP, seed]);
 
-  const yesPath = historyToPath(
-    yesSeries,
+  const pickedIsYes =
+    pickedOutcome.toLowerCase() === yesOutcome.toLowerCase();
+  const pickedSeries = pickedIsYes ? yesSeries : noSeries;
+  const chartPath = historyToPath(
+    pickedSeries,
     tMin,
     tMax,
     PLOT_X,
@@ -748,79 +862,41 @@ function SportsMiniPanel({
     PLOT_W,
     PLOT_H,
   );
-  const noPath = historyToPath(
-    noSeries,
-    tMin,
-    tMax,
-    PLOT_X,
-    PLOT_Y,
-    PLOT_W,
-    PLOT_H,
+  const latestPoint = pickedSeries[pickedSeries.length - 1];
+  const latestPointX = latestPoint
+    ? PLOT_X +
+      ((latestPoint.t - tMin) / Math.max(1, tMax - tMin)) * PLOT_W
+    : PLOT_X + PLOT_W;
+  const latestPointY = latestPoint
+    ? PLOT_Y + (1 - latestPoint.p) * PLOT_H
+    : PLOT_Y + PLOT_H / 2;
+  const chartAreaPath = chartPath
+    ? `${chartPath} L ${latestPointX.toFixed(2)} ${BASELINE_Y} L ${PLOT_X} ${BASELINE_Y} Z`
+    : '';
+
+  const showScores = Boolean(
+    liveScore &&
+      (liveScore.live || liveScore.ended || liveScore.closed) &&
+      liveScore.teams.length >= 2,
   );
-
-  const yesLeads = yP >= nP;
-  const yesColor = yesLeads ? '#3B82F6' : '#36584D';
-  const noColor = yesLeads ? '#36584D' : '#3B82F6';
-
-  const yesPct = Math.round(yP * 100);
-  const noPct = Math.round(nP * 100);
-
-  const endX = PLOT_X + PLOT_W;
-  const endYesY = PLOT_Y + (1 - yP) * PLOT_H;
-  const endNoY = PLOT_Y + (1 - nP) * PLOT_H;
-
-  // Position end-labels so they don't overlap
-  const [upperY, upperColor, upperName, upperPct] = yesLeads
-    ? [endYesY, yesColor, yesOutcome, yesPct]
-    : [endNoY, noColor, noOutcome, noPct];
-  const [lowerY, lowerColor, lowerName, lowerPct] = yesLeads
-    ? [endNoY, noColor, noOutcome, noPct]
-    : [endYesY, yesColor, yesOutcome, yesPct];
-
-  const labelGap = Math.max(22, Math.abs(upperY - lowerY));
-  const upperLabelY = Math.max(
-    14,
-    Math.min(upperY, PLOT_Y + PLOT_H - labelGap),
-  );
-  const lowerLabelY = Math.min(
-    PLOT_Y + PLOT_H - 2,
-    Math.max(lowerY, upperLabelY + labelGap),
-  );
-
-  // Game time text
-  const gameDate = gameStartTime ? new Date(gameStartTime) : null;
-  const timeText = gameDate
-    ? gameDate.toLocaleTimeString([], {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      })
-    : null;
-  const dateText = gameDate
-    ? gameDate.toLocaleDateString([], {
-        month: 'long',
-        day: 'numeric',
-      })
-    : null;
-
-  // Live score matching
-  const isLive = liveScore?.live === true;
   const matchScore = (
     teamName: string,
+    teamAbbr: string,
     fallbackIdx: number,
   ): number | null => {
-    if (!isLive || !liveScore || liveScore.teams.length < 2)
-      return null;
+    if (!showScores || !liveScore) return null;
     const lower = teamName.toLowerCase();
+    const abbr = teamAbbr.toLowerCase();
     const found = liveScore.teams.find((t) => {
       const n = (t.name ?? '').toLowerCase();
-      return n && (n.includes(lower) || lower.includes(n));
+      const a = (t.abbreviation ?? '').toLowerCase();
+      return (
+        (n && (n.includes(lower) || lower.includes(n))) ||
+        (a && a === abbr)
+      );
     });
     return (found ?? liveScore.teams[fallbackIdx])?.score ?? null;
   };
-  const yesScore = matchScore(yesOutcome, 0);
-  const noScore = matchScore(noOutcome, 1);
-  const hasScores = isLive && yesScore != null && noScore != null;
 
   const yesAbbr = (
     yesTeam?.abbreviation || yesOutcome.slice(0, 3)
@@ -828,10 +904,11 @@ function SportsMiniPanel({
   const noAbbr = (
     noTeam?.abbreviation || noOutcome.slice(0, 3)
   ).toUpperCase();
+  const yesScore = matchScore(yesOutcome, yesAbbr, 0);
+  const noScore = matchScore(noOutcome, noAbbr, 1);
+  const hasScores = yesScore != null && noScore != null;
   const pickedCurrentPrice =
-    pickedOutcome.toLowerCase() === yesOutcome.toLowerCase()
-      ? yP
-      : nP;
+    pickedIsYes ? yP : nP;
   const impliedShares =
     entryPrice > 0 ? cost / entryPrice : undefined;
   const currentValue =
@@ -846,26 +923,60 @@ function SportsMiniPanel({
     tradeState.state === 'open' || tradeState.state === 'live'
       ? currentDelta
       : tradeState.amount;
-  const canOpenMarket = Boolean(marketUrl);
-  const userInitials = getInitials(userName);
+  const summaryValue =
+    currentValue ??
+    (selectedPnl !== undefined ? cost + selectedPnl : undefined);
   const filterId = `feed-shadow-${String(yesTokenId || yesOutcome)
     .replace(/[^a-zA-Z0-9_-]/g, '')
     .slice(0, 48)}`;
-  const betButtonBase =
-    'h-[34px] rounded-lg px-3 text-[11px] font-bold transition-colors flex items-center justify-center min-w-0 shadow-sm';
+  const gradientId = `${filterId}-trend`;
+  const split = splitProbabilities(yP, nP);
+  const pill = statusPill(tradeState, liveScore, gameStartTime);
+  const open =
+    tradeState.state === 'open' || tradeState.state === 'live';
+  const chartColor =
+    tradeState.tone === 'red'
+      ? '#E85D5D'
+      : tradeState.tone === 'green'
+        ? '#51AD7D'
+        : pickedIsYes
+          ? '#20242D'
+          : '#2F7ED8';
+  const pnlTone =
+    selectedPnl === undefined
+      ? 'text-gray-400'
+      : selectedPnl >= 0
+        ? 'text-[#51AD7D]'
+        : 'text-[#E85D5D]';
+  const positionVerb =
+    side === 'SELL'
+      ? 'You sold'
+      : open
+        ? "You're on"
+        : 'You backed';
+  const positionKicker = open
+    ? selectedPnl === undefined
+      ? 'LIVE'
+      : selectedPnl >= 0
+        ? 'UP'
+        : 'DOWN'
+    : tradeState.state === 'won' || tradeState.state === 'lost'
+      ? 'RESULT'
+      : tradeState.label.toUpperCase();
+
   const buttonForOutcome = (
     label: string,
     price: number,
-    variant: 'yes' | 'no',
+    selected: boolean,
   ) => {
     const odds = toAmericanOdds(price);
-    const classes =
-      variant === 'yes'
-        ? `${betButtonBase} bg-emerald-500 text-white hover:bg-emerald-600`
-        : `${betButtonBase} bg-red-500 text-white hover:bg-red-600`;
-    const buttonText = `${label} ${odds}`;
+    const classes = `flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 text-[13px] font-extrabold transition-colors ${
+      selected
+        ? 'border-[#2F7ED8] bg-[#2F7ED8] text-white shadow-[0_8px_18px_rgba(47,126,216,0.24)]'
+        : 'border-gray-100 bg-white text-gray-900 hover:border-gray-200 hover:bg-gray-50'
+    }`;
 
-    if (canOpenMarket) {
+    if (marketUrl) {
       return (
         <a
           href={marketUrl}
@@ -875,7 +986,14 @@ function SportsMiniPanel({
           className={classes}
           title={`Open ${label} market`}
         >
-          <span className="truncate">{buttonText}</span>
+          <span className="truncate">{label}</span>
+          <span
+            className={`shrink-0 font-mono text-[12px] ${
+              selected ? 'text-white' : 'text-[#2F7ED8]'
+            }`}
+          >
+            {odds}
+          </span>
         </a>
       );
     }
@@ -886,251 +1004,266 @@ function SportsMiniPanel({
         disabled
         className={`${classes} opacity-60`}
       >
-        <span className="truncate">{buttonText}</span>
+        <span className="truncate">{label}</span>
+        <span className="shrink-0 font-mono text-[12px]">{odds}</span>
       </button>
     );
   };
 
   return (
-    <div className="px-4 pt-4 pb-4">
-      <div className="flex items-center justify-center gap-1.5 mb-2">
-        <span className="text-[12px] font-extrabold text-gray-950">
-          {hasScores ? 'Live' : tradeState.label}
-        </span>
-        {hasScores && (
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-        )}
-      </div>
-
-      <div className="grid grid-cols-[64px_1fr_64px] items-center gap-2 mb-1">
-        <TeamBadge team={yesTeam} abbr={yesAbbr} name={yesOutcome} />
-
-        <div className="text-center min-w-0">
-          {hasScores ? (
-            <>
-              <div className="flex items-center justify-center gap-4">
-                <span className="text-2xl font-extrabold text-gray-950 tabular-nums">
-                  {yesScore}
-                </span>
-                <span className="text-2xl font-extrabold text-gray-950 tabular-nums">
-                  {noScore}
-                </span>
-              </div>
-              {liveScore &&
-                (liveScore.period || liveScore.elapsed) && (
-                  <p className="text-[10px] font-bold text-gray-700 mt-0.5 tabular-nums">
-                    {[liveScore.elapsed, liveScore.period]
-                      .filter(Boolean)
-                      .join(' ')}
-                  </p>
-                )}
-            </>
-          ) : (
-            <>
-              <p className="text-[12px] font-extrabold text-gray-950 leading-tight">
-                {timeText || 'Matchup'}
-              </p>
-              <p className="text-[10px] font-medium text-gray-500 mt-0.5">
-                {dateText || tradeState.detail}
-              </p>
-            </>
-          )}
+    <div className="mt-2 w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#ECECEB] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.10)]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-[13px] font-black text-gray-950">
+            {inferLeagueLabel(marketTitle, eventSlug)}
+          </span>
+          <span className="h-1 w-1 shrink-0 rounded-full bg-gray-300" />
+          <span className="truncate font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+            {inferMarketKind(marketTitle)}
+          </span>
         </div>
-
-        <TeamBadge team={noTeam} abbr={noAbbr} name={noOutcome} />
-      </div>
-
-      {/* Probability chart */}
-      <svg
-        viewBox={`0 0 ${VB_W} ${VB_H}`}
-        className="w-full -mx-1"
-        style={{ height: 166 }}
-        aria-label={`${yesOutcome} vs ${noOutcome} probability history`}
-      >
-        <defs>
-          <filter
-            id={filterId}
-            x="-20%"
-            y="-20%"
-            width="140%"
-            height="140%"
-          >
-            <feDropShadow
-              dx="0"
-              dy="1"
-              stdDeviation="1.1"
-              floodColor="#000000"
-              floodOpacity="0.12"
-            />
-          </filter>
-        </defs>
-
-        {/* Probability lines */}
-        <path
-          d={noPath}
-          fill="none"
-          stroke={noColor}
-          strokeWidth={2.4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={loading ? 0.5 : 1}
-        />
-        <path
-          d={yesPath}
-          fill="none"
-          stroke={yesColor}
-          strokeWidth={2.4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={loading ? 0.5 : 1}
-        />
-
-        {/* Endpoint dots */}
-        <circle cx={endX} cy={endNoY} r={7} fill={`${noColor}33`} />
-        <circle
-          cx={endX}
-          cy={endNoY}
-          r={3.6}
-          fill={noColor}
-          filter={`url(#${filterId})`}
-        />
-        <circle cx={endX} cy={endYesY} r={7} fill={`${yesColor}33`} />
-        <circle
-          cx={endX}
-          cy={endYesY}
-          r={3.6}
-          fill={yesColor}
-          filter={`url(#${filterId})`}
-        />
-
-        {/* End labels: team name + percentage */}
-        <text
-          x={endX + 11}
-          y={upperLabelY - 1}
-          fontSize={9}
-          fontWeight={800}
-          fill={upperColor}
-          fontFamily="system-ui, sans-serif"
+        <span
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] font-black uppercase tracking-[0.18em] ${pill.className}`}
         >
-          {upperName}
-        </text>
-        <text
-          x={endX + 11}
-          y={upperLabelY + 15}
-          fontSize={18}
-          fontWeight={800}
-          fill={upperColor}
-          fontFamily="system-ui, sans-serif"
-        >
-          {formatGraphPrice(upperPct / 100)}
-        </text>
-
-        <text
-          x={endX + 11}
-          y={lowerLabelY - 12}
-          fontSize={9}
-          fontWeight={800}
-          fill={lowerColor}
-          fontFamily="system-ui, sans-serif"
-        >
-          {lowerName}
-        </text>
-        <text
-          x={endX + 11}
-          y={lowerLabelY + 6}
-          fontSize={18}
-          fontWeight={800}
-          fill={lowerColor}
-          fontFamily="system-ui, sans-serif"
-        >
-          {formatGraphPrice(lowerPct / 100)}
-        </text>
-      </svg>
-
-      <div className="relative mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="pointer-events-none absolute left-[-5px] top-8 h-2.5 w-2.5 rounded-full border border-gray-200 bg-gray-50" />
-        <div className="pointer-events-none absolute right-[-5px] top-8 h-2.5 w-2.5 rounded-full border border-gray-200 bg-gray-50" />
-
-        <div className="flex items-center justify-between gap-2 px-3 py-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <p className="truncate text-[13px] font-extrabold text-gray-950">
-              {userName || 'Someone'}{' '}
-              {side === 'BUY' ? 'picked' : 'sold'}{' '}
-              <span className="text-blue-600">{pickedOutcome}</span>
-            </p>
-          </div>
-          {tradeState.state !== 'open' && (
+          {pill.dotClassName && (
             <span
-              className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${toneClasses(
-                tradeState.tone,
-              )}`}
-            >
-              {tradeState.label}
-            </span>
+              className={`h-1.5 w-1.5 rounded-full ${pill.dotClassName} animate-pulse`}
+            />
           )}
-        </div>
+          {pill.label}
+        </span>
+      </div>
 
-        <div className="border-t border-dashed border-gray-200" />
-
-        <div className="grid grid-cols-3">
-          <div className="px-3 py-3 text-center">
-            <p className="text-[10px] font-medium text-gray-500">
-              Cost
+      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-start gap-3">
+        <div className="flex min-w-0 items-start gap-2">
+          <TeamMark team={yesTeam} abbr={yesAbbr} />
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-extrabold text-gray-950">
+              {yesOutcome}
             </p>
-            <p className="mt-0.5 text-[13px] font-extrabold text-emerald-600">
-              {formatUsd(cost)}
-            </p>
-          </div>
-          <div className="border-x border-gray-100 px-3 py-3 text-center">
-            <p className="text-[10px] font-medium text-gray-500">
-              Current
-            </p>
-            <p className="mt-0.5 text-[13px] font-extrabold text-emerald-600">
-              {formatUsd(currentValue)}
-            </p>
-            {selectedPnl !== undefined && (
-              <p
-                className={`text-[8px] font-bold ${
-                  selectedPnl >= 0
-                    ? 'text-emerald-500'
-                    : 'text-red-500'
-                }`}
-              >
-                {selectedPnl >= 0 ? '+' : ''}
-                {formatUsd(selectedPnl)}
+            {hasScores && (
+              <p className="font-mono text-[28px] font-black leading-none text-gray-950">
+                {yesScore}
               </p>
             )}
           </div>
-          <div className="px-3 py-3 text-center">
-            <p className="text-[10px] font-medium text-gray-500">
-              {tradeState.state === 'sold' ||
-              tradeState.state === 'sold-profit' ||
-              tradeState.state === 'sold-loss'
-                ? 'Sold'
-                : tradeState.state === 'won' ||
-                    tradeState.state === 'lost'
-                  ? 'Result'
-                  : 'To win'}
+        </div>
+
+        <div className="mt-3 min-w-[76px] text-center">
+          <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-gray-400">
+            {hasScores
+              ? [liveScore?.period, liveScore?.elapsed]
+                  .filter(Boolean)
+                  .join(' · ') || 'GAME'
+              : formatGameCenter(gameStartTime)}
+          </p>
+        </div>
+
+        <div className="flex min-w-0 items-start justify-end gap-2 text-right">
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-extrabold text-gray-950">
+              {noOutcome}
             </p>
-            <p
-              className={`mt-0.5 text-[13px] font-extrabold ${
-                tradeState.tone === 'red'
-                  ? 'text-red-600'
-                  : 'text-emerald-600'
-              }`}
-            >
-              {tradeState.state === 'open' ||
-              tradeState.state === 'live'
-                ? formatCompactUsd(potentialWin)
-                : formatCompactUsd(tradeState.amount)}
-            </p>
+            {hasScores && (
+              <p className="font-mono text-[28px] font-black leading-none text-gray-400">
+                {noScore}
+              </p>
+            )}
           </div>
+          <TeamMark team={noTeam} abbr={noAbbr} />
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 px-1">
-        {buttonForOutcome(yesOutcome, yP, 'yes')}
-        {buttonForOutcome(noOutcome, nP, 'no')}
+      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="h-2 w-2 shrink-0 rounded-[3px] bg-[#20242D]" />
+          <span className="truncate text-[12px] font-extrabold text-gray-900">
+            {yesOutcome}
+          </span>
+        </div>
+        <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+          {open ? 'WIN PROB' : 'FINAL'}
+        </p>
+        <div className="flex min-w-0 items-center justify-end gap-1.5">
+          <span className="truncate text-right text-[12px] font-extrabold text-gray-900">
+            {noOutcome}
+          </span>
+          <span className="h-2 w-2 shrink-0 rounded-[3px] bg-[#2F7ED8]" />
+        </div>
+      </div>
+
+      <div className="relative mt-2 h-[74px] overflow-hidden rounded-[20px] bg-[#20242D] shadow-inner">
+        <div
+          className="absolute inset-y-0 left-0 bg-gradient-to-b from-[#3A404B] to-[#1E222B]"
+          style={{ width: `${split.yes}%` }}
+        />
+        <div
+          className="absolute inset-y-0 right-0 bg-gradient-to-b from-[#5BA2F1] to-[#2F7ED8]"
+          style={{ width: `${split.no}%` }}
+        />
+        <div className="absolute inset-y-0 left-0 flex items-center px-4 text-white">
+          <div>
+            <p className="font-mono text-[10px] font-black uppercase text-white/70">
+              {yesAbbr}
+            </p>
+            <p className="font-mono text-[26px] font-black leading-none">
+              {formatPercent(yP)}
+            </p>
+          </div>
+        </div>
+        <div className="absolute inset-y-0 right-0 flex items-center px-4 text-right text-white">
+          <div>
+            <p className="font-mono text-[10px] font-black uppercase text-white/70">
+              {noAbbr}
+            </p>
+            <p className="font-mono text-[26px] font-black leading-none">
+              {formatPercent(nP)}
+            </p>
+          </div>
+        </div>
+        {split.yes > 6 && split.yes < 94 && (
+          <div
+            className="absolute top-0 h-full w-px bg-white/40"
+            style={{ left: `${split.yes}%` }}
+          >
+            <span className="absolute left-1/2 top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_8px_18px_rgba(15,23,42,0.20)]">
+              <span className="mr-0.5 h-3 w-[2px] rounded-full bg-gray-300" />
+              <span className="h-3 w-[2px] rounded-full bg-gray-300" />
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+            Win Prob · Timeline
+          </p>
+          <p className="truncate text-right font-mono text-[10px] font-black text-gray-400">
+            backing {pickedOutcome}
+          </p>
+        </div>
+        <svg
+          viewBox={`0 0 ${VB_W} ${VB_H}`}
+          className="mt-1 block h-[72px] w-full"
+          role="img"
+          aria-label={`${pickedOutcome} probability timeline`}
+        >
+          <defs>
+            <linearGradient
+              id={gradientId}
+              x1="0"
+              x2="0"
+              y1="0"
+              y2="1"
+            >
+              <stop
+                offset="0%"
+                stopColor={chartColor}
+                stopOpacity="0.20"
+              />
+              <stop
+                offset="100%"
+                stopColor={chartColor}
+                stopOpacity="0"
+              />
+            </linearGradient>
+          </defs>
+          <line
+            x1={PLOT_X}
+            x2={PLOT_X + PLOT_W}
+            y1={PLOT_Y + PLOT_H / 2}
+            y2={PLOT_Y + PLOT_H / 2}
+            stroke="#E5E7EB"
+            strokeDasharray="3 5"
+            strokeWidth={1}
+          />
+          {chartAreaPath && (
+            <path d={chartAreaPath} fill={`url(#${gradientId})`} />
+          )}
+          {chartPath && (
+            <path
+              d={chartPath}
+              fill="none"
+              stroke={chartColor}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2.5}
+              opacity={loading ? 0.55 : 1}
+            />
+          )}
+          <circle
+            cx={latestPointX}
+            cy={latestPointY}
+            r={4.5}
+            fill="white"
+            stroke={chartColor}
+            strokeWidth={2.5}
+          />
+        </svg>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-black text-[#2F7ED8]">
+            {initials(userName)}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-extrabold text-gray-950">
+              {positionVerb}{' '}
+              <span className="text-[#2F7ED8]">{pickedOutcome}</span>
+            </p>
+            <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-gray-400">
+              {formatUsd(cost)} → {formatUsd(summaryValue)}
+            </p>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">
+            {positionKicker}
+          </p>
+          <p className={`font-mono text-[22px] font-black ${pnlTone}`}>
+            {formatSignedUsd(selectedPnl)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        {open ? (
+          <>
+            {buttonForOutcome(yesOutcome, yP, pickedIsYes)}
+            {buttonForOutcome(noOutcome, nP, !pickedIsYes)}
+          </>
+        ) : (
+          <>
+            {marketUrl ? (
+              <a
+                href={marketUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex h-11 items-center justify-center rounded-xl border border-gray-100 bg-white px-3 text-[13px] font-extrabold text-gray-900 transition-colors hover:border-gray-200 hover:bg-gray-50"
+              >
+                Market →
+              </a>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="flex h-11 items-center justify-center rounded-xl border border-gray-100 bg-white px-3 text-[13px] font-extrabold text-gray-400"
+              >
+                Market →
+              </button>
+            )}
+            <a
+              href="/prediction"
+              onClick={(e) => e.stopPropagation()}
+              className="flex h-11 items-center justify-center rounded-xl bg-gray-950 px-3 text-[13px] font-extrabold text-white transition-colors hover:bg-black"
+            >
+              View Predictions
+            </a>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1180,7 +1313,6 @@ function PredictionPositionPanel({
       : undefined;
   const open =
     tradeState.state === 'open' || tradeState.state === 'live';
-  const userInitials = getInitials(userName);
   const renderOutcomeButton = (
     label: string | undefined,
     price: number | undefined,
@@ -1336,7 +1468,6 @@ export default function PredictionFeedCard({
     yesTeam,
     noTeam,
     gameStartTime,
-    volume,
     yesTokenId,
     noTokenId,
   } = content;
@@ -1381,6 +1512,8 @@ export default function PredictionFeedCard({
       {/* ── Sports panel: team badges + probability chart ───────────────────── */}
       {isSports && (
         <SportsMiniPanel
+          marketTitle={content.marketTitle}
+          eventSlug={eventSlug}
           yesOutcome={yesOutcome!}
           noOutcome={noOutcome!}
           yesPrice={resolvedYesPrice}
@@ -1388,7 +1521,6 @@ export default function PredictionFeedCard({
           yesTeam={yesTeam}
           noTeam={noTeam}
           gameStartTime={gameStartTime}
-          volume={volume}
           yesTokenId={yesTokenId}
           noTokenId={noTokenId}
           liveScore={liveScore}
@@ -1396,7 +1528,6 @@ export default function PredictionFeedCard({
           userName={userName}
           side={side}
           cost={cost}
-          potentialWin={potentialWin}
           entryPrice={price}
           tradeState={tradeState}
           marketUrl={marketUrl}

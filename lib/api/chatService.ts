@@ -1,6 +1,4 @@
 // Chat service for API interactions with the new backend
-import Cookies from 'js-cookie';
-
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -23,14 +21,30 @@ interface ApiResponse<T> {
 }
 
 class ChatApiService {
+  private getCookieValue(name: string) {
+    if (typeof document === 'undefined') return null;
+
+    const cookie = document.cookie
+      .split(';')
+      .map((entry) => entry.trim())
+      .find((entry) => entry.startsWith(`${name}=`));
+
+    if (!cookie) return null;
+
+    return decodeURIComponent(cookie.slice(name.length + 1));
+  }
+
   private getAuthHeaders() {
-    // Prefer the current backend JWT cookie set during login.
-    // LocalStorage may contain stale tokens after switching Privy apps.
+    // Prefer the cookie used by the socket connection, with older localStorage
+    // names kept as fallbacks for legacy chat surfaces.
     const token =
-      Cookies.get('access-token') ||
-      localStorage.getItem('authToken') ||
-      localStorage.getItem('jwt_token') ||
-      localStorage.getItem('accessToken');
+      this.getCookieValue('access-token') ||
+      (typeof localStorage !== 'undefined'
+        ? localStorage.getItem('authToken') ||
+          localStorage.getItem('jwt_token') ||
+          localStorage.getItem('accessToken')
+        : null);
+
     return {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),

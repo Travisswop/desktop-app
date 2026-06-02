@@ -29,7 +29,7 @@ interface SportsMarketsViewProps {
   activeSportSub?: SportSubcategoryId;
   /**
    * Direct tag ID override — takes precedence over activeSportSub.
-   * Pass null to fetch all sports (tag 100639).
+   * Pass null to fetch all sports (tag 1).
    */
   tagId?: number | null;
   disabled?: boolean;
@@ -67,10 +67,10 @@ export default function SportsMarketsView({
     if (tagIdProp !== undefined) return tagIdProp;
 
     if (!activeSportSub || activeSportSub === 'all') {
-      // "All Sports" — use the sports parent tag (100639)
+      // "All Sports" — use the broad sports parent tag.
       const allTagId = sportsMeta?.tagIdBySlug.get('sports')
         ?? getCategoryById('sports')?.tagId
-        ?? 100639;
+        ?? 1;
       return allTagId;
     }
 

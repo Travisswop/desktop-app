@@ -15,6 +15,19 @@ import { usePrivy } from '@privy-io/react-auth';
 import { chatApiService } from '@/lib/api/chatService';
 import logger from '@/utils/logger';
 
+const expectedChatSocketIssuePattern =
+  /invalid authentication token|database connection unavailable|websocket error|xhr poll error|timeout|transport/i;
+
+const isExpectedChatSocketIssue = (message?: string) =>
+  expectedChatSocketIssuePattern.test(message || '');
+
+const logChatSocketDebug = (...args: any[]) => {
+  if (process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true') {
+    const [message, ...details] = args;
+    logger.debug(message, ...details);
+  }
+};
+
 const EVENTS = {
       // Direct chat events (old)
       SEND_MESSAGE: 'send_message',
@@ -563,7 +576,7 @@ export const SocketChatProvider = ({
       '🔌 [NewSocketChat] Connecting to socket:',
       SOCKET_URL
     );
-    logger.info('🔌 [NewSocketChat] Token:', privyUser?.id);
+    logger.info('🔌 [NewSocketChat] Privy user present:', Boolean(privyUser?.id));
     setLoading(true);
     setError(null);
 
@@ -582,10 +595,7 @@ export const SocketChatProvider = ({
           const [name, value] = cookie.trim().split('=');
           if (name === 'access-token') {
             const decodedValue = decodeURIComponent(value);
-            logger.info(
-              '✅ [NewSocketChat] Found access-token (first 20 chars):',
-              decodedValue.substring(0, 20) + '...'
-            );
+            logger.info('✅ [NewSocketChat] Found access-token cookie');
 
             // Validate token format
             const parts = decodedValue.split('.');
@@ -662,6 +672,7 @@ export const SocketChatProvider = ({
       setError(err as Error);
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [privyUser?.id]);
 
   // Initialize socket with token
@@ -671,10 +682,7 @@ export const SocketChatProvider = ({
         logger.info(
           '🔑 [NewSocketChat] Initializing socket with JWT token'
         );
-        logger.info(
-          '🔑 [NewSocketChat] Token length:',
-          jwtToken.length
-        );
+        logger.info('🔑 [NewSocketChat] JWT token received for socket auth');
 
         const newSocket = io(SOCKET_URL, {
           auth: {
@@ -733,27 +741,21 @@ export const SocketChatProvider = ({
         });
 
         newSocket.on('connect_error', (err) => {
-          logger.error('🚨 [NewSocketChat] Connection error:', err);
-          logger.error('🚨 [NewSocketChat] Error details:', {
+          const expectedIssue = isExpectedChatSocketIssue(err.message);
+
+          logChatSocketDebug('[NewSocketChat] Connection retry:', err.message);
+          logChatSocketDebug('[NewSocketChat] Connection details:', {
             message: err.message,
             type: (err as any).type,
             description: (err as any).description,
             context: (err as any).context,
           });
 
-          // Check for specific error types
-          if (err.message.includes('websocket error')) {
-            logger.error(
-              '🚨 [NewSocketChat] WebSocket connection failed - trying polling transport'
-            );
+          if (expectedIssue) {
+            setError(null);
+          } else {
+            setError(new Error(`Connection failed: ${err.message}`));
           }
-          if (err.message.includes('xhr poll error')) {
-            logger.error(
-              '🚨 [NewSocketChat] Polling connection failed - check CORS and server availability'
-            );
-          }
-
-          setError(new Error(`Connection failed: ${err.message}`));
           setLoading(false);
           scheduleReconnect();
         });
@@ -829,12 +831,9 @@ export const SocketChatProvider = ({
           refreshConversations();
         });
 
-        newSocket.on(
-          EVENTS.USER_TYPING,
-          (data: { userId: string; isTyping?: boolean }) => {
-            // Handle typing indicators if needed
-          }
-        );
+        newSocket.on(EVENTS.USER_TYPING, () => {
+          // Handle typing indicators if needed
+        });
 
         // Group chat event handlers
         newSocket.on(
@@ -1053,6 +1052,7 @@ export const SocketChatProvider = ({
         setLoading(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [privyUser?.id]
   );
 
@@ -2068,6 +2068,7 @@ export const SocketChatProvider = ({
     return () => {
       disconnect();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [privyUser?.id]); // Remove connect, disconnect, and socket from dependencies
 
   // Load initial data
@@ -2076,16 +2077,17 @@ export const SocketChatProvider = ({
       refreshConversations();
       refreshGroups();
 
-      // Get unread count
-      chatApiService
-        .getUnreadCount()
-        .then((response) => {
-          if (response.status === 'success') {
-            setUnreadCount(response.data.unreadCount);
-          }
-        })
-        .catch(console.error);
+      // Get unread count through the socket contract; the old REST route is no
+      // longer mounted in the desktop backend.
+      socket?.emit(EVENTS.GET_UNREAD_COUNT, {}, (response: any) => {
+        if (response?.success || response?.status === 'success') {
+          setUnreadCount(
+            response.unreadCount ?? response.data?.unreadCount ?? 0
+          );
+        }
+      });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected]); // Remove function dependencies since they're now stable
 
   const contextValue: SocketChatContextType = {

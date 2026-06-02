@@ -24,6 +24,7 @@ export type PolymarketOrder = {
 export function useActiveOrders(
   _session: object | null,
   _walletAddress: string | undefined,
+  options?: { enabled?: boolean },
 ) {
   const {
     tradingSession,
@@ -69,7 +70,10 @@ export function useActiveOrders(
         return [];
       }
     },
-    enabled: !!isTradingSessionComplete && !!safeAddress,
+    enabled:
+      options?.enabled !== false &&
+      !!isTradingSessionComplete &&
+      !!safeAddress,
     staleTime: 2_000,
     refetchInterval: 3_000,
     refetchIntervalInBackground: true,

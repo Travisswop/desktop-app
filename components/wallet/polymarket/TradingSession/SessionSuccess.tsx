@@ -26,7 +26,7 @@ export default function SessionSuccess({ session }: SessionSuccessProps) {
       </div>
       <div className="text-sm space-y-1">
         <p className="text-gray-500">
-          Safe Address:{' '}
+          Deposit Wallet:{' '}
           <span className="text-gray-900 font-mono bg-gray-100 px-1.5 py-0.5 rounded">
             {formatAddress(session.safeAddress)}
           </span>

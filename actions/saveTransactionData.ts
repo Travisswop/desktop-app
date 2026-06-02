@@ -8,6 +8,7 @@ interface SwapDetails {
     amount: number;
     decimals: number;
     mint: string;
+    chain?: string;
     price?: string | number; // Price in USD
     logo?: string;
   };
@@ -16,6 +17,7 @@ interface SwapDetails {
     amount: number;
     decimals: number;
     mint: string;
+    chain?: string;
     price?: string | number; // Price in USD
     logo?: string;
   };

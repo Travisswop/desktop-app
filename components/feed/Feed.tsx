@@ -63,17 +63,18 @@ export default function Feed({
         });
         const data = await response.json();
         const feedItems = data?.data ?? [];
+        const totalPages = data?.pagination?.totalPages ?? currentPage;
 
         if (reset) {
           setFeedData(feedItems);
           pageRef.current = 2;
-          setHasMore(initialTotalPages > pageRef.current);
+          setHasMore(totalPages >= pageRef.current);
         } else {
           setFeedData((prev: any[]) => [...prev, ...feedItems]);
           pageRef.current += 1;
 
           // ✅ safer logic
-          setHasMore(pageRef.current <= initialTotalPages);
+          setHasMore(pageRef.current <= totalPages);
         }
       } catch (error) {
         console.error(error);
@@ -82,7 +83,7 @@ export default function Feed({
         setInitialLoading(false);
       }
     },
-    [hasMore, userId, accessToken, initialTotalPages],
+    [hasMore, userId, accessToken],
   );
 
   // initial load

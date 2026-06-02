@@ -7,12 +7,20 @@ export interface TradingSession {
   isSafeDeployed: boolean;
   isDepositWalletDeployed?: boolean;
   hasApiCredentials: boolean;
+  apiCredentialsAddress?: string;
   hasApprovals: boolean;
   apiCredentials?: {
     key: string;
     secret: string;
     passphrase: string;
   };
+  /**
+   * Timestamp of the last successful relayer-side registration of the
+   * deposit-wallet under the active builder credentials. When set, the
+   * trading-session init skips the force-re-register step. Reset by
+   * clearing localStorage (or rotating to a new wallet).
+   */
+  depositWalletRegisteredAt?: number;
   lastChecked: number;
 }
 
@@ -42,14 +50,32 @@ export const loadSession = (address: string): TradingSession | null => {
       return null;
     }
 
-    if (!session.walletType) {
-      session.walletType = "safe";
+    // Don't force walletType here — useTradingSession resolves it from
+    // Polymarket's wallet-info endpoint on each init, so legacy Safe users
+    // stay on signatureType=2 while new users get signatureType=3.
+    if (session.walletType === "deposit" && !session.depositWalletAddress) {
+      clearSession(address);
+      return null;
     }
-    if (!session.legacySafeAddress) {
-      session.legacySafeAddress = session.safeAddress;
+    if (session.walletType === "deposit") {
+      session.safeAddress = session.depositWalletAddress!;
+      session.legacySafeAddress = undefined;
     }
-    if (session.walletType === "deposit" && session.depositWalletAddress) {
-      session.safeAddress = session.depositWalletAddress;
+
+    if (session.hasApiCredentials) {
+      // CLOB API credentials are EOA-owned in both flows; deposit-wallet
+      // routing happens at order build time via signatureType + funderAddress.
+      const expectedCredentialsAddress = session.eoaAddress;
+      if (
+        !expectedCredentialsAddress ||
+        !session.apiCredentialsAddress ||
+        session.apiCredentialsAddress.toLowerCase() !==
+          expectedCredentialsAddress.toLowerCase()
+      ) {
+        session.hasApiCredentials = false;
+        session.apiCredentials = undefined;
+        session.apiCredentialsAddress = expectedCredentialsAddress;
+      }
     }
 
     return session;

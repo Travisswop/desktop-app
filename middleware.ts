@@ -24,9 +24,10 @@ const PROTECTED_ROUTES = new Set([
   "/qr-code",
   "/wallet",
   "/analytics",
-  "/mint",
+  "/products",
   "/order",
   "/content",
+  "/account-deletion",
 ]);
 
 const AUTH_ROUTES = new Set(["/login", "/onboard"]);
@@ -849,7 +850,7 @@ export const config = {
     "/qr-code/:path*",
     "/wallet/:path*",
     "/analytics/:path*",
-    "/mint/:path*",
+    "/products/:path*",
     "/order/:path*",
     "/content/:path*",
     "/login",

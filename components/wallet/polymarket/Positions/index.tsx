@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useClobOrder,
@@ -16,6 +17,10 @@ import {
 } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useTrading } from '@/providers/polymarket';
+import {
+  useMarketDetailStore,
+  marketRouteKey,
+} from '@/zustandStore/marketDetailStore';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
@@ -23,10 +28,14 @@ import LoadingState from '../shared/LoadingState';
 import PositionCard from './PositionCard';
 import OrderCard from '../Orders/OrderCard';
 import OrderPlacementModal from '../OrderModal';
-import MarketDetailModal from '../Markets/MarketDetailModal';
 import PositionOutcomeList from './PositionOutcomeList';
 
 import { createPollingInterval } from '@/lib/polymarket/polling';
+import {
+  hasRedeemablePayout,
+  isVisiblePortfolioPosition,
+  isZeroPositionBalanceRedeemError,
+} from '@/lib/polymarket/position-payout';
 import {
   DUST_THRESHOLD,
   POLLING_DURATION,
@@ -109,21 +118,26 @@ function positionToMarket(
 }
 
 export default function UserPositions() {
-  const { clobClient, safeAddress, isTradingSessionComplete } = useTrading();
+  const {
+    clobClient,
+    safeAddress,
+    portfolioAddresses,
+    isTradingSessionComplete,
+  } = useTrading();
   const { eoaAddress } = usePolymarketWallet();
 
   const {
     data: positions,
     isLoading,
     error,
-  } = useUserPositions(safeAddress as string | undefined);
+  } = useUserPositions(portfolioAddresses.length ? portfolioAddresses : safeAddress);
 
-  const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { usdcBalance } = usePolygonBalances(
+    portfolioAddresses.length ? portfolioAddresses : safeAddress,
+  );
   const { data: teamsData } = usePolymarketTeams();
-  console.log('safe address', safeAddress);
   const { data: netDeposits, isLoading: isNetDepositsLoading } =
-    useNetDeposits(safeAddress as string | undefined);
-  console.log('netDeposits', netDeposits);
+    useNetDeposits(portfolioAddresses.length ? portfolioAddresses : safeAddress);
 
   // Limit orders are placed from the Safe (proxy) wallet, so maker_address matches
   // safeAddress — not eoaAddress.  Using eoaAddress here would always return [].
@@ -143,8 +157,9 @@ export default function UserPositions() {
   >(null);
   const [buyMorePosition, setBuyMorePosition] =
     useState<PolymarketPosition | null>(null);
-  const [detailPosition, setDetailPosition] =
-    useState<PolymarketPosition | null>(null);
+
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((s) => s.set);
 
   const { redeemPosition } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
@@ -205,6 +220,22 @@ export default function UserPositions() {
     [isBtc5mPosition],
   );
 
+  const navigateToPosition = useCallback(
+    (p: PolymarketPosition) => {
+      const market = positionToMarket(enrichBtcPosition(p), teamsData);
+      const key = marketRouteKey(market);
+      if (!key) return;
+      stashMarketDetail(key, {
+        market,
+        initialOutcome: p.outcomeIndex === 0 ? 'yes' : 'no',
+        yesShares: p.outcomeIndex === 0 ? p.size : 0,
+        noShares: p.outcomeIndex === 1 ? p.size : 0,
+      });
+      router.push(`/prediction/market/${encodeURIComponent(key)}`);
+    },
+    [enrichBtcPosition, router, stashMarketDetail, teamsData],
+  );
+
   const [pendingVerification, setPendingVerification] = useState<
     Map<string, number>
   >(new Map());
@@ -227,6 +258,7 @@ export default function UserPositions() {
     try {
       await submitOrder({
         tokenId: position.asset,
+        conditionId: position.conditionId,
         size: position.size,
         side: 'SELL',
         negRisk: position.negativeRisk,
@@ -262,10 +294,12 @@ export default function UserPositions() {
 
   const handleRedeem = useCallback(async (position: PolymarketPosition) => {
     if (!isTradingSessionComplete) return;
+    if (!hasRedeemablePayout(position)) return;
     setRedeemingAsset(position.asset);
     try {
       await redeemPosition({
         conditionId: position.conditionId,
+        asset: position.asset,
         outcomeIndex: position.outcomeIndex,
         negativeRisk: position.negativeRisk,
         size: position.size,
@@ -274,20 +308,25 @@ export default function UserPositions() {
       queryClient.invalidateQueries({
         queryKey: ['polymarket-positions'],
       });
-      queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
       createPollingInterval(
         () => {
           queryClient.invalidateQueries({
             queryKey: ['polymarket-positions'],
           });
           queryClient.invalidateQueries({
-            queryKey: ['usdcBalance'],
+            queryKey: ['pusdBalance'],
           });
         },
         POLLING_INTERVAL,
         POLLING_DURATION,
       );
     } catch (err) {
+      if (isZeroPositionBalanceRedeemError(err)) {
+        queryClient.invalidateQueries({
+          queryKey: ['polymarket-positions'],
+        });
+      }
       console.error('Failed to redeem position:', err);
     } finally {
       setRedeemingAsset(null);
@@ -307,11 +346,9 @@ export default function UserPositions() {
 
   const activePositions = useMemo(() => {
     if (!positions) return [];
-    return positions
-      .filter((p) => p.size >= DUST_THRESHOLD)
-      .filter(
-        (p) => p.redeemable || p.currentValue >= DUST_THRESHOLD,
-      );
+    return positions.filter((p) =>
+      isVisiblePortfolioPosition(p, DUST_THRESHOLD),
+    );
   }, [positions]);
 
   // ── Market title lookup (asset_id → market question) ────────────────────
@@ -328,17 +365,13 @@ export default function UserPositions() {
   // ── Portfolio stats ──────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const deposited = netDeposits?.totalDeposited ?? 0;
-    console.log('deposited', deposited);
     const withdrawn = netDeposits?.totalWithdrawn ?? 0;
-    console.log('withdrawn', withdrawn);
     const positionsValue = activePositions.reduce(
       (s, p) => s + (p.currentValue ?? 0),
       0,
     );
-    console.log('positionsValue', positionsValue);
     const lifetimeEarned =
       usdcBalance + positionsValue + withdrawn - deposited;
-    console.log('lifetimeEarned', lifetimeEarned);
     if (!activePositions.length)
       return { portfolioPct: 0, lifetimeEarned, inOrdersValue: 0 };
 
@@ -561,7 +594,7 @@ export default function UserPositions() {
               isSubmitting={isSubmitting}
               canSell={!!clobClient}
               canRedeem={!!clobClient}
-              onTitleClick={() => setDetailPosition(position)}
+              onTitleClick={() => navigateToPosition(position)}
             />
           );
         })}
@@ -601,25 +634,6 @@ export default function UserPositions() {
           );
         })()}
 
-      {/* ── Market Detail Modal (opened via title click) ──────────────── */}
-      {detailPosition && (
-        <MarketDetailModal
-          isOpen={!!detailPosition}
-          onClose={() => setDetailPosition(null)}
-          market={positionToMarket(enrichBtcPosition(detailPosition), teamsData)}
-          balance={usdcBalance}
-          yesShares={
-            detailPosition.outcomeIndex === 0
-              ? detailPosition.size
-              : 0
-          }
-          noShares={
-            detailPosition.outcomeIndex === 1
-              ? detailPosition.size
-              : 0
-          }
-        />
-      )}
     </div>
   );
 }

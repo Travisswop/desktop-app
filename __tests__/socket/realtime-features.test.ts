@@ -1,10 +1,10 @@
-import { Socket } from 'socket.io-client';
-import { createTestSocket, describeSocketIntegration } from './test-runner';
+import { io, Socket } from 'socket.io-client';
 
-describeSocketIntegration('Socket Real-time Features', () => {
+describe('Socket Real-time Features', () => {
   let userSocket1: Socket;
   let userSocket2: Socket;
   let userSocket3: Socket;
+  const SOCKET_URL = process.env.SOCKET_URL || 'http://localhost:3001';
 
   const mockUser1 = {
     id: 'user1-123',
@@ -41,11 +41,20 @@ describeSocketIntegration('Socket Real-time Features', () => {
       }
     };
 
-    userSocket1 = createTestSocket();
+    userSocket1 = io(SOCKET_URL, {
+      autoConnect: false,
+      transports: ['websocket'],
+    });
 
-    userSocket2 = createTestSocket();
+    userSocket2 = io(SOCKET_URL, {
+      autoConnect: false,
+      transports: ['websocket'],
+    });
 
-    userSocket3 = createTestSocket();
+    userSocket3 = io(SOCKET_URL, {
+      autoConnect: false,
+      transports: ['websocket'],
+    });
 
     userSocket1.on('connect', checkConnections);
     userSocket2.on('connect', checkConnections);
@@ -296,7 +305,7 @@ describeSocketIntegration('Socket Real-time Features', () => {
         expect(Array.isArray(presenceStatuses)).toBe(true);
         expect(presenceStatuses.length).toBeGreaterThan(0);
         
-        const userStatus = presenceStatuses.find(s => s.userId === mockUser2.id);
+        const userStatus = presenceStatuses.find((s: any) => s.userId === mockUser2.id);
         expect(userStatus).toBeDefined();
         expect(['online', 'offline', 'away'].includes(userStatus.status)).toBe(true);
         done();

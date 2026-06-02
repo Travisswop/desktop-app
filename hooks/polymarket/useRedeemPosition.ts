@@ -6,10 +6,13 @@ import { getRedeemTypedData, submitRedeem } from "@/lib/polymarket/backend-sessi
 
 export interface RedeemParams {
   conditionId: string;
+  asset?: string;
   outcomeIndex: number;
   negativeRisk?: boolean;
   size?: number;
   safeAddress: string;
+  depositWalletAddress?: string;
+  walletType?: "safe" | "deposit";
 }
 
 export function useRedeemPosition() {
@@ -30,24 +33,50 @@ export function useRedeemPosition() {
       setError(null);
 
       try {
+        const redeemWalletType = params.walletType ?? walletType;
+        const redeemDepositWalletAddress =
+          redeemWalletType === "deposit"
+            ? (params.depositWalletAddress ?? depositWalletAddress)
+            : undefined;
+        const redeemBasePayload = {
+          safeAddress: params.safeAddress,
+          depositWalletAddress: redeemDepositWalletAddress,
+          walletType: redeemWalletType,
+          eoaAddress,
+          conditionId: params.conditionId,
+          asset: params.asset,
+          negRisk: params.negativeRisk,
+          outcomeIndex: params.outcomeIndex,
+          size: params.size,
+        };
+
+        console.debug("[Polymarket Redeem] typed-data request", redeemBasePayload);
+
         // Step 1: Get the SafeTx EIP-712 hash from backend
         const typedData = await getRedeemTypedData(
-          {
-            safeAddress: params.safeAddress,
-            depositWalletAddress,
-            walletType,
-            eoaAddress,
-            conditionId: params.conditionId,
-            negRisk: params.negativeRisk,
-            outcomeIndex: params.outcomeIndex,
-            size: params.size,
-          },
+          redeemBasePayload,
           accessToken
         );
+        console.debug("[Polymarket Redeem] typed-data response", {
+          walletType: redeemWalletType,
+          hasTypedData: Boolean(typedData.typedData),
+          hasTxHash: Boolean(typedData.txHash),
+          txHash: typedData.txHash,
+          nonce: typedData.nonce,
+          deadline: typedData.deadline,
+          calls: typedData.calls?.map((call) => ({
+            target: call.target,
+            value: call.value,
+            dataLength: call.data?.length,
+          })),
+          to: typedData.to,
+          operation: typedData.operation,
+          dataLength: typedData.data?.length,
+        });
 
         // Step 2: Sign using the active wallet version's required scheme.
         const signature =
-          walletType === "deposit"
+          redeemWalletType === "deposit"
             ? await walletClient.signTypedData({
               account: eoaAddress as `0x${string}`,
               domain: typedData.typedData!.domain as Parameters<typeof walletClient.signTypedData>[0]["domain"],
@@ -71,26 +100,30 @@ export function useRedeemPosition() {
             });
 
         // Step 3: Submit
+        console.debug("[Polymarket Redeem] submit request", {
+          ...redeemBasePayload,
+          nonce: typedData.nonce,
+          deadline: typedData.deadline,
+          signaturePreview: `${signature.slice(0, 18)}...${signature.slice(-8)}`,
+        });
         const result = await submitRedeem(
           {
-            safeAddress: params.safeAddress,
-            depositWalletAddress,
-            walletType,
-            eoaAddress,
-            conditionId: params.conditionId,
-            negRisk: params.negativeRisk,
-            outcomeIndex: params.outcomeIndex,
-            size: params.size,
+            ...redeemBasePayload,
             signature,
             nonce: typedData.nonce,
             deadline: typedData.deadline,
           },
           accessToken
         );
+        console.debug("[Polymarket Redeem] submit response", result);
 
         return result.success;
       } catch (err) {
         const error = err instanceof Error ? err : new Error("Failed to redeem position");
+        console.debug("[Polymarket Redeem] failed", {
+          message: error.message,
+          params,
+        });
         setError(error);
         throw error;
       } finally {

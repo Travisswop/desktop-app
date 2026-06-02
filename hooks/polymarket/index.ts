@@ -7,7 +7,11 @@ export { useClobClient } from "./useClobClient";
 
 // Market and order hooks
 export { useMarkets, type PolymarketMarket } from "./useMarkets";
-export { useClobOrder, type OrderParams } from "./useClobOrder";
+export {
+  useClobOrder,
+  type OrderParams,
+  type OrderSubmissionStage,
+} from "./useClobOrder";
 export { useActiveOrders, type PolymarketOrder } from "./useActiveOrders";
 export { useUserPositions, type PolymarketPosition } from "./useUserPositions";
 

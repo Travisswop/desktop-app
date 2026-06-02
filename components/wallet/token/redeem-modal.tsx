@@ -579,6 +579,7 @@ import {
   useWallets as useSolanaWallets,
 } from "@privy-io/react-auth/solana";
 import { Connection, Transaction } from "@solana/web3.js";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 // Rent-exempt minimum for a token account (in SOL)
 const TOKEN_ACCOUNT_RENT_EXEMPT = 0.00203928;
@@ -1163,9 +1164,11 @@ export default function RedeemModal(props: RedeemModalProps) {
               {redeemLink}
             </span>
             <button
-              onClick={() => {
-                navigator.clipboard.writeText(redeemLink);
-                toast({ title: "Link copied!" });
+              onClick={async () => {
+                const didCopy = await copyTextToClipboard(redeemLink);
+                toast({
+                  title: didCopy ? "Link copied!" : "Could not copy link",
+                });
               }}
               className="shrink-0 flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
             >

@@ -33,6 +33,10 @@ import type {
   HLMarket,
   HLPosition,
 } from '@/services/hyperliquid/types';
+import type {
+  AgentActionCompletion,
+  HyperliquidAgentOrderPrefill,
+} from '@/lib/chat/agentActionHandoff';
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
@@ -54,6 +58,9 @@ interface PerpsPanelProps {
   onRecheckBalance: () => void;
   /** Coin to focus on when the panel opens (e.g. user clicked an ETH row in PerpsCard) */
   initialCoin?: string | null;
+  /** Approved agent proposal defaults. The ticket still requires user review/confirm. */
+  agentOrderPrefill?: HyperliquidAgentOrderPrefill | null;
+  onAgentActionComplete?: (completion: AgentActionCompletion) => void;
 }
 
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1D'] as const;
@@ -83,11 +90,13 @@ export function PerpsPanel({
   depositStatus,
   onRecheckBalance,
   initialCoin,
+  agentOrderPrefill,
+  onAgentActionComplete,
 }: PerpsPanelProps) {
   const { toast } = useToast();
   const { accessToken, user, primaryMicrosite } = useUser();
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const syncedPositionSnapshotsRef = useRef<Set<string>>(new Set());
-  const latestPositionsRef = useRef<Map<string, HLPosition>>(new Map());
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [selectedCoin, setSelectedCoin] = useState<string | null>(
@@ -101,16 +110,41 @@ export function PerpsPanel({
     isCross: true,
   });
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    scrollContainerRef.current?.scrollTo({ top: 0 });
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
+    const requestedCoin = agentOrderPrefill?.coin || initialCoin;
+    if (requestedCoin) setSelectedCoin(requestedCoin);
+  }, [agentOrderPrefill?.coin, initialCoin]);
+
   // Re-open AgentSetupModal once a deposit settles.
   useEffect(() => {
-    if (depositStatus === 'ready' && !isInitialized)
+    if (
+      depositStatus === 'ready' &&
+      !isInitialized &&
+      !isInitializing &&
+      !isReconnecting
+    ) {
       setShowAgentModal(true);
-  }, [depositStatus, isInitialized]);
+    }
+  }, [depositStatus, isInitialized, isInitializing, isReconnecting]);
 
-  // Show agent modal on first open if not yet initialized
+  // Show setup only after silent rehydrate has had a chance to restore a saved agent.
   useEffect(() => {
-    if (!isInitialized) setShowAgentModal(true);
-  }, [isInitialized]);
+    if (isInitialized) {
+      setShowAgentModal(false);
+      return;
+    }
+    if (!isInitializing && !isReconnecting) setShowAgentModal(true);
+  }, [isInitialized, isInitializing, isReconnecting]);
 
   const handleOpenDepositFromAgentModal = useCallback(() => {
     setShowAgentModal(false);
@@ -130,91 +164,11 @@ export function PerpsPanel({
     !!selectedCoin,
   );
 
-  useEffect(() => {
-    latestPositionsRef.current = new Map(
-      (accountData?.positions || []).map((position) => [
-        position.coin.toUpperCase(),
-        position,
-      ]),
-    );
-  }, [accountData?.positions]);
-
-  const syncLiquidatedPosition = useCallback(
-    (eventData: unknown) => {
-      const fill = extractLiquidationFill(eventData, masterAddress);
-      if (!fill?.coin) return;
-
-      const position = latestPositionsRef.current.get(fill.coin.toUpperCase());
-      const smartsiteId = user?.primaryMicrosite || primaryMicrosite;
-
-      if (!position || !accessToken || !user?._id || !smartsiteId) {
-        return;
-      }
-
-      const timestamp = fill.time
-        ? new Date(fill.time).toISOString()
-        : new Date().toISOString();
-      const liquidationPrice = toPerpsFeedNumber(
-        fill.liquidation?.markPx || fill.px || position.liquidationPx,
-        toPerpsFeedNumber(position.entryPx),
-      );
-      const isLong = toPerpsFeedNumber(position.szi) > 0;
-
-      upsertPerpsPositionFeed({
-        token: accessToken,
-        userId: user._id,
-        smartsiteId,
-        content: {
-          provider: 'hyperliquid',
-          positionKey: buildPerpsPositionKey({
-            userId: user._id,
-            masterAddress,
-            coin: position.coin,
-          }),
-          coin: position.coin,
-          side: isLong ? 'long' : 'short',
-          status: 'liquidated',
-          event: 'liquidated',
-          leverage: position.leverage.value,
-          marginMode:
-            position.leverage.type === 'isolated' ? 'isolated' : 'cross',
-          entryPrice: toPerpsFeedNumber(position.entryPx),
-          markPrice: liquidationPrice,
-          liquidationPrice,
-          collateralUsd: toPerpsFeedNumber(position.marginUsed),
-          notionalUsd: toPerpsFeedNumber(position.positionValue),
-          sizeCoins: Math.abs(toPerpsFeedNumber(position.szi)),
-          returnPct: calculatePositionReturnPct(position, liquidationPrice),
-          unrealizedPnl: toPerpsFeedNumber(
-            fill.closedPnl,
-            toPerpsFeedNumber(position.unrealizedPnl),
-          ),
-          feeUsd: Math.abs(toPerpsFeedNumber(fill.fee)),
-          orderId: fill.oid === undefined ? undefined : String(fill.oid),
-          masterAddress,
-          updatedAt: timestamp,
-          closedAt: timestamp,
-          liquidatedAt: timestamp,
-        },
-      }).catch((feedError) => {
-        console.warn('Failed to mark perps feed card liquidated:', feedError);
-      });
-    },
-    [
-      accessToken,
-      user?._id,
-      user?.primaryMicrosite,
-      primaryMicrosite,
-      masterAddress,
-    ],
-  );
-
   useUserFills(
     effectiveMaster,
-    useCallback((eventData: unknown) => {
-      syncLiquidatedPosition(eventData);
+    useCallback(() => {
       refetchPositions();
-    }, [refetchPositions, syncLiquidatedPosition]),
+    }, [refetchPositions]),
     !!effectiveMaster,
   );
 
@@ -331,7 +285,6 @@ export function PerpsPanel({
           livePrice,
         );
         const timestamp = new Date().toISOString();
-
         upsertPerpsPositionFeed({
           token: accessToken,
           userId: user?._id,
@@ -352,6 +305,7 @@ export function PerpsPanel({
               position.leverage.type === 'isolated' ? 'isolated' : 'cross',
             entryPrice: toPerpsFeedNumber(position.entryPx),
             markPrice: toPerpsFeedNumber(livePrice || position.entryPx),
+            exitPrice: toPerpsFeedNumber(livePrice || position.entryPx),
             liquidationPrice: position.liquidationPx
               ? toPerpsFeedNumber(position.liquidationPx)
               : null,
@@ -368,7 +322,6 @@ export function PerpsPanel({
         }).catch((feedError) => {
           console.warn('Failed to update perps feed card:', feedError);
         });
-
         toast({
           title: 'Position closed',
           description: `${isLong ? 'Long' : 'Short'} ${position.coin} position closed successfully`,
@@ -431,14 +384,15 @@ export function PerpsPanel({
   return (
     <>
       <div
-        className="fixed inset-0 z-40 flex flex-col"
+        className="fixed inset-0 z-[90] flex h-dvh flex-col overflow-hidden"
         style={{ background: '#ecebe6' }}
       >
         {/* ── Top bar ─────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-black/[0.06] flex-shrink-0">
+        <div className="relative z-10 flex flex-shrink-0 items-center justify-between bg-white px-5 py-3 border-b border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04)]">
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
+              aria-label="Back to wallet"
               className="inline-flex items-center gap-1.5 pl-2.5 pr-3.5 py-1.5 rounded-full border border-black/[0.06] text-[12.5px] font-semibold text-gray-900 bg-white hover:bg-gray-50 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -477,7 +431,10 @@ export function PerpsPanel({
         </div>
 
         {/* ── Bento body (scrollable) ─────────────────────────── */}
-        <div className="flex-1 overflow-y-auto">
+        <div
+          ref={scrollContainerRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        >
           <div className="max-w-[1380px] mx-auto px-5 py-5 space-y-3">
             {/* Asset header */}
             <AssetHeader
@@ -521,6 +478,7 @@ export function PerpsPanel({
                   markPrice={liveMarkPrice}
                   existingPosition={existingPosition}
                   accountValue={accountData?.accountValue ?? '0'}
+                  availableMargin={accountData?.withdrawable ?? '0'}
                   isAgentReady={isInitialized}
                   isSubmitting={isSubmitting}
                   error={tradeError}
@@ -532,6 +490,9 @@ export function PerpsPanel({
                   onPlaceTpSl={placeTpSlOrder}
                   onUpdateLeverage={updateLeverage}
                   onClearError={clearError}
+                  onOpenDeposit={onOpenDeposit}
+                  onAgentActionComplete={onAgentActionComplete}
+                  agentOrderPrefill={agentOrderPrefill}
                   masterAddress={masterAddress}
                 />
               </Card>
@@ -690,56 +651,4 @@ function extractPerpsOrderId(value: unknown) {
   if (oidMatch?.[1]) return oidMatch[1];
   const orderIdMatch = text.match(/"orderId"\s*:\s*"?([0-9A-Za-z_-]+)"?/);
   return orderIdMatch?.[1];
-}
-
-interface HyperliquidLiquidationFill {
-  coin?: string;
-  px?: string | number;
-  time?: number;
-  closedPnl?: string | number;
-  fee?: string | number;
-  oid?: string | number;
-  liquidation?: {
-    liquidatedUser?: string;
-    markPx?: string | number;
-    method?: string;
-  };
-}
-
-function extractLiquidationFill(
-  eventData: unknown,
-  masterAddress?: string | null,
-): HyperliquidLiquidationFill | null {
-  if (!eventData || typeof eventData !== 'object') return null;
-
-  const payload = eventData as {
-    isSnapshot?: boolean;
-    fills?: HyperliquidLiquidationFill[];
-  };
-  if (payload.isSnapshot || !Array.isArray(payload.fills)) return null;
-
-  const normalizedMaster = masterAddress?.toLowerCase();
-  return (
-    payload.fills.find((fill) => {
-      if (!fill?.liquidation || !fill.coin) return false;
-      const liquidatedUser = fill.liquidation.liquidatedUser?.toLowerCase();
-      return !liquidatedUser || liquidatedUser === normalizedMaster;
-    }) || null
-  );
-}
-
-function calculatePositionReturnPct(position: HLPosition, markPrice: number) {
-  const entryPrice = toPerpsFeedNumber(position.entryPx);
-  const leverage = Math.max(1, toPerpsFeedNumber(position.leverage.value, 1));
-
-  if (entryPrice <= 0 || markPrice <= 0) {
-    return toPerpsFeedNumber(position.returnOnEquity) * 100;
-  }
-
-  const isLong = toPerpsFeedNumber(position.szi) > 0;
-  const directionReturn = isLong
-    ? (markPrice - entryPrice) / entryPrice
-    : (entryPrice - markPrice) / entryPrice;
-
-  return directionReturn * leverage * 100;
 }

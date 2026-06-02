@@ -14,19 +14,19 @@ interface LiFiPrivyWrapperProps {
 }
 export default function LiFiPrivyWrapper({
   tokens,
-  config,
   onSwapComplete,
 }: LiFiPrivyWrapperProps) {
   const { authenticated, ready, login } = usePrivy();
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
   const [isReady, setIsReady] = useState(false);
-  const hasWallets = wallets.length > 0 || solWallets.length > 0;
 
-  // Wait for Privy to be ready, authenticated, and have at least one wallet.
+  // Wait for Privy to be ready and authenticated
   useEffect(() => {
-    setIsReady(ready && authenticated && hasWallets);
-  }, [ready, authenticated, hasWallets]);
+    if (ready && authenticated) {
+      setIsReady(true);
+    }
+  }, [ready, authenticated, wallets, solWallets]);
 
   // If not authenticated, show login button
   if (!authenticated && ready) {
@@ -45,19 +45,6 @@ export default function LiFiPrivyWrapper({
     );
   }
 
-  if (authenticated && ready && !hasWallets) {
-    return (
-      <div className="p-8 text-center flex flex-col items-center justify-center">
-        <p className="mb-2 font-medium">
-          Your wallet is still being set up
-        </p>
-        <p className="text-sm text-gray-500">
-          Please refresh in a moment or reopen the swap after your Privy wallet finishes provisioning.
-        </p>
-      </div>
-    );
-  }
-
   if (!isReady) {
     return (
       <div className="p-4 text-center">
@@ -67,10 +54,11 @@ export default function LiFiPrivyWrapper({
   }
 
   return (
-    // <LiFiModal
-    //     config={config}
-    //     onSwapComplete={onSwapComplete}
-    // />
-    <SwapTokenModal tokens={tokens} />
+    <SwapTokenModal
+      tokens={tokens}
+      onSwapComplete={() => {
+        onSwapComplete?.();
+      }}
+    />
   );
 }

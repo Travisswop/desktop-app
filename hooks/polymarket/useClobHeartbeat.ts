@@ -35,7 +35,7 @@ export function useClobHeartbeat(
             apiCreds: session!.apiCredentials,
             safeAddress,
             depositWalletAddress: session!.depositWalletAddress,
-            walletType: session!.walletType ?? "safe",
+            walletType: session!.walletType ?? "deposit",
             eoaAddress: session!.eoaAddress,
           }),
         });

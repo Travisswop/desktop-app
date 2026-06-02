@@ -171,7 +171,6 @@ export default function GroupMenu({
         <AddMemberModal
           group={group}
           socket={socket}
-          currentUser={currentUser}
           onClose={closeModal}
           onSuccess={onGroupUpdate}
         />
@@ -222,13 +221,11 @@ export default function GroupMenu({
 function AddMemberModal({
   group,
   socket,
-  currentUser,
   onClose,
   onSuccess,
 }: {
   group: Group;
   socket: any;
-  currentUser: string;
   onClose: () => void;
   onSuccess?: () => void;
 }) {

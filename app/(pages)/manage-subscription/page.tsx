@@ -6,9 +6,16 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import Cookies from "js-cookie";
 
+type SubscriptionSummary = {
+  planNickname?: string;
+  status?: string;
+  currentPeriodEnd?: string | number | Date;
+};
+
 export default function ManageSubscriptionPage() {
   const [loading, setLoading] = useState(true);
-  const [subscription, setSubscription] = useState(null);
+  const [subscription, setSubscription] =
+    useState<SubscriptionSummary | null>(null);
   const [manageUrl, setManageUrl] = useState("");
   const [userId, setUserId] = useState("");
 

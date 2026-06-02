@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import dashboard from "@/public/images/nav/dashboard.png";
 import feed from "@/public/images/nav/feed.png";
@@ -10,7 +10,7 @@ import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
 import { TrendingUp } from "lucide-react";
 import { VscChip } from "react-icons/vsc";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
 import { IoAdd, IoClose } from "react-icons/io5";
@@ -51,6 +51,7 @@ import { AiOutlineFileAdd } from "react-icons/ai";
 const BottomNavContent = () => {
   const params = useParams();
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { openModal } = useModalStore();
 
@@ -68,6 +69,10 @@ const BottomNavContent = () => {
   // console.log("params", params);
 
   const isSmartsite = pathname?.startsWith("/smartsite/");
+
+  useEffect(() => {
+    router.prefetch("/wallet");
+  }, [router]);
 
   // Get the dynamic ID from the route
   const pageId =
@@ -548,7 +553,13 @@ const BottomNavContent = () => {
             </div>
             <p className="text-sm">Feed</p>
           </Link>
-          <Link href={"/wallet"} className="flex flex-col gap-1 items-center">
+          <Link
+            href={"/wallet"}
+            prefetch
+            onPointerEnter={() => router.prefetch("/wallet")}
+            onFocus={() => router.prefetch("/wallet")}
+            className="flex flex-col gap-1 items-center"
+          >
             <div
               className={`border ${
                 pathname?.startsWith("/wallet")

@@ -44,7 +44,7 @@ const baseNavItems = [
   { href: "/qr-code", label: "QR Code", icon: ScanQrCode },
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
-  { href: "/mint", label: "Mint", icon: ImageIcon },
+  { href: "/products", label: "Products", icon: ImageIcon },
   { href: "/order", label: "Orders", icon: ShoppingBag },
   { href: "/content", label: "Content", icon: FileText },
 ];
@@ -64,7 +64,10 @@ export default function Sidenav() {
   // Create the final nav items array based on email
   const navItems = useMemo(() => {
     if (user?.email === "salmansaikote9@gmail.com") {
-      return [...baseNavItems, { href: "/agent", label: "Agent", icon: Bot }];
+      return [
+        ...baseNavItems,
+        { href: "/dashboard/chat?astro=1", label: "Agent", icon: Bot },
+      ];
     }
     return baseNavItems;
   }, [user?.email]);

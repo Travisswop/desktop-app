@@ -33,6 +33,8 @@ interface BrowseMarketsBentoProps {
     price: number,
     tokenId: string,
   ) => void;
+  /** Click a compact sports game / odds grid → opens the game odds sheet */
+  onSportsGameClick?: (game: SportsGameGroup) => void;
   /** "View all →" chip in the Sports hero — drills into Sports detail (screen A2) */
   onBrowseSports?: (sportSub: SportSubcategoryId) => void;
   /** "Browse" button on a category card — drills into that category detail */
@@ -57,20 +59,31 @@ const BENTO_CATEGORIES: {
   tone: string;
 }[] = [
   { id: 'politics', tone: '#3548e3' },
+  { id: 'elections', tone: '#4b5eea' },
+  { id: 'world', tone: '#2f6dd8' },
+  { id: 'middle-east', tone: '#8b5cf6' },
+  { id: 'geopolitics', tone: '#9b6cf2' },
   { id: 'crypto', tone: '#f08c2e' },
+  { id: 'business', tone: '#0e7c66' },
+  { id: 'ai', tone: '#0a0a0c' },
   { id: 'tech', tone: '#0a0a0c' },
   { id: 'economy', tone: '#c4501a' },
   { id: 'finance', tone: '#0e7c66' },
-  { id: 'geopolitics', tone: '#9b6cf2' },
+  { id: 'culture', tone: '#e15d9f' },
+  { id: 'weather', tone: '#348fce' },
+  { id: 'science', tone: '#4f8f41' },
 ];
 
 // Sport tabs shown inside the sports hero card.
 const SPORT_TABS: SportSubcategoryId[] = [
   'nba',
+  'wnba',
   'nfl',
+  'cfb',
   'mlb',
   'nhl',
   'soccer',
+  'f1',
   'mma',
   'tennis',
 ];
@@ -152,13 +165,14 @@ function gameTimeLabel(startDate: string | undefined): {
   };
 }
 
-/** Format a moneyline price as American odds for the cell (0.64 → +56). */
-function priceToAmerican(price: number): string {
-  if (price <= 0 || price >= 1) return '—';
-  if (price >= 0.5) {
-    return `−${Math.round((price / (1 - price)) * 100)}`;
-  }
-  return `+${Math.round(((1 - price) / price) * 100)}`;
+/** Format a 0-1 probability as a whole-percent string (0.64 → "64%").
+ *  Polymarket prices both sides as probabilities, so percentages are the
+ *  honest unit — sportsbook-style American odds and a "−110" vig don't
+ *  apply here. */
+function priceToPct(price: number | undefined): string {
+  if (price == null || !Number.isFinite(price) || price <= 0 || price >= 1)
+    return '—';
+  return `${Math.round(price * 100)}%`;
 }
 
 /** "+1.5" / "-1.5" style spread label — pulls the line off the outcome. */
@@ -223,6 +237,7 @@ function OddsPill({ tone, cents, onClick, disabled }: OddsPillProps) {
 interface CompactGameCardProps {
   game: SportsGameGroup;
   onOutcomeClick: BrowseMarketsBentoProps['onSportsOutcomeClick'];
+  onGameClick?: BrowseMarketsBentoProps['onSportsGameClick'];
   withRightBorder?: boolean;
 }
 
@@ -234,6 +249,7 @@ interface CompactGameCardProps {
 function CompactGameCard({
   game,
   onOutcomeClick,
+  onGameClick,
   withRightBorder,
 }: CompactGameCardProps) {
   const { label: timeLabel, isLive } = gameTimeLabel(game.startDate);
@@ -280,6 +296,20 @@ function CompactGameCard({
       },
     ];
   }, [game, ml, sp, tot]);
+
+  const openOutcome = (
+    market: PolymarketMarket | undefined,
+    outcome:
+      | { label: string; price: number; tokenId: string }
+      | undefined,
+  ) => {
+    if (!market || !outcome) return;
+    if (onGameClick) {
+      onGameClick(game);
+      return;
+    }
+    onOutcomeClick(market, outcome.label, outcome.price, outcome.tokenId);
+  };
 
   return (
     <div
@@ -340,7 +370,12 @@ function CompactGameCard({
             columnGap: 6,
           }}
         >
-          <div className="flex items-center gap-2 min-w-0">
+          <button
+            type="button"
+            onClick={() => onGameClick?.(game)}
+            className="flex min-w-0 items-center gap-2 text-left transition hover:opacity-80"
+            aria-label={`Open all odds for ${game.title}`}
+          >
             <div
               className="w-[22px] h-[22px] rounded-md flex items-center justify-center text-[10px] font-bold flex-shrink-0 overflow-hidden"
               style={{
@@ -368,19 +403,14 @@ function CompactGameCard({
                 {row.team}
               </div>
             </div>
-          </div>
+          </button>
 
           <button
             onClick={() => {
-              if (!row.ml || !ml) return;
-              onOutcomeClick(
-                ml.market,
-                row.ml.label,
-                row.ml.price,
-                row.ml.tokenId,
-              );
+              openOutcome(ml?.market, row.ml);
             }}
             disabled={!row.ml || !ml}
+            aria-label={`Open all odds for ${game.title}`}
             className="px-1 py-1 rounded-md border bg-white text-[11px] font-semibold tabular-nums hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               borderColor: HAIR,
@@ -388,20 +418,15 @@ function CompactGameCard({
               color: '#0a0a0c',
             }}
           >
-            {row.ml ? priceToAmerican(row.ml.price) : '—'}
+            {priceToPct(row.ml?.price)}
           </button>
 
           <button
             onClick={() => {
-              if (!row.spread || !sp) return;
-              onOutcomeClick(
-                sp.market,
-                row.spread.label,
-                row.spread.price,
-                row.spread.tokenId,
-              );
+              openOutcome(sp?.market, row.spread);
             }}
             disabled={!row.spread || !sp}
+            aria-label={`Open all odds for ${game.title}`}
             className="px-1 py-1 rounded-md border bg-white text-[11px] font-semibold tabular-nums hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed leading-tight"
             style={{
               borderColor: HAIR,
@@ -414,22 +439,17 @@ function CompactGameCard({
             </div>
             {row.spread && (
               <div className="text-[9.5px] text-gray-500 font-medium">
-                {priceToAmerican(row.spread.price)}
+                {priceToPct(row.spread.price)}
               </div>
             )}
           </button>
 
           <button
             onClick={() => {
-              if (!row.total || !tot) return;
-              onOutcomeClick(
-                tot.market,
-                row.total.label,
-                row.total.price,
-                row.total.tokenId,
-              );
+              openOutcome(tot?.market, row.total);
             }}
             disabled={!row.total || !tot}
+            aria-label={`Open all odds for ${game.title}`}
             className="px-1 py-1 rounded-md border bg-white text-[11px] font-semibold tabular-nums hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed leading-tight"
             style={{
               borderColor: HAIR,
@@ -442,7 +462,7 @@ function CompactGameCard({
             </div>
             {row.total && (
               <div className="text-[9.5px] text-gray-500 font-medium">
-                {priceToAmerican(row.total.price)}
+                {priceToPct(row.total.price)}
               </div>
             )}
           </button>
@@ -468,6 +488,7 @@ interface SportsHeroProps {
   activeSub: SportSubcategoryId;
   onChangeSub: (sub: SportSubcategoryId) => void;
   onSportsOutcomeClick: BrowseMarketsBentoProps['onSportsOutcomeClick'];
+  onSportsGameClick?: BrowseMarketsBentoProps['onSportsGameClick'];
   onBrowse?: (sub: SportSubcategoryId) => void;
 }
 
@@ -475,6 +496,7 @@ function SportsHeroCard({
   activeSub,
   onChangeSub,
   onSportsOutcomeClick,
+  onSportsGameClick,
   onBrowse,
 }: SportsHeroProps) {
   const { data: sportsMeta } = useSportsMeta();
@@ -484,7 +506,7 @@ function SportsHeroCard({
     const sub = getSportSubcategoryById(activeSub);
     if (!sub) return undefined;
     if (sub.id === 'all')
-      return sportsMeta?.tagIdBySlug.get('sports') ?? 100639;
+      return sportsMeta?.tagIdBySlug.get('sports') ?? 1;
     const liveTag = sportsMeta?.tagIdBySlug.get(sub.id);
     return liveTag ?? sub.tagId ?? undefined;
   }, [activeSub, sportsMeta]);
@@ -510,9 +532,7 @@ function SportsHeroCard({
   const stats = useMemo(() => {
     const all = sportsData?.pages.flat() ?? [];
     const liveCount = all.filter((m) =>
-      m.gameStartTime
-        ? new Date(m.gameStartTime).getTime() <= Date.now()
-        : false,
+      Boolean(m.eventLive || m.eventPeriod || m.eventElapsed),
     ).length;
     const vol = all.reduce(
       (s, m) => s + (parseFloat(m.volume24hr as string) || 0),
@@ -641,6 +661,7 @@ function SportsHeroCard({
               key={g.eventId}
               game={g}
               onOutcomeClick={onSportsOutcomeClick}
+              onGameClick={onSportsGameClick}
               withRightBorder={i === 0 && games.length > 1}
             />
           ))}
@@ -828,6 +849,7 @@ function CategoryBentoCard({
 export default function BrowseMarketsBento({
   onMarketClick,
   onSportsOutcomeClick,
+  onSportsGameClick,
   onBrowseSports,
   onBrowseCategory,
 }: BrowseMarketsBentoProps) {
@@ -851,6 +873,7 @@ export default function BrowseMarketsBento({
         activeSub={activeSportSub}
         onChangeSub={setActiveSportSub}
         onSportsOutcomeClick={onSportsOutcomeClick}
+        onSportsGameClick={onSportsGameClick}
         onBrowse={onBrowseSports}
       />
 

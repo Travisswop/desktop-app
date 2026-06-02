@@ -25,6 +25,7 @@ export function AssetHeader({
 }: AssetHeaderProps) {
   if (!market) return <AssetHeaderSkeleton />;
 
+  const displayCoin = market.displayCoin ?? market.coin.split(':').pop() ?? market.coin;
   const mark = parseFloat(markPrice) || parseFloat(market.markPrice) || 0;
   const change = market.change24h;
 
@@ -41,11 +42,11 @@ export function AssetHeader({
       <div className="flex items-center justify-between gap-6 flex-wrap">
         {/* Left: avatar + symbol + price */}
         <div className="flex items-center gap-4">
-          <CoinBadge coin={market.coin} />
+          <CoinBadge coin={displayCoin} />
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[22px] font-semibold tracking-tight text-gray-900">
-                {market.coin}-PERP
+                {displayCoin}-PERP
               </span>
               <button
                 onClick={onSelectMarketClick}
@@ -57,7 +58,7 @@ export function AssetHeader({
               <span className="text-xs font-semibold text-gray-700 bg-[#f6f6f3] border border-black/[0.06] rounded-full px-2.5 py-0.5">
                 {market.maxLeverage}× max
               </span>
-              <Tag>HYPERLIQUID</Tag>
+              <Tag>{market.dexName || 'HYPERLIQUID'}</Tag>
             </div>
             <div className="flex items-baseline gap-3 mt-1.5">
               <span
@@ -237,6 +238,8 @@ function coinBg(coin: string): string {
     ETH: '#0a0a0c',
     SOL: '#14F195',
     HYPE: '#10B981',
+    BRENTOIL: '#1f8a70',
+    SPCX: '#334155',
     DOGE: '#C2A633',
     AVAX: '#E84142',
     ARB: '#28A0F0',

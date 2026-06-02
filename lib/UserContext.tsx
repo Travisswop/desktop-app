@@ -12,6 +12,10 @@ import {
 import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import Cookies from 'js-cookie';
+
+const userContextDebugEnabled =
+  process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true';
+
 export interface UserData {
   _id: string;
   address?: string;
@@ -30,13 +34,24 @@ export interface UserData {
   followers: number;
   following: number;
   ensName?: string;
+  ens?: string;
   primaryMicrosite?: string;
   swopensId?: string;
   solanaAddress?: string;
+  solanaWallet?: string;
   user_id?: string;
   privyId?: string;
   ethAddress?: string;
+  ethereumWallet?: string;
   displayName?: string;
+  subscription?: {
+    planNickname?: string;
+    status?: string;
+    currentPeriodEnd?: string | number | Date;
+    [key: string]: unknown;
+  };
+  referralCode?: string;
+  connections?: any[];
 
   // Bot-related fields
   isBot?: boolean;
@@ -101,41 +116,60 @@ export interface UserContextType {
   refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  primaryMicrositeProfilePic: string | null;
 }
 
 const UserContext = createContext<UserContextType | null>(null);
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
-const LEGACY_AUTH_STORAGE_KEYS = [
-  'authToken',
-  'jwt_token',
-  'accessToken',
-] as const;
+const USER_CACHE_KEY = 'swop:user-cache';
+const USER_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const USER_FETCH_TIMEOUT_MS = 5000;
 
-function clearLegacyAuthStorage() {
-  if (typeof window === 'undefined') return;
+type CachedUserContext = {
+  user: UserData;
+  accessToken: string | null;
+  cachedAt: number;
+};
 
-  for (const key of LEGACY_AUTH_STORAGE_KEYS) {
-    window.localStorage.removeItem(key);
+function readCachedUserContext(): CachedUserContext | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const rawCache = window.localStorage.getItem(USER_CACHE_KEY);
+    if (!rawCache) return null;
+
+    const cache = JSON.parse(rawCache) as CachedUserContext;
+    if (
+      !cache.user ||
+      Date.now() - cache.cachedAt > USER_CACHE_MAX_AGE_MS
+    ) {
+      window.localStorage.removeItem(USER_CACHE_KEY);
+      return null;
+    }
+
+    return cache;
+  } catch (error) {
+    console.warn('Failed to read cached user context:', error);
+    window.localStorage.removeItem(USER_CACHE_KEY);
+    return null;
   }
 }
 
-function syncBackendSession(userId?: string, token?: string) {
-  if (userId) {
-    Cookies.set('user-id', userId);
-  } else {
-    Cookies.remove('user-id');
-  }
+function writeCachedUserContext(
+  user: UserData,
+  accessToken: string | null,
+) {
+  if (typeof window === 'undefined') return;
 
-  if (token) {
-    Cookies.set('access-token', token);
-  } else {
-    Cookies.remove('access-token');
+  try {
+    window.localStorage.setItem(
+      USER_CACHE_KEY,
+      JSON.stringify({ user, accessToken, cachedAt: Date.now() }),
+    );
+  } catch (error) {
+    console.warn('Failed to cache user context:', error);
   }
-
-  // Keep legacy localStorage auth keys empty so older code paths
-  // cannot accidentally revive a stale session after a Privy app switch.
-  clearLegacyAuthStorage();
 }
 
 export function UserProvider({
@@ -143,9 +177,22 @@ export function UserProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [user, setUser] = useState<UserData | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const initialCacheRef = useRef<
+    CachedUserContext | null | undefined
+  >(undefined);
+  if (initialCacheRef.current === undefined) {
+    initialCacheRef.current = readCachedUserContext();
+  }
+
+  const [user, setUser] = useState<UserData | null>(
+    () => initialCacheRef.current?.user ?? null,
+  );
+  const [accessToken, setAccessToken] = useState<string | null>(
+    () => initialCacheRef.current?.accessToken ?? null,
+  );
+  const [loading, setLoading] = useState(
+    () => initialCacheRef.current === null,
+  );
   const [error, setError] = useState<Error | null>(null);
 
   const router = useRouter();
@@ -159,6 +206,7 @@ export function UserProvider({
   const fetchInProgressRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchedEmailRef = useRef<string | null>(null);
+  const lastSyncedWalletsRef = useRef<string | null>(null);
 
   // Extract email from Privy user
   const extractEmail = useCallback(
@@ -179,6 +227,23 @@ export function UserProvider({
     [],
   );
 
+  const extractEmbeddedWalletAddresses = useCallback((privyUser: any) => {
+    const linkedAccounts = privyUser?.linkedAccounts || [];
+    const isEmbeddedWallet = (account: any) =>
+      account?.walletClientType === 'privy' ||
+      account?.connectorType === 'embedded';
+    const ethereumWallet = linkedAccounts.find(
+      (account: any) =>
+        account?.chainType === 'ethereum' && isEmbeddedWallet(account),
+    )?.address;
+    const solanaWallet = linkedAccounts.find(
+      (account: any) =>
+        account?.chainType === 'solana' && isEmbeddedWallet(account),
+    )?.address;
+
+    return { ethereumWallet, solanaWallet };
+  }, []);
+
   // Fetch user data from backend
   const fetchUserData = useCallback(
     async (email: string): Promise<boolean> => {
@@ -187,10 +252,14 @@ export function UserProvider({
       if (lastFetchedEmailRef.current === email && user) return true;
 
       fetchInProgressRef.current = true;
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
       try {
         abortControllerRef.current?.abort();
         abortControllerRef.current = new AbortController();
+        timeoutId = setTimeout(() => {
+          abortControllerRef.current?.abort();
+        }, USER_FETCH_TIMEOUT_MS);
 
         const response = await fetch(
           `${API_BASE_URL}/api/v2/desktop/user/${email}`,
@@ -204,7 +273,6 @@ export function UserProvider({
           if (response.status === 404) {
             setUser(null);
             setAccessToken(null);
-            syncBackendSession();
             return false;
           }
           throw new Error(`HTTP ${response.status}`);
@@ -221,19 +289,29 @@ export function UserProvider({
         setAccessToken(token);
         setError(null);
         lastFetchedEmailRef.current = email;
-        syncBackendSession(userData._id?.toString(), token);
+        writeCachedUserContext(userData, token);
 
         return true;
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
+          if (user) {
+            console.info(
+              'Using cached user data after refresh timed out',
+            );
+          }
           return false;
         }
-        console.error('Error fetching user data:', err);
+        if (user) {
+          console.info('Using cached user data after refresh failed:', err);
+        } else if (userContextDebugEnabled) {
+          console.debug('User data refresh failed:', err);
+        }
         setError(
           err instanceof Error ? err : new Error('Unknown error'),
         );
         return false;
       } finally {
+        if (timeoutId) clearTimeout(timeoutId);
         fetchInProgressRef.current = false;
         abortControllerRef.current = null;
       }
@@ -248,13 +326,17 @@ export function UserProvider({
       setUser(null);
       setAccessToken(null);
       setError(null);
+      window.localStorage.removeItem(USER_CACHE_KEY);
+      window.localStorage.removeItem('swop:last-authenticated-at');
       lastFetchedEmailRef.current = null;
-      syncBackendSession();
       await privyLogout();
       router.push('/login');
+      Cookies.remove('user-id');
+      Cookies.remove('access-token');
     } catch (err) {
       console.error('Error during logout:', err);
-      syncBackendSession();
+      Cookies.remove('user-id');
+      Cookies.remove('access-token');
       router.push('/login');
     }
   }, [privyLogout, router]);
@@ -271,7 +353,7 @@ export function UserProvider({
   // Main effect - only fetch user data when authenticated
   useEffect(() => {
     if (!ready) {
-      setLoading(true);
+      setLoading(!user);
       return;
     }
 
@@ -279,8 +361,6 @@ export function UserProvider({
     if (!authenticated || !privyUser) {
       setUser(null);
       setAccessToken(null);
-      lastFetchedEmailRef.current = null;
-      syncBackendSession();
       setLoading(false);
       return;
     }
@@ -306,12 +386,107 @@ export function UserProvider({
     user,
   ]);
 
+  useEffect(() => {
+    if (
+      !ready ||
+      !authenticated ||
+      !privyUser ||
+      !user?._id ||
+      !accessToken ||
+      !API_BASE_URL
+    ) {
+      return;
+    }
+
+    const { ethereumWallet, solanaWallet } =
+      extractEmbeddedWalletAddresses(privyUser);
+    if (!ethereumWallet && !solanaWallet) return;
+
+    const syncKey = `${user._id}:${ethereumWallet || ''}:${
+      solanaWallet || ''
+    }`;
+    const profileAlreadySynced =
+      (!ethereumWallet ||
+        user.ethereumWallet?.toLowerCase() ===
+          ethereumWallet.toLowerCase()) &&
+      (!solanaWallet || user.solanaWallet === solanaWallet);
+
+    if (lastSyncedWalletsRef.current === syncKey && profileAlreadySynced) {
+      return;
+    }
+
+    lastSyncedWalletsRef.current = syncKey;
+
+    fetch(`${API_BASE_URL}/api/v5/wallet/sync-user-wallets`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ ethereumWallet, solanaWallet }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then(() => {
+        setUser((currentUser) => {
+          if (!currentUser) return currentUser;
+          const syncedUser = {
+            ...currentUser,
+            ...(ethereumWallet ? { ethereumWallet } : {}),
+            ...(solanaWallet ? { solanaWallet } : {}),
+            microsites: currentUser.microsites?.map((microsite) => {
+              if (!microsite?.primary) return microsite;
+              return {
+                ...microsite,
+                ...(ethereumWallet ? { ethAddress: ethereumWallet } : {}),
+                ensData: {
+                  ...(microsite.ensData || {}),
+                  ...(ethereumWallet
+                    ? { owner: ethereumWallet, ethAddress: ethereumWallet }
+                    : {}),
+                  addresses: {
+                    ...(microsite.ensData?.addresses || {}),
+                    ...(ethereumWallet ? { 60: ethereumWallet } : {}),
+                    ...(solanaWallet ? { 501: solanaWallet } : {}),
+                  },
+                },
+              };
+            }),
+          };
+          writeCachedUserContext(syncedUser, accessToken);
+          return syncedUser;
+        });
+      })
+      .catch((err) => {
+        lastSyncedWalletsRef.current = null;
+        if (userContextDebugEnabled) {
+          console.debug('Wallet address sync failed:', err);
+        }
+      });
+  }, [
+    ready,
+    authenticated,
+    privyUser,
+    user?._id,
+    user?.ethereumWallet,
+    user?.solanaWallet,
+    accessToken,
+    extractEmbeddedWalletAddresses,
+  ]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
     };
   }, []);
+
+  const primaryMicrositeData = useMemo(
+    () => user?.microsites?.find((m) => m.primary === true) ?? null,
+    [user?.microsites],
+  );
 
   const contextValue = useMemo(
     () => ({
@@ -323,6 +498,8 @@ export function UserProvider({
       logout: handleLogout,
       isAuthenticated: authenticated && !!user,
       primaryMicrosite: user?.primaryMicrosite,
+      primaryMicrositeProfilePic:
+        primaryMicrositeData?.profilePic ?? null,
     }),
     [
       user,
@@ -332,6 +509,7 @@ export function UserProvider({
       refreshUser,
       handleLogout,
       authenticated,
+      primaryMicrositeData,
     ],
   );
 

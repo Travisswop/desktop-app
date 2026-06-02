@@ -1,13 +1,17 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Portal from './shared/Portal';
 import PositionCard from './Positions/PositionCard';
 import OrderCard from './Orders/OrderCard';
 import PositionOutcomeList from './Positions/PositionOutcomeList';
-import MarketDetailModal from './Markets/MarketDetailModal';
+import {
+  useMarketDetailStore,
+  marketRouteKey,
+} from '@/zustandStore/marketDetailStore';
 import {
   useClobOrder,
   useRedeemPosition,
@@ -28,9 +32,13 @@ import {
   DUST_THRESHOLD,
   POLLING_DURATION,
   POLLING_INTERVAL,
-  USDC_E_DECIMALS,
 } from '@/constants/polymarket';
 import { createPollingInterval } from '@/lib/polymarket/polling';
+import {
+  getRedeemablePayout,
+  isVisiblePortfolioPosition,
+  isZeroPositionBalanceRedeemError,
+} from '@/lib/polymarket/position-payout';
 
 type TabId = 'active' | 'orders' | 'history';
 
@@ -131,25 +139,48 @@ export default function PredictionsPortfolioModal({
   const [cancellingOrderId, setCancellingOrderId] = useState<
     string | null
   >(null);
-  const [detailPosition, setDetailPosition] =
-    useState<PolymarketPosition | null>(null);
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((s) => s.set);
+
   const [pendingVerification, setPendingVerification] = useState<
     Map<string, number>
   >(new Map());
 
-  const { clobClient, safeAddress } = useTrading();
+  const { clobClient, safeAddress, portfolioAddresses } = useTrading();
 
   const { eoaAddress } = usePolymarketWallet();
   const queryClient = useQueryClient();
 
   const { data: positions } = useUserPositions(
-    safeAddress as string | undefined,
+    portfolioAddresses.length ? portfolioAddresses : safeAddress,
   );
   const { data: teamsData } = usePolymarketTeams();
 
-  const { usdcBalance } = usePolygonBalances(safeAddress);
+  const navigateToPosition = useCallback(
+    (p: PolymarketPosition) => {
+      const market = positionToMarket(p, teamsData);
+      const key = marketRouteKey(market);
+      if (!key) return;
+      stashMarketDetail(key, {
+        market,
+        initialOutcome: p.outcomeIndex === 0 ? 'yes' : 'no',
+        yesShares: p.outcomeIndex === 0 ? p.size : 0,
+        noShares: p.outcomeIndex === 1 ? p.size : 0,
+        initialAmount: (
+          p.initialValue || p.size * p.avgPrice
+        ).toFixed(2),
+      });
+      onClose();
+      router.push(`/prediction/market/${encodeURIComponent(key)}`);
+    },
+    [router, stashMarketDetail, teamsData, onClose],
+  );
+
+  const { usdcBalance } = usePolygonBalances(
+    portfolioAddresses.length ? portfolioAddresses : safeAddress,
+  );
   const { data: netDeposits, isLoading: isNetDepositsLoading } =
-    useNetDeposits(safeAddress as string | undefined);
+    useNetDeposits(portfolioAddresses.length ? portfolioAddresses : safeAddress);
   const { data: activeOrders = [] } = useActiveOrders(
     clobClient,
     safeAddress,
@@ -176,11 +207,9 @@ export default function PredictionsPortfolioModal({
   // All positions for stats (includes settled losses for accurate P&L history)
   const activePositions = useMemo(() => {
     if (!positions) return [];
-    return positions
-      .filter((p) => p.size >= DUST_THRESHOLD)
-      .filter(
-        (p) => p.redeemable || p.currentValue >= DUST_THRESHOLD,
-      );
+    return positions.filter((p) =>
+      isVisiblePortfolioPosition(p, DUST_THRESHOLD),
+    );
   }, [positions]);
 
   // Active Picks: only live/open positions (not yet resolved)
@@ -237,6 +266,7 @@ export default function PredictionsPortfolioModal({
     try {
       await submitOrder({
         tokenId: position.asset,
+        conditionId: position.conditionId,
         size: position.size,
         side: 'SELL',
         negRisk: position.negativeRisk,
@@ -273,10 +303,13 @@ export default function PredictionsPortfolioModal({
   const handleRedeem = useCallback(
     async (position: PolymarketPosition) => {
       if (!clobClient) return;
+      const redeemValue = getRedeemablePayout(position);
+      if (redeemValue <= 0) return;
       setRedeemingAsset(position.asset);
       try {
         await redeemPosition({
           conditionId: position.conditionId,
+          asset: position.asset,
           outcomeIndex: position.outcomeIndex,
           negativeRisk: position.negativeRisk,
           size: position.size,
@@ -286,21 +319,6 @@ export default function PredictionsPortfolioModal({
         // Optimistically add the redeemed USDC to the displayed balance immediately.
         // The on-chain redemption has already confirmed (redeemPosition awaits the tx),
         // so this reflects reality. The subsequent polling will reconcile any drift.
-        const redeemValue =
-          position.curPrice > 0
-            ? position.currentValue
-            : position.size;
-        queryClient.setQueryData<bigint>(
-          ['pusdBalance', safeAddress as string],
-          (prev) => {
-            if (prev === undefined) return prev;
-            const addedUnits = BigInt(
-              Math.floor(redeemValue * 10 ** USDC_E_DECIMALS),
-            );
-            return prev + addedUnits;
-          },
-        );
-
         queryClient.invalidateQueries({
           queryKey: ['polymarket-positions'],
         });
@@ -308,16 +326,21 @@ export default function PredictionsPortfolioModal({
         createPollingInterval(
           () => {
             queryClient.invalidateQueries({
-              queryKey: ['polymarket-positions'],
-            });
-            queryClient.invalidateQueries({
-              queryKey: ['usdcBalance'],
-            });
-          },
+            queryKey: ['polymarket-positions'],
+          });
+          queryClient.invalidateQueries({
+            queryKey: ['pusdBalance'],
+          });
+        },
           POLLING_INTERVAL,
           POLLING_DURATION,
         );
       } catch (err) {
+        if (isZeroPositionBalanceRedeemError(err)) {
+          queryClient.invalidateQueries({
+            queryKey: ['polymarket-positions'],
+          });
+        }
         console.error('Failed to redeem position:', err);
       } finally {
         setRedeemingAsset(null);
@@ -487,7 +510,7 @@ export default function PredictionsPortfolioModal({
                       position={position}
                       onRedeem={handleRedeem}
                       onSell={handleMarketSell}
-                      onBuyMore={(p) => setDetailPosition(p)}
+                      onBuyMore={navigateToPosition}
                       isSelling={sellingAsset === position.asset}
                       isRedeeming={redeemingAsset === position.asset}
                       isPendingVerification={pendingVerification.has(
@@ -496,7 +519,7 @@ export default function PredictionsPortfolioModal({
                       isSubmitting={isSubmitting}
                       canSell={!!clobClient}
                       canRedeem={!!clobClient}
-                      onTitleClick={() => setDetailPosition(position)}
+                      onTitleClick={() => navigateToPosition(position)}
                     />
                   ))
                 )}
@@ -560,32 +583,6 @@ export default function PredictionsPortfolioModal({
         </div>
       </div>
 
-      {/* Market Detail Modal */}
-      {detailPosition && (
-        <MarketDetailModal
-          isOpen={!!detailPosition}
-          onClose={() => setDetailPosition(null)}
-          market={positionToMarket(detailPosition, teamsData)}
-          balance={usdcBalance}
-          yesShares={
-            detailPosition.outcomeIndex === 0
-              ? detailPosition.size
-              : 0
-          }
-          noShares={
-            detailPosition.outcomeIndex === 1
-              ? detailPosition.size
-              : 0
-          }
-          initialOutcome={
-            detailPosition.outcomeIndex === 0 ? 'yes' : 'no'
-          }
-          initialAmount={(
-            detailPosition.initialValue ||
-            detailPosition.size * detailPosition.avgPrice
-          ).toFixed(2)}
-        />
-      )}
     </Portal>
   );
 }

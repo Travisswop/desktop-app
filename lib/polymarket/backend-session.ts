@@ -20,10 +20,23 @@ export interface CredentialTypedData {
   typedData: {
     domain: Record<string, unknown>;
     types: Record<string, unknown[]>;
+    /** For deposit-wallet flows this is "TypedDataSign". */
+    primaryType?: string;
     message: Record<string, unknown>;
   };
   timestamp: string;
   nonce: number;
+  /** Echoed back so the frontend can route the signature correctly. */
+  walletType?: "eoa" | "safe" | "deposit";
+  /** Only present for the deposit-wallet flow. */
+  depositWalletAddress?: string;
+}
+
+export type ClobCredentialWalletType = "eoa" | "safe" | "deposit";
+
+interface CredentialFlowOptions {
+  walletType?: ClobCredentialWalletType;
+  depositWalletAddress?: string;
 }
 
 export interface DeployTypedData {
@@ -72,17 +85,37 @@ function authHeaders(accessToken: string) {
 }
 
 /**
- * Fetches server-cached API credentials for the given EOA.
+ * Build the credential-endpoint query string with optional wallet routing.
+ *
+ * CLOB credentials are bound to the signer EOA. Deposit-wallet details are
+ * still included so backend endpoints can route orders through the deposit
+ * wallet.
+ */
+function buildCredentialQuery(
+  eoaAddress: string,
+  opts: CredentialFlowOptions | undefined
+): string {
+  const params = new URLSearchParams({ eoaAddress });
+  if (opts?.walletType) params.set("walletType", opts.walletType);
+  if (opts?.depositWalletAddress) {
+    params.set("depositWalletAddress", opts.depositWalletAddress);
+  }
+  return params.toString();
+}
+
+/**
+ * Fetches server-cached API credentials for the given wallet binding.
  * Returns null when the cache is empty (e.g. after a server restart).
  * A null result means the caller must go through the full sign-and-derive flow.
  */
 export async function fetchCachedCredentials(
   eoaAddress: string,
-  accessToken: string
+  accessToken: string,
+  opts?: CredentialFlowOptions
 ): Promise<ClobCredentials | null> {
   try {
     const res = await fetch(
-      `${base()}/session/credentials?eoaAddress=${encodeURIComponent(eoaAddress)}`,
+      `${base()}/session/credentials?${buildCredentialQuery(eoaAddress, opts)}`,
       { headers: authHeaders(accessToken) }
     );
 
@@ -101,13 +134,16 @@ export async function fetchCachedCredentials(
  * Returns the EIP-712 typed data that the wallet must sign to derive API credentials.
  * Pass the result's { typedData, timestamp, nonce } to the wallet for signing,
  * then send the signature to deriveAndCacheCredentials().
+ *
+ * Credential derivation uses raw ClobAuth signed by the owner EOA.
  */
 export async function getCredentialTypedData(
   eoaAddress: string,
-  accessToken: string
+  accessToken: string,
+  opts?: CredentialFlowOptions
 ): Promise<CredentialTypedData> {
   const res = await fetch(
-    `${base()}/session/credential-typed-data?eoaAddress=${encodeURIComponent(eoaAddress)}`,
+    `${base()}/session/credential-typed-data?${buildCredentialQuery(eoaAddress, opts)}`,
     { headers: authHeaders(accessToken) }
   );
 
@@ -119,86 +155,51 @@ export async function getCredentialTypedData(
   return res.json();
 }
 
-const CLOB_HOST = "https://clob.polymarket.com";
-
 /**
- * Derives API credentials from the user's EIP-712 signature by calling the
- * Polymarket CLOB API directly from the browser, then caches them on the
- * backend so future logins skip re-signing.
+ * Derives API credentials from the user's signed ClobAuth message via the
+ * polymarket-backend, which forwards to Polymarket's L1 endpoints. The
+ * backend keeps the credential flow server-side.
  *
- * The CLOB call is made client-side because the polymarket-backend server IP
- * may be geo-blocked by Cloudflare. The user's browser IP is used instead.
+ * We POST through our backend rather than calling CLOB directly from the
+ * browser.
  */
 export async function deriveAndCacheCredentials(
   eoaAddress: string,
   signature: string,
   timestamp: string,
   nonce: number,
-  accessToken: string
+  accessToken: string,
+  opts?: CredentialFlowOptions
 ): Promise<ClobCredentials> {
-  const l1Headers = {
-    "POLY_ADDRESS": eoaAddress,
-    "POLY_SIGNATURE": signature,
-    "POLY_TIMESTAMP": timestamp,
-    "POLY_NONCE": String(nonce),
-  };
+  const res = await fetch(`${base()}/session/credentials`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({
+      eoaAddress,
+      signature,
+      timestamp,
+      nonce,
+      ...(opts?.walletType ? { walletType: opts.walletType } : {}),
+      ...(opts?.depositWalletAddress
+        ? { depositWalletAddress: opts.depositWalletAddress }
+        : {}),
+    }),
+  });
 
-  let creds: ClobCredentials | null = null;
-
-  // Try to derive existing credentials first (returns existing key/secret/passphrase)
-  try {
-    const deriveRes = await fetch(`${CLOB_HOST}/auth/derive-api-key`, {
-      headers: l1Headers,
-    });
-    if (deriveRes.ok) {
-      const data = await deriveRes.json();
-      const key = data.apiKey ?? data.key;
-      if (key && data.secret && data.passphrase) {
-        creds = { key, secret: data.secret, passphrase: data.passphrase };
-      }
-    }
-  } catch {
-    // Network error on derive — fall through to create
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      err.error ||
+        err.message ||
+        `polymarket-backend returned ${res.status} deriving credentials`
+    );
   }
 
-  // Create new credentials if derive didn't return valid ones
-  if (!creds) {
-    const createRes = await fetch(`${CLOB_HOST}/auth/api-key`, {
-      method: "POST",
-      headers: { ...l1Headers, "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-
-    if (!createRes.ok) {
-      const err = await createRes.json().catch(() => ({}));
-      throw new Error(
-        err.error || err.message || `CLOB API returned ${createRes.status} when creating credentials`
-      );
-    }
-
-    const data = await createRes.json();
-    const key = data.apiKey ?? data.key;
-    if (!key || !data.secret || !data.passphrase) {
-      throw new Error("CLOB API returned incomplete credentials");
-    }
-    creds = { key, secret: data.secret, passphrase: data.passphrase };
+  const data = await res.json();
+  if (!data.key || !data.secret || !data.passphrase) {
+    throw new Error("polymarket-backend returned incomplete credentials");
   }
-
-  // Cache on the backend so future logins skip re-signing (non-blocking failure)
-  try {
-    const cacheRes = await fetch(`${base()}/session/credentials`, {
-      method: "POST",
-      headers: authHeaders(accessToken),
-      body: JSON.stringify({ eoaAddress, ...creds }),
-    });
-    if (!cacheRes.ok) {
-      console.warn("[Polymarket] Failed to cache credentials on backend — trading will still work");
-    }
-  } catch {
-    console.warn("[Polymarket] Could not reach backend to cache credentials");
-  }
-
-  return creds;
+  return { key: data.key, secret: data.secret, passphrase: data.passphrase };
 }
 
 /**
@@ -251,6 +252,38 @@ export async function submitDeploySignature(
   return res.json();
 }
 
+export interface PolymarketWalletInfo {
+  eoaAddress: string;
+  safeAddress: string;
+  safeDeployed: boolean;
+  depositWalletAddress: string;
+  depositWalletDeployed: boolean;
+  recommendedWalletType: "safe" | "deposit";
+}
+
+/**
+ * Returns the wallet state Polymarket recognises for this EOA. Legacy users
+ * with a deployed Safe must keep using signatureType=2 — Polymarket does not
+ * auto-migrate them to deposit wallets, so trying to place a POLY_1271 order
+ * under a Safe-bound EOA fails with the legacy signer-mismatch error.
+ */
+export async function getWalletInfo(
+  eoaAddress: string,
+  accessToken: string
+): Promise<PolymarketWalletInfo> {
+  const params = new URLSearchParams({ eoaAddress });
+  const res = await fetch(`${base()}/session/wallet-info?${params}`, {
+    headers: authHeaders(accessToken),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to resolve wallet info");
+  }
+
+  return res.json();
+}
+
 export async function getDepositWalletAddress(
   eoaAddress: string,
   accessToken: string
@@ -270,7 +303,8 @@ export async function getDepositWalletAddress(
 
 export async function deployDepositWallet(
   eoaAddress: string,
-  accessToken: string
+  accessToken: string,
+  options?: { force?: boolean }
 ): Promise<{
   deployed: boolean;
   depositWalletAddress: string;
@@ -280,7 +314,10 @@ export async function deployDepositWallet(
   const res = await fetch(`${base()}/session/deploy-deposit-wallet`, {
     method: "POST",
     headers: authHeaders(accessToken),
-    body: JSON.stringify({ eoaAddress }),
+    body: JSON.stringify({
+      eoaAddress,
+      ...(options?.force ? { force: true } : {}),
+    }),
   });
 
   if (!res.ok) {
@@ -561,6 +598,7 @@ export async function getRedeemTypedData(
     walletType?: "safe" | "deposit";
     eoaAddress: string;
     conditionId: string;
+    asset?: string;
     negRisk?: boolean;
     outcomeIndex?: number;
     size?: number;
@@ -571,6 +609,7 @@ export async function getRedeemTypedData(
     safeAddress: params.safeAddress,
     eoaAddress: params.eoaAddress,
     conditionId: params.conditionId,
+    ...(params.asset ? { asset: params.asset } : {}),
     ...(params.depositWalletAddress ? { depositWalletAddress: params.depositWalletAddress } : {}),
     ...(params.walletType ? { walletType: params.walletType } : {}),
     ...(params.negRisk != null ? { negRisk: String(params.negRisk) } : {}),
@@ -594,6 +633,7 @@ export async function submitRedeem(
     walletType?: "safe" | "deposit";
     eoaAddress: string;
     conditionId: string;
+    asset?: string;
     negRisk?: boolean;
     outcomeIndex?: number;
     size?: number;
@@ -602,17 +642,20 @@ export async function submitRedeem(
     deadline?: string;
   },
   accessToken: string
-): Promise<{ txId: string; success: boolean }> {
+): Promise<{ txId: string; success: boolean; error?: string }> {
   const res = await fetch(`${base()}/positions/redeem`, {
     method: 'POST',
     headers: authHeaders(accessToken),
     body: JSON.stringify(params),
   });
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Redemption failed');
+    throw new Error(data.error || 'Redemption failed');
   }
-  return res.json();
+  if (data.success === false) {
+    throw new Error(data.error || 'Redemption failed on-chain');
+  }
+  return data;
 }
 
 /**

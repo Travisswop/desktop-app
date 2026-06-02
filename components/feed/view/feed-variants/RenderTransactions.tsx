@@ -1,8 +1,7 @@
-import { formatEns } from "@/lib/formatEnsName";
-import Image from "next/image";
+import { formatEns } from '@/lib/formatEnsName';
+import Image from 'next/image';
 
 const RenderTransactionContent = (feed: any) => {
-  console.log("Rendering transaction content for feed:", feed);
   const {
     transaction_type,
     receiver_ens,
@@ -25,13 +24,19 @@ const RenderTransactionContent = (feed: any) => {
         5,
       )}...${receiver_wallet_address.slice(-5)}`;
 
-  if (transaction_type === "nft") {
+  if (transaction_type === 'nft') {
     return (
       <div>
         <p className="text-gray-600 text-sm">
-          Sent NFT{" "}
-          <span className="font-medium text-base">{name || "item"}</span> to{" "}
-          <span className="font-medium text-base">{recipientDisplay}</span>.
+          Sent NFT{' '}
+          <span className="font-medium text-base">
+            {name || 'item'}
+          </span>{' '}
+          to{' '}
+          <span className="font-medium text-base">
+            {recipientDisplay}
+          </span>
+          .
         </p>
         {image && (
           <div className="w-52">
@@ -43,35 +48,38 @@ const RenderTransactionContent = (feed: any) => {
               className="w-full h-auto"
             />
             <p className="text-sm text-gray-600 font-medium mt-0.5 text-center">
-              {amount} {currency || "NFT"}
+              {amount} {currency || 'NFT'}
             </p>
           </div>
         )}
       </div>
     );
-  } else if (transaction_type === "token") {
+  } else if (transaction_type === 'token') {
     return (
       <p className="text-black text-sm">
-        Transferred{" "}
+        Transferred{' '}
         <span className="font-medium">
           {amount.toFixed(2)} {token}
-        </span>{" "}
-        {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
-        to{" "}
+        </span>{' '}
+        {tokenPrice && (
+          <span>(${Number(tokenPrice).toFixed(2)})</span>
+        )}{' '}
+        tokens to{' '}
         <a
           href={`https://${recipientDisplay}`}
           target="_blank"
           className="font-semibold"
         >
           {formatEns(recipientDisplay)}
-        </a>{" "}
+        </a>{' '}
         on the {chain}.
       </p>
     );
   } else {
     return (
       <p className="text-gray-600 text-sm">
-        Executed a {transaction_type} transaction involving {amount} {currency}.
+        Executed a {transaction_type} transaction involving {amount}{' '}
+        {currency}.
       </p>
     );
   }

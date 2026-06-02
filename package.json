@@ -3,13 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "node scripts/next-dev.js",
     "dev:webpack": "NODE_OPTIONS='--max-old-space-size=8192' next dev",
     "build": "next build",
     "analyze": "ANALYZE=true NODE_OPTIONS='--max-old-space-size=4096' next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck:onboard-ai": "tsc --noEmit -p tsconfig.onboard-ai.json",
     "test": "jest",
     "test:watch": "jest --watch"
   },

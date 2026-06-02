@@ -7,25 +7,28 @@ export type ChainType =
 export type EVMChain = Exclude<ChainType, 'SOLANA'>;
 
 export interface MarketData {
-  symbol: string;
-  name: string;
-  marketCap: string;
-  '24hVolume': string;
-  listedAt: number;
-  iconUrl: string;
-  tier: number;
-  rank: number;
-  sparkline: number[];
-  lowVolume: boolean;
-  coinrankingUrl: string;
-  btcPrice: string;
-  contractAddresses: string[];
-  priceChangePercentage24h: string;
+  symbol?: string;
+  name?: string;
+  marketCap?: string | number;
+  '24hVolume'?: string | number;
+  volume24h?: number;
+  listedAt?: number;
+  iconUrl?: string;
+  image?: string;
+  tier?: number;
+  rank?: number;
+  sparkline?: number[];
+  lowVolume?: boolean;
+  coinrankingUrl?: string;
+  btcPrice?: string;
+  contractAddresses?: string[];
+  priceChangePercentage24h?: string;
   // Additional properties for token details view
   price: string; // Current price as string
   change?: string; // Price change percentage
   color?: string; // Color for chart styling
   uuid?: string | undefined; // Legacy CoinRanking ID (optional)
+  lastUpdated?: string;
 }
 
 export interface TimeSeriesData {
@@ -42,11 +45,12 @@ export interface TokenData {
   balance: string;
   decimals: number;
   chainId?: number;
+  walletAddress?: string;
   address: string | null;
   logoURI: string;
   chain: 'ETHEREUM' | 'POLYGON' | 'BASE' | 'SOLANA' | 'ARBITRUM';
-  marketData: MarketData;
-  sparklineData: Array<{ timestamp: number; value: number }>;
+  marketData: MarketData | null;
+  sparklineData?: Array<{ timestamp: number; value: number }>;
   timeSeriesData: {
     '1H': Array<{ timestamp: number; value: number }>;
     '1D': Array<{ timestamp: number; value: number }>;

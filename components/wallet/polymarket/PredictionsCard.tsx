@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -12,8 +13,16 @@ import {
   usePolygonBalances,
   useUserPositions,
   useActiveOrders,
+  usePolymarketTeams,
   type PolymarketPosition,
+  type PolymarketMarket,
+  type TeamsMap,
 } from '@/hooks/polymarket';
+import { useTrading } from '@/providers/polymarket';
+import {
+  marketRouteKey,
+  useMarketDetailStore,
+} from '@/zustandStore/marketDetailStore';
 
 interface PredictionsCardProps {
   safeAddress: string | undefined;
@@ -26,6 +35,8 @@ interface PredictionsCardProps {
    * view that mirrors wireframe screens A4 / My bets / A5.
    */
   onOpenPanel: (view?: 'main' | 'bets' | 'orders' | 'history') => void;
+  isTradingDisabled?: boolean;
+  disabledTransferReason?: string;
 }
 
 const POS_GREEN = '#19a974';
@@ -107,20 +118,129 @@ function timeUntil(endIso: string | undefined): string {
   return `${mins}m left`;
 }
 
+type EventTeamMeta = NonNullable<PolymarketMarket['eventTeams']>[number];
+
+function isBinaryOutcome(label: string): boolean {
+  return /^(yes|no)$/i.test(label.trim());
+}
+
+function resolveTeamMeta(
+  label: string,
+  teamsMap: TeamsMap | undefined,
+): EventTeamMeta | undefined {
+  if (!teamsMap || !label) return undefined;
+  const lower = label.trim().toLowerCase();
+  if (!lower) return undefined;
+  const hit =
+    teamsMap.byKey.get(lower) ||
+    teamsMap.byKey.get(lower.split(/\s+/).pop() ?? '');
+  if (!hit) return undefined;
+  return {
+    id: hit.id,
+    name: hit.name,
+    league: hit.sport,
+    logo: hit.logoUrl,
+    abbreviation: hit.abbreviation,
+    color: typeof hit.color === 'string' ? hit.color : undefined,
+  };
+}
+
+function positionLooksLikeMatchup(
+  position: PolymarketPosition,
+  yesOutcomeName: string,
+  noOutcomeName: string,
+): boolean {
+  if (!position.eventSlug) return false;
+  if (isBinaryOutcome(yesOutcomeName) || isBinaryOutcome(noOutcomeName)) {
+    return false;
+  }
+  return /\b(vs\.?|v\.?|at)\b|@/i.test(position.title);
+}
+
+function positionToDetailMarket(
+  position: PolymarketPosition,
+  teamsMap: TeamsMap | undefined,
+): PolymarketMarket {
+  const isYesPos = position.outcomeIndex === 0;
+  const yesTokenId = isYesPos
+    ? position.asset
+    : position.oppositeAsset;
+  const noTokenId = isYesPos
+    ? position.oppositeAsset
+    : position.asset;
+  const yesOutcomeName = isYesPos
+    ? position.outcome
+    : position.oppositeOutcome;
+  const noOutcomeName = isYesPos
+    ? position.oppositeOutcome
+    : position.outcome;
+  const yesPrice = isYesPos
+    ? position.curPrice
+    : 1 - position.curPrice;
+  const noPrice = isYesPos
+    ? 1 - position.curPrice
+    : position.curPrice;
+
+  const yesTeam = resolveTeamMeta(yesOutcomeName, teamsMap);
+  const noTeam = resolveTeamMeta(noOutcomeName, teamsMap);
+  const eventTeams: EventTeamMeta[] | undefined =
+    yesTeam && noTeam
+      ? [yesTeam, noTeam]
+      : positionLooksLikeMatchup(
+            position,
+            yesOutcomeName,
+            noOutcomeName,
+          )
+        ? [
+            yesTeam ?? { name: yesOutcomeName },
+            noTeam ?? { name: noOutcomeName },
+          ]
+        : undefined;
+
+  return {
+    id: position.conditionId,
+    conditionId: position.conditionId,
+    question: position.title,
+    slug: position.slug,
+    active: !position.redeemable,
+    closed: position.redeemable,
+    icon: position.icon,
+    eventSlug: position.eventSlug,
+    outcomes: JSON.stringify([yesOutcomeName, noOutcomeName]),
+    outcomePrices: JSON.stringify([
+      String(yesPrice),
+      String(noPrice),
+    ]),
+    clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
+    negRisk: position.negativeRisk,
+    endDateIso: position.endDate,
+    eventTeams,
+  };
+}
+
 /**
  * Compact predictions card for the wallet page — matches the design from
  * screen G of the wireframes. Shows balance + sparkline, deposit/withdraw,
- * P/L stat strip, and a list of top open bets. Clicking the section's
- * action chip or any bet opens the full PredictionsPanel.
+ * P/L stat strip, and a list of top open bets. The section action opens
+ * the full PredictionsPanel; each bet opens its market detail page.
  */
 export default function PredictionsCard({
   safeAddress,
   onTransfer,
   onOpenPanel,
+  isTradingDisabled = false,
+  disabledTransferReason,
 }: PredictionsCardProps) {
+  const router = useRouter();
+  const { portfolioAddresses } = useTrading();
+  const stashMarketDetail = useMarketDetailStore((s) => s.set);
+  const { data: teamsData } = usePolymarketTeams();
+  const portfolioAddressInput = portfolioAddresses.length
+    ? portfolioAddresses
+    : safeAddress;
   const { usdcBalance, isLoading: balanceLoading } =
-    usePolygonBalances(safeAddress);
-  const { data: positions } = useUserPositions(safeAddress);
+    usePolygonBalances(portfolioAddressInput);
+  const { data: positions } = useUserPositions(portfolioAddressInput);
   const { data: activeOrders = [] } = useActiveOrders(null, safeAddress);
 
   const activePositions = useMemo<PolymarketPosition[]>(
@@ -172,6 +292,29 @@ export default function PredictionsCard({
     [activePositions],
   );
 
+  const navigateToPosition = useCallback(
+    (position: PolymarketPosition) => {
+      const market = positionToDetailMarket(position, teamsData);
+      const key = marketRouteKey(market);
+      if (!key) {
+        onOpenPanel('bets');
+        return;
+      }
+      stashMarketDetail(key, {
+        market,
+        initialOutcome: position.outcomeIndex === 0 ? 'yes' : 'no',
+        yesShares: position.outcomeIndex === 0 ? position.size : 0,
+        noShares: position.outcomeIndex === 1 ? position.size : 0,
+        initialAmount: (
+          position.initialValue ||
+          position.size * position.avgPrice
+        ).toFixed(2),
+      });
+      router.push(`/prediction/market/${encodeURIComponent(key)}`);
+    },
+    [onOpenPanel, router, stashMarketDetail, teamsData],
+  );
+
   return (
     <div className="bg-white rounded-[22px] border border-black/[0.06] p-[22px] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)]">
       {/* Top: balance + delta */}
@@ -206,7 +349,9 @@ export default function PredictionsCard({
       <div className="grid grid-cols-2 gap-2 mt-3">
         <button
           onClick={() => onTransfer('deposit')}
-          className="flex items-center justify-center gap-2 px-3.5 py-3 rounded-xl bg-black text-white border border-black hover:bg-gray-800 transition-colors text-[13px] font-semibold"
+          disabled={isTradingDisabled}
+          title={disabledTransferReason}
+          className="flex items-center justify-center gap-2 px-3.5 py-3 rounded-xl bg-black text-white border border-black hover:bg-gray-800 transition-colors text-[13px] font-semibold disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
         >
           <ArrowDownToLine className="w-3.5 h-3.5" />
           Deposit
@@ -219,7 +364,9 @@ export default function PredictionsCard({
         </button>
         <button
           onClick={() => onTransfer('withdraw')}
-          className="flex items-center justify-center gap-2 px-3.5 py-3 rounded-xl bg-white text-gray-900 border border-black/[0.06] hover:bg-gray-50 transition-colors text-[13px] font-semibold"
+          disabled={isTradingDisabled}
+          title={disabledTransferReason}
+          className="flex items-center justify-center gap-2 px-3.5 py-3 rounded-xl bg-white text-gray-900 border border-black/[0.06] hover:bg-gray-50 transition-colors text-[13px] font-semibold disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
         >
           <ArrowUpFromLine className="w-3.5 h-3.5" />
           Withdraw
@@ -329,11 +476,13 @@ export default function PredictionsCard({
             const timeLabel = timeUntil(bet.endDate);
             return (
               <button
+                type="button"
                 key={`${bet.conditionId}-${bet.outcomeIndex}`}
-                onClick={() => onOpenPanel('bets')}
+                onClick={() => navigateToPosition(bet)}
                 className={`w-full text-left py-3 grid grid-cols-[1fr_auto] items-center gap-3.5 ${
                   i === 0 ? '' : 'border-t border-black/[0.04]'
                 } hover:bg-gray-50/60 transition-colors -mx-1 px-1 rounded-md`}
+                aria-label={`Open ${bet.title}`}
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">

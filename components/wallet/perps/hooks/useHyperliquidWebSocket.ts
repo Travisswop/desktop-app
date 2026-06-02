@@ -11,8 +11,6 @@ type Subscription =
   | { type: 'l2Book'; coin: string }
   | { type: 'trades'; coin: string }
   | { type: 'user'; user: string }
-  | { type: 'userEvents'; user: string }
-  | { type: 'userFills'; user: string }
   | { type: 'candle'; coin: string; interval: string };
 
 // ─── Message Handler ─────────────────────────────────────────────────────────
@@ -131,12 +129,11 @@ export function useHyperliquidWebSocket(
   useEffect(() => {
     if (!enabled) return;
     connect();
-    const activeSubscriptions = activeSubsRef.current;
     return () => {
       clearTimeout(reconnectRef.current);
       wsRef.current?.close();
       wsRef.current = null;
-      activeSubscriptions.clear();
+      activeSubsRef.current.clear();
     };
   }, [connect, enabled]);
 
@@ -275,16 +272,13 @@ export function useUserFills(
   onFillRef.current = onFill;
 
   const handleMessage = useCallback((channel: string, data: unknown) => {
-    if (channel === 'user' || channel === 'userEvents' || channel === 'userFills') {
+    if (channel === 'user') {
       onFillRef.current(data);
     }
   }, []);
 
   const subs: Subscription[] = masterAddress
-    ? [
-        { type: 'userEvents', user: masterAddress },
-        { type: 'userFills', user: masterAddress },
-      ]
+    ? [{ type: 'user', user: masterAddress }]
     : [];
 
   return useHyperliquidWebSocket(

@@ -26,20 +26,6 @@ import { RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
 import logger from '@/utils/logger';
 
-const LEGACY_AUTH_STORAGE_KEYS = [
-  'authToken',
-  'jwt_token',
-  'accessToken',
-] as const;
-
-const clearLegacyAuthStorage = () => {
-  if (typeof window === 'undefined') return;
-
-  for (const key of LEGACY_AUTH_STORAGE_KEYS) {
-    window.localStorage.removeItem(key);
-  }
-};
-
 // Login flow states
 enum LoginFlow {
   EMAIL_INPUT = 'email_input',
@@ -56,6 +42,49 @@ interface WalletCreationStatus {
   inProgress: boolean;
 }
 
+function formatEmailCodeError(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : 'Unable to send a verification code.';
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('rate') || normalized.includes('too many')) {
+    return 'Too many code requests. Wait a minute, then try again.';
+  }
+
+  if (
+    normalized.includes('origin') ||
+    normalized.includes('domain') ||
+    normalized.includes('app')
+  ) {
+    return 'Email login is not enabled for this local app URL. Check the Privy app settings for localhost.';
+  }
+
+  if (normalized.includes('email')) {
+    return message;
+  }
+
+  return 'Could not send the email code. Please try again.';
+}
+
+function formatLoginProcessingError(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : 'Login failed';
+
+  if (message.toLowerCase().includes('failed to fetch')) {
+    return 'Swop backend is not reachable. Make sure the local backend is running on port 4000, then try again.';
+  }
+
+  return message;
+}
+
 const Login: React.FC = () => {
   // Privy hooks
   const { authenticated, ready, user } = usePrivy();
@@ -67,13 +96,6 @@ const Login: React.FC = () => {
   // Custom hooks
   const { isAuthenticated } = useUser();
   const router = useRouter();
-
-  console.log(
-    'isAuthenticated',
-    isAuthenticated,
-    authenticated,
-    ready,
-  );
 
   // State management
   const [loginFlow, setLoginFlow] = useState<LoginFlow>(
@@ -353,13 +375,8 @@ const Login: React.FC = () => {
 
         if (!response.ok) {
           if (response.status === 404) {
-            const onboardingRoute =
-              process.env.NEXT_PUBLIC_USE_AI_ONBOARDING === 'true'
-                ? '/onboard-ai'
-                : '/onboard';
-
-            logger.log(`User not found, redirecting to ${onboardingRoute}`);
-            router.push(onboardingRoute);
+            logger.log('User not found, redirecting to onboard');
+            router.push('/onboard');
             return;
           }
           throw new Error(`API error: ${response.status}`);
@@ -372,7 +389,6 @@ const Login: React.FC = () => {
         }
 
         // Set user ID cookie
-        clearLegacyAuthStorage();
         Cookies.set('user-id', data.user._id.toString());
         Cookies.set('access-token', data.token);
 
@@ -398,9 +414,7 @@ const Login: React.FC = () => {
         }, 1500);
       } catch (error) {
         logger.error('Login processing failed:', error);
-        setLoginError(
-          error instanceof Error ? error.message : 'Login failed',
-        );
+        setLoginError(formatLoginProcessingError(error));
         setLoginFlow(LoginFlow.ERROR);
       } finally {
         loginProcessingRef.current = false;
@@ -411,7 +425,7 @@ const Login: React.FC = () => {
 
   // Handle email form submission
   const handleEmailSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
 
       const error = validateEmail(email);
@@ -421,19 +435,29 @@ const Login: React.FC = () => {
       }
 
       setEmailError('');
-      sendCode({ email });
-      setLoginFlow(LoginFlow.OTP_INPUT);
+      setLoginError(null);
+      try {
+        await sendCode({ email: email.trim() });
+        setLoginFlow(LoginFlow.OTP_INPUT);
+      } catch (sendCodeError) {
+        setEmailError(formatEmailCodeError(sendCodeError));
+      }
     },
     [email, validateEmail, sendCode],
   );
 
   // Handle resend code
-  const handleSendCode = useCallback(() => {
+  const handleSendCode = useCallback(async () => {
     if (canResend) {
-      sendCode({ email });
-      setTimeRemaining(480);
-      setCanResend(false);
-      setOtp(new Array(otpLength).fill(''));
+      try {
+        await sendCode({ email: email.trim() });
+        setLoginError(null);
+        setTimeRemaining(480);
+        setCanResend(false);
+        setOtp(new Array(otpLength).fill(''));
+      } catch (sendCodeError) {
+        setLoginError(formatEmailCodeError(sendCodeError));
+      }
     }
   }, [email, sendCode, canResend, otpLength]);
 

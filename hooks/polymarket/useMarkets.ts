@@ -49,6 +49,7 @@ export type PolymarketMarket = {
     logo?: string;
     abbreviation?: string;
     color?: string;
+    score?: number | string | null;
   }>;
   negRisk?: boolean;
   orderMinSize?: number;
@@ -65,35 +66,52 @@ export type PolymarketMarket = {
   [key: string]: any;
 };
 
-export const MARKETS_PAGE_SIZE = 20;
+export const MARKETS_PAGE_SIZE = 48;
 
 interface UseMarketsOptions {
   categoryId?: CategoryId;
   /** Override the tag_id used for filtering (e.g. a sport subcategory tag) */
   overrideTagId?: number | null;
+  /** Server-side market search. */
+  searchQuery?: string;
   /** Set to false to skip fetching (e.g. when the sports events view is active) */
   enabled?: boolean;
 }
 
 export function useMarkets(options: UseMarketsOptions = {}) {
-  const { categoryId = "trending", overrideTagId, enabled = true } = options;
+  const {
+    categoryId = "trending",
+    overrideTagId,
+    searchQuery = "",
+    enabled = true,
+  } = options;
   const { isTradingSessionComplete } = useTrading();
+  const trimmedSearch = searchQuery.trim();
 
   return useInfiniteQuery({
-    queryKey: ["high-volume-markets", categoryId, overrideTagId, !!isTradingSessionComplete],
+    queryKey: [
+      "high-volume-markets",
+      categoryId,
+      overrideTagId,
+      trimmedSearch,
+      !!isTradingSessionComplete,
+    ],
     enabled,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<PolymarketMarket[]> => {
       const category = getCategoryById(categoryId);
       // Desktop endpoint — adds A2 sports filters and event-level fields.
       // Mobile continues to call the original /markets proxy.
-      let url = `/api/polymarket/desktop/markets?limit=${MARKETS_PAGE_SIZE}&offset=${pageParam}`;
+      let url = `/api/polymarket/desktop/markets?limit=${MARKETS_PAGE_SIZE}&offset=${pageParam}&quality=relaxed`;
 
       // overrideTagId (sport subcategory) takes priority over category-level tagId
       const tagId =
         overrideTagId !== undefined ? overrideTagId : category?.tagId;
       if (tagId) {
         url += `&tag_id=${tagId}`;
+      }
+      if (trimmedSearch) {
+        url += `&q=${encodeURIComponent(trimmedSearch)}`;
       }
 
       const response = await fetch(url);

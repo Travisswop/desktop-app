@@ -1,3 +1,5 @@
+export type MintCategory = 'physical' | 'digital';
+
 export interface MintCollection {
   _id: string;
   name: string;
@@ -5,38 +7,20 @@ export interface MintCollection {
   address: string;
   image: string;
   description: string;
+  category: MintCategory;
 }
 
 export const MINT_COLLECTIONS: MintCollection[] = [
   {
-    _id: '67c68ac5a98b778091097101',
-    name: 'collectible',
-    displayName: 'Collectibles',
-    address: 'GWDcKu6dqd5wnFftkDPBmd8cNwhJRFgtWod6veALFio7',
+    _id: '67c68cb5a98b77809109710b',
+    name: 'phygitals',
+    displayName: 'Products',
+    address: 'EFNUeHdd9dYNWaczMGfCtqThFea7HcL7xUdH8QNsYUcq',
     image:
-      'https://husky-peach-bear.myfilebase.com/ipfs/QmPHsbPDX3hiPoQGNSCcrA4toy2H9aZkDv2HDriVZU1dQa',
+      'https://husky-peach-bear.myfilebase.com/ipfs/QmfWYYueYHxXwBRT829avEN8JBWM6HcsXzYkjJ4CdHLy8W',
     description:
-      'The Collectibles NFT collection showcases a diverse array of unique digital assets, each representing a piece of art, culture, or innovation. These NFTs are designed to engage collectors and enthusiasts alike, offering not just ownership but also a sense of community and belonging. By acquiring a collectible, you gain access to exclusive events, collaborations, and future drops, making each piece a valuable addition to your digital portfolio. Celebrate the fusion of creativity and technology with our exceptional collection.',
-  },
-  {
-    _id: '67c68b2aa98b778091097103',
-    name: 'subscription',
-    displayName: 'Subscriptions',
-    address: '8oZbcawBRjtfaYHHtvdDRWXWRGo6foSMThuSmsMCzC94',
-    image:
-      'https://husky-peach-bear.myfilebase.com/ipfs/QmaKJkGp9JdTKAwenqfD6QWBkgoXX3eo8Z4fZfiNpnequb',
-    description:
-      'The Subscription NFT collection offers exclusive access to unique digital experiences and rewards. Each NFT represents a membership that unlocks special content, events, and perks, creating a vibrant community of collectors and enthusiasts. Join us in celebrating creativity and innovation with this one-of-a-kind collection.',
-  },
-  {
-    _id: '67c68b8fa98b778091097105',
-    name: 'membership',
-    displayName: 'Memberships',
-    address: '2vawHME3K5L2Q46XzfT7pEww5pZvmLrQCdXNiXrENzB1',
-    image:
-      'https://husky-peach-bear.myfilebase.com/ipfs/QmZK8ZNsnFVc9WCoMhLs33u8W1fJ9c4cmtBkUepEV4n5yc',
-    description:
-      'The Membership NFT collection is designed to offer exclusive access and benefits to its holders. Each membership token represents a unique opportunity to engage with a vibrant community, unlock special events, and enjoy premium content. With eye-catching artwork and limited issuance, these NFTs not only symbolize membership but also serve as a digital badge of honor in the ever-evolving landscape of digital ownership and community engagement.',
+      'Tangible items shipped to buyers, paired with a digital receipt. Best for physical merchandise, signed goods, and limited drops that combine real-world ownership with on-chain provenance.',
+    category: 'physical',
   },
   {
     _id: '67c68c4fa98b778091097109',
@@ -46,17 +30,41 @@ export const MINT_COLLECTIONS: MintCollection[] = [
     image:
       'https://husky-peach-bear.myfilebase.com/ipfs/QmNo8Tqrms1LLEPmwkVv3grjgn7D6ohm58VgYb7zfgHkH3',
     description:
-      'The Menu NFT collection offers a unique digital representation of culinary delights, showcasing a variety of dishes and dining experiences. Each NFT in this collection serves as a gateway to explore the world of gastronomy, celebrating the art of food and the joy of sharing meals. Perfect for food enthusiasts and collectors alike, these NFTs encapsulate the essence of culinary creativity and innovation.',
+      'Sell prepared food and beverage items from a restaurant, café, or pop-up. Each menu item is fulfilled in person while the NFT keeps a verifiable record of the order.',
+    category: 'physical',
   },
   {
-    _id: '67c68de3a98b77809109710d',
-    name: 'points',
-    displayName: 'Points',
-    address: 'EvPcpGxoD6Hp8V3NxSQmPCoSDTLcMTrisrNnZEvmisFg',
+    _id: '67c68ac5a98b778091097101',
+    name: 'collectible',
+    displayName: 'Collectibles',
+    address: 'GWDcKu6dqd5wnFftkDPBmd8cNwhJRFgtWod6veALFio7',
     image:
-      'https://husky-peach-bear.myfilebase.com/ipfs/QmbgXmAv1YpTGVWLCsQ8yK4wwVfvjDkDcUj9WtPf4fpRXF',
+      'https://husky-peach-bear.myfilebase.com/ipfs/QmPHsbPDX3hiPoQGNSCcrA4toy2H9aZkDv2HDriVZU1dQa',
     description:
-      'The Points NFT collection represents a unique digital asset that rewards holders with exclusive benefits and access within the SwopMe ecosystem. Each NFT in this collection embodies the spirit of community engagement and loyalty, allowing users to earn points that can be redeemed for various perks, discounts, and special offers. Join us in celebrating the value of participation and connection through this innovative Points NFT collection.',
+      'Unique digital assets your audience can own, trade, and showcase. Great for art drops, badges, and community keepsakes.',
+    category: 'digital',
+  },
+  {
+    _id: '67c68b2aa98b778091097103',
+    name: 'subscription',
+    displayName: 'Subscriptions',
+    address: '8oZbcawBRjtfaYHHtvdDRWXWRGo6foSMThuSmsMCzC94',
+    image:
+      'https://husky-peach-bear.myfilebase.com/ipfs/QmaKJkGp9JdTKAwenqfD6QWBkgoXX3eo8Z4fZfiNpnequb',
+    description:
+      'Recurring access passes that unlock content, perks, or services for as long as the subscription is active.',
+    category: 'digital',
+  },
+  {
+    _id: '67c68b8fa98b778091097105',
+    name: 'membership',
+    displayName: 'Memberships',
+    address: '2vawHME3K5L2Q46XzfT7pEww5pZvmLrQCdXNiXrENzB1',
+    image:
+      'https://husky-peach-bear.myfilebase.com/ipfs/QmZK8ZNsnFVc9WCoMhLs33u8W1fJ9c4cmtBkUepEV4n5yc',
+    description:
+      'One-time purchase passes that grant lasting access to private channels, gated drops, or community events.',
+    category: 'digital',
   },
   {
     _id: '67c68bdca98b778091097107',
@@ -66,16 +74,15 @@ export const MINT_COLLECTIONS: MintCollection[] = [
     image:
       'https://husky-peach-bear.myfilebase.com/ipfs/QmRJdcUtsQnJRsAKtvTxfpTTgouSHNHXL7kzA4Zme1xiHY',
     description:
-      'The Coupons NFT collection offers unique digital vouchers that provide exclusive discounts and offers. Each coupon is a collectible item that can be traded or redeemed for special promotions, making them a valuable asset for savvy shoppers. With vibrant designs and limited availability, these NFTs not only serve as a means of savings but also as a representation of digital ownership in the evolving world of e-commerce.',
-  },
-  {
-    _id: '67c68cb5a98b77809109710b',
-    name: 'phygitals',
-    displayName: 'Products',
-    address: 'EFNUeHdd9dYNWaczMGfCtqThFea7HcL7xUdH8QNsYUcq',
-    image:
-      'https://husky-peach-bear.myfilebase.com/ipfs/QmfWYYueYHxXwBRT829avEN8JBWM6HcsXzYkjJ4CdHLy8W',
-    description:
-      'Products are a unique blend of physical and digital assets, designed to bridge the gap between the tangible and the virtual. Each NFT in this collection represents a distinct item that can be experienced both in the real world and in the digital realm, offering holders exclusive access to special events, products, and experiences. Embrace the future of ownership with Products, where every token tells a story and unlocks new possibilities.',
+      'Redeemable discount vouchers your customers can collect, trade, or apply at checkout.',
+    category: 'digital',
   },
 ];
+
+export const PHYSICAL_COLLECTIONS = MINT_COLLECTIONS.filter(
+  (c) => c.category === 'physical'
+);
+
+export const DIGITAL_COLLECTIONS = MINT_COLLECTIONS.filter(
+  (c) => c.category === 'digital'
+);
