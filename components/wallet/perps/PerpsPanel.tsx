@@ -4,6 +4,9 @@ import { useState, useCallback, useEffect } from 'react';
 import { ArrowLeft, ArrowDownToLine, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type * as hl from '@nktkas/hyperliquid';
+import { useUser } from '@/lib/UserContext';
+import { postFeed } from '@/actions/postFeed';
+import Cookies from 'js-cookie';
 
 // Hooks
 import {
@@ -53,6 +56,54 @@ interface PerpsPanelProps {
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1D'] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
 
+type PerpsFeedOrder = {
+  market: HLMarket;
+  isBuy: boolean;
+  orderType: 'market' | 'limit' | 'tpsl';
+  size: string;
+  entryPrice: string;
+  markPrice: string;
+  limitPrice?: string;
+  takeProfitPrice?: string;
+  stopLossPrice?: string;
+  result: unknown;
+};
+
+function finiteNumber(value: unknown): number | undefined {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function extractHyperliquidOrderId(result: unknown): string | undefined {
+  const statuses = (result as any)?.response?.data?.statuses;
+  if (!Array.isArray(statuses)) return undefined;
+
+  for (const status of statuses) {
+    const oid =
+      status?.resting?.oid ??
+      status?.filled?.oid ??
+      status?.error?.oid ??
+      status?.oid;
+    if (oid !== undefined && oid !== null) return String(oid);
+  }
+
+  return undefined;
+}
+
+function hasAcceptedHyperliquidOrder(result: unknown): boolean {
+  const statuses = (result as any)?.response?.data?.statuses;
+  if (!Array.isArray(statuses)) return (result as any)?.status === 'ok';
+  return statuses.some((status) => status?.resting || status?.filled);
+}
+
+function sanitizeOrderResult(result: unknown) {
+  try {
+    return JSON.parse(JSON.stringify(result));
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * PerpsPanel — full-screen perps trading dashboard. Bento layout:
  *
@@ -79,6 +130,7 @@ export function PerpsPanel({
   initialCoin,
 }: PerpsPanelProps) {
   const { toast } = useToast();
+  const { user, accessToken: userAccessToken }: any = useUser();
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [selectedCoin, setSelectedCoin] = useState<string | null>(
@@ -192,6 +244,146 @@ export function PerpsPanel({
       toast,
       refetchPositions,
     ],
+  );
+
+  const postPerpsOrderToFeed = useCallback(
+    (details: PerpsFeedOrder) => {
+      if (!user?.primaryMicrosite || !user?._id) return;
+      if (!hasAcceptedHyperliquidOrder(details.result)) return;
+
+      const entryPrice = finiteNumber(details.entryPrice);
+      const markPrice = finiteNumber(details.markPrice);
+      const sizeCoins = finiteNumber(details.size);
+      const leverage = tradeLeverage.value;
+
+      if (!entryPrice || !sizeCoins) return;
+
+      const sizeUsd = sizeCoins * entryPrice;
+      const liquidationPrice = leverage
+        ? details.isBuy
+          ? entryPrice * (1 - 1 / leverage)
+          : entryPrice * (1 + 1 / leverage)
+        : undefined;
+
+      const token = Cookies.get('access-token') || userAccessToken;
+      if (!token) return;
+
+      Promise.resolve(
+        postFeed(
+          {
+            postType: 'perps',
+            smartsiteId: user.primaryMicrosite,
+            userId: user._id,
+            content: {
+              platform: 'hyperliquid',
+              marketId: String(details.market.index),
+              marketName: details.market.name,
+              coin: details.market.coin,
+              side: details.isBuy ? 'LONG' : 'SHORT',
+              orderType: details.orderType,
+              marginMode: tradeLeverage.isCross ? 'cross' : 'isolated',
+              leverage,
+              sizeCoins,
+              sizeUsd,
+              entryPrice,
+              limitPrice: finiteNumber(details.limitPrice),
+              markPrice,
+              liquidationPrice,
+              marginRequired: leverage ? sizeUsd / leverage : undefined,
+              estFees: sizeUsd * 0.0007,
+              takeProfitPrice: finiteNumber(details.takeProfitPrice),
+              stopLossPrice: finiteNumber(details.stopLossPrice),
+              orderId: extractHyperliquidOrderId(details.result),
+              orderResult: sanitizeOrderResult(details.result),
+            },
+          },
+          token,
+        ),
+      ).catch((err) =>
+        console.error('Failed to post perps order to feed:', err),
+      );
+    },
+    [
+      tradeLeverage.isCross,
+      tradeLeverage.value,
+      userAccessToken,
+      user?._id,
+      user?.primaryMicrosite,
+    ],
+  );
+
+  const handlePlaceMarketOrder = useCallback(
+    async (
+      assetIndex: number,
+      isBuy: boolean,
+      size: string,
+      markPrice: string,
+    ) => {
+      const result = await placeMarketOrder(
+        assetIndex,
+        isBuy,
+        size,
+        markPrice,
+      );
+      const market = markets.find((m) => m.index === assetIndex);
+      if (market) {
+        postPerpsOrderToFeed({
+          market,
+          isBuy,
+          orderType: 'market',
+          size,
+          entryPrice: markPrice,
+          markPrice,
+          result,
+        });
+      }
+      return result;
+    },
+    [markets, placeMarketOrder, postPerpsOrderToFeed],
+  );
+
+  const handlePlaceLimitOrder = useCallback(
+    async (params: Parameters<typeof placeLimitOrder>[0]) => {
+      const result = await placeLimitOrder(params);
+      const market = markets.find((m) => m.index === params.assetIndex);
+      if (market) {
+        postPerpsOrderToFeed({
+          market,
+          isBuy: params.isBuy,
+          orderType: 'limit',
+          size: params.size,
+          entryPrice: params.price,
+          limitPrice: params.price,
+          markPrice: mids[market.coin] ?? market.markPrice,
+          result,
+        });
+      }
+      return result;
+    },
+    [markets, mids, placeLimitOrder, postPerpsOrderToFeed],
+  );
+
+  const handlePlaceTpSlOrder = useCallback(
+    async (params: Parameters<typeof placeTpSlOrder>[0]) => {
+      const result = await placeTpSlOrder(params);
+      const market = markets.find((m) => m.index === params.assetIndex);
+      if (market) {
+        postPerpsOrderToFeed({
+          market,
+          isBuy: params.isBuy,
+          orderType: 'tpsl',
+          size: params.size,
+          entryPrice: params.entryPrice,
+          limitPrice: params.entryPrice,
+          markPrice: mids[market.coin] ?? market.markPrice,
+          takeProfitPrice: params.takeProfitPrice,
+          stopLossPrice: params.stopLossPrice,
+          result,
+        });
+      }
+      return result;
+    },
+    [markets, mids, placeTpSlOrder, postPerpsOrderToFeed],
   );
 
   const handleInitAgent = useCallback(async () => {
@@ -319,9 +511,9 @@ export function PerpsPanel({
                   onLeverageChange={(value, isCross) =>
                     setTradeLeverage({ value, isCross })
                   }
-                  onPlaceMarket={placeMarketOrder}
-                  onPlaceLimit={placeLimitOrder}
-                  onPlaceTpSl={placeTpSlOrder}
+                  onPlaceMarket={handlePlaceMarketOrder}
+                  onPlaceLimit={handlePlaceLimitOrder}
+                  onPlaceTpSl={handlePlaceTpSlOrder}
                   onUpdateLeverage={updateLeverage}
                   onClearError={clearError}
                 />
@@ -473,4 +665,3 @@ function Ohlc({
     </span>
   );
 }
-

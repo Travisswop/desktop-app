@@ -130,6 +130,10 @@ function extractOgTitle(feed: any): string {
       return `Swapped ${content.inputToken?.symbol ?? ""} → ${
         content.outputToken?.symbol ?? ""
       } on Swop`;
+    case "perps":
+      return `${content.side ?? "Perps"} ${content.coin ?? ""} ${
+        content.orderType ?? "order"
+      } on Swop`;
     case "redeem":
       return `Redeemed ${content.redeemName ?? ""} on Swop`;
     case "connection":

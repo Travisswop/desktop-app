@@ -21,6 +21,7 @@ import IndividualFeedContent from "./IndividualFeedContent";
 import SwapTransactionCard from "./SwapTransactionCard";
 import isUrl from "@/lib/isUrl";
 import PollCard from "./PollCard";
+import PerpsFeedCard from "./PerpsFeedCard";
 import tipImg from "@/public/images/tip.png";
 import TipContentModal from "./TipContent";
 import { formatEns } from "@/lib/formatEnsName";
@@ -321,6 +322,17 @@ const FeedReplyItem = memo(
                       onPostInteraction(feed._id, updated);
                     }
                   }}
+                />
+              )}
+
+              {feed.postType === "perps" && (
+                <PerpsFeedCard
+                  content={feed.content}
+                  userName={
+                    feed.smartsiteDetails?.name ||
+                    feed.smartsiteUserName ||
+                    undefined
+                  }
                 />
               )}
 

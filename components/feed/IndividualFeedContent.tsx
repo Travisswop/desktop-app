@@ -19,6 +19,7 @@ import SwapTransactionCard from "./SwapTransactionCard";
 import { formatEns } from "@/lib/formatEnsName";
 import PollCard from "./PollCard";
 import PredictionFeedCard from "./PredictionFeedCard";
+import PerpsFeedCard from "./PerpsFeedCard";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import { IoMdArrowDropright } from "react-icons/io";
 import { MdArrowRight } from "react-icons/md";
@@ -311,6 +312,17 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
             )}
             {feed.repostedPostDetails.postType === "prediction" && (
               <PredictionFeedCard
+                content={feed.repostedPostDetails.content}
+                userName={
+                  feed.repostedPostDetails?.smartsiteId?.name ||
+                  feed.repostedPostDetails?.smartsiteUserName ||
+                  feed.repostedPostDetails?.smartsiteDetails?.name ||
+                  undefined
+                }
+              />
+            )}
+            {feed.repostedPostDetails.postType === "perps" && (
+              <PerpsFeedCard
                 content={feed.repostedPostDetails.content}
                 userName={
                   feed.repostedPostDetails?.smartsiteId?.name ||

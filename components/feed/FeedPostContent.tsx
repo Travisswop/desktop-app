@@ -13,6 +13,7 @@ import RedeemClaimModal from '../modal/RedeemClaim';
 import { makeLinksClickable } from '@/lib/makeLinksClickable';
 import logger from '@/utils/logger';
 import PredictionFeedCard from './PredictionFeedCard';
+import PerpsFeedCard from './PerpsFeedCard';
 
 interface FeedItemType {
   _id: string;
@@ -246,6 +247,18 @@ const FeedPostContent = ({
       {/* Prediction */}
       {feed.postType === 'prediction' && (
         <PredictionFeedCard
+          content={feed.content}
+          userName={
+            feed.smartsiteDetails?.name ||
+            feed.smartsiteUserName ||
+            undefined
+          }
+        />
+      )}
+
+      {/* Perps */}
+      {feed.postType === 'perps' && (
+        <PerpsFeedCard
           content={feed.content}
           userName={
             feed.smartsiteDetails?.name ||
