@@ -66,6 +66,36 @@ interface PerpsPanelProps {
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1D'] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
 
+interface HyperliquidUserFill {
+  coin?: string;
+  px?: string;
+  sz?: string;
+  side?: 'B' | 'A';
+  time?: number;
+  startPosition?: string;
+  closedPnl?: string;
+  hash?: string;
+  oid?: number | string;
+  liquidation?: {
+    liquidatedUser?: string;
+    markPx?: string;
+    method?: string;
+  };
+}
+
+function getUserEventFills(data: unknown): HyperliquidUserFill[] {
+  if (!data || typeof data !== 'object') return [];
+  const fills = (data as { fills?: unknown }).fills;
+  return Array.isArray(fills) ? (fills as HyperliquidUserFill[]) : [];
+}
+
+function getFillTimestamp(fill: HyperliquidUserFill) {
+  const milliseconds = Number(fill.time);
+  return Number.isFinite(milliseconds)
+    ? new Date(milliseconds).toISOString()
+    : new Date().toISOString();
+}
+
 /**
  * PerpsPanel — full-screen perps trading dashboard. Bento layout:
  *
@@ -97,6 +127,7 @@ export function PerpsPanel({
   const { accessToken, user, primaryMicrosite } = useUser();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const syncedPositionSnapshotsRef = useRef<Set<string>>(new Set());
+  const syncedLiquidationFillsRef = useRef<Set<string>>(new Set());
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [selectedCoin, setSelectedCoin] = useState<string | null>(
@@ -166,9 +197,115 @@ export function PerpsPanel({
 
   useUserFills(
     effectiveMaster,
-    useCallback(() => {
+    useCallback((data: unknown) => {
+      const smartsiteId = user?.primaryMicrosite || primaryMicrosite;
+      const fills = getUserEventFills(data);
+
+      if (accessToken && user?._id && smartsiteId && masterAddress) {
+        fills.forEach((fill) => {
+          if (!fill.liquidation || !fill.coin) return;
+
+          const fillKey = [
+            fill.hash,
+            fill.oid,
+            fill.coin,
+            fill.time,
+            fill.liquidation.markPx,
+          ].join(':');
+          if (syncedLiquidationFillsRef.current.has(fillKey)) return;
+          syncedLiquidationFillsRef.current.add(fillKey);
+
+          const position = accountData?.positions.find(
+            (item) => item.coin === fill.coin,
+          );
+          const startSize = toPerpsFeedNumber(fill.startPosition);
+          const isLong =
+            position
+              ? toPerpsFeedNumber(position.szi) > 0
+              : startSize >= 0;
+          const exitPrice = toPerpsFeedNumber(
+            fill.liquidation.markPx || fill.px || position?.entryPx,
+          );
+          const entryPrice = toPerpsFeedNumber(
+            position?.entryPx || fill.px || exitPrice,
+          );
+          const leverage = position?.leverage.value || tradeLeverage.value;
+          const sizeCoins = Math.abs(
+            toPerpsFeedNumber(position?.szi || fill.startPosition || fill.sz),
+          );
+          const realizedPnl = toPerpsFeedNumber(fill.closedPnl);
+          const fallbackReturnPct =
+            entryPrice > 0 && exitPrice > 0
+              ? ((isLong ? exitPrice - entryPrice : entryPrice - exitPrice) /
+                  entryPrice) *
+                leverage *
+                100
+              : 0;
+          const returnPct =
+            position?.returnOnEquity !== undefined
+              ? toPerpsFeedNumber(position.returnOnEquity) * 100
+              : fallbackReturnPct;
+          const timestamp = getFillTimestamp(fill);
+
+          upsertPerpsPositionFeed({
+            token: accessToken,
+            userId: user._id,
+            smartsiteId,
+            content: {
+              provider: 'hyperliquid',
+              positionKey: buildPerpsPositionKey({
+                userId: user._id,
+                masterAddress,
+                coin: fill.coin,
+              }),
+              coin: fill.coin,
+              side: isLong ? 'long' : 'short',
+              status: 'liquidated',
+              event: 'liquidate',
+              leverage,
+              marginMode:
+                position?.leverage.type === 'isolated' ? 'isolated' : 'cross',
+              entryPrice,
+              markPrice: exitPrice,
+              exitPrice,
+              liquidationPrice: exitPrice,
+              collateralUsd: toPerpsFeedNumber(position?.marginUsed),
+              notionalUsd:
+                toPerpsFeedNumber(position?.positionValue) ||
+                sizeCoins * exitPrice,
+              sizeCoins,
+              returnPct,
+              unrealizedPnl: realizedPnl,
+              realizedPnl,
+              orderId:
+                fill.oid === undefined || fill.oid === null
+                  ? undefined
+                  : String(fill.oid),
+              masterAddress,
+              updatedAt: timestamp,
+              closedAt: timestamp,
+              liquidatedAt: timestamp,
+            },
+          }).catch((feedError) => {
+            console.warn(
+              'Failed to update liquidated perps feed card:',
+              feedError,
+            );
+          });
+        });
+      }
+
       refetchPositions();
-    }, [refetchPositions]),
+    }, [
+      accessToken,
+      accountData?.positions,
+      masterAddress,
+      primaryMicrosite,
+      refetchPositions,
+      tradeLeverage.value,
+      user?._id,
+      user?.primaryMicrosite,
+    ]),
     !!effectiveMaster,
   );
 
