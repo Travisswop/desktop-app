@@ -330,6 +330,13 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
                   feed.repostedPostDetails?.smartsiteDetails?.name ||
                   undefined
                 }
+                userImage={
+                  feed.repostedPostDetails?.smartsiteId?.profilePic ||
+                  feed.repostedPostDetails?.smartsiteProfilePic ||
+                  feed.repostedPostDetails?.smartsiteDetails?.profilePic ||
+                  undefined
+                }
+                createdAt={feed.repostedPostDetails?.createdAt}
               />
             )}
           </div>

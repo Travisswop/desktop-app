@@ -37,6 +37,14 @@ import type {
   HLPosition,
 } from '@/services/hyperliquid/types';
 
+export type PerpsInitialOrder = {
+  side?: 'long' | 'short';
+  leverage?: number;
+  isCross?: boolean;
+  sizeUsd?: string;
+  sizeCoins?: string;
+};
+
 interface PerpsPanelProps {
   agentClient: hl.ExchangeClient | null;
   masterAddress: string | null;
@@ -51,6 +59,8 @@ interface PerpsPanelProps {
   onRecheckBalance: () => void;
   /** Coin to focus on when the panel opens (e.g. user clicked an ETH row in PerpsCard) */
   initialCoin?: string | null;
+  /** Optional order ticket values copied from a perps feed card. */
+  initialOrder?: PerpsInitialOrder | null;
 }
 
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1D'] as const;
@@ -128,6 +138,7 @@ export function PerpsPanel({
   depositStatus,
   onRecheckBalance,
   initialCoin,
+  initialOrder,
 }: PerpsPanelProps) {
   const { toast } = useToast();
   const { user, accessToken: userAccessToken }: any = useUser();
@@ -503,6 +514,7 @@ export function PerpsPanel({
                 <TradingForm
                   market={selectedMarket ?? null}
                   markPrice={liveMarkPrice}
+                  initialOrder={initialOrder}
                   existingPosition={existingPosition}
                   accountValue={accountData?.accountValue ?? '0'}
                   isAgentReady={isInitialized}

@@ -169,7 +169,7 @@ export default function Sidebar({
       </div>
 
       {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto px-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-4">
         {allItems.length === 0 ? (
           <div className="text-center text-whatsapp-text-secondary py-8">
             No conversations yet
@@ -299,15 +299,15 @@ function ConversationItem({
   return (
     <div
       onClick={onClick}
-      className={`p-4 border-b border-whatsapp-border cursor-pointer transition-colors flex items-center justify-between ${
+      className={`w-full min-w-0 p-4 border-b border-whatsapp-border cursor-pointer transition-colors flex items-center justify-between gap-3 ${
         isSelected
           ? 'bg-whatsapp-teal-dark'
           : 'bg-whatsapp-bg-secondary hover:bg-whatsapp-hover'
       }`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
         {/* Avatar */}
-        <div className="relative">
+        <div className="relative shrink-0">
           {isAstro ? (
             <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-lg border-2 border-blue-500">
               🤖
@@ -357,15 +357,19 @@ function ConversationItem({
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-start mb-1">
-            <div className="flex items-center gap-1">
-              <h3 className="font-medium truncate">{info.name}</h3>
+            <div className="flex items-center gap-1 min-w-0">
+              <h3 className="font-medium truncate min-w-0">
+                {info.name}
+              </h3>
               {isAstro && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
                   AI
                 </span>
               )}
               {isGroup && (
-                <div>{item.settings.isPublic ? '🌏' : '🔒'}</div>
+                <div className="shrink-0">
+                  {item.settings.isPublic ? '🌏' : '🔒'}
+                </div>
               )}
             </div>
           </div>
@@ -383,7 +387,7 @@ function ConversationItem({
         </div>
       </div>
       {/* Unread count */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         {info.unreadCount > 0 && (
           <div className="bg-black text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
             {info.unreadCount > 99 ? '99+' : info.unreadCount}

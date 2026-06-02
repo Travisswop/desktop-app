@@ -1,11 +1,13 @@
 // app/components/GroupMenu.tsx
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
 import toast from 'react-hot-toast';
 import { useUser } from '@/lib/UserContext';
-import { Loader } from 'lucide-react';
+import { ChevronDown, Loader } from 'lucide-react';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { useNFT } from '@/lib/hooks/useNFT';
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -20,11 +22,16 @@ interface User {
 }
 
 interface Participant {
-  userId: User;
+  participantUser: User;
   role?: string;
   joinedAt?: string;
   permissions?: string[];
 }
+
+type RawParticipant = Omit<Participant, 'participantUser'> & {
+  userId: User;
+  participantUser?: User;
+};
 
 interface GroupSettings {
   groupInfo?: {
@@ -32,6 +39,14 @@ interface GroupSettings {
     description?: string;
   };
   isPublic?: boolean;
+  tokenGate?: {
+    enabled?: boolean;
+    tokenType?: 'NFT' | 'Token';
+    selectedToken?: string | null;
+    selectedTokenName?: string | null;
+    selectedTokenSymbol?: string | null;
+    network?: 'SOLANA';
+  };
 }
 
 interface Group {
@@ -78,6 +93,12 @@ type ModalType =
 const getUserId = (user?: string | User) =>
   typeof user === 'string' ? user : user?._id;
 
+const getParticipantUser = (
+  participant: Participant | RawParticipant,
+) =>
+  participant.participantUser ||
+  (participant as RawParticipant).userId;
+
 const isGroupAdmin = (participant?: Participant) =>
   participant?.role === 'admin' ||
   participant?.permissions?.includes('manage_members');
@@ -100,7 +121,7 @@ export default function GroupMenu({
   const closeMenu = () => setIsOpen(false);
   const closeModal = () => setActiveModal(null);
   const currentParticipant = group.participants?.find(
-    (participant) => participant.userId._id === currentUser
+    (participant) => getParticipantUser(participant)._id === currentUser,
   );
   const canManageGroup = isGroupAdmin(currentParticipant);
   const canDeleteGroup =
@@ -189,8 +210,8 @@ export default function GroupMenu({
                   item.color === 'danger'
                     ? 'text-red-600 hover:bg-red-50'
                     : item.color === 'warning'
-                    ? 'text-orange-600 hover:bg-orange-50'
-                    : 'text-gray-700 hover:bg-gray-50'
+                      ? 'text-orange-600 hover:bg-orange-50'
+                      : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 {item.label}
@@ -235,6 +256,7 @@ export default function GroupMenu({
         <EditGroupModal
           group={group}
           socket={socket}
+          currentUser={currentUser}
           onClose={closeModal}
           onSuccess={onGroupUpdate}
         />
@@ -280,7 +302,7 @@ function AddMemberModal({
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [addingUserId, setAddingUserId] = useState<string | null>(
-    null
+    null,
   );
 
   // const { toast } = useToast();
@@ -301,17 +323,19 @@ function AddMemberModal({
             const users = response.results || response.users || [];
             // Filter out users already in the group
             const existingUserIds =
-              group.participants?.map((p) => p.userId._id) || [];
+              group.participants?.map(
+                (participant) => getParticipantUser(participant)._id,
+              ) || [];
             const filteredUsers = users.filter(
-              (user) => !existingUserIds.includes(user._id)
+              (user) => !existingUserIds.includes(user._id),
             );
             setSearchResults(filteredUsers);
           }
           setIsSearching(false);
-        }
+        },
       );
     },
-    [socket, group.participants]
+    [socket, group.participants],
   );
 
   useEffect(() => {
@@ -351,11 +375,11 @@ function AddMemberModal({
             `Failed to add ${displayName}: ${response.error}`,
             {
               position: 'top-right',
-            }
+            },
           );
         }
         setAddingUserId(null);
-      }
+      },
     );
   };
 
@@ -442,7 +466,7 @@ function AddMemberModal({
                     onClick={() =>
                       handleAddMember(
                         user._id,
-                        user.displayName || user.name || 'User'
+                        user.displayName || user.name || 'User',
                       )
                     }
                     disabled={addingUserId === user._id}
@@ -476,20 +500,24 @@ function RemoveMemberModal({
   onSuccess?: () => void;
 }) {
   const [removingUserId, setRemovingUserId] = useState<string | null>(
-    null
+    null,
   );
   const [confirmingUser, setConfirmingUser] = useState<User | null>(
-    null
+    null,
   );
 
   // Filter out current user and group creator
   const removableMembers =
     group.participants?.filter(
-      (p) =>
-        p.userId._id !== currentUser &&
-        !isGroupCreator(group, p.userId._id)
-    ) ||
-    [];
+      (participant) => {
+        const participantUser = getParticipantUser(participant);
+
+        return (
+          participantUser._id !== currentUser &&
+          !isGroupCreator(group, participantUser._id)
+        );
+      },
+    ) || [];
 
   const confirmRemoveMember = (user: User) => {
     setConfirmingUser(user);
@@ -497,18 +525,18 @@ function RemoveMemberModal({
 
   const handleConfirmRemove = () => {
     if (!confirmingUser) return;
-    const user = confirmingUser;
-    setRemovingUserId(user._id);
+    const participantUser = confirmingUser;
+    setRemovingUserId(participantUser._id);
 
     socket.emit(
       'remove_group_member',
       {
         groupId: group._id,
-        userIdToRemove: user._id,
+        userIdToRemove: participantUser._id,
       },
       (response: SocketResponse) => {
         if (response.success) {
-          toast.success(`${user.name} removed successfully!`, {
+          toast.success(`${participantUser.name} removed successfully!`, {
             position: 'top-right',
           });
           onSuccess?.();
@@ -516,14 +544,14 @@ function RemoveMemberModal({
           onClose();
         } else {
           toast.error(
-            `Failed to remove ${user.name}: ${response.error}`,
+            `Failed to remove ${participantUser.name}: ${response.error}`,
             {
               position: 'top-right',
-            }
+            },
           );
         }
         setRemovingUserId(null);
-      }
+      },
     );
   };
 
@@ -557,33 +585,35 @@ function RemoveMemberModal({
             ) : (
               <div className="space-y-2">
                 {removableMembers.map((participant) => {
-                  const user = participant.userId;
+                  const participantUser = getParticipantUser(participant);
                   return (
                     <div
-                      key={user._id}
+                      key={participantUser._id}
                       className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                     >
                       <div className="flex items-center gap-3">
-                        {user.profilePic ? (
+                        {participantUser.profilePic ? (
                           <Image
                             src={
-                              isUrl(user.profilePic)
-                                ? user.profilePic
-                                : `/images/user_avator/${user.profilePic}@3x.png`
+                              isUrl(participantUser.profilePic)
+                                ? participantUser.profilePic
+                                : `/images/user_avator/${participantUser.profilePic}@3x.png`
                             }
-                            alt={user.name}
+                            alt={participantUser.name}
                             width={40}
                             height={40}
                             className="rounded-full"
                           />
                         ) : (
                           <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-semibold">
-                            {user.name?.charAt(0).toUpperCase()}
+                            {participantUser.name
+                              ?.charAt(0)
+                              .toUpperCase()}
                           </div>
                         )}
                         <div>
                           <div className="font-medium">
-                            {user.name}
+                            {participantUser.name}
                             {isGroupAdmin(participant) && (
                               <span className="ml-2 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
                                 Admin
@@ -591,16 +621,20 @@ function RemoveMemberModal({
                             )}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {user.username || user.ens || ''}
+                            {participantUser.username ||
+                              participantUser.ens ||
+                              ''}
                           </div>
                         </div>
                       </div>
                       <button
-                        onClick={() => confirmRemoveMember(user)}
-                        disabled={removingUserId === user._id}
+                        onClick={() =>
+                          confirmRemoveMember(participantUser)
+                        }
+                        disabled={removingUserId === participantUser._id}
                         className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
                       >
-                        {removingUserId === user._id
+                        {removingUserId === participantUser._id
                           ? 'Removing...'
                           : 'Remove'}
                       </button>
@@ -665,7 +699,7 @@ function ManageAdminsModal({
   onSuccess?: () => void;
 }) {
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(
-    null
+    null,
   );
 
   const participants = group.participants || [];
@@ -673,35 +707,35 @@ function ManageAdminsModal({
 
   const handleRoleChange = (
     participant: Participant,
-    nextRole: 'admin' | 'member'
+    nextRole: 'admin' | 'member',
   ) => {
-    const user = participant.userId;
-    setUpdatingUserId(user._id);
+    const participantUser = getParticipantUser(participant);
+    setUpdatingUserId(participantUser._id);
 
     socket.emit(
       'update_group_member_role',
       {
         groupId: group._id,
-        userIdToUpdate: user._id,
+        userIdToUpdate: participantUser._id,
         role: nextRole,
       },
       (response: SocketResponse) => {
         if (response.success) {
           toast.success(
             nextRole === 'admin'
-              ? `${user.name} is now an admin`
-              : `${user.name} is no longer an admin`,
-            { position: 'top-right' }
+              ? `${participantUser.name} is now an admin`
+              : `${participantUser.name} is no longer an admin`,
+            { position: 'top-right' },
           );
           onSuccess?.();
         } else {
           toast.error(
-            `Failed to update ${user.name}: ${response.error}`,
-            { position: 'top-right' }
+            `Failed to update ${participantUser.name}: ${response.error}`,
+            { position: 'top-right' },
           );
         }
         setUpdatingUserId(null);
-      }
+      },
     );
   };
 
@@ -719,7 +753,8 @@ function ManageAdminsModal({
             </button>
           </div>
           <p className="text-sm text-gray-600 mt-1">
-            {adminCount} admin{adminCount === 1 ? '' : 's'} in {group.name}
+            {adminCount} admin{adminCount === 1 ? '' : 's'} in{' '}
+            {group.name}
           </p>
         </div>
 
@@ -731,45 +766,52 @@ function ManageAdminsModal({
           ) : (
             <div className="space-y-2">
               {participants.map((participant) => {
-                const user = participant.userId;
+                const participantUser = getParticipantUser(participant);
                 const isAdmin = isGroupAdmin(participant);
-                const isCreator = isGroupCreator(group, user._id);
-                const isSelf = user._id === currentUser;
+                const isCreator = isGroupCreator(
+                  group,
+                  participantUser._id,
+                );
+                const isSelf = participantUser._id === currentUser;
                 const canDemote = isAdmin && !isCreator && !isSelf;
 
                 return (
                   <div
-                    key={user._id}
+                    key={participantUser._id}
                     className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      {user.profilePic ? (
+                      {participantUser.profilePic ? (
                         <Image
                           src={
-                            isUrl(user.profilePic)
-                              ? user.profilePic
-                              : `/images/user_avator/${user.profilePic}@3x.png`
+                            isUrl(participantUser.profilePic)
+                              ? participantUser.profilePic
+                              : `/images/user_avator/${participantUser.profilePic}@3x.png`
                           }
-                          alt={user.name}
+                          alt={participantUser.name}
                           width={40}
                           height={40}
                           className="rounded-full"
                         />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white font-semibold shrink-0">
-                          {user.name?.charAt(0).toUpperCase()}
+                          {participantUser.name
+                            ?.charAt(0)
+                            .toUpperCase()}
                         </div>
                       )}
                       <div className="min-w-0">
                         <div className="font-medium truncate">
-                          {user.name}
+                          {participantUser.name}
                         </div>
                         <div className="text-sm text-gray-500 truncate">
                           {isCreator
                             ? 'Creator'
                             : isAdmin
-                            ? 'Admin'
-                            : user.username || user.ens || 'Member'}
+                              ? 'Admin'
+                              : participantUser.username ||
+                                participantUser.ens ||
+                                'Member'}
                         </div>
                       </div>
                     </div>
@@ -779,26 +821,29 @@ function ManageAdminsModal({
                         onClick={() =>
                           handleRoleChange(participant, 'member')
                         }
-                        disabled={!canDemote || updatingUserId === user._id}
+                        disabled={
+                          !canDemote ||
+                          updatingUserId === participantUser._id
+                        }
                         className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm"
                       >
-                        {updatingUserId === user._id
+                        {updatingUserId === participantUser._id
                           ? 'Updating...'
                           : isCreator
-                          ? 'Creator'
-                          : isSelf
-                          ? 'You'
-                          : 'Dismiss'}
+                            ? 'Creator'
+                            : isSelf
+                              ? 'You'
+                              : 'Dismiss'}
                       </button>
                     ) : (
                       <button
                         onClick={() =>
                           handleRoleChange(participant, 'admin')
                         }
-                        disabled={updatingUserId === user._id}
+                        disabled={updatingUserId === participantUser._id}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
                       >
-                        {updatingUserId === user._id
+                        {updatingUserId === participantUser._id
                           ? 'Updating...'
                           : 'Make Admin'}
                       </button>
@@ -819,29 +864,117 @@ function ManageAdminsModal({
 function EditGroupModal({
   group,
   socket,
+  currentUser,
   onClose,
   onSuccess,
 }: {
   group: Group;
   socket: any;
+  currentUser: string;
   onClose: () => void;
   onSuccess?: () => void;
 }) {
+  const tokenGate = group.settings?.tokenGate;
   const [groupName, setGroupName] = useState(group.name || '');
   const [groupDescription, setGroupDescription] = useState(
-    group.description || ''
+    group.description || '',
   );
   const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(
-    group.settings?.groupInfo?.groupPicture || null
+    group.settings?.groupInfo?.groupPicture || null,
   );
   const [isSaving, setIsSaving] = useState(false);
   const [isRemovingPhoto, setIsRemovingPhoto] = useState(false);
+  const [showManageAdmins, setShowManageAdmins] = useState(false);
+  const [tokenGated, setTokenGated] = useState(
+    Boolean(tokenGate?.enabled),
+  );
+  const [tokenType, setTokenType] = useState<'NFT' | 'Token'>(
+    tokenGate?.tokenType || 'NFT',
+  );
+  const [selectedToken, setSelectedToken] = useState(
+    tokenGate?.selectedToken || '',
+  );
 
-  const { accessToken } = useUser();
+  const { accessToken, user } = useUser();
+  const solanaWalletAddress =
+    user?.solanaAddress || user?.solanaWallet || '';
+
+  const {
+    tokens: walletTokens,
+    loading: tokensLoading,
+    error: tokensError,
+  } = useMultiChainTokenData(
+    solanaWalletAddress || undefined,
+    undefined,
+    ['SOLANA'],
+  );
+
+  const {
+    nfts: walletNfts,
+    loading: nftsLoading,
+    error: nftsError,
+  } = useNFT(solanaWalletAddress || undefined, undefined, ['SOLANA']);
+
+  const tokenOptions = useMemo(() => {
+    const options =
+      tokenType === 'NFT'
+        ? walletNfts.map((nft) => ({
+            value: nft.contract,
+            label: nft.name || nft.symbol || nft.contract,
+            symbol: nft.symbol,
+            image: nft.image,
+          }))
+        : walletTokens
+            .filter((token) => {
+              const balance = Number(token.balance || 0);
+              return Number.isFinite(balance) && balance > 0;
+            })
+            .map((token) => ({
+              value: token.address || token.symbol,
+              label:
+                token.name || token.symbol || token.address || 'Token',
+              symbol: token.symbol,
+              image: token.logoURI || token.marketData?.image,
+            }));
+
+    if (
+      tokenGate?.selectedToken &&
+      (tokenGate.tokenType || 'NFT') === tokenType &&
+      !options.some((option) => option.value === tokenGate.selectedToken)
+    ) {
+      return [
+        {
+          value: tokenGate.selectedToken,
+          label:
+            tokenGate.selectedTokenName ||
+            tokenGate.selectedTokenSymbol ||
+            tokenGate.selectedToken,
+          symbol: tokenGate.selectedTokenSymbol || undefined,
+          image: undefined,
+        },
+        ...options,
+      ];
+    }
+
+    return options;
+  }, [tokenType, walletNfts, walletTokens, tokenGate]);
+
+  const selectedGateAsset = tokenOptions.find(
+    (option) => option.value === selectedToken,
+  );
+
+  useEffect(() => {
+    if (
+      selectedToken &&
+      !tokenOptions.some((option) => option.value === selectedToken)
+    ) {
+      setSelectedToken('');
+    }
+  }, [selectedToken, tokenOptions]);
 
   const handlePhotoChange = (
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -868,7 +1001,7 @@ function EditGroupModal({
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-        }
+        },
       );
 
       const data = await response.json();
@@ -904,6 +1037,13 @@ function EditGroupModal({
       return;
     }
 
+    if (tokenGated && !selectedToken) {
+      toast.error(`Select a ${tokenType.toLowerCase()} for token gate`, {
+        position: 'top-right',
+      });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -926,13 +1066,13 @@ function EditGroupModal({
               name: groupName,
               description: groupDescription,
             }),
-          }
+          },
         );
 
         const data = await response.json();
         if (!data.success) {
           throw new Error(
-            data.message || 'Failed to update group info'
+            data.message || 'Failed to update group info',
           );
         }
         hasChanges = true;
@@ -960,13 +1100,67 @@ function EditGroupModal({
               Authorization: `Bearer ${accessToken}`,
             },
             body: formData,
-          }
+          },
         );
 
         const data = await response.json();
         if (!data.success) {
           throw new Error(data.message || 'Failed to upload photo');
         }
+        hasChanges = true;
+      }
+
+      const nextTokenGate = {
+        enabled: tokenGated,
+        tokenType,
+        selectedToken: tokenGated ? selectedToken : null,
+        selectedTokenName:
+          tokenGated && selectedGateAsset
+            ? selectedGateAsset.label
+            : null,
+        selectedTokenSymbol:
+          tokenGated && selectedGateAsset
+            ? selectedGateAsset.symbol || null
+            : null,
+        network: 'SOLANA' as const,
+      };
+
+      const currentTokenGate = {
+        enabled: Boolean(tokenGate?.enabled),
+        tokenType: tokenGate?.tokenType || 'NFT',
+        selectedToken: tokenGate?.selectedToken || null,
+        selectedTokenName: tokenGate?.selectedTokenName || null,
+        selectedTokenSymbol: tokenGate?.selectedTokenSymbol || null,
+        network: tokenGate?.network || 'SOLANA',
+      };
+
+      if (
+        JSON.stringify(nextTokenGate) !==
+        JSON.stringify(currentTokenGate)
+      ) {
+        await new Promise<void>((resolve, reject) => {
+          socket.emit(
+            'update_group_settings',
+            {
+              groupId: group._id,
+              settings: {
+                tokenGate: nextTokenGate,
+              },
+            },
+            (response: SocketResponse) => {
+              if (response?.success) {
+                resolve();
+              } else {
+                reject(
+                  new Error(
+                    response?.error ||
+                      'Failed to update token gate settings',
+                  ),
+                );
+              }
+            },
+          );
+        });
         hasChanges = true;
       }
 
@@ -1089,6 +1283,187 @@ function EditGroupModal({
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
           </div>
+
+          {/* Token Gate */}
+          <div className="rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900">
+                  Token Gated
+                </h4>
+                <p className="mt-1 text-xs text-gray-500">
+                  Require a Solana token or NFT before the chat loads.
+                </p>
+              </div>
+              <div className="inline-flex w-36 shrink-0 rounded-full bg-gray-100 p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setTokenGated(true)}
+                  className={`flex-1 rounded-full px-3 py-2 text-sm transition-colors ${
+                    tokenGated
+                      ? 'bg-white text-gray-900 shadow'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  On
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTokenGated(false)}
+                  className={`flex-1 rounded-full px-3 py-2 text-sm transition-colors ${
+                    !tokenGated
+                      ? 'bg-white text-gray-900 shadow'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Off
+                </button>
+              </div>
+            </div>
+
+            {tokenGated && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Token Type
+                  </label>
+                  <div className="inline-flex w-44 rounded-full bg-gray-100 p-1 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTokenType('NFT');
+                        setSelectedToken('');
+                      }}
+                      className={`flex-1 rounded-full px-4 py-2 text-sm transition-colors ${
+                        tokenType === 'NFT'
+                          ? 'bg-white text-gray-900 shadow'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      NFT
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTokenType('Token');
+                        setSelectedToken('');
+                      }}
+                      className={`flex-1 rounded-full px-4 py-2 text-sm transition-colors ${
+                        tokenType === 'Token'
+                          ? 'bg-white text-gray-900 shadow'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      Token
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Select {tokenType}
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedToken}
+                      onChange={(event) =>
+                        setSelectedToken(event.target.value)
+                      }
+                      disabled={
+                        !solanaWalletAddress ||
+                        tokensLoading ||
+                        nftsLoading ||
+                        tokenOptions.length === 0
+                      }
+                      className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-3 pr-10 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                    >
+                      <option value="">
+                        {!solanaWalletAddress
+                          ? 'Connect a Solana wallet first'
+                          : tokenType === 'NFT' && nftsLoading
+                            ? 'Loading NFTs...'
+                            : tokenType === 'Token' && tokensLoading
+                              ? 'Loading tokens...'
+                              : tokenOptions.length === 0
+                                ? `No Solana ${
+                                    tokenType === 'NFT'
+                                      ? 'NFTs'
+                                      : 'tokens'
+                                  } found`
+                                : `Select a ${tokenType.toLowerCase()}...`}
+                      </option>
+                      {tokenOptions.map((asset) => (
+                        <option key={asset.value} value={asset.value}>
+                          {asset.symbol
+                            ? `${asset.label} (${asset.symbol})`
+                            : asset.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={18}
+                      className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-700"
+                    />
+                  </div>
+
+                  {(tokensError || nftsError) && (
+                    <p className="mt-2 text-xs text-red-500">
+                      Failed to load wallet assets. Please try again.
+                    </p>
+                  )}
+
+                  {selectedGateAsset && (
+                    <div className="mt-3 flex items-center gap-3 rounded-lg bg-gray-50 p-3">
+                      {selectedGateAsset.image ? (
+                        <Image
+                          src={selectedGateAsset.image}
+                          alt={selectedGateAsset.label}
+                          width={32}
+                          height={32}
+                          className="h-8 w-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black text-xs text-white">
+                          {selectedGateAsset.label
+                            .charAt(0)
+                            .toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-gray-900">
+                          {selectedGateAsset.label}
+                        </div>
+                        <div className="truncate text-xs text-gray-500">
+                          {selectedGateAsset.value}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Admin Management */}
+          <div className="rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900">
+                  Admins
+                </h4>
+                <p className="mt-1 text-xs text-gray-500">
+                  Promote members or dismiss existing admins.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowManageAdmins(true)}
+                className="shrink-0 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800"
+              >
+                Manage
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
@@ -1108,6 +1483,16 @@ function EditGroupModal({
           </button>
         </div>
       </div>
+
+      {showManageAdmins && (
+        <ManageAdminsModal
+          group={group}
+          socket={socket}
+          currentUser={currentUser}
+          onClose={() => setShowManageAdmins(false)}
+          onSuccess={onSuccess}
+        />
+      )}
     </div>
   );
 }
@@ -1141,7 +1526,7 @@ function LeaveGroupModal({
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-        }
+        },
       );
 
       const data = await response.json();
@@ -1237,7 +1622,7 @@ function DeleteGroupModal({
           });
         }
         setIsDeleting(false);
-      }
+      },
     );
   };
 

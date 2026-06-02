@@ -12,6 +12,11 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { usePrivy, useSendTransaction } from '@privy-io/react-auth';
 import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from 'next/navigation';
+import {
   useWallets as useSolanaWallets,
   useSignAndSendTransaction,
   useCreateWallet,
@@ -264,6 +269,10 @@ export default function WalletContent() {
 }
 
 const WalletContentInner = () => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   // UI state
   const [selectedToken, setSelectedToken] =
     useState<TokenData | null>(null);
@@ -300,16 +309,76 @@ const WalletContentInner = () => {
   const [perpsInitialCoin, setPerpsInitialCoin] = useState<
     string | null
   >(null);
+  const [perpsInitialOrder, setPerpsInitialOrder] = useState<{
+    side?: 'long' | 'short';
+    leverage?: number;
+    isCross?: boolean;
+    sizeUsd?: string;
+    sizeCoins?: string;
+  } | null>(null);
 
-  const openPerpsPanel = (coin?: string) => {
+  const openPerpsPanel = useCallback((coin?: string) => {
     setPerpsInitialCoin(coin ?? null);
+    setPerpsInitialOrder(null);
     setPerpsPanelOpen(true);
-  };
+  }, []);
 
   const closePerpsPanel = () => {
     setPerpsPanelOpen(false);
     setPerpsInitialCoin(null);
+    setPerpsInitialOrder(null);
   };
+
+  useEffect(() => {
+    const shouldOpenPerps =
+      searchParams?.get('perps') === '1' ||
+      searchParams?.get('perps') === 'true';
+
+    if (!shouldOpenPerps) return;
+
+    const coin = searchParams?.get('coin')?.trim().toUpperCase();
+    const sideParam = searchParams?.get('side')?.trim().toLowerCase();
+    const leverageParam = Number(searchParams?.get('leverage'));
+    const marginModeParam = searchParams
+      ?.get('marginMode')
+      ?.trim()
+      .toLowerCase();
+    const sizeUsdParam = searchParams?.get('sizeUsd')?.trim();
+    const sizeCoinsParam = searchParams?.get('sizeCoins')?.trim();
+
+    setPerpsInitialCoin(coin || null);
+    setPerpsInitialOrder({
+      side: sideParam === 'short' ? 'short' : sideParam === 'long' ? 'long' : undefined,
+      leverage:
+        Number.isFinite(leverageParam) && leverageParam > 0
+          ? leverageParam
+          : undefined,
+      isCross:
+        marginModeParam === 'isolated'
+          ? false
+          : marginModeParam === 'cross'
+            ? true
+            : undefined,
+      sizeUsd: sizeUsdParam || undefined,
+      sizeCoins: sizeCoinsParam || undefined,
+    });
+    setPerpsPanelOpen(true);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('perps');
+    nextParams.delete('coin');
+    nextParams.delete('side');
+    nextParams.delete('leverage');
+    nextParams.delete('marginMode');
+    nextParams.delete('sizeUsd');
+    nextParams.delete('sizeCoins');
+
+    const nextQuery = nextParams.toString();
+    const nextPath = pathname ?? '/wallet';
+    router.replace(nextQuery ? `${nextPath}?${nextQuery}` : nextPath, {
+      scroll: false,
+    });
+  }, [openPerpsPanel, pathname, router, searchParams]);
 
   // Hyperliquid agent — lives here so the ExchangeClient persists across
   // PerpsPanel open/close cycles and never triggers repeated sign messages.
@@ -1307,6 +1376,7 @@ const WalletContentInner = () => {
             agentError={hlAgent.error}
             initializeAgent={hlAgent.initializeAgent}
             initialCoin={perpsInitialCoin}
+            initialOrder={perpsInitialOrder}
             onClose={closePerpsPanel}
             onOpenDeposit={() => {
               setPerpsDepositOpen(true);

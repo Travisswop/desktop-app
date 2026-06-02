@@ -33,6 +33,7 @@ export interface UserData {
   primaryMicrosite?: string;
   swopensId?: string;
   solanaAddress?: string;
+  solanaWallet?: string;
   user_id?: string;
   privyId?: string;
   ethAddress?: string;

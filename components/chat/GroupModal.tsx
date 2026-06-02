@@ -1,10 +1,12 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import CustomModal from '../modal/CustomModal';
-import { Button } from '../ui/button';
-import { X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
+import { useUser } from '@/lib/UserContext';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { useNFT } from '@/lib/hooks/useNFT';
 
 interface User {
   _id: string;
@@ -36,11 +38,73 @@ export default function GroupModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<User[]>([]);
+  const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>(
+    []
+  );
   const [showDropdown, setShowDropdown] = useState(false);
   const [tokenGated, setTokenGated] = useState(false);
   const [tokenType, setTokenType] = useState<'NFT' | 'Token'>('NFT');
   const [selectedToken, setSelectedToken] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useUser();
+  const solanaWalletAddress =
+    user?.solanaAddress || user?.solanaWallet || '';
+
+  const {
+    tokens: walletTokens,
+    loading: tokensLoading,
+    error: tokensError,
+  } = useMultiChainTokenData(
+    solanaWalletAddress || undefined,
+    undefined,
+    ['SOLANA']
+  );
+
+  const {
+    nfts: walletNfts,
+    loading: nftsLoading,
+    error: nftsError,
+  } = useNFT(solanaWalletAddress || undefined, undefined, ['SOLANA']);
+
+  const tokenOptions = useMemo(() => {
+    if (tokenType === 'NFT') {
+      return walletNfts.map((nft) => ({
+        value: nft.contract,
+        label: nft.name || nft.symbol || nft.contract,
+        symbol: nft.symbol,
+        image: nft.image,
+      }));
+    }
+
+    return walletTokens
+      .filter((token) => {
+        const balance = Number(token.balance || 0);
+        return Number.isFinite(balance) && balance > 0;
+      })
+      .map((token) => ({
+        value: token.address || token.symbol,
+        label: token.name || token.symbol || token.address || 'Token',
+        symbol: token.symbol,
+        image: token.logoURI || token.marketData?.image,
+      }));
+  }, [tokenType, walletNfts, walletTokens]);
+
+  const selectedGateAsset = tokenOptions.find(
+    (option) => option.value === selectedToken
+  );
+
+  useEffect(() => {
+    setSelectedToken('');
+  }, [tokenType, solanaWalletAddress]);
+
+  useEffect(() => {
+    if (
+      selectedToken &&
+      !tokenOptions.some((option) => option.value === selectedToken)
+    ) {
+      setSelectedToken('');
+    }
+  }, [selectedToken, tokenOptions]);
 
   // Search users with debounce
   useEffect(() => {
@@ -83,6 +147,17 @@ export default function GroupModal({
     setSelectedMembers(
       selectedMembers.filter((m) => m._id !== userId)
     );
+    setSelectedAdminIds((adminIds) =>
+      adminIds.filter((adminId) => adminId !== userId)
+    );
+  };
+
+  const handleToggleAdmin = (userId: string) => {
+    setSelectedAdminIds((adminIds) =>
+      adminIds.includes(userId)
+        ? adminIds.filter((adminId) => adminId !== userId)
+        : [...adminIds, userId]
+    );
   };
 
   // Create group
@@ -92,10 +167,20 @@ export default function GroupModal({
     const groupData = {
       name: groupName,
       members: selectedMembers.map((m) => m._id),
+      admins: selectedAdminIds,
       tokenGated,
       tokenType: tokenGated ? tokenType : undefined,
       selectedToken:
         tokenGated && selectedToken ? selectedToken : undefined,
+      selectedTokenName:
+        tokenGated && selectedGateAsset
+          ? selectedGateAsset.label
+          : undefined,
+      selectedTokenSymbol:
+        tokenGated && selectedGateAsset
+          ? selectedGateAsset.symbol
+          : undefined,
+      network: tokenGated ? 'SOLANA' : undefined,
     };
 
     socket.emit('create_group', groupData, (response: any) => {
@@ -114,19 +199,12 @@ export default function GroupModal({
     setSearchQuery('');
     setSearchResults([]);
     setSelectedMembers([]);
+    setSelectedAdminIds([]);
     setShowDropdown(false);
     setTokenGated(false);
     setTokenType('NFT');
     setSelectedToken('');
     onClose();
-  };
-
-  // Format ENS names display
-  const getEnsDisplay = () => {
-    if (selectedMembers.length === 0) return '';
-    return selectedMembers
-      .map((m) => m.ens || m.microsite?.ens || m.name)
-      .join(', ');
   };
 
   return (
@@ -236,6 +314,11 @@ export default function GroupModal({
                         member.microsite?.ens ||
                         member.name}
                     </span>
+                    {selectedAdminIds.includes(member._id) && (
+                      <span className="text-[10px] font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded-full">
+                        Admin
+                      </span>
+                    )}
                     <button
                       onClick={() => handleRemoveMember(member._id)}
                       className="hover:text-red-600 transition-colors"
@@ -249,55 +332,97 @@ export default function GroupModal({
           </div>
         </div>
 
-        {/* Add Agents Section */}
-        {/* <div>
-          <label className="block text-sm font-medium mb-3 text-gray-700">
-            Add Agents:
-          </label>
-          <div className="flex gap-4">
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center cursor-pointer hover:shadow-lg transition-shadow">
-                <span className="text-2xl">🤖</span>
-              </div>
-              <span className="text-xs text-gray-600">SendAI</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center cursor-pointer hover:shadow-lg transition-shadow">
-                <span className="text-2xl">🖼️</span>
-              </div>
-              <span className="text-xs text-gray-600">Images</span>
+        {/* Add Admins */}
+        {selectedMembers.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium mb-3 text-gray-700">
+              Add Admins:
+            </label>
+            <div className="flex gap-4 overflow-x-auto pb-1">
+              {selectedMembers.map((member) => {
+                const isAdmin = selectedAdminIds.includes(member._id);
+                const avatar =
+                  member.avatar || member.microsite?.profilePic;
+                const displayName =
+                  member.ens || member.microsite?.ens || member.name;
+
+                return (
+                  <button
+                    key={member._id}
+                    type="button"
+                    onClick={() => handleToggleAdmin(member._id)}
+                    className="flex w-16 shrink-0 flex-col items-center gap-2"
+                  >
+                    <span
+                      className={`relative w-14 h-14 rounded-full overflow-hidden border-2 transition-colors ${
+                        isAdmin
+                          ? 'border-black'
+                          : 'border-transparent'
+                      }`}
+                    >
+                      {avatar ? (
+                        <Image
+                          src={
+                            isUrl(avatar)
+                              ? avatar
+                              : `/images/user_avator/${avatar}@3x.png`
+                          }
+                          alt={member.name}
+                          width={56}
+                          height={56}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex w-full h-full items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
+                          {member.name?.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      {isAdmin && (
+                        <span className="absolute -right-0.5 -bottom-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black text-[10px] text-white">
+                          ✓
+                        </span>
+                      )}
+                    </span>
+                    <span className="w-full truncate text-center text-xs text-gray-600">
+                      {displayName}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </div> */}
+        )}
 
         {/* Token Gated */}
-        {/* <div>
+        <div>
           <label className="block text-sm font-medium mb-3 text-gray-700">
             Token Gated
           </label>
-          <div className="flex gap-3">
+          <div className="inline-flex w-44 rounded-full bg-gray-100 p-1 shadow-sm">
             <button
+              type="button"
               onClick={() => setTokenGated(true)}
-              className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
+              className={`flex-1 px-4 py-2 rounded-full text-sm transition-colors ${
                 tokenGated
-                  ? 'border-black bg-gray-100 text-gray-900 font-medium'
-                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               On
             </button>
             <button
+              type="button"
               onClick={() => setTokenGated(false)}
-              className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
+              className={`flex-1 px-4 py-2 rounded-full text-sm transition-colors ${
                 !tokenGated
-                  ? 'border-black bg-gray-100 text-gray-900 font-medium'
-                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               Off
             </button>
           </div>
-        </div> */}
+        </div>
 
         {/* Token Type (only show if Token Gated is On) */}
         {tokenGated && (
@@ -306,23 +431,25 @@ export default function GroupModal({
               <label className="block text-sm font-medium mb-3 text-gray-700">
                 Token Type:
               </label>
-              <div className="flex gap-3">
+              <div className="inline-flex w-44 rounded-full bg-gray-100 p-1 shadow-sm">
                 <button
+                  type="button"
                   onClick={() => setTokenType('NFT')}
-                  className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
+                  className={`flex-1 px-4 py-2 rounded-full text-sm transition-colors ${
                     tokenType === 'NFT'
-                      ? 'border-black bg-gray-100 text-gray-900 font-medium'
-                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                      ? 'bg-white text-gray-900 shadow'
+                      : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
                   NFT
                 </button>
                 <button
+                  type="button"
                   onClick={() => setTokenType('Token')}
-                  className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
+                  className={`flex-1 px-4 py-2 rounded-full text-sm transition-colors ${
                     tokenType === 'Token'
-                      ? 'border-black bg-gray-100 text-gray-900 font-medium'
-                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                      ? 'bg-white text-gray-900 shadow'
+                      : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
                   Token
@@ -333,31 +460,89 @@ export default function GroupModal({
             {/* Select Token */}
             <div>
               <label className="block text-sm font-medium mb-2 text-gray-700">
-                Select Token:
+                Select {tokenType}:
               </label>
-              <select
-                value={selectedToken}
-                onChange={(e) => setSelectedToken(e.target.value)}
-                className="w-full bg-gray-50 text-gray-900 px-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400 appearance-none cursor-pointer"
-              >
-                <option value="">Select a token...</option>
-                <option value="rakibs-big-mac">Rakibs Big Mac</option>
-                <option value="sample-nft-1">Sample NFT 1</option>
-                <option value="sample-nft-2">Sample NFT 2</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={selectedToken}
+                  onChange={(e) => setSelectedToken(e.target.value)}
+                  className="w-full bg-white text-gray-900 px-4 py-3 pr-10 rounded-xl focus:outline-none shadow-md appearance-none cursor-pointer"
+                  disabled={
+                    !solanaWalletAddress ||
+                    tokensLoading ||
+                    nftsLoading ||
+                    tokenOptions.length === 0
+                  }
+                >
+                  <option value="">
+                    {!solanaWalletAddress
+                      ? 'Connect a Solana wallet first'
+                      : tokenType === 'NFT' && nftsLoading
+                      ? 'Loading NFTs...'
+                      : tokenType === 'Token' && tokensLoading
+                      ? 'Loading tokens...'
+                      : tokenOptions.length === 0
+                      ? `No Solana ${tokenType === 'NFT' ? 'NFTs' : 'tokens'} found`
+                      : `Select a ${tokenType.toLowerCase()}...`}
+                  </option>
+                  {tokenOptions.map((asset) => (
+                    <option key={asset.value} value={asset.value}>
+                      {asset.symbol
+                        ? `${asset.label} (${asset.symbol})`
+                        : asset.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={18}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-700"
+                />
+              </div>
+              {(tokensError || nftsError) && (
+                <p className="mt-2 text-xs text-red-500">
+                  Failed to load wallet assets. Please try again.
+                </p>
+              )}
+              {selectedGateAsset && (
+                <div className="mt-3 flex items-center gap-3 rounded-xl bg-gray-50 p-3">
+                  {selectedGateAsset.image ? (
+                    <Image
+                      src={selectedGateAsset.image}
+                      alt={selectedGateAsset.label}
+                      width={32}
+                      height={32}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black text-xs text-white">
+                      {selectedGateAsset.label.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-gray-900">
+                      {selectedGateAsset.label}
+                    </div>
+                    <div className="truncate text-xs text-gray-500">
+                      {selectedGateAsset.value}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
       </div>
 
       {/* Footer */}
-
-      {/* Footer */}
       <div className="px-6 pb-6">
         <button
           onClick={handleCreateGroup}
-          disabled={!groupName.trim() || selectedMembers.length === 0}
-          className="w-full bg-gray-200 text-gray-800 py-3 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+          disabled={
+            !groupName.trim() ||
+            selectedMembers.length === 0 ||
+            (tokenGated && !selectedToken)
+          }
+          className="mx-auto block w-full max-w-sm bg-gray-200 text-gray-800 py-3 rounded-xl hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
         >
           Create
         </button>

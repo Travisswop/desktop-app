@@ -265,6 +265,13 @@ const FeedPostContent = ({
             feed.smartsiteUserName ||
             undefined
           }
+          userImage={
+            feed.smartsiteDetails?.profilePic ||
+            feed.smartsiteProfilePic ||
+            feed.smartsiteId?.profilePic ||
+            undefined
+          }
+          createdAt={feed.createdAt}
         />
       )}
 

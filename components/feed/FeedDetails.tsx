@@ -186,6 +186,13 @@ const FeedDetails = ({ feedData, feedDetails }: any) => {
                       feedData?.smartsiteDetails?.name ||
                       undefined
                     }
+                    userImage={
+                      feedData?.smartsiteId?.profilePic ||
+                      feedData?.smartsiteProfilePic ||
+                      feedData?.smartsiteDetails?.profilePic ||
+                      undefined
+                    }
+                    createdAt={feedData?.createdAt}
                   />
                 )}
 
