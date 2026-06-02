@@ -103,8 +103,20 @@ function firstFiniteNumber(values: unknown[], fallback = 0) {
 
 function normalizePositionStatus(
   status: Partial<PerpsPositionFeedContent>['status'],
+  event?: Partial<PerpsPositionFeedContent>['event'],
 ) {
-  if (status === 'closed' || status === 'liquidated') return status;
+  const normalizedStatus = String(status || '').toLowerCase();
+  const normalizedEvent = String(event || '').toLowerCase();
+  if (
+    normalizedStatus === 'liquidated' ||
+    normalizedStatus === 'liquidate' ||
+    normalizedEvent === 'liquidate'
+  ) {
+    return 'liquidated';
+  }
+  if (normalizedStatus === 'closed' || normalizedEvent === 'close') {
+    return 'closed';
+  }
   return 'open';
 }
 
@@ -186,7 +198,7 @@ export default function PerpsPositionFeedCard({
   const content = useMemo(() => feed.content || {}, [feed.content]);
   const coin = String(content.coin || 'BTC').toUpperCase();
   const side = content.side === 'short' ? 'short' : 'long';
-  const status = normalizePositionStatus(content.status);
+  const status = normalizePositionStatus(content.status, content.event);
   const isTerminalStatus = status !== 'open';
   const leverage = Math.max(1, Math.round(finiteNumber(content.leverage, 1)));
   const storedMarkPrice = firstFiniteNumber([
@@ -459,6 +471,18 @@ export default function PerpsPositionFeedCard({
       : status === 'closed'
       ? 'Closed'
       : 'Open';
+  const statusVerb =
+    status === 'liquidated'
+      ? 'Liquidated'
+      : status === 'closed'
+      ? 'Closed'
+      : 'Opened';
+  const statusPillClasses =
+    status === 'liquidated'
+      ? 'border-red-200 bg-red-50 text-red-500'
+      : status === 'closed'
+      ? 'border-gray-200 bg-gray-100 text-gray-500'
+      : 'border-emerald-200 bg-emerald-50 text-emerald-600';
   const statusTimestamp =
     status === 'liquidated'
       ? content.liquidatedAt ||
@@ -710,8 +734,15 @@ export default function PerpsPositionFeedCard({
             </div>
 
             <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-              <div className="font-mono text-[11px] font-bold text-gray-400">
-                {statusLabel} {dayjs(statusTimestamp).fromNow()}
+              <div className="flex min-w-0 items-center gap-2">
+                <span
+                  className={`shrink-0 rounded-full border px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-[0.16em] ${statusPillClasses}`}
+                >
+                  {statusLabel}
+                </span>
+                <span className="truncate font-mono text-[11px] font-bold text-gray-400">
+                  {statusVerb} {dayjs(statusTimestamp).fromNow()}
+                </span>
               </div>
               <Link
                 href={href}
