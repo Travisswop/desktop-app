@@ -19,6 +19,7 @@ import SwapTransactionCard from "./SwapTransactionCard";
 import { formatEns } from "@/lib/formatEnsName";
 import PollCard from "./PollCard";
 import PredictionFeedCard from "./PredictionFeedCard";
+import PerpsPositionFeedCard from "./PerpsPositionFeedCard";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import { IoMdArrowDropright } from "react-icons/io";
 import { MdArrowRight } from "react-icons/md";
@@ -319,6 +320,9 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
                   undefined
                 }
               />
+            )}
+            {feed.repostedPostDetails.postType === "perpsPosition" && (
+              <PerpsPositionFeedCard feed={feed.repostedPostDetails} />
             )}
           </div>
         </div>

@@ -13,6 +13,7 @@ import RedeemClaimModal from "../modal/RedeemClaim";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import logger from "@/utils/logger";
 import PredictionFeedCard from "./PredictionFeedCard";
+import PerpsPositionFeedCard from "./PerpsPositionFeedCard";
 
 interface FeedItemType {
   _id: string;
@@ -242,6 +243,11 @@ const FeedPostContent = ({
             feed.smartsiteDetails?.name || feed.smartsiteUserName || undefined
           }
         />
+      )}
+
+      {/* Hyperliquid perps position */}
+      {feed.postType === "perpsPosition" && (
+        <PerpsPositionFeedCard feed={feed} />
       )}
 
       {/* Transaction */}

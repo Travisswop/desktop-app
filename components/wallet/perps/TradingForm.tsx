@@ -9,6 +9,14 @@ import type {
   PlaceTpSlOrderParams,
 } from './hooks/useHyperliquidTrading';
 import { OrderConfirmModal, type OrderConfirmDetails } from './OrderConfirmModal';
+import { useUser } from '@/lib/UserContext';
+import {
+  buildPerpsPositionKey,
+  toPerpsFeedNumber,
+  upsertPerpsPositionFeed,
+  type PerpsPositionFeedEvent,
+  type PerpsPositionFeedStatus,
+} from '@/lib/perps/perpsFeed';
 
 interface TradingFormProps {
   market: HLMarket | null;
@@ -26,6 +34,7 @@ interface TradingFormProps {
   onPlaceTpSl: (params: PlaceTpSlOrderParams) => Promise<unknown>;
   onUpdateLeverage: (assetIndex: number, leverage: number, isCross?: boolean) => Promise<unknown>;
   onClearError: () => void;
+  masterAddress?: string | null;
 }
 
 /**
@@ -47,7 +56,9 @@ export function TradingForm({
   onPlaceTpSl,
   onUpdateLeverage,
   onClearError,
+  masterAddress,
 }: TradingFormProps) {
+  const { accessToken, user, primaryMicrosite } = useUser();
   const [side, setSide] = useState<OrderSide>('long');
   const [mode, setMode] = useState<OrderMode>('market');
   const [size, setSize] = useState('');
@@ -162,11 +173,17 @@ export function TradingForm({
     if (!sizeNum || sizeNum <= 0) return;
 
     try {
+      let orderResult: unknown = null;
       if (mode === 'market') {
-        await onPlaceMarket(market.index, isBuy, sizeInCoins, markPrice);
+        orderResult = await onPlaceMarket(
+          market.index,
+          isBuy,
+          sizeInCoins,
+          markPrice,
+        );
       } else if (mode === 'limit') {
         if (!limitPrice) return;
-        await onPlaceLimit({
+        orderResult = await onPlaceLimit({
           assetIndex: market.index,
           isBuy,
           size: sizeInCoins,
@@ -175,7 +192,7 @@ export function TradingForm({
       } else if (mode === 'tpsl') {
         const entryPx = limitPrice || markPrice;
         if (!takeProfit && !stopLoss) return;
-        await onPlaceTpSl({
+        orderResult = await onPlaceTpSl({
           assetIndex: market.index,
           isBuy,
           size: sizeInCoins,
@@ -189,6 +206,110 @@ export function TradingForm({
         });
       }
 
+      const orderId = extractHyperliquidOrderId(orderResult);
+      const entryPxNum =
+        mode === 'market' ? markNum : parseFloat(limitPrice) || markNum;
+      const notionalUsd = sizeNum * entryPxNum;
+      const marginUsd = notionalUsd / Math.max(1, leverage);
+      const existingSizeCoins = Math.abs(
+        toPerpsFeedNumber(existingPosition?.szi),
+      );
+      const existingSide: OrderSide | null =
+        existingPosition && toPerpsFeedNumber(existingPosition.szi) < 0
+          ? 'short'
+          : existingPosition
+            ? 'long'
+            : null;
+      const isReducingExistingPosition = Boolean(
+        existingSide && existingSide !== side,
+      );
+      const nextSizeCoins =
+        existingSide && existingSide === side
+          ? existingSizeCoins + sizeNum
+          : isReducingExistingPosition
+            ? Math.max(0, existingSizeCoins - sizeNum)
+            : sizeNum;
+      const event: PerpsPositionFeedEvent =
+        existingSide && existingSide === side
+          ? 'add'
+          : isReducingExistingPosition && nextSizeCoins <= 0
+            ? 'close'
+            : isReducingExistingPosition
+              ? 'reduce'
+              : 'open';
+      const status: PerpsPositionFeedStatus =
+        event === 'close' ? 'closed' : 'open';
+      const feedSide: OrderSide = existingSide || side;
+      const weightedEntry =
+        event === 'add' && existingSizeCoins > 0
+          ? (toPerpsFeedNumber(existingPosition?.entryPx) * existingSizeCoins +
+              entryPxNum * sizeNum) /
+            Math.max(existingSizeCoins + sizeNum, 1)
+          : existingPosition
+            ? toPerpsFeedNumber(existingPosition.entryPx, entryPxNum)
+            : entryPxNum;
+      const existingMarginUsd = toPerpsFeedNumber(existingPosition?.marginUsed);
+      const existingNotionalUsd = toPerpsFeedNumber(
+        existingPosition?.positionValue,
+      );
+      const remainingRatio =
+        existingSizeCoins > 0 ? nextSizeCoins / existingSizeCoins : 0;
+      const feedSizeCoins = status === 'closed' ? existingSizeCoins : nextSizeCoins;
+      const feedCollateralUsd =
+        status === 'closed'
+          ? existingMarginUsd
+          : event === 'add'
+            ? existingMarginUsd + marginUsd
+            : isReducingExistingPosition
+              ? existingMarginUsd * remainingRatio
+              : marginUsd;
+      const feedNotionalUsd =
+        status === 'closed'
+          ? existingNotionalUsd
+          : event === 'add'
+            ? existingNotionalUsd + notionalUsd
+            : isReducingExistingPosition
+              ? nextSizeCoins * entryPxNum
+              : notionalUsd;
+      const timestamp = new Date().toISOString();
+
+      upsertPerpsPositionFeed({
+        token: accessToken,
+        userId: user?._id,
+        smartsiteId: user?.primaryMicrosite || primaryMicrosite,
+        content: {
+          provider: 'hyperliquid',
+          positionKey: buildPerpsPositionKey({
+            userId: user?._id,
+            masterAddress,
+            coin: market.coin,
+          }),
+          coin: market.coin,
+          side: feedSide,
+          status,
+          event,
+          leverage,
+          marginMode: isCross ? 'cross' : 'isolated',
+          entryPrice: weightedEntry,
+          markPrice: entryPxNum,
+          liquidationPrice: estLiqPrice ? parseFloat(estLiqPrice) : null,
+          collateralUsd: feedCollateralUsd,
+          notionalUsd: feedNotionalUsd,
+          sizeCoins: feedSizeCoins,
+          returnPct:
+            toPerpsFeedNumber(existingPosition?.returnOnEquity) * 100,
+          unrealizedPnl: toPerpsFeedNumber(existingPosition?.unrealizedPnl),
+          feeUsd: notionalUsd * 0.0007,
+          orderId,
+          masterAddress,
+          updatedAt: timestamp,
+          openedAt: existingPosition ? undefined : timestamp,
+          closedAt: status === 'closed' ? timestamp : undefined,
+        },
+      }).catch((feedError) => {
+        console.warn('Failed to update perps feed card:', feedError);
+      });
+
       setPendingOrder(null);
       setSize('');
       setLimitPrice('');
@@ -199,7 +320,9 @@ export function TradingForm({
     }
   }, [
     market, mode, isBuy, sizeInCoins, limitPrice, markPrice, takeProfit,
-    stopLoss, markNum, onPlaceMarket, onPlaceLimit, onPlaceTpSl,
+    stopLoss, markNum, onPlaceMarket, onPlaceLimit, onPlaceTpSl, leverage,
+    existingPosition, side, isCross, estLiqPrice, accessToken, user?._id,
+    user?.primaryMicrosite, primaryMicrosite, masterAddress,
   ]);
 
   const cancelConfirm = useCallback(() => {
@@ -527,4 +650,13 @@ function SummaryRow({
       </span>
     </div>
   );
+}
+
+function extractHyperliquidOrderId(value: unknown) {
+  if (!value || typeof value !== 'object') return undefined;
+  const text = JSON.stringify(value);
+  const oidMatch = text.match(/"oid"\s*:\s*"?([0-9A-Za-z_-]+)"?/);
+  if (oidMatch?.[1]) return oidMatch[1];
+  const orderIdMatch = text.match(/"orderId"\s*:\s*"?([0-9A-Za-z_-]+)"?/);
+  return orderIdMatch?.[1];
 }

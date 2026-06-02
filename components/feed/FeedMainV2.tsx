@@ -8,6 +8,7 @@ import SpotlightMap from "./SpotlightMap";
 import PostFeed from "./PostFeed";
 import CustomModal from "../modal/CustomModal";
 import { useModalStore } from "@/zustandStore/modalstore";
+import PerpsFeedBackfill from "./PerpsFeedBackfill";
 
 const CONTAINER_WIDTH = "w-full sm:w-[520px]";
 
@@ -46,6 +47,8 @@ export default function FeedMainV2({
   return (
     <div className="w-full flex h-full justify-center relative">
       <div className={`${CONTAINER_WIDTH} overflow-y-auto`}>
+        <PerpsFeedBackfill />
+
         <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Post">
           <PostFeed
             primaryMicrositeImg={primaryMicrositeImg}
