@@ -48,14 +48,23 @@ export const useWalletAddresses = (
 ) => {
   return useMemo(() => {
     if (!walletData)
-      return { solWalletAddress: '', evmWalletAddress: '' };
+      return {
+        solWalletAddress: '',
+        evmWalletAddress: '',
+        evmWalletAddresses: [],
+      };
 
     const solWallet = walletData.find((w) => !w.isEVM);
-    const evmWallet = walletData.find((w) => w.isEVM);
+    const evmWallets = walletData.filter((w) => w.isEVM && w.address);
+    const evmWallet = evmWallets[0];
+    const evmWalletAddresses = Array.from(
+      new Set(evmWallets.map((wallet) => wallet.address).filter(Boolean))
+    );
 
     return {
       solWalletAddress: solWallet?.address || '',
       evmWalletAddress: evmWallet?.address || '',
+      evmWalletAddresses,
     };
   }, [walletData]);
 };
