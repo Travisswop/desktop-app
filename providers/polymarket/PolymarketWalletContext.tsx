@@ -19,6 +19,7 @@ import { providers } from "ethers5";
 import { polygon } from "viem/chains";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
 import { POLYGON_RPC_URL } from "@/constants/polymarket";
+import { selectPreferredWallet } from "@/components/wallet/hooks/useWalletData";
 
 export interface PolymarketWalletContextType {
   eoaAddress: `0x${string}` | undefined;
@@ -62,10 +63,9 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
   const { wallets, ready } = useWallets();
   const { authenticated, user } = usePrivy();
 
-  // Find the user's primary EVM wallet — prefer embedded wallet, fall back to any EVM wallet
-  const wallet =
-    wallets.find((w) => w.address === user?.wallet?.address) ??
-    wallets.find((w) => w.walletClientType !== "solana");
+  // Find the user's selected EVM wallet. Prefer Privy's primary wallet,
+  // then connected external wallets, then the embedded fallback.
+  const wallet = selectPreferredWallet(wallets, user?.wallet?.address);
 
   const eoaAddress =
     authenticated && wallet ? (wallet.address as `0x${string}`) : undefined;

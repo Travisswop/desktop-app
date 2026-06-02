@@ -12,11 +12,12 @@ import {
   Wallet,
   Droplets,
 } from 'lucide-react';
-import { useWallets } from '@privy-io/react-auth';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useHyperliquidDeposit } from './hooks/useHyperliquidDeposit';
 import { useHyperliquidFaucet } from './hooks/useHyperliquidFaucet';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
 import { HL_IS_TESTNET } from '@/services/hyperliquid/config';
+import { selectPreferredWallet } from '@/components/wallet/hooks/useWalletData';
 
 interface DepositFormProps {
   masterAddress: string | null;
@@ -43,12 +44,16 @@ export function DepositForm({
   onDepositSubmitted,
   showHeader = true,
 }: DepositFormProps) {
-  // Resolve the address from the Privy embedded wallet when the parent hasn't
+  // Resolve the address from the selected EVM wallet when the parent hasn't
   // provided one yet (e.g. deposit modal opened before agent initialization).
+  const { user } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
-  const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+  const masterWallet = selectPreferredWallet(
+    wallets,
+    user?.wallet?.address,
+  );
   const masterAddress =
-    masterAddressProp ?? (walletsReady ? (embeddedWallet?.address ?? null) : null);
+    masterAddressProp ?? (walletsReady ? (masterWallet?.address ?? null) : null);
 
   const [amount, setAmount] = useState('');
   const [usdcBalance, setUsdcBalance] = useState<string | null>(null);

@@ -7,10 +7,14 @@ import WalletBalanceChart from "./walletBalanceChart";
 import PortfolioChart, { PortfolioAsset } from "./PortfolioChart";
 import { useQuery } from "@tanstack/react-query";
 import { getFollowers, followersQueryKey } from "@/services/followers-service";
-import { usePrivy, useWallets, useSolanaWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { useMemo } from "react";
 import { useMultiChainTokenData } from "@/lib/hooks/useToken";
 import { useRouter } from "next/navigation";
+import {
+  useWalletAddresses,
+  useWalletData,
+} from "../wallet/hooks/useWalletData";
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
@@ -33,23 +37,16 @@ const getTokenColor = (symbol: string): string => {
 
 export default function DashboardContent() {
   const { user, loading, error, accessToken } = useUser();
-  const { user: privyUser } = usePrivy();
-  const { wallets: ethWallets } = useWallets();
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const {
+    authenticated,
+    ready,
+    user: privyUser,
+  } = usePrivy();
   const router = useRouter();
 
-  // Get wallet addresses
-  const solWalletAddress = useMemo(() => {
-    return solanaWallets?.find(
-      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
-    )?.address;
-  }, [solanaWallets]);
-
-  const evmWalletAddress = useMemo(() => {
-    return ethWallets?.find(
-      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
-    )?.address;
-  }, [ethWallets]);
+  const walletData = useWalletData(authenticated, ready, privyUser);
+  const { solWalletAddress, evmWalletAddress } =
+    useWalletAddresses(walletData);
 
   // Fetch token data
   const {

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useSendTransaction, useWallets } from '@privy-io/react-auth';
+import { usePrivy, useSendTransaction, useWallets } from '@privy-io/react-auth';
 import { encodeFunctionData, parseUnits, erc20Abi } from 'viem';
 import { HL_DEPOSIT_CONFIG } from '@/services/hyperliquid/config';
+import { selectPreferredWallet } from '@/components/wallet/hooks/useWalletData';
 
 const { chainId, bridgeAddress, usdcAddress } = HL_DEPOSIT_CONFIG;
 
@@ -38,6 +39,7 @@ export interface DepositState {
  */
 export function useHyperliquidDeposit() {
   const { sendTransaction } = useSendTransaction();
+  const { user } = usePrivy();
   const { wallets } = useWallets();
 
   const [state, setState] = useState<DepositState>({
@@ -92,14 +94,15 @@ export function useHyperliquidDeposit() {
         return;
       }
 
-      // Use the Privy embedded wallet — it is the master account and signs silently.
+      // Use the selected EVM wallet. Privy will prompt external wallets when
+      // needed and can still sponsor embedded-wallet deposits.
       // Privy's sendTransaction handles chain switching automatically via the chainId param.
-      const evmWallet = wallets.find((w) => w.walletClientType === 'privy');
+      const evmWallet = selectPreferredWallet(wallets, user?.wallet?.address);
 
       if (!evmWallet) {
         setState((prev) => ({
           ...prev,
-          error: 'Privy embedded wallet not found. Please refresh and try again.',
+          error: 'EVM wallet not found. Please refresh and try again.',
           step: 'error',
         }));
         return;
@@ -148,7 +151,7 @@ export function useHyperliquidDeposit() {
         throw err;
       }
     },
-    [sendTransaction, wallets],
+    [sendTransaction, wallets, user?.wallet?.address],
   );
 
   const reset = useCallback(() => {

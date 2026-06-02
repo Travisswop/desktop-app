@@ -33,11 +33,9 @@ import CustomModal from '../modal/CustomModal';
 import WalletReceiveCryptoPopup from '../wallet/WalletReceiveCryptoPopup';
 import WalletFundandSettingsPopup from '../wallet/WalletFundandSettingsPopup';
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
-import { useWallets } from '@privy-io/react-auth';
-import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import TransactionList from '../wallet/transaction/transaction-list';
-import { SUPPORTED_CHAINS } from '../wallet/constants';
-import { ChainType, TokenData } from '@/types/token';
+import { TokenData } from '@/types/token';
+import { useWalletAddresses } from '../wallet/hooks/useWalletData';
 
 interface BalanceChartProps {
   userId?: string;
@@ -122,16 +120,8 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   const [fundandSettings, setFundandSettings] = useState(false);
   const [showTransactionList, setShowTransactionList] = useState(false);
 
-  const { wallets: ethWallets } = useWallets();
-  const { ready: solanaReady, wallets: solWallets } = useSolanaWallets();
-  const solWalletAddress = solanaReady ? (solWallets[0]?.address ?? '') : '';
-  const evmWalletAddress = useMemo(
-    () =>
-      ethWallets?.find(
-        (w) => w.walletClientType === 'privy' || w.connectorType === 'embedded',
-      )?.address ?? '',
-    [ethWallets],
-  );
+  const { solWalletAddress, evmWalletAddress } =
+    useWalletAddresses(walletData);
   const showBalance = useBalanceVisibilityStore(
     (state) => state.showBalance,
   );

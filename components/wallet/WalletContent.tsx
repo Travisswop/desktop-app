@@ -312,14 +312,6 @@ const WalletContentInner = () => {
   // PerpsPanel open/close cycles and never triggers repeated sign messages.
   const hlAgent = useHyperliquidAgent();
 
-  // Balance check — shared between PerpsPanel (gates approveAgent) and
-  // DepositModal (starts polling after a deposit tx is submitted).
-  const {
-    status: hlDepositStatus,
-    check: hlRecheckBalance,
-    startPolling: hlStartDepositPolling,
-  } = useHyperliquidBalanceCheck(hlAgent.masterAddress);
-
   const [arbitrumBridgeOpen, setArbitrumBridgeOpen] = useState(false);
 
   // Ref to track wallet creation attempts
@@ -337,12 +329,6 @@ const WalletContentInner = () => {
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
 
-  // Find the first Solana wallet with a valid address
-  const selectedSolanaWallet = useMemo(() => {
-    if (!solanaReady || !directSolanaWallets.length) return undefined;
-    return directSolanaWallets[0];
-  }, [solanaReady, directSolanaWallets]);
-
   const { createWallet } = useCreateWallet();
 
   // Privy's native sponsored transaction hooks
@@ -358,6 +344,27 @@ const WalletContentInner = () => {
   const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
+  // Find the Solana wallet that matches the selected wallet-data address.
+  const selectedSolanaWallet = useMemo(() => {
+    if (!solanaReady || !directSolanaWallets.length) return undefined;
+    const selectedAddress = solWalletAddress.toLowerCase();
+    return (
+      directSolanaWallets.find(
+        (wallet) =>
+          wallet.address.toLowerCase() === selectedAddress,
+      ) ?? directSolanaWallets[0]
+    );
+  }, [solanaReady, directSolanaWallets, solWalletAddress]);
+  const perpsMasterAddress =
+    hlAgent.masterAddress ?? evmWalletAddress ?? null;
+
+  // Balance check — shared between PerpsPanel (gates approveAgent) and
+  // DepositModal (starts polling after a deposit tx is submitted).
+  const {
+    status: hlDepositStatus,
+    check: hlRecheckBalance,
+    startPolling: hlStartDepositPolling,
+  } = useHyperliquidBalanceCheck(perpsMasterAddress);
   const { payload } = useTransactionPayload(user);
   const {
     handlePointsUpdate,
@@ -1181,7 +1188,7 @@ const WalletContentInner = () => {
             }
           />
           <PerpsCard
-            masterAddress={hlAgent.masterAddress ?? undefined}
+            masterAddress={perpsMasterAddress ?? undefined}
             isReconnecting={hlAgent.isReconnecting}
             onOpenTrading={openPerpsPanel}
             onBridgeToArbitrum={() => setArbitrumBridgeOpen(true)}
@@ -1294,7 +1301,7 @@ const WalletContentInner = () => {
         {perpsPanelOpen && (
           <PerpsPanel
             agentClient={hlAgent.agentClient}
-            masterAddress={hlAgent.masterAddress}
+            masterAddress={perpsMasterAddress}
             isInitialized={hlAgent.isInitialized}
             isInitializing={hlAgent.isInitializing}
             isReconnecting={hlAgent.isReconnecting}
@@ -1317,7 +1324,7 @@ const WalletContentInner = () => {
         <DepositModal
           isOpen={perpsDepositOpen}
           onClose={() => setPerpsDepositOpen(false)}
-          masterAddress={hlAgent.masterAddress}
+          masterAddress={perpsMasterAddress}
           onBridgeToArbitrum={() => {
             setPerpsDepositOpen(false);
             setArbitrumBridgeOpen(true);

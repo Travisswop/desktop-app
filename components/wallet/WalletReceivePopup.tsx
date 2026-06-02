@@ -19,6 +19,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useUser } from "@/lib/UserContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
+import { selectPreferredWallet } from "./hooks/useWalletData";
 
 export default function ReceiveOptions() {
   const [navigateCryptoFiat, setNavigateCryptoFiat] = useState({
@@ -37,14 +38,17 @@ export default function ReceiveOptions() {
   const { user } = useUser();
 
   const { ready: solanaReady, wallets: solWallets } = useSolanaWallets();
-  const solWalletAddress = solanaReady ? solWallets[0]?.address : undefined;
+  const solWalletAddress = solanaReady
+    ? selectPreferredWallet(solWallets)?.address
+    : undefined;
   const { wallets: ethWallets } = useWallets();
 
   const evmWalletAddress = useMemo(() => {
-    return ethWallets?.find(
-      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
+    return selectPreferredWallet(
+      ethWallets,
+      privyUser?.wallet?.address,
     )?.address;
-  }, [ethWallets]);
+  }, [ethWallets, privyUser?.wallet?.address]);
 
   const handleCopy = (address: string, index: number) => {
     navigator.clipboard.writeText(address);

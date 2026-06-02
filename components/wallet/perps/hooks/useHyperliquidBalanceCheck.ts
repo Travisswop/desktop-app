@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useWallets } from '@privy-io/react-auth';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
 import * as hl from '@nktkas/hyperliquid';
 import { getHLApiUrl } from '@/services/hyperliquid/config';
+import { selectPreferredWallet } from '@/components/wallet/hooks/useWalletData';
 
 // Always check mainnet HL balance regardless of HL_IS_TESTNET.
 // The deposit bridge is always mainnet-to-mainnet, so the balance that reflects
@@ -50,13 +51,17 @@ const MAX_POLL_ATTEMPTS = 30; // 30 × 8s = 4 minutes
 export function useHyperliquidBalanceCheck(
   masterAddressOverride?: string | null,
 ): BalanceCheckState {
-  // Always resolve the Privy embedded wallet so the balance check can run
+  // Always resolve the selected EVM wallet so the balance check can run
   // BEFORE `approveAgent` (which is what surfaces masterAddress on hlAgent).
   // A caller may still pass an explicit override if they already have it.
+  const { user } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
-  const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+  const masterWallet = selectPreferredWallet(
+    wallets,
+    user?.wallet?.address,
+  );
   const masterAddress =
-    masterAddressOverride ?? (walletsReady ? embeddedWallet?.address ?? null : null);
+    masterAddressOverride ?? (walletsReady ? masterWallet?.address ?? null : null);
 
   const [status, setStatus] = useState<DepositCheckStatus>('idle');
   const [accountValue, setAccountValue] = useState<string | null>(null);

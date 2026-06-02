@@ -14,8 +14,7 @@ import DashboardChatPreview from "./ChatPreview";
 import RewardsCardPreview from "./RewardPreview";
 import TransactionsListPreview from "./TransactionPreview";
 import QRCodePreview from "./QrcodePreview";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
+import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useMemo, useState } from "react";
 import { useMultiChainTokenData } from "@/lib/hooks/useToken";
 import { useRouter } from "next/navigation";
@@ -47,23 +46,9 @@ const getTokenColor = (symbol: string): string => {
 
 export default function DashboardMainContent() {
   const { user, loading, error, accessToken } = useUser();
-  const { wallets: ethWallets } = useWallets();
-  const { wallets: solanaWallets } = useSolanaWallets();
   const router = useRouter();
   const [analyticsData, setAnalyticsData] = useState(null);
 
-  // Get wallet addresses
-  // const solWalletAddress = useMemo(() => {
-  //   return solanaWallets?.find(
-  //     (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
-  //   )?.address;
-  // }, [solanaWallets]);
-
-  // const evmWalletAddress = useMemo(() => {
-  //   return ethWallets?.find(
-  //     (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
-  //   )?.address;
-  // }, [ethWallets]);
   const { authenticated, ready, user: PrivyUser, getAccessToken } = usePrivy();
   const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);

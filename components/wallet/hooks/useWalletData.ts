@@ -4,8 +4,43 @@ import {
   PrivyLinkedAccount,
   isSolanaWalletAccount,
   isEthereumWalletAccount,
-  isPrivyEmbeddedWallet,
+  isWalletAccount,
 } from '@/types/privy';
+
+type AddressLike = {
+  address?: string | null;
+  walletClientType?: string | null;
+  connectorType?: string | null;
+};
+
+const normalizeAddress = (address?: string | null) =>
+  address?.toLowerCase() ?? '';
+
+const isEmbeddedAddressLike = (wallet: AddressLike) =>
+  wallet.walletClientType === 'privy' ||
+  wallet.connectorType === 'embedded';
+
+export function selectPreferredWallet<T extends AddressLike>(
+  wallets: T[] | undefined | null,
+  primaryAddress?: string | null,
+): T | undefined {
+  const available = (wallets ?? []).filter((wallet) => !!wallet.address);
+  if (!available.length) return undefined;
+
+  const normalizedPrimary = normalizeAddress(primaryAddress);
+  if (normalizedPrimary) {
+    const primary = available.find(
+      (wallet) => normalizeAddress(wallet.address) === normalizedPrimary,
+    );
+    if (primary) return primary;
+  }
+
+  return (
+    available.find((wallet) => !isEmbeddedAddressLike(wallet)) ??
+    available.find(isEmbeddedAddressLike) ??
+    available[0]
+  );
+}
 
 // Custom hook for wallet addresses
 export const useWalletAddresses = (
@@ -25,7 +60,7 @@ export const useWalletAddresses = (
   }, [walletData]);
 };
 
-// Custom hook for wallet data management — returns only embedded Privy wallets
+// Custom hook for wallet data management.
 export const useWalletData = (
   authenticated: boolean,
   ready: boolean,
@@ -40,30 +75,30 @@ export const useWalletData = (
 
     const linkedAccounts = (PrivyUser.linkedAccounts ||
       []) as PrivyLinkedAccount[];
+    const primaryEvmAddress = PrivyUser.wallet?.address;
 
-    // Find the embedded Privy wallet for each chain.
-    // walletClientType === 'privy' is the canonical identifier for embedded wallets.
-    const embeddedSolana = linkedAccounts
-      .filter(isSolanaWalletAccount)
-      .find(isPrivyEmbeddedWallet);
+    const solanaWallet = selectPreferredWallet(
+      linkedAccounts.filter(isSolanaWalletAccount),
+    );
 
-    const embeddedEvm = linkedAccounts
-      .filter(isEthereumWalletAccount)
-      .find(isPrivyEmbeddedWallet);
+    const evmWallet = selectPreferredWallet(
+      linkedAccounts.filter(isEthereumWalletAccount),
+      primaryEvmAddress,
+    );
 
     const wallets: WalletItem[] = [];
 
-    if (embeddedSolana) {
+    if (solanaWallet && isWalletAccount(solanaWallet)) {
       wallets.push({
-        address: embeddedSolana.address,
+        address: solanaWallet.address,
         isActive: true,
         isEVM: false,
       });
     }
 
-    if (embeddedEvm) {
+    if (evmWallet && isWalletAccount(evmWallet)) {
       wallets.push({
-        address: embeddedEvm.address,
+        address: evmWallet.address,
         isActive: true,
         isEVM: true,
       });

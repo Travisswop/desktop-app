@@ -21,7 +21,7 @@ import {
 } from './PerpsActionsModal';
 
 interface PerpsCardProps {
-  /** Privy embedded wallet address (set after agent is initialized) */
+  /** Selected EVM wallet address used as the Hyperliquid master account. */
   masterAddress: string | undefined;
   /** True while silently reconnecting after a brief disconnect */
   isReconnecting?: boolean;
