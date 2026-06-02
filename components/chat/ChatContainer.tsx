@@ -189,6 +189,15 @@ export default function ChatContainer({
       }
     };
 
+    const handleGroupMemberRoleUpdated = (data: any) => {
+      console.log('Group member role updated:', data);
+      loadInitialData();
+
+      if (data?.groupId === selectedChat?._id) {
+        refreshSelectedChat();
+      }
+    };
+
     const handleGroupMemberAdded = (data: any) => {
       console.log('Group member added:', data);
       loadInitialData();
@@ -238,6 +247,7 @@ export default function ChatContainer({
       'group_participants_updated',
       handleGroupParticipantsUpdated
     );
+    socket.on('group_member_role_updated', handleGroupMemberRoleUpdated);
     socket.on('group_member_added', handleGroupMemberAdded);
     socket.on('group_member_removed', handleGroupMemberRemoved);
     socket.on('group_deleted', handleGroupDeleted);
@@ -261,6 +271,10 @@ export default function ChatContainer({
       socket.off(
         'group_participants_updated',
         handleGroupParticipantsUpdated
+      );
+      socket.off(
+        'group_member_role_updated',
+        handleGroupMemberRoleUpdated
       );
       socket.off('group_member_added', handleGroupMemberAdded);
       socket.off('group_member_removed', handleGroupMemberRemoved);

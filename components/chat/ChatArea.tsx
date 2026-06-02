@@ -297,6 +297,10 @@ export default function ChatArea({
     );
     socket.on('group_member_added', handleGroupParticipantsUpdated);
     socket.on('group_member_removed', handleGroupParticipantsUpdated);
+    socket.on(
+      'group_member_role_updated',
+      handleGroupParticipantsUpdated
+    );
     socket.on('group_deleted', handleGroupDeleted);
 
     return () => {
@@ -311,6 +315,10 @@ export default function ChatArea({
       );
       socket.off(
         'group_member_removed',
+        handleGroupParticipantsUpdated
+      );
+      socket.off(
+        'group_member_role_updated',
         handleGroupParticipantsUpdated
       );
       socket.off('group_deleted', handleGroupDeleted);

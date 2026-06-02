@@ -23,6 +23,7 @@ interface Participant {
   userId: User;
   role?: string;
   joinedAt?: string;
+  permissions?: string[];
 }
 
 interface GroupSettings {
@@ -39,7 +40,7 @@ interface Group {
   description?: string;
   participants?: Participant[];
   settings?: GroupSettings;
-  createdBy?: string;
+  createdBy?: string | User;
 }
 
 interface GroupMenuProps {
@@ -69,9 +70,20 @@ type ModalType =
   | null
   | 'addMember'
   | 'removeMember'
+  | 'manageAdmins'
   | 'editGroup'
   | 'deleteGroup'
   | 'leaveGroup';
+
+const getUserId = (user?: string | User) =>
+  typeof user === 'string' ? user : user?._id;
+
+const isGroupAdmin = (participant?: Participant) =>
+  participant?.role === 'admin' ||
+  participant?.permissions?.includes('manage_members');
+
+const isGroupCreator = (group: Group, userId?: string) =>
+  Boolean(userId && getUserId(group.createdBy) === userId);
 
 // ==================== MAIN COMPONENT ====================
 
@@ -87,32 +99,50 @@ export default function GroupMenu({
 
   const closeMenu = () => setIsOpen(false);
   const closeModal = () => setActiveModal(null);
+  const currentParticipant = group.participants?.find(
+    (participant) => participant.userId._id === currentUser
+  );
+  const canManageGroup = isGroupAdmin(currentParticipant);
+  const canDeleteGroup =
+    canManageGroup || isGroupCreator(group, currentUser);
 
   const menuItems = [
-    {
-      label: '👥 Add Member',
-      action: () => {
-        setActiveModal('addMember');
-        closeMenu();
-      },
-      color: 'default',
-    },
-    {
-      label: '👤 Remove Member',
-      action: () => {
-        setActiveModal('removeMember');
-        closeMenu();
-      },
-      color: 'default',
-    },
-    {
-      label: '✏️ Edit Group',
-      action: () => {
-        setActiveModal('editGroup');
-        closeMenu();
-      },
-      color: 'default',
-    },
+    ...(canManageGroup
+      ? [
+          {
+            label: '👥 Add Member',
+            action: () => {
+              setActiveModal('addMember');
+              closeMenu();
+            },
+            color: 'default',
+          },
+          {
+            label: '👤 Remove Member',
+            action: () => {
+              setActiveModal('removeMember');
+              closeMenu();
+            },
+            color: 'default',
+          },
+          {
+            label: '⭐ Manage Admins',
+            action: () => {
+              setActiveModal('manageAdmins');
+              closeMenu();
+            },
+            color: 'default',
+          },
+          {
+            label: '✏️ Edit Group',
+            action: () => {
+              setActiveModal('editGroup');
+              closeMenu();
+            },
+            color: 'default',
+          },
+        ]
+      : []),
     {
       label: '🚪 Leave Group',
       action: () => {
@@ -121,14 +151,18 @@ export default function GroupMenu({
       },
       color: 'warning',
     },
-    {
-      label: '🗑️ Delete Group',
-      action: () => {
-        setActiveModal('deleteGroup');
-        closeMenu();
-      },
-      color: 'danger',
-    },
+    ...(canDeleteGroup
+      ? [
+          {
+            label: '🗑️ Delete Group',
+            action: () => {
+              setActiveModal('deleteGroup');
+              closeMenu();
+            },
+            color: 'danger',
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -179,6 +213,16 @@ export default function GroupMenu({
 
       {activeModal === 'removeMember' && (
         <RemoveMemberModal
+          group={group}
+          socket={socket}
+          currentUser={currentUser}
+          onClose={closeModal}
+          onSuccess={onGroupUpdate}
+        />
+      )}
+
+      {activeModal === 'manageAdmins' && (
+        <ManageAdminsModal
           group={group}
           socket={socket}
           currentUser={currentUser}
@@ -438,9 +482,13 @@ function RemoveMemberModal({
     null
   );
 
-  // Filter out current user (can't remove yourself)
+  // Filter out current user and group creator
   const removableMembers =
-    group.participants?.filter((p) => p.userId._id !== currentUser) ||
+    group.participants?.filter(
+      (p) =>
+        p.userId._id !== currentUser &&
+        !isGroupCreator(group, p.userId._id)
+    ) ||
     [];
 
   const confirmRemoveMember = (user: User) => {
@@ -536,6 +584,11 @@ function RemoveMemberModal({
                         <div>
                           <div className="font-medium">
                             {user.name}
+                            {isGroupAdmin(participant) && (
+                              <span className="ml-2 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                                Admin
+                              </span>
+                            )}
                           </div>
                           <div className="text-sm text-gray-500">
                             {user.username || user.ens || ''}
@@ -593,6 +646,171 @@ function RemoveMemberModal({
         </div>
       )}
     </>
+  );
+}
+
+// ==================== MANAGE ADMINS MODAL ====================
+
+function ManageAdminsModal({
+  group,
+  socket,
+  currentUser,
+  onClose,
+  onSuccess,
+}: {
+  group: Group;
+  socket: any;
+  currentUser: string;
+  onClose: () => void;
+  onSuccess?: () => void;
+}) {
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(
+    null
+  );
+
+  const participants = group.participants || [];
+  const adminCount = participants.filter(isGroupAdmin).length;
+
+  const handleRoleChange = (
+    participant: Participant,
+    nextRole: 'admin' | 'member'
+  ) => {
+    const user = participant.userId;
+    setUpdatingUserId(user._id);
+
+    socket.emit(
+      'update_group_member_role',
+      {
+        groupId: group._id,
+        userIdToUpdate: user._id,
+        role: nextRole,
+      },
+      (response: SocketResponse) => {
+        if (response.success) {
+          toast.success(
+            nextRole === 'admin'
+              ? `${user.name} is now an admin`
+              : `${user.name} is no longer an admin`,
+            { position: 'top-right' }
+          );
+          onSuccess?.();
+        } else {
+          toast.error(
+            `Failed to update ${user.name}: ${response.error}`,
+            { position: 'top-right' }
+          );
+        }
+        setUpdatingUserId(null);
+      }
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Manage Admins</h3>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+          <p className="text-sm text-gray-600 mt-1">
+            {adminCount} admin{adminCount === 1 ? '' : 's'} in {group.name}
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {participants.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No members found
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {participants.map((participant) => {
+                const user = participant.userId;
+                const isAdmin = isGroupAdmin(participant);
+                const isCreator = isGroupCreator(group, user._id);
+                const isSelf = user._id === currentUser;
+                const canDemote = isAdmin && !isCreator && !isSelf;
+
+                return (
+                  <div
+                    key={user._id}
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {user.profilePic ? (
+                        <Image
+                          src={
+                            isUrl(user.profilePic)
+                              ? user.profilePic
+                              : `/images/user_avator/${user.profilePic}@3x.png`
+                          }
+                          alt={user.name}
+                          width={40}
+                          height={40}
+                          className="rounded-full"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white font-semibold shrink-0">
+                          {user.name?.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">
+                          {user.name}
+                        </div>
+                        <div className="text-sm text-gray-500 truncate">
+                          {isCreator
+                            ? 'Creator'
+                            : isAdmin
+                            ? 'Admin'
+                            : user.username || user.ens || 'Member'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isAdmin ? (
+                      <button
+                        onClick={() =>
+                          handleRoleChange(participant, 'member')
+                        }
+                        disabled={!canDemote || updatingUserId === user._id}
+                        className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm"
+                      >
+                        {updatingUserId === user._id
+                          ? 'Updating...'
+                          : isCreator
+                          ? 'Creator'
+                          : isSelf
+                          ? 'You'
+                          : 'Dismiss'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          handleRoleChange(participant, 'admin')
+                        }
+                        disabled={updatingUserId === user._id}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                      >
+                        {updatingUserId === user._id
+                          ? 'Updating...'
+                          : 'Make Admin'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
