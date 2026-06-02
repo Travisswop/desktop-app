@@ -33,6 +33,7 @@ export default function FeedMainV2({
   const { isOpen, closeModal } = useModalStore();
 
   const tab = searchParams?.get("tab") || "feed";
+  const isMapTab = tab === "map";
 
   const primaryMicrositeImg = useMemo(() => {
     if (!user?.microsites?.length) return "";
@@ -45,8 +46,20 @@ export default function FeedMainV2({
   const Component = TAB_COMPONENTS[tab] || Feed;
 
   return (
-    <div className="w-full flex h-full justify-center relative">
-      <div className={`${CONTAINER_WIDTH} overflow-y-auto`}>
+    <div
+      className={
+        isMapTab
+          ? "fixed inset-x-0 bottom-0 top-24 z-0 overflow-hidden bg-white"
+          : "w-full flex h-full justify-center relative"
+      }
+    >
+      <div
+        className={
+          isMapTab
+            ? "h-full w-full overflow-hidden"
+            : `${CONTAINER_WIDTH} overflow-y-auto`
+        }
+      >
         <PerpsFeedBackfill />
 
         <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Post">

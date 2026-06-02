@@ -15,7 +15,7 @@ import {
 import clsx from 'clsx';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface Friend {
   _id: string;
@@ -44,11 +44,61 @@ export default function ConnectionsShowOnGoogleMap({
 
   const mapStyles = [
     {
+      featureType: 'water',
+      elementType: 'geometry',
+      stylers: [{ color: '#98d7ff' }],
+    },
+    {
+      featureType: 'landscape.natural',
+      elementType: 'geometry',
+      stylers: [{ color: '#d9f0cf' }],
+    },
+    {
+      featureType: 'poi.park',
+      elementType: 'geometry',
+      stylers: [{ color: '#bfe8b1' }],
+    },
+    {
+      featureType: 'road',
+      elementType: 'geometry',
+      stylers: [{ color: '#ffffff' }],
+    },
+    {
+      featureType: 'road.arterial',
+      elementType: 'geometry',
+      stylers: [{ color: '#ffe6a7' }],
+    },
+    {
+      featureType: 'administrative',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#344054' }],
+    },
+    {
       featureType: 'all',
-      elementType: 'all',
-      stylers: [{ saturation: -100 }, { gamma: 0.8 }],
+      elementType: 'labels.text.stroke',
+      stylers: [{ color: '#ffffff' }, { weight: 2 }],
     },
   ];
+
+  const spotlightConnections = useMemo(
+    () => {
+      if (!Array.isArray(connections)) return [];
+
+      return connections
+        .map((connection: any) => ({
+          ...connection,
+          lat: Number(connection?.lat),
+          lng: Number(connection?.lng),
+        }))
+        .filter(
+          ({ connectionType, lat, lng }: any) =>
+            connectionType?.includes('spotlight') &&
+            Number.isFinite(lat) &&
+            Number.isFinite(lng)
+        );
+    },
+    [connections]
+  );
 
   const getDistance = (
     lat1: number,
@@ -69,7 +119,7 @@ export default function ConnectionsShowOnGoogleMap({
   };
 
   const selectedConnection = selectedFriend
-    ? connections?.find((c: any) => c?._id === selectedFriend?._id)
+    ? spotlightConnections.find((c: any) => c?._id === selectedFriend?._id)
     : undefined;
 
   // Pan to selected connection only once after map is ready
@@ -79,38 +129,38 @@ export default function ConnectionsShowOnGoogleMap({
         lat: selectedConnection?.lat,
         lng: selectedConnection?.lng,
       });
+      mapRef.current.setZoom(11);
     }
   }, [mapReady, selectedConnection]);
 
-  //const [retryDelay, setRetryDelay] = useState(1000); // Start with 1 second
-  const [retryCount, setRetryCount] = useState(0);
-  const [maxRetries] = useState(1);
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || selectedConnection) return;
+
+    if (spotlightConnections.length === 1) {
+      const [connection] = spotlightConnections;
+      mapRef.current.setCenter({ lat: connection.lat, lng: connection.lng });
+      mapRef.current.setZoom(7);
+      return;
+    }
+
+    if (spotlightConnections.length > 1) {
+      const bounds = new google.maps.LatLngBounds();
+      spotlightConnections.forEach((connection: any) => {
+        bounds.extend({ lat: connection.lat, lng: connection.lng });
+      });
+      mapRef.current.fitBounds(bounds, 120);
+    }
+  }, [mapReady, selectedConnection, spotlightConnections]);
 
   useEffect(() => {
     if (isLoaded && !loadError) {
       setMapReady(true);
-    } else {
-      const timer = setTimeout(() => {
-        console.log(
-          `Reloading page (attempt ${retryCount + 1}/${maxRetries})`
-        );
-        window.location.reload();
-      }, 1000);
-      return () => clearTimeout(timer);
     }
-  }, [isLoaded, loadError, retryCount, maxRetries]);
-
-  // useEffect(() => {
-  //   if (isLoaded && !loadError) {
-  //     setMapReady(true);
-  //   }else{
-
-  //   }
-  // }, [isLoaded, loadError]);
+  }, [isLoaded, loadError]);
 
   if (!isLoaded) {
     return (
-      <div className="w-full h-[600px] flex items-center justify-center bg-gray-100 rounded-lg">
+      <div className="flex h-full min-h-[calc(100vh-6rem)] w-full items-center justify-center bg-sky-50">
         <div className="text-center">
           <p>Loading map...</p>
           {loadError && (
@@ -124,13 +174,13 @@ export default function ConnectionsShowOnGoogleMap({
   }
 
   return (
-    <div className="overflow-hidden transition-opacity duration-700 opacity-100">
+    <div className="relative h-full min-h-[calc(100vh-6rem)] w-full overflow-hidden bg-[#dbeafe] opacity-100 transition-opacity duration-700">
       <GoogleMap
         mapContainerStyle={{
           width: '100%',
-          height: '600px',
+          height: '100%',
+          minHeight: 'calc(100vh - 6rem)',
           overflow: 'hidden',
-          borderRadius: '10px',
         }}
         center={
           selectedConnection
@@ -143,17 +193,18 @@ export default function ConnectionsShowOnGoogleMap({
         zoom={6}
         onLoad={(map: google.maps.Map) => {
           mapRef.current = map;
+          setMapReady(true);
         }}
         options={{
           styles: mapStyles,
           disableDefaultUI: true,
-          zoomControl: false,
+          zoomControl: true,
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
           gestureHandling: 'greedy',
           clickableIcons: false,
-          backgroundColor: '#f9fafb',
+          backgroundColor: '#dbeafe',
         }}
       >
         {selectedConnection?.lat && selectedConnection?.lng && (
@@ -174,11 +225,7 @@ export default function ConnectionsShowOnGoogleMap({
         )}
 
         {/* Markers for spotlight users */}
-        {connections
-          ?.filter(({ connectionType }: any) =>
-            connectionType?.includes('spotlight')
-          )
-          ?.map((connection: any) => {
+        {spotlightConnections.map((connection: any) => {
             const isSelected =
               selectedFriend?._id === connection?._id;
             const isNearby =
@@ -190,6 +237,16 @@ export default function ConnectionsShowOnGoogleMap({
                 selectedFriend?.lng
               ) < 5;
 
+            const displayName =
+              connection?.childId?.name || connection?.childId?.ens || 'Swop';
+            const initials = displayName
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((part: string) => part[0])
+              .join('')
+              .toUpperCase();
+
             return (
               <OverlayView
                 key={connection._id}
@@ -199,39 +256,45 @@ export default function ConnectionsShowOnGoogleMap({
                 }}
                 mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
               >
-                <div className="relative w-16 h-16">
+                <div className="relative h-16 w-16">
                   <Popover placement="top" showArrow={true}>
                     <PopoverTrigger>
-                      <div
+                      <button
+                        type="button"
+                        aria-label={`Open ${displayName} on the map`}
                         className={clsx(
-                          'rounded-full cursor-pointer p-1 flex items-center justify-center shadow-lg border-4 transition-all duration-300 transform overflow-hidden',
+                          'group relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border-4 border-white bg-white shadow-[0_18px_35px_rgba(15,23,42,0.28)] transition-all duration-300',
                           {
-                            'border-[#5E20FE] bg-blue-100 scale-110 z-50 absolute':
+                            'scale-110 ring-4 ring-emerald-400/45':
                               isSelected,
-                            'border-purple-500 bg-purple-100':
+                            'ring-4 ring-sky-400/35':
                               isNearby && !isSelected,
-                            'border-gray-300 bg-white':
+                            'hover:scale-105':
                               !isSelected && !isNearby,
                           }
                         )}
                       >
-                        {connection?.childId?.profilePic && (
-                          <Image
-                            src={
-                              isUrl(connection?.childId?.profilePic)
-                                ? connection?.childId?.profilePic
-                                : `/images/user_avator/${connection?.childId?.profilePic}@3x.png`
-                            }
-                            alt="Profile"
-                            className="w-full h-full rounded-full object-cover"
-                            width={1200}
-                            height={700}
-                          />
-                        )}
-                      </div>
+                        <span className="absolute -inset-1 rounded-full bg-gradient-to-br from-emerald-300 via-sky-300 to-violet-400 opacity-75 blur-sm transition-opacity group-hover:opacity-100" />
+                        <span className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-slate-950 via-slate-800 to-slate-700 text-sm font-black uppercase tracking-[0.08em] text-white">
+                          {connection?.childId?.profilePic && (
+                            <Image
+                              src={
+                                isUrl(connection?.childId?.profilePic)
+                                  ? connection?.childId?.profilePic
+                                  : `/images/user_avator/${connection?.childId?.profilePic}@3x.png`
+                              }
+                              alt="Profile"
+                              className="w-full h-full rounded-full object-cover"
+                              width={1200}
+                              height={700}
+                            />
+                          )}
+                          {!connection?.childId?.profilePic && initials}
+                        </span>
+                      </button>
                     </PopoverTrigger>
                     <PopoverContent>
-                      <div className="px-6 py-8 flex flex-col items-center gap-3">
+                      <div className="flex flex-col items-center gap-3 px-6 py-8">
                         {connection?.childId?.profilePic && (
                           <Image
                             src={
@@ -246,7 +309,7 @@ export default function ConnectionsShowOnGoogleMap({
                           />
                         )}
                         <p className="text-base font-semibold">
-                          {connection?.childId?.name}
+                          {displayName}
                         </p>
                         {connection?.childId?.ens ? (
                           <Link
@@ -265,7 +328,7 @@ export default function ConnectionsShowOnGoogleMap({
                   </Popover>
 
                   {/* Glowing rings for spotlighted users */}
-                  <div className="absolute inset-0 rounded-full animate-ping bg-indigo-500 opacity-30 z-[-1]" />
+                  <div className="absolute inset-1 z-[-1] rounded-full bg-sky-500/30 blur-md" />
                 </div>
               </OverlayView>
             );
