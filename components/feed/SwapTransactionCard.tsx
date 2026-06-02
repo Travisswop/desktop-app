@@ -199,10 +199,10 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
 
               {/* Live price */}
               <div className="flex flex-col items-end">
-                <span className="text-xl font-semibold text-gray-900 leading-tight">
+                <span className="font-mono text-[28px] font-black leading-none tabular-nums text-gray-950">
                   ${displayPrice ? displayPrice.toFixed(3) : "0.000"}
                 </span>
-                <span className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">
+                <span className="mt-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                   {outputToken?.symbol} PRICE
                 </span>
               </div>
@@ -239,12 +239,11 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
             <div className="flex items-start justify-around mb-4">
               <div className="flex flex-col items-center">
                 <span
-                  className="text-[10px] font-semibold uppercase tracking-widest mb-1"
-                  style={{ color: "#949494" }}
+                  className="mb-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400"
                 >
                   QUANTITY
                 </span>
-                <span className="text-[15px] font-bold text-green-500">
+                <span className="font-mono text-[16px] font-black tabular-nums text-green-500">
                   {formatNumber(outputToken?.amount)} {outputToken?.symbol}
                 </span>
               </div>
@@ -253,12 +252,11 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
 
               <div className="flex flex-col items-center">
                 <span
-                  className="text-[10px] font-semibold uppercase tracking-widest mb-1"
-                  style={{ color: "#949494" }}
+                  className="mb-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400"
                 >
                   PRICE
                 </span>
-                <span className="text-[15px] font-bold text-red-500">
+                <span className="font-mono text-[16px] font-black tabular-nums text-red-500">
                   {formatNumber(inputToken?.amount)} {inputToken?.symbol}
                 </span>
               </div>
@@ -272,14 +270,14 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
               {onPress ? (
                 <button
                   onClick={onPress}
-                  className="px-7 py-2 rounded-full text-sm font-medium text-gray-900 bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all"
+                  className="rounded-full bg-gray-100 px-7 py-2 text-[13px] font-extrabold text-gray-950 transition-all hover:bg-gray-200 active:scale-95"
                 >
                   Copy Trade
                 </button>
               ) : (
                 <Link
                   href={`/wallet?inputToken=${inputToken?.symbol}&inputMint=${inputToken?.mint}&inputChain=${inputToken?.chain || inputToken?.chainId}&inputImg=${encodeURIComponent(resolveTokenImg(inputToken))}&inputDecimals=${inputToken?.decimals}&outputToken=${outputToken?.symbol}&outputMint=${outputToken?.mint}&outputChain=${outputToken?.chain || outputToken?.chainId}&outputImg=${encodeURIComponent(resolveTokenImg(outputToken))}&outputDecimals=${outputToken?.decimals}&amount=${inputToken?.amount}`}
-                  className="px-7 py-2 rounded-lg text-sm font-medium text-gray-900 bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all"
+                  className="rounded-lg bg-gray-100 px-7 py-2 text-[13px] font-extrabold text-gray-950 transition-all hover:bg-gray-200 active:scale-95"
                 >
                   Copy Trade
                 </Link>

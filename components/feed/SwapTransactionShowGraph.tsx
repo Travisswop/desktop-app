@@ -516,7 +516,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
             event.stopPropagation();
             setSelectedPeriod(p);
           }}
-          className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${
+          className={`rounded-full px-3 py-1 font-mono text-[11px] font-black transition-colors ${
             selectedPeriod === p
               ? "bg-black text-white"
               : "text-gray-400 hover:text-gray-700"
@@ -537,9 +537,11 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
     return (
       <div className="w-full select-none">
         <div className="flex flex-col items-center justify-center gap-1 py-6">
-          <p className="text-sm text-gray-400">No price data available</p>
+          <p className="font-mono text-[11px] font-black uppercase tracking-[0.18em] text-gray-400">
+            No price data available
+          </p>
           {createdAt && (
-            <p className="text-xs text-gray-300">
+            <p className="font-mono text-[10px] font-bold text-gray-300">
               Swap made on {dayjs(createdAt).format("MMM D, h:mm A")}
             </p>
           )}
@@ -711,7 +713,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
                   background: "rgba(0,0,0,0.72)",
                 }}
               >
-                <span className="text-white text-[10px] font-medium">
+                <span className="font-mono text-[10px] font-bold text-white">
                   {dayjs(createdAt).format("MMM D, h:mm A")}
                 </span>
               </div>
@@ -747,7 +749,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
                     boxShadow: "0 1px 6px rgba(0,0,0,0.10)",
                   }}
                 >
-                  <span className="text-[11px] font-bold text-gray-900">
+                  <span className="font-mono text-[12px] font-black tabular-nums text-gray-900">
                     ${(val ?? 0).toFixed(3)}
                   </span>
                 </div>
@@ -761,7 +763,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
                     background: "rgba(255,255,255,0.92)",
                   }}
                 >
-                  <span className="text-[10px] text-gray-400 font-medium">
+                  <span className="font-mono text-[10px] font-bold text-gray-400">
                     {getTooltipLabel()}
                   </span>
                 </div>

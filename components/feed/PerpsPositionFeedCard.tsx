@@ -484,7 +484,7 @@ export default function PerpsPositionFeedCard({
             setSelectedIndex(null);
             setSelectedPeriod(period);
           }}
-          className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+          className={`rounded-full px-3 py-1 font-mono text-[11px] font-black transition-colors ${
             selectedPeriod === period
               ? 'bg-black text-white'
               : 'text-gray-400 hover:text-gray-700'
@@ -511,19 +511,19 @@ export default function PerpsPositionFeedCard({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div
-                  className={`inline-flex rounded-[10px] border px-4 py-2 text-[13px] font-semibold uppercase tracking-wide ${badgeClasses}`}
+                  className={`inline-flex rounded-[10px] border px-4 py-2 font-mono text-[12px] font-black uppercase tracking-[0.18em] ${badgeClasses}`}
                 >
                   {badgeLabel} {leverage}x
                 </div>
-                <div className="mt-2 text-[15px] font-semibold text-gray-950">
+                <div className="mt-2 font-mono text-[15px] font-black tabular-nums text-gray-950">
                   {formatCompactNumber(content.sizeCoins)} {coin}
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[24px] font-semibold leading-none text-gray-950">
+                <div className="font-mono text-[28px] font-black leading-none tabular-nums text-gray-950">
                   {formatUsd(displayMarkPrice)}
                 </div>
-                <div className="mt-1 text-[13px] font-semibold uppercase text-gray-950">
+                <div className="mt-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                   {coin} price
                 </div>
               </div>
@@ -670,10 +670,10 @@ export default function PerpsPositionFeedCard({
                   top: chartTooltip.top,
                 }}
               >
-                <div className="truncate text-[10px] font-semibold text-gray-400">
+                <div className="truncate font-mono text-[10px] font-bold text-gray-400">
                   {formatPointTime(selectedChartPoint.point.time)}
                 </div>
-                <div className="mt-0.5 text-[14px] font-bold leading-none text-gray-950">
+                <div className="mt-0.5 font-mono text-[14px] font-black leading-none tabular-nums text-gray-950">
                   {formatUsd(selectedChartPoint.point.price)}
                 </div>
               </div>
@@ -685,10 +685,10 @@ export default function PerpsPositionFeedCard({
           <div className="px-4 pb-4 pt-3">
             <div className="mb-4 flex items-start justify-around">
               <div className="flex flex-col items-center">
-                <span className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#949494]">
+                <span className="mb-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                   Entry price
                 </span>
-                <div className="text-[15px] font-bold text-gray-950">
+                <div className="font-mono text-[16px] font-black tabular-nums text-gray-950">
                   {formatUsd(content.entryPrice)}
                 </div>
               </div>
@@ -696,11 +696,11 @@ export default function PerpsPositionFeedCard({
               <div className="w-px self-stretch bg-gray-100" />
 
               <div className="flex flex-col items-center">
-                <span className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#949494]">
+                <span className="mb-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                   Return
                 </span>
                 <div
-                  className={`text-[15px] font-bold ${
+                  className={`font-mono text-[16px] font-black tabular-nums ${
                     isPositive ? 'text-emerald-500' : 'text-red-500'
                   }`}
                 >
@@ -710,12 +710,12 @@ export default function PerpsPositionFeedCard({
             </div>
 
             <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-              <div className="text-[11px] font-medium text-gray-400">
+              <div className="font-mono text-[11px] font-bold text-gray-400">
                 {statusLabel} {dayjs(statusTimestamp).fromNow()}
               </div>
               <Link
                 href={href}
-                className="rounded-lg bg-gray-100 px-7 py-2 text-sm font-medium text-gray-950 transition-all hover:bg-gray-200 active:scale-95"
+                className="rounded-lg bg-gray-100 px-7 py-2 text-[13px] font-extrabold text-gray-950 transition-all hover:bg-gray-200 active:scale-95"
               >
                 Copy Trade
               </Link>
