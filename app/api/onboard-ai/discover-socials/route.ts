@@ -22,6 +22,10 @@ type DiscoverRequest = {
   tiktok?: string;
 };
 
+type ParsedDiscoverRequest =
+  | { payload: DiscoverRequest }
+  | { error: string };
+
 const platforms = [
   {
     platform: "twitter",
@@ -141,6 +145,22 @@ const getSearchSignal = () => {
   return controller.signal;
 };
 
+const parseDiscoverRequest = async (
+  request: Request,
+): Promise<ParsedDiscoverRequest> => {
+  try {
+    const payload = await request.json();
+
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return { error: "Request body must be a JSON object." };
+    }
+
+    return { payload: payload as DiscoverRequest };
+  } catch {
+    return { error: "Invalid JSON payload." };
+  }
+};
+
 async function braveSearch(query: string) {
   const apiKey = process.env.BRAVE_SEARCH_API_KEY;
   if (!apiKey) {
@@ -223,8 +243,16 @@ const resultToCandidate = ({
 };
 
 export async function POST(request: Request) {
+  const parsed = await parseDiscoverRequest(request);
+  if ("error" in parsed) {
+    return NextResponse.json(
+      { candidates: [], error: parsed.error },
+      { status: 400 },
+    );
+  }
+
   try {
-    const payload = (await request.json()) as DiscoverRequest;
+    const { payload } = parsed;
     const name = clean(payload.name);
     const seedHandles = [
       payload.instagram,
