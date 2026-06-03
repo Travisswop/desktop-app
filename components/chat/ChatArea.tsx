@@ -7707,8 +7707,7 @@ async function shareReceiptImage(receipt: AgentActionCompletion) {
   const fileName = receiptShareFileName(receipt);
   const file = new File([blob], fileName, { type: 'image/png' });
   const shareData = {
-    title: 'Swop ticket',
-    text: 'Check out my prediction.',
+    text: '📈 Here’s my call. Follow it on Swopme.app',
     files: [file],
   };
 

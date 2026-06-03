@@ -51,6 +51,14 @@ const MONO =
 
 const PERIODS = ['1D', '1W', '1M', '1Y'] as const;
 type Period = (typeof PERIODS)[number];
+type ChartPoint = { timestamp: number; value: number };
+
+const PERIOD_MS: Record<Period, number> = {
+  '1D': 24 * 60 * 60 * 1000,
+  '1W': 7 * 24 * 60 * 60 * 1000,
+  '1M': 30 * 24 * 60 * 60 * 1000,
+  '1Y': 365 * 24 * 60 * 60 * 1000,
+};
 
 const TX_FILTERS = ['All', 'Sends', 'Receives', 'Swaps'] as const;
 type TxFilter = (typeof TX_FILTERS)[number];
@@ -139,6 +147,73 @@ const formatTxWhen = (timeStamp: string | number) => {
     minute: '2-digit',
     hour12: false,
   });
+};
+
+const normalizeChartPoints = (
+  points: Array<Partial<ChartPoint>> | null | undefined,
+): ChartPoint[] => {
+  if (!points?.length) return [];
+
+  return points
+    .map((point) => {
+      const timestamp =
+        typeof point.timestamp === 'number'
+          ? point.timestamp
+          : parseFloat(String(point.timestamp ?? 'NaN'));
+      const value =
+        typeof point.value === 'number'
+          ? point.value
+          : parseFloat(String(point.value ?? 'NaN'));
+
+      return Number.isFinite(timestamp) && Number.isFinite(value)
+        ? { timestamp, value }
+        : null;
+    })
+    .filter((point): point is ChartPoint => Boolean(point));
+};
+
+const sparklineToChartPoints = (
+  values: unknown,
+  period: Period,
+): ChartPoint[] => {
+  if (!Array.isArray(values) || values.length < 2) return [];
+
+  const numericValues = values
+    .map((value) =>
+      typeof value === 'number'
+        ? value
+        : parseFloat(String(value ?? 'NaN')),
+    )
+    .filter((value) => Number.isFinite(value));
+
+  if (numericValues.length < 2) return [];
+
+  const end = Date.now();
+  const span = PERIOD_MS[period];
+  const step = span / (numericValues.length - 1);
+
+  return numericValues.map((value, index) => ({
+    timestamp: end - span + step * index,
+    value,
+  }));
+};
+
+const fallbackChartDataForToken = (
+  token: TokenData,
+  period: Period,
+): ChartPoint[] => {
+  const periodData = normalizeChartPoints(token.timeSeriesData?.[period]);
+  if (periodData.length >= 2) return periodData;
+
+  if (period !== '1D') return [];
+
+  const tokenSparkline = normalizeChartPoints(token.sparklineData);
+  if (tokenSparkline.length >= 2) return tokenSparkline;
+
+  return sparklineToChartPoints(
+    (token.marketData as { sparkline?: unknown } | null)?.sparkline,
+    period,
+  );
 };
 
 interface TokenDetailsProps {
@@ -249,8 +324,12 @@ export default function TokenDetails({
   }
 
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('1D');
-  const [chartData, setChartData] = useState(
-    token.timeSeriesData['1D'] || [],
+  const fallbackChartData = useMemo(
+    () => fallbackChartDataForToken(token, selectedPeriod),
+    [token, selectedPeriod],
+  );
+  const [chartData, setChartData] = useState<ChartPoint[]>(
+    () => fallbackChartDataForToken(token, '1D'),
   );
   const [changePercentage, setChangePercentage] = useState(
     token.marketData?.priceChangePercentage24h || '0',
@@ -297,6 +376,7 @@ export default function TokenDetails({
 
   const periodChangeNumeric = parseFloat(changePercentage || '0');
   const strokeColor = periodChangeNumeric >= 0 ? POS_GREEN : NEG_RED;
+  const hasChartData = chartData.length >= 2;
 
   // Sync chart data + change percent + loading flag when period or query data changes.
   useEffect(() => {
@@ -326,9 +406,24 @@ export default function TokenDetails({
     if (newData && newData.length > 0) {
       setChartData(newData);
       setChangePercentage(newChange);
+      return;
+    }
+
+    if (!loadingMap[selectedPeriod]) {
+      setChartData(fallbackChartData);
+      setChangePercentage(
+        selectedPeriod === '1D'
+          ? token.marketData?.priceChangePercentage24h ||
+              token.marketData?.change ||
+              newChange
+          : newChange,
+      );
     }
   }, [
     selectedPeriod,
+    fallbackChartData,
+    token.marketData?.change,
+    token.marketData?.priceChangePercentage24h,
     day.data,
     day.isLoading,
     week.data,
@@ -594,6 +689,17 @@ export default function TokenDetails({
           <div className="max-w-[820px] mx-auto px-5 py-5 space-y-3">
             {/* ───────── Token hero ───────── */}
             <div className="bg-white rounded-[22px] border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_20px_48px_-20px_rgba(10,10,12,0.18)] p-6">
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  aria-label="Back to wallet"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/[0.06] bg-[#fafafa] pl-2.5 pr-3.5 text-[12.5px] font-semibold text-gray-900 transition hover:border-black/[0.14] hover:bg-white"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Wallet
+                </button>
+              </div>
               <div className="flex justify-between items-start gap-4 mb-5">
                 <div className="flex items-center gap-4 min-w-0">
                   <div
@@ -659,67 +765,81 @@ export default function TokenDetails({
                     </div>
                   </div>
                 )}
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={chartData}
-                    margin={{ top: 6, right: 0, left: 0, bottom: 0 }}
-                  >
-                    <defs>
-                      <linearGradient
-                        id="td-fill"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="0%"
-                          stopColor={strokeColor}
-                          stopOpacity={0.18}
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor={strokeColor}
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      vertical={false}
-                      stroke={HAIR}
-                      strokeDasharray="3 5"
-                    />
-                    <XAxis
-                      dataKey="timestamp"
-                      hide
-                      type="number"
-                      scale="time"
-                      domain={['auto', 'auto']}
-                    />
-                    <YAxis domain={['auto', 'auto']} hide />
-                    <Tooltip
-                      content={<ChartTooltip />}
-                      cursor={{ stroke: strokeColor, strokeWidth: 1 }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke={strokeColor}
-                      strokeWidth={2.4}
-                      fill="url(#td-fill)"
-                      isAnimationActive
-                      animationDuration={600}
-                      connectNulls
-                      dot={false}
-                      activeDot={{
-                        r: 4,
-                        stroke: '#fff',
-                        strokeWidth: 2,
-                        fill: strokeColor,
+                {hasChartData ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={chartData}
+                      margin={{ top: 6, right: 0, left: 0, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient
+                          id="td-fill"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor={strokeColor}
+                            stopOpacity={0.18}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor={strokeColor}
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid
+                        vertical={false}
+                        stroke={HAIR}
+                        strokeDasharray="3 5"
+                      />
+                      <XAxis
+                        dataKey="timestamp"
+                        hide
+                        type="number"
+                        scale="time"
+                        domain={['auto', 'auto']}
+                      />
+                      <YAxis domain={['auto', 'auto']} hide />
+                      <Tooltip
+                        content={<ChartTooltip />}
+                        cursor={{ stroke: strokeColor, strokeWidth: 1 }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke={strokeColor}
+                        strokeWidth={2.4}
+                        fill="url(#td-fill)"
+                        isAnimationActive
+                        animationDuration={600}
+                        connectNulls
+                        dot={false}
+                        activeDot={{
+                          r: 4,
+                          stroke: '#fff',
+                          strokeWidth: 2,
+                          fill: strokeColor,
+                        }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-lg border border-dashed border-black/[0.06] bg-[#fafafa]">
+                    <span
+                      className="text-[11px] font-semibold uppercase text-gray-400"
+                      style={{
+                        fontFamily: MONO,
+                        letterSpacing: '1.1px',
                       }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                    >
+                      Chart unavailable
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Period selector + High/Low */}

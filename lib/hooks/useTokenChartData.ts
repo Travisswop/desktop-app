@@ -19,6 +19,7 @@ const NATIVE_TOKEN_MAP: Record<string, string> = {
   ETHEREUM: 'ethereum',
   POLYGON: 'matic-network',
   BASE: 'ethereum', // Base chain uses ETH as native token
+  ARBITRUM: 'ethereum', // Arbitrum uses ETH as native token
   SEPOLIA: 'ethereum', // Testnet uses ETH
 };
 
@@ -39,11 +40,13 @@ function periodToDays(period: string): number {
  * Check if a token is a native token (no contract address)
  */
 function isNativeToken(address: string | null): boolean {
+  const normalized = address?.toLowerCase();
   return (
-    !address ||
-    address === 'null' ||
-    address === '0x0' ||
-    address === '0x0000000000000000000000000000000000000000'
+    !normalized ||
+    normalized === 'null' ||
+    normalized === 'native' ||
+    normalized === '0x0' ||
+    normalized === '0x0000000000000000000000000000000000000000'
   );
 }
 
@@ -60,12 +63,14 @@ async function fetchChartData(
 ): Promise<ChartData> {
   const days = periodToDays(period);
   let prices: Array<{ timestamp: number; price: number }> = [];
+  let chartLabel = `${chain}:${tokenAddress || 'native'}`;
 
   if (isNativeToken(tokenAddress)) {
     const tokenId = NATIVE_TOKEN_MAP[chain.toUpperCase()];
     if (!tokenId) {
       throw new Error(`Native token mapping not found for chain: ${chain}`);
     }
+    chartLabel = tokenId;
     const historical = await MarketService.getHistoricalPrices(
       tokenId,
       days,
@@ -97,7 +102,7 @@ async function fetchChartData(
   const uniqueValues = new Set(sparklineData.map((d) => d.value));
   if (uniqueValues.size === 1) {
     console.warn(
-      `[useTokenChartData] Flat line detected for ${tokenId} - all values are ${sparklineData[0]?.value}`
+      `[useTokenChartData] Flat line detected for ${chartLabel} - all values are ${sparklineData[0]?.value}`
     );
   }
 
