@@ -238,6 +238,7 @@ interface Message {
           provider?: string | null;
           action?: string | null;
           markets?: PolymarketMarketPreview[];
+          positions?: PolymarketPosition[];
           perpsPositions?: HyperliquidPositionsPreview | null;
           items?: MarketplaceItemPreview[];
           walletReceive?: WalletReceiveQrDetails | null;
@@ -293,6 +294,18 @@ function messageAgentRichKey(message: Message) {
     .filter(Boolean)
     .sort()
     .join(',');
+  const positionKeys = (toolExecution.positions || [])
+    .map(
+      (position) =>
+        `${position.conditionId || ''}:${position.asset || ''}:${
+          position.outcome || ''
+        }:${position.size || ''}:${position.cashPnl || ''}:${
+          position.curPrice || ''
+        }`
+    )
+    .filter((position) => position.replace(/:/g, ''))
+    .sort()
+    .join(',');
   const sourceKeys = (toolExecution.sources || [])
     .map((source) => `${source.title || ''}:${source.url || ''}`)
     .filter((source) => source !== ':')
@@ -327,6 +340,7 @@ function messageAgentRichKey(message: Message) {
   if (
     !toolExecution.action &&
     !marketKeys &&
+    !positionKeys &&
     !sourceKeys &&
     !sportsResearchKey &&
     !perpsPositionsKey &&
@@ -340,6 +354,7 @@ function messageAgentRichKey(message: Message) {
     toolExecution.action || '',
     toolExecution.query || '',
     marketKeys,
+    positionKeys,
     sourceKeys,
     sportsResearchKey,
     perpsPositionsKey,
@@ -382,6 +397,7 @@ function hasPolymarketAgentRichContent(message: Message) {
   return Boolean(
     isAgentLikeMessage(message) &&
       ((toolExecution?.markets || []).length > 0 ||
+        (toolExecution?.positions || []).length > 0 ||
         shouldResolveMessageResearchToPolymarket(message))
   );
 }
@@ -6934,6 +6950,8 @@ function Message({
     () => message.agentData?.metadata?.toolExecution?.markets || [],
     [message.agentData?.metadata?.toolExecution?.markets]
   );
+  const polymarketPositions =
+    message.agentData?.metadata?.toolExecution?.positions || [];
   const polymarketOrderPrefill =
     message.agentData?.metadata?.polymarketOrderPrefill || null;
   const fundingOnramp =
@@ -6957,6 +6975,8 @@ function Message({
   const researchCheckedAt =
     message.agentData?.metadata?.toolExecution?.checkedAt || null;
   const receipt = message.agentData?.metadata?.receipt || null;
+  const [selectedAgentPredictionPosition, setSelectedAgentPredictionPosition] =
+    useState<PolymarketPosition | null>(null);
   const hasAgentReceipt = isAgent && Boolean(receipt);
   const researchPolymarketQuery = useMemo(
     () =>
@@ -7033,6 +7053,8 @@ function Message({
   const hasAgentMarkets = isAgent && displayPolymarketMarkets.length > 0;
   const shouldHideUnnamedPolymarketAgent =
     isUnnamedAgent && (hasAgentMarkets || shouldResolveResearchToPolymarket);
+  const hasAgentPolymarketPositions =
+    isAgent && polymarketPositions.length > 0;
   const hasAgentMarketplaceItems = isAgent && marketplaceItems.length > 0;
   const hasAgentFundingOnramp = isAgent && Boolean(fundingOnramp);
   const hasAgentWalletReceive = isAgent && Boolean(walletReceive?.address);
@@ -7053,6 +7075,7 @@ function Message({
   const hasAgentRichContent =
     isAgent &&
     (hasAgentMarkets ||
+      hasAgentPolymarketPositions ||
       hasAgentFundingOnramp ||
       hasAgentMarketplaceItems ||
       hasAgentWalletReceive ||
@@ -7199,6 +7222,12 @@ function Message({
               renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
             />
           )}
+          {isAgent && polymarketPositions.length > 0 && (
+            <PolymarketPositionsCard
+              positions={polymarketPositions}
+              onOpenPosition={setSelectedAgentPredictionPosition}
+            />
+          )}
           {isAgent &&
             shouldResolveResearchToPolymarket &&
             isLoadingResearchPolymarketMarkets &&
@@ -7273,6 +7302,16 @@ function Message({
               onAddPerpsFunds={onAddPerpsFunds}
               astroConsoleData={astroConsoleData}
               sourceText={proposalSourceText}
+            />
+          )}
+          {selectedAgentPredictionPosition && (
+            <PredictionPositionManagerModal
+              position={selectedAgentPredictionPosition}
+              allPositions={astroConsoleData.predictionPositions.length
+                ? astroConsoleData.predictionPositions
+                : polymarketPositions}
+              consoleData={astroConsoleData}
+              onClose={() => setSelectedAgentPredictionPosition(null)}
             />
           )}
         </div>
@@ -8326,6 +8365,100 @@ function AgentMarketBlock({
         ) : null}
       </div>
       {children}
+    </div>
+  );
+}
+
+function PolymarketPositionsCard({
+  positions,
+  onOpenPosition,
+}: {
+  positions: PolymarketPosition[];
+  onOpenPosition: (position: PolymarketPosition) => void;
+}) {
+  const openPositions = positions.filter(isOpenPredictionConsolePosition);
+  const displayPositions = (openPositions.length ? openPositions : positions).slice(
+    0,
+    4
+  );
+  const totalValue = displayPositions.reduce(
+    (sum, position) => sum + toFiniteNumber(position.currentValue),
+    0
+  );
+  const totalPnl = displayPositions.reduce(
+    (sum, position) => sum + toFiniteNumber(position.cashPnl),
+    0
+  );
+  const hasMore = positions.length > displayPositions.length;
+
+  return (
+    <div className={`${AGENT_PANEL_CLASS} mt-2 w-full overflow-hidden text-xs`}>
+      <div className="flex items-start justify-between gap-3 border-b border-white/[0.07] px-3.5 py-3">
+        <div className="min-w-0">
+          <div className="dm-mono text-[9.5px] font-bold uppercase tracking-[0.16em] text-[#3fe08f]">
+            polymarket positions
+          </div>
+          <div className="mt-1 text-[15px] font-bold text-[#eceef2]">
+            {openPositions.length || positions.length} position
+            {(openPositions.length || positions.length) === 1 ? '' : 's'}
+          </div>
+        </div>
+        <div className="dm-mono shrink-0 text-right text-[10px] font-semibold">
+          <div className="text-[#eceef2]">{formatCompactUsd(totalValue)}</div>
+          <div className={totalPnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]'}>
+            {formatSignedUsd(totalPnl)}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-0">
+        {displayPositions.map((position) => {
+          const pnl = toFiniteNumber(position.cashPnl);
+          const percentPnl = toFiniteNumber(position.percentPnl);
+          const pnlLabel =
+            percentPnl === 0
+              ? formatSignedUsd(pnl)
+              : `${formatSignedUsd(pnl)} · ${
+                  percentPnl > 0 ? '+' : ''
+                }${percentPnl.toFixed(2)}%`;
+
+          return (
+            <button
+              key={`${position.conditionId}-${position.asset}`}
+              type="button"
+              onClick={() => onOpenPosition(position)}
+              className="dm-btn flex w-full items-center justify-between gap-3 border-t border-white/[0.045] px-3.5 py-3 text-left first:border-t-0"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-[#eceef2]">
+                  {position.title || 'Prediction market'}
+                </span>
+                <span className="dm-mono mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#737783]">
+                  <span className="rounded-[5px] border border-[#3fe08f]/15 bg-black/25 px-1.5 py-0.5 text-[#3fe08f]">
+                    {position.outcome || 'Outcome'}
+                  </span>
+                  <span>{formatPredictionShares(position.size)} shares</span>
+                  <span>{formatPolymarketPrice(position.curPrice)}</span>
+                </span>
+              </span>
+              <span
+                className={`dm-mono shrink-0 text-right text-[11px] font-bold ${
+                  pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]'
+                }`}
+              >
+                {pnlLabel}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {hasMore && (
+        <div className="border-t border-white/[0.045] px-3.5 py-2 text-[11px] font-semibold text-[#737783]">
+          {positions.length - displayPositions.length} more position
+          {positions.length - displayPositions.length === 1 ? '' : 's'} available.
+        </div>
+      )}
     </div>
   );
 }
