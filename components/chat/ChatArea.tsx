@@ -238,6 +238,7 @@ interface Message {
           provider?: string | null;
           action?: string | null;
           markets?: PolymarketMarketPreview[];
+          perpsPositions?: HyperliquidPositionsPreview | null;
           items?: MarketplaceItemPreview[];
           walletReceive?: WalletReceiveQrDetails | null;
           sources?: ResearchSourcePreview[];
@@ -307,8 +308,30 @@ function messageAgentRichKey(message: Message) {
     .filter((group) => group !== ':')
     .sort()
     .join('|');
+  const perpsPositionsKey = (toolExecution.perpsPositions?.positions || [])
+    .map(
+      (position) =>
+        `${position.coin || ''}:${position.szi || ''}:${
+          position.entryPx || ''
+        }:${position.unrealizedPnl || ''}:${position.returnOnEquity || ''}`
+    )
+    .filter((position) => position.replace(/:/g, ''))
+    .sort()
+    .join(',');
+  const perpsAccountKey = toolExecution.perpsPositions
+    ? `${toolExecution.perpsPositions.accountValue || ''}:${
+        toolExecution.perpsPositions.withdrawable || ''
+      }`
+    : '';
 
-  if (!toolExecution.action && !marketKeys && !sourceKeys && !sportsResearchKey) {
+  if (
+    !toolExecution.action &&
+    !marketKeys &&
+    !sourceKeys &&
+    !sportsResearchKey &&
+    !perpsPositionsKey &&
+    !perpsAccountKey
+  ) {
     return '';
   }
 
@@ -319,6 +342,8 @@ function messageAgentRichKey(message: Message) {
     marketKeys,
     sourceKeys,
     sportsResearchKey,
+    perpsPositionsKey,
+    perpsAccountKey,
   ].join('|');
 }
 
@@ -629,6 +654,30 @@ interface PerpsPositionPrompt {
   stopLossPrice?: string;
   requestedSide?: 'long' | 'short' | '';
   options: PerpsPositionPromptOption[];
+}
+
+interface HyperliquidPositionPreview {
+  coin: string;
+  displayCoin?: string | null;
+  side?: 'long' | 'short' | string | null;
+  szi?: string | null;
+  entryPx?: string | null;
+  markPx?: string | null;
+  unrealizedPnl?: string | null;
+  returnOnEquity?: string | null;
+  liquidationPx?: string | null;
+  marginUsed?: string | null;
+  positionValue?: string | null;
+  leverage?: {
+    type?: string | null;
+    value?: number | null;
+  } | null;
+}
+
+interface HyperliquidPositionsPreview {
+  accountValue?: string | null;
+  withdrawable?: string | null;
+  positions?: HyperliquidPositionPreview[];
 }
 
 interface ResearchSourcePreview {
@@ -6893,6 +6942,8 @@ function Message({
     message.agentData?.metadata?.toolExecution?.items || [];
   const walletReceive =
     message.agentData?.metadata?.toolExecution?.walletReceive || null;
+  const perpsPositions =
+    message.agentData?.metadata?.toolExecution?.perpsPositions || null;
   const walletSendNetworkPrompt =
     message.agentData?.metadata?.walletSendNetworkPrompt || null;
   const perpsPositionPrompt =
@@ -6985,6 +7036,7 @@ function Message({
   const hasAgentMarketplaceItems = isAgent && marketplaceItems.length > 0;
   const hasAgentFundingOnramp = isAgent && Boolean(fundingOnramp);
   const hasAgentWalletReceive = isAgent && Boolean(walletReceive?.address);
+  const hasAgentPerpsPositions = isAgent && Boolean(perpsPositions);
   const hasAgentWalletSendNetworkPrompt =
     isAgent && Boolean(walletSendNetworkPrompt);
   const hasAgentPerpsPositionPrompt =
@@ -7004,6 +7056,7 @@ function Message({
       hasAgentFundingOnramp ||
       hasAgentMarketplaceItems ||
       hasAgentWalletReceive ||
+      hasAgentPerpsPositions ||
       hasAgentWalletSendNetworkPrompt ||
       hasAgentPerpsPositionPrompt ||
       hasAgentSportsResearch ||
@@ -7176,6 +7229,12 @@ function Message({
           )}
           {isAgent && walletReceive?.address && (
             <WalletReceiveQrCard walletReceive={walletReceive} />
+          )}
+          {isAgent && perpsPositions && (
+            <HyperliquidPositionsCard
+              summary={perpsPositions}
+              astroConsoleData={astroConsoleData}
+            />
           )}
           {isAgent && walletSendNetworkPrompt && (
             <WalletSendNetworkPromptCard
@@ -10269,6 +10328,230 @@ function buildPerpsPositionPromptProposal(
       paramKeys: Object.keys(params).sort(),
     },
   };
+}
+
+function getHyperliquidPreviewSide(
+  position: HyperliquidPositionPreview
+): 'long' | 'short' {
+  if (position.side === 'short') return 'short';
+  if (position.side === 'long') return 'long';
+  return toFiniteNumber(position.szi) < 0 ? 'short' : 'long';
+}
+
+function getHyperliquidPreviewMarkPrice(
+  position: HyperliquidPositionPreview,
+  market?: HLMarket
+) {
+  const size = Math.abs(toFiniteNumber(position.szi));
+  const positionValue = toFiniteNumber(position.positionValue);
+  const markFromValue = size > 0 && positionValue > 0 ? positionValue / size : 0;
+  const marketMark = market ? getPerpsMarkPrice(position.coin, market) : 0;
+  return (
+    toFiniteNumber(position.markPx) ||
+    markFromValue ||
+    marketMark ||
+    toFiniteNumber(position.entryPx)
+  );
+}
+
+function formatPerpsRoe(value: unknown) {
+  const raw = toFiniteNumber(value);
+  const percent = Math.abs(raw) <= 1 ? raw * 100 : raw;
+  const digits = Math.abs(percent) >= 10 ? 1 : 2;
+  return `${percent >= 0 ? '+' : ''}${percent.toFixed(digits)}%`;
+}
+
+function HyperliquidPositionsCard({
+  summary,
+  astroConsoleData,
+}: {
+  summary: HyperliquidPositionsPreview;
+  astroConsoleData: AstroConsoleData;
+}) {
+  const positions = (summary.positions || []).filter((position) =>
+    Boolean(position.coin)
+  );
+  const accountValue = toFiniteNumber(summary.accountValue);
+  const withdrawable = toFiniteNumber(summary.withdrawable);
+
+  return (
+    <div className={`${AGENT_PANEL_CLASS} mt-2 w-full overflow-hidden rounded-[14px] text-xs`}>
+      <div className="flex items-start justify-between gap-3 border-b border-white/[0.07] px-3.5 py-3">
+        <div className="min-w-0">
+          <div className="dm-mono text-[9.5px] font-bold uppercase tracking-[0.16em] text-[#3fe08f]">
+            hyperliquid positions
+          </div>
+          <div className="mt-1 text-[15px] font-bold text-[#eceef2]">
+            {positions.length
+              ? `${positions.length} open position${positions.length === 1 ? '' : 's'}`
+              : 'No open positions'}
+          </div>
+        </div>
+        {(accountValue > 0 || withdrawable > 0) && (
+          <div className="dm-mono shrink-0 text-right text-[10px] font-semibold text-[#9396a0]">
+            {accountValue > 0 && (
+              <div className="text-[#eceef2]">{formatCompactUsd(accountValue)}</div>
+            )}
+            {withdrawable > 0 && (
+              <div className="text-[#5a5e69]">
+                {formatCompactUsd(withdrawable)} free
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-2 p-3">
+        {positions.length === 0 ? (
+          <div className="rounded-[10px] border border-[#e8920f]/25 bg-[#e8920f]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd08a]">
+            No open Hyperliquid perps positions found.
+          </div>
+        ) : (
+          positions.map((position, index) => {
+            const side = getHyperliquidPreviewSide(position);
+            const displayCoin =
+              position.displayCoin || displayPerpsCoin(position.coin);
+            const market = perpsMarketForCoin(
+              astroConsoleData.perpsMarkets,
+              position.coin
+            );
+            const size = Math.abs(toFiniteNumber(position.szi));
+            const markPrice = getHyperliquidPreviewMarkPrice(position, market);
+            const entryPrice = toFiniteNumber(position.entryPx);
+            const pnl = toFiniteNumber(position.unrealizedPnl);
+            const roe = formatPerpsRoe(position.returnOnEquity);
+            const leverageValue = position.leverage?.value || 1;
+            const marginMode =
+              position.leverage?.type === 'isolated' ? 'isolated' : 'cross';
+            const liquidationPrice = toFiniteNumber(position.liquidationPx);
+            const marginUsed = toFiniteNumber(position.marginUsed);
+            const notional = toFiniteNumber(position.positionValue);
+            const liqDistancePct =
+              liquidationPrice > 0 && markPrice > 0
+                ? Math.max(
+                    0,
+                    Math.min(
+                      100,
+                      side === 'long'
+                        ? ((markPrice - liquidationPrice) / markPrice) * 100
+                        : ((liquidationPrice - markPrice) / markPrice) * 100
+                    )
+                  )
+                : null;
+            const tone =
+              side === 'short'
+                ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ffb2b6]'
+                : 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#a9f7cc]';
+            const pnlTone = pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]';
+
+            return (
+              <div
+                key={`${position.coin}-${position.szi || index}`}
+                className="rounded-[12px] border border-white/[0.07] bg-black/20 p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`dm-mono rounded-[5px] border px-1.5 py-0.5 text-[9px] font-bold uppercase ${tone}`}
+                      >
+                        {side} · {leverageValue}x
+                      </span>
+                      <span className="truncate text-[16px] font-bold text-[#eceef2]">
+                        {displayCoin}-PERP
+                      </span>
+                    </div>
+                    <div className="dm-mono mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5a5e69]">
+                      {marginMode} margin
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className={`dm-mono text-[18px] font-black ${pnlTone}`}>
+                      {formatSignedUsd(pnl)}
+                    </div>
+                    <div className={`dm-mono mt-0.5 text-[10px] font-bold ${pnlTone}`}>
+                      {roe} ROE
+                    </div>
+                  </div>
+                </div>
+
+                <svg
+                  viewBox="0 0 116 48"
+                  className={`mt-3 h-10 w-full ${pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]'}`}
+                  role="img"
+                  aria-label={`${displayCoin} position sparkline`}
+                >
+                  <path
+                    d={perpsSparkPath(116, 48)}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="3"
+                  />
+                </svg>
+
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <PerpsMetric
+                    label="size"
+                    value={`${formatPerpsOrderSize(
+                      size,
+                      market?.szDecimals ?? 4
+                    )} ${displayCoin}`}
+                  />
+                  <PerpsMetric
+                    label="entry"
+                    value={`$${formatPerpsPrice(entryPrice)}`}
+                  />
+                  <PerpsMetric
+                    label="mark"
+                    value={`$${formatPerpsPrice(markPrice)}`}
+                  />
+                  <PerpsMetric
+                    label="margin"
+                    value={formatCompactUsd(marginUsed)}
+                  />
+                  <PerpsMetric
+                    label="notional"
+                    value={formatCompactUsd(notional)}
+                  />
+                  <PerpsMetric
+                    label="liq."
+                    value={
+                      liquidationPrice > 0
+                        ? `$${formatPerpsPrice(liquidationPrice)}`
+                        : '--'
+                    }
+                    tone="text-[#ffb2b6]"
+                  />
+                </div>
+
+                {liqDistancePct !== null && (
+                  <div className="mt-3">
+                    <div className="mb-1.5 flex justify-between text-[10px] font-semibold text-[#5a5e69]">
+                      <span>Liq distance</span>
+                      <span className="dm-mono text-[#9396a0]">
+                        {liqDistancePct.toFixed(1)}% away
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                      <div
+                        className={`h-full rounded-full ${
+                          liqDistancePct < 8 ? 'bg-[#ff5d63]' : 'bg-[#3fe08f]'
+                        }`}
+                        style={{
+                          width: `${Math.max(4, Math.min(100, liqDistancePct))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PerpsPositionPromptCard({
