@@ -270,10 +270,12 @@ export function useGroupAgents(socket: any) {
       groupId,
       agentId = 'astro',
       message,
+      clientWalletContext = null,
     }: {
       groupId: string;
       agentId?: string;
       message: string;
+      clientWalletContext?: Record<string, unknown> | null;
     }) => {
       if (!socket) {
         return Promise.reject(new Error('Socket is not connected.'));
@@ -282,7 +284,7 @@ export function useGroupAgents(socket: any) {
       return emitAckWithTimeout({
         socket,
         event: GROUP_AGENT_SOCKET_EVENTS.INVOKE_GROUP_AGENT,
-        payload: { groupId, agentId, message },
+        payload: { groupId, agentId, message, clientWalletContext },
         timeoutMessage: 'Timed out preparing the bet ticket.',
       }).then((response) => {
         if (response?.success) return response;

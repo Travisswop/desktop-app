@@ -13,7 +13,7 @@ import {
   useCallback,
   useMemo,
 } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useConnectWallet,
@@ -2704,6 +2704,7 @@ export default function ChatArea({
     Map<string, PolymarketMarketPreview>
   >(new Map());
   const router = useRouter();
+  const currentPathname = usePathname();
   const isInitialLoadRef = useRef<boolean>(true);
   const isGroup = chatType === 'group';
   const selectedChatKey = selectedChat
@@ -2845,6 +2846,37 @@ export default function ChatArea({
     trading.portfolioAddresses,
     trading.tradingWalletAddress,
   ]);
+
+  const agentClientWalletContext = useMemo(
+    () => ({
+      evmWalletAddress,
+      evmWalletAddresses,
+      solWalletAddress,
+      predictionWalletAddress:
+        predictionActiveWalletAddress || predictionWalletAddresses[0],
+      predictionWalletAddresses,
+      tradingWalletAddress: trading.tradingWalletAddress,
+      depositWalletAddress:
+        trading.depositWalletAddress ||
+        predictionWalletInfo?.depositWalletAddress,
+      safeAddress: predictionWalletInfo?.safeAddress,
+      currentPage: {
+        pathname: currentPathname || '/dashboard/chat',
+      },
+    }),
+    [
+      currentPathname,
+      evmWalletAddress,
+      evmWalletAddresses,
+      predictionActiveWalletAddress,
+      predictionWalletAddresses,
+      predictionWalletInfo?.depositWalletAddress,
+      predictionWalletInfo?.safeAddress,
+      solWalletAddress,
+      trading.depositWalletAddress,
+      trading.tradingWalletAddress,
+    ]
+  );
 
   const {
     usdcBalance: activePredictionUsdcBalance,
@@ -3723,19 +3755,7 @@ export default function ChatArea({
           groupId: selectedChat._id,
           message: messageForTransport,
           messageType: 'text' as const,
-          clientWalletContext: {
-            evmWalletAddress,
-            evmWalletAddresses,
-            solWalletAddress,
-            predictionWalletAddress:
-              predictionActiveWalletAddress || predictionWalletAddresses[0],
-            predictionWalletAddresses,
-            tradingWalletAddress: trading.tradingWalletAddress,
-            depositWalletAddress:
-              trading.depositWalletAddress ||
-              predictionWalletInfo?.depositWalletAddress,
-            safeAddress: predictionWalletInfo?.safeAddress,
-          },
+          clientWalletContext: agentClientWalletContext,
         }
       : {
             receiverId,
@@ -3814,23 +3834,15 @@ export default function ChatArea({
       }
     );
   }, [
+    agentClientWalletContext,
     currentUser,
     currentGroupData,
-    evmWalletAddress,
-    evmWalletAddresses,
     getPolymarketIntentMarkets,
     isGroup,
     messages,
     newMessage,
-    predictionActiveWalletAddress,
-    predictionWalletAddresses,
-    predictionWalletInfo?.depositWalletAddress,
-    predictionWalletInfo?.safeAddress,
     selectedChat,
-    solWalletAddress,
     socket,
-    trading.depositWalletAddress,
-    trading.tradingWalletAddress,
   ]);
 
   const handlePreparePolymarketBet = useCallback(
@@ -3850,6 +3862,7 @@ export default function ChatArea({
           groupId: selectedChat._id,
           agentId: 'astro',
           message: prompt,
+          clientWalletContext: agentClientWalletContext,
         });
         const proposal = response?.data?.proposal;
         const responseMessage = response?.data?.responseMessage;
@@ -3889,6 +3902,7 @@ export default function ChatArea({
     },
     [
       appendMessageIfNew,
+      agentClientWalletContext,
       handleSendMessage,
       invokeGroupAgent,
       isGroup,
@@ -4073,6 +4087,7 @@ export default function ChatArea({
             message: buildHyperliquidOrderPromptFromApprovalParams(
               approvalParams
             ),
+            clientWalletContext: agentClientWalletContext,
           });
           const preparedProposal = prepareResponse?.data?.proposal;
           const responseMessage = prepareResponse?.data?.responseMessage;
@@ -4153,6 +4168,7 @@ export default function ChatArea({
     },
     [
       appendMessageIfNew,
+      agentClientWalletContext,
       approveAgentAction,
       invokeGroupAgent,
       isGroup,
@@ -16197,11 +16213,22 @@ function PolymarketProposalTicket({
 
   const hasMarket = Boolean(marketId.trim() || conditionId.trim() || slug.trim());
   const amountNumber = toFiniteNumber(amount);
-  const availableShares = tokenId
+  const availableSharesFromPositions = tokenId
     ? positions
         .filter((position) => String(position.asset) === String(tokenId))
         .reduce((sum, position) => sum + toFiniteNumber(position.size), 0)
     : 0;
+  const availableSharesFromTicket = toFiniteNumber(
+    firstTicketValue(params, ['availableShares', 'positionSize', 'maxShares'])
+  );
+  const availableShares =
+    availableSharesFromPositions > 0
+      ? availableSharesFromPositions
+      : availableSharesFromTicket;
+  const isPositionMatchedSell =
+    side === 'SELL' &&
+    Boolean(tokenId || conditionId || slug) &&
+    availableShares > 0;
   const needsPredictionFunds =
     isOpen &&
     canAct &&
@@ -16249,6 +16276,10 @@ function PolymarketProposalTicket({
           : undefined,
     });
   };
+  const setSellSharePercent = (percent: number) => {
+    if (!isOpen || availableShares <= 0) return;
+    setAmount(formatPredictionAmountInput(availableShares * percent));
+  };
 
   return (
     <div className="mt-3 space-y-3 border-t border-white/[0.07] px-3.5 pb-3 pt-3">
@@ -16288,6 +16319,12 @@ function PolymarketProposalTicket({
             <div className="dm-mono mt-1 truncate text-[10px] text-[#5a5e69]">
               {marketId || conditionId || slug}
               {tokenId ? ` · token ${tokenId.slice(0, 18)}...` : ''}
+            </div>
+          )}
+          {isPositionMatchedSell && (
+            <div className="dm-mono mt-2 truncate text-[10px] uppercase tracking-[0.08em] text-[#3fe08f]">
+              matched position · {formatPredictionShares(availableShares)}{' '}
+              {approvalOutcomeLabel} shares
             </div>
           )}
         </div>
@@ -16410,6 +16447,32 @@ function PolymarketProposalTicket({
           </label>
         )}
       </div>
+
+      {isOpen && side === 'SELL' && availableShares > 0 && (
+        <div className="grid grid-cols-3 gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSellSharePercent(0.25)}
+            className={`h-8 rounded-[8px] text-[11.5px] font-semibold ${TICKET_IDLE_BUTTON_CLASS}`}
+          >
+            25%
+          </button>
+          <button
+            type="button"
+            onClick={() => setSellSharePercent(0.5)}
+            className={`h-8 rounded-[8px] text-[11.5px] font-semibold ${TICKET_IDLE_BUTTON_CLASS}`}
+          >
+            Half
+          </button>
+          <button
+            type="button"
+            onClick={() => setSellSharePercent(1)}
+            className={`h-8 rounded-[8px] text-[11.5px] font-semibold ${TICKET_IDLE_BUTTON_CLASS}`}
+          >
+            Max
+          </button>
+        </div>
+      )}
 
       {isOpen && (
         <div
