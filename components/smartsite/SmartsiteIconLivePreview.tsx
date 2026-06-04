@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import React, { FC, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import swop from "@/public/images/live-preview/swop.svg";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
@@ -13,7 +13,7 @@ import {
   useDisclosure,
 } from "@nextui-org/react";
 // import { handleSmartSiteUpdate } from "@/actions/update";
-// import { useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import AnimateButton from "../ui/Button/AnimateButton";
 import { fontMap } from "@/lib/fonts";
@@ -65,6 +65,7 @@ const SmartsiteIconLivePreview = ({
 
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
+  const router = useRouter();
 
   // console.log("form data from live preview data", data.info.socialLarge);
 
@@ -180,6 +181,7 @@ const SmartsiteIconLivePreview = ({
       console.log("accessToken", accessToken);
 
       toast.success("Market Place Deleted");
+      router.refresh();
       setIsMarketPlaceDeleteLoading(false);
       onOpenChange();
     } catch (error) {
@@ -696,7 +698,7 @@ const SmartsiteIconLivePreview = ({
                     items={data.info.video}
                     getMediaType={getMediaType}
                     fontColor={data.fontColor}
-                    onClick={(item, index) =>
+                    onClick={(item) =>
                       handleTriggerUpdate({
                         data: item,
                         categoryForTrigger: "video",
@@ -708,7 +710,7 @@ const SmartsiteIconLivePreview = ({
                 {/* Embeded Link */}
                 {data.info?.videoUrl && data.info.videoUrl.length > 0 && (
                   <div className="w-full space-y-3">
-                    {data.info.videoUrl.map((social: any, index: number) => (
+                    {data.info.videoUrl.map((social: any) => (
                       <EmbedVideo
                         key={social._id}
                         data={social}

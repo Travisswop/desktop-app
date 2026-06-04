@@ -8,7 +8,6 @@ import {
   DropdownTrigger,
   Tooltip,
 } from "@nextui-org/react";
-import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { FaAngleDown, FaMinusCircle, FaTimes } from "react-icons/fa";
 import { MdInfoOutline } from "react-icons/md";
 import productImg from "@/public/images/product.png";
@@ -17,7 +16,7 @@ import getCollectionData from "@/utils/fetchingData/getCollectionData";
 import { createMarketPlace } from "@/actions/handleMarketPlace";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import { Loader } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 interface Collection {
   _id: string;
@@ -68,6 +67,7 @@ const AddMarketplace = ({ onCloseModal }: any) => {
   // console.log("smartsiteData", smartsiteData);
 
   const { accessToken, user } = useUser();
+  const router = useRouter();
 
   // Get smartsite ID from route params
   const params = useParams();
@@ -250,6 +250,7 @@ const AddMarketplace = ({ onCloseModal }: any) => {
         }
 
         toast.success("Items added successfully");
+        router.refresh();
         onCloseModal();
       } catch (error: any) {
         console.error("Marketplace creation error:", error);
@@ -258,7 +259,7 @@ const AddMarketplace = ({ onCloseModal }: any) => {
         setIsLoading(false);
       }
     },
-    [selectedCollection, filteredNfts, smartsiteId, accessToken, onCloseModal]
+    [selectedCollection, filteredNfts, smartsiteId, accessToken, onCloseModal, router]
   );
 
   useEffect(() => {

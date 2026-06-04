@@ -4,6 +4,7 @@ async function getSingleSmartsiteData(id: string, token: string) {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/microsite/${id}`,
       {
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           authorization: `Bearer ${token}`,

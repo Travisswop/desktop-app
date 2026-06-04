@@ -208,7 +208,7 @@ export default function ProductsPage() {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <ProductsScreen
             rows={rows}
-            hideBack
+            backHref="/dashboard"
             createHref={CREATE_HREF}
             kicker={kickerFor(rows)}
             totals={summary?.totals}

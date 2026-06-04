@@ -75,6 +75,16 @@ const CartCheckout = () => {
     Record<string, { updating: boolean; deleting: boolean }>
   >({});
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const activeSolanaWalletAddress = useMemo(() => {
+    const privyWallet = solanaWallets?.find(
+      (w: any) => w.walletClientType === "privy" && w.address
+    );
+    const solanaWallet = solanaWallets?.find(
+      (w: any) => (w.chainType === "solana" || w.type === "solana") && w.address
+    );
+
+    return privyWallet?.address || solanaWallet?.address || "";
+  }, [solanaWallets]);
 
   // Default customer information
   const defaultCustomerInfo: CustomerInfo = {
@@ -83,9 +93,7 @@ const CartCheckout = () => {
     phone: "",
     wallet: {
       ens: "",
-      address:
-        solanaWallets?.find((w: any) => w.walletClientType === "privy")
-          ?.address || "",
+      address: activeSolanaWalletAddress,
     },
     useSwopId: false,
     address: {
@@ -130,9 +138,7 @@ const CartCheckout = () => {
         email: user.email || prev.email,
         wallet: {
           ens: user.ensName || prev.wallet.ens,
-          address:
-            solanaWallets?.find((w: any) => w.walletClientType === "privy")
-              ?.address || prev.wallet.address,
+          address: activeSolanaWalletAddress || prev.wallet.address,
         },
         address: {
           ...prev.address,
@@ -142,7 +148,19 @@ const CartCheckout = () => {
         },
       }));
     }
-  }, [user, customerInfo.useSwopId, solanaWallets]);
+  }, [user, customerInfo.useSwopId, activeSolanaWalletAddress]);
+
+  useEffect(() => {
+    if (!activeSolanaWalletAddress) return;
+
+    setCustomerInfo((prev) => ({
+      ...prev,
+      wallet: {
+        ...prev.wallet,
+        address: prev.wallet.address || activeSolanaWalletAddress,
+      },
+    }));
+  }, [activeSolanaWalletAddress]);
 
   // Handlers for cart operations
   const handleUpdateQuantity = useCallback(
@@ -271,7 +289,7 @@ const CartCheckout = () => {
           email: user.email || prev.email,
           wallet: {
             ens: user.ensName || prev.wallet.ens,
-            address: prev.wallet.address,
+            address: activeSolanaWalletAddress || prev.wallet.address,
           },
           address: {
             ...prev.address,
@@ -283,7 +301,7 @@ const CartCheckout = () => {
       }
       return { ...prev, useSwopId: newUseSwopId };
     });
-  }, [user]);
+  }, [user, activeSolanaWalletAddress]);
 
   // Validation function
   const validateFormFields = useCallback(() => {
@@ -349,14 +367,21 @@ const CartCheckout = () => {
         // Ensure state.items is an array
         const cartItems = Array.isArray(state?.items) ? state.items : [];
 
+        const buyerWalletAddress =
+          activeSolanaWalletAddress || customerInfo.wallet.address || "";
+        const buyerEns = customerInfo.wallet.ens || user?.ensName || "";
+
+        if (!buyerWalletAddress && !buyerEns) {
+          throw new Error("A Solana wallet or SWOP ID is required for minting.");
+        }
+
         const orderInfo = {
           customerInfo: {
             ...customerInfo,
             wallet: {
               ...customerInfo.wallet,
-              address: solanaWallets?.find(
-                (w: any) => w.walletClientType === "privy"
-              )?.address,
+              ens: buyerEns,
+              address: buyerWalletAddress,
             },
           },
           cartItems: cartItems,
@@ -387,7 +412,8 @@ const CartCheckout = () => {
       customerInfo,
       state.items,
       accessToken,
-      solanaWallets,
+      activeSolanaWalletAddress,
+      user?.ensName,
       sellerId,
       localParentId,
     ]
