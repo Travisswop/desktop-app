@@ -22,7 +22,8 @@ export default function OrdersPage() {
   const [tab, setTab] = useState<OrderTab>('Payments');
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [totals, setTotals] = useState<OrderTotals | undefined>();
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
@@ -73,7 +74,7 @@ export default function OrdersPage() {
       const t = setTimeout(() => {
         if (!cancelled && !accessToken) {
           setError('Authentication required.');
-          setLoading(false);
+          setInitialLoading(false);
         }
       }, 5000);
       return () => {
@@ -81,21 +82,23 @@ export default function OrdersPage() {
         clearTimeout(t);
       };
     }
-    setLoading(true);
+    setIsFetching(true);
     setError(null);
     load(tab, accessToken)
       .then(({ rows: r, totals: t }) => {
         if (!cancelled) {
           setRows(r);
           setTotals(t);
-          setLoading(false);
         }
       })
       .catch((err) => {
         console.error(err);
+        if (!cancelled) setError('Failed to load orders.');
+      })
+      .finally(() => {
         if (!cancelled) {
-          setError('Failed to load orders.');
-          setLoading(false);
+          setIsFetching(false);
+          setInitialLoading(false);
         }
       });
     return () => {
@@ -113,7 +116,7 @@ export default function OrdersPage() {
         }}
       >
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          {loading ? (
+          {initialLoading ? (
             <LoadingSkeleton />
           ) : error ? (
             <div className="text-center py-16 text-red-600">{error}</div>
@@ -123,6 +126,8 @@ export default function OrdersPage() {
               onTabChange={setTab}
               rows={rows}
               totals={totals}
+              isFetching={isFetching}
+              backHref="/dashboard"
             />
           )}
         </div>

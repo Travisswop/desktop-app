@@ -6,11 +6,14 @@ import { useDisclosure } from '@nextui-org/react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DragEvent, useEffect, useState, type CSSProperties } from 'react';
 import { Box, FileText, ImagePlus, Loader2 } from 'lucide-react';
 import MintAlertModal from './MintAlertModal';
-import { MINT_COLLECTIONS } from '@/constants/mintCollections';
+import {
+  DIGITAL_COLLECTIONS,
+  PHYSICAL_COLLECTIONS,
+} from '@/constants/mintCollections';
 import {
   Button,
   Card,
@@ -34,6 +37,7 @@ interface ModelInfo {
   success: boolean;
   nftType: string;
   details?: string;
+  title?: string;
 }
 
 interface Variant {
@@ -41,23 +45,71 @@ interface Variant {
   options: string[];
 }
 
-const PHYSICAL_COLLECTION =
-  MINT_COLLECTIONS.find((c) => c.name === 'phygitals') ??
-  MINT_COLLECTIONS.find((c) => c.category === 'physical')!;
-const DIGITAL_COLLECTION =
-  MINT_COLLECTIONS.find((c) => c.name === 'collectible') ??
-  MINT_COLLECTIONS.find((c) => c.category === 'digital')!;
+const blankExtraImages = (): (string | null)[] => [null, null, null, null];
+
+const padExtraImages = (images: string[] = []) => {
+  const next = blankExtraImages();
+  images.slice(0, next.length).forEach((url, index) => {
+    next[index] = url;
+  });
+  return next;
+};
+
+const variantsFromBenefits = (benefits: string[] = []): Variant[] => {
+  const grouped = benefits.reduce<Record<string, string[]>>((acc, benefit) => {
+    const [rawName, ...rest] = benefit.split(':');
+    if (!rest.length) {
+      acc.Benefits = [...(acc.Benefits || []), benefit];
+      return acc;
+    }
+    const name = rawName.trim() || 'Options';
+    const option = rest.join(':').trim();
+    acc[name] = [...(acc[name] || []), option];
+    return acc;
+  }, {});
+
+  const variants = Object.entries(grouped).map(([name, options]) => ({
+    name,
+    options,
+  }));
+
+  return variants.length ? variants : [{ name: '', options: [] }];
+};
+
+const mergeVariantDrafts = (
+  variants: Variant[],
+  drafts: string[]
+): Variant[] =>
+  variants
+    .map((variant, index) => {
+      const draft = drafts[index]?.trim();
+      const options =
+        draft && !variant.options.includes(draft)
+          ? [...variant.options, draft]
+          : variant.options;
+      return {
+        name: variant.name.trim(),
+        options: options.map((option) => option.trim()).filter(Boolean),
+      };
+    })
+    .filter((variant) => variant.name || variant.options.length);
 
 const CreateProduct = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const templateId = searchParams.get('templateId');
+  const isEditMode = Boolean(templateId);
   const { isOpen, onOpenChange } = useDisclosure();
   const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
 
   const [type, setType] = useState<'Physical' | 'Digital'>('Physical');
+  const [selectedCollectionName, setSelectedCollectionName] = useState('');
+  const availableCollections =
+    type === 'Physical' ? PHYSICAL_COLLECTIONS : DIGITAL_COLLECTIONS;
   const selectedCollection =
-    type === 'Physical' ? PHYSICAL_COLLECTION : DIGITAL_COLLECTION;
+    availableCollections.find((c) => c.name === selectedCollectionName) ?? null;
 
   const [shipping, setShipping] = useState<'Yes' | 'No'>('Yes');
   const [agree, setAgree] = useState(false);
@@ -65,12 +117,9 @@ const CreateProduct = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState('');
-  const [extraImages, setExtraImages] = useState<(string | null)[]>([
-    null,
-    null,
-    null,
-    null,
-  ]);
+  const [extraImages, setExtraImages] = useState<(string | null)[]>(
+    blankExtraImages
+  );
   const [price, setPrice] = useState('');
   const [shippingCost, setShippingCost] = useState('');
   const [quantity, setQuantity] = useState<string>('');
@@ -105,6 +154,72 @@ const CreateProduct = () => {
       setWalletLoaded(true);
     }
   }, [ready, authenticated, wallets]);
+
+  useEffect(() => {
+    if (!templateId || !accessToken) return;
+
+    let cancelled = false;
+    const loadTemplate = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/nft/template/${templateId}`,
+          {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+        const data = await response.json().catch(() => null);
+        if (!response.ok || data?.state !== 'success' || !data?.data) {
+          throw new Error(data?.message || `template ${response.status}`);
+        }
+        if (cancelled) return;
+
+        const template = data.data;
+        const collection =
+          [...PHYSICAL_COLLECTIONS, ...DIGITAL_COLLECTIONS].find(
+            (c) => c.name === template.nftType
+          ) ?? null;
+        if (collection) {
+          setType(collection.category === 'physical' ? 'Physical' : 'Digital');
+          setSelectedCollectionName(collection.name);
+        }
+        setName(template.name || '');
+        setDescription(template.description || '');
+        setImage(template.image || '');
+        setExtraImages(padExtraImages(template.extraImages));
+        setSelectedImageName(template.image ? 'Current image' : null);
+        setPrice(String(template.price ?? ''));
+        setQuantity(String(template.mintLimit ?? ''));
+        setRoyaltyPercent(String(template.royaltyPercentage ?? 0));
+        setShipping(template.shippingRequired ? 'Yes' : 'No');
+        setShippingCost(String(template.shippingCost ?? ''));
+        setVariants(
+          Array.isArray(template.variants) && template.variants.length
+            ? template.variants
+            : variantsFromBenefits(template.benefits)
+        );
+        setVariantDraft([]);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setModelInfo({
+            success: false,
+            nftType: 'Product',
+            details:
+              err instanceof Error
+                ? err.message
+                : 'Failed to load product.',
+          });
+          onOpenChange();
+        }
+      }
+    };
+
+    loadTemplate();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, onOpenChange, templateId]);
 
   const processImage = async (
     file: File,
@@ -206,8 +321,20 @@ const CreateProduct = () => {
   const addVariantCategory = () =>
     setVariants((prev) => [...prev, { name: '', options: [] }]);
 
+  const handleTypeSelect = (nextType: 'Physical' | 'Digital') => {
+    setType(nextType);
+    setSelectedCollectionName('');
+    setFormErrors((prev) => ({ ...prev, collection: '' }));
+  };
+
+  const handleCollectionSelect = (collectionName: string) => {
+    setSelectedCollectionName(collectionName);
+    setFormErrors((prev) => ({ ...prev, collection: '' }));
+  };
+
   const validate = () => {
     const errors: Record<string, string> = {};
+    if (!selectedCollection) errors.collection = 'Category is required';
     if (!name.trim()) errors.name = 'Name is required';
     if (!description.trim()) errors.description = 'Description is required';
     if (!image) errors.image = 'Main image is required';
@@ -222,13 +349,37 @@ const CreateProduct = () => {
     return Object.keys(errors).length === 0;
   };
 
+  const readResponseBody = async (response: Response) => {
+    try {
+      return await response.json();
+    } catch {
+      return null;
+    }
+  };
+
+  const getFailureMessage = (
+    data: { message?: string; error?: unknown } | null,
+    response?: Response
+  ) => {
+    if (data?.message) return data.message;
+    if (typeof data?.error === 'string') return data.error;
+    if (data?.error && typeof data.error === 'object') {
+      return JSON.stringify(data.error);
+    }
+    return response
+      ? `Server returned ${response.status}. Please try again later.`
+      : 'An unexpected error occurred. Please try again.';
+  };
+
   const handleSubmit = async () => {
     if (!validate()) return;
+
+    if (!selectedCollection) return;
 
     if (!solanaAddress) {
       setModelInfo({
         success: false,
-        nftType: selectedCollection.name,
+        nftType: selectedCollection.displayName,
         details:
           'Solana wallet address not available. Please make sure your wallet is connected.',
       });
@@ -238,28 +389,40 @@ const CreateProduct = () => {
 
     setIsSubmitting(true);
     try {
+      const normalizedVariants = mergeVariantDrafts(variants, variantDraft);
       const payload = {
         userId: user._id,
         nftType: selectedCollection.name,
+        collectionId: selectedCollection._id,
+        collectionMintAddress: selectedCollection.address,
         name,
         description,
         image,
+        extraImages: extraImages.filter(Boolean),
         price: Number(price),
         currency: 'usdc',
         mintLimit: Number(quantity),
-        benefits: variants
+        variants: normalizedVariants,
+        benefits: normalizedVariants
           .flatMap((v) =>
             v.options.map((o) => (v.name ? `${v.name}: ${o}` : o))
           )
           .filter(Boolean),
         royaltyPercentage: Number(royaltyPercent) || 0,
+        shippingRequired: type === 'Physical' && shipping === 'Yes',
+        shippingCost:
+          type === 'Physical' && shipping === 'Yes'
+            ? Number(shippingCost) || 0
+            : 0,
         ownerAddress: solanaAddress,
       };
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/nft/template`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/nft/template${
+          templateId ? `/${templateId}` : ''
+        }`,
         {
-          method: 'POST',
+          method: templateId ? 'PATCH' : 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${accessToken}`,
@@ -267,26 +430,31 @@ const CreateProduct = () => {
           body: JSON.stringify(payload),
         }
       );
-      const data = await response.json();
-      if (response.ok && data.state === 'success') {
-        setModelInfo({ success: true, nftType: selectedCollection.name });
+      const data = await readResponseBody(response);
+      if (response.ok && data?.state === 'success') {
+        setModelInfo({
+          success: true,
+          nftType: selectedCollection.displayName,
+          title: `${selectedCollection.displayName} ${
+            templateId ? 'Updated' : 'Created'
+          }`,
+          details: data.message,
+        });
         onOpenChange();
         setTimeout(() => router.push('/products'), 2000);
       } else {
         setModelInfo({
-          success: true,
-          nftType: selectedCollection.name,
-          details:
-            data.message ||
-            'Server returned an error. Please try again later.',
+          success: false,
+          nftType: selectedCollection.displayName,
+          details: getFailureMessage(data, response),
         });
         onOpenChange();
       }
     } catch (err) {
       console.error(err);
       setModelInfo({
-        success: true,
-        nftType: selectedCollection.name,
+        success: false,
+        nftType: selectedCollection.displayName,
         details:
           err instanceof Error
             ? err.message
@@ -342,9 +510,13 @@ const CreateProduct = () => {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <ScreenShell
             onBack={() => router.push('/products')}
-            title="Create Item"
+            title={isEditMode ? 'Edit Item' : 'Create Item'}
             eyebrow="Products"
-            kicker="Item details · please select the type of item you're creating for the Swop marketplace"
+            kicker={
+              isEditMode
+                ? "Update this item's marketplace details"
+                : "Item details · please select the type of item you're creating for the Swop marketplace"
+            }
             action={
               <div style={{ display: 'flex', gap: 8 }}>
                 <Button variant="ghost" onClick={() => router.push('/products')}>
@@ -361,10 +533,10 @@ const CreateProduct = () => {
                   {isSubmitting ? (
                     <>
                       <Loader2 size={12} className="animate-spin" />
-                      Creating…
+                      {isEditMode ? 'Updating…' : 'Creating…'}
                     </>
                   ) : (
-                    'Create Item'
+                    isEditMode ? 'Update Item' : 'Create Item'
                   )}
                 </Button>
               </div>
@@ -623,127 +795,145 @@ const CreateProduct = () => {
                   />
                   <div
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: 22,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
                       marginTop: 8,
                     }}
                   >
-                    <div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 12,
+                      }}
+                    >
                       <div style={fieldLabel}>Product Category</div>
-                      {variants.map((c, i) => (
-                        <div key={i} style={{ marginTop: i === 0 ? 6 : 10 }}>
+                      <div style={fieldLabel}>Options</div>
+                    </div>
+                    {variants.map((c, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: 12,
+                          alignItems: 'start',
+                        }}
+                      >
+                        <div>
                           <TextInput
                             placeholder="e.g. Color"
                             value={c.name}
                             onChange={(e) => updateVariantName(i, e.target.value)}
                           />
                         </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={addVariantCategory}
-                        style={{
-                          ...ghostBtn,
-                          marginTop: 10,
-                          width: '100%',
-                          justifyContent: 'center',
-                          borderStyle: 'dashed',
-                        }}
-                      >
-                        + Add Category
-                      </button>
-                    </div>
-                    <div>
-                      <div style={fieldLabel}>Options</div>
-                      {variants.map((c, i) => (
                         <div
-                          key={i}
                           style={{
-                            marginTop: i === 0 ? 6 : 10,
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: 6,
-                            padding: '8px 10px',
-                            border: `1px solid ${hair}`,
-                            borderRadius: 9,
-                            minHeight: 38,
-                            alignItems: 'center',
+                            display: 'grid',
+                            gridTemplateColumns: 'minmax(0, 1fr) auto',
+                            gap: 8,
+                            alignItems: 'stretch',
                           }}
                         >
-                          {c.options.map((opt, oi) => (
-                            <span
-                              key={`${opt}-${oi}`}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                padding: '4px 8px',
-                                borderRadius: 6,
-                                background: '#f0f0ee',
-                                fontSize: 12,
-                                fontWeight: 500,
-                              }}
-                            >
-                              {opt}
-                              <span
-                                style={{
-                                  color: muted2,
-                                  cursor: 'pointer',
-                                  fontSize: 14,
-                                  lineHeight: 1,
-                                }}
-                                onClick={() => removeVariantOption(i, oi)}
-                              >
-                                ×
-                              </span>
-                            </span>
-                          ))}
-                          <input
-                            placeholder="add…"
-                            value={variantDraft[i] ?? ''}
-                            onChange={(e) =>
-                              setVariantDraft((prev) => {
-                                const next = [...prev];
-                                next[i] = e.target.value;
-                                return next;
-                              })
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                addVariantOption(i, variantDraft[i] ?? '');
-                              }
-                            }}
+                          <div
                             style={{
-                              flex: 1,
-                              minWidth: 60,
-                              padding: '4px 6px',
-                              border: 0,
-                              outline: 'none',
-                              fontSize: 12,
-                              fontFamily: 'inherit',
-                              background: 'transparent',
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: 6,
+                              padding: '8px 10px',
+                              border: `1px solid ${hair}`,
+                              borderRadius: 9,
+                              minHeight: 38,
+                              alignItems: 'center',
                             }}
-                          />
+                          >
+                            {c.options.map((opt, oi) => (
+                              <span
+                                key={`${opt}-${oi}`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '4px 8px',
+                                  borderRadius: 6,
+                                  background: '#f0f0ee',
+                                  fontSize: 12,
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {opt}
+                                <span
+                                  style={{
+                                    color: muted2,
+                                    cursor: 'pointer',
+                                    fontSize: 14,
+                                    lineHeight: 1,
+                                  }}
+                                  onClick={() => removeVariantOption(i, oi)}
+                                >
+                                  ×
+                                </span>
+                              </span>
+                            ))}
+                            <input
+                              placeholder="add…"
+                              value={variantDraft[i] ?? ''}
+                              onChange={(e) =>
+                                setVariantDraft((prev) => {
+                                  const next = [...prev];
+                                  next[i] = e.target.value;
+                                  return next;
+                                })
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  addVariantOption(i, variantDraft[i] ?? '');
+                                }
+                              }}
+                              style={{
+                                flex: 1,
+                                minWidth: 60,
+                                padding: '4px 6px',
+                                border: 0,
+                                outline: 'none',
+                                fontSize: 12,
+                                fontFamily: 'inherit',
+                                background: 'transparent',
+                              }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              addVariantOption(i, variantDraft[i] ?? '')
+                            }
+                            style={{
+                              ...ghostBtn,
+                              minWidth: 64,
+                              height: '100%',
+                              padding: '0 10px',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            + Add
+                          </button>
                         </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          addVariantOption(0, variantDraft[0] ?? '')
-                        }
-                        style={{
-                          ...ghostBtn,
-                          marginTop: 10,
-                          width: '100%',
-                          justifyContent: 'center',
-                          borderStyle: 'dashed',
-                        }}
-                      >
-                        + Add Option
-                      </button>
-                    </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addVariantCategory}
+                      style={{
+                        ...ghostBtn,
+                        width: '100%',
+                        justifyContent: 'center',
+                        borderStyle: 'dashed',
+                      }}
+                    >
+                      + Add Category
+                    </button>
                   </div>
                 </Card>
               </div>
@@ -770,7 +960,7 @@ const CreateProduct = () => {
                         <button
                           key={t}
                           type="button"
-                          onClick={() => setType(t)}
+                          onClick={() => handleTypeSelect(t)}
                           style={{
                             padding: '12px 14px',
                             borderRadius: 10,
@@ -798,6 +988,96 @@ const CreateProduct = () => {
                     })}
                   </div>
 
+                  <div style={{ marginTop: 14 }}>
+                    <Field
+                      label={`${type} Category`}
+                      required
+                      error={formErrors.collection}
+                      help="This determines the collection used to create the item."
+                    >
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr',
+                          gap: 8,
+                        }}
+                      >
+                        {availableCollections.map((collection) => {
+                          const active =
+                            selectedCollectionName === collection.name;
+                          return (
+                            <button
+                              key={collection._id}
+                              type="button"
+                              onClick={() =>
+                                handleCollectionSelect(collection.name)
+                              }
+                              style={{
+                                width: '100%',
+                                padding: '10px 12px',
+                                borderRadius: 10,
+                                border: `1.5px solid ${
+                                  active
+                                    ? ink
+                                    : formErrors.collection
+                                      ? '#dc2626'
+                                      : hair
+                                }`,
+                                background: active ? '#f7f7f5' : '#fff',
+                                color: ink,
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
+                                textAlign: 'left',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 10,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 18,
+                                  height: 18,
+                                  minWidth: 18,
+                                  marginTop: 1,
+                                  borderRadius: 9,
+                                  border: `1.5px solid ${
+                                    active ? ink : muted2
+                                  }`,
+                                  background: active ? ink : '#fff',
+                                  boxShadow: active
+                                    ? 'inset 0 0 0 4px #fff'
+                                    : 'none',
+                                }}
+                              />
+                              <span style={{ minWidth: 0 }}>
+                                <span
+                                  style={{
+                                    display: 'block',
+                                    fontSize: 13,
+                                    fontWeight: 650,
+                                    lineHeight: 1.25,
+                                  }}
+                                >
+                                  {collection.displayName}
+                                </span>
+                                <span
+                                  style={{
+                                    display: 'block',
+                                    fontSize: 11.5,
+                                    color: muted,
+                                    lineHeight: 1.35,
+                                    marginTop: 3,
+                                  }}
+                                >
+                                  {collection.description}
+                                </span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </Field>
+                  </div>
                 </Card>
 
                 {/* Inventory & royalty */}

@@ -115,7 +115,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
             {(!removeCloseButton || title) && (
               <div
                 className={`flex items-center ${
-                  title ? 'px-4 py-3 justify-between' : 'justify-end'
+                  title ? 'px-4 py-3 justify-between' : 'justify-end px-3 pt-2'
                 } `}
               >
                 {title && <h2 className="text-lg">{title}</h2>}

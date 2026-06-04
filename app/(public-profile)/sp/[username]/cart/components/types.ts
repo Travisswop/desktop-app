@@ -39,6 +39,7 @@ export interface CartItem {
   templateId?: string;
   userId?: string;
   sellerId?: string;
+  selectedOptions?: Record<string, string>;
   nftTemplate: {
     _id?: string;
     name: string;
@@ -48,6 +49,8 @@ export interface CartItem {
     nftType: NftType;
     collectionId?: string;
     collectionMintAddress?: string;
+    shippingRequired?: boolean;
+    shippingCost?: number;
     ownerAddress?: string;
     mintLimit?: number;
     royaltyPercentage?: number;
@@ -89,6 +92,8 @@ export interface CheckoutCardProps {
   errorMessage: string | null;
   cartItems: CartItem[];
   subtotal: number;
+  shippingCost: number;
+  totalCost: number;
   hasPhygitalProducts: boolean;
 }
 

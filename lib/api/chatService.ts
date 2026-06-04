@@ -1,6 +1,7 @@
 // Chat service for API interactions with the new backend
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const USER_CACHE_KEY = 'swop:user-cache';
 
 interface CreateMessageRequest {
   receiverId: string;
@@ -21,12 +22,47 @@ interface ApiResponse<T> {
 }
 
 class ChatApiService {
-  private getAuthHeaders() {
-    // Get JWT token from localStorage (same as socket connection)
-    const token =
+  private getCookie(name: string) {
+    if (typeof document === 'undefined') return null;
+
+    return (
+      document.cookie
+        .split('; ')
+        .find((row) => row.startsWith(`${name}=`))
+        ?.split('=')[1] ?? null
+    );
+  }
+
+  private getCachedAuthToken() {
+    if (typeof window === 'undefined') return null;
+
+    try {
+      const rawCache = window.localStorage.getItem(USER_CACHE_KEY);
+      if (!rawCache) return null;
+
+      const cache = JSON.parse(rawCache) as {
+        accessToken?: string | null;
+      };
+      return cache.accessToken || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private getAuthToken() {
+    if (typeof window === 'undefined') return null;
+
+    return (
       localStorage.getItem('authToken') ||
       localStorage.getItem('jwt_token') ||
-      localStorage.getItem('accessToken');
+      localStorage.getItem('accessToken') ||
+      this.getCachedAuthToken() ||
+      this.getCookie('access-token')
+    );
+  }
+
+  private getAuthHeaders() {
+    const token = this.getAuthToken();
     return {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),

@@ -67,6 +67,12 @@ export default function OrderDetailPage({ params }: Props) {
     };
   }, [id, user, accessToken, load]);
 
+  const refetchOrder = useCallback(async () => {
+    if (!accessToken) return;
+    const data = await load(id, accessToken);
+    setOrder(data);
+  }, [accessToken, id, load]);
+
   return (
     <main className="main-container">
       <div
@@ -82,7 +88,11 @@ export default function OrderDetailPage({ params }: Props) {
           ) : error ? (
             <div className="text-center py-16 text-red-600">{error}</div>
           ) : order ? (
-            <OrderDetailScreen order={order} backHref="/order" />
+            <OrderDetailScreen
+              order={order}
+              backHref="/order"
+              onOrderUpdated={refetchOrder}
+            />
           ) : (
             <div className="text-center py-16 text-gray-500">
               Order not found.

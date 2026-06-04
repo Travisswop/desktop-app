@@ -17,6 +17,10 @@ export const CartItem: React.FC<CartItemProps> = ({
   onRemoveItem,
 }) => {
   const { quantity } = item;
+  const availableQuantity = Number(item.nftTemplate?.mintLimit || 0);
+  const isAtAvailabilityLimit =
+    availableQuantity > 0 && quantity >= availableQuantity;
+  const selectedOptions = Object.entries(item.selectedOptions || {});
   const { updating, deleting } = loadingOperations[item._id] || {
     updating: false,
     deleting: false,
@@ -55,6 +59,18 @@ export const CartItem: React.FC<CartItemProps> = ({
           <p className="text-lg font-semibold mb-1">
             {item.nftTemplate.name}
           </p>
+          {selectedOptions.length > 0 && (
+            <div className="mb-1 flex flex-wrap gap-1">
+              {selectedOptions.map(([name, option]) => (
+                <span
+                  key={name}
+                  className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+                >
+                  {name}: {option}
+                </span>
+              ))}
+            </div>
+          )}
           <p>${item.nftTemplate.price}</p>
         </div>
       </div>
@@ -76,9 +92,13 @@ export const CartItem: React.FC<CartItemProps> = ({
         </span>
         <button
           onClick={() => handleQuantityChange(quantity + 1)}
-          disabled={updating}
+          disabled={updating || isAtAvailabilityLimit}
           className="p-1 disabled:opacity-50"
-          aria-label="Increase quantity"
+          aria-label={
+            isAtAvailabilityLimit
+              ? 'Maximum available quantity reached'
+              : 'Increase quantity'
+          }
         >
           <Plus size={20} />
         </button>

@@ -15,7 +15,6 @@ import { useCartPersistence } from "./hooks/useCartPersistence";
 import {
   CartItemsList,
   CheckoutCard,
-  ErrorDisplay,
   LoadingSpinner,
   StripePaymentForm,
 } from "./components";
@@ -41,18 +40,11 @@ const getStripePromise = () => {
   return stripePromise;
 };
 
-// Helper function to clear cart from localStorage
-const clearCartFromLocalStorage = (username: string) => {
-  if (typeof window !== "undefined" && username) {
-    const storageKey = `marketplace-cart-${username}`;
-    localStorage.removeItem(storageKey);
-  }
-};
-
 const CartCheckout = () => {
   const { user, accessToken } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
-  const { state, dispatch, subtotal, sellerId } = useCart();
+  const { state, dispatch, subtotal, shippingCost, totalCost, sellerId } =
+    useCart();
   const params = useParams();
   const name = params?.username as string;
   const orderIdRef = React.useRef<string | null>(null);
@@ -77,8 +69,7 @@ const CartCheckout = () => {
 
   // State variables
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
   const [isPaymentSheetOpen, setIsPaymentSheetOpen] = React.useState(false);
   const [loadingOperations, setLoadingOperations] = React.useState<
     Record<string, { updating: boolean; deleting: boolean }>
@@ -115,6 +106,8 @@ const CartCheckout = () => {
   // Preserve original cart data for wallet payment
   const [originalCartData, setOriginalCartData] = React.useState<{
     subtotal: number;
+    shippingCost: number;
+    totalCost: number;
     cartItems: CartItem[];
     customerInfo: CustomerInfo;
   } | null>(null);
@@ -126,39 +119,6 @@ const CartCheckout = () => {
       state.items.some((item) => item.nftTemplate?.nftType === "phygital")
     );
   }, [state.items]);
-
-  // Initialize payment
-  useEffect(() => {
-    const initializePayment = async () => {
-      if (subtotal <= 0 || clientSecret) return;
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Validate prices server-side before creating payment intent
-        const { clientSecret: secret } = await createPaymentIntent(
-          Math.round(subtotal * 100)
-        );
-
-        if (!secret) {
-          throw new Error("Failed to initialize payment. Please try again.");
-        }
-
-        setClientSecret(secret);
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error
-            ? err.message
-            : "Could not initialize payment. Please try again later.";
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializePayment();
-  }, [subtotal, clientSecret]);
 
   // Update customer info when user changes
   useEffect(() => {
@@ -197,6 +157,20 @@ const CartCheckout = () => {
         const newQuantity =
           type === "inc" ? item.quantity + 1 : item.quantity - 1;
         if (newQuantity < 1) return;
+
+        const availableQuantity = Number(item.nftTemplate?.mintLimit || 0);
+        if (
+          type === "inc" &&
+          availableQuantity > 0 &&
+          newQuantity > availableQuantity
+        ) {
+          const message = `Only ${availableQuantity} item${
+            availableQuantity === 1 ? "" : "s"
+          } available.`;
+          setErrorMessage(message);
+          toast.error(message);
+          return;
+        }
 
         if (accessToken && name) {
           await updateCartQuantity(
@@ -427,14 +401,12 @@ const CartCheckout = () => {
         setWalletOrderId(orderId);
         // Preserve the original cart data before clearing
         setOriginalCartData({
-          subtotal: subtotal,
+          subtotal,
+          shippingCost,
+          totalCost,
           cartItems: [...(state.items || [])],
           customerInfo: { ...customerInfo },
         });
-        // Clear the cart when an order is successfully created
-        dispatch({ type: "CLEAR_CART" });
-        // Clear from localStorage
-        clearCartFromLocalStorage(name);
         onOpen();
       }
     } catch (error) {
@@ -448,15 +420,19 @@ const CartCheckout = () => {
   }, [
     createOrderForPayment,
     onOpen,
-    dispatch,
-    name,
     subtotal,
+    shippingCost,
+    totalCost,
     state.items,
     customerInfo,
   ]);
 
   const handleOpenPaymentSheet = useCallback(async () => {
     try {
+      if (totalCost < 0.5) {
+        throw new Error("Card payments require a minimum total of $0.50.");
+      }
+
       const orderId = await createOrderForPayment("stripe");
       if (orderId) {
         orderIdRef.current = orderId;
@@ -464,7 +440,7 @@ const CartCheckout = () => {
         // We'll clear it after successful payment in StripePaymentForm
         setLoading(true);
         const { clientSecret: secret } = await createPaymentIntent(
-          Math.round(subtotal * 100)
+          Math.round(totalCost * 100)
         );
 
         if (!secret) {
@@ -472,29 +448,6 @@ const CartCheckout = () => {
         }
 
         setClientSecret(secret);
-        // if (!clientSecret) {
-        //   try {
-        //     setLoading(true);
-        //     const { clientSecret: secret } =
-        //       await createPaymentIntent(Math.round(subtotal * 100));
-
-        //     if (!secret) {
-        //       throw new Error('Failed to initialize payment');
-        //     }
-
-        //     setClientSecret(secret);
-        //   } catch (paymentError) {
-        //     const errorMessage =
-        //       paymentError instanceof Error
-        //         ? paymentError.message
-        //         : 'Could not initialize payment. Please try again.';
-        //     setErrorMessage(errorMessage);
-        //     toast.error(errorMessage);
-        //     return;
-        //   } finally {
-        //     setLoading(false);
-        //   }
-        // }
         setIsPaymentSheetOpen(true);
       }
     } catch (error) {
@@ -502,10 +455,12 @@ const CartCheckout = () => {
         error instanceof Error ? error.message : "Failed to process payment";
       setErrorMessage(errorMessage);
       toast.error(errorMessage);
+    } finally {
+      setLoading(false);
     }
-  }, [createOrderForPayment, clientSecret, subtotal, dispatch, name]);
+  }, [createOrderForPayment, totalCost]);
 
-  if (loading && !clientSecret && subtotal > 0) {
+  if (loading && !clientSecret && totalCost > 0) {
     return <LoadingSpinner />;
   }
 
@@ -522,7 +477,7 @@ const CartCheckout = () => {
         onRemove={handleRemoveItem}
       />
 
-      {subtotal > 0 && hasItems && (
+      {totalCost > 0 && hasItems && (
         <CheckoutCard
           user={user}
           customerInfo={customerInfo}
@@ -534,12 +489,16 @@ const CartCheckout = () => {
           errorMessage={errorMessage}
           cartItems={cartItems}
           subtotal={subtotal}
+          shippingCost={shippingCost}
+          totalCost={totalCost}
           hasPhygitalProducts={hasPhygitalProducts}
         />
       )}
 
       <NftPaymentModal
         subtotal={originalCartData?.subtotal || subtotal}
+        shippingCost={originalCartData?.shippingCost ?? shippingCost}
+        totalCost={originalCartData?.totalCost || totalCost}
         isOpen={isOpen}
         onOpenChange={(open) => {
           if (open) {
@@ -579,7 +538,7 @@ const CartCheckout = () => {
               </div>
               <StripePaymentForm
                 email={customerInfo.email}
-                subtotal={subtotal}
+                subtotal={totalCost}
                 setIsPaymentSheetOpen={setIsPaymentSheetOpen}
                 setErrorMessage={setErrorMessage}
                 customerInfo={customerInfo}

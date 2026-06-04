@@ -6,6 +6,7 @@ import ProductsScreen, {
   type ProductRow,
 } from '@/components/mint/ProductsScreen';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Modal, ModalBody, ModalContent } from '@nextui-org/react';
 
 interface NFTRecord {
   _id?: string;
@@ -40,6 +41,9 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<ProductRow[]>([]);
   const [summary, setSummary] = useState<SalesSummary | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<ProductRow | null>(null);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   const load = useCallback(
     async (token: string) => {
@@ -131,6 +135,47 @@ export default function ProductsPage() {
     };
   }, [user, accessToken, load]);
 
+  const handleArchive = useCallback((product: ProductRow) => {
+    setArchiveTarget(product);
+    setArchiveError(null);
+  }, []);
+
+  const confirmArchive = useCallback(
+    async () => {
+      if (!accessToken || !archiveTarget) return;
+
+      setArchivingId(archiveTarget.id);
+      setArchiveError(null);
+      try {
+        const response = await fetch(
+          `${API}/api/v2/desktop/nft/template/${archiveTarget.id}/archive`,
+          {
+            method: 'PATCH',
+            headers: { authorization: `Bearer ${accessToken}` },
+          }
+        );
+        const data = await response.json().catch(() => null);
+        if (!response.ok || data?.state !== 'success') {
+          throw new Error(data?.message || `archive ${response.status}`);
+        }
+        setRows((prev) => prev.filter((row) => row.id !== archiveTarget.id));
+        setArchiveTarget(null);
+      } catch (err) {
+        console.error(err);
+        setArchiveError('Failed to archive product. Please try again.');
+      } finally {
+        setArchivingId(null);
+      }
+    },
+    [accessToken, archiveTarget]
+  );
+
+  const closeArchiveModal = useCallback(() => {
+    if (archivingId) return;
+    setArchiveTarget(null);
+    setArchiveError(null);
+  }, [archivingId]);
+
   if (loading) return <LoadingSkeleton />;
   if (error) {
     return (
@@ -151,6 +196,7 @@ export default function ProductsPage() {
   }
 
   return (
+    <>
     <main className="main-container">
       <div
         style={{
@@ -166,10 +212,138 @@ export default function ProductsPage() {
             createHref={CREATE_HREF}
             kicker={kickerFor(rows)}
             totals={summary?.totals}
+            onArchive={handleArchive}
+            archivingId={archivingId}
           />
         </div>
       </div>
     </main>
+      <ArchiveConfirmModal
+        product={archiveTarget}
+        isArchiving={Boolean(archivingId)}
+        error={archiveError}
+        onClose={closeArchiveModal}
+        onConfirm={confirmArchive}
+      />
+    </>
+  );
+}
+
+function ArchiveConfirmModal({
+  product,
+  isArchiving,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  product: ProductRow | null;
+  isArchiving: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal
+      size="md"
+      isOpen={Boolean(product)}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      backdrop="blur"
+      aria-labelledby="archive-product-title"
+    >
+      <ModalContent>
+        <ModalBody className="py-8">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <h2
+                id="archive-product-title"
+                style={{
+                  margin: 0,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: '#0a0a0c',
+                }}
+              >
+                Archive product?
+              </h2>
+              <p
+                style={{
+                  margin: '8px 0 0',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  color: '#6e6e76',
+                }}
+              >
+                {product
+                  ? `"${product.name}" will be hidden from your products list.`
+                  : ''}
+              </p>
+            </div>
+
+            {error && (
+              <div
+                role="alert"
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  background: 'rgba(220,38,38,0.08)',
+                  border: '1px solid rgba(220,38,38,0.16)',
+                  color: '#b91c1c',
+                  fontSize: 12.5,
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+              }}
+            >
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isArchiving}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  background: '#fff',
+                  color: '#0a0a0c',
+                  border: '1px solid rgba(0,0,0,0.06)',
+                  cursor: isArchiving ? 'not-allowed' : 'pointer',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={isArchiving}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  background: '#b91c1c',
+                  color: '#fff',
+                  border: 0,
+                  cursor: isArchiving ? 'not-allowed' : 'pointer',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  opacity: isArchiving ? 0.7 : 1,
+                }}
+              >
+                {isArchiving ? 'Archiving...' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
   );
 }
 

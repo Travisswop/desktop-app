@@ -1,493 +1,1695 @@
-"use client";
-import { useUser } from "@/lib/UserContext";
-import { Skeleton } from "../ui/skeleton";
-// import DashboardAnalytics from "./analytics";
-import { useQuery } from "@tanstack/react-query";
-import { getFollowers, followersQueryKey } from "@/services/followers-service";
-import PortfolioChart, { PortfolioAsset } from "./PortfolioChart";
-import OrdersStats from "./OrderSummery";
-import Insights from "./Insights";
-import BalanceChart from "./BalanceChart";
-import NavigationHub from "./NavigationTab";
-import DashboardContentPreview from "./ContentPreview";
-import DashboardChatPreview from "./ChatPreview";
-import RewardsCardPreview from "./RewardPreview";
-import TransactionsListPreview from "./TransactionPreview";
-import QRCodePreview from "./QrcodePreview";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
-import { useEffect, useMemo, useState } from "react";
-import { useMultiChainTokenData } from "@/lib/hooks/useToken";
-import { useRouter } from "next/navigation";
-import { fetchAnalyticsInfo } from "@/actions/fetchDesktopUserData";
-import { SUPPORTED_CHAINS } from "../wallet/constants";
+'use client';
+
+import { useUser } from '@/lib/UserContext';
+import Link from 'next/link';
+import Image from 'next/image';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  useWalletAddresses,
-  useWalletData,
-} from "../wallet/hooks/useWalletData";
+  ArrowRight,
+  Box,
+  Copy,
+  Edit3,
+  MessageSquare,
+  MoreHorizontal,
+  Package,
+  QrCode,
+  Share2,
+  ShoppingBag,
+  Sparkles,
+  Trophy,
+  UserPlus,
+  Wallet,
+  Zap,
+} from 'lucide-react';
+import {
+  Avatar,
+  Card,
+  Chip,
+  DeliveryPill,
+  Mono,
+  T_swatch,
+  Tag,
+  cardShadow,
+  hair,
+  hair2,
+  ink,
+  mono,
+  muted,
+  muted2,
+  posGreen,
+  posGreenSoft,
+  surface,
+} from '@/components/mint/design-system';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 
-// Token colors mapping for consistent visual representation
-const TOKEN_COLORS: Record<string, string> = {
-  SOL: "#10b981",
-  SWOP: "#d1fae5",
-  ETH: "#047857",
-  BTC: "#f59e0b",
-  USDC: "#2563eb",
-  USDT: "#22c55e",
-  BNB: "#eab308",
-  XRP: "#06b6d4",
-  MATIC: "#8b5cf6",
-  POL: "#8b5cf6",
-  default: "#6b7280",
+/* ------------------------------------------------------------------------
+   Types & API helpers
+   ------------------------------------------------------------------------ */
+interface NFTTemplate {
+  _id: string;
+  name: string;
+  image: string;
+  price: number;
+  mintLimit?: number;
+  nftType: string;
+  category?: 'physical' | 'digital';
+}
+
+interface OrderRow {
+  _id: string;
+  orderId: string;
+  counterparty: string;
+  counterpartyAvatar: string;
+  item: string;
+  price: number;
+  date: string;
+  delivery: string;
+  chain: 'USDC' | 'SOL';
+}
+
+interface SummaryTotals {
+  units: number;
+  revenue: number;
+  orders: number;
+  templates: number;
+}
+
+const API = process.env.NEXT_PUBLIC_API_URL;
+
+const accent = '#d97706';
+
+const formatMoney = (n: number) =>
+  n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${n.toFixed(0)}`;
+
+const getProfileImageSrc = (profilePic?: string | null) => {
+  const rawProfilePic = String(profilePic ?? '').trim();
+  if (!rawProfilePic) return '';
+
+  if (/^\d+$/.test(rawProfilePic)) {
+    return `/images/user_avator/${rawProfilePic}@3x.png`;
+  }
+
+  return sanitizeNextImageSrc(rawProfilePic);
 };
 
-const getTokenColor = (symbol: string): string => {
-  return TOKEN_COLORS[symbol] || TOKEN_COLORS.default;
-};
-
+/* ------------------------------------------------------------------------
+   Main component
+   ------------------------------------------------------------------------ */
 export default function DashboardMainContent() {
-  const { user, loading, error, accessToken } = useUser();
-  const { wallets: ethWallets } = useWallets();
-  const { wallets: solanaWallets } = useSolanaWallets();
-  const router = useRouter();
-  const [analyticsData, setAnalyticsData] = useState(null);
+  const { user, accessToken } = useUser();
+  const [products, setProducts] = useState<NFTTemplate[]>([]);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [totals, setTotals] = useState<SummaryTotals | null>(null);
 
-  // Get wallet addresses
-  // const solWalletAddress = useMemo(() => {
-  //   return solanaWallets?.find(
-  //     (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
-  //   )?.address;
-  // }, [solanaWallets]);
-
-  // const evmWalletAddress = useMemo(() => {
-  //   return ethWallets?.find(
-  //     (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
-  //   )?.address;
-  // }, [ethWallets]);
-  const { authenticated, ready, user: PrivyUser, getAccessToken } = usePrivy();
-  const walletData = useWalletData(authenticated, ready, PrivyUser);
-  const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
-
-  console.log("solWalletAddress", solWalletAddress);
-  console.log("evmWalletAddress", evmWalletAddress);
-
-  // Fetch token data
-  // const { tokens, loading: tokenLoading } = useMultiChainTokenData(
-  //   solWalletAddress,
-  //   evmWalletAddress,
-  //   ["SOLANA", "ETHEREUM", "POLYGON", "BASE"],
-  // );
-
-  const {
-    tokens,
-    loading: tokenLoading,
-    error: tokenError,
-    refetch: refetchTokens,
-  } = useMultiChainTokenData(
-    solWalletAddress,
-    evmWalletAddress,
-    SUPPORTED_CHAINS,
-  );
-
-  // Fetch followers with pagination (page 1, limit 20)
-  const {
-    data: followersData,
-    isLoading: followersLoading,
-    error: followersError,
-  } = useQuery({
-    queryKey: followersQueryKey(user?._id || "", 1, 20),
-    queryFn: () =>
-      getFollowers({
-        userId: user!._id,
-        page: 1,
-        limit: 20,
-        accessToken: accessToken || undefined,
+  const load = useCallback(async (token: string) => {
+    const [productsRes, ordersRes, summaryRes] = await Promise.all([
+      fetch(`${API}/api/v2/desktop/nft/listByUser`, {
+        headers: { authorization: `Bearer ${token}` },
       }),
-    enabled: !!user?._id, // Only fetch when user ID is available
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    retry: 2,
-  });
-
-  // Create a stable hash of portfolio data to prevent unnecessary recalculations
-  const portfolioHash = useMemo(() => {
-    if (!tokens || tokens.length === 0) return "empty";
-
-    // Only hash the data that affects portfolio visualization
-    return tokens
-      .map((t) => `${t.symbol}:${t.balance}:${t.marketData?.price || "0"}`)
-      .sort()
-      .join("|");
-  }, [tokens]);
-
-  // Transform tokens into portfolio assets
-  const portfolioSummary = useMemo(() => {
-    if (!tokens || tokens.length === 0) {
-      return {
-        assets: [],
-        totalBalance: 0,
-        formattedBalance: "0.00",
-      };
-    }
-
-    // Single pass to calculate everything
-    let total = 0;
-    const assetsWithValue: Array<{
-      name: string;
-      value: number;
-      color: string;
-      amount: string;
-    }> = [];
-
-    for (const token of tokens) {
-      const balance = parseFloat(token.balance || "0");
-      const price = parseFloat(token.marketData?.price || "0");
-      const value = balance * price;
-
-      if (value <= 0) continue; // Skip zero-value tokens early
-
-      total += value;
-
-      assetsWithValue.push({
-        name: token.symbol,
-        value: value,
-        color: getTokenColor(token.symbol),
-        amount: `${balance.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 4,
-        })} ${token.symbol}`,
-      });
-    }
-
-    // Sort once after filtering
-    assetsWithValue.sort((a, b) => b.value - a.value);
-
-    // Take top 5 and group rest
-    const topAssets = assetsWithValue.slice(0, 5);
-    const otherAssets = assetsWithValue.slice(5);
-    const assets: PortfolioAsset[] = [...topAssets];
-
-    if (otherAssets.length > 0) {
-      const othersValue = otherAssets.reduce(
-        (sum, asset) => sum + asset.value,
-        0,
-      );
-      assets.push({
-        name: "Others",
-        value: othersValue,
-        color: "#94a3b8",
-        amount: `${otherAssets.length} tokens`,
-      });
-    }
-
-    return {
-      assets,
-      totalBalance: total,
-      formattedBalance: total.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+      fetch(`${API}/api/v2/desktop/orders/listByUser?role=all&since=30d&limit=5`, {
+        headers: { authorization: `Bearer ${token}` },
       }),
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [portfolioHash]); // Intentionally use hash to prevent recalculation when tokens reference changes
+      fetch(`${API}/api/v2/desktop/orders/summaryByUser?since=30d`, {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+    ]);
 
-  console.log("portfolioSummary", portfolioSummary);
+    const productsData = productsRes.ok
+      ? ((await productsRes.json()) as { data: NFTTemplate[] }).data || []
+      : [];
+    const ordersData = ordersRes.ok
+      ? ((await ordersRes.json()) as { data: { rows: OrderRow[] } }).data.rows ||
+        []
+      : [];
+    const summaryData = summaryRes.ok
+      ? ((await summaryRes.json()) as { data: { totals: SummaryTotals } }).data
+          .totals
+      : null;
 
-  // For backward compatibility, extract totalBalance
-  const totalBalance = portfolioSummary.totalBalance;
+    return { productsData, ordersData, summaryData };
+  }, []);
 
   useEffect(() => {
-    if (accessToken) {
-      const getInsightsData = async () => {
-        const data = await fetchAnalyticsInfo(accessToken || "");
-        setAnalyticsData(data);
-      };
-      getInsightsData();
-    }
-  }, [accessToken, setAnalyticsData]);
+    let cancelled = false;
+    if (!user?._id || !accessToken) return;
+    load(accessToken)
+      .then(({ productsData, ordersData, summaryData }) => {
+        if (cancelled) return;
+        setProducts(productsData);
+        setOrders(ordersData);
+        setTotals(summaryData);
+      })
+      .catch((err) => console.error('Dashboard load failed:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [user, accessToken, load]);
 
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
-  if (error) {
-    return <div>Error loading dashboard: {error.message}</div>;
-  }
-
-  if (followersError) {
-    console.error("Error fetching followers:", followersError);
-  }
+  const tileCounts = useMemo(
+    () => ({
+      products: products.length,
+      productDrafts: 0,
+      orders: totals?.orders ?? orders.length,
+      ordersToday: orders.filter((o) =>
+        isToday(parseDate(o.date))
+      ).length,
+      checkoutWeek: totals?.revenue ?? 0,
+    }),
+    [products, orders, totals]
+  );
 
   return (
-    <div className="space-y-4">
-      {/* <ProfileHeader /> */}
+    <div
+      style={{
+        background: '#f4f4f2',
+        // Negate the parent layout's p-6 (24px) so the canvas reaches the
+        // edges, then re-apply our own padding.
+        margin: -24,
+        padding: '28px 24px',
+        minHeight: 'calc(100vh - 60px)',
+        fontFamily: 'var(--font-inter), -apple-system, sans-serif',
+        color: ink,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1100,
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 20,
+        }}
+      >
+        <ProfileHero />
 
-      <div className="flex flex-col lg:flex-row gap-4">
-        {/* CashflowChart */}
-        <div className="flex-1 flex flex-col gap-3">
-          <div className="bg-white rounded-xl">
-            {/* <WalletBalanceChart /> */}
-            <BalanceChart
-              currency="$"
-              totalBalance={totalBalance}
-              // totalBalance={totalBalance}
-              // onSelectAsset={handleAssetSelect}
-              // onQRClick={handleQRClick}
-              // walletData={walletData || []}
-              tokens={tokens}
-              // accessToken={accessToken}
-              // onTokenRefresh={refetchTokens}
-              isButtonVisible={true}
-            />
-          </div>
-          <div className="bg-white p-5 rounded-xl">
-            <Insights
-              totalTaps={{
-                value: analyticsData
-                  ? analyticsData.last30DaysMicrositeTaps
-                  : 0,
-                period: "30 days",
-                trend: 24,
+        <SectionHead title="Manage" caption="Tap any tile to dive in" />
+        <ManageBento counts={tileCounts} />
+
+        <SectionHead
+          title="Today"
+          caption="Last 24 hours"
+          action={<Chip size="sm">24h</Chip>}
+        />
+        <TodaySnapshot totals={totals} />
+
+        <SectionHead
+          title="In-person checkout"
+          caption="Crypto · USDC on Solana"
+          action={
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 11.5,
+                color: muted,
+                fontFamily: mono,
+                fontWeight: 600,
+                letterSpacing: 0.4,
+                textTransform: 'uppercase',
               }}
-              leads={{
-                value: analyticsData ? analyticsData.last30DaysLeads : 0,
-                period: "30 days",
-                trend: 24,
-              }}
-              connections={{
-                value: analyticsData ? analyticsData.last30DaysConnections : 0,
-                period: "30 days",
-                trend: 24,
-              }}
-            />
-          </div>
-        </div>
-        <div className="flex-1  rounded-lg flex flex-col gap-3">
-          <div className="bg-white flex-1 rounded-xl">
-            {tokenLoading ? (
-              <PortfolioChartSkeleton />
-            ) : portfolioSummary.assets.length > 0 ? (
-              <PortfolioChart
-                assets={portfolioSummary.assets}
-                balance={`$${portfolioSummary.formattedBalance}`}
-                title="Portfolio"
-                viewAction={() => router.push("/wallet")}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  background: posGreen,
+                  boxShadow: `0 0 0 3px ${posGreenSoft}`,
+                }}
               />
-            ) : (
-              <PortfolioEmptyState />
+              Wallet ready
+            </span>
+          }
+        />
+        <InPersonCheckout />
+
+        <RecentOrders orders={orders} />
+        <ProductsManager products={products} />
+        <RecentLeads />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------
+   Section heading
+   ------------------------------------------------------------------------ */
+function SectionHead({
+  title,
+  caption,
+  action,
+}: {
+  title: string;
+  caption?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+        marginTop: 4,
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: 22,
+            fontWeight: 600,
+            letterSpacing: -0.6,
+            color: ink,
+          }}
+        >
+          {title}
+        </div>
+        {caption && (
+          <div
+            style={{
+              fontSize: 13,
+              color: muted,
+              marginTop: 2,
+              letterSpacing: -0.1,
+            }}
+          >
+            {caption}
+          </div>
+        )}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------
+   1. Profile hero
+   ------------------------------------------------------------------------ */
+function ProfileHero() {
+  const { user } = useUser();
+  if (!user) return null;
+
+  const initials = (user.name || 'You')
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+  const swopId = user.swopensId
+    ? `$${user.swopensId.replace(/^\$/, '')}.Swop.Id`
+    : null;
+  const profileImageSrc = getProfileImageSrc(user.profilePic);
+
+  return (
+    <Card pad={22}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 18,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ position: 'relative' }}>
+          {profileImageSrc ? (
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                background: '#dfe6ef',
+              }}
+            >
+              <Image
+                src={profileImageSrc}
+                alt={user.name}
+                width={64}
+                height={64}
+                style={{ objectFit: 'cover', width: 64, height: 64 }}
+              />
+            </div>
+          ) : (
+            <Avatar size={64} bg="#dfe6ef">
+              {initials}
+            </Avatar>
+          )}
+          <button
+            type="button"
+            style={{
+              position: 'absolute',
+              right: -2,
+              bottom: -2,
+              width: 24,
+              height: 24,
+              borderRadius: 12,
+              background: ink,
+              color: '#fff',
+              border: '2px solid #fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+            aria-label="Edit profile"
+          >
+            <Edit3 size={11} />
+          </button>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{ fontSize: 22, fontWeight: 600, letterSpacing: -0.5 }}
+          >
+            {user.name}
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginTop: 4,
+              flexWrap: 'wrap',
+            }}
+          >
+            {swopId && (
+              <Mono size={12.5} color={muted} weight={500}>
+                {swopId}
+              </Mono>
+            )}
+            {swopId && user.primaryMicrosite && (
+              <span
+                style={{
+                  width: 3,
+                  height: 3,
+                  borderRadius: 2,
+                  background: muted2,
+                }}
+              />
+            )}
+            {user.primaryMicrosite && (
+              <Mono size={12.5} color={muted} weight={500}>
+                swop.id/{user.primaryMicrosite}
+              </Mono>
             )}
           </div>
-          <div className="bg-white flex-1 rounded-xl">
-            {/* <OrdersStats
-              totalMints={1827}
-              totalRevenue={1002.33}
-              inEscrow={200.34}
-              closedOrders={20}
-              openOrders={10}
-              disputes={0}
-            /> */}
-            <OrdersStats />
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: 28,
+            paddingLeft: 24,
+            borderLeft: `1px solid ${hair}`,
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.5 }}
+            >
+              {user.followers ?? 0}
+            </div>
+            <Tag>Followers</Tag>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.5 }}
+            >
+              {user.following ?? 0}
+            </div>
+            <Tag>Following</Tag>
           </div>
         </div>
-      </div>
 
-      <NavigationHub />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Chip active size="sm">
+            <Share2 size={13} /> Share
+          </Chip>
+          <Link href="/qr-code" style={{ textDecoration: 'none' }}>
+            <Chip size="sm">
+              <QrCode size={13} /> QR
+            </Chip>
+          </Link>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
-      <div className="flex flex-col lg:flex-row gap-4">
-        <div className="flex-1 bg-white p-5 rounded-xl">
-          {/* Chat Preview Section */}
-          <DashboardChatPreview />
-        </div>
-        <div className="flex-1 bg-white p-5 rounded-xl">
-          <DashboardContentPreview />
-        </div>
-      </div>
-      <div className="flex flex-col lg:flex-row gap-4">
-        <div className="flex-1 bg-white p-5 rounded-xl">
-          <TransactionsListPreview
-            solWalletAddress={solWalletAddress || ""}
-            evmWalletAddress={evmWalletAddress || ""}
-            chains={["SOLANA", "ETHEREUM", "POLYGON"]}
-          />
-        </div>
-        <div className="flex-1 bg-white p-5 rounded-xl">
-          <RewardsCardPreview />
-        </div>
-      </div>
-      <div className="bg-white p-5 rounded-xl w-full sm:w-[80%] lg:w-1/3">
-        <QRCodePreview />
-      </div>
+/* ------------------------------------------------------------------------
+   2. Manage bento — 4×2 KPI tiles
+   ------------------------------------------------------------------------ */
+function ManageBento({
+  counts,
+}: {
+  counts: {
+    products: number;
+    productDrafts: number;
+    orders: number;
+    ordersToday: number;
+    checkoutWeek: number;
+  };
+}) {
+  const tiles = [
+    {
+      key: 'products',
+      label: 'Products',
+      value: counts.products.toString(),
+      sub: counts.productDrafts ? `${counts.productDrafts} drafts` : 'active',
+      swatch: T_swatch.products,
+      icon: <Package size={18} />,
+      href: '/products',
+    },
+    {
+      key: 'orders',
+      label: 'Orders',
+      value: counts.orders.toString(),
+      sub: counts.ordersToday ? `${counts.ordersToday} today` : 'none today',
+      swatch: T_swatch.orders,
+      icon: <ShoppingBag size={18} />,
+      href: '/dashboard/order',
+    },
+    {
+      key: 'checkout',
+      label: 'Checkout',
+      value: formatMoney(counts.checkoutWeek),
+      sub: 'this week',
+      swatch: T_swatch.checkout,
+      icon: <Wallet size={18} />,
+      href: '#',
+      accent,
+    },
+    {
+      key: 'leads',
+      label: 'Leads',
+      value: '—',
+      sub: 'coming soon',
+      swatch: T_swatch.leads,
+      icon: <UserPlus size={18} />,
+      href: '#',
+    },
+    {
+      key: 'analytics',
+      label: 'Analytics',
+      value: '—',
+      sub: 'taps · 7d',
+      swatch: T_swatch.analytics,
+      icon: <Sparkles size={18} />,
+      href: '/analytics',
+    },
+    {
+      key: 'rewards',
+      label: 'Rewards',
+      value: '—',
+      sub: 'coming soon',
+      swatch: T_swatch.rewards,
+      icon: <Trophy size={18} />,
+      href: '#',
+    },
+    {
+      key: 'blinks',
+      label: 'Blinks',
+      value: '—',
+      sub: 'coming soon',
+      swatch: T_swatch.blinks,
+      icon: <Zap size={18} />,
+      href: '#',
+    },
+    {
+      key: 'messages',
+      label: 'Messages',
+      value: '0',
+      sub: 'all clear',
+      swatch: T_swatch.messages,
+      icon: <MessageSquare size={18} />,
+      href: '/dashboard/chat',
+    },
+  ];
 
-      {/* <TestChart /> */}
-      {/* <DashboardAnalytics data={user} /> */}
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 12,
+      }}
+    >
+      {tiles.map(({ key, ...rest }) => (
+        <DashTile key={key} {...rest} />
+      ))}
     </div>
   );
 }
 
-function DashboardSkeleton() {
-  return (
-    <div className="">
-      {/* Profile Header Skeleton */}
-      <ProfileHeaderSkeleton />
-
-      {/* Cashflow Chart Skeleton */}
-      <div className="my-6 p-6 bg-white rounded-xl">
-        <Skeleton className="h-8 w-48 mb-4" />
-        <Skeleton className="h-[300px] w-full" />
+function DashTile({
+  label,
+  value,
+  sub,
+  swatch,
+  icon,
+  href,
+  accent: tileAccent,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  swatch: string;
+  icon: React.ReactNode;
+  href: string;
+  accent?: string;
+}) {
+  const inner = (
+    <div
+      style={{
+        background: surface,
+        border: `1px solid ${hair}`,
+        borderRadius: 18,
+        padding: 16,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        textDecoration: 'none',
+        color: ink,
+        boxShadow: cardShadow,
+        transition: 'transform .12s, box-shadow .12s',
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: swatch,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: ink,
+          }}
+        >
+          {icon}
+        </div>
+        <Mono size={26} weight={600} style={{ letterSpacing: -1 }}>
+          {value}
+        </Mono>
       </div>
-
-      {/* Analytics Skeleton */}
-      <AnalyticsSkeleton />
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: -0.2 }}>
+          {label}
+        </div>
+        <div
+          style={{
+            fontSize: 11.5,
+            color: tileAccent || muted,
+            marginTop: 2,
+            fontWeight: 500,
+          }}
+        >
+          {sub}
+        </div>
+      </div>
     </div>
+  );
+
+  if (href === '#') return inner;
+  return (
+    <Link href={href} style={{ textDecoration: 'none' }}>
+      {inner}
+    </Link>
   );
 }
 
-function ProfileHeaderSkeleton() {
+/* ------------------------------------------------------------------------
+   3. Today snapshot — gross volume + profile views
+   ------------------------------------------------------------------------ */
+function TodaySnapshot({ totals }: { totals: SummaryTotals | null }) {
+  const revenue = totals?.revenue ?? 0;
+  const orders = totals?.orders ?? 0;
+  const avgOrder = orders > 0 ? Math.round(revenue / orders) : 0;
+
   return (
-    <div className="bg-white rounded-xl p-6">
-      <div className="flex flex-col md:flex-row items-center gap-6">
-        {/* Avatar and Info */}
-        <div className="flex flex-col items-center md:items-start gap-4">
-          <Skeleton className="h-24 w-24 rounded-full" />
-          <div className="text-center md:text-left">
-            <Skeleton className="h-6 w-48 mb-2" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-        </div>
-
-        {/* Social Stats */}
-        <div className="flex gap-8">
-          <div className="text-center">
-            <Skeleton className="h-6 w-16 mb-1" />
-            <Skeleton className="h-4 w-16" />
-          </div>
-          <div className="text-center">
-            <Skeleton className="h-6 w-16 mb-1" />
-            <Skeleton className="h-4 w-16" />
-          </div>
-          <div className="text-center">
-            <Skeleton className="h-6 w-16 mb-1" />
-            <Skeleton className="h-4 w-16" />
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="flex flex-wrap gap-4 ml-0 md:ml-auto">
-          <div className="min-w-[160px]">
-            <Skeleton className="h-20 w-full" />
-          </div>
-          <div className="min-w-[160px]">
-            <Skeleton className="h-20 w-full" />
-          </div>
-          <div className="min-w-[160px]">
-            <Skeleton className="h-20 w-full" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AnalyticsSkeleton() {
-  return (
-    <div className="max-w-7xl mx-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column */}
-        <div className="lg:col-span-2 space-y-6 bg-white rounded-xl p-8">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-8 w-48" />
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-
-          {/* Recent Leads */}
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1.4fr 1fr',
+        gap: 12,
+      }}
+    >
+      <Card pad={20}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+          }}
+        >
           <div>
-            <Skeleton className="h-6 w-36 mb-4" />
-            <div className="space-y-4">
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
+            <Tag>Gross volume</Tag>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 10,
+                marginTop: 6,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 38,
+                  fontWeight: 600,
+                  letterSpacing: -1.4,
+                  lineHeight: 1,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                ${revenue.toLocaleString()}
+              </div>
             </div>
-            <Skeleton className="h-10 w-full mt-4" />
+            <div
+              style={{ fontSize: 12, color: muted, marginTop: 6 }}
+            >
+              {orders} orders · last 30d
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              alignItems: 'flex-end',
+            }}
+          >
+            <Chip size="sm" active>
+              30d
+            </Chip>
           </div>
         </div>
-
-        {/* Right Column */}
-        <div className="space-y-6">
-          {/* Profile Card Skeleton */}
-          <div className="bg-white rounded-xl p-6">
-            <Skeleton className="h-6 w-36 mb-4" />
-            <div className="space-y-4">
-              <Skeleton className="h-40 w-full" />
-              <Skeleton className="h-40 w-full" />
+        <Sparkline color={accent} trend="up" />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 0,
+            marginTop: 14,
+            paddingTop: 14,
+            borderTop: `1px solid ${hair}`,
+          }}
+        >
+          <div>
+            <Tag>Orders</Tag>
+            <div style={{ marginTop: 4 }}>
+              <Mono size={15} weight={600}>
+                {orders}
+              </Mono>
             </div>
           </div>
-
-          {/* QR Code Skeleton */}
-          <div className="bg-white rounded-xl p-6">
-            <Skeleton className="h-6 w-36 mb-4" />
-            <Skeleton className="h-48 w-full" />
+          <div style={{ borderLeft: `1px solid ${hair}`, paddingLeft: 14 }}>
+            <Tag>Units</Tag>
+            <div style={{ marginTop: 4 }}>
+              <Mono size={15} weight={600} color={accent}>
+                {totals?.units ?? 0}
+              </Mono>
+            </div>
+          </div>
+          <div style={{ borderLeft: `1px solid ${hair}`, paddingLeft: 14 }}>
+            <Tag>Avg order</Tag>
+            <div style={{ marginTop: 4 }}>
+              <Mono size={15} weight={600}>
+                ${avgOrder}
+              </Mono>
+            </div>
           </div>
         </div>
-      </div>
+      </Card>
+
+      <Card pad={20}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+          }}
+        >
+          <div>
+            <Tag>Profile views</Tag>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 8,
+                marginTop: 6,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 38,
+                  fontWeight: 600,
+                  letterSpacing: -1.4,
+                  lineHeight: 1,
+                }}
+              >
+                —
+              </div>
+            </div>
+          </div>
+          <Sparkline color={ink} trend="up" width={120} height={36} />
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0,
+            marginTop: 16,
+            paddingTop: 14,
+            borderTop: `1px solid ${hair}`,
+          }}
+        >
+          <SourceRow label="Profile link" value="—" pct={0} />
+          <SourceRow label="QR · in-person" value="—" pct={0} tone={accent} />
+          <SourceRow label="Blinks" value="—" pct={0} />
+          <SourceRow label="Direct" value="—" pct={0} />
+        </div>
+      </Card>
     </div>
   );
 }
 
-function PortfolioChartSkeleton() {
+function Sparkline({
+  color = posGreen,
+  trend = 'up',
+  width = '100%',
+  height = 68,
+}: {
+  color?: string;
+  trend?: 'up' | 'down';
+  width?: number | string;
+  height?: number;
+}) {
+  const path =
+    trend === 'up'
+      ? 'M0,30 C20,26 30,30 45,22 C60,14 75,20 90,12 C110,6 130,14 150,8'
+      : 'M0,8 C20,14 35,10 50,18 C70,24 85,18 100,24 C120,30 135,26 150,32';
+  const idSafe = color.replace('#', '');
   return (
-    <div className="w-full p-5">
-      <div className="flex flex-row items-center justify-between pb-2">
-        <Skeleton className="h-6 w-24" />
-        <Skeleton className="h-8 w-16" />
+    <svg
+      viewBox="0 0 150 40"
+      preserveAspectRatio="none"
+      style={{
+        width,
+        height,
+        display: 'block',
+        marginTop: 16,
+      }}
+    >
+      <defs>
+        <linearGradient id={`sg-${idSafe}-${trend}`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path
+        d={`${path} L150,40 L0,40 Z`}
+        fill={`url(#sg-${idSafe}-${trend})`}
+      />
+      <path
+        d={path}
+        stroke={color}
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SourceRow({
+  label,
+  value,
+  pct,
+  tone,
+}: {
+  label: string;
+  value: string;
+  pct: number;
+  tone?: string;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '8px 0',
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          fontSize: 12.5,
+          fontWeight: 550,
+          letterSpacing: -0.1,
+        }}
+      >
+        {label}
       </div>
-      <div className="pt-6">
-        <div className="flex items-center justify-center gap-8">
-          <Skeleton className="h-[200px] w-[200px] rounded-full" />
-          <div className="flex flex-col gap-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Skeleton className="h-3 w-3 rounded-full" />
-                <Skeleton className="h-4 w-20" />
-              </div>
+      <div
+        style={{
+          width: 80,
+          height: 4,
+          background: '#f2f2f0',
+          borderRadius: 2,
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: '100%',
+            background: tone || ink,
+          }}
+        />
+      </div>
+      <Mono
+        size={12.5}
+        weight={600}
+        style={{ minWidth: 36, textAlign: 'right' }}
+      >
+        {value}
+      </Mono>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------
+   4. In-person checkout
+   ------------------------------------------------------------------------ */
+function InPersonCheckout() {
+  return (
+    <Card pad={0}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1.1fr 1fr',
+        }}
+      >
+        <div style={{ padding: 22, borderRight: `1px solid ${hair}` }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 14,
+            }}
+          >
+            <Tag>Charge</Tag>
+            <div
+              style={{
+                display: 'flex',
+                gap: 4,
+                padding: 3,
+                background: '#f4f4f2',
+                borderRadius: 10,
+                border: `1px solid ${hair}`,
+              }}
+            >
+              {['USDC', 'SOL', 'ETH'].map((t, i) => (
+                <button
+                  key={t}
+                  type="button"
+                  style={{
+                    padding: '5px 10px',
+                    border: 0,
+                    borderRadius: 7,
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    background: i === 0 ? '#fff' : 'transparent',
+                    color: ink,
+                    cursor: 'pointer',
+                    boxShadow: i === 0 ? cardShadow : 'none',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-end',
+              gap: 6,
+              padding: '14px 0',
+              borderBottom: `2px solid ${ink}`,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 30,
+                fontWeight: 600,
+                color: muted,
+                letterSpacing: -1,
+              }}
+            >
+              $
+            </span>
+            <span
+              style={{
+                fontSize: 56,
+                fontWeight: 600,
+                lineHeight: 1,
+                letterSpacing: -2.5,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              0
+            </span>
+            <span
+              style={{
+                fontSize: 56,
+                fontWeight: 600,
+                lineHeight: 1,
+                letterSpacing: -2.5,
+                color: muted2,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              .00
+            </span>
+            <span
+              style={{
+                fontSize: 14,
+                color: muted,
+                marginLeft: 8,
+                paddingBottom: 8,
+                fontFamily: mono,
+              }}
+            >
+              USDC
+            </span>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: 10,
+            }}
+          >
+            <Mono size={12} color={muted} weight={500}>
+              ≈ 0.00 USDC · 0.00 fees
+            </Mono>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 8,
+              marginTop: 18,
+            }}
+          >
+            {['$25', '$50', '$100', 'Custom'].map((v) => (
+              <button
+                key={v}
+                type="button"
+                style={{
+                  padding: '11px 0',
+                  background: '#fff',
+                  border: `1px solid ${hair}`,
+                  borderRadius: 12,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: ink,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  letterSpacing: -0.2,
+                }}
+              >
+                {v}
+              </button>
             ))}
           </div>
+          <button
+            type="button"
+            style={{
+              width: '100%',
+              marginTop: 12,
+              padding: 14,
+              background: ink,
+              color: '#fff',
+              border: 0,
+              borderRadius: 12,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              letterSpacing: -0.2,
+            }}
+          >
+            <QrCode size={16} />
+            Generate QR · request payment
+          </button>
+        </div>
+
+        <div
+          style={{
+            padding: 22,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 14,
+            background: '#fafaf8',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              alignSelf: 'flex-start',
+            }}
+          >
+            <Tag>Scan to pay</Tag>
+            <Mono size={11} color={muted} weight={500}>
+              · Phantom · Solflare · Backpack
+            </Mono>
+          </div>
+          <FakeQR size={170} />
+          <div
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              background: '#fff',
+              border: `1px solid ${hair}`,
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <Mono
+              size={11.5}
+              color={ink}
+              weight={500}
+              style={{
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Wallet not connected
+            </Mono>
+            <button
+              type="button"
+              style={{
+                background: 'transparent',
+                border: 0,
+                padding: 4,
+                color: muted,
+                cursor: 'pointer',
+                display: 'flex',
+              }}
+              aria-label="Copy"
+            >
+              <Copy size={13} />
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+            <Chip size="sm" style={{ flex: 1, justifyContent: 'center' }}>
+              Tap-to-pay (NFC)
+            </Chip>
+            <Chip size="sm" style={{ flex: 1, justifyContent: 'center' }}>
+              Send link
+            </Chip>
+          </div>
         </div>
       </div>
+    </Card>
+  );
+}
+
+function FakeQR({ size = 170 }: { size?: number }) {
+  // Deterministic 21x21 grid with three finder squares.
+  const N = 21;
+  let s = 0xb0b;
+  const rand = () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+  const cells: boolean[] = [];
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) cells.push(rand() > 0.55);
+  const clear = (cx: number, cy: number) => {
+    for (let y = cy; y < cy + 7; y++)
+      for (let x = cx; x < cx + 7; x++) cells[y * N + x] = false;
+  };
+  clear(0, 0);
+  clear(N - 7, 0);
+  clear(0, N - 7);
+
+  return (
+    <div
+      style={{
+        width: size + 16,
+        height: size + 16,
+        padding: 8,
+        background: '#fff',
+        borderRadius: 14,
+        border: `1px solid ${hair}`,
+        boxShadow: cardShadow,
+        position: 'relative',
+      }}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${N} ${N}`}>
+        {cells.map((on, i) =>
+          on ? (
+            <rect
+              key={i}
+              x={(i % N) + 0.1}
+              y={Math.floor(i / N) + 0.1}
+              width="0.8"
+              height="0.8"
+              rx="0.15"
+              fill={ink}
+            />
+          ) : null
+        )}
+        {[
+          [0, 0],
+          [N - 7, 0],
+          [0, N - 7],
+        ].map(([fx, fy]) => (
+          <g key={`${fx}-${fy}`}>
+            <rect x={fx} y={fy} width="7" height="7" rx="1" fill={ink} />
+            <rect
+              x={fx + 1}
+              y={fy + 1}
+              width="5"
+              height="5"
+              rx="0.6"
+              fill="#fff"
+            />
+            <rect
+              x={fx + 2}
+              y={fy + 2}
+              width="3"
+              height="3"
+              rx="0.3"
+              fill={ink}
+            />
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }
 
-function PortfolioEmptyState() {
+/* ------------------------------------------------------------------------
+   5. Recent orders
+   ------------------------------------------------------------------------ */
+function RecentOrders({ orders }: { orders: OrderRow[] }) {
   return (
-    <div className="w-full p-5">
-      <div className="flex flex-row items-center justify-between pb-2">
-        <h2 className="text-lg font-semibold">Portfolio</h2>
-      </div>
-      <div className="pt-6 pb-4 text-center">
-        <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-          <svg
-            className="w-8 h-8 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+    <Card pad={0}>
+      <div
+        style={{
+          padding: '16px 20px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: `1px solid ${hair}`,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              letterSpacing: -0.3,
+            }}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
+            Recent orders
+          </div>
+          <div
+            style={{ fontSize: 11.5, color: muted, marginTop: 2 }}
+          >
+            {orders.length === 0
+              ? 'No orders yet'
+              : `${orders.length} most recent`}
+          </div>
         </div>
-        <p className="text-gray-600 font-medium mb-1">No tokens found</p>
-        <p className="text-sm text-gray-500">
-          Connect your wallet to view your portfolio.
-        </p>
+        <Link href="/dashboard/order" style={{ textDecoration: 'none' }}>
+          <Chip size="sm">
+            View all
+            <ArrowRight size={12} />
+          </Chip>
+        </Link>
       </div>
-    </div>
+      {orders.length === 0 ? (
+        <div
+          style={{
+            padding: '32px 20px',
+            textAlign: 'center',
+            color: muted,
+            fontSize: 13,
+          }}
+        >
+          Once you start selling, recent orders appear here.
+        </div>
+      ) : (
+        <div>
+          {orders.map((o, i) => (
+            <Link
+              key={o._id}
+              href={`/dashboard/order/${o.orderId}`}
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.4fr 1.6fr 1fr 0.7fr',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 20px',
+                  borderBottom:
+                    i < orders.length - 1
+                      ? `1px solid ${hair2}`
+                      : 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    minWidth: 0,
+                  }}
+                >
+                  <Avatar size={28} bg="#eaeaea">
+                    {o.counterpartyAvatar}
+                  </Avatar>
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        letterSpacing: -0.2,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {o.counterparty}
+                    </div>
+                    <Mono size={10.5} color={muted}>
+                      #{o.orderId}
+                    </Mono>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    color: muted,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {o.item}
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Mono size={13} weight={600}>
+                    ${o.price.toFixed(2)}
+                  </Mono>
+                  <DeliveryPill status={o.delivery} />
+                </div>
+                <Mono
+                  size={11}
+                  color={muted}
+                  style={{ textAlign: 'right' }}
+                >
+                  {o.date}
+                </Mono>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------------
+   6. Products manager
+   ------------------------------------------------------------------------ */
+function ProductsManager({ products }: { products: NFTTemplate[] }) {
+  const top = products.slice(0, 5);
+
+  return (
+    <Card pad={0}>
+      <div
+        style={{
+          padding: '16px 20px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: `1px solid ${hair}`,
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              letterSpacing: -0.3,
+            }}
+          >
+            Products
+          </div>
+          <div
+            style={{ fontSize: 11.5, color: muted, marginTop: 2 }}
+          >
+            {products.length === 0
+              ? 'No products yet'
+              : `${products.length} total · ${products.filter(
+                  (p) => p.category === 'physical'
+                ).length} physical · ${products.filter(
+                  (p) => p.category === 'digital'
+                ).length} digital`}
+          </div>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            alignItems: 'center',
+          }}
+        >
+          <Chip size="sm" active>
+            All
+          </Chip>
+          <Chip size="sm">Physical</Chip>
+          <Chip size="sm">Digital</Chip>
+          <div
+            style={{
+              width: 1,
+              height: 20,
+              background: hair,
+              margin: '0 4px',
+            }}
+          />
+          <Link
+            href="/products/create"
+            style={{ textDecoration: 'none' }}
+          >
+            <button
+              type="button"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 12px',
+                borderRadius: 999,
+                background: ink,
+                color: '#fff',
+                border: 0,
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: 'inherit',
+              }}
+            >
+              <span style={{ fontSize: 14, lineHeight: 1, marginTop: -1 }}>
+                +
+              </span>{' '}
+              New product
+            </button>
+          </Link>
+        </div>
+      </div>
+      {top.length === 0 ? (
+        <div
+          style={{
+            padding: '32px 20px',
+            textAlign: 'center',
+            color: muted,
+            fontSize: 13,
+          }}
+        >
+          You have no products yet.{' '}
+          <Link
+            href="/products/create"
+            style={{ color: ink, textDecoration: 'underline' }}
+          >
+            Create your first
+          </Link>
+          .
+        </div>
+      ) : (
+        <div>
+          {top.map((p, i) => (
+            <div
+              key={p._id}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr auto auto auto',
+                alignItems: 'center',
+                gap: 14,
+                padding: '12px 20px',
+                borderBottom:
+                  i < top.length - 1 ? `1px solid ${hair2}` : 'none',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 9,
+                    background: T_swatch.products,
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                  }}
+                >
+                  {p.image ? (
+                    <Image
+                      src={p.image}
+                      alt={p.name}
+                      width={38}
+                      height={38}
+                      style={{
+                        objectFit: 'cover',
+                        width: 38,
+                        height: 38,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '100%',
+                        height: '100%',
+                      }}
+                    >
+                      <Box size={18} color={ink} />
+                    </div>
+                  )}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      letterSpacing: -0.2,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {p.name}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginTop: 2,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        color: posGreen,
+                        background: posGreenSoft,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        fontFamily: mono,
+                        letterSpacing: 0.4,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Live
+                    </span>
+                    <Mono size={11} color={muted}>
+                      {p.category === 'physical' ? 'Physical' : 'Digital'}
+                    </Mono>
+                  </div>
+                </div>
+              </div>
+              <Mono size={13} weight={600}>
+                ${p.price}
+              </Mono>
+              <button type="button" style={iconBtn} aria-label="Share">
+                <Share2 size={14} />
+              </button>
+              <button
+                type="button"
+                style={{ ...iconBtn, color: muted }}
+                aria-label="More"
+              >
+                <MoreHorizontal size={14} />
+              </button>
+            </div>
+          ))}
+          <div
+            style={{
+              padding: '12px 20px',
+              borderTop: `1px solid ${hair2}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ fontSize: 11.5, color: muted }}>
+              Showing {top.length} of {products.length} products
+            </div>
+            <Link href="/products" style={{ textDecoration: 'none' }}>
+              <Chip size="sm">
+                Manage all
+                <ArrowRight size={12} />
+              </Chip>
+            </Link>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const iconBtn: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  borderRadius: 7,
+  background: 'transparent',
+  border: '1px solid transparent',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  color: ink,
+  padding: 0,
+};
+
+/* ------------------------------------------------------------------------
+   7. Recent leads (no backend yet — empty state)
+   ------------------------------------------------------------------------ */
+function RecentLeads() {
+  return (
+    <Card pad={0}>
+      <div
+        style={{
+          padding: '16px 20px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: `1px solid ${hair}`,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              letterSpacing: -0.3,
+            }}
+          >
+            Recent leads
+          </div>
+          <div
+            style={{ fontSize: 11.5, color: muted, marginTop: 2 }}
+          >
+            From profile, QR taps &amp; blinks
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Chip size="sm" active>
+            All
+          </Chip>
+          <Chip size="sm">Hot</Chip>
+          <Chip size="sm">Export CSV</Chip>
+        </div>
+      </div>
+      <div
+        style={{
+          padding: '32px 20px',
+          textAlign: 'center',
+          color: muted,
+          fontSize: 13,
+        }}
+      >
+        Leads will show up here as people interact with your profile.
+      </div>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------------
+   Date helpers
+   ------------------------------------------------------------------------ */
+function parseDate(s: string): Date | null {
+  // The v2 listByUser endpoint formats dates as DD/MM/YYYY.
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  return new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+}
+
+function isToday(d: Date | null): boolean {
+  if (!d) return false;
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useUser } from '@/lib/UserContext';
 import {
   Avatar,
   Card,
@@ -17,6 +18,9 @@ import {
   posGreen,
   primaryBtn,
 } from '@/components/mint/design-system';
+import { ShippingUpdateModal } from '@/components/order/orderId/components/ShippingUpdateModal';
+import { useShippingUpdate } from '@/components/order/orderId/hooks/useShippingUpdate';
+import type { ShippingUpdateData } from '@/components/order/orderId/types/order.types';
 import Image from 'next/image';
 
 export interface OrderLine {
@@ -56,6 +60,12 @@ export interface OrderDetail {
     shippingCost?: number;
     totalCost?: number;
   };
+  shipping?: {
+    trackingNumber?: string;
+    provider?: string;
+    estimatedDeliveryDate?: string;
+    notes?: string;
+  };
   counterparty: Counterparty | null;
   lines: OrderLine[];
   userRole: 'buyer' | 'seller' | null;
@@ -92,26 +102,137 @@ const formatTime = (iso: string) => {
   return `${formatDate(iso)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-type DetailTab = 'Order History' | 'Customer Details' | 'Buyer Details' | 'Order Description';
+type DetailTab = 'Order History' | 'Seller Details' | 'Buyer Details' | 'Order Description';
+
+const deliveryStatusForUpdate = (delivery: string): ShippingUpdateData['deliveryStatus'] => {
+  if (delivery === 'Complete' || delivery === 'Completed' || delivery === 'Delivered') {
+    return 'Completed';
+  }
+  if (delivery === 'Cancel' || delivery === 'Cancelled') return 'Cancelled';
+  if (delivery === 'In transit' || delivery === 'In Progress') return 'In Progress';
+  return 'Not Initiated';
+};
+
+const hasCompletedStage = (order: Pick<OrderDetail, 'processingStages'>) =>
+  (order.processingStages || []).some(
+    (stage) => stage.stage === 'order_completed' && stage.status === 'completed'
+  );
+
+const hasShippingUpdate = (order: OrderDetail) =>
+  Boolean(
+    order.shipping?.trackingNumber ||
+      order.shipping?.provider ||
+      order.shipping?.estimatedDeliveryDate ||
+      order.shipping?.notes ||
+      order.delivery === 'Shipped' ||
+      order.delivery === 'Complete'
+  );
 
 export default function OrderDetailScreen({
   order,
   backHref = '/order',
+  onOrderUpdated,
 }: {
   order: OrderDetail;
   backHref?: string;
+  onOrderUpdated?: () => void | Promise<void>;
 }) {
   const router = useRouter();
+  const { accessToken } = useUser();
   const isBuyerCtx = order.userRole === 'buyer';
-  const detailsLabel: DetailTab = isBuyerCtx ? 'Buyer Details' : 'Customer Details';
+  const detailsLabel: DetailTab = isBuyerCtx ? 'Seller Details' : 'Buyer Details';
   const tabs: DetailTab[] = ['Order History', detailsLabel, 'Order Description'];
   const [tab, setTab] = useState<DetailTab>('Order History');
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const orderCompleted = hasCompletedStage(order);
+  const canConfirmOrder = order.delivery === 'Delivered' && !orderCompleted;
+  const initialShippingData = useMemo(
+    () => ({
+      deliveryStatus: deliveryStatusForUpdate(order.delivery),
+      trackingNumber: order.shipping?.trackingNumber || '',
+      shippingProvider: order.shipping?.provider || '',
+      estimatedDeliveryDate: order.shipping?.estimatedDeliveryDate || '',
+      additionalNotes: order.shipping?.notes || '',
+    }),
+    [order.delivery, order.shipping]
+  );
+  const {
+    isUpdateModalOpen,
+    isUpdating,
+    updateError,
+    updateSuccess,
+    shippingData,
+    setIsUpdateModalOpen,
+    setShippingData,
+    handleShippingUpdate,
+    resetUpdateState,
+  } = useShippingUpdate(initialShippingData);
+
+  const handleUpdateShipping = useCallback(() => {
+    setIsUpdateModalOpen(true);
+  }, [setIsUpdateModalOpen]);
+
+  const handleUpdateModalClose = useCallback(() => {
+    setIsUpdateModalOpen(false);
+    resetUpdateState();
+  }, [resetUpdateState, setIsUpdateModalOpen]);
+
+  const handleShippingUpdateSubmit = useCallback(() => {
+    handleShippingUpdate(order.orderId, onOrderUpdated);
+  }, [handleShippingUpdate, onOrderUpdated, order.orderId]);
+
+  const handleConfirmOrderClick = useCallback(() => {
+    if (!canConfirmOrder || isConfirming) return;
+    setActionError(null);
+    setIsConfirmModalOpen(true);
+  }, [canConfirmOrder, isConfirming]);
+
+  const handleConfirmModalClose = useCallback(() => {
+    if (isConfirming) return;
+    setIsConfirmModalOpen(false);
+  }, [isConfirming]);
+
+  const handleConfirmOrder = useCallback(async () => {
+    if (!accessToken || isConfirming || hasCompletedStage(order)) return;
+
+    setIsConfirming(true);
+    setActionError(null);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
+      if (!API_URL) throw new Error('API base URL is not defined.');
+
+      const response = await fetch(
+        `${API_URL}/api/v5/orders/${order.orderId}/confirm-receipt`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ rating: 5, feedback: '' }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to confirm order.');
+      }
+      setIsConfirmModalOpen(false);
+      await onOrderUpdated?.();
+    } catch (error: any) {
+      setActionError(error.message || 'Failed to confirm order.');
+    } finally {
+      setIsConfirming(false);
+    }
+  }, [accessToken, isConfirming, onOrderUpdated, order]);
 
   const lineSubtotal = useMemo(
     () => order.lines.reduce((acc, l) => acc + l.price * l.quantity, 0),
     [order.lines]
   );
   const total = order.financial?.totalCost ?? lineSubtotal;
+  const showActions = isBuyerCtx ? !orderCompleted : !hasShippingUpdate(order);
 
   return (
     <ScreenShell
@@ -315,40 +436,55 @@ export default function OrderDetailScreen({
           </div>
         ))}
 
-        {/* Action buttons */}
-        <div
-          style={{
-            padding: '20px 24px',
-            borderTop: `1px solid ${hair2}`,
-            display: 'flex',
-            justifyContent: 'center',
-            gap: 12,
-          }}
-        >
-          {isBuyerCtx ? (
-            <>
+        {showActions && (
+          <div
+            style={{
+              padding: '20px 24px',
+              borderTop: `1px solid ${hair2}`,
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 12,
+            }}
+          >
+            {isBuyerCtx ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleConfirmOrderClick}
+                  disabled={!canConfirmOrder || isConfirming}
+                  style={{
+                    ...ghostBtn,
+                    padding: '12px 32px',
+                    borderRadius: 12,
+                    opacity: !canConfirmOrder || isConfirming ? 0.55 : 1,
+                    cursor: !canConfirmOrder || isConfirming ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {orderCompleted ? 'Completed' : isConfirming ? 'Confirming...' : 'Confirm Order'}
+                </button>
+                <button
+                  type="button"
+                  style={{ ...primaryBtn, padding: '12px 32px', borderRadius: 12 }}
+                >
+                  Dispute
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
-                style={{ ...ghostBtn, padding: '12px 32px', borderRadius: 12 }}
+                onClick={handleUpdateShipping}
+                style={{ ...ghostBtn, padding: '12px 38px', borderRadius: 12 }}
               >
-                Confirm Order
+                Update Shipping
               </button>
-              <button
-                type="button"
-                style={{ ...primaryBtn, padding: '12px 32px', borderRadius: 12 }}
-              >
-                Dispute
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              style={{ ...ghostBtn, padding: '12px 38px', borderRadius: 12 }}
-            >
-              Update Shipping
-            </button>
-          )}
-        </div>
+            )}
+            {actionError && (
+              <div style={{ fontSize: 12, color: '#b91c1c', alignSelf: 'center' }}>
+                {actionError}
+              </div>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* Tabs */}
@@ -391,12 +527,147 @@ export default function OrderDetailScreen({
         </div>
 
         {tab === 'Order History' && <OrderHistory order={order} isBuyer={isBuyerCtx} />}
-        {(tab === 'Customer Details' || tab === 'Buyer Details') && (
-          <CounterpartyDetails counterparty={order.counterparty} buyer={isBuyerCtx} />
+        {(tab === 'Seller Details' || tab === 'Buyer Details') && (
+          <CounterpartyDetails
+            counterparty={order.counterparty}
+            roleLabel={isBuyerCtx ? 'Seller' : 'Buyer'}
+          />
         )}
         {tab === 'Order Description' && <OrderDescription order={order} />}
       </div>
+
+      <ShippingUpdateModal
+        isOpen={isUpdateModalOpen}
+        isUpdating={isUpdating}
+        updateError={updateError}
+        updateSuccess={updateSuccess}
+        shippingData={shippingData}
+        onClose={handleUpdateModalClose}
+        onUpdate={handleShippingUpdateSubmit}
+        onShippingDataChange={setShippingData}
+      />
+
+      {isConfirmModalOpen && (
+        <ConfirmReceiptModal
+          orderId={order.orderId}
+          isConfirming={isConfirming}
+          error={actionError}
+          onClose={handleConfirmModalClose}
+          onConfirm={handleConfirmOrder}
+        />
+      )}
     </ScreenShell>
+  );
+}
+
+function ConfirmReceiptModal({
+  orderId,
+  isConfirming,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  orderId: string;
+  isConfirming: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      role="presentation"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 60,
+        background: 'rgba(10,10,12,0.38)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-receipt-title"
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          width: 'min(440px, 100%)',
+          borderRadius: 12,
+          background: '#fff',
+          boxShadow: '0 18px 60px rgba(10,10,12,0.22)',
+          border: `1px solid ${hair}`,
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ padding: '22px 24px 16px', borderBottom: `1px solid ${hair2}` }}>
+          <div
+            id="confirm-receipt-title"
+            style={{ fontSize: 18, fontWeight: 650, color: ink, letterSpacing: -0.2 }}
+          >
+            Confirm Order Receipt
+          </div>
+          <div style={{ marginTop: 8, fontSize: 13, color: muted, lineHeight: 1.55 }}>
+            Confirm that you received order #{orderId} in satisfactory condition.
+            This will mark the order as completed.
+          </div>
+        </div>
+        <div
+          style={{
+            padding: '18px 24px 22px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}
+        >
+          {error && (
+            <div
+              style={{
+                border: '1px solid #fecaca',
+                background: '#fef2f2',
+                color: '#b91c1c',
+                borderRadius: 8,
+                padding: '10px 12px',
+                fontSize: 12,
+              }}
+            >
+              {error}
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isConfirming}
+              style={{
+                ...ghostBtn,
+                borderRadius: 10,
+                padding: '10px 18px',
+                opacity: isConfirming ? 0.6 : 1,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={isConfirming}
+              style={{
+                ...primaryBtn,
+                borderRadius: 10,
+                padding: '10px 18px',
+                opacity: isConfirming ? 0.7 : 1,
+                cursor: isConfirming ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isConfirming ? 'Confirming...' : 'Confirm Receipt'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -431,8 +702,10 @@ const HISTORY_TONE: Record<string, string> = {
   Complete: posGreen,
   Delivered: posGreen,
   Settled: posGreen,
+  Shipped: '#3730a3',
   'In Review': '#b45309',
   'In Transit': '#b45309',
+  'Awaiting Confirmation': '#b45309',
   Pending: '#b45309',
   Processing: '#b45309',
   Cancel: '#b91c1c',
@@ -446,6 +719,9 @@ function OrderHistory({
   order: OrderDetail;
   isBuyer: boolean;
 }) {
+  const isCompleted = hasCompletedStage(order);
+  const isDelivered = order.delivery === 'Delivered' || order.delivery === 'Complete';
+  const isShipped = isDelivered || order.delivery === 'Shipped';
   const events = isBuyer
     ? [
         {
@@ -456,15 +732,19 @@ function OrderHistory({
         },
         {
           label: 'Tracking Status',
-          status: order.delivery === 'Delivered' ? 'Arrived' : 'In Transit',
+          status: isDelivered ? 'Arrived' : 'In Transit',
           when: formatTime(order.orderDate),
-          done: order.delivery === 'Delivered',
+          done: isDelivered,
         },
         {
           label: 'Order Status',
-          status: order.delivery === 'Delivered' ? 'Completed' : order.delivery,
+          status: isCompleted
+            ? 'Completed'
+            : isDelivered
+              ? 'Awaiting Confirmation'
+              : order.delivery,
           when: formatDate(order.orderDate),
-          done: order.delivery === 'Delivered',
+          done: isCompleted,
         },
       ]
     : [
@@ -477,17 +757,17 @@ function OrderHistory({
         },
         {
           label: 'Tracking Status',
-          status: order.delivery === 'Complete' ? 'Arrived' : 'In Transit',
+          status: isShipped ? 'Shipped' : 'In Transit',
           when: formatTime(order.orderDate),
-          done: order.delivery === 'Complete',
+          done: isShipped,
           sub: `Expected delivery: ${formatDate(order.orderDate)}`,
         },
         {
           label: 'Order Status',
-          status: order.delivery,
+          status: isCompleted ? 'Completed' : order.delivery,
           when:
-            order.delivery === 'Complete' ? formatDate(order.orderDate) : 'TBD',
-          done: order.delivery === 'Complete',
+            isCompleted ? formatDate(order.orderDate) : 'TBD',
+          done: isCompleted,
         },
       ];
 
@@ -581,10 +861,10 @@ function OrderHistory({
 
 function CounterpartyDetails({
   counterparty,
-  buyer,
+  roleLabel,
 }: {
   counterparty: Counterparty | null;
-  buyer: boolean;
+  roleLabel: 'Buyer' | 'Seller';
 }) {
   if (!counterparty) {
     return (
@@ -634,13 +914,13 @@ function CounterpartyDetails({
             {counterparty.name || 'Anonymous'}
           </div>
           <div style={{ fontSize: 12, color: muted }}>
-            {buyer ? 'Buyer' : 'Customer'} · order counterparty
+            {roleLabel} · order counterparty
           </div>
         </div>
         <div style={{ flex: 1 }} />
-        <button type="button" style={ghostBtn}>
+        {/* <button type="button" style={ghostBtn}>
           Send message
-        </button>
+        </button> */}
       </div>
       <div
         style={{

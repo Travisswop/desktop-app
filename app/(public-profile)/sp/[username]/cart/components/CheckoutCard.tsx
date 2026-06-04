@@ -81,6 +81,8 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
   errorMessage,
   cartItems,
   subtotal,
+  shippingCost,
+  totalCost,
   hasPhygitalProducts,
 }) => {
   const [isWalletLoading, setIsWalletLoading] = useState(false);
@@ -302,7 +304,11 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
                 Shipping Method
               </h3>
               <div className="bg-gray-100 p-3 rounded-md">
-                <div className="font-medium">Free shipping</div>
+                <div className="font-medium">
+                  {shippingCost > 0
+                    ? `${shippingCost} USDC shipping`
+                    : 'Free shipping'}
+                </div>
                 <div className="text-sm text-gray-500">
                   5-7 business days
                 </div>
@@ -321,12 +327,16 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
             <span>{subtotal} USDC</span>
           </div>
           <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-600">Shipping</span>
+            <span>{shippingCost} USDC</span>
+          </div>
+          <div className="flex items-center justify-between mb-2">
             <span className="text-gray-600">Discount</span>
             <span>0 USDC</span>
           </div>
           <div className="flex items-center justify-between font-semibold">
             <span>Total</span>
-            <span>{subtotal} USDC</span>
+            <span>{totalCost} USDC</span>
           </div>
         </section>
       </CardContent>

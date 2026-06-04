@@ -121,7 +121,8 @@ export default function GroupMenu({
   const closeMenu = () => setIsOpen(false);
   const closeModal = () => setActiveModal(null);
   const currentParticipant = group.participants?.find(
-    (participant) => getParticipantUser(participant)._id === currentUser,
+    (participant) =>
+      getParticipantUser(participant)._id === currentUser,
   );
   const canManageGroup = isGroupAdmin(currentParticipant);
   const canDeleteGroup =
@@ -146,14 +147,14 @@ export default function GroupMenu({
             },
             color: 'default',
           },
-          {
-            label: '⭐ Manage Admins',
-            action: () => {
-              setActiveModal('manageAdmins');
-              closeMenu();
-            },
-            color: 'default',
-          },
+          // {
+          //   label: '⭐ Manage Admins',
+          //   action: () => {
+          //     setActiveModal('manageAdmins');
+          //     closeMenu();
+          //   },
+          //   color: 'default',
+          // },
           {
             label: '✏️ Edit Group',
             action: () => {
@@ -508,16 +509,14 @@ function RemoveMemberModal({
 
   // Filter out current user and group creator
   const removableMembers =
-    group.participants?.filter(
-      (participant) => {
-        const participantUser = getParticipantUser(participant);
+    group.participants?.filter((participant) => {
+      const participantUser = getParticipantUser(participant);
 
-        return (
-          participantUser._id !== currentUser &&
-          !isGroupCreator(group, participantUser._id)
-        );
-      },
-    ) || [];
+      return (
+        participantUser._id !== currentUser &&
+        !isGroupCreator(group, participantUser._id)
+      );
+    }) || [];
 
   const confirmRemoveMember = (user: User) => {
     setConfirmingUser(user);
@@ -536,9 +535,12 @@ function RemoveMemberModal({
       },
       (response: SocketResponse) => {
         if (response.success) {
-          toast.success(`${participantUser.name} removed successfully!`, {
-            position: 'top-right',
-          });
+          toast.success(
+            `${participantUser.name} removed successfully!`,
+            {
+              position: 'top-right',
+            },
+          );
           onSuccess?.();
           setConfirmingUser(null);
           onClose();
@@ -585,7 +587,8 @@ function RemoveMemberModal({
             ) : (
               <div className="space-y-2">
                 {removableMembers.map((participant) => {
-                  const participantUser = getParticipantUser(participant);
+                  const participantUser =
+                    getParticipantUser(participant);
                   return (
                     <div
                       key={participantUser._id}
@@ -631,7 +634,9 @@ function RemoveMemberModal({
                         onClick={() =>
                           confirmRemoveMember(participantUser)
                         }
-                        disabled={removingUserId === participantUser._id}
+                        disabled={
+                          removingUserId === participantUser._id
+                        }
                         className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
                       >
                         {removingUserId === participantUser._id
@@ -766,7 +771,8 @@ function ManageAdminsModal({
           ) : (
             <div className="space-y-2">
               {participants.map((participant) => {
-                const participantUser = getParticipantUser(participant);
+                const participantUser =
+                  getParticipantUser(participant);
                 const isAdmin = isGroupAdmin(participant);
                 const isCreator = isGroupCreator(
                   group,
@@ -840,7 +846,9 @@ function ManageAdminsModal({
                         onClick={() =>
                           handleRoleChange(participant, 'admin')
                         }
-                        disabled={updatingUserId === participantUser._id}
+                        disabled={
+                          updatingUserId === participantUser._id
+                        }
                         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
                       >
                         {updatingUserId === participantUser._id
@@ -933,7 +941,10 @@ function EditGroupModal({
             .map((token) => ({
               value: token.address || token.symbol,
               label:
-                token.name || token.symbol || token.address || 'Token',
+                token.name ||
+                token.symbol ||
+                token.address ||
+                'Token',
               symbol: token.symbol,
               image: token.logoURI || token.marketData?.image,
             }));
@@ -941,7 +952,9 @@ function EditGroupModal({
     if (
       tokenGate?.selectedToken &&
       (tokenGate.tokenType || 'NFT') === tokenType &&
-      !options.some((option) => option.value === tokenGate.selectedToken)
+      !options.some(
+        (option) => option.value === tokenGate.selectedToken,
+      )
     ) {
       return [
         {
@@ -1038,9 +1051,12 @@ function EditGroupModal({
     }
 
     if (tokenGated && !selectedToken) {
-      toast.error(`Select a ${tokenType.toLowerCase()} for token gate`, {
-        position: 'top-right',
-      });
+      toast.error(
+        `Select a ${tokenType.toLowerCase()} for token gate`,
+        {
+          position: 'top-right',
+        },
+      );
       return;
     }
 

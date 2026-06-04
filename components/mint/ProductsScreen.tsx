@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { Archive, Pencil } from 'lucide-react';
 import {
   Card,
   Chip,
@@ -69,6 +70,8 @@ export default function ProductsScreen({
   hideBack,
   eyebrow,
   totals,
+  onArchive,
+  archivingId,
 }: {
   rows: ProductRow[];
   backHref?: string;
@@ -81,6 +84,8 @@ export default function ProductsScreen({
    * present, the StatRow surfaces real revenue/units instead of an em-dash.
    */
   totals?: ProductsTotals;
+  onArchive?: (product: ProductRow) => void;
+  archivingId?: string | null;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>('all');
@@ -203,7 +208,7 @@ export default function ProductsScreen({
           style={{
             display: 'grid',
             gridTemplateColumns:
-              'minmax(0, 2fr) 0.7fr 0.7fr 0.7fr 0.8fr 0.4fr',
+              'minmax(0, 2fr) 0.7fr 0.7fr 0.7fr 0.8fr 0.8fr',
             padding: '10px 20px',
             borderBottom: `1px solid ${hair}`,
             ...colHead,
@@ -238,7 +243,7 @@ export default function ProductsScreen({
                 style={{
                   display: 'grid',
                   gridTemplateColumns:
-                    'minmax(0, 2fr) 0.7fr 0.7fr 0.7fr 0.8fr 0.4fr',
+                    'minmax(0, 2fr) 0.7fr 0.7fr 0.7fr 0.8fr 0.8fr',
                   alignItems: 'center',
                   gap: 10,
                   padding: '12px 20px',
@@ -321,9 +326,39 @@ export default function ProductsScreen({
                 <Mono size={13} weight={600}>
                   {p.revenue ? `$${p.revenue.toLocaleString()}` : '—'}
                 </Mono>
-                <div style={{ textAlign: 'right' }}>
-                  <button type="button" style={iconBtnSm} aria-label="More">
-                    ⋯
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: 4,
+                  }}
+                >
+                  <Link
+                    href={`/products/create?templateId=${encodeURIComponent(
+                      p.id
+                    )}`}
+                    aria-label={`Edit ${p.name}`}
+                    title="Edit"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <button type="button" style={iconBtnSm}>
+                      <Pencil size={14} />
+                    </button>
+                  </Link>
+                  <button
+                    type="button"
+                    style={{
+                      ...iconBtnSm,
+                      opacity: archivingId === p.id ? 0.45 : 1,
+                      cursor:
+                        archivingId === p.id ? 'not-allowed' : 'pointer',
+                    }}
+                    aria-label={`Archive ${p.name}`}
+                    title="Archive"
+                    disabled={archivingId === p.id}
+                    onClick={() => onArchive?.(p)}
+                  >
+                    <Archive size={14} />
                   </button>
                 </div>
               </div>

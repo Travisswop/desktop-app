@@ -150,6 +150,8 @@ interface CartContextType {
   state: CartState;
   dispatch: React.Dispatch<CartAction>;
   subtotal: number;
+  shippingCost: number;
+  totalCost: number;
   itemCount: number;
   sellerId: string | null;
   hasPhygitalProducts: boolean;
@@ -183,6 +185,24 @@ export const CartProvider: React.FC<{
         total + (item.nftTemplate?.price || 0) * item.quantity,
       0
     ) || 0;
+
+  const shippingCost =
+    state.items?.reduce((total, item) => {
+      const itemShippingCost = Number(
+        item.nftTemplate?.shippingCost || 0
+      );
+
+      if (
+        !item.nftTemplate?.shippingRequired ||
+        itemShippingCost <= 0
+      ) {
+        return total;
+      }
+
+      return total + itemShippingCost * item.quantity;
+    }, 0) || 0;
+
+  const totalCost = subtotal + shippingCost;
 
   const itemCount =
     state.items?.reduce((total, item) => total + item.quantity, 0) ||
@@ -291,6 +311,8 @@ export const CartProvider: React.FC<{
         state,
         dispatch,
         subtotal,
+        shippingCost,
+        totalCost,
         itemCount,
         sellerId,
         hasPhygitalProducts,
