@@ -7,7 +7,9 @@ import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
+  ExternalLink,
   Loader2,
+  ShieldCheck,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
@@ -39,6 +41,19 @@ type PaymentShippingProps = {
   orderId?: string | null;
 };
 
+const ink = '#0a0a0c';
+const muted = '#6e6e76';
+const muted2 = '#a1a1a8';
+const hair = 'rgba(0,0,0,0.06)';
+const hair2 = 'rgba(0,0,0,0.04)';
+const posGreen = '#19a974';
+const posGreenSoft = 'rgba(25,169,116,0.1)';
+const negRed = '#e5484d';
+const negRedSoft = 'rgba(229,72,77,0.08)';
+const cardShadow =
+  '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)';
+const mono = 'var(--font-jetbrains-mono), ui-monospace, monospace';
+
 const formatCurrency = (value: number) =>
   `${Number(value || 0).toFixed(2)} USDC`;
 
@@ -50,18 +65,15 @@ const formatTokenAmount = (amount: string | number | null | undefined) => {
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
     return '0';
   }
-
   return numericAmount.toFixed(4);
 };
 
 const base64ToUint8Array = (value: string) => {
   const binary = window.atob(value);
   const bytes = new Uint8Array(binary.length);
-
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);
   }
-
   return bytes;
 };
 
@@ -70,11 +82,9 @@ const uint8ArrayToBase64 = (value: Uint8Array) => {
   value.forEach((byte) => {
     binary += String.fromCharCode(byte);
   });
-
   return window.btoa(binary);
 };
 
-// Add the helper function to clear cart from localStorage
 const clearCartFromLocalStorage = (username: string) => {
   if (typeof window !== 'undefined' && username) {
     const storageKey = `marketplace-cart-${username}`;
@@ -101,14 +111,11 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
 
-  // Privy v3 Solana wallet hooks
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
 
-  // Find the first Solana wallet with a valid address
   const selectedSolanaWallet = useMemo(() => {
     if (!solanaReady || !directSolanaWallets.length) return undefined;
-    // Find the first wallet with a valid address
     const walletWithAddress = directSolanaWallets.find(
       (w) => w.address && w.address.length > 0
     );
@@ -123,41 +130,38 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
   const sellerId = cartItems[0]?.sellerId;
   const firstItemName = cartItems[0]?.nftTemplate?.name || 'Order';
   const productLabel =
-    cartItems.length > 1 ? `${firstItemName} +${cartItems.length - 1}` : firstItemName;
+    cartItems.length > 1
+      ? `${firstItemName} +${cartItems.length - 1}`
+      : firstItemName;
   const tokenAmount = formatTokenAmount(amountOfToken);
 
   const params = useParams();
   const router = useRouter();
 
-  // Handle username potentially being string or string[]
   let username: string | undefined;
   const usernameParam = params?.username;
   if (Array.isArray(usernameParam)) {
-    username = usernameParam[0]; // Take the first element if it's an array
+    username = usernameParam[0];
   } else {
     username = usernameParam;
   }
 
-  // Loading state derived from transaction stage
   const isLoading =
     transactionStage !== TRANSACTION_STAGES.IDLE &&
     transactionStage !== TRANSACTION_STAGES.COMPLETED &&
     transactionStage !== TRANSACTION_STAGES.FAILED;
 
-  // Auto-redirect after successful transaction
   useEffect(() => {
     let redirectTimer: string | number | NodeJS.Timeout | undefined;
     if (transactionStage === TRANSACTION_STAGES.COMPLETED) {
-      // Clear the cart when transaction is completed
       dispatch({ type: 'CLEAR_CART' });
       if (username) {
-        // Check if username is defined (now it should be string | undefined)
         clearCartFromLocalStorage(username);
       }
 
       if (accessToken && username) {
-        clearUserCart(accessToken, username, sellerId).catch((error) => {
-          console.error('Failed to clear server cart:', error);
+        clearUserCart(accessToken, username, sellerId).catch((err) => {
+          console.error('Failed to clear server cart:', err);
         });
       }
 
@@ -165,27 +169,34 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
         const query = new URLSearchParams();
         if (orderId) query.set('orderId', orderId);
         if (username) {
-          // Check if username is defined before adding to URL
           query.set('username', username);
         }
         router.push(`/payment-success?${query.toString()}`);
-      }, 3000); // Give user time to see success message
+      }, 3000);
     }
     return () => clearTimeout(redirectTimer);
-  }, [transactionStage, router, username, orderId, dispatch, accessToken, sellerId]); // Ensure username is in dependency array
+  }, [
+    transactionStage,
+    router,
+    username,
+    orderId,
+    dispatch,
+    accessToken,
+    sellerId,
+  ]);
 
   const getStageMessage = () => {
     switch (transactionStage) {
       case TRANSACTION_STAGES.INITIATING:
-        return 'Preparing transaction...';
+        return 'Preparing transaction…';
       case TRANSACTION_STAGES.PROCESSING:
-        return 'Building transaction...';
+        return 'Building transaction…';
       case TRANSACTION_STAGES.SIGNING:
-        return 'Waiting for wallet signature...';
+        return 'Waiting for wallet signature…';
       case TRANSACTION_STAGES.CONFIRMING:
-        return 'Confirming transaction on blockchain...';
+        return 'Confirming on Solana…';
       case TRANSACTION_STAGES.COMPLETED:
-        return 'Transaction completed successfully!';
+        return 'Transaction completed';
       case TRANSACTION_STAGES.FAILED:
         return error || 'Transaction failed. Please try again.';
       default:
@@ -199,28 +210,28 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
     setTransactionStage(TRANSACTION_STAGES.INITIATING);
 
     try {
-      // INITIATING: validate prerequisites
       if (!selectedSolanaWallet) {
         throw new Error('Solana wallet not found. Please connect your wallet.');
       }
-
       if (!selectedSolanaWallet.address) {
-        throw new Error('Solana wallet address is not available. Please refresh and try again.');
+        throw new Error(
+          'Solana wallet address is not available. Please refresh and try again.'
+        );
       }
-
       if (!orderId) {
         throw new Error('Order not created. Please go back and try again.');
       }
-
       if (!accessToken) {
-        throw new Error('Authentication required. Please log in and try again.');
+        throw new Error(
+          'Authentication required. Please log in and try again.'
+        );
       }
-
       if (Number(tokenAmount) <= 0) {
-        throw new Error('Token amount is unavailable. Please choose another asset.');
+        throw new Error(
+          'Token amount is unavailable. Please choose another asset.'
+        );
       }
 
-      // PROCESSING: backend builds the transaction
       setTransactionStage(TRANSACTION_STAGES.PROCESSING);
       const { serializedTransaction } = await prepareTransaction(
         orderId,
@@ -233,13 +244,11 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
         accessToken
       );
 
-      // SIGNING: frontend signs only (no broadcast)
       setTransactionStage(TRANSACTION_STAGES.SIGNING);
       const signResult = await selectedSolanaWallet.signTransaction({
         transaction: base64ToUint8Array(serializedTransaction),
       });
 
-      // CONFIRMING: backend broadcasts, confirms, validates, and completes order
       setTransactionStage(TRANSACTION_STAGES.CONFIRMING);
       const result = await submitTransaction(
         orderId,
@@ -266,166 +275,489 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
     }
   };
 
-  const renderTransactionStatus = () => {
-    if (transactionStage === TRANSACTION_STAGES.IDLE) return null;
+  const tokenSymbol = selectedToken?.symbol || 'SOL';
+  const stageDone = transactionStage === TRANSACTION_STAGES.COMPLETED;
+  const stageFailed = transactionStage === TRANSACTION_STAGES.FAILED;
 
-    return (
-      <div
-        className={`mt-4 p-4 rounded-xl flex items-start gap-3 text-start ${
-          transactionStage === TRANSACTION_STAGES.COMPLETED
-            ? 'bg-green-50 border border-green-100'
-            : transactionStage === TRANSACTION_STAGES.FAILED
-            ? 'bg-red-50 border border-red-100'
-            : 'bg-blue-50 border border-blue-100'
-        }`}
-      >
-        {transactionStage === TRANSACTION_STAGES.COMPLETED ? (
-          <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-        ) : transactionStage === TRANSACTION_STAGES.FAILED ? (
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-        ) : (
-          <Loader2 className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5 animate-spin" />
-        )}
-        <div
-          className={`text-sm ${
-            transactionStage === TRANSACTION_STAGES.COMPLETED
-              ? 'text-green-700'
-              : transactionStage === TRANSACTION_STAGES.FAILED
-              ? 'text-red-700'
-              : 'text-blue-700'
-          }`}
-        >
-          <p className="font-medium">{getStageMessage()}</p>
-          {transactionHash && (
-            <p className="mt-1 text-xs">
-              Transaction hash:{' '}
-              {truncateWalletAddress(transactionHash)}
-              <a
-                href={`https://solscan.io/tx/${transactionHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-1 text-blue-600 hover:underline inline-flex items-center"
-              >
-                View <ArrowRight className="w-3 h-3 ml-0.5" />
-              </a>
-            </p>
-          )}
-          {transactionStage === TRANSACTION_STAGES.COMPLETED && (
-            <p className="mt-1 text-xs animate-pulse">
-              Redirecting you shortly...
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  };
+  const stageOrder = [
+    TRANSACTION_STAGES.INITIATING,
+    TRANSACTION_STAGES.PROCESSING,
+    TRANSACTION_STAGES.SIGNING,
+    TRANSACTION_STAGES.CONFIRMING,
+    TRANSACTION_STAGES.COMPLETED,
+  ];
+  const stageIndex = stageOrder.indexOf(transactionStage);
+  const stageProgress =
+    transactionStage === TRANSACTION_STAGES.IDLE
+      ? 0
+      : ((stageIndex + 1) / stageOrder.length) * 100;
+
+  const summary = [
+    { label: 'Product', value: productLabel, mono: false },
+    {
+      label: 'Wallet',
+      value: selectedSolanaWallet?.address
+        ? truncateWalletAddress(selectedSolanaWallet.address)
+        : 'Not selected',
+      mono: true,
+    },
+    {
+      label: 'Network',
+      value: formatNetwork(selectedToken?.chain),
+      mono: false,
+    },
+    {
+      label: 'Network fee',
+      value: 'Estimated at signing',
+      mono: false,
+      muted: true,
+    },
+    { label: 'Subtotal', value: formatCurrency(subtotal), mono: true },
+    { label: 'Shipping', value: formatCurrency(shippingCost), mono: true },
+  ];
 
   return (
-    <div className="flex flex-col px-5 pb-5">
-      <div className="flex items-center justify-between pb-4 pt-1">
-        <div className="flex min-w-0 items-center gap-3">
-          <Image
-            src={'/astro-agent.png'}
-            alt="astro"
-            width={120}
-            height={90}
-            className="h-auto w-11 shrink-0"
-          />
-          <div className="flex min-w-0 flex-col items-start">
-            <p className="text-base font-semibold leading-5 text-gray-950">
-              Review
-            </p>
-            <p className="truncate text-sm font-medium text-gray-500">
-              {itemCount} {itemCount === 1 ? 'item' : 'items'} from{' '}
-              <span className="text-sky-600">
-                {username || 'this store'}
-              </span>
-            </p>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+        padding: 18,
+        fontFamily:
+          'var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+        color: ink,
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <Image
+          src="/astro-agent.png"
+          alt="astro"
+          width={48}
+          height={48}
+          style={{
+            width: 44,
+            height: 44,
+            objectFit: 'contain',
+            flexShrink: 0,
+          }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: muted,
+              letterSpacing: 1.2,
+              textTransform: 'uppercase',
+              fontFamily: mono,
+              marginBottom: 2,
+            }}
+          >
+            Review &amp; confirm
+          </div>
+          <div
+            style={{
+              fontSize: 17,
+              fontWeight: 600,
+              letterSpacing: -0.3,
+              color: ink,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {itemCount} {itemCount === 1 ? 'item' : 'items'}
+            {username && (
+              <>
+                {' '}
+                from{' '}
+                <span style={{ color: muted, fontWeight: 500 }}>@{username}</span>
+              </>
+            )}
           </div>
         </div>
-        <h4 className="shrink-0 text-base font-bold text-gray-700">
-          {selectedToken?.symbol || 'SOL'}
-        </h4>
       </div>
 
-      <div className="-mx-5 flex flex-col items-start bg-gray-200 px-5 py-4">
-        <p className="text-sm font-semibold text-gray-500">
-          Asset Change (estimate)
-        </p>
-        <p className="mt-1 text-base font-bold text-gray-950">
-          - <span className="text-red-500">{tokenAmount} </span>
-          {selectedToken?.symbol || 'SOL'}
-        </p>
-      </div>
-
-      <div className="space-y-3 py-4">
-        {[
-          ['Product', productLabel],
-          [
-            'Wallet Used',
-            selectedSolanaWallet?.address
-              ? truncateWalletAddress(selectedSolanaWallet.address)
-              : 'Not selected',
-          ],
-          ['Network', formatNetwork(selectedToken?.chain)],
-          ['Network Fee', 'Estimated at signing'],
-          ['Subtotal', formatCurrency(subtotal)],
-          ['Shipping Cost', formatCurrency(shippingCost)],
-          ['Total Cost', formatCurrency(totalCost)],
-        ].map(([label, value]) => (
+      {/* Charge callout */}
+      <div
+        style={{
+          background: '#fff',
+          border: `1px solid ${hair}`,
+          borderRadius: 18,
+          boxShadow: cardShadow,
+          padding: '16px 18px',
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div>
           <div
-            key={label}
-            className="flex items-center justify-between gap-4 text-[15px]"
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: muted,
+              letterSpacing: 1.2,
+              textTransform: 'uppercase',
+              fontFamily: mono,
+              marginBottom: 6,
+            }}
           >
-            <p className="shrink-0 font-semibold text-gray-950">{label}</p>
-            <p className="min-w-0 truncate text-right font-semibold text-gray-500">
-              {value}
-            </p>
+            You&apos;ll send
           </div>
-        ))}
+          <div
+            style={{
+              fontSize: 28,
+              fontWeight: 600,
+              letterSpacing: -0.8,
+              color: ink,
+              fontFamily: mono,
+              lineHeight: 1,
+            }}
+          >
+            {tokenAmount}{' '}
+            <span style={{ fontSize: 13, color: muted2, fontWeight: 500 }}>
+              {tokenSymbol}
+            </span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: muted,
+              letterSpacing: 1.2,
+              textTransform: 'uppercase',
+              fontFamily: mono,
+              marginBottom: 6,
+            }}
+          >
+            Total
+          </div>
+          <div
+            style={{
+              fontSize: 16,
+              fontWeight: 600,
+              fontFamily: mono,
+              color: ink,
+            }}
+          >
+            {formatCurrency(totalCost)}
+          </div>
+        </div>
       </div>
 
-      {renderTransactionStatus()}
+      {/* Order summary */}
+      <div
+        style={{
+          background: '#fff',
+          border: `1px solid ${hair}`,
+          borderRadius: 18,
+          boxShadow: cardShadow,
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '12px 18px',
+            borderBottom: `1px solid ${hair2}`,
+            fontSize: 11,
+            fontWeight: 700,
+            color: muted,
+            letterSpacing: 1.2,
+            textTransform: 'uppercase',
+            fontFamily: mono,
+          }}
+        >
+          Order summary
+        </div>
+        <div>
+          {summary.map((row, i) => (
+            <div
+              key={row.label}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                padding: '11px 18px',
+                borderBottom:
+                  i < summary.length - 1 ? `1px solid ${hair2}` : 'none',
+                fontSize: 13,
+              }}
+            >
+              <span style={{ color: muted, fontWeight: 500 }}>
+                {row.label}
+              </span>
+              <span
+                style={{
+                  color: row.muted ? muted2 : ink,
+                  fontWeight: 600,
+                  fontFamily: row.mono ? mono : 'inherit',
+                  textAlign: 'right',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  minWidth: 0,
+                }}
+              >
+                {row.value}
+              </span>
+            </div>
+          ))}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              padding: '14px 18px',
+              background: '#fafafa',
+            }}
+          >
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: ink,
+              }}
+            >
+              Total
+            </span>
+            <span
+              style={{
+                fontSize: 16,
+                fontWeight: 600,
+                fontFamily: mono,
+                color: ink,
+                letterSpacing: -0.3,
+              }}
+            >
+              {formatCurrency(totalCost)}
+            </span>
+          </div>
+        </div>
+      </div>
 
-      {!isLoading &&
-        transactionStage !== TRANSACTION_STAGES.COMPLETED && (
-          <div className="mt-3 flex items-start gap-3 rounded-xl bg-yellow-50 px-4 py-4 text-start">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-            <div className="text-sm font-medium leading-5 text-amber-700">
-              Transactions cannot be reversed after confirmation.
-              Please ensure all details are correct.
+      {/* Status banner */}
+      {transactionStage !== TRANSACTION_STAGES.IDLE && (
+        <div
+          style={{
+            background: stageDone
+              ? posGreenSoft
+              : stageFailed
+              ? negRedSoft
+              : '#fff7e6',
+            border: `1px solid ${
+              stageDone
+                ? 'rgba(25,169,116,0.22)'
+                : stageFailed
+                ? 'rgba(229,72,77,0.22)'
+                : 'rgba(217,119,6,0.22)'
+            }`,
+            borderRadius: 14,
+            padding: '12px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          <div
+            style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}
+          >
+            {stageDone ? (
+              <CheckCircle2
+                size={18}
+                color={posGreen}
+                style={{ marginTop: 1, flexShrink: 0 }}
+              />
+            ) : stageFailed ? (
+              <AlertCircle
+                size={18}
+                color={negRed}
+                style={{ marginTop: 1, flexShrink: 0 }}
+              />
+            ) : (
+              <Loader2
+                size={18}
+                color="#b45309"
+                style={{ marginTop: 1, flexShrink: 0 }}
+                className="animate-spin"
+              />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: stageDone
+                    ? '#0d8b3e'
+                    : stageFailed
+                    ? '#b91c1c'
+                    : '#b45309',
+                }}
+              >
+                {getStageMessage()}
+              </div>
+              {transactionHash && (
+                <a
+                  href={`https://solscan.io/tx/${transactionHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    marginTop: 4,
+                    fontSize: 11.5,
+                    color: posGreen,
+                    fontFamily: mono,
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                  }}
+                >
+                  {truncateWalletAddress(transactionHash)}
+                  <ExternalLink size={11} />
+                </a>
+              )}
+              {stageDone && (
+                <div
+                  className="animate-pulse"
+                  style={{
+                    fontSize: 11,
+                    color: '#0d8b3e',
+                    marginTop: 6,
+                  }}
+                >
+                  Redirecting you shortly…
+                </div>
+              )}
             </div>
           </div>
-        )}
 
-      <div className="mt-6 grid grid-cols-2 gap-3">
+          {/* Progress bar */}
+          {!stageFailed && (
+            <div
+              style={{
+                height: 3,
+                width: '100%',
+                background: 'rgba(0,0,0,0.05)',
+                borderRadius: 999,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  width: `${stageProgress}%`,
+                  height: '100%',
+                  background: stageDone ? posGreen : '#d97706',
+                  transition: 'width .35s ease',
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Irreversible warning */}
+      {!isLoading && !stageDone && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10,
+            background: '#fffaf0',
+            border: '1px solid rgba(217,119,6,0.18)',
+            borderRadius: 14,
+            padding: '12px 14px',
+          }}
+        >
+          <ShieldCheck
+            size={18}
+            color="#b45309"
+            style={{ marginTop: 1, flexShrink: 0 }}
+          />
+          <div style={{ fontSize: 12.5, color: '#925a13', lineHeight: 1.5 }}>
+            Transactions on Solana are final — there&apos;s no chargeback.
+            Confirm details before signing.
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 10,
+          marginTop: 4,
+        }}
+      >
         <button
           type="button"
           onClick={() => setSelectedToken(null)}
           disabled={isLoading}
-          className="h-10 rounded-xl border-2 border-slate-300 bg-white text-sm font-bold text-gray-600 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+          style={{
+            height: 44,
+            borderRadius: 12,
+            background: '#fff',
+            border: `1px solid ${hair}`,
+            color: ink,
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit',
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: -0.2,
+            opacity: isLoading ? 0.55 : 1,
+          }}
         >
           Cancel
         </button>
-
         <button
           type="button"
           onClick={handleSendConfirm}
-          disabled={
-            isLoading ||
-            transactionStage === TRANSACTION_STAGES.COMPLETED
-          }
-          className="flex h-10 items-center justify-center rounded-xl bg-black text-sm font-bold text-white transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isLoading || stageDone}
+          style={{
+            height: 44,
+            borderRadius: 12,
+            background: ink,
+            border: 0,
+            color: '#fff',
+            cursor: isLoading || stageDone ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit',
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: -0.2,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            opacity: isLoading || stageDone ? 0.7 : 1,
+            transition: 'opacity .15s',
+          }}
         >
           {isLoading ? (
-            <span className="flex items-center justify-center">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
-            </span>
-          ) : transactionStage === TRANSACTION_STAGES.COMPLETED ? (
-            'Completed!'
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              Processing…
+            </>
+          ) : stageDone ? (
+            <>
+              <CheckCircle2 size={14} />
+              Completed
+            </>
           ) : (
-            'Confirm'
+            <>
+              Confirm &amp; sign
+              <ArrowRight size={14} />
+            </>
           )}
         </button>
       </div>

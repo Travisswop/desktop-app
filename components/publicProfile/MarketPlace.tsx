@@ -14,7 +14,11 @@ import {
 } from 'lucide-react';
 
 import { addProductToCart } from '@/actions/addToCartActions';
-import toast from 'react-hot-toast';
+// Sonner is mounted in layout.tsx with richColors. We use it for the
+// add-to-cart surface so toasts can name the item, show selected options
+// and the line total — much more informative than the previous generic
+// "Item added to cart" string.
+import { toast as sonner } from 'sonner';
 import { useCart } from '@/app/(public-profile)/sp/[username]/cart/context/CartContext';
 import { useUser } from '@/lib/UserContext';
 
@@ -206,7 +210,9 @@ const MarketPlace = ({
 
   const handleAddToCart = async () => {
     if (isSoldOut) {
-      toast.error('This product is out of stock.');
+      sonner.warning('Out of stock', {
+        description: `${itemName} isn't available right now. Check back soon.`,
+      });
       return;
     }
 
@@ -236,11 +242,28 @@ const MarketPlace = ({
       },
     };
 
+    // Build a contextual description: selected options + subtotal so the
+    // shopper sees exactly what was added without opening the cart.
+    const optionsSummary = Object.entries(selectedOptions || {})
+      .map(([name, value]) => `${name}: ${value}`)
+      .join(' · ');
+    const lineTotal = (Number(itemPrice) || 0) * quantity;
+    const subtotalLabel = `Subtotal $${lineTotal.toFixed(2)}`;
+    const description = optionsSummary
+      ? `${optionsSummary} · ${subtotalLabel}`
+      : subtotalLabel;
+    const title = `${quantity} × ${itemName} added`;
+
     if (!accessToken) {
       dispatch({ type: 'ADD_ITEM', payload: cartItem });
       setAddToCartLoading(false);
       setIsDetailOpen(false);
-      toast.success('Item added to cart (offline)');
+      sonner.success(title, {
+        description: optionsSummary
+          ? `${description} · Sign in to sync your cart across devices.`
+          : `${subtotalLabel} · Sign in to sync your cart across devices.`,
+        duration: 3500,
+      });
       return;
     }
 
@@ -263,7 +286,10 @@ const MarketPlace = ({
       if (response.state === 'success') {
         dispatch({ type: 'ADD_ITEM', payload: cartItem });
         setIsDetailOpen(false);
-        toast.success('Item added to cart');
+        sonner.success(title, {
+          description,
+          duration: 3000,
+        });
       } else {
         throw new Error(
           response.message || 'Failed to add item to cart',
@@ -271,11 +297,12 @@ const MarketPlace = ({
       }
     } catch (error) {
       console.error('Error adding to cart:', error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to add item to cart. Please try again.',
-      );
+      sonner.error("Couldn't add to cart", {
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Something went wrong while adding the item. Please try again.',
+      });
     } finally {
       setAddToCartLoading(false);
     }
