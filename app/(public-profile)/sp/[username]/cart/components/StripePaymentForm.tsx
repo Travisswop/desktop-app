@@ -15,6 +15,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { updateOrderPayment } from '@/actions/orderActions';
 import toast from 'react-hot-toast';
 import { useCart } from '../context/CartContext';
+import { clearUserCart } from '@/actions/addToCartActions';
 
 import { StripePaymentFormProps } from './types';
 
@@ -58,6 +59,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     }),
     [subtotal, safeCartItems]
   );
+  const sellerId = safeCartItems[0]?.sellerId;
 
   useEffect(() => {
     if (!stripe || !clientSecret) return;
@@ -73,6 +75,9 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
             // Clear cart on successful payment
             dispatch({ type: 'CLEAR_CART' });
             clearCartFromLocalStorage(username);
+            clearUserCart(accessToken, username, sellerId).catch((error) => {
+              console.error('Failed to clear server cart:', error);
+            });
             break;
           case 'processing':
             setMessage('Your payment is processing.');
@@ -188,6 +193,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         // Clear cart on successful payment
         dispatch({ type: 'CLEAR_CART' });
         clearCartFromLocalStorage(username);
+        await clearUserCart(accessToken, username, sellerId);
 
         setIsPaymentSheetOpen(false);
         redirectToResultPage(true, paymentIntent.id);

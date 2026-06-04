@@ -175,3 +175,38 @@ export async function deleteCartItem(
     throw new Error(errorMessage);
   }
 }
+
+export async function clearUserCart(
+  token: string,
+  userName: string,
+  sellerId?: string
+) {
+  if (!token) return { state: 'skipped' };
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/orders/clearCart`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sellerId }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to clear cart');
+    }
+
+    const data = await response.json();
+    revalidatePath(`/sp/${userName}/cart`);
+    return data;
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to clear cart';
+    throw new Error(errorMessage);
+  }
+}

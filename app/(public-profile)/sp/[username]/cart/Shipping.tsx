@@ -14,6 +14,7 @@ import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useCart } from './context/CartContext';
 import { CartItem } from './components/types';
+import { clearUserCart } from '@/actions/addToCartActions';
 
 const TRANSACTION_STAGES = {
   IDLE: 'idle',
@@ -119,6 +120,7 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
       cartItems.reduce((total, item) => total + (item.quantity || 0), 0),
     [cartItems]
   );
+  const sellerId = cartItems[0]?.sellerId;
   const firstItemName = cartItems[0]?.nftTemplate?.name || 'Order';
   const productLabel =
     cartItems.length > 1 ? `${firstItemName} +${cartItems.length - 1}` : firstItemName;
@@ -153,6 +155,12 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
         clearCartFromLocalStorage(username);
       }
 
+      if (accessToken && username) {
+        clearUserCart(accessToken, username, sellerId).catch((error) => {
+          console.error('Failed to clear server cart:', error);
+        });
+      }
+
       redirectTimer = setTimeout(() => {
         const query = new URLSearchParams();
         if (orderId) query.set('orderId', orderId);
@@ -164,7 +172,7 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
       }, 3000); // Give user time to see success message
     }
     return () => clearTimeout(redirectTimer);
-  }, [transactionStage, router, username, orderId, dispatch]); // Ensure username is in dependency array
+  }, [transactionStage, router, username, orderId, dispatch, accessToken, sellerId]); // Ensure username is in dependency array
 
   const getStageMessage = () => {
     switch (transactionStage) {
