@@ -1,5 +1,8 @@
 'use client';
-import { prepareTransaction, submitTransaction } from '@/actions/orderActions';
+import {
+  prepareTransaction,
+  submitTransaction,
+} from '@/actions/orderActions';
 import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
 import { useUser } from '@/lib/UserContext';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
@@ -60,7 +63,9 @@ const formatCurrency = (value: number) =>
 const formatNetwork = (chain?: string) =>
   chain ? chain.replace(/_/g, ' ').toUpperCase() : 'SOLANA';
 
-const formatTokenAmount = (amount: string | number | null | undefined) => {
+const formatTokenAmount = (
+  amount: string | number | null | undefined,
+) => {
   const numericAmount = Number(amount);
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
     return '0';
@@ -92,6 +97,34 @@ const clearCartFromLocalStorage = (username: string) => {
   }
 };
 
+const getTransactionErrorMessage = (err: unknown) => {
+  const cause =
+    err instanceof Error ? (err as { cause?: unknown }).cause : null;
+  const messages = [
+    err instanceof Error ? err.message : '',
+    cause instanceof Error ? cause.message : '',
+  ].filter(Boolean);
+  const combinedMessage = messages.join(' ').toLowerCase();
+
+  if (
+    combinedMessage.includes('user exited the modal') ||
+    combinedMessage.includes('user rejected') ||
+    combinedMessage.includes('user cancelled') ||
+    combinedMessage.includes('user canceled')
+  ) {
+    return 'Transaction canceled. You closed the wallet before approving, so no funds were moved.';
+  }
+
+  if (combinedMessage.includes('failed to connect to wallet')) {
+    return 'We could not connect to your wallet. Please reopen your wallet and try again.';
+  }
+
+  return (
+    (err instanceof Error && err.message) ||
+    'Failed to process transaction. Please try again.'
+  );
+};
+
 const PaymentShipping: React.FC<PaymentShippingProps> = ({
   selectedToken,
   setSelectedToken,
@@ -105,7 +138,7 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
   const { accessToken } = useUser();
   const { dispatch } = useCart();
   const [transactionStage, setTransactionStage] = useState(
-    TRANSACTION_STAGES.IDLE
+    TRANSACTION_STAGES.IDLE,
   );
   const [orderId] = useState(existingOrderId ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -117,15 +150,18 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
   const selectedSolanaWallet = useMemo(() => {
     if (!solanaReady || !directSolanaWallets.length) return undefined;
     const walletWithAddress = directSolanaWallets.find(
-      (w) => w.address && w.address.length > 0
+      (w) => w.address && w.address.length > 0,
     );
     return walletWithAddress || directSolanaWallets[0];
   }, [solanaReady, directSolanaWallets]);
 
   const itemCount = useMemo(
     () =>
-      cartItems.reduce((total, item) => total + (item.quantity || 0), 0),
-    [cartItems]
+      cartItems.reduce(
+        (total, item) => total + (item.quantity || 0),
+        0,
+      ),
+    [cartItems],
   );
   const sellerId = cartItems[0]?.sellerId;
   const firstItemName = cartItems[0]?.nftTemplate?.name || 'Order';
@@ -160,9 +196,11 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
       }
 
       if (accessToken && username) {
-        clearUserCart(accessToken, username, sellerId).catch((err) => {
-          console.error('Failed to clear server cart:', err);
-        });
+        clearUserCart(accessToken, username, sellerId).catch(
+          (err) => {
+            console.error('Failed to clear server cart:', err);
+          },
+        );
       }
 
       redirectTimer = setTimeout(() => {
@@ -211,24 +249,28 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
 
     try {
       if (!selectedSolanaWallet) {
-        throw new Error('Solana wallet not found. Please connect your wallet.');
+        throw new Error(
+          'Solana wallet not found. Please connect your wallet.',
+        );
       }
       if (!selectedSolanaWallet.address) {
         throw new Error(
-          'Solana wallet address is not available. Please refresh and try again.'
+          'Solana wallet address is not available. Please refresh and try again.',
         );
       }
       if (!orderId) {
-        throw new Error('Order not created. Please go back and try again.');
+        throw new Error(
+          'Order not created. Please go back and try again.',
+        );
       }
       if (!accessToken) {
         throw new Error(
-          'Authentication required. Please log in and try again.'
+          'Authentication required. Please log in and try again.',
         );
       }
       if (Number(tokenAmount) <= 0) {
         throw new Error(
-          'Token amount is unavailable. Please choose another asset.'
+          'Token amount is unavailable. Please choose another asset.',
         );
       }
 
@@ -241,7 +283,7 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
           tokenDecimals: selectedToken?.decimals ?? 9,
           tokenAmount,
         },
-        accessToken
+        accessToken,
       );
 
       setTransactionStage(TRANSACTION_STAGES.SIGNING);
@@ -254,24 +296,23 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
         orderId,
         {
           signedTransaction: uint8ArrayToBase64(
-            signResult.signedTransaction
+            signResult.signedTransaction,
           ),
         },
-        accessToken
+        accessToken,
       );
 
       if (!result.success) {
-        throw new Error(result.error || 'Transaction submission failed');
+        throw new Error(
+          result.error || 'Transaction submission failed',
+        );
       }
 
       setTransactionHash(result.transactionHash || '');
       setTransactionStage(TRANSACTION_STAGES.COMPLETED);
     } catch (err) {
-      console.error('Error processing transaction:', err);
       setTransactionStage(TRANSACTION_STAGES.FAILED);
-      setError(
-        err instanceof Error ? err.message : 'Failed to process transaction'
-      );
+      setError(getTransactionErrorMessage(err));
     }
   };
 
@@ -312,8 +353,16 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
       mono: false,
       muted: true,
     },
-    { label: 'Subtotal', value: formatCurrency(subtotal), mono: true },
-    { label: 'Shipping', value: formatCurrency(shippingCost), mono: true },
+    {
+      label: 'Subtotal',
+      value: formatCurrency(subtotal),
+      mono: true,
+    },
+    {
+      label: 'Shipping',
+      value: formatCurrency(shippingCost),
+      mono: true,
+    },
   ];
 
   return (
@@ -378,7 +427,9 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
               <>
                 {' '}
                 from{' '}
-                <span style={{ color: muted, fontWeight: 500 }}>@{username}</span>
+                <span style={{ color: muted, fontWeight: 500 }}>
+                  @{username}
+                </span>
               </>
             )}
           </div>
@@ -423,7 +474,9 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
             }}
           >
             {tokenAmount}{' '}
-            <span style={{ fontSize: 13, color: muted2, fontWeight: 500 }}>
+            <span
+              style={{ fontSize: 13, color: muted2, fontWeight: 500 }}
+            >
               {tokenSymbol}
             </span>
           </div>
@@ -490,7 +543,9 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
                 gap: 12,
                 padding: '11px 18px',
                 borderBottom:
-                  i < summary.length - 1 ? `1px solid ${hair2}` : 'none',
+                  i < summary.length - 1
+                    ? `1px solid ${hair2}`
+                    : 'none',
                 fontSize: 13,
               }}
             >
@@ -553,14 +608,14 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
             background: stageDone
               ? posGreenSoft
               : stageFailed
-              ? negRedSoft
-              : '#fff7e6',
+                ? negRedSoft
+                : '#fff7e6',
             border: `1px solid ${
               stageDone
                 ? 'rgba(25,169,116,0.22)'
                 : stageFailed
-                ? 'rgba(229,72,77,0.22)'
-                : 'rgba(217,119,6,0.22)'
+                  ? 'rgba(229,72,77,0.22)'
+                  : 'rgba(217,119,6,0.22)'
             }`,
             borderRadius: 14,
             padding: '12px 14px',
@@ -570,7 +625,11 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
           }}
         >
           <div
-            style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+            }}
           >
             {stageDone ? (
               <CheckCircle2
@@ -600,8 +659,8 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
                   color: stageDone
                     ? '#0d8b3e'
                     : stageFailed
-                    ? '#b91c1c'
-                    : '#b45309',
+                      ? '#b91c1c'
+                      : '#b45309',
                 }}
               >
                 {getStageMessage()}
@@ -684,9 +743,15 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
             color="#b45309"
             style={{ marginTop: 1, flexShrink: 0 }}
           />
-          <div style={{ fontSize: 12.5, color: '#925a13', lineHeight: 1.5 }}>
-            Transactions on Solana are final — there&apos;s no chargeback.
-            Confirm details before signing.
+          <div
+            style={{
+              fontSize: 12.5,
+              color: '#925a13',
+              lineHeight: 1.5,
+            }}
+          >
+            Transactions on Solana are final — there&apos;s no
+            chargeback. Confirm details before signing.
           </div>
         </div>
       )}
@@ -730,7 +795,8 @@ const PaymentShipping: React.FC<PaymentShippingProps> = ({
             background: ink,
             border: 0,
             color: '#fff',
-            cursor: isLoading || stageDone ? 'not-allowed' : 'pointer',
+            cursor:
+              isLoading || stageDone ? 'not-allowed' : 'pointer',
             fontFamily: 'inherit',
             fontSize: 13,
             fontWeight: 600,

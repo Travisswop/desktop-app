@@ -13,8 +13,6 @@ import {
   usePrivy,
 } from '@privy-io/react-auth';
 import {
-  useWallets as useSolanaWallets,
-  useSignAndSendTransaction,
   useCreateWallet as useSolanaCreateWallet,
 } from '@privy-io/react-auth/solana';
 import Image from 'next/image';
@@ -53,13 +51,6 @@ const Login: React.FC = () => {
   // Custom hooks
   const { isAuthenticated } = useUser();
   const router = useRouter();
-
-  console.log(
-    'isAuthenticated',
-    isAuthenticated,
-    authenticated,
-    ready,
-  );
 
   // State management
   const [loginFlow, setLoginFlow] = useState<LoginFlow>(

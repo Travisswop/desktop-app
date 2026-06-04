@@ -416,7 +416,6 @@ const CartCheckout = () => {
     for (const { field, message } of requiredFields) {
       if (!field || field.trim() === '') {
         setErrorMessage(message);
-        toast.error(message);
         return false;
       }
     }
