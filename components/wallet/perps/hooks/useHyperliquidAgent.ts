@@ -1,7 +1,13 @@
 'use client';
 
 import { useCallback, useState, useRef, useEffect } from 'react';
-import { usePrivy, useWallets, toViemAccount } from '@privy-io/react-auth';
+import {
+  usePrivy,
+  useWallets,
+  toViemAccount,
+  useSignTypedData,
+} from '@privy-io/react-auth';
+import type { SignTypedDataParams } from '@privy-io/react-auth';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import * as hl from '@nktkas/hyperliquid';
 import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
@@ -31,6 +37,17 @@ function deleteAgentKey(masterAddress: string) {
   localStorage.removeItem(agentStorageKey(masterAddress));
 }
 
+function isPrivyEmbeddedWallet(wallet: {
+  walletClientType?: string | null;
+  connectorType?: string | null;
+}) {
+  return (
+    wallet.walletClientType === 'privy' ||
+    wallet.walletClientType === 'privy-v2' ||
+    wallet.connectorType === 'embedded'
+  );
+}
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface AgentState {
@@ -53,6 +70,10 @@ export interface AgentState {
   error: string | null;
 }
 
+interface UseHyperliquidAgentOptions {
+  enabled?: boolean;
+}
+
 // ─── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -62,7 +83,7 @@ export interface AgentState {
  *
  *  ┌──────────────────────────────────────────────────────────────────────┐
  *  │  Master  = selected EVM wallet                                       │
- *  │            Signs approveAgent exactly ONCE (shown in setup modal).   │
+ *  │            Signs approveAgent exactly ONCE from the setup button.     │
  *  │            The HL account address is this wallet's address.          │
  *  │                                                                      │
  *  │  Agent   = Ephemeral local keypair (private key in localStorage)     │
@@ -74,9 +95,12 @@ export interface AgentState {
  *  - If the selected wallet disappears (session refresh), clients are reset.
  *  - When it returns, the stored agent key is reused — no re-approval needed.
  */
-export function useHyperliquidAgent() {
+export function useHyperliquidAgent({
+  enabled = true,
+}: UseHyperliquidAgentOptions = {}) {
   const { ready, authenticated, user } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
+  const { signTypedData } = useSignTypedData();
 
   const [state, setState] = useState<AgentState>({
     agentClient: null,
@@ -96,7 +120,7 @@ export function useHyperliquidAgent() {
 
   const _init = useCallback(
     async (silent = false): Promise<hl.ExchangeClient | null> => {
-      if (!ready || !walletsReady) return null;
+      if (!enabled || !ready || !walletsReady) return null;
       if (agentClientRef.current) return agentClientRef.current;
 
       setState((prev) => ({
@@ -149,7 +173,26 @@ export function useHyperliquidAgent() {
         // ── Master client (Privy wallet) ───────────────────────────────────
         // Only used for approveAgent. All trading goes through agentClient.
         const masterViemAccount = await toViemAccount({ wallet: masterWallet });
-        const masterClient = new hl.ExchangeClient({ wallet: masterViemAccount, transport });
+        const masterSigningAccount = isPrivyEmbeddedWallet(masterWallet)
+          ? ({
+              ...masterViemAccount,
+              signTypedData: async (
+                parameters: Parameters<
+                  typeof masterViemAccount.signTypedData
+                >[0]
+              ) => {
+                const { signature } = await signTypedData(
+                  parameters as SignTypedDataParams,
+                  {
+                    address: masterWallet.address,
+                    uiOptions: { showWalletUIs: false },
+                  }
+                );
+                return signature as `0x${string}`;
+              },
+            } as typeof masterViemAccount)
+          : masterViemAccount;
+        const masterClient = new hl.ExchangeClient({ wallet: masterSigningAccount, transport });
 
         // ── Approve agent ─────────────────────────────────────────────────
         // ONLY when we just generated a fresh key. Re-approving an existing
@@ -157,10 +200,8 @@ export function useHyperliquidAgent() {
         // an already-approved agent stays valid until explicitly revoked.
         if (createdNewKey) {
           await masterClient.approveAgent({
-            hyperliquidChain: HL_IS_TESTNET ? 'Testnet' : 'Mainnet',
             agentAddress: agentAccount.address,
             agentName: 'Swop',
-            nonce: BigInt(Date.now()),
           });
         }
 
@@ -201,7 +242,7 @@ export function useHyperliquidAgent() {
         return null;
       }
     },
-    [ready, walletsReady, wallets, user?.wallet?.address],
+    [enabled, ready, walletsReady, wallets, user?.wallet?.address, signTypedData],
   );
 
   // ─── Public: manual initialization ────────────────────────────────────────
@@ -211,7 +252,7 @@ export function useHyperliquidAgent() {
   // ─── Disconnect / reconnect detection ─────────────────────────────────────
 
   useEffect(() => {
-    if (!walletsReady) return;
+    if (!enabled || !walletsReady) return;
 
     const masterWallet = selectPreferredWallet(
       wallets,
@@ -243,7 +284,7 @@ export function useHyperliquidAgent() {
     ) {
       _init(true);
     }
-  }, [wallets, walletsReady, user?.wallet?.address, _init]);
+  }, [enabled, wallets, walletsReady, user?.wallet?.address, _init]);
 
   // ─── Clear on Privy logout ─────────────────────────────────────────────────
 

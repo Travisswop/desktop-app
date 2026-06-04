@@ -38,11 +38,34 @@ export interface PerpsPositionFeedContent {
   liquidatedAt?: string;
 }
 
+export interface PerpsLiquidationFillSnapshot {
+  coin: string;
+  px?: number;
+  markPx?: number;
+  closedPnl?: number;
+  feeUsd?: number;
+  orderId?: string;
+  timestamp?: string;
+}
+
 interface UpsertPerpsPositionFeedParams {
   token: string | null | undefined;
   userId: string | null | undefined;
   smartsiteId: string | null | undefined;
   content: PerpsPositionFeedContent;
+}
+
+interface ReconcilePerpsPositionFeedParams {
+  token: string | null | undefined;
+  userId: string | null | undefined;
+  smartsiteId: string | null | undefined;
+  masterAddress: string | null | undefined;
+  activePositionKeys: string[];
+  markPricesByCoin?: Record<string, string | number | null | undefined>;
+  liquidationsByCoin?: Record<
+    string,
+    PerpsLiquidationFillSnapshot | null | undefined
+  >;
 }
 
 export function buildPerpsPositionKey({
@@ -107,6 +130,64 @@ export async function upsertPerpsPositionFeed({
   }
 
   useModalStore.getState().triggerFeedRefetch();
+
+  return data;
+}
+
+export async function reconcilePerpsPositionFeed({
+  token,
+  userId,
+  smartsiteId,
+  masterAddress,
+  activePositionKeys,
+  markPricesByCoin,
+  liquidationsByCoin,
+}: ReconcilePerpsPositionFeedParams) {
+  if (!token || !userId || !smartsiteId || !masterAddress) {
+    const missingFields = [
+      !token ? 'token' : null,
+      !userId ? 'userId' : null,
+      !smartsiteId ? 'smartsiteId' : null,
+      !masterAddress ? 'masterAddress' : null,
+    ].filter(Boolean);
+
+    console.warn(
+      `Skipping perps feed reconciliation; missing ${missingFields.join(', ')}`,
+    );
+    return null;
+  }
+
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/perps-position/reconcile`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        smartsiteId,
+        userId,
+        masterAddress,
+        activePositionKeys,
+        markPricesByCoin,
+        liquidationsByCoin,
+        updatedAt: new Date().toISOString(),
+      }),
+    },
+  );
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+        `Failed to reconcile perps feed cards (${response.status})`,
+    );
+  }
+
+  if (data?.data?.updatedCount > 0) {
+    useModalStore.getState().triggerFeedRefetch();
+  }
 
   return data;
 }

@@ -73,13 +73,17 @@ const useAuthData = (userId?: string) => {
 };
 
 // Custom hook for derived auth values
-const useEffectiveAuth = (authData: AuthData | null, user: any) => {
+const useEffectiveAuth = (
+  authData: AuthData | null,
+  user: any,
+  userAccessToken?: string | null,
+) => {
   return useMemo(
     () => ({
       userId: authData?.userId || user?._id,
-      accessToken: authData?.accessToken,
+      accessToken: authData?.accessToken || userAccessToken,
     }),
-    [authData?.userId, authData?.accessToken, user?._id],
+    [authData?.userId, authData?.accessToken, user?._id, userAccessToken],
   );
 };
 
@@ -313,10 +317,14 @@ const MainContentInner = memo(
 MainContentInner.displayName = "MainContentInner";
 
 const FeedMain = memo(() => {
-  const { user, loading: userLoading } = useUser();
+  const { user, accessToken: userAccessToken, loading: userLoading } = useUser();
   const searchParams = useSearchParams();
   const authData = useAuthData(user?._id);
-  const { userId, accessToken } = useEffectiveAuth(authData, user);
+  const { userId, accessToken } = useEffectiveAuth(
+    authData,
+    user,
+    userAccessToken,
+  );
   const primaryMicrositeImg = usePrimaryMicrositeImg(user?.microsites);
 
   const tab = useMemo(() => searchParams?.get("tab") || "feed", [searchParams]);

@@ -55,10 +55,12 @@ import {
   Bot,
   ChevronDown,
   Check,
+  Clock3,
   Copy,
   ExternalLink,
-  Info,
+  Grid2X2,
   Loader2,
+  Menu,
   Plus,
   QrCode,
   Radio,
@@ -852,7 +854,7 @@ interface AstroConsoleData {
 }
 
 const AGENT_TERMINAL_BUBBLE_CLASS =
-  'rounded-[14px] border border-white/[0.07] bg-[#15171d] px-4 py-2 text-sm leading-relaxed text-[#eceef2] shadow-[0_18px_50px_rgba(0,0,0,0.35)]';
+  'dm-mono rounded-[14px] border border-white/[0.07] bg-[#15171d] px-4 py-2.5 text-[13.5px] font-semibold leading-[1.7] text-[#a9adb8] shadow-[0_18px_50px_rgba(0,0,0,0.35)]';
 const AGENT_PANEL_CLASS =
   'rounded-[16px] border border-white/[0.07] bg-gradient-to-b from-[#15171d] to-[#111318] text-[#eceef2] shadow-[0_18px_40px_-24px_rgba(0,0,0,0.7)]';
 const TICKET_LABEL_CLASS =
@@ -867,6 +869,32 @@ const TICKET_PRIMARY_BUTTON_CLASS =
   'dm-btn inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[11px] bg-[#3fe08f] px-3 text-[13px] font-bold text-[#031008] hover:bg-[#64f2aa] disabled:cursor-not-allowed disabled:opacity-50';
 const TICKET_REJECT_BUTTON_CLASS =
   'dm-btn inline-flex h-10 items-center justify-center gap-2 rounded-[11px] border border-white/[0.07] bg-black/20 px-3 text-[13px] font-semibold text-[#eceef2] hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50';
+const CHAT_COMMAND_SUGGESTIONS = [
+  {
+    command: '/search',
+    label: 'Internet search',
+    hint: 'Research live web results with Astro',
+    seed: '/search ',
+  },
+  {
+    command: '/send',
+    label: 'Send funds',
+    hint: 'Start a wallet send proposal',
+    seed: '/send ',
+  },
+  {
+    command: '/swap',
+    label: 'Swap tokens',
+    hint: 'Prepare a routed token swap',
+    seed: '/swap ',
+  },
+  {
+    command: '/pnl',
+    label: 'PnL check',
+    hint: 'Review portfolio and trading performance',
+    seed: '/pnl ',
+  },
+] as const;
 
 interface SelectedChat {
   _id: string;
@@ -1437,6 +1465,13 @@ function parseHyperliquidLeverage(text: string) {
 }
 
 function parseHyperliquidLimitPrice(text: string) {
+  if (/\b(?:take\s*profit|take-profit|tp|stop\s*loss|stop-loss|sl)\b/i.test(text)) {
+    const explicitEntry = text.match(
+      /\b(?:limit|entry(?:\s+price)?)\b.*?(?:at|@|=|:)?\s*\$?([0-9]+(?:\.[0-9]+)?)/i
+    );
+    return explicitEntry?.[1] || '';
+  }
+
   const match = text.match(
     /\blimit\b.*?(?:at|@)\s*\$?([0-9]+(?:\.[0-9]+)?)|(?:at|@)\s*\$?([0-9]+(?:\.[0-9]+)?)/i
   );
@@ -2141,7 +2176,7 @@ function findHyperliquidOrderIntent(text: string) {
   const takeProfitPrice = parseHyperliquidTakeProfitPrice(text);
   const stopLossPrice = parseHyperliquidStopLossPrice(text);
   const orderMode =
-    takeProfitPrice || stopLossPrice
+    /\b(?:tpsl|tp\s*\/\s*sl|bracket)\b/i.test(text)
       ? 'tpsl'
       : /\blimit\b/i.test(text)
       ? 'limit'
@@ -2654,6 +2689,7 @@ export default function ChatArea({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesContentRef = useRef<HTMLDivElement>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement>(null);
   const previousScrollHeightRef = useRef<number>(0);
   const isPinnedToBottomRef = useRef<boolean>(true);
   const forceScrollToBottomRef = useRef<boolean>(false);
@@ -3608,6 +3644,14 @@ export default function ChatArea({
     }
   }, [messages, isLoadingMore]);
 
+  useEffect(() => {
+    const composer = composerInputRef.current;
+    if (!composer) return;
+
+    composer.style.height = '0px';
+    composer.style.height = `${Math.min(composer.scrollHeight, 112)}px`;
+  }, [newMessage]);
+
   // Handle scroll to load more messages
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -3681,7 +3725,16 @@ export default function ChatArea({
           messageType: 'text' as const,
           clientWalletContext: {
             evmWalletAddress,
+            evmWalletAddresses,
             solWalletAddress,
+            predictionWalletAddress:
+              predictionActiveWalletAddress || predictionWalletAddresses[0],
+            predictionWalletAddresses,
+            tradingWalletAddress: trading.tradingWalletAddress,
+            depositWalletAddress:
+              trading.depositWalletAddress ||
+              predictionWalletInfo?.depositWalletAddress,
+            safeAddress: predictionWalletInfo?.safeAddress,
           },
         }
       : {
@@ -3764,13 +3817,20 @@ export default function ChatArea({
     currentUser,
     currentGroupData,
     evmWalletAddress,
+    evmWalletAddresses,
     getPolymarketIntentMarkets,
     isGroup,
     messages,
     newMessage,
+    predictionActiveWalletAddress,
+    predictionWalletAddresses,
+    predictionWalletInfo?.depositWalletAddress,
+    predictionWalletInfo?.safeAddress,
     selectedChat,
     solWalletAddress,
     socket,
+    trading.depositWalletAddress,
+    trading.tradingWalletAddress,
   ]);
 
   const handlePreparePolymarketBet = useCallback(
@@ -3885,6 +3945,33 @@ export default function ChatArea({
       return `${trimmed} ${alias} `;
     });
   };
+
+  const focusComposer = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const composer = composerInputRef.current;
+      if (!composer) return;
+      composer.focus();
+      const end = composer.value.length;
+      composer.setSelectionRange(end, end);
+    });
+  }, []);
+
+  const applyComposerCommand = useCallback(
+    (commandSeed: string) => {
+      setNewMessage((prev) => {
+        const trimmed = prev.trim();
+        if (!trimmed || trimmed.startsWith('/')) return commandSeed;
+        return `${trimmed} ${commandSeed}`;
+      });
+      focusComposer();
+    },
+    [focusComposer]
+  );
+
+  const handleComposerCommandButton = useCallback(() => {
+    setNewMessage((prev) => (prev.trim() ? prev : '/'));
+    focusComposer();
+  }, [focusComposer]);
 
   const handleApprovalNextStep = useCallback(
     (approvalResult?: AgentApprovalHandoff | null) => {
@@ -4220,6 +4307,30 @@ export default function ChatArea({
   );
   const isSecureAstroDesk =
     isAstroTradingDeskChat(displayChat, isGroup);
+  const headerTitle = isSecureAstroDesk
+    ? 'Astro'
+    : isGroup
+    ? displayChat?.name || 'Group'
+    : displayChat?.microsite?.name || 'Contact';
+  const headerSubtitle = isSecureAstroDesk
+    ? '@astro - online - session #4a2'
+    : isGroup
+    ? formatGroupParticipants(displayChat?.participants)
+    : displayChat?.microsite?.ens || 'swop contact';
+  const composerCommandText = newMessage.trimStart();
+  const composerCommandQuery = composerCommandText.startsWith('/')
+    ? composerCommandText.slice(1).split(/\s+/)[0].toLowerCase()
+    : '';
+  const composerCommandHasArguments = /^\/\S+\s+\S/.test(
+    composerCommandText
+  );
+  const filteredCommandSuggestions = composerCommandText.startsWith('/')
+    ? CHAT_COMMAND_SUGGESTIONS.filter((suggestion) =>
+        suggestion.command.slice(1).startsWith(composerCommandQuery)
+      )
+    : [];
+  const showCommandPalette =
+    filteredCommandSuggestions.length > 0 && !composerCommandHasArguments;
 
   const typingText =
     isGroup && typingUsers.size > 0
@@ -4259,68 +4370,58 @@ export default function ChatArea({
   return (
     <div className="flex min-w-0 flex-1 bg-[#08090b]">
       <div className="flex min-w-0 flex-1 flex-col bg-[#08090b]">
-        <div className="flex h-[68px] flex-shrink-0 items-center justify-between gap-4 border-b border-white/[0.07] bg-[#08090b] px-5">
+        <div className="flex h-[80px] flex-shrink-0 items-center justify-between gap-4 border-b border-white/[0.07] bg-[#0b0d10] px-5 sm:px-7">
           <div className="flex min-w-0 items-center gap-3">
             <ChatAvatar
               displayChat={displayChat}
               isGroup={isGroup}
+              isAstro={isSecureAstroDesk}
               smartsiteHref={smartsiteHref}
               onSmartsiteClick={handleSmartsiteClick}
             />
 
             <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                {smartsiteAnchorAttrs ? (
+              <div className="flex min-w-0 items-center gap-2.5">
+                {smartsiteAnchorAttrs && !isSecureAstroDesk ? (
                   <a
                     {...smartsiteAnchorAttrs}
                     onClick={handleSmartsiteClick}
-                    className="min-w-0 truncate text-left text-[15px] font-semibold tracking-[-0.02em] text-[#eceef2] hover:text-[#3fe08f]"
+                    className="min-w-0 truncate text-left text-[19px] font-semibold leading-none text-[#eceef2] hover:text-[#3fe08f]"
                     title="Open SmartSite"
                   >
-                    {displayChat?.microsite?.name || 'Contact'}
+                    {headerTitle}
                   </a>
                 ) : (
-                  <h3 className="min-w-0 truncate text-left text-[15px] font-semibold tracking-[-0.02em] text-[#eceef2]">
-                  {isGroup
-                    ? displayChat?.name
-                    : displayChat?.microsite?.name}
+                  <h3 className="min-w-0 truncate text-left text-[19px] font-semibold leading-none text-[#eceef2]">
+                    {headerTitle}
                   </h3>
                 )}
                 {activeGroupAgents.length > 0 && (
-                  <span className="dm-mono rounded-[5px] border border-[#3fe08f]/25 bg-[#3fe08f]/10 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#3fe08f]">
-                    Agent
+                  <span className="dm-mono rounded-[6px] border border-[#3fe08f]/30 bg-[#3fe08f]/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#3fe08f]">
+                    AGENT
                   </span>
                 )}
               </div>
-              {smartsiteAnchorAttrs ? (
+              {smartsiteAnchorAttrs && !isSecureAstroDesk ? (
                 <a
                   {...smartsiteAnchorAttrs}
                   onClick={handleSmartsiteClick}
-                  className="dm-mono mt-0.5 block max-w-full truncate text-left text-[11px] font-semibold text-[#5a5e69] hover:text-[#3fe08f]"
+                  className="dm-mono mt-2 block max-w-full truncate text-left text-[12px] font-semibold text-[#5a5e69] hover:text-[#3fe08f]"
                   title="Open SmartSite"
                 >
-                  {displayChat?.microsite?.ens || 'swop contact'}
+                  {headerSubtitle}
                 </a>
               ) : (
-                <p className="dm-mono mt-0.5 truncate text-[11px] font-semibold text-[#5a5e69]">
-                  {isGroup
-                    ? formatGroupParticipants(displayChat?.participants)
-                    : displayChat?.microsite?.ens || 'swop contact'}
+                <p className="dm-mono mt-2 truncate text-[12px] font-semibold text-[#5a5e69]">
+                  {headerSubtitle}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="flex flex-shrink-0 items-center gap-2">
-            <button
-              type="button"
-              title="Thread info"
-              className="dm-btn grid h-9 w-9 place-items-center rounded-[10px] border border-white/[0.07] bg-[#15171d] text-[#9396a0]"
-            >
-              <Info className="h-4 w-4" />
-            </button>
+          <div className="flex flex-shrink-0 items-center gap-3">
             {isGroup && displayChat && (
-              <div className="rounded-[10px] border border-white/[0.07] bg-[#15171d] text-[#eceef2]">
+              <div>
                 <GroupMenu
                   group={displayChat as any}
                   socket={socket}
@@ -4332,6 +4433,32 @@ export default function ChatArea({
                 />
               </div>
             )}
+            {!isGroup && (
+              <button
+                type="button"
+                title="Commands"
+                onClick={handleComposerCommandButton}
+                className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+              >
+                <Menu className="h-[18px] w-[18px]" />
+              </button>
+            )}
+            <button
+              type="button"
+              title="PnL command"
+              onClick={() => applyComposerCommand('/pnl ')}
+              className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+            >
+              <Clock3 className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              type="button"
+              title="Internet search command"
+              onClick={() => applyComposerCommand('/search ')}
+              className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+            >
+              <Grid2X2 className="h-[18px] w-[18px]" />
+            </button>
           </div>
         </div>
 
@@ -4459,9 +4586,10 @@ export default function ChatArea({
               const proposalId = hiddenProposalId;
               const proposal = proposalId ? hiddenProposal : null;
               const proposalSourceText =
-                proposal?.toolType === 'wallet.write' &&
-                (proposal?.action === 'wallet.swap' ||
-                  proposal?.action === 'swap_tokens')
+                proposal?.toolType === 'perps.write' ||
+                (proposal?.toolType === 'wallet.write' &&
+                  (proposal?.action === 'wallet.swap' ||
+                    proposal?.action === 'swap_tokens'))
                   ? findPreviousHumanMessageText(messages, index)
                   : undefined;
               const actionResult = proposalId
@@ -4933,46 +5061,98 @@ export default function ChatArea({
           </div>
         </div>
 
-        <div className="flex-shrink-0 border-t border-white/[0.07] bg-[#08090b] px-[22px] pb-[18px] pt-[14px]">
-          <div className="relative mx-auto flex max-w-[760px] items-center gap-[11px] rounded-full border border-white/[0.07] bg-[#15171d] py-2 pl-4 pr-2 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-            <button
-              type="button"
-              title="Attach"
-              className="dm-btn grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[#1b1e25] text-[#eceef2]"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
+        <div className="flex-shrink-0 border-t border-white/[0.07] bg-[#0b0d10] px-[22px] pb-[18px] pt-[12px]">
+          <div className="relative mx-auto max-w-[980px]">
+            <div className="dm-mono mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-bold text-[#5a5e69]">
+              <button
+                type="button"
+                onClick={handleComposerCommandButton}
+                className="dm-btn inline-flex items-center gap-2 text-[#3fe08f]"
+              >
+                <span>/</span>
+                <span className="text-[#5a5e69]">commands</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyComposerCommand('/search ')}
+                className="dm-btn inline-flex items-center gap-2"
+              >
+                <span className="text-[#3fe08f]">/search</span>
+                <span>internet</span>
+              </button>
+              <span>
+                <span className="text-[#3fe08f]">@</span> tag a swop.id
+              </span>
+              <span>Enter send</span>
+              <span>Shift+Enter newline</span>
+            </div>
 
-            <input
-              id="chat-message-input"
-              name="chatMessage"
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage();
+            {showCommandPalette && (
+              <div className="dm-rise absolute bottom-[calc(100%+12px)] left-0 z-20 w-full max-w-[520px] rounded-[14px] border border-[#3fe08f]/20 bg-[#101217] p-2 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+                {filteredCommandSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion.command}
+                    type="button"
+                    onClick={() => applyComposerCommand(suggestion.seed)}
+                    className="dm-row flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left"
+                  >
+                    <span className="dm-mono grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] border border-[#3fe08f]/20 bg-black text-[13px] font-bold text-[#3fe08f]">
+                      /
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="dm-mono block text-[13px] font-bold text-[#eceef2]">
+                        {suggestion.command}
+                      </span>
+                      <span className="block truncate text-[11px] font-semibold text-[#737783]">
+                        {suggestion.label} - {suggestion.hint}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="relative flex min-h-[64px] items-center gap-3 rounded-[18px] border border-white/[0.06] bg-black px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.28)] focus-within:border-[#3fe08f]/45 focus-within:shadow-[0_0_0_1px_rgba(63,224,143,0.16),0_18px_50px_rgba(0,0,0,0.28)]">
+              <span className="dm-mono flex-shrink-0 text-[20px] font-bold leading-none text-[#3fe08f]">
+                &gt;
+              </span>
+
+              <textarea
+                ref={composerInputRef}
+                id="chat-message-input"
+                name="chatMessage"
+                rows={1}
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                placeholder="ask anything - try /search, /send, /swap, /pnl"
+                className="dm-mono max-h-28 min-h-[30px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent pt-[3px] text-[15px] font-semibold leading-[1.65] text-[#eceef2] outline-none placeholder:text-[#4d515b]"
+              />
+
+              <button
+                type="button"
+                onClick={() =>
+                  newMessage.trim()
+                    ? handleSendMessage()
+                    : handleComposerCommandButton()
                 }
-              }}
-              placeholder={
-                isGroup
-                  ? isSecureAstroDesk
-                    ? `message ${displayChat?.name || 'Astro'}`
-                    : `message ${displayChat?.name || 'group'} · @astro to call`
-                  : `message ${displayChat?.microsite?.name || 'contact'}`
-              }
-              className="min-w-0 flex-1 bg-transparent text-sm text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
-            />
-
-            <button
-              type="button"
-              onClick={() => handleSendMessage()}
-              disabled={!newMessage.trim()}
-              className="dm-btn grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-[#3fe08f] text-[#071008] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+                className="dm-btn dm-mono inline-flex h-10 flex-shrink-0 items-center justify-center gap-2 rounded-[12px] border border-white/[0.07] bg-[#050607] px-3 text-[12px] font-bold uppercase tracking-[0.08em] text-[#9396a0] hover:text-[#eceef2]"
+              >
+                {newMessage.trim() ? (
+                  <>
+                    <Send className="h-3.5 w-3.5 text-[#3fe08f]" />
+                    Send
+                  </>
+                ) : (
+                  '/ CMD'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -4987,9 +5167,7 @@ export default function ChatArea({
         consoleData={astroConsoleData}
         smartsiteHref={smartsiteHref}
         onSmartsiteClick={handleSmartsiteClick}
-        onQuickCommand={(command) =>
-          setNewMessage((prev) => (prev.trim() ? `${prev} ${command}` : command))
-        }
+        onQuickCommand={applyComposerCommand}
       />
     </div>
   );
@@ -4998,14 +5176,22 @@ export default function ChatArea({
 function ChatAvatar({
   displayChat,
   isGroup,
+  isAstro = false,
   smartsiteHref,
   onSmartsiteClick,
 }: {
   displayChat: SelectedChat | null;
   isGroup: boolean;
+  isAstro?: boolean;
   smartsiteHref?: string | null;
   onSmartsiteClick?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
 }) {
+  if (isAstro) {
+    return (
+      <DmAgentTile size="h-[50px] w-[50px]" textClassName="text-[18px]" />
+    );
+  }
+
   const avatar =
     displayChat?.microsite?.profilePic ||
     displayChat?.participant?.profilePic ||
@@ -5290,11 +5476,6 @@ function DmContextPanel({
   onSmartsiteClick?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
   onQuickCommand?: (command: string) => void;
 }) {
-  const [selectedPredictionPosition, setSelectedPredictionPosition] =
-    useState<PolymarketPosition | null>(null);
-  const [selectedPerpsPosition, setSelectedPerpsPosition] =
-    useState<HLPosition | null>(null);
-
   if (mode === 'astro') {
     const predictionPositions = consoleData?.predictionPositions || [];
     const openPredictionPositions = predictionPositions.filter(
@@ -5373,7 +5554,6 @@ function DmContextPanel({
           tag: `${size >= 0 ? 'LONG' : 'SHORT'} ${position.leverage?.value || 1}x`,
           pnl: formatSignedUsd(toFiniteNumber(position.unrealizedPnl)),
           positive: toFiniteNumber(position.unrealizedPnl) >= 0,
-          command: `@astro explain ${position.coin}-PERP`,
           predictionPosition: null as PolymarketPosition | null,
           perpsPosition: position as HLPosition,
         };
@@ -5383,16 +5563,10 @@ function DmContextPanel({
         tag: position.outcome || 'YES',
         pnl: formatSignedUsd(toFiniteNumber(position.cashPnl)),
         positive: toFiniteNumber(position.cashPnl) >= 0,
-        command: `@astro explain ${position.title || position.slug || 'this prediction'}`,
         predictionPosition: position,
         perpsPosition: null as HLPosition | null,
       })),
     ].slice(0, 4);
-    const selectedLivePerpsPosition = selectedPerpsPosition
-      ? perpsPositions.find(
-          (position) => perpsCoinMatches(position.coin, selectedPerpsPosition.coin)
-        ) || selectedPerpsPosition
-      : null;
     const pendingOrders = [
       ...perpsOpenOrders.slice(0, 1).map((order) => ({
         type: `${order.orderType || 'LIMIT'} ${order.side === 'B' ? 'BUY' : 'SELL'}`,
@@ -5410,8 +5584,10 @@ function DmContextPanel({
       })),
     ].slice(0, 2);
     const commands = [
-      { label: '/send', command: '@astro send crypto' },
-      { label: '/swap', command: '@astro swap tokens' },
+      { label: '/search', command: '/search ' },
+      { label: '/send', command: '/send ' },
+      { label: '/swap', command: '/swap ' },
+      { label: '/pnl', command: '/pnl ' },
     ];
 
     return (
@@ -5509,44 +5685,26 @@ function DmContextPanel({
         <SectionLabel>open positions · {positions.length}</SectionLabel>
         <ConsoleCard padClass="p-0">
           {positions.length ? positions.map((position) => (
-            <button
-              key={position.symbol}
-              type="button"
-              disabled={
-                !onQuickCommand &&
-                !position.predictionPosition &&
-                !position.perpsPosition
-              }
-              onClick={() => {
-                if (position.perpsPosition) {
-                  setSelectedPerpsPosition(position.perpsPosition);
-                  return;
-                }
-                if (position.predictionPosition) {
-                  setSelectedPredictionPosition(position.predictionPosition);
-                  return;
-                }
-                onQuickCommand?.(position.command);
-              }}
-              className="dm-btn flex w-full items-center justify-between gap-3 border-t border-white/[0.045] px-3 py-3 text-left first:border-t-0 disabled:cursor-default"
-            >
-              <span className="min-w-0">
-                <span className="dm-mono block truncate text-[12px] font-semibold leading-tight text-[#eceef2]">
-                  {position.symbol}
-                </span>
-                <span className="dm-mono mt-1 inline-flex rounded-[5px] border border-[#3fe08f]/15 bg-black/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#3fe08f]">
-                  {position.tag}
-                </span>
-              </span>
-              <span
-                className={`dm-mono shrink-0 text-[12px] font-bold ${
-                  position.positive ? 'text-[#3ddc97]' : 'text-[#ff5d63]'
-                }`}
-              >
-                {position.pnl}
-              </span>
-            </button>
-          )) : (
+              <div key={position.symbol} className="border-t border-white/[0.045] first:border-t-0">
+                <div className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left">
+                  <span className="min-w-0">
+                    <span className="dm-mono block truncate text-[12px] font-semibold leading-tight text-[#eceef2]">
+                      {position.symbol}
+                    </span>
+                    <span className="dm-mono mt-1 inline-flex rounded-[5px] border border-[#3fe08f]/15 bg-black/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#3fe08f]">
+                      {position.tag}
+                    </span>
+                  </span>
+                  <span
+                    className={`dm-mono shrink-0 text-[12px] font-bold ${
+                      position.positive ? 'text-[#3ddc97]' : 'text-[#ff5d63]'
+                    }`}
+                  >
+                    {position.pnl}
+                  </span>
+                </div>
+              </div>
+            )) : (
             <div className="px-3 py-3 text-[11px] text-[#737783]">
               No open trading positions yet.
             </div>
@@ -5598,21 +5756,6 @@ function DmContextPanel({
           ))}
         </div>
       </aside>
-      {selectedPredictionPosition && consoleData && (
-        <PredictionPositionManagerModal
-          position={selectedPredictionPosition}
-          allPositions={predictionPositions}
-          consoleData={consoleData}
-          onClose={() => setSelectedPredictionPosition(null)}
-        />
-      )}
-      {selectedLivePerpsPosition && consoleData && (
-        <PerpsPositionManagerModal
-          position={selectedLivePerpsPosition}
-          consoleData={consoleData}
-          onClose={() => setSelectedPerpsPosition(null)}
-        />
-      )}
       </>
     );
   }
@@ -5718,1088 +5861,6 @@ function DmContextPanel({
         )}
       </ConsoleCard>
     </aside>
-  );
-}
-
-type PositionTradeSide = 'BUY' | 'SELL';
-type PositionOrderMode = 'market' | 'limit';
-
-type PositionTradeOption = {
-  market: PolymarketMarketPreview;
-  outcome: 'yes' | 'no';
-  label: string;
-  tokenId: string;
-  price: number;
-  ownedPosition?: PolymarketPosition;
-};
-
-function PredictionPositionManagerModal({
-  position,
-  allPositions,
-  consoleData,
-  onClose,
-}: {
-  position: PolymarketPosition;
-  allPositions: PolymarketPosition[];
-  consoleData: AstroConsoleData;
-  onClose: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const trading = useTrading();
-  const { submitOrder, isSubmitting } = useClobOrder(
-    trading.tradingSession,
-    trading.tradingWalletAddress
-  );
-  const [selectedTokenId, setSelectedTokenId] = useState(position.asset);
-  const [side, setSide] = useState<PositionTradeSide>('BUY');
-  const [orderMode, setOrderMode] = useState<PositionOrderMode>('market');
-  const [amount, setAmount] = useState('1');
-  const [limitPrice, setLimitPrice] = useState('');
-  const [tradeError, setTradeError] = useState<string | null>(null);
-
-  const relatedPositions = useMemo(() => {
-    return allPositions.filter((candidate) => {
-      if (candidate.conditionId === position.conditionId) return true;
-      return Boolean(
-        position.eventSlug && candidate.eventSlug === position.eventSlug
-      );
-    });
-  }, [allPositions, position.conditionId, position.eventSlug]);
-
-  const { data: fetchedMarkets = [], isLoading: isLoadingMarkets } = useQuery({
-    queryKey: ['chat-position-event-markets', position.eventSlug || position.conditionId],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        limit: '60',
-        offset: '0',
-      });
-      if (position.eventSlug) {
-        params.set('event_slug', position.eventSlug);
-      }
-      const response = await fetch(
-        `/api/polymarket/desktop/markets?${params.toString()}`
-      );
-      if (!response.ok) throw new Error('Failed to load related markets');
-      const markets = (await response.json().catch(() => [])) as unknown[];
-      return markets
-        .map(normalizePolymarketMarketPreview)
-        .filter((market): market is PolymarketMarketPreview => Boolean(market))
-        .filter((market) => {
-          if (market.conditionId === position.conditionId) return true;
-          return Boolean(
-            position.eventSlug && market.eventSlug === position.eventSlug
-          );
-        });
-    },
-    enabled: Boolean(position.eventSlug || position.conditionId),
-    staleTime: 20_000,
-    refetchInterval: 20_000,
-    refetchOnWindowFocus: true,
-  });
-
-  const markets = useMemo(() => {
-    const fallback = polymarketPositionToPreview(position);
-    const byKey = new Map<string, PolymarketMarketPreview>();
-    [fallback, ...fetchedMarkets].forEach((market) => {
-      const key = market.conditionId || market.id || market.slug || market.question;
-      if (!key) return;
-      byKey.set(key, market);
-    });
-    return Array.from(byKey.values());
-  }, [fetchedMarkets, position]);
-
-  const options = useMemo<PositionTradeOption[]>(() => {
-    return markets.flatMap((market) => {
-      const labels = getPolymarketOutcomeLabels(market);
-      const yesTokenId = getPolymarketTokenId(market, 'yes');
-      const noTokenId = getPolymarketTokenId(market, 'no');
-      const yesOwned = relatedPositions.find(
-        (item) => item.asset === yesTokenId
-      );
-      const noOwned = relatedPositions.find(
-        (item) => item.asset === noTokenId
-      );
-
-      return [
-        {
-          market,
-          outcome: 'yes' as const,
-          label: labels.yes,
-          tokenId: yesTokenId,
-          price: parsePolymarketProbability(market.yesPrice, 0.5),
-          ownedPosition: yesOwned,
-        },
-        {
-          market,
-          outcome: 'no' as const,
-          label: labels.no,
-          tokenId: noTokenId,
-          price: parsePolymarketProbability(market.noPrice, 0.5),
-          ownedPosition: noOwned,
-        },
-      ].filter((option) => Boolean(option.tokenId));
-    });
-  }, [markets, relatedPositions]);
-
-  const selectedOption =
-    options.find((option) => option.tokenId === selectedTokenId) ||
-    options[0];
-  const amountValue = Number(amount || 0);
-  const availableUsdc = consoleData.predictionUsdcBalance || 0;
-  const ownedShares = selectedOption?.ownedPosition?.size || 0;
-  const isBuy = side === 'BUY';
-  const isLimit = orderMode === 'limit';
-  const selectedPrice = selectedOption?.price || 0;
-  const limitPriceCents = Number(limitPrice || 0);
-  const limitPriceDecimal = limitPriceCents > 0 ? limitPriceCents / 100 : 0;
-  const effectivePrice = isLimit ? limitPriceDecimal : selectedPrice;
-  const estimatedShares =
-    isBuy && !isLimit && selectedPrice
-      ? amountValue / selectedPrice
-      : amountValue;
-  const estimatedCost =
-    isBuy ? (isLimit ? amountValue * limitPriceDecimal : amountValue) : 0;
-  const estimatedProceeds = !isBuy ? amountValue * effectivePrice : 0;
-  const maxTradeInput =
-    isBuy && isLimit
-      ? limitPriceDecimal > 0
-        ? Math.floor((availableUsdc / limitPriceDecimal) * 1_000_000) /
-          1_000_000
-        : 0
-      : isBuy
-      ? availableUsdc
-      : ownedShares;
-  const isBelowMinimum =
-    amountValue > 0 &&
-    (isBuy && !isLimit ? amountValue < 1 : amountValue < 1);
-  const hasInvalidLimitPrice =
-    isLimit && (limitPriceDecimal <= 0 || limitPriceDecimal >= 1);
-  const needsFunds = isBuy && estimatedCost > availableUsdc;
-  const exceedsShares = !isBuy && amountValue > ownedShares;
-  const canSubmitPositionTrade = Boolean(
-    selectedOption?.tokenId &&
-      amountValue > 0 &&
-      !isBelowMinimum &&
-      !hasInvalidLimitPrice &&
-      !needsFunds &&
-      !exceedsShares &&
-      !isSubmitting &&
-      (isBuy || ownedShares > 0)
-  );
-  const selectedMarketTitle =
-    selectedOption?.market.question || position.title || 'Prediction market';
-
-  useEffect(() => {
-    setSelectedTokenId(position.asset);
-    setSide('BUY');
-    setOrderMode('market');
-    setAmount('1');
-    setLimitPrice('');
-    setTradeError(null);
-  }, [position.asset]);
-
-  useEffect(() => {
-    if (!selectedOption?.price) return;
-    setLimitPrice(String(Math.round(selectedOption.price * 100)));
-  }, [selectedOption?.price, selectedOption?.tokenId]);
-
-  const handleSubmitPositionTrade = async () => {
-    if (!selectedOption || !canSubmitPositionTrade) return;
-
-    setTradeError(null);
-    try {
-      const result = await submitOrder({
-        tokenId: selectedOption.tokenId,
-        conditionId:
-          selectedOption.market.conditionId ||
-          selectedOption.market.id ||
-          position.conditionId,
-        size: amountValue,
-        price: isLimit ? limitPriceDecimal : undefined,
-        side,
-        negRisk: position.negativeRisk,
-        isMarketOrder: !isLimit,
-        fillType: isLimit ? undefined : 'FOK',
-      });
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] }),
-        queryClient.invalidateQueries({ queryKey: ['active-orders'] }),
-      ]);
-      toast.success(
-        result.orderId
-          ? `${isLimit ? 'Limit order' : 'Order'} submitted: ${String(
-              result.orderId
-            ).slice(0, 10)}...`
-          : `${isLimit ? 'Limit order' : 'Order'} submitted.`
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to adjust position.';
-      setTradeError(message);
-      toast.error(message);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-[860px] overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#111318] text-[#eceef2] shadow-[0_40px_120px_rgba(0,0,0,0.55)]">
-        <div className="flex items-center gap-3 border-b border-white/[0.07] px-5 py-4">
-          <DmAgentTile size="h-10 w-10" textClassName="text-[16px]" />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[18px] font-semibold tracking-[-0.02em]">
-              {position.title || 'Prediction position'}
-            </div>
-            <div className="dm-mono mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#3fe08f]">
-              monitor price · adjust position
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="dm-btn grid h-9 w-9 place-items-center rounded-[10px] border border-white/[0.07] bg-black/20 text-[#9396a0]"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="grid gap-0 md:grid-cols-[1fr_340px]">
-          <div className="max-h-[72vh] overflow-y-auto p-5">
-            <div className="mb-4 grid grid-cols-3 gap-2">
-              <PositionStat label="value" value={formatCompactUsd(position.currentValue)} />
-              <PositionStat
-                label="pnl"
-                value={formatSignedUsd(position.cashPnl)}
-                tone={position.cashPnl >= 0 ? 'green' : 'red'}
-              />
-              <PositionStat
-                label="shares"
-                value={position.size.toLocaleString(undefined, {
-                  maximumFractionDigits: 3,
-                })}
-              />
-            </div>
-
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="dm-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[#737783]">
-                {isLoadingMarkets ? 'loading game markets' : `bets for this game · ${markets.length}`}
-              </div>
-              <div className="dm-mono text-[10px] font-bold uppercase tracking-[0.08em] text-[#3fe08f]">
-                live refresh
-              </div>
-            </div>
-
-            <div className="grid gap-3">
-              {markets.map((market) => {
-                const marketOptions = options.filter(
-                  (option) => option.market === market
-                );
-                return (
-                  <div
-                    key={market.conditionId || market.id || market.slug || market.question}
-                    className="rounded-[16px] border border-white/[0.07] bg-black/25 p-3"
-                  >
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="line-clamp-2 text-[13px] font-semibold leading-snug">
-                          {market.question}
-                        </div>
-                        <div className="dm-mono mt-1 truncate text-[10px] text-[#5a5e69]">
-                          {market.slug || market.conditionId || 'polymarket'}
-                        </div>
-                      </div>
-                      {market.gameStartTime && (
-                        <div className="dm-mono shrink-0 text-[10px] text-[#ff5d63]">
-                          {formatPolymarketMarketTiming(market)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {marketOptions.map((option) => {
-                        const isSelected = option.tokenId === selectedOption?.tokenId;
-                        const owned = option.ownedPosition?.size || 0;
-                        return (
-                          <button
-                            key={option.tokenId}
-                            type="button"
-                            onClick={() => {
-                              setSelectedTokenId(option.tokenId);
-                              if (!option.ownedPosition && side === 'SELL') {
-                                setSide('BUY');
-                              }
-                            }}
-                            className={`dm-btn rounded-[12px] border px-3 py-2.5 text-left ${
-                              isSelected
-                                ? 'border-[#3fe08f]/55 bg-[#3fe08f]/12'
-                                : 'border-white/[0.07] bg-[#15171d]'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="truncate text-[13px] font-semibold">
-                                {option.label}
-                              </span>
-                              <span className="dm-mono text-[15px] font-bold text-[#3fe08f]">
-                                {formatPolymarketPrice(option.price)}
-                              </span>
-                            </div>
-                            <div className="dm-mono mt-1 text-[10px] text-[#737783]">
-                              {owned > 0
-                                ? `${owned.toLocaleString(undefined, {
-                                    maximumFractionDigits: 3,
-                                  })} owned`
-                                : 'no position'}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="border-t border-white/[0.07] bg-[#0d1011] p-5 md:border-l md:border-t-0">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="dm-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[#737783]">
-                trade ticket
-              </div>
-              <div className="dm-mono rounded-full border border-[#3fe08f]/20 bg-[#3fe08f]/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[#3fe08f]">
-                {orderMode === 'limit' ? 'limit order' : 'market order'}
-              </div>
-            </div>
-            <div className="rounded-[18px] border border-white/[0.08] bg-[#15171d] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-              <div className="rounded-[14px] border border-white/[0.06] bg-black/25 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-[17px] font-semibold leading-snug">
-                      {selectedOption?.label || position.outcome}
-                    </div>
-                    <div className="dm-mono mt-1 line-clamp-2 text-[10px] text-[#737783]">
-                      {selectedMarketTitle}
-                    </div>
-                  </div>
-                  <div className="dm-mono shrink-0 text-right text-[18px] font-black text-[#3fe08f]">
-                    {formatPolymarketPrice(selectedOption?.price)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 rounded-[12px] border border-white/[0.07] bg-black/25 p-1">
-                {(['market', 'limit'] as PositionOrderMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => {
-                      setOrderMode(mode);
-                      setTradeError(null);
-                    }}
-                    className={`dm-btn rounded-[9px] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.08em] ${
-                      orderMode === mode
-                        ? 'bg-[#eceef2] text-[#07090b]'
-                        : 'text-[#737783] hover:text-[#eceef2]'
-                    }`}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                {(['BUY', 'SELL'] as PositionTradeSide[]).map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setSide(item)}
-                    disabled={item === 'SELL' && ownedShares <= 0}
-                    className={`dm-btn rounded-[10px] border px-3 py-2 text-[12px] font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
-                      side === item
-                        ? 'border-[#3fe08f]/55 bg-[#3fe08f] text-[#06120b]'
-                        : 'border-white/[0.07] bg-black/20 text-[#eceef2]'
-                    }`}
-                  >
-                    {item === 'BUY' ? 'Buy more' : 'Sell'}
-                  </button>
-                ))}
-              </div>
-
-              {isLimit && (
-                <div className="mt-4">
-                  <div className="mb-1.5 flex items-center justify-between gap-3">
-                    <label className="dm-mono text-[10px] font-bold uppercase tracking-[0.12em] text-[#737783]">
-                      limit price
-                    </label>
-                    <span className="dm-mono text-[10px] text-[#5a5e69]">
-                      current {formatPolymarketPrice(selectedOption?.price)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 rounded-[12px] border border-white/[0.07] bg-black px-3 py-2.5">
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="1"
-                      max="99"
-                      step="1"
-                      value={limitPrice}
-                      onChange={(event) =>
-                        setLimitPrice(
-                          event.target.value
-                            .replace(/[^\d]/g, '')
-                            .slice(0, 2)
-                        )
-                      }
-                      className="dm-mono min-w-0 flex-1 bg-transparent text-xl font-bold text-[#eceef2] outline-none"
-                    />
-                    <span className="dm-mono text-[11px] text-[#5a5e69]">
-                      cents
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4">
-                <label className="dm-mono text-[10px] font-bold uppercase tracking-[0.12em] text-[#737783]">
-                  {isBuy && !isLimit ? 'amount usdc' : 'shares'}
-                </label>
-                <div className="mt-1.5 flex items-center gap-2 rounded-[12px] border border-white/[0.07] bg-black px-3 py-2.5">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step={isBuy && !isLimit ? '1' : '0.01'}
-                    value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
-                    className="dm-mono min-w-0 flex-1 bg-transparent text-xl font-bold text-[#eceef2] outline-none"
-                  />
-                  <span className="dm-mono text-[11px] text-[#5a5e69]">
-                    {isBuy && !isLimit ? 'USDC' : 'shares'}
-                  </span>
-                </div>
-                <div className="mt-2 grid grid-cols-4 gap-1.5">
-                  {(isBuy && !isLimit ? ['1', '5', '10', '25'] : ['1', '2', '5', 'Max']).map(
-                    (preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => {
-                          if (preset === 'Max') {
-                            setAmount(
-                              maxTradeInput.toLocaleString('en-US', {
-                                maximumFractionDigits: 6,
-                                useGrouping: false,
-                              })
-                            );
-                          } else {
-                            setAmount(preset);
-                          }
-                        }}
-                        disabled={preset === 'Max' && maxTradeInput <= 0}
-                        className="dm-btn rounded-[9px] border border-white/[0.07] bg-black/20 px-2 py-1.5 text-[10px] font-bold text-[#a9adb8] hover:text-[#eceef2] disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {preset === 'Max'
-                          ? 'Max'
-                          : `${isBuy && !isLimit ? '$' : ''}${preset}`}
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-3 space-y-2 border-t border-dashed border-white/[0.07] pt-3">
-                <TicketLine
-                  label="type"
-                  value={isLimit ? 'GTC limit' : 'FOK market'}
-                />
-                <TicketLine
-                  label={isLimit ? 'limit price' : 'market price'}
-                  value={formatPolymarketPrice(effectivePrice)}
-                />
-                <TicketLine
-                  label={isBuy ? 'est shares' : 'sell shares'}
-                  value={
-                    estimatedShares.toLocaleString(undefined, {
-                      maximumFractionDigits: 3,
-                    })
-                  }
-                />
-                <TicketLine
-                  label={isBuy ? 'est cost' : 'est proceeds'}
-                  value={formatCompactUsd(isBuy ? estimatedCost : estimatedProceeds)}
-                />
-                <TicketLine
-                  label="owned"
-                  value={ownedShares.toLocaleString(undefined, {
-                    maximumFractionDigits: 3,
-                  })}
-                />
-                <TicketLine
-                  label="available"
-                  value={formatCompactUsd(availableUsdc)}
-                />
-              </div>
-
-              {(hasInvalidLimitPrice ||
-                isBelowMinimum ||
-                needsFunds ||
-                exceedsShares ||
-                tradeError) && (
-                <div className="mt-3 rounded-[10px] border border-[#ff5d63]/25 bg-[#ff5d63]/10 px-3 py-2 text-[11px] text-[#ffb2b6]">
-                  {tradeError ||
-                    (hasInvalidLimitPrice
-                      ? 'Enter a limit price from 1¢ to 99¢.'
-                      : isBelowMinimum
-                      ? isBuy && !isLimit
-                        ? 'Minimum buy order is $1.00.'
-                        : 'Minimum order is 1 share.'
-                      : needsFunds
-                      ? `Add funds first. You are ${formatCompactUsd(
-                          Math.max(0, estimatedCost - availableUsdc)
-                        )} short.`
-                      : 'You do not have that many shares to sell.')}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={handleSubmitPositionTrade}
-                disabled={!canSubmitPositionTrade}
-                className="dm-btn mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-[#3fe08f] px-3 text-[13px] font-bold uppercase tracking-[0.08em] text-[#06120b] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isSubmitting
-                  ? 'Submitting...'
-                  : `${side === 'BUY' ? 'Confirm buy' : 'Confirm sell'} ${
-                      isLimit ? 'limit' : 'market'
-                    } · ${
-                      isBuy
-                        ? formatCompactUsd(estimatedCost)
-                        : formatCompactUsd(estimatedProceeds)
-                    }`}
-              </button>
-              <div className="dm-mono mt-3 text-center text-[9.5px] text-[#5a5e69]">
-                one-click uses delegated signing when enabled
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-type PerpsPositionAction = 'add' | 'reduce' | 'close';
-
-function PerpsPositionManagerModal({
-  position,
-  consoleData,
-  onClose,
-}: {
-  position: HLPosition;
-  consoleData: AstroConsoleData;
-  onClose: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const [action, setAction] = useState<PerpsPositionAction>('add');
-  const [collateralUsd, setCollateralUsd] = useState('2');
-  const [reducePercent, setReducePercent] = useState('25');
-  const [tradeError, setTradeError] = useState<string | null>(null);
-
-  const selectedMarket = perpsMarketForCoin(
-    consoleData.perpsMarkets,
-    position.coin
-  );
-  const displayCoin = displayPerpsCoin(position.coin);
-  const positionChartId = `perps-position-modal-${position.coin.replace(
-    /[^a-zA-Z0-9_-]/g,
-    '-'
-  )}`;
-  const markPrice = getPerpsMarkPrice(position.coin, selectedMarket);
-  const size = toFiniteNumber(position.szi);
-  const absSize = Math.abs(size);
-  const isLong = size >= 0;
-  const sideLabel = isLong ? 'Long' : 'Short';
-  const leverageValue = position.leverage?.value || 1;
-  const isCross = position.leverage?.type !== 'isolated';
-  const collateralValue = toFiniteNumber(collateralUsd);
-  const addNotional = collateralValue * leverageValue;
-  const addSize = markPrice > 0 ? addNotional / markPrice : 0;
-  const reducePct = Math.min(100, Math.max(0, toFiniteNumber(reducePercent)));
-  const reduceSize =
-    action === 'close' ? absSize : absSize * (reducePct / 100);
-  const reduceLabel =
-    action === 'close'
-      ? `${formatPerpsOrderSize(absSize, selectedMarket?.szDecimals ?? 4)} ${
-          displayCoin
-        }`
-      : `${formatPerpsOrderSize(
-          reduceSize,
-          selectedMarket?.szDecimals ?? 4
-        )} ${displayCoin}`;
-  const availableMargin = toFiniteNumber(consoleData.perpsAccount?.withdrawable);
-  const pnl = toFiniteNumber(position.unrealizedPnl);
-  const roe = toFiniteNumber(position.returnOnEquity) * 100;
-  const entryPrice = toFiniteNumber(position.entryPx);
-  const liquidationPrice = toFiniteNumber(position.liquidationPx);
-  const marginUsed = toFiniteNumber(position.marginUsed);
-  const notional = toFiniteNumber(position.positionValue);
-  const minimumCollateral =
-    HYPERLIQUID_MIN_ORDER_USD / Math.max(1, leverageValue);
-  const addOrderSize = formatPerpsOrderSize(
-    addSize,
-    selectedMarket?.szDecimals ?? 4
-  );
-  const isAddBelowMinimum =
-    action === 'add' &&
-    positiveInput(collateralUsd) &&
-    addNotional < HYPERLIQUID_MIN_ORDER_USD;
-  const needsFunds = action === 'add' && collateralValue > availableMargin;
-  const canSubmit = Boolean(
-    selectedMarket &&
-      !consoleData.isPerpsSubmitting &&
-      !consoleData.isPerpsLoading &&
-      (action === 'add'
-        ? positiveInput(collateralUsd) &&
-          !isAddBelowMinimum &&
-          !needsFunds &&
-          toFiniteNumber(addOrderSize) > 0
-        : reduceSize > 0)
-  );
-  const primaryLabel =
-    action === 'add'
-      ? `Add ${formatCompactUsd(collateralValue)}`
-      : action === 'reduce'
-      ? `Reduce ${Math.round(reducePct)}%`
-      : 'Close full position';
-
-  useEffect(() => {
-    setAction('add');
-    setCollateralUsd(formatPerpsInputAmount(Math.max(2, minimumCollateral)));
-    setReducePercent('25');
-    setTradeError(null);
-  }, [position.coin, position.szi, minimumCollateral]);
-
-  const handleSubmit = async () => {
-    if (!selectedMarket || !canSubmit) return;
-
-    if (
-      !consoleData.isPerpsAgentInitialized &&
-      !consoleData.isPerpsAgentInitializing
-    ) {
-      setTradeError(null);
-      try {
-        await consoleData.initializePerpsAgent();
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Could not enable Perps trading.';
-        setTradeError(message);
-        toast.error(message);
-      }
-      return;
-    }
-
-    setTradeError(null);
-    consoleData.clearPerpsTradingError();
-
-    try {
-      if (action === 'add') {
-        await consoleData.updatePerpsLeverage(
-          selectedMarket.index,
-          leverageValue,
-          isCross
-        );
-        await consoleData.placePerpsMarketOrder(
-          selectedMarket.index,
-          isLong,
-          addOrderSize,
-          String(markPrice)
-        );
-        toast.success(`Added to ${displayCoin}-PERP.`);
-      } else {
-        await consoleData.closePerpsPosition(
-          selectedMarket.index,
-          formatPerpsOrderSize(
-            reduceSize,
-            selectedMarket.szDecimals ?? 4
-          ),
-          isLong,
-          String(markPrice)
-        );
-        toast.success(
-          action === 'close'
-            ? `${displayCoin}-PERP close order sent.`
-            : `${displayCoin}-PERP reduce order sent.`
-        );
-        if (action === 'close') onClose();
-      }
-      await queryClient.invalidateQueries({ queryKey: ['hl-positions'] });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Perps action failed.';
-      setTradeError(message);
-      toast.error(message);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-[820px] overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#111318] text-[#eceef2] shadow-[0_40px_120px_rgba(0,0,0,0.55)]">
-        <div className="flex items-center gap-3 border-b border-white/[0.07] px-5 py-4">
-          <DmAgentTile size="h-10 w-10" textClassName="text-[16px]" />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[18px] font-semibold tracking-[-0.02em]">
-              {displayCoin}-PERP
-            </div>
-            <div className="dm-mono mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#3fe08f]">
-              manage position · Hyperliquid
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="dm-btn grid h-9 w-9 place-items-center rounded-[10px] border border-white/[0.07] bg-black/20 text-[#9396a0]"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="grid gap-0 md:grid-cols-[1fr_320px]">
-          <div className="max-h-[72vh] overflow-y-auto p-5">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <div
-                  className={`dm-mono inline-flex rounded-[7px] border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
-                    isLong
-                      ? 'border-[#3fe08f]/35 bg-[#3fe08f]/12 text-[#a9f7cc]'
-                      : 'border-[#ff5d63]/35 bg-[#ff5d63]/12 text-[#ffb2b6]'
-                  }`}
-                >
-                  {sideLabel} {leverageValue}x {isCross ? 'cross' : 'isolated'}
-                </div>
-                <div className="mt-2 text-[24px] font-semibold tracking-[-0.03em]">
-                  {displayCoin}-PERP
-                </div>
-              </div>
-              <div className="text-right">
-                <div
-                  className={`dm-mono text-[26px] font-black tracking-[-0.04em] ${
-                    pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]'
-                  }`}
-                >
-                  {formatSignedUsd(pnl)}
-                </div>
-                <div
-                  className={`dm-mono mt-1 text-[11px] font-bold ${
-                    roe >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]'
-                  }`}
-                >
-                  {roe >= 0 ? '+' : ''}
-                  {roe.toFixed(2)}% ROE
-                </div>
-              </div>
-            </div>
-
-            <svg
-              viewBox="0 0 520 110"
-              className={`mb-4 h-[110px] w-full ${
-                pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]'
-              }`}
-              role="img"
-              aria-label={`${displayCoin} position chart`}
-            >
-              <defs>
-                <linearGradient
-                  id={positionChartId}
-                  x1="0"
-                  x2="0"
-                  y1="0"
-                  y2="1"
-                >
-                  <stop offset="0%" stopColor="currentColor" stopOpacity="0.28" />
-                  <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path
-                d={`${perpsSparkPath(520, 86)} L 520 110 L 0 110 Z`}
-                fill={`url(#${positionChartId})`}
-              />
-              <path
-                d={perpsSparkPath(520, 86)}
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="4"
-              />
-            </svg>
-
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <PositionStat
-                label="size"
-                value={`${formatPerpsOrderSize(
-                  absSize,
-                  selectedMarket?.szDecimals ?? 4
-                )} ${displayCoin}`}
-              />
-              <PositionStat
-                label="entry"
-                value={`$${formatPerpsPrice(entryPrice)}`}
-              />
-              <PositionStat
-                label="mark"
-                value={`$${formatPerpsPrice(markPrice)}`}
-              />
-              <PositionStat
-                label="liq. price"
-                value={
-                  liquidationPrice > 0
-                    ? `$${formatPerpsPrice(liquidationPrice)}`
-                    : '--'
-                }
-                tone="red"
-              />
-              <PositionStat
-                label="collateral"
-                value={formatCompactUsd(marginUsed)}
-              />
-              <PositionStat
-                label="notional"
-                value={formatCompactUsd(notional)}
-              />
-            </div>
-          </div>
-
-          <div className="border-t border-white/[0.07] bg-[#0d1011] p-5 md:border-l md:border-t-0">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="dm-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[#737783]">
-                manage ticket
-              </div>
-              <div className="dm-mono rounded-full border border-[#3fe08f]/20 bg-[#3fe08f]/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[#3fe08f]">
-                live
-              </div>
-            </div>
-
-            <div className="rounded-[18px] border border-white/[0.08] bg-[#15171d] p-4">
-              <div className="grid grid-cols-3 rounded-[12px] border border-white/[0.07] bg-black/25 p-1">
-                {(['add', 'reduce', 'close'] as PerpsPositionAction[]).map(
-                  (item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => {
-                        setAction(item);
-                        setTradeError(null);
-                      }}
-                      className={`dm-btn rounded-[9px] px-2 py-2 text-[10.5px] font-bold uppercase tracking-[0.08em] ${
-                        action === item
-                          ? item === 'close'
-                            ? 'bg-[#ff5d63] text-[#140508]'
-                            : 'bg-[#3fe08f] text-[#06120b]'
-                          : 'text-[#737783] hover:text-[#eceef2]'
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  )
-                )}
-              </div>
-
-              {action === 'add' ? (
-                <div className="mt-4">
-                  <label className="dm-mono text-[10px] font-bold uppercase tracking-[0.12em] text-[#737783]">
-                    collateral
-                  </label>
-                  <div className="mt-1.5 flex items-center gap-2 rounded-[12px] border border-white/[0.07] bg-black px-3 py-2.5">
-                    <span className="dm-mono text-xl text-[#6f7380]">$</span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="1"
-                      value={collateralUsd}
-                      onChange={(event) => setCollateralUsd(event.target.value)}
-                      className="dm-mono min-w-0 flex-1 bg-transparent text-xl font-bold text-[#eceef2] outline-none"
-                    />
-                    <span className="dm-mono text-[11px] text-[#5a5e69]">
-                      USDC
-                    </span>
-                  </div>
-                  <div className="mt-2 grid grid-cols-4 gap-1.5">
-                    {[minimumCollateral, 5, 10, 25].map((value, index) => (
-                      <button
-                        key={`${value}-${index}`}
-                        type="button"
-                        onClick={() =>
-                          setCollateralUsd(formatPerpsInputAmount(value))
-                        }
-                        className="dm-btn rounded-[9px] border border-white/[0.07] bg-black/20 px-2 py-1.5 text-[10px] font-bold text-[#a9adb8] hover:text-[#eceef2]"
-                      >
-                        {formatCompactUsd(value)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : action === 'reduce' ? (
-                <div className="mt-4">
-                  <div className="mb-1.5 flex items-center justify-between gap-3">
-                    <label className="dm-mono text-[10px] font-bold uppercase tracking-[0.12em] text-[#737783]">
-                      reduce size
-                    </label>
-                    <span className="dm-mono text-[10px] text-[#5a5e69]">
-                      {reduceLabel}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    step="1"
-                    value={reducePercent}
-                    onChange={(event) => setReducePercent(event.target.value)}
-                    className="h-1.5 w-full accent-[#3fe08f]"
-                  />
-                  <div className="mt-2 grid grid-cols-4 gap-1.5">
-                    {[25, 50, 75, 100].map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setReducePercent(String(value))}
-                        className={`dm-btn rounded-[9px] border px-2 py-1.5 text-[10px] font-bold ${
-                          Math.round(reducePct) === value
-                            ? 'border-[#3fe08f]/45 bg-[#3fe08f]/10 text-[#3fe08f]'
-                            : 'border-white/[0.07] bg-black/20 text-[#a9adb8] hover:text-[#eceef2]'
-                        }`}
-                      >
-                        {value === 100 ? 'Max' : `${value}%`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4 rounded-[12px] border border-[#ff5d63]/25 bg-[#ff5d63]/10 px-3 py-3 text-[12px] leading-relaxed text-[#ffb2b6]">
-                  This sends a reduce-only market close for the full{' '}
-                  {displayCoin}-PERP position.
-                </div>
-              )}
-
-              <div className="mt-4 space-y-2 border-t border-dashed border-white/[0.07] pt-3">
-                <TicketLine
-                  label="mark"
-                  value={`$${formatPerpsPrice(markPrice)}`}
-                />
-                <TicketLine
-                  label="direction"
-                  value={action === 'add' ? sideLabel : `Reduce ${sideLabel}`}
-                />
-                <TicketLine
-                  label={action === 'add' ? 'new size' : 'reduce size'}
-                  value={
-                    action === 'add'
-                      ? `${addOrderSize} ${displayCoin}`
-                      : reduceLabel
-                  }
-                />
-                <TicketLine
-                  label={action === 'add' ? 'notional' : 'est. released'}
-                  value={
-                    action === 'add'
-                      ? formatCompactUsd(addNotional)
-                      : formatCompactUsd(marginUsed * (reduceSize / absSize))
-                  }
-                />
-                <TicketLine
-                  label="available"
-                  value={formatCompactUsd(availableMargin)}
-                />
-              </div>
-
-              {(isAddBelowMinimum ||
-                needsFunds ||
-                tradeError ||
-                consoleData.perpsTradingError ||
-                consoleData.perpsAgentError ||
-                !selectedMarket) && (
-                <div className="mt-3 rounded-[10px] border border-[#e8920f]/25 bg-[#e8920f]/10 px-3 py-2 text-[11px] text-[#ffd08a]">
-                  {tradeError ||
-                    consoleData.perpsTradingError ||
-                    consoleData.perpsAgentError ||
-                    (!selectedMarket
-                      ? 'Loading this Hyperliquid market.'
-                      : isAddBelowMinimum
-                      ? `Minimum collateral is ${formatCompactUsd(
-                          minimumCollateral
-                        )} at ${leverageValue}x.`
-                      : `Add funds first. You are ${formatCompactUsd(
-                          Math.max(0, collateralValue - availableMargin)
-                        )} short.`)}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                className={`dm-btn mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] px-3 text-[13px] font-bold uppercase tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-50 ${
-                  action === 'close'
-                    ? 'bg-[#ff5d63] text-[#140508]'
-                    : 'bg-[#3fe08f] text-[#06120b]'
-                }`}
-              >
-                {consoleData.isPerpsSubmitting && (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                )}
-                {consoleData.isPerpsSubmitting
-                  ? 'Submitting...'
-                  : primaryLabel}
-              </button>
-              <div className="dm-mono mt-3 text-center text-[9.5px] text-[#5a5e69]">
-                perps actions use your enabled agent wallet
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PositionStat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: 'green' | 'red';
-}) {
-  return (
-    <div className="rounded-[12px] border border-white/[0.07] bg-black/25 px-3 py-2.5">
-      <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.14em] text-[#5a5e69]">
-        {label}
-      </div>
-      <div
-        className={`dm-mono mt-1 truncate text-[14px] font-bold ${
-          tone === 'green'
-            ? 'text-[#3fe08f]'
-            : tone === 'red'
-            ? 'text-[#ff5d63]'
-            : 'text-[#eceef2]'
-        }`}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function TicketLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="dm-mono text-[11px] text-[#737783]">{label}</span>
-      <span className="dm-mono text-[12px] font-bold text-[#eceef2]">
-        {value || '--'}
-      </span>
-    </div>
   );
 }
 
@@ -6975,8 +6036,6 @@ function Message({
   const researchCheckedAt =
     message.agentData?.metadata?.toolExecution?.checkedAt || null;
   const receipt = message.agentData?.metadata?.receipt || null;
-  const [selectedAgentPredictionPosition, setSelectedAgentPredictionPosition] =
-    useState<PolymarketPosition | null>(null);
   const hasAgentReceipt = isAgent && Boolean(receipt);
   const researchPolymarketQuery = useMemo(
     () =>
@@ -7156,13 +6215,13 @@ function Message({
         <div
           className={`${
             hasAgentRichContent
-              ? 'p-0'
-              : `px-[13px] py-[9px] ${
+                ? 'p-0'
+                : `px-[13px] py-[9px] ${
                   isOwn
-                    ? 'rounded-[18px] rounded-tr-md border border-[#3fe08f] bg-[#3fe08f] text-[#0b0b0c]'
+                    ? 'dm-mono rounded-[14px] rounded-tr-[6px] border border-[#43e58f] bg-[#43e58f] text-[#06120b] shadow-[0_18px_45px_rgba(63,224,143,0.16)]'
                     : isAgent
                     ? `${AGENT_TERMINAL_BUBBLE_CLASS} rounded-tl-md`
-                    : 'rounded-[18px] rounded-tl-md border border-white/[0.07] bg-[#15171d] text-[#eceef2]'
+                    : 'dm-mono rounded-[14px] rounded-tl-[6px] border border-white/[0.07] bg-[#15171d] text-[#eceef2]'
                 }`
           } ${message.status === 'failed' ? 'opacity-50' : ''}`}
         >
@@ -7189,7 +6248,9 @@ function Message({
               className={
                 hasAgentRichContent
                   ? `${AGENT_TERMINAL_BUBBLE_CLASS} mb-2 break-words`
-                  : 'break-words text-sm leading-relaxed'
+                  : isOwn
+                  ? 'dm-mono break-words text-[13.5px] font-semibold leading-[1.6]'
+                  : 'dm-mono break-words text-[14px] font-semibold leading-[1.65]'
               }
             >
               {message.message}
@@ -7225,7 +6286,6 @@ function Message({
           {isAgent && polymarketPositions.length > 0 && (
             <PolymarketPositionsCard
               positions={polymarketPositions}
-              onOpenPosition={setSelectedAgentPredictionPosition}
             />
           )}
           {isAgent &&
@@ -7302,16 +6362,6 @@ function Message({
               onAddPerpsFunds={onAddPerpsFunds}
               astroConsoleData={astroConsoleData}
               sourceText={proposalSourceText}
-            />
-          )}
-          {selectedAgentPredictionPosition && (
-            <PredictionPositionManagerModal
-              position={selectedAgentPredictionPosition}
-              allPositions={astroConsoleData.predictionPositions.length
-                ? astroConsoleData.predictionPositions
-                : polymarketPositions}
-              consoleData={astroConsoleData}
-              onClose={() => setSelectedAgentPredictionPosition(null)}
             />
           )}
         </div>
@@ -8371,10 +7421,8 @@ function AgentMarketBlock({
 
 function PolymarketPositionsCard({
   positions,
-  onOpenPosition,
 }: {
   positions: PolymarketPosition[];
-  onOpenPosition: (position: PolymarketPosition) => void;
 }) {
   const openPositions = positions.filter(isOpenPredictionConsolePosition);
   const displayPositions = (openPositions.length ? openPositions : positions).slice(
@@ -8421,34 +7469,33 @@ function PolymarketPositionsCard({
               : `${formatSignedUsd(pnl)} · ${
                   percentPnl > 0 ? '+' : ''
                 }${percentPnl.toFixed(2)}%`;
-
           return (
-            <button
+            <div
               key={`${position.conditionId}-${position.asset}`}
-              type="button"
-              onClick={() => onOpenPosition(position)}
-              className="dm-btn flex w-full items-center justify-between gap-3 border-t border-white/[0.045] px-3.5 py-3 text-left first:border-t-0"
+              className="border-t border-white/[0.045] first:border-t-0"
             >
-              <span className="min-w-0 flex-1">
-                <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-[#eceef2]">
-                  {position.title || 'Prediction market'}
-                </span>
-                <span className="dm-mono mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#737783]">
-                  <span className="rounded-[5px] border border-[#3fe08f]/15 bg-black/25 px-1.5 py-0.5 text-[#3fe08f]">
-                    {position.outcome || 'Outcome'}
+              <div className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left">
+                <span className="min-w-0 flex-1">
+                  <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-[#eceef2]">
+                    {position.title || 'Prediction market'}
                   </span>
-                  <span>{formatPredictionShares(position.size)} shares</span>
-                  <span>{formatPolymarketPrice(position.curPrice)}</span>
+                  <span className="dm-mono mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#737783]">
+                    <span className="rounded-[5px] border border-[#3fe08f]/15 bg-black/25 px-1.5 py-0.5 text-[#3fe08f]">
+                      {position.outcome || 'Outcome'}
+                    </span>
+                    <span>{formatPredictionShares(position.size)} shares</span>
+                    <span>{formatPolymarketPrice(position.curPrice)}</span>
+                  </span>
                 </span>
-              </span>
-              <span
-                className={`dm-mono shrink-0 text-right text-[11px] font-bold ${
-                  pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]'
-                }`}
-              >
-                {pnlLabel}
-              </span>
-            </button>
+                <span
+                  className={`dm-mono shrink-0 text-right text-[11px] font-bold ${
+                    pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]'
+                  }`}
+                >
+                  {pnlLabel}
+                </span>
+              </div>
+            </div>
           );
         })}
       </div>
@@ -9872,30 +8919,6 @@ function normalizePolymarketMarketPreview(
   };
 }
 
-function polymarketPositionToPreview(
-  position: PolymarketPosition
-): PolymarketMarketPreview {
-  const isYesPosition = position.outcomeIndex === 0;
-  const yesTokenId = isYesPosition ? position.asset : position.oppositeAsset;
-  const noTokenId = isYesPosition ? position.oppositeAsset : position.asset;
-  const yesOutcome = isYesPosition ? position.outcome : position.oppositeOutcome;
-  const noOutcome = isYesPosition ? position.oppositeOutcome : position.outcome;
-  const currentPrice = parsePolymarketProbability(position.curPrice, 0.5);
-
-  return {
-    id: position.conditionId,
-    conditionId: position.conditionId,
-    slug: position.slug,
-    eventSlug: position.eventSlug,
-    gameStartTime: position.endDate,
-    question: position.title || position.slug || 'Prediction market',
-    clobTokenIds: [yesTokenId, noTokenId].filter(Boolean),
-    outcomes: [yesOutcome || 'Yes', noOutcome || 'No'],
-    yesPrice: isYesPosition ? currentPrice : 1 - currentPrice,
-    noPrice: isYesPosition ? 1 - currentPrice : currentPrice,
-  };
-}
-
 function getPolymarketOutcomeLabels(market: PolymarketMarketPreview) {
   return {
     yes: market.outcomes?.[0] || 'Yes',
@@ -10840,9 +9863,10 @@ function AgentProposalCard({
 }) {
   const isOpen = status === 'pending';
   const nextStep = getApprovalNextStep(actionResult?.result);
-  const isHyperliquidPlaceOrder =
+  const isHyperliquidPerpsAction =
     proposal?.toolType === 'perps.write' &&
-    proposal?.action === 'perps.place_order';
+    (proposal?.action === 'perps.place_order' ||
+      proposal?.action === 'perps.close_position');
   const isPolymarketOrder =
     proposal?.toolType === 'prediction.write' &&
     (proposal?.action === 'prediction.prepare_order' ||
@@ -10857,7 +9881,7 @@ function AgentProposalCard({
       proposal?.action === 'transfer_token' ||
       proposal?.action === 'transfer_sol');
 
-  if (isHyperliquidPlaceOrder) {
+  if (isHyperliquidPerpsAction) {
     return (
       <HyperliquidProposalFlowTicket
         proposal={proposal}
@@ -10870,6 +9894,7 @@ function AgentProposalCard({
         onReject={onReject}
         onAddFunds={onAddPerpsFunds}
         astroConsoleData={astroConsoleData}
+        sourceText={sourceText}
       />
     );
   }
@@ -11005,7 +10030,7 @@ function AgentProposalCard({
             )}
           </div>
         )}
-        {!isHyperliquidPlaceOrder && !isPolymarketOrder && proposal?.normalizedParams &&
+        {!isHyperliquidPerpsAction && !isPolymarketOrder && proposal?.normalizedParams &&
           Object.keys(proposal.normalizedParams).length > 0 && (
             <div className="dm-mono mt-1 rounded-[8px] border border-white/[0.07] bg-black/25 p-2 text-[11px] text-[#9396a0]">
               {Object.entries(proposal.normalizedParams)
@@ -11043,7 +10068,7 @@ function AgentProposalCard({
         />
       )}
 
-      {isOpen && !isHyperliquidPlaceOrder && !isPolymarketOrder && (
+      {isOpen && !isHyperliquidPerpsAction && !isPolymarketOrder && (
         <div className="mx-3.5 mb-3 mt-3 flex gap-2">
           <button
             type="button"
@@ -12473,6 +11498,7 @@ const CHAT_SWAP_CHAIN_IDS: Record<TokenData['chain'], string> = {
   ETHEREUM: '1',
   BASE: '8453',
   ARBITRUM: '42161',
+  SEPOLIA: '11155111',
   POLYGON: '137',
   SOLANA: SOLANA_CHAIN_ID,
 };
@@ -12481,6 +11507,7 @@ const CHAT_SWAP_CHAIN_NAMES: Record<string, string> = {
   '1': 'Ethereum',
   '8453': 'Base',
   '42161': 'Arbitrum',
+  '11155111': 'Sepolia',
   '137': 'Polygon',
   [SOLANA_CHAIN_ID]: 'Solana',
 };
@@ -14702,7 +13729,11 @@ function SwapProposalTicket({
 
 function initialTicketSide(params?: Record<string, unknown>) {
   const value =
-    params?.side ?? params?.direction ?? params?.isBuy ?? params?.sideDirection;
+    params?.side ??
+    params?.direction ??
+    params?.isLong ??
+    params?.isBuy ??
+    params?.sideDirection;
   if (typeof value === 'boolean') return value ? 'long' : 'short';
   const normalized = String(value || '').toLowerCase();
   if (['long', 'buy', 'bid'].includes(normalized)) return 'long';
@@ -14764,7 +13795,12 @@ function positiveInput(value: string) {
   return Number.isFinite(number) && number > 0;
 }
 
-type HyperliquidTicketFlow = 'order' | 'opening' | 'opened' | 'manage';
+type HyperliquidTicketFlow =
+  | 'order'
+  | 'authorizing'
+  | 'opening'
+  | 'opened'
+  | 'manage';
 type InlineHyperliquidOrderMode = 'market' | 'limit' | 'tpsl';
 
 interface HyperliquidInlineReceipt {
@@ -14772,12 +13808,14 @@ interface HyperliquidInlineReceipt {
   side: 'long' | 'short';
   orderMode: InlineHyperliquidOrderMode;
   isPositionTpsl?: boolean;
+  isClose?: boolean;
   leverage: number;
   isCross: boolean;
   collateralUsd: number;
   notionalUsd: number;
   sizeCoins: string;
   entryPrice: number;
+  exitPrice?: number;
   takeProfitPrice?: number;
   stopLossPrice?: number;
   liquidationPrice: number;
@@ -14935,11 +13973,76 @@ function extractInlineHyperliquidOrderId(value: unknown) {
 function summarizeInlineHyperliquidResult(value: unknown) {
   if (!value || typeof value !== 'object') return value;
   const record = value as Record<string, unknown>;
+  if (!('status' in record) && !('response' in record) && !('data' in record)) {
+    return record;
+  }
   return {
     status: record.status,
     response: record.response,
     data: record.data,
   };
+}
+
+function mergeMissingHyperliquidPromptParams(
+  proposalParams: Record<string, unknown> | undefined,
+  sourceText?: string
+) {
+  const base = { ...(proposalParams || {}) };
+  const sourceParams = sourceText
+    ? (findHyperliquidOrderIntent(sourceText)?.params as
+        | Record<string, unknown>
+        | undefined)
+    : null;
+
+  if (!sourceParams) return base;
+
+  Object.entries(sourceParams).forEach(([key, value]) => {
+    if (
+      value !== undefined &&
+      value !== null &&
+      String(value).trim() &&
+      (base[key] === undefined || base[key] === null || String(base[key]).trim() === '')
+    ) {
+      base[key] = value;
+    }
+  });
+
+  const sourceRiskPrices = [
+    sourceParams.takeProfitPrice,
+    sourceParams.takeProfit,
+    sourceParams.tpPrice,
+    sourceParams.tp,
+    sourceParams.stopLossPrice,
+    sourceParams.stopLoss,
+    sourceParams.slPrice,
+    sourceParams.sl,
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  const sourceHasRiskPrice = sourceRiskPrices.length > 0;
+  const sourceHasExplicitEntry = Boolean(
+    sourceParams.price || sourceParams.limitPrice || sourceParams.entryPrice
+  );
+  if (sourceHasRiskPrice && !sourceHasExplicitEntry) {
+    ['price', 'limitPrice', 'p'].forEach((key) => {
+      const value = String(base[key] || '').trim();
+      if (sourceRiskPrices.includes(value)) {
+        delete base[key];
+      }
+    });
+  }
+
+  if (
+    sourceHasRiskPrice &&
+    !/\b(limit|tpsl)\b/i.test(
+      String(base.orderMode || base.orderType || '')
+    )
+  ) {
+    base.orderMode = sourceParams.orderMode || 'market';
+    base.orderType = sourceParams.orderType || base.orderMode;
+  }
+
+  return base;
 }
 
 function HyperliquidProposalFlowTicket({
@@ -14953,6 +14056,7 @@ function HyperliquidProposalFlowTicket({
   onReject,
   onAddFunds,
   astroConsoleData,
+  sourceText,
 }: {
   proposal?: AgentActionProposal | null;
   proposalId: string;
@@ -14967,9 +14071,21 @@ function HyperliquidProposalFlowTicket({
   onReject: (proposalId: string) => void;
   onAddFunds: () => void;
   astroConsoleData: AstroConsoleData;
+  sourceText?: string;
 }) {
   const { accessToken, user, primaryMicrosite } = useUser();
-  const params = proposal?.normalizedParams;
+  const queryClient = useQueryClient();
+  const params = useMemo(
+    () =>
+      mergeMissingHyperliquidPromptParams(
+        proposal?.normalizedParams,
+        sourceText
+      ),
+    [proposal?.normalizedParams, sourceText]
+  );
+  const isClosePosition =
+    proposal?.toolType === 'perps.write' &&
+    proposal?.action === 'perps.close_position';
   const [coin, setCoin] = useState(
     initialPerpsCoin(params) || 'ETH'
   );
@@ -14977,7 +14093,9 @@ function HyperliquidProposalFlowTicket({
     initialTicketSide(params) === 'short' ? 'short' : 'long'
   );
   const [orderMode, setOrderMode] = useState<InlineHyperliquidOrderMode>(
-    initialTicketMode(params) as InlineHyperliquidOrderMode
+    isClosePosition
+      ? 'market'
+      : (initialTicketMode(params) as InlineHyperliquidOrderMode)
   );
   const [price, setPrice] = useState(
     firstTicketValue(params, ['price', 'limitPrice', 'p'])
@@ -14989,7 +14107,7 @@ function HyperliquidProposalFlowTicket({
     firstTicketValue(params, ['stopLossPrice', 'stopLoss', 'slPrice', 'sl'])
   );
   const [collateralUsd, setCollateralUsd] = useState(
-    initialPerpsSizeUsd(params) || '1000'
+    initialPerpsSizeUsd(params) || ''
   );
   const [leverage, setLeverage] = useState(
     firstTicketValue(params, ['leverage']) || '5'
@@ -15008,7 +14126,11 @@ function HyperliquidProposalFlowTicket({
   useEffect(() => {
     setCoin(initialPerpsCoin(params) || 'ETH');
     setSide(initialTicketSide(params) === 'short' ? 'short' : 'long');
-    setOrderMode(initialTicketMode(params) as InlineHyperliquidOrderMode);
+    setOrderMode(
+      isClosePosition
+        ? 'market'
+        : (initialTicketMode(params) as InlineHyperliquidOrderMode)
+    );
     setPrice(firstTicketValue(params, ['price', 'limitPrice', 'p']));
     setTakeProfit(
       firstTicketValue(params, ['takeProfitPrice', 'takeProfit', 'tpPrice', 'tp'])
@@ -15016,18 +14138,92 @@ function HyperliquidProposalFlowTicket({
     setStopLoss(
       firstTicketValue(params, ['stopLossPrice', 'stopLoss', 'slPrice', 'sl'])
     );
-    setCollateralUsd(initialPerpsSizeUsd(params) || '1000');
+    setCollateralUsd(initialPerpsSizeUsd(params) || '');
     setLeverage(firstTicketValue(params, ['leverage']) || '5');
     setFlow('order');
     setLocalError(null);
     setReceipt(null);
-  }, [params, proposalId]);
+  }, [params, proposalId, isClosePosition]);
 
-  const selectedMarket = perpsMarketForCoin(
-    astroConsoleData.perpsMarkets,
-    coin
+  const requestedAssetIndex = Number(
+    firstTicketValue(params, ['assetIndex', 'assetId', 'a'])
   );
+  const selectedMarket =
+    perpsMarketForCoin(astroConsoleData.perpsMarkets, coin) ||
+    (Number.isFinite(requestedAssetIndex)
+      ? astroConsoleData.perpsMarkets.find(
+          (market) => market.index === requestedAssetIndex
+        )
+      : undefined);
   const markPrice = getPerpsMarkPrice(coin, selectedMarket);
+  const requestedCloseSide = initialTicketSide(params);
+  const matchingClosePosition = isClosePosition
+    ? astroConsoleData.perpsAccount?.positions.find((position) => {
+        if (Math.abs(toFiniteNumber(position.szi)) <= 0) return false;
+        if (!perpsCoinMatches(position.coin, selectedMarket?.coin || coin)) {
+          return false;
+        }
+        if (requestedCloseSide !== 'long' && requestedCloseSide !== 'short') {
+          return true;
+        }
+        return getPerpsPositionSide(position) === requestedCloseSide;
+      }) || null
+    : null;
+  const closePositionSide: 'long' | 'short' =
+    matchingClosePosition
+      ? getPerpsPositionSide(matchingClosePosition)
+      : requestedCloseSide === 'short'
+      ? 'short'
+      : 'long';
+  const requestedCloseSizeCoins = toFiniteNumber(
+    firstTicketValue(params, [
+      'size',
+      'sz',
+      'sizeCoins',
+      'positionSizeCoins',
+      'coinSize',
+      'totalSize',
+      'closeSize',
+    ])
+  );
+  const matchingCloseSizeCoins = Math.abs(
+    toFiniteNumber(matchingClosePosition?.szi)
+  );
+  const closeSizeCoinsValue =
+    requestedCloseSizeCoins > 0
+      ? matchingCloseSizeCoins > 0
+        ? Math.min(requestedCloseSizeCoins, matchingCloseSizeCoins)
+        : requestedCloseSizeCoins
+      : matchingCloseSizeCoins;
+  const closeSize = formatPerpsOrderSize(
+    closeSizeCoinsValue,
+    selectedMarket?.szDecimals ?? 4
+  );
+  const closeMarkPrice =
+    toFiniteNumber(firstTicketValue(params, ['markPrice', 'price', 'exitPrice'])) ||
+    markPrice ||
+    toFiniteNumber(matchingClosePosition?.entryPx);
+  const closeEntryPrice =
+    toFiniteNumber(firstTicketValue(params, ['entryPrice'])) ||
+    toFiniteNumber(matchingClosePosition?.entryPx) ||
+    closeMarkPrice;
+  const closeCollateralUsd =
+    toFiniteNumber(
+      firstTicketValue(params, ['collateralUsd', 'marginUsed', 'marginUsd'])
+    ) || toFiniteNumber(matchingClosePosition?.marginUsed);
+  const closeNotionalUsd =
+    closeSizeCoinsValue * closeMarkPrice ||
+    toFiniteNumber(matchingClosePosition?.positionValue);
+  const closeLeverageValue =
+    toFiniteNumber(firstTicketValue(params, ['leverage'])) ||
+    matchingClosePosition?.leverage?.value ||
+    1;
+  const closeIsCross = matchingClosePosition
+    ? matchingClosePosition.leverage.type !== 'isolated'
+    : initialTicketBool(params, ['isCross', 'cross'], false);
+  const closeLiquidationPrice =
+    toFiniteNumber(firstTicketValue(params, ['liquidationPrice'])) ||
+    toFiniteNumber(matchingClosePosition?.liquidationPx);
   const maxLeverage = selectedMarket?.maxLeverage || 50;
   const leverageValue = clampPerpsLeverage(leverage, selectedMarket);
   const requestedSizeCoins = firstTicketValue(params, [
@@ -15049,21 +14245,26 @@ function HyperliquidProposalFlowTicket({
     positionSizeCoinsValue > 0
       ? positionSizeCoinsValue * markPrice
       : toFiniteNumber(initialPerpsSizeUsd(params));
-  const notionalUsd = isPositionTpsl
+  const notionalUsd = isClosePosition
+    ? closeNotionalUsd
+    : isPositionTpsl
     ? positionNotionalUsd
     : collateralNotionalUsd;
   const sizeCoinsValue =
-    isPositionTpsl && positionSizeCoinsValue > 0
+    isClosePosition
+      ? closeSizeCoinsValue
+      : isPositionTpsl && positionSizeCoinsValue > 0
       ? positionSizeCoinsValue
       : markPrice > 0
       ? notionalUsd / markPrice
       : 0;
-  const orderSize = formatPerpsOrderSize(
-    sizeCoinsValue,
-    selectedMarket?.szDecimals ?? 4
-  );
+  const orderSize = isClosePosition
+    ? closeSize
+    : formatPerpsOrderSize(sizeCoinsValue, selectedMarket?.szDecimals ?? 4);
   const usesCustomEntryPrice =
-    !isPositionTpsl && (orderMode === 'limit' || orderMode === 'tpsl');
+    !isClosePosition &&
+    !isPositionTpsl &&
+    (orderMode === 'limit' || orderMode === 'tpsl');
   const needsEntryPrice = usesCustomEntryPrice && !positiveInput(price);
   const entryPrice =
     usesCustomEntryPrice && !needsEntryPrice
@@ -15073,15 +14274,16 @@ function HyperliquidProposalFlowTicket({
   const stopLossValue = toFiniteNumber(stopLoss);
   const hasTakeProfit = positiveInput(takeProfit);
   const hasStopLoss = positiveInput(stopLoss);
+  const activeSide = isClosePosition ? closePositionSide : side;
+  const hasTriggerPrices = hasTakeProfit || hasStopLoss;
+  const showTriggerControls =
+    !isClosePosition && (orderMode === 'tpsl' || hasTriggerPrices);
   const tpslNeedsPrices =
-    orderMode === 'tpsl' &&
-    (isPositionTpsl
-      ? !hasTakeProfit && !hasStopLoss
-      : !hasTakeProfit || !hasStopLoss);
+    showTriggerControls && !hasTakeProfit && !hasStopLoss;
   const riskPriceError =
-    orderMode !== 'tpsl' || entryPrice <= 0
+    !showTriggerControls || entryPrice <= 0
       ? ''
-      : side === 'long'
+      : activeSide === 'long'
       ? hasTakeProfit && takeProfitValue <= entryPrice
         ? 'Take profit must be above entry for a long.'
         : hasStopLoss && stopLossValue >= entryPrice
@@ -15092,10 +14294,13 @@ function HyperliquidProposalFlowTicket({
       : hasStopLoss && stopLossValue <= entryPrice
       ? 'Stop loss must be above entry for a short.'
       : '';
-  const liquidationPrice =
-    toFiniteNumber(firstTicketValue(params, ['liquidationPrice'])) ||
-    estimatePerpsLiquidationPrice(entryPrice, side, leverageValue);
-  const openFee = isPositionTpsl ? 0 : notionalUsd * 0.0005;
+  const liquidationPrice = isClosePosition
+    ? closeLiquidationPrice
+    : toFiniteNumber(firstTicketValue(params, ['liquidationPrice'])) ||
+      estimatePerpsLiquidationPrice(entryPrice, side, leverageValue);
+  const openFee = isPositionTpsl
+    ? 0
+    : (isClosePosition ? closeNotionalUsd : notionalUsd) * 0.0005;
   const availableMargin = toFiniteNumber(
     astroConsoleData.perpsAccount?.withdrawable
   );
@@ -15104,6 +14309,7 @@ function HyperliquidProposalFlowTicket({
   );
   const canTradeInChat = status === 'pending' || status === 'approved';
   const isBelowMinimumNotional =
+    !isClosePosition &&
     !isPositionTpsl &&
     positiveInput(collateralUsd) &&
     notionalUsd < HYPERLIQUID_MIN_ORDER_USD;
@@ -15112,6 +14318,7 @@ function HyperliquidProposalFlowTicket({
   const needsPerpsFunds =
     canTradeInChat &&
     canAct &&
+    !isClosePosition &&
     !isPositionTpsl &&
     !isBelowMinimumNotional &&
     !reduceOnly &&
@@ -15119,58 +14326,88 @@ function HyperliquidProposalFlowTicket({
     (accountValue <= 0 || collateralUsdValue > availableMargin);
   const canDepositForOrder = needsPerpsFunds && !isBelowMinimumNotional;
   const fundingShortfall = Math.max(0, collateralUsdValue - availableMargin);
+  const isTicketActionBusy = flow === 'authorizing' || flow === 'opening';
+  const isAuthorizingSigner =
+    flow === 'authorizing' || astroConsoleData.isPerpsAgentInitializing;
   const isAgentBusy =
-    astroConsoleData.isPerpsAgentInitializing ||
+    isAuthorizingSigner ||
     astroConsoleData.isPerpsAgentReconnecting ||
     astroConsoleData.isPerpsSubmitting ||
-    flow === 'opening' ||
+    isTicketActionBusy ||
     isPending;
-  const canSubmit = Boolean(
+  const closePositionUnavailable =
+    isClosePosition &&
+    !astroConsoleData.isPerpsLoading &&
+    closeSizeCoinsValue <= 0;
+  const closeCanSubmit = Boolean(
     canTradeInChat &&
       canAct &&
-      !needsPerpsFunds &&
-      coin.trim() &&
-      (isPositionTpsl || positiveInput(collateralUsd)) &&
-      !isBelowMinimumNotional &&
-      positiveInput(leverage) &&
       selectedMarket &&
-      toFiniteNumber(orderSize) > 0 &&
-      !needsEntryPrice &&
-      !tpslNeedsPrices &&
-      !riskPriceError
+      closeSizeCoinsValue > 0 &&
+      closeMarkPrice > 0 &&
+      !astroConsoleData.isPerpsLoading
   );
-  const sideLabel = side === 'short' ? 'Short' : 'Long';
-  const ticketDisplayCoin = displayPerpsCoin(coin);
+  const canSubmit = isClosePosition
+    ? closeCanSubmit
+    : Boolean(
+        canTradeInChat &&
+          canAct &&
+          !needsPerpsFunds &&
+          coin.trim() &&
+          (isPositionTpsl || positiveInput(collateralUsd)) &&
+          !isBelowMinimumNotional &&
+          positiveInput(leverage) &&
+          selectedMarket &&
+          toFiniteNumber(orderSize) > 0 &&
+          !needsEntryPrice &&
+          !tpslNeedsPrices &&
+          !riskPriceError
+      );
+  const sideLabel = activeSide === 'short' ? 'Short' : 'Long';
+  const ticketCoin = isClosePosition
+    ? matchingClosePosition?.coin || selectedMarket?.coin || coin
+    : coin;
+  const ticketDisplayCoin = displayPerpsCoin(ticketCoin);
   const triggerLabel =
     [hasTakeProfit ? 'TP' : null, hasStopLoss ? 'SL' : null]
       .filter(Boolean)
       .join('/') || 'TP/SL';
   const sideTone =
-    side === 'short'
+    activeSide === 'short'
       ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ffb2b6]'
       : 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#a9f7cc]';
-  const marginModeLabel = `${isCross ? 'cross' : 'isolated'} margin${
-    reduceOnly ? ' · reduce only' : ''
-  }`;
+  const marginModeLabel = `${
+    isClosePosition ? (closeIsCross ? 'cross' : 'isolated') : isCross ? 'cross' : 'isolated'
+  } margin${isClosePosition || reduceOnly ? ' · reduce only' : ''}`;
   const primaryLabel =
-    flow === 'opening'
-      ? isPositionTpsl
+    isAuthorizingSigner
+      ? 'Approving perps signer...'
+      : isTicketActionBusy
+      ? isClosePosition
+        ? 'Closing position...'
+        : isPositionTpsl
         ? 'Setting triggers...'
         : 'Opening position...'
       : isBelowMinimumNotional
       ? `Minimum ${formatCompactUsd(minimumCollateralRequired)} collateral`
       : needsPerpsFunds
       ? 'Deposit to Hyperliquid'
+      : !isClosePosition && !isPositionTpsl && !positiveInput(collateralUsd)
+      ? 'Set size'
       : !astroConsoleData.isPerpsAgentInitialized
-      ? 'Enable perps trading'
+      ? 'Approve perps signer'
       : !selectedMarket
       ? 'Loading market'
+      : isClosePosition
+      ? `Close ${sideLabel} ${ticketDisplayCoin}-PERP`
       : isPositionTpsl
       ? `Set ${triggerLabel} · ${ticketDisplayCoin}-PERP`
       : orderMode === 'tpsl'
       ? `Place TP/SL ${sideLabel} · ${formatCompactUsd(collateralUsdValue)}`
       : orderMode === 'limit'
       ? `Place limit ${sideLabel} · ${formatCompactUsd(collateralUsdValue)}`
+      : hasTriggerPrices
+      ? `Open ${leverageValue}x ${sideLabel} + ${triggerLabel}`
       : `Open ${leverageValue}x ${sideLabel} · ${formatCompactUsd(
           collateralUsdValue
         )}`;
@@ -15191,14 +14428,207 @@ function HyperliquidProposalFlowTicket({
     sizeCoins: orderSize,
     entryPrice,
     takeProfitPrice:
-      orderMode === 'tpsl' && hasTakeProfit ? takeProfitValue : undefined,
+      showTriggerControls && hasTakeProfit ? takeProfitValue : undefined,
     stopLossPrice:
-      orderMode === 'tpsl' && hasStopLoss ? stopLossValue : undefined,
+      showTriggerControls && hasStopLoss ? stopLossValue : undefined,
     liquidationPrice,
     feeUsd: openFee,
     orderId,
     placedAt: new Date().toISOString(),
   });
+
+  const buildCloseReceipt = (
+    orderId?: string | number
+  ): HyperliquidInlineReceipt => ({
+    coin: selectedMarket?.coin || matchingClosePosition?.coin || coin,
+    side: closePositionSide,
+    orderMode: 'market',
+    isClose: true,
+    leverage: closeLeverageValue,
+    isCross: closeIsCross,
+    collateralUsd: closeCollateralUsd,
+    notionalUsd: closeNotionalUsd,
+    sizeCoins: closeSize,
+    entryPrice: closeEntryPrice,
+    exitPrice: closeMarkPrice,
+    liquidationPrice: closeLiquidationPrice,
+    feeUsd: closeNotionalUsd * 0.0005,
+    orderId,
+    placedAt: new Date().toISOString(),
+  });
+
+  const handleClosePosition = async () => {
+    if (
+      !astroConsoleData.isPerpsAgentInitialized &&
+      !astroConsoleData.isPerpsAgentInitializing
+    ) {
+      setLocalError(null);
+      try {
+        setFlow('authorizing');
+        await astroConsoleData.initializePerpsAgent();
+        setFlow('order');
+      } catch (error) {
+        setFlow('order');
+        setLocalError(
+          error instanceof Error
+            ? error.message
+            : 'Could not enable Perps trading.'
+        );
+      }
+      return;
+    }
+
+    if (!closeCanSubmit || !selectedMarket) return;
+
+    setLocalError(null);
+    astroConsoleData.clearPerpsTradingError();
+    setFlow('opening');
+
+    try {
+      const approvalParams = {
+        coin: selectedMarket.coin || matchingClosePosition?.coin || coin,
+        asset: selectedMarket.coin || matchingClosePosition?.coin || coin,
+        assetIndex: selectedMarket.index,
+        side: closePositionSide,
+        direction: closePositionSide,
+        isLong: closePositionSide === 'long',
+        size: closeSize,
+        sz: closeSize,
+        sizeCoins: closeSize,
+        markPrice: String(closeMarkPrice),
+        entryPrice: String(closeEntryPrice),
+        collateralUsd: String(closeCollateralUsd),
+        leverage: String(closeLeverageValue),
+        isCross: closeIsCross,
+        reduceOnly: true,
+      };
+      const approvalResult =
+        proposal?.approvalResult?.payload?.proposalId === proposalId
+          ? proposal.approvalResult
+          : await onApproveInline(proposalId, approvalParams);
+
+      if (!approvalResult?.payload?.proposalId) {
+        throw new Error('Swop approval was not returned by the backend.');
+      }
+      const executionProposalId = approvalResult.payload.proposalId;
+      persistAgentActionHandoff(approvalResult);
+
+      const orderResult = await astroConsoleData.closePerpsPosition(
+        selectedMarket.index,
+        closeSize,
+        closePositionSide === 'long',
+        String(closeMarkPrice)
+      );
+
+      const orderId = extractInlineHyperliquidOrderId(orderResult);
+      const closed = buildCloseReceipt(orderId);
+      const closeCoin = selectedMarket.coin || matchingClosePosition?.coin || coin;
+      upsertPerpsPositionFeed({
+        token: accessToken,
+        userId: user?._id,
+        smartsiteId: user?.primaryMicrosite || primaryMicrosite,
+        content: {
+          provider: 'hyperliquid',
+          positionKey: buildPerpsPositionKey({
+            userId: user?._id,
+            masterAddress: astroConsoleData.perpsMasterAddress,
+            coin: closeCoin,
+          }),
+          coin: closeCoin,
+          side: closePositionSide,
+          status: 'closed',
+          event: 'close',
+          leverage: closeLeverageValue,
+          marginMode: closeIsCross ? 'cross' : 'isolated',
+          entryPrice: closeEntryPrice,
+          markPrice: closeMarkPrice,
+          exitPrice: closeMarkPrice,
+          liquidationPrice: closeLiquidationPrice || null,
+          collateralUsd: closeCollateralUsd,
+          notionalUsd: closeNotionalUsd,
+          sizeCoins: closeSizeCoinsValue,
+          returnPct: toFiniteNumber(matchingClosePosition?.returnOnEquity) * 100,
+          unrealizedPnl: toFiniteNumber(matchingClosePosition?.unrealizedPnl),
+          feeUsd: closed.feeUsd,
+          orderId: orderId ? String(orderId) : undefined,
+          masterAddress: astroConsoleData.perpsMasterAddress,
+          updatedAt: closed.placedAt,
+          closedAt: closed.placedAt,
+        },
+      }).catch((feedError) => {
+        console.warn('Failed to update perps feed card:', feedError);
+      });
+
+      const completionDraft: Omit<
+        AgentActionCompletion,
+        | 'proposalId'
+        | 'proposalNonce'
+        | 'invocationId'
+        | 'agentId'
+        | 'groupId'
+        | 'action'
+        | 'toolType'
+      > & { proposalId?: string } = {
+        proposalId: executionProposalId,
+        status: 'executed',
+        provider: 'hyperliquid',
+        title: `${displayPerpsCoin(closeCoin)}-PERP`,
+        subtitle: `${sideLabel} position closed`,
+        subject: `${displayPerpsCoin(closeCoin)}-PERP`,
+        side: closePositionSide,
+        stake: closeCollateralUsd,
+        payout: closeNotionalUsd,
+        placedAt: closed.placedAt,
+        orderId,
+        explorerLabel: orderId ? 'View order' : undefined,
+        executionResult: {
+          action: 'perps.close_position',
+          orderId,
+          coin: closeCoin,
+          side: closePositionSide,
+          assetIndex: selectedMarket.index,
+          sizeCoins: closeSize,
+          entryPrice: closeEntryPrice,
+          exitPrice: closeMarkPrice,
+          collateralUsd: closeCollateralUsd,
+          notionalUsd: closeNotionalUsd,
+          leverage: closeLeverageValue,
+          isCross: closeIsCross,
+          feeUsd: closed.feeUsd,
+          orderResult: summarizeInlineHyperliquidResult(orderResult),
+        },
+      };
+      const localCompletion = {
+        ...completionDraft,
+        proposalId: executionProposalId,
+      } as AgentActionCompletion;
+      let completion = localCompletion;
+      try {
+        completion =
+          (await completeAgentActionFromHandoff(
+            completionDraft,
+            accessToken
+          )) || localCompletion;
+      } catch (completionError) {
+        console.warn(
+          'Hyperliquid close placed, but Swop completion reporting failed:',
+          completionError
+        );
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['hl-positions'] });
+      setReceipt(closed);
+      setFlow('opened');
+      onInlineActionComplete(completion);
+      toast.success('Perps close order sent.');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to close position.';
+      setLocalError(message);
+      setFlow('order');
+      toast.error(message);
+    }
+  };
 
   const handleOpenPosition = async () => {
     if (canDepositForOrder) {
@@ -15212,8 +14642,11 @@ function HyperliquidProposalFlowTicket({
     ) {
       setLocalError(null);
       try {
+        setFlow('authorizing');
         await astroConsoleData.initializePerpsAgent();
+        setFlow('order');
       } catch (error) {
+        setFlow('order');
         setLocalError(
           error instanceof Error
             ? error.message
@@ -15237,9 +14670,9 @@ function HyperliquidProposalFlowTicket({
         price:
           usesCustomEntryPrice || isPositionTpsl ? String(entryPrice) : undefined,
         takeProfitPrice:
-          orderMode === 'tpsl' && hasTakeProfit ? takeProfit : undefined,
+          showTriggerControls && hasTakeProfit ? takeProfit : undefined,
         stopLossPrice:
-          orderMode === 'tpsl' && hasStopLoss ? stopLoss : undefined,
+          showTriggerControls && hasStopLoss ? stopLoss : undefined,
         sizeUsd: String(notionalUsd),
         sizeCoins: orderSize,
         leverage: String(leverageValue),
@@ -15304,6 +14737,20 @@ function HyperliquidProposalFlowTicket({
           orderSize,
           String(markPrice)
         );
+        if (hasTriggerPrices) {
+          const triggerResult =
+            await astroConsoleData.placePerpsPositionTpSlOrder({
+              assetIndex: selectedMarket.index,
+              isLong: side === 'long',
+              size: orderSize,
+              stopLossPrice: hasStopLoss ? stopLoss : undefined,
+              takeProfitPrice: hasTakeProfit ? takeProfit : undefined,
+            });
+          orderResult = {
+            entryOrder: summarizeInlineHyperliquidResult(orderResult),
+            triggerOrder: summarizeInlineHyperliquidResult(triggerResult),
+          };
+        }
       }
 
       const orderId = extractInlineHyperliquidOrderId(orderResult);
@@ -15451,9 +14898,9 @@ function HyperliquidProposalFlowTicket({
           sizeCoins: orderSize,
           entryPrice,
           takeProfitPrice:
-            orderMode === 'tpsl' && hasTakeProfit ? takeProfitValue : undefined,
+            showTriggerControls && hasTakeProfit ? takeProfitValue : undefined,
           stopLossPrice:
-            orderMode === 'tpsl' && hasStopLoss ? stopLossValue : undefined,
+            showTriggerControls && hasStopLoss ? stopLossValue : undefined,
           liquidationPrice,
           feeUsd: openFee,
           orderResult: summarizeInlineHyperliquidResult(orderResult),
@@ -15505,7 +14952,9 @@ function HyperliquidProposalFlowTicket({
             <div className="dm-mono flex items-center justify-between gap-3 text-[9.5px] font-bold uppercase tracking-[0.16em] text-[#3fe08f]">
               <span>
                 perps ·{' '}
-                {receipt.isPositionTpsl
+                {receipt.isClose
+                  ? 'position closed'
+                  : receipt.isPositionTpsl
                   ? `${receiptTriggerLabel} set`
                   : 'position opened'}
               </span>
@@ -15542,11 +14991,19 @@ function HyperliquidProposalFlowTicket({
                 label="size"
                 value={`${receipt.sizeCoins} ${receiptDisplayCoin}`}
               />
-              <PerpsMetric
-                label="liq. price"
-                value={`$${formatPerpsPrice(receipt.liquidationPrice)}`}
-                tone="text-[#ff5d63]"
-              />
+              {receipt.isClose ? (
+                <PerpsMetric
+                  label="exit"
+                  value={`$${formatPerpsPrice(receipt.exitPrice)}`}
+                  tone="text-[#3fe08f]"
+                />
+              ) : (
+                <PerpsMetric
+                  label="liq. price"
+                  value={`$${formatPerpsPrice(receipt.liquidationPrice)}`}
+                  tone="text-[#ff5d63]"
+                />
+              )}
               <PerpsMetric
                 label="collateral"
                 value={formatCompactUsd(receipt.collateralUsd)}
@@ -15572,7 +15029,11 @@ function HyperliquidProposalFlowTicket({
               )}
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div
+              className={`mt-3 grid gap-2 ${
+                receipt.isClose ? 'grid-cols-1' : 'grid-cols-2'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -15581,16 +15042,22 @@ function HyperliquidProposalFlowTicket({
                 }}
                 className={TICKET_REJECT_BUTTON_CLASS}
               >
-                {receipt.isPositionTpsl ? 'Adjust again' : 'New order'}
+                {receipt.isClose
+                  ? 'Close another'
+                  : receipt.isPositionTpsl
+                  ? 'Adjust again'
+                  : 'New order'}
               </button>
-              <button
-                type="button"
-                onClick={() => setFlow('manage')}
-                className={TICKET_PRIMARY_BUTTON_CLASS}
-              >
-                Manage
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
+              {!receipt.isClose && (
+                <button
+                  type="button"
+                  onClick={() => setFlow('manage')}
+                  className={TICKET_PRIMARY_BUTTON_CLASS}
+                >
+                  Manage
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -15727,10 +15194,12 @@ function HyperliquidProposalFlowTicket({
   return (
     <div className="mt-2 w-full max-w-[460px] border-l-2 border-[#3fe08f] pl-2 text-xs">
       <div className="dm-mono mb-1.5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-[#3fe08f]">
-        perps · {isPositionTpsl ? 'manage position' : 'new order'}
+        perps · {isClosePosition ? 'close position' : isPositionTpsl ? 'manage position' : 'new order'}
       </div>
       <div className="dm-mono mb-2 text-[10px] text-[#6f7380]">
-        {isPositionTpsl
+        {isClosePosition
+          ? `closing ${ticketDisplayCoin}-PERP · confirm below`
+          : isPositionTpsl
           ? `set triggers for ${ticketDisplayCoin}-PERP · confirm below`
           : `building order ${ticketDisplayCoin}-PERP · pick leverage and collateral below`}
       </div>
@@ -15738,19 +15207,32 @@ function HyperliquidProposalFlowTicket({
       <div className={`${AGENT_PANEL_CLASS} overflow-hidden rounded-[14px] p-3`}>
         <div className="dm-mono flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.14em] text-[#5a5e69]">
           <span>
-            perps · {isPositionTpsl ? 'manage' : 'open'} {ticketDisplayCoin}
-            -PERP
+            perps · {isClosePosition ? 'close' : isPositionTpsl ? 'manage' : 'open'}{' '}
+            {ticketDisplayCoin}-PERP
           </span>
-          <span>{isCross ? 'cross' : 'isolated'}</span>
+          <span>
+            {isClosePosition
+              ? closeIsCross
+                ? 'cross'
+                : 'isolated'
+              : isCross
+              ? 'cross'
+              : 'isolated'}
+          </span>
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => setSide('long')}
-            disabled={isPositionTpsl || !canTradeInChat || flow === 'opening'}
+            disabled={
+              isClosePosition ||
+              isPositionTpsl ||
+              !canTradeInChat ||
+              isTicketActionBusy
+            }
             className={`h-9 rounded-[8px] border text-[12px] font-bold ${
-              side === 'long'
+              activeSide === 'long'
                 ? 'border-[#3fe08f]/45 bg-[#3fe08f]/10 text-[#3fe08f]'
                 : 'border-white/[0.07] bg-black/20 text-[#9396a0] hover:bg-white/[0.04]'
             } disabled:opacity-60`}
@@ -15760,9 +15242,14 @@ function HyperliquidProposalFlowTicket({
           <button
             type="button"
             onClick={() => setSide('short')}
-            disabled={isPositionTpsl || !canTradeInChat || flow === 'opening'}
+            disabled={
+              isClosePosition ||
+              isPositionTpsl ||
+              !canTradeInChat ||
+              isTicketActionBusy
+            }
             className={`h-9 rounded-[8px] border text-[12px] font-bold ${
-              side === 'short'
+              activeSide === 'short'
                 ? 'border-[#ff5d63]/40 bg-[#ff5d63]/10 text-[#ffb2b6]'
                 : 'border-white/[0.07] bg-black/20 text-[#9396a0] hover:bg-white/[0.04]'
             } disabled:opacity-60`}
@@ -15771,7 +15258,14 @@ function HyperliquidProposalFlowTicket({
           </button>
         </div>
 
-        {isPositionTpsl ? (
+        {isClosePosition ? (
+          <div className="mt-3 rounded-[10px] border border-[#ff5d63]/20 bg-[#ff5d63]/10 px-3 py-2">
+            <div className={TICKET_LABEL_CLASS}>action</div>
+            <div className="mt-1 text-[13px] font-semibold text-[#ffd8da]">
+              Close {sideLabel.toLowerCase()} {ticketDisplayCoin}-PERP
+            </div>
+          </div>
+        ) : isPositionTpsl ? (
           <div className="mt-3 rounded-[10px] border border-[#3fe08f]/20 bg-[#3fe08f]/10 px-3 py-2">
             <div className={TICKET_LABEL_CLASS}>action</div>
             <div className="mt-1 text-[13px] font-semibold text-[#dfffee]">
@@ -15798,7 +15292,7 @@ function HyperliquidProposalFlowTicket({
                   onClick={() =>
                     setOrderMode(mode as InlineHyperliquidOrderMode)
                   }
-                  disabled={!canTradeInChat || flow === 'opening'}
+                  disabled={!canTradeInChat || isTicketActionBusy}
                   className={`h-8 rounded-[7px] border text-[10.5px] font-bold ${
                     orderMode === mode
                       ? 'border-[#3fe08f]/45 bg-[#3fe08f]/10 text-[#3fe08f]'
@@ -15823,7 +15317,7 @@ function HyperliquidProposalFlowTicket({
             viewBox="0 0 116 48"
             className="h-12 w-[116px] text-[#3fe08f]"
             role="img"
-            aria-label={`${coin} sparkline`}
+            aria-label={`${ticketCoin} sparkline`}
           >
             <path
               d={perpsSparkPath()}
@@ -15835,48 +15329,80 @@ function HyperliquidProposalFlowTicket({
           </svg>
         </div>
 
-        <div className="mt-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className={TICKET_LABEL_CLASS}>leverage</span>
-            <span className="dm-mono text-[11px] font-bold text-[#3fe08f]">
-              {leverageValue}x
-            </span>
+        {!isClosePosition && (
+          <div className="mt-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className={TICKET_LABEL_CLASS}>leverage</span>
+              <span className="dm-mono text-[11px] font-bold text-[#3fe08f]">
+                {leverageValue}x
+              </span>
+            </div>
+            <div className="grid grid-cols-6 gap-1.5">
+              {[2, 5, 10, 20, 25, 40].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() =>
+                    setLeverage(String(Math.min(value, maxLeverage)))
+                  }
+                  disabled={
+                    isPositionTpsl ||
+                    value > maxLeverage ||
+                    !canTradeInChat ||
+                    isTicketActionBusy
+                  }
+                  className={`h-8 rounded-[7px] border text-[10.5px] font-bold ${
+                    leverageValue === value
+                      ? 'border-[#3fe08f]/45 bg-[#3fe08f]/10 text-[#3fe08f]'
+                      : 'border-white/[0.07] bg-black/20 text-[#6f7380] hover:text-[#eceef2]'
+                  } disabled:cursor-not-allowed disabled:opacity-35`}
+                >
+                  {value}x
+                </button>
+              ))}
+            </div>
+            <input
+              type="range"
+              min="1"
+              max={maxLeverage}
+              step="1"
+              value={leverageValue}
+              onChange={(event) => setLeverage(event.target.value)}
+              disabled={isPositionTpsl || !canTradeInChat || isTicketActionBusy}
+              className="mt-3 h-1.5 w-full accent-[#3fe08f]"
+            />
           </div>
-          <div className="grid grid-cols-6 gap-1.5">
-            {[2, 5, 10, 20, 25, 40].map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setLeverage(String(Math.min(value, maxLeverage)))}
-                disabled={
-                  isPositionTpsl ||
-                  value > maxLeverage ||
-                  !canTradeInChat ||
-                  flow === 'opening'
-                }
-                className={`h-8 rounded-[7px] border text-[10.5px] font-bold ${
-                  leverageValue === value
-                    ? 'border-[#3fe08f]/45 bg-[#3fe08f]/10 text-[#3fe08f]'
-                    : 'border-white/[0.07] bg-black/20 text-[#6f7380] hover:text-[#eceef2]'
-                } disabled:cursor-not-allowed disabled:opacity-35`}
-              >
-                {value}x
-              </button>
-            ))}
-          </div>
-          <input
-            type="range"
-            min="1"
-            max={maxLeverage}
-            step="1"
-            value={leverageValue}
-            onChange={(event) => setLeverage(event.target.value)}
-            disabled={isPositionTpsl || !canTradeInChat || flow === 'opening'}
-            className="mt-3 h-1.5 w-full accent-[#3fe08f]"
-          />
-        </div>
+        )}
 
-        {isPositionTpsl ? (
+        {isClosePosition ? (
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <PerpsMetric
+              label="close size"
+              value={`${closeSize} ${ticketDisplayCoin}`}
+            />
+            <PerpsMetric
+              label="entry"
+              value={`$${formatPerpsPrice(closeEntryPrice)}`}
+            />
+            <PerpsMetric
+              label="exit"
+              value={`$${formatPerpsPrice(closeMarkPrice)}`}
+              tone="text-[#3fe08f]"
+            />
+            <PerpsMetric
+              label="margin"
+              value={formatCompactUsd(closeCollateralUsd)}
+            />
+            <PerpsMetric
+              label="notional"
+              value={formatCompactUsd(closeNotionalUsd)}
+            />
+            <PerpsMetric
+              label="fee · close"
+              value={formatCompactUsd(openFee)}
+            />
+          </div>
+        ) : isPositionTpsl ? (
           <div className="mt-4 grid grid-cols-3 gap-2">
             <PerpsMetric
               label="position"
@@ -15909,7 +15435,7 @@ function HyperliquidProposalFlowTicket({
                   step="1"
                   value={collateralUsd}
                   onChange={(event) => setCollateralUsd(event.target.value)}
-                  disabled={!canTradeInChat || flow === 'opening'}
+                  disabled={!canTradeInChat || isTicketActionBusy}
                   className="dm-mono min-w-0 flex-1 bg-transparent text-[18px] font-bold text-[#eceef2] outline-none disabled:opacity-60"
                 />
                 <span className="dm-mono text-[9px] font-bold uppercase text-[#6f7380]">
@@ -15925,7 +15451,7 @@ function HyperliquidProposalFlowTicket({
                   onClick={() =>
                     setCollateralUsd(formatPerpsInputAmount(value))
                   }
-                  disabled={!canTradeInChat || flow === 'opening'}
+                  disabled={!canTradeInChat || isTicketActionBusy}
                   className={`h-8 rounded-[7px] border text-[10px] font-bold ${
                     collateralUsdValue === value
                       ? 'border-[#3fe08f]/45 bg-[#3fe08f]/10 text-[#3fe08f]'
@@ -15939,7 +15465,9 @@ function HyperliquidProposalFlowTicket({
           </div>
         )}
 
-        {!isPositionTpsl && (orderMode === 'limit' || orderMode === 'tpsl') && (
+        {!isClosePosition &&
+          !isPositionTpsl &&
+          (orderMode === 'limit' || orderMode === 'tpsl') && (
           <label className="mt-3 block">
             <span className={TICKET_LABEL_CLASS}>
               {orderMode === 'tpsl' ? 'entry price' : 'limit price'}
@@ -15950,14 +15478,14 @@ function HyperliquidProposalFlowTicket({
               step="0.01"
               value={price}
               onChange={(event) => setPrice(event.target.value)}
-              disabled={!canTradeInChat || flow === 'opening'}
+              disabled={!canTradeInChat || isTicketActionBusy}
               placeholder={String(markPrice.toFixed(2))}
               className={`${TICKET_MONO_FIELD_CLASS} mt-1.5 w-full`}
             />
           </label>
         )}
 
-        {orderMode === 'tpsl' && (
+        {showTriggerControls && (
           <div className="mt-3 grid grid-cols-2 gap-2 rounded-[10px] border border-white/[0.07] bg-black/20 p-2">
             <label className="block">
               <span className={TICKET_LABEL_CLASS}>take profit</span>
@@ -15967,9 +15495,9 @@ function HyperliquidProposalFlowTicket({
                 step="0.01"
                 value={takeProfit}
                 onChange={(event) => setTakeProfit(event.target.value)}
-                disabled={!canTradeInChat || flow === 'opening'}
+                disabled={!canTradeInChat || isTicketActionBusy}
                 placeholder={String(
-                  (markPrice * (side === 'long' ? 1.1 : 0.9)).toFixed(2)
+                  (markPrice * (activeSide === 'long' ? 1.1 : 0.9)).toFixed(2)
                 )}
                 className={`${TICKET_MONO_FIELD_CLASS} mt-1.5 w-full border-[#3fe08f]/20 focus:border-[#3fe08f]/70`}
               />
@@ -15982,9 +15510,9 @@ function HyperliquidProposalFlowTicket({
                 step="0.01"
                 value={stopLoss}
                 onChange={(event) => setStopLoss(event.target.value)}
-                disabled={!canTradeInChat || flow === 'opening'}
+                disabled={!canTradeInChat || isTicketActionBusy}
                 placeholder={String(
-                  (markPrice * (side === 'long' ? 0.95 : 1.05)).toFixed(2)
+                  (markPrice * (activeSide === 'long' ? 0.95 : 1.05)).toFixed(2)
                 )}
                 className={`${TICKET_MONO_FIELD_CLASS} mt-1.5 w-full border-[#ff5d63]/20 focus:border-[#ff5d63]/70`}
               />
@@ -15992,24 +15520,27 @@ function HyperliquidProposalFlowTicket({
           </div>
         )}
 
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <PerpsMetric
-            label={isPositionTpsl ? 'protected size' : 'position size'}
-            value={`${formatCompactUsd(notionalUsd)} · ${orderSize} ${coin}`}
-          />
-          <PerpsMetric
-            label={isPositionTpsl ? 'liq. price' : 'est. liquidation'}
-            value={`$${formatPerpsPrice(liquidationPrice)}`}
-            tone="text-[#ff5d63]"
-          />
-          <PerpsMetric
-            label={isPositionTpsl ? 'fee · trigger' : 'fee · open'}
-            value={isPositionTpsl ? '$0.00' : formatCompactUsd(openFee)}
-          />
-        </div>
+        {!isClosePosition && (
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <PerpsMetric
+              label={isPositionTpsl ? 'protected size' : 'position size'}
+              value={`${formatCompactUsd(notionalUsd)} · ${orderSize} ${coin}`}
+            />
+            <PerpsMetric
+              label={isPositionTpsl ? 'liq. price' : 'est. liquidation'}
+              value={`$${formatPerpsPrice(liquidationPrice)}`}
+              tone="text-[#ff5d63]"
+            />
+            <PerpsMetric
+              label={isPositionTpsl ? 'fee · trigger' : 'fee · open'}
+              value={isPositionTpsl ? '$0.00' : formatCompactUsd(openFee)}
+            />
+          </div>
+        )}
 
         {(astroConsoleData.isPerpsLoading ||
           isBelowMinimumNotional ||
+          closePositionUnavailable ||
           needsEntryPrice ||
           tpslNeedsPrices ||
           riskPriceError ||
@@ -16020,6 +15551,7 @@ function HyperliquidProposalFlowTicket({
           <div
             className={`mt-3 rounded-[10px] border px-3 py-2 text-[11px] ${
               isBelowMinimumNotional ||
+              closePositionUnavailable ||
               needsEntryPrice ||
               tpslNeedsPrices ||
               riskPriceError ||
@@ -16037,6 +15569,8 @@ function HyperliquidProposalFlowTicket({
               localError ||
               astroConsoleData.perpsTradingError ||
               astroConsoleData.perpsAgentError
+            ) : closePositionUnavailable ? (
+              'No matching open perps position was found to close.'
             ) : needsEntryPrice ? (
               orderMode === 'limit'
                 ? 'Add a limit price before placing this order.'
@@ -16044,7 +15578,7 @@ function HyperliquidProposalFlowTicket({
             ) : tpslNeedsPrices ? (
               isPositionTpsl
                 ? 'Add a take profit or stop loss trigger price.'
-                : 'Add both take profit and stop loss prices for a TP/SL order.'
+                : 'Add a take profit or stop loss trigger price.'
             ) : riskPriceError ? (
               riskPriceError
             ) : isBelowMinimumNotional ? (
@@ -16076,7 +15610,7 @@ function HyperliquidProposalFlowTicket({
         <div className="mt-3 flex gap-2">
           <button
             type="button"
-            onClick={handleOpenPosition}
+            onClick={isClosePosition ? handleClosePosition : handleOpenPosition}
             disabled={
               isAgentBusy ||
               (!canSubmit &&
@@ -16085,7 +15619,7 @@ function HyperliquidProposalFlowTicket({
             }
             className={TICKET_PRIMARY_BUTTON_CLASS}
           >
-            {flow === 'opening' || astroConsoleData.isPerpsAgentInitializing ? (
+            {isTicketActionBusy || astroConsoleData.isPerpsAgentInitializing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : canDepositForOrder ? (
               <Plus className="h-3.5 w-3.5" />
@@ -16174,7 +15708,7 @@ function HyperliquidProposalTicket({
   const [price, setPrice] = useState(
     firstTicketValue(params, ['price', 'limitPrice', 'p'])
   );
-  const [sizeUsd, setSizeUsd] = useState(initialPerpsSizeUsd(params) || '1');
+  const [sizeUsd, setSizeUsd] = useState(initialPerpsSizeUsd(params) || '');
   const [leverage, setLeverage] = useState(
     firstTicketValue(params, ['leverage']) || '5'
   );
@@ -16190,7 +15724,7 @@ function HyperliquidProposalTicket({
     setSide(initialTicketSide(params));
     setOrderMode(initialTicketMode(params));
     setPrice(firstTicketValue(params, ['price', 'limitPrice', 'p']));
-    setSizeUsd(initialPerpsSizeUsd(params) || '1');
+    setSizeUsd(initialPerpsSizeUsd(params) || '');
     setLeverage(firstTicketValue(params, ['leverage']) || '5');
     setIsCross(initialTicketBool(params, ['isCross', 'cross'], true));
     setReduceOnly(initialTicketBool(params, ['reduceOnly'], false));

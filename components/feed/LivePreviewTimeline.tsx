@@ -23,6 +23,7 @@ import SmartsiteLivePreviewFeedMedia from "./view/SmartsiteLivePreviewFeedMedia"
 import SmartsiteLivePreviewRepostContent from "./SmartsiteLivePreviewRepostContent";
 import updateLocale from "dayjs/plugin/updateLocale";
 import { formatEns } from "@/lib/formatEnsName";
+import TokenTransferFeedCard from "./TokenTransferFeedCard";
 
 dayjs.extend(relativeTime);
 dayjs.extend(updateLocale);
@@ -90,9 +91,6 @@ const LivePreviewTimeline = ({
       receiver_ens,
       receiver_wallet_address,
       amount,
-      token,
-      chain,
-      tokenPrice,
       image,
       name,
       currency,
@@ -132,24 +130,7 @@ const LivePreviewTimeline = ({
         </div>
       );
     } else if (transaction_type === "token") {
-      return (
-        <p className="text-black text-sm">
-          Transferred{" "}
-          <span className="font-medium">
-            {amount.toFixed(2)} {token}
-          </span>{" "}
-          {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
-          to{" "}
-          <a
-            href={`https://${recipientDisplay}`}
-            target="_blank"
-            className="font-semibold"
-          >
-            {formatEns(recipientDisplay)}
-          </a>{" "}
-          on the {chain}.
-        </p>
-      );
+      return <TokenTransferFeedCard feed={feed} />;
     } else {
       return (
         <p className="text-gray-600 text-sm">

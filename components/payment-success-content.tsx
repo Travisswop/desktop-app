@@ -32,12 +32,12 @@ export default function PaymentSuccessContent() {
   const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
-    const paymentIntentClientSecret = searchParams.get(
+    const paymentIntentClientSecret = searchParams?.get(
       'payment_intent_client_secret'
     );
-    const paymentIntent = searchParams.get('payment_intent');
-    const orderIdParam = searchParams.get('orderId');
-    const usernameParam = searchParams.get('username');
+    const paymentIntent = searchParams?.get('payment_intent');
+    const orderIdParam = searchParams?.get('orderId');
+    const usernameParam = searchParams?.get('username');
 
     if (orderIdParam) {
       setOrderId(orderIdParam);

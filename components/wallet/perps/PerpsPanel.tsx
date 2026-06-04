@@ -40,6 +40,7 @@ import type {
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
+  reconcilePerpsPositionFeed,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
 } from '@/lib/perps/perpsFeed';
@@ -128,6 +129,7 @@ export function PerpsPanel({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const syncedPositionSnapshotsRef = useRef<Set<string>>(new Set());
   const syncedLiquidationFillsRef = useRef<Set<string>>(new Set());
+  const reconciledPositionSnapshotsRef = useRef<Set<string>>(new Set());
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [selectedCoin, setSelectedCoin] = useState<string | null>(
@@ -334,8 +336,42 @@ export function PerpsPanel({
     const positions = accountData?.positions || [];
     const smartsiteId = user?.primaryMicrosite || primaryMicrosite;
 
-    if (!positions.length || !accessToken || !user?._id || !smartsiteId) {
+    if (
+      !accountData ||
+      !accessToken ||
+      !user?._id ||
+      !smartsiteId ||
+      !masterAddress
+    ) {
       return;
+    }
+
+    const activePositionKeys = positions.map((position) =>
+      buildPerpsPositionKey({
+        userId: user._id,
+        masterAddress,
+        coin: position.coin,
+      }),
+    );
+    const reconcileSnapshotKey = [
+      masterAddress,
+      Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
+      ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
+    ].join(':');
+
+    if (!reconciledPositionSnapshotsRef.current.has(reconcileSnapshotKey)) {
+      reconciledPositionSnapshotsRef.current.add(reconcileSnapshotKey);
+      reconcilePerpsPositionFeed({
+        token: accessToken,
+        userId: user._id,
+        smartsiteId,
+        masterAddress,
+        activePositionKeys,
+        markPricesByCoin: mids,
+      }).catch((feedError) => {
+        reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
+        console.warn('Failed to reconcile perps feed cards:', feedError);
+      });
     }
 
     positions.forEach((position) => {
@@ -396,7 +432,7 @@ export function PerpsPanel({
       });
     });
   }, [
-    accountData?.positions,
+    accountData,
     accessToken,
     user?._id,
     user?.primaryMicrosite,

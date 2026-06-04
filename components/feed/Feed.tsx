@@ -41,12 +41,15 @@ export default function Feed({
   // logger.info("Feed component rendered with initial hasMore:", hasMore);
 
   const pageRef = useRef(initialArray.length > 0 ? 2 : 1);
+  const isFetchingRef = useRef(false);
 
   const fetchFeedData = useCallback(
     async (reset = false) => {
       // console.log("reset", reset);
 
-      if (!reset && !hasMore) return;
+      if (!reset && !hasMore && !initialLoading) return;
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
 
       try {
         const currentPage = reset ? 1 : pageRef.current;
@@ -80,10 +83,11 @@ export default function Feed({
         console.error(error);
         setHasMore(false);
       } finally {
+        isFetchingRef.current = false;
         setInitialLoading(false);
       }
     },
-    [hasMore, userId, accessToken],
+    [hasMore, initialLoading, userId, accessToken],
   );
 
   // initial load

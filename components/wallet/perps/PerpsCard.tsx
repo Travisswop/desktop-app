@@ -115,6 +115,10 @@ export function PerpsCard({
 }: PerpsCardProps) {
   const { data, isLoading } = useHyperliquidPositions(
     masterAddress ?? null,
+    {
+      refetchInterval: 30_000,
+      staleTime: 15_000,
+    },
   );
   const { mids } = useAllMids(!!masterAddress);
 

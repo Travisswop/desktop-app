@@ -49,7 +49,7 @@ export function usePolygonBalances(address: string | string[] | undefined) {
     enabled: addresses.length > 0,
     staleTime: QUERY_STALE_TIMES.BALANCE,
     refetchInterval: QUERY_REFETCH_INTERVALS.BALANCE,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -75,7 +75,7 @@ export function usePolygonBalances(address: string | string[] | undefined) {
       enabled: addresses.length > 0,
       staleTime: QUERY_STALE_TIMES.BALANCE,
       refetchInterval: QUERY_REFETCH_INTERVALS.BALANCE,
-      refetchIntervalInBackground: true,
+      refetchIntervalInBackground: false,
       refetchOnWindowFocus: true,
     });
 

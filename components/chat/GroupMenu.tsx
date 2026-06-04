@@ -5,7 +5,7 @@ import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
 import toast from 'react-hot-toast';
 import { useUser } from '@/lib/UserContext';
-import { Loader } from 'lucide-react';
+import { Loader, Menu } from 'lucide-react';
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -134,10 +134,12 @@ export default function GroupMenu({
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 rounded-full hover:bg-gray-100 transition-colors text-xl font-bold"
+        title="Group menu"
+        className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
       >
-        ⋮
+        <Menu className="h-[18px] w-[18px]" />
       </button>
 
       {isOpen && (

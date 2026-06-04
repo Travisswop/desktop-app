@@ -120,6 +120,23 @@ function normalizePositionStatus(
   return 'open';
 }
 
+function hasCrossedLiquidationPrice({
+  side,
+  markPrice,
+  liquidationPrice,
+}: {
+  side: 'long' | 'short';
+  markPrice: unknown;
+  liquidationPrice: unknown;
+}) {
+  const mark = maybeFiniteNumber(markPrice);
+  const liquidation = maybeFiniteNumber(liquidationPrice);
+
+  if (mark === null || liquidation === null || liquidation <= 0) return false;
+
+  return side === 'long' ? mark <= liquidation : mark >= liquidation;
+}
+
 function formatUsd(value: unknown, digits = 2) {
   const number = finiteNumber(value);
   if (Math.abs(number) >= 1000) {
@@ -198,16 +215,16 @@ export default function PerpsPositionFeedCard({
   const content = useMemo(() => feed.content || {}, [feed.content]);
   const coin = String(content.coin || 'BTC').toUpperCase();
   const side = content.side === 'short' ? 'short' : 'long';
-  const status = normalizePositionStatus(content.status, content.event);
-  const isTerminalStatus = status !== 'open';
+  const storedStatus = normalizePositionStatus(content.status, content.event);
+  const hasStoredTerminalStatus = storedStatus !== 'open';
   const leverage = Math.max(1, Math.round(finiteNumber(content.leverage, 1)));
   const storedMarkPrice = firstFiniteNumber([
-    isTerminalStatus ? content.exitPrice : null,
+    hasStoredTerminalStatus ? content.exitPrice : null,
     content.markPrice,
     content.entryPrice,
   ]);
   const profilePic =
-    isTerminalStatus
+    hasStoredTerminalStatus
       ? feed.smartsiteDetails?.profilePic ||
         feed.smartsiteId?.profilePic ||
         feed.smartsiteProfilePic
@@ -263,9 +280,18 @@ export default function PerpsPositionFeedCard({
   }, [points.length, selectedIndex]);
 
   const displayMarkPrice =
-    !isTerminalStatus
+    !hasStoredTerminalStatus
       ? points[points.length - 1]?.price || storedMarkPrice
       : storedMarkPrice;
+  const status =
+    storedStatus === 'open' &&
+    hasCrossedLiquidationPrice({
+      side,
+      markPrice: displayMarkPrice,
+      liquidationPrice: content.liquidationPrice,
+    })
+      ? 'liquidated'
+      : storedStatus;
 
   const entries = useMemo(() => {
     const rawEntries = Array.isArray(content.entries) ? content.entries : [];
@@ -447,7 +473,7 @@ export default function PerpsPositionFeedCard({
       : finiteNumber(content.returnPct);
   const storedReturnPct = maybeFiniteNumber(content.returnPct);
   const returnPct =
-    isTerminalStatus && storedReturnPct !== null
+    hasStoredTerminalStatus && storedReturnPct !== null
       ? storedReturnPct
       : calculatedReturnPct;
   const isPositive = returnPct >= 0;

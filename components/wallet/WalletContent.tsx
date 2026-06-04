@@ -344,6 +344,7 @@ const WalletContentInner = () => {
   const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
+  const [loadCollectibles, setLoadCollectibles] = useState(false);
   // Find the Solana wallet that matches the selected wallet-data address.
   const selectedSolanaWallet = useMemo(() => {
     if (!solanaReady || !directSolanaWallets.length) return undefined;
@@ -457,6 +458,18 @@ const WalletContentInner = () => {
     );
   }, [hiddenNfts]);
 
+  useEffect(() => {
+    setLoadCollectibles(false);
+
+    if (!solWalletAddress && !evmWalletAddress) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setLoadCollectibles(true);
+    }, 1200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [solWalletAddress, evmWalletAddress]);
+
   const toggleNftVisibility = useCallback((nftId: string) => {
     setHiddenNfts((prev) => {
       const next = new Set(prev);
@@ -499,7 +512,11 @@ const WalletContentInner = () => {
     loading: nftLoading,
     error: nftError,
     refetch: refetchNFTs,
-  } = useNFT(solWalletAddress, evmWalletAddress, SUPPORTED_CHAINS);
+  } = useNFT(solWalletAddress, evmWalletAddress, SUPPORTED_CHAINS, {
+    enabled: loadCollectibles,
+  });
+  const collectiblesPending =
+    !loadCollectibles && Boolean(solWalletAddress || evmWalletAddress);
 
   // Filter tokens by selected chain chip.
   const filteredTokens = useMemo(() => {
@@ -1043,9 +1060,11 @@ const WalletContentInner = () => {
     (tokens?.length ?? 0) === 1 ? 'asset' : 'assets'
   } across ${SUPPORTED_CHAINS.length} chains`;
 
-  const collectiblesCaption = `${visibleNftCount} ${
-    visibleNftCount === 1 ? 'item' : 'items'
-  }${hiddenNfts.size > 0 ? ` · ${hiddenNfts.size} hidden` : ''}`;
+  const collectiblesCaption = collectiblesPending
+    ? 'Loading items'
+    : `${visibleNftCount} ${
+        visibleNftCount === 1 ? 'item' : 'items'
+      }${hiddenNfts.size > 0 ? ` · ${hiddenNfts.size} hidden` : ''}`;
 
   const assetsMenuItems = [
     {
@@ -1216,7 +1235,7 @@ const WalletContentInner = () => {
               onSelectNft={handleSelectNFT}
               address={currentWalletAddress}
               nfts={nfts as unknown as NFT[]}
-              loading={nftLoading}
+              loading={collectiblesPending || nftLoading}
               error={nftError as Error | null}
               refetch={refetchNFTs}
               hiddenNfts={hiddenNfts}

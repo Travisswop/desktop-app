@@ -27,6 +27,12 @@ export interface PerpsAccountSummary {
   withdrawable: string;
 }
 
+interface UseHyperliquidPositionsOptions {
+  enabled?: boolean;
+  refetchInterval?: number | false;
+  staleTime?: number;
+}
+
 // ─── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -38,7 +44,10 @@ export interface PerpsAccountSummary {
  * IMPORTANT: Pass the MASTER address (external wallet), not the agent address.
  * Positions are owned by the master account even when traded via the agent.
  */
-export function useHyperliquidPositions(masterAddress: string | null) {
+export function useHyperliquidPositions(
+  masterAddress: string | null,
+  options: UseHyperliquidPositionsOptions = {},
+) {
   return useQuery({
     queryKey: ['hl-positions', masterAddress],
     queryFn: async (): Promise<PerpsAccountSummary> => {
@@ -68,9 +77,10 @@ export function useHyperliquidPositions(masterAddress: string | null) {
         withdrawable: state.withdrawable,
       };
     },
-    enabled: !!masterAddress,
-    refetchInterval: 10_000,
-    staleTime: 5_000,
+    enabled: options.enabled !== false && !!masterAddress,
+    refetchInterval: options.refetchInterval ?? 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: options.staleTime ?? 5_000,
     retry: 2,
   });
 }

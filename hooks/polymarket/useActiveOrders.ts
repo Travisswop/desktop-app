@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTrading } from "@/providers/polymarket";
 import { useUser } from "@/lib/UserContext";
-import { POLYMARKET_BACKEND_URL } from "@/constants/polymarket";
+import {
+  POLYMARKET_BACKEND_URL,
+  QUERY_REFETCH_INTERVALS,
+  QUERY_STALE_TIMES,
+} from "@/constants/polymarket";
 
 export type PolymarketOrder = {
   id: string;
@@ -33,6 +37,8 @@ export function useActiveOrders(
     isTradingSessionComplete,
     walletType,
     depositWalletAddress,
+    isGeoblocked,
+    isGeoblockLoading,
   } = useTrading();
   const { accessToken } = useUser();
 
@@ -72,11 +78,13 @@ export function useActiveOrders(
     },
     enabled:
       options?.enabled !== false &&
+      !isGeoblocked &&
+      !isGeoblockLoading &&
       !!isTradingSessionComplete &&
       !!safeAddress,
-    staleTime: 2_000,
-    refetchInterval: 3_000,
-    refetchIntervalInBackground: true,
+    staleTime: QUERY_STALE_TIMES.ORDERS,
+    refetchInterval: QUERY_REFETCH_INTERVALS.ORDERS,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 }

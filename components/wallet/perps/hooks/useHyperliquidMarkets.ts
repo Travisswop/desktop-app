@@ -162,6 +162,7 @@ export function useHyperliquidMarkets({
     enabled,
     staleTime: 10_000,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     retry: 3,
   });
 }
@@ -190,6 +191,7 @@ export function useMarketContext(coin: string | null) {
     enabled: !!coin,
     staleTime: 3_000,
     refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
   });
 }
 

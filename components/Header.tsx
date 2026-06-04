@@ -36,6 +36,15 @@ import { RiCustomerService2Line } from "react-icons/ri";
 import { LuWallet } from "react-icons/lu";
 import { IoLogOutOutline } from "react-icons/io5";
 
+type WindowWithIdleCallback = Window &
+  typeof globalThis & {
+    requestIdleCallback?: (
+      callback: () => void,
+      options?: { timeout?: number },
+    ) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+
 let chatRouteWarmup: Promise<unknown> | null = null;
 
 function warmChatRoute() {
@@ -70,16 +79,22 @@ export default function Header() {
     const warmOnIdle = () => {
       void warmChatRoute();
     };
+    const browserWindow = window as WindowWithIdleCallback;
+    const usesIdleCallback =
+      typeof browserWindow.requestIdleCallback === "function";
     const idleId =
-      typeof window !== "undefined" && "requestIdleCallback" in window
-        ? window.requestIdleCallback(warmOnIdle, { timeout: 3500 })
-        : window.setTimeout(warmOnIdle, 1200);
+      usesIdleCallback && browserWindow.requestIdleCallback
+        ? browserWindow.requestIdleCallback(warmOnIdle, { timeout: 3500 })
+        : browserWindow.setTimeout(warmOnIdle, 1200);
 
     return () => {
-      if ("cancelIdleCallback" in window && typeof idleId === "number") {
-        window.cancelIdleCallback(idleId);
+      if (
+        usesIdleCallback &&
+        typeof browserWindow.cancelIdleCallback === "function"
+      ) {
+        browserWindow.cancelIdleCallback(idleId);
       } else {
-        window.clearTimeout(idleId);
+        browserWindow.clearTimeout(idleId);
       }
     };
   }, [router]);
@@ -146,13 +161,13 @@ export default function Header() {
   if (loading) {
     return (
       <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-[70]">
-        <header className="h-24 bg-white mx-8 flex items-center justify-between">
+        <header className="h-24 bg-white mx-4 sm:mx-8 flex items-center justify-between gap-3">
           <Skeleton className="h-7 w-7 rounded" />
 
           <div className="flex items-center gap-2">
             <Skeleton className="h-12 w-12 rounded-full" />
             <Skeleton className="h-12 w-12 rounded-full" />
-            <Skeleton className="h-14 w-48 rounded-full" />
+            <Skeleton className="h-14 w-14 rounded-full sm:w-48" />
           </div>
         </header>
       </div>
@@ -161,7 +176,7 @@ export default function Header() {
 
   return (
     <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-[70]">
-      <header className="h-24 bg-white mx-8 flex items-center justify-between">
+      <header className="h-24 bg-white mx-4 sm:mx-8 flex items-center justify-between gap-3">
         {/* <SidebarTrigger /> */}
         <Link href={"/"} className="flex items-center gap-2.5">
           <Image src={swopWorldLogo} alt="swop" className="h-8 w-auto" />
@@ -223,7 +238,9 @@ export default function Header() {
                       );
                     })()}
                   </div>
-                  <span className="text-sm font-medium">{user.name}</span>
+                  <span className="hidden text-sm font-medium sm:inline">
+                    {user.name}
+                  </span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>

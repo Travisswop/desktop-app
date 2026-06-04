@@ -28,6 +28,11 @@ interface ConnectionsShowOnGoogleMapProps {
   selectedFriend: Friend | null;
 }
 
+const CHARLOTTE_MAP_CENTER = { lat: 35.2271, lng: -80.8431 };
+const DEFAULT_CHARLOTTE_ZOOM = 13;
+const SELECTED_CONNECTION_ZOOM = 13;
+const GOOGLE_MAP_LIBRARIES: ('places' | 'geometry')[] = ['places', 'geometry'];
+
 export default function ConnectionsShowOnGoogleMap({
   connections,
   selectedFriend,
@@ -37,7 +42,7 @@ export default function ConnectionsShowOnGoogleMap({
     googleMapsApiKey:
       process.env.NEXT_PUBLIC_GOOGLE_API_KEY ||
       'AIzaSyDaERPmsWGDCk2MrKXsqkMfPkSu614Simk',
-    libraries: ['places', 'geometry'],
+    libraries: GOOGLE_MAP_LIBRARIES,
   });
 
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -129,28 +134,16 @@ export default function ConnectionsShowOnGoogleMap({
         lat: selectedConnection?.lat,
         lng: selectedConnection?.lng,
       });
-      mapRef.current.setZoom(11);
+      mapRef.current.setZoom(SELECTED_CONNECTION_ZOOM);
     }
   }, [mapReady, selectedConnection]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current || selectedConnection) return;
 
-    if (spotlightConnections.length === 1) {
-      const [connection] = spotlightConnections;
-      mapRef.current.setCenter({ lat: connection.lat, lng: connection.lng });
-      mapRef.current.setZoom(7);
-      return;
-    }
-
-    if (spotlightConnections.length > 1) {
-      const bounds = new google.maps.LatLngBounds();
-      spotlightConnections.forEach((connection: any) => {
-        bounds.extend({ lat: connection.lat, lng: connection.lng });
-      });
-      mapRef.current.fitBounds(bounds, 120);
-    }
-  }, [mapReady, selectedConnection, spotlightConnections]);
+    mapRef.current.setCenter(CHARLOTTE_MAP_CENTER);
+    mapRef.current.setZoom(DEFAULT_CHARLOTTE_ZOOM);
+  }, [mapReady, selectedConnection]);
 
   useEffect(() => {
     if (isLoaded && !loadError) {
@@ -188,11 +181,17 @@ export default function ConnectionsShowOnGoogleMap({
                 lat: selectedConnection?.lat,
                 lng: selectedConnection?.lng,
               }
-            : { lat: 40.7128, lng: -74.006 }
+            : CHARLOTTE_MAP_CENTER
         }
-        zoom={6}
+        zoom={
+          selectedConnection ? SELECTED_CONNECTION_ZOOM : DEFAULT_CHARLOTTE_ZOOM
+        }
         onLoad={(map: google.maps.Map) => {
           mapRef.current = map;
+          if (!selectedConnection) {
+            map.setCenter(CHARLOTTE_MAP_CENTER);
+            map.setZoom(DEFAULT_CHARLOTTE_ZOOM);
+          }
           setMapReady(true);
         }}
         options={{

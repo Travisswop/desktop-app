@@ -306,6 +306,7 @@ function buildLastMessagePreview(lastMessage: any, fallback: string) {
   const action = lastMessage.agentData?.action;
 
   if (action === 'perps.place_order') return 'Perps order ready';
+  if (action === 'perps.close_position') return 'Perps close ready';
   if (action === 'wallet.swap') return 'Swap quote ready';
   if (action === 'wallet.send') return 'Send ready';
   if (action === 'polymarket.place_order') return 'Prediction order ready';

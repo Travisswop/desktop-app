@@ -41,7 +41,10 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   const elements = useElements();
   const router = useRouter();
   const params = useParams();
-  const username = params.username as string;
+  const usernameParam = params?.username;
+  const username = Array.isArray(usernameParam)
+    ? usernameParam[0]
+    : usernameParam ?? '';
   const [processing, setProcessing] = useState<boolean>(false);
   const [message, setMessage] = useState<string | null>(null);
   const { dispatch } = useCart();
