@@ -24,6 +24,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Loader2,
+  Package,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -651,6 +652,56 @@ export default function CheckoutPaymentClient({
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <p>{error}</p>
           </div>
+        )}
+
+        {!loading && intent?.lineItems && intent.lineItems.length > 0 && (
+          <section className="rounded-lg border border-[#e7e8ec] bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-[#101114]">
+                Order
+              </h2>
+              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+                {intent.lineItems.length}{' '}
+                {intent.lineItems.length === 1 ? 'item' : 'items'}
+              </span>
+            </div>
+            <div className="mt-3 divide-y divide-[#edf0f3]">
+              {intent.lineItems.map((item) => (
+                <div
+                  key={`${item.productId || item.templateId || item.name}`}
+                  className="flex items-center justify-between gap-3 py-3"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    {item.image ? (
+                      <Image
+                        src={sanitizeNextImageSrc(item.image)}
+                        alt={item.name}
+                        width={40}
+                        height={40}
+                        className="h-10 w-10 rounded-md object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f0f2f5]">
+                        <Package className="h-4 w-4 text-[#737b8c]" />
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">
+                        {item.name}
+                      </p>
+                      <p className="mt-1 text-xs text-[#737b8c]">
+                        {item.quantity} x{' '}
+                        {formatCurrency(item.unitAmount, item.currency)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm font-semibold">
+                    {formatCurrency(item.totalAmount, item.currency)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {loading ? (

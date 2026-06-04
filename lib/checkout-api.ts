@@ -24,6 +24,18 @@ export type CheckoutIntent = {
     slippageBps: number;
     totalDueAmount: number;
   } | null;
+  lineItems?: Array<{
+    productId?: string | null;
+    templateId?: string | null;
+    name: string;
+    description?: string;
+    image?: string;
+    quantity: number;
+    unitAmount: number;
+    totalAmount: number;
+    currency: string;
+    productType?: string;
+  }>;
   merchantCurrency: {
     symbol: string;
     mint: string;
@@ -175,11 +187,15 @@ export async function listCheckoutIntents(accessToken: string) {
 
 export async function createCheckoutIntent(
   params: {
-    amount: number;
+    amount?: number;
     description?: string;
     merchantWalletAddress?: string;
     merchantCurrency?: string;
     checkoutBaseUrl?: string;
+    lineItems?: Array<{
+      productId: string;
+      quantity: number;
+    }>;
   },
   accessToken: string
 ) {
