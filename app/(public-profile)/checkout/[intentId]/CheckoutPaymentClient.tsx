@@ -1,0 +1,993 @@
+'use client';
+
+import Image from 'next/image';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  usePrivy,
+  useSendTransaction,
+  useWallets as useEvmWallets,
+} from '@privy-io/react-auth';
+import {
+  useCreateWallet as useSolanaCreateWallet,
+  useWallets as useSolanaWallets,
+} from '@privy-io/react-auth/solana';
+import {
+  createPublicClient,
+  encodeFunctionData,
+  erc20Abi,
+  http,
+} from 'viem';
+import { arbitrum, base, mainnet, polygon } from 'viem/chains';
+import {
+  AlertCircle,
+  ArrowUpDown,
+  ArrowRight,
+  CheckCircle2,
+  Loader2,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Wallet,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+
+import {
+  CheckoutIntent,
+  getCheckoutIntent,
+  prepareCheckoutLifiTransaction,
+  prepareCheckoutTransaction,
+  submitCheckoutLifiTransaction,
+  submitCheckoutTransaction,
+} from '@/lib/checkout-api';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
+import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
+import { useUser } from '@/lib/UserContext';
+import { TokenData } from '@/types/token';
+
+const SUCCESS_STATUSES = new Set(['paid', 'settled']);
+const FINAL_STATUSES = new Set([
+  'paid',
+  'settled',
+  'expired',
+  'cancelled',
+  'conversion_failed',
+  'settlement_failed',
+]);
+
+type Stage =
+  | 'idle'
+  | 'loading'
+  | 'preparing'
+  | 'signing'
+  | 'confirming'
+  | 'completed'
+  | 'failed';
+
+type RailFilter = 'all' | 'solana' | 'evm';
+
+type LifiTransactionRequest = {
+  to: string;
+  data: string;
+  value?: string;
+  chainId?: number;
+};
+
+const NATIVE_EVM_TOKEN = '0x0000000000000000000000000000000000000000';
+const CHAIN_CONFIG: Record<
+  string,
+  { id: string; name: string; explorer: string }
+> = {
+  ETHEREUM: {
+    id: '1',
+    name: 'Ethereum',
+    explorer: 'https://etherscan.io/tx/',
+  },
+  POLYGON: {
+    id: '137',
+    name: 'Polygon',
+    explorer: 'https://polygonscan.com/tx/',
+  },
+  BASE: {
+    id: '8453',
+    name: 'Base',
+    explorer: 'https://basescan.org/tx/',
+  },
+  ARBITRUM: {
+    id: '42161',
+    name: 'Arbitrum',
+    explorer: 'https://arbiscan.io/tx/',
+  },
+  SOLANA: {
+    id: '1151111081099710',
+    name: 'Solana',
+    explorer: 'https://solscan.io/tx/',
+  },
+};
+
+const VIEM_CHAINS = {
+  '1': mainnet,
+  '137': polygon,
+  '8453': base,
+  '42161': arbitrum,
+};
+
+function base64ToUint8Array(value: string) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function uint8ArrayToBase64(value: Uint8Array) {
+  let binary = '';
+  value.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function decimalToRawTokenAmount(value: string, decimals: number) {
+  const [whole = '0', fraction = ''] = value.split('.');
+  const safeWhole = whole.replace(/\D/g, '') || '0';
+  const safeFraction = fraction.replace(/\D/g, '').slice(0, decimals);
+  return `${safeWhole}${safeFraction.padEnd(decimals, '0')}`.replace(
+    /^0+(?=\d)/,
+    ''
+  );
+}
+
+function formatCurrency(value?: number, currency = 'USDC') {
+  const amount = Number(value || 0);
+  return `${amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ${currency}`;
+}
+
+function getCheckoutAmounts(intent: CheckoutIntent) {
+  const merchantReceivesAmount =
+    intent.fees?.merchantReceivesAmount ?? intent.amount.value;
+  const platformFeeAmount = intent.fees?.platformFeeAmount ?? 0;
+  const totalDueAmount =
+    intent.fees?.totalDueAmount ??
+    merchantReceivesAmount + platformFeeAmount;
+  const slippageBps = intent.fees?.slippageBps ?? 50;
+  const platformFeeBps = intent.fees?.platformFeeBps ?? 50;
+
+  return {
+    merchantReceivesAmount,
+    platformFeeAmount,
+    totalDueAmount,
+    slippageBps,
+    platformFeeBps,
+  };
+}
+
+function calculateTokenAmount(intent: CheckoutIntent, token: TokenData | null) {
+  if (!token?.marketData?.price) return '';
+
+  const price = Number(token.marketData.price);
+  if (!Number.isFinite(price) || price <= 0) return '';
+
+  const { totalDueAmount, slippageBps } = getCheckoutAmounts(intent);
+  const lifiBuffer =
+    token.chain === 'SOLANA' ? 1 : 1 + Math.max(slippageBps, 50) / 10000;
+  const amount = (totalDueAmount / price) * lifiBuffer;
+  const decimals = token.symbol?.toUpperCase() === 'USDC' ? 6 : 8;
+  return amount.toFixed(Math.min(token.decimals || decimals, decimals));
+}
+
+function tokenMintForCheckout(token: TokenData) {
+  if (token.isNative || token.symbol?.toUpperCase() === 'SOL') return null;
+  return token.address || null;
+}
+
+function tokenAddressForLifi(token: TokenData) {
+  if (
+    token.isNative ||
+    ['ETH', 'POL', 'MATIC'].includes(token.symbol?.toUpperCase() || '')
+  ) {
+    return NATIVE_EVM_TOKEN;
+  }
+
+  return token.address || NATIVE_EVM_TOKEN;
+}
+
+function tokenRail(token: TokenData | null) {
+  if (!token) return null;
+  return token.chain === 'SOLANA' ? 'solana' : 'lifi';
+}
+
+function explorerUrlForToken(token: TokenData | null, txHash: string) {
+  const chain = token?.chain || 'SOLANA';
+  return `${CHAIN_CONFIG[chain]?.explorer || CHAIN_CONFIG.SOLANA.explorer}${txHash}`;
+}
+
+function getPublicClient(chainId: string) {
+  const chain = VIEM_CHAINS[chainId as keyof typeof VIEM_CHAINS];
+  if (!chain) return null;
+  return createPublicClient({ chain, transport: http() });
+}
+
+function statusCopy(intent?: CheckoutIntent | null) {
+  switch (intent?.status) {
+    case 'settled':
+      return 'Paid and settled';
+    case 'paid':
+      return 'Paid';
+    case 'conversion_failed':
+      return 'Paid, conversion pending';
+    case 'settlement_failed':
+      return 'Paid, settlement pending';
+    case 'expired':
+      return 'Expired';
+    case 'cancelled':
+      return 'Cancelled';
+    case 'pending_payment':
+      return 'Awaiting signature';
+    default:
+      return 'Ready';
+  }
+}
+
+export default function CheckoutPaymentClient({
+  intentId,
+}: {
+  intentId: string;
+}) {
+  const { login, ready, authenticated } = usePrivy();
+  const { accessToken } = useUser();
+  const { wallets: evmWallets } = useEvmWallets();
+  const { sendTransaction } = useSendTransaction();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const { createWallet } = useSolanaCreateWallet();
+  const [intent, setIntent] = useState<CheckoutIntent | null>(null);
+  const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
+  const [search, setSearch] = useState('');
+  const [railFilter, setRailFilter] = useState<RailFilter>('all');
+  const [stage, setStage] = useState<Stage>('loading');
+  const [error, setError] = useState<string | null>(null);
+  const [transactionHash, setTransactionHash] = useState('');
+  const [creatingWallet, setCreatingWallet] = useState(false);
+  const [quoteSummary, setQuoteSummary] = useState<{
+    quotedOutputAmount?: number;
+    minOutputAmount?: number;
+    lifiTool?: string | null;
+    approvalAddress?: string | null;
+  } | null>(null);
+
+  const solanaWallet = useMemo(() => {
+    return solanaWallets.find((wallet) => wallet.address) || null;
+  }, [solanaWallets]);
+
+  const evmWalletAddresses = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          evmWallets
+            .filter((wallet) => wallet.address && wallet.chainId?.includes('eip155:'))
+            .map((wallet) => wallet.address)
+        )
+      ),
+    [evmWallets]
+  );
+
+  const { tokens, loading: tokensLoading, refetch } = useMultiChainTokenData(
+    solanaWallet?.address,
+    evmWalletAddresses,
+    ['SOLANA', 'ETHEREUM', 'POLYGON', 'BASE', 'ARBITRUM']
+  );
+
+  const payable = Boolean(
+    intent && !FINAL_STATUSES.has(intent.status)
+  );
+
+  const payableTokens = useMemo(() => {
+    const lowerSearch = search.trim().toLowerCase();
+    return (tokens as TokenData[])
+      .filter((token) => {
+        if (railFilter === 'solana') return token.chain === 'SOLANA';
+        if (railFilter === 'evm') return token.chain !== 'SOLANA';
+        return true;
+      })
+      .filter((token) => Number(token.balance || 0) > 0)
+      .filter((token) => Number(token.marketData?.price || 0) > 0)
+      .filter((token) => {
+        if (!lowerSearch) return true;
+        return (
+          token.name?.toLowerCase().includes(lowerSearch) ||
+          token.symbol?.toLowerCase().includes(lowerSearch)
+        );
+      });
+  }, [railFilter, search, tokens]);
+
+  const tokenAmount = useMemo(
+    () => (intent ? calculateTokenAmount(intent, selectedToken) : ''),
+    [intent, selectedToken]
+  );
+
+  const checkoutAmounts = useMemo(
+    () => (intent ? getCheckoutAmounts(intent) : null),
+    [intent]
+  );
+
+  const selectedRail = tokenRail(selectedToken);
+
+  const hasSufficientBalance = useMemo(() => {
+    if (!selectedToken || !tokenAmount) return false;
+    return Number(selectedToken.balance || 0) >= Number(tokenAmount);
+  }, [selectedToken, tokenAmount]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadIntent() {
+      setStage('loading');
+      try {
+        const nextIntent = await getCheckoutIntent(intentId);
+        if (cancelled) return;
+        setIntent(nextIntent);
+        setStage(SUCCESS_STATUSES.has(nextIntent.status) ? 'completed' : 'idle');
+      } catch (loadError) {
+        if (cancelled) return;
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Unable to load checkout'
+        );
+        setStage('failed');
+      }
+    }
+
+    loadIntent();
+    return () => {
+      cancelled = true;
+    };
+  }, [intentId]);
+
+  useEffect(() => {
+    if (!selectedToken && payableTokens.length > 0) {
+      const preferred =
+        payableTokens.find(
+          (token) =>
+            token.chain === 'SOLANA' &&
+            token.symbol?.toUpperCase() === 'USDC'
+        ) ||
+        payableTokens.find((token) => token.symbol?.toUpperCase() === 'USDC') ||
+        payableTokens[0];
+      setSelectedToken(preferred);
+    }
+  }, [payableTokens, selectedToken]);
+
+  useEffect(() => {
+    setQuoteSummary(null);
+  }, [selectedToken, tokenAmount]);
+
+  const handleCreateWallet = async () => {
+    setCreatingWallet(true);
+    setError(null);
+    try {
+      await createWallet();
+      toast.success('Wallet created');
+      await refetch();
+    } catch (walletError) {
+      setError(
+        walletError instanceof Error
+          ? walletError.message
+          : 'Unable to create wallet'
+      );
+    } finally {
+      setCreatingWallet(false);
+    }
+  };
+
+  const executeLifiTransaction = async (
+    transactionRequest: LifiTransactionRequest,
+    spenderAddress?: string | null
+  ) => {
+    if (!selectedToken || selectedToken.chain === 'SOLANA') {
+      throw new Error('Select an EVM token for LiFi checkout');
+    }
+
+    const chainConfig = CHAIN_CONFIG[selectedToken.chain];
+    if (!chainConfig) throw new Error('Unsupported EVM chain');
+
+    const sourceChainId = Number(chainConfig.id);
+    const sourceWalletAddress = selectedToken.walletAddress;
+    const evmWallet = evmWallets.find(
+      (wallet) =>
+        wallet.address?.toLowerCase() ===
+        sourceWalletAddress?.toLowerCase()
+    );
+    if (!evmWallet || !sourceWalletAddress) {
+      throw new Error('EVM wallet not found');
+    }
+
+    if (evmWallet.chainId !== `eip155:${sourceChainId}`) {
+      await evmWallet.switchChain(sourceChainId);
+    }
+
+    const publicClient = getPublicClient(chainConfig.id);
+    if (!publicClient) {
+      throw new Error(`Unsupported source chain: ${selectedToken.chain}`);
+    }
+
+    const fromTokenAddress = tokenAddressForLifi(selectedToken);
+    const isNativeToken = fromTokenAddress === NATIVE_EVM_TOKEN;
+
+    if (!isNativeToken) {
+      const approvalAddress =
+        spenderAddress && /^0x[a-fA-F0-9]{40}$/.test(spenderAddress)
+          ? spenderAddress
+          : null;
+      if (approvalAddress) {
+        const rawAmount = BigInt(
+          decimalToRawTokenAmount(tokenAmount, selectedToken.decimals || 18)
+        );
+        const currentAllowance = await publicClient.readContract({
+          address: fromTokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [
+            sourceWalletAddress as `0x${string}`,
+            approvalAddress as `0x${string}`,
+          ],
+        });
+
+        if (currentAllowance < rawAmount) {
+          setStage('signing');
+          const approveData = encodeFunctionData({
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [
+              approvalAddress as `0x${string}`,
+              BigInt(
+                '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+              ),
+            ],
+          });
+          const approval = await sendTransaction(
+            {
+              to: fromTokenAddress as `0x${string}`,
+              data: approveData,
+              chainId: sourceChainId,
+            },
+            { sponsor: false }
+          );
+          await publicClient.waitForTransactionReceipt({
+            hash: approval.hash as `0x${string}`,
+          });
+        }
+      }
+    }
+
+    setStage('signing');
+    const txValue = transactionRequest.value
+      ? BigInt(transactionRequest.value)
+      : undefined;
+    const result = await sendTransaction(
+      {
+        to: transactionRequest.to as `0x${string}`,
+        data: transactionRequest.data as `0x${string}`,
+        ...(txValue ? { value: txValue } : {}),
+        chainId: transactionRequest.chainId || sourceChainId,
+      },
+      { sponsor: false }
+    );
+
+    return result.hash;
+  };
+
+  const pollLifiSettlement = async (txHash: string) => {
+    let latestIntent: CheckoutIntent | undefined;
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      const result = await submitCheckoutLifiTransaction(
+        intentId,
+        { txHash },
+        accessToken || ''
+      );
+      if (result.intent) {
+        latestIntent = result.intent;
+        setIntent(result.intent);
+      }
+      if (result.settlementStatus !== 'pending_payment') {
+        return result;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 8000));
+    }
+
+    return {
+      transactionHash: txHash,
+      settlementStatus: 'pending_payment',
+      intent: latestIntent,
+    };
+  };
+
+  const handlePay = async () => {
+    if (!intent || !selectedToken || !tokenAmount) {
+      return;
+    }
+
+    setError(null);
+    setTransactionHash('');
+    setQuoteSummary(null);
+
+    try {
+      setStage('preparing');
+      if (selectedRail === 'lifi') {
+        const chainConfig = CHAIN_CONFIG[selectedToken.chain];
+        const fromAddress = selectedToken.walletAddress;
+        if (!chainConfig || !fromAddress) {
+          throw new Error('EVM wallet not ready');
+        }
+
+        const prepared = await prepareCheckoutLifiTransaction(
+          intent.intentId,
+          {
+            fromAddress,
+            fromChain: chainConfig.id,
+            fromToken: tokenAddressForLifi(selectedToken),
+            tokenDecimals: selectedToken.decimals ?? 18,
+            tokenAmount,
+          },
+          accessToken || ''
+        );
+        setQuoteSummary(prepared.quote || null);
+        const hash = await executeLifiTransaction(
+          prepared.transactionRequest,
+          prepared.quote?.approvalAddress
+        );
+        setTransactionHash(hash);
+
+        setStage('confirming');
+        const result = await pollLifiSettlement(hash);
+        if (result.intent) setIntent(result.intent);
+        if (result.settlementStatus === 'pending_payment') {
+          toast.success('Payment sent. Settlement is still confirming.');
+        } else {
+          toast.success('Payment sent');
+        }
+        setStage('completed');
+        return;
+      }
+
+      if (!solanaWallet?.address) {
+        throw new Error('Solana wallet not ready');
+      }
+
+      const prepared = await prepareCheckoutTransaction(
+        intent.intentId,
+        {
+          fromAddress: solanaWallet.address,
+          tokenMint: tokenMintForCheckout(selectedToken),
+          tokenDecimals: selectedToken.decimals ?? 9,
+          tokenAmount,
+        },
+        accessToken || ''
+      );
+      setQuoteSummary(prepared.quote || null);
+
+      setStage('signing');
+      const signed = await solanaWallet.signTransaction({
+        transaction: base64ToUint8Array(prepared.serializedTransaction),
+      });
+
+      setStage('confirming');
+      const result = await submitCheckoutTransaction(
+        intent.intentId,
+        {
+          signedTransaction: uint8ArrayToBase64(
+            new Uint8Array(signed.signedTransaction)
+          ),
+        },
+        accessToken || ''
+      );
+
+      setTransactionHash(result.transactionHash || '');
+      if (result.intent) setIntent(result.intent);
+      setStage('completed');
+      toast.success('Payment sent');
+    } catch (payError) {
+      const message =
+        payError instanceof Error ? payError.message : 'Payment failed';
+      setError(message);
+      setStage('failed');
+      toast.error(message);
+    }
+  };
+
+  const loading = stage === 'loading';
+  const busy = ['preparing', 'signing', 'confirming'].includes(stage);
+
+  return (
+    <main className="min-h-screen bg-[#f7f7f9] px-4 py-6 text-[#101114] sm:px-6">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+        <section className="rounded-lg border border-[#e7e8ec] bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#dde1e6] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#5d6574]">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Swop checkout
+              </div>
+              <h1 className="text-2xl font-semibold tracking-normal text-[#101114]">
+                {loading
+                  ? 'Loading checkout'
+                  : intent?.description || 'Checkout payment'}
+              </h1>
+              <p className="mt-2 text-sm text-[#646b78]">
+                {intent?.merchant.name || 'Merchant'} receives{' '}
+                {intent
+                  ? formatCurrency(
+                      getCheckoutAmounts(intent).merchantReceivesAmount,
+                      intent.merchantCurrency.symbol
+                    )
+                  : intent?.merchantCurrency.symbol || 'USDC'}.
+              </p>
+            </div>
+            <div className="min-w-[180px] rounded-md border border-[#eceef2] bg-[#fafafa] p-3 text-left sm:text-right">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+                Amount due
+              </p>
+              <p className="mt-1 text-2xl font-semibold">
+                {intent
+                  ? formatCurrency(
+                      getCheckoutAmounts(intent).totalDueAmount,
+                      intent.amount.currency
+                    )
+                  : '--'}
+              </p>
+              <p className="mt-2 text-xs font-medium text-[#5d6574]">
+                {statusCopy(intent)}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg border border-[#ffd0d0] bg-[#fff5f5] p-3 text-sm text-[#b42318]">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <p>{error}</p>
+          </div>
+        )}
+
+        {loading ? (
+          <section className="rounded-lg border border-[#e7e8ec] bg-white p-6">
+            <div className="flex items-center gap-3 text-sm text-[#646b78]">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading checkout...
+            </div>
+          </section>
+        ) : !intent ? null : SUCCESS_STATUSES.has(intent.status) ||
+          stage === 'completed' ? (
+          <section className="rounded-lg border border-[#d8f5e4] bg-white p-6">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-1 h-6 w-6 flex-shrink-0 text-[#16a34a]" />
+              <div>
+                <h2 className="text-lg font-semibold">Payment complete</h2>
+                <p className="mt-1 text-sm text-[#646b78]">
+                  Settlement status: {statusCopy(intent)}
+                </p>
+                {(transactionHash || intent.payment?.txHash) && (
+                  <a
+                    href={explorerUrlForToken(
+                      selectedToken,
+                      transactionHash || intent.payment?.txHash || ''
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex items-center gap-2 rounded-md bg-[#101114] px-3 py-2 text-sm font-semibold text-white"
+                  >
+                    View transaction
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            </div>
+          </section>
+        ) : !payable ? (
+          <section className="rounded-lg border border-[#e7e8ec] bg-white p-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-1 h-5 w-5 flex-shrink-0 text-[#737b8c]" />
+              <div>
+                <h2 className="text-lg font-semibold">
+                  Checkout {statusCopy(intent).toLowerCase()}
+                </h2>
+                <p className="mt-1 text-sm text-[#646b78]">
+                  This checkout cannot accept another payment.
+                </p>
+              </div>
+            </div>
+          </section>
+        ) : !ready || !authenticated ? (
+          <section className="rounded-lg border border-[#e7e8ec] bg-white p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Sign in to pay</h2>
+                <p className="mt-1 text-sm text-[#646b78]">
+                  Use your Swop account to choose a wallet currency and sign.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={login}
+                disabled={!ready}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#101114] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Wallet className="h-4 w-4" />
+                Sign in
+              </button>
+            </div>
+          </section>
+        ) : !solanaWallet && evmWalletAddresses.length === 0 ? (
+          <section className="rounded-lg border border-[#e7e8ec] bg-white p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Wallet needed</h2>
+                <p className="mt-1 text-sm text-[#646b78]">
+                  This checkout can use Solana assets or EVM assets routed
+                  through LiFi into merchant USDC.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCreateWallet}
+                disabled={creatingWallet}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#101114] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {creatingWallet ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Wallet className="h-4 w-4" />
+                )}
+                Create wallet
+              </button>
+            </div>
+          </section>
+        ) : (
+          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="rounded-lg border border-[#e7e8ec] bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold">Choose currency</h2>
+                  <p className="mt-1 text-xs font-medium text-[#737b8c]">
+                    {selectedToken?.walletAddress || solanaWallet?.address
+                      ? `Wallet ${truncateWalletAddress(
+                          selectedToken?.walletAddress ||
+                            solanaWallet?.address ||
+                            ''
+                        )}`
+                      : 'Choose a funded wallet'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => refetch()}
+                  className="inline-flex h-9 w-10 items-center justify-center self-start rounded-md border border-[#dde1e6] px-3 text-sm font-semibold text-[#303642] sm:w-auto sm:self-auto"
+                  title="Refresh balances"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-4 inline-flex rounded-md border border-[#dde1e6] bg-[#fafafa] p-1">
+                {[
+                  ['all', 'All'],
+                  ['solana', 'Solana'],
+                  ['evm', 'EVM'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setRailFilter(value as RailFilter);
+                      setSelectedToken(null);
+                    }}
+                    className={`h-8 rounded px-3 text-xs font-semibold ${
+                      railFilter === value
+                        ? 'bg-white text-[#101114] shadow-sm'
+                        : 'text-[#737b8c]'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b93a3]" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search"
+                  className="h-10 w-full rounded-md border border-[#dde1e6] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#101114]"
+                />
+              </div>
+
+              <div className="mt-3 max-h-[420px] overflow-y-auto">
+                {tokensLoading ? (
+                  <div className="flex items-center gap-3 py-8 text-sm text-[#646b78]">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading tokens...
+                  </div>
+                ) : payableTokens.length === 0 ? (
+                  <p className="py-8 text-sm text-[#646b78]">
+                    No priced tokens found for this filter.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-[#edf0f3]">
+                    {payableTokens.map((token) => {
+                      const isSelected =
+                        selectedToken?.address === token.address &&
+                        selectedToken?.symbol === token.symbol &&
+                        selectedToken?.chain === token.chain;
+                      return (
+                        <button
+                          key={`${token.chain}-${token.walletAddress || ''}-${
+                            token.symbol
+                          }-${token.address || 'native'}`}
+                          type="button"
+                          onClick={() => setSelectedToken(token)}
+                          className={`flex w-full items-center justify-between gap-3 px-1 py-3 text-left transition ${
+                            isSelected ? 'bg-[#f4fff8]' : 'hover:bg-[#fafafa]'
+                          }`}
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            {token.logoURI ? (
+                              <Image
+                                src={sanitizeNextImageSrc(token.logoURI)}
+                                alt={token.symbol || ''}
+                                width={32}
+                                height={32}
+                                className="h-8 w-8 rounded-full"
+                              />
+                            ) : (
+                              <span className="h-8 w-8 rounded-full bg-[#eceef2]" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold">
+                                {token.symbol}
+                              </p>
+                              <p className="truncate text-xs text-[#737b8c]">
+                                {token.name} ·{' '}
+                                {CHAIN_CONFIG[token.chain]?.name || token.chain}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold">
+                              {Number(token.balance || 0).toFixed(4)}
+                            </p>
+                            <p className="text-xs text-[#737b8c]">
+                              $
+                              {Number(token.marketData?.price || 0).toFixed(4)}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <aside className="rounded-lg border border-[#e7e8ec] bg-white p-4">
+              <h2 className="text-lg font-semibold">Review</h2>
+              <dl className="mt-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[#737b8c]">Merchant</dt>
+                  <dd className="font-semibold">{intent.merchant.name}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[#737b8c]">Receives</dt>
+                  <dd className="font-semibold">
+                    {formatCurrency(
+                      checkoutAmounts?.merchantReceivesAmount,
+                      intent.merchantCurrency.symbol
+                    )}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[#737b8c]">
+                    Checkout fee{' '}
+                    {checkoutAmounts
+                      ? `(${(checkoutAmounts.platformFeeBps / 100).toFixed(2)}%)`
+                      : ''}
+                  </dt>
+                  <dd className="font-semibold">
+                    {formatCurrency(
+                      checkoutAmounts?.platformFeeAmount,
+                      intent.merchantCurrency.symbol
+                    )}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-[#edf0f3] pt-3">
+                  <dt className="font-semibold text-[#303642]">Total due</dt>
+                  <dd className="font-semibold">
+                    {formatCurrency(
+                      checkoutAmounts?.totalDueAmount,
+                      intent.merchantCurrency.symbol
+                    )}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[#737b8c]">You pay</dt>
+                  <dd className="font-semibold">
+                    {selectedToken && tokenAmount
+                      ? `${tokenAmount} ${selectedToken.symbol}`
+                      : '--'}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[#737b8c]">Route</dt>
+                  <dd className="flex items-center gap-1 font-semibold">
+                    {selectedRail === 'lifi' ? (
+                      <>
+                        <ArrowUpDown className="h-3.5 w-3.5" />
+                        LiFi
+                      </>
+                    ) : (
+                      'Solana'
+                    )}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[#737b8c]">Slippage</dt>
+                  <dd className="font-semibold">
+                    {checkoutAmounts
+                      ? `${(checkoutAmounts.slippageBps / 100).toFixed(2)}%`
+                      : '--'}
+                  </dd>
+                </div>
+              </dl>
+
+              {quoteSummary?.minOutputAmount ? (
+                <div className="mt-4 rounded-md border border-[#dde1e6] bg-[#fafafa] p-3 text-xs font-medium text-[#646b78]">
+                  Minimum settlement:{' '}
+                  {formatCurrency(
+                    quoteSummary.minOutputAmount,
+                    intent.merchantCurrency.symbol
+                  )}
+                </div>
+              ) : null}
+
+              {selectedToken && !hasSufficientBalance && (
+                <div className="mt-4 rounded-md border border-[#ffd0d0] bg-[#fff5f5] p-3 text-xs font-medium text-[#b42318]">
+                  Insufficient {selectedToken.symbol} balance.
+                </div>
+              )}
+
+              {stage !== 'idle' && stage !== 'failed' && (
+                <div className="mt-4 rounded-md border border-[#dde1e6] bg-[#fafafa] p-3 text-xs font-medium text-[#646b78]">
+                  {stage === 'preparing' && 'Preparing transaction...'}
+                  {stage === 'signing' && 'Waiting for wallet signature...'}
+                  {stage === 'confirming' && 'Confirming payment...'}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handlePay}
+                disabled={
+                  busy ||
+                  !selectedToken ||
+                  !tokenAmount ||
+                  !hasSufficientBalance ||
+                  !accessToken ||
+                  (selectedRail === 'solana' && !solanaWallet?.address) ||
+                  (selectedRail === 'lifi' && !selectedToken.walletAddress)
+                }
+                className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#101114] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Pay {selectedRail === 'lifi' ? 'with LiFi' : intent.merchantCurrency.symbol}
+              </button>
+            </aside>
+          </section>
+        )}
+      </div>
+    </main>
+  );
+}
