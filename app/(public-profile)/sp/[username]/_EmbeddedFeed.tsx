@@ -28,7 +28,7 @@ export default function EmbeddedFeed({
   const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
   // logger.info("Feed feedRefetchTrigger", feedRefetchTrigger);
 
-  const [feedData, setFeedData] = useState([]);
+  const [feedData, setFeedData] = useState<any[]>([]);
 
   const [hasMore, setHasMore] = useState(true);
   logger.info("Feed component rendered with initial feedData:", feedData);

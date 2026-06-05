@@ -584,11 +584,16 @@ export function useClobOrder(
       assertNoUndefinedTypedValues(message, 'message');
       assertTypedDataStruct(types, primaryType, message, 'message');
 
-      if (swopApiBase() && isEmbeddedPrivyWallet(eoaAddress)) {
+      const isEmbeddedWallet = isEmbeddedPrivyWallet(eoaAddress);
+      const shouldHideWalletUIs = options?.showWalletUIs === false;
+
+      if (swopApiBase() && isEmbeddedWallet) {
         try {
-          const delegatedSignerReady = await ensureDelegatedSigner(eoaAddress);
-          if (!delegatedSignerReady) {
-            throw new Error('Delegated signer is not configured.');
+          if (!shouldHideWalletUIs) {
+            const delegatedSignerReady = await ensureDelegatedSigner(eoaAddress);
+            if (!delegatedSignerReady) {
+              throw new Error('Delegated signer is not configured.');
+            }
           }
 
           const delegatedRes = await fetch(
@@ -617,22 +622,23 @@ export function useClobOrder(
           } else {
             const err = await delegatedRes.json().catch(() => ({}));
             console.warn(
-              'Delegated Privy signing failed; falling back to wallet modal:',
+              shouldHideWalletUIs
+                ? 'Silent delegated Privy signing failed; falling back to hidden wallet signing:'
+                : 'Delegated Privy signing failed; falling back to wallet modal:',
               err.message || err.error || delegatedRes.status,
             );
           }
         } catch (err) {
           console.warn(
-            'Delegated Privy signing unavailable; falling back to wallet modal:',
+            shouldHideWalletUIs
+              ? 'Silent delegated Privy signing unavailable; falling back to hidden wallet signing:'
+              : 'Delegated Privy signing unavailable; falling back to wallet modal:',
             err,
           );
         }
       }
 
-      if (
-        options?.showWalletUIs === false &&
-        isEmbeddedPrivyWallet(eoaAddress)
-      ) {
+      if (shouldHideWalletUIs && isEmbeddedWallet) {
         try {
           const { signature } = await signTypedDataWithPrivy(
             {

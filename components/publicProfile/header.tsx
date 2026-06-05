@@ -75,8 +75,11 @@ const PublicProfileHeader: FC<Props> = ({
         const resId = res.domainOwner._id;
         console.log('resId', resId);
 
-        const isAlreadySubscribe = user?.connections?.following?.find(
-          (item) => item?.account?._id === resId,
+        const following =
+          (user?.connections as { following?: any[] } | undefined)
+            ?.following ?? [];
+        const isAlreadySubscribe = following.find(
+          (item: any) => item?.account?._id === resId,
         );
 
         if (isAlreadySubscribe) {

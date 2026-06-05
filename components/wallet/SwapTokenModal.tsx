@@ -1614,7 +1614,7 @@ export default function SwapTokenModal({
 
     // ── Input token ──
     if (inputTokenParam) {
-      const inputChainId = resolveChainId(inputChainParam); // ← changed
+      const inputChainId = resolveChainId(inputChainParam ?? null); // ← changed
       const inputNetwork =
         getNetworkByChainId(inputChainId).toUpperCase();
 
@@ -1665,7 +1665,7 @@ export default function SwapTokenModal({
 
     // ── Output token ──
     if (outputTokenParam) {
-      const outputChainId = resolveChainId(outputChainParam); // ← changed
+      const outputChainId = resolveChainId(outputChainParam ?? null); // ← changed
       const outputNetwork =
         getNetworkByChainId(outputChainId).toUpperCase();
 

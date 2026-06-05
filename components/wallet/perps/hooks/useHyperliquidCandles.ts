@@ -101,6 +101,7 @@ export function useHyperliquidCandles(
   coin: string | null,
   uiInterval: string,
   enabled = true,
+  historyBars = HISTORY_BARS,
 ) {
   const interval = toHLInterval(uiInterval);
   const [bars, setBars] = useState<OhlcvBar[]>([]);
@@ -124,7 +125,7 @@ export function useHyperliquidCandles(
     setIsLoading(true);
     setBars([]);
 
-    const lookback = INTERVAL_MS[interval] * HISTORY_BARS;
+    const lookback = INTERVAL_MS[interval] * historyBars;
     const startTime = Date.now() - lookback;
 
     infoClient
@@ -151,7 +152,7 @@ export function useHyperliquidCandles(
       cancelled = true;
       ac.abort();
     };
-  }, [coin, interval, enabled]);
+  }, [coin, interval, enabled, historyBars]);
 
   // Live updates via the `candle` channel
   const handleMessage = useCallback(

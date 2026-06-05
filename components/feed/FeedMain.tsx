@@ -21,6 +21,7 @@ import Ledger from "./Ledger";
 import PostFeed from "./PostFeed";
 import CustomModal from "../modal/CustomModal";
 import { useModalStore } from "@/zustandStore/modalstore";
+import FeedMarketTicker from "./FeedMarketTicker";
 
 // Constants to avoid duplication
 const CONTAINER_HEIGHT = "calc(100vh - 150px)";
@@ -352,9 +353,12 @@ const FeedMain = memo(() => {
   }
 
   return (
-    <div className="w-full flex h-full justify-center relative">
-      <MainContent {...mainContentProps} />
-      {/* <RightSidebar {...rightSidebarProps} /> */}
+    <div className="w-full h-full relative">
+      <FeedMarketTicker accessToken={accessToken as string} className="mb-6" />
+      <div className="w-full flex h-full justify-center relative">
+        <MainContent {...mainContentProps} />
+        {/* <RightSidebar {...rightSidebarProps} /> */}
+      </div>
     </div>
   );
 });

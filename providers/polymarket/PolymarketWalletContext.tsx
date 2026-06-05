@@ -31,6 +31,7 @@ export interface PolymarketWalletContextType {
   hasWallet: boolean;
   authenticated: boolean;
   switchToPolygon: () => Promise<void>;
+  retryInitialization: () => void;
 }
 
 const publicClient = createPublicClient({
@@ -48,6 +49,7 @@ const PolymarketWalletContext = createContext<PolymarketWalletContextType>({
   hasWallet: false,
   authenticated: false,
   switchToPolygon: async () => {},
+  retryInitialization: () => {},
 });
 
 export function usePolymarketWallet() {
@@ -59,6 +61,7 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
   const [ethersSigner, setEthersSigner] =
     useState<providers.JsonRpcSigner | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const { wallets, ready } = useWallets();
   const { authenticated, user } = usePrivy();
@@ -84,6 +87,13 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
       console.error("Failed to switch chain:", err);
       throw err;
     }
+  };
+
+  const retryInitialization = () => {
+    setWalletClient(null);
+    setEthersSigner(null);
+    setIsInitializing(true);
+    setRetryNonce((value) => value + 1);
   };
 
   useEffect(() => {
@@ -122,7 +132,7 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
     }
 
     init();
-  }, [wallet, ready, eoaAddress]);
+  }, [wallet, ready, eoaAddress, retryNonce]);
 
   return (
     <PolymarketWalletContext.Provider
@@ -136,6 +146,7 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
         hasWallet,
         authenticated,
         switchToPolygon,
+        retryInitialization,
       }}
     >
       {children}

@@ -68,7 +68,7 @@ export default function WalletReceiveCryptoPopup() {
   };
 
   const handleShareUsername = async () => {
-    const username = user?.ens || user?.ensName;
+    const username = user?.ens || user?.ensName || "";
     const shareData = { title: "My Swop ID", text: username };
     try {
       if (navigator.share) {

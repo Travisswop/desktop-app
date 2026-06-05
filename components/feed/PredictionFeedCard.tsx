@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { useBtcUpDownMarket } from '@/hooks/polymarket/useBtcUpDownMarket';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,10 @@ export interface PredictionContent {
   orderId?: string;
   orderType?: string;
   marketId?: string;
+  marketType?: string;
+  marketSlug?: string;
+  btcWindowStart?: number | string;
+  btcWindowLabel?: string;
   eventSlug?: string;
   // Sports panel (optional – present only for sports markets)
   yesOutcome?: string; // "yes" outcome label, e.g., "Knicks"
@@ -84,6 +89,7 @@ export interface PredictionContent {
 interface PredictionFeedCardProps {
   content: PredictionContent;
   userName?: string;
+  createdAt?: string | Date;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -140,6 +146,107 @@ function parseList(value: unknown): string[] {
 function sameId(a: unknown, b: unknown): boolean {
   if (!a || !b) return false;
   return String(a).toLowerCase() === String(b).toLowerCase();
+}
+
+function isBtcFiveMinutePrediction(content: PredictionContent): boolean {
+  const source = [
+    content.marketType,
+    content.marketTitle,
+    content.marketSlug,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return (
+    source.includes('btc5m') ||
+    ((source.includes('btc') || source.includes('bitcoin')) &&
+      (source.includes('5 minute') ||
+        source.includes('5-minute') ||
+        source.includes('5m')) &&
+      (source.includes('up') || source.includes('down')))
+  );
+}
+
+function currentBtcWindowStart(): number {
+  return Math.floor(Date.now() / 1000 / 300) * 300;
+}
+
+function useCurrentBtcWindowStart(): number {
+  const [windowStart, setWindowStart] = useState(currentBtcWindowStart);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setWindowStart(currentBtcWindowStart());
+    }, 1_000);
+    return () => clearInterval(id);
+  }, []);
+
+  return windowStart;
+}
+
+function windowStartFromDate(value: string | Date | undefined): number | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  const time = date.getTime();
+  if (!Number.isFinite(time)) return null;
+  return Math.floor(time / 1000 / 300) * 300;
+}
+
+function resolveBtcWindowStart(
+  content: PredictionContent,
+  createdAt?: string | Date,
+): number {
+  const explicit = firstNumber(content.btcWindowStart);
+  if (explicit && explicit > 0) return Math.floor(explicit / 300) * 300;
+
+  const slugWindow = String(content.marketSlug || '').match(/(\d{10})$/);
+  if (slugWindow) {
+    const parsed = Number(slugWindow[1]);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+
+  return windowStartFromDate(createdAt) ?? currentBtcWindowStart();
+}
+
+function parseBtcFeedMarket(raw: Record<string, unknown> | null): {
+  conditionId?: string;
+  slug?: string;
+  question?: string;
+  upTokenId?: string;
+  downTokenId?: string;
+  yesPrice?: number;
+  noPrice?: number;
+  closed: boolean;
+} | null {
+  if (!raw) return null;
+
+  const tokenIds = parseList(raw.clobTokenIds);
+  const prices = parseList(raw.outcomePrices)
+    .map(Number)
+    .filter(
+      (price) => Number.isFinite(price) && price >= 0 && price <= 1,
+    );
+
+  return {
+    conditionId: String(raw.conditionId || raw.condition_id || ''),
+    slug: String(raw.slug || ''),
+    question: String(raw.question || raw.title || ''),
+    upTokenId: tokenIds[0],
+    downTokenId: tokenIds[1],
+    yesPrice: prices[0],
+    noPrice: prices[1],
+    closed: Boolean(raw.closed || raw.active === false),
+  };
+}
+
+function inferBtcWinnerFromPrices(
+  yesPrice: number | undefined,
+  noPrice: number | undefined,
+): 'Up' | 'Down' | null {
+  if (yesPrice === undefined || noPrice === undefined) return null;
+  if (Math.abs(yesPrice - noPrice) < 0.01) return null;
+  return yesPrice > noPrice ? 'Up' : 'Down';
 }
 
 function resolveMarketState(
@@ -528,6 +635,80 @@ function usePriceHistory(
   }, [enabled, yesTokenId, noTokenId]);
 
   return { yesHistory, noHistory, loading };
+}
+
+function useHistoricalBtcFeedMarket(
+  windowStart: number,
+  enabled: boolean,
+) {
+  const [market, setMarket] = useState<ReturnType<
+    typeof parseBtcFeedMarket
+  >>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!enabled || !windowStart) return;
+    let cancelled = false;
+    setLoading(true);
+
+    fetch(`/api/polymarket/btc5m-market?window_start=${windowStart}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((raw) => {
+        if (cancelled) return;
+        setMarket(parseBtcFeedMarket(raw));
+      })
+      .catch(() => {
+        if (!cancelled) setMarket(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, windowStart]);
+
+  return { market, loading };
+}
+
+function useBtcWindowWinner(
+  windowStart: number,
+  enabled: boolean,
+): 'Up' | 'Down' | null {
+  const [winner, setWinner] = useState<'Up' | 'Down' | null>(null);
+
+  useEffect(() => {
+    if (!enabled || !windowStart) return;
+    let cancelled = false;
+    setWinner(null);
+
+    const startTime = windowStart * 1000;
+    fetch(
+      `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&startTime=${startTime}&limit=1`,
+      { cache: 'no-store' },
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const candle = Array.isArray(data) ? data[0] : null;
+        const open = Number(candle?.[1]);
+        const close = Number(candle?.[4]);
+        if (!Number.isFinite(open) || !Number.isFinite(close)) return;
+        if (close > open) setWinner('Up');
+        else if (close < open) setWinner('Down');
+        else setWinner(null);
+      })
+      .catch(() => {
+        if (!cancelled) setWinner(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, windowStart]);
+
+  return winner;
 }
 
 // ─── Chart path builder ───────────────────────────────────────────────────────
@@ -978,14 +1159,27 @@ function SportsMiniPanel({
       : open
         ? "You're on"
         : 'You backed';
+  const isWonResult = !open && tradeState.state === 'won';
+  const payoutDisplayValue =
+    isWonResult && summaryValue !== undefined ? summaryValue : undefined;
+  const resultDisplay =
+    payoutDisplayValue !== undefined
+      ? formatUsd(payoutDisplayValue)
+      : formatSignedUsd(selectedPnl);
+  const resultSubcopy =
+    payoutDisplayValue !== undefined && selectedPnl !== undefined
+      ? `${formatSignedUsd(selectedPnl)} profit`
+      : undefined;
   const positionKicker = open
     ? selectedPnl === undefined
       ? 'LIVE'
       : selectedPnl >= 0
         ? 'UP'
         : 'DOWN'
-    : tradeState.state === 'won' || tradeState.state === 'lost'
-      ? 'RESULT'
+    : isWonResult
+      ? 'PAYOUT'
+      : tradeState.state === 'lost'
+        ? 'RESULT'
       : tradeState.label.toUpperCase();
 
   const buttonForOutcome = (
@@ -1247,8 +1441,13 @@ function SportsMiniPanel({
             {positionKicker}
           </p>
           <p className={`font-mono text-[22px] font-black ${pnlTone}`}>
-            {formatSignedUsd(selectedPnl)}
+            {resultDisplay}
           </p>
+          {resultSubcopy && (
+            <p className="mt-0.5 font-mono text-[10px] font-black text-gray-400">
+              {resultSubcopy}
+            </p>
+          )}
         </div>
       </div>
 
@@ -1373,25 +1572,32 @@ function PredictionPositionPanel({
       : open
         ? "You're on"
         : 'You backed';
+  const isWonResult = !open && tradeState.state === 'won';
+  const payoutDisplayValue =
+    isWonResult && summaryValue !== undefined ? summaryValue : undefined;
+  const resultDisplay =
+    payoutDisplayValue !== undefined
+      ? formatUsd(payoutDisplayValue)
+      : formatSignedUsd(selectedPnl);
+  const resultSubcopy =
+    payoutDisplayValue !== undefined && selectedPnl !== undefined
+      ? `${formatSignedUsd(selectedPnl)} profit`
+      : undefined;
   const positionKicker = open
     ? selectedPnl === undefined
       ? 'OPEN'
       : selectedPnl >= 0
         ? 'UP'
         : 'DOWN'
-    : tradeState.state === 'won' || tradeState.state === 'lost'
-      ? 'RESULT'
+    : isWonResult
+      ? 'PAYOUT'
+      : tradeState.state === 'lost'
+        ? 'RESULT'
       : tradeState.label.toUpperCase();
   const deltaSummary =
     delta !== undefined && deltaPct !== undefined
       ? `${formatSignedUsd(delta)} (${deltaPct >= 0 ? '+' : ''}${deltaPct.toFixed(1)}%)`
       : undefined;
-  const resultDisplay =
-    !open &&
-    tradeState.state === 'won' &&
-    tradeState.amount !== undefined
-      ? formatUsd(tradeState.amount)
-      : formatSignedUsd(selectedPnl);
 
   const VB_W = 300;
   const VB_H = 72;
@@ -1684,6 +1890,11 @@ function PredictionPositionPanel({
           <p className={`font-mono text-[22px] font-black ${pnlTone}`}>
             {resultDisplay}
           </p>
+          {resultSubcopy && (
+            <p className="mt-0.5 font-mono text-[10px] font-black text-gray-400">
+              {resultSubcopy}
+            </p>
+          )}
         </div>
       </div>
 
@@ -1730,7 +1941,7 @@ function PredictionPositionPanel({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function PredictionFeedCard({
+function RegularPredictionFeedCard({
   content,
   userName,
 }: PredictionFeedCardProps) {
@@ -1754,6 +1965,8 @@ export default function PredictionFeedCard({
   const liveScore = useLiveScore(eventSlug);
   const marketUrl = eventSlug
     ? `https://polymarket.com/event/${encodeURIComponent(eventSlug)}`
+    : content.marketSlug
+      ? `https://polymarket.com/market/${encodeURIComponent(content.marketSlug)}`
     : undefined;
 
   // Show sports panel when at least yesOutcome + noOutcome + some sports signal present
@@ -1875,4 +2088,194 @@ export default function PredictionFeedCard({
         )}
     </div>
   );
+}
+
+function normalizeBtcOutcome(outcome: string | undefined): 'Up' | 'Down' {
+  return String(outcome || '').toLowerCase().includes('up')
+    ? 'Up'
+    : 'Down';
+}
+
+function btcEntryPrices(content: PredictionContent) {
+  const outcome = normalizeBtcOutcome(content.outcome);
+  const entry = clampProbability(finiteNumber(content.price) ?? 0.5);
+  return {
+    yesPrice: clampProbability(
+      finiteNumber(content.yesPrice) ?? (outcome === 'Up' ? entry : 1 - entry),
+    ),
+    noPrice: clampProbability(
+      finiteNumber(content.noPrice) ?? (outcome === 'Down' ? entry : 1 - entry),
+    ),
+  };
+}
+
+function LiveBtcFiveMinutePredictionFeedCard({
+  content,
+  userName,
+}: PredictionFeedCardProps) {
+  const { upProbability } = useBtcUpDownMarket();
+  const outcome = normalizeBtcOutcome(content.outcome);
+  const yesPrice = clampProbability(upProbability / 100);
+  const noPrice = clampProbability(1 - yesPrice);
+  const currentPrice = outcome === 'Up' ? yesPrice : noPrice;
+  const marketState: ResolvedMarketState = {
+    closed: false,
+    yesPrice,
+    noPrice,
+    pickedPrice: currentPrice,
+  };
+  const liveContent: PredictionContent = {
+    ...content,
+    marketTitle: content.marketTitle || 'BTC 5-Minute Up or Down',
+    outcome,
+    yesOutcome: 'Up',
+    noOutcome: 'Down',
+    yesPrice,
+    noPrice,
+    currentPrice,
+  };
+  const tradeState = resolveTradeState(liveContent, false, marketState);
+  const marketUrl = content.marketSlug
+    ? `https://polymarket.com/market/${encodeURIComponent(content.marketSlug)}`
+    : undefined;
+
+  return (
+    <div className="mt-2">
+      <PredictionPositionPanel
+        marketTitle={liveContent.marketTitle}
+        outcome={outcome}
+        yesOutcome="Up"
+        noOutcome="Down"
+        side={content.side}
+        cost={content.cost}
+        entryPrice={content.price}
+        currentPrice={currentPrice}
+        yesPrice={yesPrice}
+        noPrice={noPrice}
+        tradeState={tradeState}
+        marketUrl={marketUrl}
+        userName={userName}
+      />
+    </div>
+  );
+}
+
+function HistoricalBtcFiveMinutePredictionFeedCard({
+  content,
+  userName,
+  createdAt,
+}: PredictionFeedCardProps) {
+  const windowStart = resolveBtcWindowStart(content, createdAt);
+  const { market } = useHistoricalBtcFeedMarket(windowStart, true);
+  const outcome = normalizeBtcOutcome(content.outcome);
+  const entryPrices = btcEntryPrices(content);
+  const isExpired = Date.now() / 1000 >= windowStart + 300;
+  const candleWinner = useBtcWindowWinner(windowStart, isExpired);
+  const finalYesPrice = clampProbability(
+    market?.yesPrice ?? entryPrices.yesPrice,
+  );
+  const finalNoPrice = clampProbability(
+    market?.noPrice ?? entryPrices.noPrice,
+  );
+  const resolvedWinner =
+    candleWinner ?? inferBtcWinnerFromPrices(finalYesPrice, finalNoPrice);
+  const yesPrice =
+    isExpired && resolvedWinner
+      ? resolvedWinner === 'Up'
+        ? 1
+        : 0
+      : finalYesPrice;
+  const noPrice =
+    isExpired && resolvedWinner
+      ? resolvedWinner === 'Down'
+        ? 1
+        : 0
+      : finalNoPrice;
+  const currentPrice = outcome === 'Up' ? yesPrice : noPrice;
+  const entryPrice = clampProbability(
+    finiteNumber(content.price) ??
+      (outcome === 'Up' ? entryPrices.yesPrice : entryPrices.noPrice),
+  );
+  const shares = entryPrice > 0 ? content.cost / entryPrice : undefined;
+  const payoutValue =
+    shares !== undefined && Number.isFinite(shares)
+      ? shares * currentPrice
+      : undefined;
+  const pnl =
+    payoutValue !== undefined && Number.isFinite(payoutValue)
+      ? payoutValue - content.cost
+      : undefined;
+  const marketState: ResolvedMarketState = {
+    closed: Boolean(market?.closed || isExpired),
+    yesPrice,
+    noPrice,
+    pickedPrice: currentPrice,
+    pickedWon: resolvedWinner ? outcome === resolvedWinner : undefined,
+  };
+  const resolvedTitle =
+    content.marketTitle || market?.question || 'BTC 5-Minute Up or Down';
+  const historicalContent: PredictionContent = {
+    ...content,
+    marketTitle: resolvedTitle,
+    marketId: content.marketId || market?.conditionId,
+    marketSlug: content.marketSlug || market?.slug,
+    outcome,
+    yesOutcome: 'Up',
+    noOutcome: 'Down',
+    yesTokenId: content.yesTokenId || market?.upTokenId,
+    noTokenId: content.noTokenId || market?.downTokenId,
+    yesPrice,
+    noPrice,
+    currentPrice,
+    pnl,
+  };
+  const tradeState = resolveTradeState(
+    historicalContent,
+    false,
+    marketState,
+  );
+  const marketUrl = historicalContent.marketSlug
+    ? `https://polymarket.com/market/${encodeURIComponent(
+        historicalContent.marketSlug,
+      )}`
+    : undefined;
+
+  return (
+    <div className="mt-2">
+      <PredictionPositionPanel
+        marketTitle={resolvedTitle}
+        outcome={outcome}
+        yesOutcome="Up"
+        noOutcome="Down"
+        side={content.side}
+        cost={content.cost}
+        entryPrice={entryPrice}
+        currentPrice={currentPrice}
+        yesPrice={yesPrice}
+        noPrice={noPrice}
+        tradeState={tradeState}
+        marketUrl={marketUrl}
+        userName={userName}
+      />
+    </div>
+  );
+}
+
+function BtcFiveMinutePredictionFeedCard(props: PredictionFeedCardProps) {
+  const windowStart = resolveBtcWindowStart(props.content, props.createdAt);
+  const activeWindowStart = useCurrentBtcWindowStart();
+
+  if (windowStart === activeWindowStart) {
+    return <LiveBtcFiveMinutePredictionFeedCard {...props} />;
+  }
+
+  return <HistoricalBtcFiveMinutePredictionFeedCard {...props} />;
+}
+
+export default function PredictionFeedCard(props: PredictionFeedCardProps) {
+  if (isBtcFiveMinutePrediction(props.content)) {
+    return <BtcFiveMinutePredictionFeedCard {...props} />;
+  }
+
+  return <RegularPredictionFeedCard {...props} />;
 }

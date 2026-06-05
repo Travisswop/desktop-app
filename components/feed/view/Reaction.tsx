@@ -65,7 +65,9 @@ interface ReactionProps {
   commentId?: string | null;
   replyId?: string | null;
   isLiked?: boolean;
+  isFromFeedDetails?: boolean;
   isFromFeedDetailsPage?: boolean;
+  setIsPosting?: (value: boolean) => void;
   onRepostSuccess?: () => void;
   onPostInteraction?: (
     postId: string,

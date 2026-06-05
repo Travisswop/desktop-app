@@ -34,6 +34,8 @@ interface FeedItemProps {
   feed: any;
   userId: string;
   accessToken: string;
+  onRedeemModalOpen?: (data: any) => void;
+  renderTransactionContent?: (feed: any) => React.ReactNode;
   onRepostSuccess: () => void;
   onDeleteSuccess: () => void;
   onPostInteraction?: (postId: string, updates: Partial<FeedItemType>) => void;
@@ -45,7 +47,8 @@ const FeedItem = memo(
     feed,
     userId,
     accessToken,
-    // onRedeemModalOpen,
+    onRedeemModalOpen,
+    renderTransactionContent,
     onRepostSuccess,
     onDeleteSuccess,
     onPostInteraction,

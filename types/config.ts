@@ -22,7 +22,7 @@ export const EVM_CHAIN_CONFIG = {
   SEPOLIA: {
     id: 11155111,
     network: 'eth-sepolia',
-    apiKey: process.env.NEXT_PUBLIC_ALCHEMY_ETH_API_KEY,
+    apiKey: process.env.NEXT_PUBLIC_ALCHEMY_SEPOLIA_API_KEY,
   },
 } as const;
 
@@ -98,11 +98,11 @@ export const CHAINS = {
     accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
     rpcUrl:
       process.env.NEXT_PUBLIC_ALCHEMY_SEPOLIA_URL ||
-      process.env.NEXT_PUBLIC_ALCHEMY_ETH_SEPOLIA_URL,
+      process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
     nativeToken: {
       uuid: 'ethereum',
       symbol: 'ETH',
-      name: 'Ethereum',
+      name: 'Sepolia ETH',
       decimals: 18,
     },
     type: 'evm',

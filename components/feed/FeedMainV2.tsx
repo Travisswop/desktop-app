@@ -9,6 +9,7 @@ import PostFeed from "./PostFeed";
 import CustomModal from "../modal/CustomModal";
 import { useModalStore } from "@/zustandStore/modalstore";
 import PerpsFeedBackfill from "./PerpsFeedBackfill";
+import FeedMarketTicker from "./FeedMarketTicker";
 
 const CONTAINER_WIDTH = "w-full sm:w-[520px]";
 
@@ -49,34 +50,46 @@ export default function FeedMainV2({
     <div
       className={
         isMapTab
-          ? "fixed inset-x-0 bottom-0 top-24 z-0 overflow-hidden bg-white"
-          : "w-full flex h-full justify-center relative"
+          ? "w-full"
+          : "w-full h-full relative"
       }
     >
+      <FeedMarketTicker
+        accessToken={accessToken}
+        className={isMapTab ? "fixed inset-x-0 top-24 z-20 mx-6" : "mb-6"}
+      />
       <div
         className={
           isMapTab
-            ? "h-full w-full overflow-hidden"
-            : `${CONTAINER_WIDTH} overflow-y-auto`
+            ? "fixed inset-x-0 bottom-0 top-40 z-0 h-auto w-full overflow-hidden bg-white"
+            : "w-full flex justify-center"
         }
       >
-        <PerpsFeedBackfill />
+        <div
+          className={
+            isMapTab
+              ? "h-full w-full overflow-hidden"
+              : `${CONTAINER_WIDTH} overflow-y-auto`
+          }
+        >
+          <PerpsFeedBackfill />
 
-        <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Post">
-          <PostFeed
-            primaryMicrositeImg={primaryMicrositeImg}
-            userId={userId}
-            token={accessToken}
-          />
-        </CustomModal>
+          <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Post">
+            <PostFeed
+              primaryMicrositeImg={primaryMicrositeImg}
+              userId={userId}
+              token={accessToken}
+            />
+          </CustomModal>
 
-        <Suspense fallback={<div className="text-black">Loading feed...</div>}>
-          <Component
-            accessToken={accessToken}
-            userId={userId}
-            initialFeedData={initialFeedData}
-          />
-        </Suspense>
+          <Suspense fallback={<div className="text-black">Loading feed...</div>}>
+            <Component
+              accessToken={accessToken}
+              userId={userId}
+              initialFeedData={initialFeedData}
+            />
+          </Suspense>
+        </div>
       </div>
     </div>
   );

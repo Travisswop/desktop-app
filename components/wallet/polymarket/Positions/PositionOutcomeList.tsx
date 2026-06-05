@@ -20,6 +20,7 @@ const EMPTY_TRADES: TradeActivity[] = [];
 // Carries baseKey and buyOnly so step-2 useMemo can filter without regex.
 type CycleEntry = AggregatedTradeOutcome & {
   baseKey: string;
+  cycleIndex: number;
   buyOnly: boolean;
 };
 

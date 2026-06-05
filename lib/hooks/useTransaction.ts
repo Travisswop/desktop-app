@@ -6,6 +6,7 @@ import {
   Transaction,
 } from '@/types/transaction';
 import { CHAINS } from '@/types/config';
+import type { ChainType } from '@/types/token';
 import { APIUtils } from '@/utils/api';
 
 const ETHERSCAN_MIN_REQUEST_INTERVAL_MS = 400;
@@ -468,7 +469,7 @@ const normalizeWalletAddresses = (
 export const useMultiChainTransactionData = (
   solWalletAddress: WalletAddressInput,
   evmWalletAddress: WalletAddressInput,
-  chains: (keyof typeof CHAINS)[] = ['ETHEREUM'],
+  chains: ChainType[] = ['ETHEREUM'],
   options: TransactionOptions = { limit: 100, offset: 0 }
 ): TransactionResult => {
   const normalizedChains = chains

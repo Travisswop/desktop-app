@@ -1603,6 +1603,9 @@ type OrderTicketProps = {
   tickSize: number;
   isLoadingTickSize: boolean;
   balance: number;
+  displayBalance: number;
+  balanceHint?: string;
+  isConvertingBalance?: boolean;
   activeShareBalance: number;
   isShareBalanceLoading: boolean;
   shares: number;
@@ -1821,17 +1824,31 @@ function OrderTicket(p: OrderTicketProps) {
   ];
   const quickChips =
     p.side === 'BUY' ? buyQuickChips : sellQuickChips;
-  const needsBuyFunds = p.side === 'BUY' && p.hasInsufficientBalance;
+  const hasBuyShortfall = p.side === 'BUY' && p.hasInsufficientBalance;
+  const hasPendingCollateral =
+    hasBuyShortfall &&
+    p.displayBalance - p.balance > 0.005 &&
+    p.totalCost - p.balance > 0.01 &&
+    p.totalCost <= p.displayBalance + 0.01;
+  const needsBuyFunds = hasBuyShortfall && !hasPendingCollateral;
 
   const placeDisabled =
     p.isSubmitting ||
+    hasPendingCollateral ||
     (p.side === 'SELL' && p.isShareBalanceLoading) ||
     inputNum <= 0 ||
     !p.clobClient ||
     (p.hasInsufficientBalance && (!needsBuyFunds || !p.onAddFunds)) ||
     (isLimit && limitDollars <= 0);
-  const ctaLabel = needsBuyFunds ? 'Add funds' : placeLabel;
+  const ctaLabel = hasPendingCollateral
+    ? p.isConvertingBalance
+      ? 'Converting funds...'
+      : 'Preparing funds...'
+    : needsBuyFunds
+      ? 'Add funds'
+      : placeLabel;
   const handlePrimaryClick = () => {
+    if (hasPendingCollateral) return;
     if (needsBuyFunds && p.onAddFunds) {
       p.onAddFunds();
       return;
@@ -2219,7 +2236,7 @@ function OrderTicket(p: OrderTicketProps) {
           <FieldLabel>Amount</FieldLabel>
           <FieldHint>
             {p.side === 'BUY'
-              ? `Balance · ${p.balance.toFixed(2)} USDC`
+              ? `Balance · ${p.displayBalance.toFixed(2)} USDC`
               : `Holdings · ${p.activeShareBalance.toFixed(2)} shares`}
           </FieldHint>
         </div>
@@ -2322,6 +2339,18 @@ function OrderTicket(p: OrderTicketProps) {
           ))}
           <ChipBtn onClick={onMaxAmount}>Max</ChipBtn>
         </div>
+        {p.side === 'BUY' && p.balanceHint && (
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 11,
+              color: hasPendingCollateral ? D.warnText : D.muted,
+              fontFamily: D.mono,
+            }}
+          >
+            {p.balanceHint}. Ready pUSD ${p.balance.toFixed(2)}.
+          </div>
+        )}
       </div>
 
       {/* Order summary */}
@@ -2501,6 +2530,19 @@ function OrderTicket(p: OrderTicketProps) {
           >
             Add funds first · balance {fmtMoney(p.balance)} · required{' '}
             {fmtMoney(p.totalCost)}
+          </div>
+        )}
+        {hasPendingCollateral && (
+          <div
+            style={{
+              fontSize: 11,
+              color: D.warnText,
+              textAlign: 'center',
+              marginTop: 8,
+              fontFamily: D.mono,
+            }}
+          >
+            Included USDC.e is converting to pUSD before it can be spent.
           </div>
         )}
         {p.isSubmitting && p.orderStage !== 'idle' && (
@@ -3681,6 +3723,9 @@ type MarketDetailViewProps = {
   onClose: () => void;
   market: PolymarketMarket;
   balance?: number;
+  displayBalance?: number;
+  balanceHint?: string;
+  isConvertingBalance?: boolean;
   yesShares?: number;
   noShares?: number;
   initialOutcome?: 'yes' | 'no';
@@ -3701,6 +3746,9 @@ export default function MarketDetailView({
   onClose,
   market,
   balance = 0,
+  displayBalance = balance,
+  balanceHint,
+  isConvertingBalance,
   yesShares = 0,
   noShares = 0,
   initialOutcome,
@@ -4446,6 +4494,9 @@ export default function MarketDetailView({
           tickSize={tickSize}
           isLoadingTickSize={isLoadingTickSize}
           balance={balance}
+          displayBalance={displayBalance}
+          balanceHint={balanceHint}
+          isConvertingBalance={isConvertingBalance}
           activeShareBalance={activeShareBalance}
           isShareBalanceLoading={isShareBalanceLoading}
           shares={shares}

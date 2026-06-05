@@ -294,6 +294,7 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
             {feed.repostedPostDetails.postType === "prediction" && (
               <PredictionFeedCard
                 content={feed.repostedPostDetails.content}
+                createdAt={feed.repostedPostDetails.createdAt}
                 userName={
                   feed.repostedPostDetails?.smartsiteId?.name ||
                   feed.repostedPostDetails?.smartsiteUserName ||

@@ -176,7 +176,7 @@ export default function PredictionsPortfolioModal({
     [router, stashMarketDetail, teamsData, onClose],
   );
 
-  const { usdcBalance } = usePolygonBalances(
+  const { totalUsdcBalance } = usePolygonBalances(
     portfolioAddresses.length ? portfolioAddresses : safeAddress,
   );
   const { data: netDeposits, isLoading: isNetDepositsLoading } =
@@ -239,7 +239,7 @@ export default function PredictionsPortfolioModal({
       .reduce((s, p) => s + p.currentValue, 0);
 
     const lifetimeEarned =
-      usdcBalance + openPositionsValue + withdrawn - deposited;
+      totalUsdcBalance + openPositionsValue + withdrawn - deposited;
 
     if (!activePositions.length) {
       return { portfolioPct: 0, lifetimeEarned, inOrdersValue };
@@ -259,7 +259,7 @@ export default function PredictionsPortfolioModal({
       totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
 
     return { portfolioPct, lifetimeEarned, inOrdersValue };
-  }, [activePositions, activeOrders, netDeposits, usdcBalance]);
+  }, [activePositions, activeOrders, netDeposits, totalUsdcBalance]);
 
   const handleMarketSell = async (position: PolymarketPosition) => {
     setSellingAsset(position.asset);
@@ -323,15 +323,19 @@ export default function PredictionsPortfolioModal({
           queryKey: ['polymarket-positions'],
         });
         queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
+        queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
         createPollingInterval(
           () => {
             queryClient.invalidateQueries({
-            queryKey: ['polymarket-positions'],
-          });
-          queryClient.invalidateQueries({
-            queryKey: ['pusdBalance'],
-          });
-        },
+              queryKey: ['polymarket-positions'],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ['pusdBalance'],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ['legacyUsdcBalance'],
+            });
+          },
           POLLING_INTERVAL,
           POLLING_DURATION,
         );
@@ -411,7 +415,7 @@ export default function PredictionsPortfolioModal({
                 </div>
                 <p className="text-xl font-bold text-gray-900">
                   $
-                  {usdcBalance.toLocaleString('en-US', {
+                  {totalUsdcBalance.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}

@@ -104,7 +104,7 @@ const MockSwapTester = () => {
         walletAddress,
         recipientAddress || undefined
       );
-      setResults([result]);
+      setResults([{ ...result, type: 'TOKEN_TRANSFER' as const }]);
       setSummary(
         result.success
           ? '✅ Mock token transfer transaction saved successfully!'
@@ -137,7 +137,7 @@ const MockSwapTester = () => {
         walletAddress,
         recipientAddress || undefined
       );
-      setResults([result]);
+      setResults([{ ...result, type: 'NFT_TRANSFER' as const }]);
       setSummary(
         result.success
           ? '✅ Mock NFT transfer transaction saved successfully!'

@@ -1,9 +1,11 @@
 'use client';
 
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
+  ArrowLeft,
   Check,
   Copy,
   Loader2,
@@ -110,6 +112,7 @@ function mapProduct(item: ProductRecord): ProductRow {
 }
 
 export default function CheckoutCreateClient() {
+  const router = useRouter();
   const { user, accessToken } = useUser();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [cart, setCart] = useState<Record<string, CartLine>>({});
@@ -286,14 +289,25 @@ export default function CheckoutCreateClient() {
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-normal text-[#101114]">
-            Checkout
-          </h1>
-          <p className="mt-1 text-sm text-[#646b78]">
-            Build a product sale, generate the QR, and let the payer choose the
-            currency on their device.
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard')}
+            aria-label="Back to dashboard"
+            className="inline-flex h-10 w-fit shrink-0 items-center justify-center gap-2 rounded-md border border-[#dde1e6] bg-white px-3 text-sm font-semibold text-[#303642] transition hover:bg-[#f5f6f8]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-normal text-[#101114]">
+              Checkout
+            </h1>
+            <p className="mt-1 text-sm text-[#646b78]">
+              Build a product sale, generate the QR, and let the payer choose
+              the currency on their device.
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <button

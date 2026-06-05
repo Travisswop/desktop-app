@@ -19,6 +19,7 @@ export { useUserPositions, type PolymarketPosition } from "./useUserPositions";
 export { useClobHeartbeat } from "./useClobHeartbeat";
 export { useUserOrdersChannel } from "./useUserOrdersChannel";
 export { usePolygonBalances } from "./usePolygonBalances";
+export { usePolymarketCollateralBalance } from "./usePolymarketCollateralBalance";
 export { useGeoblock, type GeoblockStatus } from "./useGeoblock";
 export { useTickSize } from "./useTickSize";
 export { useRedeemPosition } from "./useRedeemPosition";

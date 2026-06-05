@@ -13,7 +13,7 @@ import {
   useCallback,
   useMemo,
 } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useConnectWallet,
@@ -40,6 +40,7 @@ import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
 import isUrl from '@/lib/isUrl';
 import CoinbaseOnrampFunding from '@/components/wallet/CoinbaseOnrampFunding';
+import { CandleChart } from '@/components/wallet/perps/CandleChart';
 import {
   findFundingOnrampIntent,
   normalizeFundingOnrampSourceText,
@@ -120,6 +121,7 @@ import {
 } from '@/hooks/polymarket/useActiveOrders';
 
 const LOCAL_HYPERLIQUID_PROPOSAL_PREFIX = 'local-perps-order-';
+const LOCAL_SWAP_PROPOSAL_PREFIX = 'local-wallet-swap-';
 import {
   useClobOrder,
   type OrderSubmissionStage,
@@ -242,6 +244,7 @@ interface Message {
           markets?: PolymarketMarketPreview[];
           positions?: PolymarketPosition[];
           perpsPositions?: HyperliquidPositionsPreview | null;
+          pnlOverview?: PnlOverviewPreview | null;
           items?: MarketplaceItemPreview[];
           walletReceive?: WalletReceiveQrDetails | null;
           sources?: ResearchSourcePreview[];
@@ -261,7 +264,12 @@ interface Message {
 const MESSAGE_DEDUPE_WINDOW_MS = 15_000;
 
 function normalizeMessageForDedupe(value?: string | null) {
-  return (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  return (value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .replace(/^@?astro\b[\s,:-]*/i, '')
+    .trim();
 }
 
 function isTempMessage(message: Message) {
@@ -698,6 +706,19 @@ interface HyperliquidPositionsPreview {
   positions?: HyperliquidPositionPreview[];
 }
 
+interface PnlOverviewPreview {
+  walletPortfolioValue: number;
+  perpsAccountValue: number;
+  perpsUnrealizedPnl: number;
+  perpsPositionCount: number;
+  predictionPortfolioValue: number;
+  predictionUnrealizedPnl: number;
+  predictionPositionCount: number;
+  pendingOrderCount: number;
+  isLoading: boolean;
+  checkedAt: string;
+}
+
 interface ResearchSourcePreview {
   title?: string | null;
   snippet?: string | null;
@@ -781,6 +802,18 @@ interface PolymarketOrderIntent {
   prefill: PolymarketOrderPrefill;
 }
 
+interface ChartCommandIntent {
+  query: string;
+  coin: string | null;
+  displayCoin: string;
+  range: ChartTimeRange;
+  market?: HLMarket | null;
+  empty?: boolean;
+  unsupported?: boolean;
+}
+
+type ChartTimeRange = '1D' | '1W' | '1M' | '1Y' | 'ALL';
+
 type HistoryPoint = { t: number; p: number };
 
 interface AstroConsoleData {
@@ -853,6 +886,16 @@ interface AstroConsoleData {
   ) => Promise<unknown>;
 }
 
+type AstroConsolePositionSelection =
+  | {
+      kind: 'perps';
+      position: HLPosition;
+    }
+  | {
+      kind: 'prediction';
+      position: PolymarketPosition;
+    };
+
 const AGENT_TERMINAL_BUBBLE_CLASS =
   'dm-mono rounded-[14px] border border-white/[0.07] bg-[#15171d] px-4 py-2.5 text-[13.5px] font-semibold leading-[1.7] text-[#a9adb8] shadow-[0_18px_50px_rgba(0,0,0,0.35)]';
 const AGENT_PANEL_CLASS =
@@ -875,6 +918,12 @@ const CHAT_COMMAND_SUGGESTIONS = [
     label: 'Internet search',
     hint: 'Research live web results with Astro',
     seed: '/search ',
+  },
+  {
+    command: '/chart',
+    label: 'Market chart',
+    hint: 'Open a live Hyperliquid candle chart',
+    seed: '/chart ',
   },
   {
     command: '/send',
@@ -970,6 +1019,25 @@ function isAstroTradingDeskChat(
       name === 'astro trading desk' ||
       name === 'astro')
   );
+}
+
+function toAstroDeskDisplayMessage(
+  message: Message,
+  _currentUser: string,
+  isAstroDesk: boolean
+) {
+  if (
+    !isAstroDesk ||
+    isAgentLikeMessage(message) ||
+    message.messageType !== 'text'
+  ) {
+    return message;
+  }
+
+  const displayText = stripLeadingAstroMention(message.message);
+  if (!displayText || displayText === message.message) return message;
+
+  return { ...message, message: displayText };
 }
 
 function getSmartsiteHref(chat: SelectedChat | null) {
@@ -1860,6 +1928,119 @@ function buildSyntheticWalletSendMessage(
   };
 }
 
+function hasChatSwapIntent(text?: string | null) {
+  const commandText = stripLeadingAstroMention(String(text || ''));
+  if (!commandText) return false;
+  if (/^\//.test(commandText) && !/^\/swap(?:\s|$)/i.test(commandText)) {
+    return false;
+  }
+  if (/^\/swap(?:\s|$)/i.test(commandText)) return true;
+
+  const normalizedText = normalizeIntentText(commandText);
+  if (!/\b(swap|convert|trade|quote)\b/.test(normalizedText)) return false;
+
+  const intent = parseSwapPromptIntent(commandText);
+  return Boolean(
+    intent.amount ||
+      intent.fromSymbol ||
+      intent.toSymbol ||
+      intent.quoteOnly
+  );
+}
+
+function findChatSwapIntent(text: string) {
+  if (!hasChatSwapIntent(text)) return null;
+
+  const commandText = stripLeadingAstroMention(text);
+  const intent = parseSwapPromptIntent(commandText);
+  const params: Record<string, unknown> = {};
+
+  if (intent.fromSymbol) {
+    params.fromTokenSymbol = intent.fromSymbol;
+    params.inputTokenSymbol = intent.fromSymbol;
+    params.fromToken = intent.fromSymbol;
+  }
+  if (intent.toSymbol) {
+    params.toTokenSymbol = intent.toSymbol;
+    params.outputTokenSymbol = intent.toSymbol;
+    params.toToken = intent.toSymbol;
+  }
+  if (intent.amount) {
+    params.amount = intent.amount;
+    params.fromAmount = intent.amount;
+    params.inputAmount = intent.amount;
+    params.amountType = intent.amountType || 'token';
+  }
+  if (intent.fromChainId) {
+    params.fromChainId = intent.fromChainId;
+    params.inputChainId = intent.fromChainId;
+  }
+  if (intent.toChainId) {
+    params.toChainId = intent.toChainId;
+    params.outputChainId = intent.toChainId;
+  }
+  if (intent.quoteOnly) {
+    params.quoteOnly = true;
+  }
+
+  return { params };
+}
+
+function buildSyntheticSwapMessage(
+  intent: { params: Record<string, unknown> },
+  sourceMessageId?: string
+): Message {
+  const proposalId = sourceMessageId
+    ? `${LOCAL_SWAP_PROPOSAL_PREFIX}${sourceMessageId}`
+    : `${LOCAL_SWAP_PROPOSAL_PREFIX}${Date.now()}`;
+  const params = intent.params;
+  const fromToken = firstTicketValue(params, [
+    'fromTokenSymbol',
+    'inputTokenSymbol',
+    'fromToken',
+  ]);
+  const toToken = firstTicketValue(params, [
+    'toTokenSymbol',
+    'outputTokenSymbol',
+    'toToken',
+  ]);
+  const routeText =
+    fromToken || toToken
+      ? ` from ${fromToken || 'your wallet'} to ${toToken || 'a token'}`
+      : '';
+
+  return {
+    _id: `${proposalId}-message`,
+    message: `Opened a swap ticket${routeText}. Review and confirm below.`,
+    senderKind: 'agent',
+    agentSender: {
+      agentId: 'astro',
+      provider: 'elizaos',
+      displayName: 'Astro',
+      avatarUrl: null,
+    },
+    messageType: 'agent_action_proposal',
+    createdAt: new Date().toISOString(),
+    agentData: {
+      action: 'wallet.swap',
+      proposalIds: [proposalId],
+      proposalId,
+      toolType: 'wallet.write',
+      metadata: {
+        riskSummary: {
+          riskLevel: 'high',
+          toolType: 'wallet.write',
+          action: 'wallet.swap',
+          mode: 'proposal',
+          requiresProposal: true,
+          paramKeys: Object.keys(params).sort(),
+        },
+        normalizedParams: params,
+      },
+    },
+  };
+}
+
 function findHyperliquidPositionTpSlIntent(text: string) {
   if (!hasHyperliquidOrderIntent(text)) return null;
 
@@ -2257,6 +2438,12 @@ function isLocalHyperliquidProposalId(proposalId?: string | null) {
   );
 }
 
+function isLocalSwapProposalId(proposalId?: string | null) {
+  return Boolean(
+    proposalId && proposalId.startsWith(LOCAL_SWAP_PROPOSAL_PREFIX)
+  );
+}
+
 function isAgentProposalNotFoundError(error: unknown) {
   const codedError = error as { code?: unknown; message?: unknown } | null;
   return (
@@ -2363,6 +2550,14 @@ function isWalletSendMessage(message: Message) {
   );
 }
 
+function isWalletSwapMessage(message: Message) {
+  return (
+    message.agentData?.toolType === 'wallet.write' &&
+    (message.agentData?.action === 'wallet.swap' ||
+      message.agentData?.action === 'swap_tokens')
+  );
+}
+
 function hasMatchingWalletSendProposal(
   messages: Message[],
   sourceMessage: Message,
@@ -2390,6 +2585,54 @@ function hasMatchingWalletSendProposal(
     ).toLowerCase();
     if (token && messageToken && token !== messageToken) return false;
     if (recipient && messageRecipient && recipient !== messageRecipient) {
+      return false;
+    }
+
+    const currentTime = messageTime(message);
+    if (!sourceTime || !currentTime) return true;
+    return Math.abs(currentTime - sourceTime) <= 10 * 60 * 1000;
+  });
+}
+
+function hasMatchingWalletSwapProposal(
+  messages: Message[],
+  sourceMessage: Message,
+  intent: { params: Record<string, unknown> } | null
+) {
+  if (!intent) return false;
+  const sourceTime = messageTime(sourceMessage);
+  const fromToken = String(
+    intent.params.fromTokenSymbol ||
+      intent.params.inputTokenSymbol ||
+      intent.params.fromToken ||
+      ''
+  ).toUpperCase();
+  const toToken = String(
+    intent.params.toTokenSymbol ||
+      intent.params.outputTokenSymbol ||
+      intent.params.toToken ||
+      ''
+  ).toUpperCase();
+
+  return messages.some((message) => {
+    if (!isWalletSwapMessage(message)) return false;
+    const params = message.agentData?.metadata?.normalizedParams || {};
+    const messageFromToken = String(
+      params.fromTokenSymbol ||
+        params.inputTokenSymbol ||
+        params.fromToken ||
+        ''
+    ).toUpperCase();
+    const messageToToken = String(
+      params.toTokenSymbol ||
+        params.outputTokenSymbol ||
+        params.toToken ||
+        ''
+    ).toUpperCase();
+    if (fromToken && messageFromToken && fromToken !== messageFromToken) {
+      return false;
+    }
+    if (toToken && messageToToken && toToken !== messageToToken) {
       return false;
     }
 
@@ -2704,7 +2947,6 @@ export default function ChatArea({
     Map<string, PolymarketMarketPreview>
   >(new Map());
   const router = useRouter();
-  const currentPathname = usePathname();
   const isInitialLoadRef = useRef<boolean>(true);
   const isGroup = chatType === 'group';
   const selectedChatKey = selectedChat
@@ -2846,37 +3088,6 @@ export default function ChatArea({
     trading.portfolioAddresses,
     trading.tradingWalletAddress,
   ]);
-
-  const agentClientWalletContext = useMemo(
-    () => ({
-      evmWalletAddress,
-      evmWalletAddresses,
-      solWalletAddress,
-      predictionWalletAddress:
-        predictionActiveWalletAddress || predictionWalletAddresses[0],
-      predictionWalletAddresses,
-      tradingWalletAddress: trading.tradingWalletAddress,
-      depositWalletAddress:
-        trading.depositWalletAddress ||
-        predictionWalletInfo?.depositWalletAddress,
-      safeAddress: predictionWalletInfo?.safeAddress,
-      currentPage: {
-        pathname: currentPathname || '/dashboard/chat',
-      },
-    }),
-    [
-      currentPathname,
-      evmWalletAddress,
-      evmWalletAddresses,
-      predictionActiveWalletAddress,
-      predictionWalletAddresses,
-      predictionWalletInfo?.depositWalletAddress,
-      predictionWalletInfo?.safeAddress,
-      solWalletAddress,
-      trading.depositWalletAddress,
-      trading.tradingWalletAddress,
-    ]
-  );
 
   const {
     usdcBalance: activePredictionUsdcBalance,
@@ -3112,9 +3323,19 @@ export default function ChatArea({
         }
 
         if (response?.success) {
+          const shouldUseAstroDeskDisplay = isAstroTradingDeskChat(
+            latestChat || activeChat,
+            isGroup
+          );
           const newMessages = dedupeMessages(
             (response.messages || []).filter(
               (message) => !isSyntheticPolymarketPrepareMessage(message)
+            ).map((message) =>
+              toAstroDeskDisplayMessage(
+                message,
+                currentUser,
+                shouldUseAstroDeskDisplay
+              )
             )
           );
 
@@ -3141,7 +3362,7 @@ export default function ChatArea({
         setIsLoadingMore(false);
       });
     },
-    [socket, isGroup, chatType, prepareBottomAnchoredLoad]
+    [socket, isGroup, chatType, prepareBottomAnchoredLoad, currentUser]
   );
 
   // ADD THIS: Function to refresh group info
@@ -3384,7 +3605,11 @@ export default function ChatArea({
         return;
       }
 
-      const msg = data.message;
+      const msg = toAstroDeskDisplayMessage(
+        data.message,
+        currentUser,
+        isAstroTradingDeskChat(activeChat, isGroup)
+      );
       if (isSyntheticPolymarketPrepareMessage(msg)) {
         return;
       }
@@ -3465,7 +3690,7 @@ export default function ChatArea({
     const handleAgentGroupResponse = (data: {
       groupId?: string;
       message?: Message;
-      error?: { message?: string };
+      error?: AgentGroupError;
     }) => {
       if (!isGroup || data.groupId !== activeChat._id) return;
       setAgentStatusText(null);
@@ -3473,6 +3698,12 @@ export default function ChatArea({
       if (data.error?.message) {
         pendingPolymarketBetKeyRef.current = null;
         setPendingPolymarketBetKey(null);
+        if (isSwopAccessError(data.error)) {
+          showSwopAccessToast(data.error, () => {
+            router.push('/wallet?outputToken=SWOP');
+          });
+          return;
+        }
         toast.error(data.error.message);
         return;
       }
@@ -3601,6 +3832,7 @@ export default function ChatArea({
     isGroup,
     loadMessages,
     prepareBottomAnchoredLoad,
+    router,
   ]);
 
   // Scroll to bottom on initial load and new messages
@@ -3728,10 +3960,12 @@ export default function ChatArea({
     if (!receiverId) return;
 
     const hasAstroMention = /(?:^|\s)@?astro\b/i.test(outgoingMessage);
+    const isLocalChartCommand = isChartCommand(outgoingMessage);
     const activeChat = currentGroupData || selectedChat;
     const shouldAutoMentionAstro =
       isAstroTradingDeskChat(activeChat, isGroup) &&
-      !hasAstroMention;
+      !hasAstroMention &&
+      !isLocalChartCommand;
     const canUseAstroLocalActions =
       !isGroup || hasAstroMention || shouldAutoMentionAstro;
     const messageForTransport = shouldAutoMentionAstro
@@ -3755,7 +3989,19 @@ export default function ChatArea({
           groupId: selectedChat._id,
           message: messageForTransport,
           messageType: 'text' as const,
-          clientWalletContext: agentClientWalletContext,
+          clientWalletContext: {
+            evmWalletAddress,
+            evmWalletAddresses,
+            solWalletAddress,
+            predictionWalletAddress:
+              predictionActiveWalletAddress || predictionWalletAddresses[0],
+            predictionWalletAddresses,
+            tradingWalletAddress: trading.tradingWalletAddress,
+            depositWalletAddress:
+              trading.depositWalletAddress ||
+              predictionWalletInfo?.depositWalletAddress,
+            safeAddress: predictionWalletInfo?.safeAddress,
+          },
         }
       : {
             receiverId,
@@ -3779,6 +4025,33 @@ export default function ChatArea({
       createdAt: new Date().toISOString(),
       status: 'sending',
     };
+
+    const localPnlResponseMessage =
+      shouldLoadAstroConsoleData &&
+      canUseAstroLocalActions &&
+      isPnlCommand(outgoingMessage)
+        ? buildLocalPnlResponseMessage({
+            consoleData: astroConsoleData,
+            groupId: isGroup ? selectedChat._id : null,
+            sourceMessageId: optimisticMessage._id,
+          })
+        : null;
+
+    if (localPnlResponseMessage) {
+      forceScrollToBottomRef.current = true;
+      isPinnedToBottomRef.current = true;
+      setMessages((prev) =>
+        dedupeMessages([
+          ...prev,
+          { ...optimisticMessage, status: 'sent' as const },
+          localPnlResponseMessage,
+        ])
+      );
+      if (typeof messageOverride !== 'string') {
+        setNewMessage('');
+      }
+      return;
+    }
 
     const localPolymarketOrderIntent =
       canUseAstroLocalActions &&
@@ -3834,15 +4107,25 @@ export default function ChatArea({
       }
     );
   }, [
-    agentClientWalletContext,
     currentUser,
     currentGroupData,
+    evmWalletAddress,
+    evmWalletAddresses,
     getPolymarketIntentMarkets,
     isGroup,
     messages,
     newMessage,
+    predictionActiveWalletAddress,
+    predictionWalletAddresses,
+    predictionWalletInfo?.depositWalletAddress,
+    predictionWalletInfo?.safeAddress,
     selectedChat,
+    shouldLoadAstroConsoleData,
+    solWalletAddress,
     socket,
+    astroConsoleData,
+    trading.depositWalletAddress,
+    trading.tradingWalletAddress,
   ]);
 
   const handlePreparePolymarketBet = useCallback(
@@ -3862,7 +4145,6 @@ export default function ChatArea({
           groupId: selectedChat._id,
           agentId: 'astro',
           message: prompt,
-          clientWalletContext: agentClientWalletContext,
         });
         const proposal = response?.data?.proposal;
         const responseMessage = response?.data?.responseMessage;
@@ -3902,7 +4184,6 @@ export default function ChatArea({
     },
     [
       appendMessageIfNew,
-      agentClientWalletContext,
       handleSendMessage,
       invokeGroupAgent,
       isGroup,
@@ -3980,6 +4261,25 @@ export default function ChatArea({
       focusComposer();
     },
     [focusComposer]
+  );
+
+  const handleAstroConsolePositionClick = useCallback(
+    (selection: AstroConsolePositionSelection) => {
+      if (!selectedChat || !shouldLoadAstroConsoleData) return;
+
+      const sourceMessageId = `sidebar-${Date.now()}`;
+      const positionMessage = buildLocalPositionResponseMessage({
+        selection,
+        consoleData: astroConsoleData,
+        groupId: isGroup ? selectedChat._id : null,
+        sourceMessageId,
+      });
+
+      forceScrollToBottomRef.current = true;
+      isPinnedToBottomRef.current = true;
+      setMessages((prev) => dedupeMessages([...prev, positionMessage]));
+    },
+    [astroConsoleData, isGroup, selectedChat, shouldLoadAstroConsoleData]
   );
 
   const handleComposerCommandButton = useCallback(() => {
@@ -4087,7 +4387,6 @@ export default function ChatArea({
             message: buildHyperliquidOrderPromptFromApprovalParams(
               approvalParams
             ),
-            clientWalletContext: agentClientWalletContext,
           });
           const preparedProposal = prepareResponse?.data?.proposal;
           const responseMessage = prepareResponse?.data?.responseMessage;
@@ -4168,7 +4467,6 @@ export default function ChatArea({
     },
     [
       appendMessageIfNew,
-      agentClientWalletContext,
       approveAgentAction,
       invokeGroupAgent,
       isGroup,
@@ -4206,6 +4504,18 @@ export default function ChatArea({
     setPendingProposalId(proposalId);
     try {
       if (isLocalHyperliquidProposalId(proposalId)) {
+        setActionResultsByProposalId((prev) => ({
+          ...prev,
+          [proposalId]: {
+            proposalId,
+            status: 'rejected',
+          },
+        }));
+        toast.success('Proposal rejected');
+        return;
+      }
+
+      if (isLocalSwapProposalId(proposalId)) {
         setActionResultsByProposalId((prev) => ({
           ...prev,
           [proposalId]: {
@@ -4469,6 +4779,14 @@ export default function ChatArea({
             </button>
             <button
               type="button"
+              title="Chart command"
+              onClick={() => applyComposerCommand('/chart ')}
+              className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+            >
+              <BarChart3 className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              type="button"
               title="Internet search command"
               onClick={() => applyComposerCommand('/search ')}
               className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
@@ -4599,6 +4917,12 @@ export default function ChatArea({
                 (!isAgentMessage &&
                   message.messageType === 'text' &&
                   !message.agentSender);
+              const renderedMessage = toAstroDeskDisplayMessage(
+                message,
+                currentUser,
+                isSecureAstroDesk
+              );
+              const renderedMessageText = renderedMessage.message || '';
               const proposalId = hiddenProposalId;
               const proposal = proposalId ? hiddenProposal : null;
               const proposalSourceText =
@@ -4612,30 +4936,30 @@ export default function ChatArea({
                 ? actionResultsByProposalId[proposalId]
                 : undefined;
               const normalizedOrderSource =
-                normalizePolymarketOrderSourceText(message.message);
+                normalizePolymarketOrderSourceText(renderedMessageText);
               const normalizedFundingSource =
-                normalizeFundingOnrampSourceText(message.message);
+                normalizeFundingOnrampSourceText(renderedMessageText);
               const hasAstroMention = /(?:^|\s)@?astro\b/i.test(
                 message.message || ''
               );
               const walletNetworkReply = isOwnOrLocalText
-                ? parseWalletSendNetworkReply(message.message)
+                ? parseWalletSendNetworkReply(renderedMessageText)
                 : '';
               const pendingWalletSendNetworkIntent =
                 walletNetworkReply && message.messageType === 'text'
                   ? findPendingWalletSendNetworkIntent(messages, index)
                   : null;
               const canRenderLocalWalletSend =
-                typeof message.message === 'string' &&
+                typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
                 !isAgentMessage &&
-                message.message.trim().length > 0 &&
+                renderedMessageText.trim().length > 0 &&
                 message.messageType === 'text' &&
-                hasWalletSendIntent(message.message) &&
+                hasWalletSendIntent(renderedMessageText) &&
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !renderedSyntheticOrderSourceTexts.has(normalizedOrderSource);
               const rawLocalWalletSendIntent = canRenderLocalWalletSend
-                ? findWalletSendIntent(message.message)
+                ? findWalletSendIntent(renderedMessageText)
                 : pendingWalletSendNetworkIntent && walletNetworkReply
                 ? {
                     params: {
@@ -4680,18 +5004,50 @@ export default function ChatArea({
               if (localWalletSendMessage || localWalletSendNetworkPromptMessage) {
                 renderedSyntheticOrderSourceTexts.add(normalizedOrderSource);
               }
-              const canRenderLocalFundingOnramp =
-                typeof message.message === 'string' &&
+              const canRenderLocalSwap =
+                typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
                 !isAgentMessage &&
-                message.message.trim().length > 0 &&
+                renderedMessageText.trim().length > 0 &&
+                message.messageType === 'text' &&
+                hasChatSwapIntent(renderedMessageText) &&
+                (!isGroup || hasAstroMention || isSecureAstroDesk) &&
+                !localWalletSendNetworkPromptMessage &&
+                !localWalletSendMessage;
+              const localSwapIntent = canRenderLocalSwap
+                ? findChatSwapIntent(renderedMessageText)
+                : null;
+              const localSwapMessage =
+                localSwapIntent &&
+                !hasMatchingWalletSwapProposal(
+                  messages,
+                  message,
+                  localSwapIntent
+                )
+                  ? buildSyntheticSwapMessage(
+                      localSwapIntent,
+                      message._id || `message-${index}`
+                    )
+                  : null;
+              if (localSwapMessage) {
+                renderedSyntheticOrderSourceTexts.add(normalizedOrderSource);
+              }
+              const localSwapProposalId = localSwapMessage
+                ? getMessageProposalId(localSwapMessage)
+                : null;
+              const canRenderLocalFundingOnramp =
+                typeof renderedMessageText === 'string' &&
+                isOwnOrLocalText &&
+                !isAgentMessage &&
+                renderedMessageText.trim().length > 0 &&
                 message.messageType === 'text' &&
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendNetworkPromptMessage &&
                 !localWalletSendMessage &&
+                !localSwapMessage &&
                 !renderedSyntheticFundingSourceTexts.has(normalizedFundingSource);
               const localFundingOnrampIntent = canRenderLocalFundingOnramp
-                ? findFundingOnrampIntent(message.message)
+                ? findFundingOnrampIntent(renderedMessageText)
                 : null;
               const localFundingOnrampMessage = localFundingOnrampIntent
                 ? buildSyntheticFundingOnrampMessage(
@@ -4703,17 +5059,18 @@ export default function ChatArea({
                 renderedSyntheticFundingSourceTexts.add(normalizedFundingSource);
               }
               const canRenderLocalHyperliquidOrder =
-                typeof message.message === 'string' &&
+                typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
                 !isAgentMessage &&
-                message.message.trim().length > 0 &&
+                renderedMessageText.trim().length > 0 &&
                 message.messageType === 'text' &&
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendNetworkPromptMessage &&
                 !localWalletSendMessage &&
+                !localSwapMessage &&
                 !renderedSyntheticOrderSourceTexts.has(normalizedOrderSource);
               const hyperliquidPositionReplyCoin = isOwnOrLocalText
-                ? parseHyperliquidCoin(message.message)
+                ? parseHyperliquidCoin(renderedMessageText)
                 : '';
               const pendingHyperliquidPositionIntent =
                 hyperliquidPositionReplyCoin && message.messageType === 'text'
@@ -4721,8 +5078,8 @@ export default function ChatArea({
                   : null;
               const rawLocalHyperliquidPositionIntent =
                 canRenderLocalHyperliquidOrder &&
-                hasHyperliquidOrderIntent(message.message)
-                  ? findHyperliquidPositionTpSlIntent(message.message)
+                hasHyperliquidOrderIntent(renderedMessageText)
+                  ? findHyperliquidPositionTpSlIntent(renderedMessageText)
                   : pendingHyperliquidPositionIntent &&
                     hyperliquidPositionReplyCoin
                   ? {
@@ -4772,8 +5129,8 @@ export default function ChatArea({
                 resolvedHyperliquidPositionIntent ||
                 fallbackHyperliquidOrderIntent ||
                 (canRenderLocalHyperliquidOrder &&
-                hasHyperliquidOrderIntent(message.message)
-                  ? findHyperliquidOrderIntent(message.message)
+                hasHyperliquidOrderIntent(renderedMessageText)
+                  ? findHyperliquidOrderIntent(renderedMessageText)
                   : null);
               const localHyperliquidOrderMessage =
                 localHyperliquidOrderIntent &&
@@ -4798,20 +5155,21 @@ export default function ChatArea({
                   ? getMessageProposalId(localHyperliquidOrderMessage)
                   : null;
               const canRenderLocalPolymarketOrder =
-                typeof message.message === 'string' &&
+                typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
                 !isAgentMessage &&
-                message.message.trim().length > 0 &&
+                renderedMessageText.trim().length > 0 &&
                 message.messageType === 'text' &&
-                hasPolymarketWriteIntent(message.message) &&
+                hasPolymarketWriteIntent(renderedMessageText) &&
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendMessage &&
+                !localSwapMessage &&
                 !localHyperliquidPositionPromptMessage &&
                 !localHyperliquidOrderMessage &&
                 !renderedSyntheticOrderSourceTexts.has(normalizedOrderSource);
               const localPolymarketOrderIntent = canRenderLocalPolymarketOrder
                 ? findPolymarketOrderIntent(
-                    message.message,
+                    renderedMessageText,
                     marketsSeenInRender.length > 0
                       ? marketsSeenInRender
                       : polymarketIntentMarkets
@@ -4826,11 +5184,21 @@ export default function ChatArea({
               if (localPolymarketOrderMessage) {
                 renderedSyntheticOrderSourceTexts.add(normalizedOrderSource);
               }
+              const localChartIntent =
+                typeof renderedMessageText === 'string' &&
+                message.messageType === 'text' &&
+                !isAgentMessage &&
+                isChartCommand(renderedMessageText)
+                  ? parseChartCommand(
+                      renderedMessageText,
+                      astroConsoleData.perpsMarkets || []
+                    )
+                  : null;
 
               return (
                 <Fragment key={message._id || index}>
                   <Message
-                    message={message}
+                    message={renderedMessage}
                     isOwn={isOwn}
                     isGroup={isGroup}
                     currentUser={currentUser}
@@ -4858,6 +5226,12 @@ export default function ChatArea({
                     astroConsoleData={astroConsoleData}
                     renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
                   />
+                  {localChartIntent && (
+                    <ChatChartCommandCard
+                      intent={localChartIntent}
+                      markets={astroConsoleData.perpsMarkets || []}
+                    />
+                  )}
                   {localWalletSendNetworkPromptMessage && (
                     <Message
                       message={localWalletSendNetworkPromptMessage}
@@ -4897,6 +5271,44 @@ export default function ChatArea({
                       proposal={proposalFromMessage(localWalletSendMessage)}
                       actionResult={undefined}
                       isProposalPending={false}
+                      onApproveProposal={handleApproveProposal}
+                      onApproveInlineProposal={handleApproveInlineProposal}
+                      onInlineActionComplete={handleInlineActionComplete}
+                      onRejectProposal={handleRejectProposal}
+                      onPreparePolymarketBet={handlePreparePolymarketBet}
+                      onAddPredictionFunds={handleAddPredictionFunds}
+                      onAddPerpsFunds={handleAddPerpsFunds}
+                      onDismissReceipt={handleDismissReceipt}
+                      onRegisterPolymarketMarkets={
+                        registerRenderedPolymarketMarkets
+                      }
+                      pendingPolymarketBetKey={pendingPolymarketBetKey}
+                      inlinePolymarketProposalsByBetKey={
+                        inlinePolymarketProposalsByBetKey
+                      }
+                      actionResultsByProposalId={actionResultsByProposalId}
+                      pendingProposalId={pendingProposalId}
+                      astroConsoleData={astroConsoleData}
+                      renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
+                    />
+                  )}
+                  {localSwapMessage && (
+                    <Message
+                      message={localSwapMessage}
+                      isOwn={false}
+                      isGroup={isGroup}
+                      currentUser={currentUser}
+                      proposal={proposalFromMessage(localSwapMessage)}
+                      proposalSourceText={renderedMessageText}
+                      actionResult={
+                        localSwapProposalId
+                          ? actionResultsByProposalId[localSwapProposalId]
+                          : undefined
+                      }
+                      isProposalPending={
+                        Boolean(localSwapProposalId) &&
+                        pendingProposalId === localSwapProposalId
+                      }
                       onApproveProposal={handleApproveProposal}
                       onApproveInlineProposal={handleApproveInlineProposal}
                       onInlineActionComplete={handleInlineActionComplete}
@@ -5096,6 +5508,14 @@ export default function ChatArea({
                 <span className="text-[#3fe08f]">/search</span>
                 <span>internet</span>
               </button>
+              <button
+                type="button"
+                onClick={() => applyComposerCommand('/chart ')}
+                className="dm-btn inline-flex items-center gap-2"
+              >
+                <span className="text-[#3fe08f]">/chart</span>
+                <span>market</span>
+              </button>
               <span>
                 <span className="text-[#3fe08f]">@</span> tag a swop.id
               </span>
@@ -5146,7 +5566,7 @@ export default function ChatArea({
                     handleSendMessage();
                   }
                 }}
-                placeholder="ask anything - try /search, /send, /swap, /pnl"
+                placeholder="ask anything - try /search, /chart, /send, /swap, /pnl"
                 className="dm-mono max-h-28 min-h-[30px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent pt-[3px] text-[15px] font-semibold leading-[1.65] text-[#eceef2] outline-none placeholder:text-[#4d515b]"
               />
 
@@ -5184,6 +5604,7 @@ export default function ChatArea({
         smartsiteHref={smartsiteHref}
         onSmartsiteClick={handleSmartsiteClick}
         onQuickCommand={applyComposerCommand}
+        onPositionClick={handleAstroConsolePositionClick}
       />
     </div>
   );
@@ -5370,6 +5791,352 @@ function isOpenPredictionConsolePosition(position: PolymarketPosition) {
   );
 }
 
+function stripLeadingAstroMention(text: string) {
+  return text.trim().replace(/^@?astro\b[\s,:-]*/i, '').trim();
+}
+
+function isPnlCommand(text: string) {
+  const commandText = stripLeadingAstroMention(text).toLowerCase();
+  return (
+    /^\/pnl(?:\s|$)/i.test(commandText) ||
+    /^(?:show|check|review|get|open|pull up|what'?s|what is|how is)?\s*(?:me\s+)?(?:my\s+)?(?:pnl|p&l|profit\s+and\s+loss|performance)(?:\s|$)/i.test(
+      commandText
+    )
+  );
+}
+
+const CHART_COMMAND_RANGES: ChartTimeRange[] = ['1D', '1W', '1M', '1Y', 'ALL'];
+const CHART_COMMAND_EXAMPLES = ['/chart BTC', '/chart ETH 1W', '/chart SOL 1M'];
+
+function isChartCommand(text: string) {
+  return /^\/chart(?:\s|$)/i.test(stripLeadingAstroMention(text));
+}
+
+function normalizeChartRangeToken(value: string): ChartTimeRange | '' {
+  const token = value.trim().toLowerCase();
+  const rangeMap: Record<string, ChartTimeRange> = {
+    '1d': '1D',
+    d: '1D',
+    day: '1D',
+    today: '1D',
+    '1day': '1D',
+    '1w': '1W',
+    w: '1W',
+    week: '1W',
+    '1week': '1W',
+    '1m': '1M',
+    '1mo': '1M',
+    mo: '1M',
+    month: '1M',
+    '1month': '1M',
+    '1y': '1Y',
+    y: '1Y',
+    year: '1Y',
+    '1year': '1Y',
+    all: 'ALL',
+    max: 'ALL',
+  };
+  return rangeMap[token] || '';
+}
+
+function isLegacyChartIntervalToken(value: string) {
+  return /^(?:3m|5m|15m|30m|1h|2h|4h|8h|12h|1w|1M)$/i.test(
+    value.trim()
+  );
+}
+
+function parseChartCommand(text: string, markets: HLMarket[] = []): ChartCommandIntent | null {
+  const commandText = stripLeadingAstroMention(text);
+  if (!/^\/chart(?:\s|$)/i.test(commandText)) return null;
+
+  const rawQuery = commandText.replace(/^\/chart\b/i, '').trim();
+  if (!rawQuery) {
+    return {
+      query: '',
+      coin: null,
+      displayCoin: '',
+      range: '1D',
+      empty: true,
+    };
+  }
+
+  const parts = rawQuery.split(/\s+/).filter(Boolean);
+  let range: ChartTimeRange = '1D';
+  const queryParts = parts.filter((part) => {
+    const normalizedRange = normalizeChartRangeToken(part);
+    if (normalizedRange) {
+      range = normalizedRange;
+      return false;
+    }
+    if (isLegacyChartIntervalToken(part)) return false;
+    return true;
+  });
+  const query = queryParts.join(' ').replace(/\b(?:chart|candles?)\b/gi, ' ').trim();
+  const resolved = resolveChartCommandMarket(query, markets);
+
+  if (!resolved.coin) {
+    return {
+      query: query || rawQuery,
+      coin: null,
+      displayCoin: query || rawQuery,
+      range,
+      unsupported: true,
+    };
+  }
+
+  return {
+    query,
+    coin: resolved.coin,
+    displayCoin: resolved.displayCoin,
+    range,
+    market: resolved.market,
+  };
+}
+
+function getChartRangeInterval(range: ChartTimeRange) {
+  const intervalByRange: Record<ChartTimeRange, string> = {
+    '1D': '15m',
+    '1W': '1h',
+    '1M': '4h',
+    '1Y': '1d',
+    ALL: '1w',
+  };
+  return intervalByRange[range];
+}
+
+function getChartRangeHistoryBars(range: ChartTimeRange) {
+  const barsByRange: Record<ChartTimeRange, number> = {
+    '1D': 110,
+    '1W': 185,
+    '1M': 200,
+    '1Y': 390,
+    ALL: 520,
+  };
+  return barsByRange[range];
+}
+
+function resolveChartCommandMarket(query: string, markets: HLMarket[] = []) {
+  const cleanedQuery = normalizePerpsMarketQuery(query.replace(/[$]/g, ' '));
+  const parsedCoin = parseHyperliquidCoin(cleanedQuery);
+  const candidates = [
+    cleanedQuery,
+    parsedCoin,
+    ...perpsAliasTargets(cleanedQuery),
+    ...cleanedQuery.split(/\s+/),
+  ]
+    .map((candidate) => candidate.trim())
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    const market = perpsMarketForCoin(markets, candidate);
+    if (market) {
+      return {
+        coin: market.coin,
+        displayCoin: market.displayCoin || displayPerpsCoin(market.coin),
+        market,
+      };
+    }
+  }
+
+  const fallbackCoin = candidates.find((candidate) =>
+    HYPERLIQUID_TICKET_COINS.some((coin) => perpsCoinMatches(coin, candidate))
+  );
+  if (fallbackCoin) {
+    const fallbackAlias = perpsAliasTargets(fallbackCoin)[0];
+    const coin = fallbackAlias || (fallbackCoin.includes(':') ? fallbackCoin : fallbackCoin.toUpperCase());
+    const displayCoin = displayPerpsCoin(coin);
+    return {
+      coin,
+      displayCoin,
+      market: null,
+    };
+  }
+
+  return { coin: '', displayCoin: '', market: null };
+}
+
+function buildPnlOverview(consoleData: AstroConsoleData): PnlOverviewPreview {
+  const openPredictionPositions = (consoleData.predictionPositions || []).filter(
+    isOpenPredictionConsolePosition
+  );
+  const predictionPositionsValue = openPredictionPositions.reduce(
+    (sum, position) => sum + toFiniteNumber(position.currentValue),
+    0
+  );
+  const predictionUnrealizedPnl = openPredictionPositions.reduce(
+    (sum, position) => sum + toFiniteNumber(position.cashPnl),
+    0
+  );
+
+  return {
+    walletPortfolioValue: toFiniteNumber(consoleData.walletPortfolioBalance),
+    perpsAccountValue: toFiniteNumber(consoleData.perpsAccount?.accountValue),
+    perpsUnrealizedPnl: toFiniteNumber(consoleData.perpsAccount?.unrealizedPnl),
+    perpsPositionCount: consoleData.perpsAccount?.positions?.length || 0,
+    predictionPortfolioValue:
+      toFiniteNumber(consoleData.predictionPortfolioUsdcBalance) +
+      toFiniteNumber(consoleData.predictionLegacyUsdcBalance) +
+      predictionPositionsValue,
+    predictionUnrealizedPnl,
+    predictionPositionCount: openPredictionPositions.length,
+    pendingOrderCount:
+      (consoleData.perpsAccount?.openOrders?.length || 0) +
+      (consoleData.predictionOpenOrders?.length || 0),
+    isLoading:
+      consoleData.isWalletPortfolioBalanceLoading ||
+      consoleData.isPredictionBalanceLoading ||
+      consoleData.isPerpsLoading,
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+function buildPnlPerpsPreview(
+  perpsAccount?: PerpsAccountSummary,
+  markets: HLMarket[] = []
+): HyperliquidPositionsPreview {
+  return {
+    accountValue: perpsAccount?.accountValue || '0',
+    withdrawable: perpsAccount?.withdrawable || '0',
+    positions: (perpsAccount?.positions || []).map((position) =>
+      buildPerpsPositionPreview(position, markets)
+    ),
+  };
+}
+
+function buildPerpsPositionPreview(
+  position: HLPosition,
+  markets: HLMarket[] = []
+): HyperliquidPositionPreview {
+  const market = perpsMarketForCoin(markets, position.coin);
+  const markPrice = getPerpsMarkPrice(position.coin, market);
+
+  return {
+    coin: position.coin,
+    displayCoin: displayPerpsCoin(position.coin),
+    side: toFiniteNumber(position.szi) < 0 ? 'short' : 'long',
+    szi: position.szi,
+    entryPx: position.entryPx,
+    markPx: markPrice > 0 ? String(markPrice) : null,
+    unrealizedPnl: position.unrealizedPnl,
+    returnOnEquity: position.returnOnEquity,
+    liquidationPx: position.liquidationPx,
+    marginUsed: position.marginUsed,
+    positionValue: position.positionValue,
+    leverage: position.leverage,
+  };
+}
+
+function buildLocalPnlResponseMessage({
+  consoleData,
+  groupId,
+  sourceMessageId,
+}: {
+  consoleData: AstroConsoleData;
+  groupId?: string | null;
+  sourceMessageId: string;
+}): Message {
+  const pnlOverview = buildPnlOverview(consoleData);
+  const tradingPnl =
+    pnlOverview.perpsUnrealizedPnl + pnlOverview.predictionUnrealizedPnl;
+  const openPredictionPositions = (consoleData.predictionPositions || []).filter(
+    isOpenPredictionConsolePosition
+  );
+
+  return {
+    _id: `local-pnl-${sourceMessageId}`,
+    message: `PnL snapshot ready: ${formatSignedUsd(tradingPnl)} across trading positions.`,
+    groupId: groupId || null,
+    messageType: 'agent_response',
+    createdAt: pnlOverview.checkedAt,
+    senderKind: 'agent',
+    agentSender: {
+      agentId: 'astro',
+      provider: 'local',
+      displayName: 'Astro',
+      avatarUrl: null,
+    },
+    agentData: {
+      invocationId: `local-pnl-${sourceMessageId}`,
+      action: 'portfolio.pnl',
+      metadata: {
+        toolExecution: {
+          provider: 'swop',
+          action: 'portfolio.pnl',
+          positions: openPredictionPositions,
+          perpsPositions: buildPnlPerpsPreview(
+            consoleData.perpsAccount,
+            consoleData.perpsMarkets
+          ),
+          pnlOverview,
+          checkedAt: pnlOverview.checkedAt,
+          query: '/pnl',
+        },
+      },
+    },
+  };
+}
+
+function buildLocalPositionResponseMessage({
+  selection,
+  consoleData,
+  groupId,
+  sourceMessageId,
+}: {
+  selection: AstroConsolePositionSelection;
+  consoleData: AstroConsoleData;
+  groupId?: string | null;
+  sourceMessageId: string;
+}): Message {
+  const checkedAt = new Date().toISOString();
+  const isPerps = selection.kind === 'perps';
+  const title = isPerps
+    ? `${displayPerpsCoin(selection.position.coin)}-PERP`
+    : selection.position.title || selection.position.slug || 'Prediction market';
+
+  return {
+    _id: `local-position-card-${sourceMessageId}`,
+    message: `Position snapshot ready for ${title}.`,
+    groupId: groupId || null,
+    messageType: 'agent_response',
+    createdAt: checkedAt,
+    senderKind: 'agent',
+    agentSender: {
+      agentId: 'astro',
+      provider: 'local',
+      displayName: 'Astro',
+      avatarUrl: null,
+    },
+    agentData: {
+      invocationId: `local-position-card-${sourceMessageId}`,
+      action: isPerps ? 'perps.positions' : 'prediction.positions',
+      metadata: {
+        toolExecution: {
+          provider: isPerps ? 'hyperliquid' : 'polymarket',
+          action: isPerps ? 'perps.positions' : 'prediction.positions',
+          ...(isPerps
+            ? {
+                perpsPositions: {
+                  accountValue: consoleData.perpsAccount?.accountValue || '0',
+                  withdrawable: consoleData.perpsAccount?.withdrawable || '0',
+                  positions: [
+                    buildPerpsPositionPreview(
+                      selection.position,
+                      consoleData.perpsMarkets
+                    ),
+                  ],
+                },
+              }
+            : {
+                positions: [selection.position],
+              }),
+          checkedAt,
+          query: `sidebar-position:${selection.kind}:${sourceMessageId}`,
+        },
+      },
+    },
+  };
+}
+
 function formatWholeUsd(value: unknown) {
   const number = Math.trunc(toFiniteNumber(value));
   return new Intl.NumberFormat('en-US', {
@@ -5476,6 +6243,122 @@ function isProposalNoLongerPendingError(error: unknown) {
   );
 }
 
+type AgentGroupError = {
+  code?: string;
+  message?: string;
+  details?: {
+    requiredSwop?: unknown;
+    currentSwop?: unknown;
+    deficitSwop?: unknown;
+    buyMoreSwop?: unknown;
+  };
+};
+
+function isSwopAccessError(error?: AgentGroupError | null) {
+  return (
+    error?.code === 'AGENT_SWOP_BALANCE_REQUIRED' ||
+    error?.code === 'AGENT_SWOP_BALANCE_CHECK_TIMEOUT' ||
+    error?.code === 'AGENT_SWOP_BALANCE_CHECK_FAILED' ||
+    Boolean(error?.details?.buyMoreSwop)
+  );
+}
+
+function swopAccessValue(value: unknown, fallback: string) {
+  if (value === null || value === undefined || value === '') return fallback;
+  return String(value);
+}
+
+function showSwopAccessToast(
+  error: AgentGroupError,
+  onOpenWallet: () => void
+) {
+  const requiredSwop = swopAccessValue(error.details?.requiredSwop, '1000');
+  const currentSwop = swopAccessValue(error.details?.currentSwop, '0');
+  const deficitSwop = swopAccessValue(error.details?.deficitSwop, requiredSwop);
+  const needsMoreSwop =
+    error.code === 'AGENT_SWOP_BALANCE_REQUIRED' ||
+    Boolean(error.details?.buyMoreSwop);
+  const title = needsMoreSwop ? 'Astro locked' : 'Balance check delayed';
+  const summary = needsMoreSwop
+    ? `Hold ${requiredSwop} SWOP to use the agent.`
+    : error.message || 'We could not verify your SWOP balance yet.';
+
+  toast.custom(
+    (t) => (
+      <div
+        className={`w-[calc(100vw-32px)] max-w-[390px] overflow-hidden rounded-lg border border-[#3fe08f]/25 bg-[#08090b] text-[#f4f6f8] shadow-[0_20px_55px_rgba(0,0,0,0.32)] transition-all duration-200 ${
+          t.visible ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
+        }`}
+      >
+        <div className="flex items-start gap-3 p-4">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[#3fe08f]/25 bg-[#3fe08f]/10 text-[#3fe08f]">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[#3fe08f]">
+                  {title}
+                </p>
+                <p className="mt-1 text-[14px] font-semibold leading-snug text-white">
+                  {summary}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={() => toast.dismiss(t.id)}
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[#8e939e] transition hover:bg-white/[0.06] hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-md border border-white/[0.08] bg-white/[0.035] p-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8e939e]">
+                  {needsMoreSwop ? 'Current' : 'Required'}
+                </p>
+                <p className="mt-1 font-mono text-[13px] font-semibold text-white">
+                  {needsMoreSwop ? currentSwop : requiredSwop} SWOP
+                </p>
+              </div>
+              <div className="rounded-md border border-[#ffcc66]/20 bg-[#ffcc66]/[0.08] p-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#b8a16a]">
+                  {needsMoreSwop ? 'Needed' : 'Status'}
+                </p>
+                <p className="mt-1 font-mono text-[13px] font-semibold text-[#ffde8a]">
+                  {needsMoreSwop ? `${deficitSwop} SWOP` : 'Retry'}
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-[12px] leading-relaxed text-[#b3b7c0]">
+              This notice is private to you. The group does not see your SWOP
+              balance or access status.
+            </p>
+            {needsMoreSwop && (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  onOpenWallet();
+                }}
+                className="mt-3 inline-flex h-9 items-center gap-2 rounded-md bg-[#3fe08f] px-3 text-[13px] font-semibold text-[#06110b] transition hover:bg-[#55efa2]"
+              >
+                <ShoppingBag className="h-4 w-4" />
+                Open wallet
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    ),
+    {
+      duration: 8000,
+      position: 'top-right',
+    }
+  );
+}
+
 function DmContextPanel({
   mode,
   displayChat,
@@ -5483,6 +6366,7 @@ function DmContextPanel({
   smartsiteHref,
   onSmartsiteClick,
   onQuickCommand,
+  onPositionClick,
 }: {
   mode: 'astro' | 'group' | 'contact';
   displayChat?: SelectedChat | null;
@@ -5491,6 +6375,7 @@ function DmContextPanel({
   smartsiteHref?: string | null;
   onSmartsiteClick?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
   onQuickCommand?: (command: string) => void;
+  onPositionClick?: (selection: AstroConsolePositionSelection) => void;
 }) {
   if (mode === 'astro') {
     const predictionPositions = consoleData?.predictionPositions || [];
@@ -5566,21 +6451,29 @@ function DmContextPanel({
         const size = toFiniteNumber(position.szi);
         const displayCoin = displayPerpsCoin(position.coin);
         return {
+          key: `perps:${position.coin}:${position.szi}:${position.entryPx}`,
           symbol: `${displayCoin}-PERP`,
           tag: `${size >= 0 ? 'LONG' : 'SHORT'} ${position.leverage?.value || 1}x`,
           pnl: formatSignedUsd(toFiniteNumber(position.unrealizedPnl)),
           positive: toFiniteNumber(position.unrealizedPnl) >= 0,
-          predictionPosition: null as PolymarketPosition | null,
-          perpsPosition: position as HLPosition,
+          selection: {
+            kind: 'perps',
+            position: position as HLPosition,
+          } as AstroConsolePositionSelection,
         };
       }),
       ...openPredictionPositions.slice(0, 2).map((position) => ({
+        key: `prediction:${position.conditionId || position.slug || 'market'}:${
+          position.asset || position.outcome || ''
+        }`,
         symbol: position.title || position.slug || 'Prediction',
         tag: position.outcome || 'YES',
         pnl: formatSignedUsd(toFiniteNumber(position.cashPnl)),
         positive: toFiniteNumber(position.cashPnl) >= 0,
-        predictionPosition: position,
-        perpsPosition: null as HLPosition | null,
+        selection: {
+          kind: 'prediction',
+          position,
+        } as AstroConsolePositionSelection,
       })),
     ].slice(0, 4);
     const pendingOrders = [
@@ -5601,6 +6494,7 @@ function DmContextPanel({
     ].slice(0, 2);
     const commands = [
       { label: '/search', command: '/search ' },
+      { label: '/chart', command: '/chart ' },
       { label: '/send', command: '/send ' },
       { label: '/swap', command: '/swap ' },
       { label: '/pnl', command: '/pnl ' },
@@ -5700,9 +6594,20 @@ function DmContextPanel({
 
         <SectionLabel>open positions · {positions.length}</SectionLabel>
         <ConsoleCard padClass="p-0">
-          {positions.length ? positions.map((position) => (
-              <div key={position.symbol} className="border-t border-white/[0.045] first:border-t-0">
-                <div className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left">
+          {positions.length ? (
+            positions.map((position) => (
+              <div
+                key={position.key}
+                className="border-t border-white/[0.045] first:border-t-0"
+              >
+                <button
+                  type="button"
+                  disabled={!onPositionClick}
+                  onClick={() => onPositionClick?.(position.selection)}
+                  title="Show position card in chat"
+                  aria-label={`Show ${position.symbol} position card in chat`}
+                  className="dm-btn flex w-full items-center justify-between gap-3 px-3 py-3 text-left disabled:cursor-default"
+                >
                   <span className="min-w-0">
                     <span className="dm-mono block truncate text-[12px] font-semibold leading-tight text-[#eceef2]">
                       {position.symbol}
@@ -5718,9 +6623,10 @@ function DmContextPanel({
                   >
                     {position.pnl}
                   </span>
-                </div>
+                </button>
               </div>
-            )) : (
+            ))
+          ) : (
             <div className="px-3 py-3 text-[11px] text-[#737783]">
               No open trading positions yet.
             </div>
@@ -6035,6 +6941,8 @@ function Message({
     message.agentData?.metadata?.fundingOnramp || null;
   const marketplaceItems =
     message.agentData?.metadata?.toolExecution?.items || [];
+  const pnlOverview =
+    message.agentData?.metadata?.toolExecution?.pnlOverview || null;
   const walletReceive =
     message.agentData?.metadata?.toolExecution?.walletReceive || null;
   const perpsPositions =
@@ -6131,6 +7039,7 @@ function Message({
   const hasAgentPolymarketPositions =
     isAgent && polymarketPositions.length > 0;
   const hasAgentMarketplaceItems = isAgent && marketplaceItems.length > 0;
+  const hasAgentPnlOverview = isAgent && Boolean(pnlOverview);
   const hasAgentFundingOnramp = isAgent && Boolean(fundingOnramp);
   const hasAgentWalletReceive = isAgent && Boolean(walletReceive?.address);
   const hasAgentPerpsPositions = isAgent && Boolean(perpsPositions);
@@ -6151,6 +7060,7 @@ function Message({
     isAgent &&
     (hasAgentMarkets ||
       hasAgentPolymarketPositions ||
+      hasAgentPnlOverview ||
       hasAgentFundingOnramp ||
       hasAgentMarketplaceItems ||
       hasAgentWalletReceive ||
@@ -6280,6 +7190,9 @@ function Message({
                 if (receiptId) onDismissReceipt(receiptId);
               }}
             />
+          )}
+          {isAgent && pnlOverview && (
+            <PnlOverviewCard overview={pnlOverview} />
           )}
           {isAgent && (
             <PolymarketMarketCards
@@ -7431,6 +8344,245 @@ function AgentMarketBlock({
         ) : null}
       </div>
       {children}
+    </div>
+  );
+}
+
+function ChatChartCommandCard({
+  intent,
+  markets,
+}: {
+  intent: ChartCommandIntent;
+  markets: HLMarket[];
+}) {
+  const [activeRange, setActiveRange] = useState<ChartTimeRange>(intent.range);
+
+  useEffect(() => {
+    setActiveRange(intent.range);
+  }, [intent.range, intent.coin, intent.query]);
+
+  const market = intent.coin
+    ? perpsMarketForCoin(markets, intent.coin) || intent.market || null
+    : null;
+  const displayCoin =
+    market?.displayCoin ||
+    intent.displayCoin ||
+    (intent.coin ? displayPerpsCoin(intent.coin) : '');
+  const markPrice =
+    intent.coin && !intent.empty && !intent.unsupported
+      ? getPerpsMarkPrice(intent.coin, market || undefined)
+      : 0;
+  const change24h = toFiniteNumber(market?.change24h);
+  const changeTone =
+    change24h < 0 ? 'text-[#ff5d63]' : change24h > 0 ? 'text-[#3fe08f]' : 'text-[#9396a0]';
+  const chartInterval = getChartRangeInterval(activeRange);
+  const chartHistoryBars = getChartRangeHistoryBars(activeRange);
+  const meta = intent.empty
+    ? 'needs symbol'
+    : intent.unsupported
+    ? 'market not found'
+    : `${activeRange} range`;
+
+  return (
+    <div className="dm-rise mb-2 flex justify-start">
+      <div className="w-full min-w-0 max-w-[460px]">
+        <AgentMarketBlock label="chart · hyperliquid" meta={meta}>
+          <div className={`${AGENT_PANEL_CLASS} overflow-hidden text-xs`}>
+            <div className="flex items-start justify-between gap-3 border-b border-white/[0.07] px-3.5 py-3">
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-[8px] bg-[#3fe08f]/15">
+                    <BarChart3 className="h-3.5 w-3.5 text-[#3fe08f]" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="dm-mono truncate text-[15px] font-black text-[#eceef2]">
+                      {displayCoin ? `${displayCoin}-PERP` : 'Market chart'}
+                    </div>
+                    <div className="dm-mono mt-1 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-[#5a5e69]">
+                      {intent.query || 'type a symbol after /chart'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {!intent.empty && !intent.unsupported && (
+                <div className="dm-mono shrink-0 text-right">
+                  <div className="text-[14px] font-black text-[#eceef2]">
+                    ${formatPerpsPrice(markPrice)}
+                  </div>
+                  <div className={`mt-1 text-[10px] font-bold ${changeTone}`}>
+                    {formatChartChange(change24h)} 24h
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {intent.empty || intent.unsupported ? (
+              <div className="grid gap-3 px-3.5 py-3">
+                <div className="rounded-[12px] border border-white/[0.07] bg-black/25 px-3 py-2.5 text-[12px] font-semibold leading-relaxed text-[#a9adb8]">
+                  {intent.unsupported
+                    ? `No Hyperliquid chart found for "${intent.query}".`
+                    : 'Add a market after /chart.'}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {CHART_COMMAND_EXAMPLES.map((example) => (
+                    <span
+                      key={example}
+                      className="dm-mono rounded-[8px] border border-[#3fe08f]/20 bg-[#3fe08f]/10 px-2.5 py-1.5 text-[10px] font-bold text-[#9ef7c8]"
+                    >
+                      {example}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="h-[230px] border-b border-white/[0.07] bg-[#090b0e]">
+                  <CandleChart
+                    coin={intent.coin}
+                    interval={chartInterval}
+                    height={230}
+                    theme="dark"
+                    historyBars={chartHistoryBars}
+                  />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {CHART_COMMAND_RANGES.map((range) => (
+                      <button
+                        key={range}
+                        type="button"
+                        onClick={() => setActiveRange(range)}
+                        className={`dm-btn rounded-[8px] border px-2.5 py-1.5 text-[10px] font-bold ${
+                          activeRange === range
+                            ? 'border-[#3fe08f]/40 bg-[#3fe08f]/14 text-[#3fe08f]'
+                            : 'border-white/[0.07] bg-black/25 text-[#737783] hover:text-[#eceef2]'
+                        }`}
+                      >
+                        {range}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="dm-mono flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                    <Radio className="h-3 w-3 text-[#3fe08f]" />
+                    {chartInterval} candles
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </AgentMarketBlock>
+      </div>
+    </div>
+  );
+}
+
+function formatChartChange(value: number) {
+  if (!Number.isFinite(value) || value === 0) return '0.00%';
+  const precision = Math.abs(value) >= 10 ? 1 : 2;
+  return `${value > 0 ? '+' : ''}${value.toFixed(precision)}%`;
+}
+
+function PnlOverviewCard({ overview }: { overview: PnlOverviewPreview }) {
+  const totalTradingPnl =
+    overview.perpsUnrealizedPnl + overview.predictionUnrealizedPnl;
+  const checkedAt = new Date(overview.checkedAt);
+  const checkedAtLabel = Number.isNaN(checkedAt.getTime())
+    ? ''
+    : checkedAt.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+  const rows = [
+    {
+      label: 'wallet',
+      value: formatCompactUsd(overview.walletPortfolioValue),
+      detail: 'portfolio value',
+      delta: '',
+      deltaValue: null,
+    },
+    {
+      label: 'perps',
+      value: formatCompactUsd(overview.perpsAccountValue),
+      detail: `${overview.perpsPositionCount} open position${
+        overview.perpsPositionCount === 1 ? '' : 's'
+      }`,
+      delta: formatSignedUsd(overview.perpsUnrealizedPnl),
+      deltaValue: overview.perpsUnrealizedPnl,
+    },
+    {
+      label: 'predictions',
+      value: formatCompactUsd(overview.predictionPortfolioValue),
+      detail: `${overview.predictionPositionCount} open market${
+        overview.predictionPositionCount === 1 ? '' : 's'
+      }`,
+      delta: formatSignedUsd(overview.predictionUnrealizedPnl),
+      deltaValue: overview.predictionUnrealizedPnl,
+    },
+    {
+      label: 'orders',
+      value: String(overview.pendingOrderCount),
+      detail: 'pending',
+      delta: '',
+      deltaValue: null,
+    },
+  ];
+
+  return (
+    <div className={`${AGENT_PANEL_CLASS} mt-2 w-full overflow-hidden text-xs`}>
+      <div className="border-b border-white/[0.07] px-3.5 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="dm-mono text-[9.5px] font-bold uppercase tracking-[0.16em] text-[#3fe08f]">
+              pnl snapshot
+            </div>
+            <div
+              className={`dm-mono mt-1 text-[24px] font-black leading-tight ${
+                totalTradingPnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]'
+              }`}
+            >
+              {formatSignedUsd(totalTradingPnl)}
+            </div>
+          </div>
+          <div className="dm-mono shrink-0 text-right text-[10px] font-semibold text-[#5a5e69]">
+            {checkedAtLabel ? `checked ${checkedAtLabel}` : 'live snapshot'}
+          </div>
+        </div>
+        {overview.isLoading && (
+          <div className="mt-2 rounded-[8px] border border-[#e8920f]/25 bg-[#e8920f]/10 px-2.5 py-2 text-[10.5px] font-semibold text-[#ffd08a]">
+            Refreshing balances. Values may update in a moment.
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-px bg-white/[0.045]">
+        {rows.map((row) => {
+          const deltaTone =
+            row.deltaValue === null || row.deltaValue === 0
+              ? 'text-[#5a5e69]'
+              : row.deltaValue < 0
+              ? 'text-[#ff5d63]'
+              : 'text-[#3fe08f]';
+
+          return (
+            <div key={row.label} className="bg-[#15171d] px-3.5 py-3">
+              <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.14em] text-[#5a5e69]">
+                {row.label}
+              </div>
+              <div className="dm-mono mt-1 text-[14px] font-bold text-[#eceef2]">
+                {row.value}
+              </div>
+              <div className="dm-mono mt-1 flex items-center justify-between gap-2 text-[10px] font-semibold text-[#737783]">
+                <span className="min-w-0 truncate">{row.detail}</span>
+                {row.delta && (
+                  <span className={`shrink-0 ${deltaTone}`}>
+                    {row.delta}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -11514,8 +12666,8 @@ const CHAT_SWAP_CHAIN_IDS: Record<TokenData['chain'], string> = {
   ETHEREUM: '1',
   BASE: '8453',
   ARBITRUM: '42161',
-  SEPOLIA: '11155111',
   POLYGON: '137',
+  SEPOLIA: '11155111',
   SOLANA: SOLANA_CHAIN_ID,
 };
 
@@ -11523,7 +12675,6 @@ const CHAT_SWAP_CHAIN_NAMES: Record<string, string> = {
   '1': 'Ethereum',
   '8453': 'Base',
   '42161': 'Arbitrum',
-  '11155111': 'Sepolia',
   '137': 'Polygon',
   [SOLANA_CHAIN_ID]: 'Solana',
 };
@@ -16213,22 +17364,11 @@ function PolymarketProposalTicket({
 
   const hasMarket = Boolean(marketId.trim() || conditionId.trim() || slug.trim());
   const amountNumber = toFiniteNumber(amount);
-  const availableSharesFromPositions = tokenId
+  const availableShares = tokenId
     ? positions
         .filter((position) => String(position.asset) === String(tokenId))
         .reduce((sum, position) => sum + toFiniteNumber(position.size), 0)
     : 0;
-  const availableSharesFromTicket = toFiniteNumber(
-    firstTicketValue(params, ['availableShares', 'positionSize', 'maxShares'])
-  );
-  const availableShares =
-    availableSharesFromPositions > 0
-      ? availableSharesFromPositions
-      : availableSharesFromTicket;
-  const isPositionMatchedSell =
-    side === 'SELL' &&
-    Boolean(tokenId || conditionId || slug) &&
-    availableShares > 0;
   const needsPredictionFunds =
     isOpen &&
     canAct &&
@@ -16276,10 +17416,6 @@ function PolymarketProposalTicket({
           : undefined,
     });
   };
-  const setSellSharePercent = (percent: number) => {
-    if (!isOpen || availableShares <= 0) return;
-    setAmount(formatPredictionAmountInput(availableShares * percent));
-  };
 
   return (
     <div className="mt-3 space-y-3 border-t border-white/[0.07] px-3.5 pb-3 pt-3">
@@ -16319,12 +17455,6 @@ function PolymarketProposalTicket({
             <div className="dm-mono mt-1 truncate text-[10px] text-[#5a5e69]">
               {marketId || conditionId || slug}
               {tokenId ? ` · token ${tokenId.slice(0, 18)}...` : ''}
-            </div>
-          )}
-          {isPositionMatchedSell && (
-            <div className="dm-mono mt-2 truncate text-[10px] uppercase tracking-[0.08em] text-[#3fe08f]">
-              matched position · {formatPredictionShares(availableShares)}{' '}
-              {approvalOutcomeLabel} shares
             </div>
           )}
         </div>
@@ -16447,32 +17577,6 @@ function PolymarketProposalTicket({
           </label>
         )}
       </div>
-
-      {isOpen && side === 'SELL' && availableShares > 0 && (
-        <div className="grid grid-cols-3 gap-1.5">
-          <button
-            type="button"
-            onClick={() => setSellSharePercent(0.25)}
-            className={`h-8 rounded-[8px] text-[11.5px] font-semibold ${TICKET_IDLE_BUTTON_CLASS}`}
-          >
-            25%
-          </button>
-          <button
-            type="button"
-            onClick={() => setSellSharePercent(0.5)}
-            className={`h-8 rounded-[8px] text-[11.5px] font-semibold ${TICKET_IDLE_BUTTON_CLASS}`}
-          >
-            Half
-          </button>
-          <button
-            type="button"
-            onClick={() => setSellSharePercent(1)}
-            className={`h-8 rounded-[8px] text-[11.5px] font-semibold ${TICKET_IDLE_BUTTON_CLASS}`}
-          >
-            Max
-          </button>
-        </div>
-      )}
 
       {isOpen && (
         <div

@@ -60,6 +60,7 @@ import { usePolygonBalances } from '@/hooks/polymarket';
 import {
   USDC_E_CONTRACT_ADDRESS,
   USDC_E_DECIMALS,
+  LEGACY_USDC_E_ADDRESS,
 } from '@/constants/polymarket';
 import {
   Connection,
@@ -91,6 +92,8 @@ type WithdrawStep =
   | 'processing'
   | 'success'
   | 'error';
+
+type WithdrawToken = 'pUSD' | 'USDC.e';
 
 interface DepositToken {
   name: string;
@@ -1442,7 +1445,8 @@ function WithdrawTab({
   } = useTrading();
   const { eoaAddress, walletClient } = usePolymarketWallet();
   const { accessToken } = useUser();
-  const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { usdcBalance, legacyUsdcBalance } =
+    usePolygonBalances(safeAddress);
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<WithdrawStep>('amount');
@@ -1450,13 +1454,22 @@ function WithdrawTab({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selectedWithdrawToken, setSelectedWithdrawToken] =
+    useState<WithdrawToken>('pUSD');
 
   const destination = eoaAddress;
 
   // Derived state for active token
-  const activeBalance = usdcBalance;
-  const activeAddress = USDC_E_CONTRACT_ADDRESS;
-  const activeLabel = 'pUSD';
+  const activeBalance =
+    selectedWithdrawToken === 'pUSD'
+      ? usdcBalance
+      : legacyUsdcBalance;
+  const activeAddress =
+    selectedWithdrawToken === 'pUSD'
+      ? USDC_E_CONTRACT_ADDRESS
+      : LEGACY_USDC_E_ADDRESS;
+  const activeLabel = selectedWithdrawToken;
+  const showTokenSelector = legacyUsdcBalance > 0;
   const walletLabel =
     walletType === 'deposit' ? 'Deposit wallet' : 'Safe wallet';
 
@@ -1473,8 +1486,17 @@ function WithdrawTab({
       setAmount('');
       setTxHash(null);
       setError(null);
+      setSelectedWithdrawToken('pUSD');
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    setSelectedWithdrawToken(
+      legacyUsdcBalance > 0 && usdcBalance === 0 ? 'USDC.e' : 'pUSD',
+    );
+    setAmount('');
+  }, [legacyUsdcBalance, usdcBalance, open]);
 
   const handleCopyAddress = async () => {
     if (!destination) return;
@@ -1486,6 +1508,12 @@ function WithdrawTab({
 
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSelectWithdrawToken = (token: WithdrawToken) => {
+    setSelectedWithdrawToken(token);
+    setAmount('');
+    setError(null);
   };
 
   const executeWithdraw = useCallback(async () => {
@@ -1745,6 +1773,53 @@ function WithdrawTab({
   // step === 'amount'
   return (
     <div className="px-6 pb-6 space-y-5">
+      {showTokenSelector && (
+        <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+          <button
+            type="button"
+            aria-pressed={selectedWithdrawToken === 'pUSD'}
+            onClick={() => handleSelectWithdrawToken('pUSD')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+              selectedWithdrawToken === 'pUSD'
+                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            pUSD
+            <span
+              className={`text-xs ${
+                selectedWithdrawToken === 'pUSD'
+                  ? 'text-gray-600'
+                  : 'text-gray-400'
+              }`}
+            >
+              ${usdcBalance.toFixed(2)}
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={selectedWithdrawToken === 'USDC.e'}
+            onClick={() => handleSelectWithdrawToken('USDC.e')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+              selectedWithdrawToken === 'USDC.e'
+                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            USDC.e
+            <span
+              className={`text-xs ${
+                selectedWithdrawToken === 'USDC.e'
+                  ? 'text-gray-600'
+                  : 'text-gray-400'
+              }`}
+            >
+              ${legacyUsdcBalance.toFixed(2)}
+            </span>
+          </button>
+        </div>
+      )}
+
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
         <p className="text-xs text-gray-500 mb-1">
           Available to withdraw

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { PolymarketProviders, useTrading } from '@/providers/polymarket';
-import { usePolygonBalances } from '@/hooks/polymarket';
+import { usePolymarketCollateralBalance } from '@/hooks/polymarket';
 import MarketDetailView from '@/components/wallet/polymarket/Markets/MarketDetailView';
 import {
   useMarketDetailStore,
@@ -36,7 +36,12 @@ function MarketDetailPageInner() {
   const portfolioAddressInput = portfolioAddresses.length
     ? portfolioAddresses
     : safeAddress;
-  const { usdcBalance } = usePolygonBalances(portfolioAddressInput);
+  const {
+    orderableBalance,
+    displayBalance,
+    legacyBalanceHint,
+    isNormalizingCollateral,
+  } = usePolymarketCollateralBalance(portfolioAddressInput);
 
   const entry = useMarketDetailStore((s) => s.entries[marketId]);
   const clearEntry = useMarketDetailStore((s) => s.clear);
@@ -80,7 +85,10 @@ function MarketDetailPageInner() {
     <MarketDetailView
       onClose={handleBack}
       market={snapshot.market}
-      balance={usdcBalance}
+      balance={orderableBalance}
+      displayBalance={displayBalance}
+      balanceHint={legacyBalanceHint}
+      isConvertingBalance={isNormalizingCollateral}
       yesShares={snapshot.yesShares}
       noShares={snapshot.noShares}
       initialOutcome={

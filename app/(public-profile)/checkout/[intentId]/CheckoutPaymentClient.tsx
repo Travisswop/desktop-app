@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  useConnectWallet,
   usePrivy,
   useSendTransaction,
   useWallets as useEvmWallets,
@@ -20,14 +21,16 @@ import {
 import { arbitrum, base, mainnet, polygon } from 'viem/chains';
 import {
   AlertCircle,
-  ArrowUpDown,
   ArrowRight,
   CheckCircle2,
+  ExternalLink,
+  Link2,
   Loader2,
   Package,
   RefreshCw,
   Search,
   ShieldCheck,
+  Smartphone,
   Wallet,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -207,6 +210,10 @@ function explorerUrlForToken(token: TokenData | null, txHash: string) {
   return `${CHAIN_CONFIG[chain]?.explorer || CHAIN_CONFIG.SOLANA.explorer}${txHash}`;
 }
 
+function swopAppCheckoutUrl(intentId: string) {
+  return `swop://pay/v1/checkout/${encodeURIComponent(intentId)}`;
+}
+
 function getPublicClient(chainId: string) {
   const chain = VIEM_CHAINS[chainId as keyof typeof VIEM_CHAINS];
   if (!chain) return null;
@@ -240,6 +247,7 @@ export default function CheckoutPaymentClient({
   intentId: string;
 }) {
   const { login, ready, authenticated } = usePrivy();
+  const { connectWallet } = useConnectWallet();
   const { accessToken } = useUser();
   const { wallets: evmWallets } = useEvmWallets();
   const { sendTransaction } = useSendTransaction();
@@ -253,6 +261,7 @@ export default function CheckoutPaymentClient({
   const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
   const [creatingWallet, setCreatingWallet] = useState(false);
+  const [connectingWallet, setConnectingWallet] = useState(false);
   const [quoteSummary, setQuoteSummary] = useState<{
     quotedOutputAmount?: number;
     minOutputAmount?: number;
@@ -316,6 +325,10 @@ export default function CheckoutPaymentClient({
   );
 
   const selectedRail = tokenRail(selectedToken);
+  const appCheckoutUrl = useMemo(
+    () => swopAppCheckoutUrl(intentId),
+    [intentId]
+  );
 
   const hasSufficientBalance = useMemo(() => {
     if (!selectedToken || !tokenAmount) return false;
@@ -385,16 +398,37 @@ export default function CheckoutPaymentClient({
     }
   };
 
+  const handleConnectWallet = async () => {
+    setConnectingWallet(true);
+    setError(null);
+    try {
+      await connectWallet();
+      await refetch();
+    } catch (connectError) {
+      setError(
+        connectError instanceof Error
+          ? connectError.message
+          : 'Unable to connect wallet'
+      );
+    } finally {
+      setConnectingWallet(false);
+    }
+  };
+
+  const handleOpenSwopApp = () => {
+    window.location.href = appCheckoutUrl;
+  };
+
   const executeLifiTransaction = async (
     transactionRequest: LifiTransactionRequest,
     spenderAddress?: string | null
   ) => {
     if (!selectedToken || selectedToken.chain === 'SOLANA') {
-      throw new Error('Select an EVM token for LiFi checkout');
+      throw new Error('Select a supported token for Swop Pay');
     }
 
     const chainConfig = CHAIN_CONFIG[selectedToken.chain];
-    if (!chainConfig) throw new Error('Unsupported EVM chain');
+    if (!chainConfig) throw new Error('Unsupported payment network');
 
     const sourceChainId = Number(chainConfig.id);
     const sourceWalletAddress = selectedToken.walletAddress;
@@ -404,7 +438,7 @@ export default function CheckoutPaymentClient({
         sourceWalletAddress?.toLowerCase()
     );
     if (!evmWallet || !sourceWalletAddress) {
-      throw new Error('EVM wallet not found');
+      throw new Error('Wallet not found');
     }
 
     if (evmWallet.chainId !== `eip155:${sourceChainId}`) {
@@ -522,7 +556,7 @@ export default function CheckoutPaymentClient({
         const chainConfig = CHAIN_CONFIG[selectedToken.chain];
         const fromAddress = selectedToken.walletAddress;
         if (!chainConfig || !fromAddress) {
-          throw new Error('EVM wallet not ready');
+          throw new Error('Wallet not ready');
         }
 
         const prepared = await prepareCheckoutLifiTransaction(
@@ -611,7 +645,7 @@ export default function CheckoutPaymentClient({
             <div>
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#dde1e6] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#5d6574]">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                Swop checkout
+                Swop Pay
               </div>
               <h1 className="text-2xl font-semibold tracking-normal text-[#101114]">
                 {loading
@@ -625,7 +659,7 @@ export default function CheckoutPaymentClient({
                       getCheckoutAmounts(intent).merchantReceivesAmount,
                       intent.merchantCurrency.symbol
                     )
-                  : intent?.merchantCurrency.symbol || 'USDC'}.
+                  : 'USDC'}.
               </p>
             </div>
             <div className="min-w-[180px] rounded-md border border-[#eceef2] bg-[#fafafa] p-3 text-left sm:text-right">
@@ -753,48 +787,122 @@ export default function CheckoutPaymentClient({
             </div>
           </section>
         ) : !ready || !authenticated ? (
-          <section className="rounded-lg border border-[#e7e8ec] bg-white p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Sign in to pay</h2>
-                <p className="mt-1 text-sm text-[#646b78]">
-                  Use your Swop account to choose a wallet currency and sign.
+          <section className="rounded-lg border border-[#e7e8ec] bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+                  Pay your way
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Pay with Swop Pay
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[#646b78]">
+                  Open this request in Swop or continue here to choose the
+                  wallet that pays.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={login}
-                disabled={!ready}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#101114] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Wallet className="h-4 w-4" />
-                Sign in
-              </button>
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-[420px]">
+                <button
+                  type="button"
+                  onClick={handleOpenSwopApp}
+                  className="flex min-h-[84px] items-center gap-3 rounded-md border border-[#dde1e6] bg-white p-3 text-left transition hover:border-[#101114]"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-[#101114] text-white">
+                    <Smartphone className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-[#101114]">
+                      Open Swop app
+                    </span>
+                    <span className="mt-1 block text-xs font-medium text-[#737b8c]">
+                      Use your Swop wallet
+                    </span>
+                  </span>
+                  <ExternalLink className="ml-auto h-4 w-4 flex-shrink-0 text-[#8b93a3]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={login}
+                  disabled={!ready}
+                  className="flex min-h-[84px] items-center gap-3 rounded-md border border-[#101114] bg-[#101114] p-3 text-left text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
+                    <Wallet className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">
+                      Sign in or connect
+                    </span>
+                    <span className="mt-1 block text-xs font-medium text-white/70">
+                      Choose wallet on this link
+                    </span>
+                  </span>
+                  <ArrowRight className="ml-auto h-4 w-4 flex-shrink-0 text-white/70" />
+                </button>
+              </div>
             </div>
           </section>
         ) : !solanaWallet && evmWalletAddresses.length === 0 ? (
-          <section className="rounded-lg border border-[#e7e8ec] bg-white p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Wallet needed</h2>
-                <p className="mt-1 text-sm text-[#646b78]">
-                  This checkout can use Solana assets or EVM assets routed
-                  through LiFi into merchant USDC.
+          <section className="rounded-lg border border-[#e7e8ec] bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+                  Wallet selection
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Choose a wallet to pay
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[#646b78]">
+                  Connect an existing wallet or create a Swop wallet, then
+                  Swop Pay will show the balances you can use.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleCreateWallet}
-                disabled={creatingWallet}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#101114] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {creatingWallet ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Wallet className="h-4 w-4" />
-                )}
-                Create wallet
-              </button>
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-[420px]">
+                <button
+                  type="button"
+                  onClick={handleConnectWallet}
+                  disabled={connectingWallet}
+                  className="flex min-h-[76px] items-center gap-3 rounded-md border border-[#101114] bg-[#101114] p-3 text-left text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
+                    {connectingWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Link2 className="h-4 w-4" />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">
+                      Connect wallet
+                    </span>
+                    <span className="mt-1 block text-xs font-medium text-white/70">
+                      Select an external wallet
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateWallet}
+                  disabled={creatingWallet}
+                  className="flex min-h-[76px] items-center gap-3 rounded-md border border-[#dde1e6] bg-white p-3 text-left transition hover:border-[#101114] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-[#f0f2f5] text-[#101114]">
+                    {creatingWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wallet className="h-4 w-4" />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-[#101114]">
+                      Create Swop wallet
+                    </span>
+                    <span className="mt-1 block text-xs font-medium text-[#737b8c]">
+                      Use a new Swop wallet
+                    </span>
+                  </span>
+                </button>
+              </div>
             </div>
           </section>
         ) : (
@@ -802,7 +910,7 @@ export default function CheckoutPaymentClient({
             <div className="rounded-lg border border-[#e7e8ec] bg-white p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold">Choose currency</h2>
+                  <h2 className="text-lg font-semibold">Choose wallet</h2>
                   <p className="mt-1 text-xs font-medium text-[#737b8c]">
                     {selectedToken?.walletAddress || solanaWallet?.address
                       ? `Wallet ${truncateWalletAddress(
@@ -810,7 +918,7 @@ export default function CheckoutPaymentClient({
                             solanaWallet?.address ||
                             ''
                         )}`
-                      : 'Choose a funded wallet'}
+                      : 'Choose a funded wallet balance'}
                   </p>
                 </div>
                 <button
@@ -827,7 +935,7 @@ export default function CheckoutPaymentClient({
                 {[
                   ['all', 'All'],
                   ['solana', 'Solana'],
-                  ['evm', 'EVM'],
+                  ['evm', 'Other chains'],
                 ].map(([value, label]) => (
                   <button
                     key={value}
@@ -852,7 +960,7 @@ export default function CheckoutPaymentClient({
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search"
+                  placeholder="Search wallet or token"
                   className="h-10 w-full rounded-md border border-[#dde1e6] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#101114]"
                 />
               </div>
@@ -865,7 +973,7 @@ export default function CheckoutPaymentClient({
                   </div>
                 ) : payableTokens.length === 0 ? (
                   <p className="py-8 text-sm text-[#646b78]">
-                    No priced tokens found for this filter.
+                    No supported tokens found for this filter.
                   </p>
                 ) : (
                   <div className="divide-y divide-[#edf0f3]">
@@ -904,6 +1012,9 @@ export default function CheckoutPaymentClient({
                               <p className="truncate text-xs text-[#737b8c]">
                                 {token.name} ·{' '}
                                 {CHAIN_CONFIG[token.chain]?.name || token.chain}
+                                {token.walletAddress
+                                  ? ` · ${truncateWalletAddress(token.walletAddress)}`
+                                  : ''}
                               </p>
                             </div>
                           </div>
@@ -972,31 +1083,14 @@ export default function CheckoutPaymentClient({
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <dt className="text-[#737b8c]">Route</dt>
-                  <dd className="flex items-center gap-1 font-semibold">
-                    {selectedRail === 'lifi' ? (
-                      <>
-                        <ArrowUpDown className="h-3.5 w-3.5" />
-                        LiFi
-                      </>
-                    ) : (
-                      'Solana'
-                    )}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <dt className="text-[#737b8c]">Slippage</dt>
-                  <dd className="font-semibold">
-                    {checkoutAmounts
-                      ? `${(checkoutAmounts.slippageBps / 100).toFixed(2)}%`
-                      : '--'}
-                  </dd>
+                  <dt className="text-[#737b8c]">Payment</dt>
+                  <dd className="font-semibold">Swop Pay</dd>
                 </div>
               </dl>
 
               {quoteSummary?.minOutputAmount ? (
                 <div className="mt-4 rounded-md border border-[#dde1e6] bg-[#fafafa] p-3 text-xs font-medium text-[#646b78]">
-                  Minimum settlement:{' '}
+                  Merchant payout:{' '}
                   {formatCurrency(
                     quoteSummary.minOutputAmount,
                     intent.merchantCurrency.symbol
@@ -1012,7 +1106,7 @@ export default function CheckoutPaymentClient({
 
               {stage !== 'idle' && stage !== 'failed' && (
                 <div className="mt-4 rounded-md border border-[#dde1e6] bg-[#fafafa] p-3 text-xs font-medium text-[#646b78]">
-                  {stage === 'preparing' && 'Preparing transaction...'}
+                  {stage === 'preparing' && 'Preparing Swop Pay...'}
                   {stage === 'signing' && 'Waiting for wallet signature...'}
                   {stage === 'confirming' && 'Confirming payment...'}
                 </div>
@@ -1033,7 +1127,7 @@ export default function CheckoutPaymentClient({
                 className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#101114] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-55"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Pay {selectedRail === 'lifi' ? 'with LiFi' : intent.merchantCurrency.symbol}
+                Pay with Swop Pay
               </button>
             </aside>
           </section>

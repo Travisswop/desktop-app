@@ -82,7 +82,11 @@ interface SwapTransactionCardProps {
   refetchPosts?: () => void;
   secondaryFontColor?: string;
   onPress?: () => void;
+  onFeedClick?: () => void;
   onTransactionPress?: () => void;
+  showAmountDetails?: boolean;
+  showCopyTrade?: boolean;
+  showSolscanLink?: boolean;
   setIsTipOpen?: (v: boolean) => void;
   setCurrentPost?: (v: any) => void;
   navigateBack?: () => void;
@@ -95,6 +99,7 @@ interface SwapTransactionCardProps {
 const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
   feed,
   onPress,
+  onFeedClick,
   onTransactionPress,
   refreshKey,
 }) => {

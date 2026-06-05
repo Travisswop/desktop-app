@@ -269,7 +269,9 @@ export default function LiFiModal({
       WidgetEvent.RouteExecutionFailed,
       onRouteExecutionFailed,
     );
-    widgetEvents.on(WidgetEvent.WalletConnected, onWalletConnected);
+    const walletConnectedEvent = (WidgetEvent as any).WalletConnected;
+
+    widgetEvents.on(walletConnectedEvent, onWalletConnected);
     widgetEvents.on('signature_required' as any, onSignatureRequired);
     widgetEvents.on(
       'transaction_updated' as any,
@@ -285,10 +287,7 @@ export default function LiFiModal({
         WidgetEvent.RouteExecutionFailed,
         onRouteExecutionFailed,
       );
-      widgetEvents.off(
-        WidgetEvent.WalletConnected,
-        onWalletConnected,
-      );
+      widgetEvents.off(walletConnectedEvent, onWalletConnected);
       widgetEvents.off(
         'signature_required' as any,
         onSignatureRequired,

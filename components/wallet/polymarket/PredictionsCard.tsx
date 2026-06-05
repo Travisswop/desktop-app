@@ -10,7 +10,7 @@ import {
   TrendingDown,
 } from 'lucide-react';
 import {
-  usePolygonBalances,
+  usePolymarketCollateralBalance,
   useUserPositions,
   useActiveOrders,
   usePolymarketTeams,
@@ -238,8 +238,12 @@ export default function PredictionsCard({
   const portfolioAddressInput = portfolioAddresses.length
     ? portfolioAddresses
     : safeAddress;
-  const { usdcBalance, isLoading: balanceLoading } =
-    usePolygonBalances(portfolioAddressInput);
+  const {
+    totalUsdcBalance,
+    legacyUsdcBalance,
+    isLoading: balanceLoading,
+    isNormalizingCollateral,
+  } = usePolymarketCollateralBalance(portfolioAddressInput);
   const { data: positions } = useUserPositions(portfolioAddressInput);
   const { data: activeOrders = [] } = useActiveOrders(null, safeAddress);
 
@@ -261,7 +265,7 @@ export default function PredictionsCard({
     [activePositions],
   );
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
-  const portfolioValue = usdcBalance + openPositionsValue;
+  const portfolioValue = totalUsdcBalance + openPositionsValue;
 
   const trend: 'up' | 'down' | 'flat' =
     totalPnl > 0.01 ? 'up' : totalPnl < -0.01 ? 'down' : 'flat';
@@ -337,6 +341,13 @@ export default function PredictionsCard({
               </>
             )}
           </div>
+          {legacyUsdcBalance > 0.005 && !balanceLoading && (
+            <div className="mt-1 text-[11px] font-medium text-gray-500">
+              {isNormalizingCollateral
+                ? `Converting $${legacyUsdcBalance.toFixed(2)} USDC.e to pUSD`
+                : `Includes $${legacyUsdcBalance.toFixed(2)} USDC.e`}
+            </div>
+          )}
         </div>
         <DeltaTag pct={totalPnlPct} />
       </div>

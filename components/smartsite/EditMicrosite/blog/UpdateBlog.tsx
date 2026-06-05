@@ -33,9 +33,15 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
   const [fileError, setFileError] = useState<string>("");
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
 
-  const Editor = dynamic(() => import("@tinymce/tinymce-react"), {
-  ssr: false,
-});
+  const Editor = dynamic<any>(
+    () =>
+      import("@tinymce/tinymce-react").then(
+        (mod) => mod.Editor as unknown as React.ComponentType<any>,
+      ),
+    {
+      ssr: false,
+    },
+  );
 
   const modalRef = useRef<HTMLDivElement>(null);
   const closeModal = () => {
@@ -306,7 +312,7 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
                   <Editor
                     apiKey="njethe5lk1z21je67jjdi9v3wimfducwhl6jnnuip46yxwxh"
                     value={value} // Bind the state to the editor
-                    onEditorChange={(content) => setValue(content)} // Update state on change
+                    onEditorChange={(content: string) => setValue(content)} // Update state on change
                     init={{
                       height: 300,
                       plugins: [

@@ -35,9 +35,15 @@ const AddBlog = ({ onCloseModal }: any) => {
   // const [editorState, setEditorState] = React.useState(() =>
   //   EditorState.createEmpty()
   // );
-  const Editor = dynamic(() => import("@tinymce/tinymce-react"), {
-  ssr: false,
-});
+  const Editor = dynamic<any>(
+    () =>
+      import("@tinymce/tinymce-react").then(
+        (mod) => mod.Editor as unknown as React.ComponentType<any>,
+      ),
+    {
+      ssr: false,
+    },
+  );
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [imageFile, setImageFile] = useState<any>(null);
@@ -277,7 +283,7 @@ const AddBlog = ({ onCloseModal }: any) => {
         <Editor
           apiKey="njethe5lk1z21je67jjdi9v3wimfducwhl6jnnuip46yxwxh"
           value={value} // Bind the state to the editor
-          onEditorChange={(content) => setValue(content)} // Update state on change
+          onEditorChange={(content: string) => setValue(content)} // Update state on change
           init={{
             height: 300,
             plugins: [

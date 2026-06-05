@@ -42,6 +42,28 @@ export function selectPreferredWallet<T extends AddressLike>(
   );
 }
 
+function orderWalletsByPreference<T extends AddressLike>(
+  wallets: T[] | undefined | null,
+  primaryAddress?: string | null,
+): T[] {
+  const available = (wallets ?? []).filter((wallet) => !!wallet.address);
+  const preferred = selectPreferredWallet(available, primaryAddress);
+  const ordered = preferred ? [preferred] : [];
+  const seen = new Set(
+    ordered.map((wallet) => normalizeAddress(wallet.address)),
+  );
+
+  available.forEach((wallet) => {
+    const normalizedAddress = normalizeAddress(wallet.address);
+    if (seen.has(normalizedAddress)) return;
+
+    ordered.push(wallet);
+    seen.add(normalizedAddress);
+  });
+
+  return ordered;
+}
+
 // Custom hook for wallet addresses
 export const useWalletAddresses = (
   walletData: WalletItem[] | null
@@ -90,7 +112,7 @@ export const useWalletData = (
       linkedAccounts.filter(isSolanaWalletAccount),
     );
 
-    const evmWallet = selectPreferredWallet(
+    const evmWallets = orderWalletsByPreference(
       linkedAccounts.filter(isEthereumWalletAccount),
       primaryEvmAddress,
     );
@@ -105,13 +127,15 @@ export const useWalletData = (
       });
     }
 
-    if (evmWallet && isWalletAccount(evmWallet)) {
+    evmWallets.forEach((evmWallet) => {
+      if (!isWalletAccount(evmWallet)) return;
+
       wallets.push({
         address: evmWallet.address,
         isActive: true,
         isEVM: true,
       });
-    }
+    });
 
     setWalletData(wallets);
   }, [PrivyUser, authenticated, ready]);

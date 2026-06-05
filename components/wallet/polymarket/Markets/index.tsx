@@ -13,7 +13,7 @@ import { Search } from 'lucide-react';
 import { useTrading } from '@/providers/polymarket';
 import {
   useMarkets,
-  usePolygonBalances,
+  usePolymarketCollateralBalance,
   useUserPositions,
   useBtc5mPolymarketMarket,
   type PolymarketMarket,
@@ -111,7 +111,11 @@ export default function HighVolumeMarkets({
   const portfolioAddressInput = portfolioAddresses.length
     ? portfolioAddresses
     : safeAddress;
-  const { usdcBalance } = usePolygonBalances(portfolioAddressInput);
+  const {
+    orderableBalance,
+    displayBalance,
+    legacyBalanceHint,
+  } = usePolymarketCollateralBalance(portfolioAddressInput);
   const { data: positions } = useUserPositions(portfolioAddressInput);
 
   const isSportsActive = activeCategory === 'sports';
@@ -460,9 +464,15 @@ export default function HighVolumeMarkets({
       initialOutcome={btcInitialOutcome}
       upTokenId={btcTokenIds.upTokenId}
       downTokenId={btcTokenIds.downTokenId}
+      conditionId={btc5mMarket.market?.conditionId}
+      marketSlug={btc5mMarket.market?.slug}
+      windowLabel={btc5mMarket.market?.windowLabel}
+      windowStart={btc5mMarket.market?.windowStart}
       negRisk={btc5mMarket.market?.negRisk ?? false}
       orderMinSize={btc5mMarket.market?.orderMinSize ?? MIN_ORDER_SIZE}
-      balance={usdcBalance}
+      balance={orderableBalance}
+      displayBalance={displayBalance}
+      balanceHint={legacyBalanceHint}
       upShares={btcShares.upShares}
       downShares={btcShares.downShares}
     />

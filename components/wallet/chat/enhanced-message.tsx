@@ -51,7 +51,7 @@ export const EnhancedMessage: React.FC<EnhancedMessageProps> = ({
               ? 'bg-[#007AFF] text-white' 
               : 'bg-gray-700 text-white'
           } ${getBubbleRadius()} px-4 py-2.5 text-[15px] leading-normal shadow-sm break-words`}>
-            {message.content}
+            {message.content ?? message.message}
 
             {/* Attachments */}
             {message.attachments && message.attachments.length > 0 && (

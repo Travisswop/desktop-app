@@ -146,7 +146,7 @@ export class WalletService {
       const result = await response.json();
       return result.data;
     } catch (error) {
-      console.error('Error fetching wallet tokens:', error);
+      console.warn('Wallet tokens unavailable:', error);
       throw error;
     }
   }

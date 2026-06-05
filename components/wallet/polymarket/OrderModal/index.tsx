@@ -45,6 +45,8 @@ type OrderPlacementModalProps = {
   yesTokenId?: string;
   noTokenId?: string;
   balance?: number;
+  displayBalance?: number;
+  balanceHint?: string;
   yesShares?: number;
   noShares?: number;
   orderMinSize?: number;
@@ -70,6 +72,8 @@ export default function OrderPlacementModal({
   yesTokenId = tokenId,
   noTokenId,
   balance = 0,
+  displayBalance = balance,
+  balanceHint,
   yesShares = 0,
   noShares = 0,
   orderMinSize = MIN_ORDER_SIZE,
@@ -210,6 +214,8 @@ export default function OrderPlacementModal({
       : inputNum - activeShareBalance > EPSILON;
 
   const LIMIT_MIN_SHARES = orderMinSize;
+  const hasPendingCollateral =
+    side === 'BUY' && displayBalance - balance > EPSILON;
 
   const handlePlaceOrder = () => {
     if (side === 'BUY') {
@@ -493,6 +499,8 @@ export default function OrderPlacementModal({
                   setLocalError(null);
                 }}
                 balance={balance}
+                displayBalance={displayBalance}
+                balanceHint={balanceHint}
                 onQuickAmount={handleQuickAmount}
                 onMaxAmount={() => {
                   if (isLimitVariant && limitPriceNum > 0) {
@@ -520,6 +528,13 @@ export default function OrderPlacementModal({
                 limitPriceDecimal={isLimitVariant ? limitPriceNum : undefined}
                 minOrderAmount={isLimitVariant ? LIMIT_MIN_SHARES : 1}
               />
+            )}
+
+            {hasPendingCollateral && (
+              <p className="text-[11px] text-amber-600 -mt-3 mb-4 text-center">
+                Orders use ready pUSD. Included USDC.e is converting before it
+                can be spent.
+              </p>
             )}
 
             {/* Sell Mode: Shares Input */}

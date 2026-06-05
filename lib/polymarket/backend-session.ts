@@ -589,6 +589,25 @@ export interface RedeemTypedData {
   to?: string;
   data?: string;
   operation?: number;
+  collateralToken?: string;
+  shouldWrapCollateral?: boolean;
+}
+
+export interface DepositWalletWrapTypedData {
+  typedData: {
+    domain: Record<string, unknown>;
+    types: Record<string, unknown[]>;
+    primaryType?: string;
+    message: Record<string, unknown>;
+  };
+  depositWalletAddress: string;
+  eoaAddress: string;
+  nonce: string;
+  deadline: string;
+  calls: Array<{ target: string; value: string; data: string }>;
+  amount: number;
+  sourceCollateralToken: string;
+  destinationCollateralToken: string;
 }
 
 export async function getRedeemTypedData(
@@ -642,7 +661,14 @@ export async function submitRedeem(
     deadline?: string;
   },
   accessToken: string
-): Promise<{ txId: string; success: boolean; error?: string }> {
+): Promise<{
+  txId: string;
+  success: boolean;
+  error?: string;
+  collateralToken?: string;
+  shouldWrapCollateral?: boolean;
+  redeemedAmount?: number;
+}> {
   const res = await fetch(`${base()}/positions/redeem`, {
     method: 'POST',
     headers: authHeaders(accessToken),
@@ -654,6 +680,60 @@ export async function submitRedeem(
   }
   if (data.success === false) {
     throw new Error(data.error || 'Redemption failed on-chain');
+  }
+  return data;
+}
+
+export async function getDepositWalletWrapTypedData(
+  params: {
+    depositWalletAddress: string;
+    eoaAddress: string;
+    destinationAddress?: string;
+    amount: number;
+  },
+  accessToken: string,
+): Promise<DepositWalletWrapTypedData> {
+  const searchParams = new URLSearchParams({
+    depositWalletAddress: params.depositWalletAddress,
+    eoaAddress: params.eoaAddress,
+    amount: String(params.amount),
+    ...(params.destinationAddress
+      ? { destinationAddress: params.destinationAddress }
+      : {}),
+  });
+  const res = await fetch(`${base()}/wrap/deposit-wallet/typed-data?${searchParams}`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to get USDC.e conversion typed data');
+  }
+  return res.json();
+}
+
+export async function submitDepositWalletWrap(
+  params: {
+    depositWalletAddress: string;
+    eoaAddress: string;
+    destinationAddress?: string;
+    amount: number;
+    signature: string;
+    nonce: string;
+    deadline: string;
+  },
+  accessToken: string,
+): Promise<{ txId: string; success: boolean; transactionHash?: string }> {
+  const res = await fetch(`${base()}/wrap/deposit-wallet`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(params),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'USDC.e conversion failed');
+  }
+  if (data.success === false) {
+    throw new Error(data.error || 'USDC.e conversion failed on-chain');
   }
   return data;
 }

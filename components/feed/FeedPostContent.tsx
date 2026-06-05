@@ -119,7 +119,7 @@ const FeedPostContent = ({
           feed={feed}
           userId={userId}
           token={accessToken}
-          onVoteSuccess={(updated) => {
+          onVoteSuccess={(updated: Partial<FeedItemType>) => {
             onPostInteraction?.(feed._id, updated);
           }}
         />
@@ -248,6 +248,7 @@ const FeedPostContent = ({
       {feed.postType === 'prediction' && (
         <PredictionFeedCard
           content={feed.content}
+          createdAt={feed.createdAt}
           userName={
             feed.smartsiteDetails?.name ||
             feed.smartsiteUserName ||

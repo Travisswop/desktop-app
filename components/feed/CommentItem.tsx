@@ -25,12 +25,13 @@ interface PostContent {
 
 export interface Comment {
   _id: string;
-  postId: string;
+  postId?: string;
   parentCommentId?: string | null;
   title?: string | null;
   post_content?: PostContent[];
   likeCount: number;
   replyCount: number;
+  repostCount?: number;
   isLiked?: boolean;
   createdAt: string;
   userId: string;
@@ -48,10 +49,10 @@ export interface Comment {
 interface CommentItemProps {
   comment: Comment;
   userId: string;
-  postId: string;
+  postId?: string;
   isLast?: boolean; // controls thread line extension
-  accessToken: string;
-  onDeleteSuccess: () => void;
+  accessToken?: string;
+  onDeleteSuccess?: () => void;
 }
 
 // const REPLIES_LIMIT = 5;
@@ -70,6 +71,7 @@ export default function CommentItem({
   const [likeCount, setLikeCount] = useState(comment.likeCount ?? 0);
   const [replyCount, setReplyCount] = useState(comment.replyCount ?? 0);
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+  const effectivePostId = postId ?? comment.postId ?? "";
 
   const [latestReplyCount, setLatestReplyCount] = useState(replyCount);
 
@@ -180,8 +182,8 @@ export default function CommentItem({
                   <div className="px-1 py-2 flex flex-col">
                     <DeleteFeedModal
                       postId={comment._id}
-                      token={accessToken}
-                      onDeleteSuccess={onDeleteSuccess}
+                      token={accessToken ?? ""}
+                      onDeleteSuccess={onDeleteSuccess ?? (() => {})}
                       userId={userId}
                       isFromReply={true}
                     />
@@ -248,7 +250,7 @@ export default function CommentItem({
         <CommentReaction
           comment={comment}
           commentId={comment._id}
-          postId={postId}
+          postId={effectivePostId}
           targetType={"reply"}
           likeCount={likeCount}
           replyCount={replyCount}

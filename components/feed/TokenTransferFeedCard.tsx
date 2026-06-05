@@ -255,107 +255,107 @@ export default function TokenTransferFeedCard({
 
   return (
     <article
-      className="my-2 w-full max-w-xl rounded-[18px] bg-white p-4 text-black sm:p-5"
+      className="my-1.5 w-full max-w-xl rounded-2xl bg-white p-3 text-black sm:p-4"
       style={{
         boxShadow:
           "0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)",
       }}
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-3 flex items-center justify-between gap-2.5">
         <div
-          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 font-mono text-[13px] font-black uppercase tracking-[0.16em] ${
+          className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-mono text-[11px] font-black uppercase tracking-[0.14em] ${
             isReceived
               ? "bg-emerald-50 text-emerald-600"
               : "bg-gray-100 text-gray-950"
           }`}
         >
-          <StatusIcon className="h-4 w-4" strokeWidth={2.5} />
+          <StatusIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
           {statusLabel}
         </div>
 
-        <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-extrabold shadow-sm">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-extrabold shadow-sm">
           <span
-            className="h-2.5 w-2.5 rounded-full"
+            className="h-2 w-2 rounded-full"
             style={{ backgroundColor: networkDotColor(network) }}
           />
           {networkLabel(network)}
         </div>
       </div>
 
-      <div className="mb-5 flex items-center gap-4">
+      <div className="mb-4 flex items-center gap-3">
         <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl font-black text-white shadow-sm"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-black text-white shadow-sm"
           style={{ backgroundColor: isReceived ? "#2d86dd" : "#68719d" }}
         >
           {tokenAvatarLabel(symbol)}
         </div>
 
         <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
             <span
-              className={`font-mono text-[34px] font-black leading-none tabular-nums ${
+              className={`font-mono text-[28px] font-black leading-none tabular-nums sm:text-[30px] ${
                 isReceived ? "text-emerald-600" : "text-gray-950"
               }`}
             >
               {amount}
             </span>
-            <span className="text-[20px] font-black uppercase text-gray-950">
+            <span className="text-[17px] font-black uppercase leading-none text-gray-950">
               {symbol || "TOKEN"}
             </span>
           </div>
-          <div className="mt-1 font-mono text-[15px] font-black tabular-nums text-gray-500">
+          <div className="mt-1 font-mono text-[13px] font-black tabular-nums text-gray-500">
             {formatUsd(content.tokenPrice ?? content.usdValue)}
           </div>
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-gray-100 bg-white px-3 py-3">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="mb-3 grid grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] items-center gap-2.5 rounded-xl border border-gray-100 bg-white px-2.5 py-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black text-white"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-black text-white"
             style={{ backgroundColor: isReceived ? "#5b27c5" : "#d7eaf8" }}
           >
             {initials(senderName)}
           </div>
           <div className="min-w-0">
-            <div className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+            <div className="font-mono text-[9px] font-black uppercase tracking-[0.18em] text-gray-400">
               From
             </div>
-            <div className="truncate text-[15px] font-black leading-tight text-gray-950">
+            <div className="truncate text-[13px] font-black leading-tight text-gray-950 sm:text-sm">
               {senderName}
             </div>
-            <div className="truncate text-[13px] font-medium leading-tight text-gray-500">
+            <div className="truncate text-xs font-medium leading-tight text-gray-500">
               {senderLine}
             </div>
           </div>
         </div>
 
         <ArrowRight
-          className="mx-auto h-6 w-6 text-gray-400"
+          className="mx-auto h-5 w-5 text-gray-400"
           strokeWidth={2.5}
         />
 
-        <div className="flex min-w-0 items-center justify-end gap-3 text-right">
+        <div className="flex min-w-0 items-center justify-end gap-2.5 text-right">
           <div className="min-w-0">
-            <div className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+            <div className="font-mono text-[9px] font-black uppercase tracking-[0.18em] text-gray-400">
               To
             </div>
-            <div className="truncate text-[15px] font-black leading-tight text-gray-950">
+            <div className="truncate text-[13px] font-black leading-tight text-gray-950 sm:text-sm">
               {receiverName}
             </div>
-            <div className="truncate text-[13px] font-medium leading-tight text-gray-500">
+            <div className="truncate text-xs font-medium leading-tight text-gray-500">
               {receiverLine}
             </div>
           </div>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-black text-white">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white">
             {initials(receiverName)}
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <div className="inline-flex items-center gap-2 text-[15px] font-black text-emerald-600">
-          <Check className="h-4 w-4" strokeWidth={2.5} />
+        <div className="inline-flex items-center gap-1.5 text-[13px] font-black text-emerald-600">
+          <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
           Confirmed
         </div>
 
@@ -364,13 +364,13 @@ export default function TokenTransferFeedCard({
             href={explorer.href}
             target="_blank"
             rel="noreferrer"
-            className={`inline-flex items-center gap-1 text-[15px] font-black ${
+            className={`inline-flex items-center gap-1 text-[13px] font-black ${
               isReceived ? "text-purple-500" : "text-sky-600"
             }`}
             onClick={(event) => event.stopPropagation()}
           >
             {explorer.label}
-            <ExternalLink className="h-4 w-4" strokeWidth={2.5} />
+            <ExternalLink className="h-3.5 w-3.5" strokeWidth={2.5} />
           </a>
         )}
       </div>

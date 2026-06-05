@@ -147,6 +147,7 @@ export interface ChatMessage {
     email: string;
   };
   message: string;
+  content?: string;
   messageType: 'text' | 'image' | 'file' | 'wallet_operation';
   fileUrl?: string;
   fileName?: string;

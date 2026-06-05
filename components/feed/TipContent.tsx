@@ -40,7 +40,6 @@ import {
   formatUSDValue,
 } from "@/lib/utils/walletNotifications";
 import {
-  API_ENDPOINTS,
   ERROR_MESSAGES,
   POINT_TYPES,
   ACTION_KEYS,

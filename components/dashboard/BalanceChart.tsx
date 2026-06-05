@@ -34,8 +34,9 @@ import WalletReceiveCryptoPopup from '../wallet/WalletReceiveCryptoPopup';
 import WalletFundandSettingsPopup from '../wallet/WalletFundandSettingsPopup';
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
 import TransactionList from '../wallet/transaction/transaction-list';
-import { TokenData } from '@/types/token';
+import { ChainType, TokenData } from '@/types/token';
 import { useWalletAddresses } from '../wallet/hooks/useWalletData';
+import { SUPPORTED_CHAINS } from '../wallet/constants';
 
 interface BalanceChartProps {
   userId?: string;

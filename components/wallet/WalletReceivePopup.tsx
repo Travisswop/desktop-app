@@ -50,7 +50,8 @@ export default function ReceiveOptions() {
     )?.address;
   }, [ethWallets, privyUser?.wallet?.address]);
 
-  const handleCopy = (address: string, index: number) => {
+  const handleCopy = (address: string | undefined, index: number) => {
+    if (!address) return;
     navigator.clipboard.writeText(address);
     setCopiedIndex(index);
 
@@ -60,7 +61,7 @@ export default function ReceiveOptions() {
   };
 
   const handleShareUsername = async () => {
-    const username = user?.ens || user?.ensName;
+    const username = user?.ens || user?.ensName || "";
 
     const shareData = {
       title: "My Swop ID",
@@ -236,7 +237,7 @@ export default function ReceiveOptions() {
     }
   };
 
-  const handleQrOpen = (chain) => {
+  const handleQrOpen = (chain: (typeof chainAddresses)[number]) => {
     if (chain?.name === "Solana") {
       setQrOpenStatus("sol");
     } else if (chain?.name === "Ethereum") {
@@ -356,7 +357,7 @@ export default function ReceiveOptions() {
                   </div>
                   <div className="text-center">
                     <p className="text-2xl font-bold text-gray-900">
-                      {user.ens || user.ensName}
+                      {user?.ens || user?.ensName || ""}
                     </p>
                   </div>
                 </div>

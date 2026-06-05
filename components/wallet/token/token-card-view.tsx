@@ -11,6 +11,8 @@ interface TokenCardProps {
 }
 
 export default function TokenCardView({ token, onClick }: TokenCardProps) {
+  const chartColor = token.marketData?.color || "#111827";
+
   return (
     <Card
       className="p-4 rounded-3xl shadow-2xl hover:shadow-3xl border-none transition-all duration-300 group cursor-pointer hover:translate-x-0.5"
@@ -44,12 +46,12 @@ export default function TokenCardView({ token, onClick }: TokenCardProps) {
               >
                 <stop
                   offset="0%"
-                  stopColor={token.marketData.color}
+                  stopColor={chartColor}
                   stopOpacity={0.2}
                 />
                 <stop
                   offset="100%"
-                  stopColor={token.marketData.color}
+                  stopColor={chartColor}
                   stopOpacity={0}
                 />
               </linearGradient>
@@ -57,7 +59,7 @@ export default function TokenCardView({ token, onClick }: TokenCardProps) {
             <Area
               type="monotone"
               dataKey="value"
-              stroke={token.marketData.color}
+              stroke={chartColor}
               fill={`url(#gradient-${token.symbol})`}
               strokeWidth={2}
               isAnimationActive={false}

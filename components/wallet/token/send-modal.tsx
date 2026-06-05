@@ -214,7 +214,9 @@ export default function SendTokenModal({
 
   // ── Derived numeric helpers ─────────────────────────────────────────────
   const balanceNum = parseFloat(token?.balance || '0') || 0;
-  const priceNum = hasPrice ? parseFloat(token.marketData.price) : 0;
+  const priceNum = hasPrice
+    ? parseFloat(token.marketData?.price || '0')
+    : 0;
 
   const tokenEquivalent = useMemo(() => {
     if (!amount) return 0;

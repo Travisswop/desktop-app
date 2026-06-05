@@ -20,7 +20,7 @@ import {
   useRedeemPosition,
   useUserPositions,
   useActiveOrders,
-  usePolygonBalances,
+  usePolymarketCollateralBalance,
   useNetDeposits,
   useTradeActivity,
   usePolymarketTeams,
@@ -68,6 +68,9 @@ import {
 import HighVolumeMarkets from './Markets';
 import SportsTableView from './Markets/SportsTableView';
 import OrderCard from './Orders/OrderCard';
+import PendingRedemptionNotice, {
+  type PendingRedemptionSnapshot,
+} from './Positions/PendingRedemptionNotice';
 import BrowseMarketsBento from './BrowseMarketsBento';
 
 /**
@@ -159,7 +162,8 @@ export default function PredictionsPanel({
     clobClient,
     safeAddress,
   );
-  const { usdcBalance } = usePolygonBalances(portfolioAddresses);
+  const { totalUsdcBalance } =
+    usePolymarketCollateralBalance(portfolioAddresses);
   const { data: netDeposits } = useNetDeposits(portfolioAddresses);
 
   const { redeemPosition } = useRedeemPosition();
@@ -180,6 +184,9 @@ export default function PredictionsPanel({
   const [pendingVerification, setPendingVerification] = useState<
     Map<string, number>
   >(new Map());
+  const [pendingRedemptions, setPendingRedemptions] = useState<
+    PendingRedemptionSnapshot[]
+  >([]);
   const [onchainPositionBalances, setOnchainPositionBalances] =
     useState<Map<string, number>>(new Map());
 
@@ -388,7 +395,7 @@ export default function PredictionsPanel({
     // minus what you put in. Counts cash in your wallet, mark-to-market
     // value of open positions, and money you've already withdrawn.
     const totalPnl =
-      usdcBalance + openPositionsValue + withdrawn - deposited;
+      totalUsdcBalance + openPositionsValue + withdrawn - deposited;
 
     const portfolioPct =
       deposited > 0 ? (totalPnl / deposited) * 100 : 0;
@@ -397,9 +404,9 @@ export default function PredictionsPanel({
       inOrdersValue,
       totalPnl,
       portfolioPct,
-      portfolioValue: usdcBalance + openPositionsValue,
+      portfolioValue: totalUsdcBalance + openPositionsValue,
     };
-  }, [activePositions, activeOrders, netDeposits, usdcBalance]);
+  }, [activePositions, activeOrders, netDeposits, totalUsdcBalance]);
   const { data: liveGames = [], isLoading: isLoadingLiveGames } =
     useLiveSportsGames();
 
@@ -443,6 +450,33 @@ export default function PredictionsPanel({
       }
     },
     [submitOrder, queryClient],
+  );
+
+  const rememberPendingRedemption = useCallback(
+    (
+      position: PolymarketPosition,
+      result?: { txId?: string; redeemedAmount?: number },
+    ) => {
+      const snapshot: PendingRedemptionSnapshot = {
+        asset: position.asset,
+        title: position.title,
+        outcome: position.outcome,
+        amount: result?.redeemedAmount ?? getRedeemablePayout(position),
+        txId: result?.txId,
+        submittedAt: Math.floor(Date.now() / 1000),
+      };
+
+      setPendingRedemptions((prev) => [
+        snapshot,
+        ...prev.filter((item) => item.asset !== position.asset),
+      ]);
+      setTimeout(() => {
+        setPendingRedemptions((prev) =>
+          prev.filter((item) => item.asset !== position.asset),
+        );
+      }, POLLING_DURATION);
+    },
+    [],
   );
 
   const handleRedeem = useCallback(
@@ -577,7 +611,7 @@ export default function PredictionsPanel({
           );
         }
 
-        await redeemPosition({
+        const result = await redeemPosition({
           conditionId: position.conditionId,
           asset: position.asset,
           outcomeIndex: position.outcomeIndex,
@@ -589,18 +623,27 @@ export default function PredictionsPanel({
             : undefined,
           walletType: redeemWalletType,
         });
+        rememberPendingRedemption(position, result);
 
         queryClient.invalidateQueries({
           queryKey: ['polymarket-positions'],
         });
+        queryClient.invalidateQueries({ queryKey: ['trade-activity'] });
         queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
+        queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
         createPollingInterval(
           () => {
             queryClient.invalidateQueries({
               queryKey: ['polymarket-positions'],
             });
             queryClient.invalidateQueries({
+              queryKey: ['trade-activity'],
+            });
+            queryClient.invalidateQueries({
               queryKey: ['pusdBalance'],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ['legacyUsdcBalance'],
             });
           },
           POLLING_INTERVAL,
@@ -626,6 +669,7 @@ export default function PredictionsPanel({
       publicClient,
       redeemPosition,
       queryClient,
+      rememberPendingRedemption,
     ],
   );
 
@@ -761,8 +805,17 @@ export default function PredictionsPanel({
                 sellingAsset={sellingAsset}
                 redeemingAsset={redeemingAsset}
                 pendingVerification={pendingVerification}
+                pendingRedemptions={pendingRedemptions}
                 isSubmitting={isSubmitting}
                 canTrade={!!clobClient}
+                portfolioAddresses={portfolioAddresses}
+                onSeeHistory={() => setView('history')}
+                onClaimedWinClick={(trade) =>
+                  navigateToMarket(tradeToDetailMarket(trade), {
+                    initialOutcome:
+                      trade.outcomeIndex === 0 ? 'yes' : 'no',
+                  })
+                }
               />
             )}
 
@@ -1172,6 +1225,18 @@ interface BetRow {
   redeemValue: number;
 }
 
+interface ClaimedWinRow {
+  key: string;
+  title: string;
+  outcome: string;
+  side: 'YES' | 'NO' | '—';
+  icon?: string;
+  amount: number;
+  timestamp?: number;
+  source: 'pending' | 'activity';
+  trade?: TradeActivity;
+}
+
 function deriveBetRow(p: PolymarketPosition): BetRow {
   const claimable = hasRedeemablePayout(p);
   const redeemValue = getRedeemablePayout(p);
@@ -1179,13 +1244,13 @@ function deriveBetRow(p: PolymarketPosition): BetRow {
   let statusLabel: string;
   if (p.redeemable && claimable) {
     statusKey = 'redeemable';
-    statusLabel = 'READY';
+    statusLabel = 'WON';
   } else if (p.redeemable) {
     statusKey = 'settled';
-    statusLabel = 'SETTLED';
+    statusLabel = p.cashPnl < -0.005 ? 'LOST' : 'SETTLED';
   } else {
     statusKey = 'live';
-    statusLabel = 'LIVE';
+    statusLabel = 'OPEN';
   }
   const side: 'YES' | 'NO' = p.outcomeIndex === 0 ? 'YES' : 'NO';
   const staked = p.initialValue || p.size * p.avgPrice;
@@ -1205,6 +1270,123 @@ function deriveBetRow(p: PolymarketPosition): BetRow {
   };
 }
 
+function tradeAmount(trade: TradeActivity): number {
+  if (trade.usdcSize != null && Number.isFinite(trade.usdcSize)) {
+    return Number(trade.usdcSize);
+  }
+  return Number(trade.size || 0) * Number(trade.price || 0);
+}
+
+function tradePnlCashFlow(trade: TradeActivity): number {
+  const amount = tradeAmount(trade);
+  if (trade.type === 'TRADE') {
+    return trade.side === 'BUY' ? -amount : amount;
+  }
+  if (trade.type === 'REDEEM') return amount;
+  return 0;
+}
+
+function pendingRedemptionAmountNotInTrades(
+  pendingRedemptions: PendingRedemptionSnapshot[],
+  claimedTrades: TradeActivity[],
+): number {
+  const tradeTxKeys = new Set<string>();
+  const tradeAssetKeys = new Set<string>();
+  claimedTrades.forEach((trade) => {
+    if (trade.transactionHash) {
+      tradeTxKeys.add(`tx:${trade.transactionHash.toLowerCase()}`);
+    }
+    if (trade.asset) {
+      tradeAssetKeys.add(`asset:${trade.asset}`);
+    }
+  });
+
+  return pendingRedemptions.reduce((sum, item) => {
+    const txKey = item.txId ? `tx:${item.txId.toLowerCase()}` : null;
+    const assetKey = `asset:${item.asset}`;
+    if (
+      (txKey && tradeTxKeys.has(txKey)) ||
+      (item.asset && tradeAssetKeys.has(assetKey))
+    ) {
+      return sum;
+    }
+    return sum + item.amount;
+  }, 0);
+}
+
+function claimedTradeRowKey(trade: TradeActivity): string {
+  if (trade.transactionHash) {
+    return `tx:${trade.transactionHash.toLowerCase()}`;
+  }
+  if (trade.conditionId) {
+    return `redeem:${trade.conditionId}:${trade.outcomeIndex}:${trade.timestamp}:${tradeAmount(trade).toFixed(6)}`;
+  }
+  return `redeem:${trade.title}:${trade.outcome}:${trade.timestamp}:${tradeAmount(trade).toFixed(6)}`;
+}
+
+function deriveClaimedWinRows(
+  pendingRedemptions: PendingRedemptionSnapshot[],
+  claimedTrades: TradeActivity[],
+): ClaimedWinRow[] {
+  const seenKeys = new Set<string>();
+  const pendingTxKeys = new Set<string>();
+  const pendingAssetKeys = new Set<string>();
+  const rows: ClaimedWinRow[] = [];
+
+  pendingRedemptions.forEach((item) => {
+    const txKey = item.txId ? `tx:${item.txId.toLowerCase()}` : null;
+    const assetKey = `asset:${item.asset}`;
+    if (txKey) pendingTxKeys.add(txKey);
+    if (item.asset) pendingAssetKeys.add(assetKey);
+    seenKeys.add(txKey ?? assetKey);
+    rows.push({
+      key: txKey ?? assetKey,
+      title: item.title,
+      outcome: item.outcome,
+      side: '—',
+      amount: item.amount,
+      timestamp: item.submittedAt,
+      source: 'pending',
+    });
+  });
+
+  claimedTrades.forEach((trade) => {
+    const txKey = trade.transactionHash
+      ? `tx:${trade.transactionHash.toLowerCase()}`
+      : null;
+    const assetKey = `asset:${trade.asset}`;
+    const rowKey = claimedTradeRowKey(trade);
+    if (seenKeys.has(rowKey)) return;
+    if (
+      (txKey && pendingTxKeys.has(txKey)) ||
+      (trade.asset && pendingAssetKeys.has(assetKey))
+    ) {
+      return;
+    }
+    seenKeys.add(rowKey);
+
+    rows.push({
+      key: rowKey,
+      title: trade.title,
+      outcome: trade.outcome,
+      side: trade.outcomeIndex === 0 ? 'YES' : 'NO',
+      icon: trade.icon,
+      amount: tradeAmount(trade),
+      timestamp: trade.timestamp,
+      source: 'activity',
+      trade,
+    });
+  });
+
+  return rows
+    .sort((a, b) => {
+      if (a.source !== b.source)
+        return a.source === 'pending' ? -1 : 1;
+      return (b.timestamp ?? 0) - (a.timestamp ?? 0);
+    })
+    .slice(0, 25);
+}
+
 const BET_STATUS_TONE: Record<
   BetStatusKey,
   { bg: string; fg: string }
@@ -1215,6 +1397,7 @@ const BET_STATUS_TONE: Record<
 };
 
 const BETS_GRID = '90px minmax(0,1.4fr) 60px 70px 80px 100px 140px';
+const CLAIMED_WINS_GRID = '90px minmax(0,1.5fr) 70px 110px 110px';
 
 interface MyBetsViewProps {
   actionable: PolymarketPosition[];
@@ -1225,8 +1408,12 @@ interface MyBetsViewProps {
   sellingAsset: string | null;
   redeemingAsset: string | null;
   pendingVerification: Map<string, number>;
+  pendingRedemptions: PendingRedemptionSnapshot[];
   isSubmitting: boolean;
   canTrade: boolean;
+  portfolioAddresses: string[];
+  onSeeHistory: () => void;
+  onClaimedWinClick: (trade: TradeActivity) => void;
 }
 
 function MyBetsView({
@@ -1238,15 +1425,37 @@ function MyBetsView({
   sellingAsset,
   redeemingAsset,
   pendingVerification,
+  pendingRedemptions,
   isSubmitting,
   canTrade,
+  portfolioAddresses,
+  onSeeHistory,
+  onClaimedWinClick,
 }: MyBetsViewProps) {
   const [statusFilter, setStatusFilter] =
     useState<BetStatusFilter>('all');
 
+  const { data: activityTrades = [], isLoading: isLoadingActivity } =
+    useTradeActivity({
+      user: portfolioAddresses,
+      limit: 500,
+      offset: 0,
+      sort: 'DESC',
+    });
+
+  const claimedTrades = useMemo(
+    () => activityTrades.filter((trade) => trade.type === 'REDEEM'),
+    [activityTrades],
+  );
+
   const rows = useMemo(
     () => [...actionable, ...redeemable].map(deriveBetRow),
     [actionable, redeemable],
+  );
+
+  const claimedWinRows = useMemo(
+    () => deriveClaimedWinRows(pendingRedemptions, claimedTrades),
+    [claimedTrades, pendingRedemptions],
   );
 
   const counts = useMemo(() => {
@@ -1260,16 +1469,50 @@ function MyBetsView({
   }, [rows]);
 
   const summary = useMemo(() => {
-    const totalStaked = rows.reduce((s, r) => s + r.staked, 0);
-    const totalValue = rows.reduce((s, r) => s + r.value, 0);
-    const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
+    const openRows = rows.filter((r) => r.statusKey === 'live');
+    const claimableRows = rows.filter(
+      (r) => r.statusKey === 'redeemable',
+    );
+    const settledRows = rows.filter((r) => r.statusKey === 'settled');
+    const openValue = openRows.reduce((s, r) => s + r.value, 0);
+    const claimableValue = claimableRows.reduce(
+      (s, r) => s + r.redeemValue,
+      0,
+    );
+    const claimedTotal = claimedWinRows.reduce(
+      (s, r) => s + r.amount,
+      0,
+    );
+    const positionsPnl = rows.reduce((s, r) => s + r.pnl, 0);
+    const pendingClaimedValue = pendingRedemptionAmountNotInTrades(
+      pendingRedemptions,
+      claimedTrades,
+    );
+    const activityCashFlow = activityTrades.reduce(
+      (s, trade) => s + tradePnlCashFlow(trade),
+      0,
+    );
+    const netPnl =
+      activityTrades.length > 0
+        ? activityCashFlow + openValue + claimableValue + pendingClaimedValue
+        : positionsPnl + pendingClaimedValue;
     return {
       total: rows.length,
-      totalStaked,
-      totalValue,
-      totalPnl,
+      openCount: openRows.length,
+      claimableCount: claimableRows.length,
+      settledCount: settledRows.length,
+      openValue,
+      claimableValue,
+      claimedTotal,
+      netPnl,
     };
-  }, [rows]);
+  }, [
+    activityTrades,
+    claimedTrades,
+    claimedWinRows,
+    pendingRedemptions,
+    rows,
+  ]);
 
   const filteredRows = useMemo(() => {
     if (statusFilter === 'all') return rows;
@@ -1281,37 +1524,41 @@ function MyBetsView({
       <PageTitle
         eyebrow="Predictions"
         title="My bets"
-        caption={`${summary.total} ${
-          summary.total === 1 ? 'position' : 'positions'
-        } · $${summary.totalStaked.toFixed(2)} staked`}
+        caption={`${summary.openCount} open · ${
+          summary.claimableCount
+        } won to claim · ${claimedWinRows.length} claimed`}
       />
+
+      <PendingRedemptionNotice redemptions={pendingRedemptions} />
 
       {/* Summary tiles — 4 across on sm+, 2 across on mobile. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <HistorySummaryTile
-          label="Portfolio value"
-          value={`$${summary.totalValue.toFixed(2)}`}
+          label="Open value"
+          value={`$${summary.openValue.toFixed(2)}`}
         />
         <HistorySummaryTile
-          label="Total staked"
-          value={`$${summary.totalStaked.toFixed(2)}`}
+          label="To claim"
+          value={`$${summary.claimableValue.toFixed(2)}`}
+          tone={summary.claimableValue > 0.005 ? 'pos' : 'neutral'}
+        />
+        <HistorySummaryTile
+          label="Claimed wins"
+          value={`$${summary.claimedTotal.toFixed(2)}`}
+          tone={summary.claimedTotal > 0.005 ? 'pos' : 'neutral'}
         />
         <HistorySummaryTile
           label="Net P&L"
-          value={`${summary.totalPnl >= 0 ? '+' : '−'}$${Math.abs(
-            summary.totalPnl,
+          value={`${summary.netPnl >= 0 ? '+' : '−'}$${Math.abs(
+            summary.netPnl,
           ).toFixed(2)}`}
           tone={
-            summary.totalPnl > 0.005
+            summary.netPnl > 0.005
               ? 'pos'
-              : summary.totalPnl < -0.005
+              : summary.netPnl < -0.005
                 ? 'neg'
                 : 'neutral'
           }
-        />
-        <HistorySummaryTile
-          label="Positions"
-          value={String(summary.total)}
         />
       </div>
 
@@ -1327,14 +1574,14 @@ function MyBetsView({
           active={statusFilter === 'live'}
           onClick={() => setStatusFilter('live')}
         >
-          Live · {counts.live}
+          Open · {counts.live}
         </FilterChip>
         {counts.redeemable > 0 && (
           <FilterChip
             active={statusFilter === 'redeemable'}
             onClick={() => setStatusFilter('redeemable')}
           >
-            Redeemable · {counts.redeemable}
+            Won · {counts.redeemable}
           </FilterChip>
         )}
         {counts.settled > 0 && (
@@ -1342,7 +1589,7 @@ function MyBetsView({
             active={statusFilter === 'settled'}
             onClick={() => setStatusFilter('settled')}
           >
-            Settled · {counts.settled}
+            Past · {counts.settled}
           </FilterChip>
         )}
       </div>
@@ -1412,6 +1659,171 @@ function MyBetsView({
               canTrade={canTrade}
             />
           ))
+        )}
+      </div>
+
+      <ClaimedWinsSection
+        rows={claimedWinRows}
+        isLoading={isLoadingActivity}
+        onSeeHistory={onSeeHistory}
+        onRowClick={onClaimedWinClick}
+      />
+    </div>
+  );
+}
+
+function ClaimedWinsSection({
+  rows,
+  isLoading,
+  onSeeHistory,
+  onRowClick,
+}: {
+  rows: ClaimedWinRow[];
+  isLoading: boolean;
+  onSeeHistory: () => void;
+  onRowClick: (trade: TradeActivity) => void;
+}) {
+  if (!isLoading && rows.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div
+            className="text-[10.5px] font-bold uppercase tracking-[1.2px] text-gray-500"
+            style={{ fontFamily: MONO }}
+          >
+            Claimed wins
+          </div>
+          <p className="mt-0.5 text-[12px] text-gray-500">
+            Redeemed payouts from History are included in Net P&L.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onSeeHistory}
+          className="inline-flex h-7 items-center gap-1 rounded-full border bg-white px-3 text-[11.5px] font-semibold text-gray-900 transition hover:bg-gray-50"
+          style={{ borderColor: HAIR }}
+        >
+          View history
+        </button>
+      </div>
+
+      <div
+        className="overflow-hidden rounded-2xl border bg-white"
+        style={{
+          borderColor: HAIR,
+          boxShadow:
+            '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+        }}
+      >
+        <div
+          className="grid gap-3 border-b px-5 py-3 text-[10.5px] font-bold uppercase tracking-[1.2px]"
+          style={{
+            gridTemplateColumns: CLAIMED_WINS_GRID,
+            borderColor: HAIR2,
+            color: MUTED,
+            fontFamily: MONO,
+          }}
+        >
+          <div>Status</div>
+          <div>Market</div>
+          <div>Side</div>
+          <div>Date</div>
+          <div className="text-right">Payout</div>
+        </div>
+
+        {isLoading && rows.length === 0 ? (
+          <div className="space-y-2 p-5">
+            {[...Array(2)].map((_, i) => (
+              <div
+                key={i}
+                className="h-12 animate-pulse rounded-md bg-gray-50"
+              />
+            ))}
+          </div>
+        ) : (
+          rows.map((row, i) => {
+            const canOpen = Boolean(row.trade);
+            return (
+              <div
+                key={row.key}
+                onClick={() => {
+                  if (row.trade) onRowClick(row.trade);
+                }}
+                className={`grid gap-3 px-5 py-3.5 items-center transition-colors ${
+                  canOpen ? 'cursor-pointer hover:bg-gray-50' : ''
+                } ${i === rows.length - 1 ? '' : 'border-b'}`}
+                style={{
+                  gridTemplateColumns: CLAIMED_WINS_GRID,
+                  borderColor: HAIR2,
+                }}
+              >
+                <div>
+                  <span
+                    className="inline-block rounded-full px-1.5 py-[3px] text-[9.5px] font-bold uppercase tracking-[0.6px]"
+                    style={{
+                      background:
+                        row.source === 'pending'
+                          ? 'rgba(245,158,11,0.12)'
+                          : POS_GREEN_SOFT,
+                      color:
+                        row.source === 'pending' ? '#b45309' : POS_GREEN,
+                      fontFamily: MONO,
+                    }}
+                  >
+                    {row.source === 'pending' ? 'Pending' : 'Claimed'}
+                  </span>
+                </div>
+
+                <div className="flex min-w-0 items-center gap-2.5">
+                  {row.icon ? (
+                    <img
+                      src={row.icon}
+                      alt=""
+                      className="h-7 w-7 flex-shrink-0 rounded-md bg-gray-100 object-cover"
+                    />
+                  ) : (
+                    <div className="h-7 w-7 flex-shrink-0 rounded-md bg-gray-200" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-semibold tracking-[-0.1px] text-gray-900">
+                      {row.title}
+                    </div>
+                    {row.outcome && (
+                      <div
+                        className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.4px]"
+                        style={{ color: MUTED, fontFamily: MONO }}
+                      >
+                        {row.outcome}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  className="text-[11px] font-bold"
+                  style={{ color: MUTED, fontFamily: MONO }}
+                >
+                  {row.side}
+                </div>
+
+                <div
+                  className="text-[11px] tabular-nums"
+                  style={{ color: MUTED, fontFamily: MONO }}
+                >
+                  {row.timestamp ? formatHistoryDate(row.timestamp) : 'Now'}
+                </div>
+
+                <div
+                  className="text-right text-[12.5px] font-bold tabular-nums"
+                  style={{ color: POS_GREEN, fontFamily: MONO }}
+                >
+                  +${row.amount.toFixed(2)}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </div>

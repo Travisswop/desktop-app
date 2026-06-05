@@ -225,7 +225,7 @@ const FeedReplyItem = memo(
                   feed={feed}
                   userId={userId}
                   token={accessToken}
-                  onVoteSuccess={(updated) => {
+                  onVoteSuccess={(updated: Partial<FeedItemType>) => {
                     if (onPostInteraction) {
                       onPostInteraction(feed._id, updated);
                     }

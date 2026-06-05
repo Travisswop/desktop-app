@@ -86,10 +86,13 @@ export function usePolygonBalances(address: string | string[] | undefined) {
   const legacyUsdcBalance = legacyUsdcRaw
     ? parseFloat(formatUnits(legacyUsdcRaw, USDC_E_DECIMALS))
     : 0;
+  const totalUsdcBalance = formattedUsdcBalance + legacyUsdcBalance;
 
   return {
     usdcBalance: formattedUsdcBalance,
     formattedUsdcBalance: formattedUsdcBalance.toFixed(2),
+    totalUsdcBalance,
+    formattedTotalUsdcBalance: totalUsdcBalance.toFixed(2),
     rawUsdcBalance: usdcBalance,
     legacyUsdcBalance,
     rawLegacyUsdcBalance: legacyUsdcRaw,

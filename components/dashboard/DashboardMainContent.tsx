@@ -1,7 +1,17 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { usePrivy } from "@privy-io/react-auth";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
@@ -9,6 +19,7 @@ import {
   Clock3,
   Copy,
   Edit3,
+  ExternalLink,
   Link2,
   MessageSquare,
   MoreHorizontal,
@@ -16,12 +27,23 @@ import {
   Pencil,
   QrCode,
   ReceiptText,
+  ScanLine,
   Share2,
   ShoppingBag,
   Sparkles,
   Users,
+  Wallet,
 } from "lucide-react";
 import { useUser } from "@/lib/UserContext";
+import {
+  useWalletAddresses,
+  useWalletData,
+} from "@/components/wallet/hooks/useWalletData";
+import {
+  createCheckoutIntent,
+  listCheckoutIntents,
+  type CheckoutIntent,
+} from "@/lib/checkout-api";
 
 const ink = "#0a0a0c";
 const muted = "#6e6e76";
@@ -32,10 +54,13 @@ const positiveSoft = "rgba(25,169,116,0.10)";
 const negative = "#e5484d";
 const negativeSoft = "rgba(229,72,77,0.08)";
 const amber = "#d97706";
+const API = process.env.NEXT_PUBLIC_API_URL;
+const LOW_STOCK_THRESHOLD = 5;
 
 type Tile = {
   label: string;
-  value: string;
+  value?: string;
+  actionLabel?: string;
   sub: string;
   href: string;
   swatch: string;
@@ -47,6 +72,7 @@ type OrderStatus = "Paid" | "Pending" | "Refunded";
 
 type Order = {
   id: string;
+  detailId: string;
   customer: string;
   product: string;
   amount: number;
@@ -58,172 +84,72 @@ type Order = {
 type ProductStatus = "live" | "low" | "draft";
 
 type Product = {
+  id: string;
   name: string;
   price: number;
   sales: number;
+  revenue: number;
+  currency: string;
   status: ProductStatus;
+  statusLabel: string;
   glyph: string;
   swatch: string;
+  type: "Physical" | "Digital";
+  image?: string;
 };
 
-const moduleTiles: Tile[] = [
-  {
-    label: "Products",
-    value: "15",
-    sub: "2 drafts",
-    href: "/products",
-    swatch: "#F2E0DC",
-    icon: Package,
-  },
-  {
-    label: "Orders",
-    value: "284",
-    sub: "5 today",
-    href: "/dashboard/order",
-    swatch: "#E8DFD0",
-    icon: ReceiptText,
-  },
-  {
-    label: "Checkout",
-    value: "$3.1k",
-    sub: "this week",
-    href: "/wallet",
-    swatch: "#D7EAD9",
-    icon: ShoppingBag,
-    accent: amber,
-  },
-  {
-    label: "Leads",
-    value: "48",
-    sub: "9 hot",
-    href: "/dashboard/analytics",
-    swatch: "#F4E1E1",
-    icon: Users,
-  },
-  {
-    label: "Analytics",
-    value: "1,157",
-    sub: "taps - 7d",
-    href: "/dashboard/analytics",
-    swatch: "#D6E4F2",
-    icon: BarChart3,
-  },
-  {
-    label: "Rewards",
-    value: "131",
-    sub: "+5 wk",
-    href: "/subscription",
-    swatch: "#FBE7C6",
-    icon: Sparkles,
-  },
-  {
-    label: "Blinks",
-    value: "13",
-    sub: "4 active",
-    href: "/wallet",
-    swatch: "#DCE7E2",
-    icon: Link2,
-  },
-  {
-    label: "Messages",
-    value: "8",
-    sub: "3 unread",
-    href: "/dashboard/chat",
-    swatch: "#EAE2F4",
-    icon: MessageSquare,
-  },
-];
+type NFTRecord = {
+  _id?: string;
+  name: string;
+  image?: string | null;
+  price: number | string;
+  currency?: string;
+  mintLimit?: number;
+  nftType?: string;
+  category?: "physical" | "digital" | string;
+  status?: string;
+  draft?: boolean;
+  isDraft?: boolean;
+  active?: boolean;
+};
 
-const recentOrders: Order[] = [
-  {
-    id: "#10248",
-    customer: "Marcus Reid",
-    product: "Coaching - 60 min",
-    amount: 220,
-    chain: "USDC",
-    status: "Paid",
-    when: "2m",
-  },
-  {
-    id: "#10247",
-    customer: "Sana Patel",
-    product: "Pro Membership",
-    amount: 49,
-    chain: "USDC",
-    status: "Paid",
-    when: "14m",
-  },
-  {
-    id: "#10246",
-    customer: "Eli Brennan",
-    product: "eBook - Pitch Deck",
-    amount: 18,
-    chain: "SOL",
-    status: "Paid",
-    when: "38m",
-  },
-  {
-    id: "#10245",
-    customer: "Yui Tanaka",
-    product: "Workshop - May 12",
-    amount: 95,
-    chain: "USDC",
-    status: "Pending",
-    when: "1h",
-  },
-  {
-    id: "#10244",
-    customer: "Drew Calloway",
-    product: "Coaching - 30 min",
-    amount: 120,
-    chain: "USDC",
-    status: "Refunded",
-    when: "2h",
-  },
-];
+type TemplateSalesRow = {
+  templateId: string;
+  units: number;
+  revenue: number;
+  orderCount: number;
+};
 
-const topProducts: Product[] = [
-  {
-    name: "Coaching - 60 min",
-    price: 220,
-    sales: 38,
-    status: "live",
-    glyph: "C",
-    swatch: "#F2E0DC",
-  },
-  {
-    name: "Pro Membership",
-    price: 49,
-    sales: 124,
-    status: "live",
-    glyph: "P",
-    swatch: "#D6E4F2",
-  },
-  {
-    name: "The Pitch Deck",
-    price: 18,
-    sales: 211,
-    status: "live",
-    glyph: "D",
-    swatch: "#EAE2F4",
-  },
-  {
-    name: "Workshop - May 12",
-    price: 95,
-    sales: 17,
-    status: "low",
-    glyph: "W",
-    swatch: "#FBE7C6",
-  },
-  {
-    name: "Brand Audit - Async",
-    price: 380,
-    sales: 0,
-    status: "draft",
-    glyph: "A",
-    swatch: "#D7EAD9",
-  },
-];
+type SalesSummary = {
+  perTemplate: TemplateSalesRow[];
+  totals: {
+    units: number;
+    revenue: number;
+    templates: number;
+    orders: number;
+  };
+};
+
+type ConnectedOrderRow = {
+  id: string;
+  orderId: string;
+  counterparty: string;
+  counterpartyAvatar: string;
+  item: string;
+  price: number;
+  date: string;
+  delivery: string;
+  chain: "USDC" | "SOL";
+  role: "buyer" | "seller";
+  _id: string;
+};
+
+type DashboardData = {
+  checkoutIntents: CheckoutIntent[];
+  products: Product[];
+  orders: Order[];
+  summary: SalesSummary | null;
+};
 
 const orderStatusStyle: Record<
   OrderStatus,
@@ -239,14 +165,35 @@ const productStatusStyle: Record<
   { fg: string; bg: string; label: string }
 > = {
   live: { fg: positive, bg: positiveSoft, label: "Live" },
-  low: { fg: "#b45309", bg: "rgba(217,119,6,0.12)", label: "Low - 12" },
+  low: { fg: "#b45309", bg: "rgba(217,119,6,0.12)", label: "Low" },
   draft: { fg: muted, bg: "rgba(0,0,0,0.05)", label: "Draft" },
 };
 
 export default function DashboardMainContent() {
-  const { user, loading } = useUser();
-  const [token, setToken] = useState<"USDC" | "SOL" | "ETH">("USDC");
+  const { user, accessToken, loading } = useUser();
+  const {
+    user: privyUser,
+    ready: privyReady,
+    authenticated,
+  } = usePrivy();
+  const walletData = useWalletData(authenticated, privyReady, privyUser);
+  const { solWalletAddress } = useWalletAddresses(walletData);
   const [amount, setAmount] = useState(120);
+  const [checkoutIntent, setCheckoutIntent] =
+    useState<CheckoutIntent | null>(null);
+  const [checkoutCreating, setCheckoutCreating] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<
+    "idle" | "copied" | "error"
+  >("idle");
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    checkoutIntents: [],
+    products: [],
+    orders: [],
+    summary: null,
+  });
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
 
   const profile = useMemo(() => {
     const name = user?.displayName || user?.name || "Travis Herron";
@@ -269,6 +216,231 @@ export default function DashboardMainContent() {
     };
   }, [user]);
 
+  const checkoutAddress = useMemo(() => {
+    return (
+      solWalletAddress ||
+      user?.solanaAddress ||
+      user?.solanaWallet ||
+      ""
+    );
+  }, [solWalletAddress, user]);
+
+  const loadDashboardData = useCallback(async (tokenValue: string) => {
+    if (!API) {
+      throw new Error("NEXT_PUBLIC_API_URL is not configured.");
+    }
+
+    const orderParams = new URLSearchParams({
+      role: "seller",
+      tab: "payments",
+      since: "30d",
+    });
+
+    const [templatesRes, summaryRes, ordersRes, checkoutIntents] = await Promise.all([
+      fetch(`${API}/api/v2/desktop/nft/listByUser`, {
+        method: "GET",
+        headers: { authorization: `Bearer ${tokenValue}` },
+      }),
+      fetch(`${API}/api/v2/desktop/orders/summaryByUser?since=30d`, {
+        method: "GET",
+        headers: { authorization: `Bearer ${tokenValue}` },
+      }),
+      fetch(
+        `${API}/api/v2/desktop/orders/listByUser?${orderParams.toString()}`,
+        { headers: { authorization: `Bearer ${tokenValue}` } },
+      ),
+      listCheckoutIntents(tokenValue).catch((error) => {
+        console.error("Failed to load dashboard checkout intents:", error);
+        return [] as CheckoutIntent[];
+      }),
+    ]);
+
+    if (!templatesRes.ok) {
+      throw new Error(`products ${templatesRes.status}`);
+    }
+    if (!ordersRes.ok) {
+      throw new Error(`orders ${ordersRes.status}`);
+    }
+
+    const { data: templates } = (await templatesRes.json()) as {
+      data?: NFTRecord[];
+    };
+    const salesByTemplate: Record<string, TemplateSalesRow> = {};
+    let summary: SalesSummary | null = null;
+
+    if (summaryRes.ok) {
+      const { data } = (await summaryRes.json()) as {
+        data?: SalesSummary;
+      };
+      if (data) {
+        summary = data;
+        for (const row of data.perTemplate ?? []) {
+          salesByTemplate[row.templateId] = row;
+        }
+      }
+    }
+
+    const orderPayload = (await ordersRes.json()) as {
+      data?: { rows?: ConnectedOrderRow[]; total?: number } | ConnectedOrderRow[];
+    };
+    const connectedOrders = Array.isArray(orderPayload.data)
+      ? orderPayload.data
+      : orderPayload.data?.rows ?? [];
+
+    return {
+      checkoutIntents,
+      products: (templates ?? [])
+        .map((item) => mapDashboardProduct(item, salesByTemplate[item._id ?? ""]))
+        .sort(
+          (a, b) =>
+            b.sales - a.sales ||
+            b.revenue - a.revenue ||
+            a.name.localeCompare(b.name),
+        ),
+      orders: connectedOrders.map(mapDashboardOrder).slice(0, 5),
+      summary,
+    } satisfies DashboardData;
+  }, []);
+
+  useEffect(() => {
+    setCheckoutIntent(null);
+    setCheckoutError(null);
+    setCopyState("idle");
+  }, [checkoutAddress]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user?._id || !accessToken) {
+      setDashboardLoading(false);
+      setDashboardError(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setDashboardLoading(true);
+    setDashboardError(null);
+    loadDashboardData(accessToken)
+      .then((nextData) => {
+        if (!cancelled) {
+          setDashboardData(nextData);
+          setDashboardLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load dashboard commerce data:", err);
+        if (!cancelled) {
+          setDashboardData({
+            checkoutIntents: [],
+            products: [],
+            orders: [],
+            summary: null,
+          });
+          setDashboardError("Commerce data could not be loaded.");
+          setDashboardLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, loadDashboardData, user?._id]);
+
+  const moduleTiles = useMemo(
+    () =>
+      buildModuleTiles({
+        checkoutIntents: dashboardData.checkoutIntents,
+        products: dashboardData.products,
+        orders: dashboardData.orders,
+        summary: dashboardData.summary,
+        loading: dashboardLoading,
+        profileStats: {
+          followers: profile.followers,
+          following: profile.following,
+        },
+      }),
+    [dashboardData, dashboardLoading, profile.followers, profile.following],
+  );
+
+  const handleCopy = useCallback(async (value: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 1600);
+    } catch (err) {
+      console.error("Failed to copy dashboard checkout value:", err);
+      setCopyState("error");
+      window.setTimeout(() => setCopyState("idle"), 1600);
+    }
+  }, []);
+
+  const handleAmountChange = useCallback((nextAmount: number) => {
+    setAmount(nextAmount);
+    setCheckoutIntent(null);
+    setCheckoutError(null);
+    setCopyState("idle");
+  }, []);
+
+  const handleGenerateCheckout = useCallback(async () => {
+    const normalizedAmount = Number(amount.toFixed(2));
+
+    if (!accessToken) {
+      setCheckoutError("Sign in to create a Swop Pay request.");
+      return;
+    }
+
+    if (!checkoutAddress) {
+      setCheckoutError("Add a Solana settlement wallet before creating checkout.");
+      return;
+    }
+
+    if (normalizedAmount <= 0) {
+      setCheckoutError("Checkout amount must be greater than $0.");
+      return;
+    }
+
+    setCheckoutCreating(true);
+    setCheckoutError(null);
+    setCopyState("idle");
+
+    try {
+      const checkoutBaseUrl =
+        typeof window !== "undefined" ? window.location.origin : undefined;
+      const intent = await createCheckoutIntent(
+        {
+          amount: normalizedAmount,
+          checkoutBaseUrl,
+          description: `In-person checkout - ${profile.name}`,
+          merchantCurrency: "USDC",
+          merchantWalletAddress: checkoutAddress,
+        },
+        accessToken,
+      );
+      setCheckoutIntent(intent);
+    } catch (err) {
+      console.error("Failed to create dashboard checkout intent:", err);
+      setCheckoutError(
+        err instanceof Error ? err.message : "Checkout could not be created.",
+      );
+    } finally {
+      setCheckoutCreating(false);
+    }
+  }, [accessToken, amount, checkoutAddress, profile.name]);
+
+  const handleCopyProduct = useCallback(
+    (product: Product) => {
+      const publicUrl = profile.publicUrl.startsWith("http")
+        ? profile.publicUrl
+        : `https://${profile.publicUrl}`;
+      const value = product.id
+        ? `${publicUrl}?product=${encodeURIComponent(product.id)}`
+        : publicUrl;
+      void handleCopy(value);
+    },
+    [handleCopy, profile.publicUrl],
+  );
+
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -286,34 +458,55 @@ export default function DashboardMainContent() {
         </div>
 
         <SectionHead
-          title="Today"
-          caption="May 5 - last 24 hours"
+          title="Sales"
+          caption="Connected commerce activity - last 30 days"
           action={
-            <Pill>
+            <Pill active>
               <Clock3 className="h-3.5 w-3.5" />
-              24h
+              30d
             </Pill>
           }
         />
         <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
-          <SalesSnapshot />
-          <ViewsSnapshot />
+          <SalesSnapshot
+            orders={dashboardData.orders}
+            summary={dashboardData.summary}
+          />
+          <ProfileActivitySnapshot
+            followers={profile.followers}
+            following={profile.following}
+          />
         </div>
 
         <SectionHead
           title="In-person checkout"
-          caption="Crypto - USDC on Solana"
-          action={<WalletReady />}
+          caption="Create a Swop Pay QR or link"
+          action={<WalletReady ready={Boolean(checkoutAddress)} />}
         />
         <CryptoCheckout
           amount={amount}
-          onAmountChange={setAmount}
-          token={token}
-          onTokenChange={setToken}
+          checkoutError={checkoutError}
+          checkoutIntent={checkoutIntent}
+          creating={checkoutCreating}
+          onAmountChange={handleAmountChange}
+          address={checkoutAddress}
+          copyState={copyState}
+          onCopy={handleCopy}
+          onGenerate={handleGenerateCheckout}
         />
 
-        <OrdersCard />
-        <ProductsCard />
+        <OrdersCard
+          error={dashboardError}
+          loading={dashboardLoading}
+          orders={dashboardData.orders}
+          totalOrders={dashboardData.summary?.totals.orders}
+        />
+        <ProductsCard
+          error={dashboardError}
+          loading={dashboardLoading}
+          onShareProduct={handleCopyProduct}
+          products={dashboardData.products}
+        />
       </div>
     </div>
   );
@@ -399,9 +592,16 @@ function DashboardTile({ tile }: { tile: Tile }) {
         >
           <Icon className="h-[18px] w-[18px]" strokeWidth={1.7} />
         </div>
-        <Mono className="text-[26px] font-semibold leading-none tracking-[-0.04em]">
-          {tile.value}
-        </Mono>
+        {tile.actionLabel ? (
+          <span className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[rgba(0,0,0,0.06)] bg-white px-3 text-xs font-semibold leading-none tracking-normal text-[#0a0a0c] transition group-hover:bg-[#f4f4f2]">
+            {tile.actionLabel}
+            <ArrowRight className="h-3 w-3 shrink-0" />
+          </span>
+        ) : (
+          <Mono className="text-[26px] font-semibold leading-none tracking-[-0.04em]">
+            {tile.value}
+          </Mono>
+        )}
       </div>
       <div>
         <div className="text-sm font-semibold tracking-[-0.01em]">
@@ -418,7 +618,21 @@ function DashboardTile({ tile }: { tile: Tile }) {
   );
 }
 
-function SalesSnapshot() {
+function SalesSnapshot({
+  orders,
+  summary,
+}: {
+  orders: Order[];
+  summary: SalesSummary | null;
+}) {
+  const revenue =
+    summary?.totals.revenue ??
+    orders.reduce((total, order) => total + order.amount, 0);
+  const orderCount = summary?.totals.orders ?? orders.length;
+  const unitCount = summary?.totals.units ?? orderCount;
+  const settled = orders.filter((order) => order.status === "Paid").length;
+  const avgOrder = orderCount > 0 ? revenue / orderCount : 0;
+
   return (
     <Card className="p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -426,55 +640,87 @@ function SalesSnapshot() {
           <Tag>Gross volume</Tag>
           <div className="mt-1.5 flex items-baseline gap-2.5">
             <div className="text-[38px] font-semibold leading-none tracking-[-0.04em]">
-              $1,284
+              {formatCurrency(revenue)}
             </div>
-            <Delta value="+18.4%" />
+            <StatusPill fg={positive} bg={positiveSoft}>
+              30d
+            </StatusPill>
           </div>
           <div className="mt-1.5 text-xs text-[#6e6e76]">
-            vs $1,084 yesterday - 12 orders
+            {orderCount
+              ? `${orderCount.toLocaleString()} orders - ${settled} recent settled`
+              : "No connected orders yet"}
           </div>
         </div>
         <div className="flex gap-1.5 sm:flex-col sm:items-end">
-          <Pill active>Today</Pill>
+          <Pill active>30d</Pill>
           <Pill>7d</Pill>
         </div>
       </div>
       <Sparkline className="mt-4 h-[68px]" color={amber} />
       <div className="mt-3.5 grid grid-cols-3 border-t border-[rgba(0,0,0,0.06)] pt-3.5">
-        <SmallMetric label="Online" value="$924" detail="- 9" />
         <SmallMetric
-          label="In-person"
-          value="$360"
-          detail="- 3"
+          label="Orders"
+          value={orderCount.toLocaleString()}
+          detail="30d"
+        />
+        <SmallMetric
+          label="Units"
+          value={unitCount.toLocaleString()}
+          detail="sold"
           accent={amber}
           bordered
         />
-        <SmallMetric label="Avg order" value="$107" bordered />
+        <SmallMetric label="Avg order" value={formatCurrency(avgOrder)} bordered />
       </div>
     </Card>
   );
 }
 
-function ViewsSnapshot() {
+function ProfileActivitySnapshot({
+  followers,
+  following,
+}: {
+  followers: number;
+  following: number;
+}) {
+  const totalConnections = followers + following;
+  const followerPct =
+    totalConnections > 0 ? Math.round((followers / totalConnections) * 100) : 0;
+  const followingPct =
+    totalConnections > 0 ? Math.round((following / totalConnections) * 100) : 0;
+
   return (
     <Card className="p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Tag>Profile views</Tag>
+          <Tag>Profile activity</Tag>
           <div className="mt-1.5 flex items-baseline gap-2">
             <div className="text-[38px] font-semibold leading-none tracking-[-0.04em]">
-              432
+              {formatCount(totalConnections)}
             </div>
-            <Delta value="+9.2%" />
+            <StatusPill fg={positive} bg={positiveSoft}>
+              live
+            </StatusPill>
+          </div>
+          <div className="mt-1.5 text-xs text-[#6e6e76]">
+            Followers and following from your profile
           </div>
         </div>
         <Sparkline className="h-9 w-[120px]" color={ink} />
       </div>
       <div className="mt-4 border-t border-[rgba(0,0,0,0.06)] pt-3.5">
-        <SourceRow label="Profile link" value="218" pct={50} />
-        <SourceRow label="QR - in-person" value="94" pct={22} accent={amber} />
-        <SourceRow label="Blinks" value="68" pct={16} />
-        <SourceRow label="Direct" value="52" pct={12} />
+        <SourceRow
+          label="Followers"
+          value={formatCount(followers)}
+          pct={followerPct}
+        />
+        <SourceRow
+          label="Following"
+          value={formatCount(following)}
+          pct={followingPct}
+          accent={amber}
+        />
       </div>
     </Card>
   );
@@ -483,63 +729,87 @@ function ViewsSnapshot() {
 function CryptoCheckout({
   amount,
   onAmountChange,
-  token,
-  onTokenChange,
+  checkoutError,
+  checkoutIntent,
+  creating,
+  address,
+  copyState,
+  onCopy,
+  onGenerate,
 }: {
   amount: number;
   onAmountChange: (amount: number) => void;
-  token: "USDC" | "SOL" | "ETH";
-  onTokenChange: (token: "USDC" | "SOL" | "ETH") => void;
+  checkoutError: string | null;
+  checkoutIntent: CheckoutIntent | null;
+  creating: boolean;
+  address: string;
+  copyState: "idle" | "copied" | "error";
+  onCopy: (value: string) => void;
+  onGenerate: () => void;
 }) {
+  const checkoutUrl = checkoutIntent?.checkoutUrl || "";
+  const hasAddress = Boolean(address);
+  const canCreate = hasAddress && amount > 0 && !creating;
+  const requestStatus = checkoutIntent
+    ? checkoutIntent.status.replace(/_/g, " ")
+    : "Not created";
+  const amountNote = checkoutIntent
+    ? `${checkoutIntent.intentId} - ${formatCurrency(
+        checkoutIntent.amount.value,
+      )} ${checkoutIntent.amount.currency}`
+    : "Swop app scan or checkout link";
+
   return (
     <Card className="overflow-hidden p-0">
-      <div className="grid lg:grid-cols-[1.1fr_1fr]">
-        <div className="border-b border-[rgba(0,0,0,0.06)] p-[22px] lg:border-b-0 lg:border-r">
+      <div className="grid min-w-0 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="min-w-0 border-b border-[rgba(0,0,0,0.06)] p-[22px] lg:border-b-0 lg:border-r">
           <div className="mb-3.5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Tag>Charge</Tag>
-            <div className="flex w-fit gap-1 rounded-[10px] border border-[rgba(0,0,0,0.06)] bg-[#f4f4f2] p-[3px]">
-              {(["USDC", "SOL", "ETH"] as const).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => onTokenChange(item)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-[7px] px-2.5 text-[11.5px] font-semibold transition"
-                  style={{
-                    background: item === token ? "#fff" : "transparent",
-                    boxShadow:
-                      item === token
-                        ? "0 1px 2px rgba(10,10,12,0.04),0 8px 28px -12px rgba(10,10,12,0.10)"
-                        : "none",
-                  }}
-                >
-                  {item === "USDC" ? <UsdcGlyph size={14} /> : null}
-                  {item === "SOL" ? <SolGlyph size={14} /> : null}
-                  {item}
-                </button>
-              ))}
+            <Tag>Swop Pay request</Tag>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Pill active>
+                <UsdcGlyph size={14} />
+                Receive USDC
+              </Pill>
+              <Pill asChild>
+                <Link href="/dashboard/checkout">
+                  Builder
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              </Pill>
             </div>
           </div>
 
-          <div className="flex items-end gap-1.5 border-b-2 border-[#0a0a0c] py-3.5">
-            <span className="text-[30px] font-semibold tracking-[-0.04em] text-[#6e6e76]">
+          <div className="flex min-w-0 items-end gap-1.5 border-b-2 border-[#0a0a0c] py-3.5">
+            <span className="shrink-0 text-[30px] font-semibold tracking-[-0.04em] text-[#6e6e76]">
               $
             </span>
-            <span className="text-[56px] font-semibold leading-none tracking-[-0.05em] tabular-nums">
-              {amount}
-            </span>
-            <span className="text-[56px] font-semibold leading-none tracking-[-0.05em] text-[#a1a1a8] tabular-nums">
+            <input
+              aria-label="Checkout amount"
+              className="min-w-0 flex-1 bg-transparent text-[48px] font-semibold leading-none tracking-[-0.05em] tabular-nums outline-none sm:w-[min(52vw,220px)] sm:flex-none sm:text-[56px]"
+              inputMode="decimal"
+              min="0"
+              step="1"
+              type="number"
+              value={amount}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                onAmountChange(Number.isFinite(next) ? Math.max(0, next) : 0);
+              }}
+            />
+            <span className="hidden shrink-0 text-[56px] font-semibold leading-none tracking-[-0.05em] text-[#a1a1a8] tabular-nums sm:inline">
               .00
             </span>
-            <Mono className="ml-2 pb-2 text-sm text-[#6e6e76]">{token}</Mono>
+            <Mono className="hidden shrink-0 pb-2 text-sm text-[#6e6e76] sm:ml-2 sm:inline">
+              USDC
+            </Mono>
           </div>
 
           <div className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <Mono className="text-xs text-[#6e6e76]">
-              approx {amount.toFixed(2)} {token} - 0.00 fees
+              {amountNote}
             </Mono>
             <Pill>
-              For:
-              <span className="font-semibold">Coaching - 60 min</span>
+              {hasAddress ? "Settlement ready" : "Connect wallet"}
             </Pill>
           </div>
 
@@ -561,37 +831,161 @@ function CryptoCheckout({
 
           <button
             type="button"
+            aria-busy={creating}
+            disabled={!canCreate}
+            onClick={onGenerate}
             className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0a0a0c] text-sm font-semibold tracking-[-0.01em] text-white transition active:scale-[0.99]"
+            style={{
+              opacity: canCreate ? 1 : 0.45,
+              cursor: canCreate ? "pointer" : "not-allowed",
+            }}
           >
             <QrCode className="h-4 w-4" />
-            Generate QR - request payment
+            {creating
+              ? "Creating checkout..."
+              : hasAddress
+                ? (
+                  <>
+                    <span className="hidden sm:inline">
+                      Create Swop Pay request
+                    </span>
+                    <span className="sm:hidden">Create request</span>
+                  </>
+                )
+                : (
+                  <>
+                    <span className="hidden sm:inline">
+                      Connect wallet to create QR
+                    </span>
+                    <span className="sm:hidden">Connect wallet</span>
+                  </>
+                )}
           </button>
+          {checkoutError ? (
+            <div className="mt-3 rounded-xl border border-[rgba(229,72,77,0.16)] bg-[rgba(229,72,77,0.06)] px-3 py-2 text-[12px] font-medium text-[#b4232a]">
+              {checkoutError}
+            </div>
+          ) : null}
         </div>
 
-        <div className="flex flex-col items-center gap-3.5 bg-[#fafaf8] p-[22px]">
-          <div className="flex w-full items-center gap-2">
-            <Tag>Scan to pay</Tag>
-            <Mono className="text-[11px] text-[#6e6e76]">
-              - Phantom - Solflare - Backpack
-            </Mono>
+        <div className="flex min-w-0 flex-col gap-3.5 bg-[#fafaf8] p-[18px] sm:p-[22px]">
+          <div className="flex w-full items-start justify-between gap-3">
+            <div>
+              <Tag>Customer payment</Tag>
+              <div className="mt-1 text-[12.5px] font-medium text-[#6e6e76]">
+                Swop app or checkout link
+              </div>
+            </div>
+            <StatusPill
+              fg={checkoutIntent ? positive : muted}
+              bg={checkoutIntent ? positiveSoft : "rgba(0,0,0,0.05)"}
+            >
+              {requestStatus}
+            </StatusPill>
           </div>
-          <FakeQr />
+
+          <div className="grid gap-3 sm:grid-cols-[210px_1fr] lg:grid-cols-1 xl:grid-cols-[210px_1fr]">
+            <div className="flex min-h-[210px] items-center justify-center rounded-[18px] border border-[rgba(0,0,0,0.08)] bg-white p-3">
+              {hasAddress && checkoutUrl ? (
+                <QRCodeSVG
+                  value={checkoutUrl}
+                  size={176}
+                  level="H"
+                  includeMargin={false}
+                />
+              ) : (
+                <div className="flex h-full min-h-[176px] w-full flex-col items-center justify-center rounded-[14px] bg-[#f4f4f2] text-center">
+                  <QrCode className="h-8 w-8 text-[#a1a1a8]" />
+                  <div className="mt-2 max-w-[140px] text-[12px] font-semibold text-[#6e6e76]">
+                    {hasAddress ? "Create request" : "Connect wallet"}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex min-w-0 flex-col justify-center gap-2">
+              <div className="flex items-center gap-3 border-b border-[rgba(0,0,0,0.06)] pb-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white text-[#0a0a0c] shadow-[0_1px_2px_rgba(10,10,12,0.04)]">
+                  <ScanLine className="h-[18px] w-[18px]" strokeWidth={1.8} />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-semibold tracking-[-0.01em]">
+                    Scan in Swop app
+                  </div>
+                  <Mono className="text-[11px] text-[#6e6e76]">
+                    QR opens Swop Pay
+                  </Mono>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 border-b border-[rgba(0,0,0,0.06)] py-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white text-[#0a0a0c] shadow-[0_1px_2px_rgba(10,10,12,0.04)]">
+                  <Wallet className="h-[18px] w-[18px]" strokeWidth={1.8} />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-semibold tracking-[-0.01em]">
+                    Open checkout link
+                  </div>
+                  <Mono className="text-[11px] text-[#6e6e76]">
+                    Customer selects wallet
+                  </Mono>
+                </div>
+              </div>
+              <div className="pt-1">
+                <Mono className="block truncate text-[11px] text-[#6e6e76]">
+                  {checkoutUrl || "Create a request to get a shareable link"}
+                </Mono>
+              </div>
+            </div>
+          </div>
+
           <div className="flex w-full items-center gap-2 rounded-xl border border-[rgba(0,0,0,0.06)] bg-white px-3 py-2.5">
             <SolGlyph size={14} />
+            <UsdcGlyph size={14} />
             <Mono className="min-w-0 flex-1 truncate text-[11.5px]">
-              7xKXt...3Q9Tr
+              {hasAddress
+                ? `Payout wallet ${shortAddress(address)}`
+                : "No payout wallet found"}
             </Mono>
             <button
               type="button"
-              aria-label="Copy wallet address"
+              aria-label="Copy payout wallet address"
+              disabled={!hasAddress}
+              onClick={() => onCopy(address)}
               className="flex h-7 w-7 items-center justify-center rounded-md text-[#6e6e76] transition hover:bg-[#f4f4f2]"
+              style={{
+                opacity: hasAddress ? 1 : 0.4,
+                cursor: hasAddress ? "pointer" : "not-allowed",
+              }}
             >
               <Copy className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="grid w-full grid-cols-2 gap-1.5">
-            <Pill className="justify-center">Tap-to-pay</Pill>
-            <Pill className="justify-center">Send link</Pill>
+
+          <div className="grid w-full grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={!checkoutUrl}
+              onClick={() => {
+                if (checkoutUrl) window.location.href = checkoutUrl;
+              }}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[rgba(0,0,0,0.06)] bg-white text-[12.5px] font-semibold transition hover:bg-[#f4f4f2] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open link
+            </button>
+            <button
+              type="button"
+              disabled={!checkoutUrl}
+              onClick={() => onCopy(checkoutUrl)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#0a0a0c] text-[12.5px] font-semibold text-white transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {copyState === "copied"
+                ? "Copied"
+                : copyState === "error"
+                  ? "Copy failed"
+                  : "Copy link"}
+            </button>
           </div>
         </div>
       </div>
@@ -599,15 +993,31 @@ function CryptoCheckout({
   );
 }
 
-function OrdersCard() {
+function OrdersCard({
+  error,
+  loading,
+  orders,
+  totalOrders,
+}: {
+  error: string | null;
+  loading: boolean;
+  orders: Order[];
+  totalOrders?: number;
+}) {
+  const caption = loading
+    ? "Loading connected orders"
+    : error
+      ? "Orders could not be loaded"
+      : `${totalOrders ?? orders.length} payments - last 30 days`;
+
   return (
     <Card className="overflow-hidden p-0">
       <CardHeader
         title="Recent orders"
-        caption="Last 24 hours - 12 settled"
+        caption={caption}
         action={
           <Pill asChild>
-            <Link href="/dashboard/order">
+            <Link href="/order">
               View all
               <ArrowRight className="h-3 w-3" />
             </Link>
@@ -615,19 +1025,57 @@ function OrdersCard() {
         }
       />
       <div>
-        {recentOrders.map((order, index) => (
-          <OrderRow
-            key={order.id}
-            order={order}
-            withBorder={index < recentOrders.length - 1}
+        {loading ? (
+          <CardLoadingRows count={4} />
+        ) : error ? (
+          <CardEmptyState
+            actionHref="/order"
+            actionLabel="Open orders"
+            title="Unable to load orders"
           />
-        ))}
+        ) : orders.length ? (
+          orders.map((order, index) => (
+            <OrderRow
+              key={order.detailId || order.id}
+              order={order}
+              withBorder={index < orders.length - 1}
+            />
+          ))
+        ) : (
+          <CardEmptyState
+            actionHref="/products/create"
+            actionLabel="Create product"
+            title="No orders yet"
+          />
+        )}
       </div>
     </Card>
   );
 }
 
-function ProductsCard() {
+function ProductsCard({
+  error,
+  loading,
+  onShareProduct,
+  products,
+}: {
+  error: string | null;
+  loading: boolean;
+  onShareProduct: (product: Product) => void;
+  products: Product[];
+}) {
+  const live = products.filter((product) => product.status === "live").length;
+  const low = products.filter((product) => product.status === "low").length;
+  const draft = products.filter((product) => product.status === "draft").length;
+  const physical = products.filter((product) => product.type === "Physical").length;
+  const digital = products.length - physical;
+  const caption = loading
+    ? "Loading connected products"
+    : error
+      ? "Products could not be loaded"
+      : `${products.length} products - ${live} live - ${draft} drafts - ${low} low stock`;
+  const visibleProducts = products.slice(0, 5);
+
   return (
     <Card className="overflow-hidden p-0">
       <div className="flex flex-col gap-3 border-b border-[rgba(0,0,0,0.06)] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
@@ -636,13 +1084,17 @@ function ProductsCard() {
             Products
           </div>
           <div className="mt-0.5 text-[11.5px] text-[#6e6e76]">
-            15 products - 12 live - 2 drafts - 1 low stock
+            {caption}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <Pill active>All</Pill>
-          <Pill className="hidden sm:inline-flex">Physical Product</Pill>
-          <Pill className="hidden sm:inline-flex">Digital Product</Pill>
+          <Pill className="hidden sm:inline-flex">
+            Physical - {physical}
+          </Pill>
+          <Pill className="hidden sm:inline-flex">
+            Digital - {digital}
+          </Pill>
           <div className="mx-1 hidden h-5 w-px bg-[rgba(0,0,0,0.06)] sm:block" />
           <Link
             href="/products/create"
@@ -654,17 +1106,34 @@ function ProductsCard() {
         </div>
       </div>
       <div>
-        {topProducts.map((product, index) => (
-          <ProductRow
-            key={product.name}
-            product={product}
-            withBorder={index < topProducts.length - 1}
+        {loading ? (
+          <CardLoadingRows count={5} />
+        ) : error ? (
+          <CardEmptyState
+            actionHref="/products"
+            actionLabel="Open products"
+            title="Unable to load products"
           />
-        ))}
+        ) : visibleProducts.length ? (
+          visibleProducts.map((product, index) => (
+            <ProductRow
+              key={product.id}
+              onShareProduct={onShareProduct}
+              product={product}
+              withBorder={index < visibleProducts.length - 1}
+            />
+          ))
+        ) : (
+          <CardEmptyState
+            actionHref="/products/create"
+            actionLabel="New product"
+            title="No products yet"
+          />
+        )}
       </div>
       <div className="flex items-center justify-between border-t border-[rgba(0,0,0,0.04)] px-5 py-3">
         <div className="text-[11.5px] text-[#6e6e76]">
-          Showing 5 of 15 products
+          Showing {visibleProducts.length} of {products.length} products
         </div>
         <Pill asChild>
           <Link href="/products">
@@ -677,6 +1146,56 @@ function ProductsCard() {
   );
 }
 
+function CardLoadingRows({ count }: { count: number }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="grid grid-cols-[1fr_auto] items-center gap-3 px-5 py-3.5 sm:grid-cols-[1.35fr_1.45fr_1fr_0.5fr]"
+          style={{
+            borderBottom:
+              index < count - 1 ? `1px solid ${hair2}` : "none",
+          }}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 animate-pulse rounded-full bg-[#f1f1ef]" />
+            <div className="space-y-2">
+              <div className="h-3 w-24 animate-pulse rounded bg-[#f1f1ef]" />
+              <div className="h-2.5 w-14 animate-pulse rounded bg-[#f1f1ef]" />
+            </div>
+          </div>
+          <div className="hidden h-3 w-36 animate-pulse rounded bg-[#f1f1ef] sm:block" />
+          <div className="h-3 w-20 animate-pulse rounded bg-[#f1f1ef]" />
+          <div className="hidden h-3 w-10 animate-pulse rounded bg-[#f1f1ef] sm:block" />
+        </div>
+      ))}
+    </>
+  );
+}
+
+function CardEmptyState({
+  actionHref,
+  actionLabel,
+  title,
+}: {
+  actionHref: string;
+  actionLabel: string;
+  title: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-5 py-10 text-center">
+      <div className="text-[13px] font-semibold text-[#6e6e76]">{title}</div>
+      <Pill asChild>
+        <Link href={actionHref}>
+          {actionLabel}
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+      </Pill>
+    </div>
+  );
+}
+
 function OrderRow({
   order,
   withBorder,
@@ -685,10 +1204,14 @@ function OrderRow({
   withBorder: boolean;
 }) {
   const status = orderStatusStyle[order.status];
+  const href = order.detailId
+    ? `/order/${encodeURIComponent(order.detailId)}?tab=payments`
+    : "/order";
 
   return (
-    <div
-      className="grid grid-cols-[1.25fr_auto_auto] items-center gap-3 px-5 py-3.5 sm:grid-cols-[1.35fr_1.45fr_1fr_0.5fr]"
+    <Link
+      href={href}
+      className="grid grid-cols-[1.25fr_auto_auto] items-center gap-3 px-5 py-3.5 text-[#0a0a0c] no-underline transition hover:bg-[#fafaf8] sm:grid-cols-[1.35fr_1.45fr_1fr_0.5fr]"
       style={{ borderBottom: withBorder ? `1px solid ${hair2}` : "none" }}
     >
       <div className="flex min-w-0 items-center gap-2.5">
@@ -705,7 +1228,9 @@ function OrderRow({
       </div>
       <div className="flex items-center gap-1.5">
         {order.chain === "USDC" ? <UsdcGlyph size={14} /> : <SolGlyph size={14} />}
-        <Mono className="text-[13px] font-semibold">${order.amount}</Mono>
+        <Mono className="text-[13px] font-semibold">
+          {formatCurrency(order.amount)}
+        </Mono>
         <StatusPill fg={status.fg} bg={status.bg}>
           {order.status}
         </StatusPill>
@@ -713,14 +1238,16 @@ function OrderRow({
       <Mono className="text-right text-[11px] text-[#6e6e76]">
         {order.when}
       </Mono>
-    </div>
+    </Link>
   );
 }
 
 function ProductRow({
+  onShareProduct,
   product,
   withBorder,
 }: {
+  onShareProduct: (product: Product) => void;
   product: Product;
   withBorder: boolean;
 }) {
@@ -733,10 +1260,20 @@ function ProductRow({
     >
       <div className="flex min-w-0 items-center gap-3">
         <div
-          className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[9px] text-sm font-semibold"
+          className="flex h-[38px] w-[38px] shrink-0 items-center justify-center overflow-hidden rounded-[9px] text-sm font-semibold"
           style={{ background: product.swatch }}
         >
-          {product.glyph}
+          {product.image ? (
+            <Image
+              alt={product.name}
+              height={38}
+              src={product.image}
+              style={{ height: 38, objectFit: "cover", width: 38 }}
+              width={38}
+            />
+          ) : (
+            product.glyph
+          )}
         </div>
         <div className="min-w-0">
           <div className="truncate text-[13px] font-semibold tracking-[-0.01em]">
@@ -744,7 +1281,7 @@ function ProductRow({
           </div>
           <div className="mt-1 flex items-center gap-1.5">
             <StatusPill fg={status.fg} bg={status.bg}>
-              {status.label}
+              {product.statusLabel || status.label}
             </StatusPill>
             <Mono className="text-[11px] text-[#6e6e76]">
               {product.sales} sold
@@ -752,16 +1289,30 @@ function ProductRow({
           </div>
         </div>
       </div>
-      <Mono className="text-[13px] font-semibold">${product.price}</Mono>
-      <IconButton label="Edit product" className="hidden sm:flex">
+      <Mono className="text-[13px] font-semibold">
+        {formatCurrency(product.price)}
+      </Mono>
+      <Link
+        href="/products"
+        aria-label="Manage product"
+        className="hidden h-[30px] w-[30px] items-center justify-center rounded-[7px] text-[#0a0a0c] transition hover:bg-[#f4f4f2] sm:flex"
+      >
         <Pencil className="h-3.5 w-3.5" />
-      </IconButton>
-      <IconButton label="Share product" className="hidden sm:flex">
+      </Link>
+      <IconButton
+        label="Share product"
+        className="hidden sm:flex"
+        onClick={() => onShareProduct(product)}
+      >
         <Share2 className="h-3.5 w-3.5" />
       </IconButton>
-      <IconButton label="More product actions" className="hidden sm:flex">
+      <Link
+        href="/products"
+        aria-label="More product actions"
+        className="hidden h-[30px] w-[30px] items-center justify-center rounded-[7px] text-[#0a0a0c] transition hover:bg-[#f4f4f2] sm:flex"
+      >
         <MoreHorizontal className="h-3.5 w-3.5" />
-      </IconButton>
+      </Link>
     </div>
   );
 }
@@ -835,16 +1386,35 @@ function Pill({
   active = false,
   className = "",
   asChild = false,
+  disabled = false,
+  onClick,
 }: {
   children: React.ReactNode;
   active?: boolean;
   className?: string;
   asChild?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
 }) {
-  const classes = `inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-xs font-semibold tracking-[-0.01em] transition ${className}`;
+  const classes = `inline-flex h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-xs font-semibold leading-none tracking-normal transition [&_svg]:shrink-0 ${className}`;
   const style = active
     ? { backgroundColor: ink, borderColor: ink, color: "#fff" }
     : { backgroundColor: "#fff", borderColor: hair, color: ink };
+  const buttonStyle = disabled
+    ? { ...style, cursor: "not-allowed", opacity: 0.45 }
+    : style;
+
+  if (asChild && isValidElement(children)) {
+    const child = children as React.ReactElement<{
+      className?: string;
+      style?: React.CSSProperties;
+    }>;
+
+    return cloneElement(child, {
+      className: `${classes} ${child.props.className ?? ""}`.trim(),
+      style: { ...child.props.style, ...style },
+    });
+  }
 
   if (asChild) {
     return (
@@ -855,7 +1425,13 @@ function Pill({
   }
 
   return (
-    <button type="button" className={classes} style={style}>
+    <button
+      type="button"
+      className={classes}
+      disabled={disabled}
+      onClick={onClick}
+      style={buttonStyle}
+    >
       {children}
     </button>
   );
@@ -903,23 +1479,6 @@ function Tag({ children }: { children: React.ReactNode }) {
     <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e6e76]">
       {children}
     </div>
-  );
-}
-
-function Delta({ value }: { value: string }) {
-  const isPositive = !value.startsWith("-");
-
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold"
-      style={{
-        color: isPositive ? positive : negative,
-        backgroundColor: isPositive ? positiveSoft : negativeSoft,
-      }}
-    >
-      <span className="text-[9px]">{isPositive ? "▲" : "▼"}</span>
-      {value}
-    </span>
   );
 }
 
@@ -996,11 +1555,14 @@ function SourceRow({
   );
 }
 
-function WalletReady() {
+function WalletReady({ ready }: { ready: boolean }) {
   return (
     <span className="hidden items-center gap-1.5 font-mono text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6e6e76] sm:inline-flex">
-      <span className="h-1.5 w-1.5 rounded-full bg-[#19a974] shadow-[0_0_0_3px_rgba(25,169,116,0.10)]" />
-      Wallet ready
+      <span
+        className="h-1.5 w-1.5 rounded-full shadow-[0_0_0_3px_rgba(25,169,116,0.10)]"
+        style={{ backgroundColor: ready ? positive : amber }}
+      />
+      {ready ? "Wallet ready" : "Connect wallet"}
     </span>
   );
 }
@@ -1040,85 +1602,6 @@ function Sparkline({
   );
 }
 
-function FakeQr() {
-  const cells = useMemo(() => {
-    const size = 21;
-    let seed = 0xb0b;
-    const pattern: boolean[] = [];
-    const rand = () => {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      return seed / 0x7fffffff;
-    };
-
-    for (let y = 0; y < size; y += 1) {
-      for (let x = 0; x < size; x += 1) {
-        pattern.push(rand() > 0.55);
-      }
-    }
-
-    const clearArea = (cx: number, cy: number) => {
-      for (let y = cy; y < cy + 7; y += 1) {
-        for (let x = cx; x < cx + 7; x += 1) {
-          pattern[y * size + x] = false;
-        }
-      }
-    };
-
-    clearArea(0, 0);
-    clearArea(size - 7, 0);
-    clearArea(0, size - 7);
-    return pattern;
-  }, []);
-
-  return (
-    <div className="relative h-[186px] w-[186px] rounded-[14px] border border-[rgba(0,0,0,0.06)] bg-white p-2 shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)]">
-      <svg width="170" height="170" viewBox="0 0 21 21" aria-hidden="true">
-        {cells.map((on, index) =>
-          on ? (
-            <rect
-              key={index}
-              x={(index % 21) + 0.1}
-              y={Math.floor(index / 21) + 0.1}
-              width="0.8"
-              height="0.8"
-              rx="0.15"
-              fill={ink}
-            />
-          ) : null,
-        )}
-        {[
-          [0, 0],
-          [14, 0],
-          [0, 14],
-        ].map(([x, y]) => (
-          <g key={`${x}-${y}`}>
-            <rect x={x} y={y} width="7" height="7" rx="1" fill={ink} />
-            <rect
-              x={x + 1}
-              y={y + 1}
-              width="5"
-              height="5"
-              rx="0.6"
-              fill="#fff"
-            />
-            <rect
-              x={x + 2}
-              y={y + 2}
-              width="3"
-              height="3"
-              rx="0.3"
-              fill={ink}
-            />
-          </g>
-        ))}
-      </svg>
-      <div className="absolute left-1/2 top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[10px] bg-white p-1">
-        <UsdcGlyph size={28} />
-      </div>
-    </div>
-  );
-}
-
 function StatusPill({
   children,
   fg,
@@ -1142,15 +1625,18 @@ function IconButton({
   children,
   label,
   className = "",
+  onClick,
 }: {
   children: React.ReactNode;
   label: string;
   className?: string;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
+      onClick={onClick}
       className={`h-[30px] w-[30px] items-center justify-center rounded-[7px] text-[#0a0a0c] transition hover:bg-[#f4f4f2] ${className}`}
     >
       {children}
@@ -1257,4 +1743,280 @@ function formatCount(value: number) {
   }
 
   return value.toLocaleString();
+}
+
+function buildModuleTiles({
+  checkoutIntents,
+  loading,
+  orders,
+  products,
+  profileStats,
+  summary,
+}: DashboardData & {
+  loading: boolean;
+  profileStats: { followers: number; following: number };
+}): Tile[] {
+  const live = products.filter((product) => product.status === "live").length;
+  const draft = products.filter((product) => product.status === "draft").length;
+  const low = products.filter((product) => product.status === "low").length;
+  const orderCount = summary?.totals.orders ?? orders.length;
+  const checkoutVolume = checkoutIntents.reduce(
+    (total, intent) =>
+      total + toFiniteNumber(intent.fees?.merchantReceivesAmount ?? intent.amount.value),
+    0,
+  );
+  const activeCheckoutCount = checkoutIntents.filter((intent) =>
+    ["active", "pending_payment"].includes(intent.status),
+  ).length;
+
+  const loadingValue = loading ? "..." : undefined;
+
+  return [
+    {
+      label: "Products",
+      value: loadingValue ?? products.length.toLocaleString(),
+      sub: loading
+        ? "syncing"
+        : `${live} live${draft ? ` - ${draft} drafts` : ""}${low ? ` - ${low} low` : ""}`,
+      href: "/products",
+      swatch: "#F2E0DC",
+      icon: Package,
+    },
+    {
+      label: "Orders",
+      value: loadingValue ?? orderCount.toLocaleString(),
+      sub: loading ? "syncing" : `${orders.length} recent payments`,
+      href: "/order",
+      swatch: "#E8DFD0",
+      icon: ReceiptText,
+    },
+    {
+      label: "Checkout",
+      value: loadingValue ?? formatCompactCurrency(checkoutVolume),
+      sub: loading
+        ? "syncing"
+        : checkoutIntents.length
+          ? `${activeCheckoutCount} active - ${checkoutIntents.length} recent`
+          : "QR ready",
+      href: "/dashboard/checkout",
+      swatch: "#D7EAD9",
+      icon: ShoppingBag,
+      accent: amber,
+    },
+    {
+      label: "Leads",
+      value: loadingValue ?? formatCount(profileStats.followers),
+      sub: "followers",
+      href: "/dashboard/analytics",
+      swatch: "#F4E1E1",
+      icon: Users,
+    },
+    {
+      label: "Analytics",
+      actionLabel: "View",
+      sub: "taps and visits",
+      href: "/dashboard/analytics",
+      swatch: "#D6E4F2",
+      icon: BarChart3,
+    },
+    {
+      label: "Rewards",
+      actionLabel: "Open",
+      sub: "membership",
+      href: "/subscription",
+      swatch: "#FBE7C6",
+      icon: Sparkles,
+    },
+    {
+      label: "Blinks",
+      actionLabel: "Open",
+      sub: "wallet tools",
+      href: "/wallet",
+      swatch: "#DCE7E2",
+      icon: Link2,
+    },
+    {
+      label: "Messages",
+      actionLabel: "Chat",
+      sub: "Astro ready",
+      href: "/dashboard/chat?astro=1",
+      swatch: "#EAE2F4",
+      icon: MessageSquare,
+    },
+  ];
+}
+
+function mapDashboardProduct(
+  item: NFTRecord,
+  sales?: TemplateSalesRow,
+): Product {
+  const name = item.name || "Untitled product";
+  const stock = Number(item.mintLimit);
+  const status = getProductStatus(item);
+
+  return {
+    id: item._id ?? `${item.nftType ?? "product"}-${slugify(name)}`,
+    name,
+    type: item.category === "physical" ? "Physical" : "Digital",
+    price: toFiniteNumber(item.price),
+    sales: toFiniteNumber(sales?.units),
+    revenue: toFiniteNumber(sales?.revenue),
+    currency: (item.currency || "USDC").toUpperCase(),
+    status,
+    statusLabel: getProductStatusLabel(status, stock),
+    glyph: getProductGlyph(name),
+    swatch: swatchFor(name),
+    image: item.image || undefined,
+  };
+}
+
+function mapDashboardOrder(row: ConnectedOrderRow): Order {
+  return {
+    id: row.id || row.orderId || shortAddress(row._id),
+    detailId: row._id || row.orderId || row.id,
+    customer: row.counterparty || "Customer",
+    product: row.item || "Order",
+    amount: toFiniteNumber(row.price),
+    chain: row.chain === "SOL" ? "SOL" : "USDC",
+    status: getOrderStatus(row.delivery),
+    when: formatRelativeTime(row.date),
+  };
+}
+
+function getProductStatus(item: NFTRecord): ProductStatus {
+  const rawStatus = String(item.status ?? "").toLowerCase();
+  if (
+    rawStatus.includes("draft") ||
+    item.draft ||
+    item.isDraft ||
+    item.active === false
+  ) {
+    return "draft";
+  }
+
+  const stock = Number(item.mintLimit);
+  if (Number.isFinite(stock) && stock > 0 && stock <= LOW_STOCK_THRESHOLD) {
+    return "low";
+  }
+
+  return "live";
+}
+
+function getProductStatusLabel(status: ProductStatus, stock: number) {
+  if (status === "low" && Number.isFinite(stock)) {
+    return `Low - ${stock}`;
+  }
+
+  return productStatusStyle[status].label;
+}
+
+function getOrderStatus(delivery: string): OrderStatus {
+  const normalized = delivery.toLowerCase();
+  if (normalized.includes("refund") || normalized.includes("cancel")) {
+    return "Refunded";
+  }
+  if (
+    normalized.includes("pending") ||
+    normalized.includes("processing") ||
+    normalized.includes("transit")
+  ) {
+    return "Pending";
+  }
+
+  return "Paid";
+}
+
+function toFiniteNumber(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function formatCurrency(value: number) {
+  const numeric = toFiniteNumber(value);
+  const hasCents = Math.abs(numeric % 1) > 0.001;
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: hasCents ? 2 : 0,
+    minimumFractionDigits: hasCents ? 2 : 0,
+    style: "currency",
+  }).format(numeric);
+}
+
+function formatCompactCurrency(value: number) {
+  const numeric = toFiniteNumber(value);
+  if (numeric >= 1000000) {
+    return `$${(numeric / 1000000).toFixed(1)}m`;
+  }
+  if (numeric >= 1000) {
+    return `$${(numeric / 1000).toFixed(numeric >= 10000 ? 0 : 1)}k`;
+  }
+
+  return formatCurrency(numeric);
+}
+
+function formatRelativeTime(value: string) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "now";
+
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) {
+    return date.toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+    });
+  }
+
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+
+  return date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function shortAddress(address: string) {
+  if (!address) return "";
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 6)}...${address.slice(-5)}`;
+}
+
+function getProductGlyph(name: string) {
+  return name.match(/[a-z0-9]/i)?.[0]?.toUpperCase() ?? "P";
+}
+
+function swatchFor(value: string) {
+  const palette = [
+    "#F2E0DC",
+    "#D6E4F2",
+    "#EAE2F4",
+    "#FBE7C6",
+    "#D7EAD9",
+    "#E8DFD0",
+  ];
+  return palette[hashString(value) % palette.length];
+}
+
+function hashString(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function slugify(value: string) {
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "product"
+  );
 }
