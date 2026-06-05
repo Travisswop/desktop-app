@@ -11,6 +11,91 @@ type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
+const DEFAULT_PUBLIC_APP_URL = "https://www.swopme.app";
+
+function publicAppUrl() {
+  return (process.env.NEXT_PUBLIC_APP_URL || DEFAULT_PUBLIC_APP_URL).replace(
+    /\/+$/,
+    "",
+  );
+}
+
+function cleanText(value: unknown) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function firstText(...values: unknown[]) {
+  for (const value of values) {
+    const text = cleanText(value);
+    if (text) return text;
+  }
+  return "";
+}
+
+function finiteNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function firstNumber(...values: unknown[]) {
+  for (const value of values) {
+    const number = finiteNumber(value);
+    if (number !== null) return number;
+  }
+  return null;
+}
+
+function formatAmount(value: unknown, digits = 2) {
+  const number = finiteNumber(value);
+  if (number === null) return "";
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: digits,
+  }).format(number);
+}
+
+function formatUsd(value: unknown) {
+  const number = finiteNumber(value);
+  if (number === null) return "";
+  return `$${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: Math.abs(number) >= 1000 ? 0 : 2,
+  }).format(number)}`;
+}
+
+function formatPredictionPrice(value: unknown) {
+  const number = finiteNumber(value);
+  if (number === null) return "";
+  const cents = number <= 1 ? number * 100 : number;
+  return `${Math.round(cents)}c`;
+}
+
+function formatSignedPercent(value: unknown) {
+  const number = finiteNumber(value);
+  if (number === null) return "";
+  const sign = number > 0 ? "+" : "";
+  return `${sign}${number.toFixed(2)}%`;
+}
+
+function feedAuthor(feed: any) {
+  return (
+    firstText(
+      feed?.smartsiteDetails?.name,
+      feed?.smartsiteId?.name,
+      feed?.smartsiteUserName,
+      feed?.smartsiteDetails?.ens,
+      feed?.smartsiteId?.ens,
+      feed?.smartsiteEnsName,
+    ) || "Swop"
+  );
+}
+
+function buildOgFeedUrl(params: Record<string, string>) {
+  const query = new URLSearchParams(params);
+  return `${publicAppUrl()}/api/og-feed?${query.toString()}`;
+}
+
 // ── Extract image src based on postType ───────────────────────────────────────
 function extractOgImageSrc(feed: any): {
   src: string;
@@ -128,6 +213,25 @@ function extractOgTitle(feed: any): string {
       return `Swapped ${content.inputToken?.symbol ?? ""} → ${
         content.outputToken?.symbol ?? ""
       } on Swop`;
+    case "prediction": {
+      const outcome = firstText(content.outcome, content.pickedOutcome);
+      const market = firstText(
+        content.marketTitle,
+        content.question,
+        content.title,
+      );
+      const verb = cleanText(content.side).toUpperCase() === "SELL" ? "Sold" : "Picked";
+      return `${verb} ${outcome || "a side"}${market ? ` on ${market}` : ""}`;
+    }
+    case "perpsPosition": {
+      const coin = firstText(content.coin) || "Perps";
+      const side = firstText(content.side).toUpperCase();
+      const leverage = formatAmount(content.leverage, 0);
+      const status = firstText(content.status, content.event) || "Position";
+      return `${status.charAt(0).toUpperCase()}${status.slice(1)} ${
+        leverage ? `${leverage}x ` : ""
+      }${coin.toUpperCase()} ${side}`;
+    }
     case "redeem":
       return `Redeemed ${content.redeemName ?? ""} on Swop`;
     case "connection":
@@ -239,6 +343,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const feedTitle = extractOgTitle(feed);
     const createdAt = feed?.createdAt || new Date().toISOString();
     const description = `${smartsiteEnsName} • ${formatDate(createdAt)}`;
+    const appUrl = publicAppUrl();
 
     let ogImageUrl: string | undefined;
 
@@ -258,37 +363,89 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         const change = ((outputValueUsd - inputValueUsd) / inputValueUsd) * 100;
         priceChangePercent = change.toFixed(2);
       }
-      ogImageUrl =
-        `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
-        `ensName=${encodeURIComponent(smartsiteEnsName)}` +
-        `&title=${encodeURIComponent(feedTitle)}` +
-        `&date=${encodeURIComponent(formatDate(createdAt))}` +
-        `&type=swap` +
-        `&inputSymbol=${encodeURIComponent(c.inputToken?.symbol ?? "")}` +
-        `&inputAmount=${encodeURIComponent(Number(c.inputToken?.amount ?? 0).toFixed(4))}` +
-        `&inputImg=${encodeURIComponent(c.inputToken?.tokenImg ?? "")}` +
-        `&outputSymbol=${encodeURIComponent(c.outputToken?.symbol ?? "")}` +
-        `&outputAmount=${encodeURIComponent(Number(c.outputToken?.amount ?? 0).toFixed(4))}` +
-        `&outputImg=${encodeURIComponent(c.outputToken?.tokenImg ?? "")}` +
-        `&priceChange=${encodeURIComponent(priceChangePercent)}`;
+      ogImageUrl = buildOgFeedUrl({
+        ensName: smartsiteEnsName,
+        title: feedTitle,
+        date: formatDate(createdAt),
+        type: "swap",
+        inputSymbol: cleanText(c.inputToken?.symbol),
+        inputAmount: Number(c.inputToken?.amount ?? 0).toFixed(4),
+        inputImg: cleanText(c.inputToken?.tokenImg),
+        outputSymbol: cleanText(c.outputToken?.symbol),
+        outputAmount: Number(c.outputToken?.amount ?? 0).toFixed(4),
+        outputImg: cleanText(c.outputToken?.tokenImg),
+        priceChange: priceChangePercent,
+      });
+    } else if (feed.postType === "prediction" && feed.content) {
+      const c = feed.content;
+      const price = formatPredictionPrice(
+        firstNumber(c.executedPrice, c.acceptedPrice, c.price),
+      );
+      const stake = formatUsd(
+        firstNumber(c.executedCost, c.executedProceeds, c.cost),
+      );
+      const pnl = formatUsd(
+        firstNumber(
+          c.realizedPnl,
+          c.cashPnl,
+          c.sellPnl,
+          c.pnl,
+          c.profitAmount,
+        ),
+      );
+
+      ogImageUrl = buildOgFeedUrl({
+        ensName: smartsiteEnsName,
+        title: feedTitle,
+        date: formatDate(createdAt),
+        type: "prediction",
+        author: feedAuthor(feed),
+        marketTitle: firstText(c.marketTitle, c.question, c.title),
+        outcome: firstText(c.outcome, c.pickedOutcome),
+        side: cleanText(c.side).toUpperCase(),
+        price,
+        stake,
+        pnl,
+        status: firstText(c.status, c.resultStatus, c.result, c.fillStatus),
+      });
+    } else if (feed.postType === "perpsPosition" && feed.content) {
+      const c = feed.content;
+      const status = firstText(c.status, c.event) || "open";
+      const exitOrMark = firstNumber(c.exitPrice, c.markPrice);
+
+      ogImageUrl = buildOgFeedUrl({
+        ensName: smartsiteEnsName,
+        title: feedTitle,
+        date: formatDate(createdAt),
+        type: "perps",
+        author: feedAuthor(feed),
+        coin: firstText(c.coin).toUpperCase(),
+        perpsSide: firstText(c.side).toUpperCase(),
+        leverage: formatAmount(c.leverage, 0),
+        status,
+        size: formatAmount(c.sizeCoins, 4),
+        entryPrice: formatUsd(c.entryPrice),
+        markPrice: formatUsd(exitOrMark),
+        returnPct: formatSignedPercent(c.returnPct),
+      });
     } else if (hasImage && contentSrc) {
       const feedImage = getCloudinaryThumbnail(
         contentSrc,
         contentType as "image" | "video",
       );
-      ogImageUrl =
-        `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
-        `ensName=${encodeURIComponent(smartsiteEnsName)}` +
-        `&title=${encodeURIComponent(feedTitle)}` +
-        `&image=${encodeURIComponent(feedImage)}` +
-        `&date=${encodeURIComponent(formatDate(createdAt))}`;
+      ogImageUrl = buildOgFeedUrl({
+        ensName: smartsiteEnsName,
+        title: feedTitle,
+        image: feedImage,
+        date: formatDate(createdAt),
+      });
     } else if (isGifOnly) {
-      ogImageUrl =
-        `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
-        `ensName=${encodeURIComponent(smartsiteEnsName)}` +
-        `&title=${encodeURIComponent(feedTitle)}` +
-        `&showGifPlaceholder=true` +
-        `&date=${encodeURIComponent(formatDate(createdAt))}`;
+      ogImageUrl = buildOgFeedUrl({
+        ensName: smartsiteEnsName,
+        title: feedTitle,
+        showGifPlaceholder: "true",
+        date: formatDate(createdAt),
+      });
     }
 
     const metadata: Metadata = {
@@ -298,11 +455,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title: feedTitle,
         description,
         type: "article",
-        url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${id}`,
+        url: `${appUrl}/feed/${id}`,
         siteName: "Swop",
       },
       twitter: {
-        card: hasImage || isGifOnly ? "summary_large_image" : "summary",
+        card: ogImageUrl ? "summary_large_image" : "summary",
         title: feedTitle,
         description,
       },

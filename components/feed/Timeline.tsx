@@ -432,6 +432,7 @@ const Timeline = ({
                 repostCount={feed.repostCount}
                 viewsCount={feed.viewsCount}
                 setIsPosting={setIsPosting}
+                feed={feed}
                 // accessToken={accessToken}
               />
             </div>

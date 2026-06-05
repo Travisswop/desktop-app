@@ -285,6 +285,7 @@ const Transaction = ({
                 repostCount={feed.repostCount}
                 viewsCount={feed.viewsCount}
                 setIsPosting={() => {}}
+                feed={feed}
                 // accessToken={accessToken}
               />
             </div>

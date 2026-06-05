@@ -349,6 +349,7 @@ const FeedDetails = ({ feedData, feedDetails }: any) => {
               commentCount={feedData.commentCount}
               repostCount={feedData.repostCount}
               viewsCount={feedData.viewsCount}
+              feed={feedData}
               // setIsPosting={() => {}}
             />
           </div>

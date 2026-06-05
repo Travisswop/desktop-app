@@ -183,9 +183,32 @@
 // }
 import { ImageResponse } from "next/og";
 
+const DEFAULT_PUBLIC_APP_URL = "https://www.swopme.app";
+
+function cleanText(value: string | null) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPositiveMetric(value: string) {
+  return !cleanText(value).startsWith("-");
+}
+
+function statusLabel(value: string) {
+  const normalized = cleanText(value).toLowerCase();
+  if (!normalized) return "";
+  if (normalized === "liquidate") return "Liquidated";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || DEFAULT_PUBLIC_APP_URL).replace(
+      /\/+$/,
+      "",
+    );
 
     const type = searchParams.get("type") || "default";
     const ensName = searchParams.get("ensName") || "swop.user";
@@ -203,14 +226,37 @@ export async function GET(request: Request) {
     const outputAmount = searchParams.get("outputAmount") || "";
     const outputImg = searchParams.get("outputImg") || "";
 
+    // Prediction params
+    const author = cleanText(searchParams.get("author")) || ensName;
+    const marketTitle = cleanText(searchParams.get("marketTitle")) || title;
+    const outcome = cleanText(searchParams.get("outcome")) || "Pick";
+    const predictionSide = cleanText(searchParams.get("side")) || "BUY";
+    const predictionPrice = cleanText(searchParams.get("price"));
+    const predictionStake = cleanText(searchParams.get("stake"));
+    const predictionPnl = cleanText(searchParams.get("pnl"));
+    const predictionStatus = statusLabel(searchParams.get("status") || "");
+
+    // Perps params
+    const coin = cleanText(searchParams.get("coin")) || "PERP";
+    const perpsSide = cleanText(searchParams.get("perpsSide")) || "LONG";
+    const leverage = cleanText(searchParams.get("leverage"));
+    const perpsStatus = statusLabel(searchParams.get("status") || "");
+    const size = cleanText(searchParams.get("size"));
+    const entryPrice = cleanText(searchParams.get("entryPrice"));
+    const markPrice = cleanText(searchParams.get("markPrice"));
+    const returnPct = cleanText(searchParams.get("returnPct"));
+
     const hasImage = Boolean(imageUrl);
-    const hasMedia = hasImage || showGifPlaceholder;
     const isSwap = type === "swap";
+    const isPrediction = type === "prediction";
+    const isPerps = type === "perps";
 
     // Add to params extraction
     const priceChange = searchParams.get("priceChange") || "0.00";
     const priceChangeNum = parseFloat(priceChange);
     const isPositive = priceChangeNum >= 0;
+    const predictionIsPositive = isPositiveMetric(predictionPnl);
+    const perpsIsPositive = isPositiveMetric(returnPct);
 
     return new ImageResponse(
       <div
@@ -408,8 +454,436 @@ export async function GET(request: Request) {
           </div>
         )}
 
+        {/* ── PREDICTION CARD ──────────────────────────────────────── */}
+        {isPrediction && (
+          <div
+            style={{
+              display: "flex",
+              flex: 1,
+              margin: "0 60px 30px 60px",
+              backgroundColor: "#ffffff",
+              borderRadius: "24px",
+              border: "1.5px solid #e5e7eb",
+              padding: "28px 34px",
+              flexDirection: "column",
+              justifyContent: "space-between",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  color: "#6b7280",
+                  fontSize: "22px",
+                  fontWeight: 800,
+                  letterSpacing: "5px",
+                  textTransform: "uppercase",
+                }}
+              >
+                Prediction • Market
+              </div>
+              {predictionStatus && (
+                <div
+                  style={{
+                    display: "flex",
+                    padding: "9px 18px",
+                    borderRadius: "999px",
+                    backgroundColor:
+                      predictionStatus.toLowerCase() === "won"
+                        ? "#ecfdf3"
+                        : predictionStatus.toLowerCase() === "lost"
+                          ? "#fff1f2"
+                          : "#f3f4f6",
+                    color:
+                      predictionStatus.toLowerCase() === "won"
+                        ? "#047857"
+                        : predictionStatus.toLowerCase() === "lost"
+                          ? "#be123c"
+                          : "#374151",
+                    fontSize: "22px",
+                    fontWeight: 800,
+                  }}
+                >
+                  {predictionStatus}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  color: "#111827",
+                  fontSize: "44px",
+                  fontWeight: 900,
+                  lineHeight: 1.05,
+                }}
+              >
+                {marketTitle}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "14px",
+                  color: "#374151",
+                  fontSize: "26px",
+                  fontWeight: 800,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    width: "50px",
+                    height: "50px",
+                    borderRadius: "999px",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "#e8f0ff",
+                    color: "#2563eb",
+                    fontSize: "20px",
+                    fontWeight: 900,
+                  }}
+                >
+                  AS
+                </div>
+                <span>{author}</span>
+                <span style={{ color: "#6b7280" }}>
+                  {predictionSide === "SELL" ? "sold" : "picked"}
+                </span>
+                <span style={{ color: "#2563eb" }}>{outcome}</span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                backgroundColor: "#111827",
+                borderRadius: "18px",
+                padding: "26px 30px",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    color: "#9ca3af",
+                    fontSize: "18px",
+                    fontWeight: 800,
+                    letterSpacing: "4px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Entry
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    color: "#ffffff",
+                    fontSize: "42px",
+                    fontWeight: 900,
+                  }}
+                >
+                  {predictionPrice || "Live"}
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    color: "#9ca3af",
+                    fontSize: "18px",
+                    fontWeight: 800,
+                    letterSpacing: "4px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Stake
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    color: "#ffffff",
+                    fontSize: "42px",
+                    fontWeight: 900,
+                  }}
+                >
+                  {predictionStake || "Swop"}
+                </div>
+              </div>
+              {predictionPnl && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                    alignItems: "flex-end",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      color: "#9ca3af",
+                      fontSize: "18px",
+                      fontWeight: 800,
+                      letterSpacing: "4px",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Result
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      color: predictionIsPositive ? "#34d399" : "#fb7185",
+                      fontSize: "42px",
+                      fontWeight: 900,
+                    }}
+                  >
+                    {predictionPnl}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── PERPS CARD ───────────────────────────────────────────── */}
+        {isPerps && (
+          <div
+            style={{
+              display: "flex",
+              flex: 1,
+              margin: "0 60px 30px 60px",
+              backgroundColor: "#ffffff",
+              borderRadius: "24px",
+              border: "1.5px solid #e5e7eb",
+              padding: "30px 34px",
+              flexDirection: "column",
+              justifyContent: "space-between",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "14px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      padding: "10px 18px",
+                      borderRadius: "12px",
+                      backgroundColor: "#f3f4f6",
+                      color: "#111827",
+                      fontSize: "24px",
+                      fontWeight: 900,
+                      letterSpacing: "5px",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {perpsStatus || "Open"} {leverage ? `${leverage}x` : ""}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      color: perpsSide === "SHORT" ? "#dc2626" : "#059669",
+                      fontSize: "26px",
+                      fontWeight: 900,
+                    }}
+                  >
+                    {perpsSide}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    color: "#111827",
+                    fontSize: "64px",
+                    fontWeight: 950,
+                    lineHeight: 1,
+                  }}
+                >
+                  {coin}
+                </div>
+                {size && (
+                  <div
+                    style={{
+                      display: "flex",
+                      color: "#4b5563",
+                      fontSize: "28px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {size} {coin}
+                  </div>
+                )}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                  gap: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    color: "#111827",
+                    fontSize: "58px",
+                    fontWeight: 950,
+                    lineHeight: 1,
+                  }}
+                >
+                  {markPrice || entryPrice || "--"}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    color: "#9ca3af",
+                    fontSize: "20px",
+                    fontWeight: 900,
+                    letterSpacing: "5px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {coin} price
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                height: "118px",
+                width: "100%",
+                borderRadius: "18px",
+                backgroundColor: "#f9fafb",
+                border: "1px solid #eef2f7",
+                alignItems: "center",
+                justifyContent: "space-around",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    color: "#9ca3af",
+                    fontSize: "18px",
+                    fontWeight: 900,
+                    letterSpacing: "4px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Entry price
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    color: "#111827",
+                    fontSize: "34px",
+                    fontWeight: 900,
+                  }}
+                >
+                  {entryPrice || "--"}
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  width: "1px",
+                  height: "70px",
+                  backgroundColor: "#e5e7eb",
+                }}
+              />
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    color: "#9ca3af",
+                    fontSize: "18px",
+                    fontWeight: 900,
+                    letterSpacing: "4px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Return
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    color: perpsIsPositive ? "#059669" : "#dc2626",
+                    fontSize: "34px",
+                    fontWeight: 900,
+                  }}
+                >
+                  {returnPct || "--"}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── REGULAR IMAGE ─────────────────────────────────────────── */}
-        {!isSwap && hasImage && (
+        {!isSwap && !isPrediction && !isPerps && hasImage && (
           <div
             style={{
               display: "flex",
@@ -437,7 +911,11 @@ export async function GET(request: Request) {
         )}
 
         {/* ── GIF PLACEHOLDER ───────────────────────────────────────── */}
-        {!isSwap && !hasImage && showGifPlaceholder && (
+        {!isSwap &&
+          !isPrediction &&
+          !isPerps &&
+          !hasImage &&
+          showGifPlaceholder && (
           <div
             style={{
               display: "flex",
@@ -494,7 +972,7 @@ export async function GET(request: Request) {
             }}
           >
             <img
-              src={`${process.env.NEXT_PUBLIC_APP_URL}/astro-agent.png`}
+              src={`${appUrl}/astro-agent.png`}
               width="200"
               height="200"
               style={{ width: "100%", height: "100%" }}

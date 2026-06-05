@@ -28,7 +28,7 @@ import { formatCountReaction } from '@/lib/formatFeedReactionCount';
 import { TbCopy, TbCopyCheckFilled, TbEdit } from 'react-icons/tb';
 import toast from 'react-hot-toast';
 import Cookies from 'js-cookie';
-import { Loader } from 'lucide-react';
+import { Loader, Share2 } from 'lucide-react';
 import repostImg from '@/public/images/custom-icons/feed_repost.png';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -44,6 +44,12 @@ import {
 import CommentInput from '../comment/CommentInput';
 import RepostComposer from '../RepostComposer';
 import logger from '@/utils/logger';
+import {
+  buildFeedSharePath,
+  buildFeedSharePayload,
+  buildFeedShareUrl,
+  writeTextToClipboard,
+} from '@/lib/feedShare';
 
 // New self-contained repost composer
 
@@ -55,6 +61,14 @@ interface FeedItemType {
   isLiked?: boolean;
   [key: string]: any;
 }
+
+const isShareAbort = (error: unknown) =>
+  Boolean(
+    error &&
+      typeof error === 'object' &&
+      'name' in error &&
+      error.name === 'AbortError',
+  );
 
 interface ReactionProps {
   postId: string;
@@ -119,6 +133,7 @@ const Reaction = memo(
     // ── Share popover ───────────────────────────────────────────────────────
     const [isPopOpen, setIsPopOpen] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
 
     // ── Repost popover ──────────────────────────────────────────────────────
     const [isRepostPopOpen, setIsRepostPopOpen] = useState(false);
@@ -205,20 +220,67 @@ const Reaction = memo(
       }
     };
 
-    const handleCopyLink = useCallback(() => {
-      let link = `${window.location.origin}/feed/${postId}`;
-      if (window.location.href.includes('/feed/comment')) {
-        link = `${window.location.origin}/feed/comment/${feed?._id}`;
+    const sharePath = useMemo(() => {
+      if (
+        typeof window !== 'undefined' &&
+        window.location.pathname.includes('/feed/comment') &&
+        feed?._id
+      ) {
+        return `/feed/comment/${feed._id}`;
       }
-      navigator.clipboard
-        .writeText(link)
+      return `/feed/${postId}`;
+    }, [feed?._id, postId]);
+
+    const handleCopyLink = useCallback(() => {
+      const link = buildFeedShareUrl(buildFeedSharePath(sharePath, feed));
+      writeTextToClipboard(link)
         .then(() => {
           setIsCopied(true);
           toast.success('Copied!', { position: 'bottom-center' });
           setTimeout(() => setIsCopied(false), 2000);
         })
         .catch(() => toast.error('Failed to copy link.'));
-    }, [feed?._id, postId]);
+    }, [feed, sharePath]);
+
+    const handleSharePost = useCallback(async () => {
+      const payload = buildFeedSharePayload({
+        feed,
+        path: sharePath,
+      });
+
+      setIsSharing(true);
+      try {
+        const nav =
+          typeof navigator !== 'undefined' ? navigator : undefined;
+        const canUseNativeShare =
+          typeof nav?.share === 'function' &&
+          (typeof nav.canShare !== 'function' ||
+            nav.canShare(payload.shareData));
+
+        if (canUseNativeShare) {
+          try {
+            await nav.share(payload.shareData);
+            setIsPopOpen(false);
+            toast.success('Post shared.');
+            return;
+          } catch (error) {
+            if (isShareAbort(error)) {
+              return;
+            }
+          }
+        }
+
+        await writeTextToClipboard(payload.clipboardText);
+        setIsCopied(true);
+        setIsPopOpen(false);
+        toast.success('Share text copied.', { position: 'bottom-center' });
+        setTimeout(() => setIsCopied(false), 2000);
+      } catch {
+        toast.error('Failed to share post.');
+      } finally {
+        setIsSharing(false);
+      }
+    }, [feed, sharePath]);
 
     // Instant repost — no quote, just postId + isFromFeed
     const handleInstantRepost = async () => {
@@ -439,8 +501,22 @@ const Reaction = memo(
                 </Tooltip>
               </div>
             </PopoverTrigger>
-            <PopoverContent className="w-40 p-1.5 rounded-lg shadow-lg border border-gray-100 bg-white">
+            <PopoverContent className="w-44 p-1.5 rounded-lg shadow-lg border border-gray-100 bg-white">
               <button
+                type="button"
+                onClick={() => void handleSharePost()}
+                disabled={isSharing}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSharing ? (
+                  <Loader size={18} className="shrink-0 animate-spin" />
+                ) : (
+                  <Share2 size={18} className="shrink-0" />
+                )}
+                <span>Share Post</span>
+              </button>
+              <button
+                type="button"
                 onClick={!isCopied ? handleCopyLink : undefined}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
                   isCopied
