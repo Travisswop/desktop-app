@@ -9,6 +9,7 @@ interface JupiterBuildParams {
   platformFeeBps?: number;
   feeAccount?: string;
   mode?: 'fast';
+  instructionVersion?: 'V1' | 'V2';
 }
 
 interface JupiterOrderParams {
@@ -154,6 +155,7 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
       platformFeeBps = 50,
       feeAccount,
       mode,
+      instructionVersion,
     } = params;
 
     const normalizedSlippageBps =
@@ -167,6 +169,9 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
       slippageBps: normalizedSlippageBps.toString(),
     });
     if (mode) searchParams.set('mode', mode);
+    if (instructionVersion) {
+      searchParams.set('instructionVersion', instructionVersion);
+    }
 
     // platformFeeBps requires feeAccount — only include both together
     if (feeAccount && platformFeeBps) {

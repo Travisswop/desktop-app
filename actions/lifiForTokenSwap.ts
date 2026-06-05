@@ -63,6 +63,7 @@ interface LifiQuoteParams {
   toAddress: string;
   fromAmount: string;
   slippage: number;
+  fee?: string;
 }
 
 interface LifiDepositQuoteParams {
@@ -152,7 +153,7 @@ export const getLifiQuote = async (params: LifiQuoteParams) => {
     queryParams.append('fromAmount', params.fromAmount);
     queryParams.append('slippage', params.slippage.toString());
     queryParams.append('integrator', 'SWOP');
-    queryParams.append('fee', '0.005');
+    queryParams.append('fee', params.fee || '0.005');
 
     const response = await fetchLiFiWithTimeout(
       `${LIFI_API_URL}/quote?${queryParams}`,

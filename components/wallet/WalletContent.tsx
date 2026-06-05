@@ -10,6 +10,11 @@ import {
   ReactNode,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from 'next/navigation';
 import { usePrivy, useSendTransaction } from '@privy-io/react-auth';
 import {
   useWallets as useSolanaWallets,
@@ -77,6 +82,7 @@ import SwapTokenModal from './SwapTokenModal';
 
 // Predictions (Polymarket)
 import WalletPredictionsSection from './WalletPredictionsSection';
+import BlinksSection from './BlinksSection';
 
 // Stores
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
@@ -92,6 +98,8 @@ import {
   Gift,
   ImageIcon,
   MoreHorizontal,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 
 // Token colors mapping for consistent visual representation
@@ -124,6 +132,262 @@ const TOKEN_CHAIN_FILTERS: { label: string; value: string }[] = [
   { label: 'Polygon', value: 'POLYGON' },
   { label: 'Arbitrum', value: 'ARBITRUM' },
 ];
+
+type RewardWalletData = {
+  token?: {
+    symbol?: string;
+    mint?: string;
+    chain?: string;
+    decimals?: number;
+  };
+  claimableAmount?: number;
+  claimableUsd?: number;
+  pendingAmount?: number;
+  pendingUsd?: number;
+  claimedAmount?: number;
+  claimedUsd?: number;
+  lifetimeEarnedAmount?: number;
+  lifetimeEarnedUsd?: number;
+  lastCreditAt?: string | null;
+  lastClaimAt?: string | null;
+};
+
+type RewardClaimData = {
+  _id?: string;
+  amount?: number;
+  estimatedUsd?: number;
+  destinationWallet?: string;
+  status?: string;
+  createdAt?: string;
+  requestedAt?: string;
+};
+
+type SearchParamReader = {
+  get: (name: string) => string | null;
+};
+
+const CHART_TOKEN_PARAM_KEYS = [
+  'chartToken',
+  'chartTokenId',
+  'chartTokenName',
+  'chartTokenImage',
+  'chartTokenPrice',
+  'chartTokenChange',
+  'chartTokenChain',
+] as const;
+
+const MARKET_TOKEN_CHAIN_BY_SYMBOL: Partial<
+  Record<string, TokenData['chain']>
+> = {
+  ETH: 'ETHEREUM',
+  SOL: 'SOLANA',
+  MATIC: 'POLYGON',
+  POL: 'POLYGON',
+};
+
+const EMPTY_TIME_SERIES: TokenData['timeSeriesData'] = {
+  '1H': [],
+  '1D': [],
+  '1W': [],
+  '1M': [],
+  '1Y': [],
+};
+
+function parseChartNumber(value?: string | null) {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getChartTokenSymbol(params?: SearchParamReader | null) {
+  return params?.get('chartToken')?.trim().toUpperCase() || '';
+}
+
+function normalizeChartTokenChain(
+  value?: string | null,
+): TokenData['chain'] | undefined {
+  const normalized = value?.trim().toUpperCase();
+  if (!normalized) return undefined;
+  return SUPPORTED_CHAINS.includes(normalized as TokenData['chain'])
+    ? (normalized as TokenData['chain'])
+    : undefined;
+}
+
+function tokenUsdValue(token: TokenData) {
+  if (typeof token.value === 'number' && Number.isFinite(token.value)) {
+    return token.value;
+  }
+
+  const balance = parseFloat(token.balance || '0');
+  const price = parseFloat(String(token.marketData?.price || '0'));
+  const value = balance * price;
+  return Number.isFinite(value) ? value : 0;
+}
+
+function findChartWalletToken(
+  tokens: TokenData[],
+  symbol: string,
+  preferredChain?: TokenData['chain'],
+) {
+  const matches = tokens.filter(
+    (token) => token.symbol?.toUpperCase() === symbol,
+  );
+  if (!matches.length) return null;
+
+  return matches.sort((a, b) => {
+    const chainScoreA = preferredChain && a.chain === preferredChain ? 1000 : 0;
+    const chainScoreB = preferredChain && b.chain === preferredChain ? 1000 : 0;
+    const nativeScoreA = a.isNative ? 100 : 0;
+    const nativeScoreB = b.isNative ? 100 : 0;
+    return (
+      chainScoreB +
+      nativeScoreB +
+      tokenUsdValue(b) -
+      (chainScoreA + nativeScoreA + tokenUsdValue(a))
+    );
+  })[0];
+}
+
+function chartTokenMetadataFromParams(
+  params: SearchParamReader,
+  symbol: string,
+): {
+  name: string;
+  image: string;
+  chain: TokenData['chain'];
+  marketId?: string;
+  priceText: string;
+  changeText: string;
+} {
+  const name = params.get('chartTokenName')?.trim() || symbol;
+  const image = params.get('chartTokenImage')?.trim() || '';
+  const price = parseChartNumber(params.get('chartTokenPrice'));
+  const change = parseChartNumber(params.get('chartTokenChange'));
+  const chain =
+    normalizeChartTokenChain(params.get('chartTokenChain')) ||
+    MARKET_TOKEN_CHAIN_BY_SYMBOL[symbol] ||
+    'ETHEREUM';
+  const marketId = params.get('chartTokenId')?.trim() || undefined;
+  const priceText = price == null ? '0' : String(price);
+  const changeText = change == null ? '0' : String(change);
+
+  return {
+    name,
+    image,
+    chain,
+    marketId,
+    priceText,
+    changeText,
+  };
+}
+
+function withChartTokenMarketData(
+  token: TokenData,
+  params: SearchParamReader,
+  symbol: string,
+): TokenData {
+  const metadata = chartTokenMetadataFromParams(params, symbol);
+
+  return {
+    ...token,
+    name: token.name || metadata.name,
+    logoURI:
+      token.logoURI || metadata.image || `/assets/crypto-icons/${symbol}.png`,
+    marketData: {
+      ...(token.marketData || {}),
+      id: metadata.marketId,
+      symbol,
+      name: token.marketData?.name || metadata.name,
+      image: token.marketData?.image || metadata.image || undefined,
+      price: token.marketData?.price || metadata.priceText,
+      change: token.marketData?.change || metadata.changeText,
+      priceChangePercentage24h:
+        token.marketData?.priceChangePercentage24h || metadata.changeText,
+    },
+  };
+}
+
+function buildMarketOnlyChartToken(
+  params: SearchParamReader,
+  symbol: string,
+): TokenData {
+  const metadata = chartTokenMetadataFromParams(params, symbol);
+
+  return {
+    name: metadata.name,
+    symbol,
+    balance: '0',
+    decimals: 0,
+    address: null,
+    logoURI: metadata.image || `/assets/crypto-icons/${symbol}.png`,
+    chain: metadata.chain,
+    marketData: {
+      id: metadata.marketId,
+      symbol,
+      name: metadata.name,
+      image: metadata.image || undefined,
+      price: metadata.priceText,
+      change: metadata.changeText,
+      priceChangePercentage24h: metadata.changeText,
+    },
+    timeSeriesData: EMPTY_TIME_SERIES,
+    isMarketOnly: true,
+  };
+}
+
+function isSameChartToken(a: TokenData, b: TokenData) {
+  if (a.isMarketOnly !== b.isMarketOnly) return false;
+  if (a.address || b.address) {
+    if (b.marketData?.id && a.marketData?.id !== b.marketData.id) {
+      return false;
+    }
+
+    return (
+      a.address?.toLowerCase() === b.address?.toLowerCase() &&
+      a.chain === b.chain
+    );
+  }
+
+  return (
+    a.symbol?.toUpperCase() === b.symbol?.toUpperCase() &&
+    a.chain === b.chain &&
+    a.marketData?.id === b.marketData?.id
+  );
+}
+
+function removeChartTokenParams(params: URLSearchParams) {
+  const source = params.get('source');
+  CHART_TOKEN_PARAM_KEYS.forEach((key) => params.delete(key));
+  if (source === 'feedTicker') params.delete('source');
+}
+
+function rewardNumber(value?: number | string | null) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatRewardAmount(value?: number | string | null) {
+  const amount = rewardNumber(value);
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: amount >= 1 ? 4 : 6,
+  }).format(amount);
+}
+
+function formatRewardUsd(value?: number | string | null) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(rewardNumber(value));
+}
+
+function shortenWallet(address?: string | null) {
+  if (!address) return '';
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
 
 // Section header — matches the wallet design's title + caption + action layout.
 function SectionHead({
@@ -202,6 +466,148 @@ function BentoCard({
   );
 }
 
+function RewardsBox({
+  rewardWallet,
+  pendingClaimCount,
+  recentClaims,
+  loading,
+  claiming,
+  error,
+  destinationWallet,
+  onClaim,
+  onRefresh,
+}: {
+  rewardWallet: RewardWalletData | null;
+  pendingClaimCount: number;
+  recentClaims: RewardClaimData[];
+  loading: boolean;
+  claiming: boolean;
+  error: string | null;
+  destinationWallet: string;
+  onClaim: () => void;
+  onRefresh: () => void;
+}) {
+  const claimableAmount = rewardNumber(rewardWallet?.claimableAmount);
+  const claimableUsd = rewardNumber(rewardWallet?.claimableUsd);
+  const pendingAmount = rewardNumber(rewardWallet?.pendingAmount);
+  const pendingUsd = rewardNumber(rewardWallet?.pendingUsd);
+  const claimedAmount = rewardNumber(rewardWallet?.claimedAmount);
+  const lifetimeAmount = rewardNumber(rewardWallet?.lifetimeEarnedAmount);
+  const tokenSymbol = rewardWallet?.token?.symbol || 'SWOP';
+  const canClaim = claimableAmount > 0 && Boolean(destinationWallet) && !claiming;
+  const latestClaim = recentClaims[0];
+  const statusLabel =
+    pendingClaimCount > 0
+      ? 'Claim pending'
+      : claimableAmount > 0
+        ? 'Ready'
+        : pendingAmount > 0
+          ? 'Processing'
+          : 'Empty';
+
+  return (
+    <section className="mt-6">
+      <SectionHead
+        title="Rewards"
+        caption="SWOP from copy-trade fee buybacks"
+        action={
+          <button
+            type="button"
+            onClick={onRefresh}
+            aria-label="Refresh rewards"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-black/[0.06] bg-white text-gray-700 hover:border-black/[0.15] disabled:opacity-50 transition"
+            disabled={loading}
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`}
+            />
+          </button>
+        }
+      />
+      <BentoCard padding="p-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-gray-400">
+                  Claimable
+                </p>
+                <p className="truncate text-[24px] font-semibold leading-tight text-gray-950">
+                  {formatRewardAmount(claimableAmount)} {tokenSymbol}
+                </p>
+              </div>
+            </div>
+            <p className="mt-2 text-[13px] text-gray-500">
+              {formatRewardUsd(claimableUsd)} ready after confirmed SWOP
+              buybacks.
+            </p>
+            {error && (
+              <p className="mt-2 text-[12px] font-medium text-red-500">
+                {error}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col items-stretch gap-2 sm:min-w-[170px]">
+            <button
+              type="button"
+              onClick={onClaim}
+              disabled={!canClaim}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-gray-950 px-4 text-[13px] font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
+            >
+              <Gift className="h-4 w-4" />
+              {claiming ? 'Claiming' : 'Claim SWOP'}
+            </button>
+            <p className="text-center text-[11px] font-medium text-gray-400">
+              {destinationWallet
+                ? `To ${shortenWallet(destinationWallet)}`
+                : 'Connect a Solana wallet'}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-black/[0.06] pt-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400">
+              Status
+            </p>
+            <p className="mt-1 truncate text-[13px] font-semibold text-gray-900">
+              {statusLabel}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400">
+              Pending
+            </p>
+            <p className="mt-1 truncate text-[13px] font-semibold text-gray-900">
+              {formatRewardAmount(pendingAmount)} {tokenSymbol}
+            </p>
+            <p className="text-[11px] text-gray-400">
+              {formatRewardUsd(pendingUsd)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400">
+              Earned
+            </p>
+            <p className="mt-1 truncate text-[13px] font-semibold text-gray-900">
+              {formatRewardAmount(lifetimeAmount || claimedAmount)} {tokenSymbol}
+            </p>
+            {latestClaim?.status && (
+              <p className="truncate text-[11px] text-gray-400">
+                Latest {latestClaim.status}
+              </p>
+            )}
+          </div>
+        </div>
+      </BentoCard>
+    </section>
+  );
+}
+
 // Error Boundary for Wallet Component
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -267,6 +673,17 @@ const WalletContentInner = () => {
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
   const [accessToken, setAccessToken] = useState('');
+  const [rewardWallet, setRewardWallet] =
+    useState<RewardWalletData | null>(null);
+  const [recentRewardClaims, setRecentRewardClaims] = useState<
+    RewardClaimData[]
+  >([]);
+  const [pendingRewardClaimCount, setPendingRewardClaimCount] = useState(0);
+  const [rewardWalletLoading, setRewardWalletLoading] = useState(false);
+  const [rewardWalletError, setRewardWalletError] = useState<string | null>(
+    null,
+  );
+  const [rewardClaimLoading, setRewardClaimLoading] = useState(false);
 
   // QR code modals state
   const [walletQRModalOpen, setWalletQRModalOpen] = useState(false);
@@ -339,6 +756,9 @@ const WalletContentInner = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useUser();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
 
   // Custom hooks
   const walletData = useWalletData(authenticated, ready, PrivyUser);
@@ -527,6 +947,40 @@ const WalletContentInner = () => {
     );
   }, [tokens, tokenChain]);
 
+  useEffect(() => {
+    if (!searchParams) return;
+
+    const symbol = getChartTokenSymbol(searchParams);
+    if (!symbol) return;
+
+    const preferredChain = normalizeChartTokenChain(
+      searchParams?.get('chartTokenChain'),
+    );
+    const walletToken = findChartWalletToken(
+      tokens as unknown as TokenData[],
+      symbol,
+      preferredChain,
+    );
+    const tokenForDetail = walletToken
+      ? withChartTokenMarketData(
+          walletToken,
+          searchParams as SearchParamReader,
+          symbol,
+        )
+      : buildMarketOnlyChartToken(searchParams as SearchParamReader, symbol);
+
+    if (walletToken) {
+      setTokenChain(walletToken.chain);
+    }
+
+    setSelectedToken((current) => {
+      if (current && isSameChartToken(current, tokenForDetail)) {
+        return current;
+      }
+      return tokenForDetail;
+    });
+  }, [searchParams, tokens]);
+
   const visibleNftCount = useMemo(
     () =>
       ((nfts || []) as unknown as NFT[]).filter(
@@ -638,6 +1092,127 @@ const WalletContentInner = () => {
     () => evmWalletAddress || solWalletAddress,
     [evmWalletAddress, solWalletAddress],
   );
+
+  const rewardDestinationWallet = useMemo(
+    () =>
+      selectedSolanaWallet?.address ||
+      solWalletAddress ||
+      user?.solanaWallet ||
+      user?.solanaAddress ||
+      '',
+    [selectedSolanaWallet, solWalletAddress, user],
+  );
+
+  const fetchRewardWallet = useCallback(async () => {
+    if (!authenticated || !accessToken) return;
+
+    setRewardWalletLoading(true);
+    setRewardWalletError(null);
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/reward-wallet`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message || data?.error || 'Could not load rewards.',
+        );
+      }
+
+      setRewardWallet(data.rewardWallet || null);
+      setPendingRewardClaimCount(Number(data.pendingClaimCount || 0));
+      setRecentRewardClaims(
+        Array.isArray(data.recentClaims) ? data.recentClaims : [],
+      );
+    } catch (error) {
+      setRewardWalletError(
+        error instanceof Error
+          ? error.message
+          : 'Could not load rewards.',
+      );
+    } finally {
+      setRewardWalletLoading(false);
+    }
+  }, [accessToken, authenticated]);
+
+  useEffect(() => {
+    fetchRewardWallet();
+  }, [fetchRewardWallet]);
+
+  const handleClaimRewards = useCallback(async () => {
+    if (!accessToken) {
+      toast({
+        variant: 'destructive',
+        title: 'Rewards unavailable',
+        description: 'Please log in again to claim SWOP rewards.',
+      });
+      return;
+    }
+
+    if (!rewardDestinationWallet) {
+      toast({
+        variant: 'destructive',
+        title: 'Solana wallet required',
+        description: 'Connect a Solana wallet before claiming SWOP rewards.',
+      });
+      return;
+    }
+
+    setRewardClaimLoading(true);
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/reward-wallet/claim`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            destinationWallet: rewardDestinationWallet,
+          }),
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message || data?.error || 'Could not request reward claim.',
+        );
+      }
+
+      setRewardWallet(data.rewardWallet || null);
+      await fetchRewardWallet();
+      const paid = data?.claim?.status === 'paid';
+      toast({
+        title: paid ? 'SWOP claimed' : 'Claim requested',
+        description: paid
+          ? 'Your SWOP rewards were sent from the rewards vault.'
+          : 'Your SWOP reward claim is queued for vault payout.',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Claim failed',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Could not request reward claim.',
+      });
+    } finally {
+      setRewardClaimLoading(false);
+    }
+  }, [accessToken, fetchRewardWallet, rewardDestinationWallet, toast]);
 
   // Transaction execution
   const executeTransaction = useCallback(async () => {
@@ -1032,7 +1607,19 @@ const WalletContentInner = () => {
     }
   }, [selectedNFT, handleNFTNext, handleCloseNFTModal]);
 
-  const handleBack = useCallback(() => setSelectedToken(null), []);
+  const handleBack = useCallback(() => {
+    setSelectedToken(null);
+
+    if (!searchParams || !pathname) return;
+    if (!getChartTokenSymbol(searchParams)) return;
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    removeChartTokenParams(nextParams);
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+      scroll: false,
+    });
+  }, [pathname, router, searchParams]);
 
   const handleTokenSend = useCallback(
     (token: TokenData) => {
@@ -1126,6 +1713,18 @@ const WalletContentInner = () => {
           />
         </BentoCard>
 
+        <RewardsBox
+          rewardWallet={rewardWallet}
+          pendingClaimCount={pendingRewardClaimCount}
+          recentClaims={recentRewardClaims}
+          loading={rewardWalletLoading}
+          claiming={rewardClaimLoading}
+          error={rewardWalletError}
+          destinationWallet={rewardDestinationWallet}
+          onClaim={handleClaimRewards}
+          onRefresh={fetchRewardWallet}
+        />
+
         {/* ───────── TOKENS ───────── */}
         <section className="mt-8">
           <SectionHead
@@ -1217,6 +1816,9 @@ const WalletContentInner = () => {
 
         {/* ───────── PREDICTIONS ───────── */}
         <WalletPredictionsSection />
+
+        {/* ───────── BLINKS ───────── */}
+        <BlinksSection />
 
         {/* ───────── COLLECTIBLES ───────── */}
         <section className="mt-8">
