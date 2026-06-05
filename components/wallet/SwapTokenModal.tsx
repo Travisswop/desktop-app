@@ -93,7 +93,7 @@ const _tokenMarketQuoteCache = new Map<
 >();
 
 const PLATFORM_FEE_BPS = 50;
-const COPY_TRADE_REWARD_BPS = PLATFORM_FEE_BPS;
+const COPY_TRADE_REWARD_BPS = 25;
 const COPY_TRADE_REWARD_MODE = 'swop_reward_wallet';
 const SWOP_REWARD_TOKEN = {
   symbol: 'SWOP',
@@ -3869,6 +3869,14 @@ export default function SwapTokenModal({
                       [
                         'Trader reward',
                         `${(COPY_TRADE_REWARD_BPS / 100).toFixed(2)}% value in SWOP`,
+                        false,
+                      ],
+                      [
+                        'Swop retained',
+                        `${(
+                          (PLATFORM_FEE_BPS - COPY_TRADE_REWARD_BPS) /
+                          100
+                        ).toFixed(2)}% bought into SWOP`,
                         false,
                       ],
                       [
