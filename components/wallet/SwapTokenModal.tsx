@@ -1648,14 +1648,41 @@ export default function SwapTokenModal({
           5000,
         ),
       );
-      await Promise.race([getAccessToken(), timeout]);
+      const token = (await Promise.race([
+        getAccessToken(),
+        timeout,
+      ])) as string | null;
+
+      if (token) {
+        setAccessToken(token);
+        if (typeof window !== 'undefined') {
+          Cookies.set('access-token', token, {
+            path: '/',
+            sameSite: 'lax',
+            secure: window.location.protocol === 'https:',
+          });
+        }
+      }
+
+      return token;
     } catch (e) {
       console.warn(
         'Session refresh failed, proceeding with existing session:',
         e,
       );
+      return null;
     }
   }, [getAccessToken]);
+
+  const requireFreshPrivySession = useCallback(async () => {
+    const token = await safeRefreshSession();
+    if (!token) {
+      throw new Error(
+        'Authentication session expired. Please refresh the page and log in again.',
+      );
+    }
+    return token;
+  }, [safeRefreshSession]);
 
   const formatTokenAmount = (
     amount: string | number,
@@ -3492,6 +3519,14 @@ export default function SwapTokenModal({
           setIsSwapping(false);
           return;
         }
+
+        const usesEmbeddedPrivyWallet = isPrivyEmbeddedWalletType(
+          wallet.walletClientType,
+        );
+        if (usesEmbeddedPrivyWallet) {
+          await requireFreshPrivySession();
+        }
+
         const provider = await wallet.getEthereumProvider();
         if (!provider) {
           setSwapError('Failed to get wallet provider');
@@ -3571,7 +3606,9 @@ export default function SwapTokenModal({
           }
         }
         let txHashResult: string;
-        if (isPrivyEmbeddedWalletType(wallet.walletClientType)) {
+        if (usesEmbeddedPrivyWallet) {
+          await requireFreshPrivySession();
+
           const privyTxRequest: any = {
             to: rawTxReq.to as `0x${string}`,
             data: rawTxReq.data as `0x${string}`,
