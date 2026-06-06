@@ -570,6 +570,18 @@ const getNativeTokenSymbol = (chainId: string): string => {
   return map[chainId] || 'ETH';
 };
 
+const getCompactChainLabel = (chainName: string) => {
+  const map: Record<string, string> = {
+    ETHEREUM: 'ETH',
+    POLYGON: 'POLY',
+    ARBITRUM: 'ARB',
+    SOLANA: 'SOL',
+    BASE: 'BASE',
+    BSC: 'BSC',
+  };
+  return map[chainName.toUpperCase()] || chainName.toUpperCase();
+};
+
 const getExplorerUrl = (chainId: string, txHash: string): string => {
   const explorerUrls: Record<string, string> = {
     '1151111081099710': `https://solscan.io/tx/${txHash}`,
@@ -1697,11 +1709,34 @@ export default function SwapTokenModal({
     return { isValid: true, error: null };
   };
 
+  const effectivePayChainId = useMemo(
+    () => getTokenChainId(payToken, chainId),
+    [chainId, payToken],
+  );
+  const effectiveReceiveChainId = useMemo(
+    () => getTokenChainId(receiveToken, receiverChainId),
+    [receiveToken, receiverChainId],
+  );
+  const effectivePayChainName = useMemo(
+    () =>
+      effectivePayChainId
+        ? getNetworkByChainId(effectivePayChainId).toUpperCase()
+        : '',
+    [effectivePayChainId],
+  );
+  const effectiveReceiveChainName = useMemo(
+    () =>
+      effectiveReceiveChainId
+        ? getNetworkByChainId(effectiveReceiveChainId).toUpperCase()
+        : '',
+    [effectiveReceiveChainId],
+  );
+
   const isSolanaToSolanaSwap = useCallback(
     () =>
-      isSolanaToken(payToken, chainId) &&
-      isSolanaToken(receiveToken, receiverChainId),
-    [chainId, payToken, receiveToken, receiverChainId],
+      effectivePayChainId === SOLANA_CHAIN_ID &&
+      effectiveReceiveChainId === SOLANA_CHAIN_ID,
+    [effectivePayChainId, effectiveReceiveChainId],
   );
 
   const ensureEvmAllowance = useCallback(
@@ -2439,8 +2474,11 @@ export default function SwapTokenModal({
     if (fromAmount === '0' || !fromAmount)
       throw new Error('Invalid amount');
 
+    const fromChainId = effectivePayChainId || chainId;
+    const toChainId = effectiveReceiveChainId || receiverChainId;
+
     let fromTokenAddress: string;
-    if (chainId === '1151111081099710') {
+    if (fromChainId === SOLANA_CHAIN_ID) {
       if (payToken?.symbol === 'SOL')
         fromTokenAddress =
           'So11111111111111111111111111111111111111112';
@@ -2459,7 +2497,7 @@ export default function SwapTokenModal({
     }
 
     let toTokenAddress: string;
-    if (receiverChainId === '1151111081099710') {
+    if (toChainId === SOLANA_CHAIN_ID) {
       if (receiveToken?.symbol === 'SOL')
         toTokenAddress =
           'So11111111111111111111111111111111111111112';
@@ -2481,8 +2519,8 @@ export default function SwapTokenModal({
       throw new Error('Wallet addresses not available');
 
     const result = await fetchLifiQuote({
-      fromChain: chainId.toString(),
-      toChain: receiverChainId.toString(),
+      fromChain: fromChainId.toString(),
+      toChain: toChainId.toString(),
       fromToken: fromTokenAddress,
       toToken: toTokenAddress,
       fromAddress: fromWalletAddress,
@@ -2540,12 +2578,12 @@ export default function SwapTokenModal({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      chainId,
+      effectivePayChainId,
       fromWalletAddress,
       payAmount,
       payToken,
       receiveToken,
-      receiverChainId,
+      effectiveReceiveChainId,
       toWalletAddress,
       slippage,
       isCopyTrade,
@@ -2601,12 +2639,12 @@ export default function SwapTokenModal({
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    chainId,
+    effectivePayChainId,
     fromWalletAddress,
     payAmount,
     payToken,
     receiveToken,
-    receiverChainId,
+    effectiveReceiveChainId,
     toWalletAddress,
     slippage,
   ]);
@@ -2669,14 +2707,15 @@ export default function SwapTokenModal({
   useEffect(() => {
     // Only applies to EVM LiFi swaps (not Solana-to-Solana Jupiter swaps)
     const isSolSol = isSolanaToSolanaSwap();
+    const fromChainId = effectivePayChainId || chainId;
 
-    if (!quote || isSolSol || !fromWalletAddress || !chainId) {
+    if (!quote || isSolSol || !fromWalletAddress || !fromChainId) {
       setGasBalanceError(null);
       setEstimatedGasFeeEth(null);
       return;
     }
 
-    const numericChainId = parseInt(chainId);
+    const numericChainId = parseInt(fromChainId);
     const evmChain = getViemChain(numericChainId);
     if (!evmChain) {
       setGasBalanceError(null);
@@ -2751,7 +2790,7 @@ export default function SwapTokenModal({
         const value = parseHexOrNum(valueRaw) ?? 0n;
         const totalRequired = estimatedGasCost + value;
         const gasCostEth = Number(estimatedGasCost) / 1e18;
-        const nativeSymbol = getNativeTokenSymbol(chainId);
+        const nativeSymbol = getNativeTokenSymbol(fromChainId);
         setEstimatedGasFeeEth(
           `~${gasCostEth < 0.00001 ? gasCostEth.toExponential(3) : gasCostEth.toFixed(6)} ${nativeSymbol}`,
         );
@@ -2774,10 +2813,10 @@ export default function SwapTokenModal({
     return () => {
       cancelled = true;
     };
-    // payToken.chain changes update chainId (separate effect) → re-triggers here.
+    // payToken.chain changes update the effective chain → re-triggers here.
     // receiveToken/receiverChainId changes invalidate the quote → re-triggers here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quote, chainId, fromWalletAddress]);
+  }, [quote, effectivePayChainId, fromWalletAddress]);
 
   useEffect(() => {
     const nextChainId = getTokenChainId(payToken, chainId);
@@ -2787,24 +2826,31 @@ export default function SwapTokenModal({
   }, [payToken, chainId]);
 
   useEffect(() => {
+    const nextChainId = getTokenChainId(receiveToken, receiverChainId);
+    if (nextChainId && nextChainId !== receiverChainId) {
+      setReceiverChainId(nextChainId);
+    }
+  }, [receiveToken, receiverChainId]);
+
+  useEffect(() => {
     setFromWalletAddress(
-      isSolanaToken(payToken, chainId)
+      effectivePayChainId === SOLANA_CHAIN_ID
         ? selectedSolanaWallet?.address || ''
         : ethWallet || '',
     );
     if (!receiveToken) {
       setToWalletAddress('');
-    } else if (isSolanaToken(receiveToken, receiverChainId)) {
+    } else if (effectiveReceiveChainId === SOLANA_CHAIN_ID) {
       setToWalletAddress(selectedSolanaWallet?.address || '');
     } else {
       setToWalletAddress(ethWallet || '');
     }
   }, [
     ethWallet,
-    chainId,
+    effectivePayChainId,
+    effectiveReceiveChainId,
     payToken,
     receiveToken,
-    receiverChainId,
     selectedSolanaWallet?.address,
   ]);
 
@@ -3464,8 +3510,8 @@ export default function SwapTokenModal({
         return;
       }
 
-      const fromChainId = parseInt(chainId);
-      if (fromChainId === 1151111081099710) {
+      const fromChainId = parseInt(effectivePayChainId || chainId);
+      if (fromChainId === Number(SOLANA_CHAIN_ID)) {
         await executeSolanaSwap();
       } else {
         const allAccounts = PrivyUser?.linkedAccounts || [];
@@ -3657,9 +3703,9 @@ export default function SwapTokenModal({
       setSwapError(friendlyError);
       if (socket?.connected) {
         try {
-          const fromChainId = parseInt(chainId);
+          const fromChainId = parseInt(effectivePayChainId || chainId);
           const networkName =
-            fromChainId === 1151111081099710
+            fromChainId === Number(SOLANA_CHAIN_ID)
               ? 'SOLANA'
               : fromChainId === 1
                 ? 'ETHEREUM'
@@ -3929,7 +3975,9 @@ export default function SwapTokenModal({
     swapStatus?.includes('confirmed') ||
     swapStatus?.includes('completed');
   const routeProviderLabel = isSolanaToSolanaSwap() ? 'Jupiter' : 'Li.Fi';
-  const swapExplorerUrl = txHash ? getExplorerUrl(chainId, txHash) : '';
+  const swapExplorerUrl = txHash
+    ? getExplorerUrl(effectivePayChainId || chainId, txHash)
+    : '';
   const resetSwapForm = () => {
     setShowSwapSuccess(false);
     setSwapStatus(null);
@@ -4110,13 +4158,13 @@ export default function SwapTokenModal({
                         {payToken?.symbol?.slice(0, 3) || '—'}
                       </div>
                     )}
-                    {payToken?.chain && (
+                    {effectivePayChainName && (
                       <div className="absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center w-3 h-3">
                         <Image
                           src={sanitizeNextImageSrc(
-                            getChainIcon(payToken.chain) || '',
+                            getChainIcon(effectivePayChainName) || '',
                           )}
-                          alt={payToken.chain}
+                          alt={effectivePayChainName}
                           width={12}
                           height={12}
                           className="w-3 h-3 rounded-full"
@@ -4127,6 +4175,11 @@ export default function SwapTokenModal({
                   <span className="text-[12.5px] font-semibold">
                     {payToken ? payToken.symbol : 'Select'}
                   </span>
+                  {payToken && effectivePayChainName && (
+                    <span className="font-mono text-[9px] font-semibold text-[#8a8a92]">
+                      {getCompactChainLabel(effectivePayChainName)}
+                    </span>
+                  )}
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-3 w-3 text-[#6e6e76]"
@@ -4247,10 +4300,8 @@ export default function SwapTokenModal({
                         className="w-6 h-6 rounded-full"
                       />
                       {(() => {
-                        const chainName =
-                          getNetworkByChainId(
-                            receiverChainId,
-                          ).toUpperCase();
+                        const chainName = effectiveReceiveChainName;
+                        if (!chainName) return null;
                         return (
                           <div className="absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center w-3 h-3">
                             <Image
@@ -4269,6 +4320,11 @@ export default function SwapTokenModal({
                     <span className="text-[12.5px] font-semibold">
                       {receiveToken.symbol}
                     </span>
+                    {effectiveReceiveChainName && (
+                      <span className="font-mono text-[9px] font-semibold text-[#8a8a92]">
+                        {getCompactChainLabel(effectiveReceiveChainName)}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span className="text-[12.5px] font-semibold">
@@ -4312,7 +4368,7 @@ export default function SwapTokenModal({
                 ? `${customSlippage}%`
                 : `${slippage}%`;
               const networkFeeLabel = estimatedGasFeeEth
-                ? `${estimatedGasFeeEth} ${getNativeTokenSymbol(chainId)}`
+                ? `${estimatedGasFeeEth} ${getNativeTokenSymbol(effectivePayChainId || chainId)}`
                 : '—';
               const priceImpactLabel =
                 info && typeof info.priceImpact === 'number'
@@ -4484,7 +4540,7 @@ export default function SwapTokenModal({
               {txHash && (
                 <div className="text-green-600 text-xs text-center mt-3 pt-2 border-t border-gray-200">
                   <a
-                    href={getExplorerUrl(chainId, txHash)}
+                    href={getExplorerUrl(effectivePayChainId || chainId, txHash)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline hover:text-green-700 transition-colors"
@@ -5014,7 +5070,7 @@ export default function SwapTokenModal({
               <div className="mt-4 rounded-xl border border-black/[0.06] bg-[#fafafa] px-4 py-3.5">
                 {[
                   ['Route', `${payToken?.symbol || '—'} → ${receiveToken?.symbol || '—'} · ${routeProviderLabel}`],
-                  ['Network', getNetworkByChainId(chainId)],
+                  ['Network', getNetworkByChainId(effectivePayChainId || chainId)],
                   ['Tx hash', `${txHash.slice(0, 8)}...${txHash.slice(-8)}`],
                 ].map(([label, value], index, rows) => (
                   <div
