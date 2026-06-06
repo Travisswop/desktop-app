@@ -12,6 +12,16 @@ import {
 import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import Cookies from 'js-cookie';
+import {
+  selectPreferredWallet,
+  tradingWalletSelectionOptions,
+} from '@/components/wallet/hooks/useWalletData';
+import {
+  PrivyLinkedAccount,
+  isEthereumWalletAccount,
+  isSolanaWalletAccount,
+} from '@/types/privy';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 
 const userContextDebugEnabled =
   process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true';
@@ -121,16 +131,43 @@ export interface UserContextType {
 
 const UserContext = createContext<UserContextType | null>(null);
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 const USER_CACHE_KEY = 'swop:user-cache';
+const USER_CACHE_VERSION = 3;
 const USER_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const USER_FETCH_TIMEOUT_MS = 5000;
+const USER_FETCH_TIMEOUT_MS = 20000;
 
 type CachedUserContext = {
   user: UserData;
   accessToken: string | null;
   cachedAt: number;
+  email?: string;
+  cacheVersion?: number;
 };
+
+function normalizeEmail(email?: string | null) {
+  return email?.trim().toLowerCase() || '';
+}
+
+function getAuthCookieOptions() {
+  return {
+    path: '/',
+    sameSite: 'lax' as const,
+    secure:
+      typeof window !== 'undefined' &&
+      window.location.protocol === 'https:',
+  };
+}
+
+function clearStoredUserContext() {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(USER_CACHE_KEY);
+  }
+
+  Cookies.remove('user-id');
+  Cookies.remove('access-token');
+  Cookies.remove('user-id', { path: '/' });
+  Cookies.remove('access-token', { path: '/' });
+}
 
 function readCachedUserContext(): CachedUserContext | null {
   if (typeof window === 'undefined') return null;
@@ -141,7 +178,10 @@ function readCachedUserContext(): CachedUserContext | null {
 
     const cache = JSON.parse(rawCache) as CachedUserContext;
     if (
+      cache.cacheVersion !== USER_CACHE_VERSION ||
       !cache.user ||
+      normalizeEmail(cache.email || cache.user.email) !==
+        normalizeEmail(cache.user.email) ||
       Date.now() - cache.cachedAt > USER_CACHE_MAX_AGE_MS
     ) {
       window.localStorage.removeItem(USER_CACHE_KEY);
@@ -165,11 +205,38 @@ function writeCachedUserContext(
   try {
     window.localStorage.setItem(
       USER_CACHE_KEY,
-      JSON.stringify({ user, accessToken, cachedAt: Date.now() }),
+      JSON.stringify({
+        user,
+        accessToken,
+        cachedAt: Date.now(),
+        email: normalizeEmail(user.email),
+        cacheVersion: USER_CACHE_VERSION,
+      }),
     );
   } catch (error) {
     console.warn('Failed to cache user context:', error);
   }
+}
+
+function syncStoredUserContext(user: UserData, accessToken: string | null) {
+  const previousUserId = Cookies.get('user-id');
+  const previousAccessToken = Cookies.get('access-token');
+  const nextUserId = user._id?.toString();
+
+  writeCachedUserContext(user, accessToken);
+
+  if (nextUserId) {
+    Cookies.set('user-id', nextUserId, getAuthCookieOptions());
+  }
+
+  if (accessToken) {
+    Cookies.set('access-token', accessToken, getAuthCookieOptions());
+  }
+
+  return (
+    previousUserId !== nextUserId ||
+    (Boolean(accessToken) && previousAccessToken !== accessToken)
+  );
 }
 
 export function UserProvider({
@@ -227,18 +294,19 @@ export function UserProvider({
     [],
   );
 
-  const extractEmbeddedWalletAddresses = useCallback((privyUser: any) => {
-    const linkedAccounts = privyUser?.linkedAccounts || [];
-    const isEmbeddedWallet = (account: any) =>
-      account?.walletClientType === 'privy' ||
-      account?.connectorType === 'embedded';
-    const ethereumWallet = linkedAccounts.find(
-      (account: any) =>
-        account?.chainType === 'ethereum' && isEmbeddedWallet(account),
+  const extractPreferredWalletAddresses = useCallback((privyUser: any) => {
+    const linkedAccounts = (privyUser?.linkedAccounts ||
+      []) as PrivyLinkedAccount[];
+    const walletSelectionOptions = tradingWalletSelectionOptions();
+    const ethereumWallet = selectPreferredWallet(
+      linkedAccounts.filter(isEthereumWalletAccount),
+      privyUser?.wallet?.address,
+      walletSelectionOptions,
     )?.address;
-    const solanaWallet = linkedAccounts.find(
-      (account: any) =>
-        account?.chainType === 'solana' && isEmbeddedWallet(account),
+    const solanaWallet = selectPreferredWallet(
+      linkedAccounts.filter(isSolanaWalletAccount),
+      undefined,
+      walletSelectionOptions,
     )?.address;
 
     return { ethereumWallet, solanaWallet };
@@ -247,9 +315,16 @@ export function UserProvider({
   // Fetch user data from backend
   const fetchUserData = useCallback(
     async (email: string): Promise<boolean> => {
-      if (!email || !API_BASE_URL) return false;
+      const normalizedEmail = normalizeEmail(email);
+      if (!normalizedEmail) return false;
       if (fetchInProgressRef.current) return false;
-      if (lastFetchedEmailRef.current === email && user) return true;
+      if (
+        lastFetchedEmailRef.current === normalizedEmail &&
+        user &&
+        normalizeEmail(user.email) === normalizedEmail
+      ) {
+        return true;
+      }
 
       fetchInProgressRef.current = true;
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -262,7 +337,9 @@ export function UserProvider({
         }, USER_FETCH_TIMEOUT_MS);
 
         const response = await fetch(
-          `${API_BASE_URL}/api/v2/desktop/user/${email}`,
+          buildSwopApiUrl(
+            `/api/v2/desktop/user/${encodeURIComponent(normalizedEmail)}`,
+          ),
           {
             headers: { 'Content-Type': 'application/json' },
             signal: abortControllerRef.current.signal,
@@ -273,6 +350,7 @@ export function UserProvider({
           if (response.status === 404) {
             setUser(null);
             setAccessToken(null);
+            clearStoredUserContext();
             return false;
           }
           throw new Error(`HTTP ${response.status}`);
@@ -288,23 +366,36 @@ export function UserProvider({
         setUser(userData);
         setAccessToken(token);
         setError(null);
-        lastFetchedEmailRef.current = email;
-        writeCachedUserContext(userData, token);
+        lastFetchedEmailRef.current = normalizedEmail;
+        const authStorageChanged = syncStoredUserContext(userData, token);
+
+        if (
+          authStorageChanged &&
+          typeof window !== 'undefined' &&
+          window.location.pathname !== '/login'
+        ) {
+          router.refresh();
+        }
 
         return true;
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
-          if (user) {
+          if (user && normalizeEmail(user.email) === normalizedEmail) {
             console.info(
               'Using cached user data after refresh timed out',
             );
           }
           return false;
         }
-        if (user) {
+        if (user && normalizeEmail(user.email) === normalizedEmail) {
           console.info('Using cached user data after refresh failed:', err);
         } else if (userContextDebugEnabled) {
           console.debug('User data refresh failed:', err);
+        }
+        if (user && normalizeEmail(user.email) !== normalizedEmail) {
+          setUser(null);
+          setAccessToken(null);
+          clearStoredUserContext();
         }
         setError(
           err instanceof Error ? err : new Error('Unknown error'),
@@ -316,7 +407,7 @@ export function UserProvider({
         abortControllerRef.current = null;
       }
     },
-    [user],
+    [router, user],
   );
 
   // Logout - just handle Privy logout, middleware handles redirects
@@ -326,17 +417,14 @@ export function UserProvider({
       setUser(null);
       setAccessToken(null);
       setError(null);
-      window.localStorage.removeItem(USER_CACHE_KEY);
       window.localStorage.removeItem('swop:last-authenticated-at');
+      clearStoredUserContext();
       lastFetchedEmailRef.current = null;
       await privyLogout();
       router.push('/login');
-      Cookies.remove('user-id');
-      Cookies.remove('access-token');
     } catch (err) {
       console.error('Error during logout:', err);
-      Cookies.remove('user-id');
-      Cookies.remove('access-token');
+      clearStoredUserContext();
       router.push('/login');
     }
   }, [privyLogout, router]);
@@ -361,19 +449,35 @@ export function UserProvider({
     if (!authenticated || !privyUser) {
       setUser(null);
       setAccessToken(null);
+      clearStoredUserContext();
       setLoading(false);
       return;
     }
 
     const email = extractEmail(privyUser);
     if (!email) {
+      setUser(null);
+      setAccessToken(null);
+      clearStoredUserContext();
       setLoading(false);
       return;
     }
 
+    const normalizedEmail = normalizeEmail(email);
+    if (user && normalizeEmail(user.email) !== normalizedEmail) {
+      setUser(null);
+      setAccessToken(null);
+      clearStoredUserContext();
+      setLoading(true);
+    }
+
     // Only fetch if we don't have user data for this email
-    if (lastFetchedEmailRef.current !== email || !user) {
-      fetchUserData(email).finally(() => setLoading(false));
+    if (
+      lastFetchedEmailRef.current !== normalizedEmail ||
+      !user ||
+      normalizeEmail(user.email) !== normalizedEmail
+    ) {
+      fetchUserData(normalizedEmail).finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
@@ -392,14 +496,13 @@ export function UserProvider({
       !authenticated ||
       !privyUser ||
       !user?._id ||
-      !accessToken ||
-      !API_BASE_URL
+      !accessToken
     ) {
       return;
     }
 
     const { ethereumWallet, solanaWallet } =
-      extractEmbeddedWalletAddresses(privyUser);
+      extractPreferredWalletAddresses(privyUser);
     if (!ethereumWallet && !solanaWallet) return;
 
     const syncKey = `${user._id}:${ethereumWallet || ''}:${
@@ -417,7 +520,7 @@ export function UserProvider({
 
     lastSyncedWalletsRef.current = syncKey;
 
-    fetch(`${API_BASE_URL}/api/v5/wallet/sync-user-wallets`, {
+    fetch(buildSwopApiUrl('/api/v5/wallet/sync-user-wallets'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -473,7 +576,7 @@ export function UserProvider({
     user?.ethereumWallet,
     user?.solanaWallet,
     accessToken,
-    extractEmbeddedWalletAddresses,
+    extractPreferredWalletAddresses,
   ]);
 
   // Cleanup on unmount
