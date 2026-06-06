@@ -98,6 +98,18 @@ function formatGameTime(startDate: string | undefined): {
   return { label: `${timeStr} ${datePart}`, status: 'upcoming' };
 }
 
+function parseScorePair(raw: string | null | undefined): [number | null, number | null] {
+  if (!raw) return [null, null];
+  const match = String(raw).match(/(\d+)\D+(\d+)/);
+  if (!match) return [null, null];
+  const first = Number(match[1]);
+  const second = Number(match[2]);
+  return [
+    Number.isFinite(first) ? first : null,
+    Number.isFinite(second) ? second : null,
+  ];
+}
+
 /**
  * Resolve team metadata (abbreviation + brand colour) for one side of a game.
  *
@@ -189,15 +201,21 @@ type LiveScoreTeam = {
 
 type LiveScoreState = {
   live: boolean;
+  ended?: boolean;
+  closed?: boolean;
   period: string | null;
   elapsed: string | null;
+  startTime?: string | null;
   teams: LiveScoreTeam[];
 };
 
 const EMPTY_LIVE: LiveScoreState = {
   live: false,
+  ended: false,
+  closed: false,
   period: null,
   elapsed: null,
+  startTime: null,
   teams: [],
 };
 
@@ -226,8 +244,11 @@ function useLiveEventScore(
         if (cancelled) return;
         setState({
           live: Boolean(json.live),
+          ended: Boolean(json.ended),
+          closed: Boolean(json.closed),
           period: json.period ?? null,
           elapsed: json.elapsed ?? null,
+          startTime: json.startTime ?? null,
           teams: Array.isArray(json.teams) ? json.teams : [],
         });
         if (!cancelled && json.live) {
@@ -403,11 +424,38 @@ export default function SportsGameCard({
   disabled = false,
   onOutcomeClick,
 }: SportsGameCardProps) {
-  const { label: timeLabel, status } = formatGameTime(game.startDate);
-
-  const isLive = status === 'live';
+  const {
+    label: scheduledLabel,
+    status: scheduledStatus,
+  } = formatGameTime(game.startDate);
   const eventSlug = game.moneyline?.market?.eventSlug;
-  const liveScore = useLiveEventScore(eventSlug, isLive);
+  const hasEventStatus =
+    game.eventLive ||
+    game.eventEnded ||
+    game.eventClosed ||
+    game.eventPeriod != null ||
+    game.eventElapsed != null ||
+    game.eventScore != null;
+  const liveScore = useLiveEventScore(
+    eventSlug,
+    Boolean(eventSlug) &&
+      (game.eventLive ||
+        game.eventEnded ||
+        game.eventClosed ||
+        scheduledStatus === 'live'),
+  );
+  const eventFinal = Boolean(
+    game.eventEnded || game.eventClosed || liveScore.ended || liveScore.closed,
+  );
+  const isLive = Boolean(
+    !eventFinal &&
+      (game.eventLive ||
+        liveScore.live ||
+        (!hasEventStatus && scheduledStatus === 'live')),
+  );
+  const status = eventFinal ? 'final' : isLive ? 'live' : scheduledStatus;
+  const timeLabel = eventFinal ? 'FINAL' : isLive ? 'LIVE' : scheduledLabel;
+  const cardDisabled = disabled || eventFinal;
 
   // Raw outcome data for each team
   const mlA = game.moneyline?.outcomes[0];
@@ -440,11 +488,13 @@ export default function SportsGameCard({
   const nameA = mlA?.label ?? game.teamA;
   const nameB = mlB?.label ?? game.teamB;
 
-  const scoreA = isLive
-    ? pickTeamScore(nameA, teamA.abbrev, liveScore.teams, 0)
+  const [eventScoreA, eventScoreB] = parseScorePair(game.eventScore);
+  const shouldShowScore = isLive || eventFinal;
+  const scoreA = shouldShowScore
+    ? pickTeamScore(nameA, teamA.abbrev, liveScore.teams, 0) ?? eventScoreA
     : null;
-  const scoreB = isLive
-    ? pickTeamScore(nameB, teamB.abbrev, liveScore.teams, 1)
+  const scoreB = shouldShowScore
+    ? pickTeamScore(nameB, teamB.abbrev, liveScore.teams, 1) ?? eventScoreB
     : null;
   const hasLiveScore = scoreA != null && scoreB != null;
 
@@ -487,6 +537,8 @@ export default function SportsGameCard({
               className={`inline-flex items-center gap-1 font-semibold ${
                 status === 'live'
                   ? 'text-red-500'
+                  : status === 'final'
+                    ? 'text-gray-500'
                   : status === 'imminent'
                     ? 'text-orange-500'
                     : 'text-gray-500'
@@ -496,7 +548,7 @@ export default function SportsGameCard({
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
               )}
               {timeLabel}
-              {status === 'live' && hasLiveScore && (
+              {(status === 'live' || status === 'final') && hasLiveScore && (
                 <span className="font-bold tabular-nums text-gray-900 ml-0.5">
                   {scoreA} – {scoreB}
                 </span>
@@ -574,7 +626,7 @@ export default function SportsGameCard({
                     outcome={ml}
                     abbrev={team.abbrev}
                     color={team.color}
-                    disabled={disabled}
+                    disabled={cardDisabled}
                     market={game.moneyline.market}
                     onOutcomeClick={onOutcomeClick}
                   />
@@ -588,7 +640,7 @@ export default function SportsGameCard({
                   {spFormatted && game.spread ? (
                     <MarketCell
                       outcome={spFormatted}
-                      disabled={disabled}
+                      disabled={cardDisabled}
                       market={game.spread.market}
                       onOutcomeClick={onOutcomeClick}
                     />
@@ -603,7 +655,7 @@ export default function SportsGameCard({
                   {tot && game.total ? (
                     <MarketCell
                       outcome={tot}
-                      disabled={disabled}
+                      disabled={cardDisabled}
                       market={game.total.market}
                       onOutcomeClick={onOutcomeClick}
                     />

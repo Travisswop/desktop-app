@@ -59,13 +59,22 @@ async function fetchChartData(
   tokenAddress: string | null,
   chain: string,
   period: string,
-  accessToken: string
+  accessToken: string,
+  marketId?: string | null
 ): Promise<ChartData> {
   const days = periodToDays(period);
   let prices: Array<{ timestamp: number; price: number }> = [];
   let chartLabel = `${chain}:${tokenAddress || 'native'}`;
 
-  if (isNativeToken(tokenAddress)) {
+  if (marketId) {
+    chartLabel = marketId;
+    const historical = await MarketService.getHistoricalPrices(
+      marketId,
+      days,
+      accessToken
+    );
+    prices = historical.prices;
+  } else if (isNativeToken(tokenAddress)) {
     const tokenId = NATIVE_TOKEN_MAP[chain.toUpperCase()];
     if (!tokenId) {
       throw new Error(`Native token mapping not found for chain: ${chain}`);
@@ -132,17 +141,20 @@ export function useTokenChartData(
   chain: string,
   period: string,
   enabled: boolean = true,
-  accessToken: string
+  accessToken: string,
+  marketId?: string | null
 ): UseQueryResult<ChartData, unknown> {
   // Create a unique query key that works for both native and contract tokens
-  const queryKey = isNativeToken(tokenAddress)
+  const queryKey = marketId
+    ? ['tokenChartData', 'market', marketId, period]
+    : isNativeToken(tokenAddress)
     ? ['tokenChartData', 'native', chain, period]
     : ['tokenChartData', tokenAddress, chain, period];
 
   return useQuery({
     queryKey,
     queryFn: () =>
-      fetchChartData(tokenAddress, chain, period, accessToken),
+      fetchChartData(tokenAddress, chain, period, accessToken, marketId),
     enabled: enabled && !!chain && !!period, // Only require chain and period, address can be null for native
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,

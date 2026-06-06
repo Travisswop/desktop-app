@@ -261,6 +261,17 @@ const CreateCollectible = ({
       return;
     }
 
+    if (!user?._id) {
+      setModelInfo({
+        success: false,
+        nftType: formData.nftType,
+        details:
+          'User profile not available. Please make sure you are signed in.',
+      });
+      onOpenChange();
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {

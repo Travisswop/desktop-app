@@ -76,15 +76,15 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
   toggleUseSwopId,
   handleInputChange,
   handleCountryChange,
-  handleOpenPaymentSheet,
   handleOpenWalletPayment,
+  handleOpenPhantomPayment,
   errorMessage,
   cartItems,
   subtotal,
   hasPhygitalProducts,
 }) => {
   const [isWalletLoading, setIsWalletLoading] = useState(false);
-  const [isCardLoading, setIsCardLoading] = useState(false);
+  const [isPhantomLoading, setIsPhantomLoading] = useState(false);
 
   const handleWalletPayment = async () => {
     setIsWalletLoading(true);
@@ -95,12 +95,12 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
     }
   };
 
-  const handleCardPayment = async () => {
-    setIsCardLoading(true);
+  const handlePhantomPayment = async () => {
+    setIsPhantomLoading(true);
     try {
-      await handleOpenPaymentSheet();
+      await handleOpenPhantomPayment();
     } finally {
-      setIsCardLoading(false);
+      setIsPhantomLoading(false);
     }
   };
 
@@ -341,36 +341,53 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
           </div>
         )}
         {user && (
+          <div className="grid w-full gap-2 sm:grid-cols-2">
+            <Button
+              onClick={handlePhantomPayment}
+              disabled={!customerInfo.email || isPhantomLoading || isWalletLoading}
+              type="button"
+              className="w-full bg-[#5f4acb] py-2 font-medium text-white transition-colors hover:bg-[#523db8]"
+            >
+              {isPhantomLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Opening...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-black text-[#5f4acb]">
+                    P
+                  </span>
+                  Phantom
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={handleWalletPayment}
+              disabled={!customerInfo.email || isWalletLoading || isPhantomLoading}
+              type="button"
+              className="w-full bg-black py-2 font-medium text-white transition-colors hover:bg-gray-800"
+            >
+              {isWalletLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Swop Wallet'
+              )}
+            </Button>
+          </div>
+        )}
+        {!user && (
           <Button
-            onClick={handleWalletPayment}
-            disabled={!customerInfo.email || isWalletLoading}
+            disabled
             type="button"
-            className="bg-black text-white py-2 w-full font-medium hover:bg-gray-800 transition-colors"
+            className="w-full bg-black text-white font-medium opacity-60"
           >
-            {isWalletLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              'Pay With Wallet'
-            )}
+            Sign in to pay with wallet
           </Button>
         )}
-        <Button
-          onClick={handleCardPayment}
-          disabled={!customerInfo.email || isCardLoading}
-          className="w-full bg-black text-white font-medium hover:bg-gray-800 transition-colors"
-        >
-          {isCardLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            'Pay With Card'
-          )}
-        </Button>
       </CardFooter>
     </Card>
   );

@@ -252,7 +252,20 @@ function CompactGameCard({
   onGameClick,
   withRightBorder,
 }: CompactGameCardProps) {
-  const { label: timeLabel, isLive } = gameTimeLabel(game.startDate);
+  const { label: scheduledLabel, isLive: scheduledLive } = gameTimeLabel(game.startDate);
+  const eventPeriod = game.eventPeriod ?? null;
+  const eventScore = game.eventScore ?? null;
+  const eventFinal = Boolean(
+    game.eventEnded ||
+      game.eventClosed ||
+      /^(ft|final)$/i.test(String(eventPeriod || '').trim()),
+  );
+  const isLive = Boolean(!eventFinal && (game.eventLive || scheduledLive));
+  const timeLabel = eventFinal
+    ? `FINAL${eventScore ? ` · ${eventScore}` : ''}`
+    : isLive
+      ? 'LIVE'
+      : scheduledLabel;
   const ml = game.moneyline;
   const sp = game.spread;
   const tot = game.total;
@@ -304,6 +317,7 @@ function CompactGameCard({
       | undefined,
   ) => {
     if (!market || !outcome) return;
+    if (eventFinal) return;
     if (onGameClick) {
       onGameClick(game);
       return;
@@ -330,7 +344,7 @@ function CompactGameCard({
               className="w-1.5 h-1.5 rounded-full"
               style={{ background: LIVE_RED }}
             />
-            LIVE · {timeLabel}
+            LIVE
           </span>
         ) : (
           <span
@@ -409,7 +423,7 @@ function CompactGameCard({
             onClick={() => {
               openOutcome(ml?.market, row.ml);
             }}
-            disabled={!row.ml || !ml}
+            disabled={eventFinal || !row.ml || !ml}
             aria-label={`Open all odds for ${game.title}`}
             className="px-1 py-1 rounded-md border bg-white text-[11px] font-semibold tabular-nums hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
@@ -425,7 +439,7 @@ function CompactGameCard({
             onClick={() => {
               openOutcome(sp?.market, row.spread);
             }}
-            disabled={!row.spread || !sp}
+            disabled={eventFinal || !row.spread || !sp}
             aria-label={`Open all odds for ${game.title}`}
             className="px-1 py-1 rounded-md border bg-white text-[11px] font-semibold tabular-nums hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed leading-tight"
             style={{
@@ -448,7 +462,7 @@ function CompactGameCard({
             onClick={() => {
               openOutcome(tot?.market, row.total);
             }}
-            disabled={!row.total || !tot}
+            disabled={eventFinal || !row.total || !tot}
             aria-label={`Open all odds for ${game.title}`}
             className="px-1 py-1 rounded-md border bg-white text-[11px] font-semibold tabular-nums hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed leading-tight"
             style={{
@@ -532,7 +546,7 @@ function SportsHeroCard({
   const stats = useMemo(() => {
     const all = sportsData?.pages.flat() ?? [];
     const liveCount = all.filter((m) =>
-      Boolean(m.eventLive || m.eventPeriod || m.eventElapsed),
+      Boolean(m.eventLive && !m.eventEnded && !m.eventClosed),
     ).length;
     const vol = all.reduce(
       (s, m) => s + (parseFloat(m.volume24hr as string) || 0),

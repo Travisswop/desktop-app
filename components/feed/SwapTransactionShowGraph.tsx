@@ -10,6 +10,7 @@ import React, {
 import Image from "next/image";
 import dayjs from "dayjs";
 import * as shape from "d3-shape";
+import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 import {
   getNativeMarketId,
   getTokenFallbackPrice,
@@ -48,6 +49,27 @@ interface TransactionSwapGraphProps {
 }
 
 type PricePoint = { price: number; timestamp: number };
+
+function resolveProfileImageSrc(profilePic?: string | null): string | null {
+  const value = String(profilePic ?? "").trim();
+  if (!value) return null;
+
+  const isImageResource =
+    value.startsWith("/") ||
+    value.startsWith("//") ||
+    value.includes("/") ||
+    /^(https?:|data:|blob:|ipfs:\/\/)/i.test(value);
+
+  if (isImageResource) {
+    return sanitizeNextImageSrc(value) || null;
+  }
+
+  const fileName = /\.(png|jpe?g|gif|webp|svg)$/i.test(value)
+    ? value
+    : `${value}@3x.png`;
+
+  return `/images/user_avator/${encodeURIComponent(fileName)}`;
+}
 
 // ---------------------------------------------------------------------------
 // Skeleton loader
@@ -93,6 +115,10 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
   const PADDING = 0;
   const AVATAR_RADIUS = 18;
   const AVATAR_BORDER = AVATAR_RADIUS + 3;
+  const profileImageSrc = useMemo(
+    () => resolveProfileImageSrc(profilePic),
+    [profilePic],
+  );
   const livePriceRef = useRef<number | null>(parseMarketPrice(livePrice));
 
   useEffect(() => {
@@ -598,7 +624,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
             {createdAtX !== null &&
               avatarCx !== null &&
               avatarCy !== null &&
-              profilePic && (
+              profileImageSrc && (
                 <>
                   {showCreatedAtTooltip && (
                     <line
@@ -648,7 +674,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
         )}
 
         {/* Avatar image — absolutely positioned over SVG */}
-        {avatarCx !== null && avatarCy !== null && profilePic && (
+        {avatarCx !== null && avatarCy !== null && profileImageSrc && (
           <button
             className="absolute rounded-full overflow-hidden border-2 border-white shadow"
             style={{
@@ -668,7 +694,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
             }}
           >
             <Image
-              src={profilePic}
+              src={profileImageSrc}
               alt="profile"
               width={AVATAR_RADIUS * 2}
               height={AVATAR_RADIUS * 2}

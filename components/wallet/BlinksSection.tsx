@@ -207,6 +207,26 @@ export default function BlinksSection() {
   const [filter, setFilter] = useState<BlinkFilter>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (window.location.hash !== '#blinks') return;
+
+    const scrollToBlinks = () => {
+      document
+        .getElementById('blinks')
+        ?.scrollIntoView({ block: 'start' });
+    };
+
+    const frameId = window.requestAnimationFrame(scrollToBlinks);
+    const timeoutIds = [150, 600, 1200].map((delay) =>
+      window.setTimeout(scrollToBlinks, delay),
+    );
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      timeoutIds.forEach((id) => window.clearTimeout(id));
+    };
+  }, []);
+
   const fetchPools = useCallback(async () => {
     if (!user?.id) return;
     try {
@@ -399,7 +419,7 @@ export default function BlinksSection() {
   ];
 
   return (
-    <section className="mt-8">
+    <section id="blinks" className="mt-8 scroll-mt-24">
       <div className="flex items-end justify-between gap-3 mb-3">
         <div className="min-w-0">
           <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">

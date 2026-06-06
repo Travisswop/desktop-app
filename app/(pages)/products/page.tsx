@@ -6,33 +6,27 @@ import ProductsScreen, {
   type ProductRow,
 } from '@/components/mint/ProductsScreen';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  listMarketplaceOrders,
+  listMarketplaceProducts,
+  updateMarketplaceProduct,
+  type MarketplaceOrder,
+  type MarketplaceProduct,
+} from '@/lib/marketplace-api';
+import { getMarketplaceProductDisplayType } from '@/lib/marketplace-display';
 
-interface NFTRecord {
-  _id?: string;
-  name: string;
-  description?: string;
-  image: string;
-  price: number | string;
-  currency?: string;
-  mintLimit?: number;
-  nftType?: string;
-  category?: 'physical' | 'digital';
-}
-
-interface TemplateSalesRow {
-  templateId: string;
+interface ProductSalesRow {
+  productId: string;
   units: number;
   revenue: number;
-  orderCount: number;
 }
 
 interface SalesSummary {
-  perTemplate: TemplateSalesRow[];
+  perProduct: ProductSalesRow[];
   totals: { units: number; revenue: number; templates: number; orders: number };
 }
 
 const CREATE_HREF = '/products/create';
-const API = process.env.NEXT_PUBLIC_API_URL;
 
 export default function ProductsPage() {
   const { user, accessToken } = useUser();
@@ -43,55 +37,35 @@ export default function ProductsPage() {
 
   const load = useCallback(
     async (token: string) => {
-      const [templatesRes, summaryRes] = await Promise.all([
-        fetch(`${API}/api/v2/desktop/nft/listByUser`, {
-          method: 'GET',
-          headers: { authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API}/api/v2/desktop/orders/summaryByUser?since=30d`, {
-          method: 'GET',
-          headers: { authorization: `Bearer ${token}` },
-        }),
+      const [productsRes, ordersRes] = await Promise.all([
+        listMarketplaceProducts(token, { scope: 'mine', limit: 200 }),
+        listMarketplaceOrders(token, { role: 'seller', limit: 200 }),
       ]);
 
-      if (!templatesRes.ok) {
-        throw new Error(`templates ${templatesRes.status}`);
+      const summary = summarizeSales(ordersRes.items || []);
+      const salesByProduct: Record<string, ProductSalesRow> = {};
+      for (const r of summary.perProduct) {
+        salesByProduct[r.productId] = r;
       }
 
-      const { data: templates } = (await templatesRes.json()) as {
-        data: NFTRecord[];
-      };
+      const mapped = (productsRes.items || [])
+        .filter((item) => item.status !== 'archived')
+        .map<ProductRow>((item) => mapProductRow(item, salesByProduct[item._id]));
 
-      const salesByTemplate: Record<string, TemplateSalesRow> = {};
-      let parsedSummary: SalesSummary | null = null;
-      if (summaryRes.ok) {
-        const { data } = (await summaryRes.json()) as { data: SalesSummary };
-        parsedSummary = data;
-        for (const r of data.perTemplate) {
-          salesByTemplate[r.templateId] = r;
-        }
-      }
-
-      const mapped = (templates || []).map<ProductRow>((item) => {
-        const sales = item._id ? salesByTemplate[item._id] : undefined;
-        return {
-          id: item._id ?? `${item.nftType}-${item.name}`,
-          name: item.name,
-          type: item.category === 'physical' ? 'Physical' : 'Digital',
-          price: Number(item.price) || 0,
-          stock: item.mintLimit,
-          units: sales?.units,
-          revenue: sales?.revenue,
-          currency: (item.currency || 'usdc').toUpperCase(),
-          status: 'live',
-          glyph: glyphFor(item.name),
-          image: item.image,
-        };
-      });
-
-      return { rows: mapped, summary: parsedSummary };
+      return { rows: mapped, summary };
     },
     []
+  );
+
+  const handleDeleteProduct = useCallback(
+    async (productId: string) => {
+      if (!accessToken) throw new Error('Authentication required.');
+      await updateMarketplaceProduct(accessToken, productId, {
+        status: 'archived',
+      });
+      setRows((current) => current.filter((row) => row.id !== productId));
+    },
+    [accessToken]
   );
 
   useEffect(() => {
@@ -166,6 +140,7 @@ export default function ProductsPage() {
             createHref={CREATE_HREF}
             kicker={kickerFor(rows)}
             totals={summary?.totals}
+            onDeleteProduct={handleDeleteProduct}
           />
         </div>
       </div>
@@ -177,14 +152,74 @@ function kickerFor(rows: ProductRow[]): string {
   if (rows.length === 0) return 'No products yet · create your first one';
   const live = rows.filter((r) => r.status === 'live').length;
   const physical = rows.filter((r) => r.type === 'Physical').length;
-  const digital = rows.length - physical;
+  const digital = rows.filter((r) => r.type === 'Digital').length;
+  const service = rows.filter((r) => r.type === 'Service').length;
   const parts: string[] = [
     `${rows.length} product${rows.length === 1 ? '' : 's'}`,
   ];
   if (live) parts.push(`${live} live`);
   parts.push(`${physical} physical`);
   parts.push(`${digital} digital`);
+  if (service) parts.push(`${service} service`);
   return parts.join(' · ');
+}
+
+function mapProductRow(
+  item: MarketplaceProduct,
+  sales?: ProductSalesRow
+): ProductRow {
+  const available = item.inventory?.available;
+  return {
+    id: item._id,
+    name: item.title,
+    type: getMarketplaceProductDisplayType(item.productType),
+    price: Number(item.price?.amount) || 0,
+    stock: typeof available === 'number' ? available : undefined,
+    units: sales?.units,
+    revenue: sales?.revenue,
+    currency: (item.price?.currency || 'USDC').toUpperCase(),
+    status:
+      item.status === 'draft'
+        ? 'draft'
+        : typeof available === 'number' && available <= 5
+        ? 'low'
+        : 'live',
+    glyph: glyphFor(item.title),
+    image: item.primaryImage || item.images?.[0]?.url,
+  };
+}
+
+function summarizeSales(orders: MarketplaceOrder[]): SalesSummary {
+  const byProduct: Record<string, ProductSalesRow> = {};
+  let totalUnits = 0;
+  let totalRevenue = 0;
+
+  for (const order of orders) {
+    if (order.payment?.status !== 'completed') continue;
+    for (const item of order.lineItems || []) {
+      const productId = String(item.productId || '');
+      if (!productId) continue;
+      const quantity = Number(item.quantity) || 0;
+      const revenue = Number(item.totalAmount ?? item.unitAmount * quantity) || 0;
+      totalUnits += quantity;
+      totalRevenue += revenue;
+      byProduct[productId] = {
+        productId,
+        units: (byProduct[productId]?.units || 0) + quantity,
+        revenue: (byProduct[productId]?.revenue || 0) + revenue,
+      };
+    }
+  }
+
+  return {
+    perProduct: Object.values(byProduct),
+    totals: {
+      units: totalUnits,
+      revenue: totalRevenue,
+      templates: Object.keys(byProduct).length,
+      orders: orders.filter((order) => order.payment?.status === 'completed').length,
+    },
+  };
 }
 
 function glyphFor(name: string): string {

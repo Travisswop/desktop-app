@@ -1,6 +1,6 @@
 import { useUser } from '@/lib/UserContext';
 
-export type PaymentMethod = 'stripe' | 'wallet';
+export type PaymentMethod = 'wallet';
 export type Status =
   | 'pending'
   | 'processing'
@@ -34,7 +34,10 @@ export interface CustomerInfo {
 
 export interface CartItem {
   _id: string;
+  marketplaceProductId?: string;
+  productType?: 'digital' | 'physical' | 'in_person_checkout';
   quantity: number;
+  timestamp?: number;
   collectionId?: string;
   templateId?: string;
   userId?: string;
@@ -84,8 +87,8 @@ export interface CheckoutCardProps {
   toggleUseSwopId: () => void;
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleCountryChange: (value: string) => void;
-  handleOpenPaymentSheet: () => void;
   handleOpenWalletPayment: () => void;
+  handleOpenPhantomPayment: () => void;
   errorMessage: string | null;
   cartItems: CartItem[];
   subtotal: number;

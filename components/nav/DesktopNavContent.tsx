@@ -10,6 +10,7 @@ import {
   Package,
   Plus,
   QrCode,
+  ReceiptText,
   Sparkles,
   UserRoundCog,
   Wallet,
@@ -20,7 +21,7 @@ const navItems = [
     href: "/dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
-    match: (pathname: string) => pathname.startsWith("/dashboard"),
+    match: (pathname: string) => pathname === "/dashboard",
   },
   {
     href: "/",
@@ -51,6 +52,12 @@ const navItems = [
     label: "Orders",
     icon: Package,
     match: (pathname: string) => pathname.startsWith("/order"),
+  },
+  {
+    href: "/dashboard/settlements",
+    label: "Settlements",
+    icon: ReceiptText,
+    match: (pathname: string) => pathname.startsWith("/dashboard/settlements"),
   },
   {
     href: "/qr-code",

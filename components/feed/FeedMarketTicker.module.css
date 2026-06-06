@@ -30,7 +30,8 @@
   will-change: transform;
 }
 
-.tickerTrack:hover {
+.tickerTrack:hover,
+.tickerTrack:focus-within {
   animation-play-state: paused;
 }
 

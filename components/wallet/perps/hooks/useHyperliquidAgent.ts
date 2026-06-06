@@ -11,7 +11,10 @@ import type { SignTypedDataParams } from '@privy-io/react-auth';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import * as hl from '@nktkas/hyperliquid';
 import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
-import { selectPreferredWallet } from '@/components/wallet/hooks/useWalletData';
+import {
+  selectPreferredWallet,
+  shouldPreferEmbeddedWallets,
+} from '@/components/wallet/hooks/useWalletData';
 
 // ─── Agent key persistence ──────────────────────────────────────────────────
 //
@@ -101,6 +104,7 @@ export function useHyperliquidAgent({
   const { ready, authenticated, user } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
   const { signTypedData } = useSignTypedData();
+  const useEmbeddedWalletProvider = shouldPreferEmbeddedWallets();
 
   const [state, setState] = useState<AgentState>({
     agentClient: null,
@@ -140,6 +144,10 @@ export function useHyperliquidAgent({
         const masterWallet = selectPreferredWallet(
           wallets,
           user?.wallet?.address,
+          {
+            preferEmbedded: useEmbeddedWalletProvider,
+            embeddedOnly: useEmbeddedWalletProvider,
+          },
         );
         if (!masterWallet) {
           throw new Error('EVM wallet not found. Please refresh and try again.');
@@ -242,7 +250,15 @@ export function useHyperliquidAgent({
         return null;
       }
     },
-    [enabled, ready, walletsReady, wallets, user?.wallet?.address, signTypedData],
+    [
+      enabled,
+      ready,
+      walletsReady,
+      wallets,
+      user?.wallet?.address,
+      signTypedData,
+      useEmbeddedWalletProvider,
+    ],
   );
 
   // ─── Public: manual initialization ────────────────────────────────────────
@@ -257,6 +273,10 @@ export function useHyperliquidAgent({
     const masterWallet = selectPreferredWallet(
       wallets,
       user?.wallet?.address,
+      {
+        preferEmbedded: useEmbeddedWalletProvider,
+        embeddedOnly: useEmbeddedWalletProvider,
+      },
     );
 
     if (!masterWallet && agentClientRef.current) {
@@ -284,7 +304,14 @@ export function useHyperliquidAgent({
     ) {
       _init(true);
     }
-  }, [enabled, wallets, walletsReady, user?.wallet?.address, _init]);
+  }, [
+    enabled,
+    wallets,
+    walletsReady,
+    user?.wallet?.address,
+    useEmbeddedWalletProvider,
+    _init,
+  ]);
 
   // ─── Clear on Privy logout ─────────────────────────────────────────────────
 
@@ -315,6 +342,10 @@ export function useHyperliquidAgent({
     const masterWallet = selectPreferredWallet(
       wallets,
       user?.wallet?.address,
+      {
+        preferEmbedded: useEmbeddedWalletProvider,
+        embeddedOnly: useEmbeddedWalletProvider,
+      },
     );
     if (masterWallet) deleteAgentKey(masterWallet.address);
 
@@ -330,7 +361,7 @@ export function useHyperliquidAgent({
       isReconnecting: false,
       error: null,
     });
-  }, [wallets, user?.wallet?.address]);
+  }, [wallets, user?.wallet?.address, useEmbeddedWalletProvider]);
 
   return { ...state, initializeAgent, resetAgent };
 }

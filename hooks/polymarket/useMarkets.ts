@@ -1,5 +1,5 @@
 import type { CategoryId } from "@/constants/polymarket";
-import { getCategoryById, QUERY_STALE_TIMES } from "@/constants/polymarket";
+import { getCategoryById, QUERY_REFETCH_INTERVALS, QUERY_STALE_TIMES } from "@/constants/polymarket";
 import { useTrading } from "@/providers/polymarket";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchChunkedPrices } from "@/lib/polymarket/clob-prices";
@@ -32,10 +32,16 @@ export type PolymarketMarket = {
   /** True when Polymarket has flagged the parent event as currently live.
    *  Drives the red "● LIVE · Q4 · 6:44" header in the A2 sports row. */
   eventLive?: boolean;
+  /** True when the parent sports event has ended even if Polymarket markets remain open. */
+  eventEnded?: boolean;
+  /** True when the parent sports event is closed/ended/inactive. */
+  eventClosed?: boolean;
   /** Period string from Polymarket (e.g. "Q4", "Half"). */
   eventPeriod?: string | null;
   /** Elapsed-in-period string from Polymarket (e.g. "6:44"). */
   eventElapsed?: string | null;
+  /** Event score string from Polymarket, e.g. "3-4". */
+  eventScore?: string | null;
   /** ISO start time for the parent event (used by the date strip filter). */
   eventStartDate?: string | null;
   /**
@@ -57,10 +63,10 @@ export type PolymarketMarket = {
   realtimePrices?: Record<
     string,
     {
-      bidPrice: number;
-      askPrice: number;
-      midPrice: number;
-      spread: number;
+      bidPrice?: number;
+      askPrice?: number;
+      midPrice?: number;
+      spread?: number;
     }
   >;
   [key: string]: any;
@@ -168,7 +174,7 @@ export function useMarkets(options: UseMarketsOptions = {}) {
       return allPages.reduce((total, page) => total + page.length, 0);
     },
     staleTime: QUERY_STALE_TIMES.MARKETS,
-    refetchInterval: 60_000,
+    refetchInterval: QUERY_REFETCH_INTERVALS.MARKETS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });

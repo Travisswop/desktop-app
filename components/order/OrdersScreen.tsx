@@ -16,6 +16,7 @@ import {
   posGreen,
 } from '@/components/mint/design-system';
 import { Download } from 'lucide-react';
+import { isInPersonCheckoutMode } from '@/lib/marketplace-display';
 
 export type OrderTab = 'Payments' | 'Sold' | 'Purchases';
 
@@ -31,6 +32,7 @@ export interface OrderRow {
   chain: 'USDC' | 'SOL';
   role: 'buyer' | 'seller';
   _id: string;
+  checkoutMode?: string;
 }
 
 export interface OrderTotals {
@@ -92,7 +94,7 @@ export default function OrdersScreen({
     }
     if (tab === 'Sold') {
       return [
-        { l: 'Total Mints', v: (totals?.units ?? 0).toLocaleString(), em: true, mono: true },
+        { l: 'Units sold', v: (totals?.units ?? 0).toLocaleString(), em: true, mono: true },
         { l: 'Gross Sales', v: `$${revenue.toLocaleString()}`, em: true, mono: true },
         { l: '$ in Escrow', v: '$0', mono: true },
         { l: 'Open Orders', v: pending.toString() },
@@ -321,7 +323,27 @@ export default function OrdersScreen({
                 </Avatar>
                 <div style={{ fontSize: 13 }}>{o.counterparty}</div>
               </div>
-              <div style={{ fontSize: 13, color: ink }}>{o.item}</div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    color: ink,
+                  }}
+                >
+                  {o.item}
+                </span>
+                {isInPersonCheckoutMode(o.checkoutMode) && <CheckoutModePill />}
+              </div>
               <Mono size={13}>${o.price.toFixed(2)}</Mono>
               <div style={{ fontSize: 12.5, color: muted }}>{o.date}</div>
               <div>
@@ -332,5 +354,25 @@ export default function OrdersScreen({
         )}
       </Card>
     </ScreenShell>
+  );
+}
+
+function CheckoutModePill() {
+  return (
+    <span
+      style={{
+        flexShrink: 0,
+        padding: '3px 7px',
+        borderRadius: 5,
+        background: '#f2f2f0',
+        color: muted,
+        fontSize: 10.5,
+        fontWeight: 700,
+        letterSpacing: 0.2,
+        fontFamily: 'var(--font-jetbrains-mono), monospace',
+      }}
+    >
+      In-person
+    </span>
   );
 }

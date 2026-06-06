@@ -418,6 +418,7 @@ export default function PredictionsPanel({
           tokenId: position.asset,
           conditionId: position.conditionId,
           size: position.size,
+          acceptedPrice: position.curPrice,
           side: 'SELL',
           negRisk: position.negativeRisk,
           isMarketOrder: true,
@@ -1209,7 +1210,7 @@ function OpenOrdersView({
 
 // ── My bets — A5-style table mirroring BetHistoryView ─────────────
 
-type BetStatusKey = 'live' | 'redeemable' | 'settled';
+type BetStatusKey = 'live' | 'pending' | 'redeemable' | 'settled';
 type BetStatusFilter = BetStatusKey | 'all';
 
 interface BetRow {
@@ -1248,6 +1249,9 @@ function deriveBetRow(p: PolymarketPosition): BetRow {
   } else if (p.redeemable) {
     statusKey = 'settled';
     statusLabel = p.cashPnl < -0.005 ? 'LOST' : 'SETTLED';
+  } else if (p.marketResolutionPending || p.marketClosed) {
+    statusKey = 'pending';
+    statusLabel = 'FINAL';
   } else {
     statusKey = 'live';
     statusLabel = 'OPEN';
@@ -1392,6 +1396,7 @@ const BET_STATUS_TONE: Record<
   { bg: string; fg: string }
 > = {
   live: { bg: SURFACE2, fg: MUTED },
+  pending: { bg: 'rgba(245,158,11,0.12)', fg: '#b45309' },
   redeemable: { bg: POS_GREEN_SOFT, fg: POS_GREEN },
   settled: { bg: SURFACE2, fg: MUTED },
 };
@@ -1461,6 +1466,7 @@ function MyBetsView({
   const counts = useMemo(() => {
     const c: Record<BetStatusKey, number> = {
       live: 0,
+      pending: 0,
       redeemable: 0,
       settled: 0,
     };
@@ -1470,6 +1476,7 @@ function MyBetsView({
 
   const summary = useMemo(() => {
     const openRows = rows.filter((r) => r.statusKey === 'live');
+    const pendingRows = rows.filter((r) => r.statusKey === 'pending');
     const claimableRows = rows.filter(
       (r) => r.statusKey === 'redeemable',
     );
@@ -1499,6 +1506,7 @@ function MyBetsView({
     return {
       total: rows.length,
       openCount: openRows.length,
+      pendingCount: pendingRows.length,
       claimableCount: claimableRows.length,
       settledCount: settledRows.length,
       openValue,
@@ -1524,9 +1532,13 @@ function MyBetsView({
       <PageTitle
         eyebrow="Predictions"
         title="My bets"
-        caption={`${summary.openCount} open · ${
-          summary.claimableCount
-        } won to claim · ${claimedWinRows.length} claimed`}
+        caption={`${summary.openCount} open${
+          summary.pendingCount > 0
+            ? ` · ${summary.pendingCount} finalizing`
+            : ''
+        } · ${summary.claimableCount} won to claim · ${
+          claimedWinRows.length
+        } claimed`}
       />
 
       <PendingRedemptionNotice redemptions={pendingRedemptions} />
@@ -1576,6 +1588,14 @@ function MyBetsView({
         >
           Open · {counts.live}
         </FilterChip>
+        {counts.pending > 0 && (
+          <FilterChip
+            active={statusFilter === 'pending'}
+            onClick={() => setStatusFilter('pending')}
+          >
+            Final · {counts.pending}
+          </FilterChip>
+        )}
         {counts.redeemable > 0 && (
           <FilterChip
             active={statusFilter === 'redeemable'}
@@ -1910,6 +1930,19 @@ function BetTableRow({
               ? 'Selling…'
               : 'Cash out'}
         </button>
+      );
+    }
+    if (statusKey === 'pending') {
+      return (
+        <span
+          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold whitespace-nowrap"
+          style={{
+            background: 'rgba(245,158,11,0.12)',
+            color: '#b45309',
+          }}
+        >
+          Waiting to redeem
+        </span>
       );
     }
     return (

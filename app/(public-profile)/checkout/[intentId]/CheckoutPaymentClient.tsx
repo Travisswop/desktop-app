@@ -1,7 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   useConnectWallet,
   usePrivy,
@@ -23,6 +24,7 @@ import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
+  Copy,
   ExternalLink,
   Link2,
   Loader2,
@@ -43,6 +45,18 @@ import {
   submitCheckoutLifiTransaction,
   submitCheckoutTransaction,
 } from '@/lib/checkout-api';
+import { getJupiterQuote as fetchJupiterQuote } from '@/actions/jupiterSwap';
+import {
+  calculateCheckoutTokenAmount,
+  formatRawTokenAmount,
+  getCheckoutAmounts,
+  getProtectedCheckoutOutputRawAmount,
+  isSolanaSettlementUsdc,
+  SOL_MINT,
+  SOLANA_USDC_MINT,
+} from '@/lib/checkout-payment-amounts';
+import { copyTextToClipboard } from '@/lib/clipboard';
+import { getPhantomCheckoutUrl } from '@/lib/phantom-checkout';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
@@ -151,39 +165,6 @@ function formatCurrency(value?: number, currency = 'USDC') {
   })} ${currency}`;
 }
 
-function getCheckoutAmounts(intent: CheckoutIntent) {
-  const merchantReceivesAmount =
-    intent.fees?.merchantReceivesAmount ?? intent.amount.value;
-  const platformFeeAmount = intent.fees?.platformFeeAmount ?? 0;
-  const totalDueAmount =
-    intent.fees?.totalDueAmount ??
-    merchantReceivesAmount + platformFeeAmount;
-  const slippageBps = intent.fees?.slippageBps ?? 50;
-  const platformFeeBps = intent.fees?.platformFeeBps ?? 50;
-
-  return {
-    merchantReceivesAmount,
-    platformFeeAmount,
-    totalDueAmount,
-    slippageBps,
-    platformFeeBps,
-  };
-}
-
-function calculateTokenAmount(intent: CheckoutIntent, token: TokenData | null) {
-  if (!token?.marketData?.price) return '';
-
-  const price = Number(token.marketData.price);
-  if (!Number.isFinite(price) || price <= 0) return '';
-
-  const { totalDueAmount, slippageBps } = getCheckoutAmounts(intent);
-  const lifiBuffer =
-    token.chain === 'SOLANA' ? 1 : 1 + Math.max(slippageBps, 50) / 10000;
-  const amount = (totalDueAmount / price) * lifiBuffer;
-  const decimals = token.symbol?.toUpperCase() === 'USDC' ? 6 : 8;
-  return amount.toFixed(Math.min(token.decimals || decimals, decimals));
-}
-
 function tokenMintForCheckout(token: TokenData) {
   if (token.isNative || token.symbol?.toUpperCase() === 'SOL') return null;
   return token.address || null;
@@ -208,6 +189,14 @@ function tokenRail(token: TokenData | null) {
 function explorerUrlForToken(token: TokenData | null, txHash: string) {
   const chain = token?.chain || 'SOLANA';
   return `${CHAIN_CONFIG[chain]?.explorer || CHAIN_CONFIG.SOLANA.explorer}${txHash}`;
+}
+
+function chainNameById(chainId?: string | null) {
+  if (!chainId) return '';
+  const match = Object.values(CHAIN_CONFIG).find(
+    (chain) => chain.id === String(chainId)
+  );
+  return match?.name || chainId;
 }
 
 function swopAppCheckoutUrl(intentId: string) {
@@ -241,6 +230,17 @@ function statusCopy(intent?: CheckoutIntent | null) {
   }
 }
 
+function PhantomMark({ className = '' }: { className?: string }) {
+  return (
+    <span
+      className={`flex items-center justify-center rounded-full bg-white text-xs font-black text-[#5f4acb] ${className}`}
+      aria-hidden="true"
+    >
+      P
+    </span>
+  );
+}
+
 export default function CheckoutPaymentClient({
   intentId,
 }: {
@@ -262,9 +262,21 @@ export default function CheckoutPaymentClient({
   const [transactionHash, setTransactionHash] = useState('');
   const [creatingWallet, setCreatingWallet] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState(false);
+  const [copiedPayUri, setCopiedPayUri] = useState(false);
+  const [copyFallback, setCopyFallback] = useState('');
+  const copyFallbackInputRef = useRef<HTMLInputElement | null>(null);
+  const [quotedTokenAmount, setQuotedTokenAmount] = useState('');
+  const [tokenAmountLoading, setTokenAmountLoading] = useState(false);
+  const [tokenAmountQuoteError, setTokenAmountQuoteError] = useState<
+    string | null
+  >(null);
   const [quoteSummary, setQuoteSummary] = useState<{
     quotedOutputAmount?: number;
     minOutputAmount?: number;
+    requiredSettlementAmount?: number;
+    destinationChain?: string;
+    settlementMode?: string;
+    platformFeeCollection?: string;
     lifiTool?: string | null;
     approvalAddress?: string | null;
   } | null>(null);
@@ -314,10 +326,20 @@ export default function CheckoutPaymentClient({
       });
   }, [railFilter, search, tokens]);
 
-  const tokenAmount = useMemo(
-    () => (intent ? calculateTokenAmount(intent, selectedToken) : ''),
+  const estimatedTokenAmount = useMemo(
+    () => (intent ? calculateCheckoutTokenAmount(intent, selectedToken) : ''),
     [intent, selectedToken]
   );
+
+  const needsSolanaSettlementQuote = Boolean(
+    intent &&
+      selectedToken &&
+      selectedToken.chain === 'SOLANA' &&
+      !isSolanaSettlementUsdc(selectedToken)
+  );
+  const tokenAmount = needsSolanaSettlementQuote
+    ? quotedTokenAmount
+    : estimatedTokenAmount;
 
   const checkoutAmounts = useMemo(
     () => (intent ? getCheckoutAmounts(intent) : null),
@@ -329,6 +351,15 @@ export default function CheckoutPaymentClient({
     () => swopAppCheckoutUrl(intentId),
     [intentId]
   );
+  const phantomCheckoutUrl = useMemo(
+    () =>
+      getPhantomCheckoutUrl({
+        checkoutUrl: intent?.checkoutUrl,
+        intentId: intent?.intentId || intentId,
+      }),
+    [intent?.checkoutUrl, intent?.intentId, intentId]
+  );
+  const marketplaceOrderId = intent?.marketplaceOrder?.orderId || '';
 
   const hasSufficientBalance = useMemo(() => {
     if (!selectedToken || !tokenAmount) return false;
@@ -377,8 +408,87 @@ export default function CheckoutPaymentClient({
   }, [payableTokens, selectedToken]);
 
   useEffect(() => {
+    if (!copyFallback) return;
+    window.setTimeout(() => {
+      copyFallbackInputRef.current?.focus();
+      copyFallbackInputRef.current?.select();
+    }, 0);
+  }, [copyFallback]);
+
+  useEffect(() => {
     setQuoteSummary(null);
   }, [selectedToken, tokenAmount]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setQuotedTokenAmount('');
+    setTokenAmountQuoteError(null);
+
+    async function quoteSolanaSettlementAmount() {
+      if (!intent || !selectedToken || !needsSolanaSettlementQuote) {
+        setTokenAmountLoading(false);
+        return;
+      }
+
+      const inputMint =
+        selectedToken.isNative ||
+        selectedToken.symbol?.toUpperCase() === 'SOL'
+          ? SOL_MINT
+          : selectedToken.address;
+
+      if (!inputMint) {
+        setTokenAmountQuoteError('Unable to quote selected token.');
+        setTokenAmountLoading(false);
+        return;
+      }
+
+      setTokenAmountLoading(true);
+
+      try {
+        const result = await fetchJupiterQuote({
+          inputMint,
+          outputMint: intent.merchantCurrency.mint || SOLANA_USDC_MINT,
+          amount: getProtectedCheckoutOutputRawAmount(
+            intent,
+            intent.merchantCurrency.decimals || 6
+          ),
+          slippageBps: getCheckoutAmounts(intent).slippageBps,
+          swapMode: 'ExactOut',
+        });
+
+        if (cancelled) return;
+
+        if (!result.success || !result.data?.inAmount) {
+          throw new Error(
+            result.error || 'Unable to quote selected token into USDC.'
+          );
+        }
+
+        setQuotedTokenAmount(
+          formatRawTokenAmount(
+            result.data.inAmount,
+            selectedToken.decimals || 9
+          )
+        );
+      } catch (quoteError) {
+        if (cancelled) return;
+        setTokenAmountQuoteError(
+          quoteError instanceof Error
+            ? quoteError.message
+            : 'Unable to quote selected token into USDC.'
+        );
+      } finally {
+        if (!cancelled) setTokenAmountLoading(false);
+      }
+    }
+
+    quoteSolanaSettlementAmount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [intent, needsSolanaSettlementQuote, selectedToken]);
 
   const handleCreateWallet = async () => {
     setCreatingWallet(true);
@@ -417,6 +527,26 @@ export default function CheckoutPaymentClient({
 
   const handleOpenSwopApp = () => {
     window.location.href = appCheckoutUrl;
+  };
+
+  const handleOpenPhantom = () => {
+    if (!phantomCheckoutUrl) return;
+    window.location.href = phantomCheckoutUrl;
+  };
+
+  const copySolanaPayUri = async () => {
+    if (!intent?.paymentRequest?.url) return;
+    const copiedToClipboard = await copyTextToClipboard(intent.paymentRequest.url);
+    if (copiedToClipboard) {
+      setCopyFallback('');
+      setCopiedPayUri(true);
+      toast.success('Solana Pay URI copied');
+      window.setTimeout(() => setCopiedPayUri(false), 1600);
+      return;
+    }
+
+    setCopyFallback(intent.paymentRequest.url);
+    toast('Payment URI selected. Press Cmd+C to copy.');
   };
 
   const executeLifiTransaction = async (
@@ -738,6 +868,67 @@ export default function CheckoutPaymentClient({
           </section>
         )}
 
+        {!loading && intent?.paymentRequest?.url && payable && (
+          <section className="rounded-lg border border-[#e7e8ec] bg-white p-5 shadow-sm">
+            <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-center">
+              <div className="mx-auto rounded-lg border border-[#dfe4eb] bg-white p-3 shadow-sm">
+                <QRCodeSVG
+                  value={phantomCheckoutUrl || intent.paymentRequest.url}
+                  size={240}
+                  bgColor="#ffffff"
+                  fgColor="#101114"
+                  level="M"
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+                  Phantom checkout
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Pay with Phantom
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[#646b78]">
+                  Scan or open the provider link, then approve the payment from
+                  Phantom. The unique checkout reference lets Swop reconcile the
+                  exact payment.
+                </p>
+                <div className="mt-4 rounded-md border border-[#edf0f3] bg-[#fbfcfd] p-3 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[#737b8c]">Recipient</span>
+                    <span className="font-semibold">
+                      {intent.paymentRequest.recipientRole === 'merchant'
+                        ? 'Merchant wallet'
+                        : 'Swop settlement wallet'}
+                    </span>
+                  </div>
+                  <p className="mt-2 break-all font-mono text-[11px] text-[#737b8c]">
+                    Ref {intent.paymentRequest.reference}
+                  </p>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenPhantom}
+                    disabled={!phantomCheckoutUrl}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#5f4acb] px-3 text-sm font-semibold text-white transition hover:bg-[#523db8] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <PhantomMark className="h-5 w-5" />
+                    Open Phantom
+                  </button>
+                  <button
+                    type="button"
+                    onClick={copySolanaPayUri}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 text-sm font-semibold text-[#303642] transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa]"
+                  >
+                    <Copy className="h-4 w-4" />
+                    {copiedPayUri ? 'Copied' : 'Copy payment URI'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {loading ? (
           <section className="rounded-lg border border-[#e7e8ec] bg-white p-6">
             <div className="flex items-center gap-3 text-sm text-[#646b78]">
@@ -766,6 +957,15 @@ export default function CheckoutPaymentClient({
                     className="mt-4 inline-flex items-center gap-2 rounded-md bg-[#101114] px-3 py-2 text-sm font-semibold text-white"
                   >
                     View transaction
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                )}
+                {marketplaceOrderId && (
+                  <a
+                    href={`/order/${encodeURIComponent(marketplaceOrderId)}`}
+                    className="mt-3 inline-flex items-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 py-2 text-sm font-semibold text-[#101114]"
+                  >
+                    View order
                     <ArrowRight className="h-4 w-4" />
                   </a>
                 )}
@@ -801,7 +1001,26 @@ export default function CheckoutPaymentClient({
                   wallet that pays.
                 </p>
               </div>
-              <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-[420px]">
+              <div className="grid w-full gap-2 sm:grid-cols-3 lg:max-w-[640px]">
+                <button
+                  type="button"
+                  onClick={handleOpenPhantom}
+                  disabled={!phantomCheckoutUrl}
+                  className="flex min-h-[84px] items-center gap-3 rounded-md border border-[#5f4acb] bg-[#5f4acb] p-3 text-left text-white transition hover:bg-[#523db8] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
+                    <PhantomMark className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">
+                      Phantom
+                    </span>
+                    <span className="mt-1 block text-xs font-medium text-white/70">
+                      Open wallet browser
+                    </span>
+                  </span>
+                  <ExternalLink className="ml-auto h-4 w-4 flex-shrink-0 text-white/70" />
+                </button>
                 <button
                   type="button"
                   onClick={handleOpenSwopApp}
@@ -857,7 +1076,25 @@ export default function CheckoutPaymentClient({
                   Swop Pay will show the balances you can use.
                 </p>
               </div>
-              <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-[420px]">
+              <div className="grid w-full gap-2 sm:grid-cols-3 lg:max-w-[640px]">
+                <button
+                  type="button"
+                  onClick={handleOpenPhantom}
+                  disabled={!phantomCheckoutUrl}
+                  className="flex min-h-[76px] items-center gap-3 rounded-md border border-[#5f4acb] bg-[#5f4acb] p-3 text-left text-white transition hover:bg-[#523db8] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
+                    <PhantomMark className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">
+                      Phantom
+                    </span>
+                    <span className="mt-1 block text-xs font-medium text-white/70">
+                      Open provider
+                    </span>
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={handleConnectWallet}
@@ -1077,20 +1314,35 @@ export default function CheckoutPaymentClient({
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-[#737b8c]">You pay</dt>
                   <dd className="font-semibold">
-                    {selectedToken && tokenAmount
+                    {tokenAmountLoading
+                      ? 'Quoting...'
+                      : selectedToken && tokenAmount
                       ? `${tokenAmount} ${selectedToken.symbol}`
                       : '--'}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-[#737b8c]">Payment</dt>
-                  <dd className="font-semibold">Swop Pay</dd>
+                  <dd className="font-semibold">
+                    {selectedRail === 'lifi'
+                      ? 'Same-network USDC'
+                      : 'Solana USDC'}
+                  </dd>
                 </div>
               </dl>
 
               {quoteSummary?.minOutputAmount ? (
                 <div className="mt-4 rounded-md border border-[#dde1e6] bg-[#fafafa] p-3 text-xs font-medium text-[#646b78]">
-                  Merchant payout:{' '}
+                  Merchant minimum:{' '}
+                  {formatCurrency(
+                    quoteSummary.requiredSettlementAmount ||
+                      quoteSummary.minOutputAmount,
+                    intent.merchantCurrency.symbol
+                  )}
+                  {quoteSummary.destinationChain
+                    ? ` on ${chainNameById(quoteSummary.destinationChain)}`
+                    : ''}
+                  . Quote minimum:{' '}
                   {formatCurrency(
                     quoteSummary.minOutputAmount,
                     intent.merchantCurrency.symbol
@@ -1098,7 +1350,19 @@ export default function CheckoutPaymentClient({
                 </div>
               ) : null}
 
-              {selectedToken && !hasSufficientBalance && (
+              {tokenAmountLoading && selectedToken ? (
+                <div className="mt-4 rounded-md border border-[#dde1e6] bg-[#fafafa] p-3 text-xs font-medium text-[#646b78]">
+                  Getting a payout-safe {selectedToken.symbol} quote...
+                </div>
+              ) : null}
+
+              {tokenAmountQuoteError ? (
+                <div className="mt-4 rounded-md border border-[#ffd0d0] bg-[#fff5f5] p-3 text-xs font-medium text-[#b42318]">
+                  {tokenAmountQuoteError}
+                </div>
+              ) : null}
+
+              {selectedToken && tokenAmount && !hasSufficientBalance && (
                 <div className="mt-4 rounded-md border border-[#ffd0d0] bg-[#fff5f5] p-3 text-xs font-medium text-[#b42318]">
                   Insufficient {selectedToken.symbol} balance.
                 </div>
@@ -1117,6 +1381,8 @@ export default function CheckoutPaymentClient({
                 onClick={handlePay}
                 disabled={
                   busy ||
+                  tokenAmountLoading ||
+                  Boolean(tokenAmountQuoteError) ||
                   !selectedToken ||
                   !tokenAmount ||
                   !hasSufficientBalance ||
@@ -1133,6 +1399,46 @@ export default function CheckoutPaymentClient({
           </section>
         )}
       </div>
+      {copyFallback ? (
+        <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-2xl rounded-lg border border-[#dfe4eb] bg-white p-4 shadow-xl">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[#101114]">
+                Copy manually
+              </p>
+              <p className="mt-1 text-xs text-[#737b8c]">
+                Browser clipboard access was blocked, so the value is selected.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCopyFallback('')}
+              className="inline-flex h-8 items-center justify-center rounded-md border border-[#dfe4eb] px-3 text-xs font-semibold"
+            >
+              Close
+            </button>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <input
+              ref={copyFallbackInputRef}
+              readOnly
+              value={copyFallback}
+              onFocus={(event) => event.currentTarget.select()}
+              className="h-10 min-w-0 flex-1 rounded-md border border-[#dfe4eb] px-3 font-mono text-xs font-semibold outline-none focus:border-[#101114]"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                copyFallbackInputRef.current?.focus();
+                copyFallbackInputRef.current?.select();
+              }}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-[#101114] px-4 text-sm font-semibold text-white"
+            >
+              Select
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

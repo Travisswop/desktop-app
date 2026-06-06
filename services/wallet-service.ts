@@ -10,6 +10,9 @@ const API_BASE_URL =
 const WALLET_API_URL = `${API_BASE_URL}/api/v5/wallet`;
 
 export interface TokenMarketData {
+  id?: string;
+  symbol?: string;
+  name?: string;
   price: string;
   marketCap: number;
   volume24h: number;

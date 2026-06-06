@@ -59,6 +59,9 @@ export default function PositionCard({
   const toWin = position.size; // shares × $1.00 = max payout
   const redeemValue = getRedeemablePayout(position);
   const canClaimRedeem = isRedeemable && hasRedeemablePayout(position);
+  const isWaitingForRedemption =
+    !isRedeemable &&
+    (position.marketResolutionPending || position.marketClosed);
   const value = isRedeemable ? redeemValue : position.currentValue;
   const pnl = position.cashPnl;
   const pnlPct = position.percentPnl;
@@ -181,6 +184,15 @@ export default function PositionCard({
                 : canClaimRedeem
                   ? `Redeem $${redeemValue.toFixed(2)}`
                   : 'No payout'}
+            </button>
+          </div>
+        ) : isWaitingForRedemption ? (
+          <div className="flex gap-2 px-4 pb-4">
+            <button
+              disabled
+              className="flex-1 py-2.5 bg-amber-50 border border-amber-100 text-amber-700 disabled:cursor-not-allowed text-sm font-semibold rounded-xl"
+            >
+              Waiting to redeem
             </button>
           </div>
         ) : !position.redeemable ? (

@@ -4,10 +4,15 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { ShoppingCart, Loader2 } from "lucide-react";
 
-import { addProductToCart } from "@/actions/addToCartActions";
 import toast from "react-hot-toast";
 import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartContext";
 import { useUser } from "@/lib/UserContext";
+import {
+  getSmartsiteMarketplaceImage,
+  getSmartsiteMarketplaceName,
+  getSmartsiteMarketplacePrice,
+  normalizeSmartsiteMarketplaceItem,
+} from "@/lib/smartsite-marketplace-display";
 
 // const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -28,6 +33,7 @@ const MarketPlace: any = ({
 }: any) => {
   const [addToCartLoading, setAddToCartLoading] = useState(false);
   const [isExisting, setIsExisting] = useState(true);
+  const displayItem = normalizeSmartsiteMarketplaceItem(data) || data;
   const {
     itemImageUrl,
     itemName,
@@ -38,72 +44,58 @@ const MarketPlace: any = ({
   } = data;
 
   const { user } = useUser();
+  const marketplaceProductId = String(
+    displayItem.marketplaceProductId || data.productId || data._id || ""
+  );
+  const productName = getSmartsiteMarketplaceName(displayItem);
+  const productDescription =
+    displayItem.description || itemDescription || "";
+  const productImage = getSmartsiteMarketplaceImage(displayItem);
+  const productPrice = getSmartsiteMarketplacePrice(displayItem);
+  const requiresShipping =
+    displayItem.productType === "physical" ||
+    Boolean(displayItem.fulfillment?.requiresShipping);
+  const isSoldOut =
+    Boolean(displayItem.inventory?.track) &&
+    Number(displayItem.inventory?.available || 0) <= 0;
 
-  // console.log("data from user", user);
-  // console.log("data from marketplace", data);
-  // console.log("data from marketplace userId", userId);
-  // console.log("data from marketplace userName", userName);
-  // console.log("isExisting", isExisting);
-
-  const delay = number + 1 * 0.2;
+  const delay = (number + 1) * 0.2;
 
   const { dispatch } = useCart();
 
-  const handleAddToCart = async (event: React.MouseEvent) => {
+  const handleAddToCart = (event: React.MouseEvent) => {
     event.stopPropagation();
-    setAddToCartLoading(true);
-
-    const cartItem = {
-      _id: Math.random().toString(36).substring(2, 15),
-      quantity: 1,
-      timestamp: new Date().getTime(),
-      sellerId: sellerId,
-      nftTemplate: {
-        _id: data._id,
-        name: itemName,
-        description: itemDescription,
-        image: itemImageUrl,
-        price: itemPrice,
-        collectionId: collectionId,
-        templateId: templateId,
-        nftType:
-          data.collectionMintAddress ===
-          "EFNUeHdd9dYNWaczMGfCtqThFea7HcL7xUdH8QNsYUcq"
-            ? ("phygital" as const)
-            : ("non-phygital" as const),
-      },
-    };
-
-    if (!accessToken) {
-      dispatch({ type: "ADD_ITEM", payload: cartItem });
-      setAddToCartLoading(false);
-      toast.success("Item added to cart (offline)");
+    if (!marketplaceProductId) {
+      toast.error("This product is not available for checkout.");
       return;
     }
 
-    try {
-      const cartData = {
-        userId: userId,
-        collectionId: collectionId,
-        templateId: templateId,
-        quantity: 1,
-        sellerId: sellerId,
-      };
+    setAddToCartLoading(true);
 
-      const response = await addProductToCart(cartData, accessToken, userName);
+    const cartItem = {
+      _id: marketplaceProductId,
+      marketplaceProductId,
+      productType: displayItem.productType,
+      quantity: 1,
+      timestamp: new Date().getTime(),
+      sellerId,
+      nftTemplate: {
+        _id: marketplaceProductId,
+        name: productName,
+        description: productDescription,
+        image: productImage,
+        price: productPrice,
+        collectionId,
+        templateId,
+        nftType: requiresShipping
+          ? ("phygital" as const)
+          : ("non-phygital" as const),
+      },
+    };
 
-      if (response.state === "success") {
-        dispatch({ type: "ADD_ITEM", payload: cartItem });
-        toast.success("Items added to cart");
-      } else {
-        throw new Error(response.message || "Failed to add item to cart");
-      }
-    } catch (error) {
-      console.error("Error adding to cart:", error);
-      toast.error("Failed to add item to cart. Please try again.");
-    } finally {
-      setAddToCartLoading(false);
-    }
+    dispatch({ type: "ADD_ITEM", payload: cartItem });
+    toast.success("Item added to cart");
+    setAddToCartLoading(false);
   };
 
   useEffect(() => {
@@ -146,7 +138,7 @@ const MarketPlace: any = ({
         {!isExisting && (
           <button
             onClick={handleAddToCart}
-            disabled={addToCartLoading || isExisting}
+            disabled={addToCartLoading || isExisting || isSoldOut}
             className="absolute top-3 right-3 z-10 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {addToCartLoading ? (
@@ -163,8 +155,8 @@ const MarketPlace: any = ({
 
         <div className="relative aspect-square overflow-hidden m-6 mx-10 rounded-md">
           <Image
-            src={itemImageUrl}
-            alt={itemName}
+            src={productImage}
+            alt={productName}
             fill
             quality={100}
             className="object-cover group-hover:scale-105 transition-transform duration-200"
@@ -179,10 +171,10 @@ const MarketPlace: any = ({
               }}
               className="text-sm font-medium line-clamp-1"
             >
-              {itemName}
+              {productName}
             </p>
             <p className="text-xs font-medium mt-0.5 bg-gray-100 w-max px-2 py-0.5 rounded-md">
-              ${itemPrice}
+              ${productPrice}
             </p>
           </div>
         </div>

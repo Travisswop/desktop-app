@@ -268,6 +268,7 @@ export default function PredictionsPortfolioModal({
         tokenId: position.asset,
         conditionId: position.conditionId,
         size: position.size,
+        acceptedPrice: position.curPrice,
         side: 'SELL',
         negRisk: position.negativeRisk,
         isMarketOrder: true,

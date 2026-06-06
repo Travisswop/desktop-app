@@ -559,19 +559,32 @@ function SportsTableRow({
     game.spread?.market ??
     game.total?.market;
 
-  const isLive = Boolean(anyMarket?.eventLive);
+  const eventPeriod = anyMarket?.eventPeriod ?? game.eventPeriod ?? null;
+  const eventElapsed = anyMarket?.eventElapsed ?? game.eventElapsed ?? null;
+  const eventScore = anyMarket?.eventScore ?? game.eventScore ?? null;
+  const isFinalPeriod = /^(ft|final)$/i.test(String(eventPeriod || '').trim());
+  const isFinal = Boolean(
+    game.eventEnded ||
+      game.eventClosed ||
+      anyMarket?.eventEnded ||
+      anyMarket?.eventClosed ||
+      isFinalPeriod,
+  );
+  const isLive = Boolean(!isFinal && (anyMarket?.eventLive || game.eventLive));
   const liveLabel = useMemo(() => {
     if (!isLive) return null;
-    const period = anyMarket?.eventPeriod ?? null;
-    const elapsed = anyMarket?.eventElapsed ?? null;
-    if (period && elapsed) return `${period} · ${elapsed}`;
-    return period || elapsed || 'NOW';
-  }, [isLive, anyMarket]);
+    if (eventPeriod && eventElapsed) return `${eventPeriod} · ${eventElapsed}`;
+    return eventPeriod || eventElapsed || 'NOW';
+  }, [isLive, eventPeriod, eventElapsed]);
 
   const startTimeLabel = useMemo(
     () => formatStartTime(game.startDate),
     [game.startDate],
   );
+  const statusLabel = isFinal
+    ? `FINAL${eventScore ? ` · ${eventScore}` : ''}`
+    : startTimeLabel;
+  const rowDisabled = disabled || isFinal;
 
   // Resolve team metadata (abbrev + colour + logo) for both sides.
   const mlA = game.moneyline?.outcomes[0];
@@ -625,7 +638,7 @@ function SportsTableRow({
               className="text-[10.5px] font-semibold tracking-[0.5px] text-gray-500"
               style={{ fontFamily: MONO }}
             >
-              {startTimeLabel}
+              {statusLabel}
             </span>
           )}
           <span className="text-[11px] text-gray-300">·</span>
@@ -647,7 +660,7 @@ function SportsTableRow({
         mlMarket={game.moneyline?.market ?? null}
         spMarket={game.spread?.market ?? null}
         totMarket={game.total?.market ?? null}
-        disabled={disabled}
+        disabled={rowDisabled}
         onOutcomeClick={onOutcomeClick}
       />
       <div className="h-1" />
@@ -662,7 +675,7 @@ function SportsTableRow({
         mlMarket={game.moneyline?.market ?? null}
         spMarket={game.spread?.market ?? null}
         totMarket={game.total?.market ?? null}
-        disabled={disabled}
+        disabled={rowDisabled}
         onOutcomeClick={onOutcomeClick}
       />
     </div>

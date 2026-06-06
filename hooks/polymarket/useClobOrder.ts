@@ -50,6 +50,7 @@ export type OrderParams = {
   conditionId?: string;
   size: number;
   price?: number;
+  acceptedPrice?: number;
   side: 'BUY' | 'SELL';
   negRisk?: boolean;
   isMarketOrder?: boolean;
@@ -63,6 +64,28 @@ export type OrderSubmissionStage =
   | 'preparing'
   | 'signing'
   | 'submitting';
+
+export type OrderExecutionSummary = {
+  side?: 'BUY' | 'SELL';
+  status?: string;
+  price?: number;
+  shares?: number;
+  cost?: number;
+  proceeds?: number;
+  makingAmount?: number;
+  takingAmount?: number;
+  tradeIds?: string[];
+  transactionHashes?: string[];
+};
+
+export type OrderSubmitResult = {
+  success: true;
+  orderId: string;
+  status?: string;
+  execution?: OrderExecutionSummary;
+  tradeIds?: string[];
+  transactionHashes?: string[];
+};
 
 const backendBase = () => `${POLYMARKET_BACKEND_URL}/api/prediction-markets`;
 const swopApiBase = () => (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
@@ -78,6 +101,7 @@ const delegatedPolicyIds = (
   .map((id) => id.trim())
   .filter(Boolean);
 const DEBUG_ORDER_SIGNING = true;
+const MARKET_ORDER_PRICE_PROTECTION = 0.03;
 type DelegatedSignerConfig = {
   signerId: string;
   policyIds: string[];
@@ -102,6 +126,94 @@ function logOrderDebug(label: string, data: Record<string, any>) {
 
 function logOrderError(label: string, data: Record<string, any>) {
   console.error(`[Polymarket order] ${label}`, data);
+}
+
+function parseProbabilityPrice(value: unknown) {
+  const price = Number(value);
+  return Number.isFinite(price) && price > 0 && price < 1 ? price : null;
+}
+
+function formatProbabilityCents(value: number) {
+  return `${Math.round(value * 100)}¢`;
+}
+
+async function fetchFreshExecutionQuote(
+  tokenId: string,
+  headers: HeadersInit,
+): Promise<{ bid: number | null; ask: number | null }> {
+  const response = await fetch(`${backendBase()}/prices`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ tokenIds: [tokenId] }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Could not refresh Polymarket price. Try again.');
+  }
+
+  const body = await response.json();
+  const quote = body?.[tokenId] ?? {};
+  return {
+    bid: parseProbabilityPrice(quote.bid),
+    ask: parseProbabilityPrice(quote.ask),
+  };
+}
+
+function resolveProtectedMarketPrice(
+  params: OrderParams,
+  quote: { bid: number | null; ask: number | null },
+) {
+  const acceptedPrice = parseProbabilityPrice(params.acceptedPrice);
+
+  if (acceptedPrice == null) {
+    throw new Error(
+      'This order needs a fresh market quote. Refresh the market and try again.',
+    );
+  }
+
+  if (params.side === 'BUY') {
+    const liveAsk = quote.ask;
+    if (liveAsk == null) {
+      throw new Error('No live ask is available for this market.');
+    }
+
+    const protectedPrice = Math.min(
+      0.99,
+      acceptedPrice + MARKET_ORDER_PRICE_PROTECTION,
+    );
+    if (liveAsk > protectedPrice + 1e-9) {
+      throw new Error(
+        `Market price moved from ${formatProbabilityCents(acceptedPrice)} to ${formatProbabilityCents(liveAsk)}. Refresh before placing the order.`,
+      );
+    }
+
+    return {
+      protectedPrice,
+      liveQuotePrice: liveAsk,
+      acceptedPrice,
+    };
+  }
+
+  const liveBid = quote.bid;
+  if (liveBid == null) {
+    throw new Error('No live bid is available for this market.');
+  }
+
+  const protectedPrice = Math.max(
+    0.01,
+    acceptedPrice - MARKET_ORDER_PRICE_PROTECTION,
+  );
+  if (liveBid < protectedPrice - 1e-9) {
+    throw new Error(
+      `Market price moved from ${formatProbabilityCents(acceptedPrice)} to ${formatProbabilityCents(liveBid)}. Refresh before placing the order.`,
+    );
+  }
+
+  return {
+    protectedPrice,
+    liveQuotePrice: liveBid,
+    acceptedPrice,
+  };
 }
 
 function summarizeTypedData(typedData: any) {
@@ -760,6 +872,26 @@ export function useClobOrder(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         };
+        let protectedOrderPrice = params.price;
+        let marketOrderProtection:
+          | {
+              protectedPrice: number;
+              liveQuotePrice: number;
+              acceptedPrice: number;
+            }
+          | null = null;
+
+        if (params.isMarketOrder) {
+          const freshQuote = await fetchFreshExecutionQuote(
+            params.tokenId,
+            authHeaders,
+          );
+          marketOrderProtection = resolveProtectedMarketPrice(
+            params,
+            freshQuote,
+          );
+          protectedOrderPrice = marketOrderProtection.protectedPrice;
+        }
 
         const prepareBody = {
           tokenId: params.tokenId,
@@ -767,7 +899,8 @@ export function useClobOrder(
           side: params.side,
           orderType,
           amount: params.size,
-          price: params.price,
+          price: protectedOrderPrice,
+          acceptedPrice: marketOrderProtection?.acceptedPrice,
           expiration: params.expiration,
           negRisk: params.negRisk,
           safeAddress: orderWalletAddress,
@@ -786,6 +919,8 @@ export function useClobOrder(
           orderType: prepareBody.orderType,
           amount: prepareBody.amount,
           price: prepareBody.price,
+          acceptedPrice: prepareBody.acceptedPrice,
+          marketOrderProtection,
           expiration: prepareBody.expiration,
           negRisk: prepareBody.negRisk,
           safeAddress: prepareBody.safeAddress,
@@ -866,7 +1001,14 @@ export function useClobOrder(
           POLLING_INTERVAL,
           POLLING_DURATION,
         );
-        return { success: true, orderId: result.orderId };
+        return {
+          success: true,
+          orderId: result.orderId,
+          status: result.status,
+          execution: result.execution,
+          tradeIds: result.tradeIds,
+          transactionHashes: result.transactionHashes,
+        } satisfies OrderSubmitResult;
       } catch (err: unknown) {
         const error = extractClobError(err);
         setError(error);

@@ -21,6 +21,7 @@ import {
   Edit3,
   ExternalLink,
   Link2,
+  Map,
   MessageSquare,
   MoreHorizontal,
   Package,
@@ -30,11 +31,11 @@ import {
   ScanLine,
   Share2,
   ShoppingBag,
-  Sparkles,
   Users,
   Wallet,
 } from "lucide-react";
 import { useUser } from "@/lib/UserContext";
+import isUrl from "@/lib/isUrl";
 import {
   useWalletAddresses,
   useWalletData,
@@ -44,6 +45,16 @@ import {
   listCheckoutIntents,
   type CheckoutIntent,
 } from "@/lib/checkout-api";
+import {
+  listMarketplaceOrders,
+  listMarketplaceProducts,
+  type MarketplaceOrder,
+  type MarketplaceProduct,
+} from "@/lib/marketplace-api";
+import {
+  getMarketplaceProductDisplayType,
+  isInPersonCheckoutMode,
+} from "@/lib/marketplace-display";
 
 const ink = "#0a0a0c";
 const muted = "#6e6e76";
@@ -54,7 +65,6 @@ const positiveSoft = "rgba(25,169,116,0.10)";
 const negative = "#e5484d";
 const negativeSoft = "rgba(229,72,77,0.08)";
 const amber = "#d97706";
-const API = process.env.NEXT_PUBLIC_API_URL;
 const LOW_STOCK_THRESHOLD = 5;
 
 type Tile = {
@@ -79,6 +89,7 @@ type Order = {
   chain: "USDC" | "SOL";
   status: OrderStatus;
   when: string;
+  checkoutMode?: string;
 };
 
 type ProductStatus = "live" | "low" | "draft";
@@ -94,54 +105,25 @@ type Product = {
   statusLabel: string;
   glyph: string;
   swatch: string;
-  type: "Physical" | "Digital";
+  type: "Physical" | "Digital" | "Service";
   image?: string;
 };
 
-type NFTRecord = {
-  _id?: string;
-  name: string;
-  image?: string | null;
-  price: number | string;
-  currency?: string;
-  mintLimit?: number;
-  nftType?: string;
-  category?: "physical" | "digital" | string;
-  status?: string;
-  draft?: boolean;
-  isDraft?: boolean;
-  active?: boolean;
-};
-
-type TemplateSalesRow = {
-  templateId: string;
+type ProductSalesRow = {
+  productId: string;
   units: number;
   revenue: number;
   orderCount: number;
 };
 
 type SalesSummary = {
-  perTemplate: TemplateSalesRow[];
+  perProduct: ProductSalesRow[];
   totals: {
     units: number;
     revenue: number;
     templates: number;
     orders: number;
   };
-};
-
-type ConnectedOrderRow = {
-  id: string;
-  orderId: string;
-  counterparty: string;
-  counterpartyAvatar: string;
-  item: string;
-  price: number;
-  date: string;
-  delivery: string;
-  chain: "USDC" | "SOL";
-  role: "buyer" | "seller";
-  _id: string;
 };
 
 type DashboardData = {
@@ -170,7 +152,12 @@ const productStatusStyle: Record<
 };
 
 export default function DashboardMainContent() {
-  const { user, accessToken, loading } = useUser();
+  const {
+    user,
+    accessToken,
+    loading,
+    primaryMicrositeProfilePic,
+  } = useUser();
   const {
     user: privyUser,
     ready: privyReady,
@@ -194,6 +181,9 @@ export default function DashboardMainContent() {
   });
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const primarySmartsite = useMemo(() => getPrimarySmartsite(user), [user]);
+  const primarySmartsiteId =
+    getRecordId(primarySmartsite) || getRecordId(user?.primaryMicrosite);
 
   const profile = useMemo(() => {
     const name = user?.displayName || user?.name || "Travis Herron";
@@ -208,13 +198,19 @@ export default function DashboardMainContent() {
 
     return {
       name,
+      avatarSrc: resolveSmartsiteAvatar(
+        primarySmartsite?.profilePic ?? primaryMicrositeProfilePic,
+      ),
+      editHref: primarySmartsiteId
+        ? `/smartsite/profile/${primarySmartsiteId}`
+        : "/smartsite",
       initials: getInitials(name),
-      swopId: slug.startsWith("$") ? slug : `$${slug}.Swop.Id`,
+      swopId: formatSwopIdDisplay(slug),
       publicUrl: `swop.id/${slug.replace(/^\$/, "").replace(/\.Swop\.Id$/i, "")}`,
       followers,
       following,
     };
-  }, [user]);
+  }, [primaryMicrositeProfilePic, primarySmartsite, primarySmartsiteId, user]);
 
   const checkoutAddress = useMemo(() => {
     return (
@@ -226,78 +222,38 @@ export default function DashboardMainContent() {
   }, [solWalletAddress, user]);
 
   const loadDashboardData = useCallback(async (tokenValue: string) => {
-    if (!API) {
-      throw new Error("NEXT_PUBLIC_API_URL is not configured.");
-    }
-
-    const orderParams = new URLSearchParams({
-      role: "seller",
-      tab: "payments",
-      since: "30d",
-    });
-
-    const [templatesRes, summaryRes, ordersRes, checkoutIntents] = await Promise.all([
-      fetch(`${API}/api/v2/desktop/nft/listByUser`, {
-        method: "GET",
-        headers: { authorization: `Bearer ${tokenValue}` },
+    const [productsRes, ordersRes, checkoutIntents] = await Promise.all([
+      listMarketplaceProducts(tokenValue, {
+        scope: "mine",
+        limit: 200,
       }),
-      fetch(`${API}/api/v2/desktop/orders/summaryByUser?since=30d`, {
-        method: "GET",
-        headers: { authorization: `Bearer ${tokenValue}` },
+      listMarketplaceOrders(tokenValue, {
+        role: "seller",
+        limit: 200,
       }),
-      fetch(
-        `${API}/api/v2/desktop/orders/listByUser?${orderParams.toString()}`,
-        { headers: { authorization: `Bearer ${tokenValue}` } },
-      ),
       listCheckoutIntents(tokenValue).catch((error) => {
         console.error("Failed to load dashboard checkout intents:", error);
         return [] as CheckoutIntent[];
       }),
     ]);
 
-    if (!templatesRes.ok) {
-      throw new Error(`products ${templatesRes.status}`);
+    const summary = summarizeMarketplaceOrders(ordersRes.items || []);
+    const salesByProduct: Record<string, ProductSalesRow> = {};
+    for (const row of summary.perProduct) {
+      salesByProduct[row.productId] = row;
     }
-    if (!ordersRes.ok) {
-      throw new Error(`orders ${ordersRes.status}`);
-    }
-
-    const { data: templates } = (await templatesRes.json()) as {
-      data?: NFTRecord[];
-    };
-    const salesByTemplate: Record<string, TemplateSalesRow> = {};
-    let summary: SalesSummary | null = null;
-
-    if (summaryRes.ok) {
-      const { data } = (await summaryRes.json()) as {
-        data?: SalesSummary;
-      };
-      if (data) {
-        summary = data;
-        for (const row of data.perTemplate ?? []) {
-          salesByTemplate[row.templateId] = row;
-        }
-      }
-    }
-
-    const orderPayload = (await ordersRes.json()) as {
-      data?: { rows?: ConnectedOrderRow[]; total?: number } | ConnectedOrderRow[];
-    };
-    const connectedOrders = Array.isArray(orderPayload.data)
-      ? orderPayload.data
-      : orderPayload.data?.rows ?? [];
 
     return {
       checkoutIntents,
-      products: (templates ?? [])
-        .map((item) => mapDashboardProduct(item, salesByTemplate[item._id ?? ""]))
+      products: (productsRes.items || [])
+        .map((item) => mapDashboardProduct(item, salesByProduct[item._id]))
         .sort(
           (a, b) =>
             b.sales - a.sales ||
             b.revenue - a.revenue ||
             a.name.localeCompare(b.name),
         ),
-      orders: connectedOrders.map(mapDashboardOrder).slice(0, 5),
+      orders: (ordersRes.items || []).map(mapDashboardOrder).slice(0, 5),
       summary,
     } satisfies DashboardData;
   }, []);
@@ -411,7 +367,7 @@ export default function DashboardMainContent() {
         {
           amount: normalizedAmount,
           checkoutBaseUrl,
-          description: `In-person checkout - ${profile.name}`,
+          description: `QR checkout - ${profile.name}`,
           merchantCurrency: "USDC",
           merchantWalletAddress: checkoutAddress,
         },
@@ -479,7 +435,7 @@ export default function DashboardMainContent() {
         </div>
 
         <SectionHead
-          title="In-person checkout"
+          title="QR checkout"
           caption="Create a Swop Pay QR or link"
           action={<WalletReady ready={Boolean(checkoutAddress)} />}
         />
@@ -517,6 +473,8 @@ function ProfileHero({
 }: {
   profile: {
     name: string;
+    avatarSrc: string;
+    editHref: string;
     initials: string;
     swopId: string;
     publicUrl: string;
@@ -529,10 +487,16 @@ function ProfileHero({
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
         <div className="flex min-w-0 flex-1 items-center gap-[18px]">
           <div className="relative shrink-0">
-            <Avatar size="lg">{profile.initials}</Avatar>
+            <Avatar
+              alt={`${profile.name} profile picture`}
+              size="lg"
+              src={profile.avatarSrc}
+            >
+              {profile.initials}
+            </Avatar>
             <Link
-              href="/edit-profile"
-              aria-label="Edit profile"
+              href={profile.editHref}
+              aria-label="Edit SmartSite profile"
               className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[#0a0a0c] text-white transition-transform active:scale-95"
             >
               <Edit3 className="h-3 w-3" />
@@ -545,10 +509,6 @@ function ProfileHero({
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <Mono className="text-[12.5px] text-[#6e6e76]">
                 {profile.swopId}
-              </Mono>
-              <span className="h-[3px] w-[3px] rounded-full bg-[#a1a1a8]" />
-              <Mono className="text-[12.5px] text-[#6e6e76]">
-                {profile.publicUrl}
               </Mono>
             </div>
           </div>
@@ -1068,7 +1028,8 @@ function ProductsCard({
   const low = products.filter((product) => product.status === "low").length;
   const draft = products.filter((product) => product.status === "draft").length;
   const physical = products.filter((product) => product.type === "Physical").length;
-  const digital = products.length - physical;
+  const digital = products.filter((product) => product.type === "Digital").length;
+  const service = products.filter((product) => product.type === "Service").length;
   const caption = loading
     ? "Loading connected products"
     : error
@@ -1095,6 +1056,11 @@ function ProductsCard({
           <Pill className="hidden sm:inline-flex">
             Digital - {digital}
           </Pill>
+          {service > 0 && (
+            <Pill className="hidden sm:inline-flex">
+              Service - {service}
+            </Pill>
+          )}
           <div className="mx-1 hidden h-5 w-px bg-[rgba(0,0,0,0.06)] sm:block" />
           <Link
             href="/products/create"
@@ -1204,6 +1170,7 @@ function OrderRow({
   withBorder: boolean;
 }) {
   const status = orderStatusStyle[order.status];
+  const isInPerson = isInPersonCheckoutMode(order.checkoutMode);
   const href = order.detailId
     ? `/order/${encodeURIComponent(order.detailId)}?tab=payments`
     : "/order";
@@ -1223,8 +1190,13 @@ function OrderRow({
           <Mono className="text-[10.5px] text-[#6e6e76]">{order.id}</Mono>
         </div>
       </div>
-      <div className="hidden truncate text-[12.5px] text-[#6e6e76] sm:block">
-        {order.product}
+      <div className="hidden min-w-0 items-center gap-1.5 text-[12.5px] text-[#6e6e76] sm:flex">
+        <span className="truncate">{order.product}</span>
+        {isInPerson && (
+          <StatusPill fg={muted} bg="rgba(0,0,0,0.05)">
+            In-person
+          </StatusPill>
+        )}
       </div>
       <div className="flex items-center gap-1.5">
         {order.chain === "USDC" ? <UsdcGlyph size={14} /> : <SolGlyph size={14} />}
@@ -1438,19 +1410,35 @@ function Pill({
 }
 
 function Avatar({
+  alt = "Avatar",
   children,
   size = "sm",
+  src,
 }: {
+  alt?: string;
   children: React.ReactNode;
   size?: "sm" | "lg";
+  src?: string;
 }) {
+  const pixelSize = size === "lg" ? 64 : 28;
+
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-full bg-[#dfe6ef] font-semibold tracking-[-0.01em] ${
+      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#dfe6ef] font-semibold tracking-[-0.01em] ${
         size === "lg" ? "h-16 w-16 text-2xl" : "h-7 w-7 text-[11px]"
       }`}
     >
-      {children}
+      {src ? (
+        <Image
+          alt={alt}
+          className="h-full w-full object-cover"
+          height={pixelSize}
+          src={src}
+          width={pixelSize}
+        />
+      ) : (
+        children
+      )}
     </div>
   );
 }
@@ -1721,6 +1709,69 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
+function formatSwopIdDisplay(slug: string) {
+  const normalized = slug
+    .trim()
+    .replace(/^\$/, "")
+    .replace(/\.Swop\.Id$/i, "")
+    .replace(/\.swop\.id$/i, "");
+
+  const handle = normalized || "travis";
+  const displayHandle = handle
+    .split(/([._-])/)
+    .map(formatSwopIdPart)
+    .join("");
+
+  return `${displayHandle}.Swop.ID`;
+}
+
+function formatSwopIdPart(part: string) {
+  if (!/^[a-z0-9]+$/i.test(part)) return part;
+  if (part.toLowerCase() === "astrobot") return "AstroBot";
+
+  return part.charAt(0).toUpperCase() + part.slice(1);
+}
+
+function getPrimarySmartsite(user: ReturnType<typeof useUser>["user"]) {
+  if (!user?.microsites?.length) return null;
+
+  const primaryId = getRecordId(user.primaryMicrosite);
+  return (
+    user.microsites.find((microsite: any) => {
+      const micrositeId = getRecordId(microsite);
+      return primaryId && micrositeId === primaryId;
+    }) ??
+    user.microsites.find((microsite: any) => microsite?.primary === true) ??
+    user.microsites[0] ??
+    null
+  );
+}
+
+function getRecordId(record: unknown) {
+  if (typeof record === "string") return record;
+  if (!record || typeof record !== "object") return "";
+
+  const maybeRecord = record as { _id?: unknown; id?: unknown };
+  if (typeof maybeRecord._id === "string") return maybeRecord._id;
+  if (typeof maybeRecord.id === "string") return maybeRecord.id;
+
+  return "";
+}
+
+function resolveSmartsiteAvatar(profilePic: unknown) {
+  const value =
+    typeof profilePic === "number"
+      ? String(profilePic)
+      : typeof profilePic === "string"
+        ? profilePic.trim()
+        : "";
+
+  if (!value) return "";
+  if (value.startsWith("/") || isUrl(value)) return value;
+
+  return `/images/user_avator/${value}@3x.png`;
+}
+
 function readConnectionCount(
   user: ReturnType<typeof useUser>["user"],
   key: "followers" | "following",
@@ -1820,18 +1871,18 @@ function buildModuleTiles({
       icon: BarChart3,
     },
     {
-      label: "Rewards",
+      label: "Map",
       actionLabel: "Open",
-      sub: "membership",
-      href: "/subscription",
-      swatch: "#FBE7C6",
-      icon: Sparkles,
+      sub: "live connections",
+      href: "/?tab=map",
+      swatch: "#DCEAF7",
+      icon: Map,
     },
     {
       label: "Blinks",
       actionLabel: "Open",
       sub: "wallet tools",
-      href: "/wallet",
+      href: "/wallet#blinks",
       swatch: "#DCE7E2",
       icon: Link2,
     },
@@ -1847,54 +1898,54 @@ function buildModuleTiles({
 }
 
 function mapDashboardProduct(
-  item: NFTRecord,
-  sales?: TemplateSalesRow,
+  item: MarketplaceProduct,
+  sales?: ProductSalesRow,
 ): Product {
-  const name = item.name || "Untitled product";
-  const stock = Number(item.mintLimit);
+  const name = item.title || "Untitled product";
+  const stock = Number(item.inventory?.available);
   const status = getProductStatus(item);
 
   return {
-    id: item._id ?? `${item.nftType ?? "product"}-${slugify(name)}`,
+    id: item._id || `product-${slugify(name)}`,
     name,
-    type: item.category === "physical" ? "Physical" : "Digital",
-    price: toFiniteNumber(item.price),
+    type: getMarketplaceProductDisplayType(item.productType),
+    price: toFiniteNumber(item.price?.amount),
     sales: toFiniteNumber(sales?.units),
     revenue: toFiniteNumber(sales?.revenue),
-    currency: (item.currency || "USDC").toUpperCase(),
+    currency: (item.price?.currency || "USDC").toUpperCase(),
     status,
     statusLabel: getProductStatusLabel(status, stock),
     glyph: getProductGlyph(name),
     swatch: swatchFor(name),
-    image: item.image || undefined,
+    image: item.primaryImage || item.images?.[0]?.url || undefined,
   };
 }
 
-function mapDashboardOrder(row: ConnectedOrderRow): Order {
+function mapDashboardOrder(row: MarketplaceOrder): Order {
   return {
-    id: row.id || row.orderId || shortAddress(row._id),
-    detailId: row._id || row.orderId || row.id,
-    customer: row.counterparty || "Customer",
-    product: row.item || "Order",
-    amount: toFiniteNumber(row.price),
-    chain: row.chain === "SOL" ? "SOL" : "USDC",
-    status: getOrderStatus(row.delivery),
-    when: formatRelativeTime(row.date),
+    id: row.publicReference || row.orderId || shortAddress(row._id),
+    detailId: row._id || row.orderId,
+    customer: row.buyer?.name || row.buyer?.email || "Customer",
+    product: getMarketplaceOrderTitle(row),
+    amount: toFiniteNumber(row.financial?.totalCost),
+    chain:
+      String(row.financial?.currency || row.payment?.currency || "USDC").toUpperCase() ===
+      "SOL"
+        ? "SOL"
+        : "USDC",
+    status: getOrderStatus(getMarketplaceOrderDelivery(row)),
+    when: formatRelativeTime(row.createdAt || row.updatedAt || ""),
+    checkoutMode: row.checkoutMode,
   };
 }
 
-function getProductStatus(item: NFTRecord): ProductStatus {
+function getProductStatus(item: MarketplaceProduct): ProductStatus {
   const rawStatus = String(item.status ?? "").toLowerCase();
-  if (
-    rawStatus.includes("draft") ||
-    item.draft ||
-    item.isDraft ||
-    item.active === false
-  ) {
+  if (rawStatus.includes("draft")) {
     return "draft";
   }
 
-  const stock = Number(item.mintLimit);
+  const stock = Number(item.inventory?.available);
   if (Number.isFinite(stock) && stock > 0 && stock <= LOW_STOCK_THRESHOLD) {
     return "low";
   }
@@ -1924,6 +1975,68 @@ function getOrderStatus(delivery: string): OrderStatus {
   }
 
   return "Paid";
+}
+
+function summarizeMarketplaceOrders(orders: MarketplaceOrder[]): SalesSummary {
+  const perProduct: Record<string, ProductSalesRow> = {};
+  let units = 0;
+  let revenue = 0;
+
+  for (const order of orders) {
+    if (order.payment?.status !== "completed") continue;
+    revenue += toFiniteNumber(order.financial?.totalCost);
+    for (const item of order.lineItems || []) {
+      const productId = String(item.productId || "");
+      if (!productId) continue;
+      const quantity = toFiniteNumber(item.quantity);
+      const itemRevenue = toFiniteNumber(
+        item.totalAmount ?? item.unitAmount * quantity,
+      );
+      units += quantity;
+      perProduct[productId] = {
+        productId,
+        units: (perProduct[productId]?.units || 0) + quantity,
+        revenue: (perProduct[productId]?.revenue || 0) + itemRevenue,
+        orderCount: (perProduct[productId]?.orderCount || 0) + 1,
+      };
+    }
+  }
+
+  return {
+    perProduct: Object.values(perProduct),
+    totals: {
+      units,
+      revenue,
+      templates: Object.keys(perProduct).length,
+      orders: orders.filter((order) => order.payment?.status === "completed").length,
+    },
+  };
+}
+
+function getMarketplaceOrderTitle(order: MarketplaceOrder) {
+  const items = order.lineItems || [];
+  const first = items[0]?.productSnapshot?.title || "Order";
+  return items.length > 1 ? `${first} + ${items.length - 1} more` : first;
+}
+
+function getMarketplaceOrderDelivery(order: MarketplaceOrder) {
+  if (order.payment?.status === "refunded") return "Refunded";
+  if (
+    order.payment?.status === "cancelled" ||
+    order.status === "cancelled" ||
+    order.status === "failed" ||
+    order.settlement?.status === "failed"
+  ) {
+    return "Cancel";
+  }
+  if (order.settlement?.status === "released" || order.status === "completed") {
+    return "Paid";
+  }
+  if (["shipped", "out_for_delivery"].includes(order.fulfillment?.status || "")) {
+    return "In transit";
+  }
+  if (order.payment?.status === "completed") return "Processing";
+  return "Pending";
 }
 
 function toFiniteNumber(value: unknown) {

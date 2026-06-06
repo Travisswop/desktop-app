@@ -3,10 +3,10 @@ import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
 const CHUNK_SIZE = 100;
 
 export type PriceEntry = {
-  bidPrice: number;
-  askPrice: number;
-  midPrice: number;
-  spread: number;
+  bidPrice?: number;
+  askPrice?: number;
+  midPrice?: number;
+  spread?: number;
 };
 
 export type PriceMap = Record<string, PriceEntry>;
@@ -43,14 +43,20 @@ export async function fetchChunkedPrices(tokenIds: string[]): Promise<PriceMap> 
   for (const tokenId of tokenIds) {
     const entry = merged[tokenId];
     if (!entry) continue;
-    const bid = entry.bid ?? 0;
-    const ask = entry.ask ?? 0;
-    if (bid > 0 && bid < 1 && ask > 0 && ask < 1) {
+    const bid = entry.bid ?? null;
+    const ask = entry.ask ?? null;
+    const hasBid = bid != null && bid > 0 && bid < 1;
+    const hasAsk = ask != null && ask > 0 && ask < 1;
+    if (hasBid || hasAsk) {
       priceMap[tokenId] = {
-        bidPrice: bid,
-        askPrice: ask,
-        midPrice: (bid + ask) / 2,
-        spread: ask - bid,
+        ...(hasBid ? { bidPrice: bid } : {}),
+        ...(hasAsk ? { askPrice: ask } : {}),
+        ...(hasBid && hasAsk
+          ? {
+              midPrice: (bid + ask) / 2,
+              spread: ask - bid,
+            }
+          : {}),
       };
     }
   }

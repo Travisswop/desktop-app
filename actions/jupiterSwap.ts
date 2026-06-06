@@ -26,6 +26,7 @@ interface JupiterQuoteParams {
   outputMint: string;
   amount: string;
   slippageBps?: number;
+  platformFeeBps?: number;
   swapMode?: 'ExactIn' | 'ExactOut';
 }
 
@@ -79,6 +80,7 @@ export const getJupiterQuote = async (params: JupiterQuoteParams) => {
       outputMint,
       amount,
       slippageBps: slippageBpsParam,
+      platformFeeBps,
       swapMode = 'ExactIn',
     } = params;
 
@@ -93,27 +95,57 @@ export const getJupiterQuote = async (params: JupiterQuoteParams) => {
     if (normalizedSlippageBps !== undefined) {
       searchParams.set('slippageBps', normalizedSlippageBps.toString());
     }
+    if (platformFeeBps) {
+      searchParams.set('platformFeeBps', platformFeeBps.toString());
+    }
 
-    const url = `https://api.jup.ag/swap/v1/quote?${searchParams.toString()}`;
+    const jupiterHeaders: HeadersInit = process.env.JUPITER_API_KEY
+      ? {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.JUPITER_API_KEY,
+        }
+      : {
+          'Content-Type': 'application/json',
+        };
 
-    const response = await fetchJupiterWithTimeout(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.JUPITER_API_KEY || '',
+    const quoteUrls: Array<{ url: string; headers: HeadersInit }> = [
+      {
+        url: `https://api.jup.ag/swap/v1/quote?${searchParams.toString()}`,
+        headers: jupiterHeaders,
       },
-    });
+      {
+        url: `https://lite-api.jup.ag/swap/v1/quote?${searchParams.toString()}`,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    ];
 
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
+    let response: Response | null = null;
+    let data: any = null;
+    for (const [index, endpoint] of quoteUrls.entries()) {
+      response = await fetchJupiterWithTimeout(endpoint.url, {
+        method: 'GET',
+        headers: endpoint.headers,
+      });
+      data = await response.json().catch(() => null);
+      if (response.ok || (response.status !== 429 && response.status < 500)) {
+        break;
+      }
+      if (index < quoteUrls.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    if (!response || !response.ok) {
       let errorMessage;
-      if (response.status === 429) {
+      if (response?.status === 429) {
         errorMessage =
           'Service is busy. Please wait a moment and try again.';
-      } else if (response.status === 404) {
+      } else if (response?.status === 404) {
         errorMessage =
           'This token pair is not available for swapping.';
-      } else if (response.status >= 500) {
+      } else if (response && response.status >= 500) {
         errorMessage =
           'Swap service is temporarily down. Please try again later.';
       } else {

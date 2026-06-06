@@ -1,13 +1,14 @@
 export const QUERY_STALE_TIMES = {
   BALANCE: 30_000,
   POSITIONS: 15_000,
-  MARKETS: 300_000,
+  MARKETS: 15_000,
   ORDERS: 15_000,
 } as const;
 
 export const QUERY_REFETCH_INTERVALS = {
   BALANCE: 30_000,
   POSITIONS: 15_000,
+  MARKETS: 15_000,
   ORDERS: 15_000,
 } as const;
 

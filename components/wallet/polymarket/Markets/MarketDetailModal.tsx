@@ -9,6 +9,7 @@ import { postFeed } from '@/actions/postFeed';
 import type { PolymarketMarket } from '@/hooks/polymarket';
 import { useTrading } from '@/providers/polymarket';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
+import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
 
 import Portal from '../shared/Portal';
 import BuySellToggle, {
@@ -237,15 +238,21 @@ type LiveScoreTeam = {
 
 type LiveScoreState = {
   live: boolean;
+  ended?: boolean;
+  closed?: boolean;
   period: string | null;
   elapsed: string | null;
+  startTime?: string | null;
   teams: LiveScoreTeam[];
 };
 
 const EMPTY_LIVE: LiveScoreState = {
   live: false,
+  ended: false,
+  closed: false,
   period: null,
   elapsed: null,
+  startTime: null,
   teams: [],
 };
 
@@ -280,8 +287,11 @@ function useLiveEventScore(
         if (cancelled) return;
         setState({
           live: Boolean(json.live),
+          ended: Boolean(json.ended),
+          closed: Boolean(json.closed),
           period: json.period ?? null,
           elapsed: json.elapsed ?? null,
+          startTime: json.startTime ?? null,
           teams: Array.isArray(json.teams) ? json.teams : [],
         });
         // Only keep polling while the game is live.
@@ -521,8 +531,9 @@ function SportsProbabilityPanel({
     1,
   );
   const hasScores = yesScoreNum != null && noScoreNum != null;
-  const liveNow = isLive && (liveEvent.live || hasScores);
-  const showLiveScore = liveNow && hasScores;
+  const eventFinal = Boolean(liveEvent.ended || liveEvent.closed);
+  const liveNow = isLive && liveEvent.live && !eventFinal;
+  const showLiveScore = (liveNow || eventFinal) && hasScores;
   const clockText =
     [liveEvent.period, liveEvent.elapsed]
       .filter(Boolean)
@@ -544,9 +555,15 @@ function SportsProbabilityPanel({
               <p className="text-xl font-extrabold text-gray-900 leading-none tabular-nums">
                 {yesScoreNum} - {noScoreNum}
               </p>
-              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-red-500 uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                Live
+              <span
+                className={`mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${
+                  liveNow ? 'text-red-500' : 'text-gray-500'
+                }`}
+              >
+                {liveNow && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                )}
+                {liveNow ? 'Live' : 'Final'}
               </span>
               {clockText && (
                 <p className="text-[10px] text-gray-500 mt-0.5 tabular-nums">
@@ -1004,6 +1021,12 @@ export default function MarketDetailModal({
     () => formatVolumeLabel(market.volume24hr ?? market.volume),
     [market.volume24hr, market.volume],
   );
+  const isFinalSportsEvent = Boolean(
+    isSports &&
+      (market.eventEnded ||
+        market.eventClosed ||
+        /^(ft|final)$/i.test(String(market.eventPeriod || '').trim())),
+  );
 
   // ── Chart paths ───────────────────────────────────────────────────────────
   const yesPoints = useMemo(
@@ -1140,6 +1163,11 @@ export default function MarketDetailModal({
   const LIMIT_MIN_SHARES = market.orderMinSize ?? MIN_ORDER_SIZE;
 
   const handlePlaceOrder = async () => {
+    if (isFinalSportsEvent) {
+      setLocalError('This game is final, so new orders are disabled.');
+      return;
+    }
+
     if (side === 'BUY') {
       if (isLimitVariant) {
         if (inputNum < LIMIT_MIN_SHARES) {
@@ -1189,6 +1217,7 @@ export default function MarketDetailModal({
         tokenId: activeTokenId,
         size: orderSize,
         price: isLimitVariant ? limitPriceNum : undefined,
+        acceptedPrice: effectivePrice,
         side,
         negRisk,
         isMarketOrder: isMarketVariant,
@@ -1207,6 +1236,13 @@ export default function MarketDetailModal({
               ? totalCost
               : inputNum;
         const win = side === 'BUY' ? shares : 0;
+        const feedExecution = resolvePredictionFeedExecution(result, {
+          side,
+          cost,
+          potentialWin: win,
+          price: effectivePrice,
+          acceptedPrice: effectivePrice,
+        });
 
         getAccessToken()
           .then((token) => {
@@ -1221,12 +1257,13 @@ export default function MarketDetailModal({
                   marketTitle: market.question,
                   outcome: outcomeName,
                   side,
-                  cost,
-                  potentialWin: win,
-                  price: effectivePrice,
+                  cost: feedExecution.cost,
+                  potentialWin: feedExecution.potentialWin,
+                  price: feedExecution.price,
                   orderId: result.orderId,
                   orderType,
                   eventSlug: market.eventSlug,
+                  ...feedExecution.fields,
                   // Sports panel data
                   yesOutcome: yesOutcomeName,
                   noOutcome: noOutcomeName,
@@ -1540,6 +1577,7 @@ export default function MarketDetailModal({
               onClick={handlePlaceOrder}
               disabled={
                 isSubmitting ||
+                isFinalSportsEvent ||
                 inputNum <= 0 ||
                 !clobClient ||
                 hasInsufficientBalance
@@ -1575,6 +1613,8 @@ export default function MarketDetailModal({
                 </span>
               ) : !clobClient ? (
                 'Connect Wallet'
+              ) : isFinalSportsEvent ? (
+                'Final'
               ) : (
                 'Place Order'
               )}

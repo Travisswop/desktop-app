@@ -19,7 +19,10 @@ import { providers } from "ethers5";
 import { polygon } from "viem/chains";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
 import { POLYGON_RPC_URL } from "@/constants/polymarket";
-import { selectPreferredWallet } from "@/components/wallet/hooks/useWalletData";
+import {
+  selectPreferredWallet,
+  shouldPreferEmbeddedWallets,
+} from "@/components/wallet/hooks/useWalletData";
 
 export interface PolymarketWalletContextType {
   eoaAddress: `0x${string}` | undefined;
@@ -66,9 +69,14 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
   const { wallets, ready } = useWallets();
   const { authenticated, user } = usePrivy();
 
-  // Find the user's selected EVM wallet. Prefer Privy's primary wallet,
-  // then connected external wallets, then the embedded fallback.
-  const wallet = selectPreferredWallet(wallets, user?.wallet?.address);
+  const useEmbeddedWalletProvider = shouldPreferEmbeddedWallets();
+
+  // In local development, avoid extension-injected EVM providers by using the
+  // embedded Privy wallet unless external wallet testing is explicitly enabled.
+  const wallet = selectPreferredWallet(wallets, user?.wallet?.address, {
+    preferEmbedded: useEmbeddedWalletProvider,
+    embeddedOnly: useEmbeddedWalletProvider,
+  });
 
   const eoaAddress =
     authenticated && wallet ? (wallet.address as `0x${string}`) : undefined;

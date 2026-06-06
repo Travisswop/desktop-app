@@ -318,6 +318,8 @@ export default function TokenDetails({
   const { accessToken } = useUser();
   const { fundWallet } = useFundWallet();
   const { wallets: solanaWallets } = useSolanaWallets();
+  const isMarketOnly = Boolean(token.isMarketOnly);
+  const marketId = token.marketData?.id || null;
 
   if (!accessToken) {
     throw new Error('No access token found');
@@ -351,6 +353,7 @@ export default function TokenDetails({
     '1D',
     selectedPeriod === '1D',
     accessToken,
+    marketId,
   );
   const week = useTokenChartData(
     token.address,
@@ -358,6 +361,7 @@ export default function TokenDetails({
     '1W',
     selectedPeriod === '1W',
     accessToken,
+    marketId,
   );
   const month = useTokenChartData(
     token.address,
@@ -365,6 +369,7 @@ export default function TokenDetails({
     '1M',
     selectedPeriod === '1M',
     accessToken,
+    marketId,
   );
   const year = useTokenChartData(
     token.address,
@@ -372,6 +377,7 @@ export default function TokenDetails({
     '1Y',
     selectedPeriod === '1Y',
     accessToken,
+    marketId,
   );
 
   const periodChangeNumeric = parseFloat(changePercentage || '0');
@@ -582,7 +588,9 @@ export default function TokenDetails({
     text.length <= max ? text : `${text.slice(0, max)}…`;
 
   const chainLabelCode = (token.chain || '').toUpperCase();
-  const chainTag = CHAIN_TAGS[chainLabelCode] || chainLabelCode;
+  const chainTag = isMarketOnly
+    ? 'MARKET'
+    : CHAIN_TAGS[chainLabelCode] || chainLabelCode;
   const avatarBg =
     TOKEN_AVATAR_BG[chainLabelCode] ||
     'linear-gradient(135deg,#dfe6ef,#a3aab2)';
@@ -600,25 +608,28 @@ export default function TokenDetails({
       key: 'send',
       label: 'Send',
       icon: <Send className="w-4 h-4" strokeWidth={1.75} />,
-      disabled: balanceNum <= 0,
+      disabled: isMarketOnly || balanceNum <= 0,
       onClick: () => onSend(token),
     },
     {
       key: 'receive',
       label: 'Receive',
       icon: <Plus className="w-4 h-4" strokeWidth={1.75} />,
+      disabled: isMarketOnly,
       onClick: handleWalletQrOpen,
     },
     {
       key: 'swap',
       label: 'Swap',
       icon: <Repeat2 className="w-4 h-4" strokeWidth={1.75} />,
+      disabled: isMarketOnly,
       onClick: () => setOpenWalletSwapOpen(true),
     },
     {
       key: 'buy',
       label: 'Buy',
       icon: <DollarSign className="w-4 h-4" strokeWidth={1.75} />,
+      disabled: isMarketOnly,
       onClick: handleWalletOptionsOpen,
     },
   ];
@@ -626,6 +637,8 @@ export default function TokenDetails({
   // Walls + descriptions for the About card chips. Pulls from market data
   // when available, falls back to a chain-aware explorer.
   const explorerLink = useMemo(() => {
+    if (isMarketOnly) return null;
+
     const addr = token.address;
     switch (chainLabelCode) {
       case 'SOLANA':
@@ -647,7 +660,7 @@ export default function TokenDetails({
       default:
         return null;
     }
-  }, [chainLabelCode, token.address]);
+  }, [chainLabelCode, isMarketOnly, token.address]);
 
   return (
     <>

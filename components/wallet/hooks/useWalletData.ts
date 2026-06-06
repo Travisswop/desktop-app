@@ -13,19 +13,35 @@ type AddressLike = {
   connectorType?: string | null;
 };
 
+type WalletSelectionOptions = {
+  preferEmbedded?: boolean;
+  embeddedOnly?: boolean;
+};
+
 const normalizeAddress = (address?: string | null) =>
   address?.toLowerCase() ?? '';
 
 const isEmbeddedAddressLike = (wallet: AddressLike) =>
   wallet.walletClientType === 'privy' ||
+  wallet.walletClientType === 'privy-v2' ||
   wallet.connectorType === 'embedded';
+
+export const shouldPreferEmbeddedWallets = () =>
+  process.env.NEXT_PUBLIC_PRIVY_DISABLE_EXTERNAL_WALLETS === 'true' ||
+  (process.env.NODE_ENV !== 'production' &&
+    process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS !== 'true');
 
 export function selectPreferredWallet<T extends AddressLike>(
   wallets: T[] | undefined | null,
   primaryAddress?: string | null,
+  options: WalletSelectionOptions = {},
 ): T | undefined {
   const available = (wallets ?? []).filter((wallet) => !!wallet.address);
   if (!available.length) return undefined;
+
+  const embeddedWallet = available.find(isEmbeddedAddressLike);
+  if (options.embeddedOnly) return embeddedWallet;
+  if (options.preferEmbedded && embeddedWallet) return embeddedWallet;
 
   const normalizedPrimary = normalizeAddress(primaryAddress);
   if (normalizedPrimary) {
@@ -37,7 +53,7 @@ export function selectPreferredWallet<T extends AddressLike>(
 
   return (
     available.find((wallet) => !isEmbeddedAddressLike(wallet)) ??
-    available.find(isEmbeddedAddressLike) ??
+    embeddedWallet ??
     available[0]
   );
 }

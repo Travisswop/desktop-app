@@ -22,6 +22,7 @@ import PostFeed from "./PostFeed";
 import CustomModal from "../modal/CustomModal";
 import { useModalStore } from "@/zustandStore/modalstore";
 import FeedMarketTicker from "./FeedMarketTicker";
+import { FeedSideRail, FeedSideRailMobile } from "./FeedSideRails";
 
 // Constants to avoid duplication
 const CONTAINER_HEIGHT = "calc(100vh - 150px)";
@@ -355,8 +356,22 @@ const FeedMain = memo(() => {
   return (
     <div className="w-full h-full relative">
       <FeedMarketTicker accessToken={accessToken as string} className="mb-6" />
-      <div className="w-full flex h-full justify-center relative">
+      {tab === "feed" && (
+        <FeedSideRailMobile
+          accessToken={accessToken as string}
+          userId={userId as string}
+        />
+      )}
+      <div className="w-full flex justify-center gap-4 2xl:gap-6 relative">
+        {tab === "feed" && (
+          <FeedSideRail
+            side="left"
+            accessToken={accessToken as string}
+            userId={userId as string}
+          />
+        )}
         <MainContent {...mainContentProps} />
+        {tab === "feed" && <FeedSideRail side="right" />}
         {/* <RightSidebar {...rightSidebarProps} /> */}
       </div>
     </div>

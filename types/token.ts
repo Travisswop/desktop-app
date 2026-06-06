@@ -8,6 +8,7 @@ export type ChainType =
 export type EVMChain = Exclude<ChainType, 'SOLANA'>;
 
 export interface MarketData {
+  id?: string;
   symbol?: string;
   name?: string;
   marketCap?: string | number;
@@ -66,6 +67,7 @@ export interface TokenData {
     '1Y': Array<{ timestamp: number; value: number }>;
   };
   isNative?: boolean;
+  isMarketOnly?: boolean;
   nativeTokenPrice?: number;
   value?: number; // Total value in USD (balance × price), calculated by backend
 }

@@ -51,6 +51,17 @@ export interface PredictionContent {
   cost: number;
   potentialWin?: number;
   price: number; // decimal 0–1, price of the picked outcome
+  quotePrice?: number | string;
+  acceptedPrice?: number | string;
+  requestedCost?: number | string;
+  requestedPotentialWin?: number | string;
+  executedPrice?: number | string;
+  executedShares?: number | string;
+  executedCost?: number | string;
+  executedProceeds?: number | string;
+  fillStatus?: string;
+  tradeIds?: string[];
+  transactionHashes?: string[];
   orderId?: string;
   orderType?: string;
   marketId?: string;
@@ -752,6 +763,100 @@ function formatSignedUsd(value: number | undefined): string {
   return `${value >= 0 ? '+' : ''}${formatUsd(value)}`;
 }
 
+function formatShares(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) return '—';
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: value >= 100 ? 0 : value >= 10 ? 1 : 2,
+  }).format(value);
+}
+
+function formatEntrySummary({
+  cost,
+  shares,
+  entryPriceLabel,
+  entryIsEstimate,
+}: {
+  cost: number;
+  shares: number | undefined;
+  entryPriceLabel: string;
+  entryIsEstimate?: boolean;
+}) {
+  if (entryIsEstimate) {
+    return `${formatUsd(cost)} · pre-fill quote @ ${entryPriceLabel}`;
+  }
+
+  return `${formatUsd(cost)} · ${formatShares(shares)} sh @ ${entryPriceLabel}`;
+}
+
+function resolveExecutedPredictionPosition(content: PredictionContent) {
+  const executedPrice = firstNumber(content.executedPrice);
+  const executedShares = firstNumber(content.executedShares);
+  const executedCost = firstNumber(content.executedCost);
+  const executedProceeds = firstNumber(content.executedProceeds);
+  const derivedExecutedPrice =
+    executedShares && executedShares > 0
+      ? content.side === 'SELL'
+        ? executedProceeds !== undefined
+          ? executedProceeds / executedShares
+          : undefined
+        : executedCost !== undefined
+          ? executedCost / executedShares
+          : undefined
+      : undefined;
+  const quotedPrice = firstNumber(content.price, content.acceptedPrice);
+  const entryPrice = clampProbability(
+    executedPrice ?? derivedExecutedPrice ?? quotedPrice ?? 0,
+  );
+  const cost =
+    content.side === 'SELL'
+      ? firstNumber(executedProceeds, content.saleAmount, content.cost) ??
+        content.cost
+      : firstNumber(executedCost, content.cost) ?? content.cost;
+  const shares =
+    executedShares ??
+    firstNumber(content.potentialWin, content.requestedPotentialWin);
+
+  return {
+    cost,
+    entryPrice,
+    shares,
+    hasExecutedFill:
+      executedPrice !== undefined ||
+      executedShares !== undefined ||
+      executedCost !== undefined ||
+      executedProceeds !== undefined,
+  };
+}
+
+function hasSubmittedPredictionOrder(content: PredictionContent): boolean {
+  const orderId =
+    typeof content.orderId === 'string'
+      ? content.orderId.trim()
+      : content.orderId;
+  const fillStatus =
+    typeof content.fillStatus === 'string'
+      ? content.fillStatus.trim()
+      : content.fillStatus;
+
+  return Boolean(
+    orderId ||
+      fillStatus ||
+      (Array.isArray(content.tradeIds) && content.tradeIds.length > 0) ||
+      (Array.isArray(content.transactionHashes) &&
+        content.transactionHashes.length > 0),
+  );
+}
+
+function isPredictionEntryEstimate(
+  content: PredictionContent,
+  executedPosition: ReturnType<typeof resolveExecutedPredictionPosition>,
+): boolean {
+  return (
+    !executedPosition.hasExecutedFill &&
+    !hasSubmittedPredictionOrder(content)
+  );
+}
+
 function initials(value?: string): string {
   if (!value) return 'AS';
   const parts = value.trim().split(/\s+/).filter(Boolean);
@@ -971,6 +1076,8 @@ function SportsMiniPanel({
   side,
   cost,
   entryPrice,
+  positionShares,
+  entryIsEstimate,
   tradeState,
   marketUrl,
 }: {
@@ -991,6 +1098,8 @@ function SportsMiniPanel({
   side: 'BUY' | 'SELL';
   cost: number;
   entryPrice: number;
+  positionShares?: number;
+  entryIsEstimate?: boolean;
   tradeState: TradeStateMeta;
   marketUrl?: string;
 }) {
@@ -1115,9 +1224,13 @@ function SportsMiniPanel({
   const pickedCurrentPrice =
     pickedIsYes ? yP : nP;
   const impliedShares =
-    entryPrice > 0 ? cost / entryPrice : undefined;
+    positionShares !== undefined && Number.isFinite(positionShares)
+      ? positionShares
+      : !entryIsEstimate && entryPrice > 0
+        ? cost / entryPrice
+        : undefined;
   const currentValue =
-    impliedShares !== undefined
+    !entryIsEstimate && impliedShares !== undefined
       ? impliedShares * pickedCurrentPrice
       : undefined;
   const currentDelta =
@@ -1125,9 +1238,14 @@ function SportsMiniPanel({
       ? currentValue - cost
       : undefined;
   const selectedPnl =
-    tradeState.state === 'open' || tradeState.state === 'live'
-      ? currentDelta
-      : tradeState.amount;
+    entryIsEstimate
+      ? undefined
+      : tradeState.state === 'open' ||
+          tradeState.state === 'live' ||
+          tradeState.state === 'won' ||
+          tradeState.state === 'lost'
+        ? (currentDelta ?? tradeState.amount)
+        : (tradeState.amount ?? currentDelta);
   const summaryValue =
     currentValue ??
     (selectedPnl !== undefined ? cost + selectedPnl : undefined);
@@ -1154,33 +1272,37 @@ function SportsMiniPanel({
         ? 'text-[#51AD7D]'
         : 'text-[#E85D5D]';
   const positionVerb =
-    side === 'SELL'
+    entryIsEstimate
+      ? 'Quote shown for'
+      : side === 'SELL'
       ? 'You sold'
       : open
         ? "You're on"
         : 'You backed';
   const isWonResult = !open && tradeState.state === 'won';
   const payoutDisplayValue =
-    isWonResult && summaryValue !== undefined ? summaryValue : undefined;
-  const resultDisplay =
-    payoutDisplayValue !== undefined
-      ? formatUsd(payoutDisplayValue)
-      : formatSignedUsd(selectedPnl);
-  const resultSubcopy =
-    payoutDisplayValue !== undefined && selectedPnl !== undefined
-      ? `${formatSignedUsd(selectedPnl)} profit`
+    !entryIsEstimate && isWonResult && summaryValue !== undefined
+      ? summaryValue
       : undefined;
-  const positionKicker = open
+  const resultDisplay = entryIsEstimate
+    ? '—'
+    : formatSignedUsd(selectedPnl);
+  const resultSubcopy =
+    payoutDisplayValue !== undefined
+      ? `${formatUsd(payoutDisplayValue)} payout`
+      : undefined;
+  const positionKicker = entryIsEstimate
+    ? 'QUOTE'
+    : open
     ? selectedPnl === undefined
       ? 'LIVE'
       : selectedPnl >= 0
         ? 'UP'
         : 'DOWN'
-    : isWonResult
-      ? 'PAYOUT'
-      : tradeState.state === 'lost'
-        ? 'RESULT'
+    : isWonResult || tradeState.state === 'lost'
+      ? 'RESULT'
       : tradeState.label.toUpperCase();
+  const entryPriceLabel = `${Math.round(clampProbability(entryPrice) * 100)}¢`;
 
   const buttonForOutcome = (
     label: string,
@@ -1358,7 +1480,7 @@ function SportsMiniPanel({
             Win Prob · Timeline
           </p>
           <p className="truncate text-right font-mono text-[10px] font-black text-gray-400">
-            backing {pickedOutcome}
+            {entryIsEstimate ? 'quoted' : 'backing'} {pickedOutcome}
           </p>
         </div>
         <svg
@@ -1432,7 +1554,12 @@ function SportsMiniPanel({
               <span className="text-[#2F7ED8]">{pickedOutcome}</span>
             </p>
             <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-gray-400">
-              {formatUsd(cost)} → {formatUsd(summaryValue)}
+              {formatEntrySummary({
+                cost,
+                shares: impliedShares,
+                entryPriceLabel,
+                entryIsEstimate,
+              })}
             </p>
           </div>
         </div>
@@ -1500,6 +1627,8 @@ function PredictionPositionPanel({
   side,
   cost,
   entryPrice,
+  positionShares,
+  entryIsEstimate,
   currentPrice,
   yesPrice,
   noPrice,
@@ -1514,6 +1643,8 @@ function PredictionPositionPanel({
   side: 'BUY' | 'SELL';
   cost: number;
   entryPrice: number;
+  positionShares?: number;
+  entryIsEstimate?: boolean;
   currentPrice: number;
   yesPrice?: number;
   noPrice?: number;
@@ -1521,9 +1652,16 @@ function PredictionPositionPanel({
   marketUrl?: string;
   userName?: string;
 }) {
-  const shares = entryPrice > 0 ? cost / entryPrice : undefined;
+  const shares =
+    positionShares !== undefined && Number.isFinite(positionShares)
+      ? positionShares
+      : !entryIsEstimate && entryPrice > 0
+        ? cost / entryPrice
+        : undefined;
   const currentValue =
-    shares !== undefined ? shares * currentPrice : undefined;
+    !entryIsEstimate && shares !== undefined
+      ? shares * currentPrice
+      : undefined;
   const delta =
     currentValue !== undefined && Number.isFinite(currentValue)
       ? currentValue - cost
@@ -1534,7 +1672,11 @@ function PredictionPositionPanel({
       : undefined;
   const open =
     tradeState.state === 'open' || tradeState.state === 'live';
-  const selectedPnl = open ? delta : (tradeState.amount ?? delta);
+  const selectedPnl = entryIsEstimate
+    ? undefined
+    : open || tradeState.state === 'won' || tradeState.state === 'lost'
+      ? (delta ?? tradeState.amount)
+      : (tradeState.amount ?? delta);
   const summaryValue =
     currentValue ??
     (selectedPnl !== undefined ? cost + selectedPnl : undefined);
@@ -1567,32 +1709,35 @@ function PredictionPositionPanel({
         ? 'text-[#07976B]'
         : 'text-[#E85D5D]';
   const positionVerb =
-    side === 'SELL'
+    entryIsEstimate
+      ? 'Quote shown for'
+      : side === 'SELL'
       ? 'You sold'
       : open
         ? "You're on"
         : 'You backed';
   const isWonResult = !open && tradeState.state === 'won';
   const payoutDisplayValue =
-    isWonResult && summaryValue !== undefined ? summaryValue : undefined;
-  const resultDisplay =
-    payoutDisplayValue !== undefined
-      ? formatUsd(payoutDisplayValue)
-      : formatSignedUsd(selectedPnl);
-  const resultSubcopy =
-    payoutDisplayValue !== undefined && selectedPnl !== undefined
-      ? `${formatSignedUsd(selectedPnl)} profit`
+    !entryIsEstimate && isWonResult && summaryValue !== undefined
+      ? summaryValue
       : undefined;
-  const positionKicker = open
+  const resultDisplay = entryIsEstimate
+    ? '—'
+    : formatSignedUsd(selectedPnl);
+  const resultSubcopy =
+    payoutDisplayValue !== undefined
+      ? `${formatUsd(payoutDisplayValue)} payout`
+      : undefined;
+  const positionKicker = entryIsEstimate
+    ? 'QUOTE'
+    : open
     ? selectedPnl === undefined
       ? 'OPEN'
       : selectedPnl >= 0
         ? 'UP'
         : 'DOWN'
-    : isWonResult
-      ? 'PAYOUT'
-      : tradeState.state === 'lost'
-        ? 'RESULT'
+    : isWonResult || tradeState.state === 'lost'
+      ? 'RESULT'
       : tradeState.label.toUpperCase();
   const deltaSummary =
     delta !== undefined && deltaPct !== undefined
@@ -1657,6 +1802,7 @@ function PredictionPositionPanel({
       : 'MARKET';
   const formatPredictionPrice = (price: number) =>
     `${Math.round(clampProbability(price) * 100)}¢`;
+  const entryPriceLabel = formatPredictionPrice(entryPrice);
   const buttonForOutcome = (
     label: string,
     price: number,
@@ -1811,7 +1957,7 @@ function PredictionPositionPanel({
             Price · Timeline
           </p>
           <p className="truncate text-right font-mono text-[10px] font-black text-gray-400">
-            backing {outcome}
+            {entryIsEstimate ? 'quoted' : 'backing'} {outcome}
           </p>
         </div>
         <svg
@@ -1880,7 +2026,12 @@ function PredictionPositionPanel({
             <span className="text-[#2F7ED8]">{outcome}</span>
           </p>
           <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-gray-400">
-            {formatUsd(cost)} → {formatUsd(summaryValue)}
+            {formatEntrySummary({
+              cost,
+              shares,
+              entryPriceLabel,
+              entryIsEstimate,
+            })}
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -1948,7 +2099,6 @@ function RegularPredictionFeedCard({
   const {
     outcome,
     side,
-    cost,
     price,
     eventSlug,
     yesOutcome,
@@ -1961,6 +2111,19 @@ function RegularPredictionFeedCard({
     yesTokenId,
     noTokenId,
   } = content;
+  const executedPosition = resolveExecutedPredictionPosition(content);
+  const entryPrice = executedPosition.entryPrice || price;
+  const displayCost = executedPosition.cost;
+  const displayContent: PredictionContent = {
+    ...content,
+    cost: displayCost,
+    price: entryPrice,
+    potentialWin: executedPosition.shares ?? content.potentialWin,
+  };
+  const entryIsEstimate = isPredictionEntryEstimate(
+    content,
+    executedPosition,
+  );
 
   const liveScore = useLiveScore(eventSlug);
   const marketUrl = eventSlug
@@ -1981,10 +2144,10 @@ function RegularPredictionFeedCard({
   );
 
   const marketState = resolveMarketState(content, liveScore);
-  const resolvedYesPrice = marketState.yesPrice ?? yesPrice ?? price;
-  const resolvedNoPrice = marketState.noPrice ?? noPrice ?? 1 - price;
+  const resolvedYesPrice = marketState.yesPrice ?? yesPrice ?? entryPrice;
+  const resolvedNoPrice = marketState.noPrice ?? noPrice ?? 1 - entryPrice;
   const tradeState = resolveTradeState(
-    content,
+    displayContent,
     liveScore?.live === true,
     marketState,
   );
@@ -1997,7 +2160,7 @@ function RegularPredictionFeedCard({
     currentPrice >= 0 &&
     currentPrice <= 1
       ? currentPrice
-      : price;
+      : entryPrice;
 
   return (
     <div className="mt-2">
@@ -2019,8 +2182,10 @@ function RegularPredictionFeedCard({
           pickedOutcome={outcome}
           userName={userName}
           side={side}
-          cost={cost}
-          entryPrice={price}
+          cost={displayCost}
+          entryPrice={entryPrice}
+          positionShares={executedPosition.shares}
+          entryIsEstimate={entryIsEstimate}
           tradeState={tradeState}
           marketUrl={marketUrl}
         />
@@ -2033,8 +2198,10 @@ function RegularPredictionFeedCard({
           yesOutcome={yesOutcome}
           noOutcome={noOutcome}
           side={side}
-          cost={cost}
-          entryPrice={price}
+          cost={displayCost}
+          entryPrice={entryPrice}
+          positionShares={executedPosition.shares}
+          entryIsEstimate={entryIsEstimate}
           currentPrice={currentDisplayPrice}
           yesPrice={resolvedYesPrice}
           noPrice={resolvedNoPrice}
@@ -2115,6 +2282,11 @@ function LiveBtcFiveMinutePredictionFeedCard({
 }: PredictionFeedCardProps) {
   const { upProbability } = useBtcUpDownMarket();
   const outcome = normalizeBtcOutcome(content.outcome);
+  const executedPosition = resolveExecutedPredictionPosition(content);
+  const entryIsEstimate = isPredictionEntryEstimate(
+    content,
+    executedPosition,
+  );
   const yesPrice = clampProbability(upProbability / 100);
   const noPrice = clampProbability(1 - yesPrice);
   const currentPrice = outcome === 'Up' ? yesPrice : noPrice;
@@ -2128,6 +2300,9 @@ function LiveBtcFiveMinutePredictionFeedCard({
     ...content,
     marketTitle: content.marketTitle || 'BTC 5-Minute Up or Down',
     outcome,
+    cost: executedPosition.cost,
+    price: executedPosition.entryPrice || content.price,
+    potentialWin: executedPosition.shares ?? content.potentialWin,
     yesOutcome: 'Up',
     noOutcome: 'Down',
     yesPrice,
@@ -2147,8 +2322,10 @@ function LiveBtcFiveMinutePredictionFeedCard({
         yesOutcome="Up"
         noOutcome="Down"
         side={content.side}
-        cost={content.cost}
-        entryPrice={content.price}
+        cost={executedPosition.cost}
+        entryPrice={executedPosition.entryPrice || content.price}
+        positionShares={executedPosition.shares}
+        entryIsEstimate={entryIsEstimate}
         currentPrice={currentPrice}
         yesPrice={yesPrice}
         noPrice={noPrice}
@@ -2168,6 +2345,11 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
   const windowStart = resolveBtcWindowStart(content, createdAt);
   const { market } = useHistoricalBtcFeedMarket(windowStart, true);
   const outcome = normalizeBtcOutcome(content.outcome);
+  const executedPosition = resolveExecutedPredictionPosition(content);
+  const entryIsEstimate = isPredictionEntryEstimate(
+    content,
+    executedPosition,
+  );
   const entryPrices = btcEntryPrices(content);
   const isExpired = Date.now() / 1000 >= windowStart + 300;
   const candleWinner = useBtcWindowWinner(windowStart, isExpired);
@@ -2193,17 +2375,24 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
       : finalNoPrice;
   const currentPrice = outcome === 'Up' ? yesPrice : noPrice;
   const entryPrice = clampProbability(
-    finiteNumber(content.price) ??
-      (outcome === 'Up' ? entryPrices.yesPrice : entryPrices.noPrice),
+    executedPosition.entryPrice ||
+      (finiteNumber(content.price) ??
+        (outcome === 'Up' ? entryPrices.yesPrice : entryPrices.noPrice)),
   );
-  const shares = entryPrice > 0 ? content.cost / entryPrice : undefined;
+  const shares =
+    executedPosition.shares !== undefined &&
+    Number.isFinite(executedPosition.shares)
+      ? executedPosition.shares
+      : entryPrice > 0
+        ? executedPosition.cost / entryPrice
+        : undefined;
   const payoutValue =
     shares !== undefined && Number.isFinite(shares)
       ? shares * currentPrice
       : undefined;
   const pnl =
     payoutValue !== undefined && Number.isFinite(payoutValue)
-      ? payoutValue - content.cost
+      ? payoutValue - executedPosition.cost
       : undefined;
   const marketState: ResolvedMarketState = {
     closed: Boolean(market?.closed || isExpired),
@@ -2217,6 +2406,9 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
   const historicalContent: PredictionContent = {
     ...content,
     marketTitle: resolvedTitle,
+    cost: executedPosition.cost,
+    price: entryPrice,
+    potentialWin: shares ?? content.potentialWin,
     marketId: content.marketId || market?.conditionId,
     marketSlug: content.marketSlug || market?.slug,
     outcome,
@@ -2248,8 +2440,10 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
         yesOutcome="Up"
         noOutcome="Down"
         side={content.side}
-        cost={content.cost}
+        cost={executedPosition.cost}
         entryPrice={entryPrice}
+        positionShares={shares}
+        entryIsEstimate={entryIsEstimate}
         currentPrice={currentPrice}
         yesPrice={yesPrice}
         noPrice={noPrice}

@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDownRight, ArrowUpRight, Loader2 } from "lucide-react";
+import Link from "next/link";
 import MarketService from "@/services/market-service";
 import styles from "./FeedMarketTicker.module.css";
 
@@ -76,6 +77,37 @@ function normalizeMarket(market: MarketDataShape): TickerMarket | null {
     price,
     changePct,
   };
+}
+
+const TICKER_CHAIN_BY_SYMBOL: Record<string, string> = {
+  ETH: "ETHEREUM",
+  SOL: "SOLANA",
+  MATIC: "POLYGON",
+  POL: "POLYGON",
+};
+
+function buildWalletTickerHref(market: TickerMarket) {
+  const params = new URLSearchParams({
+    chartToken: market.symbol,
+    chartTokenId: market.id,
+    chartTokenName: market.name,
+    source: "feedTicker",
+  });
+
+  const chain = TICKER_CHAIN_BY_SYMBOL[market.symbol.toUpperCase()];
+  if (chain) params.set("chartTokenChain", chain);
+  if (market.image) params.set("chartTokenImage", market.image);
+  if (typeof market.price === "number" && Number.isFinite(market.price)) {
+    params.set("chartTokenPrice", String(market.price));
+  }
+  if (
+    typeof market.changePct === "number" &&
+    Number.isFinite(market.changePct)
+  ) {
+    params.set("chartTokenChange", String(market.changePct));
+  }
+
+  return `/wallet?${params.toString()}`;
 }
 
 async function fetchFeedMarkets(accessToken?: string | null) {
@@ -173,10 +205,15 @@ function TickerPill({
   const ChangeIcon = isPositive ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <div
+    <Link
+      href={buildWalletTickerHref(market)}
+      prefetch={false}
       aria-hidden={ariaHidden}
+      tabIndex={ariaHidden ? -1 : undefined}
+      aria-label={`Open ${market.symbol} chart in wallet`}
       className={[
         "flex h-9 min-w-max items-center gap-2 rounded-md border border-white bg-white px-2.5 text-xs shadow-[0_1px_0_rgba(15,23,42,0.04)] sm:px-3",
+        "transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20",
         muted ? "animate-pulse" : "",
       ]
         .filter(Boolean)
@@ -214,6 +251,6 @@ function TickerPill({
         <ChangeIcon className="h-3 w-3" />
         {formatChange(market.changePct)}
       </span>
-    </div>
+    </Link>
   );
 }

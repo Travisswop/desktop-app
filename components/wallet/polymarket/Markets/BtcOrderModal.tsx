@@ -21,6 +21,7 @@ import { usePolymarketWallet } from '@/providers/polymarket';
 import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import { postFeed } from '@/actions/postFeed';
+import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 
 import Portal from '../shared/Portal';
@@ -296,6 +297,7 @@ export default function BtcOrderModal({
       potentialWin,
       amountToReceive,
       priceDecimal: effectivePrice,
+      acceptedPrice: effectivePrice,
       tokenId: activeTokenId,
       size: orderSize,
       price: isLimitVariant ? limitPriceNum : undefined,
@@ -313,6 +315,7 @@ export default function BtcOrderModal({
         tokenId: pendingOrder.tokenId,
         size: pendingOrder.size,
         price: pendingOrder.price,
+        acceptedPrice: pendingOrder.acceptedPrice,
         side: pendingOrder.side,
         negRisk: pendingOrder.negRisk,
         isMarketOrder: pendingOrder.isMarketOrder,
@@ -323,6 +326,14 @@ export default function BtcOrderModal({
 
       // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
       if (result?.success && user?.primaryMicrosite && user?._id) {
+        const feedExecution = resolvePredictionFeedExecution(result, {
+          side: pendingOrder.side,
+          cost: pendingOrder.cost,
+          potentialWin: pendingOrder.potentialWin,
+          price: pendingOrder.priceDecimal,
+          acceptedPrice: pendingOrder.acceptedPrice,
+        });
+
         getAccessToken()
           .then((token) => {
             if (!token) return;
@@ -340,11 +351,12 @@ export default function BtcOrderModal({
                   btcWindowLabel: windowLabel,
                   outcome: pendingOrder.outcomeName,
                   side: pendingOrder.side,
-                  cost: pendingOrder.cost,
-                  potentialWin: pendingOrder.potentialWin,
-                  price: pendingOrder.priceDecimal,
+                  cost: feedExecution.cost,
+                  potentialWin: feedExecution.potentialWin,
+                  price: feedExecution.price,
                   orderId: result.orderId,
                   orderType,
+                  ...feedExecution.fields,
                   yesOutcome: 'Up',
                   noOutcome: 'Down',
                   yesTokenId: upTokenId,

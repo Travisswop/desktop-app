@@ -1,6 +1,9 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTrading } from '@/providers/polymarket';
-import { QUERY_STALE_TIMES } from '@/constants/polymarket';
+import {
+  QUERY_REFETCH_INTERVALS,
+  QUERY_STALE_TIMES,
+} from '@/constants/polymarket';
 import { fetchChunkedPrices } from '@/lib/polymarket/clob-prices';
 import type { PolymarketMarket } from '@/hooks/polymarket';
 
@@ -127,7 +130,7 @@ export function useSportsEvents({
       return allPages.reduce((total, page) => total + page.length, 0);
     },
     staleTime: QUERY_STALE_TIMES.MARKETS,
-    refetchInterval: 60_000,
+    refetchInterval: QUERY_REFETCH_INTERVALS.MARKETS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });

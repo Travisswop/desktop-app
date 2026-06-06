@@ -22,18 +22,18 @@ export async function copyTextToClipboard(
   if (!text) return false;
 
   try {
-    if (copyTextWithTextarea(text)) return true;
-  } catch {
-    // Fall through to the Clipboard API below.
-  }
-
-  try {
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
       return true;
     }
   } catch {
     // Clipboard can be denied in embedded browsers or permission-limited contexts.
+  }
+
+  try {
+    if (copyTextWithTextarea(text)) return true;
+  } catch {
+    // Fall through to the manual fallback.
   }
 
   return false;
@@ -56,12 +56,15 @@ export function installClipboardWriteFallback() {
   const nativeWriteText = clipboard.writeText.bind(clipboard);
   const writeTextWithFallback = async (text: string) => {
     try {
-      if (copyTextWithTextarea(String(text))) return;
+      await nativeWriteText(text);
+      return;
     } catch {
-      // Fall back to the native API below.
+      // Fall back to a DOM copy below.
     }
 
-    await nativeWriteText(text);
+    if (copyTextWithTextarea(String(text))) return;
+
+    throw new DOMException('Clipboard write failed', 'NotAllowedError');
   };
 
   try {

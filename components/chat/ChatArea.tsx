@@ -97,6 +97,7 @@ import {
 } from '@/lib/chat/agentActionHandoff';
 import { postFeed } from '@/actions/postFeed';
 import { isVisiblePortfolioPosition } from '@/lib/polymarket/position-payout';
+import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
 import {
   usePolymarketWallet,
   useTrading,
@@ -109,7 +110,10 @@ import { SUPPORTED_CHAINS } from '@/components/wallet/constants';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { useUser } from '@/lib/UserContext';
 import { getWalletInfo } from '@/lib/polymarket/backend-session';
-import { DUST_THRESHOLD } from '@/constants/polymarket';
+import {
+  DUST_THRESHOLD,
+  POLYMARKET_BACKEND_URL,
+} from '@/constants/polymarket';
 import { usePolygonBalances } from '@/hooks/polymarket/usePolygonBalances';
 import {
   useUserPositions,
@@ -779,6 +783,14 @@ interface PolymarketMarketPreview {
   yesPrice?: string | number | null;
   noPrice?: string | number | null;
   volume?: string | number | null;
+  realtimePrices?: Record<string, PolymarketRealtimePrice>;
+}
+
+interface PolymarketRealtimePrice {
+  bidPrice?: number;
+  askPrice?: number;
+  midPrice?: number;
+  spread?: number;
 }
 
 interface PolymarketMarketGroup {
@@ -786,6 +798,24 @@ interface PolymarketMarketGroup {
   isEventGroup: boolean;
   markets: PolymarketMarketPreview[];
 }
+
+type PolymarketLiveQuote = {
+  bid: number | null;
+  ask: number | null;
+};
+
+type InlinePolymarketQuoteState = PolymarketLiveQuote & {
+  tokenId: string;
+  status: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
+  message?: string;
+};
+
+const EMPTY_INLINE_POLYMARKET_QUOTE: InlinePolymarketQuoteState = {
+  tokenId: '',
+  status: 'idle',
+  bid: null,
+  ask: null,
+};
 
 interface PolymarketOrderPrefill {
   marketKey?: string;
@@ -2011,7 +2041,7 @@ function buildSyntheticSwapMessage(
 
   return {
     _id: `${proposalId}-message`,
-    message: `Opened a swap ticket${routeText}. Review and confirm below.`,
+    message: `Opened a swap ticket${routeText}. Sign and approve below.`,
     senderKind: 'agent',
     agentSender: {
       agentId: 'astro',
@@ -8868,9 +8898,12 @@ function PolymarketMarketCard({
     useState<AgentActionCompletion | null>(null);
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [liveQuote, setLiveQuote] =
+    useState<InlinePolymarketQuoteState>(EMPTY_INLINE_POLYMARKET_QUOTE);
   const confirmInFlightRef = useRef(false);
+  const quoteRequestRef = useRef(0);
   const trading = useTrading();
-  const { accessToken } = useUser();
+  const { accessToken, user } = useUser();
   const {
     submitOrder,
     isSubmitting: isSubmittingOrder,
@@ -8904,7 +8937,7 @@ function PolymarketMarketCard({
       : selectedOutcome === 'no'
       ? market.noPrice
       : undefined;
-  const selectedPriceLabel =
+  const selectedSummaryPriceLabel =
     selectedOutcome === 'yes'
       ? yesPrice
       : selectedOutcome === 'no'
@@ -8914,16 +8947,123 @@ function PolymarketMarketCard({
     selectedOutcome === 'yes' ? outcomes.yes : outcomes.no;
   const selectedAccent =
     selectedOutcome === 'no' ? '#ff5d63' : '#3fe08f';
+  const selectedTokenId = selectedOutcome
+    ? getPolymarketTokenId(market, selectedOutcome)
+    : '';
+  const embeddedQuote = selectedOutcome
+    ? getPolymarketRealtimeQuote(market, selectedOutcome)
+    : null;
+  const embeddedQuoteBid = embeddedQuote?.bid ?? null;
+  const embeddedQuoteAsk = embeddedQuote?.ask ?? null;
+
+  const refreshSelectedMarketQuote = useCallback(async () => {
+    if (!selectedTokenId || !selectedOutcome) {
+      setLiveQuote(EMPTY_INLINE_POLYMARKET_QUOTE);
+      return null;
+    }
+
+    const requestId = quoteRequestRef.current + 1;
+    quoteRequestRef.current = requestId;
+    const fallbackQuote = {
+      bid: embeddedQuoteBid,
+      ask: embeddedQuoteAsk,
+    };
+
+    setLiveQuote({
+      tokenId: selectedTokenId,
+      status: 'loading',
+      bid: fallbackQuote.bid,
+      ask: fallbackQuote.ask,
+    });
+
+    try {
+      const quote = await fetchPolymarketLiveQuote(selectedTokenId);
+      if (quoteRequestRef.current === requestId) {
+        setLiveQuote({
+          tokenId: selectedTokenId,
+          status: quote.ask != null ? 'ready' : 'unavailable',
+          bid: quote.bid,
+          ask: quote.ask,
+          message:
+            quote.ask != null
+              ? undefined
+              : 'No live ask is available for this market right now.',
+        });
+      }
+      return quote;
+    } catch (error) {
+      if (quoteRequestRef.current === requestId) {
+        setLiveQuote({
+          tokenId: selectedTokenId,
+          status: fallbackQuote.ask != null ? 'ready' : 'error',
+          bid: fallbackQuote.bid,
+          ask: fallbackQuote.ask,
+          message:
+            fallbackQuote.ask != null
+              ? undefined
+              : error instanceof Error
+              ? error.message
+              : 'Could not refresh the live market price.',
+        });
+      }
+
+      return fallbackQuote.ask != null ? fallbackQuote : null;
+    }
+  }, [embeddedQuoteAsk, embeddedQuoteBid, selectedOutcome, selectedTokenId]);
+
+  useEffect(() => {
+    if (!selectedOutcome || !selectedTokenId || orderMode !== 'market') {
+      setLiveQuote(EMPTY_INLINE_POLYMARKET_QUOTE);
+      return;
+    }
+
+    void refreshSelectedMarketQuote();
+  }, [
+    orderMode,
+    refreshSelectedMarketQuote,
+    selectedOutcome,
+    selectedTokenId,
+  ]);
+
   const stakeValue = Number(stake || 0);
   const selectedProbability = parsePolymarketProbability(selectedPrice, 0.5);
   const isLimitOrder = orderMode === 'limit';
   const limitPriceDecimal = Number(limitPrice || 0) / 100;
+  const selectedLiveQuote =
+    liveQuote.tokenId === selectedTokenId ? liveQuote : null;
+  const liveAskPrice = selectedLiveQuote?.ask ?? embeddedQuoteAsk;
+  const isCheckingLiveAsk = Boolean(
+    selectedOutcome &&
+      !isLimitOrder &&
+      selectedTokenId &&
+      selectedLiveQuote?.status === 'loading'
+  );
+  const hasNoLiveAsk = Boolean(
+    selectedOutcome &&
+      !isLimitOrder &&
+      selectedTokenId &&
+      selectedLiveQuote?.status === 'unavailable' &&
+      liveAskPrice == null
+  );
+  const hasLiveQuoteError = Boolean(
+    selectedOutcome &&
+      !isLimitOrder &&
+      selectedTokenId &&
+      selectedLiveQuote?.status === 'error' &&
+      liveAskPrice == null
+  );
+  const marketQuoteBlocksConfirm =
+    isCheckingLiveAsk || hasNoLiveAsk || hasLiveQuoteError;
   const effectiveProbability =
     isLimitOrder && limitPriceDecimal > 0
       ? limitPriceDecimal
-      : selectedProbability;
+      : liveAskPrice ?? selectedProbability;
+  const selectedPriceLabel =
+    isLimitOrder
+      ? selectedSummaryPriceLabel
+      : formatPolymarketPrice(liveAskPrice) || selectedSummaryPriceLabel;
   const orderShares =
-    effectiveProbability > 0 && stakeValue > 0
+    !hasNoLiveAsk && !hasLiveQuoteError && effectiveProbability > 0 && stakeValue > 0
       ? stakeValue / effectiveProbability
       : 0;
   const orderCost =
@@ -8958,9 +9098,6 @@ function PolymarketMarketCard({
   );
   const isInlineProposalPending =
     inlineProposal?.proposalId === pendingProposalId;
-  const selectedTokenId = selectedOutcome
-    ? getPolymarketTokenId(market, selectedOutcome)
-    : '';
   const approvalParams =
     selectedOutcome
       ? {
@@ -9000,12 +9137,20 @@ function PolymarketMarketCard({
       (limitPriceDecimal <= 0 || limitPriceDecimal >= 1)
   );
   const predictionShortfall = Math.max(0, orderCost - availableUsdc);
+  const canRefreshMarketQuote = Boolean(
+    selectedOutcome &&
+      !isLimitOrder &&
+      selectedTokenId &&
+      !isBusy &&
+      (hasNoLiveAsk || hasLiveQuoteError)
+  );
   const canConfirmBet =
     Boolean(stakeValue && stakeValue > 0) &&
     canAct &&
     !isBalanceLoading &&
     !isBelowMinimum &&
     !hasInvalidLimitPrice &&
+    !marketQuoteBlocksConfirm &&
     !needsPredictionFunds &&
     !isBusy &&
     !isInlineProposalPending &&
@@ -9040,6 +9185,22 @@ function PolymarketMarketCard({
       return;
     }
 
+    if (canRefreshMarketQuote) {
+      setTradeError(null);
+      setIsConfirming(true);
+      try {
+        const quote = await refreshSelectedMarketQuote();
+        if (quote?.ask == null) {
+          setTradeError(
+            'No live ask is available for this market right now. Try again or use a limit order.'
+          );
+        }
+      } finally {
+        setIsConfirming(false);
+      }
+      return;
+    }
+
     if (!canConfirmBet) return;
 
     setTradeError(null);
@@ -9047,13 +9208,28 @@ function PolymarketMarketCard({
     confirmInFlightRef.current = true;
 
     try {
+      let executionPrice = effectiveProbability;
+      let requestedOrderShares = orderShares;
+
+      if (!isLimitOrder) {
+        const quote = await refreshSelectedMarketQuote();
+        if (quote?.ask == null) {
+          throw new Error(
+            'No live ask is available for this market right now. Try again or use a limit order.'
+          );
+        }
+        executionPrice = quote.ask;
+        requestedOrderShares =
+          stakeValue > 0 && executionPrice > 0 ? stakeValue / executionPrice : 0;
+      }
+
       let proposal = canUseInlineProposal ? inlineProposal : null;
       if (!proposal?.proposalId) {
         proposal = await onPrepareBet(
           buildPolymarketBetPrompt(
             market,
             selectedOutcome,
-            isLimitOrder ? orderShares : stake,
+            isLimitOrder ? requestedOrderShares : stake,
             {
               orderType: orderMode,
               limitPriceCents: isLimitOrder ? limitPrice : undefined,
@@ -9104,7 +9280,7 @@ function PolymarketMarketCard({
             buildPolymarketBetPrompt(
               market,
               selectedOutcome,
-              isLimitOrder ? orderShares : stake,
+              isLimitOrder ? requestedOrderShares : stake,
               {
                 orderType: orderMode,
                 limitPriceCents: isLimitOrder ? limitPrice : undefined,
@@ -9131,16 +9307,47 @@ function PolymarketMarketCard({
       const orderResult = await submitOrder({
         tokenId: selectedTokenId,
         conditionId: market.conditionId || market.id || undefined,
-        size: isLimitOrder ? orderShares : stakeValue,
+        size: isLimitOrder ? requestedOrderShares : stakeValue,
         side: 'BUY',
         negRisk: undefined,
         price: isLimitOrder ? limitPriceDecimal : undefined,
+        acceptedPrice: executionPrice,
         isMarketOrder: !isLimitOrder,
         fillType: isLimitOrder ? undefined : 'FOK',
         showWalletUIs: false,
       });
 
-      const estimatedShares = orderShares;
+      const feedExecution = resolvePredictionFeedExecution(orderResult, {
+        side: 'BUY',
+        cost: orderCost,
+        potentialWin: requestedOrderShares,
+        price: executionPrice,
+        acceptedPrice: executionPrice,
+      });
+      const executedShares = feedExecution.potentialWin ?? requestedOrderShares;
+      const executedCost = feedExecution.cost;
+      const executedPrice = feedExecution.price;
+      try {
+        await postAgentPredictionToFeed({
+          accessToken,
+          user,
+          market,
+          orderId: orderResult.orderId,
+          outcome: selectedLabel,
+          side: 'BUY',
+          cost: executedCost,
+          potentialWin: executedShares,
+          price: executedPrice,
+          orderType: orderMode,
+          executionFields: feedExecution.fields,
+        });
+      } catch (feedError) {
+        console.warn(
+          'Polymarket order placed, but feed posting failed:',
+          feedError
+        );
+      }
+
       const completionDraft: Omit<
         AgentActionCompletion,
         | 'proposalId'
@@ -9158,9 +9365,9 @@ function PolymarketMarketCard({
         subtitle: `${selectedLabel} · buy ${orderMode}`,
         subject: selectedLabel,
         side: 'BUY',
-        stake: orderCost,
-        toWin: Math.max(0, estimatedShares - orderCost),
-        payout: estimatedShares,
+        stake: executedCost,
+        toWin: Math.max(0, executedShares - executedCost),
+        payout: executedShares,
         orderId: orderResult.orderId,
         explorerLabel: orderResult.orderId ? 'View order' : undefined,
         executionResult: {
@@ -9169,8 +9376,9 @@ function PolymarketMarketCard({
           marketTitle: question,
           outcome: selectedLabel,
           side: 'BUY',
-          shares: estimatedShares,
-          price: effectiveProbability,
+          shares: executedShares,
+          price: executedPrice,
+          cost: executedCost,
           orderType: orderMode,
           tokenId: selectedTokenId,
         },
@@ -9201,6 +9409,15 @@ function PolymarketMarketCard({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to place bet.';
+      if (/No live ask is available/i.test(message) && selectedTokenId) {
+        setLiveQuote({
+          tokenId: selectedTokenId,
+          status: 'unavailable',
+          bid: null,
+          ask: null,
+          message: 'No live ask is available for this market right now.',
+        });
+      }
       setTradeError(message);
       toast.error(message);
     } finally {
@@ -9340,7 +9557,11 @@ function PolymarketMarketCard({
                 amount
               </span>
               <span className="dm-mono text-[10px] text-[#5a5e69]">
-                {Math.round(effectiveProbability * 100)}¢ / share
+                {hasNoLiveAsk || hasLiveQuoteError
+                  ? 'ask unavailable'
+                  : isCheckingLiveAsk
+                  ? 'checking ask'
+                  : `${Math.round(effectiveProbability * 100)}¢ / share`}
               </span>
             </div>
 
@@ -9422,7 +9643,9 @@ function PolymarketMarketCard({
                   shares
                 </div>
                 <div className="dm-mono mt-1 text-[14px] font-bold text-[#3fe08f]">
-                  {formatPredictionShares(orderShares)}
+                  {hasNoLiveAsk || hasLiveQuoteError
+                    ? '--'
+                    : formatPredictionShares(orderShares)}
                 </div>
               </div>
             </div>
@@ -9430,14 +9653,20 @@ function PolymarketMarketCard({
             <div className="mt-2 flex justify-between gap-3 border-t border-dashed border-white/[0.07] pt-2">
               <span className="dm-mono text-xs text-[#9396a0]">to win</span>
               <span className="dm-mono text-[13px] font-bold text-[#3ddc97]">
-                +{formatCompactUsd(payout.profit)}
+                {hasNoLiveAsk || hasLiveQuoteError
+                  ? '--'
+                  : `+${formatCompactUsd(payout.profit)}`}
               </span>
             </div>
           </div>
 
           <div
             className={`mt-3 rounded-[10px] border px-3 py-2 text-[11px] ${
-              needsPredictionFunds
+              hasNoLiveAsk
+                ? 'border-[#ff5d63]/25 bg-[#ff5d63]/10 text-[#ffb2b6]'
+                : hasLiveQuoteError
+                ? 'border-[#e8920f]/25 bg-[#e8920f]/10 text-[#ffd08a]'
+                : needsPredictionFunds
                 ? 'border-[#e8920f]/25 bg-[#e8920f]/10 text-[#ffd08a]'
                 : hasInvalidLimitPrice
                 ? 'border-[#e8920f]/25 bg-[#e8920f]/10 text-[#ffd08a]'
@@ -9446,7 +9675,14 @@ function PolymarketMarketCard({
                 : 'border-white/[0.07] bg-black/25 text-[#9396a0]'
             }`}
           >
-            {isBalanceLoading ? (
+            {isCheckingLiveAsk ? (
+              'Checking the live Polymarket ask...'
+            ) : hasNoLiveAsk ? (
+              'No live ask is available for this market right now. Refresh or switch to a limit order.'
+            ) : hasLiveQuoteError ? (
+              liveQuote.message ||
+              'Could not refresh the live ask. Try again or use a limit order.'
+            ) : isBalanceLoading ? (
               'Checking Polymarket balance...'
             ) : hasInvalidLimitPrice ? (
               'Limit price must be between 1¢ and 99¢.'
@@ -9486,10 +9722,21 @@ function PolymarketMarketCard({
           <button
             type="button"
             onClick={handleConfirmBet}
-            disabled={(!canConfirmBet && !needsPredictionFunds) || isBusy}
-            className="dm-btn mt-3.5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-[#3fe08f] px-3 font-bold tracking-[0.08em] text-[#071008] disabled:cursor-wait disabled:opacity-60"
+            disabled={
+              (!canConfirmBet && !needsPredictionFunds && !canRefreshMarketQuote) ||
+              isBusy
+            }
+            className={`dm-btn mt-3.5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] px-3 font-bold tracking-[0.08em] disabled:cursor-wait disabled:opacity-60 ${
+              marketQuoteBlocksConfirm && !needsPredictionFunds
+                ? 'border border-white/[0.07] bg-[#15171d] text-[#eceef2]'
+                : 'bg-[#3fe08f] text-[#071008]'
+            }`}
           >
-            {(isSelectedPending || isInlineProposalPending || isConfirming || isSubmittingOrder) && (
+            {(isSelectedPending ||
+              isInlineProposalPending ||
+              isConfirming ||
+              isSubmittingOrder ||
+              isCheckingLiveAsk) && (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             )}
             {needsPredictionFunds ? (
@@ -9505,6 +9752,15 @@ function PolymarketMarketCard({
               ? 'BET CONFIRMED'
               : activeOrderStage
               ? getInlineOrderStageButtonLabel(orderStage)
+              : isCheckingLiveAsk
+              ? 'CHECKING PRICE...'
+              : canRefreshMarketQuote
+              ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  REFRESH PRICE
+                </>
+              )
               : isConfirming
               ? 'APPROVING...'
               : isLimitOrder
@@ -10052,6 +10308,96 @@ function parseMarketArray(value: unknown): string[] {
   }
 }
 
+function parseLivePolymarketPrice(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 && number < 1 ? number : null;
+}
+
+function normalizePolymarketRealtimePrices(
+  value: unknown
+): Record<string, PolymarketRealtimePrice> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const prices: Record<string, PolymarketRealtimePrice> = {};
+
+  for (const [tokenId, rawQuote] of Object.entries(
+    value as Record<string, unknown>
+  )) {
+    if (!tokenId || !rawQuote || typeof rawQuote !== 'object') continue;
+    const quote = rawQuote as Record<string, unknown>;
+    const bidPrice = parseLivePolymarketPrice(
+      quote.bidPrice ?? quote.bid
+    );
+    const askPrice = parseLivePolymarketPrice(
+      quote.askPrice ?? quote.ask
+    );
+    const midPrice = parseLivePolymarketPrice(
+      quote.midPrice ?? quote.mid
+    );
+    const spreadNumber = Number(quote.spread);
+    const spread =
+      Number.isFinite(spreadNumber) && spreadNumber >= 0
+        ? spreadNumber
+        : undefined;
+
+    if (
+      bidPrice == null &&
+      askPrice == null &&
+      midPrice == null &&
+      spread == null
+    ) {
+      continue;
+    }
+
+    prices[tokenId] = {
+      ...(bidPrice != null ? { bidPrice } : {}),
+      ...(askPrice != null ? { askPrice } : {}),
+      ...(midPrice != null ? { midPrice } : {}),
+      ...(spread != null ? { spread } : {}),
+    };
+  }
+
+  return Object.keys(prices).length > 0 ? prices : undefined;
+}
+
+function getPolymarketRealtimeQuote(
+  market: PolymarketMarketPreview,
+  outcome: 'yes' | 'no'
+): PolymarketLiveQuote {
+  const tokenId = getPolymarketTokenId(market, outcome);
+  const quote = tokenId ? market.realtimePrices?.[tokenId] : undefined;
+  return {
+    bid: quote?.bidPrice ?? null,
+    ask: quote?.askPrice ?? null,
+  };
+}
+
+async function fetchPolymarketLiveQuote(
+  tokenId: string
+): Promise<PolymarketLiveQuote> {
+  const response = await fetch(
+    `${POLYMARKET_BACKEND_URL}/api/prediction-markets/prices`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tokenIds: [tokenId] }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Could not refresh the Polymarket price.');
+  }
+
+  const body = await response.json();
+  const quote = body?.[tokenId] ?? {};
+  return {
+    bid: parseLivePolymarketPrice(quote.bid),
+    ask: parseLivePolymarketPrice(quote.ask),
+  };
+}
+
 function marketScalar(value: unknown): string | number | null {
   return typeof value === 'string' || typeof value === 'number' ? value : null;
 }
@@ -10084,6 +10430,7 @@ function normalizePolymarketMarketPreview(
     yesPrice: marketScalar(raw.yesPrice) ?? prices[0] ?? null,
     noPrice: marketScalar(raw.noPrice) ?? prices[1] ?? null,
     volume: marketScalar(raw.volume) ?? marketScalar(raw.volume24hr),
+    realtimePrices: normalizePolymarketRealtimePrices(raw.realtimePrices),
   };
 }
 
@@ -12873,6 +13220,93 @@ function triggerAgentFeedRefresh() {
   useModalStore.getState().triggerFeedRefetch();
 }
 
+function toAgentPredictionOptionalPrice(value: unknown) {
+  const price = toAgentFeedNumber(value);
+  return price > 0 ? price : undefined;
+}
+
+function formatAgentPredictionVolume(value: unknown) {
+  if (value === null || value === undefined || value === '') return undefined;
+  if (typeof value === 'string' && value.trim().startsWith('$')) {
+    return value.trim();
+  }
+
+  const volume = Number(value);
+  if (!Number.isFinite(volume) || volume <= 0) return undefined;
+
+  return `${new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    maximumFractionDigits: 2,
+  }).format(volume)} Vol.`;
+}
+
+async function postAgentPredictionToFeed({
+  accessToken,
+  user,
+  market,
+  orderId,
+  outcome,
+  side,
+  cost,
+  potentialWin,
+  price,
+  orderType,
+  executionFields,
+}: {
+  accessToken?: string | null;
+  user?: Partial<User> | null;
+  market: PolymarketMarketPreview;
+  orderId?: string | null;
+  outcome: string;
+  side: 'BUY' | 'SELL';
+  cost: number;
+  potentialWin?: number;
+  price: number;
+  orderType: string;
+  executionFields?: Record<string, unknown>;
+}) {
+  const identity = getAgentFeedIdentity(user);
+  if (!accessToken || !identity) return null;
+
+  const outcomes = getPolymarketOutcomeLabels(market);
+  const yesTokenId = getPolymarketTokenId(market, 'yes');
+  const noTokenId = getPolymarketTokenId(market, 'no');
+  const result = await postFeed(
+    {
+      postType: 'prediction',
+      smartsiteId: identity.smartsiteId,
+      userId: identity.userId,
+      content: {
+        marketId: market.conditionId || market.id || undefined,
+        marketTitle: market.question || market.eventTitle || 'Prediction market',
+        outcome,
+        side,
+        cost,
+        potentialWin,
+        price,
+        orderId: orderId || undefined,
+        orderType,
+        ...executionFields,
+        eventSlug: market.eventSlug || undefined,
+        yesOutcome: outcomes.yes,
+        noOutcome: outcomes.no,
+        yesTokenId: yesTokenId || undefined,
+        noTokenId: noTokenId || undefined,
+        yesPrice: toAgentPredictionOptionalPrice(market.yesPrice),
+        noPrice: toAgentPredictionOptionalPrice(market.noPrice),
+        gameStartTime: market.gameStartTime || undefined,
+        volume: formatAgentPredictionVolume(market.volume),
+      },
+    },
+    accessToken
+  );
+
+  triggerAgentFeedRefresh();
+  return result;
+}
+
 async function postAgentWalletSendToFeed({
   accessToken,
   user,
@@ -14149,7 +14583,7 @@ function SwapProposalTicket({
     ? 'Approved'
     : status === 'executed'
     ? 'Confirmed'
-    : 'Confirm swap';
+    : 'Sign & approve';
   const handleConfirmSwap = async () => {
     if (quoteOnly) {
       setInlineSwapStatus('Refreshing quote...');
@@ -14492,7 +14926,7 @@ function SwapProposalTicket({
       toast.success('Swap submitted.');
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to confirm swap.';
+        error instanceof Error ? error.message : 'Failed to approve swap.';
       try {
         const failedCompletion = await completeAgentActionFromHandoff(
           {

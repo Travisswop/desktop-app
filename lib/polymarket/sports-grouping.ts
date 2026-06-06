@@ -23,6 +23,13 @@ import type { PolymarketMarket } from '@/hooks/polymarket';
 // ─── Public types ─────────────────────────────────────────────────────────────
 
 export type MarketType = 'moneyline' | 'spread' | 'total';
+type RealtimePriceEntry = {
+  bidPrice?: number;
+  askPrice?: number;
+  midPrice?: number;
+  spread?: number;
+};
+type RealtimePriceMap = Record<string, RealtimePriceEntry>;
 
 export interface ParsedOutcome {
   /** Display label, e.g. "Magic", "ORL +1.5", "O 220.5" */
@@ -75,6 +82,12 @@ export interface SportsGameGroup {
    */
   teamAMeta?: ResolvedTeamMeta;
   teamBMeta?: ResolvedTeamMeta;
+  eventLive?: boolean;
+  eventEnded?: boolean;
+  eventClosed?: boolean;
+  eventPeriod?: string | null;
+  eventElapsed?: string | null;
+  eventScore?: string | null;
   /** null when the event has no moneyline market available */
   moneyline: GroupedMarket | null;
   spread: GroupedMarket | null;
@@ -89,6 +102,12 @@ export interface GammaEventMarket {
   slug?: string;
   active?: boolean;
   closed?: boolean;
+  eventLive?: boolean;
+  eventEnded?: boolean;
+  eventClosed?: boolean;
+  eventPeriod?: string | null;
+  eventElapsed?: string | null;
+  eventScore?: string | null;
   /** JSON-encoded string array, e.g. '["Over","Under"]' */
   outcomes?: string;
   /** JSON-encoded string array, e.g. '["0.54","0.47"]' */
@@ -107,6 +126,13 @@ export interface GammaEvent {
   slug?: string;
   startDate?: string;
   icon?: string;
+  active?: boolean;
+  closed?: boolean;
+  ended?: boolean;
+  live?: boolean;
+  period?: string | null;
+  elapsed?: string | null;
+  score?: string | null;
   markets?: GammaEventMarket[];
   [key: string]: unknown;
 }
@@ -256,10 +282,7 @@ function formatSpreadLabel(outcome: string, question: string): string {
 /** Convert a raw Gamma event market to PolymarketMarket for order-modal compatibility. */
 function toPolymarketMarket(
   raw: GammaEventMarket,
-  realtimePrices?: Record<
-    string,
-    { bidPrice: number; askPrice: number; midPrice: number; spread: number }
-  >,
+  realtimePrices?: RealtimePriceMap,
 ): PolymarketMarket {
   return {
     id: raw.id,
@@ -267,6 +290,12 @@ function toPolymarketMarket(
     slug: (raw.slug as string) ?? '',
     active: raw.active ?? true,
     closed: raw.closed ?? false,
+    eventLive: raw.eventLive,
+    eventEnded: raw.eventEnded,
+    eventClosed: raw.eventClosed,
+    eventPeriod: raw.eventPeriod,
+    eventElapsed: raw.eventElapsed,
+    eventScore: raw.eventScore,
     outcomes: raw.outcomes,
     outcomePrices: raw.outcomePrices,
     clobTokenIds: raw.clobTokenIds,
@@ -280,7 +309,7 @@ function toPolymarketMarket(
 function buildParsedOutcomes(
   raw: GammaEventMarket,
   type: MarketType,
-  realtimePrices?: Record<string, { bidPrice: number }>,
+  realtimePrices?: RealtimePriceMap,
 ): ParsedOutcome[] {
   const outcomes = safeParseJson<string[]>(raw.outcomes, []);
   const staticPrices = safeParseJson<string[]>(raw.outcomePrices, []).map(Number);
@@ -309,10 +338,7 @@ function buildParsedOutcomes(
  */
 export function groupEventMarkets(
   markets: GammaEventMarket[],
-  realtimePrices?: Record<
-    string,
-    { bidPrice: number; askPrice: number; midPrice: number; spread: number }
-  >,
+  realtimePrices?: RealtimePriceMap,
 ): Pick<SportsGameGroup, 'moneyline' | 'spread' | 'total'> {
   const result: Pick<SportsGameGroup, 'moneyline' | 'spread' | 'total'> = {
     moneyline: null,
@@ -693,6 +719,12 @@ export function groupFlatMarketsIntoGames(
       teamBMeta,
       teamALogo: teamAMeta?.logoUrl,
       teamBLogo: teamBMeta?.logoUrl,
+      eventLive: Boolean(first.eventLive),
+      eventEnded: Boolean(first.eventEnded),
+      eventClosed: Boolean(first.eventClosed),
+      eventPeriod: first.eventPeriod ?? null,
+      eventElapsed: first.eventElapsed ?? null,
+      eventScore: first.eventScore ?? null,
       ...grouped,
       spread,
     });
@@ -764,10 +796,7 @@ export function enrichGamesWithTeamLogos(
 /** Transform a raw Gamma event into a SportsGameGroup ready for the UI. */
 export function toSportsGameGroup(
   event: GammaEvent,
-  realtimePrices?: Record<
-    string,
-    { bidPrice: number; askPrice: number; midPrice: number; spread: number }
-  >,
+  realtimePrices?: RealtimePriceMap,
 ): SportsGameGroup {
   const title = (event.title as string) ?? 'Unknown Event';
   const grouped = groupEventMarkets(event.markets ?? [], realtimePrices);
@@ -806,6 +835,12 @@ export function toSportsGameGroup(
     teamBMeta,
     teamALogo: teamAMeta?.logoUrl,
     teamBLogo: teamBMeta?.logoUrl,
+    eventLive: Boolean(event.live),
+    eventEnded: Boolean(event.ended),
+    eventClosed: Boolean(event.closed || event.ended || event.active === false),
+    eventPeriod: event.period ?? null,
+    eventElapsed: event.elapsed ?? null,
+    eventScore: event.score ?? null,
     ...grouped,
     spread,
   };

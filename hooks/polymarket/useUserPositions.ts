@@ -31,6 +31,11 @@ export type PolymarketPosition = {
   oppositeAsset: string;
   endDate: string;
   negativeRisk: boolean;
+  marketClosed?: boolean;
+  marketResolutionPending?: boolean;
+  marketResolutionSource?: "event-live";
+  resolvedOutcomeIndex?: number;
+  resolvedOutcomePrice?: number;
 };
 
 function normalizeAddresses(

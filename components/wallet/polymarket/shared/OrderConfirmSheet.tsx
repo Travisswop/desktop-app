@@ -11,6 +11,7 @@ export type PendingOrderData = {
   potentialWin: number;
   amountToReceive: number;
   priceDecimal: number;
+  acceptedPrice?: number;
   // Submit params
   tokenId: string;
   conditionId?: string;

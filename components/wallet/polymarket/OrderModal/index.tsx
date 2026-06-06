@@ -22,6 +22,7 @@ import {
   getSafePolymarketMaxBuyAmount,
   getSafePolymarketMaxLimitShares,
 } from '@/lib/polymarket/validation';
+import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
 
 
 function isValidTickPrice(price: number, tickSize: number): boolean {
@@ -282,6 +283,7 @@ export default function OrderPlacementModal({
       potentialWin,
       amountToReceive,
       priceDecimal: effectivePrice,
+      acceptedPrice: effectivePrice,
       // submit params
       tokenId: activeTokenId,
       conditionId,
@@ -302,6 +304,7 @@ export default function OrderPlacementModal({
         conditionId: pendingOrder.conditionId,
         size: pendingOrder.size,
         price: pendingOrder.price,
+        acceptedPrice: pendingOrder.acceptedPrice,
         side: pendingOrder.side,
         negRisk: pendingOrder.negRisk,
         isMarketOrder: pendingOrder.isMarketOrder,
@@ -314,6 +317,13 @@ export default function OrderPlacementModal({
         const outcomeName =
           pendingOrder.outcomeName ||
           (pendingOrder.side === 'BUY' ? yesOutcomeName : noOutcomeName);
+        const feedExecution = resolvePredictionFeedExecution(result, {
+          side: pendingOrder.side,
+          cost: pendingOrder.cost,
+          potentialWin: pendingOrder.potentialWin,
+          price: pendingOrder.priceDecimal,
+          acceptedPrice: pendingOrder.acceptedPrice,
+        });
 
         getAccessToken()
           .then((token) => {
@@ -328,12 +338,13 @@ export default function OrderPlacementModal({
                   marketTitle,
                   outcome: outcomeName,
                   side: pendingOrder.side,
-                  cost: pendingOrder.cost,
-                  potentialWin: pendingOrder.potentialWin,
-                  price: pendingOrder.priceDecimal,
+                  cost: feedExecution.cost,
+                  potentialWin: feedExecution.potentialWin,
+                  price: feedExecution.price,
                   orderId: result.orderId,
                   orderType: orderType,
                   eventSlug,
+                  ...feedExecution.fields,
                 },
               },
               token,

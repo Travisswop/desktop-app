@@ -44,7 +44,7 @@ export const CartItem: React.FC<CartItemProps> = ({
     >
       <div className="flex items-center gap-3">
         <Image
-          src={item.nftTemplate.image}
+          src={item.nftTemplate.image || '/images/placeholder-photo.png'}
           alt={item.nftTemplate.name}
           width={320}
           height={320}

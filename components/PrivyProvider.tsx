@@ -42,9 +42,14 @@ export default function PrivyProvider({
 
   const isProduction = process.env.NODE_ENV === 'production';
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const enableExternalWalletsInDev =
+    process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS === 'true';
   const disableExternalWallets =
     process.env.NEXT_PUBLIC_PRIVY_DISABLE_EXTERNAL_WALLETS === 'true' ||
-    pathname?.startsWith('/dashboard/chat');
+    pathname?.startsWith('/dashboard/chat') ||
+    (!isProduction && !enableExternalWalletsInDev);
+  const loginMethods: Array<'wallet' | 'email' | 'sms'> =
+    disableExternalWallets ? ['email', 'sms'] : ['wallet', 'email', 'sms'];
   const externalWalletsConfig = disableExternalWallets
     ? {
         disableAllExternalWallets: true as const,
@@ -88,7 +93,6 @@ export default function PrivyProvider({
 
   // Initialize Solana config only on client side after mount
   useEffect(() => {
-    if (disableExternalWallets) return;
     if (initRef.current) return;
     initRef.current = true;
 
@@ -164,10 +168,12 @@ export default function PrivyProvider({
             createOnLogin: 'users-without-wallets',
           },
         },
-        loginMethods: ['wallet', 'email', 'sms'],
+        loginMethods,
         appearance: {
-          walletChainType: 'ethereum-and-solana',
-          showWalletLoginFirst: true,
+          walletChainType: disableExternalWallets
+            ? 'ethereum-only'
+            : 'ethereum-and-solana',
+          showWalletLoginFirst: !disableExternalWallets,
           theme: 'light',
           accentColor: '#000000',
         },

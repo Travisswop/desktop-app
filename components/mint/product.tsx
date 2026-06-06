@@ -7,10 +7,23 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { DragEvent, useEffect, useState, type CSSProperties } from 'react';
-import { Box, FileText, ImagePlus, Loader2 } from 'lucide-react';
+import {
+  DragEvent,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from 'react';
+import {
+  Box,
+  FileText,
+  ImagePlus,
+  Loader2,
+  Lock,
+  UploadCloud,
+  X,
+} from 'lucide-react';
 import MintAlertModal from './MintAlertModal';
-import { MINT_COLLECTIONS } from '@/constants/mintCollections';
 import {
   Button,
   Card,
@@ -34,6 +47,11 @@ import {
   getMarketplaceProductPrefill,
   readAgentActionHandoff,
 } from '@/lib/chat/agentActionHandoff';
+import {
+  createMarketplaceProduct,
+  uploadMarketplaceDigitalAsset,
+  type MarketplaceDigitalAsset,
+} from '@/lib/marketplace-api';
 
 interface ModelInfo {
   success: boolean;
@@ -41,17 +59,22 @@ interface ModelInfo {
   details?: string;
 }
 
-interface Variant {
+interface VariantOption {
   name: string;
-  options: string[];
+  quantity: string;
 }
 
-const PHYSICAL_COLLECTION =
-  MINT_COLLECTIONS.find((c) => c.name === 'phygitals') ??
-  MINT_COLLECTIONS.find((c) => c.category === 'physical')!;
-const DIGITAL_COLLECTION =
-  MINT_COLLECTIONS.find((c) => c.name === 'collectible') ??
-  MINT_COLLECTIONS.find((c) => c.category === 'digital')!;
+interface Variant {
+  name: string;
+  options: VariantOption[];
+}
+
+const formatFileSize = (bytes?: number) => {
+  const value = Number(bytes || 0);
+  if (!Number.isFinite(value) || value <= 0) return '0 KB';
+  if (value < 1024 * 1024) return `${Math.ceil(value / 1024)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 const CreateProduct = () => {
   const router = useRouter();
@@ -61,8 +84,6 @@ const CreateProduct = () => {
   const { wallets } = useSolanaWallets();
 
   const [type, setType] = useState<'Physical' | 'Digital'>('Physical');
-  const selectedCollection =
-    type === 'Physical' ? PHYSICAL_COLLECTION : DIGITAL_COLLECTION;
 
   const [shipping, setShipping] = useState<'Yes' | 'No'>('Yes');
   const [agree, setAgree] = useState(false);
@@ -77,10 +98,7 @@ const CreateProduct = () => {
     null,
   ]);
   const [price, setPrice] = useState('');
-  const [shippingCost, setShippingCost] = useState('');
   const [quantity, setQuantity] = useState<string>('');
-  const [royaltyAddress, setRoyaltyAddress] = useState('');
-  const [royaltyPercent, setRoyaltyPercent] = useState('0');
   const [variants, setVariants] = useState<Variant[]>([
     { name: '', options: [] },
   ]);
@@ -91,6 +109,13 @@ const CreateProduct = () => {
   );
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [digitalAsset, setDigitalAsset] =
+    useState<MarketplaceDigitalAsset | null>(null);
+  const [digitalUploading, setDigitalUploading] = useState(false);
+  const [digitalUploadError, setDigitalUploadError] = useState<string | null>(
+    null
+  );
+  const [digitalDeliveryNote, setDigitalDeliveryNote] = useState('');
 
   const [walletLoaded, setWalletLoaded] = useState(false);
   const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
@@ -123,17 +148,18 @@ const CreateProduct = () => {
     }
     if (prefill.name) setName(prefill.name);
     if (prefill.description) setDescription(prefill.description);
+    if (prefill.description) setDigitalDeliveryNote(prefill.description);
     if (prefill.image) setImage(prefill.image);
     if (prefill.price) setPrice(prefill.price);
     if (prefill.mintLimit) setQuantity(prefill.mintLimit);
-    if (prefill.royaltyPercentage) {
-      setRoyaltyPercent(prefill.royaltyPercentage);
-    }
     if (prefill.benefits?.length) {
       setVariants([
         {
           name: 'Included',
-          options: prefill.benefits,
+          options: prefill.benefits.map((benefit) => ({
+            name: benefit,
+            quantity: '0',
+          })),
         },
       ]);
     }
@@ -204,6 +230,40 @@ const CreateProduct = () => {
       );
     };
 
+  const handleDigitalAssetPick = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!accessToken) {
+      setDigitalUploadError('Please log in again before uploading a file.');
+      return;
+    }
+
+    if (file.size > 100 * 1024 * 1024) {
+      setDigitalUploadError('Digital downloads must be 100MB or smaller.');
+      return;
+    }
+
+    setDigitalUploading(true);
+    setDigitalUploadError(null);
+    try {
+      const uploaded = await uploadMarketplaceDigitalAsset(accessToken, file);
+      setDigitalAsset(uploaded);
+      setFormErrors((prev) => ({ ...prev, digitalAsset: '' }));
+    } catch (err) {
+      setDigitalUploadError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to upload digital file. Please try again.'
+      );
+    } finally {
+      setDigitalUploading(false);
+    }
+  };
+
   const updateVariantName = (i: number, value: string) =>
     setVariants((prev) => {
       const next = [...prev];
@@ -216,7 +276,10 @@ const CreateProduct = () => {
     if (!v) return;
     setVariants((prev) => {
       const next = [...prev];
-      next[i] = { ...next[i], options: [...next[i].options, v] };
+      next[i] = {
+        ...next[i],
+        options: [...next[i].options, { name: v, quantity: '' }],
+      };
       return next;
     });
     setVariantDraft((prev) => {
@@ -225,6 +288,22 @@ const CreateProduct = () => {
       return next;
     });
   };
+
+  const updateVariantOptionQuantity = (
+    i: number,
+    optIdx: number,
+    value: string
+  ) =>
+    setVariants((prev) => {
+      const next = [...prev];
+      next[i] = {
+        ...next[i],
+        options: next[i].options.map((option, oi) =>
+          oi === optIdx ? { ...option, quantity: value } : option
+        ),
+      };
+      return next;
+    });
 
   const removeVariantOption = (i: number, optIdx: number) =>
     setVariants((prev) => {
@@ -239,6 +318,40 @@ const CreateProduct = () => {
   const addVariantCategory = () =>
     setVariants((prev) => [...prev, { name: '', options: [] }]);
 
+  const variantOptionCount = useMemo(
+    () => variants.reduce((count, v) => count + v.options.length, 0),
+    [variants]
+  );
+  const variantInventoryTotal = useMemo(
+    () =>
+      variants.reduce(
+        (sum, v) =>
+          sum +
+          v.options.reduce((inner, option) => {
+            const qty = Number(option.quantity);
+            return inner + (Number.isFinite(qty) && qty > 0 ? qty : 0);
+          }, 0),
+        0
+      ),
+    [variants]
+  );
+  const hasVariantInventory = variantOptionCount > 0;
+  const normalizedVariants = useMemo(
+    () =>
+      variants
+        .map((variant) => ({
+          name: variant.name.trim(),
+          options: variant.options
+            .map((option) => ({
+              name: option.name.trim(),
+              quantity: Math.max(0, Math.floor(Number(option.quantity) || 0)),
+            }))
+            .filter((option) => option.name),
+        }))
+        .filter((variant) => variant.name || variant.options.length > 0),
+    [variants]
+  );
+
   const validate = () => {
     const errors: Record<string, string> = {};
     if (!name.trim()) errors.name = 'Name is required';
@@ -246,10 +359,25 @@ const CreateProduct = () => {
     if (!image) errors.image = 'Main image is required';
     if (!price.trim()) errors.price = 'Price is required';
     if (price && isNaN(Number(price))) errors.price = 'Price must be a number';
-    if (!quantity.trim()) {
+    if (hasVariantInventory) {
+      const invalidVariantQty = variants.some((variant) =>
+        variant.options.some((option) => {
+          const qty = Number(option.quantity);
+          return !Number.isFinite(qty) || qty < 0 || !option.quantity.trim();
+        })
+      );
+      if (invalidVariantQty) {
+        errors.quantity = 'Every variant option needs a quantity';
+      } else if (variantInventoryTotal <= 0) {
+        errors.quantity = 'Variant quantities must add up to more than 0';
+      }
+    } else if (!quantity.trim()) {
       errors.quantity = 'Total available is required';
     } else if (Number(quantity) <= 0) {
       errors.quantity = 'Must be greater than 0';
+    }
+    if (type === 'Digital' && !digitalAsset?.enabled) {
+      errors.digitalAsset = 'Upload the file buyers will unlock after purchase';
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -261,7 +389,7 @@ const CreateProduct = () => {
     if (!user?._id || !accessToken) {
       setModelInfo({
         success: false,
-        nftType: selectedCollection.name,
+        nftType: type.toLowerCase(),
         details: 'Please log in again before publishing this item.',
       });
       onOpenChange();
@@ -271,7 +399,7 @@ const CreateProduct = () => {
     if (!solanaAddress) {
       setModelInfo({
         success: false,
-        nftType: selectedCollection.name,
+        nftType: type.toLowerCase(),
         details:
           'Solana wallet address not available. Please make sure your wallet is connected.',
       });
@@ -281,94 +409,96 @@ const CreateProduct = () => {
 
     setIsSubmitting(true);
     try {
-      const payload = {
-        userId: user._id,
-        nftType: selectedCollection.name,
-        name,
+      const productType = type === 'Physical' ? 'physical' : 'digital';
+      const inventoryAvailable = hasVariantInventory
+        ? variantInventoryTotal
+        : Number(quantity);
+      const product = await createMarketplaceProduct(accessToken, {
+        productType,
+        title: name,
         description,
-        image,
-        price: Number(price),
-        currency: 'usdc',
-        mintLimit: Number(quantity),
-        benefits: variants
+        primaryImage: image,
+        images: [image, ...extraImages.filter(Boolean)].map((url) => ({
+          url,
+          alt: name,
+        })),
+        price: {
+          amount: Number(price),
+          currency: 'USDC',
+        },
+        inventory: {
+          track: true,
+          available: inventoryAvailable,
+        },
+        variants: normalizedVariants,
+        fulfillment: {
+          requiresShipping: productType === 'physical' && shipping === 'Yes',
+          trackingEnabled: productType === 'physical' && shipping === 'Yes',
+          digitalDeliveryNote:
+            productType === 'digital'
+              ? digitalDeliveryNote.trim() || description
+              : '',
+          digitalAsset: productType === 'digital' ? digitalAsset : undefined,
+        },
+        merchantWalletAddress: solanaAddress,
+        tags: variants
           .flatMap((v) =>
-            v.options.map((o) => (v.name ? `${v.name}: ${o}` : o))
+            v.options.map((o) =>
+              v.name ? `${v.name}: ${o.name}` : o.name
+            )
           )
           .filter(Boolean),
-        royaltyPercentage: Number(royaltyPercent) || 0,
-        ownerAddress: solanaAddress,
-      };
+      });
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/nft/template`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-      const data = await response.json();
-      if (response.ok && data.state === 'success') {
-        let completion = null;
-        if (agentProposalId) {
-          try {
-            completion = await completeAgentActionFromHandoff(
-              {
-                proposalId: agentProposalId,
-                provider: 'marketplace',
-                status: 'executed',
-                title: 'Product published',
-                subject: name,
-                stake: Number(price) || undefined,
-                payout: Number(price) || undefined,
-                orderId: data.data?._id || data.data?.id,
-                explorerLabel: 'View product',
-                executionResult: {
-                  productId: data.data?._id || data.data?.id,
-                  name,
-                  nftType: selectedCollection.name,
-                  price: Number(price),
-                  mintLimit: Number(quantity),
-                },
+      let completion = null;
+      if (agentProposalId) {
+        try {
+          completion = await completeAgentActionFromHandoff(
+            {
+              proposalId: agentProposalId,
+              provider: 'marketplace',
+              status: 'executed',
+              title: 'Product published',
+              subject: name,
+              stake: Number(price) || undefined,
+              payout: Number(price) || undefined,
+              orderId: product._id,
+              explorerLabel: 'View product',
+              executionResult: {
+                productId: product._id,
+                name,
+                productType,
+                price: Number(price),
+                inventoryAvailable,
+                receiptMinting: 'order_receipt_only',
               },
-              accessToken
-            );
-          } catch (completionError) {
-            console.error(
-              'Failed to record marketplace agent completion:',
-              completionError
-            );
-          }
+            },
+            accessToken
+          );
+        } catch (completionError) {
+          console.error(
+            'Failed to record marketplace agent completion:',
+            completionError
+          );
         }
-        setModelInfo({ success: true, nftType: selectedCollection.name });
-        onOpenChange();
-        setTimeout(() => {
-          if (completion?.groupId) {
-            router.push(
-              `/dashboard/chat?groupId=${encodeURIComponent(completion.groupId)}`
-            );
-          } else {
-            router.push('/products');
-          }
-        }, 2000);
-      } else {
-        setModelInfo({
-          success: true,
-          nftType: selectedCollection.name,
-          details:
-            data.message ||
-            'Server returned an error. Please try again later.',
-        });
-        onOpenChange();
       }
+
+      setModelInfo({ success: true, nftType: productType });
+      onOpenChange();
+      setTimeout(() => {
+        if (completion?.groupId) {
+          router.push(
+            `/dashboard/chat?groupId=${encodeURIComponent(completion.groupId)}`
+          );
+        } else {
+          router.push('/products');
+        }
+      }, 2000);
     } catch (err) {
       console.error(err);
       setModelInfo({
-        success: true,
-        nftType: selectedCollection.name,
+        success: false,
+        nftType: type === 'Physical' ? 'physical' : 'digital',
         details:
           err instanceof Error
             ? err.message
@@ -437,7 +567,13 @@ const CreateProduct = () => {
                 </Button>
                 <Button
                   variant="primary"
-                  disabled={isSubmitting || !solanaAddress || !agree}
+                  disabled={
+                    isSubmitting ||
+                    imageUploading ||
+                    digitalUploading ||
+                    !solanaAddress ||
+                    !agree
+                  }
                   onClick={handleSubmit}
                 >
                   {isSubmitting ? (
@@ -701,33 +837,197 @@ const CreateProduct = () => {
                 <Card pad={20}>
                   <FormSection
                     title="Variants"
-                    subtitle="Add categories like Color or Size, then list options"
+                    subtitle="Add options and inventory per option. Total available is calculated automatically."
                   />
                   <div
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: 22,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
                       marginTop: 8,
                     }}
                   >
-                    <div>
-                      <div style={fieldLabel}>Product Category</div>
-                      {variants.map((c, i) => (
-                        <div key={i} style={{ marginTop: i === 0 ? 6 : 10 }}>
+                    {variants.map((c, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns:
+                            'minmax(0, 0.82fr) minmax(0, 1.18fr)',
+                          gap: 14,
+                          alignItems: 'start',
+                        }}
+                      >
+                        <div>
+                          {i === 0 && (
+                            <div style={{ ...fieldLabel, marginBottom: 6 }}>
+                              Product Category
+                            </div>
+                          )}
                           <TextInput
                             placeholder="e.g. Color"
                             value={c.name}
                             onChange={(e) => updateVariantName(i, e.target.value)}
                           />
                         </div>
-                      ))}
+                        <div>
+                          {i === 0 && (
+                            <div style={{ ...fieldLabel, marginBottom: 6 }}>
+                              Options & inventory
+                            </div>
+                          )}
+                          <div
+                            style={{
+                              border: `1px solid ${hair}`,
+                              borderRadius: 9,
+                              background: '#fff',
+                              padding: 10,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 8,
+                            }}
+                          >
+                            {c.options.map((opt, oi) => (
+                              <div
+                                key={`${opt.name}-${oi}`}
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns:
+                                    'minmax(0, 1fr) 84px 26px',
+                                  gap: 8,
+                                  alignItems: 'center',
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    minHeight: 34,
+                                    borderRadius: 8,
+                                    background: '#f0f0ee',
+                                    padding: '8px 10px',
+                                    fontSize: 12.5,
+                                    fontWeight: 600,
+                                    color: ink,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {opt.name}
+                                </div>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  placeholder="Qty"
+                                  value={opt.quantity}
+                                  onChange={(e) =>
+                                    updateVariantOptionQuantity(
+                                      i,
+                                      oi,
+                                      e.target.value
+                                    )
+                                  }
+                                  style={{
+                                    ...inputStyle,
+                                    height: 34,
+                                    padding: '7px 9px',
+                                    fontSize: 12,
+                                    fontFamily: mono,
+                                  }}
+                                  aria-label={`${opt.name} quantity`}
+                                />
+                                <button
+                                  type="button"
+                                  aria-label={`Remove ${opt.name}`}
+                                  onClick={() => removeVariantOption(i, oi)}
+                                  style={{
+                                    width: 26,
+                                    height: 26,
+                                    borderRadius: 7,
+                                    border: 0,
+                                    background: 'transparent',
+                                    color: muted2,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            ))}
+                            {c.options.length > 0 && (
+                              <div
+                                style={{
+                                  height: 1,
+                                  background: hair,
+                                  margin: '2px 0',
+                                }}
+                              />
+                            )}
+                            <div
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'minmax(0, 1fr) auto',
+                                gap: 8,
+                                alignItems: 'center',
+                              }}
+                            >
+                              <input
+                                placeholder="add option..."
+                                value={variantDraft[i] ?? ''}
+                                onChange={(e) =>
+                                  setVariantDraft((prev) => {
+                                    const next = [...prev];
+                                    next[i] = e.target.value;
+                                    return next;
+                                  })
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    addVariantOption(i, variantDraft[i] ?? '');
+                                  }
+                                }}
+                                style={{
+                                  ...inputStyle,
+                                  height: 34,
+                                  padding: '7px 10px',
+                                  fontSize: 12.5,
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  addVariantOption(i, variantDraft[i] ?? '')
+                                }
+                                style={{
+                                  ...ghostBtn,
+                                  height: 34,
+                                  borderRadius: 8,
+                                  padding: '0 12px',
+                                }}
+                              >
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns:
+                          'minmax(0, 0.82fr) minmax(0, 1.18fr)',
+                        gap: 14,
+                      }}
+                    >
                       <button
                         type="button"
                         onClick={addVariantCategory}
                         style={{
                           ...ghostBtn,
-                          marginTop: 10,
                           width: '100%',
                           justifyContent: 'center',
                           borderStyle: 'dashed',
@@ -735,96 +1035,32 @@ const CreateProduct = () => {
                       >
                         + Add Category
                       </button>
-                    </div>
-                    <div>
-                      <div style={fieldLabel}>Options</div>
-                      {variants.map((c, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            marginTop: i === 0 ? 6 : 10,
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: 6,
-                            padding: '8px 10px',
-                            border: `1px solid ${hair}`,
-                            borderRadius: 9,
-                            minHeight: 38,
-                            alignItems: 'center',
-                          }}
-                        >
-                          {c.options.map((opt, oi) => (
-                            <span
-                              key={`${opt}-${oi}`}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                padding: '4px 8px',
-                                borderRadius: 6,
-                                background: '#f0f0ee',
-                                fontSize: 12,
-                                fontWeight: 500,
-                              }}
-                            >
-                              {opt}
-                              <span
-                                style={{
-                                  color: muted2,
-                                  cursor: 'pointer',
-                                  fontSize: 14,
-                                  lineHeight: 1,
-                                }}
-                                onClick={() => removeVariantOption(i, oi)}
-                              >
-                                ×
-                              </span>
-                            </span>
-                          ))}
-                          <input
-                            placeholder="add…"
-                            value={variantDraft[i] ?? ''}
-                            onChange={(e) =>
-                              setVariantDraft((prev) => {
-                                const next = [...prev];
-                                next[i] = e.target.value;
-                                return next;
-                              })
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                addVariantOption(i, variantDraft[i] ?? '');
-                              }
-                            }}
-                            style={{
-                              flex: 1,
-                              minWidth: 60,
-                              padding: '4px 6px',
-                              border: 0,
-                              outline: 'none',
-                              fontSize: 12,
-                              fontFamily: 'inherit',
-                              background: 'transparent',
-                            }}
-                          />
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          addVariantOption(0, variantDraft[0] ?? '')
-                        }
+                      <div
                         style={{
-                          ...ghostBtn,
-                          marginTop: 10,
-                          width: '100%',
-                          justifyContent: 'center',
-                          borderStyle: 'dashed',
+                          border: `1px solid ${hair}`,
+                          borderRadius: 9,
+                          background: '#fafafa',
+                          padding: '10px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
                         }}
                       >
-                        + Add Option
-                      </button>
+                        <span style={{ fontSize: 12, color: muted }}>
+                          Variant inventory total
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            fontFamily: mono,
+                            color: ink,
+                          }}
+                        >
+                          {variantInventoryTotal}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </Card>
@@ -882,72 +1118,198 @@ const CreateProduct = () => {
 
                 </Card>
 
-                {/* Inventory & royalty */}
+                {type === 'Digital' && (
+                  <Card pad={20}>
+                    <FormSection
+                      title="Digital Delivery"
+                      subtitle="Upload the file buyers unlock from their order options after the receipt NFT is minted."
+                    />
+
+                    <Field
+                      label="Download file"
+                      required
+                      error={formErrors.digitalAsset}
+                      help="PDF, ZIP, audio, image, or document files up to 100MB."
+                    >
+                      <label
+                        htmlFor="digital-asset"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          padding: 14,
+                          borderRadius: 12,
+                          border: `1px dashed ${
+                            formErrors.digitalAsset ? '#dc2626' : hair
+                          }`,
+                          background: '#fafafa',
+                          cursor: digitalUploading ? 'wait' : 'pointer',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 42,
+                            height: 42,
+                            borderRadius: 10,
+                            background: '#fff',
+                            border: `1px solid ${hair}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: ink,
+                          }}
+                        >
+                          {digitalUploading ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <UploadCloud size={18} />
+                          )}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: ink,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {digitalAsset?.fileName ||
+                              digitalAsset?.originalName ||
+                              'Choose a file to upload'}
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 3,
+                              fontSize: 11.5,
+                              color: muted,
+                              fontFamily: mono,
+                            }}
+                          >
+                            {digitalAsset?.enabled
+                              ? `${formatFileSize(digitalAsset.size)} · locked by receipt NFT`
+                              : 'Only buyers with the minted order receipt can download'}
+                          </div>
+                        </div>
+                        {digitalAsset?.enabled ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              setDigitalAsset(null);
+                            }}
+                            aria-label="Remove digital file"
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 7,
+                              border: `1px solid ${hair}`,
+                              background: '#fff',
+                              color: muted,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <X size={14} />
+                          </button>
+                        ) : null}
+                        <input
+                          id="digital-asset"
+                          type="file"
+                          onChange={handleDigitalAssetPick}
+                          style={{ display: 'none' }}
+                        />
+                      </label>
+                      {digitalUploadError ? (
+                        <p
+                          style={{
+                            fontSize: 11.5,
+                            color: '#dc2626',
+                            marginTop: 8,
+                          }}
+                        >
+                          {digitalUploadError}
+                        </p>
+                      ) : null}
+                    </Field>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'flex-start',
+                        padding: '12px 14px',
+                        border: `1px solid ${hair}`,
+                        borderRadius: 12,
+                        background: '#fff',
+                        marginBottom: 14,
+                      }}
+                    >
+                      <Lock size={16} style={{ marginTop: 2, color: ink }} />
+                      <div>
+                        <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+                          Receipt-gated download
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11.5,
+                            color: muted,
+                            lineHeight: 1.5,
+                            marginTop: 3,
+                          }}
+                        >
+                          After payment, Swop mints the buyer an order receipt
+                          NFT. The order options download checks that receipt
+                          before streaming this file.
+                        </div>
+                      </div>
+                    </div>
+
+                    <Field label="Delivery note">
+                      <TextArea
+                        rows={3}
+                        placeholder="Add install steps, license notes, or a thank-you message"
+                        value={digitalDeliveryNote}
+                        onChange={(e) => setDigitalDeliveryNote(e.target.value)}
+                      />
+                    </Field>
+                  </Card>
+                )}
+
+                {/* Inventory */}
                 <Card pad={20}>
-                  <FormSection title="Inventory & royalty" />
+                  <FormSection title="Inventory" />
                   <Field
                     label="Total Available"
                     required
                     error={formErrors.quantity}
+                    help={
+                      hasVariantInventory
+                        ? 'Calculated from variant option quantities.'
+                        : 'Used when this product has no variant inventory.'
+                    }
                   >
                     <TextInput
                       type="number"
                       min={1}
                       placeholder="Quantity for sale"
-                      value={quantity}
+                      value={
+                        hasVariantInventory
+                          ? String(variantInventoryTotal)
+                          : quantity
+                      }
                       invalid={!!formErrors.quantity}
+                      disabled={hasVariantInventory}
                       onChange={(e) => setQuantity(e.target.value)}
+                      style={{
+                        fontFamily: mono,
+                        background: hasVariantInventory ? '#f5f5f3' : '#fff',
+                      }}
                     />
-                  </Field>
-                  <Field
-                    label="Royalty Recipient"
-                    help="Royalties paid to a wallet on every secondary sale."
-                  >
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 80px',
-                        gap: 8,
-                      }}
-                    >
-                      <TextInput
-                        placeholder="Search or paste address"
-                        value={royaltyAddress}
-                        onChange={(e) => setRoyaltyAddress(e.target.value)}
-                      />
-                      <div style={{ position: 'relative' }}>
-                        <TextInput
-                          placeholder="0"
-                          value={royaltyPercent}
-                          onChange={(e) => setRoyaltyPercent(e.target.value)}
-                          style={{ paddingRight: 22 }}
-                        />
-                        <span
-                          style={{
-                            position: 'absolute',
-                            right: 12,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            fontSize: 12,
-                            color: muted,
-                          }}
-                        >
-                          %
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      style={{
-                        ...ghostBtn,
-                        marginTop: 10,
-                        width: '100%',
-                        justifyContent: 'center',
-                        borderStyle: 'dashed',
-                      }}
-                    >
-                      + Add Person
-                    </button>
                   </Field>
                 </Card>
 
@@ -955,7 +1317,7 @@ const CreateProduct = () => {
                 <Card pad={20}>
                   <FormSection
                     title="Pricing"
-                    subtitle="Your product price and shipping cost"
+                    subtitle="Your product price"
                   />
                   <Field
                     label="Price"
@@ -1030,13 +1392,7 @@ const CreateProduct = () => {
 
                   {type === 'Physical' && (
                     <Field label="Shipping?">
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 1fr',
-                          gap: 8,
-                        }}
-                      >
+                      <div>
                         <div style={{ position: 'relative' }}>
                           <select
                             value={shipping}
@@ -1055,34 +1411,9 @@ const CreateProduct = () => {
                             <option>No</option>
                           </select>
                         </div>
-                        <div style={{ position: 'relative' }}>
-                          <span
-                            style={{
-                              position: 'absolute',
-                              left: 14,
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              fontSize: 13,
-                              color: muted,
-                              fontFamily: mono,
-                            }}
-                          >
-                            $
-                          </span>
-                          <TextInput
-                            placeholder="0"
-                            value={shippingCost}
-                            disabled={shipping === 'No'}
-                            onChange={(e) => setShippingCost(e.target.value)}
-                            style={{
-                              paddingLeft: 26,
-                              fontFamily: mono,
-                            }}
-                          />
-                        </div>
                       </div>
                       <div style={{ fontSize: 11, color: muted, marginTop: 6 }}>
-                        Cost charged in addition to the item price.
+                        Shipped physical items use escrow until the buyer confirms receipt.
                       </div>
                     </Field>
                   )}
