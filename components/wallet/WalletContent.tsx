@@ -88,7 +88,6 @@ import BlinksSection from './BlinksSection';
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
 
 // Utilities
-import Cookies from 'js-cookie';
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
 import {
   ArrowRight,
@@ -672,7 +671,6 @@ const WalletContentInner = () => {
     useState<TokenData | null>(null);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
-  const [accessToken, setAccessToken] = useState('');
   const [rewardWallet, setRewardWallet] =
     useState<RewardWalletData | null>(null);
   const [recentRewardClaims, setRecentRewardClaims] = useState<
@@ -733,6 +731,7 @@ const WalletContentInner = () => {
 
   // Ref to track wallet creation attempts
   const walletCreationAttempted = useRef(false);
+  const rewardWalletRequestRef = useRef(0);
   const assetsMenuRef = useRef<HTMLDivElement>(null);
 
   // Hooks
@@ -755,7 +754,8 @@ const WalletContentInner = () => {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user } = useUser();
+  const { user, accessToken: userAccessToken } = useUser();
+  const accessToken = userAccessToken || '';
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -804,15 +804,6 @@ const WalletContentInner = () => {
     handleNFTNext,
     resetSendFlow,
   } = useSendFlow();
-
-  // Initialize access token and create Solana wallet
-  useEffect(() => {
-    // Get access token from cookies
-    const token = Cookies.get('access-token');
-    if (token && token !== accessToken) {
-      setAccessToken(token);
-    }
-  }, [accessToken]);
 
   // Solana wallet auto-creation.
   // Persists the "already attempted" flag in localStorage so it survives
@@ -1114,6 +1105,10 @@ const WalletContentInner = () => {
   const fetchRewardWallet = useCallback(async () => {
     if (!authenticated || !accessToken) return;
 
+    const requestId = rewardWalletRequestRef.current + 1;
+    rewardWalletRequestRef.current = requestId;
+    const isCurrentRequest = () => rewardWalletRequestRef.current === requestId;
+
     setRewardWalletLoading(true);
     setRewardWalletError(null);
 
@@ -1136,19 +1131,25 @@ const WalletContentInner = () => {
         );
       }
 
-      setRewardWallet(data.rewardWallet || null);
-      setPendingRewardClaimCount(Number(data.pendingClaimCount || 0));
-      setRecentRewardClaims(
-        Array.isArray(data.recentClaims) ? data.recentClaims : [],
-      );
+      if (isCurrentRequest()) {
+        setRewardWallet(data.rewardWallet || null);
+        setPendingRewardClaimCount(Number(data.pendingClaimCount || 0));
+        setRecentRewardClaims(
+          Array.isArray(data.recentClaims) ? data.recentClaims : [],
+        );
+      }
     } catch (error) {
-      setRewardWalletError(
-        error instanceof Error
-          ? error.message
-          : 'Could not load rewards.',
-      );
+      if (isCurrentRequest()) {
+        setRewardWalletError(
+          error instanceof Error
+            ? error.message
+            : 'Could not load rewards.',
+        );
+      }
     } finally {
-      setRewardWalletLoading(false);
+      if (isCurrentRequest()) {
+        setRewardWalletLoading(false);
+      }
     }
   }, [accessToken, authenticated]);
 
