@@ -438,6 +438,20 @@ const getChainIcon = (chainName: string) => {
 };
 
 const getChainId = (chainName: string) => {
+  const knownChainId = String(chainName || '').trim();
+  if (
+    [
+      '1',
+      '56',
+      '137',
+      '42161',
+      '8453',
+      SOLANA_CHAIN_ID,
+    ].includes(knownChainId)
+  ) {
+    return knownChainId;
+  }
+
   const chainIds: Record<string, string> = {
     SOLANA: '1151111081099710',
     ETHEREUM: '1',
@@ -474,13 +488,50 @@ const getNetworkByChainId = (chainId: string): string => {
 const SOLANA_CHAIN_ID = '1151111081099710';
 const TOKEN_SEARCH_RENDER_LIMIT = 100;
 
+const normalizeChainIdValue = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return '';
+  const raw = String(value).trim();
+  const eip155Match = raw.match(/^eip155:(\d+)$/i);
+  const chainId = eip155Match ? eip155Match[1] : raw;
+  return [
+    '1',
+    '56',
+    '137',
+    '42161',
+    '8453',
+    SOLANA_CHAIN_ID,
+  ].includes(chainId)
+    ? chainId
+    : '';
+};
+
 const getTokenChainId = (token: any, fallback = '') => {
-  if (token?.chainId !== undefined && token?.chainId !== null) {
-    return String(token.chainId);
-  }
+  const explicitChainId = normalizeChainIdValue(token?.chainId);
+  if (explicitChainId) return explicitChainId;
+
+  const chainValueId = normalizeChainIdValue(token?.chain);
+  if (chainValueId) return chainValueId;
+
+  const networkValueId = normalizeChainIdValue(token?.network);
+  if (networkValueId) return networkValueId;
+
   if (token?.chain) return getChainId(String(token.chain));
   if (token?.network) return getChainId(String(token.network));
   return fallback;
+};
+
+const normalizeSwapTokenForChain = (token: any, fallbackChainId = '') => {
+  if (!token) return null;
+  const normalizedChainId = getTokenChainId(token, fallbackChainId);
+  if (!normalizedChainId) return token;
+
+  const network = getNetworkByChainId(normalizedChainId);
+  return {
+    ...token,
+    chain: network.toUpperCase(),
+    chainId: normalizedChainId,
+    network,
+  };
 };
 
 const isSolanaToken = (token: any, fallback = '') =>
@@ -1321,6 +1372,7 @@ export default function SwapTokenModal({
   const countdownInterval = useRef<NodeJS.Timeout | null>(null);
   const searchDebounceTimer = useRef<NodeJS.Timeout | null>(null);
   const urlAmountHydrationKeyRef = useRef('');
+  const userEditedTokenSidesRef = useRef(false);
 
   useEffect(() => {
     if (defaultPayToken) {
@@ -2007,6 +2059,8 @@ export default function SwapTokenModal({
 
   //set feed trade details from URL params on mount (if present)
   useEffect(() => {
+    if (userEditedTokenSidesRef.current) return;
+
     const inputTokenParam = searchParams?.get('inputToken');
     const inputMintParam = searchParams?.get('inputMint');
     const inputChainParam = searchParams?.get('inputChain');
@@ -2726,9 +2780,11 @@ export default function SwapTokenModal({
   }, [quote, chainId, fromWalletAddress]);
 
   useEffect(() => {
-    const nextChainId = getTokenChainId(payToken);
-    if (nextChainId) setChainId(nextChainId);
-  }, [payToken]);
+    const nextChainId = getTokenChainId(payToken, chainId);
+    if (nextChainId && nextChainId !== chainId) {
+      setChainId(nextChainId);
+    }
+  }, [payToken, chainId]);
 
   useEffect(() => {
     setFromWalletAddress(
@@ -2775,8 +2831,11 @@ export default function SwapTokenModal({
   // ── Save swap + socket notification ──────────────────────────────────────────
   const saveSwapToDatabase = async (signature: string, q: any) => {
     try {
-      const inputChainId = getTokenChainId(payToken);
-      const outputChainId = getTokenChainId(receiveToken);
+      const inputChainId = getTokenChainId(payToken, chainId);
+      const outputChainId = getTokenChainId(
+        receiveToken,
+        receiverChainId,
+      );
       const network = getNetworkByChainId(inputChainId) || 'solana';
 
       console.log('payToken', payToken);
@@ -3656,7 +3715,18 @@ export default function SwapTokenModal({
 
   // ── Token selection ───────────────────────────────────────────────────────────
   const handleTokenSelect = (t: any, type: 'pay' | 'receive') => {
-    const tKey = getTokenIdentityKey(t);
+    userEditedTokenSidesRef.current = true;
+
+    const fallbackChainId =
+      type === 'pay'
+        ? selectedPayChain !== 'all'
+          ? selectedPayChain
+          : chainId
+        : selectedReceiveChain !== 'all'
+          ? selectedReceiveChain
+          : receiverChainId;
+    const selectedToken = normalizeSwapTokenForChain(t, fallbackChainId);
+    const tKey = getTokenIdentityKey(selectedToken);
 
     if (type === 'pay') {
       const receiveKey = getTokenIdentityKey(receiveToken);
@@ -3664,19 +3734,27 @@ export default function SwapTokenModal({
       // token, auto-swap them so the user never ends up with
       // inputMint === outputMint.
       if (tKey && tKey === receiveKey) {
-        const prevPayChainId = getTokenChainId(payToken);
-        setReceiveToken(payToken ?? null);
+        const prevPayChainId = getTokenChainId(payToken, chainId);
+        setReceiveToken(
+          normalizeSwapTokenForChain(payToken, chainId) ?? null,
+        );
         setReceiverChainId(prevPayChainId);
       }
-      setPayToken(t);
+      setPayToken(selectedToken);
     } else {
       const payKey = getTokenIdentityKey(payToken);
       // Same guard for receive selection.
       if (tKey && tKey === payKey) {
-        setPayToken(receiveToken ?? null);
+        setPayToken(
+          normalizeSwapTokenForChain(receiveToken, receiverChainId) ??
+            null,
+        );
       }
-      const tokenChainId = getTokenChainId(t);
-      setReceiveToken(t);
+      const tokenChainId = getTokenChainId(
+        selectedToken,
+        fallbackChainId,
+      );
+      setReceiveToken(selectedToken);
       setReceiverChainId(tokenChainId);
     }
     setOpenDrawer(false);
@@ -3693,12 +3771,28 @@ export default function SwapTokenModal({
   };
 
   const handleFlip = () => {
-    const nextPayToken = receiveToken ?? null;
-    const nextReceiveToken = payToken ?? null;
+    userEditedTokenSidesRef.current = true;
+
+    const nextPayToken = normalizeSwapTokenForChain(
+      receiveToken,
+      receiverChainId,
+    );
+    const nextReceiveToken = normalizeSwapTokenForChain(
+      payToken,
+      chainId,
+    );
+    const nextPayChainId = getTokenChainId(
+      nextPayToken,
+      receiverChainId,
+    );
+    const nextReceiveChainId = getTokenChainId(
+      nextReceiveToken,
+      chainId,
+    );
     setPayToken(nextPayToken);
     setReceiveToken(nextReceiveToken);
-    setChainId(getTokenChainId(nextPayToken, chainId));
-    setReceiverChainId(getTokenChainId(nextReceiveToken, ''));
+    if (nextPayChainId) setChainId(nextPayChainId);
+    if (nextReceiveChainId) setReceiverChainId(nextReceiveChainId);
     const a = payAmount;
     setPayAmount(receiveAmount);
     setReceiveAmount(a);
