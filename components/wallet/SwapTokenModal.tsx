@@ -520,20 +520,6 @@ const getTokenChainId = (token: any, fallback = '') => {
   return fallback;
 };
 
-const normalizeSwapTokenForChain = (token: any, fallbackChainId = '') => {
-  if (!token) return null;
-  const normalizedChainId = getTokenChainId(token, fallbackChainId);
-  if (!normalizedChainId) return token;
-
-  const network = getNetworkByChainId(normalizedChainId);
-  return {
-    ...token,
-    chain: network.toUpperCase(),
-    chainId: normalizedChainId,
-    network,
-  };
-};
-
 const isSolanaToken = (token: any, fallback = '') =>
   getTokenChainId(token, fallback) === SOLANA_CHAIN_ID ||
   token?.chain?.toUpperCase?.() === 'SOLANA' ||
@@ -1900,12 +1886,8 @@ export default function SwapTokenModal({
   // so that updating tempTokens never resets an in-flight keystroke timer.
   // Results are capped at FLAT_RENDER_LIMIT so the filteredList state stays small.
   const runReceiveSearch = useCallback(
-    (query: string, chainFilter: string) => {
-      const cid = chainFilter !== 'all' ? chainFilter : undefined;
-      const results = searchTokens(tempTokens, query, cid).slice(
-        0,
-        100,
-      );
+    (query: string) => {
+      const results = searchTokens(tempTokens, query).slice(0, 100);
       setFilteredList(results);
       setIsSearching(false);
     },
@@ -1922,7 +1904,7 @@ export default function SwapTokenModal({
     if (q) {
       setIsSearching(true);
       searchDebounceTimer.current = setTimeout(
-        () => runReceiveSearch(q, selectedReceiveChain),
+        () => runReceiveSearch(q),
         400,
       );
     } else {
@@ -2368,15 +2350,17 @@ export default function SwapTokenModal({
     try {
       const q = query.toLowerCase();
       if (q) {
-        // When searching, scan ALL known tokens (not just balance > 0) so
-        // tokens like TSLAX that exist in the wallet but weren't balance-
-        // detected still appear. Address/id matching allows paste-to-search.
-        const searchBase =
-          selectedPayChain !== 'all'
-            ? tempTokens.filter(
-                (t) => tokenChainId(t) === selectedPayChain,
-              )
-            : tempTokens;
+        // When searching, scan ALL known chains regardless of the selected
+        // browsing chip. Address/id matching allows paste-to-search.
+        const seen = new Set<string>();
+        const searchBase = [...payTokenUniverse, ...tempTokens].filter(
+          (t) => {
+            const key = getTokenIdentityKey(t);
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          },
+        );
         setAvailableTokens(
           searchBase
             .filter(
@@ -2666,34 +2650,6 @@ export default function SwapTokenModal({
       setReceiveAmount('');
     }
   }, [quote, jupiterQuote, receiveToken]);
-
-  // Guard: if pay and receive resolve to the same on-chain mint, clear the
-  // receive token so the user is forced to pick a different one.  This
-  // handles every entry path (defaults, URL params, manual selection) without
-  // relying solely on the handleTokenSelect auto-swap.
-  useEffect(() => {
-    if (!payToken || !receiveToken) return;
-    const payKey = getTokenIdentityKey(payToken);
-    const receiveKey = getTokenIdentityKey(receiveToken);
-    if (payKey && receiveKey && payKey === receiveKey) {
-      setReceiveToken(null);
-      setReceiverChainId('');
-      setReceiveAmount('');
-    }
-    // Only re-run when the actual mint identifiers change, not every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    payToken?.address,
-    payToken?.id,
-    payToken?.chain,
-    payToken?.chainId,
-    payToken?.network,
-    receiveToken?.address,
-    receiveToken?.id,
-    receiveToken?.chain,
-    receiveToken?.chainId,
-    receiveToken?.network,
-  ]);
 
   useEffect(() => {
     setSwapError(null);
@@ -3762,7 +3718,6 @@ export default function SwapTokenModal({
   // ── Token selection ───────────────────────────────────────────────────────────
   const handleTokenSelect = (t: any, type: 'pay' | 'receive') => {
     userEditedTokenSidesRef.current = true;
-
     const fallbackChainId =
       type === 'pay'
         ? selectedPayChain !== 'all'
@@ -3771,37 +3726,18 @@ export default function SwapTokenModal({
         : selectedReceiveChain !== 'all'
           ? selectedReceiveChain
           : receiverChainId;
-    const selectedToken = normalizeSwapTokenForChain(t, fallbackChainId);
-    const tKey = getTokenIdentityKey(selectedToken);
+    const selectedToken = t;
+    const selectedChainId = getTokenChainId(
+      selectedToken,
+      fallbackChainId,
+    );
 
     if (type === 'pay') {
-      const receiveKey = getTokenIdentityKey(receiveToken);
-      // If the chosen pay token is the same contract as the current receive
-      // token, auto-swap them so the user never ends up with
-      // inputMint === outputMint.
-      if (tKey && tKey === receiveKey) {
-        const prevPayChainId = getTokenChainId(payToken, chainId);
-        setReceiveToken(
-          normalizeSwapTokenForChain(payToken, chainId) ?? null,
-        );
-        setReceiverChainId(prevPayChainId);
-      }
       setPayToken(selectedToken);
+      if (selectedChainId) setChainId(selectedChainId);
     } else {
-      const payKey = getTokenIdentityKey(payToken);
-      // Same guard for receive selection.
-      if (tKey && tKey === payKey) {
-        setPayToken(
-          normalizeSwapTokenForChain(receiveToken, receiverChainId) ??
-            null,
-        );
-      }
-      const tokenChainId = getTokenChainId(
-        selectedToken,
-        fallbackChainId,
-      );
       setReceiveToken(selectedToken);
-      setReceiverChainId(tokenChainId);
+      if (selectedChainId) setReceiverChainId(selectedChainId);
     }
     setOpenDrawer(false);
     setSearchQuery('');
@@ -3819,22 +3755,10 @@ export default function SwapTokenModal({
   const handleFlip = () => {
     userEditedTokenSidesRef.current = true;
 
-    const nextPayToken = normalizeSwapTokenForChain(
-      receiveToken,
-      receiverChainId,
-    );
-    const nextReceiveToken = normalizeSwapTokenForChain(
-      payToken,
-      chainId,
-    );
-    const nextPayChainId = getTokenChainId(
-      nextPayToken,
-      receiverChainId,
-    );
-    const nextReceiveChainId = getTokenChainId(
-      nextReceiveToken,
-      chainId,
-    );
+    const nextPayToken = receiveToken ?? null;
+    const nextReceiveToken = payToken ?? null;
+    const nextPayChainId = effectiveReceiveChainId || receiverChainId;
+    const nextReceiveChainId = effectivePayChainId || chainId;
     setPayToken(nextPayToken);
     setReceiveToken(nextReceiveToken);
     if (nextPayChainId) setChainId(nextPayChainId);
