@@ -13,6 +13,13 @@ type AddressLike = {
   connectorType?: string | null;
 };
 
+type BackendWalletFallback = {
+  ethereumWallet?: string | null;
+  ethAddress?: string | null;
+  solanaWallet?: string | null;
+  solanaAddress?: string | null;
+};
+
 type WalletSelectionOptions = {
   preferEmbedded?: boolean;
   embeddedOnly?: boolean;
@@ -27,9 +34,14 @@ const isEmbeddedAddressLike = (wallet: AddressLike) =>
   wallet.connectorType === 'embedded';
 
 export const shouldPreferEmbeddedWallets = () =>
-  process.env.NEXT_PUBLIC_PRIVY_DISABLE_EXTERNAL_WALLETS === 'true' ||
-  (process.env.NODE_ENV !== 'production' &&
-    process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS !== 'true');
+  process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS !== 'true';
+
+export const tradingWalletSelectionOptions = (): WalletSelectionOptions => {
+  const useEmbeddedWallet = shouldPreferEmbeddedWallets();
+  return useEmbeddedWallet
+    ? { preferEmbedded: true, embeddedOnly: true }
+    : {};
+};
 
 export function selectPreferredWallet<T extends AddressLike>(
   wallets: T[] | undefined | null,
@@ -39,21 +51,25 @@ export function selectPreferredWallet<T extends AddressLike>(
   const available = (wallets ?? []).filter((wallet) => !!wallet.address);
   if (!available.length) return undefined;
 
-  const embeddedWallet = available.find(isEmbeddedAddressLike);
-  if (options.embeddedOnly) return embeddedWallet;
-  if (options.preferEmbedded && embeddedWallet) return embeddedWallet;
-
   const normalizedPrimary = normalizeAddress(primaryAddress);
-  if (normalizedPrimary) {
-    const primary = available.find(
-      (wallet) => normalizeAddress(wallet.address) === normalizedPrimary,
-    );
-    if (primary) return primary;
+  const primary = normalizedPrimary
+    ? available.find(
+        (wallet) => normalizeAddress(wallet.address) === normalizedPrimary,
+      )
+    : undefined;
+  const embeddedWallets = available.filter(isEmbeddedAddressLike);
+  const primaryEmbedded =
+    primary && isEmbeddedAddressLike(primary) ? primary : undefined;
+
+  if (options.embeddedOnly) return primaryEmbedded ?? embeddedWallets[0];
+  if (options.preferEmbedded && embeddedWallets.length) {
+    return primaryEmbedded ?? embeddedWallets[0];
   }
+  if (primary) return primary;
 
   return (
     available.find((wallet) => !isEmbeddedAddressLike(wallet)) ??
-    embeddedWallet ??
+    embeddedWallets[0] ??
     available[0]
   );
 }
@@ -61,9 +77,14 @@ export function selectPreferredWallet<T extends AddressLike>(
 function orderWalletsByPreference<T extends AddressLike>(
   wallets: T[] | undefined | null,
   primaryAddress?: string | null,
+  options: WalletSelectionOptions = {},
 ): T[] {
   const available = (wallets ?? []).filter((wallet) => !!wallet.address);
-  const preferred = selectPreferredWallet(available, primaryAddress);
+  const preferred = selectPreferredWallet(
+    available,
+    primaryAddress,
+    options,
+  );
   const ordered = preferred ? [preferred] : [];
   const seen = new Set(
     ordered.map((wallet) => normalizeAddress(wallet.address)),
@@ -111,50 +132,78 @@ export const useWalletAddresses = (
 export const useWalletData = (
   authenticated: boolean,
   ready: boolean,
-  PrivyUser: any
+  PrivyUser: any,
+  fallbackUser?: BackendWalletFallback | null
 ) => {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
   );
 
   useEffect(() => {
-    if (!authenticated || !ready || !PrivyUser) return;
+    if (!authenticated || !ready || (!PrivyUser && !fallbackUser)) return;
 
-    const linkedAccounts = (PrivyUser.linkedAccounts ||
+    const linkedAccounts = (PrivyUser?.linkedAccounts ||
       []) as PrivyLinkedAccount[];
-    const primaryEvmAddress = PrivyUser.wallet?.address;
+    const primaryEvmAddress = PrivyUser?.wallet?.address;
+
+    const walletSelectionOptions = tradingWalletSelectionOptions();
 
     const solanaWallet = selectPreferredWallet(
       linkedAccounts.filter(isSolanaWalletAccount),
+      undefined,
+      walletSelectionOptions,
     );
 
     const evmWallets = orderWalletsByPreference(
       linkedAccounts.filter(isEthereumWalletAccount),
       primaryEvmAddress,
+      walletSelectionOptions,
     );
 
     const wallets: WalletItem[] = [];
+    const addWallet = (address: string | null | undefined, isEVM: boolean) => {
+      const normalizedAddress = normalizeAddress(address);
+      if (!normalizedAddress) return;
+      if (
+        wallets.some(
+          (wallet) =>
+            wallet.isEVM === isEVM &&
+            normalizeAddress(wallet.address) === normalizedAddress,
+        )
+      ) {
+        return;
+      }
+
+      wallets.push({
+        address: address as string,
+        isActive: true,
+        isEVM,
+      });
+    };
 
     if (solanaWallet && isWalletAccount(solanaWallet)) {
-      wallets.push({
-        address: solanaWallet.address,
-        isActive: true,
-        isEVM: false,
-      });
+      addWallet(solanaWallet.address, false);
     }
 
     evmWallets.forEach((evmWallet) => {
       if (!isWalletAccount(evmWallet)) return;
 
-      wallets.push({
-        address: evmWallet.address,
-        isActive: true,
-        isEVM: true,
-      });
+      addWallet(evmWallet.address, true);
     });
 
+    addWallet(fallbackUser?.ethereumWallet || fallbackUser?.ethAddress, true);
+    addWallet(fallbackUser?.solanaWallet || fallbackUser?.solanaAddress, false);
+
     setWalletData(wallets);
-  }, [PrivyUser, authenticated, ready]);
+  }, [
+    PrivyUser,
+    authenticated,
+    fallbackUser?.ethAddress,
+    fallbackUser?.ethereumWallet,
+    fallbackUser?.solanaAddress,
+    fallbackUser?.solanaWallet,
+    ready,
+  ]);
 
   return walletData;
 };

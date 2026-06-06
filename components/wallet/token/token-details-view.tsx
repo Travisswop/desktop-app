@@ -440,8 +440,9 @@ export default function TokenDetails({
     year.isLoading,
   ]);
 
+  const { user } = useUser();
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  const walletData = useWalletData(authenticated, ready, PrivyUser);
+  const walletData = useWalletData(authenticated, ready, PrivyUser, user);
   const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
   const { tokens } = useMultiChainTokenData(

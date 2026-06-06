@@ -5,9 +5,10 @@
  * No logic for native vs contract tokens - the backend handles everything.
  */
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-const WALLET_API_URL = `${API_BASE_URL}/api/v5/wallet`;
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+
+const buildWalletApiUrl = (path: string) =>
+  buildSwopApiUrl(`/api/v5/wallet${path}`);
 
 export interface TokenMarketData {
   id?: string;
@@ -133,7 +134,7 @@ export class WalletService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(`${WALLET_API_URL}/tokens`, {
+      const response = await fetch(buildWalletApiUrl('/tokens'), {
         method: 'POST',
         headers,
         body: JSON.stringify({ wallets }),
@@ -167,7 +168,7 @@ export class WalletService {
     }
 
     const response = await fetch(
-      `${WALLET_API_URL}/onramp/coinbase/session`,
+      buildWalletApiUrl('/onramp/coinbase/session'),
       {
         method: 'POST',
         headers,
@@ -199,7 +200,7 @@ export class WalletService {
     }
 
     const response = await fetch(
-      `${WALLET_API_URL}/onramp/coinbase/order`,
+      buildWalletApiUrl('/onramp/coinbase/order'),
       {
         method: 'POST',
         headers,

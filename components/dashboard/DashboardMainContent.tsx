@@ -163,7 +163,7 @@ export default function DashboardMainContent() {
     ready: privyReady,
     authenticated,
   } = usePrivy();
-  const walletData = useWalletData(authenticated, privyReady, privyUser);
+  const walletData = useWalletData(authenticated, privyReady, privyUser, user);
   const { solWalletAddress } = useWalletAddresses(walletData);
   const [amount, setAmount] = useState(120);
   const [checkoutIntent, setCheckoutIntent] =
