@@ -42,6 +42,19 @@ interface WalletCreationStatus {
   inProgress: boolean;
 }
 
+function getErrorCode(error: unknown): string {
+  if (!error || typeof error !== 'object') return '';
+
+  const maybeError = error as {
+    code?: unknown;
+    data?: { code?: unknown };
+    privyErrorCode?: unknown;
+  };
+
+  const code = maybeError.privyErrorCode ?? maybeError.code ?? maybeError.data?.code;
+  return typeof code === 'string' ? code : '';
+}
+
 function formatEmailCodeError(error: unknown): string {
   const message =
     error instanceof Error
@@ -49,18 +62,35 @@ function formatEmailCodeError(error: unknown): string {
       : typeof error === 'string'
         ? error
         : 'Unable to send a verification code.';
+  const code = getErrorCode(error);
   const normalized = message.toLowerCase();
 
   if (normalized.includes('rate') || normalized.includes('too many')) {
     return 'Too many code requests. Wait a minute, then try again.';
   }
 
+  if (code === 'disallowed_login_method') {
+    return 'Email login is disabled for this Privy app or client. Enable Email in Privy Authentication settings.';
+  }
+
+  if (code === 'allowlist_rejected') {
+    return 'This app URL is not in Privy allowed origins. Add the current origin to the Privy app and web client.';
+  }
+
+  if (code === 'missing_or_invalid_privy_app_id') {
+    return 'Privy rejected the app ID. Check the deployed NEXT_PUBLIC_PRIVY_APP_ID value.';
+  }
+
+  if (code === 'invalid_data') {
+    return message;
+  }
+
   if (
     normalized.includes('origin') ||
     normalized.includes('domain') ||
-    normalized.includes('app')
+    normalized.includes('allowed origin')
   ) {
-    return 'Email login is not enabled for this local app URL. Check the Privy app settings for localhost.';
+    return 'This app URL is not in Privy allowed origins. Check the Privy app and web client settings.';
   }
 
   if (normalized.includes('email')) {
