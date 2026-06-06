@@ -42,7 +42,6 @@ export default function PrivyProvider({
 
   const isProduction = process.env.NODE_ENV === 'production';
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const appClientId = process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID;
   const enableExternalWalletsInDev =
     process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS === 'true';
   const disableExternalWallets =
@@ -160,7 +159,6 @@ export default function PrivyProvider({
   return (
     <Privy
       appId={appId}
-      {...(appClientId ? { clientId: appClientId } : {})}
       config={{
         embeddedWallets: {
           ethereum: {
