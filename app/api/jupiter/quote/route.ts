@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+type JupiterQuoteEndpoint = {
+  url: string;
+  headers: Record<string, string>;
+};
+
 const JUPITER_QUOTE_TIMEOUT_MS = 8_000;
 
 async function fetchWithTimeout(
@@ -69,19 +74,13 @@ export async function GET(request: NextRequest) {
     searchParams.set('platformFeeBps', platformFeeBps.toString());
   }
 
-  const jupiterHeaders: HeadersInit = process.env.JUPITER_API_KEY
-    ? {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.JUPITER_API_KEY,
-      }
-    : {
-        'Content-Type': 'application/json',
-      };
-
-  const endpoints: Array<{ url: string; headers: HeadersInit }> = [
+  const endpoints: JupiterQuoteEndpoint[] = [
     {
       url: `https://api.jup.ag/swap/v1/quote?${searchParams.toString()}`,
-      headers: jupiterHeaders,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.JUPITER_API_KEY || '',
+      },
     },
     {
       url: `https://lite-api.jup.ag/swap/v1/quote?${searchParams.toString()}`,

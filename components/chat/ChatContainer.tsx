@@ -33,6 +33,7 @@ const EVENTS = {
     };
 
 const SECURE_ASTRO_GROUP_NAME = 'Astro Trading Desk';
+const THREAD_RAIL_COLLAPSED_KEY = 'swop.chat.threadRailCollapsed';
 
 const SECURE_ASTRO_AGENT = {
   agentId: 'astro',
@@ -222,6 +223,10 @@ export default function ChatContainer({
   const [chatType, setChatType] = useState<
     'private' | 'group' | null
   >(null);
+  const [isThreadListCollapsed, setIsThreadListCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(THREAD_RAIL_COLLAPSED_KEY) === 'true';
+  });
   const directRecipientAppliedRef = useRef('');
   const initialAstroOpenAttemptedRef = useRef(false);
   const initialDirectRecipientKey = useMemo(
@@ -235,6 +240,15 @@ export default function ChatContainer({
     () => findSecureAstroGroup(groups),
     [groups]
   );
+  const toggleThreadListCollapsed = useCallback(() => {
+    setIsThreadListCollapsed((current) => {
+      const next = !current;
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(THREAD_RAIL_COLLAPSED_KEY, String(next));
+      }
+      return next;
+    });
+  }, []);
 
   // Memoized function to load all data
   const loadInitialData = useCallback(() => {
@@ -759,7 +773,7 @@ export default function ChatContainer({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <Sidebar
             conversations={conversations}
             groups={groups}
@@ -768,6 +782,8 @@ export default function ChatContainer({
             onSelectChat={handleSelectChat}
             currentUser={currentUser}
             socket={socket}
+            isCollapsed={isThreadListCollapsed}
+            onToggleCollapsed={toggleThreadListCollapsed}
           />
 
           <ChatArea
@@ -775,6 +791,7 @@ export default function ChatContainer({
             chatType={chatType || 'private'}
             currentUser={currentUser}
             socket={socket}
+            isThreadListCollapsed={isThreadListCollapsed}
             onChatUpdate={refreshSelectedChat}
             onLeaveGroup={() => {
               setSelectedChat(null);

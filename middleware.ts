@@ -41,21 +41,6 @@ const PUBLIC_ROUTES = new Set([
   "/sp",
 ]);
 
-function getOriginFromEnv(value?: string): string | null {
-  if (!value) return null;
-
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
-}
-
-const configuredApiOrigins = [
-  getOriginFromEnv(process.env.NEXT_PUBLIC_API_URL),
-  getOriginFromEnv(process.env.NEXT_PUBLIC_POLYMARKET_API_URL),
-].filter((origin): origin is string => Boolean(origin));
-
 // CSP Configuration
 const cspConfig = {
   defaultSrc: ["'self'"],
@@ -113,7 +98,6 @@ const cspConfig = {
     "https://li.quest",
     "https://explorer-api.walletconnect.com",
     "https://polymarket.apiswop.co",
-    ...configuredApiOrigins,
     "https://maps.googleapis.com",
     "https://maps.gstatic.com",
   ],

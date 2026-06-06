@@ -55,7 +55,7 @@ export default function SwapButton({
     const wasOpen = wasSwapModalOpenRef.current;
     wasSwapModalOpenRef.current = openSwapModal;
 
-    if (!wasOpen || openSwapModal || !hasSwapUrlParams) {
+    if (!wasOpen || openSwapModal || !hasSwapUrlParams || !pathname) {
       return;
     }
 

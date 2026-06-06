@@ -5,6 +5,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   AlertCircle,
+  Bell,
+  BellOff,
   Check,
   Eye,
   EyeOff,
@@ -46,6 +48,7 @@ type LeaderboardEntry = {
   predictionCount: number;
   isSelf?: boolean;
   isFollowing?: boolean;
+  tradeNotificationsEnabled?: boolean;
 };
 
 type LiveScoreTeam = {
@@ -887,21 +890,31 @@ function LeaderboardRow({
   const swopId = getLeaderboardSwopId(entry);
   const href = getLeaderboardHref(entry);
   const [following, setFollowing] = useState(Boolean(entry.isFollowing));
+  const [tradeAlerts, setTradeAlerts] = useState(
+    Boolean(entry.tradeNotificationsEnabled),
+  );
   const [followLoading, setFollowLoading] = useState(false);
+  const [alertLoading, setAlertLoading] = useState(false);
   const [followError, setFollowError] = useState<string | null>(null);
+  const [alertError, setAlertError] = useState<string | null>(null);
   const canFollow = Boolean(
     accessToken && userId && entry.userId && entry.smartsiteId && !entry.isSelf,
+  );
+  const canToggleAlerts = Boolean(
+    API_URL && accessToken && userId && entry.smartsiteId && following && !entry.isSelf,
   );
 
   useEffect(() => {
     setFollowing(Boolean(entry.isFollowing));
-  }, [entry.isFollowing]);
+    setTradeAlerts(Boolean(entry.tradeNotificationsEnabled));
+  }, [entry.isFollowing, entry.tradeNotificationsEnabled]);
 
   const handleFollow = useCallback(async () => {
     if (!canFollow || following || !API_URL) return;
 
     setFollowLoading(true);
     setFollowError(null);
+    setAlertError(null);
 
     try {
       const response = await fetch(`${API_URL}/api/v4/user/connect`, {
@@ -941,6 +954,48 @@ function LeaderboardRow({
     userId,
   ]);
 
+  const handleTradeAlerts = useCallback(async () => {
+    if (!canToggleAlerts || alertLoading || !API_URL) return;
+
+    const nextEnabled = !tradeAlerts;
+    setAlertLoading(true);
+    setAlertError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/api/v4/user/trade-notifications`, {
+        method: "PATCH",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          smartsiteId: entry.smartsiteId,
+          enabled: nextEnabled,
+        }),
+      });
+      const json = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(json?.message || "Could not update trade alerts.");
+      }
+
+      setTradeAlerts(Boolean(json?.enabled ?? nextEnabled));
+    } catch (err) {
+      setAlertError(
+        err instanceof Error ? err.message : "Could not update trade alerts.",
+      );
+    } finally {
+      setAlertLoading(false);
+    }
+  }, [
+    accessToken,
+    alertLoading,
+    canToggleAlerts,
+    entry.smartsiteId,
+    tradeAlerts,
+  ]);
+
   const mixSegments = getMixSegments(entry);
 
   return (
@@ -970,42 +1025,75 @@ function LeaderboardRow({
                 {swopId}
               </p>
             )}
-            <button
-              type="button"
-              disabled={!canFollow || following || followLoading}
-              onClick={handleFollow}
-              className={cn(
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors",
-                following || entry.isSelf
-                  ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                  : "border-gray-200 text-gray-950 hover:bg-gray-100",
-                (!canFollow || followLoading) && "cursor-not-allowed opacity-60",
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                disabled={!canFollow || following || followLoading}
+                onClick={handleFollow}
+                className={cn(
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors",
+                  following || entry.isSelf
+                    ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                    : "border-gray-200 text-gray-950 hover:bg-gray-100",
+                  (!canFollow || followLoading) && "cursor-not-allowed opacity-60",
+                )}
+                aria-label={
+                  entry.isSelf
+                    ? `${swopId} is you`
+                    : following
+                      ? `Following ${swopId}`
+                      : `Follow ${swopId}`
+                }
+                title={
+                  entry.isSelf
+                    ? "This is you"
+                    : canFollow
+                      ? following
+                        ? "Following"
+                        : "Follow trader"
+                      : "Sign in to follow"
+                }
+              >
+                {followLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : following || entry.isSelf ? (
+                  <Check className="h-3 w-3" />
+                ) : (
+                  <UserPlus className="h-3 w-3" />
+                )}
+              </button>
+
+              {following && !entry.isSelf && (
+                <button
+                  type="button"
+                  disabled={!canToggleAlerts || alertLoading}
+                  onClick={handleTradeAlerts}
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors",
+                    tradeAlerts
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-950",
+                    (!canToggleAlerts || alertLoading) &&
+                      "cursor-not-allowed opacity-60",
+                  )}
+                  aria-pressed={tradeAlerts}
+                  aria-label={
+                    tradeAlerts
+                      ? `Turn off trade alerts for ${swopId}`
+                      : `Turn on trade alerts for ${swopId}`
+                  }
+                  title={tradeAlerts ? "Trade alerts on" : "Trade alerts off"}
+                >
+                  {alertLoading ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : tradeAlerts ? (
+                    <Bell className="h-3 w-3" />
+                  ) : (
+                    <BellOff className="h-3 w-3" />
+                  )}
+                </button>
               )}
-              aria-label={
-                entry.isSelf
-                  ? `${swopId} is you`
-                  : following
-                    ? `Following ${swopId}`
-                    : `Follow ${swopId}`
-              }
-              title={
-                entry.isSelf
-                  ? "This is you"
-                  : canFollow
-                    ? following
-                      ? "Following"
-                      : "Follow trader"
-                    : "Sign in to follow"
-              }
-            >
-              {followLoading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : following || entry.isSelf ? (
-                <Check className="h-3 w-3" />
-              ) : (
-                <UserPlus className="h-3 w-3" />
-              )}
-            </button>
+            </div>
           </div>
 
           {name !== swopId && (
@@ -1086,8 +1174,10 @@ function LeaderboardRow({
           </div>
         </div>
       </div>
-      {followError && (
-        <p className="mt-2 text-xs font-bold text-red-600">{followError}</p>
+      {(followError || alertError) && (
+        <p className="mt-2 text-xs font-bold text-red-600">
+          {followError || alertError}
+        </p>
       )}
     </div>
   );
@@ -1241,6 +1331,52 @@ export function FeedSideRail({
         />
       ) : (
         <BoxScoreBox enabled={enabled} onHide={() => setHidden(true)} />
+      )}
+    </RailShell>
+  );
+}
+
+export function FeedRightSideRail({
+  accessToken,
+  userId,
+}: {
+  accessToken?: string;
+  userId?: string;
+}) {
+  const enabled = useMediaQuery("(min-width: 1280px)");
+  const [leaderboardHidden, setLeaderboardHidden] =
+    useStoredRailHidden("leaderboard");
+  const [boxScoreHidden, setBoxScoreHidden] = useStoredRailHidden("boxScore");
+
+  if (!enabled) return null;
+
+  return (
+    <RailShell>
+      {leaderboardHidden ? (
+        <RailRestoreButton
+          title="Leaderboard"
+          onShow={() => setLeaderboardHidden(false)}
+          desktopSide="right"
+        />
+      ) : (
+        <LeaderboardBox
+          accessToken={accessToken}
+          userId={userId}
+          enabled={enabled}
+          onHide={() => setLeaderboardHidden(true)}
+        />
+      )}
+      {boxScoreHidden ? (
+        <RailRestoreButton
+          title="Box Score"
+          onShow={() => setBoxScoreHidden(false)}
+          desktopSide="right"
+        />
+      ) : (
+        <BoxScoreBox
+          enabled={enabled}
+          onHide={() => setBoxScoreHidden(true)}
+        />
       )}
     </RailShell>
   );

@@ -163,7 +163,7 @@ export default function DashboardMainContent() {
     ready: privyReady,
     authenticated,
   } = usePrivy();
-  const walletData = useWalletData(authenticated, privyReady, privyUser, user);
+  const walletData = useWalletData(authenticated, privyReady, privyUser);
   const { solWalletAddress } = useWalletAddresses(walletData);
   const [amount, setAmount] = useState(120);
   const [checkoutIntent, setCheckoutIntent] =
@@ -187,17 +187,18 @@ export default function DashboardMainContent() {
 
   const profile = useMemo(() => {
     const name = user?.displayName || user?.name || "Travis Herron";
-    const normalizedSwopId =
-      [
-        primarySmartsite?.ens,
-        user?.swopensId,
-        user?.ensName,
-        user?.ens,
-      ]
-        .map(normalizeSwopIdSlug)
-        .find(Boolean) ||
+    const registeredSwopId = normalizeRegisteredSwopId(
+      getSmartsiteString(primarySmartsite, "ens"),
+    );
+    const username =
+      getSmartsiteString(primarySmartsite, "username") ||
       name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 18) ||
-      "swop";
+      "smartsite";
+    const publicUrl = getSmartsitePublicUrl({
+      profileUrl: getSmartsiteString(primarySmartsite, "profileUrl"),
+      registeredSwopId,
+      username,
+    });
     const followers = readConnectionCount(user, "followers");
     const following = readConnectionCount(user, "following");
 
@@ -210,8 +211,10 @@ export default function DashboardMainContent() {
         ? `/smartsite/profile/${primarySmartsiteId}`
         : "/smartsite",
       initials: getInitials(name),
-      swopId: formatSwopIdDisplay(normalizedSwopId),
-      publicUrl: `swop.id/${normalizedSwopId}`,
+      swopId: registeredSwopId
+        ? formatSwopIdDisplay(registeredSwopId)
+        : formatPublicProfileDisplay(publicUrl, username),
+      publicUrl,
       followers,
       following,
     };
@@ -1715,9 +1718,13 @@ function getInitials(name: string) {
 }
 
 function formatSwopIdDisplay(slug: string) {
-  const normalized = normalizeSwopIdSlug(slug);
+  const normalized = slug
+    .trim()
+    .replace(/^\$/, "")
+    .replace(/\.Swop\.Id$/i, "")
+    .replace(/\.swop\.id$/i, "");
 
-  const handle = normalized || "swop";
+  const handle = normalized || "travis";
   const displayHandle = handle
     .split(/([._-])/)
     .map(formatSwopIdPart)
@@ -1726,16 +1733,46 @@ function formatSwopIdDisplay(slug: string) {
   return `${displayHandle}.Swop.ID`;
 }
 
-function normalizeSwopIdSlug(value?: string | null) {
-  const cleaned = String(value || "")
-    .trim()
-    .replace(/^\$/, "");
+function formatPublicProfileDisplay(publicUrl: string, username: string) {
+  const cleanedUrl = publicUrl
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\/$/, "");
 
-  if (/^swop\.id$/i.test(cleaned)) return "";
+  return cleanedUrl || `@${username}`;
+}
 
-  const normalized = cleaned.replace(/\.swop\.id$/i, "");
+function normalizeRegisteredSwopId(value: unknown) {
+  const raw = cleanSmartsiteString(value).toLowerCase();
+  if (!raw || raw === "swop.id") return "";
+  if (!raw.endsWith(".swop.id")) return "";
 
-  return /^swop$/i.test(normalized) ? "" : normalized;
+  const handle = raw.replace(/\.swop\.id$/i, "");
+  return handle ? `${handle}.swop.id` : "";
+}
+
+function getSmartsitePublicUrl({
+  profileUrl,
+  registeredSwopId,
+  username,
+}: {
+  profileUrl: string;
+  registeredSwopId: string;
+  username: string;
+}) {
+  if (profileUrl) return profileUrl;
+  if (registeredSwopId) return `https://${registeredSwopId}`;
+  return `https://swopme.app/sp/${username}`;
+}
+
+function getSmartsiteString(record: unknown, key: string) {
+  if (!record || typeof record !== "object") return "";
+  const value = (record as Record<string, unknown>)[key];
+  return cleanSmartsiteString(value);
+}
+
+function cleanSmartsiteString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function formatSwopIdPart(part: string) {

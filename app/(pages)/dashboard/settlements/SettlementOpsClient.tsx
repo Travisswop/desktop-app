@@ -674,8 +674,8 @@ function releaseCopy(order: MarketplaceOrder) {
   }
   if (order.settlement?.status === 'held') {
     return order.fulfillment?.receiptConfirmedAt
-      ? 'Receipt confirmed'
-      : 'Waiting for buyer receipt confirmation';
+      ? 'Order received'
+      : 'Waiting for buyer to confirm order received';
   }
   if (order.settlement?.status === 'release_pending') {
     return 'Manual release required';

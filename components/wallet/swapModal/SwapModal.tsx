@@ -39,6 +39,7 @@ import PriorityFeeSelector, {
 } from './utils/PriorityFeeSelector';
 import TokenImage from './TokenImage';
 import { completeAgentActionFromHandoff } from '@/lib/chat/agentActionHandoff';
+import { useUser } from '@/lib/UserContext';
 
 function toPublicKeyOrNull(value?: PublicKey | string | null) {
   if (!value) return null;
@@ -51,6 +52,17 @@ function toPublicKeyOrNull(value?: PublicKey | string | null) {
   }
 }
 
+function getRecordId(record: unknown) {
+  if (typeof record === 'string') return record;
+  if (!record || typeof record !== 'object') return '';
+
+  const maybeRecord = record as { _id?: unknown; id?: unknown };
+  if (typeof maybeRecord._id === 'string') return maybeRecord._id;
+  if (typeof maybeRecord.id === 'string') return maybeRecord.id;
+
+  return '';
+}
+
 export default function SwapModal({
   open = true,
   userToken,
@@ -60,6 +72,8 @@ export default function SwapModal({
   initialAmount,
   onTokenRefresh,
 }: SwapModalProps) {
+  const { user, primaryMicrosite } = useUser();
+
   // State management
   // Initialize state with initial values if provided
   const [selectedInputSymbol, setSelectedInputSymbol] = useState(
@@ -576,6 +590,9 @@ export default function SwapModal({
       outputToken,
       platformFeeBps: PLATFORM_FEE_BPS,
       accessToken,
+      userId: getRecordId(user?._id),
+      smartsiteId:
+        getRecordId(user?.primaryMicrosite) || getRecordId(primaryMicrosite),
       onStatusUpdate: (status) => {
         setTxStatus(status);
       },

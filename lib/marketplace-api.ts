@@ -151,6 +151,7 @@ export type MarketplaceReceiptState = {
   receiptId?: string | null;
   status?: 'pending' | 'minting' | 'minted' | 'failed';
   mintAddress?: string | null;
+  provider?: string | null;
   txHash?: string | null;
   metadataUri?: string | null;
   error?: string | null;
@@ -170,6 +171,51 @@ export type MarketplaceFulfillmentEvent = {
   status?: string;
   timestamp?: string;
   details?: Record<string, unknown> | null;
+};
+
+export type MarketplaceReceiptDownload = {
+  productId: string;
+  name: string;
+  fileName?: string;
+  mimeType?: string;
+  size?: number;
+  accessPolicy?: 'receipt_nft';
+};
+
+export type PublicMarketplaceReceipt = {
+  receipt: {
+    publicReference: string;
+    orderId?: string;
+    status?: string;
+    mintAddress?: string | null;
+    provider?: string | null;
+    mintedAt?: string | null;
+  };
+  order: {
+    paymentStatus?: string;
+    merchant?: {
+      name?: string;
+      wallet?: { address?: string } | null;
+    };
+    buyer?: {
+      name?: string;
+      wallet?: { address?: string } | null;
+    };
+    financial?: {
+      totalCost?: number;
+      currency?: string;
+    } | null;
+    createdAt?: string;
+    paidAt?: string | null;
+  };
+  downloads: MarketplaceReceiptDownload[];
+};
+
+export type ReceiptUnlockMessage = {
+  walletAddress: string;
+  issuedAt: string;
+  expiresAt: string;
+  message: string;
 };
 
 export type ListMarketplaceProductsResponse = {
@@ -267,6 +313,32 @@ export async function listPublicMarketplaceProducts(
     cache: 'no-store',
   });
   return parseMarketplaceResponse<ListMarketplaceProductsResponse>(response);
+}
+
+export async function getPublicMarketplaceReceipt(publicReference: string) {
+  const response = await fetch(
+    marketplaceUrl(`/public/receipts/${encodeURIComponent(publicReference)}`),
+    {
+      cache: 'no-store',
+    }
+  );
+  return parseMarketplaceResponse<PublicMarketplaceReceipt>(response);
+}
+
+export async function getMarketplaceReceiptUnlockMessage(
+  publicReference: string,
+  walletAddress: string
+) {
+  const response = await fetch(
+    marketplaceUrl(
+      `/public/receipts/${encodeURIComponent(publicReference)}/unlock-message`,
+      { walletAddress }
+    ),
+    {
+      cache: 'no-store',
+    }
+  );
+  return parseMarketplaceResponse<ReceiptUnlockMessage>(response);
 }
 
 export async function createMarketplaceProduct(
@@ -486,6 +558,45 @@ export async function downloadMarketplaceDigitalAsset(
     ),
     {
       headers: authOnlyHeaders(accessToken),
+      cache: 'no-store',
+    }
+  );
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as ApiEnvelope<never>;
+    throw new Error(
+      body.message || body.error || `Digital download failed: ${response.status}`
+    );
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName:
+      filenameFromDisposition(response.headers.get('content-disposition')) ||
+      'swop-digital-download',
+  };
+}
+
+export async function downloadMarketplaceDigitalAssetWithReceiptNft(
+  publicReference: string,
+  productId: string,
+  payload: {
+    walletAddress: string;
+    issuedAt: string;
+    message: string;
+    signature: string;
+  }
+) {
+  const response = await fetch(
+    marketplaceUrl(
+      `/public/receipts/${encodeURIComponent(
+        publicReference
+      )}/downloads/${encodeURIComponent(productId)}`
+    ),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
       cache: 'no-store',
     }
   );

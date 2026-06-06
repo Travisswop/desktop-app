@@ -761,7 +761,7 @@ const WalletContentInner = () => {
   const router = useRouter();
 
   // Custom hooks
-  const walletData = useWalletData(authenticated, ready, PrivyUser, user);
+  const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
   const [loadCollectibles, setLoadCollectibles] = useState(false);

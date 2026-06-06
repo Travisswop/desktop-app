@@ -4,7 +4,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import * as hl from '@nktkas/hyperliquid';
 import { getHLApiUrl } from '@/services/hyperliquid/config';
-import { selectPreferredWallet } from '@/components/wallet/hooks/useWalletData';
+import {
+  selectPreferredWallet,
+  tradingWalletSelectionOptions,
+} from '@/components/wallet/hooks/useWalletData';
 
 // Always check mainnet HL balance regardless of HL_IS_TESTNET.
 // The deposit bridge is always mainnet-to-mainnet, so the balance that reflects
@@ -59,6 +62,7 @@ export function useHyperliquidBalanceCheck(
   const masterWallet = selectPreferredWallet(
     wallets,
     user?.wallet?.address,
+    tradingWalletSelectionOptions(),
   );
   const masterAddress =
     masterAddressOverride ?? (walletsReady ? masterWallet?.address ?? null : null);

@@ -22,6 +22,10 @@ import { formatEns } from "@/lib/formatEnsName";
 // import { useRouter } from "next/navigation";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
 import FeedPostContent from "./FeedPostContent";
+import FeedTradeAlertMenuItem, {
+  isFeedAuthorSelf,
+  shouldShowTradeAlertMenuItem,
+} from "./FeedTradeAlertMenuItem";
 interface FeedItemType {
   _id: string;
   likeCount?: number;
@@ -47,8 +51,6 @@ const FeedItem = memo(
     feed,
     userId,
     accessToken,
-    onRedeemModalOpen,
-    renderTransactionContent,
     onRepostSuccess,
     onDeleteSuccess,
     onPostInteraction,
@@ -108,6 +110,13 @@ const FeedItem = memo(
       feed?.smartsiteId?.ens ||
       feed?.smartsiteEnsName ||
       "n/a";
+    const canDeletePost = isFeedAuthorSelf(feed, userId);
+    const showTradeAlertMenuItem = shouldShowTradeAlertMenuItem(
+      feed,
+      userId,
+      accessToken,
+    );
+    const showActionsMenu = canDeletePost || showTradeAlertMenuItem;
 
     // console.log("ensName", ensName);
 
@@ -198,7 +207,7 @@ const FeedItem = memo(
             </div>
 
             {/* Actions Menu */}
-            {userId === feed?.userId && (
+            {showActionsMenu && (
               <div>
                 <Popover
                   backdrop="transparent"
@@ -213,12 +222,25 @@ const FeedItem = memo(
                   </PopoverTrigger>
                   <PopoverContent>
                     <div className="px-1 py-2 flex flex-col">
-                      <DeleteFeedModal
-                        postId={feed._id}
-                        token={accessToken}
-                        onDeleteSuccess={onDeleteSuccess}
-                        userId={userId}
-                      />
+                      {showTradeAlertMenuItem && (
+                        <FeedTradeAlertMenuItem
+                          feed={feed}
+                          accessToken={accessToken}
+                          onChange={(enabled) => {
+                            onPostInteraction?.(feed._id, {
+                              viewerTradeNotificationsEnabled: enabled,
+                            });
+                          }}
+                        />
+                      )}
+                      {canDeletePost && (
+                        <DeleteFeedModal
+                          postId={feed._id}
+                          token={accessToken}
+                          onDeleteSuccess={onDeleteSuccess}
+                          userId={userId}
+                        />
+                      )}
                     </div>
                   </PopoverContent>
                 </Popover>

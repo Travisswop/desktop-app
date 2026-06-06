@@ -10,7 +10,7 @@ import CustomModal from "../modal/CustomModal";
 import { useModalStore } from "@/zustandStore/modalstore";
 import PerpsFeedBackfill from "./PerpsFeedBackfill";
 import FeedMarketTicker from "./FeedMarketTicker";
-import { FeedSideRail, FeedSideRailMobile } from "./FeedSideRails";
+import { FeedRightSideRail, FeedSideRailMobile } from "./FeedSideRails";
 
 const CONTAINER_WIDTH = "w-full sm:w-[520px]";
 
@@ -69,13 +69,6 @@ export default function FeedMainV2({
             : "w-full flex justify-center gap-4 2xl:gap-6"
         }
       >
-        {!isMapTab && (
-          <FeedSideRail
-            side="left"
-            accessToken={accessToken}
-            userId={userId}
-          />
-        )}
         <div
           className={
             isMapTab
@@ -101,7 +94,9 @@ export default function FeedMainV2({
             />
           </Suspense>
         </div>
-        {!isMapTab && <FeedSideRail side="right" />}
+        {!isMapTab && (
+          <FeedRightSideRail accessToken={accessToken} userId={userId} />
+        )}
       </div>
     </div>
   );

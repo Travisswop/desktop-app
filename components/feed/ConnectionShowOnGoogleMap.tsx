@@ -40,7 +40,8 @@ export default function ConnectionsShowOnGoogleMap({
   const [mapReady, setMapReady] = useState(false);
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey:
-      process.env.NEXT_PUBLIC_GOOGLE_API_KEY ||
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+      process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ||
       'AIzaSyDaERPmsWGDCk2MrKXsqkMfPkSu614Simk',
     libraries: GOOGLE_MAP_LIBRARIES,
   });

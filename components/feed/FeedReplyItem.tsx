@@ -29,6 +29,10 @@ import { useRouter } from "next/navigation";
 import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
 import RedeemClaimModal from "../modal/RedeemClaim";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
+import FeedTradeAlertMenuItem, {
+  isFeedAuthorSelf,
+  shouldShowTradeAlertMenuItem,
+} from "./FeedTradeAlertMenuItem";
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
 // Ideally, import FeedItemType from where it's defined (e.g., Feed.tsx or a types file).
@@ -106,6 +110,13 @@ const FeedReplyItem = memo(
     const userName =
       feed?.smartsiteId?.name || feed?.smartsiteUserName || "Anonymous";
     const ensName = feed?.smartsiteId?.ens || feed?.smartsiteEnsName || "n/a";
+    const canDeletePost = isFeedAuthorSelf(feed, userId);
+    const showTradeAlertMenuItem = shouldShowTradeAlertMenuItem(
+      feed,
+      userId,
+      accessToken,
+    );
+    const showActionsMenu = canDeletePost || showTradeAlertMenuItem;
 
     // console.log("ensName", ensName);
 
@@ -331,7 +342,7 @@ const FeedReplyItem = memo(
             </div>
 
             {/* Actions Menu */}
-            {userId === feed.userId && (
+            {showActionsMenu && (
               <div>
                 <Popover
                   backdrop="transparent"
@@ -346,12 +357,25 @@ const FeedReplyItem = memo(
                   </PopoverTrigger>
                   <PopoverContent>
                     <div className="px-1 py-2 flex flex-col">
-                      <DeleteFeedModal
-                        postId={feed._id}
-                        token={accessToken}
-                        onDeleteSuccess={onDeleteSuccess}
-                        userId={userId}
-                      />
+                      {showTradeAlertMenuItem && (
+                        <FeedTradeAlertMenuItem
+                          feed={feed}
+                          accessToken={accessToken}
+                          onChange={(enabled) => {
+                            onPostInteraction?.(feed._id, {
+                              viewerTradeNotificationsEnabled: enabled,
+                            });
+                          }}
+                        />
+                      )}
+                      {canDeletePost && (
+                        <DeleteFeedModal
+                          postId={feed._id}
+                          token={accessToken}
+                          onDeleteSuccess={onDeleteSuccess}
+                          userId={userId}
+                        />
+                      )}
                     </div>
                   </PopoverContent>
                 </Popover>

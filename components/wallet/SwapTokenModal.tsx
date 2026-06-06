@@ -61,6 +61,7 @@ import {
 import Cookies from 'js-cookie';
 import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
 import { useUser } from '@/lib/UserContext';
+import { useModalStore } from '@/zustandStore/modalstore';
 import {
   getWalletNotificationService,
   formatUSDValue,
@@ -69,6 +70,11 @@ import { useSearchParams } from 'next/navigation';
 import bs58 from 'bs58';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { MarketService } from '@/services/market-service';
+import {
+  decimalAmountToRawUnits,
+  getSafeSwapInputAmount,
+  normalizeTokenDecimals,
+} from '@/lib/wallet/swapAmounts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Module-level LiFi token cache
@@ -438,20 +444,6 @@ const getChainIcon = (chainName: string) => {
 };
 
 const getChainId = (chainName: string) => {
-  const knownChainId = String(chainName || '').trim();
-  if (
-    [
-      '1',
-      '56',
-      '137',
-      '42161',
-      '8453',
-      SOLANA_CHAIN_ID,
-    ].includes(knownChainId)
-  ) {
-    return knownChainId;
-  }
-
   const chainIds: Record<string, string> = {
     SOLANA: '1151111081099710',
     ETHEREUM: '1',
@@ -488,33 +480,10 @@ const getNetworkByChainId = (chainId: string): string => {
 const SOLANA_CHAIN_ID = '1151111081099710';
 const TOKEN_SEARCH_RENDER_LIMIT = 100;
 
-const normalizeChainIdValue = (value: unknown) => {
-  if (value === undefined || value === null || value === '') return '';
-  const raw = String(value).trim();
-  const eip155Match = raw.match(/^eip155:(\d+)$/i);
-  const chainId = eip155Match ? eip155Match[1] : raw;
-  return [
-    '1',
-    '56',
-    '137',
-    '42161',
-    '8453',
-    SOLANA_CHAIN_ID,
-  ].includes(chainId)
-    ? chainId
-    : '';
-};
-
 const getTokenChainId = (token: any, fallback = '') => {
-  const explicitChainId = normalizeChainIdValue(token?.chainId);
-  if (explicitChainId) return explicitChainId;
-
-  const chainValueId = normalizeChainIdValue(token?.chain);
-  if (chainValueId) return chainValueId;
-
-  const networkValueId = normalizeChainIdValue(token?.network);
-  if (networkValueId) return networkValueId;
-
+  if (token?.chainId !== undefined && token?.chainId !== null) {
+    return String(token.chainId);
+  }
   if (token?.chain) return getChainId(String(token.chain));
   if (token?.network) return getChainId(String(token.network));
   return fallback;
@@ -554,18 +523,6 @@ const getNativeTokenSymbol = (chainId: string): string => {
     '56': 'BNB',
   };
   return map[chainId] || 'ETH';
-};
-
-const getCompactChainLabel = (chainName: string) => {
-  const map: Record<string, string> = {
-    ETHEREUM: 'ETH',
-    POLYGON: 'POLY',
-    ARBITRUM: 'ARB',
-    SOLANA: 'SOL',
-    BASE: 'BASE',
-    BSC: 'BSC',
-  };
-  return map[chainName.toUpperCase()] || chainName.toUpperCase();
 };
 
 const getExplorerUrl = (chainId: string, txHash: string): string => {
@@ -1370,7 +1327,7 @@ export default function SwapTokenModal({
   const countdownInterval = useRef<NodeJS.Timeout | null>(null);
   const searchDebounceTimer = useRef<NodeJS.Timeout | null>(null);
   const urlAmountHydrationKeyRef = useRef('');
-  const userEditedTokenSidesRef = useRef(false);
+  const quoteRequestIdRef = useRef(0);
 
   useEffect(() => {
     if (defaultPayToken) {
@@ -1648,61 +1605,28 @@ export default function SwapTokenModal({
           5000,
         ),
       );
-      const token = (await Promise.race([
-        getAccessToken(),
-        timeout,
-      ])) as string | null;
-
-      if (token) {
-        setAccessToken(token);
-        if (typeof window !== 'undefined') {
-          Cookies.set('access-token', token, {
-            path: '/',
-            sameSite: 'lax',
-            secure: window.location.protocol === 'https:',
-          });
-        }
-      }
-
-      return token;
+      await Promise.race([getAccessToken(), timeout]);
     } catch (e) {
       console.warn(
         'Session refresh failed, proceeding with existing session:',
         e,
       );
-      return null;
     }
   }, [getAccessToken]);
-
-  const requireFreshPrivySession = useCallback(async () => {
-    const token = await safeRefreshSession();
-    if (!token) {
-      throw new Error(
-        'Authentication session expired. Please refresh the page and log in again.',
-      );
-    }
-    return token;
-  }, [safeRefreshSession]);
 
   const formatTokenAmount = (
     amount: string | number,
     decimals: number | bigint,
   ): string => {
-    const dec =
-      typeof decimals === 'bigint' ? Number(decimals) : decimals;
-    const [whole, fractionRaw = ''] = amount.toString().split('.');
-    const fractionPadded = (fractionRaw + '0'.repeat(dec)).slice(
-      0,
-      dec,
-    );
-    return BigInt(whole + fractionPadded).toString();
+    return decimalAmountToRawUnits(amount, decimals)?.toString() ?? '0';
   };
 
   const validateBalance = () => {
     if (!payAmount)
       return { isValid: true, error: null };
-    const amount = parseFloat(payAmount);
-    if (!Number.isFinite(amount) || amount <= 0)
+    const decimals = normalizeTokenDecimals(payToken?.decimals, 6);
+    const amountUnits = decimalAmountToRawUnits(payAmount, decimals);
+    if (amountUnits === null || amountUnits <= 0n)
       return {
         isValid: false,
         error: 'Amount must be greater than 0',
@@ -1713,43 +1637,23 @@ export default function SwapTokenModal({
       payToken?.balance === ''
     )
       return { isValid: true, error: null };
-    const balance = parseFloat(String(payToken.balance));
-    if (amount > balance)
+    const balanceUnits = decimalAmountToRawUnits(
+      String(payToken.balance),
+      decimals,
+    );
+    if (balanceUnits !== null && amountUnits > balanceUnits)
       return {
         isValid: false,
-        error: `Insufficient balance. Available: ${balance.toFixed(6)} ${payToken.symbol}`,
+        error: `Insufficient balance. Available: ${parseFloat(String(payToken.balance)).toFixed(6)} ${payToken.symbol}`,
       };
     return { isValid: true, error: null };
   };
 
-  const effectivePayChainId = useMemo(
-    () => getTokenChainId(payToken, chainId),
-    [chainId, payToken],
-  );
-  const effectiveReceiveChainId = useMemo(
-    () => getTokenChainId(receiveToken, receiverChainId),
-    [receiveToken, receiverChainId],
-  );
-  const effectivePayChainName = useMemo(
-    () =>
-      effectivePayChainId
-        ? getNetworkByChainId(effectivePayChainId).toUpperCase()
-        : '',
-    [effectivePayChainId],
-  );
-  const effectiveReceiveChainName = useMemo(
-    () =>
-      effectiveReceiveChainId
-        ? getNetworkByChainId(effectiveReceiveChainId).toUpperCase()
-        : '',
-    [effectiveReceiveChainId],
-  );
-
   const isSolanaToSolanaSwap = useCallback(
     () =>
-      effectivePayChainId === SOLANA_CHAIN_ID &&
-      effectiveReceiveChainId === SOLANA_CHAIN_ID,
-    [effectivePayChainId, effectiveReceiveChainId],
+      isSolanaToken(payToken, chainId) &&
+      isSolanaToken(receiveToken, receiverChainId),
+    [chainId, payToken, receiveToken, receiverChainId],
   );
 
   const ensureEvmAllowance = useCallback(
@@ -1913,8 +1817,12 @@ export default function SwapTokenModal({
   // so that updating tempTokens never resets an in-flight keystroke timer.
   // Results are capped at FLAT_RENDER_LIMIT so the filteredList state stays small.
   const runReceiveSearch = useCallback(
-    (query: string) => {
-      const results = searchTokens(tempTokens, query).slice(0, 100);
+    (query: string, chainFilter: string) => {
+      const cid = chainFilter !== 'all' ? chainFilter : undefined;
+      const results = searchTokens(tempTokens, query, cid).slice(
+        0,
+        100,
+      );
       setFilteredList(results);
       setIsSearching(false);
     },
@@ -1931,7 +1839,7 @@ export default function SwapTokenModal({
     if (q) {
       setIsSearching(true);
       searchDebounceTimer.current = setTimeout(
-        () => runReceiveSearch(q),
+        () => runReceiveSearch(q, selectedReceiveChain),
         400,
       );
     } else {
@@ -2103,8 +2011,6 @@ export default function SwapTokenModal({
 
   //set feed trade details from URL params on mount (if present)
   useEffect(() => {
-    if (userEditedTokenSidesRef.current) return;
-
     const inputTokenParam = searchParams?.get('inputToken');
     const inputMintParam = searchParams?.get('inputMint');
     const inputChainParam = searchParams?.get('inputChain');
@@ -2377,17 +2283,15 @@ export default function SwapTokenModal({
     try {
       const q = query.toLowerCase();
       if (q) {
-        // When searching, scan ALL known chains regardless of the selected
-        // browsing chip. Address/id matching allows paste-to-search.
-        const seen = new Set<string>();
-        const searchBase = [...payTokenUniverse, ...tempTokens].filter(
-          (t) => {
-            const key = getTokenIdentityKey(t);
-            if (!key || seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          },
-        );
+        // When searching, scan ALL known tokens (not just balance > 0) so
+        // tokens like TSLAX that exist in the wallet but weren't balance-
+        // detected still appear. Address/id matching allows paste-to-search.
+        const searchBase =
+          selectedPayChain !== 'all'
+            ? tempTokens.filter(
+                (t) => tokenChainId(t) === selectedPayChain,
+              )
+            : tempTokens;
         setAvailableTokens(
           searchBase
             .filter(
@@ -2485,11 +2389,8 @@ export default function SwapTokenModal({
     if (fromAmount === '0' || !fromAmount)
       throw new Error('Invalid amount');
 
-    const fromChainId = effectivePayChainId || chainId;
-    const toChainId = effectiveReceiveChainId || receiverChainId;
-
     let fromTokenAddress: string;
-    if (fromChainId === SOLANA_CHAIN_ID) {
+    if (chainId === '1151111081099710') {
       if (payToken?.symbol === 'SOL')
         fromTokenAddress =
           'So11111111111111111111111111111111111111112';
@@ -2508,7 +2409,7 @@ export default function SwapTokenModal({
     }
 
     let toTokenAddress: string;
-    if (toChainId === SOLANA_CHAIN_ID) {
+    if (receiverChainId === '1151111081099710') {
       if (receiveToken?.symbol === 'SOL')
         toTokenAddress =
           'So11111111111111111111111111111111111111112';
@@ -2530,8 +2431,8 @@ export default function SwapTokenModal({
       throw new Error('Wallet addresses not available');
 
     const result = await fetchLifiQuote({
-      fromChain: fromChainId.toString(),
-      toChain: toChainId.toString(),
+      fromChain: chainId.toString(),
+      toChain: receiverChainId.toString(),
       fromToken: fromTokenAddress,
       toToken: toTokenAddress,
       fromAddress: fromWalletAddress,
@@ -2548,6 +2449,9 @@ export default function SwapTokenModal({
   // ── Main fetchQuote ──────────────────────────────────────────────────────────
   const fetchQuote = useCallback(
     async (isAutoRefresh = false) => {
+      const requestId = quoteRequestIdRef.current + 1;
+      quoteRequestIdRef.current = requestId;
+
       if (
         !payAmount ||
         !payToken ||
@@ -2558,6 +2462,8 @@ export default function SwapTokenModal({
         setQuote(null);
         setJupiterQuote(null);
         setLastQuoteTime(null);
+        setIsQuoteLoading(false);
+        setIsCalculating(false);
         return;
       }
       try {
@@ -2565,14 +2471,19 @@ export default function SwapTokenModal({
         if (!isAutoRefresh) setIsCalculating(true);
         setSwapError(null);
         if (isSolanaToSolanaSwap()) {
-          setJupiterQuote(await getJupiterQuote());
+          const nextJupiterQuote = await getJupiterQuote();
+          if (quoteRequestIdRef.current !== requestId) return;
+          setJupiterQuote(nextJupiterQuote);
           setQuote(null);
         } else {
-          setQuote(await getLifiQuote());
+          const nextLifiQuote = await getLifiQuote();
+          if (quoteRequestIdRef.current !== requestId) return;
+          setQuote(nextLifiQuote);
           setJupiterQuote(null);
         }
         setLastQuoteTime(Date.now());
       } catch (err: any) {
+        if (quoteRequestIdRef.current !== requestId) return;
         console.error('Quote fetch error:', err);
         setQuote(null);
         setJupiterQuote(null);
@@ -2583,18 +2494,20 @@ export default function SwapTokenModal({
         );
         setLastQuoteTime(null);
       } finally {
-        setIsQuoteLoading(false);
-        setIsCalculating(false);
+        if (quoteRequestIdRef.current === requestId) {
+          setIsQuoteLoading(false);
+          setIsCalculating(false);
+        }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      effectivePayChainId,
+      chainId,
       fromWalletAddress,
       payAmount,
       payToken,
       receiveToken,
-      effectiveReceiveChainId,
+      receiverChainId,
       toWalletAddress,
       slippage,
       isCopyTrade,
@@ -2609,7 +2522,13 @@ export default function SwapTokenModal({
   useEffect(() => {
     if (quoteRefreshInterval.current)
       clearInterval(quoteRefreshInterval.current);
-    if (lastQuoteTime && payAmount && payToken && receiveToken) {
+    if (
+      lastQuoteTime &&
+      payAmount &&
+      payToken &&
+      receiveToken &&
+      !isSwapping
+    ) {
       quoteRefreshInterval.current = setInterval(
         () => fetchQuote(true),
         10000,
@@ -2619,7 +2538,14 @@ export default function SwapTokenModal({
           clearInterval(quoteRefreshInterval.current);
       };
     }
-  }, [lastQuoteTime, payAmount, payToken, receiveToken, fetchQuote]);
+  }, [
+    lastQuoteTime,
+    payAmount,
+    payToken,
+    receiveToken,
+    fetchQuote,
+    isSwapping,
+  ]);
 
   // Countdown timer
   useEffect(() => {
@@ -2642,6 +2568,28 @@ export default function SwapTokenModal({
     }
   }, [lastQuoteTime, payAmount, payToken, receiveToken]);
 
+  // Clear stale quotes as soon as any quote-defining input changes. This keeps
+  // the CTA from submitting a transactionRequest that was built for the previous
+  // chain/token/amount while the next quote is still loading.
+  useEffect(() => {
+    quoteRequestIdRef.current += 1;
+    setQuote(null);
+    setJupiterQuote(null);
+    setReceiveAmount('');
+    setLastQuoteTime(null);
+    setGasBalanceError(null);
+    setEstimatedGasFeeEth(null);
+  }, [
+    chainId,
+    fromWalletAddress,
+    payAmount,
+    payToken,
+    receiveToken,
+    receiverChainId,
+    toWalletAddress,
+    slippage,
+  ]);
+
   // Debounced quote on param change
   useEffect(() => {
     if (quoteRefreshInterval.current)
@@ -2650,12 +2598,12 @@ export default function SwapTokenModal({
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    effectivePayChainId,
+    chainId,
     fromWalletAddress,
     payAmount,
     payToken,
     receiveToken,
-    effectiveReceiveChainId,
+    receiverChainId,
     toWalletAddress,
     slippage,
   ]);
@@ -2678,6 +2626,34 @@ export default function SwapTokenModal({
     }
   }, [quote, jupiterQuote, receiveToken]);
 
+  // Guard: if pay and receive resolve to the same on-chain mint, clear the
+  // receive token so the user is forced to pick a different one.  This
+  // handles every entry path (defaults, URL params, manual selection) without
+  // relying solely on the handleTokenSelect auto-swap.
+  useEffect(() => {
+    if (!payToken || !receiveToken) return;
+    const payKey = getTokenIdentityKey(payToken);
+    const receiveKey = getTokenIdentityKey(receiveToken);
+    if (payKey && receiveKey && payKey === receiveKey) {
+      setReceiveToken(null);
+      setReceiverChainId('');
+      setReceiveAmount('');
+    }
+    // Only re-run when the actual mint identifiers change, not every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    payToken?.address,
+    payToken?.id,
+    payToken?.chain,
+    payToken?.chainId,
+    payToken?.network,
+    receiveToken?.address,
+    receiveToken?.id,
+    receiveToken?.chain,
+    receiveToken?.chainId,
+    receiveToken?.network,
+  ]);
+
   useEffect(() => {
     setSwapError(null);
     setSwapStatus(null);
@@ -2690,15 +2666,14 @@ export default function SwapTokenModal({
   useEffect(() => {
     // Only applies to EVM LiFi swaps (not Solana-to-Solana Jupiter swaps)
     const isSolSol = isSolanaToSolanaSwap();
-    const fromChainId = effectivePayChainId || chainId;
 
-    if (!quote || isSolSol || !fromWalletAddress || !fromChainId) {
+    if (!quote || isSolSol || !fromWalletAddress || !chainId) {
       setGasBalanceError(null);
       setEstimatedGasFeeEth(null);
       return;
     }
 
-    const numericChainId = parseInt(fromChainId);
+    const numericChainId = parseInt(chainId);
     const evmChain = getViemChain(numericChainId);
     if (!evmChain) {
       setGasBalanceError(null);
@@ -2773,7 +2748,7 @@ export default function SwapTokenModal({
         const value = parseHexOrNum(valueRaw) ?? 0n;
         const totalRequired = estimatedGasCost + value;
         const gasCostEth = Number(estimatedGasCost) / 1e18;
-        const nativeSymbol = getNativeTokenSymbol(fromChainId);
+        const nativeSymbol = getNativeTokenSymbol(chainId);
         setEstimatedGasFeeEth(
           `~${gasCostEth < 0.00001 ? gasCostEth.toExponential(3) : gasCostEth.toFixed(6)} ${nativeSymbol}`,
         );
@@ -2796,44 +2771,35 @@ export default function SwapTokenModal({
     return () => {
       cancelled = true;
     };
-    // payToken.chain changes update the effective chain → re-triggers here.
+    // payToken.chain changes update chainId (separate effect) → re-triggers here.
     // receiveToken/receiverChainId changes invalidate the quote → re-triggers here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quote, effectivePayChainId, fromWalletAddress]);
+  }, [quote, chainId, fromWalletAddress]);
 
   useEffect(() => {
-    const nextChainId = getTokenChainId(payToken, chainId);
-    if (nextChainId && nextChainId !== chainId) {
-      setChainId(nextChainId);
-    }
-  }, [payToken, chainId]);
-
-  useEffect(() => {
-    const nextChainId = getTokenChainId(receiveToken, receiverChainId);
-    if (nextChainId && nextChainId !== receiverChainId) {
-      setReceiverChainId(nextChainId);
-    }
-  }, [receiveToken, receiverChainId]);
+    const nextChainId = getTokenChainId(payToken);
+    if (nextChainId) setChainId(nextChainId);
+  }, [payToken]);
 
   useEffect(() => {
     setFromWalletAddress(
-      effectivePayChainId === SOLANA_CHAIN_ID
+      isSolanaToken(payToken, chainId)
         ? selectedSolanaWallet?.address || ''
         : ethWallet || '',
     );
     if (!receiveToken) {
       setToWalletAddress('');
-    } else if (effectiveReceiveChainId === SOLANA_CHAIN_ID) {
+    } else if (isSolanaToken(receiveToken, receiverChainId)) {
       setToWalletAddress(selectedSolanaWallet?.address || '');
     } else {
       setToWalletAddress(ethWallet || '');
     }
   }, [
     ethWallet,
-    effectivePayChainId,
-    effectiveReceiveChainId,
+    chainId,
     payToken,
     receiveToken,
+    receiverChainId,
     selectedSolanaWallet?.address,
   ]);
 
@@ -2860,11 +2826,8 @@ export default function SwapTokenModal({
   // ── Save swap + socket notification ──────────────────────────────────────────
   const saveSwapToDatabase = async (signature: string, q: any) => {
     try {
-      const inputChainId = getTokenChainId(payToken, chainId);
-      const outputChainId = getTokenChainId(
-        receiveToken,
-        receiverChainId,
-      );
+      const inputChainId = getTokenChainId(payToken);
+      const outputChainId = getTokenChainId(receiveToken);
       const network = getNetworkByChainId(inputChainId) || 'solana';
 
       console.log('payToken', payToken);
@@ -2958,6 +2921,8 @@ export default function SwapTokenModal({
       if (!feedResponse.ok) {
         const errorText = await feedResponse.text().catch(() => '');
         console.error('Failed to save swap feed post:', errorText);
+      } else {
+        useModalStore.getState().triggerFeedRefetch();
       }
 
       if (accessToken && PLATFORM_FEE_BPS > 0) {
@@ -3407,8 +3372,9 @@ export default function SwapTokenModal({
   };
 
   // ── Solana LiFi swap ──────────────────────────────────────────────────────────
-  const executeSolanaSwap = async () => {
+  const executeSolanaSwap = async (quoteOverride?: any) => {
     try {
+      const activeQuote = quoteOverride || quote;
       if (!solanaReady) {
         setSwapError('Solana wallet is not ready.');
         setIsSwapping(false);
@@ -3420,7 +3386,13 @@ export default function SwapTokenModal({
         return;
       }
 
-      const { transactionRequest } = quote;
+      if (!activeQuote) {
+        setSwapError('No Li.Fi quote available');
+        setIsSwapping(false);
+        return;
+      }
+
+      const { transactionRequest } = activeQuote;
       const rawTx =
         transactionRequest?.transaction || transactionRequest?.data;
       if (!rawTx)
@@ -3470,7 +3442,7 @@ export default function SwapTokenModal({
         } catch {
           setSwapStatus('Transaction submitted successfully');
         }
-        await saveSwapToDatabase(signature, quote);
+        await saveSwapToDatabase(signature, activeQuote);
       })();
     } catch (error: any) {
       console.error('[Jupiter execute] error:', error);
@@ -3485,17 +3457,18 @@ export default function SwapTokenModal({
   };
 
   // ── EVM LiFi swap ─────────────────────────────────────────────────────────────
-  const executeLiFiSwap = async () => {
+  const executeLiFiSwap = async (quoteOverride?: any) => {
     try {
-      if (!quote) {
+      const activeQuote = quoteOverride || quote;
+      if (!activeQuote) {
         setSwapError('No Li.Fi quote available');
         setIsSwapping(false);
         return;
       }
 
-      const fromChainId = parseInt(effectivePayChainId || chainId);
-      if (fromChainId === Number(SOLANA_CHAIN_ID)) {
-        await executeSolanaSwap();
+      const fromChainId = parseInt(chainId);
+      if (fromChainId === 1151111081099710) {
+        await executeSolanaSwap(activeQuote);
       } else {
         const allAccounts = PrivyUser?.linkedAccounts || [];
         const ethereumAccount = allAccounts.find(
@@ -3519,14 +3492,6 @@ export default function SwapTokenModal({
           setIsSwapping(false);
           return;
         }
-
-        const usesEmbeddedPrivyWallet = isPrivyEmbeddedWalletType(
-          wallet.walletClientType,
-        );
-        if (usesEmbeddedPrivyWallet) {
-          await requireFreshPrivySession();
-        }
-
         const provider = await wallet.getEthereumProvider();
         if (!provider) {
           setSwapError('Failed to get wallet provider');
@@ -3553,12 +3518,12 @@ export default function SwapTokenModal({
         // --- New: ensure ERC20 allowance for LiFi contract before sending main tx ---
         const isNative = isNativeEvmToken(payToken);
         const spender =
-          (quote as any)?.estimate?.approvalAddress ||
-          (quote as any)?.approvalAddress;
+          (activeQuote as any)?.estimate?.approvalAddress ||
+          (activeQuote as any)?.approvalAddress;
         const tokenAddr = payToken?.address;
         const amountRaw =
-          (quote as any)?.estimate?.fromAmount ||
-          (quote as any)?.fromAmount;
+          (activeQuote as any)?.estimate?.fromAmount ||
+          (activeQuote as any)?.fromAmount;
 
         if (!isNative && spender && tokenAddr && amountRaw) {
           try {
@@ -3588,7 +3553,7 @@ export default function SwapTokenModal({
         // LiFi can return an inflated gas limit that exceeds the chain's block
         // gas cap (Polygon cap: ~30M). Clamp it to a safe ceiling.
         const EVM_MAX_GAS = 20_000_000;
-        const rawTxReq = { ...quote.transactionRequest };
+        const rawTxReq = { ...activeQuote.transactionRequest };
         const gasField = rawTxReq.gasLimit ?? rawTxReq.gas;
         if (gasField !== undefined) {
           const gasNum =
@@ -3606,9 +3571,7 @@ export default function SwapTokenModal({
           }
         }
         let txHashResult: string;
-        if (usesEmbeddedPrivyWallet) {
-          await requireFreshPrivySession();
-
+        if (isPrivyEmbeddedWalletType(wallet.walletClientType)) {
           const privyTxRequest: any = {
             to: rawTxReq.to as `0x${string}`,
             data: rawTxReq.data as `0x${string}`,
@@ -3684,7 +3647,7 @@ export default function SwapTokenModal({
           } catch {
             setSwapStatus('Transaction submitted successfully');
           }
-          await saveSwapToDatabase(txHashResult, quote);
+          await saveSwapToDatabase(txHashResult, activeQuote);
         })();
       }
     } catch (error: any) {
@@ -3696,9 +3659,9 @@ export default function SwapTokenModal({
       setSwapError(friendlyError);
       if (socket?.connected) {
         try {
-          const fromChainId = parseInt(effectivePayChainId || chainId);
+          const fromChainId = parseInt(chainId);
           const networkName =
-            fromChainId === Number(SOLANA_CHAIN_ID)
+            fromChainId === 1151111081099710
               ? 'SOLANA'
               : fromChainId === 1
                 ? 'ETHEREUM'
@@ -3739,8 +3702,38 @@ export default function SwapTokenModal({
         setSwapStatus('Checking copy trade reward...');
         await fetchCopyTradeRewardPreview();
       }
-      if (isSolanaToSolanaSwap()) await executeJupiterSwap();
-      else await executeLiFiSwap();
+      if (isSolanaToSolanaSwap()) {
+        await executeJupiterSwap();
+      } else {
+        setSwapStatus('Refreshing quote...');
+        if (quoteRefreshInterval.current) {
+          clearInterval(quoteRefreshInterval.current);
+        }
+        const submitQuoteRequestId = quoteRequestIdRef.current + 1;
+        quoteRequestIdRef.current = submitQuoteRequestId;
+        setIsQuoteLoading(true);
+        const freshQuote = await getLifiQuote();
+        if (quoteRequestIdRef.current !== submitQuoteRequestId) {
+          throw new Error(
+            'Swap parameters changed while refreshing the quote. Please try again.',
+          );
+        }
+        setQuote(freshQuote);
+        setJupiterQuote(null);
+        setLastQuoteTime(Date.now());
+        setIsQuoteLoading(false);
+        setIsCalculating(false);
+
+        const freshToAmount =
+          freshQuote?.estimate?.toAmount ?? freshQuote?.toAmount;
+        if (freshToAmount && receiveToken?.decimals) {
+          const readable =
+            Number(freshToAmount) / Math.pow(10, receiveToken.decimals);
+          setReceiveAmount(readable.toFixed(8).replace(/\.?0+$/, ''));
+        }
+
+        await executeLiFiSwap(freshQuote);
+      }
     } catch (error: any) {
       setSwapError(
         formatUserFriendlyError(
@@ -3748,33 +3741,39 @@ export default function SwapTokenModal({
         ),
       );
       setSwapStatus(null);
+      setIsQuoteLoading(false);
+      setIsCalculating(false);
       setIsSwapping(false);
     }
   };
 
   // ── Token selection ───────────────────────────────────────────────────────────
   const handleTokenSelect = (t: any, type: 'pay' | 'receive') => {
-    userEditedTokenSidesRef.current = true;
-    const fallbackChainId =
-      type === 'pay'
-        ? selectedPayChain !== 'all'
-          ? selectedPayChain
-          : chainId
-        : selectedReceiveChain !== 'all'
-          ? selectedReceiveChain
-          : receiverChainId;
-    const selectedToken = t;
-    const selectedChainId = getTokenChainId(
-      selectedToken,
-      fallbackChainId,
-    );
+    const tKey = getTokenIdentityKey(t);
+    const tokenChainId = getTokenChainId(t);
 
     if (type === 'pay') {
-      setPayToken(selectedToken);
-      if (selectedChainId) setChainId(selectedChainId);
+      const receiveKey = getTokenIdentityKey(receiveToken);
+      // If the chosen pay token is the same contract as the current receive
+      // token, auto-swap them so the user never ends up with
+      // inputMint === outputMint.
+      if (tKey && tKey === receiveKey) {
+        const prevPayChainId = getTokenChainId(payToken);
+        setReceiveToken(payToken ?? null);
+        setReceiverChainId(prevPayChainId);
+      }
+      setPayToken(t);
+      if (tokenChainId) setChainId(tokenChainId);
     } else {
-      setReceiveToken(selectedToken);
-      if (selectedChainId) setReceiverChainId(selectedChainId);
+      const payKey = getTokenIdentityKey(payToken);
+      // Same guard for receive selection.
+      if (tKey && tKey === payKey) {
+        const previousReceiveChainId = getTokenChainId(receiveToken);
+        setPayToken(receiveToken ?? null);
+        if (previousReceiveChainId) setChainId(previousReceiveChainId);
+      }
+      setReceiveToken(t);
+      if (tokenChainId) setReceiverChainId(tokenChainId);
     }
     setOpenDrawer(false);
     setSearchQuery('');
@@ -3790,16 +3789,12 @@ export default function SwapTokenModal({
   };
 
   const handleFlip = () => {
-    userEditedTokenSidesRef.current = true;
-
     const nextPayToken = receiveToken ?? null;
     const nextReceiveToken = payToken ?? null;
-    const nextPayChainId = effectiveReceiveChainId || receiverChainId;
-    const nextReceiveChainId = effectivePayChainId || chainId;
     setPayToken(nextPayToken);
     setReceiveToken(nextReceiveToken);
-    if (nextPayChainId) setChainId(nextPayChainId);
-    if (nextReceiveChainId) setReceiverChainId(nextReceiveChainId);
+    setChainId(getTokenChainId(nextPayToken, chainId));
+    setReceiverChainId(getTokenChainId(nextReceiveToken, ''));
     const a = payAmount;
     setPayAmount(receiveAmount);
     setReceiveAmount(a);
@@ -3815,35 +3810,24 @@ export default function SwapTokenModal({
     const isSOLInput =
       payToken.symbol === 'SOL' ||
       (payToken.address ?? '') === SOL_MINT;
-    const decimals = payToken.decimals ?? (isSOLInput ? 9 : 6);
+    const decimals = normalizeTokenDecimals(
+      payToken.decimals,
+      isSOLInput ? 9 : 6,
+    );
 
-    let amount: number;
+    // Always reserve worst-case fees + ATA rent so a SOL Max swap doesn't
+    // exhaust the SOL needed for the transaction itself.
+    const reserveRawUnits = isSOLInput ? 2_039_280n + 15_000n : 0n;
 
-    if (isSOLInput) {
-      // Always reserve worst-case fees + ATA rent so the swap doesn't
-      // exhaust the SOL needed for the transaction itself.
-      const ATA_RENT_SOL = 2_039_280 / 1e9; // ~0.00204 SOL
-      const TX_FEE_SOL = 15_000 / 1e9; // ~0.000015 SOL
-      const spendable = Math.max(
-        0,
-        parseFloat(payToken.balance) - ATA_RENT_SOL - TX_FEE_SOL,
-      );
-      amount = spendable * pct;
-    } else if (pct === 1) {
-      // For SPL tokens at 100%, run through the same truncation logic used
-      // when sending to Jupiter, then subtract 1 smallest unit.  This guards
-      // against display-rounding where the shown balance is 1 unit higher
-      // than the actual on-chain amount.
-      const smallestUnits = BigInt(
-        formatTokenAmount(payToken.balance.toString(), decimals),
-      );
-      const safeUnits = smallestUnits > 0n ? smallestUnits - 1n : 0n;
-      amount = Number(safeUnits) / Math.pow(10, decimals);
-    } else {
-      amount = parseFloat(payToken.balance) * pct;
-    }
-
-    setPayAmount(amount > 0 ? amount.toFixed(decimals) : '0');
+    setPayAmount(
+      getSafeSwapInputAmount({
+        balance: String(payToken.balance),
+        decimals,
+        percent: pct,
+        reserveRawUnits,
+        subtractOneRawUnit: !isSOLInput && pct === 1,
+      }),
+    );
     if (receiveToken) setIsQuoteLoading(true);
   };
 
@@ -3936,9 +3920,7 @@ export default function SwapTokenModal({
     swapStatus?.includes('confirmed') ||
     swapStatus?.includes('completed');
   const routeProviderLabel = isSolanaToSolanaSwap() ? 'Jupiter' : 'Li.Fi';
-  const swapExplorerUrl = txHash
-    ? getExplorerUrl(effectivePayChainId || chainId, txHash)
-    : '';
+  const swapExplorerUrl = txHash ? getExplorerUrl(chainId, txHash) : '';
   const resetSwapForm = () => {
     setShowSwapSuccess(false);
     setSwapStatus(null);
@@ -4119,13 +4101,13 @@ export default function SwapTokenModal({
                         {payToken?.symbol?.slice(0, 3) || '—'}
                       </div>
                     )}
-                    {effectivePayChainName && (
+                    {payToken?.chain && (
                       <div className="absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center w-3 h-3">
                         <Image
                           src={sanitizeNextImageSrc(
-                            getChainIcon(effectivePayChainName) || '',
+                            getChainIcon(payToken.chain) || '',
                           )}
-                          alt={effectivePayChainName}
+                          alt={payToken.chain}
                           width={12}
                           height={12}
                           className="w-3 h-3 rounded-full"
@@ -4136,11 +4118,6 @@ export default function SwapTokenModal({
                   <span className="text-[12.5px] font-semibold">
                     {payToken ? payToken.symbol : 'Select'}
                   </span>
-                  {payToken && effectivePayChainName && (
-                    <span className="font-mono text-[9px] font-semibold text-[#8a8a92]">
-                      {getCompactChainLabel(effectivePayChainName)}
-                    </span>
-                  )}
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-3 w-3 text-[#6e6e76]"
@@ -4261,8 +4238,10 @@ export default function SwapTokenModal({
                         className="w-6 h-6 rounded-full"
                       />
                       {(() => {
-                        const chainName = effectiveReceiveChainName;
-                        if (!chainName) return null;
+                        const chainName =
+                          getNetworkByChainId(
+                            receiverChainId,
+                          ).toUpperCase();
                         return (
                           <div className="absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center w-3 h-3">
                             <Image
@@ -4281,11 +4260,6 @@ export default function SwapTokenModal({
                     <span className="text-[12.5px] font-semibold">
                       {receiveToken.symbol}
                     </span>
-                    {effectiveReceiveChainName && (
-                      <span className="font-mono text-[9px] font-semibold text-[#8a8a92]">
-                        {getCompactChainLabel(effectiveReceiveChainName)}
-                      </span>
-                    )}
                   </>
                 ) : (
                   <span className="text-[12.5px] font-semibold">
@@ -4329,7 +4303,7 @@ export default function SwapTokenModal({
                 ? `${customSlippage}%`
                 : `${slippage}%`;
               const networkFeeLabel = estimatedGasFeeEth
-                ? `${estimatedGasFeeEth} ${getNativeTokenSymbol(effectivePayChainId || chainId)}`
+                ? `${estimatedGasFeeEth} ${getNativeTokenSymbol(chainId)}`
                 : '—';
               const priceImpactLabel =
                 info && typeof info.priceImpact === 'number'
@@ -4501,7 +4475,7 @@ export default function SwapTokenModal({
               {txHash && (
                 <div className="text-green-600 text-xs text-center mt-3 pt-2 border-t border-gray-200">
                   <a
-                    href={getExplorerUrl(effectivePayChainId || chainId, txHash)}
+                    href={getExplorerUrl(chainId, txHash)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline hover:text-green-700 transition-colors"
@@ -5031,7 +5005,7 @@ export default function SwapTokenModal({
               <div className="mt-4 rounded-xl border border-black/[0.06] bg-[#fafafa] px-4 py-3.5">
                 {[
                   ['Route', `${payToken?.symbol || '—'} → ${receiveToken?.symbol || '—'} · ${routeProviderLabel}`],
-                  ['Network', getNetworkByChainId(effectivePayChainId || chainId)],
+                  ['Network', getNetworkByChainId(chainId)],
                   ['Tx hash', `${txHash.slice(0, 8)}...${txHash.slice(-8)}`],
                 ].map(([label, value], index, rows) => (
                   <div

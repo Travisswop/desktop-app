@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 
 export async function createWalletAction(
   ens: string,
@@ -74,7 +75,7 @@ export async function createWalletBalance(payload: any) {
 export async function createLoginWalletBalance(payload: any) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/create-login-balance`,
+      buildSwopApiUrl('/api/v5/wallet/create-login-balance'),
       {
         method: 'POST',
         headers: {

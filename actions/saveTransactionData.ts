@@ -1,25 +1,33 @@
 import logger from "../utils/logger";
+import { useModalStore } from "@/zustandStore/modalstore";
 
 interface SwapDetails {
   signature: string;
-  solanaAddress: string;
+  solanaAddress?: string;
+  walletAddress?: string;
+  smartsiteId?: string;
+  userId?: string;
   inputToken: {
     symbol: string;
     amount: number;
     decimals: number;
-    mint: string;
-    chain?: string;
+    mint?: string;
+    address?: string;
+    chain?: string | number;
     price?: string | number; // Price in USD
     logo?: string;
+    tokenImg?: string;
   };
   outputToken: {
     symbol: string;
     amount: number;
     decimals: number;
-    mint: string;
-    chain?: string;
+    mint?: string;
+    address?: string;
+    chain?: string | number;
     price?: string | number; // Price in USD
     logo?: string;
+    tokenImg?: string;
   };
   slippageBps: number;
   platformFeeBps: number;
@@ -44,27 +52,42 @@ export async function saveSwapTransaction(
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
+          smartsiteId: swapDetails.smartsiteId,
+          userId: swapDetails.userId,
           postType: "swapTransaction",
           content: {
             signature: swapDetails.signature,
-            walletAddress: swapDetails.solanaAddress,
+            walletAddress:
+              swapDetails.walletAddress || swapDetails.solanaAddress || "",
             inputToken: {
               symbol: swapDetails.inputToken.symbol,
-              chain: swapDetails?.inputToken?.chain || "solana",
+              chain: String(swapDetails?.inputToken?.chain || "solana"),
               amount: swapDetails.inputToken.amount,
               decimals: swapDetails.inputToken.decimals,
-              mint: swapDetails.inputToken.mint,
+              mint:
+                swapDetails.inputToken.mint ||
+                swapDetails.inputToken.address ||
+                "",
               price: swapDetails.inputToken.price || "0", // Include price in USD
-              logo: swapDetails.inputToken.logo || "",
+              tokenImg:
+                swapDetails.inputToken.tokenImg ||
+                swapDetails.inputToken.logo ||
+                "",
             },
             outputToken: {
               symbol: swapDetails.outputToken.symbol,
-              chain: swapDetails?.outputToken?.chain || "solana",
+              chain: String(swapDetails?.outputToken?.chain || "solana"),
               amount: swapDetails.outputToken.amount,
               decimals: swapDetails.outputToken.decimals,
-              mint: swapDetails.outputToken.mint,
+              mint:
+                swapDetails.outputToken.mint ||
+                swapDetails.outputToken.address ||
+                "",
               price: swapDetails.outputToken.price || "0", // Include price in USD
-              logo: swapDetails.outputToken.logo || "",
+              tokenImg:
+                swapDetails.outputToken.tokenImg ||
+                swapDetails.outputToken.logo ||
+                "",
             },
           },
           // slippageBps: swapDetails.slippageBps,
@@ -86,6 +109,7 @@ export async function saveSwapTransaction(
 
     const data = await response.json();
     logger.log("Transaction saved to database:", data);
+    useModalStore.getState().triggerFeedRefetch();
     return data;
   } catch (error) {
     logger.error("Error saving swap transaction to database:", error);

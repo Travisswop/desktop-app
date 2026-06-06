@@ -177,7 +177,7 @@ export default function OrderDetailPage({ params }: Props) {
         replaceOrder(updated, updated.receipt);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : 'Failed to confirm receipt.';
+          err instanceof Error ? err.message : 'Failed to confirm order received.';
         setActionError(message);
         throw err;
       } finally {
@@ -386,6 +386,7 @@ function mergeReceiptState(
       fallback?.status ||
       'pending',
     mintAddress: String(data.mintAddress || fallback?.mintAddress || '') || null,
+    provider: String(data.provider || fallback?.provider || '') || null,
     txHash: String(data.txHash || fallback?.txHash || '') || null,
     metadataUri: String(data.metadataUri || fallback?.metadataUri || '') || null,
     error: String(data.error || fallback?.error || '') || null,

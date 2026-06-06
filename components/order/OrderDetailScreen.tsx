@@ -86,6 +86,7 @@ export interface OrderDetail {
     receiptId?: string | null;
     status?: string;
     mintAddress?: string | null;
+    provider?: string | null;
     txHash?: string | null;
     metadataUri?: string | null;
     error?: string | null;
@@ -181,6 +182,17 @@ const fileSize = (bytes?: number) => {
   if (!Number.isFinite(value) || value <= 0) return '0 KB';
   if (value < 1024 * 1024) return `${Math.ceil(value / 1024)} KB`;
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const isMockReceipt = (receipt?: OrderDetail['receipt']) => {
+  const provider = String(receipt?.provider || '').toLowerCase();
+  const mintAddress = String(receipt?.mintAddress || '').toLowerCase();
+  const txHash = String(receipt?.txHash || '').toLowerCase();
+  return (
+    provider.includes('mock') ||
+    mintAddress.startsWith('mock_') ||
+    txHash.startsWith('mock_')
+  );
 };
 
 const buttonStyle = (base: CSSProperties, disabled?: boolean): CSSProperties => ({
@@ -301,6 +313,10 @@ export default function OrderDetailScreen({
     isBuyerCtx && !paymentComplete && Boolean(onCompletePayment);
   const canDownloadDigitalAssets =
     isBuyerCtx && paymentComplete && order.receipt?.status === 'minted';
+  const hasMockReceipt = isMockReceipt(order.receipt);
+  const digitalDownloadReadyMessage = hasMockReceipt
+    ? 'Test receipt recorded. No wallet NFT was minted.'
+    : 'Receipt NFT verified for this order.';
   const digitalDownloadReason = !isBuyerCtx
     ? 'Only the buyer can download purchased files.'
     : !paymentComplete
@@ -610,7 +626,7 @@ export default function OrderDetailScreen({
                   }}
                   style={buttonStyle(ghostBtn, !canConfirmReceipt || actionLoading)}
                 >
-                  Confirm Receipt
+                  Confirm order received
                 </button>
               ) : null}
               <button
@@ -701,6 +717,7 @@ export default function OrderDetailScreen({
           <OrderOptions
             lines={digitalLines}
             canDownload={canDownloadDigitalAssets}
+            readyMessage={digitalDownloadReadyMessage}
             blockedReason={digitalDownloadReason}
             downloadingProductId={downloadingProductId}
             onDownload={downloadDigitalLine}
@@ -888,13 +905,23 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
   const receipt = order.receipt;
   const settlement = order.settlement;
   const fulfillment = order.fulfillment;
+  const hasMockReceipt = isMockReceipt(receipt);
+  const providerLabel = hasMockReceipt
+    ? 'Mock test receipt'
+    : humanize(receipt?.provider);
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
       <Card pad={20}>
         <div style={stateTitleStyle}>Receipt NFT</div>
+        {hasMockReceipt ? (
+          <div style={mockReceiptNoticeStyle}>
+            Test receipt only. No wallet NFT was minted.
+          </div>
+        ) : null}
         <div style={stateGridStyle}>
           <StateRow label="Status" value={humanize(receipt?.status)} />
+          <StateRow label="Provider" value={providerLabel} />
           <StateRow label="Mint" value={shortHash(receipt?.mintAddress)} mono />
           <StateRow label="Tx" value={shortHash(receipt?.txHash)} mono />
           <StateRow label="Metadata" value={shortHash(receipt?.metadataUri)} mono />
@@ -920,7 +947,7 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
           <StateRow label="Tracking" value={shortHash(fulfillment?.trackingNumber)} mono />
           <StateRow label="Carrier" value={fulfillment?.carrier || '—'} />
           <StateRow
-            label="Receipt confirmed"
+            label="Order received"
             value={formatTime(fulfillment?.receiptConfirmedAt || '') || '—'}
           />
         </div>
@@ -993,6 +1020,17 @@ const inlineLabelStyle: CSSProperties = {
 const stateTitleStyle: CSSProperties = {
   fontSize: 12,
   color: muted,
+  fontWeight: 600,
+  marginBottom: 14,
+};
+
+const mockReceiptNoticeStyle: CSSProperties = {
+  border: '1px solid rgba(185,28,28,0.18)',
+  background: 'rgba(185,28,28,0.06)',
+  color: '#b91c1c',
+  borderRadius: 8,
+  padding: '9px 10px',
+  fontSize: 12,
   fontWeight: 600,
   marginBottom: 14,
 };
@@ -1295,12 +1333,14 @@ function CounterpartyDetails({
 function OrderOptions({
   lines,
   canDownload,
+  readyMessage,
   blockedReason,
   downloadingProductId,
   onDownload,
 }: {
   lines: OrderLine[];
   canDownload: boolean;
+  readyMessage: string;
   blockedReason: string;
   downloadingProductId: string | null;
   onDownload: (line: OrderLine) => Promise<void>;
@@ -1346,7 +1386,7 @@ function OrderOptions({
           </div>
           <div style={{ fontSize: 12, color: muted, marginTop: 2 }}>
             {canDownload
-              ? 'Receipt NFT verified for this order.'
+              ? readyMessage
               : blockedReason || 'Receipt NFT verification required.'}
           </div>
         </div>

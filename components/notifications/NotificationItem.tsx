@@ -15,6 +15,7 @@ import {
   Package,
   AlertTriangle,
   Bell,
+  TrendingUp,
   Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -44,6 +45,7 @@ const getNotificationIcon = (type: NotificationType) => {
     like_received: <Heart className="h-5 w-5 text-pink-500" />,
     comment_received: <MessageCircle className="h-5 w-5 text-blue-500" />,
     follower_received: <UserPlus className="h-5 w-5 text-green-500" />,
+    trade_alert: <TrendingUp className="h-5 w-5 text-emerald-500" />,
     // Messaging
     message_received: <MessageCircle className="h-5 w-5 text-blue-500" />,
     group_message_received: (

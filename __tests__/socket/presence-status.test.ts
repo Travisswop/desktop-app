@@ -1,6 +1,9 @@
 import { io, Socket } from 'socket.io-client';
 
-describe('Socket Presence & Status Events', () => {
+const describeSocket =
+  process.env.RUN_SOCKET_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
+
+describeSocket('Socket Presence & Status Events', () => {
   let mainSocket: Socket;
   let observerSocket1: Socket;
   let observerSocket2: Socket;
@@ -520,8 +523,6 @@ describe('Socket Presence & Status Events', () => {
     });
 
     test('should handle rapid status changes', (done) => {
-      let statusChanges = 0;
-
       observerSocket1.on('user_status_throttled', (data) => {
         expect(data.userId).toBe(mainUser.id);
         expect(data.throttled).toBe(true);
@@ -538,12 +539,9 @@ describe('Socket Presence & Status Events', () => {
     });
 
     test('should maintain presence state during reconnection', (done) => {
-      let reconnectionComplete = false;
-
       mainSocket.on('presence_restored', (data) => {
         expect(data.userId).toBe(mainUser.id);
         expect(data.status).toBeDefined();
-        reconnectionComplete = true;
         done();
       });
 

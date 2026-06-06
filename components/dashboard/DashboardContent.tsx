@@ -44,7 +44,7 @@ export default function DashboardContent() {
   } = usePrivy();
   const router = useRouter();
 
-  const walletData = useWalletData(authenticated, ready, privyUser, user);
+  const walletData = useWalletData(authenticated, ready, privyUser);
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
 

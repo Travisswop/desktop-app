@@ -8,6 +8,8 @@ import {
   Bot,
   Globe2,
   LockKeyhole,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Search,
   Users,
@@ -25,6 +27,8 @@ interface SidebarProps {
   ) => void;
   currentUser: string;
   socket: any;
+  isCollapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 type ThreadSelectionType = 'private' | 'group';
@@ -37,6 +41,8 @@ export default function Sidebar({
   onSelectChat,
   currentUser,
   socket,
+  isCollapsed = false,
+  onToggleCollapsed,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -102,123 +108,200 @@ export default function Sidebar({
     setShowSearchResults(false);
   };
 
+  const handleToggleCollapsed = () => {
+    if (!isCollapsed) {
+      setSearchQuery('');
+      setShowSearchResults(false);
+      setSearchResults([]);
+    }
+    onToggleCollapsed?.();
+  };
+
   const isSelected = (item: any, type: ThreadSelectionType) => {
     if (!selectedChat) return false;
     return chatType === type && selectedChat._id === item._id;
   };
 
   return (
-    <aside className="flex w-[320px] flex-shrink-0 flex-col border-r border-white/[0.07] bg-[#0e1014]">
-      <div className="flex-shrink-0 px-[18px] pb-3 pt-[18px]">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-[22px] font-semibold leading-tight tracking-[-0.03em] text-[#eceef2]">
-              Messages
-            </h2>
-            <div className="dm-mono mt-0.5 text-[10.5px] font-semibold text-[#5a5e69]">
-              {allItems.length} threads · {unreadTotal} unread
-            </div>
-          </div>
-          <button
-            type="button"
-            title="Create chat"
-            onClick={() => setShowGroupModal(true)}
-            className="dm-btn grid h-[38px] w-[38px] place-items-center rounded-[11px] border border-white/[0.07] bg-[#15171d] text-[#eceef2]"
-          >
-            <Plus className="h-[17px] w-[17px]" />
-          </button>
-        </div>
-
-        <div className="relative mt-3.5">
-          <div className="flex items-center gap-2.5 rounded-[10px] border border-white/[0.07] bg-[#15171d] px-3 py-[9px]">
-            <Search className="h-3.5 w-3.5 flex-shrink-0 text-[#5a5e69]" />
-            <input
-              id="chat-thread-search"
-              name="chatThreadSearch"
-              type="text"
-              value={searchQuery}
-              onChange={(event) => handleSearch(event.target.value)}
-              placeholder="Search threads, swop.id, txs..."
-              className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
-            />
-            {searchQuery ? (
-              <button
-                type="button"
-                title="Clear search"
-                onClick={() => {
-                  setSearchQuery('');
-                  setShowSearchResults(false);
-                  setSearchResults([]);
-                }}
-                className="dm-btn grid h-6 w-6 place-items-center rounded-md text-[#5a5e69]"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            ) : (
-              <span className="dm-mono rounded-[5px] border border-white/[0.07] px-1.5 py-0.5 text-[9.5px] font-semibold text-[#5a5e69]">
-                /K
+    <aside
+      className={`flex ${
+        isCollapsed ? 'w-[76px]' : 'w-[320px]'
+      } flex-shrink-0 flex-col border-r border-white/[0.07] bg-[#0e1014] transition-[width] duration-200 ease-out`}
+    >
+      {isCollapsed ? (
+        <>
+          <div className="flex flex-shrink-0 flex-col items-center gap-2 px-2 pb-3 pt-[18px]">
+            <button
+              type="button"
+              title="Expand messages"
+              aria-label="Expand messages"
+              aria-pressed={isCollapsed}
+              onClick={handleToggleCollapsed}
+              className="dm-btn grid h-[42px] w-[42px] place-items-center rounded-[12px] border border-[#3fe08f]/20 bg-[#15171d] text-[#3fe08f]"
+            >
+              <PanelLeftOpen className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              type="button"
+              title="Create chat"
+              onClick={() => setShowGroupModal(true)}
+              className="dm-btn grid h-[42px] w-[42px] place-items-center rounded-[12px] border border-white/[0.07] bg-[#15171d] text-[#eceef2]"
+            >
+              <Plus className="h-[17px] w-[17px]" />
+            </button>
+            {unreadTotal > 0 && (
+              <span className="dm-mono rounded-full border border-white/[0.07] bg-[#1b1e25] px-2 py-1 text-[9.5px] font-bold text-[#eceef2]">
+                {unreadTotal > 99 ? '99+' : unreadTotal}
               </span>
             )}
           </div>
 
-          {showSearchResults && (
-            <div className="dm-scroll absolute left-0 right-0 top-[calc(100%+8px)] z-20 max-h-64 overflow-y-auto rounded-[12px] border border-white/[0.07] bg-[#15171d] p-1.5 shadow-[0_22px_60px_rgba(0,0,0,0.45)]">
-              {searchResults.map((user, index) => (
-                <button
-                  key={user._id || index}
-                  type="button"
-                  onClick={() => handleSearchResultClick(user)}
-                  className="dm-row flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2.5 text-left"
-                >
-                  <AvatarImage
-                    avatar={user.avatar || user?.microsite?.profilePic}
-                    name={user.displayName || user.name || 'Unknown User'}
-                    sizeClass="h-9 w-9"
+          <div className="dm-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+            <div className="space-y-2">
+              {allItems.map((item) => {
+                const type =
+                  item.type === 'direct'
+                    ? 'private'
+                    : (item.type as ThreadSelectionType);
+                return (
+                  <CollapsedConversationItem
+                    key={item._id}
+                    item={item}
+                    isSelected={isSelected(item, type)}
+                    onClick={() => onSelectChat(item, type)}
+                    currentUser={currentUser}
                   />
-                  <div className="min-w-0">
-                    <div className="truncate text-[13px] font-semibold text-[#eceef2]">
-                      {user.displayName || user.name || 'Unknown User'}
-                    </div>
-                    <div className="dm-mono truncate text-[10.5px] text-[#5a5e69]">
-                      {user.ens || user.microsite?.ens || 'swop contact'}
-                    </div>
-                  </div>
-                </button>
-              ))}
+                );
+              })}
             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="dm-scroll min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-        {allItems.length === 0 ? (
-          <div className="dm-mono rounded-[12px] border border-white/[0.07] bg-[#15171d] p-4 text-center text-[11px] text-[#5a5e69]">
-            no threads yet
           </div>
-        ) : (
-          allItems
-            .filter((item: any) => filterThread(item, searchQuery))
-            .map((item) => {
-              const type =
-                item.type === 'direct'
-                  ? 'private'
-                  : (item.type as ThreadSelectionType);
-              return (
-                <ConversationItem
-                  key={item._id}
-                  item={item}
-                  isSelected={isSelected(item, type)}
-                  onClick={() => onSelectChat(item, type)}
-                  currentUser={currentUser}
-                />
-              );
-            })
-        )}
+        </>
+      ) : (
+        <>
+          <div className="flex-shrink-0 px-[18px] pb-3 pt-[18px]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-[22px] font-semibold leading-tight tracking-[-0.03em] text-[#eceef2]">
+                  Messages
+                </h2>
+                <div className="dm-mono mt-0.5 text-[10.5px] font-semibold text-[#5a5e69]">
+                  {allItems.length} threads · {unreadTotal} unread
+                </div>
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  title="Shrink messages"
+                  aria-label="Shrink messages"
+                  aria-pressed={isCollapsed}
+                  onClick={handleToggleCollapsed}
+                  className="dm-btn grid h-[38px] w-[38px] place-items-center rounded-[11px] border border-white/[0.07] bg-[#15171d] text-[#9396a0]"
+                >
+                  <PanelLeftClose className="h-[17px] w-[17px]" />
+                </button>
+                <button
+                  type="button"
+                  title="Create chat"
+                  onClick={() => setShowGroupModal(true)}
+                  className="dm-btn grid h-[38px] w-[38px] place-items-center rounded-[11px] border border-white/[0.07] bg-[#15171d] text-[#eceef2]"
+                >
+                  <Plus className="h-[17px] w-[17px]" />
+                </button>
+              </div>
+            </div>
 
-        <div className="dm-mono px-2 pb-1 pt-3 text-center text-[9.5px] font-semibold tracking-[0.04em] text-[#5a5e69]">
-          end-to-end encrypted · swop://msg/v1
-        </div>
-      </div>
+            <div className="relative mt-3.5">
+              <div className="flex items-center gap-2.5 rounded-[10px] border border-white/[0.07] bg-[#15171d] px-3 py-[9px]">
+                <Search className="h-3.5 w-3.5 flex-shrink-0 text-[#5a5e69]" />
+                <input
+                  id="chat-thread-search"
+                  name="chatThreadSearch"
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => handleSearch(event.target.value)}
+                  placeholder="Search threads, swop.id, txs..."
+                  className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    title="Clear search"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setShowSearchResults(false);
+                      setSearchResults([]);
+                    }}
+                    className="dm-btn grid h-6 w-6 place-items-center rounded-md text-[#5a5e69]"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <span className="dm-mono rounded-[5px] border border-white/[0.07] px-1.5 py-0.5 text-[9.5px] font-semibold text-[#5a5e69]">
+                    /K
+                  </span>
+                )}
+              </div>
+
+              {showSearchResults && (
+                <div className="dm-scroll absolute left-0 right-0 top-[calc(100%+8px)] z-20 max-h-64 overflow-y-auto rounded-[12px] border border-white/[0.07] bg-[#15171d] p-1.5 shadow-[0_22px_60px_rgba(0,0,0,0.45)]">
+                  {searchResults.map((user, index) => (
+                    <button
+                      key={user._id || index}
+                      type="button"
+                      onClick={() => handleSearchResultClick(user)}
+                      className="dm-row flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2.5 text-left"
+                    >
+                      <AvatarImage
+                        avatar={user.avatar || user?.microsite?.profilePic}
+                        name={user.displayName || user.name || 'Unknown User'}
+                        sizeClass="h-9 w-9"
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate text-[13px] font-semibold text-[#eceef2]">
+                          {user.displayName || user.name || 'Unknown User'}
+                        </div>
+                        <div className="dm-mono truncate text-[10.5px] text-[#5a5e69]">
+                          {user.ens || user.microsite?.ens || 'swop contact'}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="dm-scroll min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+            {allItems.length === 0 ? (
+              <div className="dm-mono rounded-[12px] border border-white/[0.07] bg-[#15171d] p-4 text-center text-[11px] text-[#5a5e69]">
+                no threads yet
+              </div>
+            ) : (
+              allItems
+                .filter((item: any) => filterThread(item, searchQuery))
+                .map((item) => {
+                  const type =
+                    item.type === 'direct'
+                      ? 'private'
+                      : (item.type as ThreadSelectionType);
+                  return (
+                    <ConversationItem
+                      key={item._id}
+                      item={item}
+                      isSelected={isSelected(item, type)}
+                      onClick={() => onSelectChat(item, type)}
+                      currentUser={currentUser}
+                    />
+                  );
+                })
+            )}
+
+            <div className="dm-mono px-2 pb-1 pt-3 text-center text-[9.5px] font-semibold tracking-[0.04em] text-[#5a5e69]">
+              end-to-end encrypted · swop://msg/v1
+            </div>
+          </div>
+        </>
+      )}
 
       {showGroupModal && (
         <GroupModal
@@ -416,6 +499,66 @@ function ConversationItem({
           )}
         </div>
       </div>
+    </button>
+  );
+}
+
+function CollapsedConversationItem({
+  item,
+  isSelected,
+  onClick,
+  currentUser,
+}: {
+  item: any;
+  isSelected: boolean;
+  onClick: () => void;
+  currentUser: string;
+}) {
+  const isGroup = item.type === 'group';
+  const info = getDisplayInfo(item, currentUser);
+  const unreadLabel = info.unreadCount > 99 ? '99+' : info.unreadCount;
+
+  return (
+    <button
+      type="button"
+      title={info.name}
+      aria-label={`Open ${info.name}`}
+      onClick={onClick}
+      className={`dm-row relative grid h-[52px] w-full place-items-center rounded-[12px] ${
+        isSelected
+          ? 'bg-[#1b1e25] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]'
+          : 'bg-transparent'
+      }`}
+    >
+      {isSelected && (
+        <span className="absolute left-0 top-1/2 h-[24px] w-[3px] -translate-y-1/2 rounded-[3px] bg-[#3fe08f]" />
+      )}
+
+      <span className="relative">
+        {isGroup ? (
+          <GroupAvatar item={item} active={isSelected} />
+        ) : (
+          <AvatarImage avatar={info.avatar} name={info.name} sizeClass="h-10 w-10" />
+        )}
+
+        {isGroup && info.hasBot && (
+          <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full border-2 border-[#0e1014] bg-[#3fe08f] text-[#0b0b0c]">
+            <Bot className="h-2.5 w-2.5" />
+          </span>
+        )}
+        {!isGroup && (
+          <span
+            className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#0e1014] ${
+              info.isOnline ? 'bg-[#3ddc97]' : 'bg-[#5a5e69]'
+            }`}
+          />
+        )}
+        {info.unreadCount > 0 && (
+          <span className="dm-mono absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-[#0e1014] bg-[#eceef2] px-1 text-[9px] font-bold text-[#0e1014]">
+            {unreadLabel}
+          </span>
+        )}
+      </span>
     </button>
   );
 }

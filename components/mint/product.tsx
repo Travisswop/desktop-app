@@ -1413,7 +1413,7 @@ const CreateProduct = () => {
                         </div>
                       </div>
                       <div style={{ fontSize: 11, color: muted, marginTop: 6 }}>
-                        Shipped physical items use escrow until the buyer confirms receipt.
+                        Shipped physical items use escrow until the buyer confirms the order was received.
                       </div>
                     </Field>
                   )}

@@ -12,6 +12,7 @@ export type NotificationType =
   | 'like_received'
   | 'comment_received'
   | 'follower_received'
+  | 'trade_alert'
   // Messaging
   | 'message_received'
   | 'group_message_received'
@@ -83,6 +84,7 @@ export interface NotificationPreferences {
     likes: NotificationPreferenceChannel;
     comments: NotificationPreferenceChannel;
     followers: NotificationPreferenceChannel;
+    tradeAlerts: NotificationPreferenceChannel;
   };
   commerce: {
     productSold: NotificationPreferenceChannel & { email: boolean };
@@ -189,6 +191,7 @@ export type NotificationIconType =
   | 'like'
   | 'comment'
   | 'follower'
+  | 'trade'
   | 'lead'
   | 'message'
   | 'order'

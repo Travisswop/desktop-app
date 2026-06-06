@@ -4,7 +4,10 @@ import { useState, useCallback } from 'react';
 import { usePrivy, useSendTransaction, useWallets } from '@privy-io/react-auth';
 import { encodeFunctionData, parseUnits, erc20Abi } from 'viem';
 import { HL_DEPOSIT_CONFIG } from '@/services/hyperliquid/config';
-import { selectPreferredWallet } from '@/components/wallet/hooks/useWalletData';
+import {
+  selectPreferredWallet,
+  tradingWalletSelectionOptions,
+} from '@/components/wallet/hooks/useWalletData';
 
 const { chainId, bridgeAddress, usdcAddress } = HL_DEPOSIT_CONFIG;
 
@@ -94,10 +97,13 @@ export function useHyperliquidDeposit() {
         return;
       }
 
-      // Use the selected EVM wallet. Privy will prompt external wallets when
-      // needed and can still sponsor embedded-wallet deposits.
+      // Use the same EVM wallet as the perps account selector.
       // Privy's sendTransaction handles chain switching automatically via the chainId param.
-      const evmWallet = selectPreferredWallet(wallets, user?.wallet?.address);
+      const evmWallet = selectPreferredWallet(
+        wallets,
+        user?.wallet?.address,
+        tradingWalletSelectionOptions(),
+      );
 
       if (!evmWallet) {
         setState((prev) => ({

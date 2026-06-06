@@ -77,7 +77,7 @@ export type CheckoutIntent = {
   paymentRequest?: {
     rail?: 'solana_pay';
     recipient?: string;
-    recipientRole?: 'escrow' | 'merchant';
+    recipientRole?: 'settlement' | 'merchant' | 'escrow';
     merchantWallet?: string;
     amount?: number;
     currency?: string;

@@ -13,13 +13,6 @@ type AddressLike = {
   connectorType?: string | null;
 };
 
-type BackendWalletFallback = {
-  ethereumWallet?: string | null;
-  ethAddress?: string | null;
-  solanaWallet?: string | null;
-  solanaAddress?: string | null;
-};
-
 type WalletSelectionOptions = {
   preferEmbedded?: boolean;
   embeddedOnly?: boolean;
@@ -27,18 +20,6 @@ type WalletSelectionOptions = {
 
 const normalizeAddress = (address?: string | null) =>
   address?.toLowerCase() ?? '';
-
-const hasWalletAddress = (
-  wallets: AddressLike[] | undefined | null,
-  address?: string | null,
-) => {
-  const normalizedAddress = normalizeAddress(address);
-  if (!normalizedAddress) return false;
-
-  return (wallets ?? []).some(
-    (wallet) => normalizeAddress(wallet.address) === normalizedAddress,
-  );
-};
 
 const isEmbeddedAddressLike = (wallet: AddressLike) =>
   wallet.walletClientType === 'privy' ||
@@ -144,19 +125,18 @@ export const useWalletAddresses = (
 export const useWalletData = (
   authenticated: boolean,
   ready: boolean,
-  PrivyUser: any,
-  fallbackUser?: BackendWalletFallback | null
+  PrivyUser: any
 ) => {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
   );
 
   useEffect(() => {
-    if (!authenticated || !ready || (!PrivyUser && !fallbackUser)) return;
+    if (!authenticated || !ready || !PrivyUser) return;
 
-    const linkedAccounts = (PrivyUser?.linkedAccounts ||
+    const linkedAccounts = (PrivyUser.linkedAccounts ||
       []) as PrivyLinkedAccount[];
-    const primaryEvmAddress = PrivyUser?.wallet?.address;
+    const primaryEvmAddress = PrivyUser.wallet?.address;
 
     const walletSelectionOptions = tradingWalletSelectionOptions();
 
@@ -171,84 +151,29 @@ export const useWalletData = (
       primaryEvmAddress,
       walletSelectionOptions,
     );
-    const solanaWallets = solanaWallet ? [solanaWallet] : [];
-    const hasLinkedSolanaWallet = Boolean(solanaWallet);
-    const hasLinkedEvmWallet = evmWallets.length > 0;
 
     const wallets: WalletItem[] = [];
-    const addWallet = (address: string | null | undefined, isEVM: boolean) => {
-      const normalizedAddress = normalizeAddress(address);
-      if (!normalizedAddress) return;
-      if (
-        wallets.some(
-          (wallet) =>
-            wallet.isEVM === isEVM &&
-            normalizeAddress(wallet.address) === normalizedAddress,
-        )
-      ) {
-        return;
-      }
-
-      wallets.push({
-        address: address as string,
-        isActive: true,
-        isEVM,
-      });
-    };
-
-    const fallbackEvmWallet =
-      fallbackUser?.ethereumWallet || fallbackUser?.ethAddress;
-    const fallbackSolanaWallet =
-      fallbackUser?.solanaWallet || fallbackUser?.solanaAddress;
-
-    if (
-      !hasLinkedEvmWallet ||
-      hasWalletAddress(evmWallets, fallbackEvmWallet)
-    ) {
-      addWallet(fallbackEvmWallet, true);
-    }
-
-    if (
-      !hasLinkedSolanaWallet ||
-      hasWalletAddress(solanaWallets, fallbackSolanaWallet)
-    ) {
-      addWallet(fallbackSolanaWallet, false);
-    }
 
     if (solanaWallet && isWalletAccount(solanaWallet)) {
-      addWallet(solanaWallet.address, false);
+      wallets.push({
+        address: solanaWallet.address,
+        isActive: true,
+        isEVM: false,
+      });
     }
 
     evmWallets.forEach((evmWallet) => {
       if (!isWalletAccount(evmWallet)) return;
 
-      addWallet(evmWallet.address, true);
+      wallets.push({
+        address: evmWallet.address,
+        isActive: true,
+        isEVM: true,
+      });
     });
 
-    if (
-      hasLinkedEvmWallet &&
-      !hasWalletAddress(evmWallets, fallbackEvmWallet)
-    ) {
-      addWallet(fallbackEvmWallet, true);
-    }
-
-    if (
-      hasLinkedSolanaWallet &&
-      !hasWalletAddress(solanaWallets, fallbackSolanaWallet)
-    ) {
-      addWallet(fallbackSolanaWallet, false);
-    }
-
     setWalletData(wallets);
-  }, [
-    PrivyUser,
-    authenticated,
-    fallbackUser?.ethAddress,
-    fallbackUser?.ethereumWallet,
-    fallbackUser?.solanaAddress,
-    fallbackUser?.solanaWallet,
-    ready,
-  ]);
+  }, [PrivyUser, authenticated, ready]);
 
   return walletData;
 };

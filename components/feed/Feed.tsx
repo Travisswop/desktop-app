@@ -106,6 +106,17 @@ export default function Feed({
     fetchFeedData(true);
   }, [feedRefetchTrigger, fetchFeedData]);
 
+  const handlePostInteraction = useCallback(
+    (postId: string, updates: Record<string, unknown>) => {
+      setFeedData((prev: any[]) =>
+        prev.map((item) =>
+          item?._id === postId ? { ...item, ...updates } : item,
+        ),
+      );
+    },
+    [],
+  );
+
   if (initialLoading) {
     return (
       <div className="w-full sm:w-[520px]">
@@ -138,7 +149,7 @@ export default function Feed({
                 setHasMore(true);
                 fetchFeedData(true);
               }}
-              onPostInteraction={() => {}}
+              onPostInteraction={handlePostInteraction}
             />
           ))}
         </InfiniteScroll>

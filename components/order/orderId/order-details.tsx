@@ -383,10 +383,10 @@ export default function OrderPage() {
         backdrop="blur"
       >
         <ModalContent>
-          <ModalHeader>Confirm Order Receipt</ModalHeader>
+          <ModalHeader>Confirm Order Received</ModalHeader>
           <ModalBody>
             <p>
-              By confirming receipt, you acknowledge that you have received the
+              By confirming, you acknowledge that you received the
               order in satisfactory condition. This action cannot be undone.
             </p>
           </ModalBody>
@@ -404,7 +404,7 @@ export default function OrderPage() {
               onPress={confirmOrderUpdate}
               isLoading={isConfirming}
             >
-              Confirm Receipt
+              Confirm Order Received
             </NextUIButton>
           </ModalFooter>
         </ModalContent>

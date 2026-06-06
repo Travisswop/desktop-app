@@ -6,6 +6,15 @@ import { Card } from '@/components/ui/card';
 import { useUser } from '@/lib/UserContext';
 import blackPlanet from '@/public/onboard/black-planet.svg';
 import swopLogo from '@/public/swopLogo.png';
+import {
+  selectPreferredWallet,
+  tradingWalletSelectionOptions,
+} from '@/components/wallet/hooks/useWalletData';
+import {
+  PrivyLinkedAccount,
+  isEthereumWalletAccount,
+  isSolanaWalletAccount,
+} from '@/types/privy';
 import { WalletItem } from '@/types/wallet';
 import {
   useCreateWallet,
@@ -25,6 +34,7 @@ import { LuArrowRight } from 'react-icons/lu';
 import { RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
 import logger from '@/utils/logger';
+import { buildSwopApiUrl, getSwopApiBaseUrl } from '@/lib/api/apiBaseUrl';
 
 // Login flow states
 enum LoginFlow {
@@ -109,10 +119,36 @@ function formatLoginProcessingError(error: unknown): string {
         : 'Login failed';
 
   if (message.toLowerCase().includes('failed to fetch')) {
-    return 'Swop backend is not reachable. Make sure the local backend is running on port 4000, then try again.';
+    const apiBaseUrl = getSwopApiBaseUrl();
+    if (apiBaseUrl.includes('localhost') || apiBaseUrl.includes('127.0.0.1')) {
+      return 'Swop backend is not reachable. Make sure the local backend is running on port 4000, then try again.';
+    }
+
+    return `Swop backend is not reachable at ${apiBaseUrl}. Check the backend deployment and CORS settings, then try again.`;
   }
 
   return message;
+}
+
+function getAuthCookieOptions() {
+  return {
+    path: '/',
+    sameSite: 'lax' as const,
+    secure:
+      typeof window !== 'undefined' &&
+      window.location.protocol === 'https:',
+  };
+}
+
+function clearStaleSwopAuthStorage() {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem('swop:user-cache');
+  }
+
+  Cookies.remove('user-id');
+  Cookies.remove('access-token');
+  Cookies.remove('user-id', { path: '/' });
+  Cookies.remove('access-token', { path: '/' });
 }
 
 const Login: React.FC = () => {
@@ -223,15 +259,24 @@ const Login: React.FC = () => {
   const processWalletData = useCallback((user: any): WalletItem[] => {
     if (!user?.linkedAccounts) return [];
 
-    return user.linkedAccounts
-      .filter(
-        (account: any) =>
-          (account.chainType === 'ethereum' ||
-            account.chainType === 'solana') &&
-          (account.walletClientType === 'privy' ||
-            account.connectorType === 'embedded'),
+    const linkedAccounts = user.linkedAccounts as PrivyLinkedAccount[];
+    const walletSelectionOptions = tradingWalletSelectionOptions();
+    const ethereumWallet = selectPreferredWallet(
+      linkedAccounts.filter(isEthereumWalletAccount),
+      user.wallet?.address,
+      walletSelectionOptions,
+    );
+    const solanaWallet = selectPreferredWallet(
+      linkedAccounts.filter(isSolanaWalletAccount),
+      undefined,
+      walletSelectionOptions,
+    );
+
+    return [solanaWallet, ethereumWallet]
+      .filter((account): account is NonNullable<typeof account> =>
+        Boolean(account?.address),
       )
-      .map((account: any) => ({
+      .map((account) => ({
         address: account.address,
         isActive: true,
         isEVM: account.chainType === 'ethereum',
@@ -398,7 +443,9 @@ const Login: React.FC = () => {
         }
 
         // Check if user exists in backend
-        const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`;
+        const apiUrl = buildSwopApiUrl(
+          `/api/v2/desktop/user/${encodeURIComponent(userEmail)}`,
+        );
         const response = await fetch(apiUrl, {
           headers: { 'Content-Type': 'application/json' },
         });
@@ -419,8 +466,16 @@ const Login: React.FC = () => {
         }
 
         // Set user ID cookie
-        Cookies.set('user-id', data.user._id.toString());
-        Cookies.set('access-token', data.token);
+        Cookies.set(
+          'user-id',
+          data.user._id.toString(),
+          getAuthCookieOptions(),
+        );
+        Cookies.set(
+          'access-token',
+          data.token,
+          getAuthCookieOptions(),
+        );
 
         // Process wallet data for balance update
         const walletData = processWalletData(user);
@@ -466,6 +521,7 @@ const Login: React.FC = () => {
 
       setEmailError('');
       setLoginError(null);
+      clearStaleSwopAuthStorage();
       try {
         await sendCode({ email: email.trim() });
         setLoginFlow(LoginFlow.OTP_INPUT);

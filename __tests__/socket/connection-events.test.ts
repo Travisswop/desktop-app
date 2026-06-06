@@ -1,6 +1,9 @@
 import { io, Socket } from 'socket.io-client';
 
-describe('Socket Connection Events', () => {
+const describeSocket =
+  process.env.RUN_SOCKET_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
+
+describeSocket('Socket Connection Events', () => {
   let clientSocket: Socket;
   const SOCKET_URL = process.env.SOCKET_URL || 'http://localhost:3001';
 

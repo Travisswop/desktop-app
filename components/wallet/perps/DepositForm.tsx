@@ -17,7 +17,10 @@ import { useHyperliquidDeposit } from './hooks/useHyperliquidDeposit';
 import { useHyperliquidFaucet } from './hooks/useHyperliquidFaucet';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
 import { HL_IS_TESTNET } from '@/services/hyperliquid/config';
-import { selectPreferredWallet } from '@/components/wallet/hooks/useWalletData';
+import {
+  selectPreferredWallet,
+  tradingWalletSelectionOptions,
+} from '@/components/wallet/hooks/useWalletData';
 
 interface DepositFormProps {
   masterAddress: string | null;
@@ -51,6 +54,7 @@ export function DepositForm({
   const masterWallet = selectPreferredWallet(
     wallets,
     user?.wallet?.address,
+    tradingWalletSelectionOptions(),
   );
   const masterAddress =
     masterAddressProp ?? (walletsReady ? (masterWallet?.address ?? null) : null);

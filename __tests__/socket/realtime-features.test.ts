@@ -1,6 +1,9 @@
 import { io, Socket } from 'socket.io-client';
 
-describe('Socket Real-time Features', () => {
+const describeSocket =
+  process.env.RUN_SOCKET_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
+
+describeSocket('Socket Real-time Features', () => {
   let userSocket1: Socket;
   let userSocket2: Socket;
   let userSocket3: Socket;

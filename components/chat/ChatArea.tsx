@@ -992,6 +992,7 @@ interface ChatAreaProps {
   chatType: 'private' | 'group';
   currentUser: string;
   socket: any; // You can use Socket from socket.io-client if you have it
+  isThreadListCollapsed?: boolean;
   onChatUpdate?: () => void; // ADD THIS
   onLeaveGroup?: () => void;
 }
@@ -2906,6 +2907,7 @@ export default function ChatArea({
   chatType,
   currentUser,
   socket,
+  isThreadListCollapsed = false,
   onChatUpdate,
   onLeaveGroup,
 }: ChatAreaProps) {
@@ -3035,8 +3037,7 @@ export default function ChatArea({
   const walletData = useWalletData(
     isPrivyAuthenticated,
     isPrivyReady,
-    privyUser,
-    user
+    privyUser
   );
   const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
@@ -4725,7 +4726,7 @@ export default function ChatArea({
   }
 
   return (
-    <div className="flex min-w-0 flex-1 bg-[#08090b]">
+    <div className="flex min-w-0 flex-1 overflow-hidden bg-[#08090b]">
       <div className="flex min-w-0 flex-1 flex-col bg-[#08090b]">
         <div className="flex h-[80px] flex-shrink-0 items-center justify-between gap-4 border-b border-white/[0.07] bg-[#0b0d10] px-5 sm:px-7">
           <div className="flex min-w-0 items-center gap-3">
@@ -4795,7 +4796,7 @@ export default function ChatArea({
                 type="button"
                 title="Commands"
                 onClick={handleComposerCommandButton}
-                className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                className="dm-btn hidden h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:grid"
               >
                 <Menu className="h-[18px] w-[18px]" />
               </button>
@@ -4804,7 +4805,7 @@ export default function ChatArea({
               type="button"
               title="PnL command"
               onClick={() => applyComposerCommand('/pnl ')}
-              className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+              className="dm-btn hidden h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:grid"
             >
               <Clock3 className="h-[18px] w-[18px]" />
             </button>
@@ -4812,7 +4813,7 @@ export default function ChatArea({
               type="button"
               title="Chart command"
               onClick={() => applyComposerCommand('/chart ')}
-              className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+              className="dm-btn hidden h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:grid"
             >
               <BarChart3 className="h-[18px] w-[18px]" />
             </button>
@@ -4820,7 +4821,7 @@ export default function ChatArea({
               type="button"
               title="Internet search command"
               onClick={() => applyComposerCommand('/search ')}
-              className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+              className="dm-btn hidden h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:grid"
             >
               <Grid2X2 className="h-[18px] w-[18px]" />
             </button>
@@ -5633,6 +5634,7 @@ export default function ChatArea({
         activeAgents={activeGroupAgents}
         consoleData={astroConsoleData}
         smartsiteHref={smartsiteHref}
+        showOnTablet={isThreadListCollapsed}
         onSmartsiteClick={handleSmartsiteClick}
         onQuickCommand={applyComposerCommand}
         onPositionClick={handleAstroConsolePositionClick}
@@ -6395,6 +6397,7 @@ function DmContextPanel({
   displayChat,
   consoleData,
   smartsiteHref,
+  showOnTablet = false,
   onSmartsiteClick,
   onQuickCommand,
   onPositionClick,
@@ -6404,10 +6407,14 @@ function DmContextPanel({
   activeAgents?: GroupAgent[];
   consoleData?: AstroConsoleData;
   smartsiteHref?: string | null;
+  showOnTablet?: boolean;
   onSmartsiteClick?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
   onQuickCommand?: (command: string) => void;
   onPositionClick?: (selection: AstroConsolePositionSelection) => void;
 }) {
+  const panelVisibilityClass = showOnTablet ? 'hidden md:block' : 'hidden xl:block';
+  const panelWidthClass = showOnTablet ? 'w-[280px] lg:w-[300px]' : 'w-[300px]';
+
   if (mode === 'astro') {
     const predictionPositions = consoleData?.predictionPositions || [];
     const openPredictionPositions = predictionPositions.filter(
@@ -6533,7 +6540,7 @@ function DmContextPanel({
 
     return (
       <>
-      <aside className="dm-scroll hidden w-[300px] flex-shrink-0 overflow-y-auto border-l border-white/[0.07] bg-[#0e1014] px-4 py-5 xl:block">
+      <aside className={`dm-scroll ${panelVisibilityClass} ${panelWidthClass} flex-shrink-0 overflow-y-auto border-l border-white/[0.07] bg-[#0e1014] px-4 py-5`}>
         <div className="mb-5 flex items-center gap-3">
           <DmAgentTile
             size="h-10 w-10"
@@ -6724,7 +6731,7 @@ function DmContextPanel({
       : displayChat?.microsite?.ens || 'swop contact';
 
   return (
-    <aside className="dm-scroll hidden w-[300px] flex-shrink-0 overflow-y-auto border-l border-white/[0.07] bg-[#0e1014] p-4 xl:block">
+    <aside className={`dm-scroll ${panelVisibilityClass} ${panelWidthClass} flex-shrink-0 overflow-y-auto border-l border-white/[0.07] bg-[#0e1014] p-4`}>
       <div className="flex flex-col items-center px-2 pb-4 pt-2 text-center">
         {mode === 'group' ? (
           <div className="mb-2 grid h-14 w-14 place-items-center rounded-[14px] border border-white/[0.07] bg-[#15171d] text-[#9396a0]">

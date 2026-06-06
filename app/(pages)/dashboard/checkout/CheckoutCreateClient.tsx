@@ -165,6 +165,21 @@ function isPaidStatus(status: CheckoutIntent['status']) {
   return ['paid', 'settled', 'settlement_failed'].includes(status);
 }
 
+function canReconcileStatus(status: CheckoutIntent['status']) {
+  return [
+    'active',
+    'pending_payment',
+    'conversion_failed',
+    'settlement_failed',
+  ].includes(status);
+}
+
+function reconcileActionLabel(status: CheckoutIntent['status']) {
+  if (status === 'settlement_failed') return 'Retry settlement';
+  if (status === 'conversion_failed') return 'Retry conversion';
+  return 'Reconcile';
+}
+
 function mapProduct(item: MarketplaceProduct): ProductRow {
   return {
     id: item._id,
@@ -1208,7 +1223,7 @@ export default function CheckoutCreateClient() {
                       <Copy className="h-4 w-4" />
                       Copy Phantom
                     </button>
-                    {!isPaidStatus(intent.status) ? (
+                    {canReconcileStatus(intent.status) ? (
                       <button
                         type="button"
                         onClick={() => handleReconcile(intent)}
@@ -1220,7 +1235,7 @@ export default function CheckoutCreateClient() {
                         ) : (
                           <RefreshCw className="h-4 w-4" />
                         )}
-                        Reconcile
+                        {reconcileActionLabel(intent.status)}
                       </button>
                     ) : (
                       <button
