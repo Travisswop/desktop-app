@@ -191,9 +191,12 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   const balanceHistory = balanceHistoryData?.balanceHistory || [];
   const fetchedBalance = balanceHistoryData?.currentBalance || 0;
 
-  // Use prop balance if provided, otherwise use fetched balance
+  // The backend balance snapshot is the account source of truth. Token
+  // fetching can transiently return 0 on preview domains when an RPC/indexer
+  // request fails, so only let the token-derived prop override it when it has
+  // a positive value.
   const totalBalance =
-    propTotalBalance !== undefined
+    propTotalBalance !== undefined && propTotalBalance > 0
       ? propTotalBalance
       : fetchedBalance;
 
@@ -313,9 +316,49 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     return result;
   }, [balanceHistory, selectedPeriod]);
 
+  const chartData = useMemo((): BalanceHistoryEntry[] => {
+    if (filteredData.length > 0) return filteredData;
+
+    const safeBalance =
+      Number.isFinite(totalBalance) && totalBalance > 0
+        ? totalBalance
+        : 0;
+    if (safeBalance <= 0) return [];
+
+    const now = new Date();
+    const start = new Date(now.getTime());
+
+    switch (selectedPeriod) {
+      case '1day':
+        start.setTime(now.getTime() - 24 * 60 * 60 * 1000);
+        break;
+      case '7days':
+        start.setTime(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '1month':
+        start.setMonth(start.getMonth() - 1);
+        break;
+      case '6months':
+        start.setMonth(start.getMonth() - 6);
+        break;
+      case '1year':
+        start.setFullYear(start.getFullYear() - 1);
+        break;
+      case 'all':
+      default:
+        start.setMonth(start.getMonth() - 1);
+        break;
+    }
+
+    return [
+      { createdAt: start.toISOString(), amount: safeBalance },
+      { createdAt: now.toISOString(), amount: safeBalance },
+    ];
+  }, [filteredData, selectedPeriod, totalBalance]);
+
   // Calculate growth percentage
   const calculateGrowthPercentage = () => {
-    const nonZeroData = filteredData.filter((d) => d.amount > 0);
+    const nonZeroData = chartData.filter((d) => d.amount > 0);
 
     if (nonZeroData.length < 2) return 0;
 
@@ -450,10 +493,10 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
         </div>
 
         {/* Chart */}
-        <div className="w-full h-[200px] mb-4">
+        <div className="relative w-full h-[200px] mb-4">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
-              data={filteredData}
+              data={chartData}
               margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
             >
               <defs>
@@ -536,6 +579,17 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
               />
             </AreaChart>
           </ResponsiveContainer>
+          {chartData.length === 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center rounded-lg bg-white text-center">
+              <p className="text-sm font-semibold text-gray-700">
+                No portfolio history yet
+              </p>
+              <p className="mt-1 max-w-[220px] text-xs text-gray-400">
+                Your balance chart will appear after the first wallet
+                snapshot.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Time Period Selector */}

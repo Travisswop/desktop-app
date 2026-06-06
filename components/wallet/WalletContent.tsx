@@ -105,7 +105,7 @@ import {
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
   SOL: '#10b981',
-  SWOP: '#d1fae5',
+  SWOP: '#14b8a6',
   ETH: '#047857',
   BTC: '#f59e0b',
   USDC: '#2563eb',
@@ -997,7 +997,7 @@ const WalletContentInner = () => {
     return tokens
       .map(
         (t) =>
-          `${t.symbol}:${t.balance}:${t.marketData?.price || '0'}`,
+          `${t.symbol}:${t.balance}:${t.marketData?.price || '0'}:${(t as any).value ?? '0'}`,
       )
       .sort()
       .join('|');
@@ -1024,7 +1024,15 @@ const WalletContentInner = () => {
     for (const token of tokens) {
       const balance = parseFloat(token.balance || '0');
       const price = parseFloat(token.marketData?.price || '0');
-      const value = balance * price;
+      const tokenValue = (token as any).value;
+      const backendValue =
+        typeof tokenValue === 'number'
+          ? tokenValue
+          : parseFloat(String(tokenValue ?? '0'));
+      const value =
+        Number.isFinite(backendValue) && backendValue > 0
+          ? backendValue
+          : balance * price;
 
       if (value <= 0) continue;
 

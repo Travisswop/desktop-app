@@ -3,7 +3,7 @@ import { useUser } from "@/lib/UserContext";
 import { Skeleton } from "../ui/skeleton";
 import ProfileHeader from "./profile-header";
 import DashboardAnalytics from "./analytics";
-import WalletBalanceChart from "./walletBalanceChart";
+import WalletBalanceChart from "./BalanceChart";
 import PortfolioChart, { PortfolioAsset } from "./PortfolioChart";
 import { useQuery } from "@tanstack/react-query";
 import { getFollowers, followersQueryKey } from "@/services/followers-service";
@@ -19,7 +19,7 @@ import {
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
   SOL: "#10b981",
-  SWOP: "#d1fae5",
+  SWOP: "#14b8a6",
   ETH: "#047857",
   BTC: "#f59e0b",
   USDC: "#2563eb",
@@ -74,7 +74,15 @@ export default function DashboardContent() {
       .map((token) => {
         const balance = parseFloat(token.balance || "0");
         const price = parseFloat(token.marketData?.price || "0");
-        const value = balance * price;
+        const tokenValue = (token as any).value;
+        const backendValue =
+          typeof tokenValue === "number"
+            ? tokenValue
+            : parseFloat(String(tokenValue ?? "0"));
+        const value =
+          Number.isFinite(backendValue) && backendValue > 0
+            ? backendValue
+            : balance * price;
 
         return {
           name: token.symbol,

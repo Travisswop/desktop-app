@@ -472,6 +472,7 @@ const getNetworkByChainId = (chainId: string): string => {
 };
 
 const SOLANA_CHAIN_ID = '1151111081099710';
+const TOKEN_SEARCH_RENDER_LIMIT = 100;
 
 const getTokenChainId = (token: any, fallback = '') => {
   if (token?.chainId !== undefined && token?.chainId !== null) {
@@ -487,13 +488,23 @@ const isSolanaToken = (token: any, fallback = '') =>
   token?.chain?.toUpperCase?.() === 'SOLANA' ||
   token?.network?.toUpperCase?.() === 'SOLANA';
 
+const getTokenAddressKey = (token: any) =>
+  String(token?.address || token?.id || '').trim().toLowerCase();
+
+const getTokenIdentityKey = (token: any) => {
+  if (!token) return '';
+  const addressKey = getTokenAddressKey(token);
+  const chainKey = getTokenChainId(token);
+  const symbolKey = String(token.symbol || '').trim().toLowerCase();
+  const decimalsKey = token.decimals ?? '';
+  return [chainKey, addressKey || symbolKey, decimalsKey].join('|');
+};
+
 const getTokenSelectionKey = (token: any) => {
   if (!token) return '';
   return [
-    token.symbol || '',
-    token.address || token.id || '',
-    getTokenChainId(token),
-    token.decimals ?? '',
+    String(token.symbol || '').trim().toLowerCase(),
+    getTokenIdentityKey(token),
   ].join('|');
 };
 
@@ -846,9 +857,7 @@ function filterTokensByCategory(
     if (!identifier) return;
 
     // Normalize chainId: prefer explicit chainId, else derive from chain/network string
-    const derivedChainId =
-      token.chainId?.toString() ??
-      getChainId(token.chain ?? token.network ?? '');
+    const derivedChainId = getTokenChainId(token);
     const network = getNetworkByChainId(derivedChainId);
     if (!network) return; // skip unknown chains
 
@@ -880,8 +889,7 @@ function searchTokens(
   if (!searchText && !chainId) return [];
   return tokens.filter((token) => {
     if (chainId && chainId !== 'all') {
-      const tokenChainId =
-        token.chainId?.toString() ?? getChainId(token.chain ?? '');
+      const tokenChainId = getTokenChainId(token);
       if (tokenChainId !== chainId) return false;
     }
     if (!searchText) return true;
@@ -1762,7 +1770,8 @@ export default function SwapTokenModal({
         ]);
 
         // FIX: Merge user tokens (which have balance) + fetched tokens.
-        // Deduplicate using `address || id` to preserve Solana tokens that use `id`.
+        // Deduplicate by chain + identifier so native ETH variants from
+        // Base/Ethereum/Arbitrum do not collapse into a different network.
         // fetchLiFiTokensCached always returns an array so no defensive wrap needed.
         // PUSD_CURATED_TOKEN is prepended so it survives deduplication even when
         // LiFi does not return it for Polygon.
@@ -1777,8 +1786,7 @@ export default function SwapTokenModal({
         ];
         const seen = new Set<string>();
         const deduped = merged.filter((t) => {
-          // FIX: check both address and id — Solana tokens from Jupiter use `id`
-          const key = (t.address || t.id || '').toLowerCase();
+          const key = getTokenIdentityKey(t);
           if (!key || seen.has(key)) return false;
           seen.add(key);
           return true;
@@ -1857,9 +1865,7 @@ export default function SwapTokenModal({
 
     const categoryTokens = targetList[currentCategory] ?? [];
     const resolveNetwork = (t: any) => {
-      const cid =
-        t.chainId?.toString() ??
-        getChainId(t.chain ?? t.network ?? '');
+      const cid = getTokenChainId(t);
       return getNetworkByChainId(cid);
     };
 
@@ -2056,9 +2062,7 @@ export default function SwapTokenModal({
         if (!symbolMatch) return false;
         if (inputChainParam && inputChainParam !== 'undefined') {
           // ← guard
-          const tokenChainId =
-            t.chainId?.toString() ??
-            getChainId(t.chain ?? t.network ?? '');
+          const tokenChainId = getTokenChainId(t);
           return tokenChainId === inputChainId;
         }
         return true;
@@ -2078,8 +2082,7 @@ export default function SwapTokenModal({
             : false;
           return (
             (symbolMatch || mintMatch) &&
-            (getChainId(t.chain) === inputChainId ||
-              t.chainId?.toString() === inputChainId)
+            getTokenChainId(t) === inputChainId
           );
         },
       );
@@ -2136,9 +2139,7 @@ export default function SwapTokenModal({
         if (!symbolMatch) return false;
         if (outputChainParam && outputChainParam !== 'undefined') {
           // ← guard
-          const tokenChainId =
-            t.chainId?.toString() ??
-            getChainId(t.chain ?? t.network ?? '');
+          const tokenChainId = getTokenChainId(t);
           return tokenChainId === outputChainId;
         }
         return true;
@@ -2148,8 +2149,7 @@ export default function SwapTokenModal({
         (t) =>
           t.symbol?.toLowerCase() ===
             outputTokenParam.toLowerCase() &&
-          (getChainId(t.chain) === outputChainId ||
-            t.chainId?.toString() === outputChainId),
+          getTokenChainId(t) === outputChainId,
       );
 
       const receiveTokenData = found
@@ -2208,21 +2208,16 @@ export default function SwapTokenModal({
 
     if (!payToken) return base;
 
-    const payKey = (
-      payToken.address ||
-      payToken.id ||
-      ''
-    ).toLowerCase();
+    const payKey = getTokenIdentityKey(payToken);
     if (!payKey) return base;
 
     const alreadyIncluded = base.some(
-      (t) => (t.address || t.id || '').toLowerCase() === payKey,
+      (t) => getTokenIdentityKey(t) === payKey,
     );
     return alreadyIncluded ? base : [payToken, ...base];
   }, [tokens, payToken]);
 
-  const tokenChainId = (t: any) =>
-    t.chainId?.toString() ?? getChainId(t.chain ?? t.network ?? '');
+  const tokenChainId = (t: any) => getTokenChainId(t);
 
   const filterTokensByPayChain = (toks: any[], cId: string) =>
     cId === 'all'
@@ -2294,12 +2289,14 @@ export default function SwapTokenModal({
               )
             : tempTokens;
         setAvailableTokens(
-          searchBase.filter(
-            (t) =>
-              t.symbol?.toLowerCase().includes(q) ||
-              t.name?.toLowerCase().includes(q) ||
-              (t.address || t.id || '').toLowerCase().includes(q),
-          ),
+          searchBase
+            .filter(
+              (t) =>
+                t.symbol?.toLowerCase().includes(q) ||
+                t.name?.toLowerCase().includes(q) ||
+                getTokenAddressKey(t).includes(q),
+            )
+            .slice(0, TOKEN_SEARCH_RENDER_LIMIT),
         );
       } else {
         // No query → show only tokens the user holds
@@ -2584,16 +2581,8 @@ export default function SwapTokenModal({
   // relying solely on the handleTokenSelect auto-swap.
   useEffect(() => {
     if (!payToken || !receiveToken) return;
-    const payKey = (
-      payToken.address ||
-      payToken.id ||
-      ''
-    ).toLowerCase();
-    const receiveKey = (
-      receiveToken.address ||
-      receiveToken.id ||
-      ''
-    ).toLowerCase();
+    const payKey = getTokenIdentityKey(payToken);
+    const receiveKey = getTokenIdentityKey(receiveToken);
     if (payKey && receiveKey && payKey === receiveKey) {
       setReceiveToken(null);
       setReceiverChainId('');
@@ -2604,8 +2593,14 @@ export default function SwapTokenModal({
   }, [
     payToken?.address,
     payToken?.id,
+    payToken?.chain,
+    payToken?.chainId,
+    payToken?.network,
     receiveToken?.address,
     receiveToken?.id,
+    receiveToken?.chain,
+    receiveToken?.chainId,
+    receiveToken?.network,
   ]);
 
   useEffect(() => {
@@ -2780,12 +2775,8 @@ export default function SwapTokenModal({
   // ── Save swap + socket notification ──────────────────────────────────────────
   const saveSwapToDatabase = async (signature: string, q: any) => {
     try {
-      const inputChainId =
-        payToken?.chainId?.toString() ??
-        getChainId(payToken?.chain ?? '');
-      const outputChainId =
-        receiveToken?.chainId?.toString() ??
-        getChainId(receiveToken?.chain ?? '');
+      const inputChainId = getTokenChainId(payToken);
+      const outputChainId = getTokenChainId(receiveToken);
       const network = getNetworkByChainId(inputChainId) || 'solana';
 
       console.log('payToken', payToken);
@@ -3665,38 +3656,26 @@ export default function SwapTokenModal({
 
   // ── Token selection ───────────────────────────────────────────────────────────
   const handleTokenSelect = (t: any, type: 'pay' | 'receive') => {
-    const tKey = (t.address || t.id || '').toLowerCase();
+    const tKey = getTokenIdentityKey(t);
 
     if (type === 'pay') {
-      const receiveKey = (
-        receiveToken?.address ||
-        receiveToken?.id ||
-        ''
-      ).toLowerCase();
+      const receiveKey = getTokenIdentityKey(receiveToken);
       // If the chosen pay token is the same contract as the current receive
       // token, auto-swap them so the user never ends up with
       // inputMint === outputMint.
       if (tKey && tKey === receiveKey) {
-        const prevPayChainId =
-          payToken?.chainId?.toString() ??
-          getChainId(payToken?.chain ?? payToken?.network ?? '');
+        const prevPayChainId = getTokenChainId(payToken);
         setReceiveToken(payToken ?? null);
         setReceiverChainId(prevPayChainId);
       }
       setPayToken(t);
     } else {
-      const payKey = (
-        payToken?.address ||
-        payToken?.id ||
-        ''
-      ).toLowerCase();
+      const payKey = getTokenIdentityKey(payToken);
       // Same guard for receive selection.
       if (tKey && tKey === payKey) {
         setPayToken(receiveToken ?? null);
       }
-      const tokenChainId =
-        t.chainId?.toString() ??
-        getChainId(t.chain ?? t.network ?? '');
+      const tokenChainId = getTokenChainId(t);
       setReceiveToken(t);
       setReceiverChainId(tokenChainId);
     }
@@ -3714,13 +3693,18 @@ export default function SwapTokenModal({
   };
 
   const handleFlip = () => {
-    const t = payToken;
-    setPayToken(receiveToken);
-    setReceiveToken(t);
+    const nextPayToken = receiveToken ?? null;
+    const nextReceiveToken = payToken ?? null;
+    setPayToken(nextPayToken);
+    setReceiveToken(nextReceiveToken);
+    setChainId(getTokenChainId(nextPayToken, chainId));
+    setReceiverChainId(getTokenChainId(nextReceiveToken, ''));
     const a = payAmount;
     setPayAmount(receiveAmount);
     setReceiveAmount(a);
-    if (receiveToken && t && receiveAmount) setIsQuoteLoading(true);
+    if (nextPayToken && nextReceiveToken && receiveAmount) {
+      setIsQuoteLoading(true);
+    }
   };
 
   const handlePercentageClick = (pct: number) => {
@@ -3878,13 +3862,13 @@ export default function SwapTokenModal({
   const GROUP_RENDER_LIMIT = 30; // per-network group in the "all chains" view
 
   // Helper to render the token list for the receive drawer
-  const renderReceiveTokenList = (payAddr: string) => {
+  const renderReceiveTokenList = (payIdentity: string) => {
     const result = getGroupedReceiveTokens;
 
     if (!result.grouped) {
       // Flat list (search results or specific chain selected)
       const filtered = result.tokens.filter(
-        (t) => (t.address || t.id || '').toLowerCase() !== payAddr,
+        (t) => getTokenIdentityKey(t) !== payIdentity,
       );
       const visible = filtered.slice(0, FLAT_RENDER_LIMIT);
       const overflow = filtered.length - visible.length;
@@ -3892,7 +3876,7 @@ export default function SwapTokenModal({
         <>
           {visible.map((t, i) => (
             <TokenRow
-              key={(t.address || t.id || '') + i}
+              key={`${getTokenIdentityKey(t)}-${i}`}
               token={t}
               onClick={() => handleTokenSelect(t, 'receive')}
             />
@@ -3910,7 +3894,7 @@ export default function SwapTokenModal({
     // Grouped list (all chains) – render network headers + tokens
     return result.groups.map(({ network, tokens: groupTokens }) => {
       const filtered = groupTokens.filter(
-        (t) => (t.address || t.id || '').toLowerCase() !== payAddr,
+        (t) => getTokenIdentityKey(t) !== payIdentity,
       );
       const visible = filtered.slice(0, GROUP_RENDER_LIMIT);
       const overflow = filtered.length - visible.length;
@@ -3919,7 +3903,7 @@ export default function SwapTokenModal({
           <NetworkHeader network={network} />
           {visible.map((t, i) => (
             <TokenRow
-              key={(t.address || t.id || '') + i}
+              key={`${getTokenIdentityKey(t)}-${i}`}
               token={t}
               onClick={() => handleTokenSelect(t, 'receive')}
             />
@@ -4573,16 +4557,12 @@ export default function SwapTokenModal({
                     availableTokens
                       .filter(
                         (t) =>
-                          (t.address || t.id || '').toLowerCase() !==
-                          (
-                            receiveToken?.address ||
-                            receiveToken?.id ||
-                            ''
-                          ).toLowerCase(),
+                          getTokenIdentityKey(t) !==
+                          getTokenIdentityKey(receiveToken),
                       )
                       .map((t, i) => (
                         <TokenRow
-                          key={(t.address || t.id || '') + i}
+                          key={`${getTokenIdentityKey(t)}-${i}`}
                           token={t}
                           onClick={() => handleTokenSelect(t, 'pay')}
                         />
@@ -4727,11 +4707,7 @@ export default function SwapTokenModal({
                     </div>
                   ) : (
                     renderReceiveTokenList(
-                      (
-                        payToken?.address ||
-                        payToken?.id ||
-                        ''
-                      ).toLowerCase(),
+                      getTokenIdentityKey(payToken),
                     )
                   )}
                 </div>
