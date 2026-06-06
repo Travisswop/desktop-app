@@ -132,7 +132,7 @@ export interface UserContextType {
 const UserContext = createContext<UserContextType | null>(null);
 
 const USER_CACHE_KEY = 'swop:user-cache';
-const USER_CACHE_VERSION = 3;
+const USER_CACHE_VERSION = 4;
 const USER_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const USER_FETCH_TIMEOUT_MS = 20000;
 
@@ -146,6 +146,22 @@ type CachedUserContext = {
 
 function normalizeEmail(email?: string | null) {
   return email?.trim().toLowerCase() || '';
+}
+
+function normalizeWalletAddress(address?: string | null) {
+  return address?.trim().toLowerCase() || '';
+}
+
+function hasLinkedWalletAddress(
+  wallets: Array<PrivyLinkedAccount & { address?: string | null }>,
+  address?: string | null,
+) {
+  const normalizedAddress = normalizeWalletAddress(address);
+  if (!normalizedAddress) return false;
+
+  return wallets.some(
+    (wallet) => normalizeWalletAddress(wallet.address) === normalizedAddress,
+  );
 }
 
 function getAuthCookieOptions() {
@@ -501,20 +517,49 @@ export function UserProvider({
       return;
     }
 
-    const { ethereumWallet, solanaWallet } =
-      extractPreferredWalletAddresses(privyUser);
+    const linkedAccounts = (privyUser?.linkedAccounts ||
+      []) as PrivyLinkedAccount[];
+    const linkedEthereumWallets = linkedAccounts.filter(
+      isEthereumWalletAccount,
+    );
+    const linkedSolanaWallets = linkedAccounts.filter(isSolanaWalletAccount);
+    const preferredWallets = extractPreferredWalletAddresses(privyUser);
+    const existingEthereumWallet = user.ethereumWallet || user.ethAddress;
+    const existingSolanaWallet = user.solanaWallet || user.solanaAddress;
+    const existingEthereumWalletIsLinked = hasLinkedWalletAddress(
+      linkedEthereumWallets,
+      existingEthereumWallet,
+    );
+    const existingSolanaWalletIsLinked = hasLinkedWalletAddress(
+      linkedSolanaWallets,
+      existingSolanaWallet,
+    );
+    const ethereumWallet =
+      existingEthereumWallet && existingEthereumWalletIsLinked
+        ? existingEthereumWallet
+        : preferredWallets.ethereumWallet || existingEthereumWallet;
+    const solanaWallet =
+      existingSolanaWallet && existingSolanaWalletIsLinked
+        ? existingSolanaWallet
+        : preferredWallets.solanaWallet || existingSolanaWallet;
+
     if (!ethereumWallet && !solanaWallet) return;
 
     const syncKey = `${user._id}:${ethereumWallet || ''}:${
       solanaWallet || ''
     }`;
-    const profileAlreadySynced =
-      (!ethereumWallet ||
-        user.ethereumWallet?.toLowerCase() ===
-          ethereumWallet.toLowerCase()) &&
-      (!solanaWallet || user.solanaWallet === solanaWallet);
+    const shouldSyncEthereum =
+      Boolean(ethereumWallet) &&
+      (!existingEthereumWallet ||
+        normalizeWalletAddress(existingEthereumWallet) !==
+          normalizeWalletAddress(ethereumWallet));
+    const shouldSyncSolana =
+      Boolean(solanaWallet) && existingSolanaWallet !== solanaWallet;
 
-    if (lastSyncedWalletsRef.current === syncKey && profileAlreadySynced) {
+    if (
+      lastSyncedWalletsRef.current === syncKey ||
+      (!shouldSyncEthereum && !shouldSyncSolana)
+    ) {
       return;
     }
 

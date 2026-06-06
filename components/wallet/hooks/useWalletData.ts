@@ -28,6 +28,18 @@ type WalletSelectionOptions = {
 const normalizeAddress = (address?: string | null) =>
   address?.toLowerCase() ?? '';
 
+const hasWalletAddress = (
+  wallets: AddressLike[] | undefined | null,
+  address?: string | null,
+) => {
+  const normalizedAddress = normalizeAddress(address);
+  if (!normalizedAddress) return false;
+
+  return (wallets ?? []).some(
+    (wallet) => normalizeAddress(wallet.address) === normalizedAddress,
+  );
+};
+
 const isEmbeddedAddressLike = (wallet: AddressLike) =>
   wallet.walletClientType === 'privy' ||
   wallet.walletClientType === 'privy-v2' ||
@@ -159,6 +171,9 @@ export const useWalletData = (
       primaryEvmAddress,
       walletSelectionOptions,
     );
+    const solanaWallets = solanaWallet ? [solanaWallet] : [];
+    const hasLinkedSolanaWallet = Boolean(solanaWallet);
+    const hasLinkedEvmWallet = evmWallets.length > 0;
 
     const wallets: WalletItem[] = [];
     const addWallet = (address: string | null | undefined, isEVM: boolean) => {
@@ -181,6 +196,25 @@ export const useWalletData = (
       });
     };
 
+    const fallbackEvmWallet =
+      fallbackUser?.ethereumWallet || fallbackUser?.ethAddress;
+    const fallbackSolanaWallet =
+      fallbackUser?.solanaWallet || fallbackUser?.solanaAddress;
+
+    if (
+      !hasLinkedEvmWallet ||
+      hasWalletAddress(evmWallets, fallbackEvmWallet)
+    ) {
+      addWallet(fallbackEvmWallet, true);
+    }
+
+    if (
+      !hasLinkedSolanaWallet ||
+      hasWalletAddress(solanaWallets, fallbackSolanaWallet)
+    ) {
+      addWallet(fallbackSolanaWallet, false);
+    }
+
     if (solanaWallet && isWalletAccount(solanaWallet)) {
       addWallet(solanaWallet.address, false);
     }
@@ -191,8 +225,19 @@ export const useWalletData = (
       addWallet(evmWallet.address, true);
     });
 
-    addWallet(fallbackUser?.ethereumWallet || fallbackUser?.ethAddress, true);
-    addWallet(fallbackUser?.solanaWallet || fallbackUser?.solanaAddress, false);
+    if (
+      hasLinkedEvmWallet &&
+      !hasWalletAddress(evmWallets, fallbackEvmWallet)
+    ) {
+      addWallet(fallbackEvmWallet, true);
+    }
+
+    if (
+      hasLinkedSolanaWallet &&
+      !hasWalletAddress(solanaWallets, fallbackSolanaWallet)
+    ) {
+      addWallet(fallbackSolanaWallet, false);
+    }
 
     setWalletData(wallets);
   }, [
