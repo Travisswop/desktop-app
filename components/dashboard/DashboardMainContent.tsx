@@ -187,12 +187,17 @@ export default function DashboardMainContent() {
 
   const profile = useMemo(() => {
     const name = user?.displayName || user?.name || "Travis Herron";
-    const slug =
-      user?.swopensId ||
-      user?.ensName ||
-      user?.ens ||
+    const normalizedSwopId =
+      [
+        primarySmartsite?.ens,
+        user?.swopensId,
+        user?.ensName,
+        user?.ens,
+      ]
+        .map(normalizeSwopIdSlug)
+        .find(Boolean) ||
       name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 18) ||
-      "travis";
+      "swop";
     const followers = readConnectionCount(user, "followers");
     const following = readConnectionCount(user, "following");
 
@@ -205,8 +210,8 @@ export default function DashboardMainContent() {
         ? `/smartsite/profile/${primarySmartsiteId}`
         : "/smartsite",
       initials: getInitials(name),
-      swopId: formatSwopIdDisplay(slug),
-      publicUrl: `swop.id/${slug.replace(/^\$/, "").replace(/\.Swop\.Id$/i, "")}`,
+      swopId: formatSwopIdDisplay(normalizedSwopId),
+      publicUrl: `swop.id/${normalizedSwopId}`,
       followers,
       following,
     };
@@ -1710,19 +1715,27 @@ function getInitials(name: string) {
 }
 
 function formatSwopIdDisplay(slug: string) {
-  const normalized = slug
-    .trim()
-    .replace(/^\$/, "")
-    .replace(/\.Swop\.Id$/i, "")
-    .replace(/\.swop\.id$/i, "");
+  const normalized = normalizeSwopIdSlug(slug);
 
-  const handle = normalized || "travis";
+  const handle = normalized || "swop";
   const displayHandle = handle
     .split(/([._-])/)
     .map(formatSwopIdPart)
     .join("");
 
   return `${displayHandle}.Swop.ID`;
+}
+
+function normalizeSwopIdSlug(value?: string | null) {
+  const cleaned = String(value || "")
+    .trim()
+    .replace(/^\$/, "");
+
+  if (/^swop\.id$/i.test(cleaned)) return "";
+
+  const normalized = cleaned.replace(/\.swop\.id$/i, "");
+
+  return /^swop$/i.test(normalized) ? "" : normalized;
 }
 
 function formatSwopIdPart(part: string) {
