@@ -580,6 +580,7 @@ import {
 } from "@privy-io/react-auth/solana";
 import { Connection, Transaction } from "@solana/web3.js";
 import { copyTextToClipboard } from "@/lib/clipboard";
+import { useUser } from "@/lib/UserContext";
 
 // Rent-exempt minimum for a token account (in SOL)
 const TOKEN_ACCOUNT_RENT_EXEMPT = 0.00203928;
@@ -779,10 +780,16 @@ export default function RedeemModal(props: RedeemModalProps) {
 
   // ── Auth / wallet hooks ───────────────────────────────────────────────────
   const { authenticated, ready, user, user: PrivyUser } = usePrivy();
+  const { user: swopUser } = useUser();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { signTransaction } = useSignTransaction();
 
-  const walletData = useWalletData(authenticated, ready, PrivyUser);
+  const walletData = useWalletData(
+    authenticated,
+    ready,
+    PrivyUser,
+    swopUser,
+  );
   const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
   const { tokens = [], loading: tokenLoading } = useMultiChainTokenData(
     solWalletAddress,

@@ -37,6 +37,7 @@ import {
   type RedeemLinkToken,
 } from '@/lib/hooks/useCreateRedeemLink';
 import { copyTextToClipboard } from '@/lib/clipboard';
+import { useUser } from '@/lib/UserContext';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,9 +154,15 @@ function toRedeemLinkToken(t: SolanaToken): RedeemLinkToken {
 
 export default function BlinksSection() {
   const { user, authenticated, ready, user: PrivyUser } = usePrivy();
+  const { user: swopUser } = useUser();
 
   // ── Token fetching (for the inline picker) ─────────────────────────────────
-  const walletData = useWalletData(authenticated, ready, PrivyUser);
+  const walletData = useWalletData(
+    authenticated,
+    ready,
+    PrivyUser,
+    swopUser,
+  );
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
   const { tokens: rawTokens = [], loading: tokensLoading } =

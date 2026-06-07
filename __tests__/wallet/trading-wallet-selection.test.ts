@@ -69,6 +69,34 @@ describe('trading wallet selection', () => {
     ).toBe('0xFundedEmbedded');
   });
 
+  it('prefers the backend canonical wallet before Privy linked-account order', () => {
+    delete process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS;
+
+    const multipleEmbeddedWallets = [
+      {
+        address: '0xInaccessibleEmbedded',
+        walletClientType: 'privy',
+        connectorType: 'embedded',
+      },
+      {
+        address: '0xFundedLocalEmbedded',
+        walletClientType: 'privy',
+        connectorType: 'embedded',
+      },
+    ];
+
+    expect(
+      selectPreferredWallet(
+        multipleEmbeddedWallets,
+        '0xInaccessibleEmbedded',
+        {
+          ...tradingWalletSelectionOptions(),
+          preferredAddresses: ['0xFundedLocalEmbedded'],
+        },
+      )?.address,
+    ).toBe('0xFundedLocalEmbedded');
+  });
+
   it('allows explicit external wallet testing', () => {
     process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS = 'true';
 

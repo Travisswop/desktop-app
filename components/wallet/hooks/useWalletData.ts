@@ -16,10 +16,53 @@ type AddressLike = {
 type WalletSelectionOptions = {
   preferEmbedded?: boolean;
   embeddedOnly?: boolean;
+  preferredAddresses?: Array<string | null | undefined>;
+};
+
+type StoredWalletAddresses = {
+  ethereumWallet?: string | null;
+  ethAddress?: string | null;
+  solanaWallet?: string | null;
+  solanaAddress?: string | null;
 };
 
 const normalizeAddress = (address?: string | null) =>
   address?.toLowerCase() ?? '';
+
+const addressesMatch = (
+  left?: string | null,
+  right?: string | null,
+) =>
+  Boolean(left && right) &&
+  normalizeAddress(left) === normalizeAddress(right);
+
+const getPreferredAddressMatch = <T extends AddressLike>(
+  wallets: T[],
+  preferredAddresses?: Array<string | null | undefined>,
+) => {
+  const normalizedPreferredAddresses = (preferredAddresses ?? [])
+    .map(normalizeAddress)
+    .filter(Boolean);
+
+  for (const preferredAddress of normalizedPreferredAddresses) {
+    const wallet = wallets.find(
+      (item) => normalizeAddress(item.address) === preferredAddress,
+    );
+    if (wallet) return wallet;
+  }
+
+  return undefined;
+};
+
+const getStoredEvmAddress = (
+  storedWallets?: StoredWalletAddresses | null,
+) =>
+  storedWallets?.ethereumWallet || storedWallets?.ethAddress || '';
+
+const getStoredSolanaAddress = (
+  storedWallets?: StoredWalletAddresses | null,
+) =>
+  storedWallets?.solanaWallet || storedWallets?.solanaAddress || '';
 
 const isEmbeddedAddressLike = (wallet: AddressLike) =>
   wallet.walletClientType === 'privy' ||
@@ -45,6 +88,12 @@ export function selectPreferredWallet<T extends AddressLike>(
   if (!available.length) return undefined;
 
   const normalizedPrimary = normalizeAddress(primaryAddress);
+  const preferredAddressWallet = getPreferredAddressMatch(
+    available,
+    options.preferredAddresses,
+  );
+  if (preferredAddressWallet) return preferredAddressWallet;
+
   const primary = normalizedPrimary
     ? available.find(
         (wallet) => normalizeAddress(wallet.address) === normalizedPrimary,
@@ -131,7 +180,8 @@ export const getPortfolioEvmWalletInput = (
 export const useWalletData = (
   authenticated: boolean,
   ready: boolean,
-  PrivyUser: any
+  PrivyUser: any,
+  storedWallets?: StoredWalletAddresses | null,
 ) => {
   const [walletData, setWalletData] = useState<WalletItem[] | null>(
     null
@@ -142,44 +192,86 @@ export const useWalletData = (
 
     const linkedAccounts = (PrivyUser.linkedAccounts ||
       []) as PrivyLinkedAccount[];
-    const primaryEvmAddress = PrivyUser.wallet?.address;
+    const storedEvmAddress = getStoredEvmAddress(storedWallets);
+    const storedSolanaAddress = getStoredSolanaAddress(storedWallets);
+    const primaryEvmAddress =
+      storedEvmAddress || PrivyUser.wallet?.address;
 
     const walletSelectionOptions = tradingWalletSelectionOptions();
 
+    const solanaAccounts = linkedAccounts.filter(isSolanaWalletAccount);
+    const evmAccounts = linkedAccounts.filter(isEthereumWalletAccount);
+
     const solanaWallet = selectPreferredWallet(
-      linkedAccounts.filter(isSolanaWalletAccount),
+      solanaAccounts,
       undefined,
-      walletSelectionOptions,
+      {
+        ...walletSelectionOptions,
+        preferredAddresses: [storedSolanaAddress],
+      },
     );
 
     const evmWallets = orderWalletsByPreference(
-      linkedAccounts.filter(isEthereumWalletAccount),
+      evmAccounts,
       primaryEvmAddress,
-      walletSelectionOptions,
+      {
+        ...walletSelectionOptions,
+        preferredAddresses: [storedEvmAddress, primaryEvmAddress],
+      },
     );
 
     const wallets: WalletItem[] = [];
+    const seenWallets = new Set<string>();
+
+    const addWallet = (
+      address: string | null | undefined,
+      isEVM: boolean,
+      isActive: boolean,
+    ) => {
+      if (!address) return;
+      const normalizedAddress = normalizeAddress(address);
+      if (!normalizedAddress || seenWallets.has(normalizedAddress)) return;
+
+      wallets.push({
+        address,
+        isActive,
+        isEVM,
+      });
+      seenWallets.add(normalizedAddress);
+    };
+
+    if (storedSolanaAddress) {
+      addWallet(
+        storedSolanaAddress,
+        false,
+        solanaAccounts.some((wallet) =>
+          addressesMatch(wallet.address, storedSolanaAddress),
+        ),
+      );
+    }
 
     if (solanaWallet && isWalletAccount(solanaWallet)) {
-      wallets.push({
-        address: solanaWallet.address,
-        isActive: true,
-        isEVM: false,
-      });
+      addWallet(solanaWallet.address, false, true);
+    }
+
+    if (storedEvmAddress) {
+      addWallet(
+        storedEvmAddress,
+        true,
+        evmAccounts.some((wallet) =>
+          addressesMatch(wallet.address, storedEvmAddress),
+        ),
+      );
     }
 
     evmWallets.forEach((evmWallet) => {
       if (!isWalletAccount(evmWallet)) return;
 
-      wallets.push({
-        address: evmWallet.address,
-        isActive: true,
-        isEVM: true,
-      });
+      addWallet(evmWallet.address, true, true);
     });
 
     setWalletData(wallets);
-  }, [PrivyUser, authenticated, ready]);
+  }, [PrivyUser, authenticated, ready, storedWallets]);
 
   return walletData;
 };

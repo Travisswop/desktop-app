@@ -23,6 +23,7 @@ import {
   selectPreferredWallet,
   shouldPreferEmbeddedWallets,
 } from "@/components/wallet/hooks/useWalletData";
+import { useUser } from "@/lib/UserContext";
 
 export interface PolymarketWalletContextType {
   eoaAddress: `0x${string}` | undefined;
@@ -67,16 +68,22 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
   const [retryNonce, setRetryNonce] = useState(0);
 
   const { wallets, ready } = useWallets();
-  const { authenticated, user } = usePrivy();
+  const { authenticated, user: privyUser } = usePrivy();
+  const { user } = useUser();
 
   const useEmbeddedWalletProvider = shouldPreferEmbeddedWallets();
 
   // In local development, avoid extension-injected EVM providers by using the
   // embedded Privy wallet unless external wallet testing is explicitly enabled.
-  const wallet = selectPreferredWallet(wallets, user?.wallet?.address, {
-    preferEmbedded: useEmbeddedWalletProvider,
-    embeddedOnly: useEmbeddedWalletProvider,
-  });
+  const wallet = selectPreferredWallet(
+    wallets,
+    user?.ethereumWallet || privyUser?.wallet?.address,
+    {
+      preferEmbedded: useEmbeddedWalletProvider,
+      embeddedOnly: useEmbeddedWalletProvider,
+      preferredAddresses: [user?.ethereumWallet],
+    },
+  );
 
   const eoaAddress =
     authenticated && wallet ? (wallet.address as `0x${string}`) : undefined;

@@ -84,7 +84,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
   const { payload } = useTransactionPayload(user);
 
-  const walletData = useWalletData(authenticated, ready, PrivyUser);
+  const walletData = useWalletData(authenticated, ready, PrivyUser, user);
   const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
 
   // fetch token data

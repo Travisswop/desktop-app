@@ -3037,7 +3037,8 @@ export default function ChatArea({
   const walletData = useWalletData(
     isPrivyAuthenticated,
     isPrivyReady,
-    privyUser
+    privyUser,
+    user
   );
   const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);

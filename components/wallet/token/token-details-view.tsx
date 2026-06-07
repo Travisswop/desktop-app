@@ -315,7 +315,7 @@ export default function TokenDetails({
   onBack,
   onSend,
 }: TokenDetailsProps) {
-  const { accessToken } = useUser();
+  const { accessToken, user } = useUser();
   const { fundWallet } = useFundWallet();
   const { wallets: solanaWallets } = useSolanaWallets();
   const isMarketOnly = Boolean(token.isMarketOnly);
@@ -441,7 +441,12 @@ export default function TokenDetails({
   ]);
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  const walletData = useWalletData(authenticated, ready, PrivyUser);
+  const walletData = useWalletData(
+    authenticated,
+    ready,
+    PrivyUser,
+    user,
+  );
   const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
   const { tokens } = useMultiChainTokenData(

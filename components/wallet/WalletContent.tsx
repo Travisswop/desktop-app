@@ -762,7 +762,12 @@ const WalletContentInner = () => {
   const router = useRouter();
 
   // Custom hooks
-  const walletData = useWalletData(authenticated, ready, PrivyUser);
+  const walletData = useWalletData(
+    authenticated,
+    ready,
+    PrivyUser,
+    user,
+  );
   const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
   const portfolioEvmWalletInput = useMemo(

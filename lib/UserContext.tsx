@@ -148,6 +148,20 @@ function normalizeEmail(email?: string | null) {
   return email?.trim().toLowerCase() || '';
 }
 
+function normalizeWalletAddress(address?: string | null) {
+  return address?.trim().toLowerCase() || '';
+}
+
+function walletAddressesMatch(
+  left?: string | null,
+  right?: string | null,
+) {
+  return (
+    Boolean(left && right) &&
+    normalizeWalletAddress(left) === normalizeWalletAddress(right)
+  );
+}
+
 function getAuthCookieOptions() {
   return {
     path: '/',
@@ -294,23 +308,50 @@ export function UserProvider({
     [],
   );
 
-  const extractPreferredWalletAddresses = useCallback((privyUser: any) => {
-    const linkedAccounts = (privyUser?.linkedAccounts ||
-      []) as PrivyLinkedAccount[];
-    const walletSelectionOptions = tradingWalletSelectionOptions();
-    const ethereumWallet = selectPreferredWallet(
-      linkedAccounts.filter(isEthereumWalletAccount),
-      privyUser?.wallet?.address,
-      walletSelectionOptions,
-    )?.address;
-    const solanaWallet = selectPreferredWallet(
-      linkedAccounts.filter(isSolanaWalletAccount),
-      undefined,
-      walletSelectionOptions,
-    )?.address;
+  const extractPreferredWalletAddresses = useCallback(
+    (privyUser: any, currentUser?: UserData | null) => {
+      const linkedAccounts = (privyUser?.linkedAccounts ||
+        []) as PrivyLinkedAccount[];
+      const walletSelectionOptions = tradingWalletSelectionOptions();
+      const storedEthereumWallet = currentUser?.ethereumWallet || '';
+      const storedSolanaWallet =
+        currentUser?.solanaWallet || currentUser?.solanaAddress || '';
 
-    return { ethereumWallet, solanaWallet };
-  }, []);
+      const selectedEthereumWallet = selectPreferredWallet(
+        linkedAccounts.filter(isEthereumWalletAccount),
+        storedEthereumWallet || privyUser?.wallet?.address,
+        {
+          ...walletSelectionOptions,
+          preferredAddresses: [storedEthereumWallet],
+        },
+      )?.address;
+      const selectedSolanaWallet = selectPreferredWallet(
+        linkedAccounts.filter(isSolanaWalletAccount),
+        undefined,
+        {
+          ...walletSelectionOptions,
+          preferredAddresses: [storedSolanaWallet],
+        },
+      )?.address;
+
+      const ethereumWallet =
+        !storedEthereumWallet ||
+        walletAddressesMatch(
+          storedEthereumWallet,
+          selectedEthereumWallet,
+        )
+          ? selectedEthereumWallet
+          : undefined;
+      const solanaWallet =
+        !storedSolanaWallet ||
+        walletAddressesMatch(storedSolanaWallet, selectedSolanaWallet)
+          ? selectedSolanaWallet
+          : undefined;
+
+      return { ethereumWallet, solanaWallet };
+    },
+    [],
+  );
 
   // Fetch user data from backend
   const fetchUserData = useCallback(
@@ -502,7 +543,7 @@ export function UserProvider({
     }
 
     const { ethereumWallet, solanaWallet } =
-      extractPreferredWalletAddresses(privyUser);
+      extractPreferredWalletAddresses(privyUser, user);
     if (!ethereumWallet && !solanaWallet) return;
 
     const syncKey = `${user._id}:${ethereumWallet || ''}:${
@@ -532,27 +573,44 @@ export function UserProvider({
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.json();
       })
-      .then(() => {
+      .then((data) => {
+        const syncedEthereumWallet =
+          data?.user?.ethereumWallet || ethereumWallet;
+        const syncedSolanaWallet = data?.user?.solanaWallet || solanaWallet;
+
         setUser((currentUser) => {
           if (!currentUser) return currentUser;
           const syncedUser = {
             ...currentUser,
-            ...(ethereumWallet ? { ethereumWallet } : {}),
-            ...(solanaWallet ? { solanaWallet } : {}),
+            ...(syncedEthereumWallet
+              ? { ethereumWallet: syncedEthereumWallet }
+              : {}),
+            ...(syncedSolanaWallet
+              ? { solanaWallet: syncedSolanaWallet }
+              : {}),
             microsites: currentUser.microsites?.map((microsite) => {
               if (!microsite?.primary) return microsite;
               return {
                 ...microsite,
-                ...(ethereumWallet ? { ethAddress: ethereumWallet } : {}),
+                ...(syncedEthereumWallet
+                  ? { ethAddress: syncedEthereumWallet }
+                  : {}),
                 ensData: {
                   ...(microsite.ensData || {}),
-                  ...(ethereumWallet
-                    ? { owner: ethereumWallet, ethAddress: ethereumWallet }
+                  ...(syncedEthereumWallet
+                    ? {
+                        owner: syncedEthereumWallet,
+                        ethAddress: syncedEthereumWallet,
+                      }
                     : {}),
                   addresses: {
                     ...(microsite.ensData?.addresses || {}),
-                    ...(ethereumWallet ? { 60: ethereumWallet } : {}),
-                    ...(solanaWallet ? { 501: solanaWallet } : {}),
+                    ...(syncedEthereumWallet
+                      ? { 60: syncedEthereumWallet }
+                      : {}),
+                    ...(syncedSolanaWallet
+                      ? { 501: syncedSolanaWallet }
+                      : {}),
                   },
                 },
               };
@@ -575,6 +633,7 @@ export function UserProvider({
     user?._id,
     user?.ethereumWallet,
     user?.solanaWallet,
+    user?.solanaAddress,
     accessToken,
     extractPreferredWalletAddresses,
   ]);
