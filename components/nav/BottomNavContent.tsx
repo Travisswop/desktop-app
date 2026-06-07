@@ -8,7 +8,6 @@ import smartsite from "@/public/images/nav/smartsite.png";
 import wallet from "@/public/images/nav/wallet.png";
 import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
-import { TrendingUp } from "lucide-react";
 import { VscChip } from "react-icons/vsc";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -160,7 +159,8 @@ const BottomNavContent = () => {
     "/subscription",
     "/notifications",
     "/feed/",
-  ]; // Add your routes here
+    "/smartsite/profile/",
+  ]; // Add routes here which we want to hide the bottom nav on
 
   // Hide bottom nav on specific routes
   if (hideOnRoutes.some((route) => pathname?.startsWith(route))) {
