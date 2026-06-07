@@ -504,7 +504,7 @@ const CreateProduct = () => {
         style={{
           background: '#f4f4f2',
           minHeight: '100vh',
-          padding: '28px 24px',
+          padding: '28px 24px 120px',
         }}
       >
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
@@ -527,7 +527,9 @@ const CreateProduct = () => {
                 </Button>
                 <Button
                   variant="primary"
-                  disabled={isSubmitting || !solanaAddress || !agree}
+                  disabled={
+                    isSubmitting || !solanaAddress || (!isEditMode && !agree)
+                  }
                   onClick={handleSubmit}
                 >
                   {isSubmitting ? (
@@ -732,6 +734,11 @@ const CreateProduct = () => {
                   {imageError && (
                     <p style={{ fontSize: 11.5, color: '#dc2626', marginTop: 8 }}>
                       {imageError}
+                    </p>
+                  )}
+                  {formErrors.image && !imageError && (
+                    <p style={{ fontSize: 11.5, color: '#dc2626', marginTop: 8 }}>
+                      {formErrors.image}
                     </p>
                   )}
 
@@ -1287,6 +1294,7 @@ const CreateProduct = () => {
                 </Card>
 
                 {/* Agreement */}
+                {!isEditMode && (
                 <div
                   style={{
                     display: 'flex',
@@ -1345,6 +1353,7 @@ const CreateProduct = () => {
                     .
                   </div>
                 </div>
+                )}
               </div>
             </div>
           </ScreenShell>
