@@ -19,13 +19,15 @@ const SmartsiteProfileView = async ({
 
     console.log("data hhh", data);
 
-    return (
-      <div>
-        <Suspense fallback={<SmartSiteIconLoading />}>
+    if (data?.data) {
+      return (
+        <div>
+          {/* <Suspense fallback={<SmartSiteIconLoading />}> */}
           <SmartsiteIconLivePreview data={data.data} />
-        </Suspense>
-      </div>
-    );
+          {/* </Suspense> */}
+        </div>
+      );
+    }
   }
 };
 

@@ -45,6 +45,7 @@ import Referral from "../publicProfile/referral";
 import MediaList from "../publicProfile/MediaList";
 import getMediaType from "@/utils/getMediaType";
 import EmbedVideo from "../publicProfile/embedvideo";
+import EmbeddedFeed from "@/app/(public-profile)/sp/[username]/_EmbeddedFeed";
 
 const SmartsiteIconLivePreview = ({
   data,
@@ -57,6 +58,8 @@ const SmartsiteIconLivePreview = ({
   const { isOn, setOff, setOn }: any = useSmallIconToggleStore();
   const iconData: any = useUpdateSmartIcon();
 
+  const [socialRows, setSocialRows] = useState<any>([]);
+
   // console.log("state iconData", iconData);
   // const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
   // const [isLeadCapture, setIsLeadCapture] = useState<boolean>(false);
@@ -65,6 +68,7 @@ const SmartsiteIconLivePreview = ({
 
   // console.log("data form live", data.info.socialLarge);
   const { formData, setFormData } = useSmartsiteFormStore();
+  const setAllFormData = useSmartsiteFormStore((s) => s.setAllFormData);
   const router = useRouter();
 
   // console.log("form data from live preview data", data.info.socialLarge);
@@ -75,13 +79,14 @@ const SmartsiteIconLivePreview = ({
 
   const { user, accessToken } = useUser();
 
-  console.log("formDatagg data", data);
+  console.log("hola data", data);
+  console.log("formDatagg data", formData);
 
   useEffect(() => {
     if (data) {
       setSmartSiteApiData(data);
     }
-  }, [data, setSmartSiteApiData]);
+  }, [data]);
 
   const handleTriggerUpdate = (data: {
     data: any;
@@ -91,20 +96,34 @@ const SmartsiteIconLivePreview = ({
     setOn(true);
   };
 
+  // useEffect(() => {
+  //   setFormData("name", data.name);
+  //   setFormData("bio", data.bio);
+  //   setFormData("profileImg", data.profilePic);
+  //   setFormData("backgroundImg", data.backgroundImg);
+  //   setFormData("theme", data.theme);
+  //   setFormData("backgroundColor", data.backgroundColor);
+  //   setFormData("fontColor", data.fontColor);
+  //   setFormData("secondaryFontColor", data.secondaryFontColor);
+  //   setFormData("fontType", data.fontFamily);
+  //   setFormData("templateColor", data.themeColor);
+  // }, [data]);
   useEffect(() => {
-    if (data) {
-      setFormData("name", data.name);
-      setFormData("bio", data.bio);
-      setFormData("profileImg", data.profilePic);
-      setFormData("backgroundImg", data.backgroundImg);
-      setFormData("theme", data.theme);
-      setFormData("backgroundColor", data.backgroundColor);
-      setFormData("fontColor", data.fontColor);
-      setFormData("secondaryFontColor", data.secondaryFontColor);
-      setFormData("fontType", data.fontFamily);
-      setFormData("templateColor", data.themeColor);
-    }
-  }, [data, setFormData]);
+    if (!data) return;
+
+    setAllFormData({
+      name: data.name,
+      bio: data.bio,
+      profileImg: data.profilePic,
+      backgroundImg: data.backgroundImg,
+      theme: data.theme,
+      backgroundColor: data.backgroundColor,
+      fontColor: data.fontColor,
+      secondaryFontColor: data.secondaryFontColor,
+      fontType: data.fontFamily,
+      templateColor: data.themeColor,
+    });
+  }, [data]);
 
   // const handleSmartSiteUpdateInfo = async (e: any) => {
   //   setIsPublishedLoading(true);
@@ -191,7 +210,9 @@ const SmartsiteIconLivePreview = ({
     }
   };
 
-  const socialRows = distributeSmallIcons(data.info.socialTop);
+  useEffect(() => {
+    setSocialRows(distributeSmallIcons(data.info.socialTop));
+  }, [data]);
 
   // Add this helper function at the top of your component or in a separate utils file
   const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
@@ -247,7 +268,7 @@ const SmartsiteIconLivePreview = ({
 
                 {/* small icon display here start */}
                 <div className="space-y-4">
-                  {socialRows.map((row, rowIndex) => (
+                  {socialRows.map((row: any[], rowIndex: number) => (
                     <div
                       key={rowIndex}
                       className="flex justify-center gap-x-6 gap-y-4 flex-wrap"
@@ -728,14 +749,11 @@ const SmartsiteIconLivePreview = ({
               </div>
 
               {data?.showFeed && accessToken && user && (
-                <div className="">
-                  <LivePreviewTimeline
-                    accessToken={accessToken}
-                    userId={user?._id}
-                    isPostLoading={false}
-                    isPosting={false}
-                    setIsPostLoading={() => {}}
-                    setIsPosting={() => {}}
+                <div className="mt-6">
+                  <EmbeddedFeed
+                    accessToken={accessToken || ""}
+                    userId={user?._id || ""}
+                    micrositeId={user?.primaryMicrosite || ""}
                   />
                 </div>
               )}
