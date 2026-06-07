@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   ReactNode,
 } from "react";
 import {
@@ -19,14 +20,11 @@ import { providers } from "ethers5";
 import { polygon } from "viem/chains";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
 import { POLYGON_RPC_URL } from "@/constants/polymarket";
-import { useUser } from "@/lib/UserContext";
 import {
-  getStoredEvmWalletAddress,
   selectPreferredWallet,
   shouldPreferEmbeddedWallets,
-  shouldUseStoredWalletAddresses,
-  walletAddressEquals,
 } from "@/components/wallet/hooks/useWalletData";
+import { useUser } from "@/lib/UserContext";
 
 export interface PolymarketWalletContextType {
   eoaAddress: `0x${string}` | undefined;
@@ -69,53 +67,36 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
     useState<providers.JsonRpcSigner | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [retryNonce, setRetryNonce] = useState(0);
+  const initializedWalletKeyRef = useRef<string | null>(null);
 
   const { wallets, ready } = useWallets();
   const { authenticated, user: privyUser } = usePrivy();
-  const { user: swopUser } = useUser();
+  const { user } = useUser();
 
   const useEmbeddedWalletProvider = shouldPreferEmbeddedWallets();
-  const storedEvmAddress = getStoredEvmWalletAddress(swopUser);
-  const activeWallet = selectPreferredWallet(
-    wallets,
-    privyUser?.wallet?.address,
-    {
-      preferEmbedded: useEmbeddedWalletProvider,
-      embeddedOnly: useEmbeddedWalletProvider,
-    },
-  );
-  const shouldUseStoredEoa =
-    authenticated &&
-    shouldUseStoredWalletAddresses(
-      privyUser?.id ?? swopUser?.privyId,
-      swopUser,
-      activeWallet?.address,
-    ) &&
-    Boolean(storedEvmAddress);
 
   // In local development, avoid extension-injected EVM providers by using the
   // embedded Privy wallet unless external wallet testing is explicitly enabled.
-  const selectedWallet = shouldUseStoredEoa
-    ? selectPreferredWallet(
-        wallets,
-        storedEvmAddress,
-        {
-          preferEmbedded: useEmbeddedWalletProvider,
-          embeddedOnly: useEmbeddedWalletProvider,
-        },
-      )
-    : activeWallet;
+  const wallet = selectPreferredWallet(
+    wallets,
+    user?.ethereumWallet || privyUser?.wallet?.address,
+    {
+      preferEmbedded: useEmbeddedWalletProvider,
+      embeddedOnly: useEmbeddedWalletProvider,
+      preferredAddresses: [user?.ethereumWallet],
+    },
+  );
+
   const eoaAddress =
-    authenticated && shouldUseStoredEoa
-      ? (storedEvmAddress as `0x${string}`)
-      : authenticated && selectedWallet
-        ? (selectedWallet.address as `0x${string}`)
-        : undefined;
-  const wallet =
-    selectedWallet && walletAddressEquals(selectedWallet.address, eoaAddress)
-      ? selectedWallet
-      : undefined;
-  const hasWallet = Boolean(eoaAddress);
+    authenticated && wallet ? (wallet.address as `0x${string}`) : undefined;
+  const walletChainId = wallet?.chainId;
+  const walletAddressKey = wallet?.address?.toLowerCase();
+  const initializationKey =
+    authenticated && walletChainId && walletAddressKey
+      ? `${walletAddressKey}|${walletChainId}`
+      : null;
+
+  const hasWallet = !!wallet && !!eoaAddress;
 
   const switchToPolygon = async () => {
     if (!wallet || !ready || !authenticated) return;
@@ -135,18 +116,35 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
     setWalletClient(null);
     setEthersSigner(null);
     setIsInitializing(true);
+    initializedWalletKeyRef.current = null;
     setRetryNonce((value) => value + 1);
   };
 
   useEffect(() => {
     // Wait until Privy has finished loading wallets
-    if (!ready) return;
+    if (!ready || !authenticated) {
+      setWalletClient(null);
+      setEthersSigner(null);
+      setIsInitializing(false);
+      initializedWalletKeyRef.current = null;
+      return;
+    }
 
     async function init() {
-      if (!wallet || !eoaAddress) {
-        // No signing wallet available — reads can still use eoaAddress.
+      if (!wallet || !walletAddressKey || !walletChainId || !initializationKey) {
+        // No EVM wallet available — stop initializing, no error
         setWalletClient(null);
         setEthersSigner(null);
+        setIsInitializing(false);
+        initializedWalletKeyRef.current = null;
+        return;
+      }
+
+      if (
+        initializedWalletKeyRef.current === initializationKey &&
+        walletClient &&
+        ethersSigner
+      ) {
         setIsInitializing(false);
         return;
       }
@@ -164,6 +162,7 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
 
         const ethersProvider = new providers.Web3Provider(provider);
         setEthersSigner(ethersProvider.getSigner());
+        initializedWalletKeyRef.current = initializationKey;
       } catch (err) {
         console.error("Failed to initialize Polymarket wallet client:", err);
         setWalletClient(null);
@@ -174,7 +173,7 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
     }
 
     init();
-  }, [wallet, ready, eoaAddress, retryNonce]);
+  }, [ready, authenticated, walletAddressKey, walletChainId, retryNonce]);
 
   return (
     <PolymarketWalletContext.Provider
@@ -183,7 +182,7 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
         walletClient,
         publicClient,
         ethersSigner,
-        isReady: ready && authenticated && hasWallet && !isInitializing,
+        isReady: ready && authenticated && !!walletClient,
         isInitializing: !ready || isInitializing,
         hasWallet,
         authenticated,
