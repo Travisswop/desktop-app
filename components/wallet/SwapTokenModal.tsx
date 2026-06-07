@@ -1150,7 +1150,7 @@ export default function SwapTokenModal({
       (t?.chainId?.toString?.() === '1151111081099710'
         ? 'SOLANA'
         : '');
-    const address = t?.address ?? t?.id ?? null;
+    const address = t?.address ?? t?.id ?? t?.mint ?? null;
     const tags = Array.isArray(t?.tags)
       ? t.tags.map((tag: unknown) => String(tag).toLowerCase())
       : [];
@@ -1159,7 +1159,9 @@ export default function SwapTokenModal({
 
     return (
       t?.symbol?.toUpperCase?.() === 'SOL' &&
-      (hasNativeMarker || (chain === 'SOLANA' && address == null))
+      (hasNativeMarker ||
+        address === LIFI_NATIVE_SOL_ADDRESS ||
+        (chain === 'SOLANA' && address == null))
     );
   };
 
