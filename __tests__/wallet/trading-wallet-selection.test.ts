@@ -1,4 +1,5 @@
 import {
+  getStoredWalletData,
   getPortfolioEvmWalletInput,
   selectPreferredWallet,
   shouldPreferEmbeddedWallets,
@@ -123,5 +124,17 @@ describe('trading wallet selection', () => {
     expect(getPortfolioEvmWalletInput('0xEmbedded')).toBe(
       '0xEmbedded',
     );
+  });
+
+  it('builds wallet data from backend-stored wallet addresses', () => {
+    expect(
+      getStoredWalletData({
+        ethereumWallet: '0xStoredEvm',
+        solanaWallet: 'storedSolana',
+      }),
+    ).toEqual([
+      { address: 'storedSolana', isActive: false, isEVM: false },
+      { address: '0xStoredEvm', isActive: false, isEVM: true },
+    ]);
   });
 });

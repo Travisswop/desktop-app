@@ -185,6 +185,49 @@ function orderWalletsByPreference<T extends AddressLike>(
   return ordered;
 }
 
+const addUniqueWallet = (
+  wallets: WalletItem[],
+  seenWallets: Set<string>,
+  address: string | null | undefined,
+  isEVM: boolean,
+  isActive: boolean,
+) => {
+  if (!address) return;
+  const normalizedAddress = normalizeAddress(address);
+  if (!normalizedAddress || seenWallets.has(normalizedAddress)) return;
+
+  wallets.push({
+    address,
+    isActive,
+    isEVM,
+  });
+  seenWallets.add(normalizedAddress);
+};
+
+export const getStoredWalletData = (
+  storedWallets?: StoredWalletAddresses | null,
+): WalletItem[] => {
+  const wallets: WalletItem[] = [];
+  const seenWallets = new Set<string>();
+
+  addUniqueWallet(
+    wallets,
+    seenWallets,
+    getStoredSolanaAddress(storedWallets),
+    false,
+    false,
+  );
+  addUniqueWallet(
+    wallets,
+    seenWallets,
+    getStoredEvmAddress(storedWallets),
+    true,
+    false,
+  );
+
+  return wallets;
+};
+
 // Custom hook for wallet addresses
 export const useWalletAddresses = (
   walletData: WalletItem[] | null
@@ -230,12 +273,17 @@ export const useWalletData = (
   );
 
   useEffect(() => {
-    if (!authenticated || !ready || !PrivyUser) return;
+    const storedEvmAddress = getStoredEvmAddress(storedWallets);
+    const storedSolanaAddress = getStoredSolanaAddress(storedWallets);
+    const storedWalletData = getStoredWalletData(storedWallets);
+
+    if (!authenticated || !ready || !PrivyUser) {
+      setWalletData(storedWalletData.length ? storedWalletData : null);
+      return;
+    }
 
     const linkedAccounts = (PrivyUser.linkedAccounts ||
       []) as PrivyLinkedAccount[];
-    const storedEvmAddress = getStoredEvmAddress(storedWallets);
-    const storedSolanaAddress = getStoredSolanaAddress(storedWallets);
     const primaryEvmAddress =
       storedEvmAddress || PrivyUser.wallet?.address;
     const hasStoredWallets = Boolean(storedEvmAddress || storedSolanaAddress);
@@ -268,47 +316,19 @@ export const useWalletData = (
         solanaWallet?.address,
       )
     ) {
-      const storedWalletData: WalletItem[] = [];
-      if (storedSolanaAddress) {
-        storedWalletData.push({
-          address: storedSolanaAddress,
-          isActive: true,
-          isEVM: false,
-        });
-      }
-      if (storedEvmAddress) {
-        storedWalletData.push({
-          address: storedEvmAddress,
-          isActive: true,
-          isEVM: true,
-        });
-      }
-      setWalletData(storedWalletData);
+      setWalletData(
+        storedWalletData.map((wallet) => ({ ...wallet, isActive: true })),
+      );
       return;
     }
 
     const wallets: WalletItem[] = [];
     const seenWallets = new Set<string>();
 
-    const addWallet = (
-      address: string | null | undefined,
-      isEVM: boolean,
-      isActive: boolean,
-    ) => {
-      if (!address) return;
-      const normalizedAddress = normalizeAddress(address);
-      if (!normalizedAddress || seenWallets.has(normalizedAddress)) return;
-
-      wallets.push({
-        address,
-        isActive,
-        isEVM,
-      });
-      seenWallets.add(normalizedAddress);
-    };
-
     if (storedSolanaAddress) {
-      addWallet(
+      addUniqueWallet(
+        wallets,
+        seenWallets,
         storedSolanaAddress,
         false,
         linkedAccounts
@@ -320,11 +340,19 @@ export const useWalletData = (
     }
 
     if (solanaWallet && isWalletAccount(solanaWallet)) {
-      addWallet(solanaWallet.address, false, true);
+      addUniqueWallet(
+        wallets,
+        seenWallets,
+        solanaWallet.address,
+        false,
+        true,
+      );
     }
 
     if (storedEvmAddress) {
-      addWallet(
+      addUniqueWallet(
+        wallets,
+        seenWallets,
         storedEvmAddress,
         true,
         linkedAccounts
@@ -337,7 +365,13 @@ export const useWalletData = (
 
     evmWallets.forEach((evmWallet) => {
       if (!isWalletAccount(evmWallet)) return;
-      addWallet(evmWallet.address, true, true);
+      addUniqueWallet(
+        wallets,
+        seenWallets,
+        evmWallet.address,
+        true,
+        true,
+      );
     });
 
     if (wallets.length === 0 && hasStoredWallets) {

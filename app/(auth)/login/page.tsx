@@ -35,6 +35,10 @@ import { RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
 import logger from '@/utils/logger';
 import { buildSwopApiUrl, getSwopApiBaseUrl } from '@/lib/api/apiBaseUrl';
+import {
+  requiresSwopIdCompletion,
+  SWOP_ID_ONBOARDING_PATH,
+} from '@/lib/onboardingStatus';
 
 // Login flow states
 enum LoginFlow {
@@ -465,6 +469,8 @@ const Login: React.FC = () => {
           throw new Error('Invalid user data from backend');
         }
 
+        const shouldCompleteSwopId = requiresSwopIdCompletion(data.user);
+
         // Set user ID cookie
         Cookies.set(
           'user-id',
@@ -500,7 +506,9 @@ const Login: React.FC = () => {
         // Redirect after short delay
         redirectTimeoutRef.current = setTimeout(() => {
           router.refresh();
-          router.push('/');
+          router.push(
+            shouldCompleteSwopId ? SWOP_ID_ONBOARDING_PATH : '/',
+          );
         }, 1500);
       } catch (error) {
         logger.error('Login processing failed:', error);

@@ -22,6 +22,10 @@ import {
   isSolanaWalletAccount,
 } from '@/types/privy';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import {
+  requiresSwopIdCompletion,
+  SWOP_ID_ONBOARDING_PATH,
+} from '@/lib/onboardingStatus';
 
 const userContextDebugEnabled =
   process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true';
@@ -530,6 +534,27 @@ export function UserProvider({
     fetchUserData,
     user,
   ]);
+
+  useEffect(() => {
+    if (
+      loading ||
+      !authenticated ||
+      !user?._id ||
+      !requiresSwopIdCompletion(user) ||
+      typeof window === 'undefined'
+    ) {
+      return;
+    }
+
+    if (
+      window.location.pathname === '/onboard' ||
+      window.location.pathname === '/login'
+    ) {
+      return;
+    }
+
+    router.push(SWOP_ID_ONBOARDING_PATH);
+  }, [authenticated, loading, router, user]);
 
   useEffect(() => {
     if (

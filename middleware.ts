@@ -599,6 +599,10 @@ async function handleAuthenticatedUser(
 
   // Handle /onboard route
   if (pathname === "/onboard") {
+    if (req.nextUrl.searchParams.get("step") === "swop-id") {
+      return NextResponse.next();
+    }
+
     try {
       const { exists, status } = await checkUserInBackend(userId);
 
