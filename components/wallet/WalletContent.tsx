@@ -791,7 +791,7 @@ const WalletContentInner = () => {
     );
   }, [solanaReady, directSolanaWallets, solWalletAddress]);
   const perpsMasterAddress =
-    hlAgent.masterAddress ?? evmWalletAddress ?? null;
+    evmWalletAddress || hlAgent.masterAddress || null;
 
   // Balance check — shared between PerpsPanel (gates approveAgent) and
   // DepositModal (starts polling after a deposit tx is submitted).

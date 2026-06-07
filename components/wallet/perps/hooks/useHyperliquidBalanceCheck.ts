@@ -4,8 +4,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import * as hl from '@nktkas/hyperliquid';
 import { getHLApiUrl } from '@/services/hyperliquid/config';
+import { useUser } from '@/lib/UserContext';
 import {
+  getStoredEvmWalletAddress,
   selectPreferredWallet,
+  shouldUseStoredWalletAddresses,
   tradingWalletSelectionOptions,
 } from '@/components/wallet/hooks/useWalletData';
 
@@ -58,14 +61,33 @@ export function useHyperliquidBalanceCheck(
   // BEFORE `approveAgent` (which is what surfaces masterAddress on hlAgent).
   // A caller may still pass an explicit override if they already have it.
   const { user } = usePrivy();
+  const { user: swopUser } = useUser();
   const { wallets, ready: walletsReady } = useWallets();
-  const masterWallet = selectPreferredWallet(
+  const storedMasterAddress = getStoredEvmWalletAddress(swopUser);
+  const activeMasterWallet = selectPreferredWallet(
     wallets,
     user?.wallet?.address,
     tradingWalletSelectionOptions(),
   );
+  const shouldUseStoredMaster =
+    shouldUseStoredWalletAddresses(
+      user?.id,
+      swopUser,
+      activeMasterWallet?.address,
+    ) &&
+    Boolean(storedMasterAddress);
+  const masterWallet = selectPreferredWallet(
+    wallets,
+    shouldUseStoredMaster ? storedMasterAddress : user?.wallet?.address,
+    tradingWalletSelectionOptions(),
+  );
   const masterAddress =
-    masterAddressOverride ?? (walletsReady ? masterWallet?.address ?? null : null);
+    masterAddressOverride ??
+    (shouldUseStoredMaster
+      ? storedMasterAddress
+      : walletsReady
+        ? masterWallet?.address ?? null
+        : null);
 
   const [status, setStatus] = useState<DepositCheckStatus>('idle');
   const [accountValue, setAccountValue] = useState<string | null>(null);

@@ -542,6 +542,10 @@ export function UserProvider({
       return;
     }
 
+    if (user.privyId && privyUser.id && user.privyId !== privyUser.id) {
+      return;
+    }
+
     const { ethereumWallet, solanaWallet } =
       extractPreferredWalletAddresses(privyUser, user);
     if (!ethereumWallet && !solanaWallet) return;
@@ -631,6 +635,7 @@ export function UserProvider({
     authenticated,
     privyUser,
     user?._id,
+    user?.privyId,
     user?.ethereumWallet,
     user?.solanaWallet,
     user?.solanaAddress,

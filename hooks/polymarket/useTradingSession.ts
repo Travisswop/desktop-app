@@ -94,6 +94,29 @@ export function useTradingSession() {
         return false;
       }
 
+      const baseRestoredSession: TradingSession = {
+        eoaAddress,
+        walletType,
+        safeAddress: tradingWalletAddress,
+        depositWalletAddress:
+          walletType === "deposit" ? walletInfo.depositWalletAddress : undefined,
+        isSafeDeployed:
+          walletType === "safe" ? walletInfo.safeDeployed : true,
+        isDepositWalletDeployed:
+          walletType === "deposit" ? walletInfo.depositWalletDeployed : false,
+        hasApiCredentials: false,
+        apiCredentialsAddress: eoaAddress,
+        hasApprovals: false,
+        depositWalletRegisteredAt:
+          walletType === "deposit"
+            ? storedSession?.depositWalletRegisteredAt ?? Date.now()
+            : undefined,
+        lastChecked: Date.now(),
+      };
+
+      setTradingSession(baseRestoredSession);
+      saveSession(eoaAddress, baseRestoredSession);
+
       const flowOpts =
         walletType === "deposit"
           ? {
@@ -107,29 +130,15 @@ export function useTradingSession() {
         flowOpts
       );
 
-      if (!apiCreds) return false;
+      if (!apiCreds) return true;
 
       const approvalStatus = await checkAllTokenApprovals(tradingWalletAddress);
-      if (!approvalStatus.allApproved) return false;
 
       const restoredSession: TradingSession = {
-        eoaAddress,
-        walletType,
-        safeAddress: tradingWalletAddress,
-        depositWalletAddress:
-          walletType === "deposit" ? walletInfo.depositWalletAddress : undefined,
-        isSafeDeployed:
-          walletType === "safe" ? walletInfo.safeDeployed : true,
-        isDepositWalletDeployed:
-          walletType === "deposit" ? walletInfo.depositWalletDeployed : false,
+        ...baseRestoredSession,
         hasApiCredentials: true,
-        apiCredentialsAddress: eoaAddress,
-        hasApprovals: true,
+        hasApprovals: approvalStatus.allApproved,
         apiCredentials: apiCreds,
-        depositWalletRegisteredAt:
-          walletType === "deposit"
-            ? storedSession?.depositWalletRegisteredAt ?? Date.now()
-            : undefined,
         lastChecked: Date.now(),
       };
 
@@ -154,6 +163,13 @@ export function useTradingSession() {
       tradingSession?.isSafeDeployed &&
       tradingSession?.hasApiCredentials &&
       tradingSession?.hasApprovals
+    ) {
+      return;
+    }
+    if (
+      tradingSession?.isSafeDeployed &&
+      tradingSession?.lastChecked &&
+      (!tradingSession.hasApiCredentials || !tradingSession.hasApprovals)
     ) {
       return;
     }

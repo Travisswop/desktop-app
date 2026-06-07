@@ -11,9 +11,13 @@ import type { SignTypedDataParams } from '@privy-io/react-auth';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import * as hl from '@nktkas/hyperliquid';
 import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
+import { useUser } from '@/lib/UserContext';
 import {
+  getStoredEvmWalletAddress,
   selectPreferredWallet,
   shouldPreferEmbeddedWallets,
+  shouldUseStoredWalletAddresses,
+  walletAddressEquals,
 } from '@/components/wallet/hooks/useWalletData';
 
 // ─── Agent key persistence ──────────────────────────────────────────────────
@@ -103,8 +107,29 @@ export function useHyperliquidAgent({
 }: UseHyperliquidAgentOptions = {}) {
   const { ready, authenticated, user } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
+  const { user: swopUser } = useUser();
   const { signTypedData } = useSignTypedData();
   const useEmbeddedWalletProvider = shouldPreferEmbeddedWallets();
+  const storedMasterAddress = getStoredEvmWalletAddress(swopUser);
+  const activeMasterWallet = selectPreferredWallet(
+    wallets,
+    user?.wallet?.address,
+    {
+      preferEmbedded: useEmbeddedWalletProvider,
+      embeddedOnly: useEmbeddedWalletProvider,
+    },
+  );
+  const shouldUseStoredMaster =
+    authenticated &&
+    shouldUseStoredWalletAddresses(
+      user?.id,
+      swopUser,
+      activeMasterWallet?.address,
+    ) &&
+    Boolean(storedMasterAddress);
+  const requestedMasterAddress = shouldUseStoredMaster
+    ? storedMasterAddress
+    : user?.wallet?.address;
 
   const [state, setState] = useState<AgentState>({
     agentClient: null,
@@ -141,14 +166,24 @@ export function useHyperliquidAgent({
       let masterAddrForCleanup: string | null = null;
 
       try {
-        const masterWallet = selectPreferredWallet(
+        const selectedMasterWallet = selectPreferredWallet(
           wallets,
-          user?.wallet?.address,
+          requestedMasterAddress,
           {
             preferEmbedded: useEmbeddedWalletProvider,
             embeddedOnly: useEmbeddedWalletProvider,
           },
         );
+        const masterWallet =
+          shouldUseStoredMaster
+            ? selectedMasterWallet &&
+              walletAddressEquals(
+                selectedMasterWallet.address,
+                storedMasterAddress,
+              )
+              ? selectedMasterWallet
+              : undefined
+            : selectedMasterWallet;
         if (!masterWallet) {
           throw new Error('EVM wallet not found. Please refresh and try again.');
         }
@@ -255,7 +290,9 @@ export function useHyperliquidAgent({
       ready,
       walletsReady,
       wallets,
-      user?.wallet?.address,
+      requestedMasterAddress,
+      shouldUseStoredMaster,
+      storedMasterAddress,
       signTypedData,
       useEmbeddedWalletProvider,
     ],
@@ -270,14 +307,21 @@ export function useHyperliquidAgent({
   useEffect(() => {
     if (!enabled || !walletsReady) return;
 
-    const masterWallet = selectPreferredWallet(
+    const selectedMasterWallet = selectPreferredWallet(
       wallets,
-      user?.wallet?.address,
+      requestedMasterAddress,
       {
         preferEmbedded: useEmbeddedWalletProvider,
         embeddedOnly: useEmbeddedWalletProvider,
       },
     );
+    const masterWallet =
+      shouldUseStoredMaster
+        ? selectedMasterWallet &&
+          walletAddressEquals(selectedMasterWallet.address, storedMasterAddress)
+          ? selectedMasterWallet
+          : undefined
+        : selectedMasterWallet;
 
     if (!masterWallet && agentClientRef.current) {
       agentClientRef.current = null;
@@ -308,7 +352,9 @@ export function useHyperliquidAgent({
     enabled,
     wallets,
     walletsReady,
-    user?.wallet?.address,
+    requestedMasterAddress,
+    shouldUseStoredMaster,
+    storedMasterAddress,
     useEmbeddedWalletProvider,
     _init,
   ]);
@@ -339,14 +385,21 @@ export function useHyperliquidAgent({
     // and triggers a new approveAgent signature. Without this, resetAgent
     // would only clear runtime state and the next init would silently rehydrate
     // the same key — defeating the point of "reset".
-    const masterWallet = selectPreferredWallet(
+    const selectedMasterWallet = selectPreferredWallet(
       wallets,
-      user?.wallet?.address,
+      requestedMasterAddress,
       {
         preferEmbedded: useEmbeddedWalletProvider,
         embeddedOnly: useEmbeddedWalletProvider,
       },
     );
+    const masterWallet =
+      shouldUseStoredMaster
+        ? selectedMasterWallet &&
+          walletAddressEquals(selectedMasterWallet.address, storedMasterAddress)
+          ? selectedMasterWallet
+          : undefined
+        : selectedMasterWallet;
     if (masterWallet) deleteAgentKey(masterWallet.address);
 
     agentClientRef.current = null;
@@ -361,7 +414,13 @@ export function useHyperliquidAgent({
       isReconnecting: false,
       error: null,
     });
-  }, [wallets, user?.wallet?.address, useEmbeddedWalletProvider]);
+  }, [
+    wallets,
+    requestedMasterAddress,
+    shouldUseStoredMaster,
+    storedMasterAddress,
+    useEmbeddedWalletProvider,
+  ]);
 
   return { ...state, initializeAgent, resetAgent };
 }

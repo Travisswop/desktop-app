@@ -19,7 +19,8 @@ type WalletSelectionOptions = {
   preferredAddresses?: Array<string | null | undefined>;
 };
 
-type StoredWalletAddresses = {
+export type StoredWalletAddresses = {
+  privyId?: string | null;
   ethereumWallet?: string | null;
   ethAddress?: string | null;
   solanaWallet?: string | null;
@@ -29,12 +30,55 @@ type StoredWalletAddresses = {
 const normalizeAddress = (address?: string | null) =>
   address?.toLowerCase() ?? '';
 
+export const getStoredEvmWalletAddress = (
+  storedWallets?: StoredWalletAddresses | null,
+) => storedWallets?.ethereumWallet || storedWallets?.ethAddress || '';
+
+export const getStoredSolanaWalletAddress = (
+  storedWallets?: StoredWalletAddresses | null,
+) => storedWallets?.solanaWallet || storedWallets?.solanaAddress || '';
+
+export const privyUserMatchesStoredWalletUser = (
+  privyUserId?: string | null,
+  storedWallets?: StoredWalletAddresses | null,
+) =>
+  !storedWallets?.privyId ||
+  !privyUserId ||
+  storedWallets.privyId === privyUserId;
+
+export const shouldUseStoredWalletAddresses = (
+  privyUserId?: string | null,
+  storedWallets?: StoredWalletAddresses | null,
+  activeEvmAddress?: string | null,
+  activeSolanaAddress?: string | null,
+) => {
+  const storedEvmAddress = getStoredEvmWalletAddress(storedWallets);
+  const storedSolanaAddress = getStoredSolanaWalletAddress(storedWallets);
+  if (!storedEvmAddress && !storedSolanaAddress) return false;
+
+  if (!privyUserMatchesStoredWalletUser(privyUserId, storedWallets)) {
+    return true;
+  }
+
+  return Boolean(
+    (storedEvmAddress &&
+      activeEvmAddress &&
+      !walletAddressEquals(storedEvmAddress, activeEvmAddress)) ||
+      (storedSolanaAddress &&
+        activeSolanaAddress &&
+        !walletAddressEquals(storedSolanaAddress, activeSolanaAddress)),
+  );
+};
+
+export const walletAddressEquals = (
+  a?: string | null,
+  b?: string | null,
+) => normalizeAddress(a) === normalizeAddress(b);
+
 const addressesMatch = (
   left?: string | null,
   right?: string | null,
-) =>
-  Boolean(left && right) &&
-  normalizeAddress(left) === normalizeAddress(right);
+) => walletAddressEquals(left, right);
 
 const getPreferredAddressMatch = <T extends AddressLike>(
   wallets: T[],
@@ -56,13 +100,11 @@ const getPreferredAddressMatch = <T extends AddressLike>(
 
 const getStoredEvmAddress = (
   storedWallets?: StoredWalletAddresses | null,
-) =>
-  storedWallets?.ethereumWallet || storedWallets?.ethAddress || '';
+) => getStoredEvmWalletAddress(storedWallets);
 
 const getStoredSolanaAddress = (
   storedWallets?: StoredWalletAddresses | null,
-) =>
-  storedWallets?.solanaWallet || storedWallets?.solanaAddress || '';
+) => getStoredSolanaWalletAddress(storedWallets);
 
 const isEmbeddedAddressLike = (wallet: AddressLike) =>
   wallet.walletClientType === 'privy' ||
@@ -196,14 +238,12 @@ export const useWalletData = (
     const storedSolanaAddress = getStoredSolanaAddress(storedWallets);
     const primaryEvmAddress =
       storedEvmAddress || PrivyUser.wallet?.address;
+    const hasStoredWallets = Boolean(storedEvmAddress || storedSolanaAddress);
 
     const walletSelectionOptions = tradingWalletSelectionOptions();
 
-    const solanaAccounts = linkedAccounts.filter(isSolanaWalletAccount);
-    const evmAccounts = linkedAccounts.filter(isEthereumWalletAccount);
-
     const solanaWallet = selectPreferredWallet(
-      solanaAccounts,
+      linkedAccounts.filter(isSolanaWalletAccount),
       undefined,
       {
         ...walletSelectionOptions,
@@ -212,13 +252,40 @@ export const useWalletData = (
     );
 
     const evmWallets = orderWalletsByPreference(
-      evmAccounts,
+      linkedAccounts.filter(isEthereumWalletAccount),
       primaryEvmAddress,
       {
         ...walletSelectionOptions,
         preferredAddresses: [storedEvmAddress, primaryEvmAddress],
       },
     );
+
+    if (
+      shouldUseStoredWalletAddresses(
+        PrivyUser?.id,
+        storedWallets,
+        evmWallets[0]?.address,
+        solanaWallet?.address,
+      )
+    ) {
+      const storedWalletData: WalletItem[] = [];
+      if (storedSolanaAddress) {
+        storedWalletData.push({
+          address: storedSolanaAddress,
+          isActive: true,
+          isEVM: false,
+        });
+      }
+      if (storedEvmAddress) {
+        storedWalletData.push({
+          address: storedEvmAddress,
+          isActive: true,
+          isEVM: true,
+        });
+      }
+      setWalletData(storedWalletData);
+      return;
+    }
 
     const wallets: WalletItem[] = [];
     const seenWallets = new Set<string>();
@@ -244,9 +311,11 @@ export const useWalletData = (
       addWallet(
         storedSolanaAddress,
         false,
-        solanaAccounts.some((wallet) =>
-          addressesMatch(wallet.address, storedSolanaAddress),
-        ),
+        linkedAccounts
+          .filter(isSolanaWalletAccount)
+          .some((wallet) =>
+            addressesMatch(wallet.address, storedSolanaAddress),
+          ),
       );
     }
 
@@ -258,20 +327,47 @@ export const useWalletData = (
       addWallet(
         storedEvmAddress,
         true,
-        evmAccounts.some((wallet) =>
-          addressesMatch(wallet.address, storedEvmAddress),
-        ),
+        linkedAccounts
+          .filter(isEthereumWalletAccount)
+          .some((wallet) =>
+            addressesMatch(wallet.address, storedEvmAddress),
+          ),
       );
     }
 
     evmWallets.forEach((evmWallet) => {
       if (!isWalletAccount(evmWallet)) return;
-
       addWallet(evmWallet.address, true, true);
     });
 
+    if (wallets.length === 0 && hasStoredWallets) {
+      if (storedSolanaAddress) {
+        wallets.push({
+          address: storedSolanaAddress,
+          isActive: true,
+          isEVM: false,
+        });
+      }
+      if (storedEvmAddress) {
+        wallets.push({
+          address: storedEvmAddress,
+          isActive: true,
+          isEVM: true,
+        });
+      }
+    }
+
     setWalletData(wallets);
-  }, [PrivyUser, authenticated, ready, storedWallets]);
+  }, [
+    PrivyUser,
+    authenticated,
+    ready,
+    storedWallets?.privyId,
+    storedWallets?.ethereumWallet,
+    storedWallets?.ethAddress,
+    storedWallets?.solanaWallet,
+    storedWallets?.solanaAddress,
+  ]);
 
   return walletData;
 };

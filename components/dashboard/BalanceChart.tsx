@@ -192,13 +192,13 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   const fetchedBalance = balanceHistoryData?.currentBalance || 0;
 
   // The backend balance snapshot is the account source of truth. Token
-  // fetching can transiently return 0 on preview domains when an RPC/indexer
-  // request fails, so only let the token-derived prop override it when it has
-  // a positive value.
+  // fetching may complete after the snapshot and can be scoped to a subset of
+  // wallets/chains, so only fall back to the token-derived total when the
+  // snapshot has no current balance.
   const totalBalance =
-    propTotalBalance !== undefined && propTotalBalance > 0
-      ? propTotalBalance
-      : fetchedBalance;
+    fetchedBalance > 0
+      ? fetchedBalance
+      : (propTotalBalance ?? 0);
 
   // Log any errors
   if (error) {

@@ -477,18 +477,23 @@ const Login: React.FC = () => {
           getAuthCookieOptions(),
         );
 
-        // Process wallet data for balance update
-        const walletData = processWalletData(user);
-        const payload = {
-          userId: data.user._id,
-          ethAddress: walletData.find((w) => w.isEVM)?.address,
-          solanaAddress: walletData.find((w) => !w.isEVM)?.address,
-        };
+        const privyIdMatchesBackendUser =
+          !data.user.privyId || !user?.id || data.user.privyId === user.id;
 
-        // Update wallet balances (non-blocking)
-        createLoginWalletBalance(payload).catch((error) => {
-          logger.error('Wallet balance update failed:', error);
-        });
+        if (privyIdMatchesBackendUser) {
+          // Process wallet data for balance update
+          const walletData = processWalletData(user);
+          const payload = {
+            userId: data.user._id,
+            ethAddress: walletData.find((w) => w.isEVM)?.address,
+            solanaAddress: walletData.find((w) => !w.isEVM)?.address,
+          };
+
+          // Update wallet balances (non-blocking)
+          createLoginWalletBalance(payload).catch((error) => {
+            logger.error('Wallet balance update failed:', error);
+          });
+        }
 
         setLoginFlow(LoginFlow.SUCCESS);
 
