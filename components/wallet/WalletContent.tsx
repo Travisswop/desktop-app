@@ -724,10 +724,6 @@ const WalletContentInner = () => {
     setPerpsInitialCoin(null);
   };
 
-  // Hyperliquid agent — lives here so the ExchangeClient persists across
-  // PerpsPanel open/close cycles and never triggers repeated sign messages.
-  const hlAgent = useHyperliquidAgent();
-
   const [arbitrumBridgeOpen, setArbitrumBridgeOpen] = useState(false);
 
   // Ref to track wallet creation attempts
@@ -770,6 +766,11 @@ const WalletContentInner = () => {
   );
   const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
+  // Hyperliquid agent — lives here so the ExchangeClient persists across
+  // PerpsPanel open/close cycles and never triggers repeated sign messages.
+  const hlAgent = useHyperliquidAgent({
+    preferredMasterAddress: evmWalletAddress || undefined,
+  });
   const portfolioEvmWalletInput = useMemo(
     () =>
       getPortfolioEvmWalletInput(
