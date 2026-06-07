@@ -47,6 +47,7 @@ import { useUser } from '@/lib/UserContext';
 
 // Custom hooks
 import {
+  getPortfolioEvmWalletInput,
   useWalletData,
   useWalletAddresses,
 } from './hooks/useWalletData';
@@ -762,8 +763,16 @@ const WalletContentInner = () => {
 
   // Custom hooks
   const walletData = useWalletData(authenticated, ready, PrivyUser);
-  const { solWalletAddress, evmWalletAddress } =
+  const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
+  const portfolioEvmWalletInput = useMemo(
+    () =>
+      getPortfolioEvmWalletInput(
+        evmWalletAddress,
+        evmWalletAddresses,
+      ),
+    [evmWalletAddress, evmWalletAddresses],
+  );
   const [loadCollectibles, setLoadCollectibles] = useState(false);
   // Find the Solana wallet that matches the selected wallet-data address.
   const selectedSolanaWallet = useMemo(() => {
@@ -914,7 +923,7 @@ const WalletContentInner = () => {
     refetch: refetchTokens,
   } = useMultiChainTokenData(
     solWalletAddress,
-    evmWalletAddress,
+    portfolioEvmWalletInput,
     SUPPORTED_CHAINS,
   );
 

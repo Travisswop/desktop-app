@@ -121,6 +121,12 @@ export const useWalletAddresses = (
   }, [walletData]);
 };
 
+export const getPortfolioEvmWalletInput = (
+  evmWalletAddress?: string,
+  evmWalletAddresses: string[] = [],
+) =>
+  evmWalletAddresses.length ? evmWalletAddresses : evmWalletAddress || '';
+
 // Custom hook for wallet data management.
 export const useWalletData = (
   authenticated: boolean,

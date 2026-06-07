@@ -1,4 +1,5 @@
 import {
+  getPortfolioEvmWalletInput,
   selectPreferredWallet,
   shouldPreferEmbeddedWallets,
   tradingWalletSelectionOptions,
@@ -79,5 +80,20 @@ describe('trading wallet selection', () => {
         tradingWalletSelectionOptions(),
       )?.address,
     ).toBe('0xExternal');
+  });
+
+  it('uses every linked EVM wallet for portfolio balance totals', () => {
+    expect(
+      getPortfolioEvmWalletInput('0xEmbedded', [
+        '0xEmbedded',
+        '0xExternal',
+      ]),
+    ).toEqual(['0xEmbedded', '0xExternal']);
+  });
+
+  it('falls back to the preferred EVM wallet when no address list exists', () => {
+    expect(getPortfolioEvmWalletInput('0xEmbedded')).toBe(
+      '0xEmbedded',
+    );
   });
 });

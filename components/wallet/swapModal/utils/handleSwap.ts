@@ -215,6 +215,8 @@ export async function handleSwap({
   outputToken,
   platformFeeBps = 100, // Default to 1%
   accessToken,
+  userId,
+  smartsiteId,
   socket,
 }: {
   quote: any;
