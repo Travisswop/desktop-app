@@ -246,7 +246,7 @@ const SmartsiteIconLivePreview = ({
             formData.fontType && fontMap[formData.fontType.toLowerCase()]
           }`}
         >
-          <div className={`flex flex-col justify-between`}>
+          <div className={`flex flex-col justify-between pb-24`}>
             <div>
               <div className={`space-y-5 h-full justify-start mt-10`}>
                 <Header
