@@ -44,6 +44,7 @@ import { useSendFlow } from '@/lib/hooks/useSendFlow';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { useNFT } from '@/lib/hooks/useNFT';
 import { useUser } from '@/lib/UserContext';
+import type { HyperliquidAgentOrderPrefill } from '@/lib/chat/agentActionHandoff';
 
 // Custom hooks
 import {
@@ -197,6 +198,26 @@ function parseChartNumber(value?: string | null) {
   if (value == null || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parsePerpsPanelSide(value?: string | null): 'long' | 'short' | null {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === 'long' || normalized === 'short'
+    ? normalized
+    : null;
+}
+
+function parsePerpsPanelLeverage(value?: string | null) {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parsePerpsPanelCoin(
+  params?: SearchParamReader | null,
+): string | null {
+  const value = params?.get('coin')?.trim();
+  return value ? value.toUpperCase() : null;
 }
 
 function getChartTokenSymbol(params?: SearchParamReader | null) {
@@ -707,6 +728,8 @@ const WalletContentInner = () => {
 
   const [perpsPanelOpen, setPerpsPanelOpen] = useState(false);
   const [perpsDepositOpen, setPerpsDepositOpen] = useState(false);
+  const [perpsAgentPrefill, setPerpsAgentPrefill] =
+    useState<HyperliquidAgentOrderPrefill | null>(null);
   // Coin requested by the row the user clicked in PerpsCard; null = let the
   // panel use its own default. Cleared back to null on close so the next
   // top-level "Trade" press doesn't re-open on a stale coin.
@@ -716,12 +739,14 @@ const WalletContentInner = () => {
 
   const openPerpsPanel = (coin?: string) => {
     setPerpsInitialCoin(coin ?? null);
+    setPerpsAgentPrefill(null);
     setPerpsPanelOpen(true);
   };
 
   const closePerpsPanel = () => {
     setPerpsPanelOpen(false);
     setPerpsInitialCoin(null);
+    setPerpsAgentPrefill(null);
   };
 
   const [arbitrumBridgeOpen, setArbitrumBridgeOpen] = useState(false);
@@ -730,6 +755,7 @@ const WalletContentInner = () => {
   const walletCreationAttempted = useRef(false);
   const rewardWalletRequestRef = useRef(0);
   const assetsMenuRef = useRef<HTMLDivElement>(null);
+  const autoOpenedPerpsQueryRef = useRef('');
 
   // Hooks
   const {
@@ -754,6 +780,7 @@ const WalletContentInner = () => {
   const { user, accessToken: userAccessToken } = useUser();
   const accessToken = userAccessToken || '';
   const searchParams = useSearchParams();
+  const perpsQueryString = searchParams?.toString() || '';
   const pathname = usePathname();
   const router = useRouter();
 
@@ -986,6 +1013,42 @@ const WalletContentInner = () => {
       return tokenForDetail;
     });
   }, [searchParams, tokens]);
+
+  useEffect(() => {
+    if (!searchParams || !perpsQueryString) {
+      autoOpenedPerpsQueryRef.current = '';
+      return;
+    }
+
+    const shouldOpenPerps = searchParams.get('perps') === '1';
+    if (!shouldOpenPerps) {
+      autoOpenedPerpsQueryRef.current = '';
+      return;
+    }
+
+    if (autoOpenedPerpsQueryRef.current === perpsQueryString) return;
+
+    const coin = parsePerpsPanelCoin(searchParams);
+    const side = parsePerpsPanelSide(searchParams.get('side'));
+    const leverage = parsePerpsPanelLeverage(searchParams.get('leverage'));
+    const now = Date.now();
+
+    setPerpsInitialCoin(coin);
+    setPerpsAgentPrefill(
+      coin || side || leverage != null
+        ? {
+            proposalId: `wallet:${now}`,
+            proposalNonce: `${now}${Math.floor(Math.random() * 1_000_000)}`,
+            coin: coin ?? undefined,
+            side: side ?? undefined,
+            leverage: leverage ?? undefined,
+            orderMode: 'market',
+          }
+        : null,
+    );
+    setPerpsPanelOpen(true);
+    autoOpenedPerpsQueryRef.current = perpsQueryString;
+  }, [perpsMasterAddress, perpsQueryString, searchParams]);
 
   const visibleNftCount = useMemo(
     () =>
@@ -1953,6 +2016,7 @@ const WalletContentInner = () => {
             agentError={hlAgent.error}
             initializeAgent={hlAgent.initializeAgent}
             initialCoin={perpsInitialCoin}
+            agentOrderPrefill={perpsAgentPrefill}
             onClose={closePerpsPanel}
             onOpenDeposit={() => {
               setPerpsDepositOpen(true);
