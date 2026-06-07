@@ -343,6 +343,11 @@ const FeedMain = memo(() => {
     }),
     [userId, accessToken, primaryMicrositeImg, tab],
   );
+  const isKnownTab = useMemo(
+    () => ["feed", "timeline", "transaction", "ledger", "map"].includes(tab),
+    [tab],
+  );
+  const activeTab = useMemo(() => (isKnownTab ? tab : "feed"), [isKnownTab, tab]);
 
   // Early return with loading state - after all hooks
   if (!userId || !accessToken || userLoading) {
@@ -363,8 +368,11 @@ const FeedMain = memo(() => {
         />
       )}
       <div className="w-full flex justify-center gap-4 2xl:gap-6 relative">
-        <MainContent {...mainContentProps} />
-        {tab === "feed" && (
+        <MainContent
+          {...mainContentProps}
+          tab={activeTab}
+        />
+        {activeTab === "feed" && (
           <FeedRightSideRail
             accessToken={accessToken as string}
             userId={userId as string}

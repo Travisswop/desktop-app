@@ -2,10 +2,83 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownRight, ArrowUpRight, Loader2 } from "lucide-react";
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  Loader2,
+} from "lucide-react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import type { PolymarketMarket } from "@/hooks/polymarket";
 import MarketService from "@/services/market-service";
 import styles from "./FeedMarketTicker.module.css";
+
+type MarketMode = "games" | "stocks" | "crypto";
+
+const TICKER_LIMIT = 16;
+const SPORTS_PARENT_TAG_ID = 1;
+const STOCKS_TAG_ID = 120;
+
+const MODE_OPTIONS: { key: MarketMode; label: string }[] = [
+  { key: "games", label: "Games" },
+  { key: "stocks", label: "Stocks" },
+  { key: "crypto", label: "Crypto" },
+];
+
+const FALLBACK_MARKET_QUESTIONS: TickerPredictionMarket[] = [
+  {
+    id: "market-stocks-1",
+    title: "Apple stock moves above 30-day average by Q4?",
+    href: "/prediction",
+    outcomeA: "Yes",
+    outcomeB: "No",
+    status: "No live data",
+  },
+  {
+    id: "market-stocks-2",
+    title: "Tesla shares beat earnings expectations this quarter?",
+    href: "/prediction",
+    outcomeA: "Beat",
+    outcomeB: "Miss",
+    status: "No live data",
+  },
+  {
+    id: "market-stocks-3",
+    title: "Alphabet shares close above 1-year high this week?",
+    href: "/prediction",
+    outcomeA: "Above",
+    outcomeB: "Below",
+    status: "No live data",
+  },
+];
+
+const FALLBACK_MARKET_QUICK: TickerPredictionMarket[] = [
+  {
+    id: "market-crypto-1",
+    title: "Bitcoin breaks previous high this month?",
+    href: "/prediction",
+    outcomeA: "Yes",
+    outcomeB: "No",
+    status: "No live data",
+  },
+  {
+    id: "market-crypto-2",
+    title: "ETH ETF approvals shift BTC spot flows in 48h?",
+    href: "/prediction",
+    outcomeA: "Higher",
+    outcomeB: "Lower",
+    status: "No live data",
+  },
+  {
+    id: "market-crypto-3",
+    title: "SOL over $200 by end of week?",
+    href: "/prediction",
+    outcomeA: "Yes",
+    outcomeB: "No",
+    status: "No live data",
+  },
+];
 
 type MarketDataShape = {
   id: string;
@@ -29,18 +102,43 @@ type TickerMarket = {
   changePct?: number;
 };
 
-const TICKER_LIMIT = 16;
+type TickerPredictionMarket = {
+  id: string;
+  title: string;
+  href: string;
+  status: string;
+  outcomeA: string;
+  outcomeB: string;
+  priceA?: number;
+  priceB?: number;
+};
 
-const FALLBACK_MARKETS: TickerMarket[] = [
-  { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
-  { id: "ethereum", symbol: "ETH", name: "Ethereum" },
-  { id: "solana", symbol: "SOL", name: "Solana" },
-  { id: "binancecoin", symbol: "BNB", name: "BNB" },
-  { id: "ripple", symbol: "XRP", name: "XRP" },
-  { id: "dogecoin", symbol: "DOGE", name: "Dogecoin" },
-  { id: "cardano", symbol: "ADA", name: "Cardano" },
-  { id: "tron", symbol: "TRX", name: "TRON" },
-];
+type TickerGameMarket = {
+  id: string;
+  league: string;
+  href: string;
+  title: string;
+  status: string;
+  scoreLabel: string;
+  teamA: {
+    label: string;
+    priceLabel: string;
+    logo?: string;
+    color?: string;
+    score: number | null;
+  };
+  teamB: {
+    label: string;
+    priceLabel: string;
+    logo?: string;
+    color?: string;
+    score: number | null;
+  };
+};
+
+function normalizeMode(value: string | null): MarketMode {
+  return value === "stocks" || value === "crypto" ? value : "games";
+}
 
 function formatPrice(price?: number) {
   if (typeof price !== "number" || Number.isNaN(price)) return "...";
@@ -51,18 +149,70 @@ function formatPrice(price?: number) {
   });
 }
 
+function formatCurrency(price?: number) {
+  if (typeof price !== "number" || Number.isNaN(price)) return "—";
+
+  return formatPrice(price);
+}
+
 function formatChange(change?: number) {
-  if (typeof change !== "number" || Number.isNaN(change)) return "...";
+  if (typeof change !== "number" || Number.isNaN(change)) return "—";
 
   const precision = Math.abs(change) >= 10 ? 1 : 2;
   return `${change >= 0 ? "+" : ""}${change.toFixed(precision)}%`;
 }
 
+function formatOutcomePrice(price?: number) {
+  if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
+    return "--";
+  }
+
+  const cents = price * 100;
+  return `${cents >= 10 ? cents.toFixed(0) : cents.toFixed(1)}c`;
+}
+
+function safeParseStringArray(value?: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map(String);
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function safeParseNumberArray(value?: unknown): number[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => Number(item))
+      .filter((item) => Number.isFinite(item));
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => Number(item))
+          .filter((item) => Number.isFinite(item));
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function normalizeMarket(market: MarketDataShape): TickerMarket | null {
   if (!market?.id || !market.symbol) return null;
 
-  const price =
-    market.currentPrice ?? market.price ?? market.current_price ?? undefined;
+  const price = market.currentPrice ?? market.price ?? market.current_price ?? undefined;
   const changePct =
     market.priceChangePercentage24h ??
     market.price_change_percentage_24h ??
@@ -100,37 +250,275 @@ function buildWalletTickerHref(market: TickerMarket) {
   if (typeof market.price === "number" && Number.isFinite(market.price)) {
     params.set("chartTokenPrice", String(market.price));
   }
-  if (
-    typeof market.changePct === "number" &&
-    Number.isFinite(market.changePct)
-  ) {
+  if (typeof market.changePct === "number" && Number.isFinite(market.changePct)) {
     params.set("chartTokenChange", String(market.changePct));
   }
 
   return `/wallet?${params.toString()}`;
 }
 
-async function fetchFeedMarkets(accessToken?: string | null) {
+function getGameStatus(market: PolymarketMarket) {
+  if (market.eventClosed || market.eventEnded) return "FINAL";
+  if (market.eventLive) return "LIVE";
+
+  const period = market.eventPeriod?.trim();
+  const elapsed = market.eventElapsed?.trim();
+  if (period || elapsed) {
+    return [period, elapsed].filter(Boolean).join(" ").trim() || "LIVE";
+  }
+
+  return "Upcoming";
+}
+
+function getTeamFromEventMarkets(
+  market: PolymarketMarket,
+  fallback: string,
+): string {
+  const teams = Array.isArray(market.eventTeams)
+    ? market.eventTeams
+    : [];
+
+  const teamName = teams[0]?.name || fallback;
+  const abbr = teams[0]?.abbreviation;
+
+  if (abbr && abbr.length <= 5) {
+    return abbr.toUpperCase();
+  }
+
+  const clean = String(teamName || "").trim();
+  if (!clean) return "TBD";
+  if (clean.length <= 14) return clean;
+  const parts = clean.split(/\s+/);
+
+  return parts.length > 1 ? parts.slice(-2).join(" ") : clean;
+}
+
+function toTickerGame(market: PolymarketMarket): TickerGameMarket | null {
+  const outcomes = safeParseStringArray(market.outcomes);
+  const outcomePrices = safeParseNumberArray(market.outcomePrices);
+  const outcomeA = outcomes[0]?.trim() || "Team A";
+  const outcomeB = outcomes[1]?.trim() || "Team B";
+  const teams = Array.isArray(market.eventTeams)
+    ? market.eventTeams
+    : [];
+  const teamA = teams[0] || {};
+  const teamB = teams[1] || {};
+  const scoreA = teamA.score != null && Number.isFinite(Number(teamA.score))
+    ? Number(teamA.score)
+    : null;
+  const scoreB = teamB.score != null && Number.isFinite(Number(teamB.score))
+    ? Number(teamB.score)
+    : null;
+
+  return {
+    id: market.id,
+    href: `/prediction/market/${market.id}`,
+    league: getLeague(market, teams),
+    title: market.eventTitle || market.question || market.id,
+    status: getGameStatus(market),
+    scoreLabel:
+      market.eventScore ||
+      `${formatNullableScore(scoreA)}-${formatNullableScore(scoreB)}` ||
+      "Live",
+    teamA: {
+      label: getTeamFromEventMarkets(market, outcomeA),
+      priceLabel: formatOutcomePrice(outcomePrices[0]),
+      logo: teamA.logo,
+      color: teamA.color,
+      score: scoreA,
+    },
+    teamB: {
+      label: getTeamFromEventMarkets({ ...market, eventTeams: [teamB, teamA] as never }, outcomeB),
+      priceLabel: formatOutcomePrice(outcomePrices[1]),
+      logo: teamB.logo,
+      color: teamB.color,
+      score: scoreB,
+    },
+  };
+}
+
+function formatNullableScore(score: number | null) {
+  return score == null ? "-" : String(score);
+}
+
+function getLeague(market: PolymarketMarket, teams: { abbreviation?: string; league?: string }[]) {
+  const teamLeague = teams.find((team) => team.league)?.league;
+  if (teamLeague) return teamLeague.toUpperCase();
+  return "Sports";
+}
+
+function toTickerPrediction(
+  market: PolymarketMarket,
+  defaults?: { status: string },
+): TickerPredictionMarket | null {
+  const outcomes = safeParseStringArray(market.outcomes);
+  const prices = safeParseNumberArray(market.outcomePrices);
+  const tokenIds = safeParseStringArray(market.clobTokenIds);
+  const outcomeA = outcomes[0] || "Yes";
+  const outcomeB = outcomes[1] || "No";
+  const status =
+    defaults?.status ||
+    (market.eventLive
+      ? "LIVE"
+      : getStatusFromGameDate(market.gameStartTime) || "Prediction");
+
+  const priceA = tokenIds[0]
+    ? Number(market.realtimePrices?.[tokenIds[0]]?.bidPrice) || prices[0]
+    : prices[0];
+  const priceB = tokenIds[1]
+    ? Number(market.realtimePrices?.[tokenIds[1]]?.bidPrice) || prices[1]
+    : prices[1];
+
+  return {
+    id: market.id,
+    title: trimQuestion(market.question || market.eventTitle || market.slug || market.id),
+    href: `/prediction/market/${market.id}`,
+    status,
+    outcomeA: outcomeA.slice(0, 20),
+    outcomeB: outcomeB.slice(0, 20),
+    priceA: Number.isFinite(priceA) ? priceA : undefined,
+    priceB: Number.isFinite(priceB) ? priceB : undefined,
+  };
+}
+
+function trimQuestion(value: string) {
+  const withoutPrefix = value
+    .replace(/\s*\((?:yes|no|up|down)\)/gi, "")
+    .replace(/\s*\[[^\]]+\]$/, "")
+    .trim();
+  return withoutPrefix.slice(0, 130);
+}
+
+function getStatusFromGameDate(gameStartDate?: string) {
+  if (!gameStartDate) return "";
+
+  const dateMs = Date.parse(gameStartDate);
+  if (!Number.isFinite(dateMs)) return "";
+
+  return new Date(dateMs).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+async function fetchCryptoMarkets() {
   const markets = await MarketService.getTopMarketData(
     TICKER_LIMIT,
-    accessToken || undefined,
+    undefined,
   );
-
   return markets
     .map((market) => normalizeMarket(market as MarketDataShape))
     .filter((market): market is TickerMarket => Boolean(market));
 }
 
+async function fetchTickerCategoryMarkets(tagId: number): Promise<TickerPredictionMarket[]> {
+  const qs = new URLSearchParams({
+    limit: String(TICKER_LIMIT),
+    offset: "0",
+    quality: "relaxed",
+    tag_id: String(tagId),
+  });
+
+  const response = await fetch(`/api/polymarket/desktop/markets?${qs.toString()}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to load ticker markets");
+  }
+
+  const raw = (await response.json()) as PolymarketMarket[];
+  const markets = Array.isArray(raw) ? raw : [];
+  const result = markets
+    .map((market) => toTickerPrediction(market))
+    .filter((market): market is TickerPredictionMarket => Boolean(market))
+    .filter((market) => market.title.trim())
+    .slice(0, TICKER_LIMIT);
+
+  return result;
+}
+
+async function fetchLiveGames(): Promise<TickerGameMarket[]> {
+  const qs = new URLSearchParams({
+    limit: String(TICKER_LIMIT),
+    offset: "0",
+    tag_id: String(SPORTS_PARENT_TAG_ID),
+    kind: "gamelines",
+    quality: "relaxed",
+    live: "true",
+  });
+
+  const response = await fetch(`/api/polymarket/desktop/markets?${qs.toString()}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to load live game markets.");
+  }
+
+  const raw = (await response.json()) as PolymarketMarket[];
+  const markets = Array.isArray(raw) ? raw : [];
+
+  return markets
+    .map(toTickerGame)
+    .filter((market): market is TickerGameMarket => Boolean(market))
+    .slice(0, TICKER_LIMIT);
+}
+
+async function fetchTickerData(mode: MarketMode) {
+  if (mode === "crypto") {
+    const markets = await fetchCryptoMarkets();
+    if (markets.length > 0) return { mode: "crypto", markets };
+    return { mode: "crypto", markets: FALLBACK_MARKET_QUICK, predictions: true };
+  }
+
+  if (mode === "stocks") {
+    const markets = await fetchTickerCategoryMarkets(STOCKS_TAG_ID);
+    return {
+      mode: "stocks" as const,
+      markets: markets.length > 0 ? markets : FALLBACK_MARKET_QUESTIONS,
+    };
+  }
+
+  const markets = await fetchLiveGames();
+  return {
+    mode: "games" as const,
+    markets,
+  };
+}
+
+function buildTickerKey(mode: MarketMode) {
+  if (mode === "crypto") return ["feed-market-ticker", mode];
+  if (mode === "stocks") return ["feed-market-ticker", mode];
+  return ["feed-market-ticker", mode];
+}
+
+function normalizeMarketListLength<T>(items: T[]) {
+  if (items.length === 0) return [];
+  return items.length > 4 ? [...items, ...items] : items;
+}
+
 export default function FeedMarketTicker({
   accessToken,
   className = "",
+  marketMode: rawMarketMode,
 }: {
   accessToken?: string | null;
   className?: string;
+  marketMode?: string;
 }) {
-  const { data: markets = [], isLoading, isFetching } = useQuery({
-    queryKey: ["feed-market-ticker", TICKER_LIMIT, Boolean(accessToken)],
-    queryFn: () => fetchFeedMarkets(accessToken),
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const marketMode: MarketMode = useMemo(
+    () => normalizeMode(rawMarketMode || searchParams?.get("marketTab") || null),
+    [rawMarketMode, searchParams],
+  );
+
+  const { data, isLoading, isFetching, isError } = useQuery({
+    queryKey: [...buildTickerKey(marketMode), Boolean(accessToken)],
+    queryFn: () => fetchTickerData(marketMode),
     staleTime: 60 * 1000,
     gcTime: 5 * 60 * 1000,
     refetchInterval: 60 * 1000,
@@ -138,16 +526,95 @@ export default function FeedMarketTicker({
     retry: 1,
   });
 
-  const displayMarkets = markets.length > 0 ? markets : FALLBACK_MARKETS;
-  const shouldAnimate = displayMarkets.length > 4;
-  const repeatedMarkets = useMemo(
-    () => [...displayMarkets, ...displayMarkets],
-    [displayMarkets],
-  );
+  const handleModeSelect = (nextMode: MarketMode) => {
+    if (nextMode === marketMode) return;
+
+    const next = new URLSearchParams(searchParams?.toString() || "");
+    next.set("marketTab", nextMode);
+
+    const nextQs = next.toString();
+    router.replace(nextQs ? `${pathname}?${nextQs}` : pathname, {
+      scroll: false,
+    });
+  };
+
+  if (marketMode === "crypto") {
+    const payload = data as { mode: "crypto"; markets: (TickerMarket | TickerPredictionMarket)[] } | undefined;
+    const markets = (payload?.mode === "crypto" ? payload.markets : undefined) || [];
+    const displayMarkets = markets.length > 0 ? markets : [];
+    const repeatedMarkets = normalizeMarketListLength(displayMarkets);
+
+    return (
+      <section
+        aria-label="Feed market ticker"
+        className={[
+          "flex h-12 w-full items-center overflow-hidden rounded-lg border border-slate-200 bg-[#F7F7F9] shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
+          className,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <div className="relative z-10 flex h-full shrink-0 items-center gap-2 border-r border-slate-200 bg-[#F7F7F9] px-3 sm:px-4">
+          <ModeSwitch
+            mode={marketMode}
+            onSelect={handleModeSelect}
+            disabled={false}
+          />
+          {isLoading || isFetching ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+          ) : null}
+        </div>
+        <div className={styles.tickerViewport}>
+          <div
+            className={[
+              styles.tickerTrack,
+              repeatedMarkets.length > displayMarkets.length
+                ? ""
+                : styles.tickerTrackPaused,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {repeatedMarkets.length > 0 ? (
+              repeatedMarkets.map((market, index) =>
+                isTickerMarket(market) ? (
+                  <TickerPill
+                    key={`${market.id}-${index}`}
+                    market={market}
+                    muted={markets.length === 0}
+                    ariaHidden={index >= markets.length}
+                  />
+                ) : (
+                  <TickerPredictionPill
+                    key={`${market.id}-${index}`}
+                    market={market}
+                    ariaHidden={index >= markets.length}
+                    muted={markets.length === 0}
+                    isCrypto
+                  />
+                ),
+              )
+            ) : isError ? (
+              <StatusPill message="Unable to load crypto markets" />
+            ) : (
+              <StatusPill message="Loading markets" />
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const payload = data as
+    | { mode: "games" | "stocks"; markets: (TickerGameMarket | TickerPredictionMarket)[] }
+    | undefined;
+  const markets = payload?.markets || [];
+  const repeatedMarkets = normalizeMarketListLength(markets);
+  const shouldAnimate = repeatedMarkets.length > 4;
 
   return (
     <section
-      aria-label="Live crypto markets"
+      aria-label="Feed market ticker"
       className={[
         "flex h-12 w-full items-center overflow-hidden rounded-lg border border-slate-200 bg-[#F7F7F9] shadow-[0_1px_2px_rgba(15,23,42,0.05)]",
         className,
@@ -156,38 +623,99 @@ export default function FeedMarketTicker({
         .join(" ")}
     >
       <div className="relative z-10 flex h-full shrink-0 items-center gap-2 border-r border-slate-200 bg-[#F7F7F9] px-3 sm:px-4">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-        </span>
-        <span className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-950">
-          Markets
-        </span>
+        <ModeSwitch
+          mode={marketMode}
+          onSelect={handleModeSelect}
+          disabled={false}
+        />
         {isLoading || isFetching ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
         ) : null}
       </div>
 
       <div className={styles.tickerViewport}>
-        <div
+        {markets.length > 0 ? (
+          <div
+            className={[
+              styles.tickerTrack,
+              shouldAnimate ? "" : styles.tickerTrackPaused,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {repeatedMarkets.map((market, index) =>
+              marketMode === "games" ? (
+                <TickerGamePill
+                  key={`${market.id}-${index}`}
+                  game={market as TickerGameMarket}
+                  ariaHidden={index >= markets.length}
+                  muted={markets.length === 0}
+                />
+              ) : (
+                <TickerPredictionPill
+                  key={`${market.id}-${index}`}
+                  market={market as TickerPredictionMarket}
+                  ariaHidden={index >= markets.length}
+                  muted={markets.length === 0}
+                  isCrypto={false}
+                />
+              ),
+            )}
+          </div>
+        ) : isError ? (
+          <div className="flex h-full items-center px-3" aria-live="polite">
+            <StatusPill
+              message={
+                marketMode === "games"
+                  ? "No live games right now"
+                  : marketMode === "stocks"
+                    ? "No active stock prediction markets"
+                    : "No active crypto prediction markets"
+              }
+            />
+          </div>
+        ) : (
+          <div className="flex h-full items-center px-3" aria-live="polite">
+            <StatusPill message="Loading ticker markets" />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function isTickerMarket(value: TickerMarket | TickerPredictionMarket): value is TickerMarket {
+  return !Object.prototype.hasOwnProperty.call(value, "title");
+}
+
+function ModeSwitch({
+  mode,
+  onSelect,
+}: {
+  mode: MarketMode;
+  onSelect: (mode: MarketMode) => void;
+}) {
+  return (
+    <div className="mr-2 flex items-center rounded-full border border-slate-200 bg-white px-0.5 py-0.5">
+      {MODE_OPTIONS.map((option) => (
+        <button
+          key={option.key}
+          type="button"
+          onClick={() => onSelect(option.key)}
           className={[
-            styles.tickerTrack,
-            shouldAnimate ? "" : styles.tickerTrackPaused,
+            "rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition",
+            mode === option.key
+              ? "bg-slate-900 text-white"
+              : "text-slate-700 hover:bg-slate-100",
           ]
             .filter(Boolean)
             .join(" ")}
+          aria-pressed={mode === option.key}
         >
-          {repeatedMarkets.map((market, index) => (
-            <TickerPill
-              key={`${market.id}-${index}`}
-              market={market}
-              muted={markets.length === 0}
-              ariaHidden={index >= displayMarkets.length}
-            />
-          ))}
-        </div>
-      </div>
-    </section>
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -238,7 +766,7 @@ function TickerPill({
         {market.symbol}
       </span>
       <span className="font-mono text-[12px] font-semibold tabular-nums text-slate-700">
-        ${formatPrice(market.price)}
+        ${formatCurrency(market.price)}
       </span>
       <span
         className={[
@@ -252,5 +780,148 @@ function TickerPill({
         {formatChange(market.changePct)}
       </span>
     </Link>
+  );
+}
+
+function TickerPredictionPill({
+  market,
+  muted,
+  ariaHidden,
+  isCrypto,
+}: {
+  market: TickerPredictionMarket;
+  muted: boolean;
+  ariaHidden: boolean;
+  isCrypto: boolean;
+}) {
+  return (
+    <Link
+      href={market.href}
+      prefetch={false}
+      aria-hidden={ariaHidden}
+      tabIndex={ariaHidden ? -1 : undefined}
+      aria-label={`Open ${market.title}`}
+      className={[
+        "flex h-9 min-w-max items-center gap-2 rounded-md border border-white bg-white px-2.5 text-xs shadow-[0_1px_0_rgba(15,23,42,0.04)] sm:px-3",
+        "transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20",
+        muted ? "animate-pulse" : "",
+      ].join(" ")}
+      title={`${market.title} ${market.outcomeA} ${market.outcomeB}`}
+    >
+      <span
+        className={[
+          "rounded px-1 py-0.5 font-mono text-[10px] font-black uppercase tracking-[0.12em] text-slate-100",
+          isCrypto ? "bg-indigo-500" : "bg-blue-500",
+        ].join(" ")}
+      >
+        {isCrypto ? "Crypto" : "Stock"}
+      </span>
+      <span className="max-w-[170px] truncate font-mono text-[11px] font-black uppercase text-slate-950">
+        {market.title}
+      </span>
+      <span className="flex min-w-max items-center gap-1.5 rounded bg-slate-950 px-1.5 py-0.5 font-mono text-[10px] text-white">
+        <span className="text-emerald-300">{market.status}</span>
+      </span>
+      <span className="ml-2 flex min-w-max items-center gap-1.5 font-mono text-[11px] font-black uppercase text-slate-700">
+        <span className="rounded bg-slate-950 px-1.5 py-0.5 text-white">{market.outcomeA}</span>
+        <span className="rounded border border-slate-200 px-1.5 py-0.5">
+          {formatOutcomePrice(market.priceA)}
+        </span>
+        <span className="rounded bg-slate-950 px-1.5 py-0.5 text-white">{market.outcomeB}</span>
+        <span className="rounded border border-slate-200 px-1.5 py-0.5">
+          {formatOutcomePrice(market.priceB)}
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+function TickerGamePill({
+  game,
+  muted,
+  ariaHidden,
+}: {
+  game: TickerGameMarket;
+  muted: boolean;
+  ariaHidden: boolean;
+}) {
+  return (
+    <Link
+      href={game.href}
+      prefetch={false}
+      aria-hidden={ariaHidden}
+      tabIndex={ariaHidden ? -1 : undefined}
+      aria-label={`Open ${game.title} market`}
+      className={[
+        "flex h-11 min-w-[320px] max-w-[430px] items-center gap-2 rounded-md border border-white bg-white px-2.5 text-xs shadow-[0_1px_0_rgba(15,23,42,0.04)] sm:min-w-[360px] sm:px-3",
+        "transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20",
+        muted ? "animate-pulse" : "",
+      ].join(" ")}
+      title={`${game.title} ${game.teamA.label} ${game.scoreLabel} ${game.teamB.label}`}
+    >
+      <span className="flex shrink-0 flex-col items-start leading-none">
+        <span className="font-mono text-[9px] font-black uppercase tracking-[0.12em] text-red-600">
+          {game.league}
+        </span>
+        <span className="mt-1 font-mono text-[10px] font-black uppercase tabular-nums text-slate-500">
+          {game.status}
+        </span>
+      </span>
+      <span className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
+        <TeamMark team={game.teamA} />
+        <span className="max-w-[86px] truncate font-mono text-[12px] font-black uppercase text-slate-950">
+          {game.teamA.label}
+        </span>
+        <span className="max-w-[138px] truncate rounded bg-slate-950 px-2 py-1 font-mono text-[12px] font-black tabular-nums text-white">
+          {game.scoreLabel}
+        </span>
+        <span className="max-w-[86px] truncate font-mono text-[12px] font-black uppercase text-slate-950">
+          {game.teamB.label}
+        </span>
+        <TeamMark team={game.teamB} />
+      </span>
+      <span className="flex shrink-0 flex-col items-end gap-1 text-right">
+        <span className="font-mono text-[10px] font-black uppercase tabular-nums text-emerald-700">
+          {game.teamA.priceLabel}
+        </span>
+        <span className="font-mono text-[10px] font-black uppercase tabular-nums text-emerald-700">
+          {game.teamB.priceLabel}
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+function TeamMark({
+  team,
+}: {
+  team: { score: number | null; logo?: string; color?: string; label: string };
+}) {
+  const style =
+    !team.logo && team.color ? { backgroundColor: team.color } : undefined;
+
+  return (
+    <span
+      className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 font-mono text-[8px] font-black uppercase text-slate-500"
+      style={style}
+    >
+      {team.logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={team.logo} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span className={team.color ? "text-white" : ""}>{team.label.slice(0, 2)}</span>
+      )}
+    </span>
+  );
+}
+
+function StatusPill({ message }: { message: string }) {
+  return (
+    <div className="flex h-10 min-w-max items-center gap-2 rounded-md border border-white bg-white px-3 text-xs shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+      <Activity className="h-3.5 w-3.5 text-slate-500" />
+      <span className="font-mono text-[11px] font-black uppercase tracking-[0.1em] text-slate-700">
+        {message}
+      </span>
+    </div>
   );
 }
