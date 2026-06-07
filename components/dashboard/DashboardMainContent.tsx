@@ -74,6 +74,20 @@ interface SummaryTotals {
   templates: number;
 }
 
+interface DashboardAnalytics {
+  last30DaysMicrositeTaps: number;
+  lifetimeMicrositeTaps: number;
+  last30DaysConnections: number;
+  last30DaysLeads: number;
+}
+
+interface DashboardResponse {
+  products: NFTTemplate[];
+  orders: { rows: OrderRow[] };
+  summary: { totals: SummaryTotals };
+  analytics: DashboardAnalytics;
+}
+
 const API = process.env.NEXT_PUBLIC_API_URL;
 
 const accent = '#d97706';
@@ -92,6 +106,34 @@ const getProfileImageSrc = (profilePic?: string | null) => {
   return sanitizeNextImageSrc(rawProfilePic);
 };
 
+const asCount = (value: unknown) => {
+  if (Array.isArray(value)) return value.length;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return null;
+};
+
+const firstCount = (...values: unknown[]) => {
+  for (const value of values) {
+    const count = asCount(value);
+    if (count !== null) return count;
+  }
+
+  return 0;
+};
+
+const formatSwopEnsName = (value?: string | null) => {
+  const clean = String(value ?? '').trim();
+  if (!clean || clean === 'swop.id') return null;
+
+  return clean.toLowerCase().endsWith('.swop.id')
+    ? clean
+    : `${clean.replace(/^\$/, '')}.swop.id`;
+};
+
 /* ------------------------------------------------------------------------
    Main component
    ------------------------------------------------------------------------ */
@@ -100,44 +142,41 @@ export default function DashboardMainContent() {
   const [products, setProducts] = useState<NFTTemplate[]>([]);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [totals, setTotals] = useState<SummaryTotals | null>(null);
+  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
 
   const load = useCallback(async (token: string) => {
-    const [productsRes, ordersRes, summaryRes] = await Promise.all([
-      fetch(`${API}/api/v2/desktop/nft/listByUser`, {
+    const dashboardRes = await fetch(
+      `${API}/api/v2/desktop/dashboard/main?since=30d&orderLimit=5`,
+      {
         headers: { authorization: `Bearer ${token}` },
-      }),
-      fetch(`${API}/api/v2/desktop/orders/listByUser?role=all&since=30d&limit=5`, {
-        headers: { authorization: `Bearer ${token}` },
-      }),
-      fetch(`${API}/api/v2/desktop/orders/summaryByUser?since=30d`, {
-        headers: { authorization: `Bearer ${token}` },
-      }),
-    ]);
+      }
+    );
 
-    const productsData = productsRes.ok
-      ? ((await productsRes.json()) as { data: NFTTemplate[] }).data || []
-      : [];
-    const ordersData = ordersRes.ok
-      ? ((await ordersRes.json()) as { data: { rows: OrderRow[] } }).data.rows ||
-        []
-      : [];
-    const summaryData = summaryRes.ok
-      ? ((await summaryRes.json()) as { data: { totals: SummaryTotals } }).data
-          .totals
-      : null;
+    if (!dashboardRes.ok) {
+      throw new Error(`Dashboard API failed: ${dashboardRes.status}`);
+    }
 
-    return { productsData, ordersData, summaryData };
+    const dashboardData = ((await dashboardRes.json()) as {
+      data: DashboardResponse;
+    }).data;
+    const productsData = dashboardData.products || [];
+    const ordersData = dashboardData.orders?.rows || [];
+    const summaryData = dashboardData.summary?.totals || null;
+    const analyticsData = dashboardData.analytics || null;
+
+    return { productsData, ordersData, summaryData, analyticsData };
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     if (!user?._id || !accessToken) return;
     load(accessToken)
-      .then(({ productsData, ordersData, summaryData }) => {
+      .then(({ productsData, ordersData, summaryData, analyticsData }) => {
         if (cancelled) return;
         setProducts(productsData);
         setOrders(ordersData);
         setTotals(summaryData);
+        setAnalytics(analyticsData);
       })
       .catch((err) => console.error('Dashboard load failed:', err));
     return () => {
@@ -154,8 +193,9 @@ export default function DashboardMainContent() {
         isToday(parseDate(o.date))
       ).length,
       checkoutWeek: totals?.revenue ?? 0,
+      leads: user?.subscribers?.length ?? 0,
     }),
-    [products, orders, totals]
+    [products, orders, totals, user?.subscribers?.length]
   );
 
   return (
@@ -190,7 +230,7 @@ export default function DashboardMainContent() {
           caption="Last 24 hours"
           action={<Chip size="sm">24h</Chip>}
         />
-        <TodaySnapshot totals={totals} />
+        <TodaySnapshot totals={totals} analytics={analytics} />
 
         <SectionHead
           title="In-person checkout"
@@ -289,15 +329,29 @@ function ProfileHero() {
   const { user } = useUser();
   if (!user) return null;
 
+  const userStats = user as typeof user & { totalConnection?: unknown };
   const initials = (user.name || 'You')
     .split(' ')
     .map((p) => p[0])
     .slice(0, 2)
     .join('')
     .toUpperCase();
-  const swopId = user.swopensId
-    ? `$${user.swopensId.replace(/^\$/, '')}.Swop.Id`
-    : null;
+  const primaryMicrosite =
+    user.microsites?.find?.((item) => item?.primary) ?? null;
+  const ensName = formatSwopEnsName(user.ensName || primaryMicrosite?.ens);
+  const swopId = formatSwopEnsName(user.swopensId) || ensName;
+  const followersCount = firstCount(
+    user.connections?.totalFollowers ??
+      user.connections?.followerCount,
+    user.connections?.followers,
+    user.followers
+  );
+  const followingCount = firstCount(
+    user.connections?.followingCount,
+    user.connections?.following,
+    user.following,
+    userStats.totalConnection
+  );
   const profileImageSrc = getProfileImageSrc(user.profilePic);
 
   return (
@@ -374,10 +428,10 @@ function ProfileHero() {
           >
             {swopId && (
               <Mono size={12.5} color={muted} weight={500}>
-                {swopId}
+                Swop ID: {swopId}
               </Mono>
             )}
-            {swopId && user.primaryMicrosite && (
+            {swopId && ensName && ensName !== swopId && (
               <span
                 style={{
                   width: 3,
@@ -387,9 +441,9 @@ function ProfileHero() {
                 }}
               />
             )}
-            {user.primaryMicrosite && (
+            {ensName && ensName !== swopId && (
               <Mono size={12.5} color={muted} weight={500}>
-                swop.id/{user.primaryMicrosite}
+                ENS: {ensName}
               </Mono>
             )}
           </div>
@@ -407,15 +461,15 @@ function ProfileHero() {
             <div
               style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.5 }}
             >
-              {user.followers ?? 0}
+              {followersCount.toLocaleString()}
             </div>
-            <Tag>Followers</Tag>
+            <Tag>Follow</Tag>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div
               style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.5 }}
             >
-              {user.following ?? 0}
+              {followingCount.toLocaleString()}
             </div>
             <Tag>Following</Tag>
           </div>
@@ -448,6 +502,7 @@ function ManageBento({
     orders: number;
     ordersToday: number;
     checkoutWeek: number;
+    leads: number;
   };
 }) {
   const tiles = [
@@ -482,20 +537,21 @@ function ManageBento({
     {
       key: 'leads',
       label: 'Leads',
-      value: '—',
-      sub: 'coming soon',
+      value: counts.leads.toString(),
+      sub: counts.leads === 1 ? 'captured lead' : 'captured leads',
       swatch: T_swatch.leads,
       icon: <UserPlus size={18} />,
-      href: '#',
+      href: '/dashboard/analytics',
     },
     {
       key: 'analytics',
       label: 'Analytics',
-      value: '—',
-      sub: 'taps · 7d',
+      value: '',
+      sub: 'view insights',
       swatch: T_swatch.analytics,
       icon: <Sparkles size={18} />,
-      href: '/analytics',
+      href: '/dashboard/analytics',
+      ctaText: 'Open',
     },
     {
       key: 'rewards',
@@ -509,20 +565,22 @@ function ManageBento({
     {
       key: 'blinks',
       label: 'Blinks',
-      value: '—',
-      sub: 'coming soon',
+      value: '',
+      sub: 'wallet section',
       swatch: T_swatch.blinks,
       icon: <Zap size={18} />,
-      href: '#',
+      href: '/wallet#blinks',
+      ctaText: 'Open',
     },
     {
       key: 'messages',
       label: 'Messages',
-      value: '0',
-      sub: 'all clear',
+      value: '',
+      sub: 'open chat',
       swatch: T_swatch.messages,
       icon: <MessageSquare size={18} />,
       href: '/dashboard/chat',
+      ctaText: 'Chat',
     },
   ];
 
@@ -549,14 +607,16 @@ function DashTile({
   icon,
   href,
   accent: tileAccent,
+  ctaText,
 }: {
   label: string;
-  value: string;
+  value?: string;
   sub: string;
   swatch: string;
   icon: React.ReactNode;
   href: string;
   accent?: string;
+  ctaText?: string;
 }) {
   const inner = (
     <div
@@ -596,9 +656,30 @@ function DashTile({
         >
           {icon}
         </div>
-        <Mono size={26} weight={600} style={{ letterSpacing: -1 }}>
-          {value}
-        </Mono>
+        {ctaText ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 9px',
+              borderRadius: 999,
+              border: `1px solid ${hair}`,
+              background: '#fff',
+              color: ink,
+              fontSize: 12,
+              fontWeight: 700,
+              lineHeight: 1,
+            }}
+          >
+            {ctaText}
+            <ArrowRight size={12} />
+          </span>
+        ) : (
+          <Mono size={26} weight={600} style={{ letterSpacing: -1 }}>
+            {value}
+          </Mono>
+        )}
       </div>
       <div>
         <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: -0.2 }}>
@@ -629,10 +710,24 @@ function DashTile({
 /* ------------------------------------------------------------------------
    3. Today snapshot — gross volume + profile views
    ------------------------------------------------------------------------ */
-function TodaySnapshot({ totals }: { totals: SummaryTotals | null }) {
+function TodaySnapshot({
+  totals,
+  analytics,
+}: {
+  totals: SummaryTotals | null;
+  analytics: DashboardAnalytics | null;
+}) {
   const revenue = totals?.revenue ?? 0;
   const orders = totals?.orders ?? 0;
   const avgOrder = orders > 0 ? Math.round(revenue / orders) : 0;
+  const profileViews30d = analytics?.last30DaysMicrositeTaps ?? 0;
+  const lifetimeProfileViews = analytics?.lifetimeMicrositeTaps ?? 0;
+  const profileViewsBase = Math.max(
+    profileViews30d,
+    analytics?.last30DaysConnections ?? 0,
+    analytics?.last30DaysLeads ?? 0,
+    1
+  );
 
   return (
     <div
@@ -755,8 +850,13 @@ function TodaySnapshot({ totals }: { totals: SummaryTotals | null }) {
                   lineHeight: 1,
                 }}
               >
-                —
+                {profileViews30d.toLocaleString()}
               </div>
+            </div>
+            <div
+              style={{ fontSize: 12, color: muted, marginTop: 6 }}
+            >
+              {lifetimeProfileViews.toLocaleString()} lifetime visits
             </div>
           </div>
           <Sparkline color={ink} trend="up" width={120} height={36} />
@@ -771,10 +871,30 @@ function TodaySnapshot({ totals }: { totals: SummaryTotals | null }) {
             borderTop: `1px solid ${hair}`,
           }}
         >
-          <SourceRow label="Profile link" value="—" pct={0} />
-          <SourceRow label="QR · in-person" value="—" pct={0} tone={accent} />
-          <SourceRow label="Blinks" value="—" pct={0} />
-          <SourceRow label="Direct" value="—" pct={0} />
+          <SourceRow
+            label="Page visits · 30d"
+            value={profileViews30d.toLocaleString()}
+            pct={(profileViews30d / profileViewsBase) * 100}
+          />
+          <SourceRow
+            label="Followers · 30d"
+            value={(analytics?.last30DaysConnections ?? 0).toLocaleString()}
+            pct={
+              ((analytics?.last30DaysConnections ?? 0) / profileViewsBase) *
+              100
+            }
+            tone={accent}
+          />
+          <SourceRow
+            label="Leads · 30d"
+            value={(analytics?.last30DaysLeads ?? 0).toLocaleString()}
+            pct={((analytics?.last30DaysLeads ?? 0) / profileViewsBase) * 100}
+          />
+          <SourceRow
+            label="Lifetime visits"
+            value={lifetimeProfileViews.toLocaleString()}
+            pct={100}
+          />
         </div>
       </Card>
     </div>

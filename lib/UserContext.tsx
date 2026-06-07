@@ -29,6 +29,15 @@ export interface UserData {
   subscribers: any[];
   followers: number;
   following: number;
+  connections?: {
+    followers?: any[];
+    following?: any[];
+    childConnection?: any[];
+    parentConnection?: any[];
+    followerCount?: number;
+    followingCount?: number;
+    totalFollowers?: number;
+  };
   ensName?: string;
   primaryMicrosite?: string;
   swopensId?: string;
