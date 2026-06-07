@@ -259,7 +259,7 @@ export const getPortfolioEvmWalletInput = (
   evmWalletAddress?: string,
   evmWalletAddresses: string[] = [],
 ) =>
-  evmWalletAddresses.length ? evmWalletAddresses : evmWalletAddress || '';
+  evmWalletAddress || evmWalletAddresses[0] || '';
 
 // Custom hook for wallet data management.
 export const useWalletData = (

@@ -196,9 +196,11 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   // wallets/chains, so only fall back to the token-derived total when the
   // snapshot has no current balance.
   const totalBalance =
-    fetchedBalance > 0
-      ? fetchedBalance
-      : (propTotalBalance ?? 0);
+    Number.isFinite(propTotalBalance)
+      ? propTotalBalance
+      : fetchedBalance > 0
+        ? fetchedBalance
+        : 0;
 
   // Log any errors
   if (error) {
