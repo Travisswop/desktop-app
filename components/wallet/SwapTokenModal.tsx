@@ -1144,13 +1144,32 @@ export default function SwapTokenModal({
     [payToken, receiveToken, receiverChainId],
   );
 
+  const isNativeSolToken = (t: any) => {
+    const chain =
+      t?.chain?.toUpperCase?.() ||
+      (t?.chainId?.toString?.() === '1151111081099710'
+        ? 'SOLANA'
+        : '');
+    const address = t?.address ?? t?.id ?? null;
+    const tags = Array.isArray(t?.tags)
+      ? t.tags.map((tag: unknown) => String(tag).toLowerCase())
+      : [];
+    const hasNativeMarker =
+      t?.isNative === true || tags.includes('native');
+
+    return (
+      t?.symbol?.toUpperCase?.() === 'SOL' &&
+      (hasNativeMarker || (chain === 'SOLANA' && address == null))
+    );
+  };
+
   const getSolanaTokenMint = (t: any) =>
-    t?.symbol?.toUpperCase() === 'SOL' ? SOL_MINT : t?.address || t?.id;
+    isNativeSolToken(t) ? SOL_MINT : t?.address || t?.id || t?.mint;
 
   const getLiFiSolanaTokenAddress = (t: any) =>
-    t?.symbol?.toUpperCase() === 'SOL'
+    isNativeSolToken(t)
       ? LIFI_NATIVE_SOL_ADDRESS
-      : t?.address || t?.id;
+      : t?.address || t?.id || t?.mint;
 
   const toHex = (value: bigint) => `0x${value.toString(16)}`;
 
@@ -1698,6 +1717,8 @@ export default function SwapTokenModal({
       throw new Error('Solana wallet not connected');
     const inputMint = getSolanaTokenMint(payToken);
     const outputMint = getSolanaTokenMint(receiveToken);
+    const isNativeSolInput = isNativeSolToken(payToken);
+    const isNativeSolOutput = isNativeSolToken(receiveToken);
     if (!inputMint || !outputMint)
       throw new Error('Invalid token addresses');
     if (inputMint.toLowerCase() === outputMint.toLowerCase())
@@ -1745,7 +1766,7 @@ export default function SwapTokenModal({
       connection: feeConnection,
     });
     const requiresInstructionV2 =
-      outputMint === SOL_MINT ||
+      isNativeSolOutput ||
       inputProgram.equals(TOKEN_2022_PROGRAM_ID) ||
       outputProgram.equals(TOKEN_2022_PROGRAM_ID) ||
       feeInfo.tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
@@ -1760,9 +1781,9 @@ export default function SwapTokenModal({
       platformFeeBps: PLATFORM_FEE_BPS,
       feeAccount: feeInfo.feeAccount,
       instructionVersion: requiresInstructionV2 ? 'V2' : undefined,
-      wrapAndUnwrapSol: true,
+      wrapAndUnwrapSol: isNativeSolInput || isNativeSolOutput,
       nativeDestinationAccount:
-        outputMint === SOL_MINT ? selectedSolanaWallet.address : undefined,
+        isNativeSolOutput ? selectedSolanaWallet.address : undefined,
     });
     if (!result.success)
       throw new Error(result.error || 'Failed to get Jupiter quote');
@@ -2313,6 +2334,8 @@ export default function SwapTokenModal({
 
       const inputMint = getSolanaTokenMint(payToken);
       const outputMint = getSolanaTokenMint(receiveToken);
+      const isNativeSolInput = isNativeSolToken(payToken);
+      const isNativeSolOutput = isNativeSolToken(receiveToken);
       if (!inputMint || !outputMint)
         throw new Error('Invalid token addresses');
       if (inputMint.toLowerCase() === outputMint.toLowerCase())
@@ -2345,7 +2368,7 @@ export default function SwapTokenModal({
           selectedSolanaWallet.address,
         );
         const outputMintPubkey = new PublicKey(outputMint);
-        const isSOLOutput = outputMint === SOL_MINT;
+        const isSOLOutput = isNativeSolOutput;
 
         // Fetch SOL balance and output mint info in one round trip
         const [solLamports, outputMintAcct] = await Promise.all([
@@ -2375,7 +2398,7 @@ export default function SwapTokenModal({
             );
 
         const rentNeeded = outputAtaAcct ? 0 : ATA_RENT;
-        const isSOLInput = inputMint === SOL_MINT;
+        const isSOLInput = isNativeSolInput;
 
         // When the input token IS SOL, the swap amount itself is drawn from
         // the SOL balance, so we must include it in the requirement.
@@ -2415,8 +2438,8 @@ export default function SwapTokenModal({
             );
             const inputMintPubkey = new PublicKey(inputMint);
             const outputMintPubkey = new PublicKey(outputMint);
-            const isSOLInput = inputMint === SOL_MINT;
-            const isSOLOutput = outputMint === SOL_MINT;
+            const isSOLInput = isNativeSolInput;
+            const isSOLOutput = isNativeSolOutput;
 
             const detectTokenProgram = async (
               mintPubkey: typeof PublicKey.prototype,
@@ -2539,7 +2562,7 @@ export default function SwapTokenModal({
           connection,
         });
         const requiresInstructionV2 =
-          outputMint === SOL_MINT ||
+          isNativeSolOutput ||
           inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           feeInfo.tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
@@ -2555,11 +2578,9 @@ export default function SwapTokenModal({
           platformFeeBps: PLATFORM_FEE_BPS,
           feeAccount: feeInfo.feeAccount,
           instructionVersion: requiresInstructionV2 ? 'V2' : undefined,
-          wrapAndUnwrapSol: true,
+          wrapAndUnwrapSol: isNativeSolInput || isNativeSolOutput,
           nativeDestinationAccount:
-            outputMint === SOL_MINT
-              ? selectedSolanaWallet.address
-              : undefined,
+            isNativeSolOutput ? selectedSolanaWallet.address : undefined,
         });
 
         if (!buildResult.success || !buildResult.data) {
@@ -3038,9 +3059,7 @@ export default function SwapTokenModal({
   const handlePercentageClick = (pct: number) => {
     if (!payToken?.balance) return;
 
-    const isSOLInput =
-      payToken.symbol === 'SOL' ||
-      (payToken.address ?? '') === SOL_MINT;
+    const isSOLInput = isNativeSolToken(payToken);
     const decimals = payToken.decimals ?? (isSOLInput ? 9 : 6);
 
     let amount: number;
