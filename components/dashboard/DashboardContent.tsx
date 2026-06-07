@@ -12,6 +12,7 @@ import { useMemo } from "react";
 import { useMultiChainTokenData } from "@/lib/hooks/useToken";
 import { useRouter } from "next/navigation";
 import {
+  getPortfolioEvmWalletInput,
   useWalletAddresses,
   useWalletData,
 } from "../wallet/hooks/useWalletData";
@@ -45,19 +46,24 @@ export default function DashboardContent() {
   const router = useRouter();
 
   const walletData = useWalletData(authenticated, ready, privyUser, user);
-  const { solWalletAddress, evmWalletAddress } =
+  const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
+  const portfolioEvmWalletInput = useMemo(
+    () => getPortfolioEvmWalletInput(evmWalletAddress, evmWalletAddresses),
+    [evmWalletAddress, evmWalletAddresses],
+  );
 
   // Fetch token data
   const {
     tokens,
     loading: tokenLoading,
     error: tokenError,
-  } = useMultiChainTokenData(solWalletAddress, evmWalletAddress, [
+  } = useMultiChainTokenData(solWalletAddress, portfolioEvmWalletInput, [
     "SOLANA",
     "ETHEREUM",
     "POLYGON",
     "BASE",
+    "ARBITRUM",
   ]);
 
   // Transform tokens into portfolio assets
