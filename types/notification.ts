@@ -7,6 +7,7 @@ export type NotificationType =
   | 'nft_sent'
   | 'swap_completed'
   | 'swap_failed'
+  | 'copy_trade_reward_claimable'
   // Social Engagement
   | 'lead_received'
   | 'like_received'
@@ -78,6 +79,7 @@ export interface NotificationPreferences {
     nftReceive: NotificationPreferenceChannel;
     nftSend: NotificationPreferenceChannel;
     swap: NotificationPreferenceChannel;
+    copyTradeRewards: NotificationPreferenceChannel;
   };
   social: {
     leads: NotificationPreferenceChannel;
