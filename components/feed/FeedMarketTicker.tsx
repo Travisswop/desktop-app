@@ -1,5 +1,5 @@
 "use client";
-
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -8,13 +8,22 @@ import {
   Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { PolymarketMarket } from "@/hooks/polymarket";
 import MarketService from "@/services/market-service";
+import {
+  useMarketDetailStore,
+  marketRouteKey,
+} from "@/zustandStore/marketDetailStore";
 import styles from "./FeedMarketTicker.module.css";
 
 const TICKER_LIMIT = 16;
 const SPORTS_PARENT_TAG_ID = 1;
 const STOCKS_TAG_ID = 120;
+const TICKER_BASE_SPEED_SECONDS = 52;
+const TICKER_SPEED_PER_ENTRY_SECONDS = 1.1;
+const TICKER_MIN_SPEED_SECONDS = 52;
+const TICKER_MAX_SPEED_SECONDS = 160;
 
 type MarketCategory = "sports" | "stocks" | "crypto";
 
@@ -109,6 +118,8 @@ type TickerPredictionMarket = {
   outcomeB: string;
   priceA?: number;
   priceB?: number;
+  outcomeLabels?: [string, string];
+  sourceMarket?: PolymarketMarket;
 };
 
 type TickerGameMarket = {
@@ -116,7 +127,10 @@ type TickerGameMarket = {
   league: string;
   href: string;
   title: string;
+  subtitle: string;
   status: string;
+  outcomeA?: string;
+  outcomeB?: string;
   scoreLabel: string;
   teamA: {
     label: string;
@@ -132,6 +146,8 @@ type TickerGameMarket = {
     color?: string;
     score: number | null;
   };
+  outcomeLabels?: [string, string];
+  sourceMarket?: PolymarketMarket;
 };
 
 type TickerEntryCategory = {
@@ -279,6 +295,12 @@ function getGameStatus(market: PolymarketMarket) {
   return "Upcoming";
 }
 
+function buildGameSubtitle(market: PolymarketMarket): string {
+  const title = market.eventTitle || market.question || market.slug || market.id;
+  if (!title) return "Game market";
+  return title.trim() || "Game market";
+}
+
 function getTeamFromEventMarkets(
   market: PolymarketMarket,
   fallback: string,
@@ -324,6 +346,7 @@ function toTickerGame(market: PolymarketMarket): TickerGameMarket | null {
     href: `/prediction/market/${market.id}`,
     league: getLeague(market, teams),
     title: market.eventTitle || market.question || market.id,
+    subtitle: buildGameSubtitle(market),
     status: getGameStatus(market),
     scoreLabel:
       market.eventScore ||
@@ -331,7 +354,7 @@ function toTickerGame(market: PolymarketMarket): TickerGameMarket | null {
       "Live",
     teamA: {
       label: getTeamFromEventMarkets(market, outcomeA),
-      priceLabel: formatOutcomePrice(outcomePrices[0]),
+    priceLabel: formatOutcomePrice(outcomePrices[0]),
       logo: teamA.logo,
       color: teamA.color,
       score: scoreA,
@@ -343,6 +366,10 @@ function toTickerGame(market: PolymarketMarket): TickerGameMarket | null {
       color: teamB.color,
       score: scoreB,
     },
+    outcomeA,
+    outcomeB,
+    outcomeLabels: [outcomeA, outcomeB],
+    sourceMarket: market,
   };
 }
 
@@ -387,6 +414,8 @@ function toTickerPrediction(
     outcomeB: outcomeB.slice(0, 20),
     priceA: Number.isFinite(priceA) ? priceA : undefined,
     priceB: Number.isFinite(priceB) ? priceB : undefined,
+    outcomeLabels: [outcomeA.slice(0, 20), outcomeB.slice(0, 20)],
+    sourceMarket: market,
   };
 }
 
@@ -538,6 +567,18 @@ function normalizeMarketListLength<T>(items: T[]) {
   return items.length > 4 ? [...items, ...items] : items;
 }
 
+function getTickerAnimationDuration(itemCount: number) {
+  if (itemCount <= 0) return TICKER_MAX_SPEED_SECONDS;
+
+  const computed =
+    TICKER_BASE_SPEED_SECONDS + itemCount * TICKER_SPEED_PER_ENTRY_SECONDS;
+
+  return Math.max(
+    TICKER_MIN_SPEED_SECONDS,
+    Math.min(TICKER_MAX_SPEED_SECONDS, computed),
+  );
+}
+
 export default function FeedMarketTicker({
   accessToken,
   className = "",
@@ -545,6 +586,9 @@ export default function FeedMarketTicker({
   accessToken?: string | null;
   className?: string;
 }) {
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((s) => s.set);
+
   const { data, isLoading, isFetching, isError } = useQuery({
     queryKey: [...buildTickerKey(), Boolean(accessToken)],
     queryFn: fetchMarketsTickerData,
@@ -557,6 +601,40 @@ export default function FeedMarketTicker({
   const markets = (data || []) as TickerEntryCategory[];
   const repeatedMarkets = normalizeMarketListLength(markets);
   const shouldAnimate = repeatedMarkets.length > 4;
+  const tickerDuration = getTickerAnimationDuration(markets.length);
+
+  const handlePredictionMarketNavigation = useCallback(
+    (market: TickerPredictionMarket | TickerGameMarket) => {
+      const fallbackHref = market.href || "/prediction";
+      const routeMarket = market.sourceMarket;
+
+      if (!routeMarket) {
+        router.push(fallbackHref);
+        return;
+      }
+
+      const routeKey = marketRouteKey(routeMarket);
+      if (!routeKey) {
+        router.push(fallbackHref);
+        return;
+      }
+
+      const normalizedOutcomeLabels =
+        market.outcomeLabels ??
+        (market.outcomeA && market.outcomeB
+          ? [market.outcomeA, market.outcomeB]
+          : undefined);
+
+      stashMarketDetail(routeKey, {
+        market: routeMarket,
+        outcomeLabels: normalizedOutcomeLabels,
+        yesShares: 0,
+        noShares: 0,
+      });
+      router.push(`/prediction/market/${encodeURIComponent(routeKey)}`);
+    },
+    [router, stashMarketDetail],
+  );
 
   return (
     <section
@@ -586,6 +664,7 @@ export default function FeedMarketTicker({
             ]
               .filter(Boolean)
               .join(" ")}
+            style={{ animationDuration: `${tickerDuration}s` }}
           >
             {repeatedMarkets.map((entry, index) => {
               if (entry.category === "sports") {
@@ -594,6 +673,7 @@ export default function FeedMarketTicker({
                     key={entry.key}
                     game={entry.market as TickerGameMarket}
                     category={entry.category}
+                    onNavigate={handlePredictionMarketNavigation}
                     ariaHidden={index >= markets.length}
                     muted={markets.length === 0}
                   />
@@ -617,6 +697,7 @@ export default function FeedMarketTicker({
                   key={entry.key}
                   market={entry.market as TickerPredictionMarket}
                   category={entry.category}
+                  onNavigate={handlePredictionMarketNavigation}
                   ariaHidden={index >= markets.length}
                   muted={markets.length === 0}
                 />
@@ -716,11 +797,15 @@ function TickerPredictionPill({
   muted,
   ariaHidden,
   category,
+  onNavigate,
 }: {
   market: TickerPredictionMarket;
   muted: boolean;
   ariaHidden: boolean;
   category: Exclude<MarketCategory, "sports" | "crypto">;
+  onNavigate: (
+    market: TickerPredictionMarket | TickerGameMarket,
+  ) => void;
 }) {
   return (
     <Link
@@ -735,6 +820,10 @@ function TickerPredictionPill({
         muted ? "animate-pulse" : "",
       ].join(" ")}
       title={`${market.title} ${market.outcomeA} ${market.outcomeB}`}
+      onClick={(event) => {
+        event.preventDefault();
+        onNavigate(market);
+      }}
     >
       <span
         className={[
@@ -769,11 +858,13 @@ function TickerGamePill({
   category,
   muted,
   ariaHidden,
+  onNavigate,
 }: {
   game: TickerGameMarket;
   category: Exclude<MarketCategory, "crypto" | "stocks">;
   muted: boolean;
   ariaHidden: boolean;
+  onNavigate: (market: TickerPredictionMarket | TickerGameMarket) => void;
 }) {
   return (
     <Link
@@ -788,6 +879,10 @@ function TickerGamePill({
         muted ? "animate-pulse" : "",
       ].join(" ")}
       title={`${game.title} ${game.teamA.label} ${game.scoreLabel} ${game.teamB.label}`}
+      onClick={(event) => {
+        event.preventDefault();
+        onNavigate(game);
+      }}
     >
       <span className="flex shrink-0 flex-col items-start leading-none">
         <span
@@ -797,6 +892,9 @@ function TickerGamePill({
           ].join(" ")}
         >
           {CATEGORY_LABELS[category]}
+        </span>
+        <span className="max-w-[180px] truncate font-mono text-[10px] font-black uppercase text-slate-900">
+          {game.subtitle}
         </span>
         <span className="font-mono text-[9px] font-black uppercase tracking-[0.12em] text-red-600">
           {game.league}
