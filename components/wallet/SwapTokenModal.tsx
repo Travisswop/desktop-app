@@ -465,6 +465,79 @@ const parseOptionalBigInt = (value: unknown) => {
   return BigInt(String(value));
 };
 
+const normalizeHexQuantity = (value: unknown): string | undefined => {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value === 'bigint') {
+    if (value < 0n) return undefined;
+    return `0x${value.toString(16)}`;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return undefined;
+    const whole = Math.trunc(value);
+    if (whole < 0) return undefined;
+    return `0x${whole.toString(16)}`;
+  }
+  if (typeof value === 'string') {
+    const rawValue = value.trim();
+    if (!rawValue) return undefined;
+    try {
+      const parsed = BigInt(rawValue);
+      if (parsed < 0n) return undefined;
+      return `0x${parsed.toString(16)}`;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+};
+
+const sanitizeEvmTxRequest = (request: any, fromAddress?: string) => {
+  if (!request || typeof request !== 'object') return request;
+
+  const sanitized = { ...request };
+  const numericFields = [
+    'chainId',
+    'nonce',
+    'gas',
+    'gasLimit',
+    'gasPrice',
+    'maxFeePerGas',
+    'maxPriorityFeePerGas',
+    'value',
+    'type',
+  ];
+
+  numericFields.forEach((field) => {
+    const normalized = normalizeHexQuantity(request[field]);
+    if (normalized !== undefined) {
+      sanitized[field] = normalized;
+    } else if (request[field] !== undefined) {
+      delete sanitized[field];
+      console.warn(`Dropping non-numeric EVM tx field "${field}"`);
+    }
+  });
+
+  if (!sanitized.from && fromAddress) {
+    sanitized.from = fromAddress;
+  }
+
+  return sanitized;
+};
+
+const isLikelyInvalidParamsError = (error: unknown): boolean => {
+  const msg = String(
+    (error && typeof error === 'object' && (error as any).message) ||
+      error ||
+      '',
+  ).toLowerCase();
+  return (
+    msg.includes('invalid parameter') ||
+    msg.includes('invalid parameters') ||
+    msg.includes('invalid argument') ||
+    msg.includes('invalid arguments')
+  );
+};
+
 const getNetworkByChainId = (chainId: string): string => {
   const map: Record<string, string> = {
     '1151111081099710': 'solana',
@@ -488,6 +561,15 @@ const getTokenChainId = (token: any, fallback = '') => {
   if (token?.network) return getChainId(String(token.network));
   return fallback;
 };
+
+const getSwapTokenImage = (token: any, chainId: string) =>
+  token?.logoURI ||
+  token?.icon ||
+  token?.logo ||
+  token?.image ||
+  token?.marketData?.iconUrl ||
+  getChainIcon(getNetworkByChainId(chainId)) ||
+  '/assets/icons/solana.png';
 
 const isSolanaToken = (token: any, fallback = '') =>
   getTokenChainId(token, fallback) === SOLANA_CHAIN_ID ||
@@ -2874,7 +2956,7 @@ export default function SwapTokenModal({
               payToken?.marketData?.price ||
               payToken?.usdPrice ||
               '0',
-            tokenImg: payToken?.logoURI || '',
+            tokenImg: getSwapTokenImage(payToken, inputChainId),
             chain: inputChainId,
           },
           outputToken: {
@@ -2891,7 +2973,7 @@ export default function SwapTokenModal({
               receiveToken?.marketData?.price ||
               receiveToken?.priceUSD ||
               '0',
-            tokenImg: receiveToken?.logoURI || '',
+            tokenImg: getSwapTokenImage(receiveToken, outputChainId),
             chain: outputChainId,
           },
         },
@@ -3553,7 +3635,10 @@ export default function SwapTokenModal({
         // LiFi can return an inflated gas limit that exceeds the chain's block
         // gas cap (Polygon cap: ~30M). Clamp it to a safe ceiling.
         const EVM_MAX_GAS = 20_000_000;
-        const rawTxReq = { ...activeQuote.transactionRequest };
+        const rawTxReq = sanitizeEvmTxRequest(
+          { ...activeQuote.transactionRequest },
+          wallet.address,
+        );
         const gasField = rawTxReq.gasLimit ?? rawTxReq.gas;
         if (gasField !== undefined) {
           const gasNum =
@@ -3605,10 +3690,22 @@ export default function SwapTokenModal({
           });
           txHashResult = result.hash;
         } else {
-          txHashResult = await provider.request({
-            method: 'eth_sendTransaction',
-            params: [rawTxReq],
-          });
+          try {
+            txHashResult = await provider.request({
+              method: 'eth_sendTransaction',
+              params: [rawTxReq],
+            });
+          } catch (sendError) {
+            if (!isLikelyInvalidParamsError(sendError)) throw sendError;
+            const retryTxReq = sanitizeEvmTxRequest(
+              activeQuote.transactionRequest,
+              wallet.address,
+            );
+            txHashResult = await provider.request({
+              method: 'eth_sendTransaction',
+              params: [retryTxReq],
+            });
+          }
         }
         setTxHash(txHashResult);
         setSwapStatus('Transaction submitted!');
