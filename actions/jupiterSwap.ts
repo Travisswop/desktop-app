@@ -43,6 +43,23 @@ type JupiterQuoteEndpoint = {
 
 const JUPITER_QUOTE_TIMEOUT_MS = 8_000;
 
+const getJupiterApiKey = () => process.env.JUPITER_API_KEY?.trim();
+
+const getJupiterApiHeaders = (includeApiKey = false) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (includeApiKey) {
+    const apiKey = getJupiterApiKey();
+    if (apiKey) {
+      headers['x-api-key'] = apiKey;
+    }
+  }
+
+  return headers;
+};
+
 async function fetchJupiterWithTimeout(
   url: string,
   options: RequestInit = {},
@@ -107,10 +124,7 @@ export const getJupiterQuote = async (params: JupiterQuoteParams) => {
     const quoteUrls: JupiterQuoteEndpoint[] = [
       {
         url: `https://api.jup.ag/swap/v1/quote?${searchParams.toString()}`,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.JUPITER_API_KEY || '',
-        },
+        headers: getJupiterApiHeaders(true),
       },
       {
         url: `https://lite-api.jup.ag/swap/v1/quote?${searchParams.toString()}`,
@@ -210,40 +224,75 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
       searchParams.set('feeAccount', feeAccount);
     }
 
-    const url = `https://api.jup.ag/swap/v2/build?${searchParams.toString()}`;
+    const buildUrls: JupiterQuoteEndpoint[] = [];
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.JUPITER_API_KEY || '',
-      },
+    if (getJupiterApiKey()) {
+      buildUrls.push({
+        url: `https://api.jup.ag/swap/v2/build?${searchParams.toString()}`,
+        headers: getJupiterApiHeaders(true),
+      });
+    }
+
+    buildUrls.push({
+      url: `https://lite-api.jup.ag/swap/v2/build?${searchParams.toString()}`,
+      headers: getJupiterApiHeaders(),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.error('Error getting Jupiter build:', errorData);
+    let response: Response | null = null;
+    let buildData: any = null;
 
+    for (const [index, endpoint] of buildUrls.entries()) {
+      response = await fetchJupiterWithTimeout(
+        endpoint.url,
+        {
+          method: 'GET',
+          headers: endpoint.headers,
+        },
+      );
+      buildData = await response.json().catch(() => null);
+
+      if (response.ok) {
+        break;
+      }
+
+      const shouldRetry =
+        (response.status === 401 ||
+          response.status === 403 ||
+          response.status === 429 ||
+          response.status >= 500) &&
+        index < buildUrls.length - 1;
+
+      if (shouldRetry) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    if (!response || !response.ok) {
+      console.error('Error getting Jupiter build:', buildData);
+
+      const status = response?.status || 502;
       let errorMessage;
-      if (response.status === 429) {
+      if (status === 401 || status === 403) {
+        errorMessage =
+          'Jupiter build is temporarily unavailable. Please try again.';
+      } else if (status === 429) {
         errorMessage =
           'Service is busy. Please wait a moment and try again.';
-      } else if (response.status === 404) {
+      } else if (status === 404) {
         errorMessage =
           'This token pair is not available for swapping.';
-      } else if (response.status >= 500) {
+      } else if (status >= 500) {
         errorMessage =
           'Swap service is temporarily down. Please try again later.';
       } else {
         errorMessage =
-          errorData?.error ||
+          buildData?.errorMessage ||
+          buildData?.error ||
           'Unable to get price quote. Please try again.';
       }
 
       return { success: false, error: errorMessage };
     }
-
-    const buildData = await response.json();
 
     if (!buildData || !buildData.outAmount) {
       return {
@@ -297,10 +346,7 @@ export const getJupiterOrder = async (params: JupiterOrderParams) => {
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.JUPITER_API_KEY || '',
-      },
+      headers: getJupiterApiHeaders(true),
     });
 
     const data = await response.json().catch(() => null);
@@ -377,10 +423,7 @@ export const executeJupiterOrder = async (
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.JUPITER_API_KEY || '',
-      },
+      headers: getJupiterApiHeaders(true),
       body: JSON.stringify(params),
     });
 

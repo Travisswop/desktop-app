@@ -110,6 +110,12 @@ const SWOP_REWARD_TOKEN = {
   chain: 'solana',
   decimals: 9,
 };
+const DEFAULT_SOLANA_RPC_URL =
+  'https://dacey-pp61jd-fast-mainnet.helius-rpc.com/';
+
+const getSolanaRpcUrl = () =>
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() ||
+  DEFAULT_SOLANA_RPC_URL;
 
 type CopyTradeRewardPreview = {
   sourcePostId?: string;
@@ -3112,11 +3118,7 @@ export default function SwapTokenModal({
         payAmount,
         payToken.decimals || 6,
       );
-      const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
-      if (!rpcUrl)
-        throw new Error(
-          'No Solana RPC URL configured in environment variables',
-        );
+      const rpcUrl = getSolanaRpcUrl();
 
       const connection = new Connection(rpcUrl, {
         commitment: 'confirmed',
@@ -3411,7 +3413,7 @@ export default function SwapTokenModal({
         setIsSwapping(false);
         onSwapComplete?.(txId);
 
-        (async () => {
+        void (async () => {
           try {
             const blockhash = getBuildBlockhash(build);
             const lastValidBlockHeight =
@@ -3432,7 +3434,14 @@ export default function SwapTokenModal({
           } catch {
             setSwapStatus('Transaction submitted successfully');
           }
-          await saveSwapToDatabase(txId, { inputMint, outputMint });
+          try {
+            await saveSwapToDatabase(txId, { inputMint, outputMint });
+          } catch (postSwapError) {
+            console.warn(
+              'Post-swap persistence failed:',
+              postSwapError,
+            );
+          }
         })();
 
         return;
@@ -3481,9 +3490,7 @@ export default function SwapTokenModal({
         throw new Error('No transactionRequest found in LiFi quote');
 
       setSwapStatus('Submitting transaction...');
-      const solanaRpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
-      if (!solanaRpcUrl)
-        throw new Error('No Solana RPC URL configured');
+      const solanaRpcUrl = getSolanaRpcUrl();
 
       const connection = new Connection(solanaRpcUrl, {
         commitment: 'confirmed',
@@ -4592,13 +4599,25 @@ export default function SwapTokenModal({
           {/* Footer — Cancel + sign/approve CTA */}
           <div className="pt-4 grid grid-cols-[1fr_1.6fr] gap-2.5 border-t border-black/[0.04] mt-4">
             <button
-              onClick={resetSwapForm}
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                resetSwapForm();
+              }}
               className="py-3.5 rounded-xl bg-[#fafafa] border border-black/[0.06] text-sm font-semibold text-[#0a0a0c] hover:bg-gray-100 transition-colors"
             >
               Cancel
             </button>
             <Button
-              onClick={isSwapDone ? resetSwapForm : executeCrossChainSwap}
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                if (isSwapDone) {
+                  resetSwapForm();
+                } else {
+                  void executeCrossChainSwap();
+                }
+              }}
               className={`py-3.5 rounded-xl ${isSwapDone ? 'bg-green-600 hover:bg-green-700' : 'bg-[#0a0a0c] hover:bg-black/90'} text-white text-sm font-bold -tracking-[0.1px] disabled:opacity-50 transition-colors`}
               disabled={
                 isSwapping ||
