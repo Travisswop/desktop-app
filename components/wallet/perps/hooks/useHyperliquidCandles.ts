@@ -30,6 +30,7 @@ const UI_TO_HL: Record<string, HLInterval> = {
   '1h': '1h',
   '4h': '4h',
   '1D': '1d',
+  '1W': '1w',
 };
 
 /** How many bars of history to load up-front (covers ~1 screen of zooming-out). */

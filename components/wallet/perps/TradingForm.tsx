@@ -599,7 +599,7 @@ export function TradingForm({
                 : 'bg-[#f2f2f0] text-gray-900 hover:bg-gray-100'
             }`}
           >
-            {p}%
+            {p === 100 ? 'Max' : `${p}%`}
           </button>
         ))}
       </div>
@@ -722,11 +722,16 @@ export function TradingForm({
 
       {/* Summary rows */}
       <div className="mt-3 space-y-1 text-[12px]">
+        {markNum > 0 && (
+          <SummaryRow
+            label="Entry price"
+            value={`$${formatPrice(mode === 'limit' && limitPrice ? parseFloat(limitPrice) : markNum)}`}
+          />
+        )}
         {estLiqPrice && (
           <SummaryRow label="Est. liquidation" value={`$${formatPrice(estLiqPrice)}`} valueColor="text-red-500" />
         )}
-        <SummaryRow label="Slippage" value="0.04%" />
-        {estFee && <SummaryRow label="Fee" value={`$${estFee}`} />}
+        {estFee && <SummaryRow label="Fees" value={`$${estFee}`} />}
       </div>
 
       {existingPosition && (
