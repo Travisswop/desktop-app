@@ -13,6 +13,8 @@ interface FocusedPositionCardProps {
   onAddMargin?: () => void;
   /** Called when the user wants to open a position from the empty state. */
   onOpenTrade?: () => void;
+  /** Called when the card is tapped — focuses this position's coin (chart/ticket). */
+  onFocus?: () => void;
 }
 
 /**
@@ -28,6 +30,7 @@ export function FocusedPositionCard({
   onClose,
   onAddMargin,
   onOpenTrade,
+  onFocus,
 }: FocusedPositionCardProps) {
   const [confirmClose, setConfirmClose] = useState(false);
 
@@ -70,7 +73,13 @@ export function FocusedPositionCard({
     : null;
 
   return (
-    <div className="bg-white border border-black/[0.06] rounded-[20px] p-[18px] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] flex flex-col">
+    <div
+      onClick={onFocus}
+      role={onFocus ? 'button' : undefined}
+      className={`bg-white border border-black/[0.06] rounded-[20px] p-[18px] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] flex flex-col ${
+        onFocus ? 'cursor-pointer hover:border-black/[0.12] transition-colors' : ''
+      }`}
+    >
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -131,7 +140,10 @@ export function FocusedPositionCard({
       )}
 
       {/* Actions */}
-      <div className="grid grid-cols-2 gap-2 mt-3.5">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="grid grid-cols-2 gap-2 mt-3.5"
+      >
         <button
           onClick={onAddMargin}
           disabled={!onAddMargin}

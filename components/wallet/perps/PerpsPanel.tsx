@@ -328,7 +328,8 @@ export function PerpsPanel({
     ? (mids[selectedCoin] ?? selectedMarket?.markPrice ?? '0')
     : '0';
 
-  const existingPosition = accountData?.positions.find(
+  const openPositions = accountData?.positions ?? [];
+  const existingPosition = openPositions.find(
     (p) => p.coin === selectedCoin,
   );
 
@@ -681,12 +682,26 @@ export function PerpsPanel({
                 />
               </Card>
 
-              <FocusedPositionCard
-                position={existingPosition}
-                markPrice={liveMarkPrice}
-                isClosing={closingCoin === existingPosition?.coin}
-                onClose={handleClosePosition}
-              />
+              {openPositions.length === 0 ? (
+                <FocusedPositionCard
+                  position={null}
+                  markPrice={liveMarkPrice}
+                  onClose={handleClosePosition}
+                />
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {openPositions.map((position) => (
+                    <FocusedPositionCard
+                      key={position.coin}
+                      position={position}
+                      markPrice={mids[position.coin] ?? liveMarkPrice}
+                      isClosing={closingCoin === position.coin}
+                      onClose={handleClosePosition}
+                      onFocus={() => setSelectedCoin(position.coin)}
+                    />
+                  ))}
+                </div>
+              )}
 
               <AccountStats
                 accountValue={accountData?.accountValue ?? '0'}
