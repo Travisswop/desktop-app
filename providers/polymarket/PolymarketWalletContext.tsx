@@ -12,6 +12,7 @@ import {
   createWalletClient,
   createPublicClient,
   custom,
+  fallback,
   http,
   type WalletClient,
   type PublicClient,
@@ -19,7 +20,7 @@ import {
 import { providers } from "ethers5";
 import { polygon } from "viem/chains";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
-import { POLYGON_RPC_URL } from "@/constants/polymarket";
+import { POLYGON_RPC_URLS } from "@/constants/polymarket";
 import {
   selectPreferredWallet,
   shouldPreferEmbeddedWallets,
@@ -41,7 +42,7 @@ export interface PolymarketWalletContextType {
 
 const publicClient = createPublicClient({
   chain: polygon,
-  transport: http(POLYGON_RPC_URL),
+  transport: fallback(POLYGON_RPC_URLS.map((url) => http(url))),
 });
 
 const PolymarketWalletContext = createContext<PolymarketWalletContextType>({

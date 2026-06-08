@@ -132,12 +132,25 @@ export function useTradingSession() {
 
       if (!apiCreds) return true;
 
-      const approvalStatus = await checkAllTokenApprovals(tradingWalletAddress);
+      // On-chain approvals are durable — only an explicit user action revokes
+      // them. If the RPC read fails we must NOT downgrade a previously-confirmed
+      // `hasApprovals: true`, otherwise a transient/dead RPC re-prompts a fully
+      // approved user to "Enable trading" with no way to recover.
+      let hasApprovals = storedSession?.hasApprovals === true;
+      try {
+        const approvalStatus = await checkAllTokenApprovals(tradingWalletAddress);
+        hasApprovals = approvalStatus.allApproved;
+      } catch (err) {
+        console.warn(
+          "[Polymarket] Approval re-check failed during restore — preserving stored approval flag:",
+          err
+        );
+      }
 
       const restoredSession: TradingSession = {
         ...baseRestoredSession,
         hasApiCredentials: true,
-        hasApprovals: approvalStatus.allApproved,
+        hasApprovals,
         apiCredentials: apiCreds,
         lastChecked: Date.now(),
       };
@@ -166,17 +179,14 @@ export function useTradingSession() {
     ) {
       return;
     }
-    if (
-      tradingSession?.isSafeDeployed &&
-      tradingSession?.lastChecked &&
-      (!tradingSession.hasApiCredentials || !tradingSession.hasApprovals)
-    ) {
-      return;
-    }
 
-    const restoreKey = `${eoaAddress.toLowerCase()}:${
-      tradingSession?.lastChecked ?? "missing"
-    }`;
+    // Attempt a silent re-check at most once per provider mount. We key the
+    // dedup ref on the EOA only (not lastChecked) so that the lastChecked bump
+    // a successful restore writes can't re-trigger this effect into a loop. A
+    // deployed-but-incomplete session (e.g. a stale hasApprovals:false left by a
+    // dead-RPC read) therefore gets one fresh on-chain re-check per page load,
+    // which lets a genuinely-approved user self-heal without re-initializing.
+    const restoreKey = eoaAddress.toLowerCase();
     if (silentRestoreAttemptRef.current === restoreKey) return;
     silentRestoreAttemptRef.current = restoreKey;
 
