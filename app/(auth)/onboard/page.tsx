@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Registration from '@/components/onboard/Registration';
 import SmartSiteInformation from '@/components/onboard/SmartSiteInformation';
 import CreateSwopID from '@/components/onboard/CreateSwopID';
@@ -24,7 +24,7 @@ const extractWalletInfo = (
   };
 };
 
-const Onboard: React.FC = () => {
+const OnboardContent: React.FC = () => {
   const { user, ready } = usePrivy();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -189,5 +189,18 @@ const OnboardingFlow: React.FC<{
       return <div>Onboarding Complete!</div>;
   }
 };
+
+const Onboard: React.FC = () => (
+  <Suspense
+    fallback={
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader />
+        <p className="mt-4 text-sm text-gray-600">Initializing...</p>
+      </div>
+    }
+  >
+    <OnboardContent />
+  </Suspense>
+);
 
 export default Onboard;
