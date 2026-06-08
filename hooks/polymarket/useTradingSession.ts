@@ -241,7 +241,12 @@ export function useTradingSession() {
         }
         tradingWalletAddress = walletInfo.depositWalletAddress;
 
-        if (!isDepositWalletDeployed || !storedSession?.depositWalletRegisteredAt) {
+        if (!isDepositWalletDeployed) {
+          // Only hit the relayer when the wallet genuinely isn't on-chain yet.
+          // If walletInfo already reports it deployed, a missing local
+          // depositWalletRegisteredAt (e.g. cleared localStorage) must not
+          // trigger a force-redeploy — the relayer rejects WALLET_CREATE for
+          // an existing wallet, which previously 500'd and blocked the session.
           setCurrentStep("deploying");
           const deployResult = await deployDepositWallet(eoaAddress, accessToken, {
             force: !storedSession?.depositWalletRegisteredAt,
