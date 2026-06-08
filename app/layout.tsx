@@ -56,7 +56,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${figtree.className} ${inter.variable} ${jetbrainsMono.variable}`}
     >
-      <body className={`font-[figtree] bg-[#F7F7F9]`}>
+      <body suppressHydrationWarning className={`font-[figtree] bg-[#F7F7F9]`}>
         <Toaster
           position="top-right"
           reverseOrder={false}

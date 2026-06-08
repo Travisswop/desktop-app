@@ -670,7 +670,7 @@ export default function FeedMarketTicker({
               if (entry.category === "sports") {
                 return (
                   <TickerGamePill
-                    key={entry.key}
+                    key={`${entry.key}-${index}`}
                     game={entry.market as TickerGameMarket}
                     category={entry.category}
                     onNavigate={handlePredictionMarketNavigation}
@@ -683,7 +683,7 @@ export default function FeedMarketTicker({
               if (entry.category === "crypto") {
                 return (
                   <TickerPill
-                    key={entry.key}
+                    key={`${entry.key}-${index}`}
                     market={entry.market as TickerMarket}
                     category={entry.category}
                     ariaHidden={index >= markets.length}
@@ -694,7 +694,7 @@ export default function FeedMarketTicker({
 
               return (
                 <TickerPredictionPill
-                  key={entry.key}
+                  key={`${entry.key}-${index}`}
                   market={entry.market as TickerPredictionMarket}
                   category={entry.category}
                   onNavigate={handlePredictionMarketNavigation}
