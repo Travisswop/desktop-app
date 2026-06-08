@@ -874,7 +874,7 @@ function TickerGamePill({
       tabIndex={ariaHidden ? -1 : undefined}
       aria-label={`Open ${game.title} market`}
       className={[
-        "flex h-11 min-w-[320px] max-w-[430px] items-center gap-2 rounded-md border border-white bg-white px-2.5 text-xs shadow-[0_1px_0_rgba(15,23,42,0.04)] sm:min-w-[360px] sm:px-3",
+        "flex h-9 min-w-[360px] max-w-[480px] items-center gap-2.5 rounded-md border border-white bg-white px-2.5 text-xs shadow-[0_1px_0_rgba(15,23,42,0.04)] sm:min-w-[400px] sm:px-3",
         "transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20",
         muted ? "animate-pulse" : "",
       ].join(" ")}
@@ -884,23 +884,25 @@ function TickerGamePill({
         onNavigate(game);
       }}
     >
-      <span className="flex shrink-0 flex-col items-start leading-none">
-        <span
-          className={[
-            "mb-1 rounded px-1 py-0.5 font-mono text-[10px] font-black uppercase tracking-[0.12em] text-slate-100",
-            CATEGORY_BADGE_STYLE[category],
-          ].join(" ")}
-        >
-          {CATEGORY_LABELS[category]}
+      <span className="flex shrink-0 flex-col justify-center gap-1 leading-none">
+        <span className="flex items-center gap-1.5">
+          <span
+            className={[
+              "rounded px-1 py-0.5 font-mono text-[10px] font-black uppercase tracking-[0.12em] text-slate-100",
+              CATEGORY_BADGE_STYLE[category],
+            ].join(" ")}
+          >
+            {CATEGORY_LABELS[category]}
+          </span>
+          <span className="font-mono text-[9px] font-black uppercase tracking-[0.12em] text-red-600">
+            {game.league}
+          </span>
+          <span className="font-mono text-[9px] font-black uppercase tabular-nums text-slate-500">
+            {game.status}
+          </span>
         </span>
-        <span className="max-w-[180px] truncate font-mono text-[10px] font-black uppercase text-slate-900">
+        <span className="max-w-[220px] truncate font-mono text-[11px] font-black uppercase text-slate-900">
           {game.subtitle}
-        </span>
-        <span className="font-mono text-[9px] font-black uppercase tracking-[0.12em] text-red-600">
-          {game.league}
-        </span>
-        <span className="mt-1 font-mono text-[10px] font-black uppercase tabular-nums text-slate-500">
-          {game.status}
         </span>
       </span>
       <span className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
