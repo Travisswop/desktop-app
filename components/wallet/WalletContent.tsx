@@ -86,6 +86,9 @@ import SwapTokenModal from './SwapTokenModal';
 import WalletPredictionsSection from './WalletPredictionsSection';
 import BlinksSection from './BlinksSection';
 
+// Swap (Jupiter limit orders + LiFi/Jupiter market swaps)
+import WalletSwapSection from './swap/WalletSwapSection';
+
 // Stores
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
 
@@ -1878,6 +1881,19 @@ const WalletContentInner = () => {
               onSelectToken={handleTokenSelect}
             />
           </BentoCard>
+        </section>
+
+        {/* ───────── SWAP ───────── */}
+        <section className="mt-8">
+          <SectionHead
+            title="Swap"
+            caption="Trade tokens at the best route · limit orders"
+          />
+          <WalletSwapSection
+            tokens={tokens}
+            accessToken={accessToken}
+            onTokenRefresh={refetchTokens}
+          />
         </section>
 
         {/* ───────── PERPS ───────── */}
