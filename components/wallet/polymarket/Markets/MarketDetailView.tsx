@@ -23,6 +23,7 @@ import {
 } from '@/constants/polymarket';
 import { getSafePolymarketMaxBuyAmount } from '@/lib/polymarket/validation';
 import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
+import EnableTradingModal from '@/components/wallet/polymarket/EnableTradingModal';
 
 import { InfoIcon, Clock, CheckCircle2, AlertCircle, X } from 'lucide-react';
 
@@ -512,9 +513,15 @@ function OrderSuccessNotification({
 function OrderInfoNotification({
   title,
   detail,
+  actionLabel,
+  onAction,
+  actionDisabled,
 }: {
   title: string;
   detail: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  actionDisabled?: boolean;
 }) {
   return (
     <div
@@ -568,6 +575,27 @@ function OrderInfoNotification({
           {detail}
         </div>
       </div>
+      {actionLabel && onAction && (
+        <button
+          onClick={onAction}
+          disabled={actionDisabled}
+          style={{
+            flexShrink: 0,
+            alignSelf: 'center',
+            padding: '8px 14px',
+            background: actionDisabled ? D.muted2 : D.ink,
+            color: '#fff',
+            border: 'none',
+            borderRadius: 10,
+            fontSize: 12.5,
+            fontWeight: 700,
+            cursor: actionDisabled ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {actionLabel}
+        </button>
+      )}
     </div>
   );
 }
@@ -3814,7 +3842,34 @@ export default function MarketDetailView({
   onAddFunds,
   outcomeLabels,
 }: MarketDetailViewProps) {
-  const { clobClient, portfolioAddresses } = useTrading();
+  const {
+    clobClient,
+    portfolioAddresses,
+    initializeTradingSession,
+    currentStep,
+    isGeoblocked,
+    isGeoblockLoading,
+    geoblockStatus,
+  } = useTrading();
+  const [showEnableModal, setShowEnableModal] = useState(false);
+  const tradingDisabledReason = isGeoblockLoading
+    ? 'Checking trading availability…'
+    : isGeoblocked
+      ? `Trading is not available in your region${
+          geoblockStatus?.country ? ` (${geoblockStatus.country})` : ''
+        }.`
+      : undefined;
+  const handleEnableTrading = async () => {
+    if (tradingDisabledReason) return;
+    setShowEnableModal(false);
+    try {
+      await initializeTradingSession();
+    } catch (err) {
+      setLocalError(
+        err instanceof Error ? err.message : 'Failed to enable trading',
+      );
+    }
+  };
   // ── Derived market data ───────────────────────────────────────────────────
   const outcomes = useMemo(
     () =>
@@ -4540,7 +4595,26 @@ export default function MarketDetailView({
         {!clobClient && !localError && !orderError && (
           <OrderInfoNotification
             title="Trading session not started"
-            detail="Initialize your Polymarket trading session from the Predictions panel to start placing orders on this market."
+            detail={
+              tradingDisabledReason ??
+              'Initialize your Polymarket trading session to start placing orders on this market.'
+            }
+            actionLabel={
+              tradingDisabledReason
+                ? undefined
+                : currentStep !== 'idle'
+                  ? 'Initializing…'
+                  : 'Enable trading'
+            }
+            onAction={() => setShowEnableModal(true)}
+            actionDisabled={currentStep !== 'idle'}
+          />
+        )}
+        {showEnableModal && (
+          <EnableTradingModal
+            onConfirm={() => void handleEnableTrading()}
+            onDismiss={() => setShowEnableModal(false)}
+            disabledReason={tradingDisabledReason}
           />
         )}
 
