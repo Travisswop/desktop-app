@@ -37,6 +37,32 @@ const publicClient = createPublicClient({
   transport: http(POLYGON_RPC_URL),
 });
 
+/**
+ * Retries a flaky RPC read a few times before giving up. Without this, a single
+ * transient RPC error makes an approval read resolve to `false`, which makes a
+ * fully-approved wallet look unapproved during silent session restore and
+ * re-prompts the user to "Enable trading". On-chain approvals are durable, so
+ * a transient read error must not be treated as "not approved".
+ */
+const readWithRetry = async <T>(
+  read: () => Promise<T>,
+  retries = 3,
+  baseDelayMs = 400
+): Promise<T> => {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await read();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, baseDelayMs * (attempt + 1)));
+      }
+    }
+  }
+  throw lastErr;
+};
+
 const USDC_E_SPENDERS = [
   { address: CTF_CONTRACT_ADDRESS, name: "CTF Contract" },
   { address: NEG_RISK_ADAPTER_ADDRESS, name: "Neg Risk Adapter" },
@@ -55,12 +81,14 @@ const checkUSDCApprovalForSpender = async (
   spender: string
 ): Promise<boolean> => {
   try {
-    const allowance = await publicClient.readContract({
-      address: USDC_E_CONTRACT_ADDRESS as `0x${string}`,
-      abi: erc20Abi,
-      functionName: "allowance",
-      args: [safeAddress as `0x${string}`, spender as `0x${string}`],
-    });
+    const allowance = await readWithRetry(() =>
+      publicClient.readContract({
+        address: USDC_E_CONTRACT_ADDRESS as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [safeAddress as `0x${string}`, spender as `0x${string}`],
+      })
+    );
 
     const threshold = BigInt("1000000000000");
     return allowance >= threshold;
@@ -75,12 +103,14 @@ const checkERC1155ApprovalForSpender = async (
   spender: string
 ): Promise<boolean> => {
   try {
-    const isApproved = await publicClient.readContract({
-      address: CTF_CONTRACT_ADDRESS as `0x${string}`,
-      abi: erc1155Abi,
-      functionName: "isApprovedForAll",
-      args: [safeAddress as `0x${string}`, spender as `0x${string}`],
-    });
+    const isApproved = await readWithRetry(() =>
+      publicClient.readContract({
+        address: CTF_CONTRACT_ADDRESS as `0x${string}`,
+        abi: erc1155Abi,
+        functionName: "isApprovedForAll",
+        args: [safeAddress as `0x${string}`, spender as `0x${string}`],
+      })
+    );
 
     return isApproved;
   } catch (error) {
