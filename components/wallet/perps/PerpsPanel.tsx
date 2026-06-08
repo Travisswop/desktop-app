@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import type * as hl from '@nktkas/hyperliquid';
+import * as hl from '@nktkas/hyperliquid';
+import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
 
 // Hooks
 import {
@@ -79,6 +80,12 @@ interface HyperliquidUserFill {
     method?: string;
   };
 }
+
+const fillsTransport = new hl.HttpTransport({
+  isTestnet: HL_IS_TESTNET,
+  apiUrl: getHLApiUrl(HL_IS_TESTNET),
+});
+const fillsInfoClient = new hl.InfoClient({ transport: fillsTransport });
 
 function getUserEventFills(data: unknown): HyperliquidUserFill[] {
   if (!data || typeof data !== 'object') return [];
@@ -160,6 +167,51 @@ export function PerpsPanel({
     const requestedCoin = agentOrderPrefill?.coin || initialCoin;
     if (requestedCoin) setSelectedCoin(requestedCoin);
   }, [agentOrderPrefill?.coin, initialCoin]);
+
+  // Seed historical fills (the WS `user` channel only streams *new* fills, never
+  // a snapshot — so Recent fills + Trade history would stay empty without this).
+  useEffect(() => {
+    if (!masterAddress) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const history = await fillsInfoClient.userFills({
+          user: masterAddress as `0x${string}`,
+        });
+        if (cancelled || !Array.isArray(history)) return;
+
+        setFills((prev) => {
+          const merged = new Map<string, PerpsFill>();
+          const add = (f: PerpsFill) => merged.set(fillKeyFor(f), f);
+          prev.forEach(add);
+          (history as HyperliquidUserFill[]).forEach((f) => {
+            if (!f.coin || !f.side || f.px == null || f.sz == null) return;
+            add({
+              coin: f.coin,
+              side: f.side,
+              px: f.px,
+              sz: f.sz,
+              time: Number(f.time) || Date.now(),
+              closedPnl: f.closedPnl,
+              hash: f.hash,
+              oid: f.oid,
+              dir: f.dir,
+            });
+          });
+          return Array.from(merged.values())
+            .sort((a, b) => b.time - a.time)
+            .slice(0, 50);
+        });
+      } catch (err) {
+        console.warn('Failed to fetch historical perps fills:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [masterAddress]);
 
   // Re-open AgentSetupModal once a deposit settles.
   useEffect(() => {

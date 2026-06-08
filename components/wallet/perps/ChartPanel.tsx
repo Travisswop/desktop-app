@@ -27,7 +27,7 @@ export function ChartPanel({ coin, interval, onIntervalChange }: ChartPanelProps
   const [readout, setReadout] = useState<ChartReadout | null>(null);
 
   return (
-    <div className="bg-white border border-black/[0.06] rounded-[18px] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] overflow-hidden flex flex-col">
+    <div className="bg-white border border-black/[0.06] rounded-[18px] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] overflow-hidden flex flex-col h-full">
       {/* Toolbar */}
       <div className="px-4 py-2.5 border-b border-black/[0.06] flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
