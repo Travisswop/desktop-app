@@ -4315,20 +4315,49 @@ export default function SwapTokenModal({
                   </svg>
                 </button>
               </div>
-              <div className="flex gap-2 mt-3">
-                <button
-                  className="px-3 py-1.5 text-[11px] font-medium bg-white border border-black/[0.06] hover:bg-gray-50 rounded-lg transition-colors"
-                  onClick={() => handlePercentageClick(0.5)}
-                >
-                  50%
-                </button>
-                <button
-                  className="px-3 py-1.5 text-[11px] font-medium bg-white border border-black/[0.06] hover:bg-gray-50 rounded-lg transition-colors"
-                  onClick={() => handlePercentageClick(1)}
-                >
-                  Max
-                </button>
-              </div>
+              {(() => {
+                const bal = Number(payToken?.balance || 0);
+                const pct =
+                  bal > 0
+                    ? Math.min(
+                        100,
+                        Math.max(0, (Number(payAmount) / bal) * 100),
+                      )
+                    : 0;
+                return (
+                  <div className="mt-3">
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(pct)}
+                      onChange={(e) =>
+                        handlePercentageClick(Number(e.target.value) / 100)
+                      }
+                      disabled={bal <= 0}
+                      aria-label="Amount to pay"
+                      className="swop-dial w-full h-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                      style={{
+                        background: `linear-gradient(to right, #0a0a0c 0%, #0a0a0c ${pct}%, #e5e7eb ${pct}%, #e5e7eb 100%)`,
+                      }}
+                    />
+                    <div className="flex gap-2 mt-3">
+                      {[25, 50, 75, 100].map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          className="px-3 py-1.5 text-[11px] font-medium bg-white border border-black/[0.06] hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-40"
+                          onClick={() => handlePercentageClick(p / 100)}
+                          disabled={bal <= 0}
+                        >
+                          {p === 100 ? 'Max' : `${p}%`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Flip — floating overlap button between pay/receive cards */}

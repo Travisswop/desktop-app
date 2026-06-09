@@ -1927,6 +1927,9 @@ const WalletContentInner = () => {
             tokens={tokens}
             accessToken={accessToken}
             onTokenRefresh={refetchTokens}
+            solWalletAddress={solWalletAddress}
+            evmWalletAddress={evmWalletAddress}
+            chains={SUPPORTED_CHAINS}
           />
         </section>
 

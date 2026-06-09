@@ -9,6 +9,7 @@ import {
 } from '@privy-io/react-auth/solana';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useMultiChainTransactionData } from '@/lib/hooks/useTransaction';
 import {
   cancelTriggerOrder,
   executeTriggerOrder,
@@ -27,22 +28,68 @@ const num = (v: unknown) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Parse a Jupiter order timestamp (unix seconds, unix ms, or ISO) to ms.
+const orderTimeMs = (order: any): number => {
+  const raw =
+    order?.updatedAt ?? order?.createdAt ?? order?.openTx ?? order?.time;
+  if (raw == null) return 0;
+  if (typeof raw === 'number') return raw < 1e12 ? raw * 1000 : raw;
+  const n = Number(raw);
+  if (Number.isFinite(n)) return n < 1e12 ? n * 1000 : n;
+  const parsed = Date.parse(String(raw));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const timeAgo = (ms: number): string => {
+  if (!ms) return '';
+  const diff = Date.now() - ms;
+  if (diff < 0) return 'just now';
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return `${Math.floor(d / 30)}mo ago`;
+};
+
 interface OpenLimitOrdersProps {
   tokens: any[];
   // bumping this number triggers a refetch (e.g. after a new order is placed)
   reloadKey?: number;
   onChanged?: () => void;
+  solWalletAddress?: string;
+  evmWalletAddress?: string;
+  chains?: any[];
 }
 
 export default function OpenLimitOrders({
   tokens,
   reloadKey = 0,
   onChanged,
+  solWalletAddress = '',
+  evmWalletAddress = '',
+  chains = ['SOLANA'],
 }: OpenLimitOrdersProps) {
   const { toast } = useToast();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { signTransaction } = useSignTransaction();
   const solanaWallet = solanaWallets?.[0];
+
+  // Recent market swaps (Jupiter / LiFi) across the user's chains.
+  const { transactions: chainTxs } = useMultiChainTransactionData(
+    solWalletAddress || solanaWallet?.address || '',
+    evmWalletAddress,
+    chains as any,
+    { limit: 50, offset: 0 },
+  );
+
+  const recentSwaps = useMemo(
+    () =>
+      (chainTxs || []).filter((tx: any) => tx?.isSwapped && tx?.swapped),
+    [chainTxs],
+  );
 
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,6 +108,17 @@ export default function OpenLimitOrders({
 
   const meta = (mint: string) => tokenByMint.get(mint);
   const symbolOf = (mint: string) => meta(mint)?.symbol || shortMint(mint);
+
+  // Lookup table: SYMBOL -> logo (for swap rows, which reference by symbol).
+  const logoBySymbol = useMemo(() => {
+    const map = new Map<string, string>();
+    (tokens || []).forEach((t) => {
+      const sym = t.symbol?.toUpperCase?.();
+      const logo = t.logoURI || t.marketData?.iconUrl;
+      if (sym && logo && !map.has(sym)) map.set(sym, logo);
+    });
+    return map;
+  }, [tokens]);
 
   const fetchOrders = useCallback(async () => {
     if (!solanaWallet?.address) {
@@ -225,6 +283,67 @@ export default function OpenLimitOrders({
     );
   };
 
+  const renderSwap = (tx: any) => {
+    const from = tx.swapped?.from || {};
+    const to = tx.swapped?.to || {};
+    const ts = num(tx.timeStamp) * 1000;
+    const logo =
+      to.logo ||
+      logoBySymbol.get(String(to.symbol || '').toUpperCase()) ||
+      tx.tokenLogo;
+    const fromVal = num(from.value);
+    const toVal = num(to.value);
+    return (
+      <div
+        key={tx.hash || `${tx.timeStamp}-${from.symbol}-${to.symbol}`}
+        className="rounded-xl border border-black/[0.06] p-3 flex items-center justify-between gap-2"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {logo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logo} alt="" className="w-6 h-6 rounded-full" />
+          )}
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              Swapped {from.symbol} → {to.symbol}
+            </p>
+            <p className="text-[11px] text-gray-500 truncate">
+              {timeAgo(ts)}
+              {tx.network ? ` · ${String(tx.network).toLowerCase()}` : ''}
+            </p>
+          </div>
+        </div>
+        <div className="text-right whitespace-nowrap">
+          <p className="text-[12px] font-medium text-emerald-600">
+            +{toVal.toLocaleString(undefined, { maximumFractionDigits: 6 })}{' '}
+            {to.symbol}
+          </p>
+          <p className="text-[11px] text-gray-400">
+            −{fromVal.toLocaleString(undefined, { maximumFractionDigits: 6 })}{' '}
+            {from.symbol}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  // Recent view = limit-order history + market swaps, newest first.
+  const historyItems = useMemo(() => {
+    const orderItems = orders.map((o) => ({
+      kind: 'order' as const,
+      ts: orderTimeMs(o),
+      data: o,
+    }));
+    const swapItems = recentSwaps.map((tx: any) => ({
+      kind: 'swap' as const,
+      ts: num(tx.timeStamp) * 1000,
+      data: tx,
+    }));
+    return [...orderItems, ...swapItems].sort((a, b) => b.ts - a.ts);
+  }, [orders, recentSwaps]);
+
+  const count = view === 'active' ? orders.length : historyItems.length;
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
@@ -244,8 +363,8 @@ export default function OpenLimitOrders({
               }`}
             >
               {label}
-              {value === view && orders.length > 0 && (
-                <span className="ml-1.5 text-gray-400">{orders.length}</span>
+              {value === view && count > 0 && (
+                <span className="ml-1.5 text-gray-400">{count}</span>
               )}
             </button>
           ))}
@@ -257,12 +376,26 @@ export default function OpenLimitOrders({
         <p className="text-[12px] text-gray-500 py-6 text-center">
           Connect a Solana wallet to view limit orders.
         </p>
-      ) : orders.length === 0 && !loading ? (
+      ) : view === 'active' ? (
+        orders.length === 0 && !loading ? (
+          <p className="text-[12px] text-gray-500 py-6 text-center">
+            No open limit orders.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">{orders.map(renderOrder)}</div>
+        )
+      ) : historyItems.length === 0 && !loading ? (
         <p className="text-[12px] text-gray-500 py-6 text-center">
-          {view === 'active' ? 'No open limit orders.' : 'No recent orders.'}
+          No recent swaps or orders.
         </p>
       ) : (
-        <div className="flex flex-col gap-2">{orders.map(renderOrder)}</div>
+        <div className="flex flex-col gap-2">
+          {historyItems.map((item) =>
+            item.kind === 'order'
+              ? renderOrder(item.data)
+              : renderSwap(item.data),
+          )}
+        </div>
       )}
     </div>
   );

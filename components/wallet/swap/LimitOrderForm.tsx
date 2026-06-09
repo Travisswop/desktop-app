@@ -397,7 +397,7 @@ export default function LimitOrderForm({
               onChange={(e) => setPayPct(Number(e.target.value))}
               disabled={balanceNum <= 0}
               aria-label="Amount to pay"
-              className="limit-dial w-full h-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+              className="swop-dial w-full h-1.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
               style={{
                 background: `linear-gradient(to right, #0a0a0c 0%, #0a0a0c ${payPct}%, #e5e7eb ${payPct}%, #e5e7eb 100%)`,
               }}
@@ -528,37 +528,6 @@ export default function LimitOrderForm({
         Limit orders run on Jupiter (Solana). EVM tokens swap instantly via the
         Market tab.
       </p>
-
-      <style jsx>{`
-        .limit-dial {
-          -webkit-appearance: none;
-          appearance: none;
-          border-radius: 9999px;
-          outline: none;
-        }
-        .limit-dial::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 18px;
-          height: 18px;
-          border-radius: 9999px;
-          background: #ffffff;
-          border: 1px solid rgba(10, 10, 12, 0.12);
-          box-shadow: 0 1px 2px rgba(10, 10, 12, 0.12),
-            0 4px 12px -4px rgba(10, 10, 12, 0.2);
-          cursor: pointer;
-        }
-        .limit-dial::-moz-range-thumb {
-          width: 18px;
-          height: 18px;
-          border-radius: 9999px;
-          background: #ffffff;
-          border: 1px solid rgba(10, 10, 12, 0.12);
-          box-shadow: 0 1px 2px rgba(10, 10, 12, 0.12),
-            0 4px 12px -4px rgba(10, 10, 12, 0.2);
-          cursor: pointer;
-        }
-      `}</style>
     </div>
   );
 }
