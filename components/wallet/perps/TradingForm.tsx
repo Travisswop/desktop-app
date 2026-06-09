@@ -91,8 +91,6 @@ export function TradingForm({
   const [size, setSize] = useState('');
   // Which quick-% button is currently selected (null = none / custom amount).
   const [activePercent, setActivePercent] = useState<number | null>(null);
-  // Amount (USD) to move into the builder DEX (empty = use suggested default).
-  const [dexFundAmount, setDexFundAmount] = useState('');
   const [limitPrice, setLimitPrice] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
   const [stopLoss, setStopLoss] = useState('');
@@ -137,41 +135,24 @@ export function TradingForm({
   const isBelowMinimum = sizeUsdNum > 0 && sizeUsdNum < minOrderUsd;
   const marginRequired =
     sizeUsdNum > 0 ? sizeUsdNum / Math.max(1, safeLeverage) : 0;
-  const hasInsufficientMargin =
-    sizeUsdNum > 0 && marginRequired > availableMarginNum;
-  const marginShortfall = Math.max(0, marginRequired - availableMarginNum);
 
-  // ── Builder-DEX (HIP-3) funding ─────────────────────────────────────────────
-  // Builder markets settle on a separate collateral account. When one is
-  // selected and that account can't cover the order, offer to move USDC from
-  // the main perp account into the DEX.
+  // ── Builder-DEX (HIP-3): one perps wallet, trade anything ───────────────────
+  // Builder markets (e.g. SPCX) settle on a DEX-specific collateral account.
+  // The user only manages ONE perps balance — when they trade a builder asset
+  // the app silently moves the needed margin from the main perp account into
+  // that DEX at order time (see handleConfirmedSubmit). So affordability is
+  // judged against the main + DEX balances combined.
   const isBuilderMarket = Boolean(dexName);
   const mainAvailNum = parseFloat(mainAvailableMargin ?? '0') || 0;
-  const needsDexFunding =
-    isBuilderMarket &&
-    Boolean(onTransferToDex) &&
-    (hasInsufficientMargin || availableMarginNum <= 0);
-  const suggestedDexFund = (() => {
-    const want = marginShortfall > 0 ? marginShortfall : marginRequired;
-    const capped = Math.min(mainAvailNum, Math.max(want, 0));
-    return capped > 0 ? capped.toFixed(2) : '';
-  })();
-  const dexFundValue = dexFundAmount !== '' ? dexFundAmount : suggestedDexFund;
-  const dexFundNum = parseFloat(dexFundValue) || 0;
-  const canFundDex =
-    dexFundNum > 0 &&
-    dexFundNum <= mainAvailNum + 1e-9 &&
-    !isTransferringToDex;
-
-  const handleFundDex = useCallback(async () => {
-    if (!onTransferToDex || dexFundNum <= 0) return;
-    try {
-      await onTransferToDex(dexFundNum);
-      setDexFundAmount('');
-    } catch {
-      // error surfaced via transferToDexError
-    }
-  }, [onTransferToDex, dexFundNum]);
+  const effectiveAvailableMargin = isBuilderMarket
+    ? availableMarginNum + mainAvailNum
+    : availableMarginNum;
+  const hasInsufficientMargin =
+    sizeUsdNum > 0 && marginRequired > effectiveAvailableMargin;
+  const marginShortfall = Math.max(
+    0,
+    marginRequired - effectiveAvailableMargin,
+  );
 
   useEffect(() => {
     if (!agentOrderPrefill) {
@@ -312,6 +293,21 @@ export function TradingForm({
     if (!sizeNum || sizeNum <= 0) return;
 
     try {
+      // One perps wallet, trade anything: builder-DEX (HIP-3) markets keep
+      // collateral in a DEX-specific account. If the selected DEX can't cover
+      // this order, silently move the shortfall from the main perp account
+      // before placing — the user never deals with per-DEX balances.
+      if (isBuilderMarket && onTransferToDex && marginRequired > 0) {
+        const targetMargin = marginRequired * 1.05; // headroom for fees/slippage
+        if (availableMarginNum < targetMargin) {
+          const shortfall = targetMargin - availableMarginNum;
+          const toMove = Math.min(shortfall, mainAvailNum);
+          if (toMove > 0.000001) {
+            await onTransferToDex(Number(toMove.toFixed(6)));
+          }
+        }
+      }
+
       let orderResult: unknown = null;
       if (mode === 'market') {
         orderResult = await onPlaceMarket(market.index, isBuy, sizeInCoins, markPrice);
@@ -501,6 +497,8 @@ export function TradingForm({
     pendingOrder?.entryPrice, pendingOrder?.marginRequired, pendingOrder?.sizeUsd,
     side, accessToken, user?._id, user?.primaryMicrosite, primaryMicrosite,
     masterAddress, existingPosition, estLiqPrice,
+    isBuilderMarket, onTransferToDex, marginRequired, availableMarginNum,
+    mainAvailNum,
   ]);
 
   const cancelConfirm = useCallback(() => {
@@ -668,78 +666,6 @@ export function TradingForm({
         </p>
       )}
 
-      {/* Builder-DEX funding — only when the selected market settles on a
-          separate HIP-3 collateral account that can't cover the order. */}
-      {needsDexFunding && (
-        <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5">
-          <div className="flex items-start gap-1.5 text-[11px] text-blue-700">
-            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
-            <span>
-              {market.displayCoin || market.coin} settles on the{' '}
-              <span className="font-semibold">{dexName}</span> DEX, which keeps a
-              separate balance (${availableMarginNum.toFixed(2)}). Move USDC from
-              your main account (${mainAvailNum.toFixed(2)}) to trade it.
-            </span>
-          </div>
-
-          {mainAvailNum > 0 ? (
-            <>
-              <div className="mt-2 flex items-center gap-1.5">
-                <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-gray-400">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={dexFundValue}
-                    onChange={(e) => setDexFundAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full pl-5 pr-2 py-2 text-[13px] font-mono tabular-nums bg-white border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/30"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDexFundAmount(mainAvailNum.toFixed(2))}
-                  className="px-2.5 py-2 text-[11px] font-semibold text-blue-700 bg-white border border-blue-200 rounded-lg hover:bg-blue-100"
-                >
-                  Max
-                </button>
-              </div>
-              <button
-                type="button"
-                disabled={!canFundDex}
-                onClick={handleFundDex}
-                className="mt-2 w-full py-2.5 rounded-lg text-[13px] font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {isTransferringToDex ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Moving…
-                  </>
-                ) : (
-                  `Move $${dexFundNum.toFixed(2)} to ${dexName}`
-                )}
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenDeposit}
-              className="mt-2 w-full py-2.5 rounded-lg text-[13px] font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-            >
-              Deposit to your account first
-            </button>
-          )}
-
-          {transferToDexError && (
-            <p className="mt-1.5 text-[11px] text-red-600">
-              {transferToDexError}
-            </p>
-          )}
-        </div>
-      )}
-
       {isBelowMinimum && (
         <div className="flex items-start gap-1.5 text-[11px] text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1.5 mt-2">
           <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
@@ -749,13 +675,13 @@ export function TradingForm({
         </div>
       )}
 
-      {hasInsufficientMargin && !needsDexFunding && (
+      {hasInsufficientMargin && (
         <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
           <div className="flex items-start gap-1.5">
             <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
             <span>
               Add funds first. This order needs about ${marginRequired.toFixed(2)} margin;
-              available margin is ${availableMarginNum.toFixed(2)}
+              available is ${effectiveAvailableMargin.toFixed(2)}
               {marginShortfall > 0 ? ` (${marginShortfall.toFixed(2)} short).` : '.'}
             </span>
           </div>
@@ -873,10 +799,10 @@ export function TradingForm({
         </div>
       )}
 
-      {error && (
+      {(error || transferToDexError) && (
         <div className="mt-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-[11px] text-red-600">
           <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
-          <span>{error}</span>
+          <span>{error || transferToDexError}</span>
         </div>
       )}
 
@@ -887,7 +813,12 @@ export function TradingForm({
         className={`mt-3.5 w-full py-3.5 rounded-2xl text-[14.5px] font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${sideStyles.btn}`}
         style={{ boxShadow: submitDisabled ? undefined : sideStyles.shadow }}
       >
-        {isSubmitting ? (
+        {isTransferringToDex ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Funding wallet…
+          </>
+        ) : isSubmitting ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
             Placing order…
@@ -902,7 +833,7 @@ export function TradingForm({
       <OrderConfirmModal
         isOpen={!!pendingOrder}
         details={pendingOrder}
-        isSubmitting={isSubmitting}
+        isSubmitting={isSubmitting || !!isTransferringToDex}
         onConfirm={handleConfirmedSubmit}
         onClose={cancelConfirm}
       />
