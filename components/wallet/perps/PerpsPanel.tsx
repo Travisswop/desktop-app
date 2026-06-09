@@ -831,6 +831,11 @@ export function PerpsPanel({
                     accountData?.withdrawable ??
                     '0'
                   }
+                  inPositions={
+                    portfolio?.marginUsed ??
+                    accountData?.marginUsed ??
+                    '0'
+                  }
                   unrealizedPnl={
                     portfolio?.unrealizedPnl ??
                     accountData?.unrealizedPnl ??

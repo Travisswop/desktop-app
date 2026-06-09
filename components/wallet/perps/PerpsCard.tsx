@@ -151,10 +151,12 @@ export function PerpsCard({
 
   // Use the primary position's leverage for the buying-power label, default
   // to a conservative 5× when no position is open so the line still has
-  // something meaningful to say.
+  // something meaningful to say. Buying power is based on FREE collateral
+  // (withdrawable) — not total account value, which includes margin already
+  // locked in open positions.
   const accountLeverage = primaryPosition?.leverage.value ?? 5;
   const accountLeverageType = primaryPosition?.leverage.type ?? 'cross';
-  const buyingPower = accountValue * accountLeverage;
+  const buyingPower = withdrawable * accountLeverage;
 
   const hasDanger = positions.some(
     (p) => getLiquidationRisk(p) === 'danger',
