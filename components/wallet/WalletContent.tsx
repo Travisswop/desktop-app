@@ -2067,6 +2067,7 @@ const WalletContentInner = () => {
             isInitialized={hlAgent.isInitialized}
             isInitializing={hlAgent.isInitializing}
             isReconnecting={hlAgent.isReconnecting}
+            isHydrating={hlAgent.isHydrating}
             agentError={hlAgent.error}
             initializeAgent={hlAgent.initializeAgent}
             initialCoin={perpsInitialCoin}

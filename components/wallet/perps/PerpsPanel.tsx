@@ -53,6 +53,8 @@ interface PerpsPanelProps {
   isInitialized: boolean;
   isInitializing: boolean;
   isReconnecting: boolean;
+  /** True until the agent hook has had a chance to rehydrate a saved key. */
+  isHydrating: boolean;
   agentError: string | null;
   initializeAgent: () => Promise<hl.ExchangeClient | null>;
   onClose: () => void;
@@ -127,6 +129,7 @@ export function PerpsPanel({
   isInitialized,
   isInitializing,
   isReconnecting,
+  isHydrating,
   agentError,
   initializeAgent,
   onClose,
@@ -229,14 +232,18 @@ export function PerpsPanel({
     }
   }, [depositStatus, isInitialized, isInitializing, isReconnecting]);
 
-  // Show setup only after silent rehydrate has had a chance to restore a saved agent.
+  // Show setup only after silent rehydrate has had a chance to restore a saved
+  // agent. isHydrating stays true until the hook has actually attempted that, so
+  // the modal no longer flashes open on every page load / redeploy before the
+  // persisted agent key has been picked up.
   useEffect(() => {
     if (isInitialized) {
       setShowAgentModal(false);
       return;
     }
-    if (!isInitializing && !isReconnecting) setShowAgentModal(true);
-  }, [isInitialized, isInitializing, isReconnecting]);
+    if (!isInitializing && !isReconnecting && !isHydrating)
+      setShowAgentModal(true);
+  }, [isInitialized, isInitializing, isReconnecting, isHydrating]);
 
   const handleOpenDepositFromAgentModal = useCallback(() => {
     setShowAgentModal(false);
