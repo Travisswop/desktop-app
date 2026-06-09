@@ -131,9 +131,9 @@ import {
   type OrderSubmissionStage,
 } from '@/hooks/polymarket/useClobOrder';
 import {
-  useHyperliquidPositions,
   type PerpsAccountSummary,
 } from '@/components/wallet/perps/hooks/useHyperliquidPositions';
+import { useHyperliquidPortfolio } from '@/components/wallet/perps/hooks/useHyperliquidPortfolio';
 import { useHyperliquidAgent } from '@/components/wallet/perps/hooks/useHyperliquidAgent';
 import { useHyperliquidMarkets } from '@/components/wallet/perps/hooks/useHyperliquidMarkets';
 import { useHyperliquidTrading } from '@/components/wallet/perps/hooks/useHyperliquidTrading';
@@ -3144,13 +3144,24 @@ export default function ChatArea({
     trading.tradingWalletAddress,
     { enabled: shouldLoadAstroConsoleData }
   );
+  const perpsBuilderDexes = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of perpsMarkets) {
+      const d = (m as { dex?: string }).dex?.trim();
+      if (d) set.add(d);
+    }
+    return Array.from(set);
+  }, [perpsMarkets]);
+  // Aggregate across the main DEX + every builder (HIP-3) DEX so Astro sees ALL
+  // positions and the combined balance — one perps wallet.
   const {
     data: perpsAccount,
     isLoading: isPerpsLoading,
-  } = useHyperliquidPositions(
+  } = useHyperliquidPortfolio(
     shouldLoadAstroConsoleData
       ? perpsAgent.masterAddress || eoaAddress || null
-      : null
+      : null,
+    perpsBuilderDexes
   );
 
   const astroConsoleData = useMemo<AstroConsoleData>(

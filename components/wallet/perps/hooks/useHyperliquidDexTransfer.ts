@@ -60,11 +60,10 @@ export function useHyperliquidDexTransfer({
   const [isTransferring, setIsTransferring] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const transferToDex = useCallback(
-    async (destinationDex: string, amountUsd: number) => {
+  // Generic self-transfer of USDC collateral between two perp DEXs ('' = main).
+  const move = useCallback(
+    async (sourceDex: string, destinationDex: string, amountUsd: number) => {
       setError(null);
-      const dex = destinationDex.trim();
-      if (!dex) throw new Error('No builder DEX specified');
       if (!masterClient || !masterAddress) {
         throw new Error('Wallet not ready. Enable trading first.');
       }
@@ -77,16 +76,21 @@ export function useHyperliquidDexTransfer({
         const token = await getUsdcTokenSpec();
         const result = await masterClient.sendAsset({
           destination: masterAddress as `0x${string}`,
-          sourceDex: '', // main USDC perp DEX
-          destinationDex: dex,
+          sourceDex: sourceDex.trim(),
+          destinationDex: destinationDex.trim(),
           token,
           amount: toAmountString(amountUsd),
         });
-        // Refresh both the main and per-DEX account balances. Partial-match on
-        // the shared prefix covers every ['hl-positions', master, *] query.
-        await queryClient.invalidateQueries({
-          queryKey: ['hl-positions', masterAddress],
-        });
+        // Refresh main + per-DEX + aggregated portfolio balances. Invalidate
+        // both query families so every perps surface reflects the move.
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: ['hl-positions', masterAddress],
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ['hl-portfolio', masterAddress],
+          }),
+        ]);
         return result;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Transfer failed';
@@ -99,5 +103,29 @@ export function useHyperliquidDexTransfer({
     [masterClient, masterAddress, queryClient],
   );
 
-  return { transferToDex, isTransferring, error, clearTransferError: () => setError(null) };
+  // Main perp account → builder DEX (fund a trade).
+  const transferToDex = useCallback(
+    (destinationDex: string, amountUsd: number) => {
+      if (!destinationDex.trim()) throw new Error('No builder DEX specified');
+      return move('', destinationDex, amountUsd);
+    },
+    [move],
+  );
+
+  // Builder DEX → main perp account (sweep freed collateral back after close).
+  const sweepDexToMain = useCallback(
+    (sourceDex: string, amountUsd: number) => {
+      if (!sourceDex.trim()) throw new Error('No builder DEX specified');
+      return move(sourceDex, '', amountUsd);
+    },
+    [move],
+  );
+
+  return {
+    transferToDex,
+    sweepDexToMain,
+    isTransferring,
+    error,
+    clearTransferError: () => setError(null),
+  };
 }

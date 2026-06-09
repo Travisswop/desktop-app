@@ -447,6 +447,7 @@ export function PerpsPanel({
   // user can fund HIP-3 trades. Master-signed (the agent cannot move funds).
   const {
     transferToDex,
+    sweepDexToMain,
     isTransferring,
     error: transferError,
   } = useHyperliquidDexTransfer({ masterClient, masterAddress: effectiveMaster });
@@ -657,6 +658,26 @@ export function PerpsPanel({
           description: `${isLong ? 'Long' : 'Short'} ${position.coin} position closed successfully`,
         });
         refetchPositions();
+
+        // One perps wallet: if this was a builder-DEX position, sweep the freed
+        // collateral back to the main account so funds re-pool and can be used
+        // for any market next time.
+        const positionDex = positionMarket.dex?.trim() || '';
+        if (positionDex) {
+          try {
+            const refreshed = await refetchPortfolio();
+            const freed =
+              parseFloat(
+                refreshed.data?.perDex?.[positionDex]?.withdrawable ?? '0',
+              ) || 0;
+            if (freed > 0.01) {
+              await sweepDexToMain(positionDex, freed);
+              await refetchPortfolio();
+            }
+          } catch (sweepErr) {
+            console.warn('Sweep-back to main failed:', sweepErr);
+          }
+        }
       } catch (err) {
         toast({
           variant: 'destructive',
@@ -676,6 +697,8 @@ export function PerpsPanel({
       mids,
       toast,
       refetchPositions,
+      refetchPortfolio,
+      sweepDexToMain,
       accessToken,
       user?._id,
       user?.primaryMicrosite,

@@ -8,7 +8,8 @@ import {
   TrendingUp,
   Zap,
 } from 'lucide-react';
-import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
+import { useHyperliquidMarkets } from './hooks/useHyperliquidMarkets';
+import { useHyperliquidPortfolio } from './hooks/useHyperliquidPortfolio';
 import { useAllMids } from './hooks/useHyperliquidWebSocket';
 import {
   formatPrice,
@@ -113,12 +114,21 @@ export function PerpsCard({
   onBridgeToArbitrum,
   onDepositSubmitted,
 }: PerpsCardProps) {
-  const { data, isLoading } = useHyperliquidPositions(
+  // Aggregate across the main DEX + every builder (HIP-3) DEX so this summary
+  // reflects ALL positions and the combined balance — one perps wallet.
+  const { data: markets = [] } = useHyperliquidMarkets();
+  const builderDexes = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of markets) {
+      const d = (m as { dex?: string }).dex?.trim();
+      if (d) set.add(d);
+    }
+    return Array.from(set);
+  }, [markets]);
+  const { data, isLoading } = useHyperliquidPortfolio(
     masterAddress ?? null,
-    {
-      refetchInterval: 30_000,
-      staleTime: 15_000,
-    },
+    builderDexes,
+    { refetchInterval: 30_000 },
   );
   const { mids } = useAllMids(!!masterAddress);
 
