@@ -1193,31 +1193,65 @@ const WalletContentInner = () => {
     setRewardWalletLoading(true);
     setRewardWalletError(null);
 
+    // The backend (localhost:4000 / API host) is restarted periodically by the
+    // sync process, leaving a ~10s window where this client-side fetch throws a
+    // native "Failed to fetch". Unlike the rest of the wallet (server actions /
+    // React Query), this request runs once on mount, so a single blip used to
+    // leave the box stuck. Retry transient failures (network error or 5xx) with
+    // a short backoff so it self-heals. Do NOT retry 4xx (e.g. 401) — those are
+    // legitimate responses, not transient.
+    const MAX_ATTEMPTS = 3;
+    const RETRY_DELAY_MS = 1500;
+    const sleep = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
+
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/reward-wallet`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-      const data = await response.json().catch(() => ({}));
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+        // A newer request superseded this one — abandon silently.
+        if (!isCurrentRequest()) return;
 
-      if (!response.ok) {
-        throw new Error(
-          data?.message || data?.error || 'Could not load rewards.',
-        );
-      }
+        try {
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/reward-wallet`,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+            },
+          );
+          const data = await response.json().catch(() => ({}));
 
-      if (isCurrentRequest()) {
-        setRewardWallet(data.rewardWallet || null);
-        setPendingRewardClaimCount(Number(data.pendingClaimCount || 0));
-        setRecentRewardClaims(
-          Array.isArray(data.recentClaims) ? data.recentClaims : [],
-        );
+          if (!response.ok) {
+            // Retry only transient server-side failures (5xx); surface 4xx now.
+            if (response.status >= 500 && attempt < MAX_ATTEMPTS) {
+              await sleep(RETRY_DELAY_MS * attempt);
+              continue;
+            }
+            throw new Error(
+              data?.message || data?.error || 'Could not load rewards.',
+            );
+          }
+
+          if (isCurrentRequest()) {
+            setRewardWallet(data.rewardWallet || null);
+            setPendingRewardClaimCount(Number(data.pendingClaimCount || 0));
+            setRecentRewardClaims(
+              Array.isArray(data.recentClaims) ? data.recentClaims : [],
+            );
+          }
+          return;
+        } catch (error) {
+          // fetch() throws a TypeError on network-level failures (backend
+          // mid-restart, offline). Retry those; rethrow once attempts run out.
+          const isNetworkError = error instanceof TypeError;
+          if (isNetworkError && attempt < MAX_ATTEMPTS) {
+            await sleep(RETRY_DELAY_MS * attempt);
+            continue;
+          }
+          throw error;
+        }
       }
     } catch (error) {
       if (isCurrentRequest()) {
