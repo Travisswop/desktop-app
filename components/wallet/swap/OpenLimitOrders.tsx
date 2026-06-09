@@ -47,6 +47,7 @@ export default function OpenLimitOrders({
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [view, setView] = useState<'active' | 'history'>('active');
 
   // Lookup table: mint -> token meta (symbol/logo).
   const tokenByMint = useMemo(() => {
@@ -70,7 +71,7 @@ export default function OpenLimitOrders({
     try {
       const res = await getTriggerOrders({
         user: solanaWallet.address,
-        orderStatus: 'active',
+        orderStatus: view,
       });
       if (res.success) {
         setOrders(res.data.orders || []);
@@ -78,7 +79,7 @@ export default function OpenLimitOrders({
     } finally {
       setLoading(false);
     }
-  }, [solanaWallet?.address]);
+  }, [solanaWallet?.address, view]);
 
   useEffect(() => {
     fetchOrders();
@@ -187,17 +188,25 @@ export default function OpenLimitOrders({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => handleCancel(order)}
-            disabled={cancelling === key}
-            className="text-[12px] font-medium text-red-500 hover:text-red-600 disabled:opacity-50 flex items-center gap-1"
-          >
-            {cancelling === key && (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            )}
-            Cancel
-          </button>
+          {view === 'active' ? (
+            <button
+              type="button"
+              onClick={() => handleCancel(order)}
+              disabled={cancelling === key}
+              className="text-[12px] font-medium text-red-500 hover:text-red-600 disabled:opacity-50 flex items-center gap-1"
+            >
+              {cancelling === key && (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              )}
+              Cancel
+            </button>
+          ) : (
+            order.status && (
+              <span className="text-[11px] font-medium text-gray-400 capitalize whitespace-nowrap">
+                {String(order.status).toLowerCase()}
+              </span>
+            )
+          )}
         </div>
         <div className="flex items-center justify-between text-[11px] text-gray-500">
           <span>
@@ -218,13 +227,29 @@ export default function OpenLimitOrders({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900">
-          Open limit orders
-          {orders.length > 0 && (
-            <span className="ml-1.5 text-gray-400">{orders.length}</span>
-          )}
-        </h3>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-gray-100">
+          {([
+            ['active', 'Open'],
+            ['history', 'Recent'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setView(value)}
+              className={`px-3 py-1 text-[12px] font-medium rounded-md transition ${
+                view === value
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {label}
+              {value === view && orders.length > 0 && (
+                <span className="ml-1.5 text-gray-400">{orders.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
         {loading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
       </div>
 
@@ -234,7 +259,7 @@ export default function OpenLimitOrders({
         </p>
       ) : orders.length === 0 && !loading ? (
         <p className="text-[12px] text-gray-500 py-6 text-center">
-          No open limit orders.
+          {view === 'active' ? 'No open limit orders.' : 'No recent orders.'}
         </p>
       ) : (
         <div className="flex flex-col gap-2">{orders.map(renderOrder)}</div>

@@ -25,9 +25,9 @@ export default function WalletSwapSection({
 
   return (
     <SolanaProvider>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         {/* ── Swap card (Market / Limit) ── */}
-        <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-4">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-4">
           <div className="flex items-center gap-4 border-b border-black/[0.06] mb-4">
             {(['market', 'limit'] as SwapTab[]).map((t) => (
               <button
