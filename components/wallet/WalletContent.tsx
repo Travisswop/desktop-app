@@ -798,9 +798,11 @@ const WalletContentInner = () => {
     useWalletAddresses(walletData);
   // Hyperliquid agent — lives here so the ExchangeClient persists across
   // PerpsPanel open/close cycles and never triggers repeated sign messages.
-  const hlAgent = useHyperliquidAgent({
-    preferredMasterAddress: evmWalletAddress || undefined,
-  });
+  // NOTE: the hook resolves its own *signable* master wallet from Privy (the
+  // stored EVM address or the embedded wallet) — it deliberately does not take
+  // a master address from here, since the UI-selected display address isn't
+  // guaranteed to be a Privy wallet that can sign approveAgent.
+  const hlAgent = useHyperliquidAgent();
   const portfolioEvmWalletInput = useMemo(
     () =>
       getPortfolioEvmWalletInput(
