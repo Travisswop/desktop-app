@@ -318,10 +318,6 @@ const CreateProduct = () => {
   const addVariantCategory = () =>
     setVariants((prev) => [...prev, { name: '', options: [] }]);
 
-  const variantOptionCount = useMemo(
-    () => variants.reduce((count, v) => count + v.options.length, 0),
-    [variants]
-  );
   const variantInventoryTotal = useMemo(
     () =>
       variants.reduce(
@@ -335,7 +331,17 @@ const CreateProduct = () => {
       ),
     [variants]
   );
-  const hasVariantInventory = variantOptionCount > 0;
+  // The main "Total Available" is driven by variant inventory only once the
+  // seller actually enters a quantity on an option. Simply naming an option no
+  // longer locks the field, so a plain product (with no per-option stock) can
+  // still type a total directly.
+  const hasVariantInventory = useMemo(
+    () =>
+      variants.some((v) =>
+        v.options.some((option) => option.quantity.trim() !== '')
+      ),
+    [variants]
+  );
   const normalizedVariants = useMemo(
     () =>
       variants
@@ -837,7 +843,7 @@ const CreateProduct = () => {
                 <Card pad={20}>
                   <FormSection
                     title="Variants"
-                    subtitle="Add options and inventory per option. Total available is calculated automatically."
+                    subtitle="Add options and set a quantity per option. Total available updates automatically once you enter option quantities."
                   />
                   <div
                     style={{
