@@ -142,6 +142,10 @@ function extractOgTitle(feed: any): string {
       return `Claimed ${content.claimEnsName ?? ""} on Swop`;
     case "joiningDate":
       return `Joined Swop`;
+    case "prediction":
+      return content.marketTitle
+        ? `Picked ${content.outcome ?? ""} on "${content.marketTitle}"`
+        : "Prediction on Swop";
     default:
       return "Swop Feed";
   }
@@ -295,6 +299,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         `&leverage=${encodeURIComponent(c.leverage ?? "")}` +
         `&orderType=${encodeURIComponent(c.orderType ?? "")}` +
         `&platform=${encodeURIComponent(c.platform ?? "")}`;
+    } else if (feed.postType === "prediction" && feed.content) {
+      const c = feed.content;
+      ogImageUrl =
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
+        `ensName=${encodeURIComponent(smartsiteEnsName)}` +
+        `&title=${encodeURIComponent(feedTitle)}` +
+        `&date=${encodeURIComponent(formatDate(createdAt))}` +
+        `&type=prediction` +
+        `&marketTitle=${encodeURIComponent(c.marketTitle ?? "")}` +
+        `&pickedOutcome=${encodeURIComponent(c.outcome ?? "")}` +
+        `&yesOutcome=${encodeURIComponent(c.yesOutcome ?? "Yes")}` +
+        `&noOutcome=${encodeURIComponent(c.noOutcome ?? "No")}` +
+        `&yesPrice=${encodeURIComponent(c.yesPrice ?? 0)}` +
+        `&noPrice=${encodeURIComponent(c.noPrice ?? 0)}` +
+        `&costUsd=${encodeURIComponent(Number(c.cost ?? 0).toFixed(2))}` +
+        `&potentialWin=${encodeURIComponent(Number(c.potentialWin ?? 0).toFixed(2))}`;
     } else if (hasImage && contentSrc) {
       const feedImage = getCloudinaryThumbnail(
         contentSrc,
