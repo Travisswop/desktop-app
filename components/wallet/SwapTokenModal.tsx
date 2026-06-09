@@ -1517,6 +1517,21 @@ export default function SwapTokenModal({
     });
   }, [copyTradeParam, copyTradePostIdParam]);
 
+  // A copy-trade reward only applies to the exact trade that was copied from
+  // the feed. Once the user edits the trade (changes either token or flips the
+  // pair) it becomes an ordinary swap, so the copy-trade context — and its
+  // reward — must be cleared. Without this, the `copyTrade=1` params linger in
+  // the /wallet URL and every subsequent plain swap would be rewarded.
+  const clearCopyTrade = useCallback(() => {
+    copyTradeRewardPreviewRef.current = null;
+    setCopyTradeRewardPreview(null);
+    setCopyTradeContext((current) =>
+      current.isCopyTrade
+        ? { isCopyTrade: false, sourcePostId: '' }
+        : current,
+    );
+  }, []);
+
   const fetchCopyTradeRewardPreview = useCallback(async () => {
     if (!isCopyTrade || !copyTradePostId || !accessToken) {
       copyTradeRewardPreviewRef.current = null;
@@ -3853,6 +3868,9 @@ export default function SwapTokenModal({
 
   // ── Token selection ───────────────────────────────────────────────────────────
   const handleTokenSelect = (t: any, type: 'pay' | 'receive') => {
+    // Changing either side of the pair means this is no longer the copied
+    // trade — drop the copy-trade reward so plain swaps aren't rewarded.
+    clearCopyTrade();
     const tKey = getTokenIdentityKey(t);
     const tokenChainId = getTokenChainId(t);
 
@@ -3893,6 +3911,8 @@ export default function SwapTokenModal({
   };
 
   const handleFlip = () => {
+    // Reversing the pair is a different trade than the one copied.
+    clearCopyTrade();
     const nextPayToken = receiveToken ?? null;
     const nextReceiveToken = payToken ?? null;
     setPayToken(nextPayToken);
