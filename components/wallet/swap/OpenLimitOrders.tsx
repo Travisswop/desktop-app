@@ -47,7 +47,7 @@ export default function OpenLimitOrders({
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
-  const [view, setView] = useState<'active' | 'history'>('active');
+  const [view, setView] = useState<'active' | 'history'>('history');
 
   // Lookup table: mint -> token meta (symbol/logo).
   const tokenByMint = useMemo(() => {
