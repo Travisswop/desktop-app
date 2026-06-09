@@ -86,6 +86,7 @@ const CreateProduct = () => {
   const [type, setType] = useState<'Physical' | 'Digital'>('Physical');
 
   const [shipping, setShipping] = useState<'Yes' | 'No'>('Yes');
+  const [shippingCost, setShippingCost] = useState('');
   const [agree, setAgree] = useState(false);
 
   const [name, setName] = useState('');
@@ -365,6 +366,13 @@ const CreateProduct = () => {
     if (!image) errors.image = 'Main image is required';
     if (!price.trim()) errors.price = 'Price is required';
     if (price && isNaN(Number(price))) errors.price = 'Price must be a number';
+    if (type === 'Physical' && shipping === 'Yes') {
+      if (!shippingCost.trim()) {
+        errors.shippingCost = 'Enter a shipping cost (use 0 for free shipping)';
+      } else if (isNaN(Number(shippingCost)) || Number(shippingCost) < 0) {
+        errors.shippingCost = 'Shipping cost must be 0 or a positive number';
+      }
+    }
     if (hasVariantInventory) {
       const invalidVariantQty = variants.some((variant) =>
         variant.options.some((option) => {
@@ -440,6 +448,10 @@ const CreateProduct = () => {
         fulfillment: {
           requiresShipping: productType === 'physical' && shipping === 'Yes',
           trackingEnabled: productType === 'physical' && shipping === 'Yes',
+          shippingCost:
+            productType === 'physical' && shipping === 'Yes'
+              ? Number(shippingCost) || 0
+              : 0,
           digitalDeliveryNote:
             productType === 'digital'
               ? digitalDeliveryNote.trim() || description
@@ -1420,6 +1432,41 @@ const CreateProduct = () => {
                       </div>
                       <div style={{ fontSize: 11, color: muted, marginTop: 6 }}>
                         Shipped physical items use escrow until the buyer confirms the order was received.
+                      </div>
+                    </Field>
+                  )}
+
+                  {type === 'Physical' && shipping === 'Yes' && (
+                    <Field
+                      label="Shipping cost"
+                      required
+                      error={formErrors.shippingCost}
+                      help="Charged to the buyer at checkout on top of the price. Enter 0 for free shipping."
+                    >
+                      <div style={{ position: 'relative' }}>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            left: 14,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontSize: 13,
+                            color: muted,
+                            fontFamily: mono,
+                          }}
+                        >
+                          $
+                        </span>
+                        <TextInput
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          placeholder="0"
+                          value={shippingCost}
+                          invalid={!!formErrors.shippingCost}
+                          onChange={(e) => setShippingCost(e.target.value)}
+                          style={{ paddingLeft: 26, fontFamily: mono }}
+                        />
                       </div>
                     </Field>
                   )}

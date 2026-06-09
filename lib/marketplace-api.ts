@@ -33,6 +33,7 @@ export type MarketplaceProduct = {
   variants?: MarketplaceProductVariant[];
   fulfillment?: {
     requiresShipping?: boolean;
+    shippingCost?: number;
     digitalDeliveryNote?: string;
     digitalAsset?: MarketplaceDigitalAsset;
     inPersonInstructions?: string;
