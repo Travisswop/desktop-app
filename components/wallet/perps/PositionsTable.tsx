@@ -64,7 +64,7 @@ export function PositionsTable({
   ];
 
   return (
-    <div className="bg-white border border-black/[0.06] rounded-[18px] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] flex flex-col overflow-hidden">
+    <div className="bg-white border border-black/[0.06] rounded-[18px] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] flex flex-col overflow-hidden min-h-[440px]">
       {/* Tabs */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-black/[0.06]">
         <div className="flex items-center gap-0.5">
@@ -103,7 +103,7 @@ export function PositionsTable({
         </span>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="flex-1 overflow-x-auto">
         {tab === 'positions' && (
           <PositionsBody
             positions={positions}
