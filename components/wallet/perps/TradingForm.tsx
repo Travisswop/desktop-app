@@ -75,6 +75,8 @@ export function TradingForm({
   const [side, setSide] = useState<OrderSide>('long');
   const [mode, setMode] = useState<OrderMode>('market');
   const [size, setSize] = useState('');
+  // Which quick-% button is currently selected (null = none / custom amount).
+  const [activePercent, setActivePercent] = useState<number | null>(null);
   const [limitPrice, setLimitPrice] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
   const [stopLoss, setStopLoss] = useState('');
@@ -151,7 +153,10 @@ export function TradingForm({
 
     if (agentOrderPrefill.side) setSide(agentOrderPrefill.side);
     if (agentOrderPrefill.orderMode) setMode(agentOrderPrefill.orderMode);
-    if (usdSize) setSize(usdSize);
+    if (usdSize) {
+      setSize(usdSize);
+      setActivePercent(null);
+    }
     if (agentOrderPrefill.price) setLimitPrice(agentOrderPrefill.price);
     if (agentOrderPrefill.leverage) {
       const nextLeverage = Math.min(
@@ -184,6 +189,7 @@ export function TradingForm({
     (pct: number) => {
       const usd = (accountNum * pct * safeLeverage) / 100;
       setSize(usd.toFixed(2));
+      setActivePercent(pct);
     },
     [accountNum, safeLeverage],
   );
@@ -433,6 +439,7 @@ export function TradingForm({
 
       setPendingOrder(null);
       setSize('');
+      setActivePercent(null);
       setLimitPrice('');
       setTakeProfit('');
       setStopLoss('');
@@ -582,7 +589,10 @@ export function TradingForm({
         min="0"
         step="1"
         value={size}
-        onChange={(e) => setSize(e.target.value)}
+        onChange={(e) => {
+          setSize(e.target.value);
+          setActivePercent(null);
+        }}
         placeholder="$0.00"
         className="mt-1.5 w-full px-3.5 py-3 text-[18px] font-mono font-semibold tabular-nums tracking-tight bg-[#fafafa] border border-black/[0.06] rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/30"
       />
@@ -594,7 +604,7 @@ export function TradingForm({
             key={p}
             onClick={() => setPercent(p)}
             className={`py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
-              p === 50
+              p === activePercent
                 ? 'bg-gray-900 text-white'
                 : 'bg-[#f2f2f0] text-gray-900 hover:bg-gray-100'
             }`}
