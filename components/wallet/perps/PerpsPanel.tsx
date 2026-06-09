@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import * as hl from '@nktkas/hyperliquid';
 import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
@@ -246,6 +246,18 @@ export function PerpsPanel({
     useHyperliquidPositions(effectiveMaster);
 
   const { mids } = useAllMids(true);
+
+  // Coin → mark price from the polled markets feed. Used as a fallback for the
+  // positions table when the live `allMids` map has no entry for a coin yet
+  // (WS connecting/dropped) — mirrors the header's `selectedMarket?.markPrice`
+  // fallback so the Mark column never silently shows the entry price.
+  const marketMarks = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const m of markets) {
+      if (m.markPrice && m.markPrice !== '0') map[m.coin] = m.markPrice;
+    }
+    return map;
+  }, [markets]);
 
   const { connected: fillsConnected } = useUserFills(
     effectiveMaster,
@@ -530,9 +542,25 @@ export function PerpsPanel({
       setClosingCoin(position.coin);
       try {
         const isLong = parseFloat(position.szi) > 0;
-        const livePrice = mids[position.coin] ?? liveMarkPrice;
+        // Resolve the market for THIS position's coin — never the ticket's
+        // currently-selected coin. Mixing one asset's index/price with
+        // another's makes Hyperliquid reject the order as ">95% away from
+        // the reference price".
+        const positionMarket = markets.find((m) => m.coin === position.coin);
+        if (!positionMarket) {
+          throw new Error(
+            `No market found for ${position.coin} — cannot close position.`,
+          );
+        }
+        // Price off the position's own coin only. Fall back to its market
+        // mark, then its entry price — but never liveMarkPrice (the selected
+        // ticket coin, which may be a different asset).
+        const livePrice =
+          mids[position.coin] ??
+          positionMarket.markPrice ??
+          position.entryPx;
         const orderResult = await closePosition(
-          markets.find((m) => m.coin === position.coin)?.index ?? 0,
+          positionMarket.index,
           Math.abs(parseFloat(position.szi)).toString(),
           isLong,
           livePrice,
@@ -597,7 +625,6 @@ export function PerpsPanel({
       closePosition,
       markets,
       mids,
-      liveMarkPrice,
       toast,
       refetchPositions,
       accessToken,
@@ -670,6 +697,7 @@ export function PerpsPanel({
                   openOrders={accountData?.openOrders ?? []}
                   fills={fills}
                   mids={mids}
+                  marketMarks={marketMarks}
                   connected={fillsConnected}
                   closingCoin={closingCoin}
                   onClosePosition={handleClosePosition}

@@ -24,6 +24,9 @@ interface PositionsTableProps {
   openOrders: HLOpenOrder[];
   fills: PerpsFill[];
   mids: Record<string, string>;
+  /** Coin → mark price from the polled markets feed. Fallback when `mids` has
+   *  no live entry for a coin yet, so Mark never collapses to the entry price. */
+  marketMarks?: Record<string, string>;
   connected?: boolean;
   closingCoin?: string | null;
   onClosePosition: (position: HLPosition) => Promise<void>;
@@ -40,6 +43,7 @@ export function PositionsTable({
   openOrders,
   fills,
   mids,
+  marketMarks,
   connected = false,
   closingCoin,
   onClosePosition,
@@ -104,6 +108,7 @@ export function PositionsTable({
           <PositionsBody
             positions={positions}
             mids={mids}
+            marketMarks={marketMarks}
             closingCoin={closingCoin}
             onClosePosition={onClosePosition}
             onSelectCoin={onSelectCoin}
@@ -125,12 +130,14 @@ export function PositionsTable({
 function PositionsBody({
   positions,
   mids,
+  marketMarks,
   closingCoin,
   onClosePosition,
   onSelectCoin,
 }: {
   positions: HLPosition[];
   mids: Record<string, string>;
+  marketMarks?: Record<string, string>;
   closingCoin?: string | null;
   onClosePosition: (position: HLPosition) => Promise<void>;
   onSelectCoin?: (coin: string) => void;
@@ -160,7 +167,13 @@ function PositionsBody({
           const isLong = size > 0;
           const absSize = Math.abs(size);
           const entry = parseFloat(p.entryPx);
-          const mark = parseFloat(mids[p.coin] ?? p.entryPx) || entry;
+          // Prefer the live mid; fall back to the polled markets mark price
+          // before the entry price, so a missing live mid never makes Mark
+          // read as the entry (mirrors the header's mark-price fallback).
+          const mark =
+            parseFloat(
+              mids[p.coin] ?? marketMarks?.[p.coin] ?? p.entryPx,
+            ) || entry;
           const pnl = parseFloat(p.unrealizedPnl) || 0;
           const pnlUp = pnl >= 0;
           const roe = (parseFloat(p.returnOnEquity) || 0) * 100;
