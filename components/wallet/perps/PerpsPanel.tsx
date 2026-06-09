@@ -11,6 +11,7 @@ import {
   useMarketByCoins,
 } from './hooks/useHyperliquidMarkets';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
+import { useHyperliquidPortfolio } from './hooks/useHyperliquidPortfolio';
 import { useHyperliquidTrading } from './hooks/useHyperliquidTrading';
 import { useHyperliquidDexTransfer } from './hooks/useHyperliquidDexTransfer';
 import {
@@ -420,16 +421,27 @@ export function PerpsPanel({
     : '0';
 
   // Builder-deployed (HIP-3) perps keep their collateral in a DEX-specific
-  // account, separate from the main USDC perp account. When such a market is
-  // selected, read that DEX's account so the trade ticket's balance and margin
-  // check reflect what the exchange will actually use.
+  // account, separate from the main USDC perp account. To present ONE perps
+  // wallet, aggregate positions + balances across the main DEX and every
+  // builder DEX. `perDex` exposes each DEX's own balance for the trade ticket.
   const selectedDex = selectedMarket?.dex?.trim() || '';
-  const { data: dexAccountData, refetch: refetchDexPositions } =
-    useHyperliquidPositions(effectiveMaster, {
-      dex: selectedDex,
-      enabled: !!effectiveMaster && !!selectedDex,
+  const builderDexes = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of markets) {
+      const d = (m as { dex?: string }).dex?.trim();
+      if (d) set.add(d);
+    }
+    return Array.from(set);
+  }, [markets]);
+
+  const { data: portfolio, refetch: refetchPortfolio } =
+    useHyperliquidPortfolio(effectiveMaster, builderDexes, {
+      enabled: !!effectiveMaster,
     });
-  const tradeAccount = selectedDex ? dexAccountData : accountData;
+
+  // The account that backs the *currently selected* market — used for the trade
+  // ticket's balance display, margin check, and auto-funding math.
+  const tradeAccount = portfolio?.perDex?.[selectedDex] ?? accountData;
 
   // Move USDC from the main perp account into the selected builder DEX so the
   // user can fund HIP-3 trades. Master-signed (the agent cannot move funds).
@@ -443,12 +455,17 @@ export function PerpsPanel({
     async (amountUsd: number) => {
       if (!selectedDex) return;
       await transferToDex(selectedDex, amountUsd);
-      await Promise.all([refetchDexPositions(), refetchPositions()]);
+      await Promise.all([refetchPortfolio(), refetchPositions()]);
     },
-    [selectedDex, transferToDex, refetchDexPositions, refetchPositions],
+    [selectedDex, transferToDex, refetchPortfolio, refetchPositions],
   );
 
-  const existingPosition = tradeAccount?.positions.find(
+  // Aggregated positions/orders across all DEXs (so a builder-DEX position like
+  // SPCX shows up in the table, not just main-DEX positions).
+  const allPositions = portfolio?.positions ?? accountData?.positions ?? [];
+  const allOpenOrders = portfolio?.openOrders ?? accountData?.openOrders ?? [];
+
+  const existingPosition = allPositions.find(
     (p) => p.coin === selectedCoin,
   );
 
@@ -725,8 +742,8 @@ export function PerpsPanel({
                 </div>
 
                 <PositionsTable
-                  positions={accountData?.positions ?? []}
-                  openOrders={accountData?.openOrders ?? []}
+                  positions={allPositions}
+                  openOrders={allOpenOrders}
                   fills={fills}
                   mids={mids}
                   marketMarks={marketMarks}
@@ -762,7 +779,11 @@ export function PerpsPanel({
                     agentOrderPrefill={agentOrderPrefill}
                     masterAddress={masterAddress}
                     dexName={selectedDex ? (selectedMarket?.dexName || selectedDex) : null}
-                    mainAvailableMargin={accountData?.withdrawable ?? '0'}
+                    mainAvailableMargin={
+                      portfolio?.perDex?.['']?.withdrawable ??
+                      accountData?.withdrawable ??
+                      '0'
+                    }
                     onTransferToDex={handleTransferToDex}
                     isTransferringToDex={isTransferring}
                     transferToDexError={transferError}
@@ -770,9 +791,21 @@ export function PerpsPanel({
                 </div>
 
                 <AccountCard
-                  accountValue={accountData?.accountValue ?? '0'}
-                  available={accountData?.withdrawable ?? '0'}
-                  unrealizedPnl={accountData?.unrealizedPnl ?? '0'}
+                  accountValue={
+                    portfolio?.accountValue ??
+                    accountData?.accountValue ??
+                    '0'
+                  }
+                  available={
+                    portfolio?.withdrawable ??
+                    accountData?.withdrawable ??
+                    '0'
+                  }
+                  unrealizedPnl={
+                    portfolio?.unrealizedPnl ??
+                    accountData?.unrealizedPnl ??
+                    '0'
+                  }
                   isInitialized={isInitialized}
                   isReconnecting={isReconnecting}
                   onOpenDeposit={onOpenDeposit}
