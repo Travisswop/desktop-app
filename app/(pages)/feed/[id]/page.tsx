@@ -207,15 +207,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       };
     }
 
-    // For reposts, use the original post's content for OG
-    // if (
-    //   feed.postType === "repost" &&
-    //   feed.repostedPostDetails &&
-    //   !feed.isOriginalDeleted
-    // ) {
-    //   feed = feed.repostedPostDetails;
-    // }
-
     // ── Repost logic ──────────────────────────────────────────────────────────
     if (feed.postType === "repost") {
       const quote = feed.content?.quote;
@@ -275,6 +266,35 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         `&outputAmount=${encodeURIComponent(Number(c.outputToken?.amount ?? 0).toFixed(4))}` +
         `&outputImg=${encodeURIComponent(c.outputToken?.tokenImg ?? "")}` +
         `&priceChange=${encodeURIComponent(priceChangePercent)}`;
+    } else if (feed.postType === "perps" && feed.content) {
+      const c = feed.content;
+
+      // Calculate return percentage: (markPrice - entryPrice) / entryPrice * 100
+      // For SHORT: profit when price goes down, so invert
+      let returnPercent = "0.00";
+      if (c.entryPrice > 0 && c.markPrice > 0) {
+        const rawReturn = ((c.markPrice - c.entryPrice) / c.entryPrice) * 100;
+        // SHORT = inverse PnL direction
+        const directedReturn =
+          c.side?.toUpperCase() === "SHORT" ? -rawReturn : rawReturn;
+        returnPercent = directedReturn.toFixed(2);
+      }
+
+      ogImageUrl =
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/og-feed?` +
+        `ensName=${encodeURIComponent(smartsiteEnsName)}` +
+        `&title=${encodeURIComponent(feedTitle)}` +
+        `&date=${encodeURIComponent(formatDate(createdAt))}` +
+        `&type=perps` +
+        `&side=${encodeURIComponent(c.side ?? "")}` +
+        `&coin=${encodeURIComponent(c.coin ?? "")}` +
+        `&sizeCoins=${encodeURIComponent(c.sizeCoins ?? "")}` +
+        `&entryPrice=${encodeURIComponent(Number(c.entryPrice ?? 0).toFixed(2))}` +
+        `&markPrice=${encodeURIComponent(Number(c.markPrice ?? 0).toFixed(2))}` +
+        `&returnPercent=${encodeURIComponent(returnPercent)}` +
+        `&leverage=${encodeURIComponent(c.leverage ?? "")}` +
+        `&orderType=${encodeURIComponent(c.orderType ?? "")}` +
+        `&platform=${encodeURIComponent(c.platform ?? "")}`;
     } else if (hasImage && contentSrc) {
       const feedImage = getCloudinaryThumbnail(
         contentSrc,
@@ -358,6 +378,8 @@ const FeedDetailsPage = async ({
     : `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}`;
 
   const feedData = await getFeedDetails(url);
+
+  console.log("feed data", feedData);
 
   return (
     <div className="relative flex flex-col items-center">
