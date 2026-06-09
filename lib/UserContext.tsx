@@ -138,7 +138,13 @@ const UserContext = createContext<UserContextType | null>(null);
 const USER_CACHE_KEY = 'swop:user-cache';
 const USER_CACHE_VERSION = 3;
 const USER_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+// When we already have cached user data to fall back to, abort a slow refresh
+// quickly and keep showing the cache. On initial login there is nothing to fall
+// back to, so we must wait long enough for the backend to actually respond — the
+// /api/v2/desktop/user endpoint regularly takes 5-9s on a cold hit, and aborting
+// early leaves the user permanently null. See git blame for the auth null-user bug.
 const USER_FETCH_TIMEOUT_MS = 5000;
+const USER_FETCH_INITIAL_TIMEOUT_MS = 25000;
 
 type CachedUserContext = {
   user: UserData;
@@ -374,12 +380,22 @@ export function UserProvider({
       fetchInProgressRef.current = true;
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
+      // Only abort early when we have cached data for this email to fall back
+      // to. On initial login (no usable cache) we must give the slow backend
+      // enough time to respond, otherwise the user is stranded as null.
+      const hasCachedFallback = Boolean(
+        user && normalizeEmail(user.email) === normalizedEmail,
+      );
+      const fetchTimeoutMs = hasCachedFallback
+        ? USER_FETCH_TIMEOUT_MS
+        : USER_FETCH_INITIAL_TIMEOUT_MS;
+
       try {
         abortControllerRef.current?.abort();
         abortControllerRef.current = new AbortController();
         timeoutId = setTimeout(() => {
           abortControllerRef.current?.abort();
-        }, USER_FETCH_TIMEOUT_MS);
+        }, fetchTimeoutMs);
 
         const response = await fetch(
           buildSwopApiUrl(
