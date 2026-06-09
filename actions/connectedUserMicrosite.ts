@@ -15,7 +15,8 @@ export async function getConnectedUserMicrosite(
         },
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);

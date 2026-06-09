@@ -11,7 +11,8 @@ async function getSingleSmartsiteData(id: string, token: string) {
       }
     );
 
-    const data = res.json();
+    const data = await res.json().catch(() => null);
+    if (!res.ok) return null;
     return data;
   } catch (error) {
     console.error(error);

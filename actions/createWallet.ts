@@ -12,7 +12,8 @@ export async function createWalletAction(
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/wallet/createWallet/${ens}`
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
 
     const ensId = `${ens}.swop.id`;
 
@@ -65,7 +66,8 @@ export async function createWalletBalance(payload: any) {
         body: JSON.stringify(payload),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -85,7 +87,8 @@ export async function createLoginWalletBalance(payload: any) {
         body: JSON.stringify(payload),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -105,7 +108,8 @@ export async function getWalletCurrentBalance(payload: any) {
         body: JSON.stringify(payload),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);

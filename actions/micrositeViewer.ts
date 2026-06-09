@@ -33,8 +33,8 @@ export async function getMicrositeViewer() {
       }
     );
 
-    const data = response.json();
-
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error("Error from add swop point:", error);

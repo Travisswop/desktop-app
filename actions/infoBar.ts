@@ -18,7 +18,8 @@ export async function postInfoBar(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error("Error from action:", error);
@@ -39,7 +40,8 @@ export async function updateInfoBar(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error("Error from action:", error);
@@ -60,7 +62,8 @@ export async function deleteInfoBar(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error("Error from action:", error);

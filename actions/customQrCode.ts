@@ -17,7 +17,8 @@ export async function postCustomQrCode(payload: any, token: string) {
     );
     revalidatePath(`/`);
 
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -42,7 +43,8 @@ export async function postUserCustomQrCode(
     );
     revalidatePath(`/qr-code`);
     revalidatePath(`/`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from create custom qr code action:', error);
@@ -66,7 +68,8 @@ export async function updateUserCustomQrCode(
       }
     );
     revalidatePath(`/qr-code`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from update custom qr code action:', error);
