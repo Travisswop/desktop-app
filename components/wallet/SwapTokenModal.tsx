@@ -66,7 +66,7 @@ import {
   getWalletNotificationService,
   formatUSDValue,
 } from '@/lib/utils/walletNotifications';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import bs58 from 'bs58';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { MarketService } from '@/services/market-service';
@@ -1476,9 +1476,16 @@ export default function SwapTokenModal({
   const { user: PrivyUser, getAccessToken } = usePrivy();
   const { user: userData } = useUser();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const copyTradeParam = searchParams?.get('copyTrade');
   const copyTradePostIdParam =
     searchParams?.get('copyTradePostId') || '';
+  // One-shot guard: source posts whose copied trade has already executed. A
+  // copy-trade reward must never re-fire for these, even if the copyTrade
+  // params still linger in the /wallet URL (the inline wallet swap box, unlike
+  // the old SwapButton modal, has no on-close URL cleanup of its own).
+  const consumedCopyTradePostIdsRef = useRef<Set<string>>(new Set());
   const [copyTradeContext, setCopyTradeContext] = useState(() => ({
     isCopyTrade:
       isCopyTradeParamEnabled(copyTradeParam) &&
@@ -1499,6 +1506,12 @@ export default function SwapTokenModal({
       !isCopyTradeParamEnabled(copyTradeParam) ||
       copyTradePostIdParam.length === 0
     ) {
+      return;
+    }
+
+    // Never re-enable a copy-trade reward for a post whose copied trade was
+    // already executed in this session, even if its params still linger.
+    if (consumedCopyTradePostIdsRef.current.has(copyTradePostIdParam)) {
       return;
     }
 
@@ -1531,6 +1544,43 @@ export default function SwapTokenModal({
         : current,
     );
   }, []);
+
+  // Remove the copyTrade params from the /wallet URL so a remount can't revive
+  // the copy-trade context. Mirrors the cleanup the old SwapButton modal does
+  // on close, which the inline wallet swap box otherwise lacks.
+  const stripCopyTradeParamsFromUrl = useCallback(() => {
+    if (!pathname) return;
+    if (
+      !searchParams?.get('copyTrade') &&
+      !searchParams?.get('copyTradePostId')
+    ) {
+      return;
+    }
+    const newParams = new URLSearchParams(searchParams?.toString() || '');
+    newParams.delete('copyTrade');
+    newParams.delete('copyTradePostId');
+    const nextQuery = newParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+  }, [pathname, router, searchParams]);
+
+  // One-shot: a copy-trade reward applies only to the single trade copied from
+  // the feed. After that swap is recorded, mark the source post consumed, strip
+  // the URL params, and clear the context so no subsequent plain swap in the
+  // same box is ever rewarded.
+  const consumeCopyTrade = useCallback(() => {
+    const consumedId =
+      copyTradeContext.sourcePostId || copyTradePostIdParam;
+    if (consumedId) {
+      consumedCopyTradePostIdsRef.current.add(consumedId);
+    }
+    stripCopyTradeParamsFromUrl();
+    clearCopyTrade();
+  }, [
+    copyTradeContext.sourcePostId,
+    copyTradePostIdParam,
+    stripCopyTradeParamsFromUrl,
+    clearCopyTrade,
+  ]);
 
   const fetchCopyTradeRewardPreview = useCallback(async () => {
     if (!isCopyTrade || !copyTradePostId || !accessToken) {
@@ -3094,6 +3144,13 @@ export default function SwapTokenModal({
             notifError,
           );
         }
+      }
+
+      // One-shot: the copied trade has now been recorded, so retire the
+      // copy-trade context and its URL params. Any further swap in this box is
+      // an ordinary swap and must not be rewarded.
+      if (isCopyTrade) {
+        consumeCopyTrade();
       }
     } catch (e) {
       console.error('Failed to save swap transaction:', e);
