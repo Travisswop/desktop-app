@@ -2059,6 +2059,7 @@ const WalletContentInner = () => {
         {perpsPanelOpen && (
           <PerpsPanel
             agentClient={hlAgent.agentClient}
+            masterClient={hlAgent.masterClient}
             masterAddress={perpsMasterAddress}
             isInitialized={hlAgent.isInitialized}
             isInitializing={hlAgent.isInitializing}

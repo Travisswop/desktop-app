@@ -12,6 +12,7 @@ import {
 } from './hooks/useHyperliquidMarkets';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
 import { useHyperliquidTrading } from './hooks/useHyperliquidTrading';
+import { useHyperliquidDexTransfer } from './hooks/useHyperliquidDexTransfer';
 import {
   useAllMids,
   useUserFills,
@@ -46,6 +47,7 @@ import {
 
 interface PerpsPanelProps {
   agentClient: hl.ExchangeClient | null;
+  masterClient: hl.ExchangeClient | null;
   masterAddress: string | null;
   isInitialized: boolean;
   isInitializing: boolean;
@@ -119,6 +121,7 @@ function fillKeyFor(f: PerpsFill) {
  */
 export function PerpsPanel({
   agentClient,
+  masterClient,
   masterAddress,
   isInitialized,
   isInitializing,
@@ -416,7 +419,36 @@ export function PerpsPanel({
     ? (mids[selectedCoin] ?? selectedMarket?.markPrice ?? '0')
     : '0';
 
-  const existingPosition = accountData?.positions.find(
+  // Builder-deployed (HIP-3) perps keep their collateral in a DEX-specific
+  // account, separate from the main USDC perp account. When such a market is
+  // selected, read that DEX's account so the trade ticket's balance and margin
+  // check reflect what the exchange will actually use.
+  const selectedDex = selectedMarket?.dex?.trim() || '';
+  const { data: dexAccountData, refetch: refetchDexPositions } =
+    useHyperliquidPositions(effectiveMaster, {
+      dex: selectedDex,
+      enabled: !!effectiveMaster && !!selectedDex,
+    });
+  const tradeAccount = selectedDex ? dexAccountData : accountData;
+
+  // Move USDC from the main perp account into the selected builder DEX so the
+  // user can fund HIP-3 trades. Master-signed (the agent cannot move funds).
+  const {
+    transferToDex,
+    isTransferring,
+    error: transferError,
+  } = useHyperliquidDexTransfer({ masterClient, masterAddress: effectiveMaster });
+
+  const handleTransferToDex = useCallback(
+    async (amountUsd: number) => {
+      if (!selectedDex) return;
+      await transferToDex(selectedDex, amountUsd);
+      await Promise.all([refetchDexPositions(), refetchPositions()]);
+    },
+    [selectedDex, transferToDex, refetchDexPositions, refetchPositions],
+  );
+
+  const existingPosition = tradeAccount?.positions.find(
     (p) => p.coin === selectedCoin,
   );
 
@@ -712,8 +744,8 @@ export function PerpsPanel({
                     market={selectedMarket ?? null}
                     markPrice={liveMarkPrice}
                     existingPosition={existingPosition}
-                    accountValue={accountData?.accountValue ?? '0'}
-                    availableMargin={accountData?.withdrawable ?? '0'}
+                    accountValue={tradeAccount?.accountValue ?? '0'}
+                    availableMargin={tradeAccount?.withdrawable ?? '0'}
                     isAgentReady={isInitialized}
                     isSubmitting={isSubmitting}
                     error={tradeError}
@@ -729,6 +761,11 @@ export function PerpsPanel({
                     onAgentActionComplete={onAgentActionComplete}
                     agentOrderPrefill={agentOrderPrefill}
                     masterAddress={masterAddress}
+                    dexName={selectedDex ? (selectedMarket?.dexName || selectedDex) : null}
+                    mainAvailableMargin={accountData?.withdrawable ?? '0'}
+                    onTransferToDex={handleTransferToDex}
+                    isTransferringToDex={isTransferring}
+                    transferToDexError={transferError}
                   />
                 </div>
 
