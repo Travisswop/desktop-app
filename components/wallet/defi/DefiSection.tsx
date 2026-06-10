@@ -39,6 +39,11 @@ const FEATURED_ORDER = [
 // Rows beyond this scroll inside the card instead of growing the page
 const MARKETS_MAX_HEIGHT = 'max-h-[480px]';
 
+// Hide reserves whose supply APY would display as 0.00% — mostly
+// collateral-only assets (PT tokens, LSTs) that make the list look dead.
+// Positions in hidden assets still work: lookups use the unfiltered set.
+const MIN_DISPLAY_APY = 0.00005;
+
 const formatUsd = (value: number) =>
   value.toLocaleString('en-US', {
     style: 'currency',
@@ -88,15 +93,23 @@ export function DefiSection({
     );
   }, [markets.data?.reserves]);
 
+  const marketReserves = useMemo(
+    () =>
+      sortedReserves.filter(
+        (reserve) => reserve.supplyApy >= MIN_DISPLAY_APY,
+      ),
+    [sortedReserves],
+  );
+
   const visibleReserves = useMemo(() => {
     const query = marketSearch.trim().toLowerCase();
-    if (!query) return sortedReserves;
-    return sortedReserves.filter(
+    if (!query) return marketReserves;
+    return marketReserves.filter(
       (reserve) =>
         reserve.symbol.toLowerCase().includes(query) ||
         reserve.name.toLowerCase().includes(query),
     );
-  }, [sortedReserves, marketSearch]);
+  }, [marketReserves, marketSearch]);
 
   const reserveBySymbol = useMemo(() => {
     const map = new Map<string, AaveReserve>();
@@ -215,7 +228,7 @@ export function DefiSection({
           error={markets.error as Error | null}
           onRetry={() => markets.refetch()}
           reserves={visibleReserves}
-          totalCount={sortedReserves.length}
+          totalCount={marketReserves.length}
           search={marketSearch}
           onSearchChange={setMarketSearch}
           walletConnected={Boolean(evmWalletAddress)}
