@@ -322,7 +322,14 @@ export default function CheckoutPaymentClient({
         return true;
       })
       .filter((token) => Number(token.balance || 0) > 0)
-      .filter((token) => Number(token.marketData?.price || 0) > 0)
+      .filter(
+        (token) =>
+          // Solana tokens are sized by a live Jupiter ExactOut quote, so a
+          // market price feed is not required to pay with them. EVM tokens
+          // still need a price to size the LiFi input amount.
+          token.chain === 'SOLANA' ||
+          Number(token.marketData?.price || 0) > 0
+      )
       .filter((token) => {
         if (!lowerSearch) return true;
         return (
@@ -1341,8 +1348,9 @@ export default function CheckoutPaymentClient({
                               {Number(token.balance || 0).toFixed(4)}
                             </p>
                             <p className="text-xs text-[#737b8c]">
-                              $
-                              {Number(token.marketData?.price || 0).toFixed(4)}
+                              {Number(token.marketData?.price || 0) > 0
+                                ? `$${Number(token.marketData?.price).toFixed(4)}`
+                                : 'Quoted at payment'}
                             </p>
                           </div>
                         </button>

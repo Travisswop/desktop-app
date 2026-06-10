@@ -90,15 +90,25 @@ export function calculateCheckoutTokenAmount(
   intent: CheckoutIntent,
   token: TokenData | null
 ) {
-  if (!token?.marketData?.price) return '';
-
-  const price = Number(token.marketData.price);
-  if (!Number.isFinite(price) || price <= 0) return '';
+  if (!token) return '';
 
   const { totalDueAmount, slippageBps } = getCheckoutAmounts(intent);
-  const payoutMultiplier = isSolanaSettlementUsdc(token)
-    ? 1
-    : getSlippageProtectedMultiplier(slippageBps);
-  const amount = (totalDueAmount / price) * payoutMultiplier;
+
+  // The settlement currency itself needs no conversion: the buyer owes
+  // exactly the total due, regardless of what a market price feed says
+  // USDC is worth (feeds often report 0.9998-1.0002 and would skew the
+  // amount).
+  if (isSolanaSettlementUsdc(token)) {
+    return formatRoundedUpTokenAmount(
+      totalDueAmount,
+      getTokenPaymentDecimals(token)
+    );
+  }
+
+  const price = Number(token.marketData?.price);
+  if (!Number.isFinite(price) || price <= 0) return '';
+
+  const amount =
+    (totalDueAmount / price) * getSlippageProtectedMultiplier(slippageBps);
   return formatRoundedUpTokenAmount(amount, getTokenPaymentDecimals(token));
 }
