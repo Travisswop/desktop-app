@@ -245,7 +245,7 @@ export function AaveActionModal({
               <div className="flex justify-between">
                 <span className="text-gray-400">
                   {mode === 'borrow' || mode === 'repay'
-                    ? 'Borrow APR (variable)'
+                    ? 'Borrow APY (variable)'
                     : 'Supply APY'}
                 </span>
                 <span
@@ -257,7 +257,7 @@ export function AaveActionModal({
                 >
                   {(
                     (mode === 'borrow' || mode === 'repay'
-                      ? reserve.variableBorrowApr
+                      ? reserve.variableBorrowApy
                       : reserve.supplyApy) * 100
                   ).toFixed(2)}
                   %

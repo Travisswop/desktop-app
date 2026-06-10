@@ -322,7 +322,7 @@ export function DefiSection({
           apyFor={(position) => ({
             value: formatPct(position.variableBorrowApy),
             className: 'text-gray-900',
-            label: 'APR',
+            label: 'APY',
           })}
         />
       )}
@@ -405,7 +405,7 @@ function MarketsTab({
       <div className="grid grid-cols-[1fr_120px_120px_170px] items-center px-5 py-2.5 font-mono text-[11px] uppercase tracking-wider text-gray-400">
         <span>Asset</span>
         <span className="text-right">Supply APY</span>
-        <span className="text-right">Borrow APR</span>
+        <span className="text-right">Borrow APY</span>
         <span />
       </div>
 
@@ -435,7 +435,7 @@ function MarketsTab({
           </span>
           <span className="text-right font-mono text-sm text-gray-900">
             {reserve.borrowingEnabled
-              ? formatPct(reserve.variableBorrowApr)
+              ? formatPct(reserve.variableBorrowApy)
               : '—'}
           </span>
           <div className="flex items-center justify-end gap-2">
