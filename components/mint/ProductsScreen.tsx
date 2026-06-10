@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { MoreHorizontal, Trash2, X } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, X } from 'lucide-react';
 import {
   Card,
   Chip,
@@ -332,18 +332,26 @@ export default function ProductsScreen({
                     )}
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <div
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/products/edit/${p.id}`)}
+                      title={`Edit ${p.name}`}
                       style={{
+                        all: 'unset',
                         fontSize: 13,
                         fontWeight: 600,
                         letterSpacing: -0.2,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
+                        display: 'block',
+                        maxWidth: '100%',
+                        color: ink,
+                        cursor: 'pointer',
                       }}
                     >
                       {p.name}
-                    </div>
+                    </button>
                     <div style={{ marginTop: 3 }}>
                       <span
                         style={{
@@ -485,6 +493,32 @@ export default function ProductsScreen({
                           </div>
                         ) : (
                           <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                router.push(`/products/edit/${p.id}`);
+                              }}
+                              style={{
+                                width: '100%',
+                                minHeight: 36,
+                                border: 0,
+                                borderRadius: 8,
+                                background: 'transparent',
+                                color: ink,
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                cursor: 'pointer',
+                                padding: '8px 10px',
+                              }}
+                            >
+                              <Pencil size={14} />
+                              Edit product
+                            </button>
                             <button
                               type="button"
                               onClick={() => requestDelete(p.id)}

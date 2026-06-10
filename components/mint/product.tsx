@@ -49,6 +49,8 @@ import {
 } from '@/lib/chat/agentActionHandoff';
 import {
   createMarketplaceProduct,
+  getMarketplaceProduct,
+  updateMarketplaceProduct,
   uploadMarketplaceDigitalAsset,
   type MarketplaceDigitalAsset,
 } from '@/lib/marketplace-api';
@@ -57,6 +59,8 @@ interface ModelInfo {
   success: boolean;
   nftType: string;
   details?: string;
+  successTitle?: string;
+  errorTitle?: string;
 }
 
 interface VariantOption {
@@ -76,12 +80,16 @@ const formatFileSize = (bytes?: number) => {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const CreateProduct = () => {
+const CreateProduct = ({ productId }: { productId?: string } = {}) => {
   const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
   const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
+
+  const isEditMode = Boolean(productId);
+  const [loadingProduct, setLoadingProduct] = useState(isEditMode);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [type, setType] = useState<'Physical' | 'Digital'>('Physical');
 
@@ -139,6 +147,7 @@ const CreateProduct = () => {
   }, [ready, authenticated, wallets]);
 
   useEffect(() => {
+    if (isEditMode) return;
     const handoff = readAgentActionHandoff();
     const prefill = getMarketplaceProductPrefill(handoff);
     if (!prefill?.proposalId) return;
@@ -164,7 +173,74 @@ const CreateProduct = () => {
         },
       ]);
     }
-  }, []);
+  }, [isEditMode]);
+
+  // Edit mode: load the existing product and prefill every field.
+  useEffect(() => {
+    if (!productId || !accessToken) return;
+    let cancelled = false;
+    setLoadingProduct(true);
+    setLoadError(null);
+    getMarketplaceProduct(accessToken, productId)
+      .then((product) => {
+        if (cancelled) return;
+        setType(product.productType === 'digital' ? 'Digital' : 'Physical');
+        setName(product.title || '');
+        setDescription(product.description || '');
+        const primary = product.primaryImage || product.images?.[0]?.url || '';
+        setImage(primary);
+        const extras = (product.images || [])
+          .map((img) => img.url)
+          .filter((url): url is string => Boolean(url) && url !== primary);
+        setExtraImages([
+          extras[0] ?? null,
+          extras[1] ?? null,
+          extras[2] ?? null,
+          extras[3] ?? null,
+        ]);
+        setPrice(
+          product.price?.amount != null ? String(product.price.amount) : ''
+        );
+        const available = product.inventory?.available;
+        setQuantity(available != null ? String(available) : '');
+        if (product.variants?.length) {
+          setVariants(
+            product.variants.map((variant) => ({
+              name: variant.name || '',
+              options: (variant.options || []).map((option) => ({
+                name: option.name || '',
+                quantity:
+                  option.quantity != null ? String(option.quantity) : '',
+              })),
+            }))
+          );
+        }
+        const requiresShipping = product.fulfillment?.requiresShipping;
+        setShipping(requiresShipping ? 'Yes' : 'No');
+        if (product.fulfillment?.shippingCost != null) {
+          setShippingCost(String(product.fulfillment.shippingCost));
+        }
+        if (product.fulfillment?.digitalAsset) {
+          setDigitalAsset(product.fulfillment.digitalAsset);
+        }
+        if (product.fulfillment?.digitalDeliveryNote) {
+          setDigitalDeliveryNote(product.fulfillment.digitalDeliveryNote);
+        }
+        // Agreement was accepted at creation — don't re-gate edits on it.
+        setAgree(true);
+        setLoadingProduct(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(
+          err instanceof Error ? err.message : 'Failed to load this product.'
+        );
+        setLoadingProduct(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [productId, accessToken]);
 
   const processImage = async (
     file: File,
@@ -410,7 +486,7 @@ const CreateProduct = () => {
       return;
     }
 
-    if (!solanaAddress) {
+    if (!isEditMode && !solanaAddress) {
       setModelInfo({
         success: false,
         nftType: type.toLowerCase(),
@@ -427,7 +503,7 @@ const CreateProduct = () => {
       const inventoryAvailable = hasVariantInventory
         ? variantInventoryTotal
         : Number(quantity);
-      const product = await createMarketplaceProduct(accessToken, {
+      const payload = {
         productType,
         title: name,
         description,
@@ -466,7 +542,11 @@ const CreateProduct = () => {
             )
           )
           .filter(Boolean),
-      });
+      };
+      const product =
+        isEditMode && productId
+          ? await updateMarketplaceProduct(accessToken, productId, payload)
+          : await createMarketplaceProduct(accessToken, payload);
 
       let completion = null;
       if (agentProposalId) {
@@ -501,7 +581,11 @@ const CreateProduct = () => {
         }
       }
 
-      setModelInfo({ success: true, nftType: productType });
+      setModelInfo({
+        success: true,
+        nftType: productType,
+        successTitle: isEditMode ? 'Product updated' : undefined,
+      });
       onOpenChange();
       setTimeout(() => {
         if (completion?.groupId) {
@@ -517,6 +601,7 @@ const CreateProduct = () => {
       setModelInfo({
         success: false,
         nftType: type === 'Physical' ? 'physical' : 'digital',
+        errorTitle: isEditMode ? 'Failed to update product' : undefined,
         details:
           err instanceof Error
             ? err.message
@@ -528,7 +613,45 @@ const CreateProduct = () => {
     }
   };
 
-  if (!walletLoaded && ready) {
+  if (isEditMode && loadError) {
+    return (
+      <main className="main-container">
+        <div
+          style={{
+            background: '#f4f4f2',
+            minHeight: '100vh',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 40,
+          }}
+        >
+          <Card>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                alignItems: 'flex-start',
+                maxWidth: 360,
+              }}
+            >
+              <div
+                style={{ fontSize: 13, color: '#b91c1c', fontWeight: 600 }}
+              >
+                {loadError}
+              </div>
+              <Button variant="ghost" onClick={() => router.push('/products')}>
+                Back to products
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  if ((isEditMode && loadingProduct) || (!walletLoaded && ready)) {
     return (
       <main className="main-container">
         <div
@@ -552,7 +675,7 @@ const CreateProduct = () => {
               }}
             >
               <Loader2 size={16} className="animate-spin" />
-              Loading wallet connection...
+              {isEditMode ? 'Loading product…' : 'Loading wallet connection...'}
             </div>
           </Card>
         </div>
@@ -572,33 +695,40 @@ const CreateProduct = () => {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <ScreenShell
             onBack={() => router.push('/products')}
-            title="Create Item"
+            title={isEditMode ? 'Edit Item' : 'Create Item'}
             eyebrow="Products"
-            kicker="Item details · please select the type of item you're creating for the Swop marketplace"
+            kicker={
+              isEditMode
+                ? 'Update the details for this marketplace item and save your changes'
+                : "Item details · please select the type of item you're creating for the Swop marketplace"
+            }
             action={
               <div style={{ display: 'flex', gap: 8 }}>
                 <Button variant="ghost" onClick={() => router.push('/products')}>
                   Cancel
                 </Button>
-                <Button variant="ghost" disabled>
-                  Save draft
-                </Button>
+                {!isEditMode && (
+                  <Button variant="ghost" disabled>
+                    Save draft
+                  </Button>
+                )}
                 <Button
                   variant="primary"
                   disabled={
                     isSubmitting ||
                     imageUploading ||
                     digitalUploading ||
-                    !solanaAddress ||
-                    !agree
+                    (!isEditMode && (!solanaAddress || !agree))
                   }
                   onClick={handleSubmit}
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2 size={12} className="animate-spin" />
-                      Creating…
+                      {isEditMode ? 'Saving…' : 'Creating…'}
                     </>
+                  ) : isEditMode ? (
+                    'Save changes'
                   ) : (
                     'Create Item'
                   )}
@@ -606,7 +736,7 @@ const CreateProduct = () => {
               </div>
             }
           >
-            {ready && authenticated && !solanaAddress && (
+            {!isEditMode && ready && authenticated && !solanaAddress && (
               <div
                 style={{
                   display: 'flex',
@@ -652,7 +782,13 @@ const CreateProduct = () => {
                       placeholder="All-Access pass"
                       value={name}
                       invalid={!!formErrors.name}
+                      disabled={isEditMode}
                       onChange={(e) => setName(e.target.value)}
+                      style={
+                        isEditMode
+                          ? { background: '#f5f5f3', cursor: 'not-allowed' }
+                          : undefined
+                      }
                     />
                   </Field>
                   <Field
@@ -1473,6 +1609,7 @@ const CreateProduct = () => {
                 </Card>
 
                 {/* Agreement */}
+                {!isEditMode && (
                 <div
                   style={{
                     display: 'flex',
@@ -1531,6 +1668,7 @@ const CreateProduct = () => {
                     .
                   </div>
                 </div>
+                )}
               </div>
             </div>
           </ScreenShell>

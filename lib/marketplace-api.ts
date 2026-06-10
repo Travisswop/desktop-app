@@ -300,6 +300,20 @@ export async function listMarketplaceProducts(
   return parseMarketplaceResponse<ListMarketplaceProductsResponse>(response);
 }
 
+export async function getMarketplaceProduct(
+  accessToken: string,
+  productId: string
+) {
+  const response = await fetch(
+    marketplaceUrl(`/products/${encodeURIComponent(productId)}`),
+    {
+      headers: authHeaders(accessToken),
+      cache: 'no-store',
+    }
+  );
+  return parseMarketplaceResponse<MarketplaceProduct>(response);
+}
+
 export async function listPublicMarketplaceProducts(
   params: {
     micrositeId?: string;
