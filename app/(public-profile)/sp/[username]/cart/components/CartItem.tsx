@@ -33,6 +33,9 @@ export const CartItem: React.FC<CartItemProps> = ({
     onUpdateQuantity(item._id, newQuantity);
   };
 
+  const unitPrice = Number(item.nftTemplate.price) || 0;
+  const lineTotal = Number((unitPrice * quantity).toFixed(6));
+
   const handleRemove = () => {
     onRemoveItem(item._id);
   };
@@ -55,7 +58,14 @@ export const CartItem: React.FC<CartItemProps> = ({
           <p className="text-lg font-semibold mb-1">
             {item.nftTemplate.name}
           </p>
-          <p>${item.nftTemplate.price}</p>
+          <p>
+            ${lineTotal}
+            {quantity > 1 && (
+              <span className="text-xs text-gray-500 ml-1">
+                (${unitPrice} each)
+              </span>
+            )}
+          </p>
         </div>
       </div>
       <div className="flex items-center gap-1 text-black">

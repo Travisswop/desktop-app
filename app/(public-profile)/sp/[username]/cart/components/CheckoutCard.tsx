@@ -110,6 +110,11 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
     );
   };
 
+  const itemCount = cartItems.reduce(
+    (total, item) => total + (Number(item.quantity) || 0),
+    0
+  );
+
   return (
     <Card className="w-full shadow-lg bg-white my-4">
       <CardHeader className="border-b">
@@ -315,8 +320,8 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
         <section className="mt-4 p-3 bg-gray-50 rounded-md">
           <div className="flex items-center justify-between mb-2">
             <span className="text-gray-600">
-              Subtotal ({cartItems.length}{' '}
-              {cartItems.length === 1 ? 'item' : 'items'})
+              Subtotal ({itemCount}{' '}
+              {itemCount === 1 ? 'item' : 'items'})
             </span>
             <span>{subtotal} USDC</span>
           </div>
