@@ -108,34 +108,35 @@ const PublicProfileHeader: FC<Props> = ({
     router.push(newRoute);
   };
 
+  const subscribeButton = (
+    <div className="w-6 h-6 lg:w-7 lg:h-7 bg-gray-400 rounded-full flex items-center justify-center">
+      <FaRegStar color="white" />
+    </div>
+  );
+
   return (
     <div className="w-full">
       <div className="w-full flex items-start justify-between px-6 pt-2">
         <div className="cursor-pointer">
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger>
-              {/* <Image
-                src="/star.svg"
-                alt="Subscribe"
-                width={30}
-                height={30}
-                className="w-8 h-8 bg-white rounded-full p-1"
-              /> */}
-              <div className="w-6 h-6 lg:w-7 lg:h-7 bg-gray-400 rounded-full flex items-center justify-center">
-                <FaRegStar color="white" />
-              </div>
-            </DialogTrigger>
-            <DialogContent>
-              <Subscribe
-                data={{
-                  name,
-                  parentId,
-                  micrositeId,
-                }}
-                handler={() => setOpen(false)}
-              />
-            </DialogContent>
-          </Dialog>
+          {/* Radix generates aria ids that differ between SSR and client in
+              this app, so the dialog is only rendered after mount. */}
+          {mounted ? (
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger>{subscribeButton}</DialogTrigger>
+              <DialogContent>
+                <Subscribe
+                  data={{
+                    name,
+                    parentId,
+                    micrositeId,
+                  }}
+                  handler={() => setOpen(false)}
+                />
+              </DialogContent>
+            </Dialog>
+          ) : (
+            subscribeButton
+          )}
         </div>
         <div
           onClick={handleRedirectIntoCartDetails}
