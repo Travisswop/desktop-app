@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, RefreshCcw } from 'lucide-react';
+import { ChevronDown, RefreshCcw, Search } from 'lucide-react';
 import type {
   AaveActionMode,
   AaveChain,
@@ -35,7 +35,8 @@ const FEATURED_ORDER = [
   'WMATIC',
 ];
 
-const COLLAPSED_ROWS = 6;
+// Rows beyond this scroll inside the card instead of growing the page
+const MARKETS_MAX_HEIGHT = 'max-h-[480px]';
 
 const formatUsd = (value: number) =>
   value.toLocaleString('en-US', {
@@ -69,7 +70,7 @@ export function DefiSection({
   const [chain, setChain] = useState<AaveChain>('ethereum');
   const [tab, setTab] = useState<DefiTab>('markets');
   const [chainMenuOpen, setChainMenuOpen] = useState(false);
-  const [showAllMarkets, setShowAllMarkets] = useState(false);
+  const [marketSearch, setMarketSearch] = useState('');
   const [modal, setModal] = useState<ModalState | null>(null);
 
   const markets = useAaveMarkets(chain);
@@ -86,9 +87,15 @@ export function DefiSection({
     );
   }, [markets.data?.reserves]);
 
-  const visibleReserves = showAllMarkets
-    ? sortedReserves
-    : sortedReserves.slice(0, COLLAPSED_ROWS);
+  const visibleReserves = useMemo(() => {
+    const query = marketSearch.trim().toLowerCase();
+    if (!query) return sortedReserves;
+    return sortedReserves.filter(
+      (reserve) =>
+        reserve.symbol.toLowerCase().includes(query) ||
+        reserve.name.toLowerCase().includes(query),
+    );
+  }, [sortedReserves, marketSearch]);
 
   const reserveBySymbol = useMemo(() => {
     const map = new Map<string, AaveReserve>();
@@ -179,7 +186,7 @@ export function DefiSection({
                     onClick={() => {
                       setChain(entry.id);
                       setChainMenuOpen(false);
-                      setShowAllMarkets(false);
+                      setMarketSearch('');
                     }}
                     className={`w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-left hover:bg-gray-50 transition-colors ${
                       entry.id === chain
@@ -208,8 +215,8 @@ export function DefiSection({
           onRetry={() => markets.refetch()}
           reserves={visibleReserves}
           totalCount={sortedReserves.length}
-          showAll={showAllMarkets}
-          onToggleShowAll={() => setShowAllMarkets((value) => !value)}
+          search={marketSearch}
+          onSearchChange={setMarketSearch}
           walletConnected={Boolean(evmWalletAddress)}
           onAction={openAction}
         />
@@ -347,8 +354,8 @@ function MarketsTab({
   onRetry,
   reserves,
   totalCount,
-  showAll,
-  onToggleShowAll,
+  search,
+  onSearchChange,
   walletConnected,
   onAction,
 }: {
@@ -357,8 +364,8 @@ function MarketsTab({
   onRetry: () => void;
   reserves: AaveReserve[];
   totalCount: number;
-  showAll: boolean;
-  onToggleShowAll: () => void;
+  search: string;
+  onSearchChange: (value: string) => void;
   walletConnected: boolean;
   onAction: (mode: AaveActionMode, reserve: AaveReserve) => void;
 }) {
@@ -381,6 +388,19 @@ function MarketsTab({
 
   return (
     <div>
+      <div className="px-5 pt-3">
+        <div className="flex items-center gap-2 rounded-xl border border-black/[0.06] bg-gray-50 px-3 py-2">
+          <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder={`Search ${totalCount} assets — PYUSD, wstETH, GHO…`}
+            className="w-full bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-[1fr_120px_120px_170px] items-center px-5 py-2.5 font-mono text-[11px] uppercase tracking-wider text-gray-400">
         <span>Asset</span>
         <span className="text-right">Supply APY</span>
@@ -388,6 +408,13 @@ function MarketsTab({
         <span />
       </div>
 
+      {reserves.length === 0 && (
+        <p className="px-5 py-8 text-center text-sm text-gray-500">
+          No assets match “{search}”.
+        </p>
+      )}
+
+      <div className={`${MARKETS_MAX_HEIGHT} overflow-y-auto`}>
       {reserves.map((reserve) => (
         <div
           key={reserve.asset}
@@ -424,15 +451,11 @@ function MarketsTab({
           </div>
         </div>
       ))}
+      </div>
 
-      {totalCount > COLLAPSED_ROWS && (
-        <button
-          onClick={onToggleShowAll}
-          className="w-full py-3 text-xs font-semibold text-gray-500 hover:text-gray-800 border-t border-black/[0.04] transition-colors"
-        >
-          {showAll ? 'Show less' : `Show all ${totalCount} assets`}
-        </button>
-      )}
+      <p className="px-5 py-2.5 text-right font-mono text-[10px] uppercase tracking-wider text-gray-300 border-t border-black/[0.04]">
+        {reserves.length} of {totalCount} assets
+      </p>
     </div>
   );
 }
