@@ -7823,6 +7823,11 @@ function Message({
             <HyperliquidPositionsCard
               summary={perpsPositions}
               astroConsoleData={astroConsoleData}
+              canAct={canAct}
+              isPending={isProposalPending}
+              onApproveInline={onApproveInlineProposal}
+              onInlineActionComplete={onInlineActionComplete}
+              onAddFunds={onAddPerpsFunds}
             />
           )}
           {isAgent && walletSendNetworkPrompt && (
@@ -11558,6 +11563,58 @@ function getHyperliquidPreviewSide(
   return toFiniteNumber(position.szi) < 0 ? 'short' : 'long';
 }
 
+function buildHyperliquidClosePositionProposal(
+  position: HyperliquidPositionPreview,
+  market?: HLMarket
+): AgentActionProposal {
+  const side = getHyperliquidPreviewSide(position);
+  const sizeCoins = Math.abs(toFiniteNumber(position.szi));
+  const closeSize = formatPerpsOrderSize(sizeCoins, market?.szDecimals ?? 4);
+  const proposalSeed = [displayPerpsCoin(position.coin), side, closeSize]
+    .join('-')
+    .replace(/[^a-zA-Z0-9_-]/g, '-');
+  const isCross = position.leverage?.type !== 'isolated';
+  // markPrice is intentionally omitted so the ticket uses the live market mark.
+  const params = {
+    coin: position.coin,
+    asset: position.coin,
+    side,
+    direction: side,
+    isLong: side === 'long',
+    size: closeSize,
+    sz: closeSize,
+    sizeCoins: closeSize,
+    entryPrice: position.entryPx || undefined,
+    collateralUsd: position.marginUsed || undefined,
+    marginUsed: position.marginUsed || undefined,
+    notionalUsd: position.positionValue || undefined,
+    positionValue: position.positionValue || undefined,
+    leverage: String(position.leverage?.value || 1),
+    isCross,
+    cross: isCross,
+    liquidationPrice: position.liquidationPx || undefined,
+    reduceOnly: true,
+    orderMode: 'market',
+    orderType: 'market',
+  };
+
+  return {
+    proposalId: `${LOCAL_HYPERLIQUID_PROPOSAL_PREFIX}close-${proposalSeed}`,
+    toolType: 'perps.write',
+    action: 'perps.close_position',
+    status: 'pending',
+    normalizedParams: params,
+    riskSummary: {
+      riskLevel: 'high',
+      toolType: 'perps.write',
+      action: 'perps.close_position',
+      mode: 'proposal',
+      requiresProposal: true,
+      paramKeys: Object.keys(params).sort(),
+    },
+  };
+}
+
 function getHyperliquidPreviewMarkPrice(
   position: HyperliquidPositionPreview,
   market?: HLMarket
@@ -11584,15 +11641,35 @@ function formatPerpsRoe(value: unknown) {
 function HyperliquidPositionsCard({
   summary,
   astroConsoleData,
+  canAct = false,
+  isPending = false,
+  onApproveInline,
+  onInlineActionComplete,
+  onAddFunds,
 }: {
   summary: HyperliquidPositionsPreview;
   astroConsoleData: AstroConsoleData;
+  canAct?: boolean;
+  isPending?: boolean;
+  onApproveInline?: (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>
+  ) => Promise<AgentApprovalHandoff | null>;
+  onInlineActionComplete?: (completion: AgentActionCompletion) => void;
+  onAddFunds?: () => void;
 }) {
   const positions = (summary.positions || []).filter((position) =>
     Boolean(position.coin)
   );
   const accountValue = toFiniteNumber(summary.accountValue);
   const withdrawable = toFiniteNumber(summary.withdrawable);
+  // Proposal is built once at click time so in-flight ticket state never
+  // resets when live market data refreshes.
+  const [closeTicket, setCloseTicket] = useState<{
+    positionKey: string;
+    proposal: AgentActionProposal;
+  } | null>(null);
+  const canClosePositions = Boolean(onApproveInline && onInlineActionComplete);
 
   return (
     <div className={`${AGENT_PANEL_CLASS} mt-2 w-full overflow-hidden rounded-[14px] text-xs`}>
@@ -11628,6 +11705,7 @@ function HyperliquidPositionsCard({
           </div>
         ) : (
           positions.map((position, index) => {
+            const positionKey = `${position.coin}-${position.szi || index}`;
             const side = getHyperliquidPreviewSide(position);
             const displayCoin =
               position.displayCoin || displayPerpsCoin(position.coin);
@@ -11664,9 +11742,12 @@ function HyperliquidPositionsCard({
                 : 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#a9f7cc]';
             const pnlTone = pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]';
 
+            const isCloseTicketOpen =
+              closeTicket?.positionKey === positionKey;
+
             return (
               <div
-                key={`${position.coin}-${position.szi || index}`}
+                key={positionKey}
                 className="rounded-[12px] border border-white/[0.07] bg-black/20 p-3"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -11764,6 +11845,40 @@ function HyperliquidPositionsCard({
                       />
                     </div>
                   </div>
+                )}
+
+                {canClosePositions && size > 0 && (
+                  isCloseTicketOpen && closeTicket ? (
+                    <HyperliquidProposalFlowTicket
+                      proposal={closeTicket.proposal}
+                      proposalId={closeTicket.proposal.proposalId}
+                      status={closeTicket.proposal.status || 'pending'}
+                      canAct={canAct}
+                      isPending={isPending}
+                      onApproveInline={onApproveInline!}
+                      onInlineActionComplete={onInlineActionComplete!}
+                      onReject={() => setCloseTicket(null)}
+                      onAddFunds={onAddFunds || (() => {})}
+                      astroConsoleData={astroConsoleData}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCloseTicket({
+                          positionKey,
+                          proposal: buildHyperliquidClosePositionProposal(
+                            position,
+                            market
+                          ),
+                        })
+                      }
+                      className="dm-btn mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#ff5d63]/25 bg-[#ff5d63]/10 text-[12px] font-semibold text-[#ffb2b6] hover:bg-[#ff5d63]/20"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      Close position
+                    </button>
+                  )
                 )}
               </div>
             );
