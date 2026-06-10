@@ -772,23 +772,12 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                     title="Identity"
                     subtitle="Public details shown on the product page"
                   />
-                  <Field
-                    label="Item Name"
-                    required
-                    error={formErrors.name}
-                    help="Note: Your item name can't be changed after creation."
-                  >
+                  <Field label="Item Name" required error={formErrors.name}>
                     <TextInput
                       placeholder="All-Access pass"
                       value={name}
                       invalid={!!formErrors.name}
-                      disabled={isEditMode}
                       onChange={(e) => setName(e.target.value)}
-                      style={
-                        isEditMode
-                          ? { background: '#f5f5f3', cursor: 'not-allowed' }
-                          : undefined
-                      }
                     />
                   </Field>
                   <Field
@@ -1477,7 +1466,7 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                     label="Price"
                     required
                     error={formErrors.price}
-                    help="Currency can't be changed after creation."
+                    help="Settled in USDC."
                   >
                     <div
                       style={{
