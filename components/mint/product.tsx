@@ -80,7 +80,12 @@ const formatFileSize = (bytes?: number) => {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const CURRENCY_OPTIONS: { code: string; label: string; badge: string; color: string }[] = [
+const PAYOUT_TOKEN_OPTIONS: {
+  code: string;
+  label: string;
+  badge: string;
+  color: string;
+}[] = [
   { code: 'USDC', label: 'USDC', badge: '$', color: '#2775CA' },
   { code: 'XAUT', label: 'Tether Gold (Solana)', badge: 'Au', color: '#C9A227' },
   { code: 'ETH', label: 'Ethereum (ETH)', badge: 'Ξ', color: '#627EEA' },
@@ -114,7 +119,7 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
     null,
   ]);
   const [price, setPrice] = useState('');
-  const [currency, setCurrency] = useState('USDC');
+  const [payoutToken, setPayoutToken] = useState('USDC');
   const [quantity, setQuantity] = useState<string>('');
   const [variants, setVariants] = useState<Variant[]>([
     { name: '', options: [] },
@@ -209,8 +214,8 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
         setPrice(
           product.price?.amount != null ? String(product.price.amount) : ''
         );
-        if (product.price?.currency) {
-          setCurrency(String(product.price.currency).toUpperCase());
+        if (product.payoutToken) {
+          setPayoutToken(String(product.payoutToken).toUpperCase());
         }
         const available = product.inventory?.available;
         setQuantity(available != null ? String(available) : '');
@@ -446,8 +451,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
     [variants]
   );
 
-  const activeCurrency =
-    CURRENCY_OPTIONS.find((c) => c.code === currency) ?? CURRENCY_OPTIONS[0];
+  const activePayoutToken =
+    PAYOUT_TOKEN_OPTIONS.find((c) => c.code === payoutToken) ??
+    PAYOUT_TOKEN_OPTIONS[0];
 
   const validate = () => {
     const errors: Record<string, string> = {};
@@ -528,8 +534,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
         })),
         price: {
           amount: Number(price),
-          currency,
+          currency: 'USD',
         },
+        payoutToken,
         inventory: {
           track: true,
           available: inventoryAvailable,
@@ -1480,110 +1487,109 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                     label="Price"
                     required
                     error={formErrors.price}
-                    help={`Settled in ${currency}.`}
+                    help="Priced in US dollars. Buyers can pay with any currency."
+                  >
+                    <div style={{ position: 'relative' }}>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          left: 14,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          fontSize: 13,
+                          color: muted,
+                          fontFamily: mono,
+                        }}
+                      >
+                        $
+                      </span>
+                      <TextInput
+                        placeholder="0"
+                        value={price}
+                        invalid={!!formErrors.price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        style={{
+                          paddingLeft: 26,
+                          fontFamily: mono,
+                        }}
+                      />
+                    </div>
+                  </Field>
+
+                  <Field
+                    label="Payout token"
+                    help="The token you receive when this item sells. The buyer is charged in US dollars and can pay with any currency."
                   >
                     <div
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 172px',
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: 8,
+                        padding: '0 12px',
+                        height: 42,
+                        border: `1px solid ${hair}`,
+                        borderRadius: 9,
+                        background: '#fff',
                       }}
                     >
-                      <div style={{ position: 'relative' }}>
-                        <span
-                          style={{
-                            position: 'absolute',
-                            left: 14,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            fontSize: 13,
-                            color: muted,
-                            fontFamily: mono,
-                          }}
-                        >
-                          $
-                        </span>
-                        <TextInput
-                          placeholder="0"
-                          value={price}
-                          invalid={!!formErrors.price}
-                          onChange={(e) => setPrice(e.target.value)}
-                          style={{
-                            paddingLeft: 26,
-                            fontFamily: mono,
-                          }}
-                        />
-                      </div>
-                      <div
+                      <span
                         style={{
-                          position: 'relative',
+                          width: 20,
+                          height: 20,
+                          minWidth: 20,
+                          borderRadius: 10,
+                          background: activePayoutToken.color,
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 8,
-                          padding: '0 12px',
-                          border: `1px solid ${hair}`,
-                          borderRadius: 9,
-                          background: '#fafafa',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          fontSize: 11,
+                          fontWeight: 700,
                         }}
                       >
-                        <span
-                          style={{
-                            width: 18,
-                            height: 18,
-                            minWidth: 18,
-                            borderRadius: 9,
-                            background: activeCurrency.color,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#fff',
-                            fontSize: 10,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {activeCurrency.badge}
-                        </span>
-                        <select
-                          value={currency}
-                          onChange={(e) => setCurrency(e.target.value)}
-                          aria-label="Currency"
-                          style={
-                            {
-                              flex: 1,
-                              minWidth: 0,
-                              appearance: 'none',
-                              border: 0,
-                              background: 'transparent',
-                              fontSize: 12.5,
-                              fontWeight: 600,
-                              color: ink,
-                              fontFamily: 'inherit',
-                              cursor: 'pointer',
-                              paddingRight: 14,
-                              outline: 'none',
-                            } as CSSProperties
-                          }
-                        >
-                          {CURRENCY_OPTIONS.map((c) => (
-                            <option key={c.code} value={c.code}>
-                              {c.label}
-                            </option>
-                          ))}
-                        </select>
-                        <span
-                          style={{
-                            position: 'absolute',
-                            right: 10,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            pointerEvents: 'none',
-                            color: muted,
-                            fontSize: 9,
-                          }}
-                        >
-                          ▾
-                        </span>
-                      </div>
+                        {activePayoutToken.badge}
+                      </span>
+                      <select
+                        value={payoutToken}
+                        onChange={(e) => setPayoutToken(e.target.value)}
+                        aria-label="Payout token"
+                        style={
+                          {
+                            flex: 1,
+                            minWidth: 0,
+                            appearance: 'none',
+                            border: 0,
+                            background: 'transparent',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: ink,
+                            fontFamily: 'inherit',
+                            cursor: 'pointer',
+                            paddingRight: 16,
+                            outline: 'none',
+                          } as CSSProperties
+                        }
+                      >
+                        {PAYOUT_TOKEN_OPTIONS.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          right: 12,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                          color: muted,
+                          fontSize: 10,
+                        }}
+                      >
+                        ▾
+                      </span>
                     </div>
                   </Field>
 

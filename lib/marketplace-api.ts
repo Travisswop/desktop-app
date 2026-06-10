@@ -24,6 +24,8 @@ export type MarketplaceProduct = {
     amount?: number;
     currency?: string;
   };
+  /** Token the merchant is paid out in. Price is always USD. */
+  payoutToken?: string;
   inventory?: {
     track?: boolean;
     available?: number | null;
