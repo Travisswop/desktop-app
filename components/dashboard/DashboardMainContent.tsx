@@ -323,12 +323,9 @@ export default function DashboardMainContent() {
         orders: dashboardData.orders,
         summary: dashboardData.summary,
         loading: dashboardLoading,
-        profileStats: {
-          followers: profile.followers,
-          following: profile.following,
-        },
+        leadsCount: user?.subscribers?.length ?? 0,
       }),
-    [dashboardData, dashboardLoading, profile.followers, profile.following],
+    [dashboardData, dashboardLoading, user?.subscribers?.length],
   );
 
   const handleCopy = useCallback(async (value: string) => {
@@ -1856,11 +1853,11 @@ function buildModuleTiles({
   loading,
   orders,
   products,
-  profileStats,
+  leadsCount,
   summary,
 }: DashboardData & {
   loading: boolean;
-  profileStats: { followers: number; following: number };
+  leadsCount: number;
 }): Tile[] {
   const live = products.filter((product) => product.status === "live").length;
   const draft = products.filter((product) => product.status === "draft").length;
@@ -1911,9 +1908,9 @@ function buildModuleTiles({
     },
     {
       label: "Leads",
-      value: loadingValue ?? formatCount(profileStats.followers),
-      sub: "followers",
-      href: "/dashboard/analytics",
+      value: formatCount(leadsCount),
+      sub: leadsCount === 1 ? "subscriber" : "subscribers",
+      href: "/dashboard/leads",
       swatch: "#F4E1E1",
       icon: Users,
     },
