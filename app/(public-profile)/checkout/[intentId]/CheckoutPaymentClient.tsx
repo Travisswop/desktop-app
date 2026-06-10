@@ -56,7 +56,10 @@ import {
   SOLANA_USDC_MINT,
 } from '@/lib/checkout-payment-amounts';
 import { copyTextToClipboard } from '@/lib/clipboard';
-import { getPhantomCheckoutUrl } from '@/lib/phantom-checkout';
+import {
+  getPhantomCheckoutUrl,
+  normalizeCheckoutUrl,
+} from '@/lib/phantom-checkout';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
@@ -83,6 +86,8 @@ type Stage =
   | 'failed';
 
 type RailFilter = 'all' | 'solana' | 'evm';
+
+type ScanMethod = 'swop' | 'phantom';
 
 type LifiTransactionRequest = {
   to: string;
@@ -258,6 +263,7 @@ export default function CheckoutPaymentClient({
   const [search, setSearch] = useState('');
   const [railFilter, setRailFilter] = useState<RailFilter>('all');
   const [stage, setStage] = useState<Stage>('loading');
+  const [scanMethod, setScanMethod] = useState<ScanMethod>('swop');
   const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
   const [creatingWallet, setCreatingWallet] = useState(false);
@@ -316,7 +322,14 @@ export default function CheckoutPaymentClient({
         return true;
       })
       .filter((token) => Number(token.balance || 0) > 0)
-      .filter((token) => Number(token.marketData?.price || 0) > 0)
+      .filter(
+        (token) =>
+          // Solana tokens are sized by a live Jupiter ExactOut quote, so a
+          // market price feed is not required to pay with them. EVM tokens
+          // still need a price to size the LiFi input amount.
+          token.chain === 'SOLANA' ||
+          Number(token.marketData?.price || 0) > 0
+      )
       .filter((token) => {
         if (!lowerSearch) return true;
         return (
@@ -359,6 +372,17 @@ export default function CheckoutPaymentClient({
       }),
     [intent?.checkoutUrl, intent?.intentId, intentId]
   );
+  const webCheckoutUrl = useMemo(
+    () =>
+      normalizeCheckoutUrl(intent?.checkoutUrl, intent?.intentId || intentId),
+    [intent?.checkoutUrl, intent?.intentId, intentId]
+  );
+  const scanQrValue = useMemo(() => {
+    if (scanMethod === 'phantom') {
+      return phantomCheckoutUrl || intent?.paymentRequest?.url || '';
+    }
+    return webCheckoutUrl || intent?.paymentRequest?.url || '';
+  }, [intent?.paymentRequest?.url, phantomCheckoutUrl, scanMethod, webCheckoutUrl]);
   const marketplaceOrderId = intent?.marketplaceOrder?.orderId || '';
 
   const hasSufficientBalance = useMemo(() => {
@@ -532,6 +556,21 @@ export default function CheckoutPaymentClient({
   const handleOpenPhantom = () => {
     if (!phantomCheckoutUrl) return;
     window.location.href = phantomCheckoutUrl;
+  };
+
+  const copyScanLink = async () => {
+    if (!scanQrValue) return;
+    const copiedToClipboard = await copyTextToClipboard(scanQrValue);
+    if (copiedToClipboard) {
+      setCopyFallback('');
+      toast.success(
+        scanMethod === 'phantom' ? 'Phantom link copied' : 'Swop link copied'
+      );
+      return;
+    }
+
+    setCopyFallback(scanQrValue);
+    toast('Link selected. Press Cmd+C to copy.');
   };
 
   const copySolanaPayUri = async () => {
@@ -873,7 +912,7 @@ export default function CheckoutPaymentClient({
             <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-center">
               <div className="mx-auto rounded-lg border border-[#dfe4eb] bg-white p-3 shadow-sm">
                 <QRCodeSVG
-                  value={phantomCheckoutUrl || intent.paymentRequest.url}
+                  value={scanQrValue || intent.paymentRequest.url}
                   size={240}
                   bgColor="#ffffff"
                   fgColor="#101114"
@@ -881,16 +920,46 @@ export default function CheckoutPaymentClient({
                 />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
-                  Phantom checkout
-                </p>
-                <h2 className="mt-2 text-xl font-semibold">
-                  Pay with Phantom
-                </h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+                      Scan to pay
+                    </p>
+                    <h2 className="mt-2 text-xl font-semibold">
+                      {scanMethod === 'phantom'
+                        ? 'Pay with Phantom'
+                        : 'Pay with Swop wallet'}
+                    </h2>
+                  </div>
+                  <div className="inline-flex rounded-md border border-[#dde1e6] bg-[#fafafa] p-1">
+                    <button
+                      type="button"
+                      onClick={() => setScanMethod('swop')}
+                      className={`h-8 rounded px-3 text-xs font-semibold transition ${
+                        scanMethod === 'swop'
+                          ? 'bg-white text-[#101114] shadow-sm'
+                          : 'text-[#737b8c]'
+                      }`}
+                    >
+                      Swop wallet
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScanMethod('phantom')}
+                      className={`h-8 rounded px-3 text-xs font-semibold transition ${
+                        scanMethod === 'phantom'
+                          ? 'bg-white text-[#5f4acb] shadow-sm'
+                          : 'text-[#737b8c]'
+                      }`}
+                    >
+                      Phantom
+                    </button>
+                  </div>
+                </div>
                 <p className="mt-2 text-sm leading-6 text-[#646b78]">
-                  Scan or open the provider link, then approve the payment from
-                  Phantom. The unique checkout reference lets Swop reconcile the
-                  exact payment.
+                  {scanMethod === 'phantom'
+                    ? 'Scan or open the link to launch the Phantom browser, connect the wallet, and approve the requested amount.'
+                    : 'Scan the QR to open this pay request, then pay with your Swop wallet. The unique checkout reference lets Swop reconcile the exact payment.'}
                 </p>
                 <div className="mt-4 rounded-md border border-[#edf0f3] bg-[#fbfcfd] p-3 text-xs">
                   <div className="flex items-center justify-between gap-3">
@@ -906,22 +975,41 @@ export default function CheckoutPaymentClient({
                   </p>
                 </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {scanMethod === 'phantom' ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenPhantom}
+                      disabled={!phantomCheckoutUrl}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#5f4acb] px-3 text-sm font-semibold text-white transition hover:bg-[#523db8] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <PhantomMark className="h-5 w-5" />
+                      Open Phantom
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleOpenSwopApp}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#101114] px-3 text-sm font-semibold text-white transition hover:bg-[#24262b]"
+                    >
+                      <Smartphone className="h-4 w-4" />
+                      Open Swop app
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={handleOpenPhantom}
-                    disabled={!phantomCheckoutUrl}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#5f4acb] px-3 text-sm font-semibold text-white transition hover:bg-[#523db8] disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={copyScanLink}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 text-sm font-semibold text-[#303642] transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa]"
                   >
-                    <PhantomMark className="h-5 w-5" />
-                    Open Phantom
+                    <Copy className="h-4 w-4" />
+                    Copy link
                   </button>
                   <button
                     type="button"
                     onClick={copySolanaPayUri}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 text-sm font-semibold text-[#303642] transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa]"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 text-sm font-semibold text-[#303642] transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa] sm:col-span-2"
                   >
                     <Copy className="h-4 w-4" />
-                    {copiedPayUri ? 'Copied' : 'Copy payment URI'}
+                    {copiedPayUri ? 'Copied' : 'Copy Solana Pay URI'}
                   </button>
                 </div>
               </div>
@@ -1260,8 +1348,9 @@ export default function CheckoutPaymentClient({
                               {Number(token.balance || 0).toFixed(4)}
                             </p>
                             <p className="text-xs text-[#737b8c]">
-                              $
-                              {Number(token.marketData?.price || 0).toFixed(4)}
+                              {Number(token.marketData?.price || 0) > 0
+                                ? `$${Number(token.marketData?.price).toFixed(4)}`
+                                : 'Quoted at payment'}
                             </p>
                           </div>
                         </button>

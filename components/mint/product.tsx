@@ -49,6 +49,8 @@ import {
 } from '@/lib/chat/agentActionHandoff';
 import {
   createMarketplaceProduct,
+  getMarketplaceProduct,
+  updateMarketplaceProduct,
   uploadMarketplaceDigitalAsset,
   type MarketplaceDigitalAsset,
 } from '@/lib/marketplace-api';
@@ -57,6 +59,8 @@ interface ModelInfo {
   success: boolean;
   nftType: string;
   details?: string;
+  successTitle?: string;
+  errorTitle?: string;
 }
 
 interface VariantOption {
@@ -76,16 +80,33 @@ const formatFileSize = (bytes?: number) => {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const CreateProduct = () => {
+const PAYOUT_TOKEN_OPTIONS: {
+  code: string;
+  label: string;
+  badge: string;
+  color: string;
+}[] = [
+  { code: 'USDC', label: 'USDC', badge: '$', color: '#2775CA' },
+  { code: 'XAUT', label: 'Tether Gold (Solana)', badge: 'Au', color: '#C9A227' },
+  { code: 'ETH', label: 'Ethereum (ETH)', badge: 'Ξ', color: '#627EEA' },
+  { code: 'SOL', label: 'Solana (SOL)', badge: '◎', color: '#14F195' },
+];
+
+const CreateProduct = ({ productId }: { productId?: string } = {}) => {
   const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
   const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
 
+  const isEditMode = Boolean(productId);
+  const [loadingProduct, setLoadingProduct] = useState(isEditMode);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const [type, setType] = useState<'Physical' | 'Digital'>('Physical');
 
   const [shipping, setShipping] = useState<'Yes' | 'No'>('Yes');
+  const [shippingCost, setShippingCost] = useState('');
   const [agree, setAgree] = useState(false);
 
   const [name, setName] = useState('');
@@ -98,6 +119,7 @@ const CreateProduct = () => {
     null,
   ]);
   const [price, setPrice] = useState('');
+  const [payoutToken, setPayoutToken] = useState('USDC');
   const [quantity, setQuantity] = useState<string>('');
   const [variants, setVariants] = useState<Variant[]>([
     { name: '', options: [] },
@@ -138,6 +160,7 @@ const CreateProduct = () => {
   }, [ready, authenticated, wallets]);
 
   useEffect(() => {
+    if (isEditMode) return;
     const handoff = readAgentActionHandoff();
     const prefill = getMarketplaceProductPrefill(handoff);
     if (!prefill?.proposalId) return;
@@ -163,7 +186,77 @@ const CreateProduct = () => {
         },
       ]);
     }
-  }, []);
+  }, [isEditMode]);
+
+  // Edit mode: load the existing product and prefill every field.
+  useEffect(() => {
+    if (!productId || !accessToken) return;
+    let cancelled = false;
+    setLoadingProduct(true);
+    setLoadError(null);
+    getMarketplaceProduct(accessToken, productId)
+      .then((product) => {
+        if (cancelled) return;
+        setType(product.productType === 'digital' ? 'Digital' : 'Physical');
+        setName(product.title || '');
+        setDescription(product.description || '');
+        const primary = product.primaryImage || product.images?.[0]?.url || '';
+        setImage(primary);
+        const extras = (product.images || [])
+          .map((img) => img.url)
+          .filter((url): url is string => Boolean(url) && url !== primary);
+        setExtraImages([
+          extras[0] ?? null,
+          extras[1] ?? null,
+          extras[2] ?? null,
+          extras[3] ?? null,
+        ]);
+        setPrice(
+          product.price?.amount != null ? String(product.price.amount) : ''
+        );
+        if (product.payoutToken) {
+          setPayoutToken(String(product.payoutToken).toUpperCase());
+        }
+        const available = product.inventory?.available;
+        setQuantity(available != null ? String(available) : '');
+        if (product.variants?.length) {
+          setVariants(
+            product.variants.map((variant) => ({
+              name: variant.name || '',
+              options: (variant.options || []).map((option) => ({
+                name: option.name || '',
+                quantity:
+                  option.quantity != null ? String(option.quantity) : '',
+              })),
+            }))
+          );
+        }
+        const requiresShipping = product.fulfillment?.requiresShipping;
+        setShipping(requiresShipping ? 'Yes' : 'No');
+        if (product.fulfillment?.shippingCost != null) {
+          setShippingCost(String(product.fulfillment.shippingCost));
+        }
+        if (product.fulfillment?.digitalAsset) {
+          setDigitalAsset(product.fulfillment.digitalAsset);
+        }
+        if (product.fulfillment?.digitalDeliveryNote) {
+          setDigitalDeliveryNote(product.fulfillment.digitalDeliveryNote);
+        }
+        // Agreement was accepted at creation — don't re-gate edits on it.
+        setAgree(true);
+        setLoadingProduct(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(
+          err instanceof Error ? err.message : 'Failed to load this product.'
+        );
+        setLoadingProduct(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [productId, accessToken]);
 
   const processImage = async (
     file: File,
@@ -318,10 +411,6 @@ const CreateProduct = () => {
   const addVariantCategory = () =>
     setVariants((prev) => [...prev, { name: '', options: [] }]);
 
-  const variantOptionCount = useMemo(
-    () => variants.reduce((count, v) => count + v.options.length, 0),
-    [variants]
-  );
   const variantInventoryTotal = useMemo(
     () =>
       variants.reduce(
@@ -335,7 +424,17 @@ const CreateProduct = () => {
       ),
     [variants]
   );
-  const hasVariantInventory = variantOptionCount > 0;
+  // The main "Total Available" is driven by variant inventory only once the
+  // seller actually enters a quantity on an option. Simply naming an option no
+  // longer locks the field, so a plain product (with no per-option stock) can
+  // still type a total directly.
+  const hasVariantInventory = useMemo(
+    () =>
+      variants.some((v) =>
+        v.options.some((option) => option.quantity.trim() !== '')
+      ),
+    [variants]
+  );
   const normalizedVariants = useMemo(
     () =>
       variants
@@ -352,6 +451,10 @@ const CreateProduct = () => {
     [variants]
   );
 
+  const activePayoutToken =
+    PAYOUT_TOKEN_OPTIONS.find((c) => c.code === payoutToken) ??
+    PAYOUT_TOKEN_OPTIONS[0];
+
   const validate = () => {
     const errors: Record<string, string> = {};
     if (!name.trim()) errors.name = 'Name is required';
@@ -359,6 +462,13 @@ const CreateProduct = () => {
     if (!image) errors.image = 'Main image is required';
     if (!price.trim()) errors.price = 'Price is required';
     if (price && isNaN(Number(price))) errors.price = 'Price must be a number';
+    if (type === 'Physical' && shipping === 'Yes') {
+      if (!shippingCost.trim()) {
+        errors.shippingCost = 'Enter a shipping cost (use 0 for free shipping)';
+      } else if (isNaN(Number(shippingCost)) || Number(shippingCost) < 0) {
+        errors.shippingCost = 'Shipping cost must be 0 or a positive number';
+      }
+    }
     if (hasVariantInventory) {
       const invalidVariantQty = variants.some((variant) =>
         variant.options.some((option) => {
@@ -396,7 +506,7 @@ const CreateProduct = () => {
       return;
     }
 
-    if (!solanaAddress) {
+    if (!isEditMode && !solanaAddress) {
       setModelInfo({
         success: false,
         nftType: type.toLowerCase(),
@@ -413,7 +523,7 @@ const CreateProduct = () => {
       const inventoryAvailable = hasVariantInventory
         ? variantInventoryTotal
         : Number(quantity);
-      const product = await createMarketplaceProduct(accessToken, {
+      const payload = {
         productType,
         title: name,
         description,
@@ -424,8 +534,9 @@ const CreateProduct = () => {
         })),
         price: {
           amount: Number(price),
-          currency: 'USDC',
+          currency: 'USD',
         },
+        payoutToken,
         inventory: {
           track: true,
           available: inventoryAvailable,
@@ -434,6 +545,10 @@ const CreateProduct = () => {
         fulfillment: {
           requiresShipping: productType === 'physical' && shipping === 'Yes',
           trackingEnabled: productType === 'physical' && shipping === 'Yes',
+          shippingCost:
+            productType === 'physical' && shipping === 'Yes'
+              ? Number(shippingCost) || 0
+              : 0,
           digitalDeliveryNote:
             productType === 'digital'
               ? digitalDeliveryNote.trim() || description
@@ -448,7 +563,11 @@ const CreateProduct = () => {
             )
           )
           .filter(Boolean),
-      });
+      };
+      const product =
+        isEditMode && productId
+          ? await updateMarketplaceProduct(accessToken, productId, payload)
+          : await createMarketplaceProduct(accessToken, payload);
 
       let completion = null;
       if (agentProposalId) {
@@ -483,7 +602,11 @@ const CreateProduct = () => {
         }
       }
 
-      setModelInfo({ success: true, nftType: productType });
+      setModelInfo({
+        success: true,
+        nftType: productType,
+        successTitle: isEditMode ? 'Product updated' : undefined,
+      });
       onOpenChange();
       setTimeout(() => {
         if (completion?.groupId) {
@@ -499,6 +622,7 @@ const CreateProduct = () => {
       setModelInfo({
         success: false,
         nftType: type === 'Physical' ? 'physical' : 'digital',
+        errorTitle: isEditMode ? 'Failed to update product' : undefined,
         details:
           err instanceof Error
             ? err.message
@@ -510,7 +634,45 @@ const CreateProduct = () => {
     }
   };
 
-  if (!walletLoaded && ready) {
+  if (isEditMode && loadError) {
+    return (
+      <main className="main-container">
+        <div
+          style={{
+            background: '#f4f4f2',
+            minHeight: '100vh',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 40,
+          }}
+        >
+          <Card>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                alignItems: 'flex-start',
+                maxWidth: 360,
+              }}
+            >
+              <div
+                style={{ fontSize: 13, color: '#b91c1c', fontWeight: 600 }}
+              >
+                {loadError}
+              </div>
+              <Button variant="ghost" onClick={() => router.push('/products')}>
+                Back to products
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  if ((isEditMode && loadingProduct) || (!walletLoaded && ready)) {
     return (
       <main className="main-container">
         <div
@@ -534,7 +696,7 @@ const CreateProduct = () => {
               }}
             >
               <Loader2 size={16} className="animate-spin" />
-              Loading wallet connection...
+              {isEditMode ? 'Loading product…' : 'Loading wallet connection...'}
             </div>
           </Card>
         </div>
@@ -554,33 +716,40 @@ const CreateProduct = () => {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <ScreenShell
             onBack={() => router.push('/products')}
-            title="Create Item"
+            title={isEditMode ? 'Edit Item' : 'Create Item'}
             eyebrow="Products"
-            kicker="Item details · please select the type of item you're creating for the Swop marketplace"
+            kicker={
+              isEditMode
+                ? 'Update the details for this marketplace item and save your changes'
+                : "Item details · please select the type of item you're creating for the Swop marketplace"
+            }
             action={
               <div style={{ display: 'flex', gap: 8 }}>
                 <Button variant="ghost" onClick={() => router.push('/products')}>
                   Cancel
                 </Button>
-                <Button variant="ghost" disabled>
-                  Save draft
-                </Button>
+                {!isEditMode && (
+                  <Button variant="ghost" disabled>
+                    Save draft
+                  </Button>
+                )}
                 <Button
                   variant="primary"
                   disabled={
                     isSubmitting ||
                     imageUploading ||
                     digitalUploading ||
-                    !solanaAddress ||
-                    !agree
+                    (!isEditMode && (!solanaAddress || !agree))
                   }
                   onClick={handleSubmit}
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2 size={12} className="animate-spin" />
-                      Creating…
+                      {isEditMode ? 'Saving…' : 'Creating…'}
                     </>
+                  ) : isEditMode ? (
+                    'Save changes'
                   ) : (
                     'Create Item'
                   )}
@@ -588,7 +757,7 @@ const CreateProduct = () => {
               </div>
             }
           >
-            {ready && authenticated && !solanaAddress && (
+            {!isEditMode && ready && authenticated && !solanaAddress && (
               <div
                 style={{
                   display: 'flex',
@@ -624,12 +793,7 @@ const CreateProduct = () => {
                     title="Identity"
                     subtitle="Public details shown on the product page"
                   />
-                  <Field
-                    label="Item Name"
-                    required
-                    error={formErrors.name}
-                    help="Note: Your item name can't be changed after creation."
-                  >
+                  <Field label="Item Name" required error={formErrors.name}>
                     <TextInput
                       placeholder="All-Access pass"
                       value={name}
@@ -837,7 +1001,7 @@ const CreateProduct = () => {
                 <Card pad={20}>
                   <FormSection
                     title="Variants"
-                    subtitle="Add options and inventory per option. Total available is calculated automatically."
+                    subtitle="Add options and set a quantity per option. Total available updates automatically once you enter option quantities."
                   />
                   <div
                     style={{
@@ -1323,70 +1487,109 @@ const CreateProduct = () => {
                     label="Price"
                     required
                     error={formErrors.price}
-                    help="Currency can't be changed after creation."
+                    help="Priced in US dollars. Buyers can pay with any currency."
+                  >
+                    <div style={{ position: 'relative' }}>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          left: 14,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          fontSize: 13,
+                          color: muted,
+                          fontFamily: mono,
+                        }}
+                      >
+                        $
+                      </span>
+                      <TextInput
+                        placeholder="0"
+                        value={price}
+                        invalid={!!formErrors.price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        style={{
+                          paddingLeft: 26,
+                          fontFamily: mono,
+                        }}
+                      />
+                    </div>
+                  </Field>
+
+                  <Field
+                    label="Payout token"
+                    help="The token you receive when this item sells. The buyer is charged in US dollars and can pay with any currency."
                   >
                     <div
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 130px',
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: 8,
+                        padding: '0 12px',
+                        height: 42,
+                        border: `1px solid ${hair}`,
+                        borderRadius: 9,
+                        background: '#fff',
                       }}
                     >
-                      <div style={{ position: 'relative' }}>
-                        <span
-                          style={{
-                            position: 'absolute',
-                            left: 14,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            fontSize: 13,
-                            color: muted,
-                            fontFamily: mono,
-                          }}
-                        >
-                          $
-                        </span>
-                        <TextInput
-                          placeholder="0"
-                          value={price}
-                          invalid={!!formErrors.price}
-                          onChange={(e) => setPrice(e.target.value)}
-                          style={{
-                            paddingLeft: 26,
-                            fontFamily: mono,
-                          }}
-                        />
-                      </div>
-                      <div
+                      <span
                         style={{
+                          width: 20,
+                          height: 20,
+                          minWidth: 20,
+                          borderRadius: 10,
+                          background: activePayoutToken.color,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: 8,
-                          padding: '0 14px',
-                          border: `1px solid ${hair}`,
-                          borderRadius: 9,
-                          background: '#fafafa',
+                          color: '#fff',
+                          fontSize: 11,
+                          fontWeight: 700,
                         }}
                       >
-                        <span
-                          style={{
-                            width: 18,
-                            height: 18,
-                            borderRadius: 9,
-                            background: '#2775CA',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#fff',
-                            fontSize: 10,
-                            fontWeight: 700,
-                          }}
-                        >
-                          $
-                        </span>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>USDC</span>
-                      </div>
+                        {activePayoutToken.badge}
+                      </span>
+                      <select
+                        value={payoutToken}
+                        onChange={(e) => setPayoutToken(e.target.value)}
+                        aria-label="Payout token"
+                        style={
+                          {
+                            flex: 1,
+                            minWidth: 0,
+                            appearance: 'none',
+                            border: 0,
+                            background: 'transparent',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: ink,
+                            fontFamily: 'inherit',
+                            cursor: 'pointer',
+                            paddingRight: 16,
+                            outline: 'none',
+                          } as CSSProperties
+                        }
+                      >
+                        {PAYOUT_TOKEN_OPTIONS.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          right: 12,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                          color: muted,
+                          fontSize: 10,
+                        }}
+                      >
+                        ▾
+                      </span>
                     </div>
                   </Field>
 
@@ -1417,9 +1620,45 @@ const CreateProduct = () => {
                       </div>
                     </Field>
                   )}
+
+                  {type === 'Physical' && shipping === 'Yes' && (
+                    <Field
+                      label="Shipping cost"
+                      required
+                      error={formErrors.shippingCost}
+                      help="Charged to the buyer at checkout on top of the price. Enter 0 for free shipping."
+                    >
+                      <div style={{ position: 'relative' }}>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            left: 14,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontSize: 13,
+                            color: muted,
+                            fontFamily: mono,
+                          }}
+                        >
+                          $
+                        </span>
+                        <TextInput
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          placeholder="0"
+                          value={shippingCost}
+                          invalid={!!formErrors.shippingCost}
+                          onChange={(e) => setShippingCost(e.target.value)}
+                          style={{ paddingLeft: 26, fontFamily: mono }}
+                        />
+                      </div>
+                    </Field>
+                  )}
                 </Card>
 
                 {/* Agreement */}
+                {!isEditMode && (
                 <div
                   style={{
                     display: 'flex',
@@ -1478,6 +1717,7 @@ const CreateProduct = () => {
                     .
                   </div>
                 </div>
+                )}
               </div>
             </div>
           </ScreenShell>

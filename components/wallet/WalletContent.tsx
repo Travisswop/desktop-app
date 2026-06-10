@@ -82,6 +82,9 @@ import {
 import { useHyperliquidBalanceCheck } from './perps/hooks/useHyperliquidBalanceCheck';
 import SwapTokenModal from './SwapTokenModal';
 
+// DeFi (Aave lending markets)
+import { DefiSection } from './defi';
+
 // Predictions (Polymarket)
 import WalletPredictionsSection from './WalletPredictionsSection';
 import BlinksSection from './BlinksSection';
@@ -798,9 +801,11 @@ const WalletContentInner = () => {
     useWalletAddresses(walletData);
   // Hyperliquid agent — lives here so the ExchangeClient persists across
   // PerpsPanel open/close cycles and never triggers repeated sign messages.
-  const hlAgent = useHyperliquidAgent({
-    preferredMasterAddress: evmWalletAddress || undefined,
-  });
+  // NOTE: the hook resolves its own *signable* master wallet from Privy (the
+  // stored EVM address or the embedded wallet) — it deliberately does not take
+  // a master address from here, since the UI-selected display address isn't
+  // guaranteed to be a Privy wallet that can sign approveAgent.
+  const hlAgent = useHyperliquidAgent();
   const portfolioEvmWalletInput = useMemo(
     () =>
       getPortfolioEvmWalletInput(
@@ -1927,6 +1932,27 @@ const WalletContentInner = () => {
             tokens={tokens}
             accessToken={accessToken}
             onTokenRefresh={refetchTokens}
+            solWalletAddress={solWalletAddress}
+            evmWalletAddress={evmWalletAddress}
+            chains={SUPPORTED_CHAINS}
+          />
+        </section>
+
+        {/* ───────── DEFI (AAVE) ───────── */}
+        <section className="mt-8">
+          <SectionHead
+            title="DeFi"
+            caption="Earn interest and borrow against your tokens"
+            action={
+              <span className="text-[13px] text-gray-500">
+                Powered by{' '}
+                <span className="font-semibold text-[#7C7CF5]">Aave</span>
+              </span>
+            }
+          />
+          <DefiSection
+            accessToken={accessToken}
+            evmWalletAddress={evmWalletAddress ?? null}
           />
         </section>
 
@@ -2059,10 +2085,12 @@ const WalletContentInner = () => {
         {perpsPanelOpen && (
           <PerpsPanel
             agentClient={hlAgent.agentClient}
+            masterClient={hlAgent.masterClient}
             masterAddress={perpsMasterAddress}
             isInitialized={hlAgent.isInitialized}
             isInitializing={hlAgent.isInitializing}
             isReconnecting={hlAgent.isReconnecting}
+            isHydrating={hlAgent.isHydrating}
             agentError={hlAgent.error}
             initializeAgent={hlAgent.initializeAgent}
             initialCoin={perpsInitialCoin}

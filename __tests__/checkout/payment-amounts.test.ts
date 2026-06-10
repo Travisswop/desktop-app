@@ -94,6 +94,48 @@ describe('checkout payment amounts', () => {
     expect(amount).toBe('0.100500');
   });
 
+  it('keeps Solana USDC payments exact even without a market price feed', () => {
+    const amount = calculateCheckoutTokenAmount(
+      baseIntent,
+      token({
+        name: 'USD Coin',
+        symbol: 'USDC',
+        decimals: 6,
+        address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        marketData: null,
+      })
+    );
+
+    expect(amount).toBe('0.100500');
+  });
+
+  it('does not skew Solana USDC payments by a depegged price feed', () => {
+    const amount = calculateCheckoutTokenAmount(
+      baseIntent,
+      token({
+        name: 'USD Coin',
+        symbol: 'USDC',
+        decimals: 6,
+        address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        marketData: {
+          price: '0.9998',
+        },
+      })
+    );
+
+    expect(amount).toBe('0.100500');
+  });
+
+  it('returns no price-based estimate for unpriced non-USDC tokens', () => {
+    // These tokens are sized by a live Jupiter ExactOut quote instead.
+    const amount = calculateCheckoutTokenAmount(
+      baseIntent,
+      token({ marketData: null })
+    );
+
+    expect(amount).toBe('');
+  });
+
   it('targets enough USDC output before slippage for Jupiter ExactOut quotes', () => {
     expect(getProtectedCheckoutOutputRawAmount(baseIntent)).toBe('101006');
   });

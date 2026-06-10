@@ -10,6 +10,9 @@ interface WalletSwapSectionProps {
   tokens: any[];
   accessToken: string;
   onTokenRefresh?: () => void;
+  solWalletAddress?: string;
+  evmWalletAddress?: string;
+  chains?: any[];
 }
 
 type SwapTab = 'market' | 'limit';
@@ -17,6 +20,9 @@ type SwapTab = 'market' | 'limit';
 export default function WalletSwapSection({
   tokens,
   onTokenRefresh,
+  solWalletAddress,
+  evmWalletAddress,
+  chains,
 }: WalletSwapSectionProps) {
   const [tab, setTab] = useState<SwapTab>('market');
   const [ordersReloadKey, setOrdersReloadKey] = useState(0);
@@ -25,7 +31,7 @@ export default function WalletSwapSection({
 
   return (
     <SolanaProvider>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
         {/* ── Swap card (Market / Limit) ── */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-4">
           <div className="flex items-center gap-4 border-b border-black/[0.06] mb-4">
@@ -68,6 +74,9 @@ export default function WalletSwapSection({
             tokens={tokens}
             reloadKey={ordersReloadKey}
             onChanged={onTokenRefresh}
+            solWalletAddress={solWalletAddress}
+            evmWalletAddress={evmWalletAddress}
+            chains={chains}
           />
         </div>
       </div>

@@ -26,6 +26,8 @@ export type MarketplaceProduct = {
     amount?: number;
     currency?: string;
   };
+  /** Token the merchant is paid out in. Price is always USD. */
+  payoutToken?: string;
   inventory?: {
     track?: boolean;
     available?: number | null;
@@ -35,6 +37,7 @@ export type MarketplaceProduct = {
   variants?: MarketplaceProductVariant[];
   fulfillment?: {
     requiresShipping?: boolean;
+    shippingCost?: number;
     digitalDeliveryNote?: string;
     digitalAsset?: MarketplaceDigitalAsset;
     inPersonInstructions?: string;
@@ -299,6 +302,20 @@ export async function listMarketplaceProducts(
     cache: 'no-store',
   });
   return parseMarketplaceResponse<ListMarketplaceProductsResponse>(response);
+}
+
+export async function getMarketplaceProduct(
+  accessToken: string,
+  productId: string
+) {
+  const response = await fetch(
+    marketplaceUrl(`/products/${encodeURIComponent(productId)}`),
+    {
+      headers: authHeaders(accessToken),
+      cache: 'no-store',
+    }
+  );
+  return parseMarketplaceResponse<MarketplaceProduct>(response);
 }
 
 export async function listPublicMarketplaceProducts(

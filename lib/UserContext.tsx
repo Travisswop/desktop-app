@@ -419,11 +419,20 @@ export function UserProvider({
         }
 
         const data = await response.json();
-        const { user: userData, token } = data;
+        const { user: rawUserData, token } = data;
 
-        if (!userData || !token) {
+        if (!rawUserData || !token) {
           throw new Error('Invalid response structure');
         }
+
+        // The backend returns SmartSite leads under `subscriber` (singular),
+        // while the app consumes them as `subscribers` (plural). Normalize
+        // here so every consumer (dashboard, analytics) reads one field.
+        const userData: UserData = {
+          ...rawUserData,
+          subscribers:
+            rawUserData.subscribers ?? rawUserData.subscriber ?? [],
+        };
 
         setUser(userData);
         setAccessToken(token);

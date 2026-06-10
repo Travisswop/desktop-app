@@ -2087,11 +2087,10 @@ function OrderTicket(p: OrderTicketProps) {
                     marginTop: 4,
                   }}
                 >
-                  {quote.missing
-                    ? p.side === 'BUY'
-                      ? 'No ask'
-                      : 'No bid'
-                    : `${cents}¢`}
+                  {/* Even when there's no live ask/bid, fall back to the
+                      share price (cents from option.base) rather than
+                      showing "No ask"/"No bid". */}
+                  {`${cents}¢`}
                 </div>
               </button>
             );

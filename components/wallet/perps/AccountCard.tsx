@@ -4,7 +4,10 @@ import { ArrowDownToLine, Zap } from 'lucide-react';
 
 interface AccountCardProps {
   accountValue: string;
+  /** Free collateral, usable now for any market (pooled in the main account). */
   available: string;
+  /** Margin currently locked backing open positions (across all DEXs). */
+  inPositions?: string;
   unrealizedPnl: string;
   isInitialized: boolean;
   isReconnecting: boolean;
@@ -20,6 +23,7 @@ interface AccountCardProps {
 export function AccountCard({
   accountValue,
   available,
+  inPositions,
   unrealizedPnl,
   isInitialized,
   isReconnecting,
@@ -28,8 +32,11 @@ export function AccountCard({
 }: AccountCardProps) {
   const acct = parseFloat(accountValue) || 0;
   const avail = parseFloat(available) || 0;
+  const locked = parseFloat(inPositions ?? '0') || 0;
   const pnl = parseFloat(unrealizedPnl) || 0;
   const pnlUp = pnl >= 0;
+  const fmt = (n: number) =>
+    `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="bg-white border border-black/[0.06] rounded-[18px] p-4 shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)]">
@@ -62,11 +69,9 @@ export function AccountCard({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mt-4 pt-3.5 border-t border-black/[0.04]">
-        <Metric
-          label="Available"
-          value={`$${avail.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-        />
+      <div className="grid grid-cols-3 gap-3 mt-4 pt-3.5 border-t border-black/[0.04]">
+        <Metric label="Available" value={fmt(avail)} hint="usable now" />
+        <Metric label="In positions" value={fmt(locked)} hint="locked margin" />
         <Metric
           label="Unrealized PnL"
           value={`${pnlUp ? '+' : '-'}$${Math.abs(pnl).toFixed(2)}`}
@@ -117,10 +122,12 @@ function Metric({
   label,
   value,
   valueColor = 'text-gray-900',
+  hint,
 }: {
   label: string;
   value: string;
   valueColor?: string;
+  hint?: string;
 }) {
   return (
     <div>
@@ -132,6 +139,9 @@ function Metric({
       >
         {value}
       </div>
+      {hint && (
+        <div className="text-[9px] text-gray-400 font-mono mt-0.5">{hint}</div>
+      )}
     </div>
   );
 }

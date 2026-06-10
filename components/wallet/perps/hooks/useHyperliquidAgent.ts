@@ -141,6 +141,12 @@ export function useHyperliquidAgent({
     error: null,
   });
 
+  // True until the silent rehydrate effect has had a real chance to restore a
+  // persisted agent key (i.e. Privy + the wallet list are ready). The setup
+  // modal must stay hidden while this is true — otherwise it flashes open on
+  // every page load / redeploy before the saved agent has been rehydrated.
+  const [isHydrating, setIsHydrating] = useState(true);
+
   const agentClientRef = useRef<hl.ExchangeClient | null>(null);
   const masterClientRef = useRef<hl.ExchangeClient | null>(null);
   const wasInitializedRef = useRef(false);
@@ -305,7 +311,11 @@ export function useHyperliquidAgent({
   // ─── Disconnect / reconnect detection ─────────────────────────────────────
 
   useEffect(() => {
-    if (!enabled || !walletsReady) return;
+    if (!enabled) return;
+    // Keep isHydrating true (setup modal suppressed) until Privy AND the wallet
+    // list are ready — only then have we genuinely had a chance to rehydrate a
+    // saved agent key from localStorage.
+    if (!ready || !walletsReady) return;
 
     const selectedMasterWallet = selectPreferredWallet(
       wallets,
@@ -348,8 +358,15 @@ export function useHyperliquidAgent({
     ) {
       _init(true);
     }
+
+    // We've now had a real chance to rehydrate. This runs in the same React
+    // batch as the isReconnecting=true that _init(true) sets synchronously, so
+    // the setup modal never flashes in the gap between "ready" and the silent
+    // (re)connect kicking in.
+    setIsHydrating(false);
   }, [
     enabled,
+    ready,
     wallets,
     walletsReady,
     requestedMasterAddress,
@@ -366,6 +383,9 @@ export function useHyperliquidAgent({
       agentClientRef.current = null;
       masterClientRef.current = null;
       wasInitializedRef.current = false;
+      // Re-arm hydration so a subsequent login waits for rehydrate again
+      // instead of immediately showing the setup modal.
+      setIsHydrating(true);
       setState({
         agentClient: null,
         masterClient: null,
@@ -422,5 +442,5 @@ export function useHyperliquidAgent({
     useEmbeddedWalletProvider,
   ]);
 
-  return { ...state, initializeAgent, resetAgent };
+  return { ...state, isHydrating, initializeAgent, resetAgent };
 }

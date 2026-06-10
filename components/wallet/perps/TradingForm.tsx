@@ -44,6 +44,15 @@ interface TradingFormProps {
   onAgentActionComplete?: (completion: AgentActionCompletion) => void;
   agentOrderPrefill?: HyperliquidAgentOrderPrefill | null;
   masterAddress?: string | null;
+  /** Builder-DEX (HIP-3) context. Null for main-DEX markets. When set, the
+   *  market settles on a separate collateral account and may need funding. */
+  dexName?: string | null;
+  /** Withdrawable balance in the MAIN perp account (source for DEX funding). */
+  mainAvailableMargin?: string;
+  /** Move `amountUsd` from the main perp account into the selected builder DEX. */
+  onTransferToDex?: (amountUsd: number) => Promise<void>;
+  isTransferringToDex?: boolean;
+  transferToDexError?: string | null;
 }
 
 /**
@@ -70,6 +79,11 @@ export function TradingForm({
   onAgentActionComplete,
   agentOrderPrefill,
   masterAddress,
+  dexName,
+  mainAvailableMargin,
+  onTransferToDex,
+  isTransferringToDex,
+  transferToDexError,
 }: TradingFormProps) {
   const { accessToken, user, primaryMicrosite } = useUser();
   const [side, setSide] = useState<OrderSide>('long');
@@ -121,9 +135,24 @@ export function TradingForm({
   const isBelowMinimum = sizeUsdNum > 0 && sizeUsdNum < minOrderUsd;
   const marginRequired =
     sizeUsdNum > 0 ? sizeUsdNum / Math.max(1, safeLeverage) : 0;
+
+  // ── Builder-DEX (HIP-3): one perps wallet, trade anything ───────────────────
+  // Builder markets (e.g. SPCX) settle on a DEX-specific collateral account.
+  // The user only manages ONE perps balance — when they trade a builder asset
+  // the app silently moves the needed margin from the main perp account into
+  // that DEX at order time (see handleConfirmedSubmit). So affordability is
+  // judged against the main + DEX balances combined.
+  const isBuilderMarket = Boolean(dexName);
+  const mainAvailNum = parseFloat(mainAvailableMargin ?? '0') || 0;
+  const effectiveAvailableMargin = isBuilderMarket
+    ? availableMarginNum + mainAvailNum
+    : availableMarginNum;
   const hasInsufficientMargin =
-    sizeUsdNum > 0 && marginRequired > availableMarginNum;
-  const marginShortfall = Math.max(0, marginRequired - availableMarginNum);
+    sizeUsdNum > 0 && marginRequired > effectiveAvailableMargin;
+  const marginShortfall = Math.max(
+    0,
+    marginRequired - effectiveAvailableMargin,
+  );
 
   useEffect(() => {
     if (!agentOrderPrefill) {
@@ -187,11 +216,17 @@ export function TradingForm({
 
   const setPercent = useCallback(
     (pct: number) => {
-      const usd = (accountNum * pct * safeLeverage) / 100;
+      // Builder markets size off the combined main + DEX balance — the DEX is
+      // funded automatically at order time, so the selected DEX starting at $0
+      // must not zero out the quick-% buttons.
+      const base = isBuilderMarket
+        ? mainAvailNum + availableMarginNum
+        : accountNum;
+      const usd = (base * pct * safeLeverage) / 100;
       setSize(usd.toFixed(2));
       setActivePercent(pct);
     },
-    [accountNum, safeLeverage],
+    [accountNum, safeLeverage, isBuilderMarket, mainAvailNum, availableMarginNum],
   );
 
   const estLiqPrice = useMemo(() => {
@@ -264,6 +299,21 @@ export function TradingForm({
     if (!sizeNum || sizeNum <= 0) return;
 
     try {
+      // One perps wallet, trade anything: builder-DEX (HIP-3) markets keep
+      // collateral in a DEX-specific account. If the selected DEX can't cover
+      // this order, silently move the shortfall from the main perp account
+      // before placing — the user never deals with per-DEX balances.
+      if (isBuilderMarket && onTransferToDex && marginRequired > 0) {
+        const targetMargin = marginRequired * 1.05; // headroom for fees/slippage
+        if (availableMarginNum < targetMargin) {
+          const shortfall = targetMargin - availableMarginNum;
+          const toMove = Math.min(shortfall, mainAvailNum);
+          if (toMove > 0.000001) {
+            await onTransferToDex(Number(toMove.toFixed(6)));
+          }
+        }
+      }
+
       let orderResult: unknown = null;
       if (mode === 'market') {
         orderResult = await onPlaceMarket(market.index, isBuy, sizeInCoins, markPrice);
@@ -453,6 +503,8 @@ export function TradingForm({
     pendingOrder?.entryPrice, pendingOrder?.marginRequired, pendingOrder?.sizeUsd,
     side, accessToken, user?._id, user?.primaryMicrosite, primaryMicrosite,
     masterAddress, existingPosition, estLiqPrice,
+    isBuilderMarket, onTransferToDex, marginRequired, availableMarginNum,
+    mainAvailNum,
   ]);
 
   const cancelConfirm = useCallback(() => {
@@ -635,7 +687,7 @@ export function TradingForm({
             <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
             <span>
               Add funds first. This order needs about ${marginRequired.toFixed(2)} margin;
-              available margin is ${availableMarginNum.toFixed(2)}
+              available is ${effectiveAvailableMargin.toFixed(2)}
               {marginShortfall > 0 ? ` (${marginShortfall.toFixed(2)} short).` : '.'}
             </span>
           </div>
@@ -753,10 +805,10 @@ export function TradingForm({
         </div>
       )}
 
-      {error && (
+      {(error || transferToDexError) && (
         <div className="mt-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-[11px] text-red-600">
           <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
-          <span>{error}</span>
+          <span>{error || transferToDexError}</span>
         </div>
       )}
 
@@ -767,7 +819,12 @@ export function TradingForm({
         className={`mt-3.5 w-full py-3.5 rounded-2xl text-[14.5px] font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${sideStyles.btn}`}
         style={{ boxShadow: submitDisabled ? undefined : sideStyles.shadow }}
       >
-        {isSubmitting ? (
+        {isTransferringToDex ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Funding wallet…
+          </>
+        ) : isSubmitting ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
             Placing order…
@@ -782,7 +839,7 @@ export function TradingForm({
       <OrderConfirmModal
         isOpen={!!pendingOrder}
         details={pendingOrder}
-        isSubmitting={isSubmitting}
+        isSubmitting={isSubmitting || !!isTransferringToDex}
         onConfirm={handleConfirmedSubmit}
         onClose={cancelConfirm}
       />

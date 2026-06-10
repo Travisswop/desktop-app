@@ -8,7 +8,8 @@ import {
   TrendingUp,
   Zap,
 } from 'lucide-react';
-import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
+import { useHyperliquidMarkets } from './hooks/useHyperliquidMarkets';
+import { useHyperliquidPortfolio } from './hooks/useHyperliquidPortfolio';
 import { useAllMids } from './hooks/useHyperliquidWebSocket';
 import {
   formatPrice,
@@ -113,12 +114,21 @@ export function PerpsCard({
   onBridgeToArbitrum,
   onDepositSubmitted,
 }: PerpsCardProps) {
-  const { data, isLoading } = useHyperliquidPositions(
+  // Aggregate across the main DEX + every builder (HIP-3) DEX so this summary
+  // reflects ALL positions and the combined balance — one perps wallet.
+  const { data: markets = [] } = useHyperliquidMarkets();
+  const builderDexes = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of markets) {
+      const d = (m as { dex?: string }).dex?.trim();
+      if (d) set.add(d);
+    }
+    return Array.from(set);
+  }, [markets]);
+  const { data, isLoading } = useHyperliquidPortfolio(
     masterAddress ?? null,
-    {
-      refetchInterval: 30_000,
-      staleTime: 15_000,
-    },
+    builderDexes,
+    { refetchInterval: 30_000 },
   );
   const { mids } = useAllMids(!!masterAddress);
 
@@ -141,10 +151,12 @@ export function PerpsCard({
 
   // Use the primary position's leverage for the buying-power label, default
   // to a conservative 5× when no position is open so the line still has
-  // something meaningful to say.
+  // something meaningful to say. Buying power is based on FREE collateral
+  // (withdrawable) — not total account value, which includes margin already
+  // locked in open positions.
   const accountLeverage = primaryPosition?.leverage.value ?? 5;
   const accountLeverageType = primaryPosition?.leverage.type ?? 'cross';
-  const buyingPower = accountValue * accountLeverage;
+  const buyingPower = withdrawable * accountLeverage;
 
   const hasDanger = positions.some(
     (p) => getLiquidationRisk(p) === 'danger',

@@ -11,7 +11,9 @@ import {
   useMarketByCoins,
 } from './hooks/useHyperliquidMarkets';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
+import { useHyperliquidPortfolio } from './hooks/useHyperliquidPortfolio';
 import { useHyperliquidTrading } from './hooks/useHyperliquidTrading';
+import { useHyperliquidDexTransfer } from './hooks/useHyperliquidDexTransfer';
 import {
   useAllMids,
   useUserFills,
@@ -46,10 +48,13 @@ import {
 
 interface PerpsPanelProps {
   agentClient: hl.ExchangeClient | null;
+  masterClient: hl.ExchangeClient | null;
   masterAddress: string | null;
   isInitialized: boolean;
   isInitializing: boolean;
   isReconnecting: boolean;
+  /** True until the agent hook has had a chance to rehydrate a saved key. */
+  isHydrating: boolean;
   agentError: string | null;
   initializeAgent: () => Promise<hl.ExchangeClient | null>;
   onClose: () => void;
@@ -119,10 +124,12 @@ function fillKeyFor(f: PerpsFill) {
  */
 export function PerpsPanel({
   agentClient,
+  masterClient,
   masterAddress,
   isInitialized,
   isInitializing,
   isReconnecting,
+  isHydrating,
   agentError,
   initializeAgent,
   onClose,
@@ -225,14 +232,18 @@ export function PerpsPanel({
     }
   }, [depositStatus, isInitialized, isInitializing, isReconnecting]);
 
-  // Show setup only after silent rehydrate has had a chance to restore a saved agent.
+  // Show setup only after silent rehydrate has had a chance to restore a saved
+  // agent. isHydrating stays true until the hook has actually attempted that, so
+  // the modal no longer flashes open on every page load / redeploy before the
+  // persisted agent key has been picked up.
   useEffect(() => {
     if (isInitialized) {
       setShowAgentModal(false);
       return;
     }
-    if (!isInitializing && !isReconnecting) setShowAgentModal(true);
-  }, [isInitialized, isInitializing, isReconnecting]);
+    if (!isInitializing && !isReconnecting && !isHydrating)
+      setShowAgentModal(true);
+  }, [isInitialized, isInitializing, isReconnecting, isHydrating]);
 
   const handleOpenDepositFromAgentModal = useCallback(() => {
     setShowAgentModal(false);
@@ -416,7 +427,53 @@ export function PerpsPanel({
     ? (mids[selectedCoin] ?? selectedMarket?.markPrice ?? '0')
     : '0';
 
-  const existingPosition = accountData?.positions.find(
+  // Builder-deployed (HIP-3) perps keep their collateral in a DEX-specific
+  // account, separate from the main USDC perp account. To present ONE perps
+  // wallet, aggregate positions + balances across the main DEX and every
+  // builder DEX. `perDex` exposes each DEX's own balance for the trade ticket.
+  const selectedDex = selectedMarket?.dex?.trim() || '';
+  const builderDexes = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of markets) {
+      const d = (m as { dex?: string }).dex?.trim();
+      if (d) set.add(d);
+    }
+    return Array.from(set);
+  }, [markets]);
+
+  const { data: portfolio, refetch: refetchPortfolio } =
+    useHyperliquidPortfolio(effectiveMaster, builderDexes, {
+      enabled: !!effectiveMaster,
+    });
+
+  // The account that backs the *currently selected* market — used for the trade
+  // ticket's balance display, margin check, and auto-funding math.
+  const tradeAccount = portfolio?.perDex?.[selectedDex] ?? accountData;
+
+  // Move USDC from the main perp account into the selected builder DEX so the
+  // user can fund HIP-3 trades. Master-signed (the agent cannot move funds).
+  const {
+    transferToDex,
+    sweepDexToMain,
+    isTransferring,
+    error: transferError,
+  } = useHyperliquidDexTransfer({ masterClient, masterAddress: effectiveMaster });
+
+  const handleTransferToDex = useCallback(
+    async (amountUsd: number) => {
+      if (!selectedDex) return;
+      await transferToDex(selectedDex, amountUsd);
+      await Promise.all([refetchPortfolio(), refetchPositions()]);
+    },
+    [selectedDex, transferToDex, refetchPortfolio, refetchPositions],
+  );
+
+  // Aggregated positions/orders across all DEXs (so a builder-DEX position like
+  // SPCX shows up in the table, not just main-DEX positions).
+  const allPositions = portfolio?.positions ?? accountData?.positions ?? [];
+  const allOpenOrders = portfolio?.openOrders ?? accountData?.openOrders ?? [];
+
+  const existingPosition = allPositions.find(
     (p) => p.coin === selectedCoin,
   );
 
@@ -608,6 +665,26 @@ export function PerpsPanel({
           description: `${isLong ? 'Long' : 'Short'} ${position.coin} position closed successfully`,
         });
         refetchPositions();
+
+        // One perps wallet: if this was a builder-DEX position, sweep the freed
+        // collateral back to the main account so funds re-pool and can be used
+        // for any market next time.
+        const positionDex = positionMarket.dex?.trim() || '';
+        if (positionDex) {
+          try {
+            const refreshed = await refetchPortfolio();
+            const freed =
+              parseFloat(
+                refreshed.data?.perDex?.[positionDex]?.withdrawable ?? '0',
+              ) || 0;
+            if (freed > 0.01) {
+              await sweepDexToMain(positionDex, freed);
+              await refetchPortfolio();
+            }
+          } catch (sweepErr) {
+            console.warn('Sweep-back to main failed:', sweepErr);
+          }
+        }
       } catch (err) {
         toast({
           variant: 'destructive',
@@ -627,6 +704,8 @@ export function PerpsPanel({
       mids,
       toast,
       refetchPositions,
+      refetchPortfolio,
+      sweepDexToMain,
       accessToken,
       user?._id,
       user?.primaryMicrosite,
@@ -693,8 +772,8 @@ export function PerpsPanel({
                 </div>
 
                 <PositionsTable
-                  positions={accountData?.positions ?? []}
-                  openOrders={accountData?.openOrders ?? []}
+                  positions={allPositions}
+                  openOrders={allOpenOrders}
                   fills={fills}
                   mids={mids}
                   marketMarks={marketMarks}
@@ -712,8 +791,8 @@ export function PerpsPanel({
                     market={selectedMarket ?? null}
                     markPrice={liveMarkPrice}
                     existingPosition={existingPosition}
-                    accountValue={accountData?.accountValue ?? '0'}
-                    availableMargin={accountData?.withdrawable ?? '0'}
+                    accountValue={tradeAccount?.accountValue ?? '0'}
+                    availableMargin={tradeAccount?.withdrawable ?? '0'}
                     isAgentReady={isInitialized}
                     isSubmitting={isSubmitting}
                     error={tradeError}
@@ -729,13 +808,39 @@ export function PerpsPanel({
                     onAgentActionComplete={onAgentActionComplete}
                     agentOrderPrefill={agentOrderPrefill}
                     masterAddress={masterAddress}
+                    dexName={selectedDex ? (selectedMarket?.dexName || selectedDex) : null}
+                    mainAvailableMargin={
+                      portfolio?.perDex?.['']?.withdrawable ??
+                      accountData?.withdrawable ??
+                      '0'
+                    }
+                    onTransferToDex={handleTransferToDex}
+                    isTransferringToDex={isTransferring}
+                    transferToDexError={transferError}
                   />
                 </div>
 
                 <AccountCard
-                  accountValue={accountData?.accountValue ?? '0'}
-                  available={accountData?.withdrawable ?? '0'}
-                  unrealizedPnl={accountData?.unrealizedPnl ?? '0'}
+                  accountValue={
+                    portfolio?.accountValue ??
+                    accountData?.accountValue ??
+                    '0'
+                  }
+                  available={
+                    portfolio?.withdrawable ??
+                    accountData?.withdrawable ??
+                    '0'
+                  }
+                  inPositions={
+                    portfolio?.marginUsed ??
+                    accountData?.marginUsed ??
+                    '0'
+                  }
+                  unrealizedPnl={
+                    portfolio?.unrealizedPnl ??
+                    accountData?.unrealizedPnl ??
+                    '0'
+                  }
                   isInitialized={isInitialized}
                   isReconnecting={isReconnecting}
                   onOpenDeposit={onOpenDeposit}
