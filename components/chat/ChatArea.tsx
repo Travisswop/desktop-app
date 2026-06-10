@@ -272,6 +272,7 @@ interface Message {
         } | null;
       polymarketOrderPrefill?: PolymarketOrderPrefill | null;
       walletSendNetworkPrompt?: WalletSendNetworkPrompt | null;
+      walletSendDraftPrompt?: WalletSendDraftPrompt | null;
       perpsPositionPrompt?: PerpsPositionPrompt | null;
       receipt?: AgentActionCompletion | null;
       fundingOnramp?: FundingOnrampPrefill | null;
@@ -703,6 +704,14 @@ interface WalletSendNetworkPrompt {
   amountType: string;
   recipient: string;
   options: WalletSendNetworkOption[];
+}
+
+interface WalletSendDraftPrompt {
+  token: string;
+  amount: string;
+  amountType: string;
+  recipient: string;
+  chain: string;
 }
 
 interface PerpsPositionPromptOption {
@@ -1674,6 +1683,65 @@ function parseHyperliquidCoin(text: string) {
   }
 
   return '';
+}
+
+function isChatWalletSendCommand(text?: string | null) {
+  const commandText = stripLeadingAstroMention(String(text || ''));
+  return /^\/send(?:\s|$)/i.test(commandText);
+}
+
+function parseChatWalletSendDraft(text?: string | null): WalletSendDraftPrompt {
+  const commandText = stripLeadingAstroMention(String(text || '')).replace(
+    /^\/send\b/i,
+    'send'
+  );
+  const amount = parseWalletSendAmount(commandText);
+  const amountType = parseWalletSendAmountType(commandText);
+  let token = parseWalletSendToken(commandText);
+  if (!token) {
+    // "/send usdc to bob" — token directly after the command, before "to"
+    const directToken = commandText.match(
+      /^send\s+([a-zA-Z][a-zA-Z0-9]{1,10})\s+(?:to\b|$)/i
+    )?.[1];
+    if (directToken && !/^(to|me|my|some|all|the|a|an)$/i.test(directToken)) {
+      token = directToken.toUpperCase();
+    }
+  }
+  const recipient = parseWalletSendRecipient(commandText);
+  const chain = inferWalletSendChain(commandText);
+  return {
+    token: token || '',
+    amount: amount || '',
+    amountType: amountType || 'token',
+    recipient: recipient || '',
+    chain: chain || '',
+  };
+}
+
+function buildSyntheticWalletSendDraftPromptMessage(
+  draft: WalletSendDraftPrompt,
+  sourceMessageId?: string
+): Message {
+  return {
+    _id: sourceMessageId
+      ? `local-wallet-send-draft-${sourceMessageId}`
+      : `local-wallet-send-draft-${Date.now()}`,
+    message: 'Let’s build your send. Pick a token, amount, and recipient.',
+    senderKind: 'agent',
+    agentSender: {
+      agentId: 'astro',
+      provider: 'elizaos',
+      displayName: 'Astro',
+      avatarUrl: null,
+    },
+    messageType: 'agent_response',
+    createdAt: new Date().toISOString(),
+    agentData: {
+      metadata: {
+        walletSendDraftPrompt: draft,
+      },
+    },
+  };
 }
 
 function hasWalletSendIntent(text?: string | null) {
@@ -5338,6 +5406,22 @@ export default function ChatArea({
               if (localWalletSendMessage || localWalletSendNetworkPromptMessage) {
                 renderedSyntheticOrderSourceTexts.add(normalizedOrderSource);
               }
+              const localWalletSendDraftMessage =
+                typeof renderedMessageText === 'string' &&
+                isOwnOrLocalText &&
+                !isAgentMessage &&
+                renderedMessageText.trim().length > 0 &&
+                message.messageType === 'text' &&
+                isChatWalletSendCommand(renderedMessageText) &&
+                (!isGroup || hasAstroMention || isSecureAstroDesk) &&
+                !rawLocalWalletSendIntent &&
+                !localWalletSendNetworkPromptMessage &&
+                !localWalletSendMessage
+                  ? buildSyntheticWalletSendDraftPromptMessage(
+                      parseChatWalletSendDraft(renderedMessageText),
+                      message._id || `message-${index}`
+                    )
+                  : null;
               const canRenderLocalSwap =
                 typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
@@ -5347,7 +5431,8 @@ export default function ChatArea({
                 hasChatSwapIntent(renderedMessageText) &&
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendNetworkPromptMessage &&
-                !localWalletSendMessage;
+                !localWalletSendMessage &&
+                !localWalletSendDraftMessage;
               const localSwapIntent = canRenderLocalSwap
                 ? findChatSwapIntent(renderedMessageText)
                 : null;
@@ -5378,6 +5463,7 @@ export default function ChatArea({
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendNetworkPromptMessage &&
                 !localWalletSendMessage &&
+                !localWalletSendDraftMessage &&
                 !localSwapMessage &&
                 !renderedSyntheticFundingSourceTexts.has(normalizedFundingSource);
               const localFundingOnrampIntent = canRenderLocalFundingOnramp
@@ -5401,6 +5487,7 @@ export default function ChatArea({
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendNetworkPromptMessage &&
                 !localWalletSendMessage &&
+                !localWalletSendDraftMessage &&
                 !localSwapMessage &&
                 !renderedSyntheticOrderSourceTexts.has(normalizedOrderSource);
               const hyperliquidPositionReplyCoin = isOwnOrLocalText
@@ -5497,6 +5584,7 @@ export default function ChatArea({
                 hasPolymarketWriteIntent(renderedMessageText) &&
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendMessage &&
+                !localWalletSendDraftMessage &&
                 !localSwapMessage &&
                 !localHyperliquidPositionPromptMessage &&
                 !localHyperliquidOrderMessage &&
@@ -5575,6 +5663,36 @@ export default function ChatArea({
                   )}
                   {localCoinGeckoChartIntent && (
                     <CryptoChartCard intent={localCoinGeckoChartIntent} />
+                  )}
+                  {localWalletSendDraftMessage && (
+                    <Message
+                      message={localWalletSendDraftMessage}
+                      isOwn={false}
+                      isGroup={isGroup}
+                      currentUser={currentUser}
+                      proposal={null}
+                      actionResult={undefined}
+                      isProposalPending={false}
+                      onApproveProposal={handleApproveProposal}
+                      onApproveInlineProposal={handleApproveInlineProposal}
+                      onInlineActionComplete={handleInlineActionComplete}
+                      onRejectProposal={handleRejectProposal}
+                      onPreparePolymarketBet={handlePreparePolymarketBet}
+                      onAddPredictionFunds={handleAddPredictionFunds}
+                      onAddPerpsFunds={handleAddPerpsFunds}
+                      onDismissReceipt={handleDismissReceipt}
+                      onRegisterPolymarketMarkets={
+                        registerRenderedPolymarketMarkets
+                      }
+                      pendingPolymarketBetKey={pendingPolymarketBetKey}
+                      inlinePolymarketProposalsByBetKey={
+                        inlinePolymarketProposalsByBetKey
+                      }
+                      actionResultsByProposalId={actionResultsByProposalId}
+                      pendingProposalId={pendingProposalId}
+                      astroConsoleData={astroConsoleData}
+                      renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
+                    />
                   )}
                   {localWalletSendNetworkPromptMessage && (
                     <Message
@@ -7306,6 +7424,8 @@ function Message({
     message.agentData?.metadata?.toolExecution?.perpsPositions || null;
   const walletSendNetworkPrompt =
     message.agentData?.metadata?.walletSendNetworkPrompt || null;
+  const walletSendDraftPrompt =
+    message.agentData?.metadata?.walletSendDraftPrompt || null;
   const perpsPositionPrompt =
     message.agentData?.metadata?.perpsPositionPrompt || null;
   const researchSources =
@@ -7402,6 +7522,8 @@ function Message({
   const hasAgentPerpsPositions = isAgent && Boolean(perpsPositions);
   const hasAgentWalletSendNetworkPrompt =
     isAgent && Boolean(walletSendNetworkPrompt);
+  const hasAgentWalletSendDraftPrompt =
+    isAgent && Boolean(walletSendDraftPrompt);
   const hasAgentPerpsPositionPrompt =
     isAgent && Boolean(perpsPositionPrompt);
   const hasAgentResearchSources = isAgent && researchSources.length > 0;
@@ -7423,6 +7545,7 @@ function Message({
       hasAgentWalletReceive ||
       hasAgentPerpsPositions ||
       hasAgentWalletSendNetworkPrompt ||
+      hasAgentWalletSendDraftPrompt ||
       hasAgentPerpsPositionPrompt ||
       hasAgentSportsResearch ||
       hasAgentResearchSources ||
@@ -7708,6 +7831,14 @@ function Message({
               onApproveInline={onApproveInlineProposal}
               onInlineActionComplete={onInlineActionComplete}
               onReject={onRejectProposal}
+              astroConsoleData={astroConsoleData}
+            />
+          )}
+          {isAgent && walletSendDraftPrompt && (
+            <WalletSendDraftCard
+              prompt={walletSendDraftPrompt}
+              onApproveInline={onApproveInlineProposal}
+              onInlineActionComplete={onInlineActionComplete}
               astroConsoleData={astroConsoleData}
             />
           )}
@@ -13355,6 +13486,378 @@ function WalletSendNetworkPromptCard({
               Pick a network to build the final send card.
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WalletSendDraftCard({
+  prompt,
+  onApproveInline,
+  onInlineActionComplete,
+  astroConsoleData,
+}: {
+  prompt: WalletSendDraftPrompt;
+  onApproveInline: (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>
+  ) => Promise<AgentApprovalHandoff | null>;
+  onInlineActionComplete: (completion: AgentActionCompletion) => void;
+  astroConsoleData: AstroConsoleData;
+}) {
+  const { wallets: evmWallets } = useEvmWallets();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const { connectWallet } = useConnectWallet();
+  const evmSignerAddresses = useMemo(
+    () =>
+      getChatSwapSignableAddressSet([
+        ...evmWallets.map((wallet) => wallet.address),
+        astroConsoleData.evmWalletAddress,
+        ...(astroConsoleData.evmWalletAddresses || []),
+        astroConsoleData.eoaAddress,
+      ]),
+    [
+      astroConsoleData.eoaAddress,
+      astroConsoleData.evmWalletAddress,
+      astroConsoleData.evmWalletAddresses,
+      evmWallets,
+    ]
+  );
+  const solanaSignerAddresses = useMemo(
+    () =>
+      getChatSolanaSignerAddressSet([
+        ...solanaWallets.map((wallet) => wallet.address),
+        astroConsoleData.solWalletAddress,
+      ]),
+    [astroConsoleData.solWalletAddress, solanaWallets]
+  );
+  const tokenOptions = useMemo(
+    () =>
+      getWalletSwapTokenOptions(astroConsoleData.walletPortfolioTokens).filter(
+        (option) =>
+          isChatSwapTokenOwnedBySigner(
+            option,
+            evmSignerAddresses,
+            solanaSignerAddresses
+          )
+      ),
+    [
+      astroConsoleData.walletPortfolioTokens,
+      evmSignerAddresses,
+      solanaSignerAddresses,
+    ]
+  );
+  const promptChain = prompt.chain
+    ? normalizeWalletSendChainValue(prompt.chain)
+    : '';
+  const initialToken = useMemo(() => {
+    const symbolMatch = findSwapSelectableToken(
+      tokenOptions,
+      prompt.token,
+      undefined,
+      true
+    );
+    if (!symbolMatch) return null;
+    if (!promptChain) return symbolMatch;
+    return (
+      tokenOptions.find(
+        (option) =>
+          normalizeSwapSymbol(option.symbol) ===
+            normalizeSwapSymbol(symbolMatch.symbol) &&
+          normalizeWalletSendChainValue(
+            option.chainId === SOLANA_CHAIN_ID ? 'solana' : option.chainName
+          ) === promptChain
+      ) || symbolMatch
+    );
+  }, [prompt.token, promptChain, tokenOptions]);
+  const [selectedTokenKey, setSelectedTokenKey] = useState('');
+  const [isTokenListOpen, setIsTokenListOpen] = useState(false);
+  const [hasTouchedToken, setHasTouchedToken] = useState(false);
+  const [amountInput, setAmountInput] = useState(prompt.amount || '');
+  const [amountType, setAmountType] = useState<'token' | 'usd'>(
+    prompt.amountType === 'usd' ? 'usd' : 'token'
+  );
+  const [recipientInput, setRecipientInput] = useState(prompt.recipient || '');
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  const selectedToken =
+    tokenOptions.find((option) => option.key === selectedTokenKey) ||
+    (!hasTouchedToken ? initialToken : null);
+  const chain = selectedToken
+    ? normalizeWalletSendChainValue(
+        selectedToken.chainId === SOLANA_CHAIN_ID
+          ? 'solana'
+          : selectedToken.chainName
+      )
+    : '';
+  const trimmedAmount = amountInput.trim().replace(/^\$/, '');
+  const amountNumber = Number(trimmedAmount);
+  const hasValidAmount = Number.isFinite(amountNumber) && amountNumber > 0;
+  const tokenBalance = Number(selectedToken?.balance || 0);
+  const priceUsd = Number(selectedToken?.priceUsd || 0);
+  const requiredTokenAmount =
+    amountType === 'usd'
+      ? priceUsd > 0
+        ? amountNumber / priceUsd
+        : null
+      : amountNumber;
+  const hasEnoughBalance =
+    !selectedToken ||
+    !hasValidAmount ||
+    requiredTokenAmount === null ||
+    !Number.isFinite(tokenBalance) ||
+    tokenBalance + 0.00000001 >= requiredTokenAmount;
+  const trimmedRecipient = recipientInput.trim().replace(/^@/, '');
+  const canReview =
+    Boolean(selectedToken) &&
+    hasValidAmount &&
+    hasEnoughBalance &&
+    trimmedRecipient.length > 1;
+
+  if (isDismissed) return null;
+
+  if (isReviewing && selectedToken && canReview) {
+    const recipientIsAddress =
+      /^0x[a-fA-F0-9]{40}$/.test(trimmedRecipient) ||
+      /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmedRecipient);
+    const activeProposalId = `local-wallet-send-${selectedToken.symbol}-${trimmedRecipient}-${chain}`;
+    const normalizedParams = {
+      token: selectedToken.symbol,
+      tokenSymbol: selectedToken.symbol,
+      asset: selectedToken.symbol,
+      amount: trimmedAmount,
+      amountType,
+      isUSD: amountType === 'usd',
+      recipient: trimmedRecipient,
+      recipientAddress: recipientIsAddress ? trimmedRecipient : undefined,
+      recipientEns: recipientIsAddress ? undefined : trimmedRecipient,
+      chain,
+      network: chain,
+    };
+    const localProposal: AgentActionProposal = {
+      proposalId: activeProposalId,
+      action: 'wallet.send',
+      toolType: 'wallet.write',
+      status: 'pending',
+      normalizedParams,
+      riskSummary: {
+        riskLevel: 'high',
+        toolType: 'wallet.write',
+        action: 'wallet.send',
+        mode: 'proposal',
+        requiresProposal: true,
+        paramKeys: [
+          'amount',
+          'amountType',
+          'asset',
+          'chain',
+          'isUSD',
+          'network',
+          'recipient',
+          recipientIsAddress ? 'recipientAddress' : 'recipientEns',
+          'token',
+          'tokenSymbol',
+        ],
+      },
+    };
+
+    return (
+      <WalletSendProposalTicket
+        proposal={localProposal}
+        proposalId={activeProposalId}
+        status="pending"
+        canAct
+        isOpen
+        isPending={false}
+        onApproveInline={onApproveInline}
+        onInlineActionComplete={onInlineActionComplete}
+        onReject={() => setIsReviewing(false)}
+        onChangeNetwork={() => setIsReviewing(false)}
+        astroConsoleData={astroConsoleData}
+      />
+    );
+  }
+
+  const showTokenList = isTokenListOpen || !selectedToken;
+  return (
+    <div className="mt-2 w-full max-w-[520px] border-l-2 border-[#3fe08f] pl-2 text-xs">
+      <div className={`${AGENT_PANEL_CLASS} overflow-hidden rounded-[14px]`}>
+        <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-3 py-2.5">
+          <div className="min-w-0">
+            <div className="dm-mono text-[9.5px] font-bold uppercase tracking-[0.16em] text-[#3fe08f]">
+              wallet send
+            </div>
+            <div className="mt-1 truncate text-[15px] font-bold text-[#eceef2]">
+              Set up your transfer
+            </div>
+          </div>
+          <div className="dm-mono flex shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+            <span className="rounded-full bg-[#3fe08f] px-1.5 py-0.5 text-[#031008]">
+              1 token
+            </span>
+            <span>—</span>
+            <span>2 details</span>
+            <span>—</span>
+            <span>3 confirm</span>
+          </div>
+        </div>
+        <div className="grid gap-2.5 p-3">
+          <div className={TICKET_LABEL_CLASS}>pay with · your balances</div>
+          {!showTokenList && selectedToken ? (
+            <button
+              type="button"
+              onClick={() => setIsTokenListOpen(true)}
+              className="dm-btn flex items-center justify-between gap-3 rounded-[10px] border border-[#3fe08f]/30 bg-[#3fe08f]/10 px-3 py-2 text-left hover:bg-[#3fe08f]/15"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="dm-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[#3fe08f]/25 bg-[#3fe08f]/10 text-[12px] font-bold text-[#3fe08f]">
+                  {selectedToken.symbol.slice(0, 1)}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-bold text-[#eceef2]">
+                    {selectedToken.symbol} · {selectedToken.chainName}
+                  </div>
+                  <div className="dm-mono mt-0.5 truncate text-[10px] text-[#5a5e69]">
+                    {selectedToken.balance
+                      ? `${formatSwapAmount(selectedToken.balance)} ${
+                          selectedToken.symbol
+                        }`
+                      : 'balance unavailable'}
+                    {selectedToken.usdValue
+                      ? ` · ${formatCompactUsd(selectedToken.usdValue)}`
+                      : ''}
+                  </div>
+                </div>
+              </div>
+              <span className="dm-mono shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-[#3fe08f]">
+                change
+              </span>
+            </button>
+          ) : tokenOptions.length ? (
+            <div className="grid max-h-60 gap-2 overflow-y-auto pr-0.5">
+              {tokenOptions.map((option) => (
+                <button
+                  type="button"
+                  key={option.key}
+                  onClick={() => {
+                    setSelectedTokenKey(option.key);
+                    setHasTouchedToken(true);
+                    setIsTokenListOpen(false);
+                  }}
+                  className="dm-btn flex items-center justify-between gap-3 rounded-[10px] border border-white/[0.07] bg-black/25 px-3 py-2 text-left hover:border-[#3fe08f]/35 hover:bg-[#3fe08f]/10"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="dm-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-white/[0.1] bg-black/40 text-[12px] font-bold text-[#eceef2]">
+                      {option.symbol.slice(0, 1)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] font-bold text-[#eceef2]">
+                        {option.symbol}
+                      </div>
+                      <div className="dm-mono mt-0.5 truncate text-[10px] text-[#5a5e69]">
+                        {option.chainName}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="dm-mono shrink-0 text-right text-[11px] font-semibold text-[#9396a0]">
+                    {option.balance
+                      ? `${formatSwapAmount(option.balance)} ${option.symbol}`
+                      : '—'}
+                    {(option.usdValue || 0) > 0 && (
+                      <div className="text-[#3fe08f]">
+                        {formatCompactUsd(option.usdValue || 0)}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[10px] border border-[#ffcc66]/25 bg-[#ffcc66]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd17a]">
+              <div>
+                No token balances were found in your connected wallets.
+              </div>
+              <button
+                type="button"
+                onClick={() => connectWallet()}
+                className="dm-btn mt-2 inline-flex h-8 items-center justify-center rounded-[9px] border border-[#ffd17a]/30 bg-[#ffd17a]/10 px-3 text-[11px] font-bold text-[#ffe2a5] hover:bg-[#ffd17a]/15"
+              >
+                Connect wallet
+              </button>
+            </div>
+          )}
+          <div className={TICKET_LABEL_CLASS}>amount</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={amountInput}
+              onChange={(event) => setAmountInput(event.target.value)}
+              placeholder={
+                amountType === 'usd'
+                  ? 'amount in USD'
+                  : `amount in ${selectedToken?.symbol || 'tokens'}`
+              }
+              className={`${TICKET_MONO_FIELD_CLASS} w-full flex-1`}
+            />
+            <button
+              type="button"
+              onClick={() =>
+                setAmountType((current) =>
+                  current === 'usd' ? 'token' : 'usd'
+                )
+              }
+              className="dm-btn dm-mono inline-flex h-9 shrink-0 items-center justify-center rounded-[9px] border border-white/[0.07] bg-black/25 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#a9adb8] hover:bg-white/[0.05]"
+            >
+              {amountType === 'usd' ? 'USD' : selectedToken?.symbol || 'TOKEN'}
+            </button>
+            {selectedToken?.balance && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAmountType('token');
+                  setAmountInput(String(selectedToken.balance));
+                }}
+                className="dm-btn dm-mono inline-flex h-9 shrink-0 items-center justify-center rounded-[9px] border border-[#3fe08f]/25 bg-[#3fe08f]/10 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#3fe08f] hover:bg-[#3fe08f]/15"
+              >
+                max
+              </button>
+            )}
+          </div>
+          {selectedToken && hasValidAmount && !hasEnoughBalance && (
+            <div className="rounded-[9px] border border-[#ffcc66]/25 bg-[#ffcc66]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd17a]">
+              Not enough {selectedToken.symbol} on {selectedToken.chainName} —
+              you have {formatSwapAmount(String(tokenBalance))}{' '}
+              {selectedToken.symbol}.
+            </div>
+          )}
+          <div className={TICKET_LABEL_CLASS}>recipient</div>
+          <input
+            type="text"
+            value={recipientInput}
+            onChange={(event) => setRecipientInput(event.target.value)}
+            placeholder="swop id, ENS, or wallet address"
+            className={`${TICKET_FIELD_CLASS} w-full`}
+          />
+          <div className="mt-1 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsDismissed(true)}
+              className={TICKET_REJECT_BUTTON_CLASS}
+            >
+              Dismiss
+            </button>
+            <button
+              type="button"
+              disabled={!canReview}
+              onClick={() => setIsReviewing(true)}
+              className={TICKET_PRIMARY_BUTTON_CLASS}
+            >
+              Review send
+            </button>
+          </div>
         </div>
       </div>
     </div>
