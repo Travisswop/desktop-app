@@ -36,6 +36,10 @@ import {
 } from 'viem';
 import { arbitrum, base, bsc, mainnet, polygon } from 'viem/chains';
 import GroupMenu from './GroupMenu';
+import ChatAttachmentMenu, {
+  type ChatAttachmentGif,
+} from './ChatAttachmentMenu';
+import { sendCloudinaryFile } from '@/lib/SendCloudinaryAnyFile';
 import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
 import isUrl from '@/lib/isUrl';
@@ -62,7 +66,9 @@ import {
   Check,
   Clock3,
   Copy,
+  Download,
   ExternalLink,
+  FileText,
   Grid2X2,
   Loader2,
   Menu,
@@ -221,12 +227,16 @@ interface Message {
   messageType:
     | 'text'
     | 'image'
+    | 'video'
     | 'file'
     | 'bot_command'
     | 'bot_response'
     | 'system'
     | 'agent_response'
     | 'agent_action_proposal';
+  fileUrl?: string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
   createdAt: string;
   status?: 'sending' | 'sent' | 'failed';
   readBy?: string[];
@@ -284,6 +294,31 @@ function isTempMessage(message: Message) {
   return Boolean(
     message._id && message._id.toString().startsWith('temp-')
   );
+}
+
+const MAX_ATTACHMENT_SIZE_BYTES = 50 * 1024 * 1024;
+const GIF_ATTACHMENT_NAME = 'GIF';
+
+function formatAttachmentSize(bytes?: number | null) {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function attachmentMessageType(fileType: string): 'image' | 'video' | 'file' {
+  if (fileType.startsWith('image')) return 'image';
+  if (fileType.startsWith('video')) return 'video';
+  return 'file';
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 function isAgentLikeMessage(message: Message) {
@@ -4191,6 +4226,218 @@ export default function ChatArea({
     trading.tradingWalletAddress,
   ]);
 
+  const emitAttachmentMessage = useCallback(
+    ({
+      tempId,
+      messageType,
+      fileUrl,
+      fileName,
+      fileSize,
+      localPreviewUrl,
+    }: {
+      tempId: string;
+      messageType: 'image' | 'video' | 'file';
+      fileUrl: string;
+      fileName: string;
+      fileSize?: number;
+      localPreviewUrl?: string;
+    }) => {
+      if (!socket || !selectedChat) return;
+
+      const receiverId = isGroup
+        ? selectedChat._id
+        : getDirectReceiverId(selectedChat);
+      if (!receiverId) return;
+
+      const messageData = isGroup
+        ? {
+            groupId: selectedChat._id,
+            message: fileName,
+            messageType,
+            fileUrl,
+            fileName,
+            fileSize,
+          }
+        : {
+            receiverId,
+            message: fileName,
+            messageType,
+            fileUrl,
+            fileName,
+            fileSize,
+          };
+
+      socket.emit(
+        isGroup ? 'send_group_message' : EVENTS.SEND_MESSAGE,
+        messageData,
+        (response: SocketResponse) => {
+          if (localPreviewUrl) {
+            URL.revokeObjectURL(localPreviewUrl);
+          }
+          if (response?.success && response.message) {
+            const acknowledgedMessage = response.message;
+            setMessages((prev) =>
+              dedupeMessages(
+                prev.map((msg) =>
+                  msg._id === tempId ? acknowledgedMessage : msg
+                )
+              )
+            );
+          } else {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg._id === tempId
+                  ? { ...msg, status: 'failed' as const }
+                  : msg
+              )
+            );
+            toast.error(response?.error || 'Failed to send attachment');
+          }
+        }
+      );
+    },
+    [isGroup, selectedChat, socket]
+  );
+
+  const buildOptimisticAttachmentMessage = useCallback(
+    ({
+      tempId,
+      messageType,
+      fileUrl,
+      fileName,
+      fileSize,
+    }: {
+      tempId: string;
+      messageType: 'image' | 'video' | 'file';
+      fileUrl: string;
+      fileName: string;
+      fileSize?: number;
+    }): Message | null => {
+      if (!selectedChat) return null;
+      const receiverId = isGroup
+        ? selectedChat._id
+        : getDirectReceiverId(selectedChat);
+      if (!receiverId) return null;
+
+      return {
+        _id: tempId,
+        message: fileName,
+        sender: { _id: currentUser, name: 'You' },
+        receiver: isGroup
+          ? null
+          : {
+              _id: receiverId,
+              name: getDirectReceiverName(selectedChat),
+              profilePic: getDirectReceiverAvatar(selectedChat),
+            },
+        groupId: isGroup ? selectedChat._id : null,
+        messageType,
+        fileUrl,
+        fileName,
+        fileSize,
+        createdAt: new Date().toISOString(),
+        status: 'sending',
+      };
+    },
+    [currentUser, isGroup, selectedChat]
+  );
+
+  const handleSendAttachments = useCallback(
+    async (files: File[]) => {
+      if (!socket || !selectedChat) return;
+
+      for (const file of files) {
+        if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+          toast.error(
+            `${file.name} is larger than the 50 MB attachment limit`
+          );
+          continue;
+        }
+
+        const messageType = attachmentMessageType(file.type);
+        const fileName = file.name || 'Attachment';
+        const tempId = `temp-attachment-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+        const localPreviewUrl = URL.createObjectURL(file);
+
+        const optimisticMessage = buildOptimisticAttachmentMessage({
+          tempId,
+          messageType,
+          fileUrl: localPreviewUrl,
+          fileName,
+          fileSize: file.size,
+        });
+        if (!optimisticMessage) {
+          URL.revokeObjectURL(localPreviewUrl);
+          return;
+        }
+
+        forceScrollToBottomRef.current = true;
+        isPinnedToBottomRef.current = true;
+        setMessages((prev) => dedupeMessages([...prev, optimisticMessage]));
+
+        try {
+          const base64File = await readFileAsDataUrl(file);
+          const uploadedUrl = await sendCloudinaryFile(
+            base64File,
+            file.type,
+            fileName
+          );
+          emitAttachmentMessage({
+            tempId,
+            messageType,
+            fileUrl: uploadedUrl,
+            fileName,
+            fileSize: file.size,
+            localPreviewUrl,
+          });
+        } catch (error) {
+          console.error('Attachment upload failed:', error);
+          URL.revokeObjectURL(localPreviewUrl);
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg._id === tempId
+                ? { ...msg, status: 'failed' as const }
+                : msg
+            )
+          );
+          toast.error(`Failed to upload ${fileName}`);
+        }
+      }
+    },
+    [buildOptimisticAttachmentMessage, emitAttachmentMessage, selectedChat, socket]
+  );
+
+  const handleSendGif = useCallback(
+    (gif: ChatAttachmentGif) => {
+      if (!socket || !selectedChat || !gif.url) return;
+
+      const tempId = `temp-attachment-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+      const optimisticMessage = buildOptimisticAttachmentMessage({
+        tempId,
+        messageType: 'image',
+        fileUrl: gif.url,
+        fileName: GIF_ATTACHMENT_NAME,
+      });
+      if (!optimisticMessage) return;
+
+      forceScrollToBottomRef.current = true;
+      isPinnedToBottomRef.current = true;
+      setMessages((prev) => dedupeMessages([...prev, optimisticMessage]));
+
+      emitAttachmentMessage({
+        tempId,
+        messageType: 'image',
+        fileUrl: gif.url,
+        fileName: GIF_ATTACHMENT_NAME,
+      });
+    },
+    [buildOptimisticAttachmentMessage, emitAttachmentMessage, selectedChat, socket]
+  );
+
   const handlePreparePolymarketBet = useCallback(
     async (prompt: string, betKey: string) => {
       if (!selectedChat || !socket) return null;
@@ -4349,6 +4596,10 @@ export default function ChatArea({
     setNewMessage((prev) => (prev.trim() ? prev : '/'));
     focusComposer();
   }, [focusComposer]);
+
+  const handleComposerTip = useCallback(() => {
+    applyComposerCommand('/send ');
+  }, [applyComposerCommand]);
 
   const handleApprovalNextStep = useCallback(
     (approvalResult?: AgentApprovalHandoff | null) => {
@@ -5642,6 +5893,13 @@ export default function ChatArea({
             )}
 
             <div className="relative flex min-h-[64px] items-center gap-3 rounded-[18px] border border-white/[0.06] bg-black px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.28)] focus-within:border-[#3fe08f]/45 focus-within:shadow-[0_0_0_1px_rgba(63,224,143,0.16),0_18px_50px_rgba(0,0,0,0.28)]">
+              <ChatAttachmentMenu
+                disabled={!selectedChat}
+                onSendFiles={handleSendAttachments}
+                onSendGif={handleSendGif}
+                onTip={handleComposerTip}
+              />
+
               <span className="dm-mono flex-shrink-0 text-[20px] font-bold leading-none text-[#3fe08f]">
                 &gt;
               </span>
@@ -7194,7 +7452,25 @@ function Message({
     shouldHideUnnamedPolymarketAgent,
   ]);
 
+  const attachmentUrl = message.fileUrl || '';
+  const isImageAttachment =
+    message.messageType === 'image' && Boolean(attachmentUrl);
+  const isVideoAttachment =
+    message.messageType === 'video' && Boolean(attachmentUrl);
+  const isFileAttachment =
+    message.messageType === 'file' && Boolean(attachmentUrl);
+  const hasAttachment =
+    isImageAttachment || isVideoAttachment || isFileAttachment;
+  const attachmentCaption =
+    hasAttachment &&
+    message.message &&
+    message.message !== message.fileName &&
+    message.message !== GIF_ATTACHMENT_NAME
+      ? message.message
+      : '';
+
   const showMessageText =
+    !hasAttachment &&
     !hasAgentRichContent &&
     !hasAgentResearchSources &&
     (!isPolymarketProposal || !isGenericAgentProposalText(message.message));
@@ -7266,6 +7542,79 @@ function Message({
                   ? message.agentSender?.displayName || 'Agent'
                   : message.sender?.name || 'Unknown'}
               </span>
+            </div>
+          )}
+          {isImageAttachment && (
+            <a
+              href={attachmentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={attachmentUrl}
+                alt={message.fileName || 'Image attachment'}
+                loading="lazy"
+                className="max-h-[280px] w-auto max-w-full rounded-[10px] object-cover"
+              />
+            </a>
+          )}
+          {isVideoAttachment && (
+            <video
+              src={attachmentUrl}
+              controls
+              preload="metadata"
+              className="max-h-[280px] w-auto max-w-full rounded-[10px]"
+            />
+          )}
+          {isFileAttachment && (
+            <a
+              href={attachmentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={message.fileName || true}
+              className={`dm-mono flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 ${
+                isOwn
+                  ? 'border-[#06120b]/20 bg-[#06120b]/10 text-[#06120b]'
+                  : 'border-white/[0.08] bg-black/40 text-[#eceef2]'
+              }`}
+            >
+              <span
+                className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] border ${
+                  isOwn
+                    ? 'border-[#06120b]/20'
+                    : 'border-[#3fe08f]/20 bg-black text-[#3fe08f]'
+                }`}
+              >
+                <FileText className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-bold">
+                  {message.fileName || 'File'}
+                </span>
+                {formatAttachmentSize(message.fileSize) && (
+                  <span
+                    className={`block text-[11px] font-semibold ${
+                      isOwn ? 'text-[#06120b]/70' : 'text-[#737783]'
+                    }`}
+                  >
+                    {formatAttachmentSize(message.fileSize)}
+                  </span>
+                )}
+              </span>
+              <Download className="h-4 w-4 flex-shrink-0 opacity-70" />
+            </a>
+          )}
+          {attachmentCaption && (
+            <div
+              className={`mt-1.5 ${
+                isOwn
+                  ? 'dm-mono break-words text-[13.5px] font-semibold leading-[1.6]'
+                  : 'dm-mono break-words text-[14px] font-semibold leading-[1.65]'
+              }`}
+            >
+              {attachmentCaption}
             </div>
           )}
           {showMessageText && (
