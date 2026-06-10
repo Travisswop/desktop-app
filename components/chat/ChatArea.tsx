@@ -42,6 +42,10 @@ import isUrl from '@/lib/isUrl';
 import CoinbaseOnrampFunding from '@/components/wallet/CoinbaseOnrampFunding';
 import { CandleChart } from '@/components/wallet/perps/CandleChart';
 import {
+  CryptoChartCard,
+  parseCoinGeckoChartIntent,
+} from '@/components/chat/CryptoChartCard';
+import {
   findFundingOnrampIntent,
   normalizeFundingOnrampSourceText,
   type FundingOnrampPrefill,
@@ -5273,6 +5277,13 @@ export default function ChatArea({
                       astroConsoleData.perpsMarkets || []
                     )
                   : null;
+              const localCoinGeckoChartIntent =
+                typeof renderedMessageText === 'string' &&
+                message.messageType === 'text' &&
+                !isAgentMessage &&
+                !isChartCommand(renderedMessageText)
+                  ? parseCoinGeckoChartIntent(renderedMessageText)
+                  : null;
 
               return (
                 <Fragment key={message._id || index}>
@@ -5310,6 +5321,9 @@ export default function ChatArea({
                       intent={localChartIntent}
                       markets={astroConsoleData.perpsMarkets || []}
                     />
+                  )}
+                  {localCoinGeckoChartIntent && (
+                    <CryptoChartCard intent={localCoinGeckoChartIntent} />
                   )}
                   {localWalletSendNetworkPromptMessage && (
                     <Message
