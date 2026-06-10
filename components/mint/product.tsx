@@ -80,6 +80,13 @@ const formatFileSize = (bytes?: number) => {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const CURRENCY_OPTIONS: { code: string; label: string; badge: string; color: string }[] = [
+  { code: 'USDC', label: 'USDC', badge: '$', color: '#2775CA' },
+  { code: 'XAUT', label: 'Tether Gold (Solana)', badge: 'Au', color: '#C9A227' },
+  { code: 'ETH', label: 'Ethereum (ETH)', badge: 'Ξ', color: '#627EEA' },
+  { code: 'SOL', label: 'Solana (SOL)', badge: '◎', color: '#14F195' },
+];
+
 const CreateProduct = ({ productId }: { productId?: string } = {}) => {
   const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
@@ -107,6 +114,7 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
     null,
   ]);
   const [price, setPrice] = useState('');
+  const [currency, setCurrency] = useState('USDC');
   const [quantity, setQuantity] = useState<string>('');
   const [variants, setVariants] = useState<Variant[]>([
     { name: '', options: [] },
@@ -201,6 +209,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
         setPrice(
           product.price?.amount != null ? String(product.price.amount) : ''
         );
+        if (product.price?.currency) {
+          setCurrency(String(product.price.currency).toUpperCase());
+        }
         const available = product.inventory?.available;
         setQuantity(available != null ? String(available) : '');
         if (product.variants?.length) {
@@ -435,6 +446,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
     [variants]
   );
 
+  const activeCurrency =
+    CURRENCY_OPTIONS.find((c) => c.code === currency) ?? CURRENCY_OPTIONS[0];
+
   const validate = () => {
     const errors: Record<string, string> = {};
     if (!name.trim()) errors.name = 'Name is required';
@@ -514,7 +528,7 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
         })),
         price: {
           amount: Number(price),
-          currency: 'USDC',
+          currency,
         },
         inventory: {
           track: true,
@@ -1466,12 +1480,12 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                     label="Price"
                     required
                     error={formErrors.price}
-                    help="Settled in USDC."
+                    help={`Settled in ${currency}.`}
                   >
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '1fr 130px',
+                        gridTemplateColumns: '1fr 172px',
                         gap: 8,
                       }}
                     >
@@ -1502,11 +1516,11 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                       </div>
                       <div
                         style={{
+                          position: 'relative',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
                           gap: 8,
-                          padding: '0 14px',
+                          padding: '0 12px',
                           border: `1px solid ${hair}`,
                           borderRadius: 9,
                           background: '#fafafa',
@@ -1516,8 +1530,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                           style={{
                             width: 18,
                             height: 18,
+                            minWidth: 18,
                             borderRadius: 9,
-                            background: '#2775CA',
+                            background: activeCurrency.color,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1526,9 +1541,48 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                             fontWeight: 700,
                           }}
                         >
-                          $
+                          {activeCurrency.badge}
                         </span>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>USDC</span>
+                        <select
+                          value={currency}
+                          onChange={(e) => setCurrency(e.target.value)}
+                          aria-label="Currency"
+                          style={
+                            {
+                              flex: 1,
+                              minWidth: 0,
+                              appearance: 'none',
+                              border: 0,
+                              background: 'transparent',
+                              fontSize: 12.5,
+                              fontWeight: 600,
+                              color: ink,
+                              fontFamily: 'inherit',
+                              cursor: 'pointer',
+                              paddingRight: 14,
+                              outline: 'none',
+                            } as CSSProperties
+                          }
+                        >
+                          {CURRENCY_OPTIONS.map((c) => (
+                            <option key={c.code} value={c.code}>
+                              {c.label}
+                            </option>
+                          ))}
+                        </select>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            right: 10,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            pointerEvents: 'none',
+                            color: muted,
+                            fontSize: 9,
+                          }}
+                        >
+                          ▾
+                        </span>
                       </div>
                     </div>
                   </Field>
