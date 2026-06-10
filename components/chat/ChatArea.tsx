@@ -1776,6 +1776,8 @@ function parseWalletSendToken(text: string) {
     );
   const raw = tokenMatch?.[1]?.toUpperCase();
   if (!raw) return '';
+  // Function words after the amount ("send 5 to bob") are not token symbols.
+  if (/^(TO|ON|VIA|FOR|FROM|AND|THE|MY|ME)$/.test(raw)) return '';
 
   const aliases: Record<string, string> = {
     ETHEREUM: 'ETH',
@@ -7839,7 +7841,9 @@ function Message({
               astroConsoleData={astroConsoleData}
             />
           )}
-          {isAgent && walletSendDraftPrompt && (
+          {isAgent &&
+            walletSendDraftPrompt &&
+            String(message._id || '').startsWith('local-wallet-send-draft-') && (
             <WalletSendDraftCard
               prompt={walletSendDraftPrompt}
               onApproveInline={onApproveInlineProposal}
