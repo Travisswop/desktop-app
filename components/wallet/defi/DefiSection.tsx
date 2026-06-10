@@ -19,6 +19,7 @@ const CHAINS: { id: AaveChain; label: string; dot: string }[] = [
   { id: 'ethereum', label: 'Ethereum', dot: '#627EEA' },
   { id: 'polygon', label: 'Polygon', dot: '#8247E5' },
   { id: 'base', label: 'Base', dot: '#0052FF' },
+  { id: 'arbitrum', label: 'Arbitrum', dot: '#28A0F0' },
 ];
 
 // Major assets pinned to the top of the markets list, in this order

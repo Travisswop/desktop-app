@@ -13,6 +13,9 @@ const RPC_URLS: Record<AaveChain, string> = {
   polygon:
     process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL || 'https://polygon-rpc.com',
   base: process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL || 'https://mainnet.base.org',
+  arbitrum:
+    process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL ||
+    'https://arb1.arbitrum.io/rpc',
 };
 
 export const getAaveReadProvider = (chain: AaveChain) =>

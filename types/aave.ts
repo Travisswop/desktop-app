@@ -1,6 +1,6 @@
 // Shapes returned by the Swop backend Aave endpoints (/api/v5/defi/aave/*)
 
-export type AaveChain = 'ethereum' | 'polygon' | 'base';
+export type AaveChain = 'ethereum' | 'polygon' | 'base' | 'arbitrum';
 
 export interface AaveReserve {
   asset: string;

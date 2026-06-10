@@ -13,6 +13,7 @@ const BRAND_COLORS: Record<string, string> = {
   WBTC: '#F09242',
   CBBTC: '#0052FF',
   LINK: '#2A5ADA',
+  ARB: '#28A0F0',
   AAVE: '#B6509E',
   WPOL: '#8247E5',
   WMATIC: '#8247E5',
