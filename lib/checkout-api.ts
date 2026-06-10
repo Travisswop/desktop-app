@@ -1,3 +1,5 @@
+import { apiFetch } from '@/lib/api/apiFetch';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export type CheckoutCustomerInfo = {
@@ -317,7 +319,7 @@ function authHeaders(accessToken?: string | null) {
 }
 
 export async function getCheckoutIntent(intentId: string) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_URL}/api/v5/checkout-intents/${encodeURIComponent(intentId)}`,
     {
       cache: 'no-store',
@@ -329,7 +331,7 @@ export async function getCheckoutIntent(intentId: string) {
 }
 
 export async function listCheckoutIntents(accessToken: string) {
-  const response = await fetch(`${API_URL}/api/v5/checkout-intents`, {
+  const response = await apiFetch(`${API_URL}/api/v5/checkout-intents`, {
     headers: authHeaders(accessToken),
     cache: 'no-store',
   });
@@ -338,7 +340,7 @@ export async function listCheckoutIntents(accessToken: string) {
 }
 
 export async function getStablecoinMerchantStatus(accessToken: string) {
-  const response = await fetch(`${API_URL}/api/v5/checkout-intents/merchant-status`, {
+  const response = await apiFetch(`${API_URL}/api/v5/checkout-intents/merchant-status`, {
     headers: authHeaders(accessToken),
     cache: 'no-store',
   });
@@ -362,7 +364,7 @@ export async function createCheckoutIntent(
   },
   accessToken: string
 ) {
-  const response = await fetch(`${API_URL}/api/v5/checkout-intents`, {
+  const response = await apiFetch(`${API_URL}/api/v5/checkout-intents`, {
     method: 'POST',
     headers: authHeaders(accessToken),
     body: JSON.stringify(params),
@@ -380,7 +382,7 @@ export async function reconcileCheckoutIntent(
   },
   accessToken: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_URL}/api/v5/checkout-intents/${encodeURIComponent(
       intentId
     )}/reconcile`,
@@ -409,7 +411,7 @@ export async function createCheckoutRefundRequest(
   },
   accessToken: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_URL}/api/v5/checkout-intents/${encodeURIComponent(
       intentId
     )}/refund-requests`,
@@ -438,7 +440,7 @@ export async function createMarketplaceCheckoutIntent(
   },
   accessToken: string
 ) {
-  const response = await fetch(`${API_URL}/api/v5/checkout-intents/marketplace`, {
+  const response = await apiFetch(`${API_URL}/api/v5/checkout-intents/marketplace`, {
     method: 'POST',
     headers: authHeaders(accessToken),
     body: JSON.stringify(params),
@@ -458,7 +460,7 @@ export async function prepareCheckoutTransaction(
   },
   accessToken: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_URL}/api/v5/checkout-intents/${encodeURIComponent(
       intentId
     )}/prepare-transaction`,
@@ -490,7 +492,7 @@ export async function prepareCheckoutLifiTransaction(
   },
   accessToken: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_URL}/api/v5/checkout-intents/${encodeURIComponent(
       intentId
     )}/prepare-lifi-transaction`,
@@ -518,7 +520,7 @@ export async function submitCheckoutTransaction(
   },
   accessToken: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_URL}/api/v5/checkout-intents/${encodeURIComponent(
       intentId
     )}/submit-transaction`,
@@ -545,7 +547,7 @@ export async function submitCheckoutLifiTransaction(
   },
   accessToken: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_URL}/api/v5/checkout-intents/${encodeURIComponent(
       intentId
     )}/submit-lifi-transaction`,

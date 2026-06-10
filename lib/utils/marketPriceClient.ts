@@ -7,6 +7,7 @@ import {
   isNativeMarketToken,
   parseMarketPrice,
 } from "@/lib/utils/tokenMarketData";
+import { apiFetch } from "@/lib/api/apiFetch";
 
 type PriceCacheEntry = {
   price?: number;
@@ -64,7 +65,7 @@ export async function fetchTokenLivePrice({
       const tokenId = getNativeMarketId(chain);
       if (!tokenId) return fallbackPrice;
 
-      const res = await fetch(`${baseUrl}/api/v5/market/token/${tokenId}`, {
+      const res = await apiFetch(`${baseUrl}/api/v5/market/token/${tokenId}`, {
         method: "GET",
         headers: {
           Accept: "application/json",
@@ -80,7 +81,7 @@ export async function fetchTokenLivePrice({
     const address = getTokenMarketAddress(outputToken);
     if (!address) return fallbackPrice;
 
-    const res = await fetch(`${baseUrl}/api/v5/market/prices`, {
+    const res = await apiFetch(`${baseUrl}/api/v5/market/prices`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

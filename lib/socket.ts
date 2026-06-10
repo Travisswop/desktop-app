@@ -55,7 +55,7 @@ export const useSocket = ({
       extraHeaders: {
         "ngrok-skip-browser-warning": "true",
       },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,

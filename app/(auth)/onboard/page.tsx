@@ -9,6 +9,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Loader from '@/components/loading/Loader';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import { apiFetch } from '@/lib/api/apiFetch';
 import { requiresSwopIdCompletion } from '@/lib/onboardingStatus';
 
 // Helper function to safely extract wallet data
@@ -70,7 +71,7 @@ const OnboardContent: React.FC = () => {
       setResumeChecked(false);
 
       try {
-        const response = await fetch(
+        const response = await apiFetch(
           buildSwopApiUrl(
             `/api/v2/desktop/user/${encodeURIComponent(email)}`,
           ),

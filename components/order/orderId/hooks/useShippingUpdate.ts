@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useUser } from "@/lib/UserContext";
 import { ShippingUpdateData } from "../types/order.types";
+import { apiFetch } from "@/lib/api/apiFetch";
 
 interface UseShippingUpdateReturn {
   isUpdateModalOpen: boolean;
@@ -50,7 +51,7 @@ export const useShippingUpdate = (
           throw new Error("API base URL is not defined.");
         }
 
-        const response = await fetch(
+        const response = await apiFetch(
           `${API_URL}/api/v5/orders/${orderId}/shipping`,
           {
             method: "PUT",

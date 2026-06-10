@@ -1,46 +1,46 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
-import { ChevronDown, Loader } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import Image from 'next/image';
+import Link from 'next/link';
+import { ChevronDown, Loader } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useUser } from "@/lib/UserContext";
-import { Skeleton } from "./ui/skeleton";
-import { usePathname, useRouter } from "next/navigation";
-import isUrl from "@/lib/isUrl";
+} from '@/components/ui/dropdown-menu';
+import { useUser } from '@/lib/UserContext';
+import { Skeleton } from './ui/skeleton';
+import { usePathname, useRouter } from 'next/navigation';
+import isUrl from '@/lib/isUrl';
 import {
   useEffect,
   useRef,
   useState,
   useTransition,
   type MouseEvent,
-} from "react";
-import swopLogo from "@/public/images/swop.png";
-import swopWorldLogo from "@/public/images/swop-world.png";
-import { AiOutlineMessage } from "react-icons/ai";
-import { NotificationBell } from "@/components/notifications";
-import { FaUserCheck, FaUserPlus } from "react-icons/fa6";
-import { formatCount } from "@/lib/formatNumberCount";
-import { FaUserEdit } from "react-icons/fa";
-import { HiBellAlert } from "react-icons/hi2";
-import { PiMedalFill } from "react-icons/pi";
-import { TiInfoLarge } from "react-icons/ti";
-import { RiCustomerService2Line } from "react-icons/ri";
-import { LuWallet } from "react-icons/lu";
-import { IoLogOutOutline } from "react-icons/io5";
+} from 'react';
+import swopLogo from '@/public/images/swop.png';
+import swopWorldLogo from '@/public/images/swop-world.png';
+import { AiOutlineMessage } from 'react-icons/ai';
+import { NotificationBell } from '@/components/notifications';
+import { FaUserCheck, FaUserPlus } from 'react-icons/fa6';
+import { formatCount } from '@/lib/formatNumberCount';
+import { FaUserEdit } from 'react-icons/fa';
+import { HiBellAlert } from 'react-icons/hi2';
+import { PiMedalFill } from 'react-icons/pi';
+import { TiInfoLarge } from 'react-icons/ti';
+import { RiCustomerService2Line } from 'react-icons/ri';
+import { LuWallet } from 'react-icons/lu';
+import { IoLogOutOutline } from 'react-icons/io5';
 
 const profileMenuItemClass =
-  "h-11 cursor-pointer rounded-xl px-3 text-sm font-medium text-slate-900 focus:bg-slate-100 focus:text-slate-950 [&_svg]:size-5 [&_svg]:text-slate-950";
+  'h-11 cursor-pointer rounded-xl px-3 text-sm font-medium text-slate-900 focus:bg-slate-100 focus:text-slate-950 [&_svg]:size-5 [&_svg]:text-slate-950';
 
 const profileMenuExternalItemClass =
-  "flex h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:bg-slate-100 focus:text-slate-950 [&_svg]:size-5 [&_svg]:text-slate-950";
+  'flex h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-900 outline-none transition-colors focus:bg-slate-100 focus:text-slate-950 [&_svg]:size-5 [&_svg]:text-slate-950';
 
 type WindowWithIdleCallback = Window &
   typeof globalThis & {
@@ -54,7 +54,7 @@ type WindowWithIdleCallback = Window &
 let chatRouteWarmup: Promise<unknown> | null = null;
 
 function warmChatRoute() {
-  chatRouteWarmup ??= import("@/components/chat/ChatRuntime");
+  chatRouteWarmup ??= import('@/components/chat/ChatRuntime');
   return chatRouteWarmup;
 }
 
@@ -70,41 +70,50 @@ export default function Header() {
   const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isOpeningMessages, setIsOpeningMessages] = useState(false);
-  const [isMessageRoutePending, startMessageRouteTransition] = useTransition();
+  const [isMessageRoutePending, startMessageRouteTransition] =
+    useTransition();
   const messageFallbackTimerRef = useRef<number | null>(null);
-  const showMessageSpinner = isOpeningMessages || isMessageRoutePending;
+  const showMessageSpinner =
+    isOpeningMessages || isMessageRoutePending;
   const connectionCounts = {
     followers:
-      (user as any)?.connections?.followers?.length ?? user?.followers ?? 0,
+      (user as any)?.connections?.followers?.length ??
+      user?.followers ??
+      0,
     following:
-      (user as any)?.connections?.following?.length ?? user?.following ?? 0,
+      (user as any)?.connections?.following?.length ??
+      user?.following ??
+      0,
   };
-  const profilePic = primaryMicrositeProfilePic ?? user?.profilePic ?? "";
+  const profilePic =
+    primaryMicrositeProfilePic ?? user?.profilePic ?? '';
   const profileImageSrc = profilePic
     ? isUrl(profilePic)
       ? profilePic
       : `/images/user_avator/${profilePic}.png`
     : null;
-  const profileName = user?.name?.trim() || "Swop profile";
+  const profileName = user?.name?.trim() || 'Swop profile';
   const profileInitial = profileName.charAt(0).toUpperCase();
 
   useEffect(() => {
-    router.prefetch("/dashboard/chat");
+    router.prefetch('/dashboard/chat');
     const warmOnIdle = () => {
       void warmChatRoute();
     };
     const browserWindow = window as WindowWithIdleCallback;
     const usesIdleCallback =
-      typeof browserWindow.requestIdleCallback === "function";
+      typeof browserWindow.requestIdleCallback === 'function';
     const idleId =
       usesIdleCallback && browserWindow.requestIdleCallback
-        ? browserWindow.requestIdleCallback(warmOnIdle, { timeout: 3500 })
+        ? browserWindow.requestIdleCallback(warmOnIdle, {
+            timeout: 3500,
+          })
         : browserWindow.setTimeout(warmOnIdle, 1200);
 
     return () => {
       if (
         usesIdleCallback &&
-        typeof browserWindow.cancelIdleCallback === "function"
+        typeof browserWindow.cancelIdleCallback === 'function'
       ) {
         browserWindow.cancelIdleCallback(idleId);
       } else {
@@ -122,11 +131,13 @@ export default function Header() {
   }, [pathname]);
 
   const warmMessagesRoute = () => {
-    router.prefetch("/dashboard/chat");
+    router.prefetch('/dashboard/chat');
     void warmChatRoute();
   };
 
-  const handleMessagesClick = (event: MouseEvent<HTMLAnchorElement>) => {
+  const handleMessagesClick = (
+    event: MouseEvent<HTMLAnchorElement>,
+  ) => {
     if (
       event.defaultPrevented ||
       event.metaKey ||
@@ -142,12 +153,12 @@ export default function Header() {
     warmMessagesRoute();
     setIsOpeningMessages(true);
     startMessageRouteTransition(() => {
-      router.push("/dashboard/chat");
+      router.push('/dashboard/chat');
     });
 
     messageFallbackTimerRef.current = window.setTimeout(() => {
-      if (window.location.pathname !== "/dashboard/chat") {
-        window.location.assign("/dashboard/chat");
+      if (window.location.pathname !== '/dashboard/chat') {
+        window.location.assign('/dashboard/chat');
       }
     }, 1800);
   };
@@ -163,7 +174,7 @@ export default function Header() {
       // Use the UserContext logout function which already handles clearing session
       await userLogout();
     } catch (error) {
-      console.error("Logout failed:", error);
+      console.error('Logout failed:', error);
       // Revert loading state on error
       setIsLoggingOut(false);
       throw error; // Re-throw to allow error handling by parent components
@@ -192,8 +203,12 @@ export default function Header() {
     <div className="bg-white rounded-b-xl shadow-small sticky top-0 z-[70]">
       <header className="h-24 bg-white mx-4 sm:mx-8 flex items-center justify-between gap-3">
         {/* <SidebarTrigger /> */}
-        <Link href={"/"} className="flex items-center gap-2.5">
-          <Image src={swopWorldLogo} alt="swop" className="h-8 w-auto" />
+        <Link href={'/'} className="flex items-center gap-2.5">
+          <Image
+            src={swopWorldLogo}
+            alt="swop"
+            className="h-8 w-auto"
+          />
           <Image src={swopLogo} alt="swop" className="h-6 w-auto" />
         </Link>
         <div className=" flex items-center justify-end">
@@ -299,7 +314,7 @@ export default function Header() {
                 <DropdownMenuSeparator className="mx-1 my-2 bg-slate-200" />
                 <DropdownMenuItem
                   onSelect={() => {
-                    router.push("/edit-profile");
+                    router.push('/edit-profile');
                   }}
                   className={profileMenuItemClass}
                 >
@@ -308,7 +323,7 @@ export default function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => {
-                    router.push("/notifications");
+                    router.push('/notifications');
                   }}
                   className={profileMenuItemClass}
                 >
@@ -317,7 +332,7 @@ export default function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => {
-                    router.push("/subscription");
+                    router.push('/subscription');
                   }}
                   className={profileMenuItemClass}
                 >
@@ -325,9 +340,12 @@ export default function Header() {
                   <p>Swop Pro</p>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="mx-1 my-2 bg-slate-200" />
-                <DropdownMenuItem asChild className={profileMenuItemClass}>
+                <DropdownMenuItem
+                  asChild
+                  className={profileMenuItemClass}
+                >
                   <a
-                    href={"https://www.swopme.co"}
+                    href={'https://www.swopme.co'}
                     target="_blank"
                     rel="noreferrer"
                     className={profileMenuExternalItemClass}
@@ -336,9 +354,12 @@ export default function Header() {
                     <p>About</p>
                   </a>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className={profileMenuItemClass}>
+                <DropdownMenuItem
+                  asChild
+                  className={profileMenuItemClass}
+                >
                   <a
-                    href={"https://www.swopme.co/support"}
+                    href={'https://www.swopme.co/support'}
                     target="_blank"
                     rel="noreferrer"
                     className={profileMenuExternalItemClass}
@@ -349,7 +370,7 @@ export default function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => {
-                    router.push("/wallet-settings");
+                    router.push('/wallet-settings');
                   }}
                   className={profileMenuItemClass}
                 >

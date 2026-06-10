@@ -5,6 +5,7 @@ import { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import React, { Suspense } from "react";
+import { apiFetch } from "@/lib/api/apiFetch";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -295,7 +296,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}/og`;
 
   try {
-    const response = await fetch(url);
+    const response = await apiFetch(url);
 
     const responseData = await response.json();
     let feed = responseData?.data;

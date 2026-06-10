@@ -35,6 +35,7 @@ import { RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
 import logger from '@/utils/logger';
 import { buildSwopApiUrl, getSwopApiBaseUrl } from '@/lib/api/apiBaseUrl';
+import { apiFetch } from '@/lib/api/apiFetch';
 import {
   requiresSwopIdCompletion,
   SWOP_ID_ONBOARDING_PATH,
@@ -450,7 +451,7 @@ const Login: React.FC = () => {
         const apiUrl = buildSwopApiUrl(
           `/api/v2/desktop/user/${encodeURIComponent(userEmail)}`,
         );
-        const response = await fetch(apiUrl, {
+        const response = await apiFetch(apiUrl, {
           headers: { 'Content-Type': 'application/json' },
         });
 

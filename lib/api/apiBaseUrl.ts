@@ -7,27 +7,42 @@ function normalizeBaseUrl(value: string | undefined) {
 }
 
 function isLocalHostname(hostname: string) {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === 'marlin-finer-bluegill.ngrok-free.app'
+  );
 }
 
 function isLocalBaseUrl(baseUrl: string) {
   try {
     return isLocalHostname(new URL(baseUrl).hostname);
   } catch {
-    return baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+    return (
+      baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')
+    );
   }
 }
 
 function isBrowserOnLocalhost() {
-  return typeof window !== 'undefined' && isLocalHostname(window.location.hostname);
+  return (
+    typeof window !== 'undefined' &&
+    isLocalHostname(window.location.hostname)
+  );
 }
 
 function isProductionRuntime() {
-  return process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+  return (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL === '1'
+  );
 }
 
 export function getSwopApiBaseUrl() {
-  const configuredBaseUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
+  const configuredBaseUrl = normalizeBaseUrl(
+    process.env.NEXT_PUBLIC_API_URL,
+  );
 
   if (configuredBaseUrl) {
     if (isLocalBaseUrl(configuredBaseUrl)) {

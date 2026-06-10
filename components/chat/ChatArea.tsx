@@ -5,6 +5,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from 'react';
+import { apiFetch } from '@/lib/api/apiFetch';
 import {
   Fragment,
   useState,
@@ -10386,7 +10387,7 @@ function getPolymarketRealtimeQuote(
 async function fetchPolymarketLiveQuote(
   tokenId: string
 ): Promise<PolymarketLiveQuote> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${POLYMARKET_BACKEND_URL}/api/prediction-markets/prices`,
     {
       method: 'POST',

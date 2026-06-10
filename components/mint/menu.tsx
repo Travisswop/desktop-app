@@ -2,6 +2,7 @@
 import PushToMintCollectionButton from '@/components/Button/PushToMintCollectionButton';
 import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
 import { useUser } from '@/lib/UserContext';
+import { apiFetch } from '@/lib/api/apiFetch';
 import { useDisclosure } from '@nextui-org/react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
@@ -284,7 +285,7 @@ const CreateMenu = ({ collectionId }: { collectionId: string }) => {
         userId: user._id,
       };
 
-      const response = await fetch(
+      const response = await apiFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/template`,
         {
           method: 'POST',

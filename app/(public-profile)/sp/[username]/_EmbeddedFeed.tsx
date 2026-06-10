@@ -10,6 +10,7 @@ import FeedLoading from "@/components/loading/FeedLoading";
 import FeedItem from "@/components/feed/FeedItem";
 import logger from "@/utils/logger";
 // import logger from "@/utils/logger";
+import { apiFetch } from "@/lib/api/apiFetch";
 
 dayjs.extend(relativeTime);
 
@@ -48,7 +49,7 @@ export default function EmbeddedFeed({
         const url = `${API_URL}/api/v2/feed/smartsite-feed/${micrositeId}?userId=${userId}&page=${currentPage}&limit=10`;
         logger.info("Fetching feed data from URL:", url);
 
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",

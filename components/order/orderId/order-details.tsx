@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useUser } from "@/lib/UserContext";
+import { apiFetch } from "@/lib/api/apiFetch";
 import {
   Card as NextUICard,
   CardBody,
@@ -136,7 +137,7 @@ export default function OrderPage() {
         throw new Error("API base URL is not defined.");
       }
 
-      const response = await fetch(
+      const response = await apiFetch(
         `${API_URL}/api/v5/orders/${orderId}/confirm-receipt`,
         {
           method: "POST",

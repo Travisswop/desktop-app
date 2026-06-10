@@ -22,6 +22,7 @@ import isUrl from "@/lib/isUrl";
 import UploadImageButton from "@/components/Button/UploadImageButton";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { Button } from "@/components/ui/button";
+import { apiFetch } from "@/lib/api/apiFetch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,7 +60,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/delete`,
         {
           method: "POST",

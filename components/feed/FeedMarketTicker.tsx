@@ -269,7 +269,7 @@ function buildWalletTickerHref(market: TickerMarket) {
     source: "feedTicker",
   });
 
-  const chain = TICKER_CHAIN_BY_SYMBOL[market.symbol.toUpperCase()];
+  const chain = market.symbol ? TICKER_CHAIN_BY_SYMBOL[market.symbol.toUpperCase()] : undefined;
   if (chain) params.set("chartTokenChain", chain);
   if (market.image) params.set("chartTokenImage", market.image);
   if (typeof market.price === "number" && Number.isFinite(market.price)) {
@@ -546,7 +546,7 @@ async function fetchMarketsTickerData() {
     : FALLBACK_MARKET_QUESTIONS;
   const crypto = cryptoResult.status === "fulfilled" && cryptoResult.value.length > 0
     ? cryptoResult.value
-    : FALLBACK_MARKET_QUICK;
+    : [];
   const sports = gamesResult.status === "fulfilled" ? gamesResult.value : [];
 
   const buckets = [

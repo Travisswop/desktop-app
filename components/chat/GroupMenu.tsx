@@ -6,6 +6,7 @@ import isUrl from '@/lib/isUrl';
 import toast from 'react-hot-toast';
 import { useUser } from '@/lib/UserContext';
 import { Loader, Menu } from 'lucide-react';
+import { apiFetch } from '@/lib/api/apiFetch';
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -641,7 +642,7 @@ function EditGroupModal({
 
     try {
       setIsRemovingPhoto(true);
-      const response = await fetch(
+      const response = await apiFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/photo`,
         {
           method: 'DELETE',
@@ -695,7 +696,7 @@ function EditGroupModal({
         groupName !== group.name ||
         groupDescription !== (group.description || '')
       ) {
-        const response = await fetch(
+        const response = await apiFetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/info`,
           {
             method: 'PUT',
@@ -733,7 +734,7 @@ function EditGroupModal({
         const formData = new FormData();
         formData.append('groupPhoto', groupPhoto);
 
-        const response = await fetch(
+        const response = await apiFetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/photo`,
           {
             method: 'POST',
@@ -914,7 +915,7 @@ function LeaveGroupModal({
     setIsLeaving(true);
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/leave`,
         {
           method: 'POST',

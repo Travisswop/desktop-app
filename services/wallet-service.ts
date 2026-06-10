@@ -5,6 +5,8 @@
  * No logic for native vs contract tokens - the backend handles everything.
  */
 
+import { apiFetch } from '@/lib/api/apiFetch';
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const WALLET_API_URL = `${API_BASE_URL}/api/v5/wallet`;
@@ -133,7 +135,7 @@ export class WalletService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(`${WALLET_API_URL}/tokens`, {
+      const response = await apiFetch(`${WALLET_API_URL}/tokens`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ wallets }),
@@ -166,7 +168,7 @@ export class WalletService {
       headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch(
+    const response = await apiFetch(
       `${WALLET_API_URL}/onramp/coinbase/session`,
       {
         method: 'POST',
@@ -198,7 +200,7 @@ export class WalletService {
       headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch(
+    const response = await apiFetch(
       `${WALLET_API_URL}/onramp/coinbase/order`,
       {
         method: 'POST',

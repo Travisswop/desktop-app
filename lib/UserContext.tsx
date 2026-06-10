@@ -22,6 +22,7 @@ import {
   isSolanaWalletAccount,
 } from '@/types/privy';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import { apiFetch } from '@/lib/api/apiFetch';
 import {
   requiresSwopIdCompletion,
   SWOP_ID_ONBOARDING_PATH,
@@ -397,7 +398,7 @@ export function UserProvider({
           abortControllerRef.current?.abort();
         }, fetchTimeoutMs);
 
-        const response = await fetch(
+        const response = await apiFetch(
           buildSwopApiUrl(
             `/api/v2/desktop/user/${encodeURIComponent(normalizedEmail)}`,
           ),
@@ -606,7 +607,7 @@ export function UserProvider({
 
     lastSyncedWalletsRef.current = syncKey;
 
-    fetch(buildSwopApiUrl('/api/v5/wallet/sync-user-wallets'), {
+    apiFetch(buildSwopApiUrl('/api/v5/wallet/sync-user-wallets'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

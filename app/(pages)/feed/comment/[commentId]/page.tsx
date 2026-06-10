@@ -2,6 +2,7 @@ import { getCommentDetails } from "@/actions/postFeed";
 import FeedReplyDetailsClient from "@/components/feed/FeedReplyDetailsClient";
 import FeedLoading from "@/components/loading/FeedLoading";
 import { logger } from "ethers5";
+import { apiFetch } from "@/lib/api/apiFetch";
 
 import { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -193,7 +194,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}/og`;
 
   try {
-    const response = await fetch(url);
+    const response = await apiFetch(url);
 
     const responseData = await response.json();
     let feed = responseData?.data;

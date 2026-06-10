@@ -1,3 +1,5 @@
+import { apiFetch } from '@/lib/api/apiFetch';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export type MarketplaceProductType =
@@ -292,7 +294,7 @@ export async function listMarketplaceProducts(
     limit?: number;
   } = {}
 ) {
-  const response = await fetch(marketplaceUrl('/products', params), {
+  const response = await apiFetch(marketplaceUrl('/products', params), {
     headers: authHeaders(accessToken),
     cache: 'no-store',
   });
@@ -309,14 +311,14 @@ export async function listPublicMarketplaceProducts(
     limit?: number;
   } = {}
 ) {
-  const response = await fetch(marketplaceUrl('/public/products', params), {
+  const response = await apiFetch(marketplaceUrl('/public/products', params), {
     cache: 'no-store',
   });
   return parseMarketplaceResponse<ListMarketplaceProductsResponse>(response);
 }
 
 export async function getPublicMarketplaceReceipt(publicReference: string) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(`/public/receipts/${encodeURIComponent(publicReference)}`),
     {
       cache: 'no-store',
@@ -329,7 +331,7 @@ export async function getMarketplaceReceiptUnlockMessage(
   publicReference: string,
   walletAddress: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(
       `/public/receipts/${encodeURIComponent(publicReference)}/unlock-message`,
       { walletAddress }
@@ -345,7 +347,7 @@ export async function createMarketplaceProduct(
   accessToken: string,
   payload: Record<string, unknown>
 ) {
-  const response = await fetch(marketplaceUrl('/products'), {
+  const response = await apiFetch(marketplaceUrl('/products'), {
     method: 'POST',
     headers: authHeaders(accessToken),
     body: JSON.stringify(payload),
@@ -358,7 +360,7 @@ export async function updateMarketplaceProduct(
   productId: string,
   payload: Record<string, unknown>
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(`/products/${encodeURIComponent(productId)}`),
     {
       method: 'PATCH',
@@ -376,7 +378,7 @@ export async function uploadMarketplaceDigitalAsset(
   const form = new FormData();
   form.append('file', file);
 
-  const response = await fetch(marketplaceUrl('/products/digital-asset'), {
+  const response = await apiFetch(marketplaceUrl('/products/digital-asset'), {
     method: 'POST',
     headers: authOnlyHeaders(accessToken),
     body: form,
@@ -399,7 +401,7 @@ export async function listMarketplaceOrders(
     limit?: number;
   } = {}
 ) {
-  const response = await fetch(marketplaceUrl('/orders', params), {
+  const response = await apiFetch(marketplaceUrl('/orders', params), {
     headers: authHeaders(accessToken),
     cache: 'no-store',
   });
@@ -407,7 +409,7 @@ export async function listMarketplaceOrders(
 }
 
 export async function getMarketplaceOrder(accessToken: string, orderId: string) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(`/orders/${encodeURIComponent(orderId)}`),
     {
       headers: authHeaders(accessToken),
@@ -421,7 +423,7 @@ export async function createMarketplaceOrder(
   accessToken: string,
   payload: Record<string, unknown>
 ) {
-  const response = await fetch(marketplaceUrl('/orders'), {
+  const response = await apiFetch(marketplaceUrl('/orders'), {
     method: 'POST',
     headers: authHeaders(accessToken),
     body: JSON.stringify(payload),
@@ -434,7 +436,7 @@ export async function completeMarketplacePayment(
   orderId: string,
   payload: Record<string, unknown>
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(`/orders/${encodeURIComponent(orderId)}/payments/complete`),
     {
       method: 'POST',
@@ -454,7 +456,7 @@ export async function submitMarketplacePayment(
   orderId: string,
   payload: Record<string, unknown>
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(`/orders/${encodeURIComponent(orderId)}/payments/submit`),
     {
       method: 'POST',
@@ -473,7 +475,7 @@ export async function updateMarketplaceShipping(
   orderId: string,
   payload: Record<string, unknown>
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(`/orders/${encodeURIComponent(orderId)}/shipping`),
     {
       method: 'PATCH',
@@ -489,7 +491,7 @@ export async function confirmMarketplaceReceipt(
   orderId: string,
   payload: Record<string, unknown> = {}
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(`/orders/${encodeURIComponent(orderId)}/confirm-receipt`),
     {
       method: 'POST',
@@ -504,7 +506,7 @@ export async function getMarketplaceReceipt(
   accessToken: string,
   orderId: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(`/orders/${encodeURIComponent(orderId)}/receipt`),
     {
       headers: authHeaders(accessToken),
@@ -521,7 +523,7 @@ export async function retryMarketplaceReceipt(
   accessToken: string,
   orderId: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(`/orders/${encodeURIComponent(orderId)}/receipt/retry`),
     {
       method: 'POST',
@@ -550,7 +552,7 @@ export async function downloadMarketplaceDigitalAsset(
   orderId: string,
   productId: string
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(
       `/orders/${encodeURIComponent(orderId)}/downloads/${encodeURIComponent(
         productId
@@ -587,7 +589,7 @@ export async function downloadMarketplaceDigitalAssetWithReceiptNft(
     signature: string;
   }
 ) {
-  const response = await fetch(
+  const response = await apiFetch(
     marketplaceUrl(
       `/public/receipts/${encodeURIComponent(
         publicReference

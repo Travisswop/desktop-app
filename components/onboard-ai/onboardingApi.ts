@@ -1,5 +1,6 @@
 import type { AiOnboardingProfile } from "./types";
 import { socialGroup, socialMediaBaseUrls } from "@/types/smartsite";
+import { apiFetch } from "@/lib/api/apiFetch";
 import type {
   InfoBarData,
   SocialLargeData,
@@ -23,7 +24,7 @@ export async function createAiOnboardingUser({
   ethereumWallet,
   solanaWallet,
 }: CreateAiProfilePayload) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/create`,
     {
       method: "POST",
@@ -58,7 +59,7 @@ export async function createAiOnboardingUser({
   const result = await response.json();
 
   try {
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/create-balance`, {
+    await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/create-balance`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -152,7 +153,7 @@ export async function createAiOnboardingSocials(
     }
   }
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/createSocial`,
     {
       method: "POST",
@@ -186,7 +187,7 @@ export async function createAiOnboardingSocials(
 }
 
 export async function attachSwopIdToSmartSite(micrositeId: string, ens: string) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/addSocial`,
     {
       method: "POST",
