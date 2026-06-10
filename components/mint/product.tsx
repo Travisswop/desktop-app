@@ -533,8 +533,10 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
           alt: name,
         })),
         price: {
+          // US dollar pricing; USDC is the dollar settlement token the
+          // checkout rails quote against. Buyers can pay with any token.
           amount: Number(price),
-          currency: 'USD',
+          currency: 'USDC',
         },
         payoutToken,
         inventory: {

@@ -350,7 +350,9 @@ export default function CheckoutCreateClient() {
   const visibleProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
     return products
-      .filter((product) => product.currency === 'USDC')
+      // USD and USDC price tags are both dollar pricing — the checkout rails
+      // settle dollars as USDC, and buyers can pay with any token.
+      .filter((product) => ['USDC', 'USD'].includes(product.currency))
       .filter((product) => product.price > 0)
       .filter((product) => {
         if (!query) return true;
