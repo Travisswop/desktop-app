@@ -402,12 +402,16 @@ function formatRewardAmount(value?: number | string | null) {
 }
 
 function formatRewardUsd(value?: number | string | null) {
+  const amount = rewardNumber(value);
+  // Copy-trade rewards on small trades are worth fractions of a cent —
+  // rounding them to "$0.00" reads as if the reward never arrived.
+  if (amount > 0 && amount < 0.01) return '< $0.01';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(rewardNumber(value));
+  }).format(amount);
 }
 
 function shortenWallet(address?: string | null) {
