@@ -82,6 +82,9 @@ import {
 import { useHyperliquidBalanceCheck } from './perps/hooks/useHyperliquidBalanceCheck';
 import SwapTokenModal from './SwapTokenModal';
 
+// DeFi (Aave lending markets)
+import { DefiSection } from './defi';
+
 // Predictions (Polymarket)
 import WalletPredictionsSection from './WalletPredictionsSection';
 import BlinksSection from './BlinksSection';
@@ -1932,6 +1935,24 @@ const WalletContentInner = () => {
             solWalletAddress={solWalletAddress}
             evmWalletAddress={evmWalletAddress}
             chains={SUPPORTED_CHAINS}
+          />
+        </section>
+
+        {/* ───────── DEFI (AAVE) ───────── */}
+        <section className="mt-8">
+          <SectionHead
+            title="DeFi"
+            caption="Earn interest and borrow against your tokens"
+            action={
+              <span className="text-[13px] text-gray-500">
+                Powered by{' '}
+                <span className="font-semibold text-[#7C7CF5]">Aave</span>
+              </span>
+            }
+          />
+          <DefiSection
+            accessToken={accessToken}
+            evmWalletAddress={evmWalletAddress ?? null}
           />
         </section>
 
