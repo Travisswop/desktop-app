@@ -387,7 +387,10 @@ const ProductDetailsModal = ({
           <div>
             <p className="text-xs text-gray-500">Total Price</p>
             <p className="text-xl font-bold text-gray-900">
-              ${totalPrice.toLocaleString()}
+              $
+              {totalPrice.toLocaleString(undefined, {
+                maximumFractionDigits: 6,
+              })}
             </p>
           </div>
           <button
