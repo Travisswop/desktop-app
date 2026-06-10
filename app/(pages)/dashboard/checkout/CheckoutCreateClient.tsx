@@ -48,6 +48,19 @@ import { useUser } from '@/lib/UserContext';
 
 const PLATFORM_FEE_BPS = 50;
 
+type PaymentType = 'swop' | 'phantom';
+
+function PhantomMark({ className = '' }: { className?: string }) {
+  return (
+    <span
+      className={`flex items-center justify-center rounded-full bg-white text-xs font-black text-[#5f4acb] ${className}`}
+      aria-hidden="true"
+    >
+      P
+    </span>
+  );
+}
+
 type ProductRow = {
   id: string;
   name: string;
@@ -218,6 +231,7 @@ export default function CheckoutCreateClient() {
   const [copyFallback, setCopyFallback] = useState('');
   const copyFallbackInputRef = useRef<HTMLInputElement | null>(null);
   const [terminalMode, setTerminalMode] = useState(false);
+  const [paymentType, setPaymentType] = useState<PaymentType>('swop');
   const [reconcileHash, setReconcileHash] = useState('');
   const [reconcilingIntentId, setReconcilingIntentId] = useState<string | null>(
     null
@@ -282,6 +296,24 @@ export default function CheckoutCreateClient() {
     () => (createdIntent ? phantomLinkForIntent(createdIntent) : ''),
     [createdIntent, phantomLinkForIntent]
   );
+  const paymentLinkForIntent = useCallback(
+    (intent: CheckoutIntent) =>
+      paymentType === 'phantom'
+        ? phantomLinkForIntent(intent)
+        : intent.checkoutUrl,
+    [paymentType, phantomLinkForIntent]
+  );
+  const createdQrValue = useMemo(() => {
+    if (!createdIntent) return '';
+    if (paymentType === 'phantom') {
+      return (
+        createdPhantomCheckoutUrl ||
+        createdIntent.paymentRequest?.url ||
+        createdIntent.checkoutUrl
+      );
+    }
+    return createdIntent.checkoutUrl || createdIntent.paymentRequest?.url || '';
+  }, [createdIntent, createdPhantomCheckoutUrl, paymentType]);
 
   const salesSummary = useMemo(() => {
     const todayKey = new Date().toDateString();
@@ -625,8 +657,8 @@ export default function CheckoutCreateClient() {
                 </span>
               </div>
               <p className="mt-1 max-w-2xl text-sm text-[#646b78]">
-                Build a product sale, generate the QR, and let the payer choose
-                the currency on their device.
+                Enter an amount or add products, choose Swop wallet or Phantom,
+                and show the payer the QR.
               </p>
             </div>
           </div>
@@ -1004,6 +1036,78 @@ export default function CheckoutCreateClient() {
             </div>
           </label>
 
+          <div className="mt-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+              Payment type
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPaymentType('swop')}
+                aria-pressed={paymentType === 'swop'}
+                className={`flex items-center gap-3 rounded-md border p-3 text-left transition ${
+                  paymentType === 'swop'
+                    ? 'border-[#101114] bg-[#101114] text-white'
+                    : 'border-[#dfe4eb] bg-white text-[#303642] hover:border-[#c8d0dc]'
+                }`}
+              >
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+                    paymentType === 'swop'
+                      ? 'bg-white/10'
+                      : 'bg-[#f1f4f8] text-[#4f5b6b]'
+                  }`}
+                >
+                  <Wallet className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">
+                    Swop wallet
+                  </span>
+                  <span
+                    className={`mt-0.5 block text-[11px] font-medium leading-4 ${
+                      paymentType === 'swop'
+                        ? 'text-white/70'
+                        : 'text-[#737b8c]'
+                    }`}
+                  >
+                    Scan QR, pay request
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentType('phantom')}
+                aria-pressed={paymentType === 'phantom'}
+                className={`flex items-center gap-3 rounded-md border p-3 text-left transition ${
+                  paymentType === 'phantom'
+                    ? 'border-[#5f4acb] bg-[#5f4acb] text-white'
+                    : 'border-[#dfe4eb] bg-white text-[#303642] hover:border-[#c8d0dc]'
+                }`}
+              >
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+                    paymentType === 'phantom' ? 'bg-white/10' : 'bg-[#f1f4f8]'
+                  }`}
+                >
+                  <PhantomMark className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Phantom</span>
+                  <span
+                    className={`mt-0.5 block text-[11px] font-medium leading-4 ${
+                      paymentType === 'phantom'
+                        ? 'text-white/70'
+                        : 'text-[#737b8c]'
+                    }`}
+                  >
+                    Opens Phantom browser
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={handleCreate}
@@ -1023,7 +1127,9 @@ export default function CheckoutCreateClient() {
               <div className="flex items-center justify-between gap-3 border-b border-[#dff3e5] px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-[#14532d]">
-                    Phantom QR ready
+                    {paymentType === 'phantom'
+                      ? 'Phantom QR ready'
+                      : 'Swop QR ready'}
                   </p>
                   <p className="mt-0.5 text-xs font-medium text-[#5f7f6b]">
                     {formatDueAmount(createdIntent)}
@@ -1038,17 +1144,18 @@ export default function CheckoutCreateClient() {
               >
                 <div className="rounded-lg border border-[#dfe4eb] bg-white p-3 shadow-sm">
                   <QRCodeSVG
-                    value={
-                      createdPhantomCheckoutUrl ||
-                      createdIntent.paymentRequest?.url ||
-                      createdIntent.checkoutUrl
-                    }
+                    value={createdQrValue}
                     size={terminalMode ? 320 : 216}
                     bgColor="#ffffff"
                     fgColor="#101114"
                     level="M"
                   />
                 </div>
+                <p className="text-center text-xs font-medium leading-5 text-[#5f7f6b]">
+                  {paymentType === 'phantom'
+                    ? 'Scanning opens the checkout in the Phantom browser, connects the wallet, and requests the amount.'
+                    : 'Scanning opens the Swop pay request so the buyer can pay with their Swop wallet.'}
+                </p>
                 <div className="w-full rounded-md border border-[#edf0f3] bg-white p-3 text-sm">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-[#737b8c]">Merchant receives</span>
@@ -1077,12 +1184,18 @@ export default function CheckoutCreateClient() {
                 <button
                   type="button"
                   onClick={() =>
-                    copyLink(createdPhantomCheckoutUrl || createdIntent.checkoutUrl)
+                    copyLink(createdQrValue || createdIntent.checkoutUrl)
                   }
-                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#5f4acb] px-3 text-sm font-semibold text-white transition hover:bg-[#523db8]"
+                  className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-white transition ${
+                    paymentType === 'phantom'
+                      ? 'bg-[#5f4acb] hover:bg-[#523db8]'
+                      : 'bg-[#101114] hover:bg-[#24262b]'
+                  }`}
                 >
                   <Copy className="h-4 w-4" />
-                  Copy Phantom link
+                  {paymentType === 'phantom'
+                    ? 'Copy Phantom link'
+                    : 'Copy Swop link'}
                 </button>
                 <button
                   type="button"
@@ -1104,18 +1217,20 @@ export default function CheckoutCreateClient() {
                     Copy Solana Pay URI
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => copyLink(createdIntent.checkoutUrl)}
-                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 text-sm font-semibold text-[#303642] transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa]"
-                >
-                  {copied ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                  Copy web link
-                </button>
+                {paymentType === 'phantom' ? (
+                  <button
+                    type="button"
+                    onClick={() => copyLink(createdIntent.checkoutUrl)}
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 text-sm font-semibold text-[#303642] transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa]"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                    Copy web link
+                  </button>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -1216,12 +1331,12 @@ export default function CheckoutCreateClient() {
                       type="button"
                       onClick={() => {
                         setCreatedIntent(intent);
-                        copyLink(phantomLinkForIntent(intent));
+                        copyLink(paymentLinkForIntent(intent));
                       }}
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 text-sm font-semibold text-[#303642] transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa]"
                     >
                       <Copy className="h-4 w-4" />
-                      Copy Phantom
+                      {paymentType === 'phantom' ? 'Copy Phantom' : 'Copy Swop'}
                     </button>
                     {canReconcileStatus(intent.status) ? (
                       <button
