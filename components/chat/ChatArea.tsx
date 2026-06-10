@@ -3469,16 +3469,29 @@ export default function ChatArea({
 
     const handleGroupParticipantsUpdated = (data: any) => {
       if (data.groupId === selectedChat?._id) {
-        // Refresh group info to get latest participant list
-        loadMessages(1, true);
+        // Apply the fresh participant list from the event payload
+        if (Array.isArray(data.participants) && data.participants.length) {
+          setCurrentGroupData((prev) =>
+            prev ? { ...prev, participants: data.participants } : prev
+          );
+        }
+        // member_added / member_removed events carry the system message
+        if (data.message) {
+          appendMessageIfNew(data.message);
+        }
       }
     };
 
     const handleGroupDeleted = (data: any) => {
       if (data.groupId === selectedChat?._id) {
-        alert('This group has been deleted');
-        // Navigate back or clear selection
-        window.location.reload(); // Simple approach
+        if (getObjectId(data.deletedBy) !== currentUser) {
+          toast('This group has been deleted', {
+            id: `group_deleted_${data.groupId}`,
+            position: 'top-right',
+          });
+        }
+        // Clear the selection; ChatContainer refreshes the group list
+        onLeaveGroup?.();
       }
     };
 
@@ -3533,9 +3546,11 @@ export default function ChatArea({
     socket,
     selectedChat,
     chatType,
-    loadMessages,
+    currentUser,
+    appendMessageIfNew,
     markGroupAgentRemoved,
     onChatUpdate,
+    onLeaveGroup,
     upsertGroupAgent,
   ]);
   // UPDATE: Sync currentGroupData when selectedChat changes
@@ -4796,8 +4811,28 @@ export default function ChatArea({
                   group={displayChat as any}
                   socket={socket}
                   currentUser={currentUser}
-                  onGroupUpdate={() => {
-                    loadMessages(1, true);
+                  onGroupUpdate={(updatedGroup?: any) => {
+                    if (updatedGroup) {
+                      // Merge the fresh group data from the socket ack;
+                      // system messages arrive via group room events
+                      setCurrentGroupData((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              name: updatedGroup.name ?? prev.name,
+                              description:
+                                updatedGroup.description ??
+                                prev.description,
+                              participants:
+                                updatedGroup.participants ??
+                                prev.participants,
+                              settings:
+                                updatedGroup.settings ?? prev.settings,
+                            }
+                          : updatedGroup
+                      );
+                    }
+                    onChatUpdate?.();
                   }}
                   onLeaveGroup={onLeaveGroup}
                 />
