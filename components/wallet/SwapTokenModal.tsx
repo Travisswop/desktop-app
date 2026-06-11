@@ -863,7 +863,7 @@ const PUSD_CURATED_TOKEN = {
   chain: 'POLYGON',
   chainId: '137',
   network: 'polygon',
-  logoURI: 'https://polymarket.com/images/polymarket-logo.png',
+  logoURI: '/images/polymarket-logo.png',
   isVerified: true,
 };
 
@@ -879,8 +879,7 @@ const FALLBACK_CHAIN_TOKENS: Record<string, any[]> = {
       chain: 'POLYGON',
       chainId: '137',
       network: 'polygon',
-      logoURI:
-        'https://polymarket.com/images/polymarket-logo.png',
+      logoURI: '/images/polymarket-logo.png',
       isVerified: true,
     },
     {
