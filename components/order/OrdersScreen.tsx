@@ -46,13 +46,38 @@ export default function OrdersScreen({
   onTabChange,
   rows,
   totals,
+  getDetailHref,
+  isFetching,
+  backHref,
+  eyebrow,
 }: {
   tab: OrderTab;
   onTabChange: (next: OrderTab) => void;
   rows: OrderRow[];
   totals?: OrderTotals;
+  /**
+   * Builder for the per-row detail URL. Defaults to `/order/{_id}?tab={tab}`
+   * so the standalone /order route works out of the box; pass a custom
+   * builder from /dashboard/order (or anywhere else hosting this screen).
+   */
+  getDetailHref?: (row: OrderRow, tab: OrderTab) => string;
+  /**
+   * Subsequent-fetch indicator. The screen stays mounted; pass true while a
+   * tab refetch is in flight so we can render a top progress bar + dim the
+   * table without unmounting the whole tree.
+   */
+  isFetching?: boolean;
+  /**
+   * When set, renders a back button + breadcrumb routing to this href. Leave
+   * undefined to hide the back affordance (root-page usage).
+   */
+  backHref?: string;
+  /** Breadcrumb prefix shown next to the back chevron. Defaults to 'Dashboard'. */
+  eyebrow?: string;
 }) {
   const router = useRouter();
+  const buildHref =
+    getDetailHref ?? ((row, t) => `/order/${row._id}?tab=${t.toLowerCase()}`);
 
   const tabs: OrderTab[] = ['Payments', 'Sold', 'Purchases'];
 
@@ -121,7 +146,9 @@ export default function OrdersScreen({
 
   return (
     <ScreenShell
-      hideBack
+      hideBack={!backHref}
+      onBack={backHref ? () => router.push(backHref) : undefined}
+      eyebrow={eyebrow ?? 'Dashboard'}
       title="Orders"
       kicker="Manage payments, sales & purchases"
       action={
@@ -232,7 +259,38 @@ export default function OrdersScreen({
       </div>
 
       {/* Orders table */}
-      <Card pad={0}>
+      <Card pad={0} style={{ position: 'relative' }}>
+        {isFetching && (
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 2,
+              overflow: 'hidden',
+              borderTopLeftRadius: 22,
+              borderTopRightRadius: 22,
+              zIndex: 2,
+            }}
+          >
+            <div
+              style={{
+                width: '40%',
+                height: '100%',
+                background: ink,
+                opacity: 0.65,
+                animation: 'orders-progress 1.1s ease-in-out infinite',
+              }}
+            />
+            <style>{`@keyframes orders-progress {
+              0%   { transform: translateX(-100%); }
+              50%  { transform: translateX(150%); }
+              100% { transform: translateX(250%); }
+            }`}</style>
+          </div>
+        )}
         <div
           style={{
             padding: '14px 20px',
@@ -280,6 +338,13 @@ export default function OrdersScreen({
         </div>
 
         {/* Rows */}
+        <div
+          style={{
+            opacity: isFetching ? 0.55 : 1,
+            pointerEvents: isFetching ? 'none' : 'auto',
+            transition: 'opacity .15s',
+          }}
+        >
         {rows.length === 0 ? (
           <div
             style={{
@@ -295,7 +360,7 @@ export default function OrdersScreen({
           rows.map((o, i) => (
             <div
               key={o.id}
-              onClick={() => router.push(`/order/${o._id}?tab=${tab.toLowerCase()}`)}
+              onClick={() => router.push(buildHref(o, tab))}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '0.9fr 1.4fr 1.4fr 0.7fr 0.9fr 0.9fr',
@@ -329,6 +394,7 @@ export default function OrdersScreen({
                   alignItems: 'center',
                   gap: 8,
                   minWidth: 0,
+                  fontSize: 13,
                 }}
               >
                 <span
@@ -352,6 +418,7 @@ export default function OrdersScreen({
             </div>
           ))
         )}
+        </div>
       </Card>
     </ScreenShell>
   );

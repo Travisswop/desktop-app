@@ -14,6 +14,7 @@ import { makeLinksClickable } from '@/lib/makeLinksClickable';
 import logger from '@/utils/logger';
 import PredictionFeedCard from './PredictionFeedCard';
 import PerpsPositionFeedCard from './PerpsPositionFeedCard';
+import PerpsFeedCard from './PerpsFeedCard';
 
 interface FeedItemType {
   _id: string;
@@ -260,6 +261,25 @@ const FeedPostContent = ({
       {/* Hyperliquid perps position */}
       {feed.postType === 'perpsPosition' && (
         <PerpsPositionFeedCard feed={feed} />
+      )}
+
+      {/* Perps */}
+      {feed.postType === 'perps' && (
+        <PerpsFeedCard
+          content={feed.content}
+          userName={
+            feed.smartsiteDetails?.name ||
+            feed.smartsiteUserName ||
+            undefined
+          }
+          userImage={
+            feed.smartsiteDetails?.profilePic ||
+            feed.smartsiteProfilePic ||
+            feed.smartsiteId?.profilePic ||
+            undefined
+          }
+          createdAt={feed.createdAt}
+        />
       )}
 
       {/* Transaction */}

@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 // export const maxDuration = 60;
 
 export async function createMarketPlace(payload: any, token: string) {
@@ -16,7 +18,8 @@ export async function createMarketPlace(payload: any, token: string) {
       }
     );
     if (response.ok) {
-      // revalidatePath(`/smartsites/icons/${payload.micrositeId}`);
+      revalidatePath(`/smartsite/profile/${payload.micrositeId}`);
+      revalidatePath(`/smartsite/icons/${payload.micrositeId}`);
       const data = await response.json();
       return data;
     }
@@ -42,7 +45,8 @@ export async function handleDeleteMarketPlace(payload: any, token: string) {
         body: JSON.stringify(payload),
       }
     );
-    // revalidatePath(`/smartsite/profile/${payload.micrositeId}`);
+    revalidatePath(`/smartsite/profile/${payload.micrositeId}`);
+    revalidatePath(`/smartsite/icons/${payload.micrositeId}`);
     const data = await response.json().catch(() => null);
     if (!response.ok) return null;
     return data;

@@ -2,7 +2,20 @@
 import { FC } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import toast from "react-hot-toast";
+import { toast as sonner } from "sonner";
+
+const truncateForToast = (value: string, max = 40) => {
+  if (!value) return "";
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 2)}…`;
+};
+
+const copiedToast = (label: string, value: string) => {
+  sonner.success(`Copied — ${label}`, {
+    description: truncateForToast(value),
+    duration: 2200,
+  });
+};
 import normalizeUrl from "@/utils/normalizeUrl";
 import isUrl from "@/lib/isUrl";
 
@@ -98,9 +111,7 @@ const SocialLarge: FC<Props> = ({
       case "Call To Action":
         if (iconName.startsWith("Copy")) {
           navigator.clipboard.writeText(value);
-          toast.success("Copied to clipboard", {
-            position: "top-right",
-          });
+          copiedToast(name || iconName, value);
           return;
         } else if (iconName === "Call" || iconName === "Mobile") {
           const phone = value.replace(/[^+\d]/g, "");
@@ -156,9 +167,7 @@ const SocialLarge: FC<Props> = ({
         );
       case "Copy Address":
         navigator.clipboard.writeText(value);
-        toast.success("Copied to clipboard", {
-          position: "top-right",
-        });
+        copiedToast(name || "Address", value);
         break;
       case "Command/Action":
         if (name === "Email") {
@@ -177,18 +186,14 @@ const SocialLarge: FC<Props> = ({
           name === "Copy"
         ) {
           navigator.clipboard.writeText(value);
-          toast.success("Copied to clipboard", {
-            position: "top-right",
-          });
+          copiedToast(name, value);
           break;
         }
         return window.open(value, "_blank", "noopener,noreferrer");
       case "General Links":
         if (name === "Invoice" || name === "Card Payment") {
           navigator.clipboard.writeText(value);
-          toast.success("Copied to clipboard", {
-            position: "top-right",
-          });
+          copiedToast(name, value);
           break;
         }
         return window.open(

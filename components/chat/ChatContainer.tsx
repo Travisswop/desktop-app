@@ -4,6 +4,10 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import Sidebar from './Sidebar';
 import ChatArea from './ChatArea';
+import toast from 'react-hot-toast';
+import { useUser } from '@/lib/UserContext';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { useNFT } from '@/lib/hooks/useNFT';
 
 interface InitialDirectRecipient {
   userId?: string | null;
@@ -249,6 +253,58 @@ export default function ChatContainer({
       return next;
     });
   }, []);
+  const { user } = useUser();
+  const solanaWalletAddress =
+    user?.solanaAddress || user?.solanaWallet || '';
+  const { tokens: walletTokens, loading: tokensLoading } =
+    useMultiChainTokenData(
+      solanaWalletAddress || undefined,
+      undefined,
+      ['SOLANA']
+    );
+  const { nfts: walletNfts, loading: nftsLoading } = useNFT(
+    solanaWalletAddress || undefined,
+    undefined,
+    ['SOLANA']
+  );
+
+  const userHasGateAsset = useCallback(
+    (group: any) => {
+      const tokenGate = group?.settings?.tokenGate;
+
+      if (!tokenGate?.enabled) return true;
+      if (!tokenGate.selectedToken) return false;
+
+      if (tokenGate.tokenType === 'NFT') {
+        return walletNfts.some(
+          (nft: any) => nft.contract === tokenGate.selectedToken
+        );
+      }
+
+      return walletTokens.some((token: any) => {
+        const tokenAddress = token.address || token.symbol;
+        const balance = Number(token.balance || 0);
+
+        return (
+          tokenAddress === tokenGate.selectedToken &&
+          Number.isFinite(balance) &&
+          balance > 0
+        );
+      });
+    },
+    [walletNfts, walletTokens]
+  );
+
+  const getTokenGateMessage = (group: any) => {
+    const tokenGate = group?.settings?.tokenGate;
+    const assetName =
+      tokenGate?.selectedTokenName ||
+      tokenGate?.selectedTokenSymbol ||
+      tokenGate?.selectedToken ||
+      'the required asset';
+
+    return `You need ${assetName} in your wallet to join the chat.`;
+  };
 
   // Memoized function to load all data
   const loadInitialData = useCallback(() => {
@@ -389,10 +445,28 @@ export default function ChatContainer({
       }
     };
 
+    const handleGroupSettingsUpdated = (data: any) => {
+      console.log('Group settings updated:', data);
+      loadInitialData();
+
+      if (data?.groupId === selectedChat?._id) {
+        refreshSelectedChat();
+      }
+    };
+
     const handleGroupParticipantsUpdated = (data: any) => {
       loadInitialData();
 
       // Update selected chat if it's the same group
+      if (data?.groupId === selectedChat?._id) {
+        refreshSelectedChat();
+      }
+    };
+
+    const handleGroupMemberRoleUpdated = (data: any) => {
+      console.log('Group member role updated:', data);
+      loadInitialData();
+
       if (data?.groupId === selectedChat?._id) {
         refreshSelectedChat();
       }
@@ -448,10 +522,12 @@ export default function ChatContainer({
     socket.on('group_updated', handleGroupUpdate);
     socket.on('new_group_message', handleNewGroupMessage);
     socket.on('group_info_updated', handleGroupInfoUpdated);
+    socket.on('group_settings_updated', handleGroupSettingsUpdated);
     socket.on(
       'group_participants_updated',
       handleGroupParticipantsUpdated
     );
+    socket.on('group_member_role_updated', handleGroupMemberRoleUpdated);
     socket.on('group_member_added', handleGroupMemberAdded);
     socket.on('group_member_removed', handleGroupMemberRemoved);
     socket.on('group_deleted', handleGroupDeleted);
@@ -475,9 +551,14 @@ export default function ChatContainer({
       socket.off('group_updated', handleGroupUpdate);
       socket.off('new_group_message', handleNewGroupMessage);
       socket.off('group_info_updated', handleGroupInfoUpdated);
+      socket.off('group_settings_updated', handleGroupSettingsUpdated);
       socket.off(
         'group_participants_updated',
         handleGroupParticipantsUpdated
+      );
+      socket.off(
+        'group_member_role_updated',
+        handleGroupMemberRoleUpdated
       );
       socket.off('group_member_added', handleGroupMemberAdded);
       socket.off('group_member_removed', handleGroupMemberRemoved);
@@ -597,6 +678,23 @@ export default function ChatContainer({
     chat: any,
     type: 'private' | 'group'
   ) => {
+    if (type === 'group' && chat?.settings?.tokenGate?.enabled) {
+      if (!solanaWalletAddress) {
+        toast.error('Connect a Solana wallet to join this chat.');
+        return;
+      }
+
+      if (tokensLoading || nftsLoading) {
+        toast('Checking your wallet assets...');
+        return;
+      }
+
+      if (!userHasGateAsset(chat)) {
+        toast.error(getTokenGateMessage(chat));
+        return;
+      }
+    }
+
     setSelectedChat(chat);
     setChatType(type);
   };

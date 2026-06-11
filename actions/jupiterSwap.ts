@@ -10,6 +10,8 @@ interface JupiterBuildParams {
   feeAccount?: string;
   mode?: 'fast';
   instructionVersion?: 'V1' | 'V2';
+  wrapAndUnwrapSol?: boolean;
+  nativeDestinationAccount?: string;
 }
 
 interface JupiterOrderParams {
@@ -201,6 +203,8 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
       feeAccount,
       mode,
       instructionVersion,
+      wrapAndUnwrapSol,
+      nativeDestinationAccount,
     } = params;
 
     const normalizedSlippageBps =
@@ -216,6 +220,12 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
     if (mode) searchParams.set('mode', mode);
     if (instructionVersion) {
       searchParams.set('instructionVersion', instructionVersion);
+    }
+    if (wrapAndUnwrapSol !== undefined) {
+      searchParams.set('wrapAndUnwrapSol', String(wrapAndUnwrapSol));
+    }
+    if (nativeDestinationAccount) {
+      searchParams.set('nativeDestinationAccount', nativeDestinationAccount);
     }
 
     // platformFeeBps requires feeAccount — only include both together

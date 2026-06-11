@@ -1,6 +1,5 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { Modal, ModalContent, ModalBody } from '@nextui-org/react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
@@ -9,10 +8,12 @@ import PaymentShipping from '@/app/(public-profile)/sp/[username]/cart/Shipping'
 import { ChainType } from '@/types/nft';
 import CustomModal from './CustomModal';
 
-const chains: ChainType[] = ['ETHEREUM', 'POLYGON', 'BASE', 'SOLANA'];
+const chains: ChainType[] = ['SOLANA'];
 
 export default function NftPaymentModal({
   subtotal,
+  shippingCost = 0,
+  totalCost,
   isOpen,
   onOpenChange,
   customerInfo,
@@ -20,6 +21,8 @@ export default function NftPaymentModal({
   orderId,
 }: {
   subtotal: number;
+  shippingCost?: number;
+  totalCost?: number;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   customerInfo: any;
@@ -27,11 +30,13 @@ export default function NftPaymentModal({
   orderId: string | null;
 }) {
   const [walletData, setWalletData] = useState<any>(null);
-  const [amontOfToken, setAmontOfToken] = useState<any>(null);
+  const [amountOfToken, setAmountOfToken] = useState<string | null>(null);
   const [selectedToken, setSelectedToken] = useState<any>(null);
   // Preserve the initial payment data to prevent issues when cart is cleared
   const [paymentData, setPaymentData] = useState<{
     subtotal: number;
+    shippingCost: number;
+    totalCost: number;
     customerInfo: any;
     cartItems: any[];
     orderId: string | null;
@@ -47,6 +52,8 @@ export default function NftPaymentModal({
     if (isOpen && subtotal > 0 && !paymentData) {
       setPaymentData({
         subtotal,
+        shippingCost,
+        totalCost: totalCost ?? subtotal + shippingCost,
         customerInfo,
         cartItems,
         orderId,
@@ -55,6 +62,8 @@ export default function NftPaymentModal({
   }, [
     isOpen,
     subtotal,
+    shippingCost,
+    totalCost,
     customerInfo,
     cartItems,
     orderId,
@@ -66,12 +75,15 @@ export default function NftPaymentModal({
     if (!isOpen) {
       setPaymentData(null);
       setSelectedToken(null);
-      setAmontOfToken(null);
+      setAmountOfToken(null);
     }
   }, [isOpen]);
 
   // Use stored payment data or fallback to props
   const currentSubtotal = paymentData?.subtotal || subtotal;
+  const currentShippingCost = paymentData?.shippingCost ?? shippingCost;
+  const currentTotalCost =
+    paymentData?.totalCost ?? totalCost ?? subtotal + shippingCost;
   const currentCustomerInfo =
     paymentData?.customerInfo || customerInfo;
   const currentCartItems = paymentData?.cartItems || cartItems;
@@ -147,11 +159,11 @@ export default function NftPaymentModal({
       const price = parseFloat(selectedToken.marketData.price);
       return (usdAmount / price).toFixed(4);
     };
-    if (selectedToken && currentSubtotal > 0) {
-      const amontOfToken = convertUSDToToken(currentSubtotal);
-      setAmontOfToken(amontOfToken);
+    if (selectedToken && currentTotalCost > 0) {
+      const amountOfToken = convertUSDToToken(currentTotalCost);
+      setAmountOfToken(amountOfToken);
     }
-  }, [selectedToken, currentSubtotal]);
+  }, [selectedToken, currentTotalCost]);
 
   return (
     <>
@@ -164,9 +176,11 @@ export default function NftPaymentModal({
             {selectedToken ? (
               <PaymentShipping
                 subtotal={currentSubtotal}
+                shippingCost={currentShippingCost}
+                totalCost={currentTotalCost}
                 selectedToken={selectedToken}
                 setSelectedToken={setSelectedToken}
-                amontOfToken={amontOfToken}
+                amountOfToken={amountOfToken}
                 walletData={walletData}
                 customerInfo={currentCustomerInfo}
                 cartItems={currentCartItems}

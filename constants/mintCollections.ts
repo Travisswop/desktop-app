@@ -13,7 +13,7 @@ export interface MintCollection {
 export const MINT_COLLECTIONS: MintCollection[] = [
   {
     _id: '67c68cb5a98b77809109710b',
-    name: 'phygitals',
+    name: 'phygital',
     displayName: 'Products',
     address: 'EFNUeHdd9dYNWaczMGfCtqThFea7HcL7xUdH8QNsYUcq',
     image:

@@ -114,6 +114,8 @@ const SWOP_REWARD_TOKEN = {
   chain: 'solana',
   decimals: 9,
 };
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
+const LIFI_NATIVE_SOL_ADDRESS = '11111111111111111111111111111111';
 const DEFAULT_SOLANA_RPC_URL =
   'https://dacey-pp61jd-fast-mainnet.helius-rpc.com/';
 
@@ -825,6 +827,7 @@ const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
   ]),
   crypto: new Set([
     'So11111111111111111111111111111111111111112',
+    '11111111111111111111111111111111',
     'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1',
     'cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij',
     '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs',
@@ -1403,6 +1406,9 @@ export default function SwapTokenModal({
 
   const [showSwapSuccess, setShowSwapSuccess] = useState(false);
 
+  // Confirm-review modal (screen 16 — G8 Confirm transaction)
+  const [showConfirmReview, setShowConfirmReview] = useState(false);
+
   // Quote refresh
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [quoteCountdown, setQuoteCountdown] = useState(10);
@@ -1838,6 +1844,37 @@ export default function SwapTokenModal({
       isSolanaToken(receiveToken, receiverChainId),
     [chainId, payToken, receiveToken, receiverChainId],
   );
+
+  const isNativeSolToken = (t: any) => {
+    const chain =
+      t?.chain?.toUpperCase?.() ||
+      (t?.chainId?.toString?.() === '1151111081099710'
+        ? 'SOLANA'
+        : '');
+    const address = t?.address ?? t?.id ?? t?.mint ?? null;
+    const tags = Array.isArray(t?.tags)
+      ? t.tags.map((tag: unknown) => String(tag).toLowerCase())
+      : [];
+    const hasNativeMarker =
+      t?.isNative === true || tags.includes('native');
+
+    return (
+      t?.symbol?.toUpperCase?.() === 'SOL' &&
+      (hasNativeMarker ||
+        address === LIFI_NATIVE_SOL_ADDRESS ||
+        (chain === 'SOLANA' && address == null))
+    );
+  };
+
+  const getSolanaTokenMint = (t: any) =>
+    isNativeSolToken(t) ? SOL_MINT : t?.address || t?.id || t?.mint;
+
+  const getLiFiSolanaTokenAddress = (t: any) =>
+    isNativeSolToken(t)
+      ? LIFI_NATIVE_SOL_ADDRESS
+      : t?.address || t?.id || t?.mint;
+
+  const toHex = (value: bigint) => `0x${value.toString(16)}`;
 
   const ensureEvmAllowance = useCallback(
     async (params: {
@@ -2517,12 +2554,8 @@ export default function SwapTokenModal({
   const getJupiterQuote = async (slippageBpsOverride?: number) => {
     if (!payToken || !receiveToken || !payAmount)
       throw new Error('Missing required parameters');
-    const getTokenMint = (t: any) =>
-      t.symbol === 'SOL'
-        ? 'So11111111111111111111111111111111111111112'
-        : t.address || t.id;
-    const inputMint = getTokenMint(payToken);
-    const outputMint = getTokenMint(receiveToken);
+    const inputMint = getSolanaTokenMint(payToken);
+    const outputMint = getSolanaTokenMint(receiveToken);
     if (!inputMint || !outputMint)
       throw new Error('Invalid token addresses');
     if (inputMint.toLowerCase() === outputMint.toLowerCase())
@@ -2578,10 +2611,8 @@ export default function SwapTokenModal({
 
     let fromTokenAddress: string;
     if (chainId === '1151111081099710') {
-      if (payToken?.symbol === 'SOL')
-        fromTokenAddress =
-          'So11111111111111111111111111111111111111112';
-      else if (payToken?.address) fromTokenAddress = payToken.address;
+      const solanaTokenAddress = getLiFiSolanaTokenAddress(payToken);
+      if (solanaTokenAddress) fromTokenAddress = solanaTokenAddress;
       else throw new Error('Invalid Solana token');
     } else {
       if (
@@ -2597,11 +2628,9 @@ export default function SwapTokenModal({
 
     let toTokenAddress: string;
     if (receiverChainId === '1151111081099710') {
-      if (receiveToken?.symbol === 'SOL')
-        toTokenAddress =
-          'So11111111111111111111111111111111111111112';
-      else if (receiveToken?.address)
-        toTokenAddress = receiveToken.address;
+      const solanaTokenAddress =
+        getLiFiSolanaTokenAddress(receiveToken);
+      if (solanaTokenAddress) toTokenAddress = solanaTokenAddress;
       else throw new Error('Invalid Solana receive token');
     } else {
       if (
@@ -3207,13 +3236,10 @@ export default function SwapTokenModal({
         return;
       }
 
-      const getTokenMint = (t: any) =>
-        t.symbol === 'SOL'
-          ? 'So11111111111111111111111111111111111111112'
-          : t.address || t.id;
-
-      const inputMint = getTokenMint(payToken);
-      const outputMint = getTokenMint(receiveToken);
+      const inputMint = getSolanaTokenMint(payToken);
+      const outputMint = getSolanaTokenMint(receiveToken);
+      const isNativeSolInput = isNativeSolToken(payToken);
+      const isNativeSolOutput = isNativeSolToken(receiveToken);
       if (!inputMint || !outputMint)
         throw new Error('Invalid token addresses');
       if (inputMint.toLowerCase() === outputMint.toLowerCase())
@@ -3242,13 +3268,16 @@ export default function SwapTokenModal({
           selectedSolanaWallet.address,
         );
         const outputMintPubkey = new PublicKey(outputMint);
+        const isSOLOutput = isNativeSolOutput;
 
         // Fetch SOL balance and output mint info in one round trip
         const [solLamports, outputMintAcct] = await Promise.all([
           connection.getBalance(walletPubkey),
-          connection
-            .getAccountInfo(outputMintPubkey)
-            .catch(() => null),
+          isSOLOutput
+            ? Promise.resolve(null)
+            : connection
+                .getAccountInfo(outputMintPubkey)
+                .catch(() => null),
         ]);
 
         // Detect token program so we derive the correct ATA address
@@ -3257,20 +3286,19 @@ export default function SwapTokenModal({
         )
           ? TOKEN_2022_PROGRAM_ID
           : TOKEN_PROGRAM_ID;
-        const outputAtaAddr = await getAssociatedTokenAddress(
-          outputMintPubkey,
-          walletPubkey,
-          false,
-          outputTokenProgram,
-        );
-        const outputAtaAcct = await connection
-          .getAccountInfo(outputAtaAddr)
-          .catch(() => null);
+        const outputAtaAcct = isSOLOutput
+          ? true
+          : await getAssociatedTokenAddress(
+              outputMintPubkey,
+              walletPubkey,
+              false,
+              outputTokenProgram,
+            ).then((outputAtaAddr) =>
+              connection.getAccountInfo(outputAtaAddr).catch(() => null),
+            );
 
         const rentNeeded = outputAtaAcct ? 0 : ATA_RENT;
-        const SOL_MINT =
-          'So11111111111111111111111111111111111111112';
-        const isSOLInput = inputMint === SOL_MINT;
+        const isSOLInput = isNativeSolInput;
 
         // When the input token IS SOL, the swap amount itself is drawn from
         // the SOL balance, so we must include it in the requirement.
@@ -3310,6 +3338,8 @@ export default function SwapTokenModal({
             );
             const inputMintPubkey = new PublicKey(inputMint);
             const outputMintPubkey = new PublicKey(outputMint);
+            const isSOLInput = isNativeSolInput;
+            const isSOLOutput = isNativeSolOutput;
 
             const detectTokenProgram = async (
               mintPubkey: typeof PublicKey.prototype,
@@ -3328,29 +3358,41 @@ export default function SwapTokenModal({
 
             const [inputTokenProgram, outputTokenProgram] =
               await Promise.all([
-                detectTokenProgram(inputMintPubkey),
-                detectTokenProgram(outputMintPubkey),
+                isSOLInput
+                  ? Promise.resolve(TOKEN_PROGRAM_ID)
+                  : detectTokenProgram(inputMintPubkey),
+                isSOLOutput
+                  ? Promise.resolve(TOKEN_PROGRAM_ID)
+                  : detectTokenProgram(outputMintPubkey),
               ]);
 
             const [inputATA, outputATA] = await Promise.all([
-              getAssociatedTokenAddress(
-                inputMintPubkey,
-                walletPubkey,
-                false,
-                inputTokenProgram,
-              ),
-              getAssociatedTokenAddress(
-                outputMintPubkey,
-                walletPubkey,
-                false,
-                outputTokenProgram,
-              ),
+              isSOLInput
+                ? Promise.resolve(null)
+                : getAssociatedTokenAddress(
+                    inputMintPubkey,
+                    walletPubkey,
+                    false,
+                    inputTokenProgram,
+                  ),
+              isSOLOutput
+                ? Promise.resolve(null)
+                : getAssociatedTokenAddress(
+                    outputMintPubkey,
+                    walletPubkey,
+                    false,
+                    outputTokenProgram,
+                  ),
             ]);
 
             const [inputAccountInfo, outputAccountInfo] =
               await Promise.all([
-                connection.getAccountInfo(inputATA),
-                connection.getAccountInfo(outputATA),
+                inputATA
+                  ? connection.getAccountInfo(inputATA)
+                  : Promise.resolve(true),
+                outputATA
+                  ? connection.getAccountInfo(outputATA)
+                  : Promise.resolve(true),
               ]);
 
             if (!inputAccountInfo || !outputAccountInfo) {
@@ -3420,6 +3462,7 @@ export default function SwapTokenModal({
           connection,
         });
         const requiresInstructionV2 =
+          isNativeSolOutput ||
           inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           feeInfo.tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
@@ -3437,6 +3480,9 @@ export default function SwapTokenModal({
           instructionVersion: requiresInstructionV2
             ? 'V2'
             : undefined,
+          wrapAndUnwrapSol: isNativeSolInput || isNativeSolOutput,
+          nativeDestinationAccount:
+            isNativeSolOutput ? selectedSolanaWallet.address : undefined,
         });
 
         if (!buildResult.success || !buildResult.data) {
@@ -4030,10 +4076,7 @@ export default function SwapTokenModal({
   const handlePercentageClick = (pct: number) => {
     if (!payToken?.balance) return;
 
-    const SOL_MINT = 'So11111111111111111111111111111111111111112';
-    const isSOLInput =
-      payToken.symbol === 'SOL' ||
-      (payToken.address ?? '') === SOL_MINT;
+    const isSOLInput = isNativeSolToken(payToken);
     const decimals = normalizeTokenDecimals(
       payToken.decimals,
       isSOLInput ? 9 : 6,
@@ -5155,6 +5198,248 @@ export default function SwapTokenModal({
           </div>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          Confirm Transaction Modal — screen 16 (G8)
+          Review and sign before the swap is broadcast.
+      ═══════════════════════════════════════════════════════════════════════ */}
+      {showConfirmReview &&
+        (() => {
+          const info = getQuoteInfo();
+          const slippageLabel = customSlippage
+            ? `${customSlippage}%`
+            : `${slippage}%`;
+          const networkName =
+            getNetworkByChainId(chainId).charAt(0).toUpperCase() +
+            getNetworkByChainId(chainId).slice(1);
+          const routeName = isSolanaToSolanaSwap()
+            ? 'JUPITER'
+            : 'LI.FI';
+          const networkFeeLabel = estimatedGasFeeEth
+            ? `${estimatedGasFeeEth} ${getNativeTokenSymbol(chainId)}`
+            : 'Estimated at signing';
+          const minReceive =
+            info?.toAmountUSD &&
+            receiveAmount &&
+            !isNaN(parseFloat(receiveAmount))
+              ? (
+                  parseFloat(receiveAmount) *
+                  (1 - parseFloat(slippageLabel) / 100)
+                ).toLocaleString(undefined, {
+                  maximumFractionDigits: 6,
+                })
+              : null;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div
+                className="absolute inset-0 bg-[rgba(10,10,12,0.45)] backdrop-blur-[2px]"
+                onClick={() => setShowConfirmReview(false)}
+              />
+              <div
+                className="relative w-full max-w-[540px] mx-4 bg-white rounded-3xl shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4),_0_12px_24px_-8px_rgba(0,0,0,0.18)] border border-black/[0.06] overflow-hidden text-[#0a0a0c]"
+              >
+                {/* Header */}
+                <div className="px-6 py-5 border-b border-black/[0.06] flex justify-between items-center">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[10px] font-bold tracking-[1.4px] uppercase font-mono px-2 py-1 rounded-md bg-[#fafafa] border border-black/[0.06]">
+                      Confirm
+                    </span>
+                    <span className="text-[11.5px] text-[#6e6e76] -tracking-[0.05px]">
+                      Review and sign — this cannot be reversed
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowConfirmReview(false)}
+                    className="w-[30px] h-[30px] rounded-lg bg-[#fafafa] border border-black/[0.06] hover:bg-gray-100 inline-flex items-center justify-center"
+                    aria-label="Close confirm"
+                  >
+                    <X className="w-[13px] h-[13px] text-[#0a0a0c]" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="px-6 pt-5 pb-1 max-h-[70vh] overflow-y-auto">
+                  {/* Action summary */}
+                  <div className="px-5 py-[18px] rounded-2xl border border-black/[0.06] bg-[#fafafa] flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-xl bg-white border border-black/[0.06] inline-flex items-center justify-center flex-shrink-0">
+                      <ArrowUpDown className="w-[18px] h-[18px] text-[#0a0a0c]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-mono font-semibold tracking-[0.6px] text-[#6e6e76]">
+                        SWAP · {routeName}
+                      </div>
+                      <div className="text-base font-semibold mt-0.5 -tracking-[0.2px] truncate">
+                        {payAmount} {payToken?.symbol} →{' '}
+                        {receiveAmount} {receiveToken?.symbol}
+                      </div>
+                    </div>
+                    <span className="text-[10.5px] font-bold text-[#19a974] bg-[#19a974]/10 px-2.5 py-1 rounded-full">
+                      SAFE
+                    </span>
+                  </div>
+
+                  {/* Simulated balance changes */}
+                  <div className="mt-[18px]">
+                    <div className="text-[10.5px] font-bold tracking-[1.2px] uppercase font-mono text-[#6e6e76] mb-2">
+                      Simulated changes
+                    </div>
+                    <div className="rounded-xl border border-black/[0.06] overflow-hidden">
+                      {[
+                        {
+                          side: 'out' as const,
+                          label: 'You send',
+                          asset: payToken?.symbol || '',
+                          amt: `−${payAmount} ${payToken?.symbol || ''}`,
+                          usd: info?.fromAmountUSD
+                            ? `−$${info.fromAmountUSD.toFixed(2)}`
+                            : '',
+                        },
+                        {
+                          side: 'in' as const,
+                          label: 'You receive',
+                          asset: receiveToken?.symbol || '',
+                          amt: `+${receiveAmount} ${receiveToken?.symbol || ''}`,
+                          usd: info?.toAmountUSD
+                            ? `+$${info.toAmountUSD.toFixed(2)}`
+                            : '',
+                        },
+                      ].map((c, i) => (
+                        <div
+                          key={i}
+                          className={`px-3.5 py-3 grid grid-cols-[32px_1fr_auto] gap-3 items-center ${i === 0 ? 'border-b border-black/[0.06]' : ''} ${c.side === 'in' ? 'bg-[#19a974]/10' : 'bg-white'}`}
+                        >
+                          <div
+                            className={`w-7 h-7 rounded-lg bg-white border border-black/[0.06] inline-flex items-center justify-center ${c.side === 'in' ? 'rotate-180' : ''}`}
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke={
+                                c.side === 'in' ? '#19a974' : '#0a0a0c'
+                              }
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <line x1="12" y1="19" x2="12" y2="5" />
+                              <polyline points="5 12 12 5 19 12" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-xs text-[#6e6e76]">
+                              {c.label}
+                            </div>
+                            <div className="text-[13px] font-semibold mt-0.5 -tracking-[0.1px]">
+                              {c.asset}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div
+                              className={`text-[13px] font-semibold font-mono ${c.side === 'in' ? 'text-[#19a974]' : 'text-[#0a0a0c]'}`}
+                            >
+                              {c.amt}
+                            </div>
+                            <div className="text-[10.5px] text-[#6e6e76] font-mono mt-0.5">
+                              {c.usd}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Network + fee details */}
+                  <div className="mt-4 px-4 py-3.5 rounded-xl border border-black/[0.06] bg-[#fafafa]">
+                    {[
+                      ['Network', networkName],
+                      ['Network fee', networkFeeLabel],
+                      [
+                        'Slippage',
+                        minReceive
+                          ? `${slippageLabel} · min receive ${minReceive}`
+                          : slippageLabel,
+                      ],
+                      [
+                        'Route',
+                        `${payToken?.symbol || '—'} → ${receiveToken?.symbol || '—'} · direct`,
+                      ],
+                    ].map(([k, v], i, arr) => (
+                      <div
+                        key={k as string}
+                        className={`flex justify-between py-1.5 ${i === arr.length - 1 ? '' : 'border-b border-dashed border-black/[0.04]'}`}
+                      >
+                        <span className="text-xs text-[#6e6e76]">
+                          {k}
+                        </span>
+                        <span className="text-xs font-medium font-mono text-[#0a0a0c]">
+                          {v}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Verified contract / risk row */}
+                  <div className="mt-3 px-3 py-2.5 rounded-[10px] bg-[#19a974]/10 border border-[#19a974]/[0.18] flex items-center gap-2.5">
+                    <div className="w-[22px] h-[22px] rounded-full bg-white border-[1.5px] border-[#19a974] inline-flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="w-3 h-3 text-[#19a974]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-[#19a974] -tracking-[0.1px]">
+                        Verified route ·{' '}
+                        {isSolanaToSolanaSwap()
+                          ? 'Jupiter Aggregator'
+                          : 'Li.Fi Bridge'}
+                      </div>
+                      <div className="text-[10.5px] text-[#6e6e76] mt-0.5 font-mono truncate">
+                        {isSolanaToSolanaSwap()
+                          ? 'jup.ag · audited'
+                          : 'li.fi · audited'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Permissions footer */}
+                  <div className="mt-3.5 mb-1 text-[11px] text-[#6e6e76] leading-relaxed">
+                    You&apos;ll grant a{' '}
+                    <span className="text-[#0a0a0c] font-semibold">
+                      one-time spend approval
+                    </span>{' '}
+                    for {payAmount} {payToken?.symbol}. No further
+                    txns will be signed without your confirmation.
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 grid grid-cols-[1fr_1.6fr] gap-2.5 border-t border-black/[0.04]">
+                  <button
+                    onClick={() => setShowConfirmReview(false)}
+                    className="py-3.5 rounded-xl bg-[#fafafa] border border-black/[0.06] text-sm font-semibold text-[#0a0a0c] hover:bg-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowConfirmReview(false);
+                      executeCrossChainSwap();
+                    }}
+                    disabled={
+                      isSwapping ||
+                      !balanceValidation.isValid ||
+                      !!gasBalanceError ||
+                      !payToken ||
+                      !receiveToken
+                    }
+                    className="py-3.5 rounded-xl bg-[#0a0a0c] hover:bg-black/90 text-white text-sm font-bold -tracking-[0.1px] disabled:opacity-50 transition-colors"
+                  >
+                    Sign & confirm swap
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       {/* ── Swap in-progress overlay ── */}
       {isSwapping && (

@@ -22,8 +22,6 @@ import {
   usePrivy,
 } from '@privy-io/react-auth';
 import {
-  useWallets as useSolanaWallets,
-  useSignAndSendTransaction,
   useCreateWallet as useSolanaCreateWallet,
 } from '@privy-io/react-auth/solana';
 import Image from 'next/image';

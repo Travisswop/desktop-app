@@ -20,6 +20,7 @@ import { formatEns } from "@/lib/formatEnsName";
 import PollCard from "./PollCard";
 import PredictionFeedCard from "./PredictionFeedCard";
 import PerpsPositionFeedCard from "./PerpsPositionFeedCard";
+import PerpsFeedCard from "./PerpsFeedCard";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import { IoMdArrowDropright } from "react-icons/io";
 import { MdArrowRight } from "react-icons/md";
@@ -305,6 +306,24 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
             )}
             {feed.repostedPostDetails.postType === "perpsPosition" && (
               <PerpsPositionFeedCard feed={feed.repostedPostDetails} />
+            )}
+            {feed.repostedPostDetails.postType === "perps" && (
+              <PerpsFeedCard
+                content={feed.repostedPostDetails.content}
+                userName={
+                  feed.repostedPostDetails?.smartsiteId?.name ||
+                  feed.repostedPostDetails?.smartsiteUserName ||
+                  feed.repostedPostDetails?.smartsiteDetails?.name ||
+                  undefined
+                }
+                userImage={
+                  feed.repostedPostDetails?.smartsiteId?.profilePic ||
+                  feed.repostedPostDetails?.smartsiteProfilePic ||
+                  feed.repostedPostDetails?.smartsiteDetails?.profilePic ||
+                  undefined
+                }
+                createdAt={feed.repostedPostDetails?.createdAt}
+              />
             )}
           </div>
         </div>

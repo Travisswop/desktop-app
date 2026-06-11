@@ -48,6 +48,15 @@ export interface UserData {
   subscribers: any[];
   followers: number;
   following: number;
+  connections?: {
+    followers?: any[];
+    following?: any[];
+    childConnection?: any[];
+    parentConnection?: any[];
+    followerCount?: number;
+    followingCount?: number;
+    totalFollowers?: number;
+  };
   ensName?: string;
   ens?: string;
   primaryMicrosite?: string;
@@ -66,7 +75,6 @@ export interface UserData {
     [key: string]: unknown;
   };
   referralCode?: string;
-  connections?: any[];
 
   // Bot-related fields
   isBot?: boolean;

@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { formatEns } from "@/lib/formatEnsName";
 import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
 import { IoArrowBack } from "react-icons/io5";
+import PerpsFeedCard from "./PerpsFeedCard";
 
 dayjs.extend(relativeTime);
 
@@ -174,6 +175,25 @@ const FeedDetails = ({ feedData, feedDetails }: any) => {
                 )}
                 {feedData.postType === "transaction" && feedData && (
                   <RenderTransactionContent feed={feedData} />
+                )}
+
+                {feedData.postType === "perps" && (
+                  <PerpsFeedCard
+                    content={feedData.content}
+                    userName={
+                      feedData?.smartsiteId?.name ||
+                      feedData?.smartsiteUserName ||
+                      feedData?.smartsiteDetails?.name ||
+                      undefined
+                    }
+                    userImage={
+                      feedData?.smartsiteId?.profilePic ||
+                      feedData?.smartsiteProfilePic ||
+                      feedData?.smartsiteDetails?.profilePic ||
+                      undefined
+                    }
+                    createdAt={feedData?.createdAt}
+                  />
                 )}
 
                 {feedData.postType === "swapTransaction" && (

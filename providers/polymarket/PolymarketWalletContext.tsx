@@ -27,6 +27,8 @@ import {
 } from "@/components/wallet/hooks/useWalletData";
 import { useUser } from "@/lib/UserContext";
 
+const WALLET_PROVIDER_TIMEOUT_MS = 12_000;
+
 export interface PolymarketWalletContextType {
   eoaAddress: `0x${string}` | undefined;
   walletClient: WalletClient | null;
@@ -60,6 +62,34 @@ const PolymarketWalletContext = createContext<PolymarketWalletContextType>({
 
 export function usePolymarketWallet() {
   return useContext(PolymarketWalletContext);
+}
+
+function isEvmWallet(wallet: { address?: string; walletClientType?: string }) {
+  return (
+    wallet.walletClientType !== "solana" &&
+    typeof wallet.address === "string" &&
+    wallet.address.startsWith("0x")
+  );
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const id = window.setTimeout(
+      () => reject(new Error("Timed out initializing EVM wallet")),
+      ms,
+    );
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(id);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(id);
+        reject(error);
+      },
+    );
+  });
 }
 
 export function PolymarketWalletProvider({ children }: { children: ReactNode }) {
@@ -131,6 +161,8 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
       return;
     }
 
+    let cancelled = false;
+
     async function init() {
       if (!wallet || !walletAddressKey || !walletChainId || !initializationKey) {
         // No EVM wallet available — stop initializing, no error
@@ -151,7 +183,10 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
       }
 
       try {
-        const provider = await wallet.getEthereumProvider();
+        const provider = await withTimeout(
+          wallet.getEthereumProvider(),
+          WALLET_PROVIDER_TIMEOUT_MS,
+        );
 
         const client = createWalletClient({
           account: eoaAddress,
@@ -159,21 +194,27 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
           transport: custom(provider),
         });
 
-        setWalletClient(client);
+        if (cancelled) return;
 
+        setWalletClient(client);
         const ethersProvider = new providers.Web3Provider(provider);
         setEthersSigner(ethersProvider.getSigner());
         initializedWalletKeyRef.current = initializationKey;
       } catch (err) {
         console.error("Failed to initialize Polymarket wallet client:", err);
-        setWalletClient(null);
-        setEthersSigner(null);
+        if (!cancelled) {
+          setWalletClient(null);
+          setEthersSigner(null);
+        }
       } finally {
-        setIsInitializing(false);
+        if (!cancelled) setIsInitializing(false);
       }
     }
 
     init();
+    return () => {
+      cancelled = true;
+    };
   }, [ready, authenticated, walletAddressKey, walletChainId, retryNonce]);
 
   return (

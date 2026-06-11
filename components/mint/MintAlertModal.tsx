@@ -14,6 +14,7 @@ export interface ModelInfo {
   /** Optional overrides — when set, replace the default success/error titles. */
   successTitle?: string;
   errorTitle?: string;
+  title?: string;
 }
 
 interface MintAlertModalProps {
@@ -59,6 +60,7 @@ export default function MintAlertModal({
                 className="font-bold text-lg mt-4"
               >
                 {modelInfo.successTitle ??
+                  modelInfo.title ??
                   `${
                     modelInfo.nftType.charAt(0).toUpperCase() +
                     modelInfo.nftType.slice(1)

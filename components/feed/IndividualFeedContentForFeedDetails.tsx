@@ -13,6 +13,7 @@ import { FiPlusCircle } from "react-icons/fi";
 import { formatEns } from "@/lib/formatEnsName";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import TokenTransferFeedCard from "./TokenTransferFeedCard";
+import PerpsFeedCard from "./PerpsFeedCard";
 
 const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -202,6 +203,24 @@ const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
             )}
             {feed.repostedPostDetails.postType === "transaction" &&
               renderTransactionContent(feed)}
+            {feed.repostedPostDetails.postType === "perps" && (
+              <PerpsFeedCard
+                content={feed.repostedPostDetails.content}
+                userName={
+                  feed.repostedPostDetails?.smartsiteId?.name ||
+                  feed.repostedPostDetails?.smartsiteUserName ||
+                  feed.repostedPostDetails?.smartsiteDetails?.name ||
+                  undefined
+                }
+                userImage={
+                  feed.repostedPostDetails?.smartsiteId?.profilePic ||
+                  feed.repostedPostDetails?.smartsiteProfilePic ||
+                  feed.repostedPostDetails?.smartsiteDetails?.profilePic ||
+                  undefined
+                }
+                createdAt={feed.repostedPostDetails?.createdAt}
+              />
+            )}
           </div>
         </div>
         <div>

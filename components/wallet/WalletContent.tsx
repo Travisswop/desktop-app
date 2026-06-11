@@ -762,17 +762,26 @@ const WalletContentInner = () => {
   const [perpsInitialCoin, setPerpsInitialCoin] = useState<
     string | null
   >(null);
+  const [perpsInitialOrder, setPerpsInitialOrder] = useState<{
+    side?: 'long' | 'short';
+    leverage?: number;
+    isCross?: boolean;
+    sizeUsd?: string;
+    sizeCoins?: string;
+  } | null>(null);
 
-  const openPerpsPanel = (coin?: string) => {
+  const openPerpsPanel = useCallback((coin?: string) => {
     setPerpsInitialCoin(coin ?? null);
     setPerpsAgentPrefill(null);
+    setPerpsInitialOrder(null);
     setPerpsPanelOpen(true);
-  };
+  }, []);
 
   const closePerpsPanel = () => {
     setPerpsPanelOpen(false);
     setPerpsInitialCoin(null);
     setPerpsAgentPrefill(null);
+    setPerpsInitialOrder(null);
   };
 
   const [arbitrumBridgeOpen, setArbitrumBridgeOpen] = useState(false);
@@ -1064,6 +1073,21 @@ const WalletContentInner = () => {
     const leverage = parsePerpsPanelLeverage(
       searchParams.get('leverage'),
     );
+    // Extra ticket values copied from a perps feed card (main's perps-on-feed
+    // links include margin mode and size alongside coin/side/leverage).
+    const marginModeParam = searchParams
+      .get('marginMode')
+      ?.trim()
+      .toLowerCase();
+    const isCross =
+      marginModeParam === 'isolated'
+        ? false
+        : marginModeParam === 'cross'
+          ? true
+          : undefined;
+    const sizeUsd = searchParams.get('sizeUsd')?.trim() || undefined;
+    const sizeCoins =
+      searchParams.get('sizeCoins')?.trim() || undefined;
     const now = Date.now();
 
     setPerpsInitialCoin(coin);
@@ -1075,6 +1099,9 @@ const WalletContentInner = () => {
             coin: coin ?? undefined,
             side: side ?? undefined,
             leverage: leverage ?? undefined,
+            isCross,
+            sizeUsd,
+            sizeCoins,
             orderMode: 'market',
           }
         : null,
@@ -1480,7 +1507,7 @@ const WalletContentInner = () => {
             const result = await signAndSendTransaction({
               transaction: new Uint8Array(serializedNFTTransaction),
               wallet: selectedSolanaWallet!,
-              options: { sponsor: true },
+              options: { sponsor: false },
             });
             hash = bs58.encode(result.signature);
           } catch (privyError) {
@@ -1535,7 +1562,7 @@ const WalletContentInner = () => {
                 data: nftData as `0x${string}`,
                 chainId,
               },
-              { sponsor: true },
+              { sponsor: false },
             );
             hash = result.hash;
           } catch (evmError) {
@@ -1574,7 +1601,7 @@ const WalletContentInner = () => {
               transaction: new Uint8Array(serializedTransaction),
               wallet: selectedSolanaWallet!,
               options: {
-                sponsor: true,
+                sponsor: false,
               },
             });
 
@@ -1602,7 +1629,7 @@ const WalletContentInner = () => {
                   value: ethers.parseEther(sendFlow.amount),
                   chainId,
                 },
-                { sponsor: true },
+                { sponsor: false },
               );
               hash = result.hash;
             } else {
@@ -1624,7 +1651,7 @@ const WalletContentInner = () => {
                   data: tokenData as `0x${string}`,
                   chainId,
                 },
-                { sponsor: true },
+                { sponsor: false },
               );
               hash = result.hash;
             }
@@ -2140,6 +2167,7 @@ const WalletContentInner = () => {
             initializeAgent={hlAgent.initializeAgent}
             initialCoin={perpsInitialCoin}
             agentOrderPrefill={perpsAgentPrefill}
+            initialOrder={perpsInitialOrder}
             onClose={closePerpsPanel}
             onOpenDeposit={() => {
               setPerpsDepositOpen(true);

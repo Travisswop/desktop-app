@@ -3,7 +3,22 @@
 import { FC } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import toast from "react-hot-toast";
+import { toast as sonner } from "sonner";
+
+// Truncate the copied value so it fits in a toast description without
+// blowing the row out for long addresses / urls.
+const truncateForToast = (value: string, max = 40) => {
+  if (!value) return "";
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 2)}…`;
+};
+
+const copiedToast = (label: string, value: string) => {
+  sonner.success(`Copied — ${label}`, {
+    description: truncateForToast(value),
+    duration: 2200,
+  });
+};
 import InfoCardContent from "./InfoCardContent";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -133,9 +148,7 @@ const InfoBar: FC<Props> = ({
         return window.open(`${title}`, "_blank");
       case "Copy Address":
         navigator.clipboard.writeText(title);
-        toast.success("Copied to clipboard", {
-          position: "top-right",
-        });
+        copiedToast(iconName || "Address", title);
         break;
       case "Command/Action":
         if (iconName === "Email") {
@@ -165,9 +178,7 @@ const InfoBar: FC<Props> = ({
           iconName === "Copy"
         ) {
           navigator.clipboard.writeText(title);
-          toast.success("Copied to clipboard", {
-            position: "top-right",
-          });
+          copiedToast(iconName || "Value", title);
           break;
         }
         if (title.toLowerCase().startsWith("www")) {
@@ -177,9 +188,7 @@ const InfoBar: FC<Props> = ({
       case "General Links":
         if (iconName === "Invoice" || iconName === "Card Payment") {
           navigator.clipboard.writeText(title);
-          toast.success("Copied to clipboard", {
-            position: "top-right",
-          });
+          copiedToast(iconName, title);
           break;
         }
         return window.open(title, "_blank");

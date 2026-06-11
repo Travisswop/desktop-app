@@ -6,12 +6,16 @@ import Image from 'next/image';
 import CustomModal from '../modal/CustomModal';
 import isUrl from '@/lib/isUrl';
 import {
+  ChevronDown,
   Loader2,
   MessageCircle,
   Search,
   Users,
   X,
 } from 'lucide-react';
+import { useUser } from '@/lib/UserContext';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { useNFT } from '@/lib/hooks/useNFT';
 
 interface User {
   _id?: string;
@@ -61,15 +65,88 @@ export default function GroupModal({
   const [isSearching, setIsSearching] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>(
+    []
+  );
+  const [tokenGated, setTokenGated] = useState(false);
+  const [tokenType, setTokenType] = useState<'NFT' | 'Token'>('NFT');
+  const [selectedToken, setSelectedToken] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useUser();
+  const solanaWalletAddress =
+    user?.solanaAddress || user?.solanaWallet || '';
+
+  const {
+    tokens: walletTokens,
+    loading: tokensLoading,
+    error: tokensError,
+  } = useMultiChainTokenData(
+    solanaWalletAddress || undefined,
+    undefined,
+    ['SOLANA']
+  );
+
+  const {
+    nfts: walletNfts,
+    loading: nftsLoading,
+    error: nftsError,
+  } = useNFT(solanaWalletAddress || undefined, undefined, ['SOLANA']);
+
+  const tokenOptions = useMemo(() => {
+    if (tokenType === 'NFT') {
+      return walletNfts.map((nft) => ({
+        value: nft.contract,
+        label: nft.name || nft.symbol || nft.contract,
+        symbol: nft.symbol,
+        image: nft.image,
+      }));
+    }
+
+    return walletTokens
+      .filter((token) => {
+        const balance = Number(token.balance || 0);
+        return Number.isFinite(balance) && balance > 0;
+      })
+      .map((token) => ({
+        value: token.address || token.symbol,
+        label: token.name || token.symbol || token.address || 'Token',
+        symbol: token.symbol,
+        image: token.logoURI || token.marketData?.image,
+      }));
+  }, [tokenType, walletNfts, walletTokens]);
+
+  const selectedGateAsset = tokenOptions.find(
+    (option) => option.value === selectedToken
+  );
+
+  useEffect(() => {
+    setSelectedToken('');
+  }, [tokenType, solanaWalletAddress]);
+
+  useEffect(() => {
+    if (
+      selectedToken &&
+      !tokenOptions.some((option) => option.value === selectedToken)
+    ) {
+      setSelectedToken('');
+    }
+  }, [selectedToken, tokenOptions]);
 
   const canCreateGroup = useMemo(
     () =>
       mode === 'group' &&
       Boolean(groupName.trim()) &&
       selectedMembers.length > 0 &&
+      (!tokenGated || Boolean(selectedToken)) &&
       !isCreating,
-    [groupName, isCreating, mode, selectedMembers.length]
+    [
+      groupName,
+      isCreating,
+      mode,
+      selectedMembers.length,
+      selectedToken,
+      tokenGated,
+    ]
   );
 
   useEffect(() => {
@@ -169,6 +246,17 @@ export default function GroupModal({
     setSelectedMembers((members) =>
       members.filter((member) => getUserId(member) !== userId)
     );
+    setSelectedAdminIds((adminIds) =>
+      adminIds.filter((adminId) => adminId !== userId)
+    );
+  };
+
+  const handleToggleAdmin = (userId: string) => {
+    setSelectedAdminIds((adminIds) =>
+      adminIds.includes(userId)
+        ? adminIds.filter((adminId) => adminId !== userId)
+        : [...adminIds, userId]
+    );
   };
 
   const handleCreateGroup = async () => {
@@ -181,7 +269,20 @@ export default function GroupModal({
       const response = await emitSocketAck<any>(socket, 'create_group', {
         name: groupName.trim(),
         members: selectedMembers.map((member) => getUserId(member)),
-        tokenGated: false,
+        admins: selectedAdminIds,
+        tokenGated,
+        tokenType: tokenGated ? tokenType : undefined,
+        selectedToken:
+          tokenGated && selectedToken ? selectedToken : undefined,
+        selectedTokenName:
+          tokenGated && selectedGateAsset
+            ? selectedGateAsset.label
+            : undefined,
+        selectedTokenSymbol:
+          tokenGated && selectedGateAsset
+            ? selectedGateAsset.symbol
+            : undefined,
+        network: tokenGated ? 'SOLANA' : undefined,
         isPublic: false,
       });
 
@@ -208,6 +309,10 @@ export default function GroupModal({
     setIsSearching(false);
     setIsCreating(false);
     setFormError(null);
+    setSelectedAdminIds([]);
+    setTokenGated(false);
+    setTokenType('NFT');
+    setSelectedToken('');
     onClose();
   };
 
@@ -375,6 +480,205 @@ export default function GroupModal({
             <EmptyState title="No matches" detail="Try another name or handle." />
           )}
         </div>
+
+        {mode === 'group' && selectedMembers.length > 0 && (
+          <div>
+            <span className="dm-mono mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#7b808c]">
+              Add Admins
+            </span>
+            <div className="dm-scroll flex gap-4 overflow-x-auto pb-1">
+              {selectedMembers.map((member) => {
+                const userId = getUserId(member);
+                const isAdmin = userId
+                  ? selectedAdminIds.includes(userId)
+                  : false;
+                const avatar = getUserAvatar(member);
+                const displayName = getUserName(member);
+
+                return (
+                  <button
+                    key={userId || displayName}
+                    type="button"
+                    onClick={() => userId && handleToggleAdmin(userId)}
+                    className="flex w-16 shrink-0 flex-col items-center gap-2"
+                  >
+                    <span
+                      className={`relative h-14 w-14 overflow-hidden rounded-full border-2 transition-colors ${
+                        isAdmin
+                          ? 'border-[#3fe08f]'
+                          : 'border-transparent'
+                      }`}
+                    >
+                      {avatar ? (
+                        <Image
+                          src={
+                            isUrl(avatar)
+                              ? avatar
+                              : `/images/user_avator/${avatar}@3x.png`
+                          }
+                          alt={displayName}
+                          width={56}
+                          height={56}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center bg-[#2f4256] text-[13px] font-bold text-[#eceef2]">
+                          {getInitials(displayName)}
+                        </span>
+                      )}
+                      {isAdmin && (
+                        <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#3fe08f] text-[10px] font-bold text-[#031008]">
+                          ✓
+                        </span>
+                      )}
+                    </span>
+                    <span className="w-full truncate text-center text-[11px] text-[#8d93a1]">
+                      {displayName}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {mode === 'group' && (
+          <div>
+            <span className="dm-mono mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#7b808c]">
+              Token Gated
+            </span>
+            <div className="inline-flex w-44 rounded-full border border-white/[0.07] bg-black/30 p-1">
+              <button
+                type="button"
+                onClick={() => setTokenGated(true)}
+                className={`flex-1 rounded-full px-4 py-2 text-[12px] font-bold transition-colors ${
+                  tokenGated
+                    ? 'bg-[#183425] text-[#3fe08f]'
+                    : 'text-[#8d93a1] hover:text-[#eceef2]'
+                }`}
+              >
+                On
+              </button>
+              <button
+                type="button"
+                onClick={() => setTokenGated(false)}
+                className={`flex-1 rounded-full px-4 py-2 text-[12px] font-bold transition-colors ${
+                  !tokenGated
+                    ? 'bg-[#183425] text-[#3fe08f]'
+                    : 'text-[#8d93a1] hover:text-[#eceef2]'
+                }`}
+              >
+                Off
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === 'group' && tokenGated && (
+          <>
+            <div>
+              <span className="dm-mono mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#7b808c]">
+                Token Type
+              </span>
+              <div className="inline-flex w-44 rounded-full border border-white/[0.07] bg-black/30 p-1">
+                <button
+                  type="button"
+                  onClick={() => setTokenType('NFT')}
+                  className={`flex-1 rounded-full px-4 py-2 text-[12px] font-bold transition-colors ${
+                    tokenType === 'NFT'
+                      ? 'bg-[#183425] text-[#3fe08f]'
+                      : 'text-[#8d93a1] hover:text-[#eceef2]'
+                  }`}
+                >
+                  NFT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTokenType('Token')}
+                  className={`flex-1 rounded-full px-4 py-2 text-[12px] font-bold transition-colors ${
+                    tokenType === 'Token'
+                      ? 'bg-[#183425] text-[#3fe08f]'
+                      : 'text-[#8d93a1] hover:text-[#eceef2]'
+                  }`}
+                >
+                  Token
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <span className="dm-mono mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#7b808c]">
+                Select {tokenType}
+              </span>
+              <div className="relative">
+                <select
+                  value={selectedToken}
+                  onChange={(e) => setSelectedToken(e.target.value)}
+                  className="h-11 w-full cursor-pointer appearance-none rounded-[12px] border border-white/[0.07] bg-black/30 px-3.5 pr-10 text-[14px] font-semibold text-[#eceef2] outline-none focus:border-[#3fe08f]/60 focus:ring-2 focus:ring-[#3fe08f]/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={
+                    !solanaWalletAddress ||
+                    tokensLoading ||
+                    nftsLoading ||
+                    tokenOptions.length === 0
+                  }
+                >
+                  <option value="">
+                    {!solanaWalletAddress
+                      ? 'Connect a Solana wallet first'
+                      : tokenType === 'NFT' && nftsLoading
+                      ? 'Loading NFTs...'
+                      : tokenType === 'Token' && tokensLoading
+                      ? 'Loading tokens...'
+                      : tokenOptions.length === 0
+                      ? `No Solana ${tokenType === 'NFT' ? 'NFTs' : 'tokens'} found`
+                      : `Select a ${tokenType.toLowerCase()}...`}
+                  </option>
+                  {tokenOptions.map((asset) => (
+                    <option key={asset.value} value={asset.value}>
+                      {asset.symbol
+                        ? `${asset.label} (${asset.symbol})`
+                        : asset.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={18}
+                  className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#8d93a1]"
+                />
+              </div>
+              {(tokensError || nftsError) && (
+                <p className="mt-2 text-xs text-[#ffb3b3]">
+                  Failed to load wallet assets. Please try again.
+                </p>
+              )}
+              {selectedGateAsset && (
+                <div className="mt-3 flex items-center gap-3 rounded-[12px] border border-white/[0.07] bg-black/20 p-3">
+                  {selectedGateAsset.image ? (
+                    <Image
+                      src={selectedGateAsset.image}
+                      alt={selectedGateAsset.label}
+                      width={32}
+                      height={32}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2f4256] text-xs font-bold text-[#eceef2]">
+                      {selectedGateAsset.label.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-[#eceef2]">
+                      {selectedGateAsset.label}
+                    </div>
+                    <div className="dm-mono truncate text-xs text-[#5a5e69]">
+                      {selectedGateAsset.value}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {formError && (
           <div className="rounded-[12px] border border-[#ff6b6b]/20 bg-[#2b1518] px-3 py-2.5 text-[12px] font-semibold text-[#ffb3b3]">

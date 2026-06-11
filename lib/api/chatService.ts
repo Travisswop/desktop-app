@@ -1,6 +1,7 @@
 // Chat service for API interactions with the new backend
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const USER_CACHE_KEY = 'swop:user-cache';
 
 interface CreateMessageRequest {
   receiverId: string;
@@ -34,17 +35,39 @@ class ChatApiService {
     return decodeURIComponent(cookie.slice(name.length + 1));
   }
 
-  private getAuthHeaders() {
-    // Prefer the cookie used by the socket connection, with older localStorage
-    // names kept as fallbacks for legacy chat surfaces.
-    const token =
-      this.getCookieValue('access-token') ||
-      (typeof localStorage !== 'undefined'
-        ? localStorage.getItem('authToken') ||
-          localStorage.getItem('jwt_token') ||
-          localStorage.getItem('accessToken')
-        : null);
+  private getCachedAuthToken() {
+    if (typeof window === 'undefined') return null;
 
+    try {
+      const rawCache = window.localStorage.getItem(USER_CACHE_KEY);
+      if (!rawCache) return null;
+
+      const cache = JSON.parse(rawCache) as {
+        accessToken?: string | null;
+      };
+      return cache.accessToken || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private getAuthToken() {
+    if (typeof window === 'undefined') return null;
+
+    // Prefer the cookie used by the socket connection, with older localStorage
+    // names (and the cached user payload) kept as fallbacks for legacy chat
+    // surfaces.
+    return (
+      this.getCookieValue('access-token') ||
+      localStorage.getItem('authToken') ||
+      localStorage.getItem('jwt_token') ||
+      localStorage.getItem('accessToken') ||
+      this.getCachedAuthToken()
+    );
+  }
+
+  private getAuthHeaders() {
+    const token = this.getAuthToken();
     return {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),

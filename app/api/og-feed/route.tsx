@@ -1,186 +1,3 @@
-// import { ImageResponse } from "next/og";
-
-// export async function GET(request: Request) {
-//   try {
-//     const { searchParams } = new URL(request.url);
-
-//     const ensName = searchParams.get("ensName") || "swop.user";
-//     const title = searchParams.get("title") || "Swop Feed";
-//     const imageUrl = searchParams.get("image") || "";
-//     const date = searchParams.get("date") || "";
-//     const showGifPlaceholder =
-//       searchParams.get("showGifPlaceholder") === "true";
-
-//     const hasImage = Boolean(imageUrl);
-//     const hasMedia = hasImage || showGifPlaceholder;
-
-//     return new ImageResponse(
-//       <div
-//         style={{
-//           height: "100%",
-//           width: "100%",
-//           display: "flex",
-//           flexDirection: "column",
-//           backgroundColor: "#ffffff",
-//         }}
-//       >
-//         {/* ENS Name */}
-//         <div
-//           style={{
-//             fontSize: "40px",
-//             fontWeight: "bold",
-//             color: "#000000",
-//             padding: "40px 60px 20px 60px",
-//             display: "flex",
-//           }}
-//         >
-//           {ensName}
-//         </div>
-
-//         {/* Title */}
-//         <div
-//           style={{
-//             fontSize: "28px",
-//             color: "#333333",
-//             padding: "0 60px 30px 60px",
-//             display: "flex",
-//             lineHeight: "1.4",
-//           }}
-//         >
-//           {title}
-//         </div>
-
-//         {/* Real image */}
-//         {hasImage && (
-//           <div
-//             style={{
-//               display: "flex",
-//               flex: 1,
-//               margin: "0 60px 30px 60px",
-//               backgroundColor: "#f5f5f5",
-//               alignItems: "center",
-//               justifyContent: "center",
-//               borderRadius: "12px",
-//               overflow: "hidden",
-//             }}
-//           >
-//             <img
-//               src={imageUrl}
-//               width="1080"
-//               height="350"
-//               style={{
-//                 width: "100%",
-//                 height: "100%",
-//                 objectFit: "cover",
-//               }}
-//               alt="Feed"
-//             />
-//           </div>
-//         )}
-
-//         {/* GIF placeholder */}
-//         {!hasImage && showGifPlaceholder && (
-//           <div
-//             style={{
-//               display: "flex",
-//               flex: 1,
-//               margin: "0 60px 30px 60px",
-//               backgroundColor: "#f0f0f0",
-//               alignItems: "center",
-//               justifyContent: "center",
-//               borderRadius: "12px",
-//               flexDirection: "column",
-//               gap: "8px",
-//             }}
-//           >
-//             <div style={{ fontSize: "64px", display: "flex" }}>🎞️</div>
-//             <div
-//               style={{
-//                 fontSize: "28px",
-//                 color: "#888888",
-//                 fontWeight: "bold",
-//                 display: "flex",
-//               }}
-//             >
-//               GIF
-//             </div>
-//             <div
-//               style={{
-//                 fontSize: "18px",
-//                 color: "#aaaaaa",
-//                 display: "flex",
-//               }}
-//             >
-//               View on Swop
-//             </div>
-//           </div>
-//         )}
-
-//         {/* Footer */}
-//         <div
-//           style={{
-//             display: "flex",
-//             alignItems: "center",
-//             padding: "0 60px 40px 60px",
-//             gap: "15px",
-//           }}
-//         >
-//           <div
-//             style={{
-//               width: "40px",
-//               height: "40px",
-//               borderRadius: "50%",
-//               background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-//               display: "flex",
-//               alignItems: "center",
-//               justifyContent: "center",
-//               fontSize: "24px",
-//               fontWeight: "bold",
-//               color: "white",
-//             }}
-//           >
-//             <img
-//               src={`${process.env.NEXT_PUBLIC_APP_URL}/astro-agent.png`}
-//               width="200"
-//               height="200"
-//               style={{ width: "100%", height: "100%" }}
-//               alt="swop"
-//             />
-//           </div>
-//           <div
-//             style={{
-//               fontSize: "22px",
-//               color: "#666666",
-//               display: "flex",
-//             }}
-//           >
-//             Swop • {date}
-//           </div>
-//         </div>
-//       </div>,
-//       { width: 1200, height: 630 },
-//     );
-//   } catch (e: any) {
-//     console.error("OG Image generation error:", e);
-//     return new ImageResponse(
-//       <div
-//         style={{
-//           height: "100%",
-//           width: "100%",
-//           display: "flex",
-//           alignItems: "center",
-//           justifyContent: "center",
-//           backgroundColor: "#fee",
-//           fontSize: "30px",
-//           color: "#c00",
-//         }}
-//       >
-//         Error: {e.message}
-//       </div>,
-//       { width: 1200, height: 630 },
-//     );
-//   }
-// }
 import { ImageResponse } from "next/og";
 
 const DEFAULT_PUBLIC_APP_URL = "https://www.swopme.app";
@@ -226,7 +43,7 @@ export async function GET(request: Request) {
     const outputAmount = searchParams.get("outputAmount") || "";
     const outputImg = searchParams.get("outputImg") || "";
 
-    // Prediction params
+    // Prediction params (detailed card: outcome / price / stake / pnl)
     const author = cleanText(searchParams.get("author")) || ensName;
     const marketTitle = cleanText(searchParams.get("marketTitle")) || title;
     const outcome = cleanText(searchParams.get("outcome")) || "Pick";
@@ -236,7 +53,27 @@ export async function GET(request: Request) {
     const predictionPnl = cleanText(searchParams.get("pnl"));
     const predictionStatus = statusLabel(searchParams.get("status") || "");
 
-    // Perps params
+    // Prediction market params (yes/no probability card)
+    const pickedOutcome = searchParams.get("pickedOutcome") || ""; // "Yes" | "No" | team name
+    const yesOutcome = searchParams.get("yesOutcome") || "Yes";
+    const noOutcome = searchParams.get("noOutcome") || "No";
+    const yesPrice = searchParams.get("yesPrice") || "0.00"; // e.g. "0.925" → 92.5%
+    const noPrice = searchParams.get("noPrice") || "0.00";
+    const costUsd = searchParams.get("costUsd") || "0.00";
+    const potentialWin = searchParams.get("potentialWin") || "0.00";
+
+    const yesPct = (parseFloat(yesPrice) * 100).toFixed(0);
+    const noPct = (parseFloat(noPrice) * 100).toFixed(0);
+
+    // Which side did the user pick?
+    const pickedYes =
+      pickedOutcome.toLowerCase() === yesOutcome.toLowerCase() ||
+      pickedOutcome.toLowerCase() === "yes";
+    const pickedColor = pickedYes ? "#16a34a" : "#e11d48";
+    const pickedBg = pickedYes ? "#f0fdf4" : "#fff1f2";
+    const pickedBorder = pickedYes ? "#bbf7d0" : "#fecdd3";
+
+    // Perps position params (Hyperliquid position card)
     const coin = cleanText(searchParams.get("coin")) || "PERP";
     const perpsSide = cleanText(searchParams.get("perpsSide")) || "LONG";
     const leverage = cleanText(searchParams.get("leverage"));
@@ -246,10 +83,30 @@ export async function GET(request: Request) {
     const markPrice = cleanText(searchParams.get("markPrice"));
     const returnPct = cleanText(searchParams.get("returnPct"));
 
+    // Perps order params (perps order card)
+    const side = searchParams.get("side") || "LONG";
+    const sizeCoins = searchParams.get("sizeCoins") || "";
+    const returnPercent = searchParams.get("returnPercent") || "0.00";
+    const orderType = searchParams.get("orderType") || "";
+    const platform = searchParams.get("platform") || "";
+
+    const isShort = side.toUpperCase() === "SHORT";
+    const returnNum = parseFloat(returnPercent);
+    const isReturnPos = returnNum >= 0;
+    const sideBg = isShort ? "#fff1f2" : "#f0fdf4";
+    const sideBorder = isShort ? "#fecdd3" : "#bbf7d0";
+    const sideColor = isShort ? "#e11d48" : "#16a34a";
+    const returnColor = isReturnPos ? "#16a34a" : "#e11d48";
+    const returnBg = isReturnPos ? "#f0fdf4" : "#fff1f2";
+    const returnBorder = isReturnPos ? "#bbf7d0" : "#fecdd3";
+
     const hasImage = Boolean(imageUrl);
     const isSwap = type === "swap";
     const isPrediction = type === "prediction";
     const isPerps = type === "perps";
+    // Two generations of cards share a type — discriminate by their params
+    const isPerpsPosition = isPerps && searchParams.has("perpsSide");
+    const isPredictionMarket = isPrediction && searchParams.has("pickedOutcome");
 
     // Add to params extraction
     const priceChange = searchParams.get("priceChange") || "0.00";
@@ -455,7 +312,7 @@ export async function GET(request: Request) {
         )}
 
         {/* ── PREDICTION CARD ──────────────────────────────────────── */}
-        {isPrediction && (
+        {isPrediction && !isPredictionMarket && (
           <div
             style={{
               display: "flex",
@@ -675,8 +532,268 @@ export async function GET(request: Request) {
           </div>
         )}
 
-        {/* ── PERPS CARD ───────────────────────────────────────────── */}
-        {isPerps && (
+        {/* ── PREDICTION MARKET CARD (yes/no probabilities) ─────────── */}
+        {isPredictionMarket && (
+          <div
+            style={{
+              display: "flex",
+              flex: 1,
+              margin: "0 60px 30px 60px",
+              backgroundColor: "#ffffff",
+              borderRadius: "16px",
+              border: "1.5px solid #e2e8f0",
+              padding: "36px 52px",
+              flexDirection: "column",
+              gap: "24px",
+            }}
+          >
+            {/* Market title */}
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+            >
+              <span
+                style={{
+                  fontSize: "18px",
+                  color: "#94a3b8",
+                  fontWeight: "600",
+                  letterSpacing: "0.08em",
+                  display: "flex",
+                }}
+              >
+                PREDICTION MARKET
+              </span>
+              <span
+                style={{
+                  fontSize: "30px",
+                  fontWeight: "700",
+                  color: "#0f172a",
+                  display: "flex",
+                  lineHeight: "1.3",
+                }}
+              >
+                {marketTitle}
+              </span>
+            </div>
+
+            {/* Picked outcome badge */}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span
+                style={{ fontSize: "20px", color: "#64748b", display: "flex" }}
+              >
+                Picked
+              </span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: pickedBg,
+                  border: `1.5px solid ${pickedBorder}`,
+                  borderRadius: "8px",
+                  padding: "6px 24px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: "700",
+                    color: pickedColor,
+                    display: "flex",
+                  }}
+                >
+                  {pickedOutcome}
+                </span>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div
+              style={{
+                display: "flex",
+                height: "1px",
+                backgroundColor: "#e2e8f0",
+                width: "100%",
+              }}
+            />
+
+            {/* Bottom row: Cost | Potential Win | Yes% bar | No% bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: "0px" }}>
+              {/* Cost */}
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
+                <span
+                  style={{
+                    fontSize: "16px",
+                    color: "#94a3b8",
+                    fontWeight: "600",
+                    letterSpacing: "0.08em",
+                    display: "flex",
+                  }}
+                >
+                  COST
+                </span>
+                <span
+                  style={{
+                    fontSize: "32px",
+                    fontWeight: "700",
+                    color: "#0f172a",
+                    display: "flex",
+                  }}
+                >
+                  ${costUsd}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  width: "1px",
+                  height: "60px",
+                  backgroundColor: "#e2e8f0",
+                  margin: "0 36px",
+                }}
+              />
+
+              {/* Potential win */}
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
+                <span
+                  style={{
+                    fontSize: "16px",
+                    color: "#94a3b8",
+                    fontWeight: "600",
+                    letterSpacing: "0.08em",
+                    display: "flex",
+                  }}
+                >
+                  TO WIN
+                </span>
+                <span
+                  style={{
+                    fontSize: "32px",
+                    fontWeight: "700",
+                    color: "#16a34a",
+                    display: "flex",
+                  }}
+                >
+                  ${Number(potentialWin).toFixed(2)}
+                </span>
+              </div>
+
+              {/* Yes / No probability bars — pushed right */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  marginLeft: "auto",
+                  minWidth: "320px",
+                }}
+              >
+                {/* YES bar */}
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "12px" }}
+                >
+                  <span
+                    style={{
+                      fontSize: "18px",
+                      color: "#64748b",
+                      display: "flex",
+                      width: "120px",
+                    }}
+                  >
+                    {yesOutcome}
+                  </span>
+                  <div
+                    style={{
+                      display: "flex",
+                      flex: 1,
+                      height: "12px",
+                      backgroundColor: "#e2e8f0",
+                      borderRadius: "999px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        width: `${yesPct}%`,
+                        height: "100%",
+                        backgroundColor: "#16a34a",
+                        borderRadius: "999px",
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: "20px",
+                      fontWeight: "700",
+                      color: "#16a34a",
+                      display: "flex",
+                      width: "52px",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    {yesPct}%
+                  </span>
+                </div>
+
+                {/* NO bar */}
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "12px" }}
+                >
+                  <span
+                    style={{
+                      fontSize: "18px",
+                      color: "#64748b",
+                      display: "flex",
+                      width: "120px",
+                    }}
+                  >
+                    {noOutcome}
+                  </span>
+                  <div
+                    style={{
+                      display: "flex",
+                      flex: 1,
+                      height: "12px",
+                      backgroundColor: "#e2e8f0",
+                      borderRadius: "999px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        width: `${noPct}%`,
+                        height: "100%",
+                        backgroundColor: "#e11d48",
+                        borderRadius: "999px",
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: "20px",
+                      fontWeight: "700",
+                      color: "#e11d48",
+                      display: "flex",
+                      width: "52px",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    {noPct}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── PERPS POSITION CARD (Hyperliquid position) ────────────── */}
+        {isPerpsPosition && (
           <div
             style={{
               display: "flex",
@@ -878,6 +995,200 @@ export async function GET(request: Request) {
                   {returnPct || "--"}
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── PERPS ORDER CARD ─────────────────────────────────────── */}
+        {isPerps && !isPerpsPosition && (
+          <div
+            style={{
+              display: "flex",
+              flex: 1,
+              margin: "0 60px 30px 60px",
+              backgroundColor: "#ffffff",
+              borderRadius: "16px",
+              border: "1.5px solid #e2e8f0",
+              padding: "36px 52px",
+              flexDirection: "column",
+              gap: "28px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: sideBg,
+                  border: `1.5px solid ${sideBorder}`,
+                  borderRadius: "8px",
+                  padding: "8px 28px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "30px",
+                    fontWeight: "700",
+                    color: sideColor,
+                    display: "flex",
+                  }}
+                >
+                  {side}
+                </span>
+              </div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+              >
+                <span
+                  style={{
+                    fontSize: "34px",
+                    fontWeight: "700",
+                    color: "#0f172a",
+                    display: "flex",
+                  }}
+                >
+                  {coin}-PERP
+                </span>
+                <span
+                  style={{
+                    fontSize: "20px",
+                    color: "#64748b",
+                    display: "flex",
+                    gap: "12px",
+                  }}
+                >
+                  {sizeCoins} {coin}
+                  {leverage ? `  ·  ${leverage}×` : ""}
+                  {orderType ? `  ·  ${orderType}` : ""}
+                </span>
+              </div>
+              <div style={{ display: "flex", marginLeft: "auto" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: returnBg,
+                    border: `1.5px solid ${returnBorder}`,
+                    borderRadius: "999px",
+                    padding: "10px 32px",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "32px",
+                      fontWeight: "700",
+                      color: returnColor,
+                      display: "flex",
+                    }}
+                  >
+                    {isReturnPos ? "+" : ""}
+                    {returnPercent}%
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                height: "1px",
+                backgroundColor: "#e2e8f0",
+                width: "100%",
+              }}
+            />
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  flex: 1,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "18px",
+                    color: "#94a3b8",
+                    fontWeight: "600",
+                    letterSpacing: "0.08em",
+                    display: "flex",
+                  }}
+                >
+                  ENTRY PRICE
+                </span>
+                <span
+                  style={{
+                    fontSize: "38px",
+                    fontWeight: "700",
+                    color: "#0f172a",
+                    display: "flex",
+                  }}
+                >
+                  ${entryPrice || "0.00"}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  width: "1px",
+                  height: "70px",
+                  backgroundColor: "#e2e8f0",
+                  margin: "0 48px",
+                }}
+              />
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  flex: 1,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "18px",
+                    color: "#94a3b8",
+                    fontWeight: "600",
+                    letterSpacing: "0.08em",
+                    display: "flex",
+                  }}
+                >
+                  {coin} PRICE
+                </span>
+                <span
+                  style={{
+                    fontSize: "38px",
+                    fontWeight: "700",
+                    color: "#0f172a",
+                    display: "flex",
+                  }}
+                >
+                  ${markPrice || "0.00"}
+                </span>
+              </div>
+              {platform && (
+                <div
+                  style={{
+                    display: "flex",
+                    marginLeft: "auto",
+                    alignItems: "flex-end",
+                    paddingBottom: "4px",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "20px",
+                      color: "#94a3b8",
+                      fontWeight: "500",
+                      display: "flex",
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    via {platform}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}

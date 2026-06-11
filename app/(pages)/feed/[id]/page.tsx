@@ -233,6 +233,10 @@ function extractOgTitle(feed: any): string {
         leverage ? `${leverage}x ` : ""
       }${coin.toUpperCase()} ${side}`;
     }
+    case "perps":
+      return `${content.side ?? "Perps"} ${content.coin ?? ""} ${
+        content.orderType ?? "order"
+      } on Swop`;
     case "redeem":
       return `Redeemed ${content.redeemName ?? ""} on Swop`;
     case "connection":
@@ -308,15 +312,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       };
     }
 
-    // For reposts, use the original post's content for OG
-    // if (
-    //   feed.postType === "repost" &&
-    //   feed.repostedPostDetails &&
-    //   !feed.isOriginalDeleted
-    // ) {
-    //   feed = feed.repostedPostDetails;
-    // }
-
     // ── Repost logic ──────────────────────────────────────────────────────────
     if (feed.postType === "repost") {
       const quote = feed.content?.quote;
@@ -376,6 +371,35 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         outputAmount: Number(c.outputToken?.amount ?? 0).toFixed(4),
         outputImg: cleanText(c.outputToken?.tokenImg),
         priceChange: priceChangePercent,
+      });
+    } else if (feed.postType === "perps" && feed.content) {
+      const c = feed.content;
+
+      // Calculate return percentage: (markPrice - entryPrice) / entryPrice * 100
+      // For SHORT: profit when price goes down, so invert
+      let returnPercent = "0.00";
+      if (c.entryPrice > 0 && c.markPrice > 0) {
+        const rawReturn = ((c.markPrice - c.entryPrice) / c.entryPrice) * 100;
+        // SHORT = inverse PnL direction
+        const directedReturn =
+          c.side?.toUpperCase() === "SHORT" ? -rawReturn : rawReturn;
+        returnPercent = directedReturn.toFixed(2);
+      }
+
+      ogImageUrl = buildOgFeedUrl({
+        ensName: smartsiteEnsName,
+        title: feedTitle,
+        date: formatDate(createdAt),
+        type: "perps",
+        side: cleanText(c.side),
+        coin: cleanText(c.coin),
+        sizeCoins: cleanText(String(c.sizeCoins ?? "")),
+        entryPrice: Number(c.entryPrice ?? 0).toFixed(2),
+        markPrice: Number(c.markPrice ?? 0).toFixed(2),
+        returnPercent,
+        leverage: cleanText(String(c.leverage ?? "")),
+        orderType: cleanText(c.orderType),
+        platform: cleanText(c.platform),
       });
     } else if (feed.postType === "prediction" && feed.content) {
       const c = feed.content;
@@ -512,6 +536,8 @@ const FeedDetailsPage = async ({
     : `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}`;
 
   const feedData = await getFeedDetails(url);
+
+  console.log("feed data", feedData);
 
   return (
     <div className="relative flex flex-col items-center">
