@@ -294,7 +294,7 @@ class TransactionAPI {
         };
       });
     } catch (error) {
-      console.error('Error fetching Solana transactions:', error);
+      console.warn('Unable to load Solana transactions:', error);
       return [];
     }
   }

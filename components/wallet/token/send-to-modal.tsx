@@ -267,27 +267,54 @@ export default function SendToModal({
   }, [open]);
 
   useEffect(() => {
+    if (!open || !userHookData?._id || !accessToken) {
+      setConnectionList([]);
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
     const getdata = async () => {
       setIsLoading(true);
-      const queryParams = new URLSearchParams({
-        page: '1',
-        limit: '20',
-      });
+      try {
+        const queryParams = new URLSearchParams({
+          page: '1',
+          limit: '20',
+        });
 
-      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/following/${userHookData?._id}?${queryParams}`;
-      const data = await getConnectionsUserData(
-        url,
-        accessToken || '',
-      );
-      if (data.state === 'success') {
-        setConnectionList(data.data.following);
+        const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/following/${userHookData._id}?${queryParams}`;
+        const data = await getConnectionsUserData(url, accessToken);
+        if (cancelled) return;
+
+        if (data?.state === 'success') {
+          setConnectionList(data.data?.following || []);
+        } else {
+          setConnectionList([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
-      setIsLoading(false);
     };
+
     getdata();
-  }, [accessToken, userHookData?._id]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, open, userHookData?._id]);
 
   useEffect(() => {
+    if (!open || !userHookData?._id || !accessToken) {
+      setSearchResults([]);
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
     const getSearchResults = async () => {
       setIsLoading(true);
       if (!debouncedQuery || debouncedQuery.length < 1) {
@@ -301,42 +328,52 @@ export default function SendToModal({
         limit: '20',
       });
 
-      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/search?q=${debouncedQuery}&userId=${userHookData?._id}&filter=all&${queryParams}`;
-      const data = await getConnectionsUserData(
-        url,
-        accessToken || '',
-      );
+      try {
+        const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/search?q=${debouncedQuery}&userId=${userHookData._id}&filter=all&${queryParams}`;
+        const data = await getConnectionsUserData(url, accessToken);
+        if (cancelled) return;
 
-      if (data.state === 'success') {
-        const results = data.data.results || [];
+        if (data?.state === 'success') {
+          const results = data.data?.results || [];
 
-        // Create a Set of connection ENS names for quick lookup
-        const connectionEnsSet = new Set(
-          connectionList.map((conn: any) => conn.ens),
-        );
+          // Create a Set of connection ENS names for quick lookup
+          const connectionEnsSet = new Set(
+            connectionList.map((conn: any) => conn.ens),
+          );
 
-        // Separate search results into connections and non-connections
-        const matchedConnections: any[] = [];
-        const otherResults: any[] = [];
+          // Separate search results into connections and non-connections
+          const matchedConnections: any[] = [];
+          const otherResults: any[] = [];
 
-        results.forEach((result: any) => {
-          if (connectionEnsSet.has(result.ens)) {
-            matchedConnections.push(result);
-          } else {
-            otherResults.push(result);
-          }
-        });
+          results.forEach((result: any) => {
+            if (connectionEnsSet.has(result.ens)) {
+              matchedConnections.push(result);
+            } else {
+              otherResults.push(result);
+            }
+          });
 
-        // Combine with matched connections first
-        setSearchResults([...matchedConnections, ...otherResults]);
+          // Combine with matched connections first
+          setSearchResults([...matchedConnections, ...otherResults]);
+        } else {
+          setSearchResults([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
-      setIsLoading(false);
     };
 
     getSearchResults();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     debouncedQuery,
     accessToken,
+    open,
     userHookData?._id,
     connectionList,
   ]);

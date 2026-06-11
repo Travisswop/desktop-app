@@ -10,8 +10,12 @@ export class APIUtils {
     try {
       const response = await postData(url, options);
 
+      // postData returns null on network failure or non-OK status — don't
+      // dereference it (the old message read response.status off null).
       if (!response) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(
+          `Request failed or returned non-OK status: ${url.split("?")[0]}`,
+        );
       }
       return response;
     } catch (error) {
