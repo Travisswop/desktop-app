@@ -206,7 +206,9 @@ function parseChartNumber(value?: string | null) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parsePerpsPanelSide(value?: string | null): 'long' | 'short' | null {
+function parsePerpsPanelSide(
+  value?: string | null,
+): 'long' | 'short' | null {
   const normalized = value?.trim().toLowerCase();
   return normalized === 'long' || normalized === 'short'
     ? normalized
@@ -241,7 +243,10 @@ function normalizeChartTokenChain(
 }
 
 function tokenUsdValue(token: TokenData) {
-  if (typeof token.value === 'number' && Number.isFinite(token.value)) {
+  if (
+    typeof token.value === 'number' &&
+    Number.isFinite(token.value)
+  ) {
     return token.value;
   }
 
@@ -262,8 +267,10 @@ function findChartWalletToken(
   if (!matches.length) return null;
 
   return matches.sort((a, b) => {
-    const chainScoreA = preferredChain && a.chain === preferredChain ? 1000 : 0;
-    const chainScoreB = preferredChain && b.chain === preferredChain ? 1000 : 0;
+    const chainScoreA =
+      preferredChain && a.chain === preferredChain ? 1000 : 0;
+    const chainScoreB =
+      preferredChain && b.chain === preferredChain ? 1000 : 0;
     const nativeScoreA = a.isNative ? 100 : 0;
     const nativeScoreB = b.isNative ? 100 : 0;
     return (
@@ -319,7 +326,9 @@ function withChartTokenMarketData(
     ...token,
     name: token.name || metadata.name,
     logoURI:
-      token.logoURI || metadata.image || `/assets/crypto-icons/${symbol}.png`,
+      token.logoURI ||
+      metadata.image ||
+      `/assets/crypto-icons/${symbol}.png`,
     marketData: {
       ...(token.marketData || {}),
       id: metadata.marketId,
@@ -329,7 +338,8 @@ function withChartTokenMarketData(
       price: token.marketData?.price || metadata.priceText,
       change: token.marketData?.change || metadata.changeText,
       priceChangePercentage24h:
-        token.marketData?.priceChangePercentage24h || metadata.changeText,
+        token.marketData?.priceChangePercentage24h ||
+        metadata.changeText,
     },
   };
 }
@@ -519,9 +529,12 @@ function RewardsBox({
   const pendingAmount = rewardNumber(rewardWallet?.pendingAmount);
   const pendingUsd = rewardNumber(rewardWallet?.pendingUsd);
   const claimedAmount = rewardNumber(rewardWallet?.claimedAmount);
-  const lifetimeAmount = rewardNumber(rewardWallet?.lifetimeEarnedAmount);
+  const lifetimeAmount = rewardNumber(
+    rewardWallet?.lifetimeEarnedAmount,
+  );
   const tokenSymbol = rewardWallet?.token?.symbol || 'SWOP';
-  const canClaim = claimableAmount > 0 && Boolean(destinationWallet) && !claiming;
+  const canClaim =
+    claimableAmount > 0 && Boolean(destinationWallet) && !claiming;
   const latestClaim = recentClaims[0];
   const statusLabel =
     pendingClaimCount > 0
@@ -568,8 +581,8 @@ function RewardsBox({
               </div>
             </div>
             <p className="mt-2 text-[13px] text-gray-500">
-              {formatRewardUsd(claimableUsd)} ready after confirmed SWOP
-              buybacks.
+              {formatRewardUsd(claimableUsd)} ready after confirmed
+              SWOP buybacks.
             </p>
             {error && (
               <p className="mt-2 text-[12px] font-medium text-red-500">
@@ -621,7 +634,8 @@ function RewardsBox({
               Earned
             </p>
             <p className="mt-1 truncate text-[13px] font-semibold text-gray-900">
-              {formatRewardAmount(lifetimeAmount || claimedAmount)} {tokenSymbol}
+              {formatRewardAmount(lifetimeAmount || claimedAmount)}{' '}
+              {tokenSymbol}
             </p>
             {latestClaim?.status && (
               <p className="truncate text-[11px] text-gray-400">
@@ -704,11 +718,13 @@ const WalletContentInner = () => {
   const [recentRewardClaims, setRecentRewardClaims] = useState<
     RewardClaimData[]
   >([]);
-  const [pendingRewardClaimCount, setPendingRewardClaimCount] = useState(0);
-  const [rewardWalletLoading, setRewardWalletLoading] = useState(false);
-  const [rewardWalletError, setRewardWalletError] = useState<string | null>(
-    null,
-  );
+  const [pendingRewardClaimCount, setPendingRewardClaimCount] =
+    useState(0);
+  const [rewardWalletLoading, setRewardWalletLoading] =
+    useState(false);
+  const [rewardWalletError, setRewardWalletError] = useState<
+    string | null
+  >(null);
   const [rewardClaimLoading, setRewardClaimLoading] = useState(false);
 
   // QR code modals state
@@ -821,8 +837,7 @@ const WalletContentInner = () => {
     const selectedAddress = solWalletAddress.toLowerCase();
     return (
       directSolanaWallets.find(
-        (wallet) =>
-          wallet.address.toLowerCase() === selectedAddress,
+        (wallet) => wallet.address.toLowerCase() === selectedAddress,
       ) ?? directSolanaWallets[0]
     );
   }, [solanaReady, directSolanaWallets, solWalletAddress]);
@@ -977,7 +992,8 @@ const WalletContentInner = () => {
     enabled: loadCollectibles,
   });
   const collectiblesPending =
-    !loadCollectibles && Boolean(solWalletAddress || evmWalletAddress);
+    !loadCollectibles &&
+    Boolean(solWalletAddress || evmWalletAddress);
 
   // Filter tokens by selected chain chip.
   const filteredTokens = useMemo(() => {
@@ -1008,7 +1024,10 @@ const WalletContentInner = () => {
           searchParams as SearchParamReader,
           symbol,
         )
-      : buildMarketOnlyChartToken(searchParams as SearchParamReader, symbol);
+      : buildMarketOnlyChartToken(
+          searchParams as SearchParamReader,
+          symbol,
+        );
 
     if (walletToken) {
       setTokenChain(walletToken.chain);
@@ -1038,7 +1057,9 @@ const WalletContentInner = () => {
 
     const coin = parsePerpsPanelCoin(searchParams);
     const side = parsePerpsPanelSide(searchParams.get('side'));
-    const leverage = parsePerpsPanelLeverage(searchParams.get('leverage'));
+    const leverage = parsePerpsPanelLeverage(
+      searchParams.get('leverage'),
+    );
     const now = Date.now();
 
     setPerpsInitialCoin(coin);
@@ -1193,7 +1214,8 @@ const WalletContentInner = () => {
 
     const requestId = rewardWalletRequestRef.current + 1;
     rewardWalletRequestRef.current = requestId;
-    const isCurrentRequest = () => rewardWalletRequestRef.current === requestId;
+    const isCurrentRequest = () =>
+      rewardWalletRequestRef.current === requestId;
 
     setRewardWalletLoading(true);
     setRewardWalletError(null);
@@ -1235,15 +1257,21 @@ const WalletContentInner = () => {
               continue;
             }
             throw new Error(
-              data?.message || data?.error || 'Could not load rewards.',
+              data?.message ||
+                data?.error ||
+                'Could not load rewards.',
             );
           }
 
           if (isCurrentRequest()) {
             setRewardWallet(data.rewardWallet || null);
-            setPendingRewardClaimCount(Number(data.pendingClaimCount || 0));
+            setPendingRewardClaimCount(
+              Number(data.pendingClaimCount || 0),
+            );
             setRecentRewardClaims(
-              Array.isArray(data.recentClaims) ? data.recentClaims : [],
+              Array.isArray(data.recentClaims)
+                ? data.recentClaims
+                : [],
             );
           }
           return;
@@ -1291,7 +1319,8 @@ const WalletContentInner = () => {
       toast({
         variant: 'destructive',
         title: 'Solana wallet required',
-        description: 'Connect a Solana wallet before claiming SWOP rewards.',
+        description:
+          'Connect a Solana wallet before claiming SWOP rewards.',
       });
       return;
     }
@@ -1316,7 +1345,9 @@ const WalletContentInner = () => {
 
       if (!response.ok) {
         throw new Error(
-          data?.message || data?.error || 'Could not request reward claim.',
+          data?.message ||
+            data?.error ||
+            'Could not request reward claim.',
         );
       }
 
@@ -1341,7 +1372,12 @@ const WalletContentInner = () => {
     } finally {
       setRewardClaimLoading(false);
     }
-  }, [accessToken, fetchRewardWallet, rewardDestinationWallet, toast]);
+  }, [
+    accessToken,
+    fetchRewardWallet,
+    rewardDestinationWallet,
+    toast,
+  ]);
 
   // Transaction execution
   const executeTransaction = useCallback(async () => {
@@ -1745,9 +1781,12 @@ const WalletContentInner = () => {
     const nextParams = new URLSearchParams(searchParams.toString());
     removeChartTokenParams(nextParams);
     const nextQuery = nextParams.toString();
-    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
-      scroll: false,
-    });
+    router.replace(
+      nextQuery ? `${pathname}?${nextQuery}` : pathname,
+      {
+        scroll: false,
+      },
+    );
   }, [pathname, router, searchParams]);
 
   const handleTokenSend = useCallback(
@@ -1946,7 +1985,9 @@ const WalletContentInner = () => {
             action={
               <span className="text-[13px] text-gray-500">
                 Powered by{' '}
-                <span className="font-semibold text-[#7C7CF5]">Aave</span>
+                <span className="font-semibold text-[#7C7CF5]">
+                  Aave
+                </span>
               </span>
             }
           />

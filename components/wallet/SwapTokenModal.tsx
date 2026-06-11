@@ -66,7 +66,11 @@ import {
   getWalletNotificationService,
   formatUSDValue,
 } from '@/lib/utils/walletNotifications';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import {
+  useSearchParams,
+  useRouter,
+  usePathname,
+} from 'next/navigation';
 import bs58 from 'bs58';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { MarketService } from '@/services/market-service';
@@ -214,7 +218,9 @@ function buildLookupTableAccounts(
           lastExtendedSlot: 0,
           lastExtendedSlotStartIndex: 0,
           authority: undefined,
-          addresses: addresses.map((address) => new PublicKey(address)),
+          addresses: addresses.map(
+            (address) => new PublicKey(address),
+          ),
         },
       }),
   );
@@ -223,7 +229,9 @@ function buildLookupTableAccounts(
 function getBuildBlockhash(build: JupiterBuildResponse) {
   const raw = build.blockhashWithMetadata?.blockhash;
   if (!raw?.length) {
-    throw new Error('Jupiter build response did not include a blockhash.');
+    throw new Error(
+      'Jupiter build response did not include a blockhash.',
+    );
   }
   return bs58.encode(Uint8Array.from(raw));
 }
@@ -241,14 +249,16 @@ function buildJupiterVersionedTransaction({
     build.swapInstruction,
   );
   if (!swapInstruction) {
-    throw new Error('Jupiter build response did not include a swap instruction.');
+    throw new Error(
+      'Jupiter build response did not include a swap instruction.',
+    );
   }
 
   const maybeInstructions = [
-    ...((build.setupInstructions || []).map(decodeJupiterInstruction)),
+    ...(build.setupInstructions || []).map(decodeJupiterInstruction),
     swapInstruction,
     decodeJupiterInstruction(build.cleanupInstruction),
-    ...((build.otherInstructions || []).map(decodeJupiterInstruction)),
+    ...(build.otherInstructions || []).map(decodeJupiterInstruction),
     decodeJupiterInstruction(build.tipInstruction),
   ];
 
@@ -256,9 +266,9 @@ function buildJupiterVersionedTransaction({
     ComputeBudgetProgram.setComputeUnitLimit({
       units: computeUnitLimit,
     }),
-    ...((build.computeBudgetInstructions || []).map(
+    ...(build.computeBudgetInstructions || []).map(
       decodeJupiterInstruction,
-    )),
+    ),
     ...maybeInstructions,
   ].filter(Boolean) as TransactionInstruction[];
 
@@ -278,7 +288,9 @@ async function detectSolanaTokenProgram(
   mint: string,
 ) {
   try {
-    const mintInfo = await connection.getAccountInfo(new PublicKey(mint));
+    const mintInfo = await connection.getAccountInfo(
+      new PublicKey(mint),
+    );
     if (mintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID)) {
       return TOKEN_2022_PROGRAM_ID;
     }
@@ -314,15 +326,14 @@ function getTokenMarketKey(token: any): string {
 function getTokenMarketChain(token: any): string {
   const cid = token?.chainId?.toString?.();
   if (cid) return getNetworkByChainId(cid);
-  return String(token?.network || token?.chain || 'ethereum').toLowerCase();
+  return String(
+    token?.network || token?.chain || 'ethereum',
+  ).toLowerCase();
 }
 
 function getCachedTokenMarketQuote(key: string) {
   const cached = _tokenMarketQuoteCache.get(key);
-  if (
-    cached &&
-    Date.now() - cached.ts < MARKET_QUOTE_CACHE_TTL_MS
-  ) {
+  if (cached && Date.now() - cached.ts < MARKET_QUOTE_CACHE_TTL_MS) {
     return cached.quote;
   }
   return undefined;
@@ -333,8 +344,11 @@ async function fetchTokenMarketQuotes(
   accessToken?: string,
 ): Promise<Record<string, TokenMarketQuote>> {
   const resolved: Record<string, TokenMarketQuote> = {};
-  const missing: Array<{ address: string; chain: string; key: string }> =
-    [];
+  const missing: Array<{
+    address: string;
+    chain: string;
+    key: string;
+  }> = [];
   const seen = new Set<string>();
 
   tokens.forEach((token) => {
@@ -376,7 +390,10 @@ async function fetchTokenMarketQuotes(
     } catch (error) {
       console.warn('Failed to enrich token market quotes:', error);
       chunk.forEach(({ key }) => {
-        _tokenMarketQuoteCache.set(key, { quote: null, ts: Date.now() });
+        _tokenMarketQuoteCache.set(key, {
+          quote: null,
+          ts: Date.now(),
+        });
       });
     }
   }
@@ -465,14 +482,16 @@ const isPrivyEmbeddedWalletType = (walletClientType?: string) =>
   walletClientType === 'privy' || walletClientType === 'privy-v2';
 
 const parseOptionalBigInt = (value: unknown) => {
-  if (value === undefined || value === null || value === '') return undefined;
+  if (value === undefined || value === null || value === '')
+    return undefined;
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number') return BigInt(Math.trunc(value));
   return BigInt(String(value));
 };
 
 const normalizeHexQuantity = (value: unknown): string | undefined => {
-  if (value === undefined || value === null || value === '') return undefined;
+  if (value === undefined || value === null || value === '')
+    return undefined;
   if (typeof value === 'bigint') {
     if (value < 0n) return undefined;
     return `0x${value.toString(16)}`;
@@ -583,13 +602,17 @@ const isSolanaToken = (token: any, fallback = '') =>
   token?.network?.toUpperCase?.() === 'SOLANA';
 
 const getTokenAddressKey = (token: any) =>
-  String(token?.address || token?.id || '').trim().toLowerCase();
+  String(token?.address || token?.id || '')
+    .trim()
+    .toLowerCase();
 
 const getTokenIdentityKey = (token: any) => {
   if (!token) return '';
   const addressKey = getTokenAddressKey(token);
   const chainKey = getTokenChainId(token);
-  const symbolKey = String(token.symbol || '').trim().toLowerCase();
+  const symbolKey = String(token.symbol || '')
+    .trim()
+    .toLowerCase();
   const decimalsKey = token.decimals ?? '';
   return [chainKey, addressKey || symbolKey, decimalsKey].join('|');
 };
@@ -597,7 +620,9 @@ const getTokenIdentityKey = (token: any) => {
 const getTokenSelectionKey = (token: any) => {
   if (!token) return '';
   return [
-    String(token.symbol || '').trim().toLowerCase(),
+    String(token.symbol || '')
+      .trim()
+      .toLowerCase(),
     getTokenIdentityKey(token),
   ].join('|');
 };
@@ -879,8 +904,7 @@ const FALLBACK_CHAIN_TOKENS: Record<string, any[]> = {
       chain: 'POLYGON',
       chainId: '137',
       network: 'polygon',
-      logoURI:
-        'https://polymarket.com/images/polymarket-logo.png',
+      logoURI: 'https://polymarket.com/images/polymarket-logo.png',
       isVerified: true,
     },
     {
@@ -1201,7 +1225,9 @@ function TokenRow({
     token.balance != null && Number(token.balance) > 0;
   const balanceNumber = Number(token.balance || 0);
   const tokenValue =
-    hasBalance && tokenPrice !== null ? balanceNumber * tokenPrice : null;
+    hasBalance && tokenPrice !== null
+      ? balanceNumber * tokenPrice
+      : null;
   const changeTone =
     tokenChange24h === null
       ? 'text-gray-400'
@@ -1511,7 +1537,9 @@ export default function SwapTokenModal({
 
     // Never re-enable a copy-trade reward for a post whose copied trade was
     // already executed in this session, even if its params still linger.
-    if (consumedCopyTradePostIdsRef.current.has(copyTradePostIdParam)) {
+    if (
+      consumedCopyTradePostIdsRef.current.has(copyTradePostIdParam)
+    ) {
       return;
     }
 
@@ -1556,7 +1584,9 @@ export default function SwapTokenModal({
     ) {
       return;
     }
-    const newParams = new URLSearchParams(searchParams?.toString() || '');
+    const newParams = new URLSearchParams(
+      searchParams?.toString() || '',
+    );
     newParams.delete('copyTrade');
     newParams.delete('copyTradePostId');
     const nextQuery = newParams.toString();
@@ -1608,7 +1638,6 @@ export default function SwapTokenModal({
         },
       );
       const data = await response.json().catch(() => ({}));
-
       if (!response.ok) {
         throw new Error(
           data?.message ||
@@ -1771,12 +1800,13 @@ export default function SwapTokenModal({
     amount: string | number,
     decimals: number | bigint,
   ): string => {
-    return decimalAmountToRawUnits(amount, decimals)?.toString() ?? '0';
+    return (
+      decimalAmountToRawUnits(amount, decimals)?.toString() ?? '0'
+    );
   };
 
   const validateBalance = () => {
-    if (!payAmount)
-      return { isValid: true, error: null };
+    if (!payAmount) return { isValid: true, error: null };
     const decimals = normalizeTokenDecimals(payToken?.decimals, 6);
     const amountUnits = decimalAmountToRawUnits(payAmount, decimals);
     if (amountUnits === null || amountUnits <= 0n)
@@ -2112,14 +2142,16 @@ export default function SwapTokenModal({
 
   useEffect(() => {
     let cancelled = false;
-    const candidates = visibleReceiveTokensForQuotes.filter((token) => {
-      const key = getTokenMarketKey(token);
-      if (!key) return false;
-      return (
-        readTokenPrice(token) === null ||
-        readTokenChange24h(token) === null
-      );
-    });
+    const candidates = visibleReceiveTokensForQuotes.filter(
+      (token) => {
+        const key = getTokenMarketKey(token);
+        if (!key) return false;
+        return (
+          readTokenPrice(token) === null ||
+          readTokenChange24h(token) === null
+        );
+      },
+    );
 
     if (!candidates.length) return;
 
@@ -2147,7 +2179,10 @@ export default function SwapTokenModal({
         );
       })
       .catch((error) => {
-        console.warn('Failed to load visible token market quotes:', error);
+        console.warn(
+          'Failed to load visible token market quotes:',
+          error,
+        );
       });
 
     return () => {
@@ -2225,29 +2260,24 @@ export default function SwapTokenModal({
         return true;
       });
 
-      const userToken = tokens.find(
-        (t) => {
-          const symbolMatch =
-            t.symbol?.toLowerCase() === inputTokenParam.toLowerCase();
-          const identifier = (
-            t.address ||
-            t.id ||
-            ''
-          ).toLowerCase();
-          const mintMatch = inputMintLower
-            ? identifier === inputMintLower
-            : false;
-          return (
-            (symbolMatch || mintMatch) &&
-            getTokenChainId(t) === inputChainId
-          );
-        },
-      );
+      const userToken = tokens.find((t) => {
+        const symbolMatch =
+          t.symbol?.toLowerCase() === inputTokenParam.toLowerCase();
+        const identifier = (t.address || t.id || '').toLowerCase();
+        const mintMatch = inputMintLower
+          ? identifier === inputMintLower
+          : false;
+        return (
+          (symbolMatch || mintMatch) &&
+          getTokenChainId(t) === inputChainId
+        );
+      });
 
       const payTokenData = found
         ? {
             ...found,
-            address: inputMintParam || found.address || found.id || '',
+            address:
+              inputMintParam || found.address || found.id || '',
             id: inputMintParam || found.id || found.address || '',
             chain: inputNetwork,
             chainId: inputChainId,
@@ -2312,7 +2342,8 @@ export default function SwapTokenModal({
       const receiveTokenData = found
         ? {
             ...found,
-            address: outputMintParam || found.address || found.id || '',
+            address:
+              outputMintParam || found.address || found.id || '',
             id: outputMintParam || found.id || found.address || '',
             chain: outputNetwork,
             chainId: outputChainId,
@@ -2524,10 +2555,13 @@ export default function SwapTokenModal({
       swapMode: 'ExactIn',
     });
 
-    const response = await fetch(`/api/jupiter/quote?${quoteParams}`, {
-      method: 'GET',
-      cache: 'no-store',
-    });
+    const response = await fetch(
+      `/api/jupiter/quote?${quoteParams}`,
+      {
+        method: 'GET',
+        cache: 'no-store',
+      },
+    );
     const result = await response.json().catch(() => null);
     if (!response.ok || !result?.success)
       throw new Error(result?.error || 'Failed to get Jupiter quote');
@@ -3400,19 +3434,23 @@ export default function SwapTokenModal({
           mode: 'fast',
           platformFeeBps: PLATFORM_FEE_BPS,
           feeAccount: feeInfo.feeAccount,
-          instructionVersion: requiresInstructionV2 ? 'V2' : undefined,
+          instructionVersion: requiresInstructionV2
+            ? 'V2'
+            : undefined,
         });
 
         if (!buildResult.success || !buildResult.data) {
           throw new Error(
-            buildResult.error || 'Failed to build Jupiter swap route.',
+            buildResult.error ||
+              'Failed to build Jupiter swap route.',
           );
         }
 
         const build = buildResult.data as JupiterBuildResponse;
         if (build.outAmount && receiveToken?.decimals) {
           const readable =
-            Number(build.outAmount) / Math.pow(10, receiveToken.decimals);
+            Number(build.outAmount) /
+            Math.pow(10, receiveToken.decimals);
           setReceiveAmount(readable.toFixed(8).replace(/\.?0+$/, ''));
         }
 
@@ -3434,7 +3472,8 @@ export default function SwapTokenModal({
           );
 
           if (simulation.value.err) {
-            const logs = simulation.value.logs?.slice(-4).join(' ') || '';
+            const logs =
+              simulation.value.logs?.slice(-4).join(' ') || '';
             throw new Error(
               `Jupiter swap simulation failed. ${logs}`.trim(),
             );
@@ -3518,7 +3557,6 @@ export default function SwapTokenModal({
 
         return;
       }
-
     } catch (error: any) {
       const rawMsg =
         error?.message || error?.toString() || 'Swap failed';
@@ -3750,7 +3788,8 @@ export default function SwapTokenModal({
           );
           if (gas !== undefined) privyTxRequest.gas = gas;
           const gasPrice = parseOptionalBigInt(rawTxReq.gasPrice);
-          if (gasPrice !== undefined) privyTxRequest.gasPrice = gasPrice;
+          if (gasPrice !== undefined)
+            privyTxRequest.gasPrice = gasPrice;
           const maxFeePerGas = parseOptionalBigInt(
             rawTxReq.maxFeePerGas,
           );
@@ -3760,7 +3799,8 @@ export default function SwapTokenModal({
             rawTxReq.maxPriorityFeePerGas,
           );
           if (maxPriorityFeePerGas !== undefined)
-            privyTxRequest.maxPriorityFeePerGas = maxPriorityFeePerGas;
+            privyTxRequest.maxPriorityFeePerGas =
+              maxPriorityFeePerGas;
 
           const result = await sendPrivyTransaction(privyTxRequest, {
             sponsor: false,
@@ -3775,7 +3815,8 @@ export default function SwapTokenModal({
               params: [rawTxReq],
             });
           } catch (sendError) {
-            if (!isLikelyInvalidParamsError(sendError)) throw sendError;
+            if (!isLikelyInvalidParamsError(sendError))
+              throw sendError;
             const retryTxReq = sanitizeEvmTxRequest(
               activeQuote.transactionRequest,
               wallet.address,
@@ -3904,7 +3945,8 @@ export default function SwapTokenModal({
           freshQuote?.estimate?.toAmount ?? freshQuote?.toAmount;
         if (freshToAmount && receiveToken?.decimals) {
           const readable =
-            Number(freshToAmount) / Math.pow(10, receiveToken.decimals);
+            Number(freshToAmount) /
+            Math.pow(10, receiveToken.decimals);
           setReceiveAmount(readable.toFixed(8).replace(/\.?0+$/, ''));
         }
 
@@ -3949,7 +3991,8 @@ export default function SwapTokenModal({
       if (tKey && tKey === payKey) {
         const previousReceiveChainId = getTokenChainId(receiveToken);
         setPayToken(receiveToken ?? null);
-        if (previousReceiveChainId) setChainId(previousReceiveChainId);
+        if (previousReceiveChainId)
+          setChainId(previousReceiveChainId);
       }
       setReceiveToken(t);
       if (tokenChainId) setReceiverChainId(tokenChainId);
@@ -4100,8 +4143,12 @@ export default function SwapTokenModal({
   const isSwapDone =
     swapStatus?.includes('confirmed') ||
     swapStatus?.includes('completed');
-  const routeProviderLabel = isSolanaToSolanaSwap() ? 'Jupiter' : 'Li.Fi';
-  const swapExplorerUrl = txHash ? getExplorerUrl(chainId, txHash) : '';
+  const routeProviderLabel = isSolanaToSolanaSwap()
+    ? 'Jupiter'
+    : 'Li.Fi';
+  const swapExplorerUrl = txHash
+    ? getExplorerUrl(chainId, txHash)
+    : '';
   const resetSwapForm = () => {
     setShowSwapSuccess(false);
     setSwapStatus(null);
@@ -4333,7 +4380,9 @@ export default function SwapTokenModal({
                       step={1}
                       value={Math.round(pct)}
                       onChange={(e) =>
-                        handlePercentageClick(Number(e.target.value) / 100)
+                        handlePercentageClick(
+                          Number(e.target.value) / 100,
+                        )
                       }
                       disabled={bal <= 0}
                       aria-label="Amount to pay"
@@ -4348,7 +4397,9 @@ export default function SwapTokenModal({
                           key={p}
                           type="button"
                           className="px-3 py-1.5 text-[11px] font-medium bg-white border border-black/[0.06] hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-40"
-                          onClick={() => handlePercentageClick(p / 100)}
+                          onClick={() =>
+                            handlePercentageClick(p / 100)
+                          }
                           disabled={bal <= 0}
                         >
                           {p === 100 ? 'Max' : `${p}%`}
@@ -4590,15 +4641,14 @@ export default function SwapTokenModal({
                       </div>
                       {info?.toAmountUSD &&
                         info?.fromAmountUSD &&
-                        info.toAmountUSD - info.fromAmountUSD >
-                          0 && (
+                        info.toAmountUSD - info.fromAmountUSD > 0 && (
                           <span className="text-[10.5px] font-mono font-semibold text-[#19a974] bg-[#19a974]/10 px-[7px] py-[3px] rounded-full">
                             +$
                             {(
                               info.toAmountUSD - info.fromAmountUSD
                             ).toFixed(2)}
                           </span>
-                      )}
+                        )}
                     </div>
                     <div className="mt-2.5 pt-2.5 border-t border-black/[0.06]">
                       {routeRows.map(([k, v, danger]) => (
@@ -5186,7 +5236,9 @@ export default function SwapTokenModal({
                     <div
                       key={row.label}
                       className={`grid grid-cols-[32px_1fr_auto] items-center gap-3 px-3.5 py-3 ${
-                        index === 0 ? 'border-b border-black/[0.06]' : ''
+                        index === 0
+                          ? 'border-b border-black/[0.06]'
+                          : ''
                       } ${row.side === 'in' ? 'bg-[#19a974]/10' : 'bg-white'}`}
                     >
                       <div
@@ -5226,9 +5278,15 @@ export default function SwapTokenModal({
 
               <div className="mt-4 rounded-xl border border-black/[0.06] bg-[#fafafa] px-4 py-3.5">
                 {[
-                  ['Route', `${payToken?.symbol || '—'} → ${receiveToken?.symbol || '—'} · ${routeProviderLabel}`],
+                  [
+                    'Route',
+                    `${payToken?.symbol || '—'} → ${receiveToken?.symbol || '—'} · ${routeProviderLabel}`,
+                  ],
                   ['Network', getNetworkByChainId(chainId)],
-                  ['Tx hash', `${txHash.slice(0, 8)}...${txHash.slice(-8)}`],
+                  [
+                    'Tx hash',
+                    `${txHash.slice(0, 8)}...${txHash.slice(-8)}`,
+                  ],
                 ].map(([label, value], index, rows) => (
                   <div
                     key={label}
@@ -5238,7 +5296,9 @@ export default function SwapTokenModal({
                         : 'border-b border-dashed border-black/[0.04]'
                     }`}
                   >
-                    <span className="text-xs text-[#6e6e76]">{label}</span>
+                    <span className="text-xs text-[#6e6e76]">
+                      {label}
+                    </span>
                     <span className="min-w-0 truncate text-right font-mono text-xs font-medium">
                       {value}
                     </span>
