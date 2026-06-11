@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ShoppingCart, Loader2 } from "lucide-react";
 
 import toast from "react-hot-toast";
 import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartContext";
 import { useUser } from "@/lib/UserContext";
+import ProductDetailsModal from "@/components/publicProfile/ProductDetailsModal";
 import {
   getSmartsiteMarketplaceImage,
   getSmartsiteMarketplaceName,
@@ -33,6 +35,8 @@ const MarketPlace: any = ({
 }: any) => {
   const [addToCartLoading, setAddToCartLoading] = useState(false);
   const [isExisting, setIsExisting] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const searchParams = useSearchParams();
   const displayItem = normalizeSmartsiteMarketplaceItem(data) || data;
   const {
     itemImageUrl,
@@ -98,6 +102,16 @@ const MarketPlace: any = ({
     setAddToCartLoading(false);
   };
 
+  // Open the details popup when a shared product link (?product=<id>) targets this card.
+  useEffect(() => {
+    if (
+      marketplaceProductId &&
+      searchParams?.get("product") === marketplaceProductId
+    ) {
+      setDetailsOpen(true);
+    }
+  }, [searchParams, marketplaceProductId]);
+
   useEffect(() => {
     if (!accessToken) {
       setIsExisting(false);
@@ -134,7 +148,10 @@ const MarketPlace: any = ({
       }}
       className="w-full "
     >
-      <div className="relative bg-white rounded-2xl shadow-small overflow-hidden">
+      <div
+        onClick={() => setDetailsOpen(true)}
+        className="relative bg-white rounded-2xl shadow-small overflow-hidden cursor-pointer"
+      >
         {!isExisting && (
           <button
             onClick={handleAddToCart}
@@ -179,6 +196,14 @@ const MarketPlace: any = ({
           </div>
         </div>
       </div>
+
+      <ProductDetailsModal
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        item={displayItem}
+        sellerId={sellerId}
+        canAddToCart={!isExisting && !isSoldOut}
+      />
     </motion.div>
   );
 };

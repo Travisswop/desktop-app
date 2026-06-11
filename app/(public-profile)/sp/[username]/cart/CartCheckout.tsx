@@ -214,7 +214,24 @@ const CartCheckout = () => {
           },
         };
       }
-      return { ...prev, useSwopId: newUseSwopId };
+      // Deselecting: clear the fields that were auto-filled from the Swop.ID
+      return {
+        ...prev,
+        useSwopId: newUseSwopId,
+        name: "",
+        phone: "",
+        email: "",
+        wallet: {
+          ens: "",
+          address: privySolanaAddress,
+        },
+        address: {
+          ...prev.address,
+          country: "US",
+          line1: "",
+          line2: "",
+        },
+      };
     });
   }, [user, privySolanaAddress]);
 

@@ -42,6 +42,8 @@ export interface CartItem {
   templateId?: string;
   userId?: string;
   sellerId?: string;
+  /** Variant choices made in the product details popup, e.g. { Size: "23" } */
+  selectedOptions?: Record<string, string>;
   nftTemplate: {
     _id?: string;
     name: string;

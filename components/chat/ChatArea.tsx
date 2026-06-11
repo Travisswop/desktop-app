@@ -37,11 +37,19 @@ import {
 } from 'viem';
 import { arbitrum, base, bsc, mainnet, polygon } from 'viem/chains';
 import GroupMenu from './GroupMenu';
+import ChatAttachmentMenu, {
+  type ChatAttachmentGif,
+} from './ChatAttachmentMenu';
+import { sendCloudinaryFile } from '@/lib/SendCloudinaryAnyFile';
 import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
 import isUrl from '@/lib/isUrl';
 import CoinbaseOnrampFunding from '@/components/wallet/CoinbaseOnrampFunding';
 import { CandleChart } from '@/components/wallet/perps/CandleChart';
+import {
+  CryptoChartCard,
+  parseCoinGeckoChartIntent,
+} from '@/components/chat/CryptoChartCard';
 import {
   findFundingOnrampIntent,
   normalizeFundingOnrampSourceText,
@@ -59,7 +67,9 @@ import {
   Check,
   Clock3,
   Copy,
+  Download,
   ExternalLink,
+  FileText,
   Grid2X2,
   Loader2,
   Menu,
@@ -218,12 +228,16 @@ interface Message {
   messageType:
     | 'text'
     | 'image'
+    | 'video'
     | 'file'
     | 'bot_command'
     | 'bot_response'
     | 'system'
     | 'agent_response'
     | 'agent_action_proposal';
+  fileUrl?: string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
   createdAt: string;
   status?: 'sending' | 'sent' | 'failed';
   readBy?: string[];
@@ -259,6 +273,7 @@ interface Message {
         } | null;
       polymarketOrderPrefill?: PolymarketOrderPrefill | null;
       walletSendNetworkPrompt?: WalletSendNetworkPrompt | null;
+      walletSendDraftPrompt?: WalletSendDraftPrompt | null;
       perpsPositionPrompt?: PerpsPositionPrompt | null;
       receipt?: AgentActionCompletion | null;
       fundingOnramp?: FundingOnrampPrefill | null;
@@ -281,6 +296,31 @@ function isTempMessage(message: Message) {
   return Boolean(
     message._id && message._id.toString().startsWith('temp-')
   );
+}
+
+const MAX_ATTACHMENT_SIZE_BYTES = 50 * 1024 * 1024;
+const GIF_ATTACHMENT_NAME = 'GIF';
+
+function formatAttachmentSize(bytes?: number | null) {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function attachmentMessageType(fileType: string): 'image' | 'video' | 'file' {
+  if (fileType.startsWith('image')) return 'image';
+  if (fileType.startsWith('video')) return 'video';
+  return 'file';
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 function isAgentLikeMessage(message: Message) {
@@ -665,6 +705,14 @@ interface WalletSendNetworkPrompt {
   amountType: string;
   recipient: string;
   options: WalletSendNetworkOption[];
+}
+
+interface WalletSendDraftPrompt {
+  token: string;
+  amount: string;
+  amountType: string;
+  recipient: string;
+  chain: string;
 }
 
 interface PerpsPositionPromptOption {
@@ -1638,6 +1686,65 @@ function parseHyperliquidCoin(text: string) {
   return '';
 }
 
+function isChatWalletSendCommand(text?: string | null) {
+  const commandText = stripLeadingAstroMention(String(text || ''));
+  return /^\/send(?:\s|$)/i.test(commandText);
+}
+
+function parseChatWalletSendDraft(text?: string | null): WalletSendDraftPrompt {
+  const commandText = stripLeadingAstroMention(String(text || '')).replace(
+    /^\/send\b/i,
+    'send'
+  );
+  const amount = parseWalletSendAmount(commandText);
+  const amountType = parseWalletSendAmountType(commandText);
+  let token = parseWalletSendToken(commandText);
+  if (!token) {
+    // "/send usdc to bob" — token directly after the command, before "to"
+    const directToken = commandText.match(
+      /^send\s+([a-zA-Z][a-zA-Z0-9]{1,10})\s+(?:to\b|$)/i
+    )?.[1];
+    if (directToken && !/^(to|me|my|some|all|the|a|an)$/i.test(directToken)) {
+      token = directToken.toUpperCase();
+    }
+  }
+  const recipient = parseWalletSendRecipient(commandText);
+  const chain = inferWalletSendChain(commandText);
+  return {
+    token: token || '',
+    amount: amount || '',
+    amountType: amountType || 'token',
+    recipient: recipient || '',
+    chain: chain || '',
+  };
+}
+
+function buildSyntheticWalletSendDraftPromptMessage(
+  draft: WalletSendDraftPrompt,
+  sourceMessageId?: string
+): Message {
+  return {
+    _id: sourceMessageId
+      ? `local-wallet-send-draft-${sourceMessageId}`
+      : `local-wallet-send-draft-${Date.now()}`,
+    message: 'Let’s build your send. Pick a token, amount, and recipient.',
+    senderKind: 'agent',
+    agentSender: {
+      agentId: 'astro',
+      provider: 'elizaos',
+      displayName: 'Astro',
+      avatarUrl: null,
+    },
+    messageType: 'agent_response',
+    createdAt: new Date().toISOString(),
+    agentData: {
+      metadata: {
+        walletSendDraftPrompt: draft,
+      },
+    },
+  };
+}
+
 function hasWalletSendIntent(text?: string | null) {
   const normalizedText = normalizeIntentText(text);
   return (
@@ -1670,6 +1777,8 @@ function parseWalletSendToken(text: string) {
     );
   const raw = tokenMatch?.[1]?.toUpperCase();
   if (!raw) return '';
+  // Function words after the amount ("send 5 to bob") are not token symbols.
+  if (/^(TO|ON|VIA|FOR|FROM|AND|THE|MY|ME)$/.test(raw)) return '';
 
   const aliases: Record<string, string> = {
     ETHEREUM: 'ETH',
@@ -3470,16 +3579,29 @@ export default function ChatArea({
 
     const handleGroupParticipantsUpdated = (data: any) => {
       if (data.groupId === selectedChat?._id) {
-        // Refresh group info to get latest participant list
-        loadMessages(1, true);
+        // Apply the fresh participant list from the event payload
+        if (Array.isArray(data.participants) && data.participants.length) {
+          setCurrentGroupData((prev) =>
+            prev ? { ...prev, participants: data.participants } : prev
+          );
+        }
+        // member_added / member_removed events carry the system message
+        if (data.message) {
+          appendMessageIfNew(data.message);
+        }
       }
     };
 
     const handleGroupDeleted = (data: any) => {
       if (data.groupId === selectedChat?._id) {
-        alert('This group has been deleted');
-        // Navigate back or clear selection
-        window.location.reload(); // Simple approach
+        if (getObjectId(data.deletedBy) !== currentUser) {
+          toast('This group has been deleted', {
+            id: `group_deleted_${data.groupId}`,
+            position: 'top-right',
+          });
+        }
+        // Clear the selection; ChatContainer refreshes the group list
+        onLeaveGroup?.();
       }
     };
 
@@ -3534,9 +3656,11 @@ export default function ChatArea({
     socket,
     selectedChat,
     chatType,
-    loadMessages,
+    currentUser,
+    appendMessageIfNew,
     markGroupAgentRemoved,
     onChatUpdate,
+    onLeaveGroup,
     upsertGroupAgent,
   ]);
   // UPDATE: Sync currentGroupData when selectedChat changes
@@ -4173,6 +4297,218 @@ export default function ChatArea({
     trading.tradingWalletAddress,
   ]);
 
+  const emitAttachmentMessage = useCallback(
+    ({
+      tempId,
+      messageType,
+      fileUrl,
+      fileName,
+      fileSize,
+      localPreviewUrl,
+    }: {
+      tempId: string;
+      messageType: 'image' | 'video' | 'file';
+      fileUrl: string;
+      fileName: string;
+      fileSize?: number;
+      localPreviewUrl?: string;
+    }) => {
+      if (!socket || !selectedChat) return;
+
+      const receiverId = isGroup
+        ? selectedChat._id
+        : getDirectReceiverId(selectedChat);
+      if (!receiverId) return;
+
+      const messageData = isGroup
+        ? {
+            groupId: selectedChat._id,
+            message: fileName,
+            messageType,
+            fileUrl,
+            fileName,
+            fileSize,
+          }
+        : {
+            receiverId,
+            message: fileName,
+            messageType,
+            fileUrl,
+            fileName,
+            fileSize,
+          };
+
+      socket.emit(
+        isGroup ? 'send_group_message' : EVENTS.SEND_MESSAGE,
+        messageData,
+        (response: SocketResponse) => {
+          if (localPreviewUrl) {
+            URL.revokeObjectURL(localPreviewUrl);
+          }
+          if (response?.success && response.message) {
+            const acknowledgedMessage = response.message;
+            setMessages((prev) =>
+              dedupeMessages(
+                prev.map((msg) =>
+                  msg._id === tempId ? acknowledgedMessage : msg
+                )
+              )
+            );
+          } else {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg._id === tempId
+                  ? { ...msg, status: 'failed' as const }
+                  : msg
+              )
+            );
+            toast.error(response?.error || 'Failed to send attachment');
+          }
+        }
+      );
+    },
+    [isGroup, selectedChat, socket]
+  );
+
+  const buildOptimisticAttachmentMessage = useCallback(
+    ({
+      tempId,
+      messageType,
+      fileUrl,
+      fileName,
+      fileSize,
+    }: {
+      tempId: string;
+      messageType: 'image' | 'video' | 'file';
+      fileUrl: string;
+      fileName: string;
+      fileSize?: number;
+    }): Message | null => {
+      if (!selectedChat) return null;
+      const receiverId = isGroup
+        ? selectedChat._id
+        : getDirectReceiverId(selectedChat);
+      if (!receiverId) return null;
+
+      return {
+        _id: tempId,
+        message: fileName,
+        sender: { _id: currentUser, name: 'You' },
+        receiver: isGroup
+          ? null
+          : {
+              _id: receiverId,
+              name: getDirectReceiverName(selectedChat),
+              profilePic: getDirectReceiverAvatar(selectedChat),
+            },
+        groupId: isGroup ? selectedChat._id : null,
+        messageType,
+        fileUrl,
+        fileName,
+        fileSize,
+        createdAt: new Date().toISOString(),
+        status: 'sending',
+      };
+    },
+    [currentUser, isGroup, selectedChat]
+  );
+
+  const handleSendAttachments = useCallback(
+    async (files: File[]) => {
+      if (!socket || !selectedChat) return;
+
+      for (const file of files) {
+        if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+          toast.error(
+            `${file.name} is larger than the 50 MB attachment limit`
+          );
+          continue;
+        }
+
+        const messageType = attachmentMessageType(file.type);
+        const fileName = file.name || 'Attachment';
+        const tempId = `temp-attachment-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+        const localPreviewUrl = URL.createObjectURL(file);
+
+        const optimisticMessage = buildOptimisticAttachmentMessage({
+          tempId,
+          messageType,
+          fileUrl: localPreviewUrl,
+          fileName,
+          fileSize: file.size,
+        });
+        if (!optimisticMessage) {
+          URL.revokeObjectURL(localPreviewUrl);
+          return;
+        }
+
+        forceScrollToBottomRef.current = true;
+        isPinnedToBottomRef.current = true;
+        setMessages((prev) => dedupeMessages([...prev, optimisticMessage]));
+
+        try {
+          const base64File = await readFileAsDataUrl(file);
+          const uploadedUrl = await sendCloudinaryFile(
+            base64File,
+            file.type,
+            fileName
+          );
+          emitAttachmentMessage({
+            tempId,
+            messageType,
+            fileUrl: uploadedUrl,
+            fileName,
+            fileSize: file.size,
+            localPreviewUrl,
+          });
+        } catch (error) {
+          console.error('Attachment upload failed:', error);
+          URL.revokeObjectURL(localPreviewUrl);
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg._id === tempId
+                ? { ...msg, status: 'failed' as const }
+                : msg
+            )
+          );
+          toast.error(`Failed to upload ${fileName}`);
+        }
+      }
+    },
+    [buildOptimisticAttachmentMessage, emitAttachmentMessage, selectedChat, socket]
+  );
+
+  const handleSendGif = useCallback(
+    (gif: ChatAttachmentGif) => {
+      if (!socket || !selectedChat || !gif.url) return;
+
+      const tempId = `temp-attachment-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+      const optimisticMessage = buildOptimisticAttachmentMessage({
+        tempId,
+        messageType: 'image',
+        fileUrl: gif.url,
+        fileName: GIF_ATTACHMENT_NAME,
+      });
+      if (!optimisticMessage) return;
+
+      forceScrollToBottomRef.current = true;
+      isPinnedToBottomRef.current = true;
+      setMessages((prev) => dedupeMessages([...prev, optimisticMessage]));
+
+      emitAttachmentMessage({
+        tempId,
+        messageType: 'image',
+        fileUrl: gif.url,
+        fileName: GIF_ATTACHMENT_NAME,
+      });
+    },
+    [buildOptimisticAttachmentMessage, emitAttachmentMessage, selectedChat, socket]
+  );
+
   const handlePreparePolymarketBet = useCallback(
     async (prompt: string, betKey: string) => {
       if (!selectedChat || !socket) return null;
@@ -4331,6 +4667,10 @@ export default function ChatArea({
     setNewMessage((prev) => (prev.trim() ? prev : '/'));
     focusComposer();
   }, [focusComposer]);
+
+  const handleComposerTip = useCallback(() => {
+    applyComposerCommand('/send ');
+  }, [applyComposerCommand]);
 
   const handleApprovalNextStep = useCallback(
     (approvalResult?: AgentApprovalHandoff | null) => {
@@ -4797,8 +5137,28 @@ export default function ChatArea({
                   group={displayChat as any}
                   socket={socket}
                   currentUser={currentUser}
-                  onGroupUpdate={() => {
-                    loadMessages(1, true);
+                  onGroupUpdate={(updatedGroup?: any) => {
+                    if (updatedGroup) {
+                      // Merge the fresh group data from the socket ack;
+                      // system messages arrive via group room events
+                      setCurrentGroupData((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              name: updatedGroup.name ?? prev.name,
+                              description:
+                                updatedGroup.description ??
+                                prev.description,
+                              participants:
+                                updatedGroup.participants ??
+                                prev.participants,
+                              settings:
+                                updatedGroup.settings ?? prev.settings,
+                            }
+                          : updatedGroup
+                      );
+                    }
+                    onChatUpdate?.();
                   }}
                   onLeaveGroup={onLeaveGroup}
                 />
@@ -5049,6 +5409,22 @@ export default function ChatArea({
               if (localWalletSendMessage || localWalletSendNetworkPromptMessage) {
                 renderedSyntheticOrderSourceTexts.add(normalizedOrderSource);
               }
+              const localWalletSendDraftMessage =
+                typeof renderedMessageText === 'string' &&
+                isOwnOrLocalText &&
+                !isAgentMessage &&
+                renderedMessageText.trim().length > 0 &&
+                message.messageType === 'text' &&
+                isChatWalletSendCommand(renderedMessageText) &&
+                (!isGroup || hasAstroMention || isSecureAstroDesk) &&
+                !rawLocalWalletSendIntent &&
+                !localWalletSendNetworkPromptMessage &&
+                !localWalletSendMessage
+                  ? buildSyntheticWalletSendDraftPromptMessage(
+                      parseChatWalletSendDraft(renderedMessageText),
+                      message._id || `message-${index}`
+                    )
+                  : null;
               const canRenderLocalSwap =
                 typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
@@ -5058,7 +5434,8 @@ export default function ChatArea({
                 hasChatSwapIntent(renderedMessageText) &&
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendNetworkPromptMessage &&
-                !localWalletSendMessage;
+                !localWalletSendMessage &&
+                !localWalletSendDraftMessage;
               const localSwapIntent = canRenderLocalSwap
                 ? findChatSwapIntent(renderedMessageText)
                 : null;
@@ -5089,6 +5466,7 @@ export default function ChatArea({
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendNetworkPromptMessage &&
                 !localWalletSendMessage &&
+                !localWalletSendDraftMessage &&
                 !localSwapMessage &&
                 !renderedSyntheticFundingSourceTexts.has(normalizedFundingSource);
               const localFundingOnrampIntent = canRenderLocalFundingOnramp
@@ -5112,6 +5490,7 @@ export default function ChatArea({
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendNetworkPromptMessage &&
                 !localWalletSendMessage &&
+                !localWalletSendDraftMessage &&
                 !localSwapMessage &&
                 !renderedSyntheticOrderSourceTexts.has(normalizedOrderSource);
               const hyperliquidPositionReplyCoin = isOwnOrLocalText
@@ -5208,6 +5587,7 @@ export default function ChatArea({
                 hasPolymarketWriteIntent(renderedMessageText) &&
                 (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !localWalletSendMessage &&
+                !localWalletSendDraftMessage &&
                 !localSwapMessage &&
                 !localHyperliquidPositionPromptMessage &&
                 !localHyperliquidOrderMessage &&
@@ -5238,6 +5618,13 @@ export default function ChatArea({
                       renderedMessageText,
                       astroConsoleData.perpsMarkets || []
                     )
+                  : null;
+              const localCoinGeckoChartIntent =
+                typeof renderedMessageText === 'string' &&
+                message.messageType === 'text' &&
+                !isAgentMessage &&
+                !isChartCommand(renderedMessageText)
+                  ? parseCoinGeckoChartIntent(renderedMessageText)
                   : null;
 
               return (
@@ -5275,6 +5662,39 @@ export default function ChatArea({
                     <ChatChartCommandCard
                       intent={localChartIntent}
                       markets={astroConsoleData.perpsMarkets || []}
+                    />
+                  )}
+                  {localCoinGeckoChartIntent && (
+                    <CryptoChartCard intent={localCoinGeckoChartIntent} />
+                  )}
+                  {localWalletSendDraftMessage && (
+                    <Message
+                      message={localWalletSendDraftMessage}
+                      isOwn={false}
+                      isGroup={isGroup}
+                      currentUser={currentUser}
+                      proposal={null}
+                      actionResult={undefined}
+                      isProposalPending={false}
+                      onApproveProposal={handleApproveProposal}
+                      onApproveInlineProposal={handleApproveInlineProposal}
+                      onInlineActionComplete={handleInlineActionComplete}
+                      onRejectProposal={handleRejectProposal}
+                      onPreparePolymarketBet={handlePreparePolymarketBet}
+                      onAddPredictionFunds={handleAddPredictionFunds}
+                      onAddPerpsFunds={handleAddPerpsFunds}
+                      onDismissReceipt={handleDismissReceipt}
+                      onRegisterPolymarketMarkets={
+                        registerRenderedPolymarketMarkets
+                      }
+                      pendingPolymarketBetKey={pendingPolymarketBetKey}
+                      inlinePolymarketProposalsByBetKey={
+                        inlinePolymarketProposalsByBetKey
+                      }
+                      actionResultsByProposalId={actionResultsByProposalId}
+                      pendingProposalId={pendingProposalId}
+                      astroConsoleData={astroConsoleData}
+                      renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
                     />
                   )}
                   {localWalletSendNetworkPromptMessage && (
@@ -5594,6 +6014,13 @@ export default function ChatArea({
             )}
 
             <div className="relative flex min-h-[64px] items-center gap-3 rounded-[18px] border border-white/[0.06] bg-black px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.28)] focus-within:border-[#3fe08f]/45 focus-within:shadow-[0_0_0_1px_rgba(63,224,143,0.16),0_18px_50px_rgba(0,0,0,0.28)]">
+              <ChatAttachmentMenu
+                disabled={!selectedChat}
+                onSendFiles={handleSendAttachments}
+                onSendGif={handleSendGif}
+                onTip={handleComposerTip}
+              />
+
               <span className="dm-mono flex-shrink-0 text-[20px] font-bold leading-none text-[#3fe08f]">
                 &gt;
               </span>
@@ -7000,6 +7427,8 @@ function Message({
     message.agentData?.metadata?.toolExecution?.perpsPositions || null;
   const walletSendNetworkPrompt =
     message.agentData?.metadata?.walletSendNetworkPrompt || null;
+  const walletSendDraftPrompt =
+    message.agentData?.metadata?.walletSendDraftPrompt || null;
   const perpsPositionPrompt =
     message.agentData?.metadata?.perpsPositionPrompt || null;
   const researchSources =
@@ -7096,6 +7525,8 @@ function Message({
   const hasAgentPerpsPositions = isAgent && Boolean(perpsPositions);
   const hasAgentWalletSendNetworkPrompt =
     isAgent && Boolean(walletSendNetworkPrompt);
+  const hasAgentWalletSendDraftPrompt =
+    isAgent && Boolean(walletSendDraftPrompt);
   const hasAgentPerpsPositionPrompt =
     isAgent && Boolean(perpsPositionPrompt);
   const hasAgentResearchSources = isAgent && researchSources.length > 0;
@@ -7117,6 +7548,7 @@ function Message({
       hasAgentWalletReceive ||
       hasAgentPerpsPositions ||
       hasAgentWalletSendNetworkPrompt ||
+      hasAgentWalletSendDraftPrompt ||
       hasAgentPerpsPositionPrompt ||
       hasAgentSportsResearch ||
       hasAgentResearchSources ||
@@ -7146,7 +7578,25 @@ function Message({
     shouldHideUnnamedPolymarketAgent,
   ]);
 
+  const attachmentUrl = message.fileUrl || '';
+  const isImageAttachment =
+    message.messageType === 'image' && Boolean(attachmentUrl);
+  const isVideoAttachment =
+    message.messageType === 'video' && Boolean(attachmentUrl);
+  const isFileAttachment =
+    message.messageType === 'file' && Boolean(attachmentUrl);
+  const hasAttachment =
+    isImageAttachment || isVideoAttachment || isFileAttachment;
+  const attachmentCaption =
+    hasAttachment &&
+    message.message &&
+    message.message !== message.fileName &&
+    message.message !== GIF_ATTACHMENT_NAME
+      ? message.message
+      : '';
+
   const showMessageText =
+    !hasAttachment &&
     !hasAgentRichContent &&
     !hasAgentResearchSources &&
     (!isPolymarketProposal || !isGenericAgentProposalText(message.message));
@@ -7218,6 +7668,79 @@ function Message({
                   ? message.agentSender?.displayName || 'Agent'
                   : message.sender?.name || 'Unknown'}
               </span>
+            </div>
+          )}
+          {isImageAttachment && (
+            <a
+              href={attachmentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={attachmentUrl}
+                alt={message.fileName || 'Image attachment'}
+                loading="lazy"
+                className="max-h-[280px] w-auto max-w-full rounded-[10px] object-cover"
+              />
+            </a>
+          )}
+          {isVideoAttachment && (
+            <video
+              src={attachmentUrl}
+              controls
+              preload="metadata"
+              className="max-h-[280px] w-auto max-w-full rounded-[10px]"
+            />
+          )}
+          {isFileAttachment && (
+            <a
+              href={attachmentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={message.fileName || true}
+              className={`dm-mono flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 ${
+                isOwn
+                  ? 'border-[#06120b]/20 bg-[#06120b]/10 text-[#06120b]'
+                  : 'border-white/[0.08] bg-black/40 text-[#eceef2]'
+              }`}
+            >
+              <span
+                className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] border ${
+                  isOwn
+                    ? 'border-[#06120b]/20'
+                    : 'border-[#3fe08f]/20 bg-black text-[#3fe08f]'
+                }`}
+              >
+                <FileText className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-bold">
+                  {message.fileName || 'File'}
+                </span>
+                {formatAttachmentSize(message.fileSize) && (
+                  <span
+                    className={`block text-[11px] font-semibold ${
+                      isOwn ? 'text-[#06120b]/70' : 'text-[#737783]'
+                    }`}
+                  >
+                    {formatAttachmentSize(message.fileSize)}
+                  </span>
+                )}
+              </span>
+              <Download className="h-4 w-4 flex-shrink-0 opacity-70" />
+            </a>
+          )}
+          {attachmentCaption && (
+            <div
+              className={`mt-1.5 ${
+                isOwn
+                  ? 'dm-mono break-words text-[13.5px] font-semibold leading-[1.6]'
+                  : 'dm-mono break-words text-[14px] font-semibold leading-[1.65]'
+              }`}
+            >
+              {attachmentCaption}
             </div>
           )}
           {showMessageText && (
@@ -7303,6 +7826,11 @@ function Message({
             <HyperliquidPositionsCard
               summary={perpsPositions}
               astroConsoleData={astroConsoleData}
+              canAct={canAct}
+              isPending={isProposalPending}
+              onApproveInline={onApproveInlineProposal}
+              onInlineActionComplete={onInlineActionComplete}
+              onAddFunds={onAddPerpsFunds}
             />
           )}
           {isAgent && walletSendNetworkPrompt && (
@@ -7311,6 +7839,16 @@ function Message({
               onApproveInline={onApproveInlineProposal}
               onInlineActionComplete={onInlineActionComplete}
               onReject={onRejectProposal}
+              astroConsoleData={astroConsoleData}
+            />
+          )}
+          {isAgent &&
+            walletSendDraftPrompt &&
+            String(message._id || '').startsWith('local-wallet-send-draft-') && (
+            <WalletSendDraftCard
+              prompt={walletSendDraftPrompt}
+              onApproveInline={onApproveInlineProposal}
+              onInlineActionComplete={onInlineActionComplete}
               astroConsoleData={astroConsoleData}
             />
           )}
@@ -11030,6 +11568,58 @@ function getHyperliquidPreviewSide(
   return toFiniteNumber(position.szi) < 0 ? 'short' : 'long';
 }
 
+function buildHyperliquidClosePositionProposal(
+  position: HyperliquidPositionPreview,
+  market?: HLMarket
+): AgentActionProposal {
+  const side = getHyperliquidPreviewSide(position);
+  const sizeCoins = Math.abs(toFiniteNumber(position.szi));
+  const closeSize = formatPerpsOrderSize(sizeCoins, market?.szDecimals ?? 4);
+  const proposalSeed = [displayPerpsCoin(position.coin), side, closeSize]
+    .join('-')
+    .replace(/[^a-zA-Z0-9_-]/g, '-');
+  const isCross = position.leverage?.type !== 'isolated';
+  // markPrice is intentionally omitted so the ticket uses the live market mark.
+  const params = {
+    coin: position.coin,
+    asset: position.coin,
+    side,
+    direction: side,
+    isLong: side === 'long',
+    size: closeSize,
+    sz: closeSize,
+    sizeCoins: closeSize,
+    entryPrice: position.entryPx || undefined,
+    collateralUsd: position.marginUsed || undefined,
+    marginUsed: position.marginUsed || undefined,
+    notionalUsd: position.positionValue || undefined,
+    positionValue: position.positionValue || undefined,
+    leverage: String(position.leverage?.value || 1),
+    isCross,
+    cross: isCross,
+    liquidationPrice: position.liquidationPx || undefined,
+    reduceOnly: true,
+    orderMode: 'market',
+    orderType: 'market',
+  };
+
+  return {
+    proposalId: `${LOCAL_HYPERLIQUID_PROPOSAL_PREFIX}close-${proposalSeed}`,
+    toolType: 'perps.write',
+    action: 'perps.close_position',
+    status: 'pending',
+    normalizedParams: params,
+    riskSummary: {
+      riskLevel: 'high',
+      toolType: 'perps.write',
+      action: 'perps.close_position',
+      mode: 'proposal',
+      requiresProposal: true,
+      paramKeys: Object.keys(params).sort(),
+    },
+  };
+}
+
 function getHyperliquidPreviewMarkPrice(
   position: HyperliquidPositionPreview,
   market?: HLMarket
@@ -11056,15 +11646,35 @@ function formatPerpsRoe(value: unknown) {
 function HyperliquidPositionsCard({
   summary,
   astroConsoleData,
+  canAct = false,
+  isPending = false,
+  onApproveInline,
+  onInlineActionComplete,
+  onAddFunds,
 }: {
   summary: HyperliquidPositionsPreview;
   astroConsoleData: AstroConsoleData;
+  canAct?: boolean;
+  isPending?: boolean;
+  onApproveInline?: (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>
+  ) => Promise<AgentApprovalHandoff | null>;
+  onInlineActionComplete?: (completion: AgentActionCompletion) => void;
+  onAddFunds?: () => void;
 }) {
   const positions = (summary.positions || []).filter((position) =>
     Boolean(position.coin)
   );
   const accountValue = toFiniteNumber(summary.accountValue);
   const withdrawable = toFiniteNumber(summary.withdrawable);
+  // Proposal is built once at click time so in-flight ticket state never
+  // resets when live market data refreshes.
+  const [closeTicket, setCloseTicket] = useState<{
+    positionKey: string;
+    proposal: AgentActionProposal;
+  } | null>(null);
+  const canClosePositions = Boolean(onApproveInline && onInlineActionComplete);
 
   return (
     <div className={`${AGENT_PANEL_CLASS} mt-2 w-full overflow-hidden rounded-[14px] text-xs`}>
@@ -11100,6 +11710,7 @@ function HyperliquidPositionsCard({
           </div>
         ) : (
           positions.map((position, index) => {
+            const positionKey = `${position.coin}-${position.szi || index}`;
             const side = getHyperliquidPreviewSide(position);
             const displayCoin =
               position.displayCoin || displayPerpsCoin(position.coin);
@@ -11136,9 +11747,12 @@ function HyperliquidPositionsCard({
                 : 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#a9f7cc]';
             const pnlTone = pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff5d63]';
 
+            const isCloseTicketOpen =
+              closeTicket?.positionKey === positionKey;
+
             return (
               <div
-                key={`${position.coin}-${position.szi || index}`}
+                key={positionKey}
                 className="rounded-[12px] border border-white/[0.07] bg-black/20 p-3"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -11236,6 +11850,40 @@ function HyperliquidPositionsCard({
                       />
                     </div>
                   </div>
+                )}
+
+                {canClosePositions && size > 0 && (
+                  isCloseTicketOpen && closeTicket ? (
+                    <HyperliquidProposalFlowTicket
+                      proposal={closeTicket.proposal}
+                      proposalId={closeTicket.proposal.proposalId}
+                      status={closeTicket.proposal.status || 'pending'}
+                      canAct={canAct}
+                      isPending={isPending}
+                      onApproveInline={onApproveInline!}
+                      onInlineActionComplete={onInlineActionComplete!}
+                      onReject={() => setCloseTicket(null)}
+                      onAddFunds={onAddFunds || (() => {})}
+                      astroConsoleData={astroConsoleData}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCloseTicket({
+                          positionKey,
+                          proposal: buildHyperliquidClosePositionProposal(
+                            position,
+                            market
+                          ),
+                        })
+                      }
+                      className="dm-btn mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#ff5d63]/25 bg-[#ff5d63]/10 text-[12px] font-semibold text-[#ffb2b6] hover:bg-[#ff5d63]/20"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      Close position
+                    </button>
+                  )
                 )}
               </div>
             );
@@ -12958,6 +13606,378 @@ function WalletSendNetworkPromptCard({
               Pick a network to build the final send card.
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WalletSendDraftCard({
+  prompt,
+  onApproveInline,
+  onInlineActionComplete,
+  astroConsoleData,
+}: {
+  prompt: WalletSendDraftPrompt;
+  onApproveInline: (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>
+  ) => Promise<AgentApprovalHandoff | null>;
+  onInlineActionComplete: (completion: AgentActionCompletion) => void;
+  astroConsoleData: AstroConsoleData;
+}) {
+  const { wallets: evmWallets } = useEvmWallets();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const { connectWallet } = useConnectWallet();
+  const evmSignerAddresses = useMemo(
+    () =>
+      getChatSwapSignableAddressSet([
+        ...evmWallets.map((wallet) => wallet.address),
+        astroConsoleData.evmWalletAddress,
+        ...(astroConsoleData.evmWalletAddresses || []),
+        astroConsoleData.eoaAddress,
+      ]),
+    [
+      astroConsoleData.eoaAddress,
+      astroConsoleData.evmWalletAddress,
+      astroConsoleData.evmWalletAddresses,
+      evmWallets,
+    ]
+  );
+  const solanaSignerAddresses = useMemo(
+    () =>
+      getChatSolanaSignerAddressSet([
+        ...solanaWallets.map((wallet) => wallet.address),
+        astroConsoleData.solWalletAddress,
+      ]),
+    [astroConsoleData.solWalletAddress, solanaWallets]
+  );
+  const tokenOptions = useMemo(
+    () =>
+      getWalletSwapTokenOptions(astroConsoleData.walletPortfolioTokens).filter(
+        (option) =>
+          isChatSwapTokenOwnedBySigner(
+            option,
+            evmSignerAddresses,
+            solanaSignerAddresses
+          )
+      ),
+    [
+      astroConsoleData.walletPortfolioTokens,
+      evmSignerAddresses,
+      solanaSignerAddresses,
+    ]
+  );
+  const promptChain = prompt.chain
+    ? normalizeWalletSendChainValue(prompt.chain)
+    : '';
+  const initialToken = useMemo(() => {
+    const symbolMatch = findSwapSelectableToken(
+      tokenOptions,
+      prompt.token,
+      undefined,
+      true
+    );
+    if (!symbolMatch) return null;
+    if (!promptChain) return symbolMatch;
+    return (
+      tokenOptions.find(
+        (option) =>
+          normalizeSwapSymbol(option.symbol) ===
+            normalizeSwapSymbol(symbolMatch.symbol) &&
+          normalizeWalletSendChainValue(
+            option.chainId === SOLANA_CHAIN_ID ? 'solana' : option.chainName
+          ) === promptChain
+      ) || symbolMatch
+    );
+  }, [prompt.token, promptChain, tokenOptions]);
+  const [selectedTokenKey, setSelectedTokenKey] = useState('');
+  const [isTokenListOpen, setIsTokenListOpen] = useState(false);
+  const [hasTouchedToken, setHasTouchedToken] = useState(false);
+  const [amountInput, setAmountInput] = useState(prompt.amount || '');
+  const [amountType, setAmountType] = useState<'token' | 'usd'>(
+    prompt.amountType === 'usd' ? 'usd' : 'token'
+  );
+  const [recipientInput, setRecipientInput] = useState(prompt.recipient || '');
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  const selectedToken =
+    tokenOptions.find((option) => option.key === selectedTokenKey) ||
+    (!hasTouchedToken ? initialToken : null);
+  const chain = selectedToken
+    ? normalizeWalletSendChainValue(
+        selectedToken.chainId === SOLANA_CHAIN_ID
+          ? 'solana'
+          : selectedToken.chainName
+      )
+    : '';
+  const trimmedAmount = amountInput.trim().replace(/^\$/, '');
+  const amountNumber = Number(trimmedAmount);
+  const hasValidAmount = Number.isFinite(amountNumber) && amountNumber > 0;
+  const tokenBalance = Number(selectedToken?.balance || 0);
+  const priceUsd = Number(selectedToken?.priceUsd || 0);
+  const requiredTokenAmount =
+    amountType === 'usd'
+      ? priceUsd > 0
+        ? amountNumber / priceUsd
+        : null
+      : amountNumber;
+  const hasEnoughBalance =
+    !selectedToken ||
+    !hasValidAmount ||
+    requiredTokenAmount === null ||
+    !Number.isFinite(tokenBalance) ||
+    tokenBalance + 0.00000001 >= requiredTokenAmount;
+  const trimmedRecipient = recipientInput.trim().replace(/^@/, '');
+  const canReview =
+    Boolean(selectedToken) &&
+    hasValidAmount &&
+    hasEnoughBalance &&
+    trimmedRecipient.length > 1;
+
+  if (isDismissed) return null;
+
+  if (isReviewing && selectedToken && canReview) {
+    const recipientIsAddress =
+      /^0x[a-fA-F0-9]{40}$/.test(trimmedRecipient) ||
+      /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmedRecipient);
+    const activeProposalId = `local-wallet-send-${selectedToken.symbol}-${trimmedRecipient}-${chain}`;
+    const normalizedParams = {
+      token: selectedToken.symbol,
+      tokenSymbol: selectedToken.symbol,
+      asset: selectedToken.symbol,
+      amount: trimmedAmount,
+      amountType,
+      isUSD: amountType === 'usd',
+      recipient: trimmedRecipient,
+      recipientAddress: recipientIsAddress ? trimmedRecipient : undefined,
+      recipientEns: recipientIsAddress ? undefined : trimmedRecipient,
+      chain,
+      network: chain,
+    };
+    const localProposal: AgentActionProposal = {
+      proposalId: activeProposalId,
+      action: 'wallet.send',
+      toolType: 'wallet.write',
+      status: 'pending',
+      normalizedParams,
+      riskSummary: {
+        riskLevel: 'high',
+        toolType: 'wallet.write',
+        action: 'wallet.send',
+        mode: 'proposal',
+        requiresProposal: true,
+        paramKeys: [
+          'amount',
+          'amountType',
+          'asset',
+          'chain',
+          'isUSD',
+          'network',
+          'recipient',
+          recipientIsAddress ? 'recipientAddress' : 'recipientEns',
+          'token',
+          'tokenSymbol',
+        ],
+      },
+    };
+
+    return (
+      <WalletSendProposalTicket
+        proposal={localProposal}
+        proposalId={activeProposalId}
+        status="pending"
+        canAct
+        isOpen
+        isPending={false}
+        onApproveInline={onApproveInline}
+        onInlineActionComplete={onInlineActionComplete}
+        onReject={() => setIsReviewing(false)}
+        onChangeNetwork={() => setIsReviewing(false)}
+        astroConsoleData={astroConsoleData}
+      />
+    );
+  }
+
+  const showTokenList = isTokenListOpen || !selectedToken;
+  return (
+    <div className="mt-2 w-full max-w-[520px] border-l-2 border-[#3fe08f] pl-2 text-xs">
+      <div className={`${AGENT_PANEL_CLASS} overflow-hidden rounded-[14px]`}>
+        <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-3 py-2.5">
+          <div className="min-w-0">
+            <div className="dm-mono text-[9.5px] font-bold uppercase tracking-[0.16em] text-[#3fe08f]">
+              wallet send
+            </div>
+            <div className="mt-1 truncate text-[15px] font-bold text-[#eceef2]">
+              Set up your transfer
+            </div>
+          </div>
+          <div className="dm-mono flex shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+            <span className="rounded-full bg-[#3fe08f] px-1.5 py-0.5 text-[#031008]">
+              1 token
+            </span>
+            <span>—</span>
+            <span>2 details</span>
+            <span>—</span>
+            <span>3 confirm</span>
+          </div>
+        </div>
+        <div className="grid gap-2.5 p-3">
+          <div className={TICKET_LABEL_CLASS}>pay with · your balances</div>
+          {!showTokenList && selectedToken ? (
+            <button
+              type="button"
+              onClick={() => setIsTokenListOpen(true)}
+              className="dm-btn flex items-center justify-between gap-3 rounded-[10px] border border-[#3fe08f]/30 bg-[#3fe08f]/10 px-3 py-2 text-left hover:bg-[#3fe08f]/15"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="dm-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[#3fe08f]/25 bg-[#3fe08f]/10 text-[12px] font-bold text-[#3fe08f]">
+                  {selectedToken.symbol.slice(0, 1)}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-bold text-[#eceef2]">
+                    {selectedToken.symbol} · {selectedToken.chainName}
+                  </div>
+                  <div className="dm-mono mt-0.5 truncate text-[10px] text-[#5a5e69]">
+                    {selectedToken.balance
+                      ? `${formatSwapAmount(selectedToken.balance)} ${
+                          selectedToken.symbol
+                        }`
+                      : 'balance unavailable'}
+                    {selectedToken.usdValue
+                      ? ` · ${formatCompactUsd(selectedToken.usdValue)}`
+                      : ''}
+                  </div>
+                </div>
+              </div>
+              <span className="dm-mono shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-[#3fe08f]">
+                change
+              </span>
+            </button>
+          ) : tokenOptions.length ? (
+            <div className="grid max-h-60 gap-2 overflow-y-auto pr-0.5">
+              {tokenOptions.map((option) => (
+                <button
+                  type="button"
+                  key={option.key}
+                  onClick={() => {
+                    setSelectedTokenKey(option.key);
+                    setHasTouchedToken(true);
+                    setIsTokenListOpen(false);
+                  }}
+                  className="dm-btn flex items-center justify-between gap-3 rounded-[10px] border border-white/[0.07] bg-black/25 px-3 py-2 text-left hover:border-[#3fe08f]/35 hover:bg-[#3fe08f]/10"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="dm-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-white/[0.1] bg-black/40 text-[12px] font-bold text-[#eceef2]">
+                      {option.symbol.slice(0, 1)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] font-bold text-[#eceef2]">
+                        {option.symbol}
+                      </div>
+                      <div className="dm-mono mt-0.5 truncate text-[10px] text-[#5a5e69]">
+                        {option.chainName}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="dm-mono shrink-0 text-right text-[11px] font-semibold text-[#9396a0]">
+                    {option.balance
+                      ? `${formatSwapAmount(option.balance)} ${option.symbol}`
+                      : '—'}
+                    {(option.usdValue || 0) > 0 && (
+                      <div className="text-[#3fe08f]">
+                        {formatCompactUsd(option.usdValue || 0)}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[10px] border border-[#ffcc66]/25 bg-[#ffcc66]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd17a]">
+              <div>
+                No token balances were found in your connected wallets.
+              </div>
+              <button
+                type="button"
+                onClick={() => connectWallet()}
+                className="dm-btn mt-2 inline-flex h-8 items-center justify-center rounded-[9px] border border-[#ffd17a]/30 bg-[#ffd17a]/10 px-3 text-[11px] font-bold text-[#ffe2a5] hover:bg-[#ffd17a]/15"
+              >
+                Connect wallet
+              </button>
+            </div>
+          )}
+          <div className={TICKET_LABEL_CLASS}>amount</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={amountInput}
+              onChange={(event) => setAmountInput(event.target.value)}
+              placeholder={
+                amountType === 'usd'
+                  ? 'amount in USD'
+                  : `amount in ${selectedToken?.symbol || 'tokens'}`
+              }
+              className={`${TICKET_MONO_FIELD_CLASS} w-full flex-1`}
+            />
+            <button
+              type="button"
+              onClick={() =>
+                setAmountType((current) =>
+                  current === 'usd' ? 'token' : 'usd'
+                )
+              }
+              className="dm-btn dm-mono inline-flex h-9 shrink-0 items-center justify-center rounded-[9px] border border-white/[0.07] bg-black/25 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#a9adb8] hover:bg-white/[0.05]"
+            >
+              {amountType === 'usd' ? 'USD' : selectedToken?.symbol || 'TOKEN'}
+            </button>
+            {selectedToken?.balance && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAmountType('token');
+                  setAmountInput(String(selectedToken.balance));
+                }}
+                className="dm-btn dm-mono inline-flex h-9 shrink-0 items-center justify-center rounded-[9px] border border-[#3fe08f]/25 bg-[#3fe08f]/10 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#3fe08f] hover:bg-[#3fe08f]/15"
+              >
+                max
+              </button>
+            )}
+          </div>
+          {selectedToken && hasValidAmount && !hasEnoughBalance && (
+            <div className="rounded-[9px] border border-[#ffcc66]/25 bg-[#ffcc66]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd17a]">
+              Not enough {selectedToken.symbol} on {selectedToken.chainName} —
+              you have {formatSwapAmount(String(tokenBalance))}{' '}
+              {selectedToken.symbol}.
+            </div>
+          )}
+          <div className={TICKET_LABEL_CLASS}>recipient</div>
+          <input
+            type="text"
+            value={recipientInput}
+            onChange={(event) => setRecipientInput(event.target.value)}
+            placeholder="swop id, ENS, or wallet address"
+            className={`${TICKET_FIELD_CLASS} w-full`}
+          />
+          <div className="mt-1 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsDismissed(true)}
+              className={TICKET_REJECT_BUTTON_CLASS}
+            >
+              Dismiss
+            </button>
+            <button
+              type="button"
+              disabled={!canReview}
+              onClick={() => setIsReviewing(true)}
+              className={TICKET_PRIMARY_BUTTON_CLASS}
+            >
+              Review send
+            </button>
+          </div>
         </div>
       </div>
     </div>

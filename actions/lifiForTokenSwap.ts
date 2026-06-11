@@ -46,8 +46,15 @@ export const fetchTokensFromLiFi = async (
         'x-lifi-api-key': LIFI_API_KEY,
       },
     });
-    const data = await response.json();
-    return data.tokens[chainId] || [];
+    if (!response.ok) {
+      // 429s return a plain-text body; don't try to parse it
+      console.error(
+        `Li.Fi tokens request failed for chain ${chainId}: ${response.status}`
+      );
+      return [];
+    }
+    const data = await response.json().catch(() => null);
+    return data?.tokens?.[chainId] || [];
   } catch (error) {
     console.error('Error fetching tokens from Li.Fi:', error);
     return [];

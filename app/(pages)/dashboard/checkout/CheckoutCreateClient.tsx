@@ -230,6 +230,8 @@ export default function CheckoutCreateClient() {
   const [copied, setCopied] = useState(false);
   const [copyFallback, setCopyFallback] = useState('');
   const copyFallbackInputRef = useRef<HTMLInputElement | null>(null);
+  const manualAmountInputRef = useRef<HTMLInputElement | null>(null);
+  const salePanelRef = useRef<HTMLElement | null>(null);
   const [terminalMode, setTerminalMode] = useState(false);
   const [paymentType, setPaymentType] = useState<PaymentType>('swop');
   const [reconcileHash, setReconcileHash] = useState('');
@@ -348,7 +350,9 @@ export default function CheckoutCreateClient() {
   const visibleProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
     return products
-      .filter((product) => product.currency === 'USDC')
+      // USD and USDC price tags are both dollar pricing — the checkout rails
+      // settle dollars as USDC, and buyers can pay with any token.
+      .filter((product) => ['USDC', 'USD'].includes(product.currency))
       .filter((product) => product.price > 0)
       .filter((product) => {
         if (!query) return true;
@@ -513,6 +517,15 @@ export default function CheckoutCreateClient() {
     setSaleDescription('');
     setCreatedIntent(null);
     setCopied(false);
+    setCopyFallback('');
+    setTerminalMode(false);
+    salePanelRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+    window.setTimeout(() => {
+      manualAmountInputRef.current?.focus();
+    }, 350);
   };
 
   const exportCsv = () => {
@@ -886,7 +899,10 @@ export default function CheckoutCreateClient() {
           </div>
         </div>
 
-        <aside className="rounded-lg border border-[#e6e9ef] bg-white p-5 shadow-sm lg:sticky lg:top-24">
+        <aside
+          ref={salePanelRef}
+          className="scroll-mt-24 rounded-lg border border-[#e6e9ef] bg-white p-5 shadow-sm lg:sticky lg:top-24"
+        >
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-[#101114]">
@@ -907,6 +923,7 @@ export default function CheckoutCreateClient() {
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
               Quick amount
               <input
+                ref={manualAmountInputRef}
                 value={manualAmount}
                 onChange={(event) => {
                   setManualAmount(event.target.value);
