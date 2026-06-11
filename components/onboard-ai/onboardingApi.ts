@@ -15,6 +15,10 @@ export interface CreateAiProfilePayload {
   fallbackEmail?: string;
   ethereumWallet?: string;
   solanaWallet?: string;
+  /** Cloudinary URL or an avatar id like "1". Defaults to the empty avatar. */
+  profilePic?: string;
+  /** Birthday as an epoch-ms timestamp string. */
+  dob?: string;
 }
 
 export async function createAiOnboardingUser({
@@ -23,6 +27,8 @@ export async function createAiOnboardingUser({
   fallbackEmail,
   ethereumWallet,
   solanaWallet,
+  profilePic,
+  dob,
 }: CreateAiProfilePayload) {
   const response = await apiFetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/create`,
@@ -37,8 +43,8 @@ export async function createAiOnboardingUser({
         mobileNo: profile.phone || "",
         address: profile.officeAddress || "",
         bio: profile.bio || "",
-        dob: "",
-        profilePic: "1",
+        dob: dob || "",
+        profilePic: profilePic || "1",
         apt: "",
         countryFlag: "US",
         countryCode: "+1",
@@ -58,21 +64,21 @@ export async function createAiOnboardingUser({
 
   const result = await response.json();
 
-  try {
-    await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/create-balance`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ethAddress: ethereumWallet,
-        solanaAddress: solanaWallet,
-        userId: result.data._id,
-      }),
-    });
-  } catch (error) {
+  // Fire-and-forget: creating the wallet-balance snapshot can take several
+  // seconds and nothing downstream in onboarding needs it, so don't block the UI.
+  void apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/create-balance`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ethAddress: ethereumWallet,
+      solanaAddress: solanaWallet,
+      userId: result.data._id,
+    }),
+  }).catch((error) => {
     console.error("Error creating wallet balance:", error);
-  }
+  });
 
   return result.data;
 }
@@ -153,6 +159,26 @@ export async function createAiOnboardingSocials(
     }
   }
 
+  // The backend only creates a Contact when `contact` is present, and its
+  // schema requires a non-empty mobileNo. Phone is optional in onboarding, so
+  // only send the contact card when we actually have a phone number.
+  const body: Record<string, unknown> = {
+    micrositeId,
+    socialTop,
+    socialLarge,
+    infoBar,
+  };
+
+  if (profile.phone?.trim()) {
+    body.contact = {
+      name: profile.name,
+      email: profile.email,
+      mobileNo: profile.phone,
+      address: profile.officeAddress || "",
+      websiteUrl: profile.website || "",
+    };
+  }
+
   const response = await apiFetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/createSocial`,
     {
@@ -160,19 +186,7 @@ export async function createAiOnboardingSocials(
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        micrositeId,
-        socialTop,
-        socialLarge,
-        infoBar,
-        contact: {
-          name: profile.name,
-          email: profile.email,
-          mobileNo: profile.phone,
-          address: profile.officeAddress || "",
-          websiteUrl: profile.website || "",
-        },
-      }),
+      body: JSON.stringify(body),
     },
   );
 

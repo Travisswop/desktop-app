@@ -458,7 +458,7 @@ const Login: React.FC = () => {
         if (!response.ok) {
           if (response.status === 404) {
             logger.log('User not found, redirecting to onboard');
-            router.push('/onboard');
+            router.push('/onboard-ai');
             return;
           }
           throw new Error(`API error: ${response.status}`);

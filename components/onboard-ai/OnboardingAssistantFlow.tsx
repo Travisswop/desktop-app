@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import ProfileChatStep from "./ProfileChatStep";
+import MessengerOnboardingChat from "./MessengerOnboardingChat";
 import UsernameStep from "./UsernameStep";
 import { OnboardAiUser, SelectedSwopId } from "./types";
 
@@ -18,5 +18,7 @@ export default function OnboardingAssistantFlow({
     return <UsernameStep onComplete={setSelectedSwopId} />;
   }
 
-  return <ProfileChatStep selectedSwopId={selectedSwopId} user={user} />;
+  return (
+    <MessengerOnboardingChat selectedSwopId={selectedSwopId} user={user} />
+  );
 }

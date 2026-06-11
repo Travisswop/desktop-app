@@ -574,6 +574,7 @@ export function UserProvider({
 
     if (
       window.location.pathname === '/onboard' ||
+      window.location.pathname === '/onboard-ai' ||
       window.location.pathname === '/login'
     ) {
       return;
