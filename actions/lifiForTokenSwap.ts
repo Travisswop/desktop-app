@@ -49,6 +49,20 @@ interface LifiDepositQuoteParams {
   slippage: string;
 }
 
+async function getLiFiApiErrorMessage(response: Response) {
+  const body = await response.text().catch(() => '');
+  if (!body) return '';
+
+  try {
+    const data = JSON.parse(body);
+    console.error('LiFi API Error:', data);
+    return data?.message || data?.error || data?.detail || '';
+  } catch {
+    console.error(`LiFi API Error: ${response.status} ${body.slice(0, 200)}`);
+    return body;
+  }
+}
+
 export const getLifiDepositQuote = async (params: LifiDepositQuoteParams) => {
   try {
     const queryParams = new URLSearchParams({
@@ -73,15 +87,15 @@ export const getLifiDepositQuote = async (params: LifiDepositQuoteParams) => {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.error('LiFi API Error:', errorData);
+      const apiMessage = await getLiFiApiErrorMessage(response);
 
       let errorMessage;
       if (response.status === 404) {
-        errorMessage = 'No route found. Try a different token or amount.';
+        errorMessage =
+          apiMessage || 'No route found. Try a different token or amount.';
       } else if (response.status === 400) {
         errorMessage =
-          errorData?.message || 'Invalid parameters. Please check your selection.';
+          apiMessage || 'Invalid parameters. Please check your selection.';
       } else if (response.status === 429) {
         errorMessage = 'Rate limit reached. Please wait and try again.';
       } else {
@@ -134,15 +148,16 @@ export const getLifiQuote = async (params: LifiQuoteParams) => {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.error('LiFi API Error:', errorData);
+      const apiMessage = await getLiFiApiErrorMessage(response);
 
       let errorMessage;
       if (response.status === 404) {
         errorMessage =
+          apiMessage ||
           'This cross-chain swap route is not supported. Please try different tokens.';
       } else if (response.status === 400) {
         errorMessage =
+          apiMessage ||
           'Invalid swap parameters. Please check your token selection and amounts.';
       } else if (response.status === 429) {
         errorMessage =

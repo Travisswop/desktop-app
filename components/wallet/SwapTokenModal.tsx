@@ -327,6 +327,47 @@ const isNativeEvmToken = (token?: any) => {
 // Error formatting
 // ─────────────────────────────────────────────────────────────────────────────
 
+const getSwapErrorMessage = (error: unknown, fallback = 'Swap failed') => {
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message || fallback;
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message || fallback);
+  }
+  return fallback;
+};
+
+const isRouteUnavailableErrorMessage = (message: string) => {
+  const lowerError = message.toLowerCase();
+  return (
+    lowerError.includes('route not found') ||
+    lowerError.includes('no route found') ||
+    lowerError.includes('no available quote') ||
+    lowerError.includes('no available quotes') ||
+    lowerError.includes('requested transfer') ||
+    lowerError.includes('unable to find swap route') ||
+    lowerError.includes('swap route is not supported') ||
+    lowerError.includes('route is not supported')
+  );
+};
+
+const isTransientQuoteRefreshError = (error: unknown) => {
+  const lowerError = getSwapErrorMessage(error, '').toLowerCase();
+  if (!lowerError || isRouteUnavailableErrorMessage(lowerError)) return false;
+
+  return (
+    lowerError.includes('network error') ||
+    lowerError.includes('fetch failed') ||
+    lowerError.includes('failed to fetch') ||
+    lowerError.includes('fetch error') ||
+    lowerError.includes('network request failed') ||
+    lowerError.includes('timeout') ||
+    lowerError.includes('taking too long') ||
+    lowerError.includes('temporarily unavailable') ||
+    lowerError.includes('rate limit') ||
+    lowerError.includes('too many requests')
+  );
+};
+
 const formatUserFriendlyError = (error: string): string => {
   const lowerError = error.toLowerCase();
   if (
@@ -366,10 +407,9 @@ const formatUserFriendlyError = (error: string): string => {
   )
     return 'Please connect your wallet to continue.';
   if (
-    lowerError.includes('route not found') ||
-    lowerError.includes('no route found')
+    isRouteUnavailableErrorMessage(lowerError)
   )
-    return 'No swap route available for this token pair. Try selecting different tokens.';
+    return 'No swap route available for this token pair right now. Try a different token, route, or amount.';
   if (
     lowerError.includes('invalid token') ||
     lowerError.includes('token not found')
@@ -1882,6 +1922,9 @@ export default function SwapTokenModal({
         setLastQuoteTime(Date.now());
       } catch (err: any) {
         console.error('Quote fetch error:', err);
+        if (isAutoRefresh && isTransientQuoteRefreshError(err)) {
+          return;
+        }
         setQuote(null);
         setJupiterQuote(null);
         setSwapError(
