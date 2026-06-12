@@ -51,7 +51,7 @@ const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
 const SHARE_POSTER_WIDTH = 420;
 const SHARE_POSTER_HEIGHT = 640;
-const SWOP_SHARE_URL = 'https://swopme.app';
+const SHARE_LOGO_SRC = '/images/swop-white-logo.png';
 
 interface PositionShareDetails {
   coin: string;
@@ -123,6 +123,8 @@ function liqMetrics(
 async function capturePositionShareImage(
   el: HTMLElement,
 ): Promise<Blob> {
+  await waitForShareImages(el);
+
   const html2canvas = (await import('html2canvas')).default;
   const canvas = await html2canvas(el, {
     backgroundColor: null,
@@ -141,6 +143,28 @@ async function capturePositionShareImage(
       else reject(new Error('Failed to capture position image'));
     }, 'image/png');
   });
+}
+
+async function waitForShareImages(el: HTMLElement) {
+  const images = Array.from(el.querySelectorAll('img'));
+  await Promise.all(
+    images.map(async (img) => {
+      if (!img.complete) {
+        await new Promise<void>((resolve) => {
+          img.addEventListener('load', () => resolve(), {
+            once: true,
+          });
+          img.addEventListener('error', () => resolve(), {
+            once: true,
+          });
+        });
+      }
+
+      if (typeof img.decode === 'function') {
+        await img.decode().catch(() => undefined);
+      }
+    }),
+  );
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -398,7 +422,7 @@ function OpenPositionCard({
         type: 'image/png',
       });
       const shareTitle = 'Swop perps position';
-      const shareText = 'View on Swop';
+      const shareText = 'Follow my trades on https://swopme.app/';
 
       if (
         typeof navigator.share === 'function' &&
@@ -407,7 +431,6 @@ function OpenPositionCard({
         await navigator.share({
           title: shareTitle,
           text: shareText,
-          url: SWOP_SHARE_URL,
           files: [file],
         });
       } else {
@@ -415,7 +438,7 @@ function OpenPositionCard({
         toast({
           title: 'Position image downloaded',
           description:
-            'Your astronaut-to-the-moon share card is ready. Link: swopme.app',
+            'Your Matrix terminal share card is ready. Link: swopme.app',
         });
       }
     } catch (err) {
@@ -644,7 +667,13 @@ function OpenPositionCard({
         aria-hidden="true"
         className="fixed left-[-9999px] top-0 pointer-events-none"
       >
-        <div ref={shareCardRef}>
+        <div
+          ref={shareCardRef}
+          style={{
+            width: SHARE_POSTER_WIDTH,
+            height: SHARE_POSTER_HEIGHT,
+          }}
+        >
           <PositionSharePoster details={shareDetails} />
         </div>
       </div>
@@ -657,7 +686,56 @@ function PositionSharePoster({
 }: {
   details: PositionShareDetails;
 }) {
-  const accent = details.pnlPositive ? POS_GREEN : NEG_RED;
+  return (
+    <div
+      style={{
+        width: SHARE_POSTER_WIDTH,
+        height: SHARE_POSTER_HEIGHT,
+      }}
+      dangerouslySetInnerHTML={{
+        __html: buildPositionSharePosterHtml(details),
+      }}
+    />
+  );
+}
+
+function escapeShareHtml(value: string | number) {
+  return String(value).replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return char;
+    }
+  });
+}
+
+function buildPositionSharePosterHtml(details: PositionShareDetails) {
+  const accent = details.pnlPositive ? '#3fe08f' : '#ff5d63';
+  const coinFontSize =
+    details.coin.length > 14 ? 18 : details.coin.length > 10 ? 21 : 25;
+  const pnlFontSize =
+    details.pnlLabel.length > 9 ? 25 : details.pnlLabel.length > 7 ? 28 : 32;
+  const sideTone =
+    details.side === 'LONG'
+      ? {
+          color: '#9ef7c8',
+          border: 'rgba(63,224,143,0.42)',
+          background: 'rgba(63,224,143,0.11)',
+        }
+      : {
+          color: '#ffb2b6',
+          border: 'rgba(255,93,99,0.42)',
+          background: 'rgba(255,93,99,0.11)',
+        };
   const liqWidth =
     details.liqPercent === null
       ? 0
@@ -667,231 +745,103 @@ function PositionSharePoster({
     { label: 'Entry', value: details.entryLabel },
     { label: 'Mark', value: details.markLabel },
     { label: 'Margin', value: details.marginLabel },
+    { label: 'Liq distance', value: details.liqDistanceLabel },
+    { label: 'Liq price', value: details.liqPriceLabel },
   ];
+  const rainLines = [
+    { left: 42, top: -36, height: 188, opacity: 0.26 },
+    { left: 112, top: 24, height: 138, opacity: 0.18 },
+    { left: 188, top: -18, height: 166, opacity: 0.23 },
+    { left: 270, top: 42, height: 128, opacity: 0.16 },
+    { left: 352, top: -48, height: 198, opacity: 0.24 },
+  ];
+  const rainHtml = rainLines
+    .map(
+      (line) => `
+        <span style='position:absolute;left:${line.left}px;top:${line.top}px;width:1px;height:${line.height}px;border-radius:999px;background:linear-gradient(180deg, transparent 0%, #3fe08f 50%, transparent 100%);opacity:${line.opacity};box-shadow:0 0 18px rgba(63,224,143,0.58);'></span>
+      `,
+    )
+    .join('');
+  const statsHtml = stats
+    .map((stat, index) => {
+      const col = index % 2;
+      const row = Math.floor(index / 2);
+      const cellLeft = col * 162;
+      const cellTop = row * 66;
+      const borderRight =
+        col === 0 ? 'border-right:1px solid rgba(63,224,143,0.16);' : '';
+      const borderBottom =
+        row < 2
+          ? 'border-bottom:1px solid rgba(63,224,143,0.14);'
+          : '';
+      const valueFontSize = stat.value.length > 17 ? 11.5 : 12.5;
 
-  return (
-    <div
-      className="relative overflow-hidden text-white"
-      style={{
-        width: SHARE_POSTER_WIDTH,
-        height: SHARE_POSTER_HEIGHT,
-        borderRadius: 34,
-        background:
-          'radial-gradient(circle at 78% 16%, rgba(255,255,255,0.38) 0, rgba(255,255,255,0.16) 16%, transparent 30%), linear-gradient(160deg, #050713 0%, #101833 48%, #2d3144 100%)',
-        fontFamily:
-          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      }}
-    >
-      <AstronautMoonBackdrop />
+      return `
+        <div style='position:absolute;left:${cellLeft}px;top:${cellTop}px;width:162px;height:66px;box-sizing:border-box;${borderRight}${borderBottom}'>
+          <div style='position:absolute;left:14px;top:9px;width:132px;height:14px;font-size:8.8px;line-height:14px;font-weight:800;letter-spacing:0;text-transform:uppercase;color:#6b7280;white-space:nowrap;'>${escapeShareHtml(stat.label)}</div>
+          <div data-testid='perps-share-stat-value' style='position:absolute;left:14px;top:34px;width:132px;height:20px;font-size:${valueFontSize}px;line-height:18px;font-weight:900;letter-spacing:0;color:#f3f7f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${escapeShareHtml(stat.value)}</div>
+        </div>
+      `;
+    })
+    .join('');
 
-      <div className="relative z-10 flex h-full flex-col justify-between p-7">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-[21px] font-black leading-none">
-              SWOP
-            </div>
-            <div className="mt-1 text-[12px] font-semibold text-white/68">
-              Perps position snapshot
-            </div>
-          </div>
-          <div className="rounded-full border border-white/14 bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white/78 shadow-[0_10px_32px_rgba(0,0,0,0.18)]">
-            To the moon
+  return `
+    <div data-testid='perps-position-share-poster' style='position:relative;width:${SHARE_POSTER_WIDTH}px;height:${SHARE_POSTER_HEIGHT}px;box-sizing:border-box;overflow:hidden;border-radius:34px;background:radial-gradient(circle at 70% 4%, rgba(63,224,143,0.18) 0%, transparent 43%),radial-gradient(circle at 5% 86%, rgba(63,224,143,0.08) 0%, transparent 36%),linear-gradient(160deg, #040605 0%, #07120e 54%, #010302 100%);color:#eceef2;font-family:${MONO};font-variant-numeric:tabular-nums;'>
+      <div style='position:absolute;left:0;top:0;width:420px;height:640px;background-image:radial-gradient(circle at 50% 0%, rgba(63,224,143,0.08), transparent 48%),repeating-linear-gradient(0deg, rgba(63,224,143,0.026) 0px, rgba(63,224,143,0.026) 1px, transparent 1px, transparent 28px),repeating-linear-gradient(90deg, rgba(63,224,143,0.018) 0px, rgba(63,224,143,0.018) 1px, transparent 1px, transparent 36px);opacity:0.72;'></div>
+      ${rainHtml}
+      <div style='position:absolute;left:0;top:0;width:420px;height:102px;background:linear-gradient(180deg, rgba(63,224,143,0.10) 0%, transparent 100%);'></div>
+      <div style='position:absolute;left:0;bottom:0;width:420px;height:190px;background:linear-gradient(0deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.18) 70%, transparent 100%);'></div>
+
+      <div data-testid='perps-share-logo-wrap' style='position:absolute;left:96px;top:22px;width:228px;height:52px;box-sizing:border-box;border:1px solid rgba(63,224,143,0.25);border-radius:14px;background:rgba(0,0,0,0.48);box-shadow:inset 0 0 18px rgba(63,224,143,0.08),0 0 34px rgba(63,224,143,0.15);'>
+        <img data-testid='perps-share-logo' src='${SHARE_LOGO_SRC}' alt='Swop' style='position:absolute;left:50%;top:50%;display:block;height:30px;width:auto;max-width:none;transform:translate(-50%,-50%);' />
+      </div>
+
+      <div style='position:absolute;left:24px;top:86px;width:372px;height:552px;box-sizing:border-box;overflow:hidden;border-radius:22px;border:1px solid rgba(63,224,143,0.16);background:linear-gradient(180deg, rgba(20,23,30,0.98) 0%, rgba(11,13,18,0.98) 100%);box-shadow:0 26px 80px rgba(0,0,0,0.60),0 0 40px rgba(63,224,143,0.12);'>
+        <div style='position:absolute;left:22px;top:24px;width:2px;height:190px;background:#3fe08f;box-shadow:0 0 18px rgba(63,224,143,0.58);'></div>
+        <div style='position:absolute;left:38px;top:26px;width:160px;height:14px;font-size:10px;line-height:14px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#3fe08f;'>Open position</div>
+
+        <div data-testid='perps-share-open-position-block' style='position:absolute;left:38px;top:56px;width:292px;height:74px;box-sizing:border-box;'>
+          <div data-testid='perps-share-market-label' style='position:absolute;left:0;top:0;width:292px;height:32px;font-size:${coinFontSize}px;line-height:30px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#f3f7f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${escapeShareHtml(details.coin)}</div>
+          <div data-testid='perps-share-side-pill' style='position:absolute;left:0;top:42px;width:108px;height:26px;box-sizing:border-box;border:1px solid ${sideTone.border};border-radius:7px;background:${sideTone.background};color:${sideTone.color};text-align:center;overflow:hidden;'>
+            <span style='position:absolute;left:0;top:0;width:100%;height:24px;font-size:10px;line-height:24px;font-weight:900;letter-spacing:0;text-transform:uppercase;text-align:center;color:${sideTone.color};white-space:nowrap;'>${escapeShareHtml(details.side)} · ${escapeShareHtml(details.leverage)}x</span>
           </div>
         </div>
 
-        <div className="mb-2 max-w-[250px]">
-          <div className="text-[12px] font-semibold text-white/60">
-            Astronaut mode
-          </div>
-          <div className="mt-1 text-[30px] font-black leading-[1.04]">
-            Position ready for orbit.
-          </div>
+        <div data-testid='perps-share-pnl-panel' style='position:absolute;left:38px;top:146px;width:292px;height:88px;box-sizing:border-box;border:1px solid rgba(63,224,143,0.18);border-radius:14px;background:rgba(0,0,0,0.28);box-shadow:inset 0 0 20px rgba(63,224,143,0.06);'>
+          <div style='position:absolute;left:16px;top:11px;width:160px;height:14px;font-size:9px;line-height:14px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#6b7280;'>Unrealized PnL</div>
+          <div data-testid='perps-share-pnl' style='position:absolute;left:16px;top:29px;width:260px;height:42px;text-align:left;font-size:${pnlFontSize}px;line-height:38px;font-weight:900;letter-spacing:0;color:${accent};white-space:nowrap;overflow:hidden;'>${escapeShareHtml(details.pnlLabel)}</div>
+          <div data-testid='perps-share-roe' style='position:absolute;right:16px;top:66px;width:150px;height:14px;text-align:right;font-size:10.5px;line-height:14px;font-weight:800;letter-spacing:0;color:#9ca3af;white-space:nowrap;'>${escapeShareHtml(details.roeLabel)} ROE</div>
         </div>
 
-        <div className="rounded-[28px] bg-white/95 p-5 text-gray-950 shadow-[0_22px_64px_rgba(0,0,0,0.34)]">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div
-                className="text-[10px] font-bold uppercase text-gray-500"
-                style={{ fontFamily: MONO }}
-              >
-                Open position
-              </div>
-              <div
-                className="mt-1 text-[26px] font-black leading-tight text-gray-950"
-                style={{ wordBreak: 'break-word' }}
-              >
-                {details.coin}
-              </div>
-              <div
-                className="mt-2 inline-flex rounded-full px-3 py-1 text-[11px] font-bold"
-                style={{
-                  color: details.side === 'LONG' ? POS_GREEN : NEG_RED,
-                  background:
-                    details.side === 'LONG'
-                      ? POS_GREEN_SOFT
-                      : 'rgba(229,72,77,0.10)',
-                  border: `1px solid ${
-                    details.side === 'LONG'
-                      ? 'rgba(25,169,116,0.18)'
-                      : 'rgba(229,72,77,0.18)'
-                  }`,
-                  fontFamily: MONO,
-                }}
-              >
-                {details.side} · {details.leverage}x
-              </div>
-            </div>
-            <div className="shrink-0 text-right">
-              <div
-                className="text-[28px] font-black tabular-nums leading-none"
-                style={{ color: accent, fontFamily: MONO }}
-              >
-                {details.pnlLabel}
-              </div>
-              <div
-                className="mt-1 text-[12px] font-bold text-gray-500"
-                style={{ fontFamily: MONO }}
-              >
-                {details.roeLabel} ROE
-              </div>
-            </div>
-          </div>
+        <div style='position:absolute;left:24px;top:246px;width:324px;height:1px;background:rgba(255,255,255,0.07);'></div>
 
-          <div className="my-4 h-px bg-black/[0.07]" />
+        <div data-testid='perps-share-stats-frame' style='position:absolute;left:24px;top:260px;width:324px;height:198px;box-sizing:border-box;overflow:hidden;border-radius:14px;border:1px solid rgba(63,224,143,0.30);background:rgba(0,0,0,0.44);box-shadow:inset 0 0 26px rgba(63,224,143,0.08),0 0 22px rgba(63,224,143,0.10);'>
+          <div style='position:absolute;left:0;top:0;width:324px;height:198px;background-image:repeating-linear-gradient(0deg, rgba(63,224,143,0.036) 0px, rgba(63,224,143,0.036) 1px, transparent 1px, transparent 18px);'></div>
+          <div style='position:absolute;left:0;top:0;width:324px;height:1px;background:rgba(63,224,143,0.55);box-shadow:0 0 14px rgba(63,224,143,0.70);'></div>
+          <div style='position:absolute;left:0;top:0;width:28px;height:28px;border-left:2px solid rgba(63,224,143,0.70);border-top:2px solid rgba(63,224,143,0.70);'></div>
+          <div style='position:absolute;right:0;top:0;width:28px;height:28px;border-right:2px solid rgba(63,224,143,0.70);border-top:2px solid rgba(63,224,143,0.70);'></div>
+          <div style='position:absolute;left:0;bottom:0;width:28px;height:28px;border-left:2px solid rgba(63,224,143,0.70);border-bottom:2px solid rgba(63,224,143,0.70);'></div>
+          <div style='position:absolute;right:0;bottom:0;width:28px;height:28px;border-right:2px solid rgba(63,224,143,0.70);border-bottom:2px solid rgba(63,224,143,0.70);'></div>
+          ${statsHtml}
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {stats.map((stat) => (
-              <div
-                key={stat.label}
-                className="flex min-h-[64px] flex-col justify-center rounded-2xl border border-black/[0.06] bg-gray-50 px-3 py-2.5"
-              >
-                <div
-                  className="text-[10px] font-bold uppercase text-gray-500"
-                  style={{ fontFamily: MONO }}
-                >
-                  {stat.label}
-                </div>
-                <div
-                  className="mt-1 text-[12.5px] font-black text-gray-950 tabular-nums"
-                  style={{
-                    fontFamily: MONO,
-                    lineHeight: 1.22,
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {stat.value}
-                </div>
-              </div>
-            ))}
+        <div style='position:absolute;left:24px;top:478px;width:324px;height:48px;box-sizing:border-box;'>
+          <div style='position:absolute;left:0;top:0;width:128px;height:14px;font-size:10px;line-height:14px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#6b7280;'>Liquidation rail</div>
+          <div style='position:absolute;right:0;top:0;width:190px;height:14px;text-align:right;font-size:11px;line-height:14px;font-weight:900;letter-spacing:0;color:#f3f7f5;white-space:nowrap;'>${escapeShareHtml(details.liqDistanceLabel)} · ${escapeShareHtml(details.liqPriceLabel)}</div>
+          <div style='position:absolute;left:0;top:24px;width:324px;height:8px;box-sizing:border-box;overflow:hidden;border:1px solid rgba(255,255,255,0.08);border-radius:999px;background:#070809;'>
+            <div style='height:100%;width:${liqWidth}%;border-radius:999px;background:linear-gradient(90deg, #3fe08f 0%, #d8d438 52%, #e8920f 100%);'></div>
           </div>
+          <div style='position:absolute;left:0;top:40px;width:140px;height:12px;font-size:9.5px;line-height:12px;font-weight:800;letter-spacing:0;color:#6b7280;white-space:nowrap;'>${escapeShareHtml(details.liqPriceLabel)} liq</div>
+          <div style='position:absolute;right:0;top:40px;width:140px;height:12px;text-align:right;font-size:9.5px;line-height:12px;font-weight:800;letter-spacing:0;color:#6b7280;white-space:nowrap;'>${escapeShareHtml(details.markPriceLabel)} mark</div>
+        </div>
 
-          <div className="mt-4">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[12px] font-semibold text-gray-500">
-                Liq distance
-              </span>
-              <span
-                className="text-[12px] font-black text-gray-950"
-                style={{ fontFamily: MONO }}
-              >
-                {details.liqDistanceLabel} · {details.liqPriceLabel}
-              </span>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full border border-black/[0.06] bg-gray-100">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${liqWidth}%`,
-                  background:
-                    'linear-gradient(90deg, #19a974 0%, #b6c52d 52%, #e87b1f 100%)',
-                }}
-              />
-            </div>
-            <div
-              className="mt-2 flex items-center justify-between text-[10.5px] font-bold text-gray-400"
-              style={{ fontFamily: MONO }}
-            >
-              <span>{details.liqPriceLabel} liq</span>
-              <span>{details.markPriceLabel} mark</span>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between border-t border-black/[0.07] pt-3">
-            <span className="text-[11px] font-semibold text-gray-400">
-              Shared from Swop
-            </span>
-            <span
-              className="text-[11px] font-black text-gray-950"
-              style={{ fontFamily: MONO }}
-            >
-              swopme.app
-            </span>
-          </div>
+        <div style='position:absolute;left:24px;top:530px;width:324px;height:20px;box-sizing:border-box;border-top:1px solid rgba(255,255,255,0.07);'>
+          <div style='position:absolute;left:0;top:8px;width:210px;height:12px;font-size:9.5px;line-height:12px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#6b7280;'>Follow my trades</div>
+          <div style='position:absolute;right:0;top:8px;width:120px;height:12px;text-align:right;font-size:10.5px;line-height:12px;font-weight:900;letter-spacing:0;color:#3fe08f;'>swopme.app</div>
         </div>
       </div>
     </div>
-  );
-}
-
-function AstronautMoonBackdrop() {
-  const stars = [
-    [30, 58, 2],
-    [86, 34, 1],
-    [146, 88, 2],
-    [206, 42, 1],
-    [286, 112, 2],
-    [362, 72, 1],
-    [54, 256, 1],
-    [332, 236, 2],
-    [382, 184, 1],
-  ];
-
-  return (
-    <div className="absolute inset-0 z-0">
-      {stars.map(([left, top, size]) => (
-        <span
-          key={`${left}-${top}`}
-          className="absolute rounded-full bg-white/80"
-          style={{
-            left,
-            top,
-            width: size,
-            height: size,
-            boxShadow: '0 0 12px rgba(255,255,255,0.8)',
-          }}
-        />
-      ))}
-
-      <div className="absolute left-[102px] top-[145px] h-px w-[210px] origin-left rotate-[-18deg] border-t-2 border-dashed border-white/24" />
-
-      <div className="absolute right-[-42px] top-[-34px] h-[178px] w-[178px] rounded-full bg-[#f4edd3] shadow-[0_0_68px_rgba(255,238,178,0.48)]">
-        <div className="absolute left-[34px] top-[52px] h-5 w-5 rounded-full bg-[#ded4b8]/70" />
-        <div className="absolute left-[82px] top-[84px] h-8 w-8 rounded-full bg-[#ded4b8]/55" />
-        <div className="absolute left-[72px] top-[30px] h-3 w-3 rounded-full bg-[#ded4b8]/60" />
-      </div>
-
-      <div
-        className="absolute left-[44px] top-[128px] h-[124px] w-[92px]"
-        style={{ transform: 'rotate(-16deg)' }}
-      >
-        <div className="absolute left-[24px] top-[8px] h-[54px] w-[54px] rounded-full border-[5px] border-white bg-[#eef3ff] shadow-[0_12px_28px_rgba(0,0,0,0.24)]">
-          <div className="absolute left-[9px] top-[16px] h-[18px] w-[30px] rounded-full bg-[#16203d] shadow-inner" />
-          <div className="absolute left-[16px] top-[12px] h-1.5 w-3 rounded-full bg-white/70" />
-        </div>
-        <div className="absolute left-[32px] top-[58px] h-[48px] w-[40px] rounded-[20px] bg-white shadow-[0_14px_34px_rgba(0,0,0,0.22)]">
-          <div className="absolute left-[10px] top-[13px] h-3 w-5 rounded-md bg-[#ff6b6b]" />
-          <div className="absolute bottom-[8px] left-[12px] h-2 w-4 rounded-full bg-[#c7d2fe]" />
-        </div>
-        <div className="absolute left-[15px] top-[66px] h-[14px] w-[30px] rounded-full bg-white" />
-        <div className="absolute left-[65px] top-[66px] h-[14px] w-[30px] rounded-full bg-white" />
-        <div className="absolute left-[30px] top-[101px] h-[34px] w-[15px] rounded-full bg-white" />
-        <div className="absolute left-[61px] top-[101px] h-[34px] w-[15px] rounded-full bg-white" />
-        <div className="absolute left-[3px] top-[61px] h-[18px] w-[18px] rounded-full bg-white" />
-        <div className="absolute left-[86px] top-[61px] h-[18px] w-[18px] rounded-full bg-white" />
-      </div>
-    </div>
-  );
+  `;
 }
 
 // ─── Account Card ────────────────────────────────────────────────────────────
