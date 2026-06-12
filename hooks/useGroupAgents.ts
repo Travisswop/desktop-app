@@ -16,6 +16,38 @@ export interface GroupAgentDescriptor {
   isAvailable?: boolean;
 }
 
+export interface GoldmanAccessControl {
+  enabled: boolean;
+  approvalRequired: boolean;
+}
+
+export interface GoldmanAccessStation {
+  version?: string;
+  access?: Partial<
+    Record<
+      | 'perps'
+      | 'predictions'
+      | 'swaps'
+      | 'sends'
+      | 'aave'
+      | 'vault'
+      | 'balances'
+      | 'strategy',
+      Partial<GoldmanAccessControl>
+    >
+  >;
+  limits?: Partial<
+    Record<
+      | 'maxSendUsd'
+      | 'dailyCapUsd'
+      | 'maxLeverage'
+      | 'predictionExposureUsd'
+      | 'reserveUsd',
+      string | number
+    >
+  >;
+}
+
 export interface GroupAgent {
   agentId: string;
   provider: string;
@@ -25,6 +57,10 @@ export interface GroupAgent {
   responseMode?: 'mention_only';
   enabledTools?: string[];
   isActive?: boolean;
+  config?: {
+    accessStation?: GoldmanAccessStation;
+    [key: string]: unknown;
+  };
 }
 
 export interface AgentRiskSummary {
@@ -79,6 +115,7 @@ export const GROUP_AGENT_SOCKET_EVENTS = {
   GET_AVAILABLE_AGENTS: 'get_available_agents',
   ADD_GROUP_AGENT: 'add_group_agent',
   REMOVE_GROUP_AGENT: 'remove_group_agent',
+  UPDATE_GROUP_AGENT_ACCESS_STATION: 'update_group_agent_access_station',
   INVOKE_GROUP_AGENT: 'invoke_group_agent',
   APPROVE_AGENT_ACTION: 'approve_agent_action',
   COMPLETE_AGENT_ACTION: 'complete_agent_action',
@@ -87,6 +124,7 @@ export const GROUP_AGENT_SOCKET_EVENTS = {
   GROUP_RESPONSE: 'agent_group_response',
   ACTION_PROPOSED: 'agent_action_proposed',
   ACTION_RESULT: 'agent_action_result',
+  GROUP_AGENT_UPDATED: 'group_agent_updated',
 } as const;
 
 const SOCKET_ACK_TIMEOUT_MS = 20000;
@@ -245,6 +283,36 @@ export function useGroupAgents(socket: any) {
     [socket]
   );
 
+  const updateGroupAgentAccessStation = useCallback(
+    ({
+      groupId,
+      agentId = 'goldman-sacks',
+      accessStation,
+    }: {
+      groupId: string;
+      agentId?: string;
+      accessStation: GoldmanAccessStation;
+    }) => {
+      if (!socket) {
+        return Promise.reject(new Error('Socket is not connected.'));
+      }
+
+      return emitAckWithTimeout<{ agent?: GroupAgent }>({
+        socket,
+        event: GROUP_AGENT_SOCKET_EVENTS.UPDATE_GROUP_AGENT_ACCESS_STATION,
+        payload: { groupId, agentId, accessStation },
+        timeoutMessage: 'Timed out updating Access Station.',
+      }).then((response) => {
+        if (response?.success && response.data?.agent) {
+          return response.data.agent;
+        }
+
+        throw ackError(response, 'Failed to update Access Station.');
+      });
+    },
+    [socket]
+  );
+
   const approveAgentAction = useCallback(
     (proposalId: string, approvalParams?: Record<string, unknown>) => {
       if (!socket) {
@@ -327,5 +395,6 @@ export function useGroupAgents(socket: any) {
     loadAvailableAgents,
     rejectAgentAction,
     removeGroupAgent,
+    updateGroupAgentAccessStation,
   };
 }

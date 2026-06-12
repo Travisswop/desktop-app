@@ -1,12 +1,18 @@
 // app/components/Sidebar.js
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import GroupModal from './GroupModal';
 import isUrl from '@/lib/isUrl';
 import Image from 'next/image';
 import {
+  Activity,
+  ArrowRight,
+  ArrowRightLeft,
   Bot,
+  ChevronLeft,
   Globe2,
+  type LucideIcon,
   LockKeyhole,
   PanelLeftClose,
   PanelLeftOpen,
@@ -29,9 +35,78 @@ interface SidebarProps {
   socket: any;
   isCollapsed?: boolean;
   onToggleCollapsed?: () => void;
+  onOpenAstroCommand?: (commandSeed: string) => void | Promise<void>;
+  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
+  onOpenAgentCommand?: (
+    agentId: string,
+    commandSeed: string
+  ) => void | Promise<void>;
+  className?: string;
 }
 
 type ThreadSelectionType = 'private' | 'group';
+
+type AgentQuickPinConfig = {
+  agentId: string;
+  displayName: string;
+  fallbackThreadName: string;
+  badge: string;
+  initials: string;
+  accentClass: string;
+  accentBgClass: string;
+  commands: Array<{
+    label: string;
+    seed: string;
+    icon: LucideIcon;
+  }>;
+};
+
+const DEFAULT_AGENT_PINS: AgentQuickPinConfig[] = [
+  {
+    agentId: 'astro',
+    displayName: 'Swop Agent',
+    fallbackThreadName: 'Astro Trading Desk',
+    badge: 'agent',
+    initials: '$_',
+    accentClass: 'text-[#3fe08f] border-[#3fe08f]/45',
+    accentBgClass: 'bg-[#3fe08f]/15',
+    commands: [
+      { label: '/send', seed: '/send ', icon: ArrowRight },
+      { label: '/swap', seed: '/swap ', icon: ArrowRightLeft },
+      {
+        label: '/positions',
+        seed: '@astro show Hyperliquid positions',
+        icon: Activity,
+      },
+    ],
+  },
+  {
+    agentId: 'goldman-sacks',
+    displayName: 'Goldman Sacks',
+    fallbackThreadName: 'Goldman Sacks',
+    badge: 'strategy',
+    initials: 'GS',
+    accentClass: 'text-[#f4c95d] border-[#f4c95d]/45',
+    accentBgClass: 'bg-[#f4c95d]/15',
+    commands: [
+      {
+        label: '/strategy',
+        seed: '@goldman draft a strategy ',
+        icon: Bot,
+      },
+      {
+        label: '/vault',
+        seed: '@goldman set up my strategy vault',
+        icon: LockKeyhole,
+      },
+      {
+        label: '/risk',
+        seed: '@goldman summarize tool permissions and risk limits',
+        icon: Activity,
+      },
+    ],
+  },
+];
 
 export default function Sidebar({
   conversations,
@@ -43,7 +118,12 @@ export default function Sidebar({
   socket,
   isCollapsed = false,
   onToggleCollapsed,
+  onOpenAstroCommand,
+  onOpenAgentThread,
+  onOpenAgentCommand,
+  className = '',
 }: SidebarProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -73,6 +153,10 @@ export default function Sidebar({
     (sum, item) => sum + Number(item.unreadCount || 0),
     0
   );
+  const agentPins = DEFAULT_AGENT_PINS.map((config) => ({
+    config,
+    thread: allItems.find((item) => isAgentThread(item, config.agentId)),
+  }));
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -126,7 +210,7 @@ export default function Sidebar({
     <aside
       className={`flex ${
         isCollapsed ? 'w-[76px]' : 'w-[320px]'
-      } flex-shrink-0 flex-col border-r border-white/[0.07] bg-[#0e1014] transition-[width] duration-200 ease-out`}
+      } flex-shrink-0 flex-col border-r border-white/[0.07] bg-[#0e1014] transition-[width] duration-200 ease-out max-md:border-r-0 max-md:bg-[#f4f4f2] ${className}`}
     >
       {isCollapsed ? (
         <>
@@ -178,14 +262,23 @@ export default function Sidebar({
         </>
       ) : (
         <>
-          <div className="flex-shrink-0 px-[18px] pb-3 pt-[18px]">
+          <div className="flex-shrink-0 border-b border-transparent px-[18px] pb-3 pt-[18px] max-md:border-[#e6e5df] max-md:pt-[52px]">
+            <button
+              type="button"
+              onClick={() => router.push('/wallet')}
+              className="dm-btn mb-3 hidden items-center gap-1.5 border-0 bg-transparent p-0 text-[15px] font-semibold tracking-[-0.01em] text-[#0a0a0c] max-md:inline-flex"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </button>
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-[22px] font-semibold leading-tight tracking-[-0.03em] text-[#eceef2]">
+                <h2 className="text-[22px] font-semibold leading-tight tracking-[-0.03em] text-[#eceef2] max-md:text-[30px] max-md:font-bold max-md:text-[#0a0a0c]">
                   Messages
                 </h2>
-                <div className="dm-mono mt-0.5 text-[10.5px] font-semibold text-[#5a5e69]">
+                <div className="dm-mono mt-0.5 text-[10.5px] font-semibold text-[#5a5e69] max-md:text-[#77746f]">
                   {allItems.length} threads · {unreadTotal} unread
+                  <span className="hidden max-md:inline"> · sol mainnet</span>
                 </div>
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
@@ -195,7 +288,7 @@ export default function Sidebar({
                   aria-label="Shrink messages"
                   aria-pressed={isCollapsed}
                   onClick={handleToggleCollapsed}
-                  className="dm-btn grid h-[38px] w-[38px] place-items-center rounded-[11px] border border-white/[0.07] bg-[#15171d] text-[#9396a0]"
+                  className="dm-btn grid h-[38px] w-[38px] place-items-center rounded-[11px] border border-white/[0.07] bg-[#15171d] text-[#9396a0] max-md:hidden"
                 >
                   <PanelLeftClose className="h-[17px] w-[17px]" />
                 </button>
@@ -203,16 +296,57 @@ export default function Sidebar({
                   type="button"
                   title="Create chat"
                   onClick={() => setShowGroupModal(true)}
-                  className="dm-btn grid h-[38px] w-[38px] place-items-center rounded-[11px] border border-white/[0.07] bg-[#15171d] text-[#eceef2]"
+                  className="dm-btn grid h-[38px] w-[38px] place-items-center rounded-[11px] border border-white/[0.07] bg-[#15171d] text-[#eceef2] max-md:h-10 max-md:w-10 max-md:border-[#e6e5df] max-md:bg-white max-md:text-[#0a0a0c] max-md:shadow-[0_1px_0_rgba(255,255,255,0.8)_inset]"
                 >
                   <Plus className="h-[17px] w-[17px]" />
                 </button>
               </div>
             </div>
 
+            <div className="mt-4 grid gap-2">
+              {agentPins.map(({ config, thread }) => {
+                const type =
+                  thread?.type === 'direct'
+                    ? 'private'
+                    : (thread?.type as ThreadSelectionType) || 'group';
+                return (
+                  <AgentQuickPin
+                    key={config.agentId}
+                    config={config}
+                    item={
+                      thread || {
+                        _id: `agent-pin:${config.agentId}`,
+                        name: config.fallbackThreadName,
+                        type: 'group',
+                      }
+                    }
+                    isSelected={Boolean(thread) && isSelected(thread, type)}
+                    onClick={() => {
+                      if (thread) {
+                        onSelectChat(thread, type);
+                        return;
+                      }
+                      void onOpenAgentThread?.(config.agentId);
+                    }}
+                    onCommand={(agentId, seed) => {
+                      if (onOpenAgentCommand) {
+                        void onOpenAgentCommand(agentId, seed);
+                        return;
+                      }
+                      if (agentId === 'astro' && onOpenAstroCommand) {
+                        void onOpenAstroCommand(seed);
+                        return;
+                      }
+                      void onOpenAgentThread?.(agentId);
+                    }}
+                  />
+                );
+              })}
+            </div>
+
             <div className="relative mt-3.5">
-              <div className="flex items-center gap-2.5 rounded-[10px] border border-white/[0.07] bg-[#15171d] px-3 py-[9px]">
-                <Search className="h-3.5 w-3.5 flex-shrink-0 text-[#5a5e69]" />
+              <div className="flex items-center gap-2.5 rounded-[10px] border border-white/[0.07] bg-[#15171d] px-3 py-[9px] max-md:border-[#e6e5df] max-md:bg-white">
+                <Search className="h-3.5 w-3.5 flex-shrink-0 text-[#5a5e69] max-md:text-[#77746f]" />
                 <input
                   id="chat-thread-search"
                   name="chatThreadSearch"
@@ -220,7 +354,7 @@ export default function Sidebar({
                   value={searchQuery}
                   onChange={(event) => handleSearch(event.target.value)}
                   placeholder="Search threads, swop.id, txs..."
-                  className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
+                  className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[#eceef2] outline-none placeholder:text-[#5a5e69] max-md:text-[#0a0a0c] max-md:placeholder:text-[#77746f]"
                 />
                 {searchQuery ? (
                   <button
@@ -231,12 +365,12 @@ export default function Sidebar({
                       setShowSearchResults(false);
                       setSearchResults([]);
                     }}
-                    className="dm-btn grid h-6 w-6 place-items-center rounded-md text-[#5a5e69]"
+                    className="dm-btn grid h-6 w-6 place-items-center rounded-md text-[#5a5e69] max-md:text-[#77746f]"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 ) : (
-                  <span className="dm-mono rounded-[5px] border border-white/[0.07] px-1.5 py-0.5 text-[9.5px] font-semibold text-[#5a5e69]">
+                  <span className="dm-mono rounded-[5px] border border-white/[0.07] px-1.5 py-0.5 text-[9.5px] font-semibold text-[#5a5e69] max-md:border-[#e6e5df] max-md:text-[#9a9690]">
                     /K
                   </span>
                 )}
@@ -271,32 +405,34 @@ export default function Sidebar({
             </div>
           </div>
 
-          <div className="dm-scroll min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+          <div className="dm-scroll min-h-0 flex-1 overflow-y-auto px-3 pb-3 max-md:px-3 max-md:pt-3">
             {allItems.length === 0 ? (
-              <div className="dm-mono rounded-[12px] border border-white/[0.07] bg-[#15171d] p-4 text-center text-[11px] text-[#5a5e69]">
+              <div className="dm-mono rounded-[12px] border border-white/[0.07] bg-[#15171d] p-4 text-center text-[11px] text-[#5a5e69] max-md:border-[#e6e5df] max-md:bg-white max-md:text-[#77746f]">
                 no threads yet
               </div>
             ) : (
-              allItems
-                .filter((item: any) => filterThread(item, searchQuery))
-                .map((item) => {
-                  const type =
-                    item.type === 'direct'
-                      ? 'private'
-                      : (item.type as ThreadSelectionType);
-                  return (
-                    <ConversationItem
-                      key={item._id}
-                      item={item}
-                      isSelected={isSelected(item, type)}
-                      onClick={() => onSelectChat(item, type)}
-                      currentUser={currentUser}
-                    />
-                  );
-                })
+              <div className="max-md:overflow-hidden max-md:rounded-[16px] max-md:border max-md:border-[#e6e5df] max-md:bg-white">
+                {allItems
+                  .filter((item: any) => filterThread(item, searchQuery))
+                  .map((item) => {
+                    const type =
+                      item.type === 'direct'
+                        ? 'private'
+                        : (item.type as ThreadSelectionType);
+                    return (
+                      <ConversationItem
+                        key={item._id}
+                        item={item}
+                        isSelected={isSelected(item, type)}
+                        onClick={() => onSelectChat(item, type)}
+                        currentUser={currentUser}
+                      />
+                    );
+                  })}
+              </div>
             )}
 
-            <div className="dm-mono px-2 pb-1 pt-3 text-center text-[9.5px] font-semibold tracking-[0.04em] text-[#5a5e69]">
+            <div className="dm-mono px-2 pb-1 pt-3 text-center text-[9.5px] font-semibold tracking-[0.04em] text-[#5a5e69] max-md:text-[#9a9690]">
               end-to-end encrypted · swop://msg/v1
             </div>
           </div>
@@ -407,6 +543,89 @@ function buildThreadLastMessagePreview(item: any, fallback: string) {
   return agentName ? `${agentName}: ${preview}` : preview;
 }
 
+function isAgentThread(item: any, agentId: string) {
+  const name = String(item?.name || item?.displayName || '').toLowerCase();
+  const fallbackName =
+    DEFAULT_AGENT_PINS.find((pin) => pin.agentId === agentId)
+      ?.fallbackThreadName.toLowerCase() || '';
+  return (
+    item?.type === 'group' &&
+    ((fallbackName && name === fallbackName) ||
+      item?.botUsers?.some(
+        (agent: any) =>
+          String(agent?.agentId || '').toLowerCase() === agentId &&
+          agent?.isActive !== false
+      ))
+  );
+}
+
+function AgentQuickPin({
+  config,
+  item,
+  isSelected,
+  onClick,
+  onCommand,
+}: {
+  config: AgentQuickPinConfig;
+  item: any;
+  isSelected: boolean;
+  onClick: () => void;
+  onCommand?: (agentId: string, commandSeed: string) => void | Promise<void>;
+}) {
+  return (
+    <div
+      className={`overflow-hidden rounded-[16px] border bg-[#0a0a0c] text-white shadow-[0_16px_42px_-28px_rgba(0,0,0,0.8)] ${
+        isSelected ? 'border-[#3fe08f]/55' : 'border-[#0a0a0c]'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className="dm-row flex w-full items-center gap-3 px-3.5 py-3 text-left"
+      >
+        <span
+          className={`dm-mono grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] border text-[12px] font-bold ${config.accentClass} ${config.accentBgClass}`}
+        >
+          {config.initials}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="truncate text-[13px] font-semibold tracking-[-0.01em]">
+              {config.displayName}
+            </span>
+            <span className="dm-mono rounded-[5px] border border-[#3fe08f]/45 bg-[#3fe08f]/10 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-[0.12em] text-[#3fe08f]">
+              {config.badge}
+            </span>
+          </span>
+          <span className="dm-mono mt-1 flex items-center gap-1.5 text-[10.5px] font-semibold text-white/55">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#3ddc97]" />
+            online · {item?.name || config.fallbackThreadName}
+          </span>
+        </span>
+      </button>
+      <div className="grid grid-cols-3 border-t border-white/[0.07] bg-white/[0.06]">
+        {config.commands.map(({ label, seed, icon: CommandIcon }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => {
+              if (onCommand) {
+                void onCommand(config.agentId, seed);
+                return;
+              }
+              onClick();
+            }}
+            className="dm-btn dm-mono flex h-10 items-center justify-center gap-1.5 border-r border-white/[0.07] bg-[#0a0a0c] text-[10.5px] font-semibold text-white last:border-r-0"
+          >
+            <CommandIcon className="h-3 w-3 text-[#3fe08f]" />
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ConversationItem({
   item,
   isSelected,
@@ -425,14 +644,14 @@ function ConversationItem({
     <button
       type="button"
       onClick={onClick}
-      className={`dm-row relative mt-1 flex w-full items-start gap-[11px] rounded-[12px] px-3 py-[11px] text-left ${
+      className={`dm-row relative mt-1 flex w-full items-start gap-[11px] rounded-[12px] px-3 py-[11px] text-left max-md:mt-0 max-md:rounded-none max-md:border-b max-md:border-[#e6e5df] max-md:bg-white max-md:px-[14px] max-md:py-3 ${
         isSelected
-          ? 'bg-[#1b1e25] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]'
+          ? 'bg-[#1b1e25] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)] max-md:bg-[#fafafa]'
           : 'bg-transparent'
       }`}
     >
       {isSelected && (
-        <span className="absolute left-0 top-1/2 h-[22px] w-[3px] -translate-y-1/2 rounded-[3px] bg-[#3fe08f]" />
+        <span className="absolute left-0 top-1/2 h-[22px] w-[3px] -translate-y-1/2 rounded-[3px] bg-[#3fe08f] max-md:hidden" />
       )}
 
       <div className="relative flex-shrink-0">
@@ -443,13 +662,13 @@ function ConversationItem({
         )}
 
         {isGroup && info.hasBot && (
-          <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full border-2 border-[#0e1014] bg-[#3fe08f] text-[#0b0b0c]">
+          <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full border-2 border-[#0e1014] bg-[#3fe08f] text-[#0b0b0c] max-md:border-white">
             <Bot className="h-2.5 w-2.5" />
           </span>
         )}
         {!isGroup && (
           <span
-            className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#0e1014] ${
+            className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#0e1014] max-md:border-white ${
               info.isOnline ? 'bg-[#3ddc97]' : 'bg-[#5a5e69]'
             }`}
           />
@@ -458,15 +677,15 @@ function ConversationItem({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-1.5">
-          <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold tracking-[-0.01em] text-[#eceef2]">
+          <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold tracking-[-0.01em] text-[#eceef2] max-md:text-[#0a0a0c]">
             {info.name}
           </span>
-          <span className="dm-mono text-[10px] font-semibold text-[#5a5e69]">
+          <span className="dm-mono text-[10px] font-semibold text-[#5a5e69] max-md:text-[#77746f]">
             {formatThreadTime(item.lastActivity)}
           </span>
         </div>
 
-        <div className="dm-mono mt-0.5 flex items-center gap-1.5 text-[10.5px] text-[#5a5e69]">
+        <div className="dm-mono mt-0.5 flex items-center gap-1.5 text-[10.5px] text-[#5a5e69] max-md:text-[#9a9690]">
           {isGroup ? (
             item.settings?.isPublic ? (
               <Globe2 className="h-3 w-3" />
@@ -481,8 +700,8 @@ function ConversationItem({
           <span
             className={`min-w-0 flex-1 truncate text-xs tracking-[-0.01em] ${
               info.unreadCount > 0
-                ? 'font-semibold text-[#eceef2]'
-                : 'font-normal text-[#9396a0]'
+                ? 'font-semibold text-[#eceef2] max-md:text-[#0a0a0c]'
+                : 'font-normal text-[#9396a0] max-md:text-[#77746f]'
             }`}
           >
             {isGroup
@@ -492,7 +711,7 @@ function ConversationItem({
 
           {info.unreadCount > 0 && (
             <span
-              className="dm-mono flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-white/[0.07] bg-[#1b1e25] px-1.5 text-[10px] font-bold text-[#eceef2]"
+              className="dm-mono flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-white/[0.07] bg-[#1b1e25] px-1.5 text-[10px] font-bold text-[#eceef2] max-md:border-[#0a0a0c] max-md:bg-[#0a0a0c] max-md:text-white"
             >
               {info.unreadCount > 99 ? '99+' : info.unreadCount}
             </span>
@@ -619,7 +838,7 @@ function AvatarImage({
 
   return (
     <div
-      className={`${sizeClass} flex items-center justify-center rounded-full bg-[#2f4256] text-[13px] font-bold text-[#eceef2]`}
+      className={`${sizeClass} flex items-center justify-center rounded-full bg-[#2f4256] text-[13px] font-bold text-[#eceef2] max-md:bg-[#dfe6ef] max-md:text-[#0a0a0c]`}
     >
       {getInitials(name)}
     </div>

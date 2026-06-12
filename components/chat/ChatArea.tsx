@@ -27,6 +27,7 @@ import {
 import { Connection, VersionedTransaction } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import bs58 from 'bs58';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   createPublicClient,
   encodeFunctionData,
@@ -42,6 +43,7 @@ import { sendCloudinaryFile } from '@/lib/SendCloudinaryAnyFile';
 import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
 import CoinbaseOnrampFunding from '@/components/wallet/CoinbaseOnrampFunding';
+import { useAavePositions } from '@/components/wallet/defi/hooks/useAaveData';
 import {
   CryptoChartCard,
   parseCoinGeckoChartIntent,
@@ -55,6 +57,8 @@ import {
   looksLikePublicEnsName,
   resolvePublicEnsName,
 } from '@/lib/api/publicEnsResolver';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import { apiFetch } from '@/lib/api/apiFetch';
 import toast from 'react-hot-toast';
 import {
   Activity,
@@ -64,14 +68,18 @@ import {
   BarChart3,
   Bot,
   ChevronDown,
+  ChevronLeft,
   Check,
   Clock3,
+  Copy,
   Download,
+  ExternalLink,
   FileText,
   Grid2X2,
   Loader2,
   Menu,
   Plus,
+  QrCode,
   Radio,
   RefreshCw,
   Send,
@@ -79,6 +87,7 @@ import {
   ShoppingBag,
   UserRound,
   Users,
+  Wallet,
   X,
   Zap,
 } from 'lucide-react';
@@ -217,6 +226,7 @@ import { CHAIN_ID } from '@/types/wallet-types';
 import { TransactionService } from '@/services/transaction-service';
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
 import { getConnectionsUserData } from '@/actions/getEnsData';
+import { copyTextToClipboard } from '@/lib/clipboard';
 // ==================== FEATURE FLAGS ====================
 
 // Socket event names (V1 or V2 based on feature flag)
@@ -820,7 +830,13 @@ interface ChatAreaProps {
   currentUser: string;
   socket: any; // You can use Socket from socket.io-client if you have it
   isThreadListCollapsed?: boolean;
+  initialComposerSeed?: {
+    command: string;
+    nonce: number;
+  } | null;
+  onComposerSeedConsumed?: () => void;
   onChatUpdate?: () => void; // ADD THIS
+  onBackToList?: () => void;
   onLeaveGroup?: () => void;
 }
 
@@ -865,6 +881,14 @@ function hasActiveAstroAgent(chat: SelectedChat | null) {
   );
 }
 
+function hasActiveGoldmanAgent(chat: SelectedChat | null) {
+  return (
+    chat?.botUsers?.some(
+      (agent) => agent.agentId === 'goldman-sacks' && agent.isActive !== false
+    ) || false
+  );
+}
+
 function isAstroTradingDeskChat(
   chat: SelectedChat | null,
   isGroup: boolean
@@ -876,6 +900,20 @@ function isAstroTradingDeskChat(
     (hasActiveAstroAgent(chat) ||
       name === 'astro trading desk' ||
       name === 'astro')
+  );
+}
+
+function isGoldmanSacksChat(
+  chat: SelectedChat | null,
+  isGroup: boolean
+) {
+  const name = String(chat?.name || '').trim().toLowerCase();
+
+  return (
+    isGroup &&
+    (hasActiveGoldmanAgent(chat) ||
+      name === 'goldman sacks' ||
+      name === 'goldman')
   );
 }
 
@@ -1490,20 +1528,22 @@ function parseChatWalletSendDraft(text?: string | null): WalletSendDraftPrompt {
 
 function buildSyntheticWalletSendDraftPromptMessage(
   draft: WalletSendDraftPrompt,
-  sourceMessageId?: string
+  sourceMessageId?: string,
+  agentSender: NonNullable<Message['agentSender']> = {
+    agentId: 'astro',
+    provider: 'elizaos',
+    displayName: 'Astro',
+    avatarUrl: null,
+  },
+  message = 'Let’s build your send. Pick a token, amount, and recipient.'
 ): Message {
   return {
     _id: sourceMessageId
       ? `local-wallet-send-draft-${sourceMessageId}`
       : `local-wallet-send-draft-${Date.now()}`,
-    message: 'Let’s build your send. Pick a token, amount, and recipient.',
+    message,
     senderKind: 'agent',
-    agentSender: {
-      agentId: 'astro',
-      provider: 'elizaos',
-      displayName: 'Astro',
-      avatarUrl: null,
-    },
+    agentSender,
     messageType: 'agent_response',
     createdAt: new Date().toISOString(),
     agentData: {
@@ -2787,7 +2827,10 @@ export default function ChatArea({
   currentUser,
   socket,
   isThreadListCollapsed = false,
+  initialComposerSeed,
+  onComposerSeedConsumed,
   onChatUpdate,
+  onBackToList,
   onLeaveGroup,
 }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -2818,6 +2861,7 @@ export default function ChatArea({
     invokeGroupAgent,
     rejectAgentAction,
     removeGroupAgent,
+    updateGroupAgentAccessStation,
   } = useGroupAgents(socket);
   const [pendingPolymarketBetKey, setPendingPolymarketBetKey] = useState<
     string | null
@@ -2891,12 +2935,17 @@ export default function ChatArea({
     previousScrollHeightRef.current = 0;
     scrollMessagesToBottom('auto');
   }, [scrollMessagesToBottom]);
-  const shouldLoadAstroConsoleData = isAstroTradingDeskChat(
-    currentGroupData || selectedChat,
+  const activeConsoleChat = currentGroupData || selectedChat;
+  const isAstroConsoleChat = isAstroTradingDeskChat(
+    activeConsoleChat,
     isGroup
   );
+  const isGoldmanConsoleChat = isGoldmanSacksChat(activeConsoleChat, isGroup);
+  const shouldLoadAstroConsoleData =
+    isAstroConsoleChat || isGoldmanConsoleChat;
   const { eoaAddress } = usePolymarketWallet();
   const { accessToken, user } = useUser();
+  const queryClient = useQueryClient();
   const currentChatUser = useMemo(() => {
     const chat = currentGroupData || selectedChat;
     return chat?.participants?.find(
@@ -2921,13 +2970,75 @@ export default function ChatArea({
   );
   const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
+  const goldmanGroupId = isGoldmanConsoleChat ? activeConsoleChat?._id || '' : '';
+  const goldmanStrategyVaultQueryKey = useMemo(
+    () => ['goldmanStrategyVault', goldmanGroupId] as const,
+    [goldmanGroupId]
+  );
+  const {
+    data: goldmanStrategyVault = null,
+    isLoading: isGoldmanStrategyVaultLoading,
+    error: goldmanStrategyVaultQueryError,
+  } = useQuery({
+    queryKey: goldmanStrategyVaultQueryKey,
+    queryFn: () =>
+      readGoldmanStrategyVault({
+        groupId: goldmanGroupId,
+        accessToken: accessToken!,
+      }),
+    enabled: isGoldmanConsoleChat && Boolean(goldmanGroupId && accessToken),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const [isActivatingGoldmanVault, setIsActivatingGoldmanVault] =
+    useState(false);
+  const goldmanStrategyVaultError =
+    goldmanStrategyVaultQueryError instanceof Error
+      ? goldmanStrategyVaultQueryError.message
+      : null;
+  const ensureGoldmanStrategyVault = useCallback(async () => {
+    if (goldmanStrategyVault?.walletAddress) return goldmanStrategyVault;
+    if (!goldmanGroupId || !accessToken) {
+      throw new Error('Goldman Sacks group or auth session is not ready.');
+    }
+
+    setIsActivatingGoldmanVault(true);
+    try {
+      const vault = await readGoldmanStrategyVault({
+        groupId: goldmanGroupId,
+        accessToken,
+        method: 'POST',
+      });
+      queryClient.setQueryData(goldmanStrategyVaultQueryKey, vault);
+      return vault;
+    } finally {
+      setIsActivatingGoldmanVault(false);
+    }
+  }, [
+    accessToken,
+    goldmanGroupId,
+    goldmanStrategyVault,
+    goldmanStrategyVaultQueryKey,
+    queryClient,
+  ]);
+  const goldmanAaveAddress = isGoldmanConsoleChat
+    ? goldmanStrategyVault?.walletAddress || null
+    : null;
+  const {
+    data: goldmanAavePositions,
+    isLoading: isGoldmanAavePositionsLoading,
+  } = useAavePositions('polygon', goldmanAaveAddress, accessToken || '');
   const {
     tokens: walletPortfolioTokens,
     loading: isWalletPortfolioBalanceLoading,
   } = useMultiChainTokenData(
-    shouldLoadAstroConsoleData ? solWalletAddress : '',
+    shouldLoadAstroConsoleData && !isGoldmanConsoleChat
+      ? solWalletAddress
+      : '',
     shouldLoadAstroConsoleData
-      ? evmWalletAddresses.length
+      ? isGoldmanConsoleChat
+        ? goldmanStrategyVault?.walletAddress || ''
+        : evmWalletAddresses.length
         ? evmWalletAddresses
         : evmWalletAddress
       : '',
@@ -3065,6 +3176,8 @@ export default function ChatArea({
         isPredictionWalletInfoLoading ||
         isActivePredictionBalanceLoading ||
         isPredictionPortfolioBalanceLoading,
+      aavePositions: goldmanAavePositions || null,
+      isAavePositionsLoading: isGoldmanAavePositionsLoading,
       perpsAccount,
       perpsMasterAddress: perpsAgent.masterAddress || eoaAddress || null,
       isPerpsLoading,
@@ -3091,6 +3204,8 @@ export default function ChatArea({
       isActivePredictionBalanceLoading,
       isPredictionPortfolioBalanceLoading,
       isPredictionWalletInfoLoading,
+      goldmanAavePositions,
+      isGoldmanAavePositionsLoading,
       perpsAccount,
       perpsAgent.error,
       perpsAgent.initializeAgent,
@@ -3401,6 +3516,7 @@ export default function ChatArea({
     socket.on('group_member_removed', handleGroupParticipantsUpdated);
     socket.on('group_deleted', handleGroupDeleted);
     socket.on('group_agent_added', handleGroupAgentAdded);
+    socket.on('group_agent_updated', handleGroupAgentAdded);
     socket.on('group_agent_removed', handleGroupAgentRemoved);
 
     return () => {
@@ -3419,6 +3535,7 @@ export default function ChatArea({
       );
       socket.off('group_deleted', handleGroupDeleted);
       socket.off('group_agent_added', handleGroupAgentAdded);
+      socket.off('group_agent_updated', handleGroupAgentAdded);
       socket.off('group_agent_removed', handleGroupAgentRemoved);
     };
   }, [
@@ -4413,6 +4530,21 @@ export default function ChatArea({
     [focusComposer]
   );
 
+  useEffect(() => {
+    const command = initialComposerSeed?.command;
+    if (selectedChatKey === 'none' || !command) return;
+
+    setNewMessage(command);
+    focusComposer();
+    onComposerSeedConsumed?.();
+  }, [
+    focusComposer,
+    initialComposerSeed?.command,
+    initialComposerSeed?.nonce,
+    onComposerSeedConsumed,
+    selectedChatKey,
+  ]);
+
   const handleAstroConsolePositionClick = useCallback(
     (selection: AstroConsolePositionSelection) => {
       if (!selectedChat || !shouldLoadAstroConsoleData) return;
@@ -4431,6 +4563,55 @@ export default function ChatArea({
     },
     [astroConsoleData, isGroup, selectedChat, shouldLoadAstroConsoleData]
   );
+
+  const handleOpenGoldmanWalletTransfer = useCallback(async () => {
+    if (!selectedChat || !shouldLoadAstroConsoleData) return;
+
+    let vault: GoldmanStrategyVault | null = null;
+    try {
+      vault = await ensureGoldmanStrategyVault();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Could not activate Goldman Sacks vault.'
+      );
+      return;
+    }
+
+    const fundingAddress = getGoldmanFundingAddress(vault);
+    if (!fundingAddress?.address) {
+      toast.error('Goldman Sacks vault is not ready yet.');
+      return;
+    }
+
+    const draftMessage = buildSyntheticWalletSendDraftPromptMessage(
+      {
+        token: 'USDC',
+        amount: '',
+        amountType: 'token',
+        recipient: fundingAddress.address,
+        chain: normalizeWalletSendChainValue(fundingAddress.network),
+      },
+      `goldman-transfer-${Date.now()}`,
+      {
+        agentId: 'goldman-sacks',
+        provider: 'elizaos',
+        displayName: 'Goldman Sacks',
+        avatarUrl: null,
+      },
+      'Fund Goldman Sacks. Pick a token and amount; the destination is prefilled.'
+    );
+
+    forceScrollToBottomRef.current = true;
+    isPinnedToBottomRef.current = true;
+    setMessages((prev) => dedupeMessages([...prev, draftMessage]));
+    toast.success('Goldman Sacks send card ready.');
+  }, [
+    ensureGoldmanStrategyVault,
+    selectedChat,
+    shouldLoadAstroConsoleData,
+  ]);
 
   const handleComposerCommandButton = useCallback(() => {
     setNewMessage((prev) => (prev.trim() ? prev : '/'));
@@ -4751,6 +4932,30 @@ export default function ChatArea({
     return keys;
   }, [messages]);
 
+  const handleUpdateGoldmanAccessStation = useCallback(
+    async (accessStation: GoldmanAccessStationInput) => {
+      const groupId = (currentGroupData || selectedChat)?._id;
+      if (!groupId) {
+        throw new Error('Select the Goldman Sacks group before saving access.');
+      }
+
+      const agent = await updateGroupAgentAccessStation({
+        groupId,
+        agentId: 'goldman-sacks',
+        accessStation,
+      });
+      upsertGroupAgent(agent);
+      onChatUpdate?.();
+    },
+    [
+      currentGroupData,
+      onChatUpdate,
+      selectedChat,
+      updateGroupAgentAccessStation,
+      upsertGroupAgent,
+    ]
+  );
+
   if (!selectedChat) {
     return (
       <div className="flex min-w-0 flex-1 items-center justify-center bg-[#08090b]">
@@ -4787,6 +4992,14 @@ export default function ChatArea({
   );
   const isSecureAstroDesk =
     isAstroTradingDeskChat(displayChat, isGroup);
+  const isGoldmanSacksDesk = isGoldmanSacksChat(displayChat, isGroup);
+  const contextPanelMode = isSecureAstroDesk
+    ? 'astro'
+    : isGoldmanSacksDesk
+    ? 'goldman'
+    : isGroup
+    ? 'group'
+    : 'contact';
   const headerTitle = isSecureAstroDesk
     ? 'Astro'
     : isGroup
@@ -4848,10 +5061,20 @@ export default function ChatArea({
   }
 
   return (
-    <div className="flex min-w-0 flex-1 overflow-hidden bg-[#08090b]">
-      <div className="flex min-w-0 flex-1 flex-col bg-[#08090b]">
-        <div className="flex h-[80px] flex-shrink-0 items-center justify-between gap-4 border-b border-white/[0.07] bg-[#0b0d10] px-5 sm:px-7">
+    <div className="flex min-w-0 flex-1 overflow-hidden bg-[#08090b] max-md:bg-[#f4f4f2]">
+      <div className="flex min-w-0 flex-1 flex-col bg-[#08090b] max-md:bg-[#f4f4f2]">
+        <div className="flex h-[80px] flex-shrink-0 items-center justify-between gap-4 border-b border-white/[0.07] bg-[#0b0d10] px-5 max-md:h-[64px] max-md:border-[#e6e5df] max-md:bg-[#f4f4f2] max-md:px-3 sm:px-7">
           <div className="flex min-w-0 items-center gap-3">
+            {onBackToList && (
+              <button
+                type="button"
+                aria-label="Back to messages"
+                onClick={onBackToList}
+                className="dm-btn -ml-1 grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] border border-transparent bg-transparent text-[#0a0a0c] md:hidden"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            )}
             <ChatAvatar
               displayChat={displayChat}
               isGroup={isGroup}
@@ -4866,13 +5089,13 @@ export default function ChatArea({
                   <a
                     {...smartsiteAnchorAttrs}
                     onClick={handleSmartsiteClick}
-                    className="min-w-0 truncate text-left text-[19px] font-semibold leading-none text-[#eceef2] hover:text-[#3fe08f]"
+                    className="min-w-0 truncate text-left text-[19px] font-semibold leading-none text-[#eceef2] hover:text-[#3fe08f] max-md:text-[15.5px] max-md:text-[#0a0a0c]"
                     title="Open SmartSite"
                   >
                     {headerTitle}
                   </a>
                 ) : (
-                  <h3 className="min-w-0 truncate text-left text-[19px] font-semibold leading-none text-[#eceef2]">
+                  <h3 className="min-w-0 truncate text-left text-[19px] font-semibold leading-none text-[#eceef2] max-md:text-[15.5px] max-md:text-[#0a0a0c]">
                     {headerTitle}
                   </h3>
                 )}
@@ -4886,13 +5109,13 @@ export default function ChatArea({
                 <a
                   {...smartsiteAnchorAttrs}
                   onClick={handleSmartsiteClick}
-                  className="dm-mono mt-2 block max-w-full truncate text-left text-[12px] font-semibold text-[#5a5e69] hover:text-[#3fe08f]"
+                  className="dm-mono mt-2 block max-w-full truncate text-left text-[12px] font-semibold text-[#5a5e69] hover:text-[#3fe08f] max-md:mt-1 max-md:text-[10.5px] max-md:text-[#77746f]"
                   title="Open SmartSite"
                 >
                   {headerSubtitle}
                 </a>
               ) : (
-                <p className="dm-mono mt-2 truncate text-[12px] font-semibold text-[#5a5e69]">
+                <p className="dm-mono mt-2 truncate text-[12px] font-semibold text-[#5a5e69] max-md:mt-1 max-md:text-[10.5px] max-md:text-[#77746f]">
                   {headerSubtitle}
                 </p>
               )}
@@ -4986,11 +5209,11 @@ export default function ChatArea({
         <div
           ref={messagesContainerRef}
           onScroll={handleScroll}
-          className="dm-scroll min-h-0 flex-1 overflow-y-auto px-[22px] py-[14px]"
+          className="dm-scroll min-h-0 flex-1 overflow-y-auto px-[22px] py-[14px] max-md:bg-[#f4f4f2] max-md:px-3 max-md:py-3"
         >
           <div
             ref={messagesContentRef}
-            className="mx-auto max-w-[760px] space-y-2"
+            className="mx-auto max-w-[760px] space-y-2 max-md:max-w-none"
           >
             {isLoadingMore && (
               <div className="flex justify-center py-2">
@@ -5723,9 +5946,9 @@ export default function ChatArea({
           </div>
         </div>
 
-        <div className="flex-shrink-0 border-t border-white/[0.07] bg-[#0b0d10] px-[22px] pb-[18px] pt-[12px]">
+        <div className="flex-shrink-0 border-t border-white/[0.07] bg-[#0b0d10] px-[22px] pb-[18px] pt-[12px] max-md:border-[#e6e5df] max-md:bg-[#f4f4f2] max-md:px-3 max-md:pb-[calc(16px+env(safe-area-inset-bottom))]">
           <div className="relative mx-auto max-w-[980px]">
-            <div className="dm-mono mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-bold text-[#5a5e69]">
+            <div className="dm-mono mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-bold text-[#5a5e69] max-md:hidden">
               <button
                 type="button"
                 onClick={handleComposerCommandButton}
@@ -5782,7 +6005,7 @@ export default function ChatArea({
               </div>
             )}
 
-            <div className="relative flex min-h-[64px] items-center gap-3 rounded-[18px] border border-white/[0.06] bg-black px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.28)] focus-within:border-[#3fe08f]/45 focus-within:shadow-[0_0_0_1px_rgba(63,224,143,0.16),0_18px_50px_rgba(0,0,0,0.28)]">
+            <div className="relative flex min-h-[64px] items-center gap-3 rounded-[18px] border border-white/[0.06] bg-black px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.28)] focus-within:border-[#3fe08f]/45 focus-within:shadow-[0_0_0_1px_rgba(63,224,143,0.16),0_18px_50px_rgba(0,0,0,0.28)] max-md:min-h-[52px] max-md:rounded-[18px] max-md:border-[#e6e5df] max-md:bg-white max-md:px-2.5 max-md:py-2 max-md:shadow-[0_1px_0_rgba(255,255,255,0.8)_inset]">
               <ChatAttachmentMenu
                 disabled={!selectedChat}
                 onSendFiles={handleSendAttachments}
@@ -5808,7 +6031,7 @@ export default function ChatArea({
                   }
                 }}
                 placeholder="ask anything - try /search, /chart, /send, /swap, /pnl"
-                className="dm-mono max-h-28 min-h-[30px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent pt-[3px] text-[15px] font-semibold leading-[1.65] text-[#eceef2] outline-none placeholder:text-[#4d515b]"
+                className="dm-mono max-h-28 min-h-[30px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent pt-[3px] text-[15px] font-semibold leading-[1.65] text-[#eceef2] outline-none placeholder:text-[#4d515b] max-md:text-[#0a0a0c] max-md:placeholder:text-[#77746f]"
               />
 
               <button
@@ -5818,7 +6041,7 @@ export default function ChatArea({
                     ? handleSendMessage()
                     : handleComposerCommandButton()
                 }
-                className="dm-btn dm-mono inline-flex h-10 flex-shrink-0 items-center justify-center gap-2 rounded-[12px] border border-white/[0.07] bg-[#050607] px-3 text-[12px] font-bold uppercase tracking-[0.08em] text-[#9396a0] hover:text-[#eceef2]"
+                className="dm-btn dm-mono inline-flex h-10 flex-shrink-0 items-center justify-center gap-2 rounded-[12px] border border-white/[0.07] bg-[#050607] px-3 text-[12px] font-bold uppercase tracking-[0.08em] text-[#9396a0] hover:text-[#eceef2] max-md:h-9 max-md:rounded-full max-md:border-[#3fe08f] max-md:bg-[#3fe08f] max-md:px-3 max-md:text-[#031008]"
               >
                 {newMessage.trim() ? (
                   <>
@@ -5835,10 +6058,8 @@ export default function ChatArea({
       </div>
 
       <DmContextPanel
-        key={`${displayChat?._id || 'empty'}-${
-          activeGroupAgents.length > 0 ? 'astro' : isGroup ? 'group' : 'contact'
-        }`}
-        mode={activeGroupAgents.length > 0 ? 'astro' : isGroup ? 'group' : 'contact'}
+        key={`${displayChat?._id || 'empty'}-${contextPanelMode}`}
+        mode={contextPanelMode}
         displayChat={displayChat}
         activeAgents={activeGroupAgents}
         consoleData={astroConsoleData}
@@ -5846,6 +6067,13 @@ export default function ChatArea({
         showOnTablet={isThreadListCollapsed}
         onSmartsiteClick={handleSmartsiteClick}
         onQuickCommand={applyComposerCommand}
+        onUpdateGoldmanAccessStation={handleUpdateGoldmanAccessStation}
+        goldmanStrategyVault={goldmanStrategyVault}
+        isGoldmanStrategyVaultLoading={isGoldmanStrategyVaultLoading}
+        isActivatingGoldmanVault={isActivatingGoldmanVault}
+        goldmanStrategyVaultError={goldmanStrategyVaultError}
+        onEnsureGoldmanStrategyVault={ensureGoldmanStrategyVault}
+        onOpenGoldmanWalletTransfer={handleOpenGoldmanWalletTransfer}
         onPositionClick={handleAstroConsolePositionClick}
       />
     </div>
@@ -5890,7 +6118,7 @@ function ChatAvatar({
           quality={100}
           className="h-10 w-10 rounded-full object-cover"
         />
-        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#08090b] bg-[#3ddc97]" />
+        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#08090b] bg-[#3ddc97] max-md:border-[#f4f4f2]" />
       </>
     );
 
@@ -5925,7 +6153,7 @@ function ChatAvatar({
             return (
               <div
                 key={participant.userId?._id || index}
-                className="absolute grid h-[23px] w-[23px] place-items-center rounded-full border-2 border-[#08090b] text-[9px] font-bold text-[#eceef2]"
+                className="absolute grid h-[23px] w-[23px] place-items-center rounded-full border-2 border-[#08090b] text-[9px] font-bold text-[#eceef2] max-md:border-[#f4f4f2]"
                 style={{
                   left: index * 9,
                   top: index * 6,
@@ -5948,7 +6176,7 @@ function ChatAvatar({
   const fallbackAvatar = (
     <>
       {getChatInitials(name)}
-      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#08090b] bg-[#3ddc97]" />
+      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#08090b] bg-[#3ddc97] max-md:border-[#f4f4f2]" />
     </>
   );
 
@@ -6490,17 +6718,1233 @@ function showSwopAccessToast(
   );
 }
 
+type GoldmanAccessKey =
+  | 'perps'
+  | 'predictions'
+  | 'swaps'
+  | 'sends'
+  | 'aave'
+  | 'vault'
+  | 'balances'
+  | 'strategy';
+
+type GoldmanAccessControl = {
+  enabled: boolean;
+  approvalRequired: boolean;
+};
+
+type GoldmanAccessState = Record<GoldmanAccessKey, GoldmanAccessControl>;
+
+type GoldmanLimitKey =
+  | 'maxSendUsd'
+  | 'dailyCapUsd'
+  | 'maxLeverage'
+  | 'predictionExposureUsd'
+  | 'reserveUsd';
+
+type GoldmanLimits = Record<GoldmanLimitKey, string>;
+
+const DEFAULT_GOLDMAN_ACCESS: GoldmanAccessState = {
+  perps: { enabled: false, approvalRequired: true },
+  predictions: { enabled: false, approvalRequired: true },
+  swaps: { enabled: false, approvalRequired: true },
+  sends: { enabled: false, approvalRequired: true },
+  aave: { enabled: false, approvalRequired: true },
+  vault: { enabled: true, approvalRequired: true },
+  balances: { enabled: true, approvalRequired: false },
+  strategy: { enabled: true, approvalRequired: true },
+};
+
+const DEFAULT_GOLDMAN_LIMITS: GoldmanLimits = {
+  maxSendUsd: '250',
+  dailyCapUsd: '750',
+  maxLeverage: '2',
+  predictionExposureUsd: '500',
+  reserveUsd: '100',
+};
+
+const GOLDMAN_ACCESS_ROWS: Array<{
+  key: GoldmanAccessKey;
+  label: string;
+  shortLabel: string;
+  detail: string;
+  icon: typeof Activity;
+  iconClassName: string;
+}> = [
+  {
+    key: 'perps',
+    label: 'Perps',
+    shortLabel: 'perps',
+    detail: 'Open, close, and manage leveraged positions',
+    icon: Activity,
+    iconClassName: 'bg-[#173329] text-[#3fe08f]',
+  },
+  {
+    key: 'predictions',
+    label: 'Predictions',
+    shortLabel: 'predictions',
+    detail: 'Buy and sell prediction market outcomes',
+    icon: BarChart3,
+    iconClassName: 'bg-[#18243f] text-[#6b9bff]',
+  },
+  {
+    key: 'swaps',
+    label: 'Swapping',
+    shortLabel: 'swaps',
+    detail: 'Route token swaps from connected wallets',
+    icon: ArrowRightLeft,
+    iconClassName: 'bg-[#2b2441] text-[#b893ff]',
+  },
+  {
+    key: 'sends',
+    label: 'Sending',
+    shortLabel: 'sends',
+    detail: 'Send tokens or stablecoins to recipients',
+    icon: Send,
+    iconClassName: 'bg-[#402525] text-[#ff8585]',
+  },
+  {
+    key: 'aave',
+    label: 'Aave',
+    shortLabel: 'aave',
+    detail: 'Supply, withdraw, borrow, and repay on Aave',
+    icon: ShieldCheck,
+    iconClassName: 'bg-[#14342f] text-[#68e0c8]',
+  },
+  {
+    key: 'vault',
+    label: 'Sack vault',
+    shortLabel: 'vault',
+    detail: 'Move money in or out of the Goldman sack',
+    icon: Download,
+    iconClassName: 'bg-[#3b3116] text-[#f4c95d]',
+  },
+  {
+    key: 'balances',
+    label: 'Balance reads',
+    shortLabel: 'balances',
+    detail: 'Inspect wallet, perps, and vault balances',
+    icon: Radio,
+    iconClassName: 'bg-[#14323a] text-[#67d9ff]',
+  },
+  {
+    key: 'strategy',
+    label: 'Strategy files',
+    shortLabel: 'strategy',
+    detail: 'Read, draft, and publish agent markdown',
+    icon: FileText,
+    iconClassName: 'bg-[#262b34] text-[#cfd6e6]',
+  },
+];
+
+const GOLDMAN_WRITE_ACCESS_KEYS: GoldmanAccessKey[] = [
+  'perps',
+  'predictions',
+  'swaps',
+  'sends',
+  'aave',
+  'vault',
+];
+
+const GOLDMAN_LIMIT_ROWS: Array<{
+  key: GoldmanLimitKey;
+  label: string;
+  prefix?: string;
+  suffix?: string;
+  min: string;
+  step: string;
+}> = [
+  {
+    key: 'maxSendUsd',
+    label: 'Max send',
+    prefix: '$',
+    min: '0',
+    step: '10',
+  },
+  {
+    key: 'dailyCapUsd',
+    label: 'Daily cap',
+    prefix: '$',
+    min: '0',
+    step: '25',
+  },
+  {
+    key: 'maxLeverage',
+    label: 'Perps max',
+    suffix: 'x',
+    min: '1',
+    step: '0.5',
+  },
+  {
+    key: 'predictionExposureUsd',
+    label: 'Prediction cap',
+    prefix: '$',
+    min: '0',
+    step: '25',
+  },
+];
+
+const GOLDMAN_STRATEGY_FILES = [
+  {
+    file: 'strategy.md',
+    detail: 'active thesis',
+    status: 'ACTIVE',
+    command: '@goldman edit strategy.md ',
+  },
+  {
+    file: 'risk.md',
+    detail: 'limits and stop rules',
+    status: 'GATED',
+    command: '@goldman edit risk.md ',
+  },
+  {
+    file: 'execution-rules.md',
+    detail: 'order and approval policy',
+    status: 'DRAFT',
+    command: '@goldman edit execution-rules.md ',
+  },
+  {
+    file: 'allowed-markets.md',
+    detail: 'market and token whitelist',
+    status: 'DRAFT',
+    command: '@goldman edit allowed-markets.md ',
+  },
+];
+
+type GoldmanFundingMode = 'transfer' | 'qr';
+
+type GoldmanStrategyVault = {
+  id: string;
+  userId?: string | null;
+  groupId?: string | null;
+  agentId: string;
+  walletAddress: string;
+  walletChain?: string | null;
+  walletRole?: string | null;
+  privyWalletId?: string | null;
+  status?: string | null;
+  network?: string | null;
+  networkLabel?: string | null;
+  chainType?: string | null;
+  chainId?: number | null;
+  assetHint?: string | null;
+  warning?: string | null;
+  source?: string | null;
+  activatedAt?: string | null;
+  limits?: Record<string, unknown>;
+};
+
+async function readGoldmanStrategyVault({
+  groupId,
+  accessToken,
+  method = 'GET',
+}: {
+  groupId: string;
+  accessToken: string;
+  method?: 'GET' | 'POST';
+}): Promise<GoldmanStrategyVault | null> {
+  const response = await apiFetch(
+    buildSwopApiUrl(
+      `/api/v5/messages/groups/${encodeURIComponent(
+        groupId
+      )}/agents/goldman-sacks/strategy-vault`
+    ),
+    {
+      method,
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  const body = await response.json().catch(() => null);
+  if (response.status === 404 && method === 'GET') return null;
+  if (!response.ok) {
+    throw new Error(
+      body?.message ||
+        body?.error?.message ||
+        `Goldman strategy vault request failed (${response.status})`
+    );
+  }
+
+  return body?.data?.vault || null;
+}
+
+function goldmanVaultToFundingDetails(
+  vault?: GoldmanStrategyVault | null
+): WalletReceiveQrDetails | null {
+  if (!vault?.walletAddress) return null;
+
+  return {
+    address: vault.walletAddress,
+    network: vault.network || vault.walletChain || 'polygon',
+    networkLabel: vault.networkLabel || 'Polygon / EVM',
+    chainType: vault.chainType || 'evm',
+    chainId: vault.chainId || 137,
+    assetHint: vault.assetHint || 'USDC and supported EVM assets',
+    warning: vault.warning || 'Use the same network you pick in the sending wallet.',
+    source: vault.source || 'agent_strategy_vault',
+  };
+}
+
+function getGoldmanFundingAddress(
+  vault?: GoldmanStrategyVault | null
+): WalletReceiveQrDetails | null {
+  return goldmanVaultToFundingDetails(vault);
+}
+
+function buildGoldmanFundingQrValue(walletReceive: WalletReceiveQrDetails) {
+  if (
+    walletReceive.chainType === 'evm' &&
+    walletReceive.chainId &&
+    walletReceive.address
+  ) {
+    return `ethereum:${walletReceive.address}@${walletReceive.chainId}`;
+  }
+
+  return walletReceive.address;
+}
+
+type GoldmanMetricTone = 'positive' | 'negative' | 'neutral';
+
+type GoldmanConsoleMetric = {
+  key: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone: GoldmanMetricTone;
+  icon: typeof Activity;
+};
+
+function goldmanMetricTone(value: number): GoldmanMetricTone {
+  if (value > 0) return 'positive';
+  if (value < 0) return 'negative';
+  return 'neutral';
+}
+
+function buildGoldmanConsoleMetrics(
+  consoleData?: AstroConsoleData
+): GoldmanConsoleMetric[] {
+  const perpsPositions = consoleData?.perpsAccount?.positions || [];
+  const perpsPnl = toFiniteNumber(consoleData?.perpsAccount?.unrealizedPnl);
+
+  const openPredictionPositions = (consoleData?.predictionPositions || []).filter(
+    isOpenPredictionConsolePosition
+  );
+  const predictionPnl = openPredictionPositions.reduce(
+    (sum, position) => sum + toFiniteNumber(position.cashPnl),
+    0
+  );
+
+  const aaveSupplies = consoleData?.aavePositions?.supplies || [];
+  const aaveSuppliedUsd =
+    toFiniteNumber(consoleData?.aavePositions?.account?.totalCollateralUsd) ||
+    aaveSupplies.reduce(
+      (sum, position) => sum + toFiniteNumber(position.usdValue),
+      0
+    );
+  const annualizedAaveYieldUsd = aaveSupplies.reduce(
+    (sum, position) =>
+      sum +
+      toFiniteNumber(position.usdValue) *
+        Math.max(0, toFiniteNumber(position.supplyApy)),
+    0
+  );
+  const aaveDetail = consoleData?.isAavePositionsLoading
+    ? 'loading Aave'
+    : `${formatCompactUsd(aaveSuppliedUsd)} supplied`;
+
+  return [
+    {
+      key: 'swaps',
+      label: 'Swaps',
+      value: formatSignedUsd(0),
+      detail: 'realized P/L pending',
+      tone: 'neutral',
+      icon: ArrowRightLeft,
+    },
+    {
+      key: 'perps',
+      label: 'Perps',
+      value: formatSignedUsd(perpsPnl),
+      detail: `${perpsPositions.length} open positions`,
+      tone: goldmanMetricTone(perpsPnl),
+      icon: Activity,
+    },
+    {
+      key: 'predictions',
+      label: 'Predictions',
+      value: formatSignedUsd(predictionPnl),
+      detail: `${openPredictionPositions.length} open markets`,
+      tone: goldmanMetricTone(predictionPnl),
+      icon: BarChart3,
+    },
+    {
+      key: 'sends',
+      label: 'Sends',
+      value: formatSignedUsd(0),
+      detail: 'net transfer P/L pending',
+      tone: 'neutral',
+      icon: Send,
+    },
+    {
+      key: 'yield',
+      label: 'Interest / yield',
+      value: formatSignedUsd(annualizedAaveYieldUsd),
+      detail: aaveDetail,
+      tone: goldmanMetricTone(annualizedAaveYieldUsd),
+      icon: ShieldCheck,
+    },
+  ];
+}
+
+function normalizeStoredGoldmanAccess(
+  stored?: Partial<Record<GoldmanAccessKey, Partial<GoldmanAccessControl>>>
+): GoldmanAccessState {
+  return (Object.keys(DEFAULT_GOLDMAN_ACCESS) as GoldmanAccessKey[]).reduce(
+    (next, key) => {
+      const storedControl = stored?.[key];
+      const defaultControl = DEFAULT_GOLDMAN_ACCESS[key];
+      next[key] = {
+        enabled:
+          typeof storedControl?.enabled === 'boolean'
+            ? storedControl.enabled
+            : defaultControl.enabled,
+        approvalRequired:
+          typeof storedControl?.approvalRequired === 'boolean'
+            ? storedControl.approvalRequired
+            : defaultControl.approvalRequired,
+      };
+      return next;
+    },
+    {} as GoldmanAccessState
+  );
+}
+
+function normalizeStoredGoldmanLimits(
+  stored?: Partial<Record<GoldmanLimitKey, string | number>>
+): GoldmanLimits {
+  return (Object.keys(DEFAULT_GOLDMAN_LIMITS) as GoldmanLimitKey[]).reduce(
+    (next, key) => {
+      const value = stored?.[key];
+      next[key] =
+        typeof value === 'string' || typeof value === 'number'
+          ? String(value) || DEFAULT_GOLDMAN_LIMITS[key]
+          : DEFAULT_GOLDMAN_LIMITS[key];
+      return next;
+    },
+    {} as GoldmanLimits
+  );
+}
+
+type GoldmanAccessStationInput = {
+  version?: string;
+  access?: Partial<Record<GoldmanAccessKey, Partial<GoldmanAccessControl>>>;
+  limits?: Partial<Record<GoldmanLimitKey, string | number>>;
+};
+
+function normalizeGoldmanAccessStationState(
+  station?: GoldmanAccessStationInput | null
+): {
+  access: GoldmanAccessState;
+  limits: GoldmanLimits;
+} {
+  return {
+    access: normalizeStoredGoldmanAccess(station?.access),
+    limits: normalizeStoredGoldmanLimits(station?.limits),
+  };
+}
+
+function GoldmanAccessStation({
+  panelVisibilityClass,
+  panelWidthClass,
+  accessStation,
+  consoleData,
+  strategyVault,
+  isStrategyVaultLoading = false,
+  isActivatingStrategyVault = false,
+  strategyVaultError,
+  groupId,
+  onQuickCommand,
+  onUpdateAccessStation,
+  onEnsureStrategyVault,
+  onOpenWalletTransfer,
+}: {
+  panelVisibilityClass: string;
+  panelWidthClass: string;
+  accessStation?: GoldmanAccessStationInput | null;
+  consoleData?: AstroConsoleData;
+  strategyVault?: GoldmanStrategyVault | null;
+  isStrategyVaultLoading?: boolean;
+  isActivatingStrategyVault?: boolean;
+  strategyVaultError?: string | null;
+  groupId?: string;
+  onQuickCommand?: (command: string) => void;
+  onUpdateAccessStation?: (
+    accessStation: GoldmanAccessStationInput
+  ) => Promise<void>;
+  onEnsureStrategyVault?: () => Promise<GoldmanStrategyVault | null>;
+  onOpenWalletTransfer?: () => void;
+}) {
+  const accessStationKey = JSON.stringify(accessStation || {});
+  const [{ access, limits }, setStationState] = useState(
+    () => normalizeGoldmanAccessStationState(accessStation)
+  );
+  const [isSavingAccessStation, setIsSavingAccessStation] = useState(false);
+  const [accessStationError, setAccessStationError] = useState<string | null>(
+    null
+  );
+  const [fundingMode, setFundingMode] = useState<GoldmanFundingMode | null>(
+    null
+  );
+  const fundingAddress = getGoldmanFundingAddress(strategyVault);
+  const isVaultBusy = isStrategyVaultLoading || isActivatingStrategyVault;
+
+  useEffect(() => {
+    setStationState(normalizeGoldmanAccessStationState(accessStation));
+  }, [accessStationKey, accessStation]);
+
+  const persistAccessStation = useCallback(
+    (nextState: { access: GoldmanAccessState; limits: GoldmanLimits }) => {
+      if (!groupId || !onUpdateAccessStation) {
+        return;
+      }
+
+      setIsSavingAccessStation(true);
+      setAccessStationError(null);
+      onUpdateAccessStation(nextState)
+        .catch((error) => {
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Failed to update Access Station.';
+          setAccessStationError(message);
+          toast.error(message);
+        })
+        .finally(() => {
+          setIsSavingAccessStation(false);
+        });
+    },
+    [groupId, onUpdateAccessStation]
+  );
+
+  const setAccessControl = useCallback(
+    (key: GoldmanAccessKey, patch: Partial<GoldmanAccessControl>) => {
+      setStationState((current) => {
+        const next = {
+          ...current,
+          access: {
+            ...current.access,
+            [key]: {
+              ...current.access[key],
+              ...patch,
+            },
+          },
+        };
+        persistAccessStation(next);
+        return next;
+      });
+    },
+    [persistAccessStation]
+  );
+
+  const setLimitValue = useCallback(
+    (key: GoldmanLimitKey, value: string) => {
+      setStationState((current) => {
+        const next = {
+          ...current,
+          limits: {
+            ...current.limits,
+            [key]: value,
+          },
+        };
+        persistAccessStation(next);
+        return next;
+      });
+    },
+    [persistAccessStation]
+  );
+
+  const handleCopyFundingAddress = useCallback(async () => {
+    if (!fundingAddress?.address) {
+      toast.error('Activate the Goldman vault before copying its address.');
+      return;
+    }
+
+    const didCopy = await copyTextToClipboard(fundingAddress.address);
+    if (didCopy) {
+      toast.success('Goldman funding address copied.');
+    } else {
+      toast.error('Could not copy funding address.');
+    }
+  }, [fundingAddress?.address]);
+
+  const handleActivateFunding = useCallback(
+    async (mode: GoldmanFundingMode = 'transfer') => {
+      setFundingMode(mode);
+      if (fundingAddress?.address || !onEnsureStrategyVault) return;
+
+      try {
+        await onEnsureStrategyVault();
+        toast.success('Goldman Sacks vault activated.');
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Could not activate Goldman Sacks vault.'
+        );
+      }
+    },
+    [fundingAddress?.address, onEnsureStrategyVault]
+  );
+
+  const handleOpenWalletTransfer = useCallback(async () => {
+    if (!fundingAddress?.address && onEnsureStrategyVault) {
+      try {
+        await onEnsureStrategyVault();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Could not activate Goldman Sacks vault.'
+        );
+        return;
+      }
+    }
+
+    if (onOpenWalletTransfer) {
+      onOpenWalletTransfer();
+      return;
+    }
+    toast.error('Wallet transfer is not available from this panel.');
+  }, [
+    fundingAddress?.address,
+    onEnsureStrategyVault,
+    onOpenWalletTransfer,
+  ]);
+
+  const disabledWriteCount = GOLDMAN_WRITE_ACCESS_KEYS.filter(
+    (key) => !access[key].enabled
+  ).length;
+  const enabledCount = GOLDMAN_ACCESS_ROWS.filter(
+    (row) => access[row.key].enabled
+  ).length;
+  const approvalCount = GOLDMAN_ACCESS_ROWS.filter(
+    (row) => access[row.key].enabled && access[row.key].approvalRequired
+  ).length;
+  const stationStatus =
+    disabledWriteCount === GOLDMAN_WRITE_ACCESS_KEYS.length
+      ? 'LOCKED'
+      : disabledWriteCount > 0
+      ? 'LIMITED'
+      : 'ACTIVE';
+  const statusClassName =
+    stationStatus === 'ACTIVE'
+      ? 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
+      : stationStatus === 'LOCKED'
+      ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]'
+      : 'border-[#f4c95d]/35 bg-[#f4c95d]/10 text-[#f4c95d]';
+  const disabledTools =
+    GOLDMAN_ACCESS_ROWS.filter((row) => !access[row.key].enabled)
+      .map((row) => row.shortLabel)
+      .join(', ') || 'none';
+  const gatedTools =
+    GOLDMAN_ACCESS_ROWS.filter(
+      (row) => access[row.key].enabled && access[row.key].approvalRequired
+    )
+      .map((row) => row.shortLabel)
+      .join(', ') || 'none';
+  const goldmanMetrics = buildGoldmanConsoleMetrics(consoleData);
+  const vaultAddressLabel = fundingAddress?.address
+    ? formatWalletAddress(fundingAddress.address)
+    : isVaultBusy
+    ? 'Activating vault...'
+    : strategyVaultError
+    ? 'Vault unavailable'
+    : 'Vault inactive';
+  const goldmanWalletCard = (
+    <>
+      <SectionLabel>strategy vault</SectionLabel>
+      <ConsoleCard padClass="px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="dm-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[#737783]">
+              available
+            </div>
+            <div className="dm-mono mt-2 text-[24px] font-semibold leading-none tracking-[-0.04em] text-[#eceef2]">
+              {formatCompactUsd(consoleData?.walletPortfolioBalance || 0)}
+            </div>
+          </div>
+          <div className="text-right">
+            <label className="dm-mono block text-[9px] font-bold uppercase tracking-[0.12em] text-[#737783]">
+              reserve
+            </label>
+            <span className="mt-1 flex items-center gap-1">
+              <span className="dm-mono text-[11px] font-bold text-[#5a5e69]">
+                $
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="25"
+                value={limits.reserveUsd}
+                onChange={(event) =>
+                  setLimitValue('reserveUsd', event.target.value)
+                }
+                className="dm-mono h-8 w-[74px] rounded-[7px] border border-white/[0.07] bg-[#0e1014] px-2 text-right text-[12px] font-semibold text-[#eceef2] outline-none focus:border-[#f4c95d]/45"
+              />
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
+          <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+            vault address
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="dm-mono min-w-0 flex-1 truncate text-[11px] font-semibold text-[#eceef2]">
+              {vaultAddressLabel}
+            </span>
+            {isVaultBusy && !fundingAddress?.address && (
+              <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin text-[#f4c95d]" />
+            )}
+            {fundingAddress?.address && (
+              <button
+                type="button"
+                title="Copy Goldman vault"
+                onClick={handleCopyFundingAddress}
+                className="dm-btn grid h-7 w-7 flex-shrink-0 place-items-center rounded-[7px] border border-white/[0.07] bg-black/20 text-[#eceef2]"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          {strategyVaultError && !fundingAddress?.address && (
+            <div className="mt-1 text-[10px] font-semibold leading-snug text-[#ff8585]">
+              {strategyVaultError}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {[
+            {
+              label: 'Fund',
+              icon: ArrowRight,
+              onClick: () => {
+                if (fundingMode === 'transfer') {
+                  setFundingMode(null);
+                  return;
+                }
+                void handleActivateFunding('transfer');
+              },
+            },
+            {
+              label: 'Withdraw',
+              command: '@goldman withdraw from the sack ',
+              icon: Download,
+            },
+            {
+              label: 'Audit',
+              command: '@goldman reconcile sack vault balances',
+              icon: RefreshCw,
+            },
+          ].map((action) => {
+            const ActionIcon = action.icon;
+            const isFundingAction = action.label === 'Fund';
+            return (
+              <button
+                key={action.label}
+                type="button"
+                disabled={
+                  isFundingAction
+                    ? isVaultBusy && !fundingAddress?.address
+                    : !onQuickCommand
+                }
+                data-testid={isFundingAction ? 'goldman-fund-button' : undefined}
+                onClick={() => {
+                  if (action.onClick) {
+                    action.onClick();
+                    return;
+                  }
+                  if (action.command) onQuickCommand?.(action.command);
+                }}
+                className={`dm-btn flex h-9 items-center justify-center gap-1.5 rounded-[8px] border text-[10.5px] font-semibold disabled:cursor-default ${
+                  isFundingAction && fundingMode
+                    ? 'border-[#f4c95d]/35 bg-[#f4c95d]/15 text-[#f4c95d]'
+                    : 'border-white/[0.07] bg-black/20 text-[#eceef2]'
+                }`}
+              >
+                {isFundingAction && isVaultBusy && !fundingAddress?.address ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#f4c95d]" />
+                ) : (
+                  <ActionIcon className="h-3.5 w-3.5 text-[#f4c95d]" />
+                )}
+                {isFundingAction && isVaultBusy && !fundingAddress?.address
+                  ? 'Activating'
+                  : action.label}
+              </button>
+            );
+          })}
+        </div>
+        {fundingMode && (
+          <div
+            data-testid="goldman-funding-drawer"
+            className="mt-3 border-t border-white/[0.06] pt-3"
+          >
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              {[
+                { mode: 'transfer' as const, label: 'Transfer', icon: Wallet },
+                { mode: 'qr' as const, label: 'QR code', icon: QrCode },
+              ].map((option) => {
+                const OptionIcon = option.icon;
+                const selected = fundingMode === option.mode;
+                return (
+                  <button
+                    key={option.mode}
+                    type="button"
+                    data-testid={`goldman-funding-${option.mode}-tab`}
+                    aria-pressed={selected}
+                    onClick={() => void handleActivateFunding(option.mode)}
+                    className={`dm-btn dm-mono flex h-8 items-center justify-center gap-1.5 rounded-[8px] border text-[9.5px] font-bold uppercase tracking-[0.08em] ${
+                      selected
+                        ? 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
+                        : 'border-white/[0.07] bg-black/20 text-[#9396a0]'
+                    }`}
+                  >
+                    <OptionIcon className="h-3.5 w-3.5" />
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {!fundingAddress?.address ? (
+              <div className="flex items-start gap-2 rounded-[9px] border border-[#f4c95d]/20 bg-[#f4c95d]/10 px-3 py-2 text-[11px] font-semibold leading-relaxed text-[#f4c95d]">
+                {isVaultBusy && (
+                  <Loader2 className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 animate-spin" />
+                )}
+                <span>
+                  {isVaultBusy
+                    ? 'Activating Goldman Sacks strategy vault...'
+                    : strategyVaultError ||
+                      'Activate the Goldman Sacks strategy vault to fund it.'}
+                </span>
+              </div>
+            ) : fundingMode === 'qr' ? (
+              <div className="grid gap-3" data-testid="goldman-funding-qr">
+                <div className="mx-auto rounded-[12px] bg-white p-3">
+                  <QRCodeSVG
+                    value={buildGoldmanFundingQrValue(fundingAddress)}
+                    size={168}
+                    level="H"
+                    includeMargin
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="dm-mono mb-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                    {fundingAddress.networkLabel}
+                  </div>
+                  <div className="dm-mono break-all text-[10.5px] font-semibold leading-relaxed text-[#eceef2]">
+                    {fundingAddress.address}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyFundingAddress}
+                  className="dm-btn dm-mono flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-white/[0.07] bg-black/20 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#eceef2]"
+                >
+                  <Copy className="h-3.5 w-3.5 text-[#f4c95d]" />
+                  Copy address
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-3" data-testid="goldman-funding-transfer">
+                <div>
+                  <div className="dm-mono mb-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                    Destination
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="dm-mono min-w-0 flex-1 truncate text-[11px] font-semibold text-[#eceef2]">
+                      {formatWalletAddress(fundingAddress.address)}
+                    </span>
+                    <button
+                      type="button"
+                      title="Copy address"
+                      onClick={handleCopyFundingAddress}
+                      className="dm-btn grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] border border-white/[0.07] bg-black/20 text-[#eceef2]"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="goldman-open-wallet-transfer"
+                  onClick={handleOpenWalletTransfer}
+                  className="dm-btn dm-mono flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#f4c95d]/30 bg-[#f4c95d]/10 text-[10px] font-bold uppercase tracking-[0.08em] text-[#f4c95d]"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open wallet transfer
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </ConsoleCard>
+    </>
+  );
+
+  return (
+    <aside
+      data-testid="goldman-access-station"
+      className={`dm-scroll ${panelVisibilityClass} ${panelWidthClass} flex-shrink-0 overflow-y-auto border-l border-white/[0.07] bg-[#0e1014] px-4 py-5`}
+    >
+      <div className="mb-5 flex items-center gap-3">
+        <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[10px] border border-[#f4c95d]/45 bg-[#f4c95d]/15 text-[13px] font-bold text-[#f4c95d]">
+          GS
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-semibold leading-tight tracking-[-0.02em] text-[#eceef2]">
+            Access station
+          </div>
+          <div className="dm-mono mt-1.5 inline-flex items-center gap-2 text-[10.5px] font-bold text-[#f4c95d]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#f4c95d]" />
+            Goldman Sacks
+          </div>
+        </div>
+        <span
+          className={`dm-mono rounded-[6px] border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] ${statusClassName}`}
+        >
+          {stationStatus}
+        </span>
+      </div>
+
+      {goldmanWalletCard}
+
+      <SectionLabel>metrics</SectionLabel>
+      <ConsoleCard padClass="p-3">
+        <div className="grid grid-cols-2 gap-2">
+          {goldmanMetrics.map((metric) => {
+            const MetricIcon = metric.icon;
+            const toneClassName =
+              metric.tone === 'positive'
+                ? 'border-[#3fe08f]/20 bg-[#3fe08f]/10 text-[#3fe08f]'
+                : metric.tone === 'negative'
+                ? 'border-[#ff5d63]/20 bg-[#ff5d63]/10 text-[#ff8585]'
+                : 'border-white/[0.06] bg-black/20 text-[#9396a0]';
+            return (
+              <div
+                key={metric.key}
+                className="rounded-[9px] border border-white/[0.06] bg-black/20 p-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="dm-mono truncate text-[9px] font-bold uppercase tracking-[0.1em] text-[#737783]">
+                    {metric.label}
+                  </span>
+                  <span
+                    className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-[7px] border ${toneClassName}`}
+                  >
+                    <MetricIcon className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <div
+                  className={`dm-mono mt-2 text-[15px] font-bold leading-none ${
+                    metric.tone === 'positive'
+                      ? 'text-[#3fe08f]'
+                      : metric.tone === 'negative'
+                      ? 'text-[#ff8585]'
+                      : 'text-[#eceef2]'
+                  }`}
+                >
+                  {metric.value}
+                </div>
+                <div className="dm-mono mt-1 truncate text-[9.5px] font-semibold text-[#5a5e69]">
+                  {metric.detail}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </ConsoleCard>
+
+      <ConsoleCard padClass="px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="dm-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[#737783]">
+              agent access
+            </div>
+            <div className="mt-2 text-[18px] font-semibold leading-none text-[#eceef2]">
+              {enabledCount}/{GOLDMAN_ACCESS_ROWS.length} on
+            </div>
+          </div>
+          <ShieldCheck className="h-5 w-5 text-[#f4c95d]" />
+        </div>
+        <div className="dm-mono mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold">
+          <div className="rounded-[8px] border border-white/[0.06] bg-black/20 px-2 py-2 text-[#9396a0]">
+            <span className="block text-[#3fe08f]">{approvalCount}</span>
+            approval gates
+          </div>
+          <div className="rounded-[8px] border border-white/[0.06] bg-black/20 px-2 py-2 text-[#9396a0]">
+            <span className="block text-[#ff8585]">
+              {disabledWriteCount}
+            </span>
+            writes off
+          </div>
+        </div>
+      </ConsoleCard>
+
+      <SectionLabel>access controls</SectionLabel>
+      <ConsoleCard padClass="p-0">
+        {GOLDMAN_ACCESS_ROWS.map((row) => {
+          const control = access[row.key];
+          const AccessIcon = row.icon;
+          return (
+            <div
+              key={row.key}
+              className="border-t border-white/[0.045] px-3 py-3 first:border-t-0"
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] ${row.iconClassName}`}
+                >
+                  <AccessIcon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12.5px] font-semibold leading-tight text-[#eceef2]">
+                    {row.label}
+                  </span>
+                  <span className="dm-mono mt-1 block truncate text-[10px] font-semibold text-[#5a5e69]">
+                    {row.detail}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  aria-pressed={control.enabled}
+                  aria-label={`${row.label} access`}
+                  data-testid={`goldman-access-toggle-${row.key}`}
+                  title={`${control.enabled ? 'Turn off' : 'Turn on'} ${
+                    row.label
+                  } access`}
+                  onClick={() =>
+                    setAccessControl(row.key, {
+                      enabled: !control.enabled,
+                    })
+                  }
+                  className={`dm-btn relative h-6 w-11 flex-shrink-0 rounded-full border transition ${
+                    control.enabled
+                      ? 'border-[#3fe08f]/35 bg-[#3fe08f]/20'
+                      : 'border-white/[0.08] bg-black/45'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-5 w-5 rounded-full transition ${
+                      control.enabled
+                        ? 'left-[19px] bg-[#3fe08f]'
+                        : 'left-0.5 bg-[#5a5e69]'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  disabled={!control.enabled}
+                  onClick={() =>
+                    setAccessControl(row.key, {
+                      approvalRequired: !control.approvalRequired,
+                    })
+                  }
+                  className={`dm-btn dm-mono h-6 rounded-[7px] border px-2 text-[9px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-45 ${
+                    control.approvalRequired
+                      ? 'border-[#f4c95d]/25 bg-[#f4c95d]/10 text-[#f4c95d]'
+                      : 'border-[#3fe08f]/25 bg-[#3fe08f]/10 text-[#3fe08f]'
+                  }`}
+                >
+                  {control.approvalRequired ? 'approval' : 'live'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </ConsoleCard>
+
+      <SectionLabel>risk limits</SectionLabel>
+      <ConsoleCard padClass="p-3">
+        <div className="grid grid-cols-2 gap-2">
+          {GOLDMAN_LIMIT_ROWS.map((item) => (
+            <label
+              key={item.key}
+              className="block rounded-[8px] border border-white/[0.06] bg-black/20 p-2"
+            >
+              <span className="dm-mono block truncate text-[9px] font-bold uppercase tracking-[0.1em] text-[#737783]">
+                {item.label}
+              </span>
+              <span className="mt-1 flex items-center gap-1">
+                {item.prefix && (
+                  <span className="dm-mono text-[11px] font-bold text-[#5a5e69]">
+                    {item.prefix}
+                  </span>
+                )}
+                <input
+                  type="number"
+                  min={item.min}
+                  step={item.step}
+                  value={limits[item.key]}
+                  onChange={(event) =>
+                    setLimitValue(item.key, event.target.value)
+                  }
+                  className="dm-mono h-7 min-w-0 flex-1 rounded-[7px] border border-white/[0.07] bg-[#0e1014] px-2 text-[12px] font-semibold text-[#eceef2] outline-none focus:border-[#f4c95d]/45"
+                />
+                {item.suffix && (
+                  <span className="dm-mono text-[11px] font-bold text-[#5a5e69]">
+                    {item.suffix}
+                  </span>
+                )}
+              </span>
+            </label>
+          ))}
+        </div>
+      </ConsoleCard>
+
+      <SectionLabel>strategy md files</SectionLabel>
+      <ConsoleCard padClass="p-0">
+        {GOLDMAN_STRATEGY_FILES.map((file) => (
+          <button
+            key={file.file}
+            type="button"
+            disabled={!onQuickCommand}
+            onClick={() => onQuickCommand?.(file.command)}
+            className="dm-btn flex w-full items-center gap-3 border-t border-white/[0.045] px-3 py-3 text-left first:border-t-0 disabled:cursor-default"
+          >
+            <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] bg-[#262b34] text-[#cfd6e6]">
+              <FileText className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="dm-mono block truncate text-[12px] font-semibold text-[#eceef2]">
+                {file.file}
+              </span>
+              <span className="dm-mono mt-1 block truncate text-[10px] font-semibold text-[#5a5e69]">
+                {file.detail}
+              </span>
+            </span>
+            <span className="dm-mono rounded-[6px] border border-white/[0.07] bg-black/20 px-2 py-1 text-[8.5px] font-bold uppercase tracking-[0.08em] text-[#9396a0]">
+              {file.status}
+            </span>
+          </button>
+        ))}
+        <div className="grid grid-cols-2 gap-2 border-t border-white/[0.045] p-3">
+          <button
+            type="button"
+            disabled={!onQuickCommand}
+            onClick={() =>
+              onQuickCommand?.(
+                '@goldman publish active strategy files for approval'
+              )
+            }
+            className="dm-btn dm-mono flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#f4c95d]/25 bg-[#f4c95d]/10 text-[10px] font-bold uppercase tracking-[0.08em] text-[#f4c95d] disabled:cursor-default"
+          >
+            <Check className="h-3.5 w-3.5" />
+            Publish
+          </button>
+          <button
+            type="button"
+            disabled={!onQuickCommand}
+            onClick={() =>
+              onQuickCommand?.('@goldman create a new strategy markdown draft ')
+            }
+            className="dm-btn dm-mono flex h-9 items-center justify-center gap-2 rounded-[8px] border border-white/[0.07] bg-black/20 text-[10px] font-bold uppercase tracking-[0.08em] text-[#eceef2] disabled:cursor-default"
+          >
+            <Plus className="h-3.5 w-3.5 text-[#3fe08f]" />
+            New md
+          </button>
+        </div>
+      </ConsoleCard>
+
+      <SectionLabel>audit</SectionLabel>
+      <ConsoleCard padClass="p-0">
+        {[
+          {
+            title: 'Disabled',
+            detail: disabledTools,
+            status: disabledTools === 'none' ? 'CLEAR' : 'OFF',
+            statusClassName:
+              disabledTools === 'none'
+                ? 'text-[#3fe08f] bg-[#3fe08f]/10 border-[#3fe08f]/20'
+                : 'text-[#ff8585] bg-[#ff5d63]/10 border-[#ff5d63]/20',
+          },
+          {
+            title: 'Approvals',
+            detail: gatedTools,
+            status: gatedTools === 'none' ? 'LIVE' : 'GATED',
+            statusClassName:
+              gatedTools === 'none'
+                ? 'text-[#3fe08f] bg-[#3fe08f]/10 border-[#3fe08f]/20'
+                : 'text-[#f4c95d] bg-[#f4c95d]/10 border-[#f4c95d]/20',
+          },
+          {
+            title: 'Policy',
+            detail: accessStationError
+              ? accessStationError
+              : `send $${limits.maxSendUsd || '0'} · day $${
+                  limits.dailyCapUsd || '0'
+                }`,
+            status: accessStationError
+              ? 'ERROR'
+              : isSavingAccessStation
+              ? 'SAVING'
+              : 'SAVED',
+            statusClassName:
+              accessStationError
+                ? 'text-[#ff8585] bg-[#ff5d63]/10 border-[#ff5d63]/20'
+                : isSavingAccessStation
+                ? 'text-[#f4c95d] bg-[#f4c95d]/10 border-[#f4c95d]/20'
+                : 'text-[#9396a0] bg-black/20 border-white/[0.07]',
+          },
+        ].map((item) => (
+          <div
+            key={item.title}
+            className="flex items-center justify-between gap-3 border-t border-white/[0.045] px-3 py-3 first:border-t-0"
+          >
+            <span className="min-w-0">
+              <span className="dm-mono block text-[9.5px] font-semibold uppercase tracking-[0.18em] text-[#9396a0]">
+                {item.title}
+              </span>
+              <span className="dm-mono mt-1 block truncate text-[11px] font-semibold text-[#eceef2]">
+                {item.detail}
+              </span>
+            </span>
+            <span
+              className={`dm-mono shrink-0 rounded-[6px] border px-2 py-1 text-[8.5px] font-bold uppercase tracking-[0.08em] ${item.statusClassName}`}
+            >
+              {item.status}
+            </span>
+          </div>
+        ))}
+      </ConsoleCard>
+    </aside>
+  );
+}
+
 function DmContextPanel({
   mode,
   displayChat,
+  activeAgents,
   consoleData,
   smartsiteHref,
   showOnTablet = false,
   onSmartsiteClick,
   onQuickCommand,
+  onUpdateGoldmanAccessStation,
+  goldmanStrategyVault,
+  isGoldmanStrategyVaultLoading,
+  isActivatingGoldmanVault,
+  goldmanStrategyVaultError,
+  onEnsureGoldmanStrategyVault,
+  onOpenGoldmanWalletTransfer,
   onPositionClick,
 }: {
-  mode: 'astro' | 'group' | 'contact';
+  mode: 'astro' | 'goldman' | 'group' | 'contact';
   displayChat?: SelectedChat | null;
   activeAgents?: GroupAgent[];
   consoleData?: AstroConsoleData;
@@ -6508,10 +7952,42 @@ function DmContextPanel({
   showOnTablet?: boolean;
   onSmartsiteClick?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
   onQuickCommand?: (command: string) => void;
+  onUpdateGoldmanAccessStation?: (
+    accessStation: GoldmanAccessStationInput
+  ) => Promise<void>;
+  goldmanStrategyVault?: GoldmanStrategyVault | null;
+  isGoldmanStrategyVaultLoading?: boolean;
+  isActivatingGoldmanVault?: boolean;
+  goldmanStrategyVaultError?: string | null;
+  onEnsureGoldmanStrategyVault?: () => Promise<GoldmanStrategyVault | null>;
+  onOpenGoldmanWalletTransfer?: () => void;
   onPositionClick?: (selection: AstroConsolePositionSelection) => void;
 }) {
   const panelVisibilityClass = showOnTablet ? 'hidden md:block' : 'hidden xl:block';
   const panelWidthClass = showOnTablet ? 'w-[280px] lg:w-[300px]' : 'w-[300px]';
+
+  if (mode === 'goldman') {
+    const goldmanAgent = activeAgents?.find(
+      (agent) => agent.agentId === 'goldman-sacks'
+    );
+    return (
+      <GoldmanAccessStation
+        panelVisibilityClass={panelVisibilityClass}
+        panelWidthClass={panelWidthClass}
+        accessStation={goldmanAgent?.config?.accessStation || null}
+        consoleData={consoleData}
+        strategyVault={goldmanStrategyVault}
+        isStrategyVaultLoading={isGoldmanStrategyVaultLoading}
+        isActivatingStrategyVault={isActivatingGoldmanVault}
+        strategyVaultError={goldmanStrategyVaultError}
+        groupId={displayChat?._id}
+        onQuickCommand={onQuickCommand}
+        onUpdateAccessStation={onUpdateGoldmanAccessStation}
+        onEnsureStrategyVault={onEnsureGoldmanStrategyVault}
+        onOpenWalletTransfer={onOpenGoldmanWalletTransfer}
+      />
+    );
+  }
 
   if (mode === 'astro') {
     const predictionPositions = consoleData?.predictionPositions || [];
@@ -7303,10 +8779,10 @@ function Message({
                 ? 'p-0'
                 : `px-[13px] py-[9px] ${
                   isOwn
-                    ? 'dm-mono rounded-[14px] rounded-tr-[6px] border border-[#43e58f] bg-[#43e58f] text-[#06120b] shadow-[0_18px_45px_rgba(63,224,143,0.16)]'
+                    ? 'dm-mono rounded-[14px] rounded-tr-[6px] border border-[#43e58f] bg-[#43e58f] text-[#06120b] shadow-[0_18px_45px_rgba(63,224,143,0.16)] max-md:rounded-[18px] max-md:rounded-tr-[6px] max-md:shadow-none'
                     : isAgent
-                    ? `${AGENT_TERMINAL_BUBBLE_CLASS} rounded-tl-md`
-                    : 'dm-mono rounded-[14px] rounded-tl-[6px] border border-white/[0.07] bg-[#15171d] text-[#eceef2]'
+                    ? `${AGENT_TERMINAL_BUBBLE_CLASS} rounded-tl-md max-md:border-[#0a0a0c]`
+                    : 'dm-mono rounded-[14px] rounded-tl-[6px] border border-white/[0.07] bg-[#15171d] text-[#eceef2] max-md:rounded-[18px] max-md:rounded-tl-[6px] max-md:border-[#e6e5df] max-md:bg-white max-md:text-[#0a0a0c]'
                 }`
           } ${message.status === 'failed' ? 'opacity-50' : ''}`}
         >
@@ -7544,7 +9020,7 @@ function Message({
         <p
           className={`dm-mono mt-1 px-1 text-[10px] font-semibold ${
             isOwn ? 'text-[#5a5e69]' : 'text-[#5a5e69]'
-          }`}
+          } max-md:text-[#9a9690]`}
         >
           {new Date(message.createdAt).toLocaleTimeString([], {
             hour: '2-digit',
@@ -15286,6 +16762,14 @@ function PolymarketProposalTicket({
 
 function formatActionLabel(action?: string) {
   if (!action) return 'Action proposal';
+  const labels: Record<string, string> = {
+    'strategy.setup': 'Strategy setup',
+    'strategy.draft': 'Strategy draft',
+    'strategy.pause': 'Pause strategy',
+    'strategy.revoke': 'Revoke strategy access',
+    'strategy.status': 'Strategy status',
+  };
+  if (labels[action]) return labels[action];
   return action
     .split('.')
     .map((part) => part.replace(/_/g, ' '))

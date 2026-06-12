@@ -9,6 +9,7 @@ interface ChatRuntimeProps {
   setUnreadCount: (count: number) => void;
   initialGroupId?: string | null;
   initialAstro?: boolean;
+  initialAgentId?: string | null;
   initialDirectRecipient?: {
     userId?: string | null;
     micrositeId?: string | null;
@@ -22,6 +23,7 @@ export default function ChatRuntime({
   setUnreadCount,
   initialGroupId,
   initialAstro,
+  initialAgentId,
   initialDirectRecipient,
 }: ChatRuntimeProps) {
   return (
@@ -32,6 +34,7 @@ export default function ChatRuntime({
         setUnreadCount={setUnreadCount}
         initialGroupId={initialGroupId}
         initialAstro={initialAstro}
+        initialAgentId={initialAgentId}
         initialDirectRecipient={initialDirectRecipient}
       />
     </PolymarketProviders>

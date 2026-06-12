@@ -17,6 +17,7 @@ interface ChatContainerProps {
   setUnreadCount: (count: number) => void;
   initialGroupId?: string | null;
   initialAstro?: boolean;
+  initialAgentId?: string | null;
   initialDirectRecipient?: InitialDirectRecipient | null;
 }
 
@@ -35,25 +36,73 @@ const EVENTS = {
 const SECURE_ASTRO_GROUP_NAME = 'Astro Trading Desk';
 const THREAD_RAIL_COLLAPSED_KEY = 'swop.chat.threadRailCollapsed';
 
-const SECURE_ASTRO_AGENT = {
-  agentId: 'astro',
-  provider: 'elizaos',
-  displayName: 'Astro',
-  mentionAliases: ['@astro', 'astro'],
-  responseMode: 'mention_only',
-  enabledTools: [
-    'perps.read',
-    'perps.write',
-    'prediction.read',
-    'prediction.write',
-    'marketplace.read',
-    'marketplace.write',
-    'sports.read',
-    'wallet.read',
-    'wallet.write',
-  ],
-  isActive: true,
-};
+const AGENT_THREAD_CONFIGS = {
+  astro: {
+    groupName: SECURE_ASTRO_GROUP_NAME,
+    description: 'Secure group for Astro market proposals and approvals.',
+    mentionPrefix: '@astro',
+    agent: {
+      agentId: 'astro',
+      provider: 'elizaos',
+      displayName: 'Astro',
+      mentionAliases: ['@astro', 'astro'],
+      responseMode: 'mention_only',
+      enabledTools: [
+        'perps.read',
+        'perps.write',
+        'prediction.read',
+        'prediction.write',
+        'marketplace.read',
+        'marketplace.write',
+        'sports.read',
+        'wallet.read',
+        'wallet.write',
+      ],
+      isActive: true,
+    },
+  },
+  'goldman-sacks': {
+    groupName: 'Goldman Sacks',
+    description:
+      'Private strategy agent for wallet authorization, automated strategy drafts, and risk-limited execution setup.',
+    mentionPrefix: '@goldman',
+    agent: {
+      agentId: 'goldman-sacks',
+      provider: 'elizaos',
+      displayName: 'Goldman Sacks',
+      mentionAliases: [
+        '@goldman',
+        'goldman',
+        '@sacks',
+        'sacks',
+        '@goldman-sacks',
+        'goldman-sacks',
+      ],
+      responseMode: 'mention_only',
+      enabledTools: [
+        'strategy.read',
+        'strategy.write',
+        'perps.read',
+        'perps.write',
+        'prediction.read',
+        'prediction.write',
+        'wallet.read',
+        'wallet.write',
+        'aave.read',
+        'aave.write',
+        'limit_orders.read',
+        'limit_orders.write',
+      ],
+      isActive: true,
+    },
+  },
+} as const;
+
+type AgentThreadId = keyof typeof AGENT_THREAD_CONFIGS;
+
+function isKnownAgentThreadId(agentId?: string | null): agentId is AgentThreadId {
+  return Boolean(agentId && agentId in AGENT_THREAD_CONFIGS);
+}
 
 function cleanLookupValue(value?: string | null) {
   return value?.trim() || '';
@@ -191,20 +240,25 @@ function createDirectChatFromRecipient(recipient: InitialDirectRecipient) {
   );
 }
 
-function hasActiveAstroAgent(group: any) {
+function hasActiveAgent(group: any, agentId: AgentThreadId) {
   return (
     group?.botUsers?.some(
-      (agent: any) => agent.agentId === 'astro' && agent.isActive !== false
+      (agent: any) => agent.agentId === agentId && agent.isActive !== false
     ) || false
   );
 }
 
-function findSecureAstroGroup(groups: any[]) {
+function findAgentThreadGroup(groups: any[], agentId: AgentThreadId) {
+  const config = AGENT_THREAD_CONFIGS[agentId];
   return (
-    groups.find((item: any) => hasActiveAstroAgent(item)) ||
-    groups.find((item: any) => item.name === SECURE_ASTRO_GROUP_NAME) ||
+    groups.find((item: any) => hasActiveAgent(item, agentId)) ||
+    groups.find((item: any) => item.name === config.groupName) ||
     null
   );
+}
+
+function findSecureAstroGroup(groups: any[]) {
+  return findAgentThreadGroup(groups, 'astro');
 }
 
 export default function ChatContainer({
@@ -213,6 +267,7 @@ export default function ChatContainer({
   setUnreadCount,
   initialGroupId,
   initialAstro,
+  initialAgentId,
   initialDirectRecipient,
 }: ChatContainerProps) {
   const router = useRouter();
@@ -227,8 +282,17 @@ export default function ChatContainer({
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(THREAD_RAIL_COLLAPSED_KEY) === 'true';
   });
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 767px)').matches;
+  });
+  const [astroComposerSeed, setAstroComposerSeed] = useState<{
+    command: string;
+    nonce: number;
+  } | null>(null);
   const directRecipientAppliedRef = useRef('');
   const initialAstroOpenAttemptedRef = useRef(false);
+  const initialAgentOpenAttemptedRef = useRef('');
   const initialDirectRecipientKey = useMemo(
     () => directRecipientKey(initialDirectRecipient),
     [initialDirectRecipient]
@@ -240,6 +304,9 @@ export default function ChatContainer({
     () => findSecureAstroGroup(groups),
     [groups]
   );
+  const requestedInitialAgentId = isKnownAgentThreadId(initialAgentId)
+    ? initialAgentId
+    : null;
   const toggleThreadListCollapsed = useCallback(() => {
     setIsThreadListCollapsed((current) => {
       const next = !current;
@@ -248,6 +315,16 @@ export default function ChatContainer({
       }
       return next;
     });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const syncViewport = () => setIsMobileViewport(mediaQuery.matches);
+
+    syncViewport();
+    mediaQuery.addEventListener('change', syncViewport);
+    return () => mediaQuery.removeEventListener('change', syncViewport);
   }, []);
 
   // Memoized function to load all data
@@ -456,6 +533,7 @@ export default function ChatContainer({
     socket.on('group_member_removed', handleGroupMemberRemoved);
     socket.on('group_deleted', handleGroupDeleted);
     socket.on('group_agent_added', handleGroupAgentChanged);
+    socket.on('group_agent_updated', handleGroupAgentChanged);
     socket.on('group_agent_removed', handleGroupAgentChanged);
     socket.on('agent_action_result', handleGroupAgentChanged);
 
@@ -483,6 +561,7 @@ export default function ChatContainer({
       socket.off('group_member_removed', handleGroupMemberRemoved);
       socket.off('group_deleted', handleGroupDeleted);
       socket.off('group_agent_added', handleGroupAgentChanged);
+      socket.off('group_agent_updated', handleGroupAgentChanged);
       socket.off('group_agent_removed', handleGroupAgentChanged);
       socket.off('agent_action_result', handleGroupAgentChanged);
     };
@@ -573,9 +652,11 @@ export default function ChatContainer({
 
   useEffect(() => {
     if (
+      isMobileViewport ||
       selectedChat ||
       initialGroupId ||
       initialAstro ||
+      requestedInitialAgentId ||
       hasInitialDirectRecipient
     ) {
       return;
@@ -589,6 +670,8 @@ export default function ChatContainer({
     hasInitialDirectRecipient,
     initialAstro,
     initialGroupId,
+    isMobileViewport,
+    requestedInitialAgentId,
     secureAstroGroup,
     selectedChat,
   ]);
@@ -601,11 +684,12 @@ export default function ChatContainer({
     setChatType(type);
   };
 
-  const openSecureAstroGroup = useCallback(
-    async (initialMessage?: string) => {
+  const openAgentThread = useCallback(
+    async (agentId: AgentThreadId, initialMessage?: string) => {
       if (!socket) {
         throw new Error('Socket is not connected.');
       }
+      const config = AGENT_THREAD_CONFIGS[agentId];
 
       const emitAck = <T,>(event: string, payload: any) =>
         new Promise<T>((resolve, reject) => {
@@ -625,13 +709,12 @@ export default function ChatContainer({
           });
         });
 
-      let group = findSecureAstroGroup(groups);
+      let group = findAgentThreadGroup(groups, agentId);
 
       if (!group) {
         const response = await emitAck<{ group: any }>('create_group', {
-          name: SECURE_ASTRO_GROUP_NAME,
-          description:
-            'Secure group for Astro market proposals and approvals.',
+          name: config.groupName,
+          description: config.description,
           members: [],
           tokenGated: false,
           isPublic: false,
@@ -639,66 +722,66 @@ export default function ChatContainer({
         group = response.group;
       }
 
-      const existingAstro = group.botUsers?.find(
+      const existingAgent = group.botUsers?.find(
         (agent: any) =>
-          agent.agentId === 'astro' && agent.isActive !== false
+          agent.agentId === config.agent.agentId && agent.isActive !== false
       );
-      const missingEnabledTools = SECURE_ASTRO_AGENT.enabledTools.filter(
-        (tool) => !existingAstro?.enabledTools?.includes(tool)
+      const missingEnabledTools = config.agent.enabledTools.filter(
+        (tool) => !existingAgent?.enabledTools?.includes(tool)
       );
 
-      let astroAgent = existingAstro || SECURE_ASTRO_AGENT;
-      if (!existingAstro || missingEnabledTools.length > 0) {
+      let activeAgent = existingAgent || config.agent;
+      if (!existingAgent || missingEnabledTools.length > 0) {
         const response = await emitAck<{ data?: { agent?: any } }>(
           'add_group_agent',
           {
             groupId: group._id,
-            agentId: SECURE_ASTRO_AGENT.agentId,
-            provider: SECURE_ASTRO_AGENT.provider,
-            enabledTools: SECURE_ASTRO_AGENT.enabledTools,
-            responseMode: SECURE_ASTRO_AGENT.responseMode,
+            agentId: config.agent.agentId,
+            provider: config.agent.provider,
+            enabledTools: config.agent.enabledTools,
+            responseMode: config.agent.responseMode,
           }
         );
-        astroAgent = response.data?.agent || SECURE_ASTRO_AGENT;
+        activeAgent = response.data?.agent || config.agent;
       }
 
-      const groupWithAstro = {
+      const groupWithAgent = {
         ...group,
-        botUsers: existingAstro
+        botUsers: existingAgent
           ? group.botUsers.map((agent: any) =>
-              agent.agentId === 'astro'
+              agent.agentId === config.agent.agentId
                 ? {
                     ...agent,
-                    ...astroAgent,
+                    ...activeAgent,
                     enabledTools:
-                      astroAgent.enabledTools ||
-                      SECURE_ASTRO_AGENT.enabledTools,
+                      activeAgent.enabledTools ||
+                      config.agent.enabledTools,
                   }
                 : agent
             )
-          : [...(group.botUsers || []), astroAgent],
+          : [...(group.botUsers || []), activeAgent],
       };
 
       setGroups((prev: any[]) => [
-        groupWithAstro,
-        ...prev.filter((item: any) => item._id !== groupWithAstro._id),
+        groupWithAgent,
+        ...prev.filter((item: any) => item._id !== groupWithAgent._id),
       ]);
-      setSelectedChat(groupWithAstro);
+      setSelectedChat(groupWithAgent);
       setChatType('group');
       loadInitialData();
 
-      await emitAck('join_group', { groupId: groupWithAstro._id });
+      await emitAck('join_group', { groupId: groupWithAgent._id });
 
       const trimmedMessage = initialMessage?.trim();
       if (trimmedMessage) {
         const message = trimmedMessage
           .toLowerCase()
-          .startsWith('@astro')
+          .startsWith(config.mentionPrefix)
           ? trimmedMessage
-          : `@astro ${trimmedMessage}`;
+          : `${config.mentionPrefix} ${trimmedMessage}`;
 
         await emitAck('send_group_message', {
-          groupId: groupWithAstro._id,
+          groupId: groupWithAgent._id,
           message,
           messageType: 'text',
         });
@@ -706,6 +789,96 @@ export default function ChatContainer({
     },
     [groups, loadInitialData, socket]
   );
+
+  const openSecureAstroGroup = useCallback(
+    (initialMessage?: string) => openAgentThread('astro', initialMessage),
+    [openAgentThread]
+  );
+
+  const openAgentComposerCommand = useCallback(
+    async (agentId: string, commandSeed: string) => {
+      if (!isKnownAgentThreadId(agentId)) return;
+
+      try {
+        const group = findAgentThreadGroup(groups, agentId);
+
+        if (group) {
+          setSelectedChat(group);
+          setChatType('group');
+          socket?.emit('join_group', { groupId: group._id });
+        } else {
+          await openAgentThread(agentId);
+        }
+
+        setAstroComposerSeed({
+          command: commandSeed,
+          nonce: Date.now(),
+        });
+      } catch (error) {
+        console.error('Failed to open agent command composer', error);
+      }
+    },
+    [groups, openAgentThread, socket]
+  );
+
+  const openAstroComposerCommand = useCallback(
+    async (commandSeed: string) => {
+      await openAgentComposerCommand('astro', commandSeed);
+    },
+    [openAgentComposerCommand]
+  );
+
+  const openAgentThreadById = useCallback(
+    async (agentId: string) => {
+      if (!isKnownAgentThreadId(agentId)) return;
+      await openAgentThread(agentId);
+    },
+    [openAgentThread]
+  );
+
+  const clearAstroComposerSeed = useCallback(() => {
+    setAstroComposerSeed(null);
+  }, []);
+
+  const returnToThreadList = useCallback(() => {
+    setSelectedChat(null);
+    setChatType(null);
+  }, []);
+
+  useEffect(() => {
+    if (!requestedInitialAgentId || requestedInitialAgentId === 'astro') {
+      initialAgentOpenAttemptedRef.current = '';
+      return;
+    }
+
+    const matchingGroup = findAgentThreadGroup(groups, requestedInitialAgentId);
+    const selectedIsRequestedAgent =
+      Boolean(matchingGroup) && selectedChat?._id === matchingGroup?._id;
+
+    if (
+      initialAgentOpenAttemptedRef.current === requestedInitialAgentId ||
+      selectedIsRequestedAgent ||
+      initialGroupId ||
+      hasInitialDirectRecipient ||
+      !hasLoadedGroups
+    ) {
+      return;
+    }
+
+    initialAgentOpenAttemptedRef.current = requestedInitialAgentId;
+    void openAgentThread(requestedInitialAgentId).catch((error) => {
+      initialAgentOpenAttemptedRef.current = '';
+      console.error('Failed to open agent thread', error);
+    });
+  }, [
+    groups,
+    hasInitialDirectRecipient,
+    hasLoadedGroups,
+    initialGroupId,
+    openAgentThread,
+    requestedInitialAgentId,
+    selectedChat?._id,
+  ]);
 
   useEffect(() => {
     if (!initialAstro) {
@@ -743,9 +916,9 @@ export default function ChatContainer({
   ]);
 
   return (
-    <div className="swop-dm-shell h-dvh min-h-0 w-full overflow-hidden bg-black p-0 sm:p-3">
-      <div className="dm-window flex h-full min-h-0 w-full flex-col rounded-none sm:rounded-[16px]">
-        <div className="relative flex h-[42px] flex-shrink-0 items-center gap-2 border-b border-white/[0.07] bg-[#0b0c0f] px-3">
+    <div className="swop-dm-shell h-dvh min-h-0 w-full overflow-hidden bg-black p-0 max-md:bg-[#ecebe6] sm:p-3">
+      <div className="dm-window flex h-full min-h-0 w-full flex-col rounded-none max-md:border-0 max-md:bg-[#f4f4f2] max-md:shadow-none sm:rounded-[16px]">
+        <div className="relative flex h-[42px] flex-shrink-0 items-center gap-2 border-b border-white/[0.07] bg-[#0b0c0f] px-3 max-md:hidden">
           <button
             type="button"
             onClick={() => router.push('/wallet')}
@@ -784,20 +957,26 @@ export default function ChatContainer({
             socket={socket}
             isCollapsed={isThreadListCollapsed}
             onToggleCollapsed={toggleThreadListCollapsed}
+            onOpenAstroCommand={openAstroComposerCommand}
+            onOpenAgentThread={openAgentThreadById}
+            onOpenAgentCommand={openAgentComposerCommand}
+            className={selectedChat ? 'max-md:hidden' : 'max-md:flex max-md:w-full'}
           />
 
-          <ChatArea
-            selectedChat={selectedChat}
-            chatType={chatType || 'private'}
-            currentUser={currentUser}
-            socket={socket}
-            isThreadListCollapsed={isThreadListCollapsed}
-            onChatUpdate={refreshSelectedChat}
-            onLeaveGroup={() => {
-              setSelectedChat(null);
-              setChatType(null);
-            }}
-          />
+          <div className={`${selectedChat ? 'flex' : 'hidden md:flex'} min-w-0 flex-1`}>
+            <ChatArea
+              selectedChat={selectedChat}
+              chatType={chatType || 'private'}
+              currentUser={currentUser}
+              socket={socket}
+              isThreadListCollapsed={isThreadListCollapsed}
+              initialComposerSeed={astroComposerSeed}
+              onComposerSeedConsumed={clearAstroComposerSeed}
+              onChatUpdate={refreshSelectedChat}
+              onBackToList={returnToThreadList}
+              onLeaveGroup={returnToThreadList}
+            />
+          </div>
         </div>
       </div>
     </div>
