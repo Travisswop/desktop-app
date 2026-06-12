@@ -90,6 +90,7 @@ const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const LIFI_NATIVE_SOL_ADDRESS = '11111111111111111111111111111111';
 const JUPITER_MAX_COMPUTE_UNITS = 1_400_000;
 const U64_MAX = BigInt('0xffffffffffffffff');
+const MAX_SUBMIT_QUOTE_AGE_MS = 45 * 1000;
 
 type JupiterApiInstruction = {
   programId: string;
@@ -367,6 +368,9 @@ const isTransientQuoteRefreshError = (error: unknown) => {
     lowerError.includes('too many requests')
   );
 };
+
+const hasExecutableLiFiQuote = (quoteCandidate: any) =>
+  Boolean(quoteCandidate?.transactionRequest);
 
 const formatUserFriendlyError = (error: string): string => {
   const lowerError = error.toLowerCase();
@@ -2750,8 +2754,14 @@ export default function SwapTokenModal({
   };
 
   // ── Solana LiFi swap ──────────────────────────────────────────────────────────
-  const executeSolanaSwap = async () => {
+  const executeSolanaSwap = async (quoteOverride?: any) => {
     try {
+      const activeQuote = quoteOverride || quote;
+      if (!activeQuote) {
+        setSwapError('No Li.Fi quote available');
+        setIsSwapping(false);
+        return;
+      }
       if (!solanaReady) {
         setSwapError('Solana wallet is not ready.');
         setIsSwapping(false);
@@ -2763,7 +2773,7 @@ export default function SwapTokenModal({
         return;
       }
 
-      const { transactionRequest } = quote;
+      const { transactionRequest } = activeQuote;
       const rawTx =
         transactionRequest?.transaction || transactionRequest?.data;
       if (!rawTx)
@@ -2810,7 +2820,7 @@ export default function SwapTokenModal({
         } catch {
           setSwapStatus('Transaction submitted successfully');
         }
-        await saveSwapToDatabase(signature, quote);
+        await saveSwapToDatabase(signature, activeQuote);
       })();
     } catch (error: any) {
       console.error('[Jupiter execute] error:', error);
@@ -2825,9 +2835,10 @@ export default function SwapTokenModal({
   };
 
   // ── EVM LiFi swap ─────────────────────────────────────────────────────────────
-  const executeLiFiSwap = async () => {
+  const executeLiFiSwap = async (quoteOverride?: any) => {
     try {
-      if (!quote) {
+      const activeQuote = quoteOverride || quote;
+      if (!activeQuote) {
         setSwapError('No Li.Fi quote available');
         setIsSwapping(false);
         return;
@@ -2835,7 +2846,7 @@ export default function SwapTokenModal({
 
       const fromChainId = parseInt(chainId);
       if (fromChainId === 1151111081099710) {
-        await executeSolanaSwap();
+        await executeSolanaSwap(activeQuote);
       } else {
         const allAccounts = PrivyUser?.linkedAccounts || [];
         const ethereumAccount = allAccounts.find(
@@ -2885,12 +2896,12 @@ export default function SwapTokenModal({
         // --- New: ensure ERC20 allowance for LiFi contract before sending main tx ---
         const isNative = isNativeEvmToken(payToken);
         const spender =
-          (quote as any)?.estimate?.approvalAddress ||
-          (quote as any)?.approvalAddress;
+          (activeQuote as any)?.estimate?.approvalAddress ||
+          (activeQuote as any)?.approvalAddress;
         const tokenAddr = payToken?.address;
         const amountRaw =
-          (quote as any)?.estimate?.fromAmount ||
-          (quote as any)?.fromAmount;
+          (activeQuote as any)?.estimate?.fromAmount ||
+          (activeQuote as any)?.fromAmount;
 
         if (!isNative && spender && tokenAddr && amountRaw) {
           try {
@@ -2919,7 +2930,7 @@ export default function SwapTokenModal({
         // LiFi can return an inflated gas limit that exceeds the chain's block
         // gas cap (Polygon cap: ~30M). Clamp it to a safe ceiling.
         const EVM_MAX_GAS = 20_000_000;
-        const rawTxReq = { ...quote.transactionRequest };
+        const rawTxReq = { ...activeQuote.transactionRequest };
         const gasField = rawTxReq.gasLimit ?? rawTxReq.gas;
         if (gasField !== undefined) {
           const gasNum =
@@ -2977,7 +2988,7 @@ export default function SwapTokenModal({
           } catch {
             setSwapStatus('Transaction submitted successfully');
           }
-          await saveSwapToDatabase(txHashResult, quote);
+          await saveSwapToDatabase(txHashResult, activeQuote);
         })();
       }
     } catch (error: any) {
@@ -3028,8 +3039,52 @@ export default function SwapTokenModal({
         setIsSwapping(false);
         return;
       }
-      if (isSolanaToSolanaSwap()) await executeJupiterSwap();
-      else await executeLiFiSwap();
+      if (isSolanaToSolanaSwap()) {
+        await executeJupiterSwap();
+      } else {
+        const existingQuote = quote;
+        const existingQuoteAgeMs = lastQuoteTime
+          ? Date.now() - lastQuoteTime
+          : Number.POSITIVE_INFINITY;
+        const canUseExistingQuote =
+          hasExecutableLiFiQuote(existingQuote) &&
+          existingQuoteAgeMs <= MAX_SUBMIT_QUOTE_AGE_MS;
+
+        setSwapStatus('Refreshing quote...');
+        if (quoteRefreshInterval.current) {
+          clearInterval(quoteRefreshInterval.current);
+        }
+        setIsQuoteLoading(true);
+
+        let freshQuote;
+        try {
+          freshQuote = await getLifiQuote();
+        } catch (quoteRefreshError) {
+          if (
+            canUseExistingQuote &&
+            isTransientQuoteRefreshError(quoteRefreshError)
+          ) {
+            console.warn(
+              'LiFi quote refresh failed; using the latest available quote.',
+              quoteRefreshError,
+            );
+            setSwapStatus('Using latest quote...');
+            setIsQuoteLoading(false);
+            setIsCalculating(false);
+            await executeLiFiSwap(existingQuote);
+            return;
+          }
+          throw quoteRefreshError;
+        }
+
+        setQuote(freshQuote);
+        setJupiterQuote(null);
+        setLastQuoteTime(Date.now());
+        setIsQuoteLoading(false);
+        setIsCalculating(false);
+
+        await executeLiFiSwap(freshQuote);
+      }
     } catch (error: any) {
       setSwapError(
         formatUserFriendlyError(
