@@ -23,6 +23,10 @@ import { useUser } from '@/lib/UserContext';
 import CustomModal from '@/components/modal/CustomModal';
 import { getConnectionsUserData } from '@/actions/getEnsData';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  looksLikePublicEnsName,
+  resolvePublicEnsName,
+} from '@/lib/api/publicEnsResolver';
 
 type ProcessingStep = {
   status: 'pending' | 'processing' | 'completed' | 'error';
@@ -69,6 +73,11 @@ export default function SendToModal({
   //store connection data
   const [connectionList, setConnectionList] = useState([]);
   const [searchResults, setSearchResults] = useState<any>([]);
+  const [externalEnsResult, setExternalEnsResult] =
+    useState<ReceiverData | null>(null);
+  const [externalEnsResolving, setExternalEnsResolving] =
+    useState(false);
+  const [externalEnsError, setExternalEnsError] = useState('');
 
   const [isLoading, setIsLoading] = useState<any>(false);
   // const { solanaWallets } = useSolanaWalletContext();
@@ -96,6 +105,25 @@ export default function SendToModal({
       validateEthereumAddress(searchQuery)) ||
       ((network === 'SOLANA' || network === 'solana') &&
         validateSolanaAddress(searchQuery)));
+
+  const isCurrentWalletAddress = (address: string) => {
+    if (!address || !currentWalletAddress) return false;
+    if (
+      validateEthereumAddress(address) &&
+      validateEthereumAddress(currentWalletAddress)
+    ) {
+      return address.toLowerCase() === currentWalletAddress.toLowerCase();
+    }
+    return address === currentWalletAddress;
+  };
+
+  const handleSelectReceiver = (receiver: ReceiverData) => {
+    if (isCurrentWalletAddress(receiver.address)) {
+      setAddressError(true);
+      return;
+    }
+    onSelectReceiver(receiver);
+  };
 
   const handleSearchChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -262,6 +290,9 @@ export default function SendToModal({
       setSearchQuery('');
       setAddressError(false);
       setSearchResults([]);
+      setExternalEnsResult(null);
+      setExternalEnsResolving(false);
+      setExternalEnsError('');
       setIsLoading(false);
     }
   }, [open]);
@@ -378,6 +409,47 @@ export default function SendToModal({
     connectionList,
   ]);
 
+  useEffect(() => {
+    const query = debouncedQuery.trim();
+    if (
+      !open ||
+      isValidAddress ||
+      String(network || '').toUpperCase() === 'SOLANA' ||
+      !looksLikePublicEnsName(query)
+    ) {
+      setExternalEnsResult(null);
+      setExternalEnsResolving(false);
+      setExternalEnsError('');
+      return;
+    }
+
+    let cancelled = false;
+    setExternalEnsResolving(true);
+    setExternalEnsError('');
+
+    (async () => {
+      const resolved = await resolvePublicEnsName(query, network);
+      if (cancelled) return;
+
+      if (resolved) {
+        setExternalEnsResult({
+          address: resolved.address,
+          ensName: resolved.ensName,
+          isEns: true,
+        });
+        setExternalEnsError('');
+      } else {
+        setExternalEnsResult(null);
+        setExternalEnsError(`No ENS address found for ${query}.`);
+      }
+      setExternalEnsResolving(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, isValidAddress, network, open]);
+
   if (!selectedToken) return null;
 
   return (
@@ -399,7 +471,7 @@ export default function SendToModal({
 
           <ScrollArea className="h-96 space-y-2 -mx-5">
             <div className="px-4">
-              {isLoading && (
+              {(isLoading || externalEnsResolving) && (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                 </div>
@@ -436,7 +508,7 @@ export default function SendToModal({
                 <div
                   className="w-full p-4 rounded-2xl bg-white shadow-medium cursor-pointer mt-4"
                   onClick={() =>
-                    onSelectReceiver({
+                    handleSelectReceiver({
                       address: searchQuery,
                       isEns: false,
                       ensName: undefined,
@@ -462,10 +534,45 @@ export default function SendToModal({
                 </div>
               )}
 
+              {externalEnsResult && !addressError && (
+                <div
+                  className="w-full p-4 rounded-2xl bg-white shadow-medium cursor-pointer mt-4"
+                  onClick={() => handleSelectReceiver(externalEnsResult)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                        <Wallet className="h-5 w-5 text-gray-500" />
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-500">
+                          ENS name
+                        </span>
+                        <p className="text-sm font-medium text-black">
+                          {externalEnsResult.ensName}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {truncateAddress(externalEnsResult.address)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {externalEnsError && !externalEnsResolving && (
+                <div className="px-1 py-2 text-sm text-gray-500">
+                  {externalEnsError}
+                </div>
+              )}
+
               {searchQuery &&
               searchResults.length === 0 &&
               !isLoading &&
-              !isValidAddress ? (
+              !isValidAddress &&
+              !externalEnsResult &&
+              !externalEnsResolving &&
+              !externalEnsError ? (
                 <div className="text-center py-8 text-gray-500">
                   <p className="text-sm">No results found</p>
                 </div>
@@ -478,7 +585,7 @@ export default function SendToModal({
                     key={data._id}
                     className="w-full p-4 border-b cursor-pointer bg-white hover:bg-gray-50 transition-colors"
                     onClick={() =>
-                      onSelectReceiver({
+                      handleSelectReceiver({
                         address:
                           network?.toUpperCase() === 'SOLANA'
                             ? data.ensData.solanaAddress

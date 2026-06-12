@@ -51,6 +51,10 @@ import {
   normalizeFundingOnrampSourceText,
   type FundingOnrampPrefill,
 } from '@/lib/chat/fundingOnrampIntent';
+import {
+  looksLikePublicEnsName,
+  resolvePublicEnsName,
+} from '@/lib/api/publicEnsResolver';
 import toast from 'react-hot-toast';
 import {
   Activity,
@@ -8948,6 +8952,17 @@ async function resolveChatWalletSendRecipient({
     (tokenChain !== 'SOLANA' && isChatEvmWalletAddress(trimmed))
   ) {
     return { address: trimmed, isEns: false };
+  }
+
+  if (tokenChain !== 'SOLANA' && looksLikePublicEnsName(trimmed)) {
+    const resolved = await resolvePublicEnsName(trimmed, token.chain);
+    if (resolved) {
+      return {
+        address: resolved.address,
+        ensName: resolved.ensName,
+        isEns: true,
+      };
+    }
   }
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
