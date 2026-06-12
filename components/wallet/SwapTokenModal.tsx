@@ -92,6 +92,7 @@ const _lifiTokenCache = new Map<
 >();
 const LIFI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MARKET_QUOTE_CACHE_TTL_MS = 60 * 1000; // 1 minute
+const MAX_SUBMIT_QUOTE_AGE_MS = 45 * 1000;
 
 type TokenMarketQuote = {
   price?: number | null;
@@ -684,6 +685,50 @@ const isNativeEvmToken = (token?: any) => {
 // Error formatting
 // ─────────────────────────────────────────────────────────────────────────────
 
+const getSwapErrorMessage = (error: unknown, fallback = 'Swap failed') => {
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message || fallback;
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message || fallback);
+  }
+  return fallback;
+};
+
+const isRouteUnavailableErrorMessage = (message: string) => {
+  const lowerError = message.toLowerCase();
+  return (
+    lowerError.includes('route not found') ||
+    lowerError.includes('no route found') ||
+    lowerError.includes('no available quote') ||
+    lowerError.includes('no available quotes') ||
+    lowerError.includes('requested transfer') ||
+    lowerError.includes('unable to find swap route') ||
+    lowerError.includes('swap route is not supported') ||
+    lowerError.includes('route is not supported')
+  );
+};
+
+const isTransientQuoteRefreshError = (error: unknown) => {
+  const lowerError = getSwapErrorMessage(error, '').toLowerCase();
+  if (!lowerError || isRouteUnavailableErrorMessage(lowerError)) return false;
+
+  return (
+    lowerError.includes('network error') ||
+    lowerError.includes('fetch failed') ||
+    lowerError.includes('failed to fetch') ||
+    lowerError.includes('fetch error') ||
+    lowerError.includes('network request failed') ||
+    lowerError.includes('timeout') ||
+    lowerError.includes('taking too long') ||
+    lowerError.includes('temporarily unavailable') ||
+    lowerError.includes('rate limit') ||
+    lowerError.includes('too many requests')
+  );
+};
+
+const hasExecutableLiFiQuote = (quoteCandidate: any) =>
+  Boolean(quoteCandidate?.transactionRequest);
+
 const formatUserFriendlyError = (error: string): string => {
   const lowerError = error.toLowerCase();
   if (
@@ -722,11 +767,8 @@ const formatUserFriendlyError = (error: string): string => {
     lowerError.includes('no wallet')
   )
     return 'Please connect your wallet to continue.';
-  if (
-    lowerError.includes('route not found') ||
-    lowerError.includes('no route found')
-  )
-    return 'No swap route available for this token pair. Try selecting different tokens.';
+  if (isRouteUnavailableErrorMessage(lowerError))
+    return 'No swap route available for this token pair right now. Try a different token, route, or amount.';
   if (
     lowerError.includes('invalid token') ||
     lowerError.includes('token not found')
@@ -1219,6 +1261,10 @@ function TokenRow({
           token.chainId?.toString() ?? '',
         ).toUpperCase();
   const chainIconSrc = getChainIcon(networkName);
+  const networkLabel = networkName
+    ? networkName.charAt(0).toUpperCase() +
+      networkName.slice(1).toLowerCase()
+    : '';
   const tokenPrice = readTokenPrice(token);
   const tokenChange24h = readTokenChange24h(token);
   const hasBalance =
@@ -1275,7 +1321,10 @@ function TokenRow({
             <CheckCircle2 className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
           )}
         </div>
-        <p className="text-xs text-gray-400 truncate">{token.name}</p>
+        <p className="text-xs text-gray-400 truncate">
+          {token.name}
+          {networkLabel ? ` · ${networkLabel}` : ''}
+        </p>
       </div>
 
       <div className="flex min-w-[78px] flex-shrink-0 flex-col items-end gap-0.5">
@@ -2672,6 +2721,9 @@ export default function SwapTokenModal({
       } catch (err: any) {
         if (quoteRequestIdRef.current !== requestId) return;
         console.error('Quote fetch error:', err);
+        if (isAutoRefresh) {
+          return;
+        }
         setQuote(null);
         setJupiterQuote(null);
         setSwapError(
@@ -2679,6 +2731,7 @@ export default function SwapTokenModal({
             err.message || err.toString() || 'Failed to get quote',
           ),
         );
+        setSwapStatus(null);
         setLastQuoteTime(null);
       } finally {
         if (quoteRequestIdRef.current === requestId) {
@@ -3922,6 +3975,14 @@ export default function SwapTokenModal({
       if (isSolanaToSolanaSwap()) {
         await executeJupiterSwap();
       } else {
+        const existingQuote = quote;
+        const existingQuoteAgeMs = lastQuoteTime
+          ? Date.now() - lastQuoteTime
+          : Number.POSITIVE_INFINITY;
+        const canUseExistingQuote =
+          hasExecutableLiFiQuote(existingQuote) &&
+          existingQuoteAgeMs <= MAX_SUBMIT_QUOTE_AGE_MS;
+
         setSwapStatus('Refreshing quote...');
         if (quoteRefreshInterval.current) {
           clearInterval(quoteRefreshInterval.current);
@@ -3929,7 +3990,28 @@ export default function SwapTokenModal({
         const submitQuoteRequestId = quoteRequestIdRef.current + 1;
         quoteRequestIdRef.current = submitQuoteRequestId;
         setIsQuoteLoading(true);
-        const freshQuote = await getLifiQuote();
+
+        let freshQuote;
+        try {
+          freshQuote = await getLifiQuote();
+        } catch (quoteRefreshError) {
+          if (
+            canUseExistingQuote &&
+            isTransientQuoteRefreshError(quoteRefreshError)
+          ) {
+            console.warn(
+              'LiFi quote refresh failed; using the latest available quote.',
+              quoteRefreshError,
+            );
+            setSwapStatus('Using latest quote...');
+            setIsQuoteLoading(false);
+            setIsCalculating(false);
+            await executeLiFiSwap(existingQuote);
+            return;
+          }
+          throw quoteRefreshError;
+        }
+
         if (quoteRequestIdRef.current !== submitQuoteRequestId) {
           throw new Error(
             'Swap parameters changed while refreshing the quote. Please try again.',
