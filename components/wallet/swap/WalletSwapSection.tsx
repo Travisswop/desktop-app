@@ -93,7 +93,7 @@ export default function WalletSwapSection({
         {/* ── Swap card (Market / Limit) ── */}
         <div
           ref={swapCardRef}
-          className="lg:col-span-2 bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-4"
+          className="lg:col-span-2 self-start h-fit bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-4"
         >
           <div className="flex items-center gap-4 border-b border-black/[0.06] mb-4">
             {(['market', 'limit'] as SwapTab[]).map((t) => (
@@ -131,10 +131,10 @@ export default function WalletSwapSection({
 
         {/* ── Open limit orders ── */}
         <div
-          className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-4 min-h-0 overflow-hidden"
+          className="self-start bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-4 min-h-0 overflow-hidden"
           style={
             activityPanelHeight !== null
-              ? { height: activityPanelHeight }
+              ? { maxHeight: activityPanelHeight }
               : undefined
           }
         >

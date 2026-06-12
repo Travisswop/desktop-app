@@ -4232,14 +4232,30 @@ export default function SwapTokenModal({
     ? getExplorerUrl(chainId, txHash)
     : '';
   const resetSwapForm = () => {
+    quoteRequestIdRef.current += 1;
+    if (quoteRefreshInterval.current) {
+      clearInterval(quoteRefreshInterval.current);
+      quoteRefreshInterval.current = null;
+    }
+    if (countdownInterval.current) {
+      clearInterval(countdownInterval.current);
+      countdownInterval.current = null;
+    }
     setShowSwapSuccess(false);
     setSwapStatus(null);
     setSwapError(null);
     setTxHash(null);
+    setQuote(null);
+    setJupiterQuote(null);
+    setIsQuoteLoading(false);
+    setIsCalculating(false);
+    setIsSwapping(false);
     setPayAmount('');
     setReceiveAmount('');
     setLastQuoteTime(null);
+    setQuoteCountdown(10);
     setGasBalanceError(null);
+    setEstimatedGasFeeEth(null);
   };
 
   useEffect(() => {
