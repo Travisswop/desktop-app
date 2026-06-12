@@ -1757,6 +1757,19 @@ function getWalletSendNetworkOptions(
     .map((option, index) => ({ ...option, isBest: index === 0 }));
 }
 
+function getWalletSendFundingTokens(consoleData: AstroConsoleData) {
+  return Array.isArray(consoleData.walletFundingTokens)
+    ? consoleData.walletFundingTokens
+    : consoleData.walletPortfolioTokens;
+}
+
+function isWalletSendFundingBalanceLoading(consoleData: AstroConsoleData) {
+  return Boolean(
+    consoleData.isWalletFundingBalanceLoading ??
+      consoleData.isWalletPortfolioBalanceLoading
+  );
+}
+
 function buildSyntheticWalletSendNetworkPromptMessage(
   intent: { params: Record<string, unknown> },
   options: WalletSendNetworkOption[],
@@ -3044,6 +3057,26 @@ export default function ChatArea({
       : '',
     SUPPORTED_CHAINS
   );
+  const {
+    tokens: mainWalletFundingTokens,
+    loading: isMainWalletFundingBalanceLoading,
+  } = useMultiChainTokenData(
+    shouldLoadAstroConsoleData && isGoldmanConsoleChat
+      ? solWalletAddress
+      : '',
+    shouldLoadAstroConsoleData && isGoldmanConsoleChat
+      ? evmWalletAddresses.length
+        ? evmWalletAddresses
+        : evmWalletAddress
+      : '',
+    SUPPORTED_CHAINS
+  );
+  const walletFundingTokens = isGoldmanConsoleChat
+    ? mainWalletFundingTokens
+    : walletPortfolioTokens;
+  const isWalletFundingBalanceLoading = isGoldmanConsoleChat
+    ? isMainWalletFundingBalanceLoading
+    : isWalletPortfolioBalanceLoading;
 
   const walletPortfolioBalance = useMemo(() => {
     return walletPortfolioTokens.reduce((sum, token) => {
@@ -3163,6 +3196,7 @@ export default function ChatArea({
       walletIdentityLabel,
       walletPortfolioBalance,
       walletPortfolioTokens,
+      walletFundingTokens,
       predictionWalletAddress:
         predictionActiveWalletAddress || predictionWalletAddresses[0],
       predictionWalletAddresses,
@@ -3172,6 +3206,7 @@ export default function ChatArea({
       predictionPositions,
       predictionOpenOrders,
       isWalletPortfolioBalanceLoading,
+      isWalletFundingBalanceLoading,
       isPredictionBalanceLoading:
         isPredictionWalletInfoLoading ||
         isActivePredictionBalanceLoading ||
@@ -3230,9 +3265,11 @@ export default function ChatArea({
       activePredictionUsdcBalance,
       evmWalletAddress,
       evmWalletAddresses,
+      isWalletFundingBalanceLoading,
       predictionPortfolioUsdcBalance,
       predictionWalletAddresses,
       solWalletAddress,
+      walletFundingTokens,
       walletPortfolioBalance,
       walletPortfolioTokens,
       walletIdentityLabel,
@@ -5369,7 +5406,7 @@ export default function ChatArea({
               const localWalletSendNetworkOptions =
                 getWalletSendNetworkOptions(
                   rawLocalWalletSendIntent,
-                  walletPortfolioTokens
+                  walletFundingTokens
                 );
               const localWalletSendNeedsNetwork =
                 Boolean(rawLocalWalletSendIntent) &&
@@ -9939,7 +9976,7 @@ function AgentProposalCard({
             recipient,
             options: getWalletSendNetworkOptions(
               walletSendIntent,
-              astroConsoleData.walletPortfolioTokens
+              getWalletSendFundingTokens(astroConsoleData)
             ),
           }}
           proposal={proposal}
@@ -10535,6 +10572,10 @@ function WalletSendProposalTicket({
       ? `${formatCompactUsd(amount)} in ${token}`
       : `${formatSwapAmount(amount)} ${token}`;
   const selectedNetwork = chain ? normalizeWalletSendChainValue(chain) : null;
+  const walletSendTokens = useMemo(
+    () => getWalletSendFundingTokens(astroConsoleData),
+    [astroConsoleData]
+  );
   const evmSignerAddresses = useMemo(
     () =>
       getChatSwapSignableAddressSet([
@@ -10563,14 +10604,14 @@ function WalletSendProposalTicket({
   const sendToken = buildChatWalletSendToken({
     symbol: token,
     chain: chain || undefined,
-    tokens: astroConsoleData.walletPortfolioTokens,
+    tokens: walletSendTokens,
     evmSignerAddresses,
     solanaSignerAddresses,
   });
   const hasUnsignableMatchingToken = useMemo(() => {
     const chainName = chain ? normalizeWalletSendChainValue(chain) : '';
     const chainId = chain ? String(getWalletSendChainId(chain) || '') : '';
-    return astroConsoleData.walletPortfolioTokens.some((walletToken) => {
+    return walletSendTokens.some((walletToken) => {
       const tokenSymbol = String(walletToken?.symbol || '').toUpperCase();
       const tokenChain = String(walletToken?.chain || '').toUpperCase();
       const tokenChainId = String(walletToken?.chainId || '');
@@ -10586,11 +10627,11 @@ function WalletSendProposalTicket({
       );
     });
   }, [
-    astroConsoleData.walletPortfolioTokens,
     chain,
     evmSignerAddresses,
     solanaSignerAddresses,
     token,
+    walletSendTokens,
   ]);
   const transactionAmountPreview =
     selectedNetwork && sendToken
@@ -11144,6 +11185,12 @@ function WalletSendNetworkPromptCard({
   const { connectWallet } = useConnectWallet();
   const { wallets: solanaWallets } = useSolanaWallets();
   const [selectedChain, setSelectedChain] = useState('');
+  const walletSendTokens = useMemo(
+    () => getWalletSendFundingTokens(astroConsoleData),
+    [astroConsoleData]
+  );
+  const isFundingBalanceLoading =
+    isWalletSendFundingBalanceLoading(astroConsoleData);
   const evmSignerAddresses = useMemo(
     () =>
       getChatSwapSignableAddressSet([
@@ -11185,15 +11232,15 @@ function WalletSendNetworkPromptCard({
     () =>
       getWalletSendNetworkOptions(
         promptIntent,
-        astroConsoleData.walletPortfolioTokens,
+        walletSendTokens,
         evmSignerAddresses,
         solanaSignerAddresses
       ),
     [
-      astroConsoleData.walletPortfolioTokens,
       evmSignerAddresses,
       promptIntent,
       solanaSignerAddresses,
+      walletSendTokens,
     ]
   );
   if (selectedChain) {
@@ -11309,7 +11356,9 @@ function WalletSendNetworkPromptCard({
               {amountLabel}
             </div>
           </div>
-          <div className={TICKET_LABEL_CLASS}>pay from · your {prompt.token} balances</div>
+          <div className={TICKET_LABEL_CLASS}>
+            pay from · main wallet {prompt.token} balances
+          </div>
           <div className="grid gap-2">
             {options.length ? (
               options.map((option) => (
@@ -11357,11 +11406,14 @@ function WalletSendNetworkPromptCard({
                   </div>
                 </button>
               ))
+            ) : isFundingBalanceLoading ? (
+              <div className="rounded-[10px] border border-white/[0.07] bg-black/25 px-3 py-2 text-[11px] font-semibold text-[#a9adb8]">
+                Loading main wallet balances...
+              </div>
             ) : (
               <div className="rounded-[10px] border border-[#ffcc66]/25 bg-[#ffcc66]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd17a]">
                 <div>
-                  No {prompt.token} balance was found in your connected
-                  wallets.
+                  No {prompt.token} balance was found in your main wallet.
                 </div>
                 <button
                   type="button"
@@ -11401,6 +11453,12 @@ function WalletSendDraftCard({
   const { wallets: evmWallets } = useEvmWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { connectWallet } = useConnectWallet();
+  const walletSendTokens = useMemo(
+    () => getWalletSendFundingTokens(astroConsoleData),
+    [astroConsoleData]
+  );
+  const isFundingBalanceLoading =
+    isWalletSendFundingBalanceLoading(astroConsoleData);
   const evmSignerAddresses = useMemo(
     () =>
       getChatSwapSignableAddressSet([
@@ -11426,7 +11484,7 @@ function WalletSendDraftCard({
   );
   const tokenOptions = useMemo(
     () =>
-      getWalletSwapTokenOptions(astroConsoleData.walletPortfolioTokens).filter(
+      getWalletSwapTokenOptions(walletSendTokens).filter(
         (option) =>
           isChatSwapTokenOwnedBySigner(
             option,
@@ -11435,9 +11493,9 @@ function WalletSendDraftCard({
           )
       ),
     [
-      astroConsoleData.walletPortfolioTokens,
       evmSignerAddresses,
       solanaSignerAddresses,
+      walletSendTokens,
     ]
   );
   const promptChain = prompt.chain
@@ -11596,7 +11654,7 @@ function WalletSendDraftCard({
           </div>
         </div>
         <div className="grid gap-2.5 p-3">
-          <div className={TICKET_LABEL_CLASS}>pay with · your balances</div>
+          <div className={TICKET_LABEL_CLASS}>pay with · main wallet</div>
           {!showTokenList && selectedToken ? (
             <button
               type="button"
@@ -11666,10 +11724,14 @@ function WalletSendDraftCard({
                 </button>
               ))}
             </div>
+          ) : isFundingBalanceLoading ? (
+            <div className="rounded-[10px] border border-white/[0.07] bg-black/25 px-3 py-2 text-[11px] font-semibold text-[#a9adb8]">
+              Loading main wallet balances...
+            </div>
           ) : (
             <div className="rounded-[10px] border border-[#ffcc66]/25 bg-[#ffcc66]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd17a]">
               <div>
-                No token balances were found in your connected wallets.
+                No token balances were found in your main wallet.
               </div>
               <button
                 type="button"

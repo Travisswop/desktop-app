@@ -165,6 +165,7 @@ export interface AstroConsoleData {
   walletIdentityLabel: string;
   walletPortfolioBalance: number;
   walletPortfolioTokens: TokenData[];
+  walletFundingTokens?: TokenData[];
   predictionWalletAddress?: string;
   predictionWalletAddresses?: string[];
   predictionUsdcBalance: number;
@@ -173,6 +174,7 @@ export interface AstroConsoleData {
   predictionPositions: PolymarketPosition[];
   predictionOpenOrders: PolymarketOrder[];
   isWalletPortfolioBalanceLoading: boolean;
+  isWalletFundingBalanceLoading?: boolean;
   isPredictionBalanceLoading: boolean;
   aavePositions?: AavePositionsData | null;
   isAavePositionsLoading?: boolean;
