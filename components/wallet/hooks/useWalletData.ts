@@ -129,23 +129,28 @@ export function selectPreferredWallet<T extends AddressLike>(
   const available = (wallets ?? []).filter((wallet) => !!wallet.address);
   if (!available.length) return undefined;
 
+  const embeddedWallets = available.filter(isEmbeddedAddressLike);
+  const selectableWallets = options.embeddedOnly
+    ? embeddedWallets
+    : available;
+  if (!selectableWallets.length) return undefined;
+
   const normalizedPrimary = normalizeAddress(primaryAddress);
   const preferredAddressWallet = getPreferredAddressMatch(
-    available,
+    selectableWallets,
     options.preferredAddresses,
   );
   if (preferredAddressWallet) return preferredAddressWallet;
 
   const primary = normalizedPrimary
-    ? available.find(
+    ? selectableWallets.find(
         (wallet) => normalizeAddress(wallet.address) === normalizedPrimary,
       )
     : undefined;
-  const embeddedWallets = available.filter(isEmbeddedAddressLike);
   const primaryEmbedded =
     primary && isEmbeddedAddressLike(primary) ? primary : undefined;
 
-  if (options.embeddedOnly) return primaryEmbedded ?? embeddedWallets[0];
+  if (options.embeddedOnly) return primary ?? embeddedWallets[0];
   if (options.preferEmbedded && embeddedWallets.length) {
     return primaryEmbedded ?? embeddedWallets[0];
   }
@@ -258,8 +263,23 @@ export const useWalletAddresses = (
 export const getPortfolioEvmWalletInput = (
   evmWalletAddress?: string,
   evmWalletAddresses: string[] = [],
-) =>
-  evmWalletAddress || evmWalletAddresses[0] || '';
+) => {
+  const orderedAddresses: string[] = [];
+  const seenAddresses = new Set<string>();
+
+  [evmWalletAddress, ...evmWalletAddresses].forEach((address) => {
+    const normalizedAddress = normalizeAddress(address);
+    if (!address || !normalizedAddress || seenAddresses.has(normalizedAddress)) {
+      return;
+    }
+
+    orderedAddresses.push(address);
+    seenAddresses.add(normalizedAddress);
+  });
+
+  if (orderedAddresses.length > 1) return orderedAddresses;
+  return orderedAddresses[0] || '';
+};
 
 // Custom hook for wallet data management.
 export const useWalletData = (
@@ -392,16 +412,7 @@ export const useWalletData = (
     }
 
     setWalletData(wallets);
-  }, [
-    PrivyUser,
-    authenticated,
-    ready,
-    storedWallets?.privyId,
-    storedWallets?.ethereumWallet,
-    storedWallets?.ethAddress,
-    storedWallets?.solanaWallet,
-    storedWallets?.solanaAddress,
-  ]);
+  }, [PrivyUser, authenticated, ready, storedWallets]);
 
   return walletData;
 };

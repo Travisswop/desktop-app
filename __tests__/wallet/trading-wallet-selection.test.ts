@@ -98,6 +98,17 @@ describe('trading wallet selection', () => {
     ).toBe('0xFundedLocalEmbedded');
   });
 
+  it('ignores preferred external wallets for embedded-only trading surfaces', () => {
+    delete process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS;
+
+    expect(
+      selectPreferredWallet(wallets, '0xExternal', {
+        ...tradingWalletSelectionOptions(),
+        preferredAddresses: ['0xExternal'],
+      })?.address,
+    ).toBe('0xEmbedded');
+  });
+
   it('allows explicit external wallet testing', () => {
     process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS = 'true';
 
