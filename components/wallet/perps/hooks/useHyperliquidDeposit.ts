@@ -89,12 +89,13 @@ export function useHyperliquidDeposit() {
     async (amountUsd: string) => {
       const amount = parseFloat(amountUsd);
       if (isNaN(amount) || amount < MIN_DEPOSIT_USDC) {
+        const error = `Minimum deposit is $${MIN_DEPOSIT_USDC} USDC`;
         setState((prev) => ({
           ...prev,
-          error: `Minimum deposit is $${MIN_DEPOSIT_USDC} USDC`,
+          error,
           step: 'error',
         }));
-        return;
+        throw new Error(error);
       }
 
       // Use the same EVM wallet as the perps account selector.
@@ -106,12 +107,13 @@ export function useHyperliquidDeposit() {
       );
 
       if (!evmWallet) {
+        const error = 'EVM wallet not found. Please refresh and try again.';
         setState((prev) => ({
           ...prev,
-          error: 'EVM wallet not found. Please refresh and try again.',
+          error,
           step: 'error',
         }));
-        return;
+        throw new Error(error);
       }
 
       setState({ isDepositing: true, txHash: null, error: null, step: 'confirming' });
