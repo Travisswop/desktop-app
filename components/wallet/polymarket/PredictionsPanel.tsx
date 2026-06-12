@@ -13,6 +13,7 @@ import {
   Download,
   ChevronDown,
   SlidersHorizontal,
+  Share2,
   X,
 } from 'lucide-react';
 import {
@@ -71,6 +72,10 @@ import OrderCard from './Orders/OrderCard';
 import PendingRedemptionNotice, {
   type PendingRedemptionSnapshot,
 } from './Positions/PendingRedemptionNotice';
+import PositionShareModal, {
+  type PredictionSharePosition,
+  type PredictionShareStatus,
+} from './Positions/PositionShareModal';
 import BrowseMarketsBento from './BrowseMarketsBento';
 
 /**
@@ -1235,6 +1240,7 @@ interface ClaimedWinRow {
   amount: number;
   timestamp?: number;
   source: 'pending' | 'activity';
+  position?: PolymarketPosition;
   trade?: TradeActivity;
 }
 
@@ -1351,6 +1357,7 @@ function deriveClaimedWinRows(
       amount: item.amount,
       timestamp: item.submittedAt,
       source: 'pending',
+      position: item.position,
     });
   });
 
@@ -1389,6 +1396,41 @@ function deriveClaimedWinRows(
       return (b.timestamp ?? 0) - (a.timestamp ?? 0);
     })
     .slice(0, 25);
+}
+
+function shareStatusForBetRow(row: BetRow): PredictionShareStatus {
+  if (row.statusKey === 'live') return 'open';
+  if (row.statusKey === 'pending') return 'pending';
+  if (row.statusKey === 'redeemable') return 'redeemable';
+  return 'closed';
+}
+
+function claimedWinSharePosition(
+  row: ClaimedWinRow,
+): PredictionSharePosition {
+  if (row.position) return row.position;
+  const outcome =
+    row.outcome && !/^pick$/i.test(row.outcome)
+      ? row.outcome
+      : row.side !== '—'
+        ? row.side
+        : 'Redeemed';
+  return {
+    title: row.title,
+    outcome,
+    icon: row.icon,
+    slug: row.trade?.slug,
+    eventSlug: row.trade?.eventSlug,
+    size: row.trade?.size,
+    initialValue: 0,
+    currentValue: row.amount,
+    cashPnl: row.amount,
+    percentPnl: 0,
+    totalBought: row.trade?.size,
+    realizedPnl: row.amount,
+    percentRealizedPnl: 0,
+    marketClosed: true,
+  };
 }
 
 const BET_STATUS_TONE: Record<
@@ -1703,6 +1745,10 @@ function ClaimedWinsSection({
   onSeeHistory: () => void;
   onRowClick: (trade: TradeActivity) => void;
 }) {
+  const [shareRow, setShareRow] = useState<ClaimedWinRow | null>(
+    null,
+  );
+
   if (!isLoading && rows.length === 0) return null;
 
   return (
@@ -1835,17 +1881,41 @@ function ClaimedWinsSection({
                   {row.timestamp ? formatHistoryDate(row.timestamp) : 'Now'}
                 </div>
 
-                <div
-                  className="text-right text-[12.5px] font-bold tabular-nums"
-                  style={{ color: POS_GREEN, fontFamily: MONO }}
-                >
-                  +${row.amount.toFixed(2)}
+                <div className="flex items-center justify-end gap-2">
+                  <span
+                    className="text-right text-[12.5px] font-bold tabular-nums"
+                    style={{ color: POS_GREEN, fontFamily: MONO }}
+                  >
+                    +${row.amount.toFixed(2)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setShareRow(row);
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border bg-white text-gray-700 transition-colors hover:bg-gray-50"
+                    style={{ borderColor: HAIR }}
+                    title="Share redeemed prediction"
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
             );
           })
         )}
       </div>
+
+      {shareRow && (
+        <PositionShareModal
+          position={claimedWinSharePosition(shareRow)}
+          isOpen={!!shareRow}
+          onClose={() => setShareRow(null)}
+          statusOverride="redeemed"
+          redeemedAmount={shareRow.amount}
+        />
+      )}
     </div>
   );
 }
@@ -1873,6 +1943,7 @@ function BetTableRow({
   isSubmitting: boolean;
   canTrade: boolean;
 }) {
+  const [shareOpen, setShareOpen] = useState(false);
   const {
     position: p,
     statusKey,
@@ -1893,6 +1964,7 @@ function BetTableRow({
     pnl > 0.005 ? POS_GREEN : pnl < -0.005 ? NEG_RED : MUTED;
   const pnlSign = pnl > 0.005 ? '+' : pnl < -0.005 ? '−' : '';
   const avgCents = (p.avgPrice * 100).toFixed(0);
+  const shareStatus = shareStatusForBetRow(row);
 
   const renderAction = () => {
     if (statusKey === 'redeemable') {
@@ -1956,28 +2028,29 @@ function BetTableRow({
   };
 
   return (
-    <div
-      onClick={() => onTitleClick(p)}
-      className={`grid gap-3 px-5 py-3.5 items-center transition-colors hover:bg-gray-50 cursor-pointer ${
-        isLast ? '' : 'border-b'
-      }`}
-      style={{
-        gridTemplateColumns: BETS_GRID,
-        borderColor: HAIR2,
-      }}
-    >
-      <div>
-        <span
-          className="inline-block text-[9.5px] font-bold uppercase tracking-[0.6px] px-1.5 py-[3px] rounded-full"
-          style={{
-            background: tone.bg,
-            color: tone.fg,
-            fontFamily: MONO,
-          }}
-        >
-          {statusLabel}
-        </span>
-      </div>
+    <>
+      <div
+        onClick={() => onTitleClick(p)}
+        className={`grid gap-3 px-5 py-3.5 items-center transition-colors hover:bg-gray-50 cursor-pointer ${
+          isLast ? '' : 'border-b'
+        }`}
+        style={{
+          gridTemplateColumns: BETS_GRID,
+          borderColor: HAIR2,
+        }}
+      >
+        <div>
+          <span
+            className="inline-block text-[9.5px] font-bold uppercase tracking-[0.6px] px-1.5 py-[3px] rounded-full"
+            style={{
+              background: tone.bg,
+              color: tone.fg,
+              fontFamily: MONO,
+            }}
+          >
+            {statusLabel}
+          </span>
+        </div>
 
       <div className="min-w-0 flex items-center gap-2.5">
         {p.icon ? (
@@ -2044,8 +2117,30 @@ function BetTableRow({
         </div>
       </div>
 
-      <div className="flex justify-end">{renderAction()}</div>
-    </div>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setShareOpen(true);
+            }}
+            className="flex h-7 w-7 items-center justify-center rounded-full border bg-white text-gray-700 transition-colors hover:bg-gray-50"
+            style={{ borderColor: HAIR }}
+            title="Share prediction"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+          </button>
+          {renderAction()}
+        </div>
+      </div>
+
+      <PositionShareModal
+        position={p}
+        isOpen={shareOpen}
+        onClose={() => setShareOpen(false)}
+        statusOverride={shareStatus}
+      />
+    </>
   );
 }
 

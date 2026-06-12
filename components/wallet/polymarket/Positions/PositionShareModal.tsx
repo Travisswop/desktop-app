@@ -1,28 +1,368 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { X, Info, Download } from 'lucide-react';
-import type { PolymarketPosition } from '@/hooks/polymarket';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Download,
+  Instagram,
+  Share2,
+  Terminal,
+  Twitter,
+  X,
+} from 'lucide-react';
+
+export type PredictionShareStatus =
+  | 'open'
+  | 'pending'
+  | 'closed'
+  | 'redeemable'
+  | 'redeemed'
+  | 'sold';
+
+export type PredictionSharePosition = {
+  title: string;
+  outcome: string;
+  icon?: string | null;
+  slug?: string | null;
+  eventSlug?: string | null;
+  oppositeOutcome?: string | null;
+  size?: number | null;
+  avgPrice?: number | null;
+  curPrice?: number | null;
+  initialValue?: number | null;
+  currentValue?: number | null;
+  cashPnl?: number | null;
+  percentPnl?: number | null;
+  totalBought?: number | null;
+  realizedPnl?: number | null;
+  percentRealizedPnl?: number | null;
+  redeemable?: boolean;
+  marketClosed?: boolean;
+  marketResolutionPending?: boolean;
+};
 
 interface PositionShareModalProps {
-  position: PolymarketPosition;
+  position: PredictionSharePosition;
   isOpen: boolean;
   onClose: () => void;
+  statusOverride?: PredictionShareStatus;
+  redeemedAmount?: number | null;
 }
 
-/** Convert a decimal price (0–1) to American odds string e.g. "+459" or "-178" */
-function toAmericanOdds(price: number): string {
-  if (price <= 0 || price >= 1) return 'N/A';
+type LiveScoreTeam = {
+  name?: string | null;
+  abbreviation?: string | null;
+  score?: number | string | null;
+};
+
+type LiveScoreState = {
+  live: boolean;
+  ended: boolean;
+  closed: boolean;
+  period: string | null;
+  elapsed: string | null;
+  startTime: string | null;
+  teams: LiveScoreTeam[];
+};
+
+const EMPTY_SCORE: LiveScoreState = {
+  live: false,
+  ended: false,
+  closed: false,
+  period: null,
+  elapsed: null,
+  startTime: null,
+  teams: [],
+};
+
+const MONO =
+  '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
+
+const SWOP_URL = 'https://swopme.co';
+const SWOP_WHITE_LOGO_SRC = '/images/swop-white-logo.png';
+
+function finiteNumber(value: unknown, fallback = 0): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function optionalNumber(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatMoney(value: number, signed = false): string {
+  const sign = signed && value > 0 ? '+' : value < 0 ? '-' : '';
+  const amount = Math.abs(value).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${sign}$${amount}`;
+}
+
+function formatPercent(value: number, signed = true): string {
+  const sign = signed && value > 0 ? '+' : value < 0 ? '-' : '';
+  return `${sign}${Math.abs(value).toFixed(1)}%`;
+}
+
+function formatCents(value: number | null): string {
+  if (value == null || value <= 0 || value >= 1) return '--';
+  return `${(value * 100).toFixed(1)}c`;
+}
+
+/** Convert a decimal price (0-1) to American odds string e.g. "+459" or "-178". */
+function toAmericanOdds(price: number | null): string {
+  if (price == null || price <= 0 || price >= 1) return 'N/A';
   if (price >= 0.5) {
     return `-${Math.round((price / (1 - price)) * 100)}`;
   }
   return `+${Math.round(((1 - price) / price) * 100)}`;
 }
 
+function resolveStatus(
+  position: PredictionSharePosition,
+  override?: PredictionShareStatus,
+): PredictionShareStatus {
+  if (override) return override;
+  if (position.redeemable) return 'redeemable';
+  if (position.marketResolutionPending) return 'pending';
+  if (position.marketClosed) return 'closed';
+  return 'open';
+}
+
+function statusCopy(status: PredictionShareStatus) {
+  switch (status) {
+    case 'redeemed':
+      return {
+        label: 'REDEEMED',
+        kicker: 'payout confirmed',
+        cls: 'border-emerald-300/35 bg-emerald-400/15 text-emerald-200',
+      };
+    case 'redeemable':
+      return {
+        label: 'REDEEMABLE',
+        kicker: 'settled market',
+        cls: 'border-lime-300/35 bg-lime-400/15 text-lime-200',
+      };
+    case 'sold':
+      return {
+        label: 'CLOSED',
+        kicker: 'cashed out',
+        cls: 'border-zinc-300/25 bg-zinc-200/10 text-zinc-100',
+      };
+    case 'closed':
+      return {
+        label: 'CLOSED',
+        kicker: 'market settled',
+        cls: 'border-zinc-300/25 bg-zinc-200/10 text-zinc-100',
+      };
+    case 'pending':
+      return {
+        label: 'PENDING',
+        kicker: 'awaiting settlement',
+        cls: 'border-amber-300/35 bg-amber-400/15 text-amber-200',
+      };
+    case 'open':
+    default:
+      return {
+        label: 'OPENED',
+        kicker: 'live prediction',
+        cls: 'border-emerald-300/35 bg-emerald-400/15 text-emerald-200',
+      };
+  }
+}
+
+function usePredictionLiveScore(
+  eventSlug: string | null | undefined,
+  enabled: boolean,
+): LiveScoreState {
+  const [state, setState] = useState<LiveScoreState>(EMPTY_SCORE);
+
+  useEffect(() => {
+    if (!enabled || !eventSlug) {
+      setState(EMPTY_SCORE);
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchOnce = async () => {
+      try {
+        const res = await fetch(
+          `/api/polymarket/event-live?slug=${encodeURIComponent(eventSlug)}`,
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+
+        setState({
+          live: Boolean(json.live),
+          ended: Boolean(json.ended),
+          closed: Boolean(json.closed),
+          period: json.period ?? null,
+          elapsed: json.elapsed ?? null,
+          startTime: json.startTime ?? null,
+          teams: Array.isArray(json.teams) ? json.teams : [],
+        });
+
+        if (!cancelled && json.live) {
+          timer = setTimeout(fetchOnce, 15_000);
+        }
+      } catch {
+        if (!cancelled) setState(EMPTY_SCORE);
+      }
+    };
+
+    fetchOnce();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [enabled, eventSlug]);
+
+  return state;
+}
+
+function normalizeScoreTeam(team: LiveScoreTeam) {
+  const score = optionalNumber(team.score);
+  const name = (team.name || team.abbreviation || '').trim();
+  const rawShortName = (team.abbreviation || team.name || '').trim();
+  const shortName = team.abbreviation || rawShortName.length <= 4
+    ? rawShortName.toUpperCase()
+    : rawShortName;
+  if (!name || score == null) return null;
+  return {
+    name,
+    shortName,
+    score,
+  };
+}
+
+function buildScoreSummary(
+  liveScore: LiveScoreState,
+  status: PredictionShareStatus,
+) {
+  const teams = liveScore.teams
+    .map(normalizeScoreTeam)
+    .filter(Boolean)
+    .slice(0, 2) as Array<{
+    name: string;
+    shortName: string;
+    score: number;
+  }>;
+
+  if (teams.length < 2) return null;
+
+  const finalLike =
+    liveScore.ended ||
+    liveScore.closed ||
+    status === 'closed' ||
+    status === 'redeemable' ||
+    status === 'redeemed' ||
+    status === 'sold';
+  const clock = liveScore.live
+    ? ['LIVE', liveScore.period, liveScore.elapsed].filter(Boolean).join(' ')
+    : finalLike
+      ? 'FINAL'
+      : [liveScore.period, liveScore.elapsed].filter(Boolean).join(' ') ||
+        'SCORE';
+
+  return { teams, clock };
+}
+
+function displayTitle(position: PredictionSharePosition) {
+  return position.title?.trim() || 'Prediction market';
+}
+
+function displayOutcome(position: PredictionSharePosition) {
+  return position.outcome?.trim() || 'Pick';
+}
+
+function computeShareDetails(
+  position: PredictionSharePosition,
+  status: PredictionShareStatus,
+  redeemedAmount?: number | null,
+) {
+  const size = finiteNumber(position.size);
+  const totalBought = finiteNumber(position.totalBought, size);
+  const avgPrice = optionalNumber(position.avgPrice);
+  const curPrice = optionalNumber(position.curPrice);
+  const cost =
+    optionalNumber(position.initialValue) ??
+    (avgPrice != null ? avgPrice * Math.max(totalBought || size, size) : 0);
+  const currentValue =
+    redeemedAmount ??
+    optionalNumber(position.currentValue) ??
+    (curPrice != null ? curPrice * size : 0);
+  const fallbackPnl =
+    status === 'redeemed' || status === 'redeemable'
+      ? currentValue - cost + finiteNumber(position.realizedPnl)
+      : currentValue - cost;
+  const pnl =
+    optionalNumber(position.cashPnl) ??
+    optionalNumber(position.realizedPnl) ??
+    fallbackPnl;
+  const percent =
+    optionalNumber(position.percentPnl) ??
+    (cost > 0 ? (pnl / cost) * 100 : 0);
+
+  const valueLabel =
+    status === 'redeemed'
+      ? 'Paid'
+      : status === 'redeemable'
+        ? 'Payout'
+        : status === 'sold' || status === 'closed'
+          ? 'Realized'
+          : 'Value';
+  const value =
+    status === 'redeemed' || status === 'redeemable'
+      ? currentValue
+      : status === 'sold'
+        ? Math.max(0, cost + pnl)
+        : currentValue;
+
+  return {
+    title: displayTitle(position),
+    outcome: displayOutcome(position),
+    cost,
+    value,
+    valueLabel,
+    pnl,
+    percent,
+    shares: Math.max(totalBought || size, size),
+    avgOdds: toAmericanOdds(avgPrice),
+    curOdds: toAmericanOdds(curPrice),
+    avgCents: formatCents(avgPrice),
+    curCents: formatCents(curPrice),
+    profitable: pnl >= 0,
+  };
+}
+
+async function waitForImages(el: HTMLElement) {
+  const images = Array.from(el.querySelectorAll('img'));
+  await Promise.all(
+    images.map(async (img) => {
+      if (!img.complete) {
+        await new Promise<void>((resolve) => {
+          img.addEventListener('load', () => resolve(), { once: true });
+          img.addEventListener('error', () => resolve(), { once: true });
+        });
+      }
+
+      if (typeof img.decode === 'function') {
+        await img.decode().catch(() => undefined);
+      }
+    }),
+  );
+}
+
 async function captureTicket(el: HTMLElement): Promise<Blob> {
+  await waitForImages(el);
+
   const html2canvas = (await import('html2canvas')).default;
   const canvas = await html2canvas(el, {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#020403',
     scale: 3,
     useCORS: true,
     logging: false,
@@ -35,23 +375,46 @@ async function captureTicket(el: HTMLElement): Promise<Blob> {
   });
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function shareFileName(position: PredictionSharePosition, status: string) {
+  const base = (position.slug || position.title || 'prediction')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 52);
+  return `swopme-${status}-${base || 'prediction'}.png`;
+}
+
 export default function PositionShareModal({
   position,
   isOpen,
   onClose,
+  statusOverride,
+  redeemedAmount,
 }: PositionShareModalProps) {
   const ticketRef = useRef<HTMLDivElement>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const status = resolveStatus(position, statusOverride);
+  const liveScore = usePredictionLiveScore(position.eventSlug, isOpen);
+  const scoreSummary = useMemo(
+    () => buildScoreSummary(liveScore, status),
+    [liveScore, status],
+  );
+  const details = useMemo(
+    () => computeShareDetails(position, status, redeemedAmount),
+    [position, redeemedAmount, status],
+  );
+  const statusMeta = statusCopy(status);
 
   if (!isOpen) return null;
-
-  const pnl = position.cashPnl;
-  const isProfitable = pnl >= 0;
-  const pnlLabel = isProfitable ? 'Gain' : 'Loss';
-  const cost = position.initialValue || position.avgPrice * position.size;
-  const toWin = position.size;
-  const avgOdds = toAmericanOdds(position.avgPrice);
-  const curOdds = toAmericanOdds(position.curPrice);
 
   const getBlob = async (): Promise<Blob | null> => {
     if (!ticketRef.current) return null;
@@ -63,262 +426,287 @@ export default function PositionShareModal({
     }
   };
 
-  const handleNativeShare = async () => {
+  const shareText = `I picked ${details.outcome} on "${details.title}" - ${statusMeta.label} ${formatMoney(
+    details.pnl,
+    true,
+  )} (${formatPercent(details.percent)}) via Swopme.co`;
+
+  const handleDownload = async () => {
     const blob = await getBlob();
     if (!blob) return;
-    const file = new File([blob], 'swop-pick.png', { type: 'image/png' });
-    const shareText = `I picked ${position.outcome} on "${position.title}" — ${isProfitable ? `up +$${Math.abs(pnl).toFixed(2)}` : `down -$${Math.abs(pnl).toFixed(2)}`} via @swop_id`;
+    downloadBlob(blob, shareFileName(position, status));
+  };
 
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({
-        title: position.title,
-        text: shareText,
-        files: [file],
+  const handleNativeShare = async () => {
+    try {
+      const blob = await getBlob();
+      if (!blob) return;
+      const file = new File([blob], shareFileName(position, status), {
+        type: 'image/png',
       });
-    } else if (navigator.share) {
-      // Fallback: share without image
-      await navigator.share({
-        title: position.title,
-        text: shareText,
-        url: `https://polymarket.com/event/${position.eventSlug}`,
-      });
-    } else {
-      // Last resort: download image
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'swop-pick.png';
-      a.click();
-      URL.revokeObjectURL(url);
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: 'Swopme prediction',
+          text: shareText,
+          files: [file],
+        });
+      } else if (navigator.share) {
+        await navigator.share({
+          title: 'Swopme prediction',
+          text: shareText,
+          url: SWOP_URL,
+        });
+      } else {
+        downloadBlob(blob, shareFileName(position, status));
+      }
+    } catch (err) {
+      if ((err as DOMException)?.name !== 'AbortError') {
+        console.error('Failed to share prediction:', err);
+      }
     }
   };
 
   const handleShareX = async () => {
     const blob = await getBlob();
-    if (blob) {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'swop-pick.png';
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-    const text = `I picked ${position.outcome} on "${position.title}" — ${isProfitable ? `up +$${Math.abs(pnl).toFixed(2)}` : `down -$${Math.abs(pnl).toFixed(2)}`} via @swop_id`;
+    if (blob) downloadBlob(blob, shareFileName(position, status));
     window.open(
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`,
       '_blank',
+      'noopener,noreferrer',
     );
   };
 
   const handleShareInstagram = async () => {
     const blob = await getBlob();
     if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'swop-pick.png';
-    a.click();
-    URL.revokeObjectURL(url);
-    // Open Instagram after download so user can attach manually
-    setTimeout(() => window.open('https://www.instagram.com/', '_blank'), 400);
+    downloadBlob(blob, shareFileName(position, status));
+    setTimeout(() => {
+      window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer');
+    }, 400);
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 px-4 backdrop-blur-md"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl w-full max-w-[340px] mx-4 shadow-2xl overflow-visible"
+        className="w-full max-w-[386px] overflow-hidden rounded-[28px] border border-emerald-300/15 bg-[#050706] shadow-[0_28px_90px_rgba(0,0,0,0.78),0_0_70px_rgba(30,255,150,0.14)]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close + header */}
-        <div className="relative flex items-center justify-center pt-5 pb-4 px-5">
+        <div className="flex items-center justify-between border-b border-emerald-300/10 px-4 py-3">
           <button
             onClick={onClose}
-            className="absolute left-4 top-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-300 transition-colors hover:bg-white/[0.08]"
+            aria-label="Close share preview"
           >
-            <X className="w-4 h-4 text-gray-600" />
+            <X className="h-4 w-4" />
           </button>
-
-          {/* Diamond icon + label */}
-          <div className="flex items-center gap-1.5">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              className="text-gray-500"
-            >
-              <path
-                d="M8 1L1 6l7 9 7-9-7-5z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span className="text-sm font-semibold text-gray-600 tracking-wide">
-              Position
-            </span>
+          <div
+            className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-200"
+            style={{ fontFamily: MONO }}
+          >
+            <Terminal className="h-4 w-4" />
+            Share prediction
           </div>
+          <div className="h-9 w-9" />
         </div>
 
-        {/* ── Ticket (captured as image) ── */}
-        <div ref={ticketRef} className="bg-white px-6 pb-5">
-          {/* SWOP branding */}
-          <div className="text-center mb-5">
-            <p className="text-2xl font-black text-gray-900 uppercase">
-              SWOP
-            </p>
-            <p className="text-sm text-gray-400 mt-1 line-clamp-2 leading-snug">
-              {position.title}
-            </p>
-          </div>
+        <div className="max-h-[72vh] overflow-y-auto px-5 py-5">
+          <div
+            ref={ticketRef}
+            data-testid="prediction-share-ticket"
+            className="relative overflow-hidden rounded-[26px] border border-emerald-300/20 bg-[#020403] p-5 text-white shadow-[inset_0_0_40px_rgba(54,255,154,0.08)]"
+            style={{
+              fontFamily: MONO,
+              minHeight: scoreSummary ? 580 : 500,
+            }}
+          >
+            <div className="pointer-events-none absolute inset-0 opacity-70">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_0%,rgba(39,255,146,0.22),transparent_34%),radial-gradient(circle_at_8%_92%,rgba(121,255,214,0.12),transparent_34%)]" />
+              <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(64,255,150,0.04)_0px,rgba(64,255,150,0.04)_1px,transparent_1px,transparent_22px),repeating-linear-gradient(90deg,rgba(64,255,150,0.026)_0px,rgba(64,255,150,0.026)_1px,transparent_1px,transparent_34px)]" />
+              <div className="absolute left-8 top-[-30px] h-40 w-px bg-gradient-to-b from-transparent via-emerald-300/50 to-transparent shadow-[0_0_24px_rgba(52,255,157,0.55)]" />
+              <div className="absolute right-10 top-4 h-52 w-px bg-gradient-to-b from-transparent via-emerald-300/35 to-transparent shadow-[0_0_22px_rgba(52,255,157,0.45)]" />
+            </div>
 
-          {/* You bought badge */}
-          <div className="flex items-center justify-center gap-2.5 mb-5">
-            <span className="text-base font-medium text-gray-700">
-              You bought
-            </span>
-            <div className="flex items-center gap-1.5 border border-gray-200 bg-white rounded-xl px-3 py-1.5 shadow-sm">
-              {position.icon ? (
-                <img
-                  src={position.icon}
-                  alt={position.outcome}
-                  className="w-5 h-5 rounded-full object-cover flex-shrink-0"
-                />
-              ) : (
-                <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <span className="text-[9px] font-bold text-blue-600">
-                    {position.outcome.slice(0, 1)}
-                  </span>
+            <div className="relative z-10 flex h-full flex-col gap-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <img
+                    src={SWOP_WHITE_LOGO_SRC}
+                    alt="Swop"
+                    className="block h-[34px] w-auto max-w-[190px] object-contain"
+                  />
+                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">
+                    prediction terminal
+                  </div>
+                </div>
+                <div
+                  className={`inline-flex min-h-8 min-w-[76px] items-center justify-center rounded-full border px-3 text-center text-[10px] font-black uppercase leading-none ${statusMeta.cls}`}
+                >
+                  {statusMeta.label}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-300/16 bg-black/42 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-300/15 bg-emerald-300/10 text-sm font-black text-emerald-200">
+                    <span>{details.outcome.slice(0, 1).toUpperCase()}</span>
+                    {position.icon && (
+                      <img
+                        src={position.icon}
+                        alt=""
+                        crossOrigin="anonymous"
+                        onError={(event) => {
+                          event.currentTarget.style.display = 'none';
+                        }}
+                        className="absolute inset-0 h-full w-full bg-zinc-900 object-cover"
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
+                      {statusMeta.kicker}
+                    </div>
+                    <div className="mt-1 line-clamp-3 text-[17px] font-black leading-tight text-zinc-50">
+                      {details.title}
+                    </div>
+                    <div className="mt-3 inline-flex max-w-full items-center rounded-lg border border-emerald-300/24 bg-emerald-300/10 px-2.5 py-1 text-[12px] font-black text-emerald-100">
+                      <span className="truncate">Pick: {details.outcome}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {scoreSummary && (
+                <div className="rounded-2xl border border-emerald-300/20 bg-[#06100b]/88 p-4 shadow-[inset_0_0_24px_rgba(52,255,157,0.08)]">
+                  <div className="mb-3 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
+                    <span>Sports score</span>
+                    <span>{scoreSummary.clock}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {scoreSummary.teams.map((team, index) => (
+                      <div
+                        key={`${team.name}-${index}`}
+                        className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2"
+                      >
+                        <span className="min-w-0 truncate text-[14px] font-black text-zinc-100">
+                          {team.shortName || team.name}
+                        </span>
+                        <span className="text-[24px] font-black leading-none text-emerald-200">
+                          {team.score}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-              <span className="text-sm font-bold text-gray-900">
-                {position.outcome}
-              </span>
-            </div>
-          </div>
 
-          {/* Stats */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">{pnlLabel}</span>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-sm font-semibold ${isProfitable ? 'text-green-600' : 'text-gray-900'}`}
-                >
-                  {isProfitable ? '+' : '-'}$
-                  {Math.abs(pnl).toFixed(2)}
-                </span>
-                <span
-                  className={`text-xs font-medium px-2 py-0.5 rounded-md border ${
-                    isProfitable
-                      ? 'bg-green-50 text-green-600 border-green-200'
-                      : 'bg-gray-100 text-gray-600 border-gray-200'
-                  }`}
-                >
-                  {isProfitable ? '+' : ''}
-                  {position.percentPnl.toFixed(1)}%
-                </span>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-emerald-300/16 bg-white/[0.045] p-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
+                    P/L
+                  </div>
+                  <div
+                    className={`mt-2 text-[22px] font-black leading-none ${
+                      details.profitable ? 'text-emerald-300' : 'text-red-300'
+                    }`}
+                  >
+                    {formatMoney(details.pnl, true)}
+                  </div>
+                  <div className="mt-1 text-[11px] font-black text-zinc-400">
+                    {formatPercent(details.percent)}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-emerald-300/16 bg-white/[0.045] p-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
+                    {details.valueLabel}
+                  </div>
+                  <div className="mt-2 text-[22px] font-black leading-none text-zinc-50">
+                    {formatMoney(details.value)}
+                  </div>
+                  <div className="mt-1 text-[11px] font-black text-zinc-400">
+                    cost {formatMoney(details.cost)}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-emerald-300/16 bg-white/[0.045] p-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
+                    Odds
+                  </div>
+                  <div className="mt-2 text-[15px] font-black text-zinc-50">
+                    {details.avgOdds}
+                    <span className="px-1.5 text-zinc-600">-&gt;</span>
+                    {details.curOdds}
+                  </div>
+                  <div className="mt-1 text-[11px] font-black text-zinc-400">
+                    {details.avgCents} -&gt; {details.curCents}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-emerald-300/16 bg-white/[0.045] p-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
+                    Shares
+                  </div>
+                  <div className="mt-2 text-[15px] font-black text-zinc-50">
+                    {details.shares.toLocaleString('en-US', {
+                      maximumFractionDigits: 2,
+                    })}
+                  </div>
+                  <div className="mt-1 text-[11px] font-black text-zinc-400">
+                    self-custody
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Cost</span>
-              <span className="text-sm font-semibold text-gray-900">
-                ${cost.toFixed(2)}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Odds</span>
-              <span className="text-sm font-semibold text-gray-900">
-                <span className="text-gray-400">{avgOdds}</span>
-                <span className="text-gray-300 mx-1.5">→</span>
-                <span>{curOdds}</span>
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <span className="text-sm text-gray-400">To win</span>
-                <Info className="w-3.5 h-3.5 text-gray-300" />
+              <div className="mt-auto flex items-center justify-between border-t border-emerald-300/12 pt-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
+                  shared from swop
+                </div>
+                <img
+                  src={SWOP_WHITE_LOGO_SRC}
+                  alt="Swop"
+                  className="block h-4 w-auto max-w-[72px] object-contain opacity-90"
+                />
               </div>
-              <span className="text-sm font-bold text-gray-900">
-                ${Math.round(toWin)}
-              </span>
             </div>
           </div>
         </div>
 
-        {/* Ticket-style notch divider */}
-        <div className="relative flex items-center px-3">
-          <div className="w-5 h-5 rounded-full bg-gray-100 flex-shrink-0 -ml-3" />
-          <div className="flex-1 border-t border-dashed border-gray-200 mx-1" />
-          <div className="w-5 h-5 rounded-full bg-gray-100 flex-shrink-0 -mr-3" />
-        </div>
-
-        {/* Share buttons */}
-        <div className="px-6 py-5 flex items-center justify-center gap-6">
-          {/* Instagram — downloads image then opens Instagram */}
+        <div className="grid grid-cols-4 gap-2 border-t border-emerald-300/10 p-4">
           <button
             onClick={handleShareInstagram}
             disabled={isCapturing}
-            className="w-12 h-12 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-full flex items-center justify-center transition-colors"
-            title="Share on Instagram"
+            className="flex h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-zinc-200 transition-colors hover:bg-white/[0.09] disabled:opacity-50"
+            title="Download for Instagram"
           >
-            <svg
-              viewBox="0 0 24 24"
-              className="w-5 h-5 text-gray-700"
-              fill="currentColor"
-            >
-              <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
-            </svg>
+            <Instagram className="h-5 w-5" />
           </button>
-
-          {/* X — downloads image + opens tweet */}
           <button
             onClick={handleShareX}
             disabled={isCapturing}
-            className="w-12 h-12 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-full flex items-center justify-center transition-colors"
+            className="flex h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-zinc-200 transition-colors hover:bg-white/[0.09] disabled:opacity-50"
             title="Share on X"
           >
-            <svg
-              viewBox="0 0 24 24"
-              className="w-5 h-5 text-gray-700"
-              fill="currentColor"
-            >
-              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-            </svg>
+            <Twitter className="h-5 w-5" />
           </button>
-
-          {/* Native share (with image file) */}
+          <button
+            onClick={handleDownload}
+            disabled={isCapturing}
+            className="flex h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-zinc-200 transition-colors hover:bg-white/[0.09] disabled:opacity-50"
+            title="Download image"
+          >
+            <Download className="h-5 w-5" />
+          </button>
           <button
             onClick={handleNativeShare}
             disabled={isCapturing}
-            className="w-12 h-12 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-full flex items-center justify-center transition-colors"
+            className="flex h-12 items-center justify-center rounded-2xl bg-emerald-300 text-black transition-colors hover:bg-emerald-200 disabled:opacity-50"
             title="Share"
           >
             {isCapturing ? (
-              <svg className="animate-spin w-5 h-5 text-gray-500" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-black/20 border-t-black" />
             ) : (
-              <svg
-                viewBox="0 0 24 24"
-                className="w-5 h-5 text-gray-700"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-                <polyline points="16 6 12 2 8 6" />
-                <line x1="12" y1="2" x2="12" y2="15" />
-              </svg>
+              <Share2 className="h-5 w-5" />
             )}
           </button>
         </div>
