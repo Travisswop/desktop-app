@@ -134,7 +134,7 @@ export default function WalletSwapSection({
           className="self-start bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-4 min-h-0 overflow-hidden"
           style={
             activityPanelHeight !== null
-              ? { maxHeight: activityPanelHeight }
+              ? { height: activityPanelHeight }
               : undefined
           }
         >
