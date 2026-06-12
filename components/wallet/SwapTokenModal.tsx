@@ -836,6 +836,10 @@ function TokenRow({
           token.chainId?.toString() ?? '',
         ).toUpperCase();
   const chainIconSrc = getChainIcon(networkName);
+  const networkLabel = networkName
+    ? networkName.charAt(0).toUpperCase() +
+      networkName.slice(1).toLowerCase()
+    : '';
   const priceStr = token.priceUSD || token.usdPrice;
   const hasBalance =
     token.balance != null && Number(token.balance) > 0;
@@ -880,7 +884,10 @@ function TokenRow({
             <CheckCircle2 className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
           )}
         </div>
-        <p className="text-xs text-gray-400 truncate">{token.name}</p>
+        <p className="text-xs text-gray-400 truncate">
+          {token.name}
+          {networkLabel ? ` · ${networkLabel}` : ''}
+        </p>
       </div>
 
       {/* Right side: only show value when user actually holds the token */}
