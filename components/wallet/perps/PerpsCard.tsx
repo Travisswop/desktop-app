@@ -1,13 +1,16 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
   ArrowUpDown,
+  Loader2,
+  Share2,
   TrendingUp,
   Zap,
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { useHyperliquidMarkets } from './hooks/useHyperliquidMarkets';
 import { useHyperliquidPortfolio } from './hooks/useHyperliquidPortfolio';
 import { useAllMids } from './hooks/useHyperliquidWebSocket';
@@ -46,6 +49,26 @@ const HAIR = 'rgba(0,0,0,0.06)';
 const SURFACE_2 = '#fafafa';
 const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
+const SHARE_POSTER_WIDTH = 420;
+const SHARE_POSTER_HEIGHT = 640;
+const SWOP_SHARE_URL = 'https://swopme.app';
+
+interface PositionShareDetails {
+  coin: string;
+  side: 'LONG' | 'SHORT';
+  leverage: number;
+  pnlLabel: string;
+  roeLabel: string;
+  pnlPositive: boolean;
+  sizeLabel: string;
+  entryLabel: string;
+  markLabel: string;
+  marginLabel: string;
+  liqDistanceLabel: string;
+  liqPriceLabel: string;
+  markPriceLabel: string;
+  liqPercent: number | null;
+}
 
 const formatBalance = (n: number, frac = 2): string =>
   n.toLocaleString('en-US', {
@@ -95,6 +118,51 @@ function liqMetrics(
     : (liqPx - markPx) / markPx;
   const pct = Math.max(0, Math.min(100, distance * 100));
   return { liqPx, markPx, pct, isLong };
+}
+
+async function capturePositionShareImage(
+  el: HTMLElement,
+): Promise<Blob> {
+  const html2canvas = (await import('html2canvas')).default;
+  const canvas = await html2canvas(el, {
+    backgroundColor: null,
+    scale: 3,
+    useCORS: true,
+    logging: false,
+    width: SHARE_POSTER_WIDTH,
+    height: SHARE_POSTER_HEIGHT,
+    windowWidth: SHARE_POSTER_WIDTH,
+    windowHeight: SHARE_POSTER_HEIGHT,
+  });
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('Failed to capture position image'));
+    }, 'image/png');
+  });
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function shareFilename(coin: string) {
+  const slug =
+    coin
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'position';
+  return `swop-perps-${slug}.png`;
+}
+
+function isShareCancel(err: unknown) {
+  return err instanceof DOMException && err.name === 'AbortError';
 }
 
 /**
@@ -233,6 +301,10 @@ function OpenPositionCard({
   onOpenTrading: (coin?: string) => void;
   onDeposit: () => void;
 }) {
+  const shareCardRef = useRef<HTMLDivElement>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const { toast } = useToast();
+
   // ── Empty / connect / loading states ─────────────────────────────────────
   if (!masterAddress) {
     return (
@@ -291,6 +363,83 @@ function OpenPositionCard({
   const positive = pnlNum >= 0;
   const liq = liqMetrics(position, livePrice);
   const markPx = liq?.markPx ?? parseFloat(livePrice || position.entryPx);
+  const shareDetails: PositionShareDetails = {
+    coin: position.coin,
+    side: isLong ? 'LONG' : 'SHORT',
+    leverage: position.leverage.value,
+    pnlLabel: formatSignedUsd(pnlNum),
+    roeLabel: Number.isFinite(roeNum)
+      ? `${roeNum >= 0 ? '+' : ''}${roeNum.toFixed(2)}%`
+      : '—',
+    pnlPositive: positive,
+    sizeLabel: `${formatTokenSize(String(sizeAbs))} ${position.coin}`,
+    entryLabel: `$${formatPrice(position.entryPx)}`,
+    markLabel: Number.isFinite(markPx)
+      ? `$${formatPrice(String(markPx))}`
+      : '—',
+    marginLabel: `$${formatBalance(parseFloat(position.marginUsed), 2)}`,
+    liqDistanceLabel: liq ? `${liq.pct.toFixed(1)}% away` : 'No liq',
+    liqPriceLabel: liq ? `$${formatPrice(String(liq.liqPx))}` : '—',
+    markPriceLabel: liq ? `$${formatPrice(String(liq.markPx))}` : '—',
+    liqPercent: liq?.pct ?? null,
+  };
+
+  const handleSharePosition = async () => {
+    if (!shareCardRef.current || isSharing) return;
+
+    setIsSharing(true);
+    const filename = shareFilename(position.coin);
+    let capturedBlob: Blob | null = null;
+    try {
+      capturedBlob = await capturePositionShareImage(
+        shareCardRef.current,
+      );
+      const file = new File([capturedBlob], filename, {
+        type: 'image/png',
+      });
+      const shareTitle = 'Swop perps position';
+      const shareText = 'View on Swop';
+
+      if (
+        typeof navigator.share === 'function' &&
+        navigator.canShare?.({ files: [file] })
+      ) {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: SWOP_SHARE_URL,
+          files: [file],
+        });
+      } else {
+        downloadBlob(capturedBlob, filename);
+        toast({
+          title: 'Position image downloaded',
+          description:
+            'Your astronaut-to-the-moon share card is ready. Link: swopme.app',
+        });
+      }
+    } catch (err) {
+      if (!isShareCancel(err)) {
+        if (capturedBlob) {
+          downloadBlob(capturedBlob, filename);
+          toast({
+            title: 'Position image downloaded',
+            description:
+              'Sharing was blocked, so Swop saved the PNG instead. Link: swopme.app',
+          });
+        } else {
+          console.error('Failed to share perps position:', err);
+          toast({
+            title: 'Could not share position',
+            description: 'Try again in a moment.',
+            variant: 'destructive',
+          });
+        }
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  };
 
   return (
     <BentoShell padding="p-5">
@@ -320,25 +469,41 @@ function OpenPositionCard({
             )}
           </div>
         </div>
-        <div className="text-right">
-          <div
-            className="text-[22px] font-semibold tabular-nums"
-            style={{
-              fontFamily: MONO,
-              letterSpacing: -0.4,
-              color: positive ? POS_GREEN : NEG_RED,
-            }}
-          >
-            {formatSignedUsd(pnlNum)}
+        <div className="ml-auto flex items-start gap-2">
+          <div className="text-right">
+            <div
+              className="text-[22px] font-semibold tabular-nums"
+              style={{
+                fontFamily: MONO,
+                letterSpacing: -0.4,
+                color: positive ? POS_GREEN : NEG_RED,
+              }}
+            >
+              {formatSignedUsd(pnlNum)}
+            </div>
+            <div
+              className="text-[11.5px] text-gray-500 mt-0.5 font-medium"
+              style={{ fontFamily: MONO }}
+            >
+              {Number.isFinite(roeNum)
+                ? `${roeNum >= 0 ? '+' : ''}${roeNum.toFixed(2)}% ROE`
+                : '—'}
+            </div>
           </div>
-          <div
-            className="text-[11.5px] text-gray-500 mt-0.5 font-medium"
-            style={{ fontFamily: MONO }}
+          <button
+            type="button"
+            onClick={() => void handleSharePosition()}
+            disabled={isSharing}
+            aria-label="Share position"
+            title="Share position"
+            className="w-8 h-8 rounded-xl border border-black/[0.06] bg-[#fafafa] flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:text-gray-950 disabled:cursor-not-allowed disabled:opacity-60 transition"
           >
-            {Number.isFinite(roeNum)
-              ? `${roeNum >= 0 ? '+' : ''}${roeNum.toFixed(2)}% ROE`
-              : '—'}
-          </div>
+            {isSharing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Share2 className="w-3.5 h-3.5" />
+            )}
+          </button>
         </div>
       </div>
 
@@ -474,7 +639,258 @@ function OpenPositionCard({
           {extraPositions === 1 ? 'position' : 'positions'} →
         </button>
       )}
+
+      <div
+        aria-hidden="true"
+        className="fixed left-[-9999px] top-0 pointer-events-none"
+      >
+        <div ref={shareCardRef}>
+          <PositionSharePoster details={shareDetails} />
+        </div>
+      </div>
     </BentoShell>
+  );
+}
+
+function PositionSharePoster({
+  details,
+}: {
+  details: PositionShareDetails;
+}) {
+  const accent = details.pnlPositive ? POS_GREEN : NEG_RED;
+  const liqWidth =
+    details.liqPercent === null
+      ? 0
+      : Math.max(3, Math.min(100, details.liqPercent));
+  const stats = [
+    { label: 'Size', value: details.sizeLabel },
+    { label: 'Entry', value: details.entryLabel },
+    { label: 'Mark', value: details.markLabel },
+    { label: 'Margin', value: details.marginLabel },
+  ];
+
+  return (
+    <div
+      className="relative overflow-hidden text-white"
+      style={{
+        width: SHARE_POSTER_WIDTH,
+        height: SHARE_POSTER_HEIGHT,
+        borderRadius: 34,
+        background:
+          'radial-gradient(circle at 78% 16%, rgba(255,255,255,0.38) 0, rgba(255,255,255,0.16) 16%, transparent 30%), linear-gradient(160deg, #050713 0%, #101833 48%, #2d3144 100%)',
+        fontFamily:
+          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
+      <AstronautMoonBackdrop />
+
+      <div className="relative z-10 flex h-full flex-col justify-between p-7">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-[21px] font-black leading-none">
+              SWOP
+            </div>
+            <div className="mt-1 text-[12px] font-semibold text-white/68">
+              Perps position snapshot
+            </div>
+          </div>
+          <div className="rounded-full border border-white/14 bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white/78 shadow-[0_10px_32px_rgba(0,0,0,0.18)]">
+            To the moon
+          </div>
+        </div>
+
+        <div className="mb-2 max-w-[250px]">
+          <div className="text-[12px] font-semibold text-white/60">
+            Astronaut mode
+          </div>
+          <div className="mt-1 text-[30px] font-black leading-[1.04]">
+            Position ready for orbit.
+          </div>
+        </div>
+
+        <div className="rounded-[28px] bg-white/95 p-5 text-gray-950 shadow-[0_22px_64px_rgba(0,0,0,0.34)]">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div
+                className="text-[10px] font-bold uppercase text-gray-500"
+                style={{ fontFamily: MONO }}
+              >
+                Open position
+              </div>
+              <div
+                className="mt-1 text-[26px] font-black leading-tight text-gray-950"
+                style={{ wordBreak: 'break-word' }}
+              >
+                {details.coin}
+              </div>
+              <div
+                className="mt-2 inline-flex rounded-full px-3 py-1 text-[11px] font-bold"
+                style={{
+                  color: details.side === 'LONG' ? POS_GREEN : NEG_RED,
+                  background:
+                    details.side === 'LONG'
+                      ? POS_GREEN_SOFT
+                      : 'rgba(229,72,77,0.10)',
+                  border: `1px solid ${
+                    details.side === 'LONG'
+                      ? 'rgba(25,169,116,0.18)'
+                      : 'rgba(229,72,77,0.18)'
+                  }`,
+                  fontFamily: MONO,
+                }}
+              >
+                {details.side} · {details.leverage}x
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <div
+                className="text-[28px] font-black tabular-nums leading-none"
+                style={{ color: accent, fontFamily: MONO }}
+              >
+                {details.pnlLabel}
+              </div>
+              <div
+                className="mt-1 text-[12px] font-bold text-gray-500"
+                style={{ fontFamily: MONO }}
+              >
+                {details.roeLabel} ROE
+              </div>
+            </div>
+          </div>
+
+          <div className="my-4 h-px bg-black/[0.07]" />
+
+          <div className="grid grid-cols-2 gap-3">
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                className="flex min-h-[64px] flex-col justify-center rounded-2xl border border-black/[0.06] bg-gray-50 px-3 py-2.5"
+              >
+                <div
+                  className="text-[10px] font-bold uppercase text-gray-500"
+                  style={{ fontFamily: MONO }}
+                >
+                  {stat.label}
+                </div>
+                <div
+                  className="mt-1 text-[12.5px] font-black text-gray-950 tabular-nums"
+                  style={{
+                    fontFamily: MONO,
+                    lineHeight: 1.22,
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {stat.value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[12px] font-semibold text-gray-500">
+                Liq distance
+              </span>
+              <span
+                className="text-[12px] font-black text-gray-950"
+                style={{ fontFamily: MONO }}
+              >
+                {details.liqDistanceLabel} · {details.liqPriceLabel}
+              </span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full border border-black/[0.06] bg-gray-100">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${liqWidth}%`,
+                  background:
+                    'linear-gradient(90deg, #19a974 0%, #b6c52d 52%, #e87b1f 100%)',
+                }}
+              />
+            </div>
+            <div
+              className="mt-2 flex items-center justify-between text-[10.5px] font-bold text-gray-400"
+              style={{ fontFamily: MONO }}
+            >
+              <span>{details.liqPriceLabel} liq</span>
+              <span>{details.markPriceLabel} mark</span>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between border-t border-black/[0.07] pt-3">
+            <span className="text-[11px] font-semibold text-gray-400">
+              Shared from Swop
+            </span>
+            <span
+              className="text-[11px] font-black text-gray-950"
+              style={{ fontFamily: MONO }}
+            >
+              swopme.app
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AstronautMoonBackdrop() {
+  const stars = [
+    [30, 58, 2],
+    [86, 34, 1],
+    [146, 88, 2],
+    [206, 42, 1],
+    [286, 112, 2],
+    [362, 72, 1],
+    [54, 256, 1],
+    [332, 236, 2],
+    [382, 184, 1],
+  ];
+
+  return (
+    <div className="absolute inset-0 z-0">
+      {stars.map(([left, top, size]) => (
+        <span
+          key={`${left}-${top}`}
+          className="absolute rounded-full bg-white/80"
+          style={{
+            left,
+            top,
+            width: size,
+            height: size,
+            boxShadow: '0 0 12px rgba(255,255,255,0.8)',
+          }}
+        />
+      ))}
+
+      <div className="absolute left-[102px] top-[145px] h-px w-[210px] origin-left rotate-[-18deg] border-t-2 border-dashed border-white/24" />
+
+      <div className="absolute right-[-42px] top-[-34px] h-[178px] w-[178px] rounded-full bg-[#f4edd3] shadow-[0_0_68px_rgba(255,238,178,0.48)]">
+        <div className="absolute left-[34px] top-[52px] h-5 w-5 rounded-full bg-[#ded4b8]/70" />
+        <div className="absolute left-[82px] top-[84px] h-8 w-8 rounded-full bg-[#ded4b8]/55" />
+        <div className="absolute left-[72px] top-[30px] h-3 w-3 rounded-full bg-[#ded4b8]/60" />
+      </div>
+
+      <div
+        className="absolute left-[44px] top-[128px] h-[124px] w-[92px]"
+        style={{ transform: 'rotate(-16deg)' }}
+      >
+        <div className="absolute left-[24px] top-[8px] h-[54px] w-[54px] rounded-full border-[5px] border-white bg-[#eef3ff] shadow-[0_12px_28px_rgba(0,0,0,0.24)]">
+          <div className="absolute left-[9px] top-[16px] h-[18px] w-[30px] rounded-full bg-[#16203d] shadow-inner" />
+          <div className="absolute left-[16px] top-[12px] h-1.5 w-3 rounded-full bg-white/70" />
+        </div>
+        <div className="absolute left-[32px] top-[58px] h-[48px] w-[40px] rounded-[20px] bg-white shadow-[0_14px_34px_rgba(0,0,0,0.22)]">
+          <div className="absolute left-[10px] top-[13px] h-3 w-5 rounded-md bg-[#ff6b6b]" />
+          <div className="absolute bottom-[8px] left-[12px] h-2 w-4 rounded-full bg-[#c7d2fe]" />
+        </div>
+        <div className="absolute left-[15px] top-[66px] h-[14px] w-[30px] rounded-full bg-white" />
+        <div className="absolute left-[65px] top-[66px] h-[14px] w-[30px] rounded-full bg-white" />
+        <div className="absolute left-[30px] top-[101px] h-[34px] w-[15px] rounded-full bg-white" />
+        <div className="absolute left-[61px] top-[101px] h-[34px] w-[15px] rounded-full bg-white" />
+        <div className="absolute left-[3px] top-[61px] h-[18px] w-[18px] rounded-full bg-white" />
+        <div className="absolute left-[86px] top-[61px] h-[18px] w-[18px] rounded-full bg-white" />
+      </div>
+    </div>
   );
 }
 

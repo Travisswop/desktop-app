@@ -183,31 +183,12 @@ function cleanupCache(): void {
   }
 }
 
-function createRedirect(
-  req: NextRequest,
-  target: string,
-  clearCookies: boolean,
-): NextResponse {
+function createRedirect(req: NextRequest, target: string): NextResponse {
   if (req.nextUrl.pathname === target) {
     return NextResponse.next();
   }
 
   const response = NextResponse.redirect(new URL(target, req.url));
-
-  // if (target === "/login" && clearCookies) {
-  //   const cookiesToClear = [
-  //     "privy-token",
-  //     "privy-id-token",
-  //     "privy-refresh-token",
-  //     "privy-session",
-  //     "access-token",
-  //     "user-id",
-  //   ];
-
-  //   cookiesToClear.forEach((cookie) => {
-  //     response.cookies.delete(cookie);
-  //   });
-  // }
 
   return response;
 }
@@ -224,7 +205,11 @@ function handleMobileRedirect(
   userAgent: string,
   pathname: string,
 ): string | null {
-  if (pathname === "/login" || pathname === "/onboard") {
+  if (
+    pathname === "/login" ||
+    pathname === "/onboard" ||
+    pathname.startsWith("/checkout/")
+  ) {
     return null;
   }
 
@@ -325,14 +310,6 @@ async function fetchWithTimeout(
     clearTimeout(timeoutId);
     throw error;
   }
-}
-
-function shouldReVerifyToken(
-  cachedResult: AuthCacheEntry,
-  now: number,
-): boolean {
-  const lastVerified = cachedResult.lastVerified || cachedResult.timestamp;
-  return now - lastVerified > VERIFICATION_INTERVAL;
 }
 
 async function backgroundTokenVerification(
@@ -592,7 +569,7 @@ async function handleAuthenticatedUser(
   // If userId is empty (from failed verification), skip backend check
   if (!userId) {
     if (pathname === "/login") {
-      return createRedirect(req, "/onboard", false);
+      return createRedirect(req, "/onboard");
     }
     return NextResponse.next();
   }
@@ -608,7 +585,7 @@ async function handleAuthenticatedUser(
 
       if (exists) {
         console.log(`User exists, redirecting to /`);
-        return createRedirect(req, "/", false);
+        return createRedirect(req, "/");
       } else if (status === 404) {
         return NextResponse.next();
       } else {
@@ -627,11 +604,11 @@ async function handleAuthenticatedUser(
   // Handle /login route
   if (pathname === "/login") {
     try {
-      const { exists, status } = await checkUserInBackend(userId);
+      const { exists } = await checkUserInBackend(userId);
 
       if (exists) {
         console.log(`User exists, redirecting to /`);
-        return createRedirect(req, "/", false);
+        return createRedirect(req, "/");
       } else {
         // // User doesn't exist - clear cookies and allow login page access
         // console.log(
@@ -806,7 +783,7 @@ export async function middleware(req: NextRequest) {
     // NO TOKEN: Only redirect to login if accessing protected route
     if (isProtectedRoute(pathname)) {
       console.log(`[AUTH] Protected route without token, redirecting to login`);
-      return createRedirect(req, "/login", false);
+      return createRedirect(req, "/login");
     }
 
     // Add CSP headers in production
@@ -838,7 +815,7 @@ export async function middleware(req: NextRequest) {
     }
 
     if (isProtectedRoute(req.nextUrl.pathname)) {
-      return createRedirect(req, "/login", false);
+      return createRedirect(req, "/login");
     }
 
     return NextResponse.next();

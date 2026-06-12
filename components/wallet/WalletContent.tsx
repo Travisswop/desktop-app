@@ -35,11 +35,7 @@ import {
   isPrivyEmbeddedWallet,
 } from '@/types/privy';
 
-import {
-  TransactionService,
-  USDC_ADDRESS,
-  SWOP_ADDRESS,
-} from '@/services/transaction-service';
+import { TransactionService } from '@/services/transaction-service';
 import { useSendFlow } from '@/lib/hooks/useSendFlow';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { useNFT } from '@/lib/hooks/useNFT';
@@ -54,7 +50,6 @@ import {
 } from './hooks/useWalletData';
 import { useTransactionPayload } from './hooks/useTransactionPayload';
 import { usePostTransactionEffects } from './hooks/usePostTransactionEffects';
-import { TokenTicker } from './token-ticker';
 
 // Constants
 import { SUPPORTED_CHAINS, ERROR_MESSAGES } from './constants';
@@ -782,6 +777,7 @@ const WalletContentInner = () => {
   const rewardWalletRequestRef = useRef(0);
   const assetsMenuRef = useRef<HTMLDivElement>(null);
   const autoOpenedPerpsQueryRef = useRef('');
+  const autoOpenedSendQueryRef = useRef('');
 
   // Hooks
   const {
@@ -873,6 +869,35 @@ const WalletContentInner = () => {
     handleNFTNext,
     resetSendFlow,
   } = useSendFlow();
+
+  useEffect(() => {
+    if (!searchParams) return;
+
+    const sendParam = searchParams.get('send') || searchParams.get('openSend');
+    const shouldOpenWalletSend = sendParam === '1' || sendParam === 'wallet';
+    if (!shouldOpenWalletSend) {
+      autoOpenedSendQueryRef.current = '';
+      return;
+    }
+
+    const queryKey = searchParams.toString();
+    if (autoOpenedSendQueryRef.current === queryKey) return;
+    autoOpenedSendQueryRef.current = queryKey;
+
+    setSelectedToken(null);
+    setSelectedNFT(null);
+    setSendFlow({
+      step: 'select-method',
+      token: null,
+      amount: '',
+      isUSD: false,
+      recipient: null,
+      nft: null,
+      networkFee: '0',
+      network: 'ETHEREUM',
+      hash: '',
+    });
+  }, [searchParams, setSendFlow]);
 
   // Solana wallet auto-creation.
   // Persists the "already attempted" flag in localStorage so it survives
@@ -1410,7 +1435,7 @@ const WalletContentInner = () => {
         let privyAccessToken: string | null = null;
         try {
           privyAccessToken = await getAccessToken();
-        } catch (tokenError) {
+        } catch {
           throw new Error(
             'Authentication session expired. Please refresh the page and log in again.',
           );
@@ -1448,7 +1473,7 @@ const WalletContentInner = () => {
 
         try {
           await connection.getLatestBlockhash();
-        } catch (rpcError) {
+        } catch {
           throw new Error(
             'Unable to connect to Solana network. Please check your connection and try again.',
           );
@@ -1651,8 +1676,6 @@ const WalletContentInner = () => {
       };
     }
   }, [
-    solanaReady,
-    directSolanaWallets,
     sendFlow,
     PrivyUser,
     evmWalletAddress,
@@ -1751,6 +1774,7 @@ const WalletContentInner = () => {
     toast,
     resetSendFlow,
     setSendFlow,
+    queryClient,
   ]);
 
   // Memoized event handlers

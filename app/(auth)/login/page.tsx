@@ -19,11 +19,11 @@ import { WalletItem } from '@/types/wallet';
 import {
   useCreateWallet,
   useLoginWithEmail,
+  useLoginWithPasskey,
   usePrivy,
+  useSignupWithPasskey,
 } from '@privy-io/react-auth';
 import {
-  useWallets as useSolanaWallets,
-  useSignAndSendTransaction,
   useCreateWallet as useSolanaCreateWallet,
 } from '@privy-io/react-auth/solana';
 import Image from 'next/image';
@@ -31,7 +31,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GoArrowLeft } from 'react-icons/go';
 import { LuArrowRight } from 'react-icons/lu';
-import { RiMailSendLine } from 'react-icons/ri';
+import { RiFingerprintLine, RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
 import logger from '@/utils/logger';
 import { buildSwopApiUrl, getSwopApiBaseUrl } from '@/lib/api/apiBaseUrl';
@@ -115,6 +115,47 @@ function formatEmailCodeError(error: unknown): string {
   return 'Could not send the email code. Please try again.';
 }
 
+function formatPasskeyError(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : 'Passkey authentication failed.';
+  const code = getErrorCode(error);
+  const normalized = message.toLowerCase();
+
+  if (code === 'disallowed_login_method' || code === 'passkey_not_allowed') {
+    return 'Passkey login is disabled for this Privy app or client. Enable Passkey in Privy Authentication settings.';
+  }
+
+  if (
+    normalized.includes('origin') ||
+    normalized.includes('domain') ||
+    normalized.includes('allowed origin')
+  ) {
+    return 'This app URL is not in Privy allowed origins. Add the current origin to the Privy app and web client.';
+  }
+
+  if (
+    normalized.includes('not supported') ||
+    normalized.includes('webauthn') ||
+    normalized.includes('publickeycredential')
+  ) {
+    return 'This browser or device does not support passkeys here. Try email login instead.';
+  }
+
+  if (
+    normalized.includes('cancel') ||
+    normalized.includes('abort') ||
+    normalized.includes('notallowed')
+  ) {
+    return 'Passkey prompt was canceled. Try again or use email login.';
+  }
+
+  return message || 'Passkey authentication failed. Try email login instead.';
+}
+
 function formatLoginProcessingError(error: unknown): string {
   const message =
     error instanceof Error
@@ -160,6 +201,14 @@ const Login: React.FC = () => {
   // Privy hooks
   const { authenticated, ready, user } = usePrivy();
   const { state, sendCode, loginWithCode } = useLoginWithEmail();
+  const {
+    state: passkeyLoginState,
+    loginWithPasskey,
+  } = useLoginWithPasskey();
+  const {
+    state: passkeySignupState,
+    signupWithPasskey,
+  } = useSignupWithPasskey();
   const { createWallet: createEthereumWallet } = useCreateWallet();
   const { createWallet: createSolanaWallet } =
     useSolanaCreateWallet();
@@ -175,6 +224,7 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [pendingPasskeyAuth, setPendingPasskeyAuth] = useState(false);
   const [walletStatus, setWalletStatus] =
     useState<WalletCreationStatus>({
       ethereum: false,
@@ -193,6 +243,14 @@ const Login: React.FC = () => {
   const [timeRemaining, setTimeRemaining] = useState(480); // 8 minutes = 480 seconds
   const [canResend, setCanResend] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const passkeyBusy =
+    pendingPasskeyAuth ||
+    passkeyLoginState.status === 'generating-challenge' ||
+    passkeyLoginState.status === 'awaiting-passkey' ||
+    passkeyLoginState.status === 'submitting-response' ||
+    passkeySignupState.status === 'generating-challenge' ||
+    passkeySignupState.status === 'awaiting-passkey' ||
+    passkeySignupState.status === 'submitting-response';
 
   // Refs for preventing race conditions
   const loginProcessingRef = useRef(false);
@@ -408,7 +466,7 @@ const Login: React.FC = () => {
         setWalletStatus((prev) => ({ ...prev, inProgress: false }));
       }
     },
-    [createEthereumWallet, createSolanaWallet, ready],
+    [createEthereumWallet, createSolanaWallet, ready, walletStatus.inProgress],
   );
 
   useEffect(() => {
@@ -430,6 +488,7 @@ const Login: React.FC = () => {
     walletStatus.inProgress,
     walletStatus.ethereum,
     walletStatus.solana,
+    createPrivyWallets,
   ]);
 
   // Handle successful login
@@ -444,7 +503,11 @@ const Login: React.FC = () => {
       try {
         const userEmail = extractEmailFromUser(user);
         if (!userEmail) {
-          throw new Error('No email found in account');
+          logger.log(
+            'No email found on Privy account; sending user to onboarding for profile/email capture',
+          );
+          router.push('/onboard-ai');
+          return;
         }
 
         // Check if user exists in backend
@@ -521,6 +584,38 @@ const Login: React.FC = () => {
     },
     [extractEmailFromUser, processWalletData, router],
   );
+
+  const handlePasskeyLogin = useCallback(async () => {
+    setLoginError(null);
+    setEmailError('');
+    clearStaleSwopAuthStorage();
+    setPendingPasskeyAuth(true);
+
+    try {
+      await loginWithPasskey();
+      setLoginFlow(LoginFlow.PROCESSING);
+    } catch (error) {
+      setPendingPasskeyAuth(false);
+      setLoginError(formatPasskeyError(error));
+      setLoginFlow(LoginFlow.ERROR);
+    }
+  }, [loginWithPasskey]);
+
+  const handlePasskeySignup = useCallback(async () => {
+    setLoginError(null);
+    setEmailError('');
+    clearStaleSwopAuthStorage();
+    setPendingPasskeyAuth(true);
+
+    try {
+      await signupWithPasskey();
+      setLoginFlow(LoginFlow.PROCESSING);
+    } catch (error) {
+      setPendingPasskeyAuth(false);
+      setLoginError(formatPasskeyError(error));
+      setLoginFlow(LoginFlow.ERROR);
+    }
+  }, [signupWithPasskey]);
 
   // Handle email form submission
   const handleEmailSubmit = useCallback(
@@ -636,6 +731,26 @@ const Login: React.FC = () => {
     }
   }, [otp, state.status, loginWithCode]);
 
+  useEffect(() => {
+    if (
+      pendingPasskeyAuth &&
+      ready &&
+      authenticated &&
+      user &&
+      !loginProcessingRef.current
+    ) {
+      handleLoginSuccess(user).finally(() => {
+        setPendingPasskeyAuth(false);
+      });
+    }
+  }, [
+    pendingPasskeyAuth,
+    ready,
+    authenticated,
+    user,
+    handleLoginSuccess,
+  ]);
+
   // Handle successful login
   useEffect(() => {
     if (
@@ -735,6 +850,37 @@ const Login: React.FC = () => {
                 className="w-32 h-auto"
                 priority
               />
+            </div>
+
+            <div className="flex w-[350px] flex-col gap-3">
+              <button
+                type="button"
+                onClick={handlePasskeyLogin}
+                disabled={passkeyBusy}
+                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RiFingerprintLine size={20} />
+                {passkeyBusy ? 'Check your passkey prompt...' : 'Sign in with passkey'}
+              </button>
+              <button
+                type="button"
+                onClick={handlePasskeySignup}
+                disabled={passkeyBusy}
+                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RiFingerprintLine size={20} />
+                Create account with passkey
+              </button>
+              <p className="text-center text-xs leading-5 text-gray-500">
+                For Apple cross-device sign-in, save your passkey to Apple
+                Passwords or iCloud Keychain.
+              </p>
+            </div>
+
+            <div className="flex w-[350px] items-center gap-3 text-xs font-medium uppercase tracking-[0.18em] text-gray-400">
+              <span className="h-px flex-1 bg-gray-200" />
+              <span>or email</span>
+              <span className="h-px flex-1 bg-gray-200" />
             </div>
 
             <form

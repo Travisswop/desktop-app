@@ -25,6 +25,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Copy,
+  Download,
   ExternalLink,
   Link2,
   Loader2,
@@ -89,6 +90,8 @@ type RailFilter = 'all' | 'solana' | 'evm';
 
 type ScanMethod = 'swop' | 'phantom';
 
+type MobilePlatform = 'ios' | 'android' | 'other';
+
 type LifiTransactionRequest = {
   to: string;
   data: string;
@@ -97,6 +100,20 @@ type LifiTransactionRequest = {
 };
 
 const NATIVE_EVM_TOKEN = '0x0000000000000000000000000000000000000000';
+const DEFAULT_SWOP_IOS_STORE_URL =
+  'https://apps.apple.com/us/app/swopnew/id1593201322';
+const DEFAULT_SWOP_ANDROID_STORE_URL =
+  'https://play.google.com/store/apps/details?id=com.travisheron.swop';
+const DEFAULT_SWOP_APP_CHECKOUT_DEEP_LINK_BASES = [
+  'swopmobileexpo://checkout',
+  'swop://pay/v1/checkout',
+];
+const SWOP_APP_CHECKOUT_DEEP_LINK_BASES = (
+  process.env.NEXT_PUBLIC_SWOP_APP_CHECKOUT_DEEP_LINK_BASES || ''
+)
+  .split(',')
+  .map((base) => base.trim())
+  .filter(Boolean);
 const CHAIN_CONFIG: Record<
   string,
   { id: string; name: string; explorer: string }
@@ -204,8 +221,41 @@ function chainNameById(chainId?: string | null) {
   return match?.name || chainId;
 }
 
-function swopAppCheckoutUrl(intentId: string) {
-  return `swop://pay/v1/checkout/${encodeURIComponent(intentId)}`;
+function swopAppCheckoutUrlFromBase(base: string, intentId: string) {
+  const encodedIntentId = encodeURIComponent(intentId);
+  const normalizedBase = base.replace(/\/+$/, '');
+
+  if (normalizedBase.includes('://')) {
+    return `${normalizedBase}/${encodedIntentId}`;
+  }
+
+  return `${normalizedBase}://checkout/${encodedIntentId}`;
+}
+
+function swopAppCheckoutUrls(intentId: string) {
+  const bases =
+    SWOP_APP_CHECKOUT_DEEP_LINK_BASES.length > 0
+      ? SWOP_APP_CHECKOUT_DEEP_LINK_BASES
+      : DEFAULT_SWOP_APP_CHECKOUT_DEEP_LINK_BASES;
+
+  return bases.map((base) => swopAppCheckoutUrlFromBase(base, intentId));
+}
+
+function mobilePlatformFromUserAgent(userAgent: string): MobilePlatform {
+  if (/Android/i.test(userAgent)) return 'android';
+  if (/iPhone|iPad|iPod/i.test(userAgent)) return 'ios';
+  return 'other';
+}
+
+function swopInstallUrl(platform: MobilePlatform) {
+  if (platform === 'android') {
+    return (
+      process.env.NEXT_PUBLIC_SWOP_ANDROID_STORE_URL ||
+      DEFAULT_SWOP_ANDROID_STORE_URL
+    );
+  }
+
+  return process.env.NEXT_PUBLIC_SWOP_IOS_STORE_URL || DEFAULT_SWOP_IOS_STORE_URL;
 }
 
 function getPublicClient(chainId: string) {
@@ -269,6 +319,7 @@ export default function CheckoutPaymentClient({
   const [creatingWallet, setCreatingWallet] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState(false);
   const [copiedPayUri, setCopiedPayUri] = useState(false);
+  const [mobilePlatform, setMobilePlatform] = useState<MobilePlatform>('other');
   const [copyFallback, setCopyFallback] = useState('');
   const copyFallbackInputRef = useRef<HTMLInputElement | null>(null);
   const [quotedTokenAmount, setQuotedTokenAmount] = useState('');
@@ -360,9 +411,14 @@ export default function CheckoutPaymentClient({
   );
 
   const selectedRail = tokenRail(selectedToken);
-  const appCheckoutUrl = useMemo(
-    () => swopAppCheckoutUrl(intentId),
+  const appCheckoutUrls = useMemo(
+    () => swopAppCheckoutUrls(intentId),
     [intentId]
+  );
+  const appCheckoutUrl = appCheckoutUrls[0] || '';
+  const appInstallUrl = useMemo(
+    () => swopInstallUrl(mobilePlatform),
+    [mobilePlatform]
   );
   const phantomCheckoutUrl = useMemo(
     () =>
@@ -384,6 +440,10 @@ export default function CheckoutPaymentClient({
     return webCheckoutUrl || intent?.paymentRequest?.url || '';
   }, [intent?.paymentRequest?.url, phantomCheckoutUrl, scanMethod, webCheckoutUrl]);
   const marketplaceOrderId = intent?.marketplaceOrder?.orderId || '';
+
+  useEffect(() => {
+    setMobilePlatform(mobilePlatformFromUserAgent(navigator.userAgent));
+  }, []);
 
   const hasSufficientBalance = useMemo(() => {
     if (!selectedToken || !tokenAmount) return false;
@@ -549,8 +609,39 @@ export default function CheckoutPaymentClient({
     }
   };
 
+  const rememberCheckoutForInstall = () => {
+    try {
+      localStorage.setItem(
+        'swop:pendingCheckoutUrl',
+        webCheckoutUrl || appCheckoutUrl
+      );
+    } catch {
+      // Best-effort only. Checkout still works from the current page.
+    }
+  };
+
   const handleOpenSwopApp = () => {
-    window.location.href = appCheckoutUrl;
+    rememberCheckoutForInstall();
+    const [primaryUrl, fallbackUrl] = appCheckoutUrls;
+    if (!primaryUrl) return;
+    window.location.href = primaryUrl;
+    if (fallbackUrl) {
+      window.setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          window.location.href = fallbackUrl;
+        }
+      }, 700);
+    }
+    window.setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        toast('Swop app not detected. Install it or continue here.');
+      }
+    }, fallbackUrl ? 1800 : 1400);
+  };
+
+  const handleInstallSwopApp = () => {
+    rememberCheckoutForInstall();
+    window.location.href = appInstallUrl;
   };
 
   const handleOpenPhantom = () => {
@@ -1012,6 +1103,22 @@ export default function CheckoutPaymentClient({
                     {copiedPayUri ? 'Copied' : 'Copy Solana Pay URI'}
                   </button>
                 </div>
+                <div className="mt-3 flex flex-col gap-3 rounded-md border border-[#dfe4eb] bg-[#fbfcfd] p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs font-medium leading-5 text-[#646b78]">
+                    <span className="font-semibold text-[#303642]">
+                      No Swop app?
+                    </span>{' '}
+                    Install it, then reopen this checkout link.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleInstallSwopApp}
+                    className="inline-flex h-9 flex-shrink-0 items-center justify-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 text-xs font-semibold text-[#303642] transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa]"
+                  >
+                    <Download className="h-4 w-4" />
+                    Get Swop app
+                  </button>
+                </div>
               </div>
             </div>
           </section>
@@ -1089,7 +1196,7 @@ export default function CheckoutPaymentClient({
                   wallet that pays.
                 </p>
               </div>
-              <div className="grid w-full gap-2 sm:grid-cols-3 lg:max-w-[640px]">
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-[760px] lg:grid-cols-4">
                 <button
                   type="button"
                   onClick={handleOpenPhantom}
@@ -1123,6 +1230,24 @@ export default function CheckoutPaymentClient({
                     </span>
                     <span className="mt-1 block text-xs font-medium text-[#737b8c]">
                       Use your Swop wallet
+                    </span>
+                  </span>
+                  <ExternalLink className="ml-auto h-4 w-4 flex-shrink-0 text-[#8b93a3]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleInstallSwopApp}
+                  className="flex min-h-[84px] items-center gap-3 rounded-md border border-[#dde1e6] bg-white p-3 text-left transition hover:border-[#101114]"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-[#f0f2f5] text-[#101114]">
+                    <Download className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-[#101114]">
+                      Get Swop app
+                    </span>
+                    <span className="mt-1 block text-xs font-medium text-[#737b8c]">
+                      Install, then reopen
                     </span>
                   </span>
                   <ExternalLink className="ml-auto h-4 w-4 flex-shrink-0 text-[#8b93a3]" />
