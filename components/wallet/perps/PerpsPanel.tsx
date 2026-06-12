@@ -57,6 +57,7 @@ interface PerpsPanelProps {
   isHydrating: boolean;
   agentError: string | null;
   initializeAgent: () => Promise<hl.ExchangeClient | null>;
+  resetAgent: (message?: string | null) => void;
   onClose: () => void;
   onOpenDeposit: () => void;
   depositStatus: DepositCheckStatus;
@@ -132,6 +133,7 @@ export function PerpsPanel({
   isHydrating,
   agentError,
   initializeAgent,
+  resetAgent,
   onClose,
   onOpenDeposit,
   depositStatus,
@@ -411,6 +413,14 @@ export function PerpsPanel({
   );
 
   // Trading
+  const handleAgentInvalid = useCallback(
+    (message: string) => {
+      resetAgent(message);
+      setShowAgentModal(true);
+    },
+    [resetAgent],
+  );
+
   const {
     placeMarketOrder,
     placeLimitOrder,
@@ -420,7 +430,7 @@ export function PerpsPanel({
     isSubmitting,
     error: tradeError,
     clearError,
-  } = useHyperliquidTrading(agentClient);
+  } = useHyperliquidTrading(agentClient, handleAgentInvalid);
 
   const selectedMarket = useMarketByCoins(markets, selectedCoin);
   const liveMarkPrice = selectedCoin

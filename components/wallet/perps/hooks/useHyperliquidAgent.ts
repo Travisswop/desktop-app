@@ -44,6 +44,35 @@ function deleteAgentKey(masterAddress: string) {
   localStorage.removeItem(agentStorageKey(masterAddress));
 }
 
+const AGENT_NAME = 'Swop';
+const STALE_AGENT_MESSAGE =
+  'Your Hyperliquid trading key expired or was replaced. Enable trading again to create a fresh key.';
+
+async function getAgentApprovalStatus(
+  infoClient: hl.InfoClient,
+  masterAddress: string,
+  agentAddress: `0x${string}`,
+): Promise<boolean | null> {
+  try {
+    const agents = await infoClient.extraAgents({
+      user: masterAddress as `0x${string}`,
+    });
+    const now = Date.now();
+
+    return agents.some((agent) => {
+      const validUntil = Number(agent.validUntil);
+      const isUnexpired = Number.isFinite(validUntil)
+        ? validUntil > now
+        : true;
+
+      return walletAddressEquals(agent.address, agentAddress) && isUnexpired;
+    });
+  } catch (error) {
+    console.warn('Failed to validate Hyperliquid agent key:', error);
+    return null;
+  }
+}
+
 function isPrivyEmbeddedWallet(wallet: {
   walletClientType?: string | null;
   connectorType?: string | null;
@@ -197,6 +226,7 @@ export function useHyperliquidAgent({
         const masterAddress = masterWallet.address;
         masterAddrForCleanup = masterAddress;
         const transport = new hl.HttpTransport({ isTestnet: HL_IS_TESTNET, apiUrl: getHLApiUrl(HL_IS_TESTNET) });
+        const infoClient = new hl.InfoClient({ transport });
 
         // ── Agent keypair ─────────────────────────────────────────────────
         // Reuse the persisted key if one exists for this master address.
@@ -217,7 +247,39 @@ export function useHyperliquidAgent({
           createdNewKey = true;
         }
 
-        const agentAccount = privateKeyToAccount(agentPk);
+        let agentAccount = privateKeyToAccount(agentPk);
+
+        // A saved agent key can be pruned by Hyperliquid when the same named
+        // agent is re-approved, expires, or the registering account loses
+        // funds. Never mark a pruned key as active just because it exists in
+        // localStorage; it will only produce "API Wallet does not exist" on
+        // the next close/order attempt.
+        if (!createdNewKey) {
+          const isApproved = await getAgentApprovalStatus(
+            infoClient,
+            masterAddress,
+            agentAccount.address,
+          );
+
+          if (isApproved === false) {
+            deleteAgentKey(masterAddress);
+
+            if (silent) {
+              setState((prev) => ({
+                ...prev,
+                isInitializing: false,
+                isReconnecting: false,
+                error: STALE_AGENT_MESSAGE,
+              }));
+              return null;
+            }
+
+            agentPk = generatePrivateKey();
+            saveAgentKey(masterAddress, agentPk);
+            createdNewKey = true;
+            agentAccount = privateKeyToAccount(agentPk);
+          }
+        }
 
         // ── Master client (Privy wallet) ───────────────────────────────────
         // Only used for approveAgent. All trading goes through agentClient.
@@ -250,7 +312,7 @@ export function useHyperliquidAgent({
         if (createdNewKey) {
           await masterClient.approveAgent({
             agentAddress: agentAccount.address,
-            agentName: 'Swop',
+            agentName: AGENT_NAME,
           });
         }
 
@@ -400,7 +462,7 @@ export function useHyperliquidAgent({
 
   // ─── Manual reset ─────────────────────────────────────────────────────────
 
-  const resetAgent = useCallback(() => {
+  const resetAgent = useCallback((message?: string | null) => {
     // Clear the persisted agent key so the next setup generates a fresh one
     // and triggers a new approveAgent signature. Without this, resetAgent
     // would only clear runtime state and the next init would silently rehydrate
@@ -432,7 +494,7 @@ export function useHyperliquidAgent({
       isInitialized: false,
       isInitializing: false,
       isReconnecting: false,
-      error: null,
+      error: message ?? null,
     });
   }, [
     wallets,

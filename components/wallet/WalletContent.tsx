@@ -2138,6 +2138,7 @@ const WalletContentInner = () => {
             isHydrating={hlAgent.isHydrating}
             agentError={hlAgent.error}
             initializeAgent={hlAgent.initializeAgent}
+            resetAgent={hlAgent.resetAgent}
             initialCoin={perpsInitialCoin}
             agentOrderPrefill={perpsAgentPrefill}
             onClose={closePerpsPanel}
