@@ -36,6 +36,7 @@ import {
   createPublicClient,
   encodeFunctionData,
   erc20Abi,
+  fallback,
   formatUnits,
   http,
   parseUnits,
@@ -175,6 +176,30 @@ const VIEM_CHAINS: Record<
   '42161': arbitrum,
 };
 
+const RPC_URLS_BY_CHAIN_ID: Record<string, Array<string | undefined>> = {
+  '1': [
+    process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
+    'https://ethereum-rpc.publicnode.com',
+    'https://rpc.flashbots.net',
+    'https://eth.llamarpc.com',
+  ],
+  '137': [
+    process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
+    'https://polygon-bor-rpc.publicnode.com',
+    'https://polygon-rpc.com',
+  ],
+  '8453': [
+    process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
+    'https://base-rpc.publicnode.com',
+    'https://mainnet.base.org',
+  ],
+  [ARBITRUM_CHAIN_ID]: [
+    process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL,
+    'https://arbitrum-one-rpc.publicnode.com',
+    'https://arb1.arbitrum.io/rpc',
+  ],
+};
+
 const STABLE_SYMBOLS = new Set([
   'USDC',
   'USDC.E',
@@ -244,11 +269,18 @@ const formatTokenBalance = (value: string | number) => {
 const getPublicClientForChain = (chainId: string) => {
   const chain = VIEM_CHAINS[chainId];
   if (!chain) return null;
-  const rpcUrl =
-    chainId === ARBITRUM_CHAIN_ID
-      ? process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL
-      : undefined;
-  return createPublicClient({ chain, transport: http(rpcUrl) });
+  const rpcUrls = Array.from(
+    new Set(
+      (RPC_URLS_BY_CHAIN_ID[chainId] ?? [])
+        .map((url) => url?.trim())
+        .filter((url): url is string => Boolean(url)),
+    ),
+  );
+  const transport =
+    rpcUrls.length > 1
+      ? fallback(rpcUrls.map((url) => http(url)))
+      : http(rpcUrls[0]);
+  return createPublicClient({ chain, transport });
 };
 
 const formatTokenAmount = (
@@ -301,6 +333,13 @@ const getErrorMessage = (error: unknown) => {
   }
   if (lower.includes('no route') || lower.includes('route not found')) {
     return 'No conversion route is available for that token and amount right now.';
+  }
+  if (
+    (lower.includes('request failed') && lower.includes('url:')) ||
+    lower.includes('http request failed') ||
+    lower.includes('eth_call')
+  ) {
+    return 'Token approval check failed while preparing the deposit. Please try again in a moment.';
   }
   return raw;
 };
@@ -1722,7 +1761,9 @@ function ErrorView({
       </div>
       <div>
         <h3 className="text-lg font-bold text-gray-800">Deposit failed</h3>
-        <p className="text-sm text-red-600 mt-1">{error}</p>
+        <p className="text-sm text-red-600 mt-1 max-w-full break-words">
+          {error}
+        </p>
       </div>
       <div className="flex gap-3 w-full">
         <button
