@@ -99,6 +99,7 @@ import {
   MarketplaceItemCards,
   SportsResearchBriefCard,
   SportsResearchSourceCards,
+  WalletPortfolioCard,
   WalletReceiveQrCard,
 } from '@/components/chat/cards/AgentInfoCards';
 import { ChatChartCommandCard } from '@/components/chat/cards/ChatChartCommandCard';
@@ -119,6 +120,7 @@ import type {
   ResearchSourcePreview,
   SportsResearchBrief,
   User,
+  WalletPortfolioSnapshot,
   WalletReceiveQrDetails,
 } from '@/lib/chat/agentCardTypes';
 import { getReceiptId } from '@/lib/chat/receiptShare';
@@ -301,6 +303,7 @@ interface Message {
     proposalId?: string;
     toolType?: string;
     metadata?: {
+      responseType?: string | null;
       riskSummary?: AgentActionProposal['riskSummary'];
       normalizedParams?: AgentActionProposal['normalizedParams'];
         toolExecution?: {
@@ -310,6 +313,7 @@ interface Message {
           positions?: PolymarketPosition[];
           perpsPositions?: HyperliquidPositionsPreview | null;
           pnlOverview?: PnlOverviewPreview | null;
+          portfolioSnapshot?: WalletPortfolioSnapshot | null;
           items?: MarketplaceItemPreview[];
           walletReceive?: WalletReceiveQrDetails | null;
           sources?: ResearchSourcePreview[];
@@ -822,6 +826,12 @@ const CHAT_COMMAND_SUGGESTIONS = [
     label: 'PnL check',
     hint: 'Review portfolio and trading performance',
     seed: '/pnl ',
+  },
+  {
+    command: '/portfolio',
+    label: 'Portfolio graph',
+    hint: 'Show wallet token allocation',
+    seed: '/portfolio ',
   },
 ] as const;
 
@@ -4499,15 +4509,25 @@ export default function ChatArea({
             sourceMessageId: optimisticMessage._id,
           })
         : null;
+    const localPortfolioResponseMessage =
+      shouldLoadAstroConsoleData &&
+      canUseAstroLocalActions &&
+      isPortfolioCommand(outgoingMessage)
+        ? buildLocalPortfolioResponseMessage({
+            consoleData: astroConsoleData,
+            groupId: isGroup ? selectedChat._id : null,
+            sourceMessageId: optimisticMessage._id,
+          })
+        : null;
 
-    if (localPnlResponseMessage) {
+    if (localPnlResponseMessage || localPortfolioResponseMessage) {
       forceScrollToBottomRef.current = true;
       isPinnedToBottomRef.current = true;
       setMessages((prev) =>
         dedupeMessages([
           ...prev,
           { ...optimisticMessage, status: 'sent' as const },
-          localPnlResponseMessage,
+          (localPnlResponseMessage || localPortfolioResponseMessage)!,
         ])
       );
       if (typeof messageOverride !== 'string') {
@@ -6527,7 +6547,7 @@ export default function ChatArea({
                     handleSendMessage();
                   }
                 }}
-                placeholder="ask anything - try /search, /chart, /send, /swap, /pnl"
+                placeholder="ask anything - try /search, /chart, /send, /swap, /portfolio"
                 className="dm-mono max-h-28 min-h-[30px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent pt-[3px] text-[15px] font-semibold leading-[1.65] text-[#eceef2] outline-none placeholder:text-[#4d515b] max-md:text-[#0a0a0c] max-md:placeholder:text-[#77746f]"
               />
 
@@ -6727,6 +6747,20 @@ function isPnlCommand(text: string) {
   return (
     /^\/pnl(?:\s|$)/i.test(commandText) ||
     /^(?:show|check|review|get|open|pull up|what'?s|what is|how is)?\s*(?:me\s+)?(?:my\s+)?(?:pnl|p&l|profit\s+and\s+loss|performance)(?:\s|$)/i.test(
+      commandText
+    )
+  );
+}
+
+function normalizeAstroSlashCommand(text: string) {
+  return stripLeadingAstroMention(text).replace(/^\/\s+/, '/').trim();
+}
+
+function isPortfolioCommand(text: string) {
+  const commandText = normalizeAstroSlashCommand(text).toLowerCase();
+  return (
+    /^\/portfolio(?:\s|$)/i.test(commandText) ||
+    /^(?:show|check|review|get|open|pull up|what'?s|what is)?\s*(?:me\s+)?(?:my\s+)?(?:wallet\s+)?(?:portfolio|token allocation|wallet allocation|holdings)(?:\s|$)/i.test(
       commandText
     )
   );
@@ -6972,6 +7006,54 @@ function buildLocalPnlResponseMessage({
           pnlOverview,
           checkedAt: pnlOverview.checkedAt,
           query: '/pnl',
+        },
+      },
+    },
+  };
+}
+
+function buildLocalPortfolioResponseMessage({
+  consoleData,
+  groupId,
+  sourceMessageId,
+}: {
+  consoleData: AstroConsoleData;
+  groupId?: string | null;
+  sourceMessageId: string;
+}): Message {
+  const checkedAt = new Date().toISOString();
+
+  return {
+    _id: `local-portfolio-${sourceMessageId}`,
+    message: `Portfolio allocation ready: ${formatCompactUsd(
+      consoleData.walletPortfolioBalance
+    )} across ${consoleData.walletPortfolioTokens.length} tokens.`,
+    groupId: groupId || null,
+    messageType: 'agent_response',
+    createdAt: checkedAt,
+    senderKind: 'agent',
+    agentSender: {
+      agentId: 'astro',
+      provider: 'local',
+      displayName: 'Astro',
+      avatarUrl: null,
+    },
+    agentData: {
+      invocationId: `local-portfolio-${sourceMessageId}`,
+      action: 'wallet.portfolio',
+      toolType: 'wallet.read',
+      metadata: {
+        responseType: 'portfolio_snapshot',
+        toolExecution: {
+          provider: 'swop',
+          action: 'wallet.portfolio',
+          portfolioSnapshot: {
+            checkedAt,
+            query: '/portfolio',
+            source: 'client_session',
+          },
+          checkedAt,
+          query: '/portfolio',
         },
       },
     },
@@ -8850,6 +8932,7 @@ function DmContextPanel({
       { label: '/send', command: '/send ' },
       { label: '/swap', command: '/swap ' },
       { label: '/pnl', command: '/pnl ' },
+      { label: '/portfolio', command: '/portfolio ' },
     ];
 
     return (
@@ -9463,6 +9546,8 @@ function Message({
     message.agentData?.metadata?.toolExecution?.items || [];
   const pnlOverview =
     message.agentData?.metadata?.toolExecution?.pnlOverview || null;
+  const portfolioSnapshot =
+    message.agentData?.metadata?.toolExecution?.portfolioSnapshot || null;
   const walletReceive =
     message.agentData?.metadata?.toolExecution?.walletReceive || null;
   const perpsPositions =
@@ -9564,6 +9649,12 @@ function Message({
     isAgent && polymarketPositions.length > 0;
   const hasAgentMarketplaceItems = isAgent && marketplaceItems.length > 0;
   const hasAgentPnlOverview = isAgent && Boolean(pnlOverview);
+  const hasAgentWalletPortfolio =
+    isAgent &&
+    (Boolean(portfolioSnapshot) ||
+      message.agentData?.action === 'wallet.portfolio' ||
+      message.agentData?.metadata?.toolExecution?.action === 'wallet.portfolio' ||
+      message.agentData?.metadata?.responseType === 'portfolio_snapshot');
   const hasAgentFundingOnramp = isAgent && Boolean(fundingOnramp);
   const hasAgentWalletReceive = isAgent && Boolean(walletReceive?.address);
   const hasAgentPerpsPositions = isAgent && Boolean(perpsPositions);
@@ -9589,6 +9680,7 @@ function Message({
     (hasAgentMarkets ||
       hasAgentPolymarketPositions ||
       hasAgentPnlOverview ||
+      hasAgentWalletPortfolio ||
       hasAgentFundingOnramp ||
       hasAgentMarketplaceItems ||
       hasAgentWalletReceive ||
@@ -9814,6 +9906,12 @@ function Message({
           )}
           {isAgent && pnlOverview && (
             <PnlOverviewCard overview={pnlOverview} />
+          )}
+          {hasAgentWalletPortfolio && (
+            <WalletPortfolioCard
+              consoleData={astroConsoleData}
+              snapshot={portfolioSnapshot}
+            />
           )}
           {isAgent && (
             <PolymarketMarketCards
