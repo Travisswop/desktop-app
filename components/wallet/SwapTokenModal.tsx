@@ -4669,6 +4669,9 @@ export default function SwapTokenModal({
                 info &&
                 typeof info.priceImpact === 'number' &&
                 info.priceImpact < -3;
+              const isSelfCopyTrade = Boolean(
+                copyTradeRewardPreview?.isSelf,
+              );
               const copyTradeFeeBps = Number(
                 copyTradeRewardPreview?.feeBps ?? PLATFORM_FEE_BPS,
               );
@@ -4698,17 +4701,23 @@ export default function SwapTokenModal({
                         'Trader reward',
                         copyTradeRewardLoading
                           ? 'Checking reward'
+                          : isSelfCopyTrade
+                            ? 'No reward for self-copy'
                           : `${(copyTradeRewardBps / 100).toFixed(2)}% value in SWOP`,
                         false,
                       ],
                       [
                         'Swop retained',
-                        `${(copyTradeRetainedBps / 100).toFixed(2)}% bought into SWOP`,
+                        isSelfCopyTrade
+                          ? `${(copyTradeFeeBps / 100).toFixed(2)}% retained by Swop`
+                          : `${(copyTradeRetainedBps / 100).toFixed(2)}% bought into SWOP`,
                         false,
                       ],
                       [
                         'Reward wallet',
-                        'Claimable after SWOP buyback',
+                        isSelfCopyTrade
+                          ? 'Not created for self-copy'
+                          : 'Claimable after SWOP buyback',
                         false,
                       ],
                     ] as Array<[string, string, boolean]>)
