@@ -13,6 +13,7 @@ import { FiPlusCircle } from "react-icons/fi";
 import { formatEns } from "@/lib/formatEnsName";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import TokenTransferFeedCard from "./TokenTransferFeedCard";
+import PerpsFeedCard from "./PerpsFeedCard";
 
 const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);

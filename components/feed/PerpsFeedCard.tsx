@@ -101,9 +101,15 @@ export default function PerpsFeedCard({
   const entryPrice = Number(content.entryPrice);
   const liveMarkPrice = useLivePerpsMarkPrice(content.coin ?? null);
   const snapshotPrice = Number(content.markPrice ?? content.entryPrice);
-  const currentPrice =
-    Number.isFinite(liveMarkPrice) && liveMarkPrice > 0
+  const validLiveMarkPrice =
+    typeof liveMarkPrice === 'number' &&
+    Number.isFinite(liveMarkPrice) &&
+    liveMarkPrice > 0
       ? liveMarkPrice
+      : null;
+  const currentPrice =
+    validLiveMarkPrice !== null
+      ? validLiveMarkPrice
       : Number.isFinite(snapshotPrice) && snapshotPrice > 0
         ? snapshotPrice
         : entryPrice;
