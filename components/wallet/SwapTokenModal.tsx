@@ -92,7 +92,6 @@ const _lifiTokenCache = new Map<
 >();
 const LIFI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MARKET_QUOTE_CACHE_TTL_MS = 60 * 1000; // 1 minute
-const MAX_SUBMIT_QUOTE_AGE_MS = 5 * 60 * 1000;
 
 type TokenMarketQuote = {
   price?: number | null;
@@ -687,15 +686,6 @@ const isNativeEvmToken = (token?: any) => {
 // Error formatting
 // ─────────────────────────────────────────────────────────────────────────────
 
-const getSwapErrorMessage = (error: unknown, fallback = 'Swap failed') => {
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message || fallback;
-  if (error && typeof error === 'object' && 'message' in error) {
-    return String((error as { message?: unknown }).message || fallback);
-  }
-  return fallback;
-};
-
 const isRouteUnavailableErrorMessage = (message: string) => {
   const lowerError = message.toLowerCase();
   return (
@@ -707,24 +697,6 @@ const isRouteUnavailableErrorMessage = (message: string) => {
     lowerError.includes('unable to find swap route') ||
     lowerError.includes('swap route is not supported') ||
     lowerError.includes('route is not supported')
-  );
-};
-
-const isTransientQuoteRefreshError = (error: unknown) => {
-  const lowerError = getSwapErrorMessage(error, '').toLowerCase();
-  if (!lowerError || isRouteUnavailableErrorMessage(lowerError)) return false;
-
-  return (
-    lowerError.includes('network error') ||
-    lowerError.includes('fetch failed') ||
-    lowerError.includes('failed to fetch') ||
-    lowerError.includes('fetch error') ||
-    lowerError.includes('network request failed') ||
-    lowerError.includes('timeout') ||
-    lowerError.includes('taking too long') ||
-    lowerError.includes('temporarily unavailable') ||
-    lowerError.includes('rate limit') ||
-    lowerError.includes('too many requests')
   );
 };
 
@@ -3978,14 +3950,18 @@ export default function SwapTokenModal({
         await executeJupiterSwap();
       } else {
         const existingQuote = quote;
-        const existingQuoteAgeMs = lastQuoteTime
-          ? Date.now() - lastQuoteTime
-          : Number.POSITIVE_INFINITY;
-        const canUseExistingQuote =
-          hasExecutableLiFiQuote(existingQuote) &&
-          existingQuoteAgeMs <= MAX_SUBMIT_QUOTE_AGE_MS;
+        if (hasExecutableLiFiQuote(existingQuote)) {
+          if (quoteRefreshInterval.current) {
+            clearInterval(quoteRefreshInterval.current);
+          }
+          setSwapStatus('Using latest quote...');
+          setIsQuoteLoading(false);
+          setIsCalculating(false);
+          await executeLiFiSwap(existingQuote);
+          return;
+        }
 
-        setSwapStatus('Refreshing quote...');
+        setSwapStatus('Getting quote...');
         if (quoteRefreshInterval.current) {
           clearInterval(quoteRefreshInterval.current);
         }
@@ -3993,26 +3969,7 @@ export default function SwapTokenModal({
         quoteRequestIdRef.current = submitQuoteRequestId;
         setIsQuoteLoading(true);
 
-        let freshQuote;
-        try {
-          freshQuote = await getLifiQuote();
-        } catch (quoteRefreshError) {
-          if (
-            canUseExistingQuote &&
-            isTransientQuoteRefreshError(quoteRefreshError)
-          ) {
-            console.warn(
-              'LiFi quote refresh failed; using the latest available quote.',
-              quoteRefreshError,
-            );
-            setSwapStatus('Using latest quote...');
-            setIsQuoteLoading(false);
-            setIsCalculating(false);
-            await executeLiFiSwap(existingQuote);
-            return;
-          }
-          throw quoteRefreshError;
-        }
+        const freshQuote = await getLifiQuote();
 
         if (quoteRequestIdRef.current !== submitQuoteRequestId) {
           throw new Error(
