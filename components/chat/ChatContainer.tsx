@@ -1167,6 +1167,7 @@ export default function ChatContainer({
               initialComposerSeed={astroComposerSeed}
               onComposerSeedConsumed={clearAstroComposerSeed}
               onChatUpdate={refreshSelectedChat}
+              onOpenAgentThread={openAgentThreadById}
               onBackToList={returnToThreadList}
               onLeaveGroup={returnToThreadList}
             />

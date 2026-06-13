@@ -842,6 +842,7 @@ interface ChatAreaProps {
   onChatUpdate?: () => void; // ADD THIS
   onBackToList?: () => void;
   onLeaveGroup?: () => void;
+  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
 }
 
 interface SocketResponse {
@@ -919,6 +920,27 @@ function isGoldmanSacksChat(
       name === 'goldman sacks' ||
       name === 'goldman')
   );
+}
+
+type DedicatedAgentThreadId = 'astro' | 'goldman-sacks';
+
+function getAgentDedicatedThreadId(
+  agentId?: string | null
+): DedicatedAgentThreadId | null {
+  if (agentId === 'astro' || agentId === 'goldman-sacks') {
+    return agentId;
+  }
+
+  return null;
+}
+
+function getDedicatedAgentThreadId(
+  chat: SelectedChat | null,
+  isGroup: boolean
+): DedicatedAgentThreadId | null {
+  if (isAstroTradingDeskChat(chat, isGroup)) return 'astro';
+  if (isGoldmanSacksChat(chat, isGroup)) return 'goldman-sacks';
+  return null;
 }
 
 function toAstroDeskDisplayMessage(
@@ -2977,6 +2999,7 @@ export default function ChatArea({
   onChatUpdate,
   onBackToList,
   onLeaveGroup,
+  onOpenAgentThread,
 }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState<string>('');
@@ -3141,6 +3164,7 @@ export default function ChatArea({
       readGoldmanStrategyVault({
         groupId: goldmanGroupId,
         accessToken: accessToken!,
+        method: 'POST',
       }),
     enabled: isGoldmanConsoleChat && Boolean(goldmanGroupId && accessToken),
     retry: false,
@@ -3154,6 +3178,13 @@ export default function ChatArea({
     goldmanStrategyVaultQueryError instanceof Error
       ? goldmanStrategyVaultQueryError.message
       : null;
+  const goldmanVaultWalletAddress = isGoldmanConsoleChat
+    ? goldmanStrategyVault?.walletAddress || undefined
+    : undefined;
+  const consolePredictionOwnerAddress =
+    isGoldmanConsoleChat && goldmanVaultWalletAddress
+      ? goldmanVaultWalletAddress
+      : predictionOwnerAddress;
   const activeGoldmanStrategy = useMemo(
     () => getRunnableGoldmanStrategy(goldmanStrategyVault),
     [goldmanStrategyVault]
@@ -3317,17 +3348,27 @@ export default function ChatArea({
 
   const { data: predictionWalletInfo, isLoading: isPredictionWalletInfoLoading } =
     useQuery({
-      queryKey: ['polymarketWalletInfo', predictionOwnerAddress],
-      queryFn: () => getWalletInfo(predictionOwnerAddress!, accessToken!),
+      queryKey: ['polymarketWalletInfo', consolePredictionOwnerAddress],
+      queryFn: () => getWalletInfo(consolePredictionOwnerAddress!, accessToken!),
       enabled:
         shouldLoadAstroConsoleData &&
-        Boolean(predictionOwnerAddress && accessToken),
+        Boolean(consolePredictionOwnerAddress && accessToken),
       staleTime: 30_000,
       refetchOnWindowFocus: true,
     });
 
   const predictionActiveWalletAddress = useMemo(() => {
     if (!shouldLoadAstroConsoleData) return undefined;
+    if (isGoldmanConsoleChat) {
+      if (predictionWalletInfo?.recommendedWalletType === 'safe') {
+        return predictionWalletInfo.safeAddress;
+      }
+      if (predictionWalletInfo?.depositWalletAddress) {
+        return predictionWalletInfo.depositWalletAddress;
+      }
+      if (predictionWalletInfo?.safeAddress) return predictionWalletInfo.safeAddress;
+      return consolePredictionOwnerAddress;
+    }
     if (trading.tradingWalletAddress) return trading.tradingWalletAddress;
     if (predictionWalletInfo?.recommendedWalletType === 'safe') {
       return predictionWalletInfo.safeAddress;
@@ -3341,6 +3382,8 @@ export default function ChatArea({
     predictionWalletInfo?.depositWalletAddress,
     predictionWalletInfo?.recommendedWalletType,
     predictionWalletInfo?.safeAddress,
+    consolePredictionOwnerAddress,
+    isGoldmanConsoleChat,
     predictionOwnerAddress,
     shouldLoadAstroConsoleData,
     trading.tradingWalletAddress,
@@ -3349,19 +3392,30 @@ export default function ChatArea({
   const predictionWalletAddresses = useMemo(() => {
     if (!shouldLoadAstroConsoleData) return [];
 
-    const addresses = [
-      ...trading.portfolioAddresses,
-      trading.tradingWalletAddress,
-      trading.depositWalletAddress,
-      predictionWalletInfo?.depositWalletAddress,
-      predictionWalletInfo?.safeAddress,
-      predictionActiveWalletAddress,
-      predictionOwnerAddress,
-    ].filter((address): address is string => Boolean(address));
+    const addresses = (
+      isGoldmanConsoleChat
+        ? [
+            predictionWalletInfo?.depositWalletAddress,
+            predictionWalletInfo?.safeAddress,
+            predictionActiveWalletAddress,
+            consolePredictionOwnerAddress,
+          ]
+        : [
+            ...trading.portfolioAddresses,
+            trading.tradingWalletAddress,
+            trading.depositWalletAddress,
+            predictionWalletInfo?.depositWalletAddress,
+            predictionWalletInfo?.safeAddress,
+            predictionActiveWalletAddress,
+            predictionOwnerAddress,
+          ]
+    ).filter((address): address is string => Boolean(address));
     return Array.from(
       new Map(addresses.map((address) => [address.toLowerCase(), address])).values()
     );
   }, [
+    consolePredictionOwnerAddress,
+    isGoldmanConsoleChat,
     predictionActiveWalletAddress,
     predictionWalletInfo?.depositWalletAddress,
     predictionWalletInfo?.safeAddress,
@@ -3392,7 +3446,7 @@ export default function ChatArea({
   const { data: predictionOpenOrders = [] } = useActiveOrders(
     trading.tradingSession,
     trading.tradingWalletAddress,
-    { enabled: shouldLoadAstroConsoleData }
+    { enabled: shouldLoadAstroConsoleData && !isGoldmanConsoleChat }
   );
   const perpsBuilderDexes = useMemo(() => {
     const set = new Set<string>();
@@ -3403,7 +3457,9 @@ export default function ChatArea({
     return Array.from(set);
   }, [perpsMarkets]);
   const perpsMasterAddress = shouldLoadAstroConsoleData
-    ? primaryEvmWalletAddress || perpsAgent.masterAddress || eoaAddress || null
+    ? isGoldmanConsoleChat
+      ? goldmanVaultWalletAddress || null
+      : primaryEvmWalletAddress || perpsAgent.masterAddress || eoaAddress || null
     : null;
   // Aggregate across the main DEX + every builder (HIP-3) DEX so Astro sees ALL
   // positions and the combined balance — one perps wallet.
@@ -4360,23 +4416,45 @@ export default function ChatArea({
     }
     recentOutgoingMessageRef.current = { key: outgoingKey, at: now };
 
+    const activePredictionWalletAddress =
+      predictionActiveWalletAddress || predictionWalletAddresses[0];
+    const socketEvmWalletAddress =
+      isGoldmanConsoleChat && goldmanVaultWalletAddress
+        ? goldmanVaultWalletAddress
+        : evmWalletAddress;
+    const socketEvmWalletAddresses =
+      isGoldmanConsoleChat && goldmanVaultWalletAddress
+        ? [goldmanVaultWalletAddress]
+        : evmWalletAddresses;
+    const socketTradingWalletAddress = isGoldmanConsoleChat
+      ? activePredictionWalletAddress
+      : trading.tradingWalletAddress;
+    const socketDepositWalletAddress = isGoldmanConsoleChat
+      ? predictionWalletInfo?.depositWalletAddress
+      : trading.depositWalletAddress ||
+        predictionWalletInfo?.depositWalletAddress;
+
     const messageData = isGroup
       ? {
           groupId: selectedChat._id,
           message: messageForTransport,
           messageType: 'text' as const,
           clientWalletContext: {
-            evmWalletAddress,
-            evmWalletAddresses,
+            evmWalletAddress: socketEvmWalletAddress,
+            evmWalletAddresses: socketEvmWalletAddresses,
             solWalletAddress,
-            predictionWalletAddress:
-              predictionActiveWalletAddress || predictionWalletAddresses[0],
+            predictionWalletAddress: activePredictionWalletAddress,
             predictionWalletAddresses,
-            tradingWalletAddress: trading.tradingWalletAddress,
-            depositWalletAddress:
-              trading.depositWalletAddress ||
-              predictionWalletInfo?.depositWalletAddress,
+            tradingWalletAddress: socketTradingWalletAddress,
+            depositWalletAddress: socketDepositWalletAddress,
             safeAddress: predictionWalletInfo?.safeAddress,
+            agentId: isGoldmanConsoleChat ? 'goldman-sacks' : undefined,
+            agentWalletAddress: isGoldmanConsoleChat
+              ? goldmanVaultWalletAddress || null
+              : undefined,
+            strategyVaultWalletAddress: isGoldmanConsoleChat
+              ? goldmanVaultWalletAddress || null
+              : undefined,
           },
         }
       : {
@@ -4488,6 +4566,8 @@ export default function ChatArea({
     evmWalletAddress,
     evmWalletAddresses,
     getPolymarketIntentMarkets,
+    goldmanVaultWalletAddress,
+    isGoldmanConsoleChat,
     isGroup,
     messages,
     newMessage,
@@ -4820,6 +4900,17 @@ export default function ChatArea({
   };
 
   const handleMentionAgent = (agent: GroupAgent) => {
+    const agentThreadId = getAgentDedicatedThreadId(agent.agentId);
+    const activeThreadId = getDedicatedAgentThreadId(
+      chatType === 'group' ? currentGroupData : selectedChat,
+      chatType === 'group'
+    );
+
+    if (agentThreadId && agentThreadId !== activeThreadId && onOpenAgentThread) {
+      void onOpenAgentThread(agentThreadId);
+      return;
+    }
+
     const alias = agent.mentionAliases?.[0] || `@${agent.agentId}`;
     setNewMessage((prev) => {
       const trimmed = prev.trim();
@@ -5379,6 +5470,7 @@ export default function ChatArea({
   const isSecureAstroDesk =
     isAstroTradingDeskChat(displayChat, isGroup);
   const isGoldmanSacksDesk = isGoldmanSacksChat(displayChat, isGroup);
+  const currentAgentThreadId = getDedicatedAgentThreadId(displayChat, isGroup);
   const contextPanelMode = isSecureAstroDesk
     ? 'astro'
     : isGoldmanSacksDesk
@@ -5589,8 +5681,10 @@ export default function ChatArea({
             isLoadingAgents={isLoadingAgents}
             mutationAgentId={agentMutationId}
             onAddAgent={handleAddAgent}
+            onOpenAgentThread={onOpenAgentThread}
             onMentionAgent={handleMentionAgent}
             onRemoveAgent={handleRemoveAgent}
+            currentAgentThreadId={currentAgentThreadId}
           />
         )}
 
@@ -10056,19 +10150,23 @@ function GroupAgentControls({
   activeAgents,
   agentError,
   availableAgents,
+  currentAgentThreadId,
   isLoadingAgents,
   mutationAgentId,
   onAddAgent,
   onMentionAgent,
+  onOpenAgentThread,
   onRemoveAgent,
 }: {
   activeAgents: GroupAgent[];
   agentError: string | null;
   availableAgents: GroupAgentDescriptor[];
+  currentAgentThreadId?: string | null;
   isLoadingAgents: boolean;
   mutationAgentId: string | null;
   onAddAgent: (agent: GroupAgentDescriptor) => void;
   onMentionAgent: (agent: GroupAgent) => void;
+  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
   onRemoveAgent: (agentId: string) => void;
 }) {
   const activeIds = new Set(activeAgents.map((agent) => agent.agentId));
@@ -10083,53 +10181,82 @@ function GroupAgentControls({
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.07] bg-[#08090b] px-[22px] py-2">
-      {activeAgents.map((agent) => (
-        <div
-          key={agent.agentId}
-          className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[#3fe08f]/35 bg-[#3fe08f]/10 pl-2.5 pr-1 text-[12px] font-semibold text-[#3fe08f]"
-        >
-          <Bot className="h-3 w-3" />
-          <button
-            type="button"
-            title={`Mention ${agent.displayName}`}
-            onClick={() => onMentionAgent(agent)}
-            className="max-w-28 truncate"
+      {activeAgents.map((agent) => {
+        const dedicatedThreadId = getAgentDedicatedThreadId(agent.agentId);
+        const opensDedicatedThread = Boolean(
+          dedicatedThreadId &&
+            dedicatedThreadId !== currentAgentThreadId &&
+            onOpenAgentThread
+        );
+
+        return (
+          <div
+            key={agent.agentId}
+            className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[#3fe08f]/35 bg-[#3fe08f]/10 pl-2.5 pr-1 text-[12px] font-semibold text-[#3fe08f]"
           >
-            {agent.displayName}
-          </button>
+            <Bot className="h-3 w-3" />
+            <button
+              type="button"
+              title={`${opensDedicatedThread ? 'Open' : 'Mention'} ${
+                agent.displayName
+              }`}
+              onClick={() => onMentionAgent(agent)}
+              className="max-w-28 truncate"
+            >
+              {agent.displayName}
+            </button>
+            <button
+              type="button"
+              title={`Remove ${agent.displayName}`}
+              onClick={() => onRemoveAgent(agent.agentId)}
+              disabled={mutationAgentId === agent.agentId}
+              className="dm-btn grid h-5 w-5 place-items-center rounded-full text-[#3fe08f] hover:bg-[#3fe08f]/10 disabled:opacity-50"
+            >
+              {mutationAgentId === agent.agentId ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <X className="h-3 w-3" />
+              )}
+            </button>
+          </div>
+        );
+      })}
+
+      {addableAgents.map((agent) => {
+        const dedicatedThreadId = getAgentDedicatedThreadId(agent.agentId);
+        const opensDedicatedThread = Boolean(
+          currentAgentThreadId && dedicatedThreadId && onOpenAgentThread
+        );
+
+        return (
           <button
+            key={agent.agentId}
             type="button"
-            title={`Remove ${agent.displayName}`}
-            onClick={() => onRemoveAgent(agent.agentId)}
+            title={`${opensDedicatedThread ? 'Open' : 'Add'} ${
+              agent.displayName
+            }`}
+            onClick={() => {
+              if (opensDedicatedThread && dedicatedThreadId) {
+                void onOpenAgentThread?.(dedicatedThreadId);
+                return;
+              }
+
+              onAddAgent(agent);
+            }}
             disabled={mutationAgentId === agent.agentId}
-            className="dm-btn grid h-5 w-5 place-items-center rounded-full text-[#3fe08f] hover:bg-[#3fe08f]/10 disabled:opacity-50"
+            className="dm-btn inline-flex h-7 items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#15171d] px-2.5 text-[12px] font-semibold text-[#eceef2] hover:bg-white/[0.05] disabled:opacity-50"
           >
             {mutationAgentId === agent.agentId ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : opensDedicatedThread ? (
+              <Bot className="h-3.5 w-3.5" />
             ) : (
-              <X className="h-3 w-3" />
+              <Plus className="h-3.5 w-3.5" />
             )}
+            <span className="max-w-28 truncate">{agent.displayName}</span>
           </button>
-        </div>
-      ))}
-
-      {addableAgents.map((agent) => (
-        <button
-          key={agent.agentId}
-          type="button"
-          title={`Add ${agent.displayName}`}
-          onClick={() => onAddAgent(agent)}
-          disabled={mutationAgentId === agent.agentId}
-          className="dm-btn inline-flex h-7 items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#15171d] px-2.5 text-[12px] font-semibold text-[#eceef2] hover:bg-white/[0.05] disabled:opacity-50"
-        >
-          {mutationAgentId === agent.agentId ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Plus className="h-3.5 w-3.5" />
-          )}
-          <span className="max-w-28 truncate">{agent.displayName}</span>
-        </button>
-      ))}
+        );
+      })}
 
       {isLoadingAgents && (
         <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/[0.07] px-2.5 text-xs text-[#9396a0]">
