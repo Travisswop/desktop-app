@@ -13,10 +13,10 @@ import Reaction from "./view/Reaction";
 import FeedLoading from "../loading/FeedLoading";
 import DeleteFeedModal from "./DeleteFeedModal";
 import SwapTransactionCard from "./SwapTransactionCard";
+import TokenTransferFeedCard from "./TokenTransferFeedCard";
 import isUrl from "@/lib/isUrl";
 import { useUser } from "@/lib/UserContext";
 import { useRouter } from "next/navigation";
-import { formatEns } from "@/lib/formatEnsName";
 
 dayjs.extend(relativeTime);
 
@@ -132,9 +132,6 @@ const Transaction = ({
       receiver_ens,
       receiver_wallet_address,
       amount,
-      token,
-      chain,
-      tokenPrice,
       image,
     } = feed.content;
 
@@ -175,24 +172,7 @@ const Transaction = ({
         </div>
       );
     } else if (transaction_type === "token") {
-      return (
-        <p className="text-black text-sm">
-          Transferred{" "}
-          <span className="font-medium">
-            {amount.toFixed(2)} {token}
-          </span>{" "}
-          {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
-          to{" "}
-          <a
-            href={`https://${recipientDisplay}`}
-            target="_blank"
-            className="font-semibold"
-          >
-            {formatEns(recipientDisplay)}
-          </a>{" "}
-          on the {chain}.
-        </p>
-      );
+      return <TokenTransferFeedCard feed={feed} />;
     } else {
       return (
         <p className="text-gray-600 text-sm">
@@ -305,6 +285,7 @@ const Transaction = ({
                 repostCount={feed.repostCount}
                 viewsCount={feed.viewsCount}
                 setIsPosting={() => {}}
+                feed={feed}
                 // accessToken={accessToken}
               />
             </div>

@@ -5,12 +5,16 @@ import { useEffect } from 'react';
 import {
   isValidDecimalInput,
   isValidCentsInput,
+  getSafePolymarketMaxBuyAmount,
+  getSafePolymarketMaxLimitShares,
 } from '@/lib/polymarket/validation';
 
 interface AmountInputProps {
   amount: string;
   onAmountChange: (value: string) => void;
   balance: number;
+  displayBalance?: number;
+  balanceHint?: string;
   onQuickAmount: (amount: number) => void;
   onMaxAmount: () => void;
   isSubmitting: boolean;
@@ -28,6 +32,8 @@ export default function AmountInput({
   amount,
   onAmountChange,
   balance,
+  displayBalance = balance,
+  balanceHint,
   onQuickAmount,
   onMaxAmount,
   isSubmitting,
@@ -40,9 +46,10 @@ export default function AmountInput({
   limitPriceDecimal = 0,
 }: AmountInputProps) {
   const isLimitMode = orderType === 'limit';
+  const safeMaxBuyAmount = getSafePolymarketMaxBuyAmount(balance);
   const maxShares =
     isLimitMode && limitPriceDecimal > 0
-      ? Math.floor(balance / limitPriceDecimal)
+      ? getSafePolymarketMaxLimitShares(balance, limitPriceDecimal)
       : 0;
 
   // When the limit price changes, maxShares changes. If the current share
@@ -123,7 +130,8 @@ export default function AmountInput({
             <div>
               <span className="text-sm text-gray-600">Shares</span>
               <p className="text-xs text-gray-500">
-                Balance ${balance.toFixed(2)} · Max ~{maxShares}{' '}
+                Balance ${displayBalance.toFixed(2)}
+                {balanceHint ? ` · ${balanceHint}` : ''} · Max ~{maxShares}{' '}
                 shares
               </p>
             </div>
@@ -183,7 +191,8 @@ export default function AmountInput({
             <div>
               <span className="text-sm text-gray-600">Amount</span>
               <p className="text-xs text-gray-500">
-                Balance ${balance.toFixed(2)} · Min $
+                Balance ${displayBalance.toFixed(2)}
+                {balanceHint ? ` · ${balanceHint}` : ''} · Min $
                 {minOrderAmount.toFixed(2)}
               </p>
             </div>
@@ -208,11 +217,11 @@ export default function AmountInput({
             <input
               type="range"
               min={0}
-              max={balance > 0 ? balance : 100}
+              max={safeMaxBuyAmount > 0 ? safeMaxBuyAmount : 100}
               step={0.01}
               value={Math.min(
                 parseFloat(amount) || 0,
-                balance > 0 ? balance : 100,
+                safeMaxBuyAmount > 0 ? safeMaxBuyAmount : 100,
               )}
               onChange={(e) => {
                 const val = parseFloat(e.target.value);
@@ -237,7 +246,7 @@ export default function AmountInput({
             ))}
             <button
               onClick={onMaxAmount}
-              disabled={isSubmitting || balance <= 0}
+              disabled={isSubmitting || safeMaxBuyAmount <= 0}
               className="flex-1 py-2 px-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium transition-colors disabled:opacity-50"
             >
               Max

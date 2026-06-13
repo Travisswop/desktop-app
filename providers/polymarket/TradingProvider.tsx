@@ -69,6 +69,8 @@ export function TradingProvider({ children }: { children: ReactNode }) {
 
   const clobClientAsObject = clobClient as object | null;
   const relayClient = isTradingSessionComplete ? {} : null;
+  const shouldRunTradeMaintenance =
+    !isGeoblocked && !isGeoblockLoading;
 
   // walletType is resolved during session init from Polymarket's
   // /session/wallet-info — legacy Safe users keep signatureType=2, new
@@ -93,11 +95,17 @@ export function TradingProvider({ children }: { children: ReactNode }) {
     [tradingWalletAddress]
   );
 
-  // Keep open limit orders alive — Polymarket cancels them after 10s without a heartbeat
-  useClobHeartbeat(tradingSession, tradingWalletAddress);
+  // Keep open limit orders alive when trading is allowed. Geoblocked users can
+  // still view positions, but should not run trade-maintenance traffic.
+  useClobHeartbeat(
+    shouldRunTradeMaintenance ? tradingSession : null,
+    shouldRunTradeMaintenance ? tradingWalletAddress : undefined
+  );
 
   // Real-time order/trade updates via user WebSocket channel
-  useUserOrdersChannel(tradingSession?.apiCredentials);
+  useUserOrdersChannel(
+    shouldRunTradeMaintenance ? tradingSession?.apiCredentials : null
+  );
 
   const initializeTradingSession = useCallback(async () => {
     if (isGeoblocked) {

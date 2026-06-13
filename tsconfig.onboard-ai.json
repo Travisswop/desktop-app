@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "next-env.d.ts",
+    "app/(auth)/onboard-ai/page.tsx",
+    "app/api/onboard-ai/**/*.ts",
+    "components/onboard-ai/**/*.ts",
+    "components/onboard-ai/**/*.tsx"
+  ],
+  "exclude": ["node_modules"]
+}

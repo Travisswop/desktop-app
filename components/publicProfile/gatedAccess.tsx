@@ -12,13 +12,12 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
-  WagmiConfig,
   createConfig,
-  configureChains,
-  mainnet,
+  http,
   useAccount,
+  WagmiProvider,
 } from "wagmi";
-import { publicProvider } from "wagmi/providers/public";
+import { mainnet } from "wagmi/chains";
 import { WalletConnect } from "./walletConnect";
 import { Terminal, BellRing } from "lucide-react";
 // import ClipLoader from 'react-spinners/ClipLoader';
@@ -38,15 +37,11 @@ interface Props {
   gatedInfo: any;
 }
 
-const { publicClient, webSocketPublicClient } = configureChains(
-  [mainnet],
-  [publicProvider()]
-);
-
 const config = createConfig({
-  autoConnect: true,
-  publicClient,
-  webSocketPublicClient,
+  chains: [mainnet],
+  transports: {
+    [mainnet.id]: http(),
+  },
 });
 
 const override: CSSProperties = {
@@ -110,7 +105,7 @@ const GatedAccess: FC<Props> = ({ data, gatedAccess, gatedInfo }) => {
   return (
     <Dialog open={open}>
       <DialogContent className="max-w-xs rounded-md md:max-w-md">
-        <WagmiConfig config={config}>
+        <WagmiProvider config={config}>
           <div className="flex justify-center">
             <WalletConnect />
           </div>
@@ -198,7 +193,7 @@ const GatedAccess: FC<Props> = ({ data, gatedAccess, gatedInfo }) => {
               </>
             )}
           </DialogDescription>
-        </WagmiConfig>
+        </WagmiProvider>
       </DialogContent>
     </Dialog>
   );

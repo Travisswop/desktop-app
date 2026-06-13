@@ -16,7 +16,7 @@ interface Props {
     fileUrl: string;
   };
   socialType: string;
-  parentId: string;
+  parentId?: string;
   number: number;
   length: number;
   fontColor?: string;

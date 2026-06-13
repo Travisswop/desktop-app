@@ -48,19 +48,19 @@ const DialogContent = React.forwardRef<
     },
     ref
   ) => {
-    const contentRef = React.useRef<HTMLDivElement>(null);
+    const contentRef = React.useRef<HTMLDivElement | null>(null);
     const [zIndex, setZIndex] = React.useState(50);
 
     // Combine refs
     const combinedRef = React.useCallback(
       (node: HTMLDivElement) => {
-        if (contentRef.current) {
-          contentRef.current = node;
-        }
+        contentRef.current = node;
         if (typeof ref === "function") {
           ref(node);
         } else if (ref) {
-          ref.current = node;
+          (
+            ref as React.MutableRefObject<HTMLDivElement | null>
+          ).current = node;
         }
       },
       [ref]

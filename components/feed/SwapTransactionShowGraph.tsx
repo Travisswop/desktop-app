@@ -5,40 +5,25 @@ import React, {
   useRef,
   useMemo,
   useCallback,
+  useId,
 } from "react";
 import Image from "next/image";
 import dayjs from "dayjs";
 import * as shape from "d3-shape";
-import logger from "@/utils/logger";
+import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
+import {
+  getNativeMarketId,
+  getTokenFallbackPrice,
+  getTokenMarketAddress,
+  getTokenMarketChain,
+  isNativeMarketToken,
+  isStablecoinSymbol,
+  parseMarketPrice,
+} from "@/lib/utils/tokenMarketData";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const NATIVE_TOKEN_MAP: Record<string, string> = {
-  SOLANA: "solana",
-  ETHEREUM: "ethereum",
-  POLYGON: "matic-network",
-  BASE: "ethereum",
-  ARBITRUM: "ethereum",
-};
-
-const CHAIN_ID_TO_NAME: Record<number, string> = {
-  1: "ETHEREUM",
-  137: "POLYGON",
-  8453: "BASE",
-  1151111081099710: "SOLANA",
-};
-
-function isNativeToken(addr: string | null | undefined): boolean {
-  return (
-    !addr ||
-    addr === "null" ||
-    addr === "0x0" ||
-    addr === "0x0000000000000000000000000000000000000000" ||
-    addr === "11111111111111111111111111111111"
-  );
-}
-
 const PERIODS = ["1D", "1W", "1M", "1Y", "ALL"] as const;
 type Period = (typeof PERIODS)[number];
 
@@ -60,6 +45,30 @@ interface TransactionSwapGraphProps {
   outputToken: any;
   authToken: string;
   apiBase: string; // pass VERSION_FIVE_API as prop (env vars differ in Next.js)
+  livePrice?: number | null;
+}
+
+type PricePoint = { price: number; timestamp: number };
+
+function resolveProfileImageSrc(profilePic?: string | null): string | null {
+  const value = String(profilePic ?? "").trim();
+  if (!value) return null;
+
+  const isImageResource =
+    value.startsWith("/") ||
+    value.startsWith("//") ||
+    value.includes("/") ||
+    /^(https?:|data:|blob:|ipfs:\/\/)/i.test(value);
+
+  if (isImageResource) {
+    return sanitizeNextImageSrc(value) || null;
+  }
+
+  const fileName = /\.(png|jpe?g|gif|webp|svg)$/i.test(value)
+    ? value
+    : `${value}@3x.png`;
+
+  return `/images/user_avator/${encodeURIComponent(fileName)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,16 +92,18 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
   outputToken,
   authToken,
   apiBase,
+  livePrice,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const gradientId = useId().replace(/:/g, "");
   const [containerWidth, setContainerWidth] = useState(chartWidthProp ?? 0);
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("1D");
   const [chartData, setChartData] = useState<number[]>([]);
   const [timestamps, setTimestamps] = useState<number[]>([]);
   const [yDomain, setYDomain] = useState<[number, number]>([0, 0]);
   const [loading, setLoading] = useState(true);
-
-  //   logger.info("chartData in graph", chartData);
+  const chartDataRef = useRef<number[]>([]);
+  const timestampsRef = useRef<number[]>([]);
 
   // Tooltip state
   const [tooltipIndex, setTooltipIndex] = useState<number | null>(null);
@@ -104,6 +115,15 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
   const PADDING = 0;
   const AVATAR_RADIUS = 18;
   const AVATAR_BORDER = AVATAR_RADIUS + 3;
+  const profileImageSrc = useMemo(
+    () => resolveProfileImageSrc(profilePic),
+    [profilePic],
+  );
+  const livePriceRef = useRef<number | null>(parseMarketPrice(livePrice));
+
+  useEffect(() => {
+    livePriceRef.current = parseMarketPrice(livePrice);
+  }, [livePrice]);
 
   // Observe container width
   useEffect(() => {
@@ -123,7 +143,64 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
   const chartWidth = containerWidth;
 
   // ---------------------------------------------------------------------------
-  // Data fetch — mirrors RN logic exactly
+  const buildFallbackSeries = useCallback(
+    (displayPeriod: Period, price: number): PricePoint[] => {
+      const now = Date.now();
+      const windowMs =
+        displayPeriod === "ALL" ? PERIOD_MS["1Y"] : PERIOD_MS[displayPeriod];
+      const count =
+        displayPeriod === "1D" ? 24 : displayPeriod === "1W" ? 28 : 36;
+      const start = now - windowMs;
+
+      return Array.from({ length: count }, (_, index) => ({
+        price,
+        timestamp: start + (windowMs / Math.max(1, count - 1)) * index,
+      }));
+    },
+    [],
+  );
+
+  const commitPriceSeries = useCallback(
+    (incomingPrices: PricePoint[]) => {
+      const prices = incomingPrices.filter(
+        (p) => !isNaN(p.price) && isFinite(p.price) && p.price > 0,
+      );
+
+      if (prices.length < 2) {
+        chartDataRef.current = [];
+        timestampsRef.current = [];
+        setChartData([]);
+        setTimestamps([]);
+        return;
+      }
+
+      const vals = prices.map((p) => p.price);
+      const nextTimestamps = prices.map((p) => p.timestamp);
+      const minVal = Math.min(...vals);
+      const maxVal = Math.max(...vals);
+      const diff = maxVal - minVal;
+      const pad = diff === 0 ? maxVal * 0.1 : diff * 0.2;
+      chartDataRef.current = vals;
+      timestampsRef.current = nextTimestamps;
+      setYDomain([Math.max(0, minVal - pad), maxVal + pad]);
+      setChartData(vals);
+      setTimestamps(nextTimestamps);
+
+      const nonZero = vals.filter((d) => d > 0);
+      if (nonZero.length >= 2) {
+        const g = Number(
+          (
+            ((nonZero[nonZero.length - 1] - nonZero[0]) / nonZero[0]) *
+            100
+          ).toFixed(2),
+        );
+        setGrowth(g);
+      }
+    },
+    [setGrowth],
+  );
+
+  // Data fetch
   // ---------------------------------------------------------------------------
   const fetchTokenPriceHistory = useCallback(
     async (displayPeriod: Period) => {
@@ -146,18 +223,20 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
           Authorization: `Bearer ${authToken}`,
         };
 
-        const contractAddress = outputToken?.mint ?? null;
-        const chainId = outputToken?.chain;
-        const networkName = CHAIN_ID_TO_NAME[chainId] ?? "ETHEREUM";
-        const chain = networkName.toLowerCase();
+        const baseUrl = apiBase.replace(/\/$/, "");
+        const contractAddress = getTokenMarketAddress(outputToken);
+        const chain = getTokenMarketChain(outputToken) ?? "ethereum";
+        const nativeMarketToken = isNativeMarketToken(outputToken);
 
-        let prices: { price: number; timestamp: number }[] = [];
+        let prices: PricePoint[] = [];
 
-        if (isNativeToken(contractAddress)) {
-          const coinGeckoId = NATIVE_TOKEN_MAP[networkName];
-          if (!coinGeckoId) throw new Error(`No mapping for ${networkName}`);
+        if (!baseUrl) throw new Error("Market API base URL is missing");
+
+        if (nativeMarketToken) {
+          const coinGeckoId = getNativeMarketId(chain);
+          if (!coinGeckoId) throw new Error(`No mapping for ${chain}`);
           const res = await fetch(
-            `${apiBase}/market/history/${coinGeckoId}?days=${days}`,
+            `${baseUrl}/market/history/${coinGeckoId}?days=${days}`,
             { method: "GET", headers },
           );
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -167,7 +246,8 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
             timestamp: item.timestamp,
           }));
         } else {
-          const res = await fetch(`${apiBase}/market/chart-by-address`, {
+          if (!contractAddress) throw new Error("Missing contract address");
+          const res = await fetch(`${baseUrl}/market/chart-by-address`, {
             method: "POST",
             headers,
             body: JSON.stringify({ address: contractAddress, chain, days }),
@@ -178,6 +258,17 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
             price: parseFloat(item.price),
             timestamp: item.timestamp,
           }));
+
+          const responseLivePrice = parseMarketPrice(json.data?.marketData?.price);
+          const latestPrice = livePriceRef.current ?? responseLivePrice;
+          if (latestPrice && prices.length) {
+            const last = prices[prices.length - 1];
+            if (last && Date.now() - last.timestamp < 60_000) {
+              last.price = latestPrice;
+            } else {
+              prices.push({ price: latestPrice, timestamp: Date.now() });
+            }
+          }
         }
 
         // Filter to window
@@ -189,49 +280,65 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
           }
         }
 
-        // Sanitise
-        prices = prices.filter(
-          (p) => !isNaN(p.price) && isFinite(p.price) && p.price > 0,
-        );
-
         if (prices.length < 2) {
-          setChartData([]);
-          setLoading(false);
+          const fallbackPrice =
+            livePriceRef.current ?? getTokenFallbackPrice(outputToken);
+          if (fallbackPrice && isStablecoinSymbol(outputToken?.symbol)) {
+            commitPriceSeries(buildFallbackSeries(displayPeriod, fallbackPrice));
+          } else {
+            commitPriceSeries([]);
+          }
           return;
         }
 
-        const vals = prices.map((p) => p.price);
-        const minVal = Math.min(...vals);
-        const maxVal = Math.max(...vals);
-        const diff = maxVal - minVal;
-        const pad = diff === 0 ? maxVal * 0.1 : diff * 0.2;
-        setYDomain([Math.max(0, minVal - pad), maxVal + pad]);
-        setChartData(vals);
-        setTimestamps(prices.map((p) => p.timestamp));
-
-        // Growth
-        const nonZero = vals.filter((d) => d > 0);
-        if (nonZero.length >= 2) {
-          const g = Number(
-            (
-              ((nonZero[nonZero.length - 1] - nonZero[0]) / nonZero[0]) *
-              100
-            ).toFixed(2),
-          );
-          setGrowth(g);
-        }
+        commitPriceSeries(prices);
       } catch {
-        setChartData([]);
+        const fallbackPrice =
+          livePriceRef.current ?? getTokenFallbackPrice(outputToken);
+        if (fallbackPrice && isStablecoinSymbol(outputToken?.symbol)) {
+          commitPriceSeries(buildFallbackSeries(displayPeriod, fallbackPrice));
+        } else {
+          commitPriceSeries([]);
+        }
       } finally {
         setLoading(false);
       }
     },
-    [authToken, outputToken, apiBase, setGrowth, chartWidth],
+    [
+      authToken,
+      outputToken,
+      apiBase,
+      chartWidth,
+      buildFallbackSeries,
+      commitPriceSeries,
+    ],
   );
 
   useEffect(() => {
     if (outputToken && chartWidth > 0) fetchTokenPriceHistory(selectedPeriod);
   }, [selectedPeriod, outputToken, chartWidth, fetchTokenPriceHistory]);
+
+  useEffect(() => {
+    const latestPrice = parseMarketPrice(livePrice);
+    const currentChartData = chartDataRef.current;
+    const currentTimestamps = timestampsRef.current;
+    if (
+      !latestPrice ||
+      currentChartData.length < 2 ||
+      currentTimestamps.length < 2
+    ) {
+      return;
+    }
+
+    const nextPrices = currentChartData.map((price, index) => ({
+      price: index === currentChartData.length - 1 ? latestPrice : price,
+      timestamp:
+        index === currentTimestamps.length - 1
+          ? Date.now()
+          : currentTimestamps[index],
+    }));
+    commitPriceSeries(nextPrices);
+  }, [livePrice, commitPriceSeries]);
 
   // ---------------------------------------------------------------------------
   // SVG path helpers — mirrors RN d3-shape logic
@@ -379,7 +486,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
     const edge = 16;
     const gap = 10;
 
-    let valueX = Math.max(
+    const valueX = Math.max(
       valueW / 2 + edge,
       Math.min(chartWidth - valueW / 2 - edge, xPos),
     );
@@ -390,7 +497,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
       pos = "below";
     }
 
-    let labelX = Math.max(
+    const labelX = Math.max(
       labelW / 2 + edge,
       Math.min(chartWidth - labelW / 2 - edge, xPos),
     );
@@ -421,23 +528,31 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
   // ---------------------------------------------------------------------------
   // Period selector
   // ---------------------------------------------------------------------------
-  //   const PeriodBar = () => (
-  //     <div className="flex items-center justify-around px-4 py-2 border-t border-gray-100">
-  //       {PERIODS.map((p) => (
-  //         <button
-  //           key={p}
-  //           onClick={() => setSelectedPeriod(p)}
-  //           className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${
-  //             selectedPeriod === p
-  //               ? "bg-black text-white"
-  //               : "text-gray-400 hover:text-gray-700"
-  //           }`}
-  //         >
-  //           {p}
-  //         </button>
-  //       ))}
-  //     </div>
-  //   );
+  const PeriodBar = () => (
+    <div
+      className="flex items-center justify-around px-4 py-2 border-t border-gray-100"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {PERIODS.map((p) => (
+        <button
+          key={p}
+          type="button"
+          aria-pressed={selectedPeriod === p}
+          onClick={(event) => {
+            event.stopPropagation();
+            setSelectedPeriod(p);
+          }}
+          className={`rounded-full px-3 py-1 font-mono text-[11px] font-black transition-colors ${
+            selectedPeriod === p
+              ? "bg-black text-white"
+              : "text-gray-400 hover:text-gray-700"
+          }`}
+        >
+          {p}
+        </button>
+      ))}
+    </div>
+  );
 
   // ---------------------------------------------------------------------------
   // Render
@@ -446,14 +561,18 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
 
   if (!chartData.length) {
     return (
-      <div className="flex flex-col items-center justify-center gap-1 py-6">
-        <p className="text-sm text-gray-400">No price data available</p>
-        {createdAt && (
-          <p className="text-xs text-gray-300">
-            Swap made on {dayjs(createdAt).format("MMM D, h:mm A")}
+      <div className="w-full select-none">
+        <div className="flex flex-col items-center justify-center gap-1 py-6">
+          <p className="font-mono text-[11px] font-black uppercase tracking-[0.18em] text-gray-400">
+            No price data available
           </p>
-        )}
-        {/* <PeriodBar /> */}
+          {createdAt && (
+            <p className="font-mono text-[10px] font-bold text-gray-300">
+              Swap made on {dayjs(createdAt).format("MMM D, h:mm A")}
+            </p>
+          )}
+        </div>
+        <PeriodBar />
       </div>
     );
   }
@@ -483,14 +602,14 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
             className="overflow-visible"
           >
             <defs>
-              <linearGradient id="areaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" stopColor="#000" stopOpacity="0.18" />
                 <stop offset="100%" stopColor="#fff" stopOpacity="0" />
               </linearGradient>
             </defs>
 
             {/* Area fill */}
-            <path d={areaPath} fill="url(#areaGrad)" />
+            <path d={areaPath} fill={`url(#${gradientId})`} />
 
             {/* Line */}
             <path
@@ -505,7 +624,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
             {createdAtX !== null &&
               avatarCx !== null &&
               avatarCy !== null &&
-              profilePic && (
+              profileImageSrc && (
                 <>
                   {showCreatedAtTooltip && (
                     <line
@@ -555,7 +674,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
         )}
 
         {/* Avatar image — absolutely positioned over SVG */}
-        {avatarCx !== null && avatarCy !== null && profilePic && (
+        {avatarCx !== null && avatarCy !== null && profileImageSrc && (
           <button
             className="absolute rounded-full overflow-hidden border-2 border-white shadow"
             style={{
@@ -575,7 +694,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
             }}
           >
             <Image
-              src={profilePic}
+              src={profileImageSrc}
               alt="profile"
               width={AVATAR_RADIUS * 2}
               height={AVATAR_RADIUS * 2}
@@ -596,13 +715,13 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
             const gap = 6;
             const belowY = avatarCy + AVATAR_BORDER + gap;
             const aboveY = avatarCy - AVATAR_BORDER - gap - th;
-            let ty =
+            const ty =
               belowY + th <= chartHeight - edge
                 ? belowY
                 : aboveY >= edge
                   ? aboveY
                   : belowY;
-            let tx = Math.max(
+            const tx = Math.max(
               edge,
               Math.min(
                 (createdAtX ?? avatarCx) - tw / 2,
@@ -620,7 +739,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
                   background: "rgba(0,0,0,0.72)",
                 }}
               >
-                <span className="text-white text-[10px] font-medium">
+                <span className="font-mono text-[10px] font-bold text-white">
                   {dayjs(createdAt).format("MMM D, h:mm A")}
                 </span>
               </div>
@@ -656,7 +775,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
                     boxShadow: "0 1px 6px rgba(0,0,0,0.10)",
                   }}
                 >
-                  <span className="text-[11px] font-bold text-gray-900">
+                  <span className="font-mono text-[12px] font-black tabular-nums text-gray-900">
                     ${(val ?? 0).toFixed(3)}
                   </span>
                 </div>
@@ -670,7 +789,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
                     background: "rgba(255,255,255,0.92)",
                   }}
                 >
-                  <span className="text-[10px] text-gray-400 font-medium">
+                  <span className="font-mono text-[10px] font-bold text-gray-400">
                     {getTooltipLabel()}
                   </span>
                 </div>
@@ -680,7 +799,7 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
       </div>
 
       {/* Period selector */}
-      {/* <PeriodBar /> */}
+      <PeriodBar />
     </div>
   );
 };

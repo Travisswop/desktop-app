@@ -32,11 +32,11 @@ import {
   DUST_THRESHOLD,
   POLLING_DURATION,
   POLLING_INTERVAL,
-  USDC_E_DECIMALS,
 } from '@/constants/polymarket';
 import { createPollingInterval } from '@/lib/polymarket/polling';
 import {
   getRedeemablePayout,
+  isVisiblePortfolioPosition,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
 
@@ -176,7 +176,7 @@ export default function PredictionsPortfolioModal({
     [router, stashMarketDetail, teamsData, onClose],
   );
 
-  const { usdcBalance } = usePolygonBalances(
+  const { totalUsdcBalance } = usePolygonBalances(
     portfolioAddresses.length ? portfolioAddresses : safeAddress,
   );
   const { data: netDeposits, isLoading: isNetDepositsLoading } =
@@ -207,11 +207,9 @@ export default function PredictionsPortfolioModal({
   // All positions for stats (includes settled losses for accurate P&L history)
   const activePositions = useMemo(() => {
     if (!positions) return [];
-    return positions
-      .filter((p) => p.size >= DUST_THRESHOLD)
-      .filter(
-        (p) => p.redeemable || p.currentValue >= DUST_THRESHOLD,
-      );
+    return positions.filter((p) =>
+      isVisiblePortfolioPosition(p, DUST_THRESHOLD),
+    );
   }, [positions]);
 
   // Active Picks: only live/open positions (not yet resolved)
@@ -241,7 +239,7 @@ export default function PredictionsPortfolioModal({
       .reduce((s, p) => s + p.currentValue, 0);
 
     const lifetimeEarned =
-      usdcBalance + openPositionsValue + withdrawn - deposited;
+      totalUsdcBalance + openPositionsValue + withdrawn - deposited;
 
     if (!activePositions.length) {
       return { portfolioPct: 0, lifetimeEarned, inOrdersValue };
@@ -261,7 +259,7 @@ export default function PredictionsPortfolioModal({
       totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
 
     return { portfolioPct, lifetimeEarned, inOrdersValue };
-  }, [activePositions, activeOrders, netDeposits, usdcBalance]);
+  }, [activePositions, activeOrders, netDeposits, totalUsdcBalance]);
 
   const handleMarketSell = async (position: PolymarketPosition) => {
     setSellingAsset(position.asset);
@@ -270,6 +268,7 @@ export default function PredictionsPortfolioModal({
         tokenId: position.asset,
         conditionId: position.conditionId,
         size: position.size,
+        acceptedPrice: position.curPrice,
         side: 'SELL',
         negRisk: position.negativeRisk,
         isMarketOrder: true,
@@ -321,28 +320,21 @@ export default function PredictionsPortfolioModal({
         // Optimistically add the redeemed USDC to the displayed balance immediately.
         // The on-chain redemption has already confirmed (redeemPosition awaits the tx),
         // so this reflects reality. The subsequent polling will reconcile any drift.
-        queryClient.setQueryData<bigint>(
-          ['pusdBalance', safeAddress as string],
-          (prev) => {
-            if (prev === undefined) return prev;
-            const addedUnits = BigInt(
-              Math.floor(redeemValue * 10 ** USDC_E_DECIMALS),
-            );
-            return prev + addedUnits;
-          },
-        );
-
         queryClient.invalidateQueries({
           queryKey: ['polymarket-positions'],
         });
         queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
+        queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
         createPollingInterval(
           () => {
             queryClient.invalidateQueries({
               queryKey: ['polymarket-positions'],
             });
             queryClient.invalidateQueries({
-              queryKey: ['usdcBalance'],
+              queryKey: ['pusdBalance'],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ['legacyUsdcBalance'],
             });
           },
           POLLING_INTERVAL,
@@ -424,7 +416,7 @@ export default function PredictionsPortfolioModal({
                 </div>
                 <p className="text-xl font-bold text-gray-900">
                   $
-                  {usdcBalance.toLocaleString('en-US', {
+                  {totalUsdcBalance.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}

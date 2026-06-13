@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ArrowUpFromLine,
@@ -13,17 +13,21 @@ import {
   Download,
   ChevronDown,
   SlidersHorizontal,
+  Share2,
+  X,
 } from 'lucide-react';
 import {
   useClobOrder,
   useRedeemPosition,
   useUserPositions,
   useActiveOrders,
-  usePolygonBalances,
+  usePolymarketCollateralBalance,
   useNetDeposits,
   useTradeActivity,
+  usePolymarketTeams,
   type PolymarketPosition,
   type PolymarketMarket,
+  type TeamsMap,
   type TradeActivity,
 } from '@/hooks/polymarket';
 import { useSportsMeta } from '@/hooks/polymarket/useSportsMeta';
@@ -51,12 +55,27 @@ import {
 import {
   getRedeemablePayout,
   hasRedeemablePayout,
+  isVisiblePortfolioPosition,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
+import {
+  groupFlatMarketsIntoGames,
+  isValidGameCard,
+  type GroupedMarket,
+  type ParsedOutcome,
+  type SportsGameGroup,
+} from '@/lib/polymarket/sports-grouping';
 
 import HighVolumeMarkets from './Markets';
 import SportsTableView from './Markets/SportsTableView';
 import OrderCard from './Orders/OrderCard';
+import PendingRedemptionNotice, {
+  type PendingRedemptionSnapshot,
+} from './Positions/PendingRedemptionNotice';
+import PositionShareModal, {
+  type PredictionSharePosition,
+  type PredictionShareStatus,
+} from './Positions/PositionShareModal';
 import BrowseMarketsBento from './BrowseMarketsBento';
 
 /**
@@ -143,11 +162,13 @@ export default function PredictionsPanel({
   const queryClient = useQueryClient();
 
   const { data: positions } = useUserPositions(portfolioAddresses);
+  const { data: teamsData } = usePolymarketTeams();
   const { data: activeOrders = [] } = useActiveOrders(
     clobClient,
     safeAddress,
   );
-  const { usdcBalance } = usePolygonBalances(portfolioAddresses);
+  const { totalUsdcBalance } =
+    usePolymarketCollateralBalance(portfolioAddresses);
   const { data: netDeposits } = useNetDeposits(portfolioAddresses);
 
   const { redeemPosition } = useRedeemPosition();
@@ -168,6 +189,9 @@ export default function PredictionsPanel({
   const [pendingVerification, setPendingVerification] = useState<
     Map<string, number>
   >(new Map());
+  const [pendingRedemptions, setPendingRedemptions] = useState<
+    PendingRedemptionSnapshot[]
+  >([]);
   const [onchainPositionBalances, setOnchainPositionBalances] =
     useState<Map<string, number>>(new Map());
 
@@ -184,6 +208,8 @@ export default function PredictionsPanel({
     | { kind: 'category'; id: CategoryId }
     | null;
   const [drillDown, setDrillDown] = useState<MarketsDrillDown>(null);
+  const [selectedSportsGame, setSelectedSportsGame] =
+    useState<SportsGameGroup | null>(null);
 
   // Market detail navigation — stash the full market in the hand-off store
   // and push to /prediction/market/[id] (the page version of the old modal).
@@ -262,13 +288,13 @@ export default function PredictionsPanel({
 
   const navigateToPosition = useCallback(
     (p: PolymarketPosition) => {
-      const market = positionToDetailMarket(p);
+      const market = positionToDetailMarket(p, teamsData);
       navigateToMarket(market, {
         yesShares: p.outcomeIndex === 0 ? p.size : 0,
         noShares: p.outcomeIndex === 1 ? p.size : 0,
       });
     },
-    [navigateToMarket],
+    [navigateToMarket, teamsData],
   );
 
   // Sync pending verification against latest positions (mirrors the
@@ -346,10 +372,7 @@ export default function PredictionsPanel({
         );
         return onchainSize == null ? p : { ...p, size: onchainSize };
       })
-      .filter((p) => p.size >= DUST_THRESHOLD)
-      .filter(
-        (p) => p.redeemable || p.currentValue >= DUST_THRESHOLD,
-      );
+      .filter((p) => isVisiblePortfolioPosition(p, DUST_THRESHOLD));
   }, [onchainPositionBalances, positionBalanceKey, positions]);
 
   const actionablePositions = useMemo(
@@ -377,7 +400,7 @@ export default function PredictionsPanel({
     // minus what you put in. Counts cash in your wallet, mark-to-market
     // value of open positions, and money you've already withdrawn.
     const totalPnl =
-      usdcBalance + openPositionsValue + withdrawn - deposited;
+      totalUsdcBalance + openPositionsValue + withdrawn - deposited;
 
     const portfolioPct =
       deposited > 0 ? (totalPnl / deposited) * 100 : 0;
@@ -386,9 +409,11 @@ export default function PredictionsPanel({
       inOrdersValue,
       totalPnl,
       portfolioPct,
-      portfolioValue: usdcBalance + openPositionsValue,
+      portfolioValue: totalUsdcBalance + openPositionsValue,
     };
-  }, [activePositions, activeOrders, netDeposits, usdcBalance]);
+  }, [activePositions, activeOrders, netDeposits, totalUsdcBalance]);
+  const { data: liveGames = [], isLoading: isLoadingLiveGames } =
+    useLiveSportsGames();
 
   const handleMarketSell = useCallback(
     async (position: PolymarketPosition) => {
@@ -398,6 +423,7 @@ export default function PredictionsPanel({
           tokenId: position.asset,
           conditionId: position.conditionId,
           size: position.size,
+          acceptedPrice: position.curPrice,
           side: 'SELL',
           negRisk: position.negativeRisk,
           isMarketOrder: true,
@@ -430,6 +456,33 @@ export default function PredictionsPanel({
       }
     },
     [submitOrder, queryClient],
+  );
+
+  const rememberPendingRedemption = useCallback(
+    (
+      position: PolymarketPosition,
+      result?: { txId?: string; redeemedAmount?: number },
+    ) => {
+      const snapshot: PendingRedemptionSnapshot = {
+        asset: position.asset,
+        title: position.title,
+        outcome: position.outcome,
+        amount: result?.redeemedAmount ?? getRedeemablePayout(position),
+        txId: result?.txId,
+        submittedAt: Math.floor(Date.now() / 1000),
+      };
+
+      setPendingRedemptions((prev) => [
+        snapshot,
+        ...prev.filter((item) => item.asset !== position.asset),
+      ]);
+      setTimeout(() => {
+        setPendingRedemptions((prev) =>
+          prev.filter((item) => item.asset !== position.asset),
+        );
+      }, POLLING_DURATION);
+    },
+    [],
   );
 
   const handleRedeem = useCallback(
@@ -564,7 +617,7 @@ export default function PredictionsPanel({
           );
         }
 
-        await redeemPosition({
+        const result = await redeemPosition({
           conditionId: position.conditionId,
           asset: position.asset,
           outcomeIndex: position.outcomeIndex,
@@ -576,29 +629,27 @@ export default function PredictionsPanel({
             : undefined,
           walletType: redeemWalletType,
         });
-
-        queryClient.setQueryData<bigint>(
-          ['pusdBalance', positionWallet],
-          (prev) => {
-            if (prev === undefined) return prev;
-            const addedUnits = BigInt(
-              Math.floor(redeemValue * 10 ** USDC_E_DECIMALS),
-            );
-            return prev + addedUnits;
-          },
-        );
+        rememberPendingRedemption(position, result);
 
         queryClient.invalidateQueries({
           queryKey: ['polymarket-positions'],
         });
+        queryClient.invalidateQueries({ queryKey: ['trade-activity'] });
         queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
+        queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
         createPollingInterval(
           () => {
             queryClient.invalidateQueries({
               queryKey: ['polymarket-positions'],
             });
             queryClient.invalidateQueries({
+              queryKey: ['trade-activity'],
+            });
+            queryClient.invalidateQueries({
               queryKey: ['pusdBalance'],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ['legacyUsdcBalance'],
             });
           },
           POLLING_INTERVAL,
@@ -624,6 +675,7 @@ export default function PredictionsPanel({
       publicClient,
       redeemPosition,
       queryClient,
+      rememberPendingRedemption,
     ],
   );
 
@@ -702,22 +754,23 @@ export default function PredictionsPanel({
                   openBets={activePositions.length}
                   openOrders={activeOrders.length}
                   inOrdersValue={summary.inOrdersValue}
-                  topPicks={[...activePositions]
-                    .filter((p) => !p.redeemable)
-                    .sort((a, b) => b.currentValue - a.currentValue)
-                    .slice(0, 3)}
+                  liveGames={liveGames}
+                  isLoadingLiveGames={isLoadingLiveGames}
                   onDeposit={() => onOpenTransfer('deposit')}
                   onWithdraw={() => onOpenTransfer('withdraw')}
                   onOpenOrders={() => setView('orders')}
                   onMyBets={() => setView('bets')}
                   onHistory={() => setView('history')}
-                  onPickClick={navigateToPosition}
+                  onLiveGameClick={(market) =>
+                    navigateToMarket(market, { initialOutcome: 'yes' })
+                  }
                 />
                 <BrowseMarketsBento
                   onMarketClick={(m) =>
                     navigateToMarket(m, { initialOutcome: 'yes' })
                   }
                   onSportsOutcomeClick={handleBentoOutcomeClick}
+                  onSportsGameClick={setSelectedSportsGame}
                   onBrowseSports={(sub) =>
                     setDrillDown({ kind: 'sports', sub })
                   }
@@ -758,8 +811,17 @@ export default function PredictionsPanel({
                 sellingAsset={sellingAsset}
                 redeemingAsset={redeemingAsset}
                 pendingVerification={pendingVerification}
+                pendingRedemptions={pendingRedemptions}
                 isSubmitting={isSubmitting}
                 canTrade={!!clobClient}
+                portfolioAddresses={portfolioAddresses}
+                onSeeHistory={() => setView('history')}
+                onClaimedWinClick={(trade) =>
+                  navigateToMarket(tradeToDetailMarket(trade), {
+                    initialOutcome:
+                      trade.outcomeIndex === 0 ? 'yes' : 'no',
+                  })
+                }
               />
             )}
 
@@ -784,8 +846,218 @@ export default function PredictionsPanel({
           </div>
         </div>
       </div>
+      {selectedSportsGame && (
+        <SportsGameOddsSheet
+          game={selectedSportsGame}
+          onClose={() => setSelectedSportsGame(null)}
+          onOutcomeClick={(market, outcome, price, tokenId) => {
+            setSelectedSportsGame(null);
+            handleBentoOutcomeClick(market, outcome, price, tokenId);
+          }}
+        />
+      )}
     </>
   );
+}
+
+function SportsGameOddsSheet({
+  game,
+  onClose,
+  onOutcomeClick,
+}: {
+  game: SportsGameGroup;
+  onClose: () => void;
+  onOutcomeClick: (
+    market: PolymarketMarket,
+    outcome: string,
+    price: number,
+    tokenId: string,
+  ) => void;
+}) {
+  const marketRows = [
+    { label: 'Moneyline', kind: 'ML', grouped: game.moneyline },
+    { label: 'Spread', kind: 'Spread', grouped: game.spread },
+    { label: 'Total', kind: 'Total', grouped: game.total },
+  ].filter((row): row is { label: string; kind: string; grouped: GroupedMarket } =>
+    Boolean(row.grouped),
+  );
+  const gameTime = formatGameOddsStart(game.startDate);
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${game.title} odds`}
+        className="w-full max-w-[760px] overflow-hidden rounded-[24px] border bg-white shadow-[0_24px_80px_-40px_rgba(10,10,12,0.45)]"
+        style={{ borderColor: HAIR }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div
+          className="flex items-start justify-between gap-4 border-b px-5 py-4"
+          style={{ borderColor: HAIR }}
+        >
+          <div className="min-w-0">
+            <div
+              className="text-[10.5px] font-bold uppercase tracking-[1.4px] text-gray-500"
+              style={{ fontFamily: MONO }}
+            >
+              Game odds
+            </div>
+            <h2 className="mt-1 text-[24px] font-semibold leading-tight tracking-[-0.8px] text-gray-950">
+              {game.title}
+            </h2>
+            <div
+              className="mt-1 text-[11px] font-semibold uppercase tracking-[0.8px] text-gray-500"
+              style={{ fontFamily: MONO }}
+            >
+              {gameTime || 'TBD'} · {marketRows.length} markets
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close game odds"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-white text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+            style={{ borderColor: HAIR }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+          <div className="grid gap-3">
+            {marketRows.map((row) => (
+              <SportsGameOddsMarketRow
+                key={row.kind}
+                label={row.label}
+                shortLabel={row.kind}
+                grouped={row.grouped}
+                onOutcomeClick={onOutcomeClick}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div
+          className="flex items-center justify-between border-t px-5 py-3 text-[11px] font-medium text-gray-500"
+          style={{ borderColor: HAIR, fontFamily: MONO }}
+        >
+          <span>Tap any odd to open the trade ticket</span>
+          <span>self-custodied · swop book</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SportsGameOddsMarketRow({
+  label,
+  shortLabel,
+  grouped,
+  onOutcomeClick,
+}: {
+  label: string;
+  shortLabel: string;
+  grouped: GroupedMarket;
+  onOutcomeClick: (
+    market: PolymarketMarket,
+    outcome: string,
+    price: number,
+    tokenId: string,
+  ) => void;
+}) {
+  return (
+    <div
+      className="rounded-2xl border bg-[#fafafa] p-3"
+      style={{ borderColor: HAIR }}
+    >
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div
+            className="text-[10px] font-bold uppercase tracking-[1.2px] text-gray-500"
+            style={{ fontFamily: MONO }}
+          >
+            {shortLabel}
+          </div>
+          <div className="mt-0.5 truncate text-[14px] font-semibold tracking-[-0.25px] text-gray-950">
+            {label}
+          </div>
+        </div>
+        <div
+          className="max-w-[55%] truncate text-right text-[10.5px] font-semibold text-gray-500"
+          style={{ fontFamily: MONO }}
+          title={grouped.market.question}
+        >
+          {grouped.market.question}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {grouped.outcomes.map((outcome) => (
+          <SportsGameOddsButton
+            key={`${outcome.tokenId}:${outcome.label}`}
+            outcome={outcome}
+            onClick={() =>
+              onOutcomeClick(
+                grouped.market,
+                outcome.label,
+                outcome.price,
+                outcome.tokenId,
+              )
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SportsGameOddsButton({
+  outcome,
+  onClick,
+}: {
+  outcome: ParsedOutcome;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-14 items-center justify-between rounded-xl border bg-white px-4 text-left transition hover:border-[#19a974]/45 hover:bg-[#19a974]/5 active:bg-[#19a974]/10"
+      style={{ borderColor: HAIR }}
+    >
+      <span className="min-w-0 truncate text-[15px] font-semibold text-gray-950">
+        {outcome.label}
+      </span>
+      <span
+        className="shrink-0 text-[17px] font-bold tabular-nums text-[#19a974]"
+        style={{ fontFamily: MONO }}
+      >
+        {formatGameOddsPrice(outcome.price)}
+      </span>
+    </button>
+  );
+}
+
+function formatGameOddsPrice(price: number) {
+  if (!Number.isFinite(price) || price <= 0 || price >= 1) return '—';
+  return `${Math.round(price * 100)}%`;
+}
+
+function formatGameOddsStart(startDate?: string) {
+  if (!startDate) return '';
+  const date = new Date(startDate);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -943,7 +1215,7 @@ function OpenOrdersView({
 
 // ── My bets — A5-style table mirroring BetHistoryView ─────────────
 
-type BetStatusKey = 'live' | 'redeemable' | 'settled';
+type BetStatusKey = 'live' | 'pending' | 'redeemable' | 'settled';
 type BetStatusFilter = BetStatusKey | 'all';
 
 interface BetRow {
@@ -959,6 +1231,19 @@ interface BetRow {
   redeemValue: number;
 }
 
+interface ClaimedWinRow {
+  key: string;
+  title: string;
+  outcome: string;
+  side: 'YES' | 'NO' | '—';
+  icon?: string;
+  amount: number;
+  timestamp?: number;
+  source: 'pending' | 'activity';
+  position?: PolymarketPosition;
+  trade?: TradeActivity;
+}
+
 function deriveBetRow(p: PolymarketPosition): BetRow {
   const claimable = hasRedeemablePayout(p);
   const redeemValue = getRedeemablePayout(p);
@@ -966,13 +1251,16 @@ function deriveBetRow(p: PolymarketPosition): BetRow {
   let statusLabel: string;
   if (p.redeemable && claimable) {
     statusKey = 'redeemable';
-    statusLabel = 'READY';
+    statusLabel = 'WON';
   } else if (p.redeemable) {
     statusKey = 'settled';
-    statusLabel = 'SETTLED';
+    statusLabel = p.cashPnl < -0.005 ? 'LOST' : 'SETTLED';
+  } else if (p.marketResolutionPending || p.marketClosed) {
+    statusKey = 'pending';
+    statusLabel = 'FINAL';
   } else {
     statusKey = 'live';
-    statusLabel = 'LIVE';
+    statusLabel = 'OPEN';
   }
   const side: 'YES' | 'NO' = p.outcomeIndex === 0 ? 'YES' : 'NO';
   const staked = p.initialValue || p.size * p.avgPrice;
@@ -992,16 +1280,171 @@ function deriveBetRow(p: PolymarketPosition): BetRow {
   };
 }
 
+function tradeAmount(trade: TradeActivity): number {
+  if (trade.usdcSize != null && Number.isFinite(trade.usdcSize)) {
+    return Number(trade.usdcSize);
+  }
+  return Number(trade.size || 0) * Number(trade.price || 0);
+}
+
+function tradePnlCashFlow(trade: TradeActivity): number {
+  const amount = tradeAmount(trade);
+  if (trade.type === 'TRADE') {
+    return trade.side === 'BUY' ? -amount : amount;
+  }
+  if (trade.type === 'REDEEM') return amount;
+  return 0;
+}
+
+function pendingRedemptionAmountNotInTrades(
+  pendingRedemptions: PendingRedemptionSnapshot[],
+  claimedTrades: TradeActivity[],
+): number {
+  const tradeTxKeys = new Set<string>();
+  const tradeAssetKeys = new Set<string>();
+  claimedTrades.forEach((trade) => {
+    if (trade.transactionHash) {
+      tradeTxKeys.add(`tx:${trade.transactionHash.toLowerCase()}`);
+    }
+    if (trade.asset) {
+      tradeAssetKeys.add(`asset:${trade.asset}`);
+    }
+  });
+
+  return pendingRedemptions.reduce((sum, item) => {
+    const txKey = item.txId ? `tx:${item.txId.toLowerCase()}` : null;
+    const assetKey = `asset:${item.asset}`;
+    if (
+      (txKey && tradeTxKeys.has(txKey)) ||
+      (item.asset && tradeAssetKeys.has(assetKey))
+    ) {
+      return sum;
+    }
+    return sum + item.amount;
+  }, 0);
+}
+
+function claimedTradeRowKey(trade: TradeActivity): string {
+  if (trade.transactionHash) {
+    return `tx:${trade.transactionHash.toLowerCase()}`;
+  }
+  if (trade.conditionId) {
+    return `redeem:${trade.conditionId}:${trade.outcomeIndex}:${trade.timestamp}:${tradeAmount(trade).toFixed(6)}`;
+  }
+  return `redeem:${trade.title}:${trade.outcome}:${trade.timestamp}:${tradeAmount(trade).toFixed(6)}`;
+}
+
+function deriveClaimedWinRows(
+  pendingRedemptions: PendingRedemptionSnapshot[],
+  claimedTrades: TradeActivity[],
+): ClaimedWinRow[] {
+  const seenKeys = new Set<string>();
+  const pendingTxKeys = new Set<string>();
+  const pendingAssetKeys = new Set<string>();
+  const rows: ClaimedWinRow[] = [];
+
+  pendingRedemptions.forEach((item) => {
+    const txKey = item.txId ? `tx:${item.txId.toLowerCase()}` : null;
+    const assetKey = `asset:${item.asset}`;
+    if (txKey) pendingTxKeys.add(txKey);
+    if (item.asset) pendingAssetKeys.add(assetKey);
+    seenKeys.add(txKey ?? assetKey);
+    rows.push({
+      key: txKey ?? assetKey,
+      title: item.title,
+      outcome: item.outcome,
+      side: '—',
+      amount: item.amount,
+      timestamp: item.submittedAt,
+      source: 'pending',
+      position: item.position,
+    });
+  });
+
+  claimedTrades.forEach((trade) => {
+    const txKey = trade.transactionHash
+      ? `tx:${trade.transactionHash.toLowerCase()}`
+      : null;
+    const assetKey = `asset:${trade.asset}`;
+    const rowKey = claimedTradeRowKey(trade);
+    if (seenKeys.has(rowKey)) return;
+    if (
+      (txKey && pendingTxKeys.has(txKey)) ||
+      (trade.asset && pendingAssetKeys.has(assetKey))
+    ) {
+      return;
+    }
+    seenKeys.add(rowKey);
+
+    rows.push({
+      key: rowKey,
+      title: trade.title,
+      outcome: trade.outcome,
+      side: trade.outcomeIndex === 0 ? 'YES' : 'NO',
+      icon: trade.icon,
+      amount: tradeAmount(trade),
+      timestamp: trade.timestamp,
+      source: 'activity',
+      trade,
+    });
+  });
+
+  return rows
+    .sort((a, b) => {
+      if (a.source !== b.source)
+        return a.source === 'pending' ? -1 : 1;
+      return (b.timestamp ?? 0) - (a.timestamp ?? 0);
+    })
+    .slice(0, 25);
+}
+
+function shareStatusForBetRow(row: BetRow): PredictionShareStatus {
+  if (row.statusKey === 'live') return 'open';
+  if (row.statusKey === 'pending') return 'pending';
+  if (row.statusKey === 'redeemable') return 'redeemable';
+  return 'closed';
+}
+
+function claimedWinSharePosition(
+  row: ClaimedWinRow,
+): PredictionSharePosition {
+  if (row.position) return row.position;
+  const outcome =
+    row.outcome && !/^pick$/i.test(row.outcome)
+      ? row.outcome
+      : row.side !== '—'
+        ? row.side
+        : 'Redeemed';
+  return {
+    title: row.title,
+    outcome,
+    icon: row.icon,
+    slug: row.trade?.slug,
+    eventSlug: row.trade?.eventSlug,
+    size: row.trade?.size,
+    initialValue: 0,
+    currentValue: row.amount,
+    cashPnl: row.amount,
+    percentPnl: 0,
+    totalBought: row.trade?.size,
+    realizedPnl: row.amount,
+    percentRealizedPnl: 0,
+    marketClosed: true,
+  };
+}
+
 const BET_STATUS_TONE: Record<
   BetStatusKey,
   { bg: string; fg: string }
 > = {
   live: { bg: SURFACE2, fg: MUTED },
+  pending: { bg: 'rgba(245,158,11,0.12)', fg: '#b45309' },
   redeemable: { bg: POS_GREEN_SOFT, fg: POS_GREEN },
   settled: { bg: SURFACE2, fg: MUTED },
 };
 
 const BETS_GRID = '90px minmax(0,1.4fr) 60px 70px 80px 100px 140px';
+const CLAIMED_WINS_GRID = '90px minmax(0,1.5fr) 70px 110px 110px';
 
 interface MyBetsViewProps {
   actionable: PolymarketPosition[];
@@ -1012,8 +1455,12 @@ interface MyBetsViewProps {
   sellingAsset: string | null;
   redeemingAsset: string | null;
   pendingVerification: Map<string, number>;
+  pendingRedemptions: PendingRedemptionSnapshot[];
   isSubmitting: boolean;
   canTrade: boolean;
+  portfolioAddresses: string[];
+  onSeeHistory: () => void;
+  onClaimedWinClick: (trade: TradeActivity) => void;
 }
 
 function MyBetsView({
@@ -1025,20 +1472,43 @@ function MyBetsView({
   sellingAsset,
   redeemingAsset,
   pendingVerification,
+  pendingRedemptions,
   isSubmitting,
   canTrade,
+  portfolioAddresses,
+  onSeeHistory,
+  onClaimedWinClick,
 }: MyBetsViewProps) {
   const [statusFilter, setStatusFilter] =
     useState<BetStatusFilter>('all');
+
+  const { data: activityTrades = [], isLoading: isLoadingActivity } =
+    useTradeActivity({
+      user: portfolioAddresses,
+      limit: 500,
+      offset: 0,
+      sort: 'DESC',
+    });
+
+  const claimedTrades = useMemo(
+    () => activityTrades.filter((trade) => trade.type === 'REDEEM'),
+    [activityTrades],
+  );
 
   const rows = useMemo(
     () => [...actionable, ...redeemable].map(deriveBetRow),
     [actionable, redeemable],
   );
 
+  const claimedWinRows = useMemo(
+    () => deriveClaimedWinRows(pendingRedemptions, claimedTrades),
+    [claimedTrades, pendingRedemptions],
+  );
+
   const counts = useMemo(() => {
     const c: Record<BetStatusKey, number> = {
       live: 0,
+      pending: 0,
       redeemable: 0,
       settled: 0,
     };
@@ -1047,16 +1517,52 @@ function MyBetsView({
   }, [rows]);
 
   const summary = useMemo(() => {
-    const totalStaked = rows.reduce((s, r) => s + r.staked, 0);
-    const totalValue = rows.reduce((s, r) => s + r.value, 0);
-    const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
+    const openRows = rows.filter((r) => r.statusKey === 'live');
+    const pendingRows = rows.filter((r) => r.statusKey === 'pending');
+    const claimableRows = rows.filter(
+      (r) => r.statusKey === 'redeemable',
+    );
+    const settledRows = rows.filter((r) => r.statusKey === 'settled');
+    const openValue = openRows.reduce((s, r) => s + r.value, 0);
+    const claimableValue = claimableRows.reduce(
+      (s, r) => s + r.redeemValue,
+      0,
+    );
+    const claimedTotal = claimedWinRows.reduce(
+      (s, r) => s + r.amount,
+      0,
+    );
+    const positionsPnl = rows.reduce((s, r) => s + r.pnl, 0);
+    const pendingClaimedValue = pendingRedemptionAmountNotInTrades(
+      pendingRedemptions,
+      claimedTrades,
+    );
+    const activityCashFlow = activityTrades.reduce(
+      (s, trade) => s + tradePnlCashFlow(trade),
+      0,
+    );
+    const netPnl =
+      activityTrades.length > 0
+        ? activityCashFlow + openValue + claimableValue + pendingClaimedValue
+        : positionsPnl + pendingClaimedValue;
     return {
       total: rows.length,
-      totalStaked,
-      totalValue,
-      totalPnl,
+      openCount: openRows.length,
+      pendingCount: pendingRows.length,
+      claimableCount: claimableRows.length,
+      settledCount: settledRows.length,
+      openValue,
+      claimableValue,
+      claimedTotal,
+      netPnl,
     };
-  }, [rows]);
+  }, [
+    activityTrades,
+    claimedTrades,
+    claimedWinRows,
+    pendingRedemptions,
+    rows,
+  ]);
 
   const filteredRows = useMemo(() => {
     if (statusFilter === 'all') return rows;
@@ -1068,37 +1574,45 @@ function MyBetsView({
       <PageTitle
         eyebrow="Predictions"
         title="My bets"
-        caption={`${summary.total} ${
-          summary.total === 1 ? 'position' : 'positions'
-        } · $${summary.totalStaked.toFixed(2)} staked`}
+        caption={`${summary.openCount} open${
+          summary.pendingCount > 0
+            ? ` · ${summary.pendingCount} finalizing`
+            : ''
+        } · ${summary.claimableCount} won to claim · ${
+          claimedWinRows.length
+        } claimed`}
       />
+
+      <PendingRedemptionNotice redemptions={pendingRedemptions} />
 
       {/* Summary tiles — 4 across on sm+, 2 across on mobile. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <HistorySummaryTile
-          label="Portfolio value"
-          value={`$${summary.totalValue.toFixed(2)}`}
+          label="Open value"
+          value={`$${summary.openValue.toFixed(2)}`}
         />
         <HistorySummaryTile
-          label="Total staked"
-          value={`$${summary.totalStaked.toFixed(2)}`}
+          label="To claim"
+          value={`$${summary.claimableValue.toFixed(2)}`}
+          tone={summary.claimableValue > 0.005 ? 'pos' : 'neutral'}
+        />
+        <HistorySummaryTile
+          label="Claimed wins"
+          value={`$${summary.claimedTotal.toFixed(2)}`}
+          tone={summary.claimedTotal > 0.005 ? 'pos' : 'neutral'}
         />
         <HistorySummaryTile
           label="Net P&L"
-          value={`${summary.totalPnl >= 0 ? '+' : '−'}$${Math.abs(
-            summary.totalPnl,
+          value={`${summary.netPnl >= 0 ? '+' : '−'}$${Math.abs(
+            summary.netPnl,
           ).toFixed(2)}`}
           tone={
-            summary.totalPnl > 0.005
+            summary.netPnl > 0.005
               ? 'pos'
-              : summary.totalPnl < -0.005
+              : summary.netPnl < -0.005
                 ? 'neg'
                 : 'neutral'
           }
-        />
-        <HistorySummaryTile
-          label="Positions"
-          value={String(summary.total)}
         />
       </div>
 
@@ -1114,14 +1628,22 @@ function MyBetsView({
           active={statusFilter === 'live'}
           onClick={() => setStatusFilter('live')}
         >
-          Live · {counts.live}
+          Open · {counts.live}
         </FilterChip>
+        {counts.pending > 0 && (
+          <FilterChip
+            active={statusFilter === 'pending'}
+            onClick={() => setStatusFilter('pending')}
+          >
+            Final · {counts.pending}
+          </FilterChip>
+        )}
         {counts.redeemable > 0 && (
           <FilterChip
             active={statusFilter === 'redeemable'}
             onClick={() => setStatusFilter('redeemable')}
           >
-            Redeemable · {counts.redeemable}
+            Won · {counts.redeemable}
           </FilterChip>
         )}
         {counts.settled > 0 && (
@@ -1129,7 +1651,7 @@ function MyBetsView({
             active={statusFilter === 'settled'}
             onClick={() => setStatusFilter('settled')}
           >
-            Settled · {counts.settled}
+            Past · {counts.settled}
           </FilterChip>
         )}
       </div>
@@ -1201,6 +1723,199 @@ function MyBetsView({
           ))
         )}
       </div>
+
+      <ClaimedWinsSection
+        rows={claimedWinRows}
+        isLoading={isLoadingActivity}
+        onSeeHistory={onSeeHistory}
+        onRowClick={onClaimedWinClick}
+      />
+    </div>
+  );
+}
+
+function ClaimedWinsSection({
+  rows,
+  isLoading,
+  onSeeHistory,
+  onRowClick,
+}: {
+  rows: ClaimedWinRow[];
+  isLoading: boolean;
+  onSeeHistory: () => void;
+  onRowClick: (trade: TradeActivity) => void;
+}) {
+  const [shareRow, setShareRow] = useState<ClaimedWinRow | null>(
+    null,
+  );
+
+  if (!isLoading && rows.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div
+            className="text-[10.5px] font-bold uppercase tracking-[1.2px] text-gray-500"
+            style={{ fontFamily: MONO }}
+          >
+            Claimed wins
+          </div>
+          <p className="mt-0.5 text-[12px] text-gray-500">
+            Redeemed payouts from History are included in Net P&L.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onSeeHistory}
+          className="inline-flex h-7 items-center gap-1 rounded-full border bg-white px-3 text-[11.5px] font-semibold text-gray-900 transition hover:bg-gray-50"
+          style={{ borderColor: HAIR }}
+        >
+          View history
+        </button>
+      </div>
+
+      <div
+        className="overflow-hidden rounded-2xl border bg-white"
+        style={{
+          borderColor: HAIR,
+          boxShadow:
+            '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+        }}
+      >
+        <div
+          className="grid gap-3 border-b px-5 py-3 text-[10.5px] font-bold uppercase tracking-[1.2px]"
+          style={{
+            gridTemplateColumns: CLAIMED_WINS_GRID,
+            borderColor: HAIR2,
+            color: MUTED,
+            fontFamily: MONO,
+          }}
+        >
+          <div>Status</div>
+          <div>Market</div>
+          <div>Side</div>
+          <div>Date</div>
+          <div className="text-right">Payout</div>
+        </div>
+
+        {isLoading && rows.length === 0 ? (
+          <div className="space-y-2 p-5">
+            {[...Array(2)].map((_, i) => (
+              <div
+                key={i}
+                className="h-12 animate-pulse rounded-md bg-gray-50"
+              />
+            ))}
+          </div>
+        ) : (
+          rows.map((row, i) => {
+            const canOpen = Boolean(row.trade);
+            return (
+              <div
+                key={row.key}
+                onClick={() => {
+                  if (row.trade) onRowClick(row.trade);
+                }}
+                className={`grid gap-3 px-5 py-3.5 items-center transition-colors ${
+                  canOpen ? 'cursor-pointer hover:bg-gray-50' : ''
+                } ${i === rows.length - 1 ? '' : 'border-b'}`}
+                style={{
+                  gridTemplateColumns: CLAIMED_WINS_GRID,
+                  borderColor: HAIR2,
+                }}
+              >
+                <div>
+                  <span
+                    className="inline-block rounded-full px-1.5 py-[3px] text-[9.5px] font-bold uppercase tracking-[0.6px]"
+                    style={{
+                      background:
+                        row.source === 'pending'
+                          ? 'rgba(245,158,11,0.12)'
+                          : POS_GREEN_SOFT,
+                      color:
+                        row.source === 'pending' ? '#b45309' : POS_GREEN,
+                      fontFamily: MONO,
+                    }}
+                  >
+                    {row.source === 'pending' ? 'Pending' : 'Claimed'}
+                  </span>
+                </div>
+
+                <div className="flex min-w-0 items-center gap-2.5">
+                  {row.icon ? (
+                    <img
+                      src={row.icon}
+                      alt=""
+                      className="h-7 w-7 flex-shrink-0 rounded-md bg-gray-100 object-cover"
+                    />
+                  ) : (
+                    <div className="h-7 w-7 flex-shrink-0 rounded-md bg-gray-200" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-semibold tracking-[-0.1px] text-gray-900">
+                      {row.title}
+                    </div>
+                    {row.outcome && (
+                      <div
+                        className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.4px]"
+                        style={{ color: MUTED, fontFamily: MONO }}
+                      >
+                        {row.outcome}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  className="text-[11px] font-bold"
+                  style={{ color: MUTED, fontFamily: MONO }}
+                >
+                  {row.side}
+                </div>
+
+                <div
+                  className="text-[11px] tabular-nums"
+                  style={{ color: MUTED, fontFamily: MONO }}
+                >
+                  {row.timestamp ? formatHistoryDate(row.timestamp) : 'Now'}
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
+                  <span
+                    className="text-right text-[12.5px] font-bold tabular-nums"
+                    style={{ color: POS_GREEN, fontFamily: MONO }}
+                  >
+                    +${row.amount.toFixed(2)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setShareRow(row);
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border bg-white text-gray-700 transition-colors hover:bg-gray-50"
+                    style={{ borderColor: HAIR }}
+                    title="Share redeemed prediction"
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {shareRow && (
+        <PositionShareModal
+          position={claimedWinSharePosition(shareRow)}
+          isOpen={!!shareRow}
+          onClose={() => setShareRow(null)}
+          statusOverride="redeemed"
+          redeemedAmount={shareRow.amount}
+        />
+      )}
     </div>
   );
 }
@@ -1228,6 +1943,7 @@ function BetTableRow({
   isSubmitting: boolean;
   canTrade: boolean;
 }) {
+  const [shareOpen, setShareOpen] = useState(false);
   const {
     position: p,
     statusKey,
@@ -1248,6 +1964,7 @@ function BetTableRow({
     pnl > 0.005 ? POS_GREEN : pnl < -0.005 ? NEG_RED : MUTED;
   const pnlSign = pnl > 0.005 ? '+' : pnl < -0.005 ? '−' : '';
   const avgCents = (p.avgPrice * 100).toFixed(0);
+  const shareStatus = shareStatusForBetRow(row);
 
   const renderAction = () => {
     if (statusKey === 'redeemable') {
@@ -1287,6 +2004,19 @@ function BetTableRow({
         </button>
       );
     }
+    if (statusKey === 'pending') {
+      return (
+        <span
+          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold whitespace-nowrap"
+          style={{
+            background: 'rgba(245,158,11,0.12)',
+            color: '#b45309',
+          }}
+        >
+          Waiting to redeem
+        </span>
+      );
+    }
     return (
       <span
         className="text-[11px]"
@@ -1298,28 +2028,29 @@ function BetTableRow({
   };
 
   return (
-    <div
-      onClick={() => onTitleClick(p)}
-      className={`grid gap-3 px-5 py-3.5 items-center transition-colors hover:bg-gray-50 cursor-pointer ${
-        isLast ? '' : 'border-b'
-      }`}
-      style={{
-        gridTemplateColumns: BETS_GRID,
-        borderColor: HAIR2,
-      }}
-    >
-      <div>
-        <span
-          className="inline-block text-[9.5px] font-bold uppercase tracking-[0.6px] px-1.5 py-[3px] rounded-full"
-          style={{
-            background: tone.bg,
-            color: tone.fg,
-            fontFamily: MONO,
-          }}
-        >
-          {statusLabel}
-        </span>
-      </div>
+    <>
+      <div
+        onClick={() => onTitleClick(p)}
+        className={`grid gap-3 px-5 py-3.5 items-center transition-colors hover:bg-gray-50 cursor-pointer ${
+          isLast ? '' : 'border-b'
+        }`}
+        style={{
+          gridTemplateColumns: BETS_GRID,
+          borderColor: HAIR2,
+        }}
+      >
+        <div>
+          <span
+            className="inline-block text-[9.5px] font-bold uppercase tracking-[0.6px] px-1.5 py-[3px] rounded-full"
+            style={{
+              background: tone.bg,
+              color: tone.fg,
+              fontFamily: MONO,
+            }}
+          >
+            {statusLabel}
+          </span>
+        </div>
 
       <div className="min-w-0 flex items-center gap-2.5">
         {p.icon ? (
@@ -1386,8 +2117,30 @@ function BetTableRow({
         </div>
       </div>
 
-      <div className="flex justify-end">{renderAction()}</div>
-    </div>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setShareOpen(true);
+            }}
+            className="flex h-7 w-7 items-center justify-center rounded-full border bg-white text-gray-700 transition-colors hover:bg-gray-50"
+            style={{ borderColor: HAIR }}
+            title="Share prediction"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+          </button>
+          {renderAction()}
+        </div>
+      </div>
+
+      <PositionShareModal
+        position={p}
+        isOpen={shareOpen}
+        onClose={() => setShareOpen(false)}
+        statusOverride={shareStatus}
+      />
+    </>
   );
 }
 
@@ -1982,6 +2735,433 @@ function HeroSpark({ trend }: { trend: 'up' | 'down' | 'flat' }) {
   );
 }
 
+type LiveScoreTeam = {
+  name: string | null;
+  abbreviation: string | null;
+  logo?: string | null;
+  color?: string | null;
+  score: number | null;
+};
+
+type LiveScoreState = {
+  live: boolean;
+  ended?: boolean;
+  closed?: boolean;
+  period: string | null;
+  elapsed: string | null;
+  startTime?: string | null;
+  teams: LiveScoreTeam[];
+};
+
+const EMPTY_LIVE_SCORE: LiveScoreState = {
+  live: false,
+  ended: false,
+  closed: false,
+  period: null,
+  elapsed: null,
+  startTime: null,
+  teams: [],
+};
+
+function useLiveSportsGames() {
+  return useQuery({
+    queryKey: ['prediction-overview-live-games'],
+    queryFn: async (): Promise<SportsGameGroup[]> => {
+      const qs = new URLSearchParams({
+        limit: '90',
+        offset: '0',
+        tag_id: String(getCategoryById('sports')?.tagId ?? 100639),
+        live: 'true',
+        kind: 'gamelines',
+      });
+      const response = await fetch(
+        `/api/polymarket/desktop/markets?${qs.toString()}`,
+      );
+      if (!response.ok) throw new Error('Failed to load live games');
+
+      const markets = (await response.json()) as PolymarketMarket[];
+      const grouped = groupFlatMarketsIntoGames(markets)
+        .filter(isValidGameCard)
+        .sort(compareLiveSportsGames);
+
+      const liveOnly = grouped.filter(isPolymarketLiveGame);
+      const games = (liveOnly.length > 0 ? liveOnly : grouped).slice(0, 20);
+      return enrichLiveSportsGames(games);
+    },
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+}
+
+async function fetchLiveScoreForEvent(
+  eventSlug: string,
+): Promise<LiveScoreState | null> {
+  try {
+    const response = await fetch(
+      `/api/polymarket/event-live?slug=${encodeURIComponent(eventSlug)}`,
+    );
+    if (!response.ok) return null;
+    const json = (await response.json()) as LiveScoreState;
+    return {
+      live: Boolean(json.live),
+      ended: Boolean(json.ended),
+      closed: Boolean(json.closed),
+      period: json.period ?? null,
+      elapsed: json.elapsed ?? null,
+      startTime: json.startTime ?? null,
+      teams: Array.isArray(json.teams) ? json.teams : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function liveScoreTeamKey(team: LiveScoreTeam) {
+  return (
+    team.name?.trim().toLowerCase() ||
+    team.abbreviation?.trim().toLowerCase() ||
+    ''
+  );
+}
+
+function enrichMarketWithLiveScore(
+  market: PolymarketMarket,
+  liveScore: LiveScoreState,
+): PolymarketMarket {
+  const currentTeams = Array.isArray(market.eventTeams)
+    ? market.eventTeams
+    : [];
+  const existingByKey = new Map(
+    currentTeams
+      .map((team) => {
+        const key =
+          team.name?.trim().toLowerCase() ||
+          team.abbreviation?.trim().toLowerCase() ||
+          '';
+        return key ? [key, team] : null;
+      })
+      .filter((entry): entry is [string, (typeof currentTeams)[number]] =>
+        Boolean(entry),
+      ),
+  );
+
+  const eventTeams =
+    liveScore.teams.length > 0
+      ? liveScore.teams.map((team) => {
+          const key = liveScoreTeamKey(team);
+          const existing = key ? existingByKey.get(key) : undefined;
+          return {
+            ...existing,
+            name: team.name ?? existing?.name,
+            abbreviation:
+              team.abbreviation ?? existing?.abbreviation,
+            logo: team.logo ?? existing?.logo,
+            color: team.color ?? existing?.color,
+            score: team.score,
+          };
+        })
+      : currentTeams;
+
+  return {
+    ...market,
+    eventLive: liveScore.live || market.eventLive,
+    eventPeriod: liveScore.period ?? market.eventPeriod,
+    eventElapsed: liveScore.elapsed ?? market.eventElapsed,
+    eventStartDate:
+      liveScore.startTime ?? market.eventStartDate ?? null,
+    gameStartTime:
+      market.gameStartTime ?? liveScore.startTime ?? undefined,
+    eventTeams,
+  };
+}
+
+function enrichGroupedMarketWithLiveScore(
+  grouped: GroupedMarket | null,
+  liveScore: LiveScoreState,
+): GroupedMarket | null {
+  if (!grouped) return null;
+  return {
+    ...grouped,
+    market: enrichMarketWithLiveScore(grouped.market, liveScore),
+  };
+}
+
+async function enrichLiveSportsGames(
+  games: SportsGameGroup[],
+): Promise<SportsGameGroup[]> {
+  return Promise.all(
+    games.map(async (game) => {
+      const eventSlug = getGamePrimaryMarket(game)?.eventSlug;
+      if (!eventSlug) return game;
+
+      const liveScore = await fetchLiveScoreForEvent(eventSlug);
+      if (!liveScore) return game;
+
+      return {
+        ...game,
+        startDate: game.startDate ?? liveScore.startTime ?? undefined,
+        moneyline: enrichGroupedMarketWithLiveScore(
+          game.moneyline,
+          liveScore,
+        ),
+        spread: enrichGroupedMarketWithLiveScore(
+          game.spread,
+          liveScore,
+        ),
+        total: enrichGroupedMarketWithLiveScore(game.total, liveScore),
+      };
+    }),
+  );
+}
+
+function isPolymarketLiveGame(game: SportsGameGroup) {
+  const market = getGamePrimaryMarket(game);
+  return Boolean(market?.eventLive || market?.eventPeriod || market?.eventElapsed);
+}
+
+function getGameStartMs(game: SportsGameGroup) {
+  const market = getGamePrimaryMarket(game);
+  const raw =
+    market?.gameStartTime ||
+    market?.eventStartDate ||
+    game.startDate ||
+    null;
+  if (!raw) return 0;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function compareLiveSportsGames(a: SportsGameGroup, b: SportsGameGroup) {
+  const aMarket = getGamePrimaryMarket(a);
+  const bMarket = getGamePrimaryMarket(b);
+  const aLive = aMarket?.eventLive ? 1 : 0;
+  const bLive = bMarket?.eventLive ? 1 : 0;
+  if (aLive !== bLive) return bLive - aLive;
+
+  const aClock = aMarket?.eventPeriod || aMarket?.eventElapsed ? 1 : 0;
+  const bClock = bMarket?.eventPeriod || bMarket?.eventElapsed ? 1 : 0;
+  if (aClock !== bClock) return bClock - aClock;
+
+  return getGameStartMs(b) - getGameStartMs(a);
+}
+
+function useLiveEventScore(
+  eventSlug: string | undefined,
+  enabled: boolean,
+): LiveScoreState {
+  const [state, setState] = useState<LiveScoreState>(EMPTY_LIVE_SCORE);
+
+  useEffect(() => {
+    if (!enabled || !eventSlug) {
+      setState(EMPTY_LIVE_SCORE);
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchOnce = async () => {
+      try {
+        const response = await fetch(
+          `/api/polymarket/event-live?slug=${encodeURIComponent(eventSlug)}`,
+        );
+        if (!response.ok) return;
+        const json = (await response.json()) as LiveScoreState;
+        if (cancelled) return;
+        setState({
+          live: Boolean(json.live),
+          ended: Boolean(json.ended),
+          closed: Boolean(json.closed),
+          period: json.period ?? null,
+          elapsed: json.elapsed ?? null,
+          startTime: json.startTime ?? null,
+          teams: Array.isArray(json.teams) ? json.teams : [],
+        });
+        if (!cancelled && json.live) {
+          timer = setTimeout(fetchOnce, 15_000);
+        }
+      } catch {
+        // Keep the overview fast; rows fall back to event timing fields.
+      }
+    };
+
+    fetchOnce();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [eventSlug, enabled]);
+
+  return state;
+}
+
+function getGamePrimaryMarket(game: SportsGameGroup) {
+  return (
+    game.moneyline?.market ||
+    game.spread?.market ||
+    game.total?.market ||
+    null
+  );
+}
+
+function pickLiveTeamScore(
+  outcomeLabel: string,
+  outcomeAbbr: string | undefined,
+  teams: LiveScoreTeam[],
+  fallbackIndex: number,
+): number | null {
+  if (!teams.length) return null;
+  const label = outcomeLabel.trim().toLowerCase();
+  const abbr = (outcomeAbbr || '').trim().toLowerCase();
+  const byName = teams.find((team) => {
+    const name = (team.name || '').toLowerCase();
+    return name === label || Boolean(name && (name.includes(label) || label.includes(name)));
+  });
+  if (byName?.score != null) return byName.score;
+
+  if (abbr) {
+    const byAbbr = teams.find(
+      (team) => (team.abbreviation || '').toLowerCase() === abbr,
+    );
+    if (byAbbr?.score != null) return byAbbr.score;
+  }
+
+  return teams[fallbackIndex]?.score ?? null;
+}
+
+function formatLiveGameClock(
+  liveScore: LiveScoreState,
+  market?: PolymarketMarket | null,
+) {
+  const period = liveScore.period || market?.eventPeriod || null;
+  const elapsed = liveScore.elapsed || market?.eventElapsed || null;
+  return [period, elapsed].filter(Boolean).join(' ') || 'In play';
+}
+
+function LiveGameRow({
+  game,
+  isFirst,
+  onClick,
+}: {
+  game: SportsGameGroup;
+  isFirst: boolean;
+  onClick: (market: PolymarketMarket) => void;
+}) {
+  const primaryMarket = getGamePrimaryMarket(game);
+  const eventSlug = primaryMarket?.eventSlug;
+  const liveScore = useLiveEventScore(eventSlug, Boolean(eventSlug));
+  const embeddedScore: LiveScoreState = {
+    live: Boolean(primaryMarket?.eventLive),
+    period: primaryMarket?.eventPeriod ?? null,
+    elapsed: primaryMarket?.eventElapsed ?? null,
+    startTime:
+      primaryMarket?.eventStartDate ||
+      primaryMarket?.gameStartTime ||
+      null,
+    teams: Array.isArray(primaryMarket?.eventTeams)
+      ? primaryMarket.eventTeams.map((team) => ({
+          name: team.name ?? null,
+          abbreviation: team.abbreviation ?? null,
+          logo: team.logo ?? null,
+          color: team.color ?? null,
+          score:
+            typeof team.score === 'number'
+              ? team.score
+              : team.score == null
+                ? null
+                : Number(team.score),
+        }))
+      : [],
+  };
+  const liveScoreHasScores = liveScore.teams.some(
+    (team) => team.score != null,
+  );
+  const embeddedScoreHasScores = embeddedScore.teams.some(
+    (team) => team.score != null,
+  );
+  const scoreState =
+    liveScoreHasScores ||
+    (!embeddedScoreHasScores && (liveScore.period || liveScore.elapsed))
+      ? liveScore
+      : embeddedScore;
+  const scoreA = pickLiveTeamScore(
+    game.teamA,
+    game.teamAMeta?.abbrev,
+    scoreState.teams,
+    0,
+  );
+  const scoreB = pickLiveTeamScore(
+    game.teamB,
+    game.teamBMeta?.abbrev,
+    scoreState.teams,
+    1,
+  );
+  const hasScore = scoreA != null && scoreB != null;
+  const clock = formatLiveGameClock(scoreState, primaryMarket);
+
+  return (
+    <button
+      type="button"
+      disabled={!primaryMarket}
+      onClick={() => {
+        if (primaryMarket) onClick(primaryMarket);
+      }}
+      className={`w-full text-left py-2.5 ${
+        isFirst ? '' : 'border-t border-white/5'
+      } hover:bg-white/[0.02] disabled:cursor-default disabled:hover:bg-transparent transition-colors`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-[13px] font-semibold tracking-tight">
+              {game.teamA} vs. {game.teamB}
+            </span>
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400"
+              style={{ boxShadow: '0 0 0 3px rgba(255,90,95,0.16)' }}
+            />
+          </div>
+          <div
+            className="mt-0.5 flex min-w-0 items-center gap-2 text-[10.5px] font-semibold uppercase tracking-wide"
+            style={{ color: 'rgba(255,255,255,0.55)', fontFamily: MONO }}
+          >
+            <span className="shrink-0 tabular-nums text-red-300">
+              {clock}
+            </span>
+            <span style={{ color: 'rgba(255,255,255,0.25)' }}>·</span>
+            <span className="truncate">
+              {game.moneyline ? 'moneyline' : game.spread ? 'spread' : 'total'}
+            </span>
+          </div>
+        </div>
+        <div className="shrink-0 text-right" style={{ fontFamily: MONO }}>
+          {hasScore ? (
+            <>
+              <div className="text-[16px] font-bold tabular-nums">
+                {scoreA} - {scoreB}
+              </div>
+              <div className="mt-0.5 text-[10px] font-semibold text-white/45">
+                score
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-[12px] font-bold text-red-300">LIVE</div>
+              <div className="mt-0.5 text-[10px] font-semibold text-white/45">
+                odds live
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 interface BentoHeroProps {
   intPart: string;
   decPart: string;
@@ -1990,13 +3170,14 @@ interface BentoHeroProps {
   openBets: number;
   openOrders: number;
   inOrdersValue: number;
-  topPicks: PolymarketPosition[];
+  liveGames: SportsGameGroup[];
+  isLoadingLiveGames: boolean;
   onDeposit: () => void;
   onWithdraw: () => void;
   onOpenOrders: () => void;
   onMyBets: () => void;
   onHistory: () => void;
-  onPickClick: (p: PolymarketPosition) => void;
+  onLiveGameClick: (market: PolymarketMarket) => void;
 }
 
 /**
@@ -2014,13 +3195,14 @@ function BentoHero({
   openBets,
   openOrders,
   inOrdersValue,
-  topPicks,
+  liveGames,
+  isLoadingLiveGames,
   onDeposit,
   onWithdraw,
   onOpenOrders,
   onMyBets,
   onHistory,
-  onPickClick,
+  onLiveGameClick,
 }: BentoHeroProps) {
   const isPctPositive = portfolioPct >= 0;
   const trend: 'up' | 'down' | 'flat' =
@@ -2122,7 +3304,7 @@ function BentoHero({
         </div>
       </div>
 
-      {/* Right: dark "Active picks" tile (the only dark surface — matches
+      {/* Right: dark live games tile (the only dark surface — matches
           the LIVE NOW tile from the wireframe). */}
       <div
         className="rounded-2xl overflow-hidden text-white"
@@ -2147,7 +3329,7 @@ function BentoHero({
                 boxShadow: `0 0 0 3px rgba(255,90,95,0.18)`,
               }}
             />
-            ACTIVE PICKS
+            LIVE GAMES
           </span>
           <span
             className="text-[11px] font-semibold tabular-nums"
@@ -2156,80 +3338,42 @@ function BentoHero({
               fontFamily: MONO,
             }}
           >
-            {openBets} {openBets === 1 ? 'bet' : 'bets'}
+            {isLoadingLiveGames
+              ? 'loading'
+              : `${liveGames.length} ${liveGames.length === 1 ? 'game' : 'games'}`}
           </span>
         </div>
-        <div className="px-5 py-2">
-          {topPicks.length === 0 ? (
+        <div className="max-h-[255px] overflow-y-auto px-5 py-2">
+          {isLoadingLiveGames ? (
+            <div className="space-y-2 py-2">
+              {[0, 1, 2].map((index) => (
+                <div
+                  key={index}
+                  className="h-[52px] animate-pulse rounded-xl bg-white/[0.04]"
+                />
+              ))}
+            </div>
+          ) : liveGames.length === 0 ? (
             <div className="py-6 text-center">
               <p className="text-xs text-white/60 font-medium">
-                No active picks yet
+                No live games right now
               </p>
               <button
-                onClick={onDeposit}
+                onClick={onMyBets}
                 className="mt-2 text-xs text-white/90 underline-offset-4 hover:underline"
               >
-                Deposit to start trading
+                View my bets
               </button>
             </div>
           ) : (
-            topPicks.map((pick, i) => {
-              const positive = pick.cashPnl >= 0;
-              return (
-                <button
-                  key={pick.asset}
-                  onClick={() => onPickClick(pick)}
-                  className={`w-full text-left py-2.5 ${
-                    i === 0 ? '' : 'border-t border-white/5'
-                  } hover:bg-white/[0.02] transition-colors`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-semibold tracking-tight truncate">
-                        {pick.title}
-                      </div>
-                      <div
-                        className="mt-0.5 flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-wide"
-                        style={{
-                          color: 'rgba(255,255,255,0.55)',
-                          fontFamily: MONO,
-                        }}
-                      >
-                        <span className="truncate">
-                          {pick.outcome}
-                        </span>
-                        <span
-                          style={{ color: 'rgba(255,255,255,0.25)' }}
-                        >
-                          ·
-                        </span>
-                        <span className="tabular-nums">
-                          {pick.size.toFixed(0)} sh
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      className="text-right shrink-0"
-                      style={{ fontFamily: MONO }}
-                    >
-                      <div className="text-[13px] font-semibold tabular-nums">
-                        ${pick.currentValue.toFixed(2)}
-                      </div>
-                      <div
-                        className={`text-[10.5px] font-semibold tabular-nums mt-0.5 ${
-                          positive
-                            ? 'text-emerald-400'
-                            : 'text-red-400'
-                        }`}
-                      >
-                        {positive ? '+' : '−'}$
-                        {Math.abs(pick.cashPnl).toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })
+            liveGames.map((game, i) => (
+              <LiveGameRow
+                key={game.eventId || game.title}
+                game={game}
+                isFirst={i === 0}
+                onClick={onLiveGameClick}
+              />
+            ))
           )}
         </div>
       </div>
@@ -2352,6 +3496,7 @@ function CategoryDetailView({
   const liveOnly = isSports && filterIdx === 2;
   const kind: 'futures' | undefined =
     isSports && filterIdx === 1 ? 'futures' : undefined;
+  const showDateStrip = isSports && filterIdx === 0;
   const activeDate = dateStrip[activeDateIdx] ?? dateStrip[0];
 
   const titleText = isSports
@@ -2461,28 +3606,30 @@ function CategoryDetailView({
           <div className="flex items-center gap-2 text-[11.5px] text-gray-500 shrink-0">
             <span className="hidden sm:inline">Sort</span>
             <SubFilterChip>
-              {isSports ? 'Game time' : 'Volume'}
+              {isSports && filterIdx !== 1 ? 'Game time' : 'Volume'}
               <ChevronDown className="w-3 h-3" />
             </SubFilterChip>
           </div>
         </div>
 
-        {/* Row 3 — Date strip. One tile is always active; tapping a tile
-              passes [from, to) to the backend so today's games surface. */}
-        <div
-          className="px-3.5 py-3 flex gap-1.5 overflow-x-auto border-b"
-          style={{ borderColor: HAIR }}
-        >
-          {dateStrip.map((d, i) => (
-            <DateTile
-              key={i}
-              label={d.label}
-              sub={d.sub}
-              active={i === activeDateIdx}
-              onClick={() => setActiveDateIdx(i)}
-            />
-          ))}
-        </div>
+        {/* Row 3 — Date strip. Futures and Live are cross-date feeds, so
+              only dated game lines send a [from, to) range to the backend. */}
+        {showDateStrip && (
+          <div
+            className="px-3.5 py-3 flex gap-1.5 overflow-x-auto border-b"
+            style={{ borderColor: HAIR }}
+          >
+            {dateStrip.map((d, i) => (
+              <DateTile
+                key={i}
+                label={d.label}
+                sub={d.sub}
+                active={i === activeDateIdx}
+                onClick={() => setActiveDateIdx(i)}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Row 4 — Sportsbook table (sports) or single-column markets list.
               Sports use the dedicated A2 SportsTableView so games render as
@@ -2493,8 +3640,8 @@ function CategoryDetailView({
             tagId={sportTagId ?? null}
             liveOnly={liveOnly}
             kind={kind}
-            dateFrom={activeDate.fromIso}
-            dateTo={activeDate.toIso}
+            dateFrom={showDateStrip ? activeDate.fromIso : undefined}
+            dateTo={showDateStrip ? activeDate.toIso : undefined}
           />
         ) : (
           <div className="p-4 sm:p-5">
@@ -2686,8 +3833,53 @@ function tradeToDetailMarket(trade: TradeActivity): PolymarketMarket {
   };
 }
 
+type PositionEventTeamMeta = NonNullable<
+  PolymarketMarket['eventTeams']
+>[number];
+
+function isBinaryPositionOutcome(label: string): boolean {
+  return /^(yes|no)$/i.test(label.trim());
+}
+
+function resolvePositionTeamMeta(
+  label: string,
+  teamsMap: TeamsMap | undefined,
+): PositionEventTeamMeta | undefined {
+  if (!teamsMap || !label) return undefined;
+  const lower = label.trim().toLowerCase();
+  if (!lower) return undefined;
+  const hit =
+    teamsMap.byKey.get(lower) ||
+    teamsMap.byKey.get(lower.split(/\s+/).pop() ?? '');
+  if (!hit) return undefined;
+  return {
+    id: hit.id,
+    name: hit.name,
+    league: hit.sport,
+    logo: hit.logoUrl,
+    abbreviation: hit.abbreviation,
+    color: typeof hit.color === 'string' ? hit.color : undefined,
+  };
+}
+
+function positionLooksLikeSportsMatchup(
+  position: PolymarketPosition,
+  yesOutcomeName: string,
+  noOutcomeName: string,
+): boolean {
+  if (!position.eventSlug) return false;
+  if (
+    isBinaryPositionOutcome(yesOutcomeName) ||
+    isBinaryPositionOutcome(noOutcomeName)
+  ) {
+    return false;
+  }
+  return /\b(vs\.?|v\.?|at)\b|@/i.test(position.title);
+}
+
 function positionToDetailMarket(
   position: PolymarketPosition,
+  teamsMap: TeamsMap | undefined,
 ): PolymarketMarket {
   const isYesPos = position.outcomeIndex === 0;
   const yesTokenId = isYesPos
@@ -2709,8 +3901,25 @@ function positionToDetailMarket(
     ? 1 - position.curPrice
     : position.curPrice;
 
+  const yesTeam = resolvePositionTeamMeta(yesOutcomeName, teamsMap);
+  const noTeam = resolvePositionTeamMeta(noOutcomeName, teamsMap);
+  const eventTeams: PositionEventTeamMeta[] | undefined =
+    yesTeam && noTeam
+      ? [yesTeam, noTeam]
+      : positionLooksLikeSportsMatchup(
+            position,
+            yesOutcomeName,
+            noOutcomeName,
+          )
+        ? [
+            yesTeam ?? { name: yesOutcomeName },
+            noTeam ?? { name: noOutcomeName },
+          ]
+        : undefined;
+
   return {
     id: position.conditionId,
+    conditionId: position.conditionId,
     question: position.title,
     slug: position.slug,
     active: !position.redeemable,
@@ -2725,5 +3934,6 @@ function positionToDetailMarket(
     clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
     negRisk: position.negativeRisk,
     endDateIso: position.endDate,
+    eventTeams,
   };
 }

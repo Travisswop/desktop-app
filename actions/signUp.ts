@@ -12,7 +12,7 @@ export async function handleSignUp(userInfo: any) {
         body: JSON.stringify(userInfo),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
 
     return data;
   } catch (error) {

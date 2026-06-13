@@ -1,4 +1,4 @@
-import { createPublicClient, http, erc20Abi } from "viem";
+import { createPublicClient, fallback, http, erc20Abi } from "viem";
 import { polygon } from "viem/chains";
 import {
   USDC_E_CONTRACT_ADDRESS,
@@ -6,7 +6,7 @@ import {
   CTF_EXCHANGE_ADDRESS,
   NEG_RISK_CTF_EXCHANGE_ADDRESS,
   NEG_RISK_ADAPTER_ADDRESS,
-  POLYGON_RPC_URL,
+  POLYGON_RPC_URLS,
 } from "@/constants/polymarket";
 
 const erc1155Abi = [
@@ -34,8 +34,34 @@ const erc1155Abi = [
 
 const publicClient = createPublicClient({
   chain: polygon,
-  transport: http(POLYGON_RPC_URL),
+  transport: fallback(POLYGON_RPC_URLS.map((url) => http(url))),
 });
+
+/**
+ * Retries a flaky RPC read a few times before giving up. Without this, a single
+ * transient RPC error makes an approval read resolve to `false`, which makes a
+ * fully-approved wallet look unapproved during silent session restore and
+ * re-prompts the user to "Enable trading". On-chain approvals are durable, so
+ * a transient read error must not be treated as "not approved".
+ */
+const readWithRetry = async <T>(
+  read: () => Promise<T>,
+  retries = 3,
+  baseDelayMs = 400
+): Promise<T> => {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await read();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, baseDelayMs * (attempt + 1)));
+      }
+    }
+  }
+  throw lastErr;
+};
 
 const USDC_E_SPENDERS = [
   { address: CTF_CONTRACT_ADDRESS, name: "CTF Contract" },
@@ -50,43 +76,40 @@ const OUTCOME_TOKEN_SPENDERS = [
   { address: NEG_RISK_ADAPTER_ADDRESS, name: "Neg Risk Adapter" },
 ] as const;
 
+// NOTE: these readers intentionally let a persistent RPC failure throw rather
+// than resolving to `false`. A swallowed error makes a fully-approved wallet
+// look unapproved and re-prompts the user to "Enable trading" forever. Callers
+// must treat a thrown error as "could not determine" (preserve prior state),
+// not as "not approved".
 const checkUSDCApprovalForSpender = async (
   safeAddress: string,
   spender: string
 ): Promise<boolean> => {
-  try {
-    const allowance = await publicClient.readContract({
+  const allowance = await readWithRetry(() =>
+    publicClient.readContract({
       address: USDC_E_CONTRACT_ADDRESS as `0x${string}`,
       abi: erc20Abi,
       functionName: "allowance",
       args: [safeAddress as `0x${string}`, spender as `0x${string}`],
-    });
+    })
+  );
 
-    const threshold = BigInt("1000000000000");
-    return allowance >= threshold;
-  } catch (error) {
-    console.warn(`Failed to check USDC approval for ${spender}:`, error);
-    return false;
-  }
+  const threshold = BigInt("1000000000000");
+  return allowance >= threshold;
 };
 
 const checkERC1155ApprovalForSpender = async (
   safeAddress: string,
   spender: string
 ): Promise<boolean> => {
-  try {
-    const isApproved = await publicClient.readContract({
+  return readWithRetry(() =>
+    publicClient.readContract({
       address: CTF_CONTRACT_ADDRESS as `0x${string}`,
       abi: erc1155Abi,
       functionName: "isApprovedForAll",
       args: [safeAddress as `0x${string}`, spender as `0x${string}`],
-    });
-
-    return isApproved;
-  } catch (error) {
-    console.warn(`Failed to check ERC1155 approval for ${spender}:`, error);
-    return false;
-  }
+    })
+  );
 };
 
 export const checkAllApprovals = async (

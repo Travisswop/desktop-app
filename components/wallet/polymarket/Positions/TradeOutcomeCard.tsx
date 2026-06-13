@@ -1,5 +1,11 @@
 'use client';
 
+import { useState } from 'react';
+import { Share2 } from 'lucide-react';
+import PositionShareModal, {
+  type PredictionSharePosition,
+} from './PositionShareModal';
+
 type OutcomeResult = 'WIN' | 'LOSS' | 'BREAKEVEN' | 'UNKNOWN';
 
 function formatCents(price: number): string {
@@ -22,6 +28,11 @@ export type AggregatedTradeOutcome = {
   title: string;
   outcome: string;
   icon?: string | null;
+  slug?: string | null;
+  eventSlug?: string | null;
+  conditionId?: string | null;
+  asset?: string | null;
+  outcomeIndex?: number | null;
   boughtShares: number;
   soldShares: number;
   avgBuyPrice: number | null;
@@ -34,10 +45,32 @@ export default function TradeOutcomeCard({
 }: {
   item: AggregatedTradeOutcome;
 }) {
+  const [shareOpen, setShareOpen] = useState(false);
   const result = resolveOutcomeResult(
     item.avgBuyPrice,
     item.avgSellPrice,
   );
+  const cost = (item.avgBuyPrice ?? 0) * item.boughtShares;
+  const realizedValue = Math.max(0, cost + item.realizedPnl);
+  const percentPnl = cost > 0 ? (item.realizedPnl / cost) * 100 : 0;
+  const sharePosition: PredictionSharePosition = {
+    title: item.title,
+    outcome: item.outcome,
+    icon: item.icon,
+    slug: item.slug,
+    eventSlug: item.eventSlug,
+    size: item.soldShares || item.boughtShares,
+    avgPrice: item.avgBuyPrice,
+    curPrice: item.avgSellPrice,
+    initialValue: cost,
+    currentValue: realizedValue,
+    cashPnl: item.realizedPnl,
+    percentPnl,
+    totalBought: item.boughtShares,
+    realizedPnl: item.realizedPnl,
+    percentRealizedPnl: percentPnl,
+    marketClosed: true,
+  };
 
   const badge =
     result === 'WIN'
@@ -49,8 +82,9 @@ export default function TradeOutcomeCard({
           : { text: '—', cls: 'bg-gray-100 text-gray-500' };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-      <div className="flex items-start gap-3 p-4">
+    <>
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="flex items-start gap-3 p-4">
         {item.icon ? (
           <img
             src={item.icon}
@@ -87,6 +121,14 @@ export default function TradeOutcomeCard({
             )}
           </div>
         </div>
+
+        <button
+          onClick={() => setShareOpen(true)}
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
+          title="Share prediction"
+        >
+          <Share2 className="h-4 w-4" />
+        </button>
       </div>
 
       <div className="border-t border-dashed border-gray-200 mx-4" />
@@ -114,6 +156,14 @@ export default function TradeOutcomeCard({
           </p>
         </div>
       </div>
-    </div>
+      </div>
+
+      <PositionShareModal
+        position={sharePosition}
+        isOpen={shareOpen}
+        onClose={() => setShareOpen(false)}
+        statusOverride="sold"
+      />
+    </>
   );
 }

@@ -21,7 +21,8 @@ export async function handleSmallIcon(
       }
     );
     revalidatePath(`/smartsites/icons/${smallIconInfo.micrositeId}`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
 
     return data;
   } catch (error) {
@@ -46,7 +47,8 @@ export async function handleUpdateSmallIcon(
       }
     );
     revalidatePath(`/smartsites/icons/${smallIconInfo.micrositeId}`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -70,7 +72,8 @@ export async function handleDeleteSmallIcon(
       }
     );
     revalidatePath(`/smartsites/icons/${smallIconInfo.micrositeId}`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);

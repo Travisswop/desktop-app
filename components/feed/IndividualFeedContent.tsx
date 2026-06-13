@@ -19,10 +19,11 @@ import SwapTransactionCard from "./SwapTransactionCard";
 import { formatEns } from "@/lib/formatEnsName";
 import PollCard from "./PollCard";
 import PredictionFeedCard from "./PredictionFeedCard";
-import PerpsFeedCard from "./PerpsFeedCard";
+import PerpsPositionFeedCard from "./PerpsPositionFeedCard";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import { IoMdArrowDropright } from "react-icons/io";
 import { MdArrowRight } from "react-icons/md";
+import TokenTransferFeedCard from "./TokenTransferFeedCard";
 
 const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,9 +44,6 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
       receiver_ens,
       receiver_wallet_address,
       amount,
-      token,
-      chain,
-      tokenPrice,
       image,
       name,
       currency,
@@ -85,24 +83,7 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
         </div>
       );
     } else if (transaction_type === "token") {
-      return (
-        <p className="text-black text-sm">
-          Transferred{" "}
-          <span className="font-medium">
-            {amount.toFixed(2)} {token}
-          </span>{" "}
-          {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
-          to{" "}
-          <a
-            href={`https://${recipientDisplay}`}
-            target="_blank"
-            className="font-semibold"
-          >
-            {formatEns(recipientDisplay)}
-          </a>{" "}
-          on the {chain}.
-        </p>
-      );
+      return <TokenTransferFeedCard feed={feed.repostedPostDetails} />;
     } else {
       return (
         <p className="text-gray-600 text-sm">
@@ -313,6 +294,7 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
             {feed.repostedPostDetails.postType === "prediction" && (
               <PredictionFeedCard
                 content={feed.repostedPostDetails.content}
+                createdAt={feed.repostedPostDetails.createdAt}
                 userName={
                   feed.repostedPostDetails?.smartsiteId?.name ||
                   feed.repostedPostDetails?.smartsiteUserName ||
@@ -321,23 +303,8 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
                 }
               />
             )}
-            {feed.repostedPostDetails.postType === "perps" && (
-              <PerpsFeedCard
-                content={feed.repostedPostDetails.content}
-                userName={
-                  feed.repostedPostDetails?.smartsiteId?.name ||
-                  feed.repostedPostDetails?.smartsiteUserName ||
-                  feed.repostedPostDetails?.smartsiteDetails?.name ||
-                  undefined
-                }
-                userImage={
-                  feed.repostedPostDetails?.smartsiteId?.profilePic ||
-                  feed.repostedPostDetails?.smartsiteProfilePic ||
-                  feed.repostedPostDetails?.smartsiteDetails?.profilePic ||
-                  undefined
-                }
-                createdAt={feed.repostedPostDetails?.createdAt}
-              />
+            {feed.repostedPostDetails.postType === "perpsPosition" && (
+              <PerpsPositionFeedCard feed={feed.repostedPostDetails} />
             )}
           </div>
         </div>

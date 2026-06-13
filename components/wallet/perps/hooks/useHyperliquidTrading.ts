@@ -23,10 +23,29 @@ export interface PlaceTpSlOrderParams {
   takeProfitPrice: string; // trigger price for TP
 }
 
+export interface PlacePositionTpSlOrderParams {
+  assetIndex: number;
+  isLong: boolean;
+  size: string;
+  stopLossPrice?: string;
+  takeProfitPrice?: string;
+}
+
 export interface TradingState {
   isSubmitting: boolean;
   lastOrderResult: unknown | null;
   error: string | null;
+}
+
+const STALE_AGENT_MESSAGE =
+  'Your Hyperliquid trading key expired or was replaced. Enable trading again, then retry this order.';
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function isMissingApiWalletError(message: string) {
+  return /user\s+or\s+api\s+wallet/i.test(message) && /does\s+not\s+exist/i.test(message);
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────────
@@ -67,7 +86,10 @@ function roundPrice(price: number): string {
   return price.toFixed(decimals);
 }
 
-export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
+export function useHyperliquidTrading(
+  agentClient: hl.ExchangeClient | null,
+  onAgentInvalid?: (message: string) => void,
+) {
   const queryClient = useQueryClient();
 
   const [state, setState] = useState<TradingState>({
@@ -89,6 +111,17 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
 
   const assertAgent = () => {
     if (!agentClient) throw new Error('Agent not initialized. Please connect your wallet and set up trading first.');
+  };
+
+  const handleTradingError = (error: unknown, fallback: string) => {
+    const rawMsg = errorMessage(error, fallback);
+    const msg = isMissingApiWalletError(rawMsg)
+      ? STALE_AGENT_MESSAGE
+      : rawMsg;
+
+    if (msg === STALE_AGENT_MESSAGE) onAgentInvalid?.(msg);
+    setError(msg);
+    return new Error(msg);
   };
 
   // ─── Market Order (IOC) ─────────────────────────────────────────────
@@ -132,13 +165,11 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
         invalidate();
         return result;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Market order failed';
-        setError(msg);
-        throw err;
+        throw handleTradingError(err, 'Market order failed');
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentClient, invalidate],
+    [agentClient, invalidate, onAgentInvalid],
   );
 
   // ─── Limit Order (GTC) ──────────────────────────────────────────────
@@ -169,13 +200,11 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
         invalidate();
         return result;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Limit order failed';
-        setError(msg);
-        throw err;
+        throw handleTradingError(err, 'Limit order failed');
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentClient, invalidate],
+    [agentClient, invalidate, onAgentInvalid],
   );
 
   // ─── TP/SL Linked Orders (normalTpsl grouping) ───────────────────────
@@ -235,13 +264,80 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
         invalidate();
         return result;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'TP/SL order failed';
-        setError(msg);
-        throw err;
+        throw handleTradingError(err, 'TP/SL order failed');
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentClient, invalidate],
+    [agentClient, invalidate, onAgentInvalid],
+  );
+
+  // ─── TP/SL For Existing Position (positionTpsl grouping) ─────────────
+
+  /**
+   * Places reduce-only trigger orders against an already-open position.
+   * This does not submit a new entry order.
+   */
+  const placePositionTpSlOrder = useCallback(
+    async (params: PlacePositionTpSlOrderParams) => {
+      assertAgent();
+      setSubmitting(true);
+
+      try {
+        const slPx = params.stopLossPrice
+          ? roundPrice(parseFloat(params.stopLossPrice))
+          : '';
+        const tpPx = params.takeProfitPrice
+          ? roundPrice(parseFloat(params.takeProfitPrice))
+          : '';
+        const orders: Array<{
+          a: number;
+          b: boolean;
+          s: string;
+          p: string;
+          r: boolean;
+          t: { trigger: { isMarket: boolean; tpsl: 'tp' | 'sl'; triggerPx: string } };
+        }> = [];
+
+        if (slPx) {
+          orders.push({
+            a: params.assetIndex,
+            b: !params.isLong,
+            s: params.size,
+            p: slPx,
+            r: true,
+            t: { trigger: { isMarket: true, tpsl: 'sl', triggerPx: slPx } },
+          });
+        }
+
+        if (tpPx) {
+          orders.push({
+            a: params.assetIndex,
+            b: !params.isLong,
+            s: params.size,
+            p: tpPx,
+            r: true,
+            t: { trigger: { isMarket: true, tpsl: 'tp', triggerPx: tpPx } },
+          });
+        }
+
+        if (!orders.length) {
+          throw new Error('Add a take-profit or stop-loss trigger price.');
+        }
+
+        const result = await agentClient!.order({
+          grouping: 'positionTpsl',
+          orders,
+        });
+
+        setState({ isSubmitting: false, lastOrderResult: result, error: null });
+        invalidate();
+        return result;
+      } catch (err) {
+        throw handleTradingError(err, 'Position TP/SL order failed');
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentClient, invalidate, onAgentInvalid],
   );
 
   // ─── Update Leverage ────────────────────────────────────────────────
@@ -262,13 +358,11 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
         invalidate();
         return result;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Leverage update failed';
-        setError(msg);
-        throw err;
+        throw handleTradingError(err, 'Leverage update failed');
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentClient, invalidate],
+    [agentClient, invalidate, onAgentInvalid],
   );
 
   // ─── Close Position (Market) ────────────────────────────────────────
@@ -313,13 +407,11 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
         invalidate();
         return result;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Close position failed';
-        setError(msg);
-        throw err;
+        throw handleTradingError(err, 'Close position failed');
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentClient, invalidate],
+    [agentClient, invalidate, onAgentInvalid],
   );
 
   // ─── TWAP Order ─────────────────────────────────────────────────────
@@ -354,13 +446,11 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
         setState({ isSubmitting: false, lastOrderResult: result, error: null });
         return result;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'TWAP order failed';
-        setError(msg);
-        throw err;
+        throw handleTradingError(err, 'TWAP order failed');
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentClient],
+    [agentClient, onAgentInvalid],
   );
 
   // ─── Cancel Order ────────────────────────────────────────────────────
@@ -383,13 +473,11 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
         invalidate();
         return result;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Cancel order failed';
-        setError(msg);
-        throw err;
+        throw handleTradingError(err, 'Cancel order failed');
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentClient, invalidate],
+    [agentClient, invalidate, onAgentInvalid],
   );
 
   // ─── Clear Error ─────────────────────────────────────────────────────
@@ -403,6 +491,7 @@ export function useHyperliquidTrading(agentClient: hl.ExchangeClient | null) {
     placeMarketOrder,
     placeLimitOrder,
     placeTpSlOrder,
+    placePositionTpSlOrder,
     updateLeverage,
     closePosition,
     placeTwapOrder,

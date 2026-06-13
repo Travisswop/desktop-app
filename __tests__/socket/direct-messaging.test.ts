@@ -1,6 +1,9 @@
 import { io, Socket } from 'socket.io-client';
 
-describe('Socket Direct Messaging Events', () => {
+const describeSocket =
+  process.env.RUN_SOCKET_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
+
+describeSocket('Socket Direct Messaging Events', () => {
   let senderSocket: Socket;
   let receiverSocket: Socket;
   const SOCKET_URL = process.env.SOCKET_URL || 'http://localhost:3001';

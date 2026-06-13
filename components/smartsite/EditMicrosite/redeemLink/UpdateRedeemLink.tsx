@@ -161,7 +161,7 @@ const UpdateRedeemLink = ({ iconDataObj, isOn, setOff }: any) => {
       amount: selectedToken?.total_amount || iconDataObj?.data?.amount,
       symbol: selectedToken?.token_symbol || iconDataObj?.data?.symbol,
       description: description,
-      micrositeId: smartsiteid.split("/").pop(),
+      micrositeId: smartsiteid?.split("/").pop(),
       tokenUrl: imageUrl,
     };
 
@@ -172,7 +172,7 @@ const UpdateRedeemLink = ({ iconDataObj, isOn, setOff }: any) => {
 
       if (data.state === "success") {
         if (isSelected) {
-          const id = smartsiteid.split("/").pop();
+          const id = smartsiteid?.split("/").pop();
           const smartsite = userInfo?.microsites?.find(
             (microsite: any) => microsite._id == id
           );
@@ -377,7 +377,10 @@ const UpdateRedeemLink = ({ iconDataObj, isOn, setOff }: any) => {
                                 <p>Choose A Token</p>
                               </DropdownItem>
                               {isPoolLoading ? (
-                                <DropdownItem className="border-b rounded-none hover:rounded-md">
+                                <DropdownItem
+                                  key="loading"
+                                  className="border-b rounded-none hover:rounded-md"
+                                >
                                   <p className="">loading...</p>
                                 </DropdownItem>
                               ) : (

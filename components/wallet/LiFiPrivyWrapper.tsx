@@ -14,7 +14,6 @@ interface LiFiPrivyWrapperProps {
 }
 export default function LiFiPrivyWrapper({
   tokens,
-  config,
   onSwapComplete,
 }: LiFiPrivyWrapperProps) {
   const { authenticated, ready, login } = usePrivy();
@@ -55,10 +54,11 @@ export default function LiFiPrivyWrapper({
   }
 
   return (
-    // <LiFiModal
-    //     config={config}
-    //     onSwapComplete={onSwapComplete}
-    // />
-    <SwapTokenModal tokens={tokens} />
+    <SwapTokenModal
+      tokens={tokens}
+      onSwapComplete={() => {
+        onSwapComplete?.();
+      }}
+    />
   );
 }

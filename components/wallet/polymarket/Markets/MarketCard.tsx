@@ -91,7 +91,24 @@ export default function MarketCard({
   const liquidityUSD = parseFloat(String(market.liquidity || '0'));
   const isClosed = market.closed;
   const sportsTiming = getSportsTiming(market.gameStartTime);
-  const isLive = sportsTiming?.status === 'live';
+  const hasEventStatus =
+    market.eventLive ||
+    market.eventEnded ||
+    market.eventClosed ||
+    market.eventPeriod != null ||
+    market.eventElapsed != null ||
+    market.eventScore != null;
+  const isFinalSportsEvent = Boolean(
+    isSportsCategory &&
+      (market.eventEnded ||
+        market.eventClosed ||
+        /^(ft|final)$/i.test(String(market.eventPeriod || '').trim())),
+  );
+  const isLive = Boolean(
+    isSportsCategory &&
+      !isFinalSportsEvent &&
+      (market.eventLive || (!hasEventStatus && sportsTiming?.status === 'live')),
+  );
 
   const outcomes = market.outcomes ? JSON.parse(market.outcomes) : [];
   const tokenIds = market.clobTokenIds
@@ -123,7 +140,8 @@ export default function MarketCard({
             LIVE
           </span>
           <span className="text-red-500 text-xs ml-auto truncate">
-            {sportsTiming.detail}
+            {sportsTiming?.detail ||
+              'Market orders have a 3 s delay'}
           </span>
         </div>
       )}
@@ -188,7 +206,12 @@ export default function MarketCard({
               Closed
             </span>
           )}
-          {isSportsCategory && !isLive && sportsTiming && (
+          {isFinalSportsEvent && (
+            <span className="text-[10px] font-bold bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">
+              Final{market.eventScore ? ` · ${market.eventScore}` : ''}
+            </span>
+          )}
+          {isSportsCategory && !isLive && !isFinalSportsEvent && sportsTiming && (
             <span
               className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                 sportsTiming.status === 'imminent'
@@ -209,7 +232,7 @@ export default function MarketCard({
           isClosed={isClosed}
           negRisk={negRisk}
           marketQuestion={market.question}
-          disabled={disabled}
+          disabled={disabled || isFinalSportsEvent}
           onOutcomeClick={onOutcomeClick}
         />
       </div>

@@ -12,6 +12,7 @@ import {
 import { useUser } from '@/lib/UserContext';
 import { getLegacyWithdrawTypedData } from '@/lib/polymarket/backend-session';
 import { usePolygonBalances } from '@/hooks/polymarket';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import {
   USDC_E_CONTRACT_ADDRESS,
   LEGACY_USDC_E_ADDRESS,
@@ -117,7 +118,12 @@ export default function WithdrawModal({
 
   const handleCopyAddress = async () => {
     if (!destination) return;
-    await navigator.clipboard.writeText(destination);
+    const didCopy = await copyTextToClipboard(destination);
+    if (!didCopy) {
+      setError('Could not copy address. Please try again.');
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -215,10 +221,10 @@ export default function WithdrawModal({
 
       setTimeout(() => {
         queryClient.invalidateQueries({
-          queryKey: ['usdcBalance', safeAddress],
+          queryKey: ['pusdBalance'],
         });
         queryClient.invalidateQueries({
-          queryKey: ['legacyUsdcBalance', safeAddress],
+          queryKey: ['legacyUsdcBalance'],
         });
       }, 3000);
     } catch (err: any) {

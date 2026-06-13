@@ -4,47 +4,109 @@ import { useEffect, useRef } from 'react';
 import {
   createChart,
   CandlestickSeries,
+  LineSeries,
+  AreaSeries,
   HistogramSeries,
   CrosshairMode,
   ColorType,
+  LineStyle,
   type IChartApi,
   type ISeriesApi,
   type CandlestickData,
+  type LineData,
+  type AreaData,
   type HistogramData,
   type UTCTimestamp,
 } from 'lightweight-charts';
 import { useHyperliquidCandles } from './hooks/useHyperliquidCandles';
+
+export type ChartType = 'candles' | 'line' | 'area';
+
+/** Snapshot of the bar the user is hovering (or the latest bar) + EMA value. */
+export interface ChartReadout {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  changePct: number;
+  ema20: number | null;
+}
 
 interface CandleChartProps {
   /** HL coin symbol (e.g. "BTC", "ETH"). */
   coin: string | null;
   /** UI timeframe label (e.g. "1m", "15m", "1D"). */
   interval: string;
+  /** Render style — candlesticks, a close line, or a filled area. */
+  chartType?: ChartType;
   /** Display height in px. */
   height?: number;
+  theme?: 'light' | 'dark';
+  historyBars?: number;
+  /** Reports the hovered (or latest) bar's OHLC + EMA for the toolbar readout. */
+  onReadout?: (readout: ChartReadout | null) => void;
 }
 
 const UP = '#19a974';
 const DOWN = '#e5484d';
+const DARK_UP = '#3fe08f';
+const DARK_DOWN = '#ff5d63';
+const EMA_COLOR = '#9b6cf2';
+const EMA_PERIOD = 20;
+
+/** Exponential moving average over the close series. */
+function computeEma(
+  bars: { time: number; close: number }[],
+  period: number,
+): LineData[] {
+  if (bars.length === 0) return [];
+  const k = 2 / (period + 1);
+  const out: LineData[] = [];
+  let ema = bars[0].close;
+  bars.forEach((b, i) => {
+    ema = i === 0 ? b.close : b.close * k + ema * (1 - k);
+    out.push({ time: b.time as UTCTimestamp, value: ema });
+  });
+  return out;
+}
 
 /**
- * CandleChart — live TradingView-style candlestick chart powered by Hyperliquid
- * data and `lightweight-charts`. Loads a candle snapshot for the selected
- * (coin, interval) and streams live updates over the `candle` WS channel.
- *
- * Visual style follows the bento dashboard's Apple-clean look: white
- * background, hairline grid, mono price ticks, soft green/red candles with a
- * volume histogram underneath.
+ * CandleChart — live TradingView-style chart powered by Hyperliquid data and
+ * `lightweight-charts`. Supports candlestick, line, and area render modes with
+ * an EMA-20 overlay and a volume histogram. Streams live updates over the
+ * `candle` WS channel and reports OHLC/EMA back to the parent toolbar.
  */
-export function CandleChart({ coin, interval, height = 380 }: CandleChartProps) {
+export function CandleChart({
+  coin,
+  interval,
+  chartType = 'candles',
+  height = 380,
+  theme = 'light',
+  historyBars,
+  onReadout,
+}: CandleChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const priceSeriesRef = useRef<ISeriesApi<
+    'Candlestick' | 'Line' | 'Area'
+  > | null>(null);
+  const emaSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const onReadoutRef = useRef(onReadout);
+  onReadoutRef.current = onReadout;
 
-  const { bars, isLoading, connected } = useHyperliquidCandles(coin, interval, !!coin);
+  const isDark = theme === 'dark';
+  const upColor = isDark ? DARK_UP : UP;
+  const downColor = isDark ? DARK_DOWN : DOWN;
 
-  // ── Initialise chart once the container is mounted ────────────────────────
+  const { bars, isLoading, connected } = useHyperliquidCandles(
+    coin,
+    interval,
+    !!coin,
+    historyBars,
+  );
+
+  // ── Initialise chart — recreated when render style / theme changes ────────
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -54,47 +116,43 @@ export function CandleChart({ coin, interval, height = 380 }: CandleChartProps) 
       height,
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: '#ffffff' },
-        textColor: '#6e6e76',
+        background: { type: ColorType.Solid, color: isDark ? '#090b0e' : '#ffffff' },
+        textColor: isDark ? '#8a8f9d' : '#6e6e76',
         fontFamily:
           'ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas, monospace',
         fontSize: 11,
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: 'rgba(0,0,0,0.04)' },
-        horzLines: { color: 'rgba(0,0,0,0.04)' },
+        vertLines: { color: isDark ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.04)' },
+        horzLines: { color: isDark ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.04)' },
       },
       rightPriceScale: {
-        borderColor: 'rgba(0,0,0,0.06)',
-        textColor: '#6e6e76',
+        borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
+        textColor: isDark ? '#8a8f9d' : '#6e6e76',
         scaleMargins: { top: 0.08, bottom: 0.28 },
       },
       timeScale: {
-        borderColor: 'rgba(0,0,0,0.06)',
+        borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
         timeVisible: true,
         secondsVisible: false,
       },
       crosshair: {
         mode: CrosshairMode.Magnet,
         vertLine: {
-          color: 'rgba(10,10,12,0.4)',
+          color: isDark ? 'rgba(236,238,242,0.35)' : 'rgba(10,10,12,0.4)',
           width: 1,
-          style: 3, // dashed
-          labelBackgroundColor: '#0a0a0c',
+          style: LineStyle.Dashed,
+          labelBackgroundColor: isDark ? '#15171d' : '#0a0a0c',
         },
         horzLine: {
-          color: 'rgba(10,10,12,0.4)',
+          color: isDark ? 'rgba(236,238,242,0.35)' : 'rgba(10,10,12,0.4)',
           width: 1,
-          style: 3,
-          labelBackgroundColor: '#0a0a0c',
+          style: LineStyle.Dashed,
+          labelBackgroundColor: isDark ? '#15171d' : '#0a0a0c',
         },
       },
-      handleScale: {
-        mouseWheel: true,
-        pinch: true,
-        axisPressedMouseMove: true,
-      },
+      handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true },
       handleScroll: {
         mouseWheel: true,
         pressedMouseMove: true,
@@ -103,17 +161,46 @@ export function CandleChart({ coin, interval, height = 380 }: CandleChartProps) 
       },
     });
 
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: UP,
-      downColor: DOWN,
-      borderUpColor: UP,
-      borderDownColor: DOWN,
-      wickUpColor: UP,
-      wickDownColor: DOWN,
-      priceLineStyle: 3,
-      priceLineColor: '#d97706',
-      priceLineWidth: 1,
-      priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+    let priceSeries: ISeriesApi<'Candlestick' | 'Line' | 'Area'>;
+    if (chartType === 'line') {
+      priceSeries = chart.addSeries(LineSeries, {
+        color: isDark ? '#3fe08f' : '#0a0a0c',
+        lineWidth: 2,
+        priceLineStyle: LineStyle.Dashed,
+        priceLineColor: isDark ? '#3fe08f' : '#d97706',
+        priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+      });
+    } else if (chartType === 'area') {
+      priceSeries = chart.addSeries(AreaSeries, {
+        lineColor: upColor,
+        topColor: isDark ? 'rgba(63,224,143,0.28)' : 'rgba(25,169,116,0.20)',
+        bottomColor: isDark ? 'rgba(63,224,143,0.0)' : 'rgba(25,169,116,0.0)',
+        lineWidth: 2,
+        priceLineStyle: LineStyle.Dashed,
+        priceLineColor: isDark ? '#3fe08f' : '#d97706',
+        priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+      });
+    } else {
+      priceSeries = chart.addSeries(CandlestickSeries, {
+        upColor,
+        downColor,
+        borderUpColor: upColor,
+        borderDownColor: downColor,
+        wickUpColor: upColor,
+        wickDownColor: downColor,
+        priceLineStyle: LineStyle.Dashed,
+        priceLineColor: isDark ? '#3fe08f' : '#d97706',
+        priceLineWidth: 1,
+        priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+      });
+    }
+
+    const emaSeries = chart.addSeries(LineSeries, {
+      color: EMA_COLOR,
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
     });
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -126,62 +213,140 @@ export function CandleChart({ coin, interval, height = 380 }: CandleChartProps) 
     });
 
     chartRef.current = chart;
-    candleSeriesRef.current = candleSeries;
+    priceSeriesRef.current = priceSeries;
+    emaSeriesRef.current = emaSeries;
     volumeSeriesRef.current = volumeSeries;
 
     return () => {
       chart.remove();
       chartRef.current = null;
-      candleSeriesRef.current = null;
+      priceSeriesRef.current = null;
+      emaSeriesRef.current = null;
       volumeSeriesRef.current = null;
     };
-  }, [height]);
+  }, [chartType, downColor, height, isDark, upColor]);
 
   // ── Push bars into the chart whenever they change ─────────────────────────
   useEffect(() => {
-    const candle = candleSeriesRef.current;
+    const price = priceSeriesRef.current;
+    const ema = emaSeriesRef.current;
     const volume = volumeSeriesRef.current;
     const chart = chartRef.current;
-    if (!candle || !volume || !chart) return;
+    if (!price || !ema || !volume || !chart) return;
 
     if (bars.length === 0) {
-      candle.setData([]);
+      price.setData([]);
+      ema.setData([]);
       volume.setData([]);
+      onReadoutRef.current?.(null);
       return;
     }
 
-    const candleData: CandlestickData[] = bars.map((b) => ({
-      time: b.time as UTCTimestamp,
-      open: b.open,
-      high: b.high,
-      low: b.low,
-      close: b.close,
-    }));
+    if (chartType === 'candles') {
+      const candleData: CandlestickData[] = bars.map((b) => ({
+        time: b.time as UTCTimestamp,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+      }));
+      (price as ISeriesApi<'Candlestick'>).setData(candleData);
+    } else {
+      const lineData: (LineData | AreaData)[] = bars.map((b) => ({
+        time: b.time as UTCTimestamp,
+        value: b.close,
+      }));
+      (price as ISeriesApi<'Line' | 'Area'>).setData(lineData);
+    }
+
+    ema.setData(computeEma(bars, EMA_PERIOD));
 
     const volumeData: HistogramData[] = bars.map((b) => ({
       time: b.time as UTCTimestamp,
       value: b.volume,
       color:
         b.close >= b.open
-          ? 'rgba(25,169,116,0.35)'
+          ? isDark
+            ? 'rgba(63,224,143,0.28)'
+            : 'rgba(25,169,116,0.35)'
+          : isDark
+          ? 'rgba(255,93,99,0.28)'
           : 'rgba(229,72,77,0.35)',
     }));
-
-    candle.setData(candleData);
     volume.setData(volumeData);
 
-    // Pleasant "fit-to-content" zoom on first load / interval switch.
     chart.timeScale().fitContent();
+
+    // Default readout = latest bar.
+    const last = bars[bars.length - 1];
+    const emaVals = computeEma(bars, EMA_PERIOD);
+    onReadoutRef.current?.({
+      open: last.open,
+      high: last.high,
+      low: last.low,
+      close: last.close,
+      changePct: last.open ? ((last.close - last.open) / last.open) * 100 : 0,
+      ema20: (emaVals[emaVals.length - 1]?.value as number) ?? null,
+    });
+  }, [bars, chartType, isDark]);
+
+  // ── Crosshair → report the hovered bar's OHLC + EMA ───────────────────────
+  useEffect(() => {
+    const chart = chartRef.current;
+    const price = priceSeriesRef.current;
+    const ema = emaSeriesRef.current;
+    if (!chart || !price || !ema) return;
+
+    const handler = (param: Parameters<
+      Parameters<IChartApi['subscribeCrosshairMove']>[0]
+    >[0]) => {
+      if (!param.time || !param.point) {
+        // Fall back to the latest bar when the cursor leaves the chart.
+        if (bars.length > 0) {
+          const last = bars[bars.length - 1];
+          const emaVals = computeEma(bars, EMA_PERIOD);
+          onReadoutRef.current?.({
+            open: last.open,
+            high: last.high,
+            low: last.low,
+            close: last.close,
+            changePct: last.open
+              ? ((last.close - last.open) / last.open) * 100
+              : 0,
+            ema20: (emaVals[emaVals.length - 1]?.value as number) ?? null,
+          });
+        }
+        return;
+      }
+      const bar = bars.find((b) => b.time === param.time);
+      if (!bar) return;
+      const emaData = param.seriesData.get(ema) as { value?: number } | undefined;
+      onReadoutRef.current?.({
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        changePct: bar.open ? ((bar.close - bar.open) / bar.open) * 100 : 0,
+        ema20: emaData?.value ?? null,
+      });
+    };
+
+    chart.subscribeCrosshairMove(handler);
+    return () => chart.unsubscribeCrosshairMove(handler);
   }, [bars]);
 
-  // ── Refit price decimals when the price magnitude shifts (e.g. DOGE vs BTC)
+  // ── Refit price decimals when the price magnitude shifts ──────────────────
   useEffect(() => {
-    const candle = candleSeriesRef.current;
-    if (!candle || bars.length === 0) return;
+    const price = priceSeriesRef.current;
+    if (!price || bars.length === 0) return;
     const last = bars[bars.length - 1].close;
     const precision = priceFormatFor(last);
-    candle.applyOptions({
-      priceFormat: { type: 'price', precision: precision.precision, minMove: precision.minMove },
+    price.applyOptions({
+      priceFormat: {
+        type: 'price',
+        precision: precision.precision,
+        minMove: precision.minMove,
+      },
     });
   }, [bars]);
 
@@ -189,20 +354,44 @@ export function CandleChart({ coin, interval, height = 380 }: CandleChartProps) 
     <div className="relative h-full w-full">
       <div ref={containerRef} className="absolute inset-0" />
       {(!coin || (isLoading && bars.length === 0)) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-[2px]">
-          <div className="flex items-center gap-2 text-[12px] text-gray-500 font-medium">
-            <span className="w-3 h-3 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin" />
+        <div
+          className={`absolute inset-0 flex items-center justify-center backdrop-blur-[2px] ${
+            isDark ? 'bg-black/45' : 'bg-white/60'
+          }`}
+        >
+          <div
+            className={`flex items-center gap-2 text-[12px] font-medium ${
+              isDark ? 'text-[#8a8f9d]' : 'text-gray-500'
+            }`}
+          >
+            <span
+              className={`w-3 h-3 rounded-full border-2 animate-spin ${
+                isDark
+                  ? 'border-[#2a2f3a] border-t-[#3fe08f]'
+                  : 'border-gray-300 border-t-gray-600'
+              }`}
+            />
             {coin ? 'Loading candles…' : 'Select a market'}
           </div>
         </div>
       )}
       {coin && !isLoading && bars.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center text-[12px] text-gray-400">
+        <div
+          className={`absolute inset-0 flex items-center justify-center text-[12px] ${
+            isDark ? 'text-[#737783]' : 'text-gray-400'
+          }`}
+        >
           No candle data for {coin} {interval}
         </div>
       )}
       {coin && bars.length > 0 && (
-        <div className="absolute top-2.5 right-3 z-10 flex items-center gap-1.5 text-[10px] font-bold tracking-wider font-mono text-gray-500 bg-white/80 backdrop-blur px-2 py-0.5 rounded-full border border-black/[0.04]">
+        <div
+          className={`absolute top-2.5 right-3 z-10 flex items-center gap-1.5 text-[10px] font-bold tracking-wider font-mono backdrop-blur px-2 py-0.5 rounded-full border ${
+            isDark
+              ? 'border-white/[0.07] bg-black/65 text-[#8a8f9d]'
+              : 'border-black/[0.04] bg-white/80 text-gray-500'
+          }`}
+        >
           <span
             className={`w-1.5 h-1.5 rounded-full ${
               connected ? 'bg-emerald-500' : 'bg-gray-400'
@@ -223,4 +412,3 @@ function priceFormatFor(price: number): { precision: number; minMove: number } {
   if (price >= 0.1) return { precision: 5, minMove: 0.00001 };
   return { precision: 6, minMove: 0.000001 };
 }
-

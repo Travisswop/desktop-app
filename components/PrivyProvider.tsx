@@ -1,7 +1,9 @@
 'use client';
 import { PrivyProvider as Privy } from '@privy-io/react-auth';
 import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { usePathname } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { installClipboardWriteFallback } from '@/lib/clipboard';
 
 interface SolanaConfig {
   rpcs: {
@@ -12,40 +14,87 @@ interface SolanaConfig {
   };
 }
 
-let cachedSolanaConnectors: ReturnType<
-  typeof toSolanaWalletConnectors
-> | null = null;
+function createSolanaConnectors() {
+  if (typeof window === 'undefined') return undefined;
 
-const getSolanaConnectors = () => {
-  if (!cachedSolanaConnectors) {
-    cachedSolanaConnectors = toSolanaWalletConnectors();
+  try {
+    return toSolanaWalletConnectors();
+  } catch (error) {
+    console.warn('Failed to initialize Solana wallet connectors:', error);
+    return undefined;
   }
-
-  return cachedSolanaConnectors;
-};
+}
 
 export default function PrivyProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [solanaConnectors, setSolanaConnectors] =
-    useState<any>(undefined);
+  const [solanaConnectors, setSolanaConnectors] = useState<any>();
   const [solanaConfig, setSolanaConfig] = useState<
     SolanaConfig | undefined
   >(undefined);
-  const [privyConfigReady, setPrivyConfigReady] = useState(false);
+  const [localOriginRedirectUrl, setLocalOriginRedirectUrl] = useState<
+    string | null
+  >(null);
   const initRef = useRef(false);
+  const pathname = usePathname();
 
   const isProduction = process.env.NODE_ENV === 'production';
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const enableExternalWalletsInDev =
+    process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS === 'true';
+  const disableExternalWallets =
+    process.env.NEXT_PUBLIC_PRIVY_DISABLE_EXTERNAL_WALLETS === 'true' ||
+    pathname?.startsWith('/dashboard/chat') ||
+    (!isProduction && !enableExternalWalletsInDev);
+  const loginMethods: Array<'wallet' | 'email' | 'sms'> =
+    disableExternalWallets ? ['email', 'sms'] : ['wallet', 'email', 'sms'];
+  const externalWalletsConfig = disableExternalWallets
+    ? {
+        disableAllExternalWallets: true as const,
+      }
+    : solanaConnectors
+      ? {
+          solana: {
+            connectors: solanaConnectors,
+          },
+        }
+      : undefined;
+
+  useEffect(() => {
+    installClipboardWriteFallback();
+  }, []);
+
+  useEffect(() => {
+    if (
+      window.location.hostname !== '127.0.0.1' &&
+      window.location.hostname !== '::1'
+    ) {
+      return;
+    }
+
+    const localhostUrl = new URL(window.location.href);
+    localhostUrl.hostname = 'localhost';
+    const targetUrl = localhostUrl.toString();
+
+    setLocalOriginRedirectUrl(targetUrl);
+    window.location.replace(targetUrl);
+  }, []);
+
+  useEffect(() => {
+    if (disableExternalWallets) {
+      setSolanaConnectors(undefined);
+      return;
+    }
+    if (solanaConnectors) return;
+    setSolanaConnectors(createSolanaConnectors());
+  }, [disableExternalWallets, solanaConnectors]);
 
   // Initialize Solana config only on client side after mount
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
-
-    setSolanaConnectors(getSolanaConnectors());
 
     // Initialize Solana RPC config
     const initSolanaConfig = async () => {
@@ -56,7 +105,6 @@ export default function PrivyProvider({
         console.warn(
           'Solana RPC URLs not configured, using default Privy config',
         );
-        setPrivyConfigReady(true);
         return;
       }
 
@@ -74,49 +122,21 @@ export default function PrivyProvider({
             },
           },
         });
-        setPrivyConfigReady(true);
       } catch (error) {
         console.error('Failed to initialize Solana config:', error);
-        setPrivyConfigReady(true);
       }
     };
 
     initSolanaConfig();
-  }, []);
+  }, [disableExternalWallets]);
 
-  const privyConfig = useMemo(
-    () => ({
-      embeddedWallets: {
-        ethereum: {
-          createOnLogin: 'users-without-wallets' as const,
-        },
-        solana: {
-          createOnLogin: 'users-without-wallets' as const,
-        },
-      },
-      loginMethods: ['wallet', 'email', 'sms'] as const,
-      appearance: {
-        walletChainType: 'ethereum-and-solana' as const,
-        showWalletLoginFirst: true,
-        theme: 'light' as const,
-        accentColor: '#000000',
-      },
-      ...(solanaConnectors && {
-        externalWallets: {
-          solana: {
-            connectors: solanaConnectors,
-          },
-        },
-      }),
-      ...(solanaConfig && {
-        solana: solanaConfig,
-      }),
-      ...(isProduction && {
-        defaultChainId: 1,
-      }),
-    }),
-    [isProduction, solanaConfig, solanaConnectors],
-  );
+  if (localOriginRedirectUrl) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#F7F7F9] text-sm text-gray-600">
+        Redirecting to localhost...
+      </div>
+    );
+  }
 
   // Validate configuration
   if (!appId) {
@@ -136,14 +156,38 @@ export default function PrivyProvider({
     );
   }
 
-  if (!privyConfigReady) {
-    return null;
-  }
-
   return (
     <Privy
       appId={appId}
-      config={privyConfig}
+      config={{
+        embeddedWallets: {
+          ethereum: {
+            createOnLogin: 'users-without-wallets',
+          },
+          solana: {
+            createOnLogin: 'users-without-wallets',
+          },
+        },
+        loginMethods,
+        appearance: {
+          walletChainType: disableExternalWallets
+            ? 'ethereum-only'
+            : 'ethereum-and-solana',
+          showWalletLoginFirst: !disableExternalWallets,
+          theme: 'light',
+          accentColor: '#000000',
+        },
+        ...(externalWalletsConfig && {
+          externalWallets: externalWalletsConfig,
+        }),
+        ...(solanaConfig && {
+          solana: solanaConfig,
+        }),
+        // Production-specific settings
+        ...(isProduction && {
+          defaultChainId: 1, // Ethereum mainnet for production
+        }),
+      }}
     >
       {children}
     </Privy>

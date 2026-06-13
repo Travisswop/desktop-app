@@ -52,6 +52,14 @@ function getAssociatedTokenProgramId(
 }
 
 export class TransactionService {
+  static async submitPrivyNativeSponsoredTransaction(
+    _transaction: SolanaTransaction,
+    _solanaWallet: any,
+    _connection: Connection,
+  ): Promise<string> {
+    throw new Error('Sponsored Solana relay is not configured');
+  }
+
   /**
    * Handles NFT transfer on Solana network
    */

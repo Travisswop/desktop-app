@@ -2,7 +2,8 @@
 export async function postData(url: string, options: any) {
   try {
     const response = await fetch(url, options);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error("Error from action:", error);

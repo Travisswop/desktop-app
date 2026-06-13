@@ -22,47 +22,30 @@ interface ApiResponse<T> {
 }
 
 class ChatApiService {
-  private getCookie(name: string) {
+  private getCookieValue(name: string) {
     if (typeof document === 'undefined') return null;
 
-    return (
-      document.cookie
-        .split('; ')
-        .find((row) => row.startsWith(`${name}=`))
-        ?.split('=')[1] ?? null
-    );
-  }
+    const cookie = document.cookie
+      .split(';')
+      .map((entry) => entry.trim())
+      .find((entry) => entry.startsWith(`${name}=`));
 
-  private getCachedAuthToken() {
-    if (typeof window === 'undefined') return null;
+    if (!cookie) return null;
 
-    try {
-      const rawCache = window.localStorage.getItem(USER_CACHE_KEY);
-      if (!rawCache) return null;
-
-      const cache = JSON.parse(rawCache) as {
-        accessToken?: string | null;
-      };
-      return cache.accessToken || null;
-    } catch {
-      return null;
-    }
-  }
-
-  private getAuthToken() {
-    if (typeof window === 'undefined') return null;
-
-    return (
-      localStorage.getItem('authToken') ||
-      localStorage.getItem('jwt_token') ||
-      localStorage.getItem('accessToken') ||
-      this.getCachedAuthToken() ||
-      this.getCookie('access-token')
-    );
+    return decodeURIComponent(cookie.slice(name.length + 1));
   }
 
   private getAuthHeaders() {
-    const token = this.getAuthToken();
+    // Prefer the cookie used by the socket connection, with older localStorage
+    // names kept as fallbacks for legacy chat surfaces.
+    const token =
+      this.getCookieValue('access-token') ||
+      (typeof localStorage !== 'undefined'
+        ? localStorage.getItem('authToken') ||
+          localStorage.getItem('jwt_token') ||
+          localStorage.getItem('accessToken')
+        : null);
+
     return {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),

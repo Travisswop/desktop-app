@@ -13,7 +13,7 @@ import RedeemClaimModal from '../modal/RedeemClaim';
 import { makeLinksClickable } from '@/lib/makeLinksClickable';
 import logger from '@/utils/logger';
 import PredictionFeedCard from './PredictionFeedCard';
-import PerpsFeedCard from './PerpsFeedCard';
+import PerpsPositionFeedCard from './PerpsPositionFeedCard';
 
 interface FeedItemType {
   _id: string;
@@ -119,7 +119,7 @@ const FeedPostContent = ({
           feed={feed}
           userId={userId}
           token={accessToken}
-          onVoteSuccess={(updated) => {
+          onVoteSuccess={(updated: Partial<FeedItemType>) => {
             onPostInteraction?.(feed._id, updated);
           }}
         />
@@ -248,6 +248,7 @@ const FeedPostContent = ({
       {feed.postType === 'prediction' && (
         <PredictionFeedCard
           content={feed.content}
+          createdAt={feed.createdAt}
           userName={
             feed.smartsiteDetails?.name ||
             feed.smartsiteUserName ||
@@ -256,23 +257,9 @@ const FeedPostContent = ({
         />
       )}
 
-      {/* Perps */}
-      {feed.postType === 'perps' && (
-        <PerpsFeedCard
-          content={feed.content}
-          userName={
-            feed.smartsiteDetails?.name ||
-            feed.smartsiteUserName ||
-            undefined
-          }
-          userImage={
-            feed.smartsiteDetails?.profilePic ||
-            feed.smartsiteProfilePic ||
-            feed.smartsiteId?.profilePic ||
-            undefined
-          }
-          createdAt={feed.createdAt}
-        />
+      {/* Hyperliquid perps position */}
+      {feed.postType === 'perpsPosition' && (
+        <PerpsPositionFeedCard feed={feed} />
       )}
 
       {/* Transaction */}

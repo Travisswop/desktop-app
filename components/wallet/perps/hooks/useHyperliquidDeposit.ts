@@ -1,9 +1,13 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useSendTransaction, useWallets } from '@privy-io/react-auth';
+import { usePrivy, useSendTransaction, useWallets } from '@privy-io/react-auth';
 import { encodeFunctionData, parseUnits, erc20Abi } from 'viem';
 import { HL_DEPOSIT_CONFIG } from '@/services/hyperliquid/config';
+import {
+  selectPreferredWallet,
+  tradingWalletSelectionOptions,
+} from '@/components/wallet/hooks/useWalletData';
 
 const { chainId, bridgeAddress, usdcAddress } = HL_DEPOSIT_CONFIG;
 
@@ -38,6 +42,7 @@ export interface DepositState {
  */
 export function useHyperliquidDeposit() {
   const { sendTransaction } = useSendTransaction();
+  const { user } = usePrivy();
   const { wallets } = useWallets();
 
   const [state, setState] = useState<DepositState>({
@@ -84,25 +89,31 @@ export function useHyperliquidDeposit() {
     async (amountUsd: string) => {
       const amount = parseFloat(amountUsd);
       if (isNaN(amount) || amount < MIN_DEPOSIT_USDC) {
+        const error = `Minimum deposit is $${MIN_DEPOSIT_USDC} USDC`;
         setState((prev) => ({
           ...prev,
-          error: `Minimum deposit is $${MIN_DEPOSIT_USDC} USDC`,
+          error,
           step: 'error',
         }));
-        return;
+        throw new Error(error);
       }
 
-      // Use the Privy embedded wallet — it is the master account and signs silently.
+      // Use the same EVM wallet as the perps account selector.
       // Privy's sendTransaction handles chain switching automatically via the chainId param.
-      const evmWallet = wallets.find((w) => w.walletClientType === 'privy');
+      const evmWallet = selectPreferredWallet(
+        wallets,
+        user?.wallet?.address,
+        tradingWalletSelectionOptions(),
+      );
 
       if (!evmWallet) {
+        const error = 'EVM wallet not found. Please refresh and try again.';
         setState((prev) => ({
           ...prev,
-          error: 'Privy embedded wallet not found. Please refresh and try again.',
+          error,
           step: 'error',
         }));
-        return;
+        throw new Error(error);
       }
 
       setState({ isDepositing: true, txHash: null, error: null, step: 'confirming' });
@@ -148,7 +159,7 @@ export function useHyperliquidDeposit() {
         throw err;
       }
     },
-    [sendTransaction, wallets],
+    [sendTransaction, wallets, user?.wallet?.address],
   );
 
   const reset = useCallback(() => {

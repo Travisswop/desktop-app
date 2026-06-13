@@ -1,15 +1,22 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { usePrivy, useSigners } from '@privy-io/react-auth';
+import {
+  usePrivy,
+  useSigners,
+  useSignTypedData,
+} from '@privy-io/react-auth';
 import { useTrading } from '@/providers/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
 import { getDepositWalletAddress } from '@/lib/polymarket/backend-session';
 import {
   CTF_CONTRACT_ADDRESS,
+  POLLING_DURATION,
+  POLLING_INTERVAL,
   POLYMARKET_BACKEND_URL,
   USDC_E_DECIMALS,
 } from '@/constants/polymarket';
+import { createPollingInterval } from '@/lib/polymarket/polling';
 
 const CLOB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_ORDER_MIN_TICK_SIZE: "Price doesn't match this market's tick size. Adjust your price and try again.",
@@ -43,21 +50,62 @@ export type OrderParams = {
   conditionId?: string;
   size: number;
   price?: number;
+  acceptedPrice?: number;
   side: 'BUY' | 'SELL';
   negRisk?: boolean;
   isMarketOrder?: boolean;
   fillType?: 'FOK' | 'FAK';
   expiration?: number;
+  showWalletUIs?: boolean;
+};
+
+export type OrderSubmissionStage =
+  | 'idle'
+  | 'preparing'
+  | 'signing'
+  | 'submitting';
+
+export type OrderExecutionSummary = {
+  side?: 'BUY' | 'SELL';
+  status?: string;
+  price?: number;
+  shares?: number;
+  cost?: number;
+  proceeds?: number;
+  makingAmount?: number;
+  takingAmount?: number;
+  tradeIds?: string[];
+  transactionHashes?: string[];
+};
+
+export type OrderSubmitResult = {
+  success: true;
+  orderId: string;
+  status?: string;
+  execution?: OrderExecutionSummary;
+  tradeIds?: string[];
+  transactionHashes?: string[];
 };
 
 const backendBase = () => `${POLYMARKET_BACKEND_URL}/api/prediction-markets`;
 const swopApiBase = () => (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
-const delegatedSignerId = process.env.NEXT_PUBLIC_PRIVY_DELEGATED_SIGNER_ID;
-const delegatedPolicyIds = (process.env.NEXT_PUBLIC_PRIVY_DELEGATED_POLICY_IDS || '')
+const delegatedSignerId =
+  process.env.NEXT_PUBLIC_PRIVY_DELEGATED_SIGNER_ID ||
+  process.env.NEXT_PUBLIC_PRIVY_SIGNER_WALLET_ID;
+const delegatedPolicyIds = (
+  process.env.NEXT_PUBLIC_PRIVY_DELEGATED_POLICY_IDS ||
+  process.env.NEXT_PUBLIC_PRIVY_SIGNER_POLICY_IDS ||
+  ''
+)
   .split(',')
   .map((id) => id.trim())
   .filter(Boolean);
 const DEBUG_ORDER_SIGNING = true;
+const MARKET_ORDER_PRICE_PROTECTION = 0.03;
+type DelegatedSignerConfig = {
+  signerId: string;
+  policyIds: string[];
+};
 const ERC1155_BALANCE_OF_ABI = [
   {
     type: 'function',
@@ -78,6 +126,94 @@ function logOrderDebug(label: string, data: Record<string, any>) {
 
 function logOrderError(label: string, data: Record<string, any>) {
   console.error(`[Polymarket order] ${label}`, data);
+}
+
+function parseProbabilityPrice(value: unknown) {
+  const price = Number(value);
+  return Number.isFinite(price) && price > 0 && price < 1 ? price : null;
+}
+
+function formatProbabilityCents(value: number) {
+  return `${Math.round(value * 100)}¢`;
+}
+
+async function fetchFreshExecutionQuote(
+  tokenId: string,
+  headers: HeadersInit,
+): Promise<{ bid: number | null; ask: number | null }> {
+  const response = await fetch(`${backendBase()}/prices`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ tokenIds: [tokenId] }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Could not refresh Polymarket price. Try again.');
+  }
+
+  const body = await response.json();
+  const quote = body?.[tokenId] ?? {};
+  return {
+    bid: parseProbabilityPrice(quote.bid),
+    ask: parseProbabilityPrice(quote.ask),
+  };
+}
+
+function resolveProtectedMarketPrice(
+  params: OrderParams,
+  quote: { bid: number | null; ask: number | null },
+) {
+  const acceptedPrice = parseProbabilityPrice(params.acceptedPrice);
+
+  if (acceptedPrice == null) {
+    throw new Error(
+      'This order needs a fresh market quote. Refresh the market and try again.',
+    );
+  }
+
+  if (params.side === 'BUY') {
+    const liveAsk = quote.ask;
+    if (liveAsk == null) {
+      throw new Error('No live ask is available for this market.');
+    }
+
+    const protectedPrice = Math.min(
+      0.99,
+      acceptedPrice + MARKET_ORDER_PRICE_PROTECTION,
+    );
+    if (liveAsk > protectedPrice + 1e-9) {
+      throw new Error(
+        `Market price moved from ${formatProbabilityCents(acceptedPrice)} to ${formatProbabilityCents(liveAsk)}. Refresh before placing the order.`,
+      );
+    }
+
+    return {
+      protectedPrice,
+      liveQuotePrice: liveAsk,
+      acceptedPrice,
+    };
+  }
+
+  const liveBid = quote.bid;
+  if (liveBid == null) {
+    throw new Error('No live bid is available for this market.');
+  }
+
+  const protectedPrice = Math.max(
+    0.01,
+    acceptedPrice - MARKET_ORDER_PRICE_PROTECTION,
+  );
+  if (liveBid < protectedPrice - 1e-9) {
+    throw new Error(
+      `Market price moved from ${formatProbabilityCents(acceptedPrice)} to ${formatProbabilityCents(liveBid)}. Refresh before placing the order.`,
+    );
+  }
+
+  return {
+    protectedPrice,
+    liveQuotePrice: liveBid,
+    acceptedPrice,
+  };
 }
 
 function summarizeTypedData(typedData: any) {
@@ -383,7 +519,12 @@ export function useClobOrder(
   _session: object | null,
   _walletAddress: string | undefined,
 ) {
+  void _session;
+  void _walletAddress;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderStage, setOrderStage] =
+    useState<OrderSubmissionStage>('idle');
   const [error, setError] = useState<Error | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -398,7 +539,10 @@ export function useClobOrder(
   const { publicClient, walletClient } = usePolymarketWallet();
   const { accessToken } = useUser();
   const { addSigners } = useSigners();
+  const { signTypedData: signTypedDataWithPrivy } = useSignTypedData();
   const { user: privyUser } = usePrivy();
+  const [delegatedSignerConfig, setDelegatedSignerConfig] =
+    useState<DelegatedSignerConfig | null>(null);
 
   const isEmbeddedPrivyWallet = useCallback(
     (address: string) => {
@@ -443,11 +587,48 @@ export function useClobOrder(
     [publicClient],
   );
 
+  const getDelegatedSignerConfig = useCallback(async () => {
+    if (delegatedSignerId) {
+      return {
+        signerId: delegatedSignerId,
+        policyIds: delegatedPolicyIds,
+      };
+    }
+
+    if (delegatedSignerConfig) return delegatedSignerConfig;
+    if (!accessToken || !swopApiBase()) return null;
+
+    const response = await fetch(
+      `${swopApiBase()}/api/v5/wallet/privy/delegated-signer-config`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) return null;
+    const body = await response.json().catch(() => null);
+    const data = body?.data || body;
+    if (!data?.configured || !data?.signerId) return null;
+
+    const config = {
+      signerId: String(data.signerId),
+      policyIds: Array.isArray(data.policyIds)
+        ? data.policyIds.map((id: unknown) => String(id)).filter(Boolean)
+        : [],
+    };
+    setDelegatedSignerConfig(config);
+    return config;
+  }, [accessToken, delegatedSignerConfig]);
+
   const ensureDelegatedSigner = useCallback(
     async (address: string) => {
-      if (!delegatedSignerId || !isEmbeddedPrivyWallet(address)) return false;
+      if (!isEmbeddedPrivyWallet(address)) return false;
+      const config = await getDelegatedSignerConfig();
+      if (!config?.signerId) return false;
 
-      const storageKey = `privy-delegated-signer:${delegatedSignerId}:${address.toLowerCase()}`;
+      const storageKey = `privy-delegated-signer:${config.signerId}:${address.toLowerCase()}`;
       if (typeof window !== 'undefined' && window.localStorage.getItem(storageKey)) {
         return true;
       }
@@ -456,8 +637,8 @@ export function useClobOrder(
         address,
         signers: [
           {
-            signerId: delegatedSignerId,
-            policyIds: delegatedPolicyIds,
+            signerId: config.signerId,
+            policyIds: config.policyIds,
           },
         ],
       });
@@ -467,11 +648,14 @@ export function useClobOrder(
       }
       return true;
     },
-    [addSigners, isEmbeddedPrivyWallet],
+    [addSigners, getDelegatedSignerConfig, isEmbeddedPrivyWallet],
   );
 
   const signOrderTypedData = useCallback(
-    async (orderTypedData: any) => {
+    async (
+      orderTypedData: any,
+      options?: { showWalletUIs?: boolean },
+    ) => {
       if (!eoaAddress || !walletClient || !accessToken) {
         throw new Error('Trading session not ready');
       }
@@ -512,9 +696,17 @@ export function useClobOrder(
       assertNoUndefinedTypedValues(message, 'message');
       assertTypedDataStruct(types, primaryType, message, 'message');
 
-      if (delegatedSignerId && swopApiBase() && isEmbeddedPrivyWallet(eoaAddress)) {
+      const isEmbeddedWallet = isEmbeddedPrivyWallet(eoaAddress);
+      const shouldHideWalletUIs = options?.showWalletUIs === false;
+
+      if (swopApiBase() && isEmbeddedWallet) {
         try {
-          await ensureDelegatedSigner(eoaAddress);
+          if (!shouldHideWalletUIs) {
+            const delegatedSignerReady = await ensureDelegatedSigner(eoaAddress);
+            if (!delegatedSignerReady) {
+              throw new Error('Delegated signer is not configured.');
+            }
+          }
 
           const delegatedRes = await fetch(
             `${swopApiBase()}/api/v5/wallet/privy/ethereum/sign-typed-data`,
@@ -542,15 +734,51 @@ export function useClobOrder(
           } else {
             const err = await delegatedRes.json().catch(() => ({}));
             console.warn(
-              'Delegated Privy signing failed; falling back to wallet modal:',
+              shouldHideWalletUIs
+                ? 'Silent delegated Privy signing failed; falling back to hidden wallet signing:'
+                : 'Delegated Privy signing failed; falling back to wallet modal:',
               err.message || err.error || delegatedRes.status,
             );
           }
         } catch (err) {
           console.warn(
-            'Delegated Privy signing unavailable; falling back to wallet modal:',
+            shouldHideWalletUIs
+              ? 'Silent delegated Privy signing unavailable; falling back to hidden wallet signing:'
+              : 'Delegated Privy signing unavailable; falling back to wallet modal:',
             err,
           );
+        }
+      }
+
+      if (shouldHideWalletUIs && isEmbeddedWallet) {
+        try {
+          const { signature } = await signTypedDataWithPrivy(
+            {
+              domain,
+              types,
+              primaryType,
+              message: serializeForJson(message),
+            },
+            {
+              address: eoaAddress,
+              uiOptions: { showWalletUIs: false },
+            },
+          );
+          return signature as `0x${string}`;
+        } catch (err) {
+          logOrderError('hidden Privy signTypedData failed', {
+            error: err,
+            raw: summarizeTypedData(orderTypedData),
+            sanitized: summarizeTypedData({
+              domain,
+              types,
+              primaryType,
+              message,
+            }),
+            looseMissingPaths,
+            schemaMissingPaths,
+          });
+          throw err;
         }
       }
 
@@ -586,6 +814,7 @@ export function useClobOrder(
       eoaAddress,
       ensureDelegatedSigner,
       isEmbeddedPrivyWallet,
+      signTypedDataWithPrivy,
       walletClient,
     ],
   );
@@ -608,6 +837,7 @@ export function useClobOrder(
       }
 
       setIsSubmitting(true);
+      setOrderStage('preparing');
       setError(null);
       setOrderId(null);
 
@@ -642,6 +872,26 @@ export function useClobOrder(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         };
+        let protectedOrderPrice = params.price;
+        let marketOrderProtection:
+          | {
+              protectedPrice: number;
+              liveQuotePrice: number;
+              acceptedPrice: number;
+            }
+          | null = null;
+
+        if (params.isMarketOrder) {
+          const freshQuote = await fetchFreshExecutionQuote(
+            params.tokenId,
+            authHeaders,
+          );
+          marketOrderProtection = resolveProtectedMarketPrice(
+            params,
+            freshQuote,
+          );
+          protectedOrderPrice = marketOrderProtection.protectedPrice;
+        }
 
         const prepareBody = {
           tokenId: params.tokenId,
@@ -649,7 +899,8 @@ export function useClobOrder(
           side: params.side,
           orderType,
           amount: params.size,
-          price: params.price,
+          price: protectedOrderPrice,
+          acceptedPrice: marketOrderProtection?.acceptedPrice,
           expiration: params.expiration,
           negRisk: params.negRisk,
           safeAddress: orderWalletAddress,
@@ -668,6 +919,8 @@ export function useClobOrder(
           orderType: prepareBody.orderType,
           amount: prepareBody.amount,
           price: prepareBody.price,
+          acceptedPrice: prepareBody.acceptedPrice,
+          marketOrderProtection,
           expiration: prepareBody.expiration,
           negRisk: prepareBody.negRisk,
           safeAddress: prepareBody.safeAddress,
@@ -704,9 +957,13 @@ export function useClobOrder(
           orderMeta,
         });
 
-        const signature = await signOrderTypedData(orderTypedData);
+        setOrderStage('signing');
+        const signature = await signOrderTypedData(orderTypedData, {
+          showWalletUIs: params.showWalletUIs,
+        });
 
         // Step 3: Submit the signed order
+        setOrderStage('submitting');
         const submitRes = await fetch(`${backendBase()}/orders/submit`, {
           method: 'POST',
           headers: authHeaders,
@@ -731,15 +988,34 @@ export function useClobOrder(
         if (!result.orderId) throw new Error('Order submission failed — no orderId');
 
         setOrderId(result.orderId);
-        queryClient.invalidateQueries({ queryKey: ['active-orders', safeAddress] });
-        queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
-        return { success: true, orderId: result.orderId };
+        const refreshTradingState = () => {
+          queryClient.invalidateQueries({ queryKey: ['active-orders'] });
+          queryClient.invalidateQueries({ queryKey: ['order-history'] });
+          queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+          queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
+          queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
+        };
+        refreshTradingState();
+        createPollingInterval(
+          refreshTradingState,
+          POLLING_INTERVAL,
+          POLLING_DURATION,
+        );
+        return {
+          success: true,
+          orderId: result.orderId,
+          status: result.status,
+          execution: result.execution,
+          tradeIds: result.tradeIds,
+          transactionHashes: result.transactionHashes,
+        } satisfies OrderSubmitResult;
       } catch (err: unknown) {
         const error = extractClobError(err);
         setError(error);
         throw error;
       } finally {
         setIsSubmitting(false);
+        setOrderStage('idle');
       }
     },
     [
@@ -763,6 +1039,7 @@ export function useClobOrder(
       }
 
       setIsSubmitting(true);
+      setOrderStage('submitting');
       setError(null);
 
       try {
@@ -792,6 +1069,7 @@ export function useClobOrder(
         throw error;
       } finally {
         setIsSubmitting(false);
+        setOrderStage('idle');
       }
     },
     [
@@ -808,7 +1086,16 @@ export function useClobOrder(
   const resetOrder = useCallback(() => {
     setOrderId(null);
     setError(null);
+    setOrderStage('idle');
   }, []);
 
-  return { submitOrder, cancelOrder, resetOrder, isSubmitting, error, orderId };
+  return {
+    submitOrder,
+    cancelOrder,
+    resetOrder,
+    isSubmitting,
+    orderStage,
+    error,
+    orderId,
+  };
 }

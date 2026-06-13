@@ -291,6 +291,7 @@ const AddAppIcon = ({ onCloseModal }: any) => {
                 </DropdownItem>
               ))}
               <DropdownItem
+                key="custom-image"
                 onClick={() => handleSelectIconType("Custom Image")}
                 className="border-b rounded-none hover:rounded-md"
               >

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Archive, Pencil } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, X } from 'lucide-react';
 import {
   Card,
   Chip,
@@ -25,7 +25,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type ProductStatus = 'live' | 'low' | 'draft';
-export type ProductType = 'Physical' | 'Digital';
+export type ProductType = 'Physical' | 'Digital' | 'Service';
 
 export interface ProductRow {
   id: string;
@@ -53,7 +53,7 @@ const STATUS_STYLE: Record<
   draft: { bg: 'rgba(0,0,0,0.05)', fg: muted, label: 'Draft' },
 };
 
-type Filter = 'all' | 'physical' | 'digital';
+type Filter = 'all' | 'physical' | 'digital' | 'service';
 
 export interface ProductsTotals {
   units: number;
@@ -70,8 +70,7 @@ export default function ProductsScreen({
   hideBack,
   eyebrow,
   totals,
-  onArchive,
-  archivingId,
+  onDeleteProduct,
 }: {
   rows: ProductRow[];
   backHref?: string;
@@ -84,17 +83,23 @@ export default function ProductsScreen({
    * present, the StatRow surfaces real revenue/units instead of an em-dash.
    */
   totals?: ProductsTotals;
-  onArchive?: (product: ProductRow) => void;
-  archivingId?: string | null;
+  onDeleteProduct?: (productId: string) => Promise<void>;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>('all');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+    null
+  );
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const counts = useMemo(
     () => ({
       all: rows.length,
       physical: rows.filter((r) => r.type === 'Physical').length,
       digital: rows.filter((r) => r.type === 'Digital').length,
+      service: rows.filter((r) => r.type === 'Service').length,
     }),
     [rows]
   );
@@ -105,6 +110,39 @@ export default function ProductsScreen({
       (r) => r.type.toLowerCase() === filter
     );
   }, [rows, filter]);
+
+  const toggleMenu = (productId: string) => {
+    setActionError(null);
+    setConfirmingDeleteId(null);
+    setOpenMenuId((current) => (current === productId ? null : productId));
+  };
+
+  const requestDelete = (productId: string) => {
+    setActionError(null);
+    setConfirmingDeleteId(productId);
+  };
+
+  const cancelDelete = () => {
+    setActionError(null);
+    setConfirmingDeleteId(null);
+  };
+
+  const confirmDelete = async (productId: string) => {
+    if (!onDeleteProduct) return;
+    setDeletingId(productId);
+    setActionError(null);
+    try {
+      await onDeleteProduct(productId);
+      setOpenMenuId(null);
+      setConfirmingDeleteId(null);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : 'Unable to delete product.'
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const stats = useMemo(() => {
     const total = rows.length;
@@ -165,7 +203,7 @@ export default function ProductsScreen({
         ]}
       />
 
-      <Card pad={0}>
+      <Card pad={0} style={{ overflow: 'visible' }}>
         {/* Filter / sort row */}
         <div
           style={{
@@ -196,6 +234,13 @@ export default function ProductsScreen({
             >
               Digital · {counts.digital}
             </Chip>
+            <Chip
+              size="sm"
+              active={filter === 'service'}
+              onClick={() => setFilter('service')}
+            >
+              Service · {counts.service}
+            </Chip>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <Chip size="sm">Sort: Best selling</Chip>
@@ -208,7 +253,7 @@ export default function ProductsScreen({
           style={{
             display: 'grid',
             gridTemplateColumns:
-              'minmax(0, 2fr) 0.7fr 0.7fr 0.7fr 0.8fr 0.8fr',
+              'minmax(0, 2fr) 0.7fr 0.7fr 0.7fr 0.8fr 0.4fr',
             padding: '10px 20px',
             borderBottom: `1px solid ${hair}`,
             ...colHead,
@@ -243,7 +288,7 @@ export default function ProductsScreen({
                 style={{
                   display: 'grid',
                   gridTemplateColumns:
-                    'minmax(0, 2fr) 0.7fr 0.7fr 0.7fr 0.8fr 0.8fr',
+                    'minmax(0, 2fr) 0.7fr 0.7fr 0.7fr 0.8fr 0.4fr',
                   alignItems: 'center',
                   gap: 10,
                   padding: '12px 20px',
@@ -287,18 +332,26 @@ export default function ProductsScreen({
                     )}
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <div
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/products/edit/${p.id}`)}
+                      title={`Edit ${p.name}`}
                       style={{
+                        all: 'unset',
                         fontSize: 13,
                         fontWeight: 600,
                         letterSpacing: -0.2,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
+                        display: 'block',
+                        maxWidth: '100%',
+                        color: ink,
+                        cursor: 'pointer',
                       }}
                     >
                       {p.name}
-                    </div>
+                    </button>
                     <div style={{ marginTop: 3 }}>
                       <span
                         style={{
@@ -326,40 +379,200 @@ export default function ProductsScreen({
                 <Mono size={13} weight={600}>
                   {p.revenue ? `$${p.revenue.toLocaleString()}` : '—'}
                 </Mono>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    gap: 4,
-                  }}
-                >
-                  <Link
-                    href={`/products/create?templateId=${encodeURIComponent(
-                      p.id
-                    )}`}
-                    aria-label={`Edit ${p.name}`}
-                    title="Edit"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    <button type="button" style={iconBtnSm}>
-                      <Pencil size={14} />
-                    </button>
-                  </Link>
+                <div style={{ textAlign: 'right' }}>
                   <button
                     type="button"
-                    style={{
-                      ...iconBtnSm,
-                      opacity: archivingId === p.id ? 0.45 : 1,
-                      cursor:
-                        archivingId === p.id ? 'not-allowed' : 'pointer',
-                    }}
-                    aria-label={`Archive ${p.name}`}
-                    title="Archive"
-                    disabled={archivingId === p.id}
-                    onClick={() => onArchive?.(p)}
+                    style={iconBtnSm}
+                    aria-label={`More actions for ${p.name}`}
+                    aria-expanded={openMenuId === p.id}
+                    onClick={() => toggleMenu(p.id)}
                   >
-                    <Archive size={14} />
+                    <MoreHorizontal size={16} />
                   </button>
+                  <div style={{ position: 'relative' }}>
+                    {openMenuId === p.id ? (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: 6,
+                          zIndex: 20,
+                          width: confirmingDeleteId === p.id ? 230 : 174,
+                          border: `1px solid ${hair}`,
+                          borderRadius: 10,
+                          background: '#fff',
+                          boxShadow:
+                            '0 14px 38px rgba(10,10,12,0.14), 0 2px 8px rgba(10,10,12,0.08)',
+                          padding: 6,
+                          textAlign: 'left',
+                        }}
+                      >
+                        {confirmingDeleteId === p.id ? (
+                          <div style={{ padding: 8 }}>
+                            <div
+                              style={{
+                                fontSize: 12.5,
+                                fontWeight: 650,
+                                color: ink,
+                                marginBottom: 4,
+                              }}
+                            >
+                              Delete product?
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 11.5,
+                                color: muted,
+                                lineHeight: 1.45,
+                                marginBottom: 10,
+                              }}
+                            >
+                              This removes it from checkout and your public
+                              product list.
+                            </div>
+                            {actionError ? (
+                              <div
+                                style={{
+                                  fontSize: 11.5,
+                                  color: '#b91c1c',
+                                  marginBottom: 10,
+                                }}
+                              >
+                                {actionError}
+                              </div>
+                            ) : null}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                type="button"
+                                onClick={cancelDelete}
+                                disabled={deletingId === p.id}
+                                style={{
+                                  flex: 1,
+                                  height: 32,
+                                  borderRadius: 8,
+                                  border: `1px solid ${hair}`,
+                                  background: '#fff',
+                                  color: ink,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  fontFamily: 'inherit',
+                                  cursor:
+                                    deletingId === p.id
+                                      ? 'not-allowed'
+                                      : 'pointer',
+                                }}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void confirmDelete(p.id);
+                                }}
+                                disabled={deletingId === p.id}
+                                style={{
+                                  flex: 1,
+                                  height: 32,
+                                  borderRadius: 8,
+                                  border: 0,
+                                  background: '#b91c1c',
+                                  color: '#fff',
+                                  fontSize: 12,
+                                  fontWeight: 650,
+                                  fontFamily: 'inherit',
+                                  cursor:
+                                    deletingId === p.id
+                                      ? 'not-allowed'
+                                      : 'pointer',
+                                  opacity: deletingId === p.id ? 0.65 : 1,
+                                }}
+                              >
+                                {deletingId === p.id ? 'Deleting' : 'Delete'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                router.push(`/products/edit/${p.id}`);
+                              }}
+                              style={{
+                                width: '100%',
+                                minHeight: 36,
+                                border: 0,
+                                borderRadius: 8,
+                                background: 'transparent',
+                                color: ink,
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                cursor: 'pointer',
+                                padding: '8px 10px',
+                              }}
+                            >
+                              <Pencil size={14} />
+                              Edit product
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => requestDelete(p.id)}
+                              disabled={!onDeleteProduct}
+                              style={{
+                                width: '100%',
+                                minHeight: 36,
+                                border: 0,
+                                borderRadius: 8,
+                                background: 'transparent',
+                                color: '#b91c1c',
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                cursor: onDeleteProduct
+                                  ? 'pointer'
+                                  : 'not-allowed',
+                                padding: '8px 10px',
+                              }}
+                            >
+                              <Trash2 size={14} />
+                              Delete product
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setOpenMenuId(null)}
+                              style={{
+                                width: '100%',
+                                minHeight: 32,
+                                border: 0,
+                                borderRadius: 8,
+                                background: 'transparent',
+                                color: muted,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                cursor: 'pointer',
+                                padding: '7px 10px',
+                              }}
+                            >
+                              <X size={14} />
+                              Close
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             );

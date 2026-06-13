@@ -53,6 +53,8 @@ export function useSendFlow() {
       SOLANA: '0.000000001',
       POLYGON: '0.0001',
       BASE: '0.0001',
+      ARBITRUM: '0.0001',
+      SEPOLIA: '0.0001',
     };
 
     const network = (nft.network || 'ETHEREUM') as Network;

@@ -18,7 +18,7 @@ export default function UserAccountTabSwitcher({ data, token }: any) {
     setActiveTab(value);
   };
 
-  const isUpgrade = searchParams.get('upgrade');
+  const isUpgrade = searchParams?.get('upgrade');
 
   useEffect(() => {
     if (isUpgrade) {

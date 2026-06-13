@@ -139,8 +139,8 @@ export default function DashboardContentPreview() {
     error: mediaError,
     isLoading: isMediaLoading,
   } = useFetchMediaData(
-    shouldFetchMediaData ? user?._id || "" : null,
-    shouldFetchMediaData ? accessToken || "" : null,
+    shouldFetchMediaData ? user?._id || "" : "",
+    shouldFetchMediaData ? accessToken || "" : "",
     shouldFetchMediaData ? audioUrls : [],
     shouldFetchMediaData ? videoUrls : []
   );

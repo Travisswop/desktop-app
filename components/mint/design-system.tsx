@@ -259,7 +259,6 @@ export const Avatar = ({
 const DELIVERY_TONES: Record<string, { bg: string; fg: string }> = {
   Complete: { bg: '#e7f7ec', fg: '#0d8b3e' },
   Settled: { bg: '#e7f7ec', fg: '#0d8b3e' },
-  Shipped: { bg: '#e0e7ff', fg: '#3730a3' },
   Delivered: { bg: '#e7f7ec', fg: '#0d8b3e' },
   Pending: { bg: '#fef0d4', fg: '#b45309' },
   Processing: { bg: '#fef0d4', fg: '#b45309' },

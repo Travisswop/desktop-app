@@ -217,10 +217,13 @@ export default function BalanceChart({
   const { user } = useUser();
 
   useEffect(() => {
+    const userId = user?._id;
+    if (!userId) return;
+
     const fetchData = async () => {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${userId}`
         );
         if (!response.ok) {
           throw new Error("Network response was not ok");

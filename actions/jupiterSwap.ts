@@ -10,8 +10,6 @@ interface JupiterBuildParams {
   feeAccount?: string;
   mode?: 'fast';
   instructionVersion?: 'V1' | 'V2';
-  wrapAndUnwrapSol?: boolean;
-  nativeDestinationAccount?: string;
 }
 
 interface JupiterOrderParams {
@@ -23,10 +21,70 @@ interface JupiterOrderParams {
   receiver?: string;
 }
 
+interface JupiterQuoteParams {
+  inputMint: string;
+  outputMint: string;
+  amount: string;
+  slippageBps?: number;
+  platformFeeBps?: number;
+  swapMode?: 'ExactIn' | 'ExactOut';
+}
+
 interface JupiterExecuteParams {
   signedTransaction: string; // base64
   requestId: string;
   lastValidBlockHeight?: string;
+}
+
+type JupiterQuoteEndpoint = {
+  url: string;
+  headers: Record<string, string>;
+};
+
+const JUPITER_QUOTE_TIMEOUT_MS = 8_000;
+
+const getJupiterApiKey = () => process.env.JUPITER_API_KEY?.trim();
+
+const getJupiterApiHeaders = (includeApiKey = false) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (includeApiKey) {
+    const apiKey = getJupiterApiKey();
+    if (apiKey) {
+      headers['x-api-key'] = apiKey;
+    }
+  }
+
+  return headers;
+};
+
+async function fetchJupiterWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = JUPITER_QUOTE_TIMEOUT_MS
+) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function getJupiterQuoteError(error: unknown) {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return 'Jupiter quote is taking too long. Try refreshing the quote.';
+  }
+  if (error instanceof Error) {
+    return error.message || 'Failed to get Jupiter quote';
+  }
+  return 'Failed to get Jupiter quote';
 }
 
 const normalizeSlippageBps = (slippageBpsParam: unknown) => {
@@ -35,6 +93,100 @@ const normalizeSlippageBps = (slippageBpsParam: unknown) => {
   const rounded = Math.round(n);
   // Jupiter expects basis points (0-10000). UI allows up to 50% => 5000 bps.
   return Math.min(Math.max(rounded, 0), 10000);
+};
+
+export const getJupiterQuote = async (params: JupiterQuoteParams) => {
+  try {
+    const {
+      inputMint,
+      outputMint,
+      amount,
+      slippageBps: slippageBpsParam,
+      platformFeeBps,
+      swapMode = 'ExactIn',
+    } = params;
+
+    const searchParams = new URLSearchParams({
+      inputMint,
+      outputMint,
+      amount,
+      swapMode,
+    });
+
+    const normalizedSlippageBps = normalizeSlippageBps(slippageBpsParam);
+    if (normalizedSlippageBps !== undefined) {
+      searchParams.set('slippageBps', normalizedSlippageBps.toString());
+    }
+    if (platformFeeBps) {
+      searchParams.set('platformFeeBps', platformFeeBps.toString());
+    }
+
+    const quoteUrls: JupiterQuoteEndpoint[] = [
+      {
+        url: `https://api.jup.ag/swap/v1/quote?${searchParams.toString()}`,
+        headers: getJupiterApiHeaders(true),
+      },
+      {
+        url: `https://lite-api.jup.ag/swap/v1/quote?${searchParams.toString()}`,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    ];
+
+    let response: Response | null = null;
+    let data: any = null;
+    for (const [index, endpoint] of quoteUrls.entries()) {
+      response = await fetchJupiterWithTimeout(endpoint.url, {
+        method: 'GET',
+        headers: endpoint.headers,
+      });
+      data = await response.json().catch(() => null);
+      if (response.ok || (response.status !== 429 && response.status < 500)) {
+        break;
+      }
+      if (index < quoteUrls.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    if (!response || !response.ok) {
+      let errorMessage;
+      if (response?.status === 429) {
+        errorMessage =
+          'Service is busy. Please wait a moment and try again.';
+      } else if (response?.status === 404) {
+        errorMessage =
+          'This token pair is not available for swapping.';
+      } else if (response && response.status >= 500) {
+        errorMessage =
+          'Swap service is temporarily down. Please try again later.';
+      } else {
+        errorMessage =
+          data?.errorMessage ||
+          data?.error ||
+          'Unable to get price quote. Please try again.';
+      }
+
+      return { success: false, error: errorMessage };
+    }
+
+    if (!data || !data.outAmount) {
+      return {
+        success: false,
+        error:
+          'Unable to calculate swap price. Please try different amounts or tokens.',
+      };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error getting Jupiter quote:', error);
+    return {
+      success: false,
+      error: getJupiterQuoteError(error),
+    };
+  }
 };
 
 export const getJupiterBuild = async (params: JupiterBuildParams) => {
@@ -49,8 +201,6 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
       feeAccount,
       mode,
       instructionVersion,
-      wrapAndUnwrapSol,
-      nativeDestinationAccount,
     } = params;
 
     const normalizedSlippageBps =
@@ -67,12 +217,6 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
     if (instructionVersion) {
       searchParams.set('instructionVersion', instructionVersion);
     }
-    if (wrapAndUnwrapSol !== undefined) {
-      searchParams.set('wrapAndUnwrapSol', String(wrapAndUnwrapSol));
-    }
-    if (nativeDestinationAccount) {
-      searchParams.set('nativeDestinationAccount', nativeDestinationAccount);
-    }
 
     // platformFeeBps requires feeAccount — only include both together
     if (feeAccount && platformFeeBps) {
@@ -80,40 +224,75 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
       searchParams.set('feeAccount', feeAccount);
     }
 
-    const url = `https://api.jup.ag/swap/v2/build?${searchParams.toString()}`;
+    const buildUrls: JupiterQuoteEndpoint[] = [];
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.JUPITER_API_KEY || '',
-      },
+    if (getJupiterApiKey()) {
+      buildUrls.push({
+        url: `https://api.jup.ag/swap/v2/build?${searchParams.toString()}`,
+        headers: getJupiterApiHeaders(true),
+      });
+    }
+
+    buildUrls.push({
+      url: `https://lite-api.jup.ag/swap/v2/build?${searchParams.toString()}`,
+      headers: getJupiterApiHeaders(),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.error('Error getting Jupiter build:', errorData);
+    let response: Response | null = null;
+    let buildData: any = null;
 
+    for (const [index, endpoint] of buildUrls.entries()) {
+      response = await fetchJupiterWithTimeout(
+        endpoint.url,
+        {
+          method: 'GET',
+          headers: endpoint.headers,
+        },
+      );
+      buildData = await response.json().catch(() => null);
+
+      if (response.ok) {
+        break;
+      }
+
+      const shouldRetry =
+        (response.status === 401 ||
+          response.status === 403 ||
+          response.status === 429 ||
+          response.status >= 500) &&
+        index < buildUrls.length - 1;
+
+      if (shouldRetry) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    if (!response || !response.ok) {
+      console.error('Error getting Jupiter build:', buildData);
+
+      const status = response?.status || 502;
       let errorMessage;
-      if (response.status === 429) {
+      if (status === 401 || status === 403) {
+        errorMessage =
+          'Jupiter build is temporarily unavailable. Please try again.';
+      } else if (status === 429) {
         errorMessage =
           'Service is busy. Please wait a moment and try again.';
-      } else if (response.status === 404) {
+      } else if (status === 404) {
         errorMessage =
           'This token pair is not available for swapping.';
-      } else if (response.status >= 500) {
+      } else if (status >= 500) {
         errorMessage =
           'Swap service is temporarily down. Please try again later.';
       } else {
         errorMessage =
-          errorData?.error ||
+          buildData?.errorMessage ||
+          buildData?.error ||
           'Unable to get price quote. Please try again.';
       }
 
       return { success: false, error: errorMessage };
     }
-
-    const buildData = await response.json();
 
     if (!buildData || !buildData.outAmount) {
       return {
@@ -167,10 +346,7 @@ export const getJupiterOrder = async (params: JupiterOrderParams) => {
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.JUPITER_API_KEY || '',
-      },
+      headers: getJupiterApiHeaders(true),
     });
 
     const data = await response.json().catch(() => null);
@@ -247,10 +423,7 @@ export const executeJupiterOrder = async (
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.JUPITER_API_KEY || '',
-      },
+      headers: getJupiterApiHeaders(true),
       body: JSON.stringify(params),
     });
 

@@ -18,6 +18,9 @@ export type MarketDetailEntry = {
   market: PolymarketMarket;
   initialOutcome?: 'yes' | 'no';
   initialAmount?: string;
+  initialSide?: 'BUY' | 'SELL';
+  initialOrderType?: 'market' | 'limit';
+  initialLimitPrice?: string;
   outcomeLabels?: [string, string];
   yesShares?: number;
   noShares?: number;

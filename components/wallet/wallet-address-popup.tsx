@@ -2,36 +2,36 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Copy } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import { WalletItem } from "@/types/wallet";
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { PiWalletBold } from "react-icons/pi";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 interface WalletAddressPopupProps {
   walletData: WalletItem[];
   show: boolean;
-  onClose: () => void;
+  onClose?: () => void;
 }
 
-const addresses = [
-  {
-    chain: "Solana",
-    address: "3B3RL........VGXQC",
-  },
-  {
-    chain: "Ethereum",
-    address: "3B3RL........VGXQC",
-  },
-  {
-    chain: "Polygon",
-    address: "3B3RL........VGXQC",
-  },
-];
+const formatAddress = (address?: string) => {
+  if (!address) return "Not connected";
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 5)}...${address.slice(-5)}`;
+};
 
-const CopyButton = ({ content }: { content: string }) => {
+const CopyButton = ({ content }: { content?: string }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(content);
+    if (!content) return;
+
+    const didCopy = await copyTextToClipboard(content);
+    if (!didCopy) {
+      alert("Could not copy address. Please try again.");
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -40,7 +40,9 @@ const CopyButton = ({ content }: { content: string }) => {
       variant="ghost"
       size="icon"
       onClick={handleCopy}
-      className="h-6 w-6"
+      disabled={!content}
+      className="h-8 w-8 shrink-0 rounded-lg disabled:cursor-not-allowed disabled:opacity-40"
+      aria-label="Copy wallet address"
     >
       {copied ? (
         <Check className="h-4 w-4 text-green-500" />
@@ -58,6 +60,7 @@ export default function WalletAddressPopup({
 }: WalletAddressPopupProps) {
   const [selectReceive, setSelectReceive] = useState("");
   const cardRef = useRef<HTMLDivElement>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSelectReceive("");
@@ -67,7 +70,7 @@ export default function WalletAddressPopup({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (cardRef.current && !cardRef.current.contains(event.target as Node)) {
-        onClose();
+        onClose?.();
       }
     };
 
@@ -80,26 +83,48 @@ export default function WalletAddressPopup({
     };
   }, [show, onClose]);
 
+  const scrollChains = (direction: "left" | "right") => {
+    carouselRef.current?.scrollBy({
+      left: direction === "left" ? -180 : 180,
+      behavior: "smooth",
+    });
+  };
+
   if (!show) return null;
   const evm = walletData.filter((item) => item.isEVM);
   const sol = walletData.filter((item) => !item.isEVM);
 
   if (evm.length === 0 && sol.length === 0) return null;
-  if (evm.length > 0) {
-    addresses.map((item) => {
-      if (item.chain !== "Solana") {
-        item.address = evm[0].address;
-      }
-    });
-  }
 
-  if (sol.length > 0) {
-    addresses.map((item) => {
-      if (item.chain === "Solana") {
-        item.address = sol[0].address;
-      }
-    });
-  }
+  const solAddress = sol[0]?.address;
+  const evmAddress = evm[0]?.address;
+  const addresses = [
+    {
+      chain: "Solana",
+      icon: "/assets/icons/sol.png",
+      address: solAddress,
+    },
+    {
+      chain: "Ethereum",
+      icon: "/assets/icons/ETH.png",
+      address: evmAddress,
+    },
+    {
+      chain: "Polygon",
+      icon: "/assets/icons/POL.png",
+      address: evmAddress,
+    },
+    {
+      chain: "Base",
+      icon: "/assets/icons/base.png",
+      address: evmAddress,
+    },
+    {
+      chain: "Arbitrum",
+      icon: "/assets/icons/arbitrum.png",
+      address: evmAddress,
+    },
+  ];
 
   return (
     <Card
@@ -114,21 +139,63 @@ export default function WalletAddressPopup({
         </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-2">
-        {selectReceive === "crypto" &&
-          addresses.map((item, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between border-t-1 border-slate-300 p-1.5 sm:p-1 text-xs sm:text-sm"
-            >
-              <div className="grid gap-0.5 sm:gap-1">
-                <div className="font-medium">{item.chain}</div>
-                <div className="text-[10px] sm:text-xs text-muted-foreground">
-                  {item.address.slice(0, 6)}...{item.address.slice(-6)}
-                </div>
+        {selectReceive === "crypto" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+                Receive on chain
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => scrollChains("left")}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-700 transition hover:bg-gray-100"
+                  aria-label="Previous chain"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollChains("right")}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-700 transition hover:bg-gray-100"
+                  aria-label="Next chain"
+                >
+                  <ChevronRight size={15} />
+                </button>
               </div>
-              <CopyButton content={item.address} />
             </div>
-          ))}
+
+            <div
+              ref={carouselRef}
+              className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 pr-36 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {addresses.map((item) => (
+                <div
+                  key={item.chain}
+                  className="flex min-w-[150px] snap-start flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-medium"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-50">
+                    <Image
+                      src={item.icon}
+                      alt={item.chain}
+                      width={34}
+                      height={34}
+                    />
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {item.chain}
+                    </div>
+                    <div className="mt-1 text-xs font-mono text-muted-foreground">
+                      {formatAddress(item.address)}
+                    </div>
+                  </div>
+                  <CopyButton content={item.address} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {!selectReceive && (
           <div className="flex flex-col gap-3">
             <button

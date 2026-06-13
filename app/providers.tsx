@@ -13,7 +13,7 @@ export function Providers({ children }: ProvidersProps) {
     <PrivyProvider
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
       config={{
-        loginMethods: ['email', 'wallet'],
+        loginMethods: ['passkey', 'email', 'wallet'],
         appearance: {
           theme: 'light',
           accentColor: '#676FFF',

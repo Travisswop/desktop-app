@@ -45,7 +45,13 @@ import Referral from "../publicProfile/referral";
 import MediaList from "../publicProfile/MediaList";
 import getMediaType from "@/utils/getMediaType";
 import EmbedVideo from "../publicProfile/embedvideo";
-import EmbeddedFeed from "@/app/(public-profile)/sp/[username]/_EmbeddedFeed";
+import {
+  getSmartsiteMarketplaceImage,
+  getSmartsiteMarketplaceName,
+  getSmartsiteMarketplacePrice,
+  groupSmartsiteMarketplaceItems,
+  normalizeSmartsiteMarketplaceItems,
+} from "@/lib/smartsite-marketplace-display";
 
 const SmartsiteIconLivePreview = ({
   data,
@@ -214,20 +220,12 @@ const SmartsiteIconLivePreview = ({
     setSocialRows(distributeSmallIcons(data.info.socialTop));
   }, [data]);
 
-  // Add this helper function at the top of your component or in a separate utils file
-  const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
-    const grouped: { [key: string]: any[] } = {};
-
-    marketPlaceItems.forEach((item) => {
-      const nftType = item.templateId?.nftType || "other";
-      if (!grouped[nftType]) {
-        grouped[nftType] = [];
-      }
-      grouped[nftType].push(item);
-    });
-
-    return grouped;
-  };
+  const marketplaceItems = normalizeSmartsiteMarketplaceItems(
+    data.info.marketPlace,
+  );
+  const groupedMarketplaceItems = groupSmartsiteMarketplaceItems(
+    marketplaceItems,
+  );
 
   return (
     <div
@@ -294,12 +292,11 @@ const SmartsiteIconLivePreview = ({
                 {/* small icon display here end */}
 
                 {/* marketPlace display here start */}
-                {data.info.marketPlace.length > 0 && (
+                {marketplaceItems.length > 0 && (
                   <div className="flex flex-col gap-y-5 px-3 overflow-x-hidden">
-                    {Object.entries(
-                      groupMarketPlaceByType(data.info.marketPlace),
-                    ).map(([nftType, items]) => (
-                      <div key={nftType} className="flex flex-col gap-y-1">
+                    {Object.entries(groupedMarketplaceItems).map(
+                      ([sectionTitle, items]) => (
+                      <div key={sectionTitle} className="flex flex-col gap-y-1">
                         <h3
                           style={{
                             color: formData.fontColor
@@ -308,7 +305,7 @@ const SmartsiteIconLivePreview = ({
                           }}
                           className="text-base font-medium capitalize mb-1"
                         >
-                          {nftType === "phygital" ? "Product" : nftType}
+                          {sectionTitle}
                         </h3>
 
                         {items.length > 2 ? (
@@ -330,7 +327,7 @@ const SmartsiteIconLivePreview = ({
                                     <button
                                       onClick={() =>
                                         handleMarketPlaceDelete(
-                                          item._id,
+                                          item.marketplaceEntryId || item._id,
                                           item.micrositeId,
                                         )
                                       }
@@ -345,8 +342,8 @@ const SmartsiteIconLivePreview = ({
                                     <div className="flex flex-col">
                                       <div className="relative aspect-square overflow-hidden m-6 mx-10 rounded-md">
                                         <Image
-                                          src={item.itemImageUrl}
-                                          alt={item.itemName}
+                                          src={getSmartsiteMarketplaceImage(item)}
+                                          alt={getSmartsiteMarketplaceName(item)}
                                           fill
                                           quality={100}
                                           className="object-cover group-hover:scale-105 transition-transform duration-200"
@@ -363,10 +360,10 @@ const SmartsiteIconLivePreview = ({
                                             }}
                                             className="text-sm font-semibold line-clamp-1"
                                           >
-                                            {item.itemName}
+                                            {getSmartsiteMarketplaceName(item)}
                                           </p>
                                           <p className="text-xs font-medium mt-0.5 bg-gray-100 w-max px-2 py-0.5 rounded-md">
-                                            ${item.itemPrice}
+                                            ${getSmartsiteMarketplacePrice(item)}
                                           </p>
                                         </div>
                                       </div>
@@ -386,7 +383,7 @@ const SmartsiteIconLivePreview = ({
                                 <button
                                   onClick={() =>
                                     handleMarketPlaceDelete(
-                                      item._id,
+                                      item.marketplaceEntryId || item._id,
                                       item.micrositeId,
                                     )
                                   }
@@ -401,8 +398,8 @@ const SmartsiteIconLivePreview = ({
                                 <div className="flex flex-col">
                                   <div className="relative aspect-square overflow-hidden m-6 mx-12 rounded-md">
                                     <Image
-                                      src={item.itemImageUrl}
-                                      alt={item.itemName}
+                                      src={getSmartsiteMarketplaceImage(item)}
+                                      alt={getSmartsiteMarketplaceName(item)}
                                       fill
                                       quality={100}
                                       className="object-cover group-hover:scale-105 transition-transform duration-200"
@@ -419,10 +416,10 @@ const SmartsiteIconLivePreview = ({
                                         }}
                                         className="text-sm font-semibold line-clamp-1"
                                       >
-                                        {item.itemName}
+                                        {getSmartsiteMarketplaceName(item)}
                                       </p>
                                       <p className="text-xs font-medium mt-0.5 bg-gray-100 w-max px-2 py-0.5 rounded-md">
-                                        ${item.itemPrice}
+                                        ${getSmartsiteMarketplacePrice(item)}
                                       </p>
                                     </div>
                                   </div>
