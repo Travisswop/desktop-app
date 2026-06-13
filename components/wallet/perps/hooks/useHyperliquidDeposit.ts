@@ -119,6 +119,9 @@ export function useHyperliquidDeposit() {
       setState({ isDepositing: true, txHash: null, error: null, step: 'confirming' });
 
       try {
+        if (evmWallet.chainId !== `eip155:${chainId}` && evmWallet.switchChain) {
+          await evmWallet.switchChain(chainId);
+        }
 
         // Encode ERC-20 transfer(bridgeAddress, amount) calldata
         const data = encodeFunctionData({
@@ -130,14 +133,28 @@ export function useHyperliquidDeposit() {
         setState((prev) => ({ ...prev, step: 'pending' }));
 
         // Send via Privy — gas sponsored if enabled in dashboard.
-        const result = await sendTransaction(
-          {
-            to: usdcAddress,
-            data,
-            chainId,
-          },
-          { sponsor: true },
-        );
+        const txRequest = {
+          to: usdcAddress,
+          data,
+          chainId,
+        };
+        let result: Awaited<ReturnType<typeof sendTransaction>>;
+        try {
+          result = await sendTransaction(txRequest, {
+            address: evmWallet.address,
+            sponsor: true,
+          });
+        } catch (sponsoredErr) {
+          const message =
+            sponsoredErr instanceof Error ? sponsoredErr.message : '';
+          if (message.toLowerCase().includes('rejected')) {
+            throw sponsoredErr;
+          }
+          result = await sendTransaction(txRequest, {
+            address: evmWallet.address,
+            sponsor: false,
+          });
+        }
 
         setState({
           isDepositing: false,
