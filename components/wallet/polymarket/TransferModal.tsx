@@ -282,6 +282,31 @@ const readWithRetry = async <T,>(
   throw lastErr;
 };
 
+const isUserRejectionError = (
+  error: unknown,
+  { includeGeneric = true }: { includeGeneric?: boolean } = {},
+) => {
+  const message =
+    error instanceof Error ? error.message : String(error || '');
+  const lower = message.toLowerCase();
+  const phrases = [
+    'user rejected',
+    'user denied',
+    'user cancelled',
+    'user canceled',
+    'rejected by user',
+    'denied by user',
+    'cancelled by user',
+    'canceled by user',
+  ];
+
+  if (includeGeneric) {
+    phrases.push('rejected', 'denied', 'cancelled', 'canceled');
+  }
+
+  return phrases.some((phrase) => lower.includes(phrase));
+};
+
 const getDepositExplorerUrl = (chain: string, hash: string) =>
   ({
     SOLANA: `https://solscan.io/tx/${hash}`,
@@ -475,6 +500,24 @@ function DepositTab({
       eoaAddress,
       privyUser?.wallet?.address,
     ],
+  );
+
+  const sendActiveEvmTransaction = useCallback(
+    (
+      tx: Parameters<typeof sendTransaction>[0],
+      options?: Parameters<typeof sendTransaction>[1],
+      activeAddress?: string,
+    ) => {
+      const fallbackAddress = Array.isArray(evmAddress)
+        ? evmAddress[0]
+        : evmAddress;
+      const address = activeAddress || fallbackAddress;
+      const withActiveAddress = address
+        ? { ...options, address }
+        : options;
+      return sendTransaction(tx, withActiveAddress);
+    },
+    [evmAddress, sendTransaction],
   );
 
   const {
@@ -781,28 +824,61 @@ function DepositTab({
       functionName: 'transfer',
       args: [safeAddress as `0x${string}`, amountInWei],
     });
+    const tx = {
+      to: USDC_E_ADDRESS as `0x${string}`,
+      data,
+      chainId: polygon.id,
+    };
+
     try {
-      const result = await sendTransaction(
+      const result = await sendActiveEvmTransaction(
+        tx,
         {
-          to: USDC_E_ADDRESS as `0x${string}`,
-          data,
-          chainId: polygon.id,
+          sponsor: true,
+          uiOptions: { showWalletUIs: false },
         },
-        { sponsor: false },
+        sourceEvmAddress,
       );
       return result.hash;
     } catch (sponsorErr: any) {
       if (
-        ['rejected', 'denied', 'cancelled', 'user rejected'].some(
-          (s) => sponsorErr?.message?.includes(s),
-        )
+        isUserRejectionError(sponsorErr, {
+          includeGeneric: false,
+        })
       )
         throw sponsorErr;
-      setDepositStatus('Retrying transfer...');
-      const result = await sendTransaction({
-        to: USDC_E_ADDRESS as `0x${string}`,
-        data,
-        chainId: polygon.id,
+
+      console.warn(
+        '[Polymarket deposit] Sponsored pUSD transfer failed; retrying user-funded transfer.',
+        sponsorErr,
+      );
+
+      let gasBalance: bigint | null = null;
+      try {
+        gasBalance = await readWithRetry(
+          () =>
+            publicClient.getBalance({
+              address: sourceEvmAddress as `0x${string}`,
+            }),
+          1,
+          500,
+        );
+      } catch (balanceErr) {
+        console.warn(
+          '[Polymarket deposit] Polygon gas balance check failed before fallback.',
+          balanceErr,
+        );
+      }
+
+      if (gasBalance === BigInt(0)) {
+        throw new Error(
+          'Gas sponsorship was unavailable and this wallet has no POL for the Polygon network fee. Add a small amount of POL, then try the deposit again.',
+        );
+      }
+
+      setDepositStatus('Retrying transfer with wallet gas...');
+      const result = await sendActiveEvmTransaction(tx, {
+        sponsor: false,
       });
       return result.hash;
     }
@@ -880,21 +956,27 @@ function DepositTab({
         });
         let approvalHash: string;
         try {
-          const r = await sendTransaction(
+          const r = await sendActiveEvmTransaction(
             {
               to: fromTokenAddress as `0x${string}`,
               data: approveData,
               chainId: sourceChainId,
             },
             { sponsor: false },
+            sourceEvmAddress,
           );
           approvalHash = r.hash;
-        } catch {
-          const r = await sendTransaction({
-            to: fromTokenAddress as `0x${string}`,
-            data: approveData,
-            chainId: sourceChainId,
-          });
+        } catch (approvalErr) {
+          if (isUserRejectionError(approvalErr)) throw approvalErr;
+          const r = await sendActiveEvmTransaction(
+            {
+              to: fromTokenAddress as `0x${string}`,
+              data: approveData,
+              chainId: sourceChainId,
+            },
+            undefined,
+            sourceEvmAddress,
+          );
           approvalHash = r.hash;
         }
         setDepositStatus('Waiting for approval confirmation...');
@@ -917,7 +999,7 @@ function DepositTab({
     }
     let hash: string;
     try {
-      const r = await sendTransaction(
+      const r = await sendActiveEvmTransaction(
         {
           to: transactionRequest.to as `0x${string}`,
           data: transactionRequest.data as `0x${string}`,
@@ -925,22 +1007,23 @@ function DepositTab({
           chainId: sourceChainId,
         },
         { sponsor: false },
+        sourceEvmAddress,
       );
       hash = r.hash;
     } catch (sponsorErr: any) {
-      if (
-        ['rejected', 'denied', 'cancelled', 'user rejected'].some(
-          (s) => sponsorErr?.message?.includes(s),
-        )
-      )
+      if (isUserRejectionError(sponsorErr))
         throw sponsorErr;
       setDepositStatus('Retrying transaction...');
-      const r = await sendTransaction({
-        to: transactionRequest.to as `0x${string}`,
-        data: transactionRequest.data as `0x${string}`,
-        value: txValue,
-        chainId: sourceChainId,
-      });
+      const r = await sendActiveEvmTransaction(
+        {
+          to: transactionRequest.to as `0x${string}`,
+          data: transactionRequest.data as `0x${string}`,
+          value: txValue,
+          chainId: sourceChainId,
+        },
+        undefined,
+        sourceEvmAddress,
+      );
       hash = r.hash;
     }
     setDepositStatus('Waiting for confirmation...');
