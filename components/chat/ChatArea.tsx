@@ -595,6 +595,15 @@ function isLogicalDuplicateMessage(a: Message, b: Message) {
   if (a._id && b._id && a._id === b._id) return true;
   if (messageThreadKey(a) !== messageThreadKey(b)) return false;
   if (hasMatchingReceiptIdentity(a, b)) return true;
+  if (
+    a._id &&
+    b._id &&
+    a._id !== b._id &&
+    !isTempMessage(a) &&
+    !isTempMessage(b)
+  ) {
+    return false;
+  }
 
   const normalizedA = normalizeMessageForDedupe(a.message);
   const normalizedB = normalizeMessageForDedupe(b.message);
