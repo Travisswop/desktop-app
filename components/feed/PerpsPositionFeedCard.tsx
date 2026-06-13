@@ -15,6 +15,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import * as shape from 'd3-shape';
 import isUrl from '@/lib/isUrl';
 import { useHyperliquidCandles } from '@/components/wallet/perps/hooks/useHyperliquidCandles';
+import { useAllMids } from '@/components/wallet/perps/hooks/useHyperliquidWebSocket';
 import type { PerpsPositionFeedContent } from '@/lib/perps/perpsFeed';
 
 interface PerpsPositionFeedCardProps {
@@ -101,6 +102,27 @@ function firstFiniteNumber(values: unknown[], fallback = 0) {
   return fallback;
 }
 
+function liveMidPriceForCoin(
+  mids: Record<string, string | number | null | undefined>,
+  coin: string,
+) {
+  const normalized = coin.trim().toUpperCase();
+  const displayCoin = normalized.includes(':')
+    ? normalized.split(':').pop() || normalized
+    : normalized;
+  const candidates = Array.from(new Set([coin, normalized, displayCoin]));
+
+  for (const key of candidates) {
+    const direct = maybeFiniteNumber(mids[key]);
+    if (direct !== null) return direct;
+
+    const upper = maybeFiniteNumber(mids[key.toUpperCase()]);
+    if (upper !== null) return upper;
+  }
+
+  return null;
+}
+
 function normalizePositionStatus(
   status: Partial<PerpsPositionFeedContent>['status'],
   event?: Partial<PerpsPositionFeedContent>['event'],
@@ -181,9 +203,13 @@ function formatPointTime(time?: number) {
 function fallbackPoints(
   content: Partial<PerpsPositionFeedContent>,
   selectedPeriod: Period,
+  liveMarkPrice?: number | null,
 ): ChartPoint[] {
   const entry = finiteNumber(content.entryPrice || content.markPrice, 1);
-  const mark = finiteNumber(content.markPrice || content.entryPrice, entry);
+  const mark = firstFiniteNumber(
+    [liveMarkPrice, content.markPrice, content.entryPrice],
+    entry,
+  );
   const direction = mark >= entry ? 1 : -1;
   const count = FALLBACK_POINT_COUNT[selectedPeriod];
   const now = Date.now();
@@ -200,6 +226,22 @@ function fallbackPoints(
       time: Math.floor((start + windowMs * progress) / 1000),
     };
   });
+}
+
+function pointsWithLiveMark(points: ChartPoint[], liveMarkPrice: number | null) {
+  if (liveMarkPrice === null || liveMarkPrice <= 0) return points;
+
+  const now = Math.floor(Date.now() / 1000);
+  const livePoint = { time: now, price: liveMarkPrice };
+
+  if (points.length === 0) return [livePoint];
+
+  const last = points[points.length - 1];
+  if (last?.time && now <= last.time) {
+    return [...points.slice(0, -1), { ...last, price: liveMarkPrice }];
+  }
+
+  return [...points, livePoint];
 }
 
 function profileImageSrc(profilePic?: string | null) {
@@ -245,6 +287,12 @@ export default function PerpsPositionFeedCard({
     candleInterval,
     Boolean(coin),
   );
+  const { mids } = useAllMids(!hasStoredTerminalStatus && Boolean(coin));
+  const liveMidPrice = useMemo(
+    () =>
+      hasStoredTerminalStatus ? null : liveMidPriceForCoin(mids, coin),
+    [coin, hasStoredTerminalStatus, mids],
+  );
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -270,8 +318,11 @@ export default function PerpsPositionFeedCard({
     const live = visibleBars
       .map((bar) => ({ time: bar.time, price: bar.close }))
       .filter((point) => Number.isFinite(point.price) && point.price > 0);
-    return live.length >= 2 ? live : fallbackPoints(content, selectedPeriod);
-  }, [bars, content, selectedPeriod]);
+    const livePoints = pointsWithLiveMark(live, liveMidPrice);
+    return livePoints.length >= 2
+      ? livePoints
+      : fallbackPoints(content, selectedPeriod, liveMidPrice);
+  }, [bars, content, liveMidPrice, selectedPeriod]);
 
   useEffect(() => {
     if (selectedIndex !== null && selectedIndex >= points.length) {
@@ -281,7 +332,7 @@ export default function PerpsPositionFeedCard({
 
   const displayMarkPrice =
     !hasStoredTerminalStatus
-      ? points[points.length - 1]?.price || storedMarkPrice
+      ? liveMidPrice || points[points.length - 1]?.price || storedMarkPrice
       : storedMarkPrice;
   const status =
     storedStatus === 'open' &&
