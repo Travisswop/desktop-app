@@ -83,6 +83,7 @@ import {
   QrCode,
   Radio,
   RefreshCw,
+  Search,
   Send,
   ShieldCheck,
   ShoppingBag,
@@ -733,6 +734,15 @@ interface WalletSendDraftPrompt {
   amountType: string;
   recipient: string;
   chain: string;
+  recipientCandidates?: WalletSendDraftCandidate[];
+}
+
+interface WalletSendDraftCandidate {
+  userId?: string | null;
+  displayName?: string | null;
+  swopId?: string | null;
+  capabilities?: string[];
+  avatar?: string | null;
 }
 
 interface PerpsPositionPromptOption {
@@ -9992,10 +10002,7 @@ function Message({
               astroConsoleData={astroConsoleData}
             />
           )}
-          {isAgent &&
-            walletSendDraftPrompt &&
-            !proposalId &&
-            String(message._id || '').startsWith('local-wallet-send-draft-') && (
+          {isAgent && walletSendDraftPrompt && !proposalId && (
             <WalletSendDraftCard
               prompt={walletSendDraftPrompt}
               onApproveInline={onApproveInlineProposal}
@@ -12770,6 +12777,69 @@ function WalletSendNetworkPromptCard({
   );
 }
 
+function formatWalletSendDraftSwopId(value?: string | null) {
+  const raw = String(value || '').trim().replace(/^@/, '');
+  if (!raw) return '';
+  return raw.includes('.') ? raw : `${raw}.swop.id`;
+}
+
+type WalletSendDraftSearchResult = {
+  parentId?: string;
+  userId?: string;
+  name?: string;
+  displayName?: string;
+  username?: string;
+  ens?: string;
+  profilePic?: string;
+  avatar?: string;
+  ensData?: {
+    evmAddress?: string;
+    solanaAddress?: string;
+  };
+  ethAddress?: string;
+  ethereumWallet?: string;
+  solanaAddress?: string;
+};
+
+function walletSendDraftCandidateFromSearchResult(
+  result: WalletSendDraftSearchResult
+): WalletSendDraftCandidate | null {
+  const swopId = formatWalletSendDraftSwopId(result.ens || result.username);
+  if (!swopId) return null;
+
+  const capabilities = [
+    result.ensData?.evmAddress || result.ethAddress || result.ethereumWallet
+      ? 'EVM'
+      : '',
+    result.ensData?.solanaAddress || result.solanaAddress ? 'Solana' : '',
+  ].filter(Boolean);
+
+  return {
+    userId: result.parentId || result.userId || null,
+    displayName:
+      result.name ||
+      result.displayName ||
+      result.username ||
+      result.ens ||
+      null,
+    swopId,
+    capabilities,
+    avatar: result.profilePic || result.avatar || null,
+  };
+}
+
+function dedupeWalletSendDraftCandidates(
+  candidates: WalletSendDraftCandidate[]
+) {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = formatWalletSendDraftSwopId(candidate.swopId).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function WalletSendDraftCard({
   prompt,
   onApproveInline,
@@ -12784,6 +12854,7 @@ function WalletSendDraftCard({
   onInlineActionComplete: (completion: AgentActionCompletion) => void;
   astroConsoleData: AstroConsoleData;
 }) {
+  const { accessToken, user } = useUser();
   const { wallets: evmWallets } = useEvmWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { connectWallet } = useConnectWallet();
@@ -12863,8 +12934,13 @@ function WalletSendDraftCard({
     prompt.amountType === 'usd' ? 'usd' : 'token'
   );
   const [recipientInput, setRecipientInput] = useState(prompt.recipient || '');
+  const [recipientResults, setRecipientResults] = useState<
+    WalletSendDraftCandidate[]
+  >(prompt.recipientCandidates || []);
+  const [isSearchingRecipient, setIsSearchingRecipient] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
+  const normalizedRecipientSearch = recipientInput.trim().replace(/^@/, '');
 
   const selectedToken =
     tokenOptions.find((option) => option.key === selectedTokenKey) ||
@@ -12899,6 +12975,77 @@ function WalletSendDraftCard({
     hasValidAmount &&
     hasEnoughBalance &&
     trimmedRecipient.length > 1;
+
+  useEffect(() => {
+    const baseCandidates = prompt.recipientCandidates || [];
+    const query = normalizedRecipientSearch;
+    const isAddressQuery =
+      /^0x[a-fA-F0-9]{40}$/.test(query) ||
+      /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(query);
+
+    if (!query || query.length < 2 || isAddressQuery) {
+      setRecipientResults(dedupeWalletSendDraftCandidates(baseCandidates));
+      setIsSearchingRecipient(false);
+      return;
+    }
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!apiUrl || !accessToken) {
+      setRecipientResults(dedupeWalletSendDraftCandidates(baseCandidates));
+      setIsSearchingRecipient(false);
+      return;
+    }
+
+    let isCancelled = false;
+    setIsSearchingRecipient(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const url = `${apiUrl}/api/v1/user/search?q=${encodeURIComponent(
+          query
+        )}&userId=${user?._id || ''}&filter=all&page=1&limit=6`;
+        const data = await getConnectionsUserData(url, accessToken);
+        const results = Array.isArray(data?.data?.results)
+          ? data.data.results
+          : [];
+        const searchedCandidates = results
+          .map((result: WalletSendDraftSearchResult) =>
+            walletSendDraftCandidateFromSearchResult(result)
+          )
+          .filter(
+            (candidate: WalletSendDraftCandidate | null): candidate is WalletSendDraftCandidate =>
+              Boolean(candidate)
+          );
+
+        if (!isCancelled) {
+          setRecipientResults(
+            dedupeWalletSendDraftCandidates([
+              ...searchedCandidates,
+              ...baseCandidates,
+            ])
+          );
+        }
+      } catch (error) {
+        console.error('Failed to search Swop IDs for send draft:', error);
+        if (!isCancelled) {
+          setRecipientResults(dedupeWalletSendDraftCandidates(baseCandidates));
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsSearchingRecipient(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    accessToken,
+    normalizedRecipientSearch,
+    prompt.recipientCandidates,
+    user?._id,
+  ]);
 
   if (isDismissed) return null;
 
@@ -13122,13 +13269,50 @@ function WalletSendDraftCard({
             </div>
           )}
           <div className={TICKET_LABEL_CLASS}>recipient</div>
-          <input
-            type="text"
-            value={recipientInput}
-            onChange={(event) => setRecipientInput(event.target.value)}
-            placeholder="swop id, ENS, or wallet address"
-            className={`${TICKET_FIELD_CLASS} w-full`}
-          />
+          <div className="rounded-[10px] border border-white/[0.07] bg-black/25">
+            <div className="flex items-center gap-2 px-3 py-2">
+              <Search className="h-3.5 w-3.5 shrink-0 text-[#5a5e69]" />
+              <input
+                type="text"
+                value={recipientInput}
+                onChange={(event) => setRecipientInput(event.target.value)}
+                placeholder="search swop.id or paste wallet address"
+                className="dm-mono min-w-0 flex-1 bg-transparent text-[12px] font-semibold text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
+              />
+              {isSearchingRecipient && (
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#3fe08f]" />
+              )}
+            </div>
+            {recipientResults.length > 0 && (
+              <div className="grid gap-1 border-t border-white/[0.06] p-1.5">
+                {recipientResults.slice(0, 5).map((candidate) => {
+                  const swopId = formatWalletSendDraftSwopId(candidate.swopId);
+                  return (
+                    <button
+                      type="button"
+                      key={swopId}
+                      onClick={() => setRecipientInput(swopId)}
+                      className="dm-btn flex items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 text-left hover:bg-[#3fe08f]/10"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-[12px] font-bold text-[#eceef2]">
+                          {candidate.displayName || swopId}
+                        </div>
+                        <div className="dm-mono mt-0.5 truncate text-[10px] font-semibold text-[#3fe08f]">
+                          {swopId}
+                        </div>
+                      </div>
+                      {Boolean(candidate.capabilities?.length) && (
+                        <div className="dm-mono shrink-0 text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                          {candidate.capabilities?.join(' + ')}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <div className="mt-1 flex items-center gap-2">
             <button
               type="button"
