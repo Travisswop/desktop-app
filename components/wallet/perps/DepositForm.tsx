@@ -434,6 +434,7 @@ export function DepositForm({
 
   const {
     deposit,
+    prepareDelegatedDeposit,
     fetchArbitrumUsdcBalance,
     isDepositing,
     txHash,
@@ -1008,6 +1009,8 @@ export function DepositForm({
     setDepositStatus('Preparing deposit...');
 
     try {
+      await prepareDelegatedDeposit(masterAddress);
+
       let depositAmount = truncateDecimal(amount, USDC_DECIMALS);
 
       if (needsConversion) {
@@ -1061,6 +1064,7 @@ export function DepositForm({
     minDeposit,
     needsConversion,
     onDepositSubmitted,
+    prepareDelegatedDeposit,
     refetchTokens,
     selectedToken,
     txHash,
