@@ -92,7 +92,7 @@ const _lifiTokenCache = new Map<
 >();
 const LIFI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MARKET_QUOTE_CACHE_TTL_MS = 60 * 1000; // 1 minute
-const MAX_SUBMIT_QUOTE_AGE_MS = 45 * 1000;
+const MAX_SUBMIT_QUOTE_AGE_MS = 5 * 60 * 1000;
 
 type TokenMarketQuote = {
   price?: number | null;
