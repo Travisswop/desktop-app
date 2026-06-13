@@ -156,8 +156,10 @@ const normalizeCopyTradeRewardPreview = (
 
   if (preview.isSelf && feeBps <= 0 && rewardBps <= 0) {
     preview.feeBps = PLATFORM_FEE_BPS;
-    preview.rewardBps = COPY_TRADE_REWARD_BPS;
-    preview.claimAvailable = true;
+    preview.rewardBps = 0;
+    preview.claimAvailable = false;
+    preview.claimMessage =
+      'No copy-trade reward is created when you copy your own trade.';
   }
 
   return preview;
@@ -1607,11 +1609,10 @@ export default function SwapTokenModal({
     });
   }, [copyTradeParam, copyTradePostIdParam]);
 
-  // A copy-trade reward only applies to the exact trade that was copied from
-  // the feed. Once the user edits the trade (changes either token or flips the
-  // pair) it becomes an ordinary swap, so the copy-trade context — and its
-  // reward — must be cleared. Without this, the `copyTrade=1` params linger in
-  // the /wallet URL and every subsequent plain swap would be rewarded.
+  // Copy intent follows the first swap submitted from the copied feed entry,
+  // even if the copier edits amount, token, or pair before submitting. After
+  // that first recorded swap, consumeCopyTrade clears the context so later
+  // ordinary swaps are not rewarded.
   const clearCopyTrade = useCallback(() => {
     copyTradeRewardPreviewRef.current = null;
     setCopyTradeRewardPreview(null);
@@ -1643,9 +1644,10 @@ export default function SwapTokenModal({
   }, [pathname, router, searchParams]);
 
   // One-shot: a copy-trade reward applies only to the single trade copied from
-  // the feed. After that swap is recorded, mark the source post consumed, strip
-  // the URL params, and clear the context so no subsequent plain swap in the
-  // same box is ever rewarded.
+  // the feed. The copier may edit amount, token, or pair before submitting.
+  // After that swap is recorded, mark the source post consumed, strip the URL
+  // params, and clear the context so no subsequent plain swap in the same box is
+  // ever rewarded.
   const consumeCopyTrade = useCallback(() => {
     const consumedId =
       copyTradeContext.sourcePostId || copyTradePostIdParam;
@@ -4049,9 +4051,6 @@ export default function SwapTokenModal({
 
   // ── Token selection ───────────────────────────────────────────────────────────
   const handleTokenSelect = (t: any, type: 'pay' | 'receive') => {
-    // Changing either side of the pair means this is no longer the copied
-    // trade — drop the copy-trade reward so plain swaps aren't rewarded.
-    clearCopyTrade();
     const tKey = getTokenIdentityKey(t);
     const tokenChainId = getTokenChainId(t);
 
@@ -4093,8 +4092,6 @@ export default function SwapTokenModal({
   };
 
   const handleFlip = () => {
-    // Reversing the pair is a different trade than the one copied.
-    clearCopyTrade();
     const nextPayToken = receiveToken ?? null;
     const nextReceiveToken = payToken ?? null;
     setPayToken(nextPayToken);
