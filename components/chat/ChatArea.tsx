@@ -3321,6 +3321,58 @@ export default function ChatArea({
     () => handleToggleGoldmanStrategy('stop'),
     [handleToggleGoldmanStrategy]
   );
+  const handleSaveGoldmanStrategyFile = useCallback(
+    async (fileName: string, content: string) => {
+      if (!goldmanGroupId || !accessToken) {
+        throw new Error('Goldman Sacks group or auth session is not ready.');
+      }
+
+      let vault = goldmanStrategyVault;
+      if (!vault?.walletAddress) {
+        vault = await ensureGoldmanStrategyVault();
+      }
+
+      const result = await updateGoldmanStrategyFile({
+        groupId: goldmanGroupId,
+        fileName,
+        content,
+        accessToken,
+      });
+      const savedFile = result.file || null;
+      queryClient.setQueryData<GoldmanStrategyVault | null>(
+        goldmanStrategyVaultQueryKey,
+        (current) => {
+          const nextVault = result.vault
+            ? {
+                ...result.vault,
+                strategies: current?.strategies || vault?.strategies || [],
+              }
+            : current || vault;
+          if (!nextVault || !savedFile) return nextVault || null;
+          const existingFiles = hydrateGoldmanStrategyFiles(
+            nextVault.strategyFiles
+          );
+          return {
+            ...nextVault,
+            strategyFiles: existingFiles.map((file) =>
+              file.file === savedFile.file
+                ? { ...file, ...savedFile }
+                : file
+            ),
+          };
+        }
+      );
+      return savedFile;
+    },
+    [
+      accessToken,
+      ensureGoldmanStrategyVault,
+      goldmanGroupId,
+      goldmanStrategyVault,
+      goldmanStrategyVaultQueryKey,
+      queryClient,
+    ]
+  );
   const goldmanAaveAddress = isGoldmanConsoleChat
     ? goldmanStrategyVault?.walletAddress || null
     : null;
@@ -3901,6 +3953,29 @@ export default function ChatArea({
       });
     };
 
+    const handleGoldmanStrategyFileUpdated = (data: {
+      groupId?: string;
+      agentId?: string;
+      vault?: GoldmanStrategyVault | null;
+      file?: GoldmanStrategyFile | null;
+    }) => {
+      if (
+        data.groupId !== selectedChat?._id ||
+        data.agentId !== 'goldman-sacks' ||
+        !data.vault?.walletAddress
+      ) {
+        return;
+      }
+
+      queryClient.setQueryData<GoldmanStrategyVault | null>(
+        goldmanStrategyVaultQueryKey,
+        (current) => ({
+          ...data.vault!,
+          strategies: current?.strategies || [],
+        })
+      );
+    };
+
     socket.on('group_info_updated', handleGroupInfoUpdated);
     socket.on(
       'group_participants_updated',
@@ -3915,6 +3990,10 @@ export default function ChatArea({
     socket.on(
       'group_agent_strategy_vault_ready',
       handleGoldmanStrategyVaultReady
+    );
+    socket.on(
+      'group_agent_strategy_file_updated',
+      handleGoldmanStrategyFileUpdated
     );
     socket.on('group_agent_strategy_updated', handleGoldmanStrategyUpdated);
 
@@ -3939,6 +4018,10 @@ export default function ChatArea({
       socket.off(
         'group_agent_strategy_vault_ready',
         handleGoldmanStrategyVaultReady
+      );
+      socket.off(
+        'group_agent_strategy_file_updated',
+        handleGoldmanStrategyFileUpdated
       );
       socket.off('group_agent_strategy_updated', handleGoldmanStrategyUpdated);
     };
@@ -6601,6 +6684,7 @@ export default function ChatArea({
         goldmanStrategyVaultError={goldmanStrategyVaultError}
         onEnsureGoldmanStrategyVault={ensureGoldmanStrategyVault}
         onOpenGoldmanWalletTransfer={handleOpenGoldmanWalletTransfer}
+        onSaveGoldmanStrategyFile={handleSaveGoldmanStrategyFile}
         activeGoldmanStrategy={activeGoldmanStrategy}
         isGoldmanStrategyRunning={isGoldmanStrategyRunning}
         isTogglingGoldmanStrategy={isTogglingGoldmanStrategy}
@@ -7484,26 +7568,115 @@ const GOLDMAN_STRATEGY_FILES = [
     detail: 'active thesis',
     status: 'ACTIVE',
     command: '@goldman edit strategy.md ',
+    defaultContent: [
+      '# Strategy',
+      '',
+      'Describe the thesis Goldman should communicate and evaluate before using vault funds.',
+      '',
+      '## Objective',
+      '- Target:',
+      '- Venues:',
+      '- Assets:',
+      '',
+      '## Entry Rules',
+      '-',
+      '',
+      '## Exit Rules',
+      '-',
+    ].join('\n'),
   },
   {
     file: 'risk.md',
     detail: 'limits and stop rules',
     status: 'GATED',
     command: '@goldman edit risk.md ',
+    defaultContent: [
+      '# Risk Rules',
+      '',
+      'Define hard limits Goldman must respect before any autonomous action.',
+      '',
+      '## Caps',
+      '- Max order:',
+      '- Daily deployment cap:',
+      '- Daily loss cap:',
+      '- Reserve:',
+      '',
+      '## Stop Conditions',
+      '-',
+    ].join('\n'),
   },
   {
     file: 'execution-rules.md',
     detail: 'order and approval policy',
     status: 'DRAFT',
     command: '@goldman edit execution-rules.md ',
+    defaultContent: [
+      '# Execution Rules',
+      '',
+      'Explain when Goldman should propose, monitor, or execute.',
+      '',
+      '## Approval Policy',
+      '-',
+      '',
+      '## Autonomous DeFi',
+      '- Use Aave only when Aave access is enabled and approval is set to live.',
+      '- Keep the configured vault reserve untouched.',
+    ].join('\n'),
   },
   {
     file: 'allowed-markets.md',
     detail: 'market and token whitelist',
     status: 'DRAFT',
     command: '@goldman edit allowed-markets.md ',
+    defaultContent: [
+      '# Allowed Markets',
+      '',
+      'List the venues, tokens, and market types Goldman may consider.',
+      '',
+      '## Venues',
+      '- Polymarket',
+      '- Aave on Polygon',
+      '',
+      '## Assets',
+      '- USDC',
+    ].join('\n'),
   },
 ];
+
+function hydrateGoldmanStrategyFiles(
+  strategyFiles?: GoldmanStrategyFile[] | null
+): GoldmanStrategyFile[] {
+  return GOLDMAN_STRATEGY_FILES.map((spec) => {
+    const saved = strategyFiles?.find((file) => file.file === spec.file);
+    return {
+      file: spec.file,
+      detail: saved?.detail || spec.detail,
+      status: saved?.status || spec.status,
+      content:
+        typeof saved?.content === 'string'
+          ? saved.content
+          : spec.defaultContent,
+      updatedAt: saved?.updatedAt || null,
+      updatedBy: saved?.updatedBy || null,
+    };
+  });
+}
+
+function buildGoldmanStrategyFilesPrompt(files: GoldmanStrategyFile[]) {
+  const body = files
+    .map(
+      (file) =>
+        `## ${file.file}\n\n${(file.content || '').trim() || '(empty)'}`
+    )
+    .join('\n\n');
+
+  return [
+    '@goldman publish these saved strategy markdown files for approval.',
+    'Explain the strategy back to me, call out the autonomous DeFi permissions you need, then draft the approval card.',
+    '',
+    body,
+  ].join('\n');
+}
 
 type GoldmanFundingMode = 'transfer' | 'qr';
 
@@ -7543,6 +7716,15 @@ type GoldmanTradingStrategy = {
   updatedAt?: string | null;
 };
 
+type GoldmanStrategyFile = {
+  file: string;
+  detail?: string | null;
+  status?: string | null;
+  content: string;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+};
+
 type GoldmanStrategyVault = {
   id: string;
   userId?: string | null;
@@ -7562,6 +7744,7 @@ type GoldmanStrategyVault = {
   source?: string | null;
   activatedAt?: string | null;
   limits?: Record<string, unknown>;
+  strategyFiles?: GoldmanStrategyFile[];
   strategies?: GoldmanTradingStrategy[];
 };
 
@@ -7669,6 +7852,50 @@ async function updateGoldmanStrategyRuntime({
       body?.message ||
         body?.error?.message ||
         `Goldman strategy ${action} failed (${response.status})`
+    );
+  }
+
+  return body?.data || {};
+}
+
+async function updateGoldmanStrategyFile({
+  groupId,
+  fileName,
+  content,
+  accessToken,
+}: {
+  groupId: string;
+  fileName: string;
+  content: string;
+  accessToken: string;
+}): Promise<{
+  file?: GoldmanStrategyFile | null;
+  vault?: GoldmanStrategyVault;
+}> {
+  const response = await apiFetch(
+    buildSwopApiUrl(
+      `/api/v5/messages/groups/${encodeURIComponent(
+        groupId
+      )}/agents/goldman-sacks/strategy-vault/files/${encodeURIComponent(
+        fileName
+      )}`
+    ),
+    {
+      method: 'PATCH',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ content }),
+    }
+  );
+
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(
+      body?.message ||
+        body?.error?.message ||
+        `Goldman strategy file save failed (${response.status})`
     );
   }
 
@@ -7916,6 +8143,7 @@ function GoldmanAccessStation({
   onUpdateAccessStation,
   onEnsureStrategyVault,
   onOpenWalletTransfer,
+  onSaveStrategyFile,
   onRunStrategy,
   onStopStrategy,
 }: {
@@ -7937,6 +8165,10 @@ function GoldmanAccessStation({
   ) => Promise<void>;
   onEnsureStrategyVault?: () => Promise<GoldmanStrategyVault | null>;
   onOpenWalletTransfer?: () => void;
+  onSaveStrategyFile?: (
+    fileName: string,
+    content: string
+  ) => Promise<GoldmanStrategyFile | null>;
   onRunStrategy?: () => void;
   onStopStrategy?: () => void;
 }) {
@@ -7951,6 +8183,14 @@ function GoldmanAccessStation({
   const [fundingMode, setFundingMode] = useState<GoldmanFundingMode | null>(
     null
   );
+  const strategyFiles = useMemo(
+    () => hydrateGoldmanStrategyFiles(strategyVault?.strategyFiles),
+    [strategyVault?.strategyFiles]
+  );
+  const [editingStrategyFile, setEditingStrategyFile] =
+    useState<GoldmanStrategyFile | null>(null);
+  const [strategyFileDraft, setStrategyFileDraft] = useState('');
+  const [isSavingStrategyFile, setIsSavingStrategyFile] = useState(false);
   const fundingAddress = getGoldmanFundingAddress(strategyVault);
   const isVaultBusy = isStrategyVaultLoading || isActivatingStrategyVault;
 
@@ -8076,6 +8316,68 @@ function GoldmanAccessStation({
     onEnsureStrategyVault,
     onOpenWalletTransfer,
   ]);
+
+  const openStrategyFileEditor = useCallback((file: GoldmanStrategyFile) => {
+    setEditingStrategyFile(file);
+    setStrategyFileDraft(file.content || '');
+  }, []);
+
+  const closeStrategyFileEditor = useCallback(() => {
+    if (isSavingStrategyFile) return;
+    setEditingStrategyFile(null);
+    setStrategyFileDraft('');
+  }, [isSavingStrategyFile]);
+
+  const handleSaveStrategyFile = useCallback(async () => {
+    if (!editingStrategyFile) return;
+    if (!onSaveStrategyFile) {
+      toast.error('Strategy file saving is not available yet.');
+      return;
+    }
+
+    setIsSavingStrategyFile(true);
+    try {
+      const saved = await onSaveStrategyFile(
+        editingStrategyFile.file,
+        strategyFileDraft
+      );
+      const nextFile = saved
+        ? { ...editingStrategyFile, ...saved }
+        : { ...editingStrategyFile, content: strategyFileDraft };
+      setEditingStrategyFile(nextFile);
+      setStrategyFileDraft(nextFile.content || '');
+      toast.success(`${editingStrategyFile.file} saved.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : `Could not save ${editingStrategyFile.file}.`
+      );
+    } finally {
+      setIsSavingStrategyFile(false);
+    }
+  }, [editingStrategyFile, onSaveStrategyFile, strategyFileDraft]);
+
+  const handleAskStrategyIdeas = useCallback(() => {
+    onQuickCommand?.(
+      '@goldman suggest three strategy ideas for this vault, including one autonomous DeFi idea using Aave with clear risk limits'
+    );
+  }, [onQuickCommand]);
+
+  const handleExplainStrategy = useCallback(() => {
+    if (activeStrategy?.title) {
+      onQuickCommand?.(
+        `@goldman explain the active strategy "${activeStrategy.title}", what it will do with vault funds, and which actions are autonomous versus approval-gated`
+      );
+      return;
+    }
+    handleAskStrategyIdeas();
+  }, [activeStrategy?.title, handleAskStrategyIdeas, onQuickCommand]);
+
+  const handlePublishStrategyFiles = useCallback(() => {
+    if (!onQuickCommand) return;
+    onQuickCommand(buildGoldmanStrategyFilesPrompt(strategyFiles));
+  }, [onQuickCommand, strategyFiles]);
 
   const disabledWriteCount = GOLDMAN_WRITE_ACCESS_KEYS.filter(
     (key) => !access[key].enabled
@@ -8203,11 +8505,16 @@ function GoldmanAccessStation({
               disabled={
                 isTogglingStrategy ||
                 isVaultBusy ||
-                !activeStrategy ||
-                (!isStrategyRunning && !onRunStrategy) ||
+                (!activeStrategy && !onQuickCommand) ||
+                (!isStrategyRunning && Boolean(activeStrategy) && !onRunStrategy) ||
                 (isStrategyRunning && !onStopStrategy)
               }
               onClick={() => {
+                if (!activeStrategy) {
+                  toast.error('Ask Goldman for ideas or approve a strategy before running.');
+                  handleAskStrategyIdeas();
+                  return;
+                }
                 if (isStrategyRunning) {
                   onStopStrategy?.();
                 } else {
@@ -8235,6 +8542,26 @@ function GoldmanAccessStation({
               {activeStrategy.runtime.lastActivity}
             </div>
           )}
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={!onQuickCommand}
+              onClick={activeStrategy ? handleExplainStrategy : handleAskStrategyIdeas}
+              className="dm-btn dm-mono flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-white/[0.07] bg-black/20 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#eceef2] disabled:cursor-default disabled:opacity-50"
+            >
+              <Zap className="h-3.5 w-3.5 text-[#f4c95d]" />
+              {activeStrategy ? 'Explain' : 'Ideas'}
+            </button>
+            <button
+              type="button"
+              disabled={!onQuickCommand}
+              onClick={handlePublishStrategyFiles}
+              className="dm-btn dm-mono flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[#f4c95d]/25 bg-[#f4c95d]/10 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#f4c95d] disabled:cursor-default disabled:opacity-50"
+            >
+              <Check className="h-3.5 w-3.5" />
+              Publish
+            </button>
+          </div>
         </div>
 
         <div className="mt-3 grid grid-cols-3 gap-2">
@@ -8620,12 +8947,11 @@ function GoldmanAccessStation({
 
       <SectionLabel>strategy md files</SectionLabel>
       <ConsoleCard padClass="p-0">
-        {GOLDMAN_STRATEGY_FILES.map((file) => (
+        {strategyFiles.map((file) => (
           <button
             key={file.file}
             type="button"
-            disabled={!onQuickCommand}
-            onClick={() => onQuickCommand?.(file.command)}
+            onClick={() => openStrategyFileEditor(file)}
             className="dm-btn flex w-full items-center gap-3 border-t border-white/[0.045] px-3 py-3 text-left first:border-t-0 disabled:cursor-default"
           >
             <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] bg-[#262b34] text-[#cfd6e6]">
@@ -8636,7 +8962,7 @@ function GoldmanAccessStation({
                 {file.file}
               </span>
               <span className="dm-mono mt-1 block truncate text-[10px] font-semibold text-[#5a5e69]">
-                {file.detail}
+                {file.updatedAt ? 'saved markdown file' : file.detail}
               </span>
             </span>
             <span className="dm-mono rounded-[6px] border border-white/[0.07] bg-black/20 px-2 py-1 text-[8.5px] font-bold uppercase tracking-[0.08em] text-[#9396a0]">
@@ -8648,11 +8974,7 @@ function GoldmanAccessStation({
           <button
             type="button"
             disabled={!onQuickCommand}
-            onClick={() =>
-              onQuickCommand?.(
-                '@goldman publish active strategy files for approval'
-              )
-            }
+            onClick={handlePublishStrategyFiles}
             className="dm-btn dm-mono flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#f4c95d]/25 bg-[#f4c95d]/10 text-[10px] font-bold uppercase tracking-[0.08em] text-[#f4c95d] disabled:cursor-default"
           >
             <Check className="h-3.5 w-3.5" />
@@ -8661,13 +8983,11 @@ function GoldmanAccessStation({
           <button
             type="button"
             disabled={!onQuickCommand}
-            onClick={() =>
-              onQuickCommand?.('@goldman create a new strategy markdown draft ')
-            }
+            onClick={handleAskStrategyIdeas}
             className="dm-btn dm-mono flex h-9 items-center justify-center gap-2 rounded-[8px] border border-white/[0.07] bg-black/20 text-[10px] font-bold uppercase tracking-[0.08em] text-[#eceef2] disabled:cursor-default"
           >
             <Plus className="h-3.5 w-3.5 text-[#3fe08f]" />
-            New md
+            Ideas
           </button>
         </div>
       </ConsoleCard>
@@ -8733,6 +9053,86 @@ function GoldmanAccessStation({
           </div>
         ))}
       </ConsoleCard>
+
+      {editingStrategyFile && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4 py-5 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="goldman-strategy-file-editor-title"
+          data-testid="goldman-strategy-file-editor"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeStrategyFileEditor();
+            }
+          }}
+        >
+          <div className="flex max-h-[86vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[14px] border border-white/[0.08] bg-[#101217] shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3">
+              <div className="min-w-0">
+                <div
+                  id="goldman-strategy-file-editor-title"
+                  className="dm-mono truncate text-[12px] font-bold uppercase tracking-[0.12em] text-[#eceef2]"
+                >
+                  {editingStrategyFile.file}
+                </div>
+                <div className="dm-mono mt-1 truncate text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#737783]">
+                  {editingStrategyFile.updatedAt
+                    ? 'saved'
+                    : editingStrategyFile.status || 'draft'}
+                </div>
+              </div>
+              <button
+                type="button"
+                title="Close editor"
+                onClick={closeStrategyFileEditor}
+                disabled={isSavingStrategyFile}
+                className="dm-btn grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] border border-white/[0.07] bg-black/20 text-[#eceef2] disabled:cursor-default disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <textarea
+              value={strategyFileDraft}
+              onChange={(event) => setStrategyFileDraft(event.target.value)}
+              spellCheck={false}
+              data-testid="goldman-strategy-file-textarea"
+              className="dm-scroll min-h-[360px] flex-1 resize-none border-0 bg-[#0b0d11] px-4 py-4 font-mono text-[12.5px] leading-relaxed text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
+              placeholder="# Strategy"
+            />
+
+            <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] px-4 py-3">
+              <div className="dm-mono text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#5a5e69]">
+                {strategyFileDraft.length.toLocaleString()} chars
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={closeStrategyFileEditor}
+                  disabled={isSavingStrategyFile}
+                  className="dm-btn dm-mono flex h-9 items-center justify-center rounded-[8px] border border-white/[0.07] bg-black/20 px-3 text-[10px] font-bold uppercase tracking-[0.08em] text-[#9396a0] disabled:cursor-default disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveStrategyFile()}
+                  disabled={isSavingStrategyFile}
+                  className="dm-btn dm-mono flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#3fe08f]/30 bg-[#3fe08f]/10 px-3 text-[10px] font-bold uppercase tracking-[0.08em] text-[#3fe08f] disabled:cursor-default disabled:opacity-50"
+                >
+                  {isSavingStrategyFile ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Check className="h-3.5 w-3.5" />
+                  )}
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
@@ -8753,6 +9153,7 @@ function DmContextPanel({
   goldmanStrategyVaultError,
   onEnsureGoldmanStrategyVault,
   onOpenGoldmanWalletTransfer,
+  onSaveGoldmanStrategyFile,
   activeGoldmanStrategy,
   isGoldmanStrategyRunning,
   isTogglingGoldmanStrategy,
@@ -8777,6 +9178,10 @@ function DmContextPanel({
   goldmanStrategyVaultError?: string | null;
   onEnsureGoldmanStrategyVault?: () => Promise<GoldmanStrategyVault | null>;
   onOpenGoldmanWalletTransfer?: () => void;
+  onSaveGoldmanStrategyFile?: (
+    fileName: string,
+    content: string
+  ) => Promise<GoldmanStrategyFile | null>;
   activeGoldmanStrategy?: GoldmanTradingStrategy | null;
   isGoldmanStrategyRunning?: boolean;
   isTogglingGoldmanStrategy?: boolean;
@@ -8815,6 +9220,7 @@ function DmContextPanel({
         onUpdateAccessStation={onUpdateGoldmanAccessStation}
         onEnsureStrategyVault={onEnsureGoldmanStrategyVault}
         onOpenWalletTransfer={onOpenGoldmanWalletTransfer}
+        onSaveStrategyFile={onSaveGoldmanStrategyFile}
         onRunStrategy={onRunGoldmanStrategy}
         onStopStrategy={onStopGoldmanStrategy}
       />
