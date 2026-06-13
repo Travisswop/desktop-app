@@ -138,7 +138,7 @@ const CartCheckout = () => {
 
         const direction =
           type === 'inc' ? 'added to' : 'removed from';
-        sonner.success(`1 × ${itemName} ${direction} cart`, {
+        toast.success(`1 × ${itemName} ${direction} cart`, {
           duration: 2500,
         });
       } catch (error) {
@@ -147,9 +147,7 @@ const CartCheckout = () => {
             ? error.message
             : 'Failed to update quantity';
         setErrorMessage(errorMessage);
-        sonner.error("Couldn't update cart", {
-          description: errorMessage,
-        });
+        toast.error(errorMessage);
       } finally {
         setTimeout(() => {
           setLoadingOperations((prev) => ({
@@ -187,9 +185,7 @@ const CartCheckout = () => {
             ? error.message
             : 'Failed to remove item';
         setErrorMessage(errorMessage);
-        sonner.error("Couldn't remove item", {
-          description: errorMessage,
-        });
+        toast.error(errorMessage);
       } finally {
         setTimeout(() => {
           setLoadingOperations((prev) => ({
@@ -426,6 +422,8 @@ const CartCheckout = () => {
   }, [completeCartCheckout, createCartCheckoutIntent]);
 
   const hasItems = cartItems.length > 0;
+  const shippingCost = 0;
+  const totalCost = subtotal + shippingCost;
 
   return (
     <div className="w-full flex flex-col gap-4">

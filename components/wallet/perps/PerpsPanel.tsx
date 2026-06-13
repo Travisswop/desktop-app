@@ -29,6 +29,7 @@ import { PositionsTable, type PerpsFill } from './PositionsTable';
 import { AccountCard } from './AccountCard';
 import { RecentFillsCard } from './RecentFillsCard';
 import { MarketSearchModal } from './MarketSearchModal';
+import { postFeed } from '@/actions/postFeed';
 
 import type {
   HLMarket,
@@ -808,7 +809,7 @@ export function PerpsPanel({
           : entryPrice * (1 + 1 / leverage)
         : undefined;
 
-      const token = Cookies.get('access-token') || userAccessToken;
+      const token = accessToken;
       if (!token) return;
 
       Promise.resolve(
@@ -849,7 +850,7 @@ export function PerpsPanel({
     [
       tradeLeverage.isCross,
       tradeLeverage.value,
-      userAccessToken,
+      accessToken,
       user?._id,
       user?.primaryMicrosite,
     ],

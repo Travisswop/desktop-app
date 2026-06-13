@@ -113,6 +113,17 @@ interface LiFiQuote {
   };
 }
 
+interface PendingPerpsConversion {
+  masterAddress: string;
+  sourceTokenKey: string;
+  sourceTokenSymbol: string;
+  baselineUsdc: number;
+  expectedUsdc: number;
+  depositAmount: string;
+  sourceTxHash: string;
+  createdAt: number;
+}
+
 const QUICK_AMOUNTS_USD = ['10', '50', '100', '500'];
 const ARBITRUM_CHAIN_ID = String(HL_DEPOSIT_CONFIG.chainId);
 const ARBITRUM_USDC_ADDRESS = HL_DEPOSIT_CONFIG.usdcAddress;
@@ -121,6 +132,9 @@ const QUOTE_DEBOUNCE_MS = 550;
 const USDC_SETTLE_TIMEOUT_MS = 8 * 60 * 1000;
 const USDC_SETTLE_POLL_MS = 5_000;
 const USDC_SETTLE_TOLERANCE = 0.005;
+const PENDING_CONVERSION_STORAGE_PREFIX =
+  'swop:perps:pending-conversion:v1';
+const MAX_PENDING_CONVERSION_AGE_MS = 6 * 60 * 60 * 1000;
 
 const SUPPORTED_CHAINS: ChainType[] = [
   'ETHEREUM',
@@ -165,6 +179,18 @@ const CHAIN_CONFIG: Record<
     minUsd: 2,
   },
 };
+const CHAIN_FILTER_ICON_KEYS = [
+  'ETHEREUM',
+  'POLYGON',
+  'BASE',
+  'ARBITRUM',
+] as const;
+const ALL_CHAIN_ICON_POSITIONS = [
+  { left: 0, top: 0 },
+  { right: 0, top: 0 },
+  { left: 0, bottom: 0 },
+  { right: 0, bottom: 0 },
+] as const;
 
 const VIEM_CHAINS: Record<
   string,
@@ -213,6 +239,39 @@ const STABLE_SYMBOLS = new Set([
 const ARBITRUM_USDC_LOGO =
   'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/arbitrum/assets/0xaf88d065e77c8cC2239327C5EDb3A432268e5831/logo.png';
 
+function ChainFilterIcon({ chain }: { chain: string }) {
+  if (chain === 'all') {
+    return (
+      <span className="relative h-4 w-4 shrink-0" aria-hidden="true">
+        {CHAIN_FILTER_ICON_KEYS.map((chainKey, index) => (
+          <Image
+            key={chainKey}
+            src={sanitizeNextImageSrc(CHAIN_CONFIG[chainKey].icon)}
+            alt=""
+            width={10}
+            height={10}
+            className="absolute h-2.5 w-2.5 rounded-full bg-white object-contain ring-1 ring-white"
+            style={ALL_CHAIN_ICON_POSITIONS[index]}
+          />
+        ))}
+      </span>
+    );
+  }
+
+  const icon = CHAIN_CONFIG[chain]?.icon;
+  if (!icon) return null;
+
+  return (
+    <Image
+      src={sanitizeNextImageSrc(icon)}
+      alt=""
+      width={16}
+      height={16}
+      className="h-4 w-4 shrink-0 rounded-full object-contain"
+    />
+  );
+}
+
 const sleep = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -230,6 +289,70 @@ const tokenKey = (token: DepositToken) =>
   `${token.chain.toUpperCase()}-${token.symbol.toUpperCase()}-${(
     token.address || 'native'
   ).toLowerCase()}`;
+
+const pendingConversionStorageKey = (masterAddress: string) =>
+  `${PENDING_CONVERSION_STORAGE_PREFIX}:${masterAddress.toLowerCase()}`;
+
+const readPendingConversion = (
+  masterAddress: string,
+  sourceTokenKey: string,
+): PendingPerpsConversion | null => {
+  if (typeof window === 'undefined') return null;
+
+  const storageKey = pendingConversionStorageKey(masterAddress);
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return null;
+
+    const pending = JSON.parse(raw) as PendingPerpsConversion;
+    const isSameWallet =
+      pending.masterAddress?.toLowerCase() === masterAddress.toLowerCase();
+    const isSameToken = pending.sourceTokenKey === sourceTokenKey;
+    const isFresh =
+      Number.isFinite(pending.createdAt) &&
+      Date.now() - pending.createdAt < MAX_PENDING_CONVERSION_AGE_MS;
+
+    if (!isSameWallet || !isSameToken || !isFresh) {
+      window.localStorage.removeItem(storageKey);
+      return null;
+    }
+
+    if (
+      !Number.isFinite(pending.baselineUsdc) ||
+      !Number.isFinite(pending.expectedUsdc) ||
+      !pending.depositAmount
+    ) {
+      window.localStorage.removeItem(storageKey);
+      return null;
+    }
+
+    return pending;
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    return null;
+  }
+};
+
+const writePendingConversion = (pending: PendingPerpsConversion) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      pendingConversionStorageKey(pending.masterAddress),
+      JSON.stringify(pending),
+    );
+  } catch {
+    // Local persistence only prevents duplicate conversions; ignore quota/privacy failures.
+  }
+};
+
+const clearPendingConversion = (masterAddress: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(pendingConversionStorageKey(masterAddress));
+  } catch {
+    // Nothing to clear.
+  }
+};
 
 const parseBalance = (value: unknown) => {
   const parsed = parseFloat(String(value ?? '0'));
@@ -329,7 +452,7 @@ const getErrorMessage = (error: unknown) => {
     lower.includes('cancelled') ||
     lower.includes('user rejected')
   ) {
-    return 'Transaction was rejected.';
+    return 'Wallet prompt was rejected. No new transaction was sent.';
   }
   if (lower.includes('no route') || lower.includes('route not found')) {
     return 'No conversion route is available for that token and amount right now.';
@@ -562,6 +685,11 @@ export function DepositForm({
   const sourceChainConfig = CHAIN_CONFIG[sourceChainKey];
   const sourceChainMinUsd = sourceChainConfig?.minUsd ?? 2;
   const needsConversion = Boolean(selectedToken && !isDirectArbitrumUsdc(selectedToken));
+  const pendingConversionForSelection =
+    selectedToken && masterAddress && needsConversion
+      ? readPendingConversion(masterAddress, selectedTokenKey)
+      : null;
+  const hasPendingConversion = Boolean(pendingConversionForSelection);
   const quoteMinUsdc = quoteOutputUsdc(lifiQuote);
   const hasMasterWallet = Boolean(masterAddress);
   const sourceWalletAddress =
@@ -579,6 +707,7 @@ export function DepositForm({
     needsConversion && lifiQuote && quoteMinUsdc < minDeposit - 0.01;
   const canQuote =
     needsConversion &&
+    !hasPendingConversion &&
     Boolean(selectedToken) &&
     amountNum > 0 &&
     !isInsufficient &&
@@ -592,7 +721,9 @@ export function DepositForm({
     !isDepositing &&
     !isTransactionInProgress.current &&
     hasMasterWallet &&
-    (!needsConversion || (Boolean(lifiQuote) && !quoteBelowMin));
+    (!needsConversion ||
+      hasPendingConversion ||
+      (Boolean(lifiQuote) && !quoteBelowMin));
 
   const fetchLifiQuote = useCallback(async () => {
     if (!selectedToken || !amount || !masterAddress || !sourceWalletAddress) {
@@ -722,6 +853,7 @@ export function DepositForm({
         });
 
         let approvalHash: string;
+        await safeRefreshSession();
         try {
           const result = await sendTransaction(
             {
@@ -729,17 +861,21 @@ export function DepositForm({
               data: approveData,
               chainId: sourceChainId,
             },
-            { sponsor: false },
+            { sponsor: false, address: wallet.address },
           );
           approvalHash = result.hash;
         } catch (approvalErr) {
           const message = getErrorMessage(approvalErr).toLowerCase();
           if (message.includes('rejected')) throw approvalErr;
-          const result = await sendTransaction({
-            to: fromTokenAddress as `0x${string}`,
-            data: approveData,
-            chainId: sourceChainId,
-          });
+          await safeRefreshSession();
+          const result = await sendTransaction(
+            {
+              to: fromTokenAddress as `0x${string}`,
+              data: approveData,
+              chainId: sourceChainId,
+            },
+            { sponsor: false, address: wallet.address },
+          );
           approvalHash = result.hash;
         }
 
@@ -761,6 +897,7 @@ export function DepositForm({
     }
 
     let hash: string;
+    await safeRefreshSession();
     try {
       const result = await sendTransaction(
         {
@@ -769,19 +906,23 @@ export function DepositForm({
           value: txValue,
           chainId: sourceChainId,
         },
-        { sponsor: false },
+        { sponsor: false, address: wallet.address },
       );
       hash = result.hash;
     } catch (swapErr) {
       const message = getErrorMessage(swapErr).toLowerCase();
       if (message.includes('rejected')) throw swapErr;
       setDepositStatus('Retrying conversion...');
-      const result = await sendTransaction({
-        to: transactionRequest.to as `0x${string}`,
-        data: transactionRequest.data as `0x${string}`,
-        value: txValue,
-        chainId: sourceChainId,
-      });
+      await safeRefreshSession();
+      const result = await sendTransaction(
+        {
+          to: transactionRequest.to as `0x${string}`,
+          data: transactionRequest.data as `0x${string}`,
+          value: txValue,
+          chainId: sourceChainId,
+        },
+        { sponsor: false, address: wallet.address },
+      );
       hash = result.hash;
     }
 
@@ -800,6 +941,7 @@ export function DepositForm({
     lifiQuote,
     masterAddress,
     masterWallet,
+    safeRefreshSession,
     selectedToken,
     sendTransaction,
     wallets,
@@ -989,26 +1131,61 @@ export function DepositForm({
       let depositAmount = truncateDecimal(amount, USDC_DECIMALS);
 
       if (needsConversion) {
-        if (!lifiQuote) throw new Error('Please wait for a conversion quote.');
-        const expectedUsdc = quoteOutputUsdc(lifiQuote);
-        if (expectedUsdc < minDeposit) {
-          throw new Error(`Minimum deposit is $${minDeposit} USDC`);
-        }
+        const sourceTokenKey = tokenKey(selectedToken);
+        const pendingConversion = readPendingConversion(
+          masterAddress,
+          sourceTokenKey,
+        );
 
-        const baselineRaw = await fetchArbitrumUsdcBalance(masterAddress);
-        const baseline = parseBalance(baselineRaw);
-        setUsdcBalance(baselineRaw);
-        setProcessingPhase('convert');
-
-        if (selectedToken.chain.toUpperCase() === 'SOLANA') {
-          await executeLifiSolanaSwap();
+        if (pendingConversion) {
+          setProcessingPhase('wait');
+          setDepositStatus(
+            `Checking previous ${pendingConversion.sourceTokenSymbol} conversion...`,
+          );
+          await waitForConvertedUsdc(
+            pendingConversion.baselineUsdc,
+            pendingConversion.expectedUsdc,
+          );
+          depositAmount = truncateDecimal(
+            pendingConversion.depositAmount,
+            USDC_DECIMALS,
+          );
         } else {
-          await executeLifiEvmSwap();
-        }
+          if (!lifiQuote) throw new Error('Please wait for a conversion quote.');
+          const expectedUsdc = quoteOutputUsdc(lifiQuote);
+          if (expectedUsdc < minDeposit) {
+            throw new Error(`Minimum deposit is $${minDeposit} USDC`);
+          }
 
-        setProcessingPhase('wait');
-        await waitForConvertedUsdc(baseline, expectedUsdc);
-        depositAmount = truncateDecimal(formatUnits(BigInt(lifiQuote.estimate.toAmountMin), USDC_DECIMALS), USDC_DECIMALS);
+          const baselineRaw = await fetchArbitrumUsdcBalance(masterAddress);
+          const baseline = parseBalance(baselineRaw);
+          const quotedDepositAmount = truncateDecimal(
+            formatUnits(BigInt(lifiQuote.estimate.toAmountMin), USDC_DECIMALS),
+            USDC_DECIMALS,
+          );
+          setUsdcBalance(baselineRaw);
+          setProcessingPhase('convert');
+
+          const sourceTxHash =
+            selectedToken.chain.toUpperCase() === 'SOLANA'
+              ? await executeLifiSolanaSwap()
+              : await executeLifiEvmSwap();
+
+          writePendingConversion({
+            masterAddress,
+            sourceTokenKey,
+            sourceTokenSymbol: selectedToken.symbol,
+            baselineUsdc: baseline,
+            expectedUsdc,
+            depositAmount: quotedDepositAmount,
+            sourceTxHash,
+            createdAt: Date.now(),
+          });
+
+          setProcessingPhase('wait');
+          await waitForConvertedUsdc(baseline, expectedUsdc);
+          depositAmount = quotedDepositAmount;
+        }
       }
 
       setProcessingPhase('deposit');
@@ -1020,9 +1197,19 @@ export function DepositForm({
       const refreshedBalance = await fetchArbitrumUsdcBalance(masterAddress);
       setUsdcBalance(refreshedBalance);
       refetchTokens();
+      clearPendingConversion(masterAddress);
       setLocalStep('success');
     } catch (depositErr) {
-      setLocalError(getErrorMessage(depositErr));
+      const message = getErrorMessage(depositErr);
+      const pendingConversion =
+        selectedToken && needsConversion
+          ? readPendingConversion(masterAddress, tokenKey(selectedToken))
+          : null;
+      setLocalError(
+        pendingConversion && message.includes('Wallet prompt was rejected')
+          ? 'Wallet prompt was rejected. Your conversion will not be sent again; tap Try again to finish depositing the Arbitrum USDC once it arrives.'
+          : message,
+      );
       setLocalStep('error');
     } finally {
       isTransactionInProgress.current = false;
@@ -1501,26 +1688,18 @@ function TokenPickerView({
         />
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex flex-wrap gap-2">
         {['all', ...SUPPORTED_CHAINS].map((chain) => (
           <button
             key={chain}
             onClick={() => onChainFilterChange(chain)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+            className={`inline-flex h-9 max-w-full flex-none items-center gap-1.5 rounded-full px-3 text-xs font-medium leading-none transition-colors ${
               selectedChainFilter === chain
                 ? 'bg-black text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            {chain !== 'all' && CHAIN_CONFIG[chain]?.icon && (
-              <Image
-                src={sanitizeNextImageSrc(CHAIN_CONFIG[chain].icon)}
-                alt=""
-                width={14}
-                height={14}
-                className="rounded-full"
-              />
-            )}
+            <ChainFilterIcon chain={chain} />
             {chain === 'all' ? 'All chains' : CHAIN_CONFIG[chain]?.name || chain}
           </button>
         ))}

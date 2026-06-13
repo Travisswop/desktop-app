@@ -43,6 +43,7 @@ import Redeem from "../publicProfile/redeem";
 import MP3 from "../publicProfile/mp3";
 import Referral from "../publicProfile/referral";
 import MediaList from "../publicProfile/MediaList";
+import EmbeddedFeed from "@/app/(public-profile)/sp/[username]/_EmbeddedFeed";
 import getMediaType from "@/utils/getMediaType";
 import EmbedVideo from "../publicProfile/embedvideo";
 import {

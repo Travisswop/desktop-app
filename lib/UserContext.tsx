@@ -75,7 +75,6 @@ export interface UserData {
     [key: string]: unknown;
   };
   referralCode?: string;
-  connections?: any[];
 
   // Bot-related fields
   isBot?: boolean;

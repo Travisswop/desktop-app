@@ -83,6 +83,7 @@ import {
   QrCode,
   Radio,
   RefreshCw,
+  Search,
   Send,
   ShieldCheck,
   ShoppingBag,
@@ -320,6 +321,7 @@ interface Message {
       walletSendNetworkPrompt?: WalletSendNetworkPrompt | null;
       walletSendDraftPrompt?: WalletSendDraftPrompt | null;
       perpsPositionPrompt?: PerpsPositionPrompt | null;
+      responseType?: string | null;
       strategyRuntime?: GoldmanStrategyRuntimeCardPayload | null;
       receipt?: AgentActionCompletion | null;
       fundingOnramp?: FundingOnrampPrefill | null;
@@ -594,6 +596,15 @@ function isLogicalDuplicateMessage(a: Message, b: Message) {
   if (a._id && b._id && a._id === b._id) return true;
   if (messageThreadKey(a) !== messageThreadKey(b)) return false;
   if (hasMatchingReceiptIdentity(a, b)) return true;
+  if (
+    a._id &&
+    b._id &&
+    a._id !== b._id &&
+    !isTempMessage(a) &&
+    !isTempMessage(b)
+  ) {
+    return false;
+  }
 
   const normalizedA = normalizeMessageForDedupe(a.message);
   const normalizedB = normalizeMessageForDedupe(b.message);
@@ -719,6 +730,15 @@ interface WalletSendDraftPrompt {
   amountType: string;
   recipient: string;
   chain: string;
+  recipientCandidates?: WalletSendDraftCandidate[];
+}
+
+interface WalletSendDraftCandidate {
+  userId?: string | null;
+  displayName?: string | null;
+  swopId?: string | null;
+  avatar?: string | null;
+  capabilities?: string[];
 }
 
 interface PerpsPositionPromptOption {
@@ -841,6 +861,7 @@ interface ChatAreaProps {
   onChatUpdate?: () => void; // ADD THIS
   onBackToList?: () => void;
   onLeaveGroup?: () => void;
+  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
 }
 
 interface SocketResponse {
@@ -876,34 +897,13 @@ function getDirectReceiverAvatar(chat: SelectedChat | null) {
   return chat.microsite?.profilePic || chat.participant?.profilePic;
 }
 
-function hasActiveAstroAgent(chat: SelectedChat | null) {
-  return (
-    chat?.botUsers?.some(
-      (agent) => agent.agentId === 'astro' && agent.isActive !== false
-    ) || false
-  );
-}
-
-function hasActiveGoldmanAgent(chat: SelectedChat | null) {
-  return (
-    chat?.botUsers?.some(
-      (agent) => agent.agentId === 'goldman-sacks' && agent.isActive !== false
-    ) || false
-  );
-}
-
 function isAstroTradingDeskChat(
   chat: SelectedChat | null,
   isGroup: boolean
 ) {
   const name = String(chat?.name || '').trim().toLowerCase();
 
-  return (
-    isGroup &&
-    (hasActiveAstroAgent(chat) ||
-      name === 'astro trading desk' ||
-      name === 'astro')
-  );
+  return isGroup && name === 'astro trading desk';
 }
 
 function isGoldmanSacksChat(
@@ -912,12 +912,25 @@ function isGoldmanSacksChat(
 ) {
   const name = String(chat?.name || '').trim().toLowerCase();
 
-  return (
-    isGroup &&
-    (hasActiveGoldmanAgent(chat) ||
-      name === 'goldman sacks' ||
-      name === 'goldman')
-  );
+  return isGroup && name === 'goldman sacks';
+}
+
+type DedicatedAgentThreadId = 'astro' | 'goldman-sacks';
+
+function getAgentDedicatedThreadId(
+  agentId?: string | null
+): DedicatedAgentThreadId | null {
+  if (agentId === 'astro' || agentId === 'goldman-sacks') return agentId;
+  return null;
+}
+
+function getDedicatedAgentThreadId(
+  chat: SelectedChat | null,
+  isGroup: boolean
+): DedicatedAgentThreadId | null {
+  if (isAstroTradingDeskChat(chat, isGroup)) return 'astro';
+  if (isGoldmanSacksChat(chat, isGroup)) return 'goldman-sacks';
+  return null;
 }
 
 function toAstroDeskDisplayMessage(
@@ -1914,6 +1927,12 @@ function hasChatSwapIntent(text?: string | null) {
   );
 }
 
+function isExplicitChatSwapCommand(text?: string | null) {
+  return /^\/swap(?:\s|$)/i.test(
+    stripLeadingAstroMention(String(text || ''))
+  );
+}
+
 function findChatSwapIntent(text: string) {
   if (!hasChatSwapIntent(text)) return null;
 
@@ -2410,6 +2429,10 @@ function isLocalSwapProposalId(proposalId?: string | null) {
   );
 }
 
+function isLocalWalletSendProposalId(proposalId?: string | null) {
+  return Boolean(proposalId && proposalId.startsWith('local-wallet-send-'));
+}
+
 function isAgentProposalNotFoundError(error: unknown) {
   const codedError = error as { code?: unknown; message?: unknown } | null;
   return (
@@ -2502,6 +2525,73 @@ function buildHyperliquidOrderPromptFromApprovalParams(
   return parts.join(' ');
 }
 
+function hasWalletSendApprovalParams(params?: Record<string, unknown>) {
+  if (!params) return false;
+  const token = firstTicketValue(params, [
+    'token',
+    'tokenSymbol',
+    'asset',
+    'currency',
+  ]);
+  const amount = firstTicketValue(params, ['amount', 'amountUsd']);
+  const recipient = firstTicketValue(params, [
+    'recipient',
+    'recipientAddress',
+    'recipientEns',
+    'recipientName',
+    'to',
+  ]);
+  return Boolean(token && amount && recipient);
+}
+
+function buildWalletSendPromptFromApprovalParams(
+  params?: Record<string, unknown>
+) {
+  const token =
+    firstTicketValue(params, ['token', 'tokenSymbol', 'asset', 'currency']) ||
+    'TOKEN';
+  const amount = firstTicketValue(params, ['amount', 'amountUsd']) || '0';
+  const amountType =
+    firstTicketValue(params, ['amountType']) ||
+    (initialTicketBool(params, ['isUSD'], false) ? 'usd' : 'token');
+  const recipient =
+    firstTicketValue(params, [
+      'recipient',
+      'recipientEns',
+      'recipientName',
+      'recipientAddress',
+      'to',
+    ]) || 'recipient';
+  const rawNetwork = firstTicketValue(params, ['chain', 'network']);
+  const network = rawNetwork ? normalizeWalletSendChainValue(rawNetwork) : '';
+  const amountLabel =
+    amountType === 'usd' ? `$${amount} in ${token}` : `${amount} ${token}`;
+  const parts = ['@astro send', amountLabel, 'to', recipient];
+
+  if (network) parts.push('on', network);
+
+  return parts.join(' ');
+}
+
+function buildLocalWalletSendApprovalHandoff(
+  proposalId: string,
+  params?: Record<string, unknown>
+): AgentApprovalHandoff {
+  return {
+    status: 'approved',
+    nextStep: 'wallet_send_inline_signing_required',
+    payload: {
+      proposalId,
+      action: 'wallet.send',
+      toolType: 'wallet.write',
+      provider: 'swop',
+      route: '/dashboard/chat',
+      panel: 'send',
+      normalizedParams: params || {},
+    },
+  };
+}
+
 function isHyperliquidPlaceOrderMessage(message: Message) {
   return (
     message.agentData?.toolType === 'perps.write' &&
@@ -2522,6 +2612,56 @@ function isWalletSwapMessage(message: Message) {
     (message.agentData?.action === 'wallet.swap' ||
       message.agentData?.action === 'swap_tokens')
   );
+}
+
+function isWalletSwapProposalMessage(message: Message) {
+  return (
+    isWalletSwapMessage(message) &&
+    (message.messageType === 'agent_action_proposal' ||
+      Boolean(getMessageProposalId(message)))
+  );
+}
+
+function isWalletSwapClarificationMessage(message: Message) {
+  const responseType = String(
+    message.agentData?.metadata?.responseType || ''
+  );
+  return (
+    isWalletSwapMessage(message) &&
+    message.messageType !== 'agent_action_proposal' &&
+    (responseType === 'write_parameter_clarification' ||
+      /before preparing that swap/i.test(String(message.message || '')))
+  );
+}
+
+function shouldHideWalletSwapClarification(
+  messages: Message[],
+  currentIndex: number
+) {
+  const message = messages[currentIndex];
+  if (!message || !isWalletSwapClarificationMessage(message)) return false;
+
+  const currentTime = messageTime(message);
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    const candidateTime = messageTime(candidate);
+    if (
+      currentTime &&
+      candidateTime &&
+      currentTime - candidateTime > 10 * 60 * 1000
+    ) {
+      break;
+    }
+    if (isAgentLikeMessage(candidate)) continue;
+    if (
+      candidate.messageType === 'text' &&
+      isExplicitChatSwapCommand(candidate.message)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function hasMatchingWalletSendProposal(
@@ -2581,7 +2721,7 @@ function hasMatchingWalletSwapProposal(
   ).toUpperCase();
 
   return messages.some((message) => {
-    if (!isWalletSwapMessage(message)) return false;
+    if (!isWalletSwapProposalMessage(message)) return false;
     const params = message.agentData?.metadata?.normalizedParams || {};
     const messageFromToken = String(
       params.fromTokenSymbol ||
@@ -2848,6 +2988,7 @@ export default function ChatArea({
   onChatUpdate,
   onBackToList,
   onLeaveGroup,
+  onOpenAgentThread,
 }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState<string>('');
@@ -3650,6 +3791,34 @@ export default function ChatArea({
       );
     };
 
+    const handleGoldmanStrategyVaultReady = (data: {
+      groupId?: string;
+      agentId?: string;
+      vault?: GoldmanStrategyVault | null;
+      strategies?: GoldmanTradingStrategy[];
+    }) => {
+      if (
+        data.groupId !== selectedChat?._id ||
+        data.agentId !== 'goldman-sacks' ||
+        !data.vault?.walletAddress
+      ) {
+        return;
+      }
+
+      queryClient.setQueryData<GoldmanStrategyVault | null>(
+        goldmanStrategyVaultQueryKey,
+        (current) => ({
+          ...data.vault!,
+          strategies: Array.isArray(data.strategies)
+            ? data.strategies
+            : current?.strategies || [],
+        })
+      );
+      void queryClient.invalidateQueries({
+        queryKey: goldmanStrategyVaultQueryKey,
+      });
+    };
+
     socket.on('group_info_updated', handleGroupInfoUpdated);
     socket.on(
       'group_participants_updated',
@@ -3661,6 +3830,10 @@ export default function ChatArea({
     socket.on('group_agent_added', handleGroupAgentAdded);
     socket.on('group_agent_updated', handleGroupAgentAdded);
     socket.on('group_agent_removed', handleGroupAgentRemoved);
+    socket.on(
+      'group_agent_strategy_vault_ready',
+      handleGoldmanStrategyVaultReady
+    );
     socket.on('group_agent_strategy_updated', handleGoldmanStrategyUpdated);
 
     return () => {
@@ -3681,6 +3854,10 @@ export default function ChatArea({
       socket.off('group_agent_added', handleGroupAgentAdded);
       socket.off('group_agent_updated', handleGroupAgentAdded);
       socket.off('group_agent_removed', handleGroupAgentRemoved);
+      socket.off(
+        'group_agent_strategy_vault_ready',
+        handleGoldmanStrategyVaultReady
+      );
       socket.off('group_agent_strategy_updated', handleGoldmanStrategyUpdated);
     };
   }, [
@@ -4646,6 +4823,21 @@ export default function ChatArea({
   };
 
   const handleMentionAgent = (agent: GroupAgent) => {
+    const agentThreadId = getAgentDedicatedThreadId(agent.agentId);
+    const activeThreadId = getDedicatedAgentThreadId(
+      chatType === 'group' ? currentGroupData : selectedChat,
+      chatType === 'group'
+    );
+
+    if (
+      agentThreadId &&
+      agentThreadId !== activeThreadId &&
+      onOpenAgentThread
+    ) {
+      void onOpenAgentThread(agentThreadId);
+      return;
+    }
+
     const alias = agent.mentionAliases?.[0] || `@${agent.agentId}`;
     setNewMessage((prev) => {
       const trimmed = prev.trim();
@@ -4675,6 +4867,19 @@ export default function ChatArea({
       focusComposer();
     },
     [focusComposer]
+  );
+
+  const handleQuickCommand = useCallback(
+    (commandSeed: string) => {
+      if (shouldSendQuickCommandSeed(commandSeed)) {
+        setNewMessage('');
+        handleSendMessage(commandSeed.trim());
+        return;
+      }
+
+      applyComposerCommand(commandSeed);
+    },
+    [applyComposerCommand, handleSendMessage]
   );
 
   useEffect(() => {
@@ -4893,8 +5098,56 @@ export default function ChatArea({
           }
         };
 
+        const prepareFreshWalletSendProposal = async () => {
+          if (!selectedChat || !isGroup) {
+            throw new Error('Open this send action from the Astro group chat.');
+          }
+
+          setAgentStatusText('Preparing send ticket');
+          const prepareResponse: any = await invokeGroupAgent({
+            groupId: selectedChat._id,
+            agentId: 'astro',
+            message: buildWalletSendPromptFromApprovalParams(approvalParams),
+          });
+          const preparedProposal = prepareResponse?.data?.proposal;
+          const responseMessage = prepareResponse?.data?.responseMessage;
+
+          if (preparedProposal?.proposalId) {
+            setProposalsById((prev) => ({
+              ...prev,
+              [preparedProposal.proposalId]: preparedProposal,
+            }));
+            return preparedProposal.proposalId as string;
+          } else {
+            appendMessageIfNew(responseMessage);
+            throw new Error(
+              'Astro did not return a send approval ticket. Try sending the transfer again.'
+            );
+          }
+        };
+
         if (isLocalHyperliquidProposalId(proposalId)) {
           approvalProposalId = await prepareFreshHyperliquidProposal();
+        }
+
+        if (isLocalWalletSendProposalId(proposalId)) {
+          if (isGroup) {
+            approvalProposalId = await prepareFreshWalletSendProposal();
+          } else {
+            const localApprovalResult = buildLocalWalletSendApprovalHandoff(
+              proposalId,
+              approvalParams
+            );
+            setActionResultsByProposalId((prev) => ({
+              ...prev,
+              [proposalId]: {
+                proposalId,
+                status: 'approved',
+                result: localApprovalResult,
+              },
+            }));
+            return localApprovalResult;
+          }
         }
 
         let response: any;
@@ -4907,6 +5160,17 @@ export default function ChatArea({
             hasHyperliquidApprovalParams(approvalParams)
           ) {
             approvalProposalId = await prepareFreshHyperliquidProposal();
+            response = await approveAgentAction(
+              approvalProposalId,
+              approvalParams
+            );
+          } else if (
+            !isLocalWalletSendProposalId(proposalId) &&
+            isGroup &&
+            isRecoverableHyperliquidProposalError(error) &&
+            hasWalletSendApprovalParams(approvalParams)
+          ) {
+            approvalProposalId = await prepareFreshWalletSendProposal();
             response = await approveAgentAction(
               approvalProposalId,
               approvalParams
@@ -5146,6 +5410,7 @@ export default function ChatArea({
   const isSecureAstroDesk =
     isAstroTradingDeskChat(displayChat, isGroup);
   const isGoldmanSacksDesk = isGoldmanSacksChat(displayChat, isGroup);
+  const currentAgentThreadId = getDedicatedAgentThreadId(displayChat, isGroup);
   const contextPanelMode = isSecureAstroDesk
     ? 'astro'
     : isGoldmanSacksDesk
@@ -5155,11 +5420,15 @@ export default function ChatArea({
     : 'contact';
   const headerTitle = isSecureAstroDesk
     ? 'Astro'
+    : isGoldmanSacksDesk
+    ? 'Goldman Sacks'
     : isGroup
     ? displayChat?.name || 'Group'
     : displayChat?.microsite?.name || 'Contact';
   const headerSubtitle = isSecureAstroDesk
     ? '@astro - online - session #4a2'
+    : isGoldmanSacksDesk
+    ? '@goldman - strategy - access console'
     : isGroup
     ? formatGroupParticipants(displayChat?.participants)
     : displayChat?.microsite?.ens || 'swop contact';
@@ -5232,6 +5501,7 @@ export default function ChatArea({
               displayChat={displayChat}
               isGroup={isGroup}
               isAstro={isSecureAstroDesk}
+              isGoldman={isGoldmanSacksDesk}
               smartsiteHref={smartsiteHref}
               onSmartsiteClick={handleSmartsiteClick}
             />
@@ -5324,7 +5594,7 @@ export default function ChatArea({
             <button
               type="button"
               title="PnL command"
-              onClick={() => applyComposerCommand('/pnl ')}
+              onClick={() => handleQuickCommand('/pnl ')}
               className="dm-btn hidden h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:grid"
             >
               <Clock3 className="h-[18px] w-[18px]" />
@@ -5355,6 +5625,8 @@ export default function ChatArea({
             availableAgents={availableAgents}
             isLoadingAgents={isLoadingAgents}
             mutationAgentId={agentMutationId}
+            currentAgentThreadId={currentAgentThreadId}
+            onOpenAgentThread={onOpenAgentThread}
             onAddAgent={handleAddAgent}
             onMentionAgent={handleMentionAgent}
             onRemoveAgent={handleRemoveAgent}
@@ -5409,6 +5681,9 @@ export default function ChatArea({
                 isAgentMessage &&
                 isGenericAstroOnlineText(message.message)
               ) {
+                return null;
+              }
+              if (shouldHideWalletSwapClarification(messages, index)) {
                 return null;
               }
               if (isAgentMessage && !isNamedAgentMessage(message)) {
@@ -5497,18 +5772,21 @@ export default function ChatArea({
               const walletNetworkReply = isOwnOrLocalText
                 ? parseWalletSendNetworkReply(renderedMessageText)
                 : '';
+              const canRenderLocalWalletSendCards = !isGroup;
               const pendingWalletSendNetworkIntent =
-                walletNetworkReply && message.messageType === 'text'
+                canRenderLocalWalletSendCards &&
+                walletNetworkReply &&
+                message.messageType === 'text'
                   ? findPendingWalletSendNetworkIntent(messages, index)
                   : null;
               const canRenderLocalWalletSend =
+                canRenderLocalWalletSendCards &&
                 typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
                 !isAgentMessage &&
                 renderedMessageText.trim().length > 0 &&
                 message.messageType === 'text' &&
                 hasWalletSendIntent(renderedMessageText) &&
-                (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !renderedSyntheticOrderSourceTexts.has(normalizedOrderSource);
               const rawLocalWalletSendIntent = canRenderLocalWalletSend
                 ? findWalletSendIntent(renderedMessageText)
@@ -5557,13 +5835,13 @@ export default function ChatArea({
                 renderedSyntheticOrderSourceTexts.add(normalizedOrderSource);
               }
               const localWalletSendDraftMessage =
+                canRenderLocalWalletSendCards &&
                 typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
                 !isAgentMessage &&
                 renderedMessageText.trim().length > 0 &&
                 message.messageType === 'text' &&
                 isChatWalletSendCommand(renderedMessageText) &&
-                (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !rawLocalWalletSendIntent &&
                 !localWalletSendNetworkPromptMessage &&
                 !localWalletSendMessage
@@ -6221,7 +6499,7 @@ export default function ChatArea({
         smartsiteHref={smartsiteHref}
         showOnTablet={isThreadListCollapsed}
         onSmartsiteClick={handleSmartsiteClick}
-        onQuickCommand={applyComposerCommand}
+        onQuickCommand={handleQuickCommand}
         onUpdateGoldmanAccessStation={handleUpdateGoldmanAccessStation}
         goldmanStrategyVault={goldmanStrategyVault}
         isGoldmanStrategyVaultLoading={isGoldmanStrategyVaultLoading}
@@ -6244,18 +6522,30 @@ function ChatAvatar({
   displayChat,
   isGroup,
   isAstro = false,
+  isGoldman = false,
   smartsiteHref,
   onSmartsiteClick,
 }: {
   displayChat: SelectedChat | null;
   isGroup: boolean;
   isAstro?: boolean;
+  isGoldman?: boolean;
   smartsiteHref?: string | null;
   onSmartsiteClick?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
 }) {
   if (isAstro) {
     return (
       <DmAgentTile size="h-[50px] w-[50px]" textClassName="text-[18px]" />
+    );
+  }
+
+  if (isGoldman) {
+    return (
+      <DmAgentTile
+        size="h-[50px] w-[50px]"
+        textClassName="text-[15px]"
+        variant="goldman"
+      />
     );
   }
 
@@ -6363,15 +6653,23 @@ function ChatAvatar({
 function DmAgentTile({
   size = 'h-[34px] w-[34px]',
   textClassName = 'text-[12px]',
+  variant = 'astro',
 }: {
   size?: string;
   textClassName?: string;
+  variant?: 'astro' | 'goldman';
 }) {
+  const isGoldman = variant === 'goldman';
+
   return (
     <div
-      className={`dm-mono grid ${size} ${textClassName} place-items-center rounded-[10px] border border-[#3fe08f]/30 bg-black font-bold text-[#3fe08f] shadow-[inset_0_0_12px_rgba(63,224,143,0.09)]`}
+      className={`dm-mono grid ${size} ${textClassName} place-items-center rounded-[10px] border bg-black font-bold ${
+        isGoldman
+          ? 'border-[#f4c95d]/35 text-[#f4c95d] shadow-[inset_0_0_12px_rgba(244,201,93,0.09)]'
+          : 'border-[#3fe08f]/30 text-[#3fe08f] shadow-[inset_0_0_12px_rgba(63,224,143,0.09)]'
+      }`}
     >
-      $_
+      {isGoldman ? 'GS' : '$_'}
     </div>
   );
 }
@@ -6392,6 +6690,17 @@ function isPnlCommand(text: string) {
 
 function isChartCommand(text: string) {
   return /^\/chart(?:\s|$)/i.test(stripLeadingAstroMention(text));
+}
+
+function shouldSendQuickCommandSeed(commandSeed: string) {
+  const trimmed = commandSeed.trim();
+  if (!trimmed) return false;
+  if (/^\/pnl(?:\s|$)/i.test(trimmed)) return true;
+  if (/^\/(?:search|chart|send|swap)$/i.test(trimmed)) return false;
+  if (/^@(?:astro|goldman)\b/i.test(trimmed)) {
+    return !/\s$/.test(commandSeed);
+  }
+  return false;
 }
 
 function normalizeChartRangeToken(value: string): ChartTimeRange | '' {
@@ -9538,18 +9847,21 @@ function Message({
               onAddFunds={onAddPerpsFunds}
             />
           )}
-          {isAgent && walletSendNetworkPrompt && (
+          {isAgent && walletSendNetworkPrompt && !proposalId && (
             <WalletSendNetworkPromptCard
               prompt={walletSendNetworkPrompt}
+              proposal={proposal}
+              proposalId={proposalId || undefined}
+              status={status}
+              canAct={canAct}
+              isPending={isProposalPending}
               onApproveInline={onApproveInlineProposal}
               onInlineActionComplete={onInlineActionComplete}
               onReject={onRejectProposal}
               astroConsoleData={astroConsoleData}
             />
           )}
-          {isAgent &&
-            walletSendDraftPrompt &&
-            String(message._id || '').startsWith('local-wallet-send-draft-') && (
+          {isAgent && walletSendDraftPrompt && !proposalId && (
             <WalletSendDraftCard
               prompt={walletSendDraftPrompt}
               onApproveInline={onApproveInlineProposal}
@@ -9813,6 +10125,8 @@ function GroupAgentControls({
   availableAgents,
   isLoadingAgents,
   mutationAgentId,
+  currentAgentThreadId,
+  onOpenAgentThread,
   onAddAgent,
   onMentionAgent,
   onRemoveAgent,
@@ -9822,6 +10136,8 @@ function GroupAgentControls({
   availableAgents: GroupAgentDescriptor[];
   isLoadingAgents: boolean;
   mutationAgentId: string | null;
+  currentAgentThreadId?: string | null;
+  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
   onAddAgent: (agent: GroupAgentDescriptor) => void;
   onMentionAgent: (agent: GroupAgent) => void;
   onRemoveAgent: (agentId: string) => void;
@@ -9838,53 +10154,77 @@ function GroupAgentControls({
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.07] bg-[#08090b] px-[22px] py-2">
-      {activeAgents.map((agent) => (
-        <div
-          key={agent.agentId}
-          className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[#3fe08f]/35 bg-[#3fe08f]/10 pl-2.5 pr-1 text-[12px] font-semibold text-[#3fe08f]"
-        >
-          <Bot className="h-3 w-3" />
-          <button
-            type="button"
-            title={`Mention ${agent.displayName}`}
-            onClick={() => onMentionAgent(agent)}
-            className="max-w-28 truncate"
+      {activeAgents.map((agent) => {
+        const dedicatedThreadId = getAgentDedicatedThreadId(agent.agentId);
+        const opensDedicatedThread = Boolean(
+          dedicatedThreadId &&
+            dedicatedThreadId !== currentAgentThreadId &&
+            onOpenAgentThread
+        );
+
+        return (
+          <div
+            key={agent.agentId}
+            className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[#3fe08f]/35 bg-[#3fe08f]/10 pl-2.5 pr-1 text-[12px] font-semibold text-[#3fe08f]"
           >
-            {agent.displayName}
-          </button>
+            <Bot className="h-3 w-3" />
+            <button
+              type="button"
+              title={`${opensDedicatedThread ? 'Open' : 'Mention'} ${agent.displayName}`}
+              onClick={() => onMentionAgent(agent)}
+              className="max-w-28 truncate"
+            >
+              {agent.displayName}
+            </button>
+            <button
+              type="button"
+              title={`Remove ${agent.displayName}`}
+              onClick={() => onRemoveAgent(agent.agentId)}
+              disabled={mutationAgentId === agent.agentId}
+              className="dm-btn grid h-5 w-5 place-items-center rounded-full text-[#3fe08f] hover:bg-[#3fe08f]/10 disabled:opacity-50"
+            >
+              {mutationAgentId === agent.agentId ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <X className="h-3 w-3" />
+              )}
+            </button>
+          </div>
+        );
+      })}
+
+      {addableAgents.map((agent) => {
+        const dedicatedThreadId = getAgentDedicatedThreadId(agent.agentId);
+        const opensDedicatedThread = Boolean(
+          currentAgentThreadId && dedicatedThreadId && onOpenAgentThread
+        );
+
+        return (
           <button
+            key={agent.agentId}
             type="button"
-            title={`Remove ${agent.displayName}`}
-            onClick={() => onRemoveAgent(agent.agentId)}
+            title={`${opensDedicatedThread ? 'Open' : 'Add'} ${agent.displayName}`}
+            onClick={() => {
+              if (opensDedicatedThread && dedicatedThreadId) {
+                void onOpenAgentThread?.(dedicatedThreadId);
+                return;
+              }
+              onAddAgent(agent);
+            }}
             disabled={mutationAgentId === agent.agentId}
-            className="dm-btn grid h-5 w-5 place-items-center rounded-full text-[#3fe08f] hover:bg-[#3fe08f]/10 disabled:opacity-50"
+            className="dm-btn inline-flex h-7 items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#15171d] px-2.5 text-[12px] font-semibold text-[#eceef2] hover:bg-white/[0.05] disabled:opacity-50"
           >
             {mutationAgentId === agent.agentId ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : opensDedicatedThread ? (
+              <Bot className="h-3.5 w-3.5" />
             ) : (
-              <X className="h-3 w-3" />
+              <Plus className="h-3.5 w-3.5" />
             )}
+            <span className="max-w-28 truncate">{agent.displayName}</span>
           </button>
-        </div>
-      ))}
-
-      {addableAgents.map((agent) => (
-        <button
-          key={agent.agentId}
-          type="button"
-          title={`Add ${agent.displayName}`}
-          onClick={() => onAddAgent(agent)}
-          disabled={mutationAgentId === agent.agentId}
-          className="dm-btn inline-flex h-7 items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#15171d] px-2.5 text-[12px] font-semibold text-[#eceef2] hover:bg-white/[0.05] disabled:opacity-50"
-        >
-          {mutationAgentId === agent.agentId ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Plus className="h-3.5 w-3.5" />
-          )}
-          <span className="max-w-28 truncate">{agent.displayName}</span>
-        </button>
-      ))}
+        );
+      })}
 
       {isLoadingAgents && (
         <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/[0.07] px-2.5 text-xs text-[#9396a0]">
@@ -11432,7 +11772,7 @@ function WalletSendProposalTicket({
       'to',
     ]) || 'recipient';
   const chain = firstTicketValue(params, ['chain', 'network']);
-  const isLocalProposal = proposalId.startsWith('local-wallet-send-');
+  const isLocalProposal = isLocalWalletSendProposalId(proposalId);
   const sendAmountLabel =
     amountType === 'usd'
       ? `${formatCompactUsd(amount)} in ${token}`
@@ -11567,35 +11907,18 @@ function WalletSendProposalTicket({
 
     setSendError(null);
     setIsConfirming(true);
+    let executionProposalId = proposalId;
 
     try {
-      let approvalResult: AgentApprovalHandoff | null = null;
-      if (isLocalProposal) {
-        approvalResult = {
-          status: 'approved',
-          nextStep: 'wallet_send_inline_signing_required',
-          payload: {
-            proposalId,
-            action: 'wallet.send',
-            toolType: 'wallet.write',
-            provider: 'swop',
-            route: '/dashboard/chat',
-            panel: 'send',
-            normalizedParams: approvalParams,
-            prefill: approvalParams,
-          },
-        };
-        persistAgentActionHandoff(approvalResult);
-      } else {
-        approvalResult =
-          proposal?.approvalResult?.payload?.proposalId === proposalId
-            ? proposal.approvalResult
-            : await onApproveInline(proposalId, approvalParams);
-        if (!approvalResult?.payload?.proposalId) {
-          throw new Error('Swop approval was not returned by the backend.');
-        }
-        persistAgentActionHandoff(approvalResult);
+      const approvalResult =
+        proposal?.approvalResult?.payload?.proposalId === proposalId
+          ? proposal.approvalResult
+          : await onApproveInline(proposalId, approvalParams);
+      if (!approvalResult?.payload?.proposalId) {
+        throw new Error('Swop approval was not returned by the backend.');
       }
+      executionProposalId = String(approvalResult.payload.proposalId);
+      persistAgentActionHandoff(approvalResult);
 
       const recipientData = await resolveChatWalletSendRecipient({
         recipientValue: recipient,
@@ -11744,7 +12067,7 @@ function WalletSendProposalTicket({
         | 'action'
         | 'toolType'
       > & { proposalId?: string } = {
-        proposalId,
+        proposalId: executionProposalId,
         status: 'executed',
         provider: 'swop',
         title: `Sent ${sendAmountLabel}`,
@@ -11770,9 +12093,9 @@ function WalletSendProposalTicket({
 
       let completion = {
         ...completionDraft,
-        proposalId,
+        proposalId: executionProposalId,
       } as AgentActionCompletion;
-      if (!isLocalProposal) {
+      if (!isLocalWalletSendProposalId(executionProposalId)) {
         try {
           completion =
             (await completeAgentActionFromHandoff(
@@ -11785,6 +12108,8 @@ function WalletSendProposalTicket({
             completionError
           );
         }
+      } else {
+        clearAgentActionHandoff();
       }
 
       setLocalReceipt(completion);
@@ -11796,28 +12121,32 @@ function WalletSendProposalTicket({
       const message =
         error instanceof Error ? error.message : 'Failed to send transaction.';
       try {
-        const failedCompletion = await completeAgentActionFromHandoff(
-          {
-            proposalId,
-            status: 'failed',
-            provider: 'swop',
-            title: `Send ${token}`,
-            subtitle: chain || 'wallet send',
-            subject: token,
-            error: message,
-            executionResult: {
-              kind: 'send',
-              token,
-              amount,
-              amountType,
-              network: chain || undefined,
-              recipientName: recipient,
+        if (!isLocalWalletSendProposalId(executionProposalId)) {
+          const failedCompletion = await completeAgentActionFromHandoff(
+            {
+              proposalId: executionProposalId,
+              status: 'failed',
+              provider: 'swop',
+              title: `Send ${token}`,
+              subtitle: chain || 'wallet send',
+              subject: token,
+              error: message,
+              executionResult: {
+                kind: 'send',
+                token,
+                amount,
+                amountType,
+                network: chain || undefined,
+                recipientName: recipient,
+              },
             },
-          },
-          accessToken
-        );
-        if (failedCompletion) {
-          onInlineActionComplete(failedCompletion);
+            accessToken
+          );
+          if (failedCompletion) {
+            onInlineActionComplete(failedCompletion);
+          } else {
+            clearAgentActionHandoff();
+          }
         } else {
           clearAgentActionHandoff();
         }
@@ -12302,6 +12631,48 @@ function WalletSendNetworkPromptCard({
   );
 }
 
+function formatWalletSendDraftSwopId(value?: string | null) {
+  const raw = String(value || '').trim().replace(/^@/, '');
+  if (!raw) return '';
+  return raw.includes('.') ? raw : `${raw}.swop.id`;
+}
+
+function walletSendDraftCandidateFromSearchResult(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  result: any
+): WalletSendDraftCandidate | null {
+  const swopId = formatWalletSendDraftSwopId(
+    result?.ens || result?.username || ''
+  );
+  if (!swopId) return null;
+
+  const capabilities = [];
+  if (result?.ensData?.solanaAddress) capabilities.push('Solana');
+  if (result?.ensData?.evmAddress) capabilities.push('EVM');
+
+  return {
+    userId: result?.parentId ? String(result.parentId) : null,
+    displayName: result?.name || result?.username || result?.ens || null,
+    swopId,
+    avatar: result?.profilePic || result?.profileUrl || null,
+    capabilities,
+  };
+}
+
+function dedupeWalletSendDraftCandidates(
+  candidates: WalletSendDraftCandidate[]
+) {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = String(
+      candidate.swopId || candidate.userId || candidate.displayName || ''
+    ).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function WalletSendDraftCard({
   prompt,
   onApproveInline,
@@ -12316,6 +12687,7 @@ function WalletSendDraftCard({
   onInlineActionComplete: (completion: AgentActionCompletion) => void;
   astroConsoleData: AstroConsoleData;
 }) {
+  const { user, accessToken } = useUser();
   const { wallets: evmWallets } = useEvmWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { connectWallet } = useConnectWallet();
@@ -12395,6 +12767,10 @@ function WalletSendDraftCard({
     prompt.amountType === 'usd' ? 'usd' : 'token'
   );
   const [recipientInput, setRecipientInput] = useState(prompt.recipient || '');
+  const [recipientResults, setRecipientResults] = useState<
+    WalletSendDraftCandidate[]
+  >(prompt.recipientCandidates || []);
+  const [isSearchingRecipient, setIsSearchingRecipient] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
 
@@ -12426,11 +12802,73 @@ function WalletSendDraftCard({
     !Number.isFinite(tokenBalance) ||
     tokenBalance + 0.00000001 >= requiredTokenAmount;
   const trimmedRecipient = recipientInput.trim().replace(/^@/, '');
+  const normalizedRecipientSearch = trimmedRecipient
+    .replace(/\.swop\.id$/i, '')
+    .trim();
   const canReview =
     Boolean(selectedToken) &&
     hasValidAmount &&
     hasEnoughBalance &&
     trimmedRecipient.length > 1;
+
+  useEffect(() => {
+    const initialCandidates = prompt.recipientCandidates || [];
+    const recipientIsAddress =
+      /^0x[a-fA-F0-9]{40}$/.test(trimmedRecipient) ||
+      /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmedRecipient);
+
+    if (
+      normalizedRecipientSearch.length < 2 ||
+      recipientIsAddress ||
+      !accessToken
+    ) {
+      setRecipientResults(initialCandidates);
+      setIsSearchingRecipient(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setIsSearchingRecipient(true);
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/search?q=${encodeURIComponent(
+        normalizedRecipientSearch
+      )}&userId=${user?._id || ''}&filter=all&page=1&limit=6`;
+
+      void getConnectionsUserData(url, accessToken)
+        .then((data) => {
+          if (cancelled) return;
+          const liveCandidates =
+            data?.state === 'success' && Array.isArray(data.data?.results)
+              ? data.data.results
+                  .map(walletSendDraftCandidateFromSearchResult)
+                  .filter(Boolean)
+              : [];
+          setRecipientResults(
+            dedupeWalletSendDraftCandidates([
+              ...initialCandidates,
+              ...(liveCandidates as WalletSendDraftCandidate[]),
+            ])
+          );
+        })
+        .catch(() => {
+          if (!cancelled) setRecipientResults(initialCandidates);
+        })
+        .finally(() => {
+          if (!cancelled) setIsSearchingRecipient(false);
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    accessToken,
+    normalizedRecipientSearch,
+    prompt.recipientCandidates,
+    trimmedRecipient,
+    user?._id,
+  ]);
 
   if (isDismissed) return null;
 
@@ -12654,13 +13092,70 @@ function WalletSendDraftCard({
             </div>
           )}
           <div className={TICKET_LABEL_CLASS}>recipient</div>
-          <input
-            type="text"
-            value={recipientInput}
-            onChange={(event) => setRecipientInput(event.target.value)}
-            placeholder="swop id, ENS, or wallet address"
-            className={`${TICKET_FIELD_CLASS} w-full`}
-          />
+          <div className="relative">
+            <div className="flex items-center gap-2 rounded-[9px] border border-white/[0.07] bg-black/25 px-3">
+              <Search className="h-3.5 w-3.5 shrink-0 text-[#5a5e69]" />
+              <input
+                type="text"
+                value={recipientInput}
+                onChange={(event) => setRecipientInput(event.target.value)}
+                placeholder="swop id, ENS, or wallet address"
+                className="h-9 min-w-0 flex-1 bg-transparent text-[12px] font-semibold text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
+              />
+              {isSearchingRecipient && (
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#5a5e69]" />
+              )}
+            </div>
+            {recipientResults.length > 0 &&
+              normalizedRecipientSearch.length > 1 && (
+              <div className="mt-2 grid max-h-48 gap-1 overflow-y-auto rounded-[10px] border border-white/[0.07] bg-[#111318] p-1">
+                {recipientResults.map((candidate, index) => {
+                  const swopId = candidate.swopId || '';
+                  const displayName =
+                    candidate.displayName || swopId || 'Swop ID';
+                  const isSelected =
+                    swopId &&
+                    swopId.toLowerCase() === trimmedRecipient.toLowerCase();
+
+                  return (
+                    <button
+                      type="button"
+                      key={`${swopId || displayName}-${index}`}
+                      onClick={() => {
+                        if (swopId) setRecipientInput(swopId);
+                      }}
+                      className={`dm-btn flex items-center justify-between gap-3 rounded-[8px] px-2.5 py-2 text-left ${
+                        isSelected
+                          ? 'bg-[#3fe08f]/12 text-[#eceef2]'
+                          : 'bg-black/20 text-[#eceef2] hover:bg-white/[0.05]'
+                      }`}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="dm-mono grid h-7 w-7 shrink-0 place-items-center rounded-[8px] border border-[#3fe08f]/20 bg-[#3fe08f]/10 text-[11px] font-bold text-[#3fe08f]">
+                          {displayName.slice(0, 1).toUpperCase()}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-[12px] font-bold">
+                            {displayName}
+                          </span>
+                          {swopId && (
+                            <span className="dm-mono block truncate text-[10px] font-semibold text-[#5a5e69]">
+                              {swopId}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      <span className="dm-mono shrink-0 text-[9px] font-bold uppercase tracking-[0.12em] text-[#3fe08f]">
+                        {isSelected
+                          ? 'selected'
+                          : candidate.capabilities?.join(' + ') || 'swop.id'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <div className="mt-1 flex items-center gap-2">
             <button
               type="button"

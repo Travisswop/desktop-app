@@ -129,15 +129,36 @@ export function useHyperliquidDeposit() {
 
         setState((prev) => ({ ...prev, step: 'pending' }));
 
+        const txInput = {
+          to: usdcAddress,
+          data,
+          chainId,
+        };
+        const txOptions = {
+          sponsor: true,
+          address: evmWallet.address,
+        };
+
         // Send via Privy — gas sponsored if enabled in dashboard.
-        const result = await sendTransaction(
-          {
-            to: usdcAddress,
-            data,
-            chainId,
-          },
-          { sponsor: true },
-        );
+        let result;
+        try {
+          result = await sendTransaction(txInput, txOptions);
+        } catch (sponsorErr) {
+          const message =
+            sponsorErr instanceof Error ? sponsorErr.message.toLowerCase() : '';
+          if (
+            message.includes('rejected') ||
+            message.includes('denied') ||
+            message.includes('cancelled') ||
+            message.includes('user rejected')
+          ) {
+            throw sponsorErr;
+          }
+          result = await sendTransaction(txInput, {
+            sponsor: false,
+            address: evmWallet.address,
+          });
+        }
 
         setState({
           isDepositing: false,

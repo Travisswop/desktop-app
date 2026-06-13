@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Share2 } from 'lucide-react';
 import type { PolymarketPosition } from '@/hooks/polymarket';
 import { getOutcomeDisplayLabel } from '@/lib/polymarket/formatting';
 import {
