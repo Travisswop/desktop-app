@@ -61,9 +61,6 @@ const PublicProfileHeader: FC<Props> = ({
   const [open, setOpen] = useState(false);
   const [openDC, setOpenDC] = useState(false);
   const [isAlreadyConnected, setIsAlreadyConnected] = useState(false);
-  // UserContext hydrates `user` synchronously from localStorage, so anything
-  // conditioned on it must wait for mount or SSR and client HTML diverge.
-  const [mounted, setMounted] = useState(false);
   const { itemCount } = useCart();
   const router = useRouter();
   const pathname = usePathname();
@@ -72,25 +69,14 @@ const PublicProfileHeader: FC<Props> = ({
   const userName = params?.username;
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
     if (user && userName) {
       const fetchEnsData = async () => {
         const res = await getEnsDataUsingEns(userName);
-        const resId = res?.domainOwner?._id;
-        if (!resId) {
-          // Not an ENS-backed username (or lookup failed) — nothing to compare.
-          setIsAlreadyConnected(false);
-          return;
-        }
+        const resId = res.domainOwner._id;
+        console.log('resId', resId);
 
-        const following =
-          (user?.connections as { following?: any[] } | undefined)
-            ?.following ?? [];
-        const isAlreadySubscribe = following.find(
-          (item: any) => item?.account?._id === resId,
+        const isAlreadySubscribe = user?.connections?.following?.find(
+          (item) => item?.account?._id === resId,
         );
 
         if (isAlreadySubscribe) {
@@ -108,35 +94,34 @@ const PublicProfileHeader: FC<Props> = ({
     router.push(newRoute);
   };
 
-  const subscribeButton = (
-    <div className="w-6 h-6 lg:w-7 lg:h-7 bg-gray-400 rounded-full flex items-center justify-center">
-      <FaRegStar color="white" />
-    </div>
-  );
-
   return (
     <div className="w-full">
       <div className="w-full flex items-start justify-between px-6 pt-2">
         <div className="cursor-pointer">
-          {/* Radix generates aria ids that differ between SSR and client in
-              this app, so the dialog is only rendered after mount. */}
-          {mounted ? (
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger>{subscribeButton}</DialogTrigger>
-              <DialogContent>
-                <Subscribe
-                  data={{
-                    name,
-                    parentId,
-                    micrositeId,
-                  }}
-                  handler={() => setOpen(false)}
-                />
-              </DialogContent>
-            </Dialog>
-          ) : (
-            subscribeButton
-          )}
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger>
+              {/* <Image
+                src="/star.svg"
+                alt="Subscribe"
+                width={30}
+                height={30}
+                className="w-8 h-8 bg-white rounded-full p-1"
+              /> */}
+              <div className="w-6 h-6 lg:w-7 lg:h-7 bg-gray-400 rounded-full flex items-center justify-center">
+                <FaRegStar color="white" />
+              </div>
+            </DialogTrigger>
+            <DialogContent>
+              <Subscribe
+                data={{
+                  name,
+                  parentId,
+                  micrositeId,
+                }}
+                handler={() => setOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
         <div
           onClick={handleRedirectIntoCartDetails}
@@ -152,8 +137,7 @@ const PublicProfileHeader: FC<Props> = ({
         <div className="relative">
           <ProfileImage avatar={avatar} name={name} />
 
-          {mounted &&
-            user &&
+          {user &&
             user?.ensName !== userName &&
             !isAlreadyConnected && (
               <div className="absolute -right-3 bottom-2 ml-2">

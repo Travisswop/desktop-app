@@ -9,7 +9,11 @@ import { useNotifications } from "@/lib/context/NotificationContext";
 import { NotificationCategory } from "@/types/notification";
 import { NotificationItem } from "@/components/notifications";
 
-function NotificationPage() {
+interface NotificationCenterProps {
+  onClose?: () => void;
+}
+
+function NotificationPage({ onClose }: NotificationCenterProps) {
   const {
     notifications,
     isLoading,
@@ -146,6 +150,7 @@ function NotificationPage() {
               <NotificationItem
                 key={notification._id}
                 notification={notification}
+                onClose={onClose}
               />
             ))}
 

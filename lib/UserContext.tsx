@@ -12,25 +12,6 @@ import {
 import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import Cookies from 'js-cookie';
-import {
-  selectPreferredWallet,
-  tradingWalletSelectionOptions,
-} from '@/components/wallet/hooks/useWalletData';
-import {
-  PrivyLinkedAccount,
-  isEthereumWalletAccount,
-  isSolanaWalletAccount,
-} from '@/types/privy';
-import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
-import { apiFetch } from '@/lib/api/apiFetch';
-import {
-  requiresSwopIdCompletion,
-  SWOP_ID_ONBOARDING_PATH,
-} from '@/lib/onboardingStatus';
-
-const userContextDebugEnabled =
-  process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true';
-
 export interface UserData {
   _id: string;
   address?: string;
@@ -58,7 +39,6 @@ export interface UserData {
     totalFollowers?: number;
   };
   ensName?: string;
-  ens?: string;
   primaryMicrosite?: string;
   swopensId?: string;
   solanaAddress?: string;
@@ -66,16 +46,7 @@ export interface UserData {
   user_id?: string;
   privyId?: string;
   ethAddress?: string;
-  ethereumWallet?: string;
   displayName?: string;
-  subscription?: {
-    planNickname?: string;
-    status?: string;
-    currentPeriodEnd?: string | number | Date;
-    [key: string]: unknown;
-  };
-  referralCode?: string;
-  connections?: any[];
 
   // Bot-related fields
   isBot?: boolean;
@@ -145,63 +116,15 @@ export interface UserContextType {
 
 const UserContext = createContext<UserContextType | null>(null);
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 const USER_CACHE_KEY = 'swop:user-cache';
-const USER_CACHE_VERSION = 3;
 const USER_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-// When we already have cached user data to fall back to, abort a slow refresh
-// quickly and keep showing the cache. On initial login there is nothing to fall
-// back to, so we must wait long enough for the backend to actually respond — the
-// /api/v2/desktop/user endpoint regularly takes 5-9s on a cold hit, and aborting
-// early leaves the user permanently null. See git blame for the auth null-user bug.
-const USER_FETCH_TIMEOUT_MS = 5000;
-const USER_FETCH_INITIAL_TIMEOUT_MS = 25000;
 
 type CachedUserContext = {
   user: UserData;
   accessToken: string | null;
   cachedAt: number;
-  email?: string;
-  cacheVersion?: number;
 };
-
-function normalizeEmail(email?: string | null) {
-  return email?.trim().toLowerCase() || '';
-}
-
-function normalizeWalletAddress(address?: string | null) {
-  return address?.trim().toLowerCase() || '';
-}
-
-function walletAddressesMatch(
-  left?: string | null,
-  right?: string | null,
-) {
-  return (
-    Boolean(left && right) &&
-    normalizeWalletAddress(left) === normalizeWalletAddress(right)
-  );
-}
-
-function getAuthCookieOptions() {
-  return {
-    path: '/',
-    sameSite: 'lax' as const,
-    secure:
-      typeof window !== 'undefined' &&
-      window.location.protocol === 'https:',
-  };
-}
-
-function clearStoredUserContext() {
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(USER_CACHE_KEY);
-  }
-
-  Cookies.remove('user-id');
-  Cookies.remove('access-token');
-  Cookies.remove('user-id', { path: '/' });
-  Cookies.remove('access-token', { path: '/' });
-}
 
 function readCachedUserContext(): CachedUserContext | null {
   if (typeof window === 'undefined') return null;
@@ -212,10 +135,7 @@ function readCachedUserContext(): CachedUserContext | null {
 
     const cache = JSON.parse(rawCache) as CachedUserContext;
     if (
-      cache.cacheVersion !== USER_CACHE_VERSION ||
       !cache.user ||
-      normalizeEmail(cache.email || cache.user.email) !==
-        normalizeEmail(cache.user.email) ||
       Date.now() - cache.cachedAt > USER_CACHE_MAX_AGE_MS
     ) {
       window.localStorage.removeItem(USER_CACHE_KEY);
@@ -239,38 +159,11 @@ function writeCachedUserContext(
   try {
     window.localStorage.setItem(
       USER_CACHE_KEY,
-      JSON.stringify({
-        user,
-        accessToken,
-        cachedAt: Date.now(),
-        email: normalizeEmail(user.email),
-        cacheVersion: USER_CACHE_VERSION,
-      }),
+      JSON.stringify({ user, accessToken, cachedAt: Date.now() }),
     );
   } catch (error) {
     console.warn('Failed to cache user context:', error);
   }
-}
-
-function syncStoredUserContext(user: UserData, accessToken: string | null) {
-  const previousUserId = Cookies.get('user-id');
-  const previousAccessToken = Cookies.get('access-token');
-  const nextUserId = user._id?.toString();
-
-  writeCachedUserContext(user, accessToken);
-
-  if (nextUserId) {
-    Cookies.set('user-id', nextUserId, getAuthCookieOptions());
-  }
-
-  if (accessToken) {
-    Cookies.set('access-token', accessToken, getAuthCookieOptions());
-  }
-
-  return (
-    previousUserId !== nextUserId ||
-    (Boolean(accessToken) && previousAccessToken !== accessToken)
-  );
 }
 
 export function UserProvider({
@@ -307,7 +200,6 @@ export function UserProvider({
   const fetchInProgressRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchedEmailRef = useRef<string | null>(null);
-  const lastSyncedWalletsRef = useRef<string | null>(null);
 
   // Extract email from Privy user
   const extractEmail = useCallback(
@@ -328,89 +220,21 @@ export function UserProvider({
     [],
   );
 
-  const extractPreferredWalletAddresses = useCallback(
-    (privyUser: any, currentUser?: UserData | null) => {
-      const linkedAccounts = (privyUser?.linkedAccounts ||
-        []) as PrivyLinkedAccount[];
-      const walletSelectionOptions = tradingWalletSelectionOptions();
-      const storedEthereumWallet = currentUser?.ethereumWallet || '';
-      const storedSolanaWallet =
-        currentUser?.solanaWallet || currentUser?.solanaAddress || '';
-
-      const selectedEthereumWallet = selectPreferredWallet(
-        linkedAccounts.filter(isEthereumWalletAccount),
-        storedEthereumWallet || privyUser?.wallet?.address,
-        {
-          ...walletSelectionOptions,
-          preferredAddresses: [storedEthereumWallet],
-        },
-      )?.address;
-      const selectedSolanaWallet = selectPreferredWallet(
-        linkedAccounts.filter(isSolanaWalletAccount),
-        undefined,
-        {
-          ...walletSelectionOptions,
-          preferredAddresses: [storedSolanaWallet],
-        },
-      )?.address;
-
-      const ethereumWallet =
-        !storedEthereumWallet ||
-        walletAddressesMatch(
-          storedEthereumWallet,
-          selectedEthereumWallet,
-        )
-          ? selectedEthereumWallet
-          : undefined;
-      const solanaWallet =
-        !storedSolanaWallet ||
-        walletAddressesMatch(storedSolanaWallet, selectedSolanaWallet)
-          ? selectedSolanaWallet
-          : undefined;
-
-      return { ethereumWallet, solanaWallet };
-    },
-    [],
-  );
-
   // Fetch user data from backend
   const fetchUserData = useCallback(
     async (email: string): Promise<boolean> => {
-      const normalizedEmail = normalizeEmail(email);
-      if (!normalizedEmail) return false;
+      if (!email || !API_BASE_URL) return false;
       if (fetchInProgressRef.current) return false;
-      if (
-        lastFetchedEmailRef.current === normalizedEmail &&
-        user &&
-        normalizeEmail(user.email) === normalizedEmail
-      ) {
-        return true;
-      }
+      if (lastFetchedEmailRef.current === email && user) return true;
 
       fetchInProgressRef.current = true;
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-      // Only abort early when we have cached data for this email to fall back
-      // to. On initial login (no usable cache) we must give the slow backend
-      // enough time to respond, otherwise the user is stranded as null.
-      const hasCachedFallback = Boolean(
-        user && normalizeEmail(user.email) === normalizedEmail,
-      );
-      const fetchTimeoutMs = hasCachedFallback
-        ? USER_FETCH_TIMEOUT_MS
-        : USER_FETCH_INITIAL_TIMEOUT_MS;
 
       try {
         abortControllerRef.current?.abort();
         abortControllerRef.current = new AbortController();
-        timeoutId = setTimeout(() => {
-          abortControllerRef.current?.abort();
-        }, fetchTimeoutMs);
 
-        const response = await apiFetch(
-          buildSwopApiUrl(
-            `/api/v2/desktop/user/${encodeURIComponent(normalizedEmail)}`,
-          ),
+        const response = await fetch(
+          `${API_BASE_URL}/api/v2/desktop/user/${email}`,
           {
             headers: { 'Content-Type': 'application/json' },
             signal: abortControllerRef.current.signal,
@@ -421,73 +245,40 @@ export function UserProvider({
           if (response.status === 404) {
             setUser(null);
             setAccessToken(null);
-            clearStoredUserContext();
             return false;
           }
           throw new Error(`HTTP ${response.status}`);
         }
 
         const data = await response.json();
-        const { user: rawUserData, token } = data;
+        const { user: userData, token } = data;
 
-        if (!rawUserData || !token) {
+        if (!userData || !token) {
           throw new Error('Invalid response structure');
         }
-
-        // The backend returns SmartSite leads under `subscriber` (singular),
-        // while the app consumes them as `subscribers` (plural). Normalize
-        // here so every consumer (dashboard, analytics) reads one field.
-        const userData: UserData = {
-          ...rawUserData,
-          subscribers:
-            rawUserData.subscribers ?? rawUserData.subscriber ?? [],
-        };
 
         setUser(userData);
         setAccessToken(token);
         setError(null);
-        lastFetchedEmailRef.current = normalizedEmail;
-        const authStorageChanged = syncStoredUserContext(userData, token);
-
-        if (
-          authStorageChanged &&
-          typeof window !== 'undefined' &&
-          window.location.pathname !== '/login'
-        ) {
-          router.refresh();
-        }
+        lastFetchedEmailRef.current = email;
+        writeCachedUserContext(userData, token);
 
         return true;
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
-          if (user && normalizeEmail(user.email) === normalizedEmail) {
-            console.info(
-              'Using cached user data after refresh timed out',
-            );
-          }
           return false;
         }
-        if (user && normalizeEmail(user.email) === normalizedEmail) {
-          console.info('Using cached user data after refresh failed:', err);
-        } else if (userContextDebugEnabled) {
-          console.debug('User data refresh failed:', err);
-        }
-        if (user && normalizeEmail(user.email) !== normalizedEmail) {
-          setUser(null);
-          setAccessToken(null);
-          clearStoredUserContext();
-        }
+        console.error('Error fetching user data:', err);
         setError(
           err instanceof Error ? err : new Error('Unknown error'),
         );
         return false;
       } finally {
-        if (timeoutId) clearTimeout(timeoutId);
         fetchInProgressRef.current = false;
         abortControllerRef.current = null;
       }
     },
-    [router, user],
+    [user],
   );
 
   // Logout - just handle Privy logout, middleware handles redirects
@@ -497,14 +288,17 @@ export function UserProvider({
       setUser(null);
       setAccessToken(null);
       setError(null);
+      window.localStorage.removeItem(USER_CACHE_KEY);
       window.localStorage.removeItem('swop:last-authenticated-at');
-      clearStoredUserContext();
       lastFetchedEmailRef.current = null;
       await privyLogout();
       router.push('/login');
+      Cookies.remove('user-id');
+      Cookies.remove('access-token');
     } catch (err) {
       console.error('Error during logout:', err);
-      clearStoredUserContext();
+      Cookies.remove('user-id');
+      Cookies.remove('access-token');
       router.push('/login');
     }
   }, [privyLogout, router]);
@@ -529,35 +323,19 @@ export function UserProvider({
     if (!authenticated || !privyUser) {
       setUser(null);
       setAccessToken(null);
-      clearStoredUserContext();
       setLoading(false);
       return;
     }
 
     const email = extractEmail(privyUser);
     if (!email) {
-      setUser(null);
-      setAccessToken(null);
-      clearStoredUserContext();
       setLoading(false);
       return;
     }
 
-    const normalizedEmail = normalizeEmail(email);
-    if (user && normalizeEmail(user.email) !== normalizedEmail) {
-      setUser(null);
-      setAccessToken(null);
-      clearStoredUserContext();
-      setLoading(true);
-    }
-
     // Only fetch if we don't have user data for this email
-    if (
-      lastFetchedEmailRef.current !== normalizedEmail ||
-      !user ||
-      normalizeEmail(user.email) !== normalizedEmail
-    ) {
-      fetchUserData(normalizedEmail).finally(() => setLoading(false));
+    if (lastFetchedEmailRef.current !== email || !user) {
+      fetchUserData(email).finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
@@ -568,140 +346,6 @@ export function UserProvider({
     extractEmail,
     fetchUserData,
     user,
-  ]);
-
-  useEffect(() => {
-    if (
-      loading ||
-      !authenticated ||
-      !user?._id ||
-      !requiresSwopIdCompletion(user) ||
-      typeof window === 'undefined'
-    ) {
-      return;
-    }
-
-    if (
-      window.location.pathname === '/onboard' ||
-      window.location.pathname === '/onboard-ai' ||
-      window.location.pathname === '/login'
-    ) {
-      return;
-    }
-
-    router.push(SWOP_ID_ONBOARDING_PATH);
-  }, [authenticated, loading, router, user]);
-
-  useEffect(() => {
-    if (
-      !ready ||
-      !authenticated ||
-      !privyUser ||
-      !user?._id ||
-      !accessToken
-    ) {
-      return;
-    }
-
-    if (user.privyId && privyUser.id && user.privyId !== privyUser.id) {
-      return;
-    }
-
-    const { ethereumWallet, solanaWallet } =
-      extractPreferredWalletAddresses(privyUser, user);
-    if (!ethereumWallet && !solanaWallet) return;
-
-    const syncKey = `${user._id}:${ethereumWallet || ''}:${
-      solanaWallet || ''
-    }`;
-    const profileAlreadySynced =
-      (!ethereumWallet ||
-        user.ethereumWallet?.toLowerCase() ===
-          ethereumWallet.toLowerCase()) &&
-      (!solanaWallet || user.solanaWallet === solanaWallet);
-
-    if (lastSyncedWalletsRef.current === syncKey && profileAlreadySynced) {
-      return;
-    }
-
-    lastSyncedWalletsRef.current = syncKey;
-
-    apiFetch(buildSwopApiUrl('/api/v5/wallet/sync-user-wallets'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ ethereumWallet, solanaWallet }),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      })
-      .then((data) => {
-        const syncedEthereumWallet =
-          data?.user?.ethereumWallet || ethereumWallet;
-        const syncedSolanaWallet = data?.user?.solanaWallet || solanaWallet;
-
-        setUser((currentUser) => {
-          if (!currentUser) return currentUser;
-          const syncedUser = {
-            ...currentUser,
-            ...(syncedEthereumWallet
-              ? { ethereumWallet: syncedEthereumWallet }
-              : {}),
-            ...(syncedSolanaWallet
-              ? { solanaWallet: syncedSolanaWallet }
-              : {}),
-            microsites: currentUser.microsites?.map((microsite) => {
-              if (!microsite?.primary) return microsite;
-              return {
-                ...microsite,
-                ...(syncedEthereumWallet
-                  ? { ethAddress: syncedEthereumWallet }
-                  : {}),
-                ensData: {
-                  ...(microsite.ensData || {}),
-                  ...(syncedEthereumWallet
-                    ? {
-                        owner: syncedEthereumWallet,
-                        ethAddress: syncedEthereumWallet,
-                      }
-                    : {}),
-                  addresses: {
-                    ...(microsite.ensData?.addresses || {}),
-                    ...(syncedEthereumWallet
-                      ? { 60: syncedEthereumWallet }
-                      : {}),
-                    ...(syncedSolanaWallet
-                      ? { 501: syncedSolanaWallet }
-                      : {}),
-                  },
-                },
-              };
-            }),
-          };
-          writeCachedUserContext(syncedUser, accessToken);
-          return syncedUser;
-        });
-      })
-      .catch((err) => {
-        lastSyncedWalletsRef.current = null;
-        if (userContextDebugEnabled) {
-          console.debug('Wallet address sync failed:', err);
-        }
-      });
-  }, [
-    ready,
-    authenticated,
-    privyUser,
-    user?._id,
-    user?.privyId,
-    user?.ethereumWallet,
-    user?.solanaWallet,
-    user?.solanaAddress,
-    accessToken,
-    extractPreferredWalletAddresses,
   ]);
 
   // Cleanup on unmount

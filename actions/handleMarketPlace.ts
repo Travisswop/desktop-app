@@ -45,9 +45,9 @@ export async function handleDeleteMarketPlace(payload: any, token: string) {
         body: JSON.stringify(payload),
       }
     );
-    // revalidatePath(`/smartsite/profile/${payload.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    revalidatePath(`/smartsite/profile/${payload.micrositeId}`);
+    revalidatePath(`/smartsite/icons/${payload.micrositeId}`);
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error("Error from action:", error);

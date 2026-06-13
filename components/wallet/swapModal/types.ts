@@ -48,8 +48,8 @@ export interface EthQuoteResponse {
 }
 
 export interface SwapModalProps {
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  // open: boolean;
+  // onOpenChange: (open: boolean) => void;
   userToken: TokenInfo[];
   accessToken: string;
   initialInputToken?: string;

@@ -6,7 +6,6 @@ import {
   Transaction,
 } from '@/types/transaction';
 import { CHAINS } from '@/types/config';
-import type { ChainType } from '@/types/token';
 import { APIUtils } from '@/utils/api';
 
 const ETHERSCAN_MIN_REQUEST_INTERVAL_MS = 400;
@@ -294,7 +293,7 @@ class TransactionAPI {
         };
       });
     } catch (error) {
-      console.warn('Unable to load Solana transactions:', error);
+      console.error('Error fetching Solana transactions:', error);
       return [];
     }
   }
@@ -446,58 +445,30 @@ interface TransactionResult {
   refetch: () => void;
 }
 
-type WalletAddressInput = string | string[] | null | undefined;
-type TransactionQueryInput = {
-  chain: keyof typeof CHAINS;
-  address: string;
-};
-
-const normalizeWalletAddresses = (
-  value: WalletAddressInput,
-  evm = false
-) =>
-  Array.from(
-    new Set(
-      (Array.isArray(value) ? value : [value])
-        .filter((address): address is string => Boolean(address))
-        .map((address) => address.trim())
-        .filter(Boolean)
-        .map((address) => (evm ? address.toLowerCase() : address))
-    )
-  );
-
 export const useMultiChainTransactionData = (
-  solWalletAddress: WalletAddressInput,
-  evmWalletAddress: WalletAddressInput,
-  chains: ChainType[] = ['ETHEREUM'],
+  solWalletAddress: string,
+  evmWalletAddress: string,
+  chains: (keyof typeof CHAINS)[] = ['ETHEREUM'],
   options: TransactionOptions = { limit: 100, offset: 0 }
 ): TransactionResult => {
   const normalizedChains = chains
     .map((chain) => String(chain).toUpperCase())
     .filter(isSupportedChain);
-  const solWalletAddresses = normalizeWalletAddresses(solWalletAddress);
-  const evmWalletAddresses = normalizeWalletAddresses(evmWalletAddress, true);
-  const transactionQueryInputs: TransactionQueryInput[] = [];
-
-  for (const chain of normalizedChains) {
-    const walletAddresses =
-      chain === 'SOLANA' ? solWalletAddresses : evmWalletAddresses;
-
-    for (const address of walletAddresses) {
-      transactionQueryInputs.push({ chain, address });
-    }
-  }
 
   const transactionQueries = useQueries({
-    queries: transactionQueryInputs.map(({ chain, address }) => ({
+    queries: normalizedChains.map((chain) => ({
       queryKey: [
         'transactions',
         chain,
-        address,
+        solWalletAddress,
+        evmWalletAddress,
       ],
       queryFn: async () => {
         if (chain === 'SOLANA') {
-          return TransactionAPI.getSolanaTransactions(address);
+          if (!solWalletAddress) return [];
+          return TransactionAPI.getSolanaTransactions(
+            solWalletAddress
+          );
         }
 
         if (!evmWalletAddress) return [];
@@ -505,11 +476,11 @@ export const useMultiChainTransactionData = (
         const [nativeTxs, erc20Txs] = await Promise.all([
           TransactionAPI.getNativeTransactions(
             chain,
-            address
+            evmWalletAddress
           ),
           TransactionAPI.getERC20Transactions(
             chain,
-            address
+            evmWalletAddress
           ),
         ]);
 
@@ -517,10 +488,13 @@ export const useMultiChainTransactionData = (
           .sort(
             (a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp)
           )
-          .map((tx) => formatEvmTransaction(tx, chain, address))
+          .map((tx) => formatEvmTransaction(tx, chain, evmWalletAddress))
           .filter((tx): tx is Transaction => Boolean(tx));
       },
-      enabled: Boolean(address),
+      enabled:
+        chain === 'SOLANA'
+          ? !!solWalletAddress
+          : !!evmWalletAddress,
       staleTime: 60_000,
     })),
   });

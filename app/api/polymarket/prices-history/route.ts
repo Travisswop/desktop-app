@@ -3,14 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
 
 /**
- * GET /api/polymarket/prices-history?tokenId=<TOKEN_ID>&interval=max&fidelity=30
+ * GET /api/polymarket/prices-history?tokenId=<TOKEN_ID>&interval=1d&fidelity=30
  *
  * Frontend proxy for polymarket-backend's CLOB price history endpoint.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tokenId = searchParams.get('tokenId');
-  const interval = searchParams.get('interval') ?? 'max';
+  const interval = searchParams.get('interval') ?? '1d';
   const fidelity = searchParams.get('fidelity') ?? '30';
 
   if (!tokenId) {

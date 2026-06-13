@@ -6,9 +6,6 @@ import { useParams } from 'next/navigation';
 const getCartStorageKey = (username: string) =>
   `marketplace-cart-${username}`;
 
-const isMarketplaceCartItem = (item: any) =>
-  Boolean(item?.marketplaceProductId);
-
 export const useCartPersistence = () => {
   const { state, dispatch } = useCart();
   const params = useParams();
@@ -24,12 +21,7 @@ export const useCartPersistence = () => {
         try {
           const parsedCart = JSON.parse(savedCart);
           if (Array.isArray(parsedCart) && parsedCart.length > 0) {
-            const marketplaceItems = parsedCart.filter(isMarketplaceCartItem);
-            if (marketplaceItems.length > 0) {
-              dispatch({ type: 'SET_CART', payload: marketplaceItems });
-            } else {
-              localStorage.removeItem(storageKey);
-            }
+            dispatch({ type: 'SET_CART', payload: parsedCart });
           }
         } catch (error) {
           console.error(
@@ -53,11 +45,10 @@ export const useCartPersistence = () => {
       // Set a new timeout to save after 500ms of no changes
       saveTimeoutRef.current = setTimeout(() => {
         const storageKey = getCartStorageKey(username);
-        const marketplaceItems = state.items.filter(isMarketplaceCartItem);
-        if (marketplaceItems.length > 0) {
+        if (state.items.length > 0) {
           localStorage.setItem(
             storageKey,
-            JSON.stringify(marketplaceItems)
+            JSON.stringify(state.items)
           );
         } else {
           localStorage.removeItem(storageKey);

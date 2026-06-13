@@ -59,7 +59,7 @@ const Subscribe: FC<Props> = ({ data, handler }) => {
     } else {
       setLoader(false);
       toast({
-        title: result.message || "Something went wrong",
+        title: "Something went wrong",
       });
     }
   };
@@ -81,12 +81,6 @@ const Subscribe: FC<Props> = ({ data, handler }) => {
     if (!subscribeInfo.email) {
       toast({
         title: "Enter your email",
-      });
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(subscribeInfo.email.trim())) {
-      toast({
-        title: "Enter a valid email address",
       });
       return;
     }

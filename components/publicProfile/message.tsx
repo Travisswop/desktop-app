@@ -4,6 +4,16 @@ import { FC } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import InfoCardContent from "./InfoCardContent";
 
 interface Props {
@@ -28,33 +38,20 @@ const variants = {
 
 const Message: FC<Props> = ({
   data,
+  socialType,
   parentId,
   number,
   fontColor,
   secondaryFontColor,
   onClick,
 }) => {
-  const { domain } = data;
+  const { _id, domain } = data;
 
   const delay = number + 0.1;
 
-  const buildMessageUrl = () => {
-    const params = new URLSearchParams();
-    const recipientId = parentId?.trim();
-    const micrositeId = data.micrositeId?.trim();
-    const recipientEns = domain?.trim().replace(/^@/, "");
-
-    if (recipientId) params.set("recipientId", recipientId);
-    if (micrositeId) params.set("micrositeId", micrositeId);
-    if (recipientEns) params.set("recipientEns", recipientEns);
-    params.set("source", "smartsite");
-
-    const query = params.toString();
-    return query ? `/dashboard/chat?${query}` : "/dashboard/chat";
-  };
-
-  const openMessages = () => {
-    window.location.assign(buildMessageUrl());
+  const redirectToSwop = () => {
+    console.log("redirecting to swop");
+    return window.open("https://swopme.co", "_blank");
   };
 
   const handleClick = async () => {
@@ -64,7 +61,8 @@ const Message: FC<Props> = ({
       return;
     }
 
-    openMessages();
+    // Otherwise, use the default openlink logic
+    redirectToSwop();
   };
 
   return (
@@ -78,6 +76,7 @@ const Message: FC<Props> = ({
         delay,
         type: "easeInOut",
       }}
+      onClick={handleClick}
     >
       <motion.div
         transition={{
@@ -85,28 +84,46 @@ const Message: FC<Props> = ({
           stiffness: 400,
           damping: 10,
         }}
-        className="max-w-full my-2 mx-1"
+        className="max-w-full my-2 mx-1 flex flex-row gap-2 items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px]"
       >
-        <button
-          type="button"
-          onClick={handleClick}
-          className="flex w-full cursor-pointer flex-row items-center gap-2 rounded-[12px] bg-white p-2 text-left shadow-small"
-        >
-          <Image
-            className="h-auto w-10 object-fill"
-            src="/images/outline-icons/message.svg"
-            alt={domain}
-            width={80}
-            height={80}
-            priority
-          />
-          <InfoCardContent
-            title="Message Me"
-            description="Message me on swop"
-            fontColor={fontColor}
-            secondaryFontColor={secondaryFontColor}
-          />
-        </button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <div className="flex relative cursor-pointer">
+              <Image
+                className="object-fill w-10 h-auto"
+                src="/images/outline-icons/message.svg"
+                alt={domain}
+                width={80}
+                height={80}
+                priority
+              />
+              {
+                <InfoCardContent
+                  title="Message Me"
+                  description="Message me on swop"
+                  fontColor={fontColor}
+                  secondaryFontColor={secondaryFontColor}
+                />
+              }
+            </div>
+          </AlertDialogTrigger>
+          {!onClick && (
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogDescription>
+                  You need to download the Swop app to message. Do you want to
+                  download the app?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={redirectToSwop}>
+                  Download App
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          )}
+        </AlertDialog>
       </motion.div>
     </motion.div>
   );

@@ -18,8 +18,7 @@ export async function postAppIcon(appIconInfo: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${appIconInfo.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
 
     return data;
   } catch (error) {
@@ -44,8 +43,7 @@ export async function handleUpdateAppIcon(
       }
     );
     revalidatePath(`/smartsites/icons/${appIconInfo.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -69,8 +67,7 @@ export async function handleDeleteAppIcon(
       }
     );
     revalidatePath(`/smartsites/icons/${appIconInfo.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from action:', error);

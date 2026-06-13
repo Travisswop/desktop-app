@@ -12,7 +12,7 @@ import Link from "next/link";
 import { FiPlusCircle } from "react-icons/fi";
 import { formatEns } from "@/lib/formatEnsName";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
-import TokenTransferFeedCard from "./TokenTransferFeedCard";
+import PerpsFeedCard from "./PerpsFeedCard";
 
 const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -30,6 +30,9 @@ const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
       receiver_ens,
       receiver_wallet_address,
       amount,
+      token,
+      chain,
+      tokenPrice,
       image,
       name,
       currency,
@@ -69,7 +72,24 @@ const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
         </div>
       );
     } else if (transaction_type === "token") {
-      return <TokenTransferFeedCard feed={feed.repostedPostDetails} />;
+      return (
+        <p className="text-black text-sm">
+          Transferred{" "}
+          <span className="font-medium">
+            {amount.toFixed(2)} {token}
+          </span>{" "}
+          {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>} tokens
+          to{" "}
+          <a
+            href={`https://${recipientDisplay}`}
+            target="_blank"
+            className="font-semibold"
+          >
+            {formatEns(recipientDisplay)}
+          </a>{" "}
+          on the {chain}.
+        </p>
+      );
     } else {
       return (
         <p className="text-gray-600 text-sm">

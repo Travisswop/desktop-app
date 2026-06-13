@@ -1,16 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useWallets } from '@privy-io/react-auth';
 import * as hl from '@nktkas/hyperliquid';
 import { getHLApiUrl } from '@/services/hyperliquid/config';
-import { useUser } from '@/lib/UserContext';
-import {
-  getStoredEvmWalletAddress,
-  selectPreferredWallet,
-  shouldUseStoredWalletAddresses,
-  tradingWalletSelectionOptions,
-} from '@/components/wallet/hooks/useWalletData';
 
 // Always check mainnet HL balance regardless of HL_IS_TESTNET.
 // The deposit bridge is always mainnet-to-mainnet, so the balance that reflects
@@ -40,63 +33,6 @@ export interface BalanceCheckState {
 const POLL_INTERVAL_MS = 8_000;
 const MAX_POLL_ATTEMPTS = 30; // 30 × 8s = 4 minutes
 
-let builderDexNamesCache: string[] | null = null;
-let builderDexNamesPromise: Promise<string[]> | null = null;
-
-async function getBuilderDexNames() {
-  if (builderDexNamesCache) return builderDexNamesCache;
-  if (!builderDexNamesPromise) {
-    builderDexNamesPromise = infoClient
-      .perpDexs()
-      .then((dexs) =>
-        dexs
-          .map((dex, dexIndex) => ({ dex, dexIndex }))
-          .filter(
-            (
-              item,
-            ): item is {
-              dex: NonNullable<(typeof dexs)[number]>;
-              dexIndex: number;
-            } =>
-              item.dexIndex > 0 &&
-              Boolean(item.dex?.name) &&
-              typeof item.dex?.name === 'string',
-          )
-          .map((item) => item.dex.name.trim())
-          .filter(Boolean),
-      )
-      .then((names) => {
-        builderDexNamesCache = Array.from(new Set(names)).sort();
-        return builderDexNamesCache;
-      })
-      .finally(() => {
-        builderDexNamesPromise = null;
-      });
-  }
-
-  return builderDexNamesPromise;
-}
-
-async function getAggregateAccountValue(masterAddress: string) {
-  const dexNames = await getBuilderDexNames();
-  const states = await Promise.allSettled(
-    ['', ...dexNames].map((dex) =>
-      infoClient.clearinghouseState({
-        user: masterAddress as `0x${string}`,
-        ...(dex ? { dex } : {}),
-      }),
-    ),
-  );
-
-  let accountValue = 0;
-  for (const state of states) {
-    if (state.status !== 'fulfilled') continue;
-    accountValue += parseFloat(state.value.marginSummary.accountValue) || 0;
-  }
-
-  return accountValue.toFixed(6);
-}
-
 /**
  * useHyperliquidBalanceCheck
  *
@@ -114,37 +50,13 @@ async function getAggregateAccountValue(masterAddress: string) {
 export function useHyperliquidBalanceCheck(
   masterAddressOverride?: string | null,
 ): BalanceCheckState {
-  // Always resolve the selected EVM wallet so the balance check can run
+  // Always resolve the Privy embedded wallet so the balance check can run
   // BEFORE `approveAgent` (which is what surfaces masterAddress on hlAgent).
   // A caller may still pass an explicit override if they already have it.
-  const { user } = usePrivy();
-  const { user: swopUser } = useUser();
   const { wallets, ready: walletsReady } = useWallets();
-  const storedMasterAddress = getStoredEvmWalletAddress(swopUser);
-  const activeMasterWallet = selectPreferredWallet(
-    wallets,
-    user?.wallet?.address,
-    tradingWalletSelectionOptions(),
-  );
-  const shouldUseStoredMaster =
-    shouldUseStoredWalletAddresses(
-      user?.id,
-      swopUser,
-      activeMasterWallet?.address,
-    ) &&
-    Boolean(storedMasterAddress);
-  const masterWallet = selectPreferredWallet(
-    wallets,
-    shouldUseStoredMaster ? storedMasterAddress : user?.wallet?.address,
-    tradingWalletSelectionOptions(),
-  );
+  const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
   const masterAddress =
-    masterAddressOverride ??
-    (shouldUseStoredMaster
-      ? storedMasterAddress
-      : walletsReady
-        ? masterWallet?.address ?? null
-        : null);
+    masterAddressOverride ?? (walletsReady ? embeddedWallet?.address ?? null : null);
 
   const [status, setStatus] = useState<DepositCheckStatus>('idle');
   const [accountValue, setAccountValue] = useState<string | null>(null);
@@ -168,7 +80,11 @@ export function useHyperliquidBalanceCheck(
     if (isMountedRef.current) setStatus('checking');
 
     try {
-      const value = await getAggregateAccountValue(masterAddress);
+      const state = await infoClient.clearinghouseState({
+        user: masterAddress as `0x${string}`,
+      });
+
+      const value = state.marginSummary.accountValue;
       const hasBalance = parseFloat(value) > 0;
 
       if (isMountedRef.current) {
@@ -223,7 +139,10 @@ export function useHyperliquidBalanceCheck(
       }
 
       try {
-        const value = await getAggregateAccountValue(masterAddress);
+        const state = await infoClient.clearinghouseState({
+          user: masterAddress as `0x${string}`,
+        });
+        const value = state.marginSummary.accountValue;
         const hasBalance = parseFloat(value) > 0;
 
         if (hasBalance) {

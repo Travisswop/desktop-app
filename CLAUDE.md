@@ -128,8 +128,6 @@ zustandStore/         # Client state management
 - Image uploads require Cloudinary configuration
 - NFT type determines checkout flow requirements
 - Payment orders must be created before payment UI is shown
-- Swap quotes need their provider API keys set, or they intermittently time out (see "Swap Quote Reliability" below)
-- `.env` is loaded only at process start — restart `npm run dev` (or redeploy) after changing any key, or the running app keeps the old value
 
 ## Key Integration Points
 
@@ -147,12 +145,3 @@ zustandStore/         # Client state management
 - Blockchain RPC endpoints and API keys required
 - Webhook endpoints for Stripe integration
 - Socket server configuration for real-time features
-
-### Swap Quote Reliability (Jupiter / LiFi)
-Swap quotes are fetched server-side and **degrade silently to slow/free public endpoints when their API keys are missing**, which is the usual cause of "quote is taking too long" timeouts.
-
-- **Jupiter (Solana swaps)** — `JUPITER_API_KEY` (server-side, no `NEXT_PUBLIC_` prefix). Read in `app/api/jupiter/quote/route.ts`. With a key, quotes use the dedicated pro host `api.jup.ag`; **without a key the route falls back to the shared, rate-limited `lite-api.jup.ag`**, which times out (8s) under real traffic. Get a key at portal.jup.ag.
-- **LiFi (EVM swaps)** — `LIFI_API_KEY` + `LIFI_API_URL`, read in `actions/lifiForTokenSwap.ts` (sent as the `x-lifi-api-key` header). Defaults to keyless `https://li.quest/v1`, which is similarly rate-limited.
-- The swap modal **auto-refreshes the quote every 10s** while open (`components/wallet/SwapTokenModal.tsx`), so each open modal repeatedly hits the provider — keyless endpoints throttle fast.
-- These keys are **environment-specific**: the local stack's `.env` and each hosted deployment (Vercel/server) have separate env vars. A working production swap does not mean local is configured, and vice-versa.
-- To diagnose a timeout, curl the provider directly (e.g. `https://lite-api.jup.ag/swap/v1/quote?...`). A fast 200 means the provider is healthy and the issue is the missing/wrong key or rate-limiting, not an outage.

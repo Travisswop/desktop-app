@@ -27,10 +27,10 @@ export default function PaymentFailedContent() {
   const [retryUrl, setRetryUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const error = searchParams?.get('error');
-    const errorMessage = searchParams?.get('message');
-    const orderIdParam = searchParams?.get('orderId');
-    const username = searchParams?.get('username');
+    const error = searchParams.get('error');
+    const errorMessage = searchParams.get('message');
+    const orderIdParam = searchParams.get('orderId');
+    const username = searchParams.get('username');
 
     if (orderIdParam) {
       setOrderId(orderIdParam);

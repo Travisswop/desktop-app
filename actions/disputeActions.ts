@@ -257,10 +257,10 @@ export async function getOrderDisputes(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       return {
         success: false,
-        message: errorData?.message || 'Failed to fetch disputes',
+        message: errorData.message || 'Failed to fetch disputes',
       };
     }
 
@@ -325,10 +325,10 @@ export async function createSellerChallenge(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       return {
         success: false,
-        message: errorData?.message || 'Failed to submit challenge',
+        message: errorData.message || 'Failed to submit challenge',
       };
     }
 
@@ -377,11 +377,11 @@ export async function getDisputeDetails(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       return {
         success: false,
         message:
-          errorData?.message || 'Failed to fetch dispute details',
+          errorData.message || 'Failed to fetch dispute details',
       };
     }
 
@@ -447,11 +447,11 @@ export async function getSellerDisputes(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       return {
         success: false,
         message:
-          errorData?.message || 'Failed to fetch seller disputes',
+          errorData.message || 'Failed to fetch seller disputes',
       };
     }
 
@@ -501,11 +501,11 @@ export async function getSellerNotificationCount(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       return {
         success: false,
         message:
-          errorData?.message || 'Failed to fetch notification counts',
+          errorData.message || 'Failed to fetch notification counts',
       };
     }
 

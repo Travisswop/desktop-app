@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Check, Copy, QrCode } from 'lucide-react';
 import { WalletItem } from '@/types/wallet';
 import Image from 'next/image';
-import { copyTextToClipboard } from '@/lib/clipboard';
 
 interface WalletQRProps {
   open: boolean;
@@ -28,12 +27,7 @@ const formatAddress = (address: string) => {
 const CopyButton = ({ content }: { content: string }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
-    const didCopy = await copyTextToClipboard(content);
-    if (!didCopy) {
-      alert('Could not copy address. Please try again.');
-      return;
-    }
-
+    await navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

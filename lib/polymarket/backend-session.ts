@@ -85,49 +85,6 @@ function authHeaders(accessToken: string) {
 }
 
 /**
- * Retries a network operation on transient failures (network errors or HTTP
- * 5xx). If fn() returns a value without throwing — e.g. null for a definitive
- * 404 — that value is returned immediately with no retry. Throws the last
- * error once retries are exhausted.
- *
- * This exists so silent session restore never mistakes a transient blip for
- * "no credentials" / "not deployed" and re-prompts a user who is already set up.
- */
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  {
-    retries = 3,
-    baseDelayMs = 400,
-    shouldRetry = () => true,
-  }: {
-    retries?: number;
-    baseDelayMs?: number;
-    shouldRetry?: (err: unknown) => boolean;
-  } = {}
-): Promise<T> {
-  let lastErr: unknown;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      if (attempt < retries && shouldRetry(err)) {
-        await new Promise((r) => setTimeout(r, baseDelayMs * (attempt + 1)));
-        continue;
-      }
-      throw err;
-    }
-  }
-  throw lastErr;
-}
-
-// Retry network/5xx errors but not 4xx (a 400/401/403 won't fix itself on retry).
-const retryTransientHttp = (err: unknown): boolean => {
-  const status = (err as { status?: number })?.status;
-  return status === undefined || status >= 500;
-};
-
-/**
  * Build the credential-endpoint query string with optional wallet routing.
  *
  * CLOB credentials are bound to the signer EOA. Deposit-wallet details are
@@ -157,26 +114,17 @@ export async function fetchCachedCredentials(
   opts?: CredentialFlowOptions
 ): Promise<ClobCredentials | null> {
   try {
-    return await withRetry(async () => {
-      const res = await fetch(
-        `${base()}/session/credentials?${buildCredentialQuery(eoaAddress, opts)}`,
-        { headers: authHeaders(accessToken) }
-      );
+    const res = await fetch(
+      `${base()}/session/credentials?${buildCredentialQuery(eoaAddress, opts)}`,
+      { headers: authHeaders(accessToken) }
+    );
 
-      // 404 and incomplete payloads are definitive "no usable creds" — return
-      // null without retrying. Other non-ok responses are transient: throw so
-      // withRetry can retry rather than reporting a false cache miss.
-      if (res.status === 404) return null;
-      if (!res.ok) {
-        const err = new Error(`credentials fetch failed (${res.status})`);
-        (err as { status?: number }).status = res.status;
-        throw err;
-      }
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
 
-      const data = await res.json();
-      if (!data.key || !data.secret || !data.passphrase) return null;
-      return { key: data.key, secret: data.secret, passphrase: data.passphrase };
-    }, { shouldRetry: retryTransientHttp });
+    const data = await res.json();
+    if (!data.key || !data.secret || !data.passphrase) return null;
+    return { key: data.key, secret: data.secret, passphrase: data.passphrase };
   } catch {
     return null;
   }
@@ -324,20 +272,16 @@ export async function getWalletInfo(
   accessToken: string
 ): Promise<PolymarketWalletInfo> {
   const params = new URLSearchParams({ eoaAddress });
-  return withRetry(async () => {
-    const res = await fetch(`${base()}/session/wallet-info?${params}`, {
-      headers: authHeaders(accessToken),
-    });
+  const res = await fetch(`${base()}/session/wallet-info?${params}`, {
+    headers: authHeaders(accessToken),
+  });
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      const err = new Error(body.error || "Failed to resolve wallet info");
-      (err as { status?: number }).status = res.status;
-      throw err;
-    }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to resolve wallet info");
+  }
 
-    return res.json();
-  }, { shouldRetry: retryTransientHttp });
+  return res.json();
 }
 
 export async function getDepositWalletAddress(
@@ -645,25 +589,6 @@ export interface RedeemTypedData {
   to?: string;
   data?: string;
   operation?: number;
-  collateralToken?: string;
-  shouldWrapCollateral?: boolean;
-}
-
-export interface DepositWalletWrapTypedData {
-  typedData: {
-    domain: Record<string, unknown>;
-    types: Record<string, unknown[]>;
-    primaryType?: string;
-    message: Record<string, unknown>;
-  };
-  depositWalletAddress: string;
-  eoaAddress: string;
-  nonce: string;
-  deadline: string;
-  calls: Array<{ target: string; value: string; data: string }>;
-  amount: number;
-  sourceCollateralToken: string;
-  destinationCollateralToken: string;
 }
 
 export async function getRedeemTypedData(
@@ -717,14 +642,7 @@ export async function submitRedeem(
     deadline?: string;
   },
   accessToken: string
-): Promise<{
-  txId: string;
-  success: boolean;
-  error?: string;
-  collateralToken?: string;
-  shouldWrapCollateral?: boolean;
-  redeemedAmount?: number;
-}> {
+): Promise<{ txId: string; success: boolean; error?: string }> {
   const res = await fetch(`${base()}/positions/redeem`, {
     method: 'POST',
     headers: authHeaders(accessToken),
@@ -736,63 +654,6 @@ export async function submitRedeem(
   }
   if (data.success === false) {
     throw new Error(data.error || 'Redemption failed on-chain');
-  }
-  return data;
-}
-
-export async function getDepositWalletWrapTypedData(
-  params: {
-    depositWalletAddress: string;
-    eoaAddress: string;
-    destinationAddress?: string;
-    amount: number;
-  },
-  accessToken: string,
-): Promise<DepositWalletWrapTypedData> {
-  const searchParams = new URLSearchParams({
-    depositWalletAddress: params.depositWalletAddress,
-    eoaAddress: params.eoaAddress,
-    amount: String(params.amount),
-    ...(params.destinationAddress
-      ? { destinationAddress: params.destinationAddress }
-      : {}),
-  });
-  const res = await fetch(`${base()}/wrap/deposit-wallet/typed-data?${searchParams}`, {
-    headers: authHeaders(accessToken),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to get USDC.e conversion typed data');
-  }
-  if (data.success === false) {
-    throw new Error(data.error || 'Redemption failed on-chain');
-  }
-  return data;
-}
-
-export async function submitDepositWalletWrap(
-  params: {
-    depositWalletAddress: string;
-    eoaAddress: string;
-    destinationAddress?: string;
-    amount: number;
-    signature: string;
-    nonce: string;
-    deadline: string;
-  },
-  accessToken: string,
-): Promise<{ txId: string; success: boolean; transactionHash?: string }> {
-  const res = await fetch(`${base()}/wrap/deposit-wallet`, {
-    method: 'POST',
-    headers: authHeaders(accessToken),
-    body: JSON.stringify(params),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || 'USDC.e conversion failed');
-  }
-  if (data.success === false) {
-    throw new Error(data.error || 'USDC.e conversion failed on-chain');
   }
   return data;
 }

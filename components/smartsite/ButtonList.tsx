@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import ShareCustomQRCode from "./socialShare/ShareCustomQRCode";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 
-const ButtonList = ({ microsite }: any) => {
+const ButtonList = ({ microsite, token, id, qrEmbeddedUrl }: any) => {
   const router = useRouter();
 
   const handleWalletRedirect = () => {
@@ -18,11 +18,12 @@ const ButtonList = ({ microsite }: any) => {
   };
   return (
     <div className="flex flex-wrap items-center justify-center gap-1.5">
-      <Link
-        href={`/smartsite/profile/${microsite._id}`}
-        className="inline-flex items-center justify-center gap-1 rounded-lg bg-gray-100 px-4 py-1.5 font-medium text-black hover:bg-gray-200"
-      >
-        Edit <TbEdit size={19} />
+      <Link href={`/smartsite/profile/${microsite._id}`} className="">
+        <PrimaryButton>
+          <p className="flex items-center gap-1">
+            Edit <TbEdit size={19} />
+          </p>
+        </PrimaryButton>
       </Link>
       <PrimaryButton
         disabled={!microsite.primary && true}

@@ -22,10 +22,6 @@ import { formatEns } from "@/lib/formatEnsName";
 // import { useRouter } from "next/navigation";
 import { formatCountReaction } from "@/lib/formatFeedReactionCount";
 import FeedPostContent from "./FeedPostContent";
-import FeedTradeAlertMenuItem, {
-  isFeedAuthorSelf,
-  shouldShowTradeAlertMenuItem,
-} from "./FeedTradeAlertMenuItem";
 interface FeedItemType {
   _id: string;
   likeCount?: number;
@@ -38,8 +34,6 @@ interface FeedItemProps {
   feed: any;
   userId: string;
   accessToken: string;
-  onRedeemModalOpen?: (data: any) => void;
-  renderTransactionContent?: (feed: any) => React.ReactNode;
   onRepostSuccess: () => void;
   onDeleteSuccess: () => void;
   onPostInteraction?: (postId: string, updates: Partial<FeedItemType>) => void;
@@ -51,6 +45,7 @@ const FeedItem = memo(
     feed,
     userId,
     accessToken,
+    // onRedeemModalOpen,
     onRepostSuccess,
     onDeleteSuccess,
     onPostInteraction,
@@ -110,13 +105,6 @@ const FeedItem = memo(
       feed?.smartsiteId?.ens ||
       feed?.smartsiteEnsName ||
       "n/a";
-    const canDeletePost = isFeedAuthorSelf(feed, userId);
-    const showTradeAlertMenuItem = shouldShowTradeAlertMenuItem(
-      feed,
-      userId,
-      accessToken,
-    );
-    const showActionsMenu = canDeletePost || showTradeAlertMenuItem;
 
     // console.log("ensName", ensName);
 
@@ -207,7 +195,7 @@ const FeedItem = memo(
             </div>
 
             {/* Actions Menu */}
-            {showActionsMenu && (
+            {userId === feed?.userId && (
               <div>
                 <Popover
                   backdrop="transparent"
@@ -222,25 +210,12 @@ const FeedItem = memo(
                   </PopoverTrigger>
                   <PopoverContent>
                     <div className="px-1 py-2 flex flex-col">
-                      {showTradeAlertMenuItem && (
-                        <FeedTradeAlertMenuItem
-                          feed={feed}
-                          accessToken={accessToken}
-                          onChange={(enabled) => {
-                            onPostInteraction?.(feed._id, {
-                              viewerTradeNotificationsEnabled: enabled,
-                            });
-                          }}
-                        />
-                      )}
-                      {canDeletePost && (
-                        <DeleteFeedModal
-                          postId={feed._id}
-                          token={accessToken}
-                          onDeleteSuccess={onDeleteSuccess}
-                          userId={userId}
-                        />
-                      )}
+                      <DeleteFeedModal
+                        postId={feed._id}
+                        token={accessToken}
+                        onDeleteSuccess={onDeleteSuccess}
+                        userId={userId}
+                      />
                     </div>
                   </PopoverContent>
                 </Popover>

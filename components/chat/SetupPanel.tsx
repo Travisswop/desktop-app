@@ -2,19 +2,12 @@
 import { useUser } from "@/lib/UserContext";
 import { useState } from "react";
 
-interface SetupPanelProps {
-  onConnect: (token: string) => void;
-  onDisconnect: () => void;
-  connected: boolean;
-  setCurrentUser: (userId: string | null) => void;
-}
-
 export default function SetupPanel({
   onConnect,
   onDisconnect,
   connected,
   setCurrentUser,
-}: SetupPanelProps) {
+}) {
   const [jwtToken, setJwtToken] = useState("");
   console.log("jwtToken", jwtToken);
 
@@ -22,7 +15,7 @@ export default function SetupPanel({
 
   console.log("accessToken", accessToken);
 
-  const parseJwt = (token: string) => {
+  const parseJwt = (token) => {
     try {
       const base64Url = token.split(".")[1];
       const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");

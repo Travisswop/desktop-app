@@ -20,7 +20,6 @@ const EMPTY_TRADES: TradeActivity[] = [];
 // Carries baseKey and buyOnly so step-2 useMemo can filter without regex.
 type CycleEntry = AggregatedTradeOutcome & {
   baseKey: string;
-  cycleIndex: number;
   buyOnly: boolean;
 };
 
@@ -105,11 +104,6 @@ export default function PositionOutcomeList({
       let title = sorted[0].title;
       let outcome = sorted[0].outcome;
       let icon = sorted[0].icon;
-      let slug = sorted[0].slug;
-      let eventSlug = sorted[0].eventSlug;
-      let conditionId = sorted[0].conditionId;
-      let asset = sorted[0].asset;
-      let outcomeIndex = sorted[0].outcomeIndex;
 
       const flush = () => {
         if (buyShares <= 0) return;
@@ -127,11 +121,6 @@ export default function PositionOutcomeList({
             title,
             outcome,
             icon,
-            slug,
-            eventSlug,
-            conditionId,
-            asset,
-            outcomeIndex,
             boughtShares: buyShares,
             soldShares: buyShares,
             avgBuyPrice,
@@ -161,11 +150,6 @@ export default function PositionOutcomeList({
           title,
           outcome,
           icon,
-          slug,
-          eventSlug,
-          conditionId,
-          asset,
-          outcomeIndex,
           boughtShares: buyShares,
           soldShares: sellShares,
           avgBuyPrice,
@@ -182,11 +166,6 @@ export default function PositionOutcomeList({
         if (t.title) title = t.title;
         if (t.outcome) outcome = t.outcome;
         if (t.icon) icon = t.icon;
-        if (t.slug) slug = t.slug;
-        if (t.eventSlug) eventSlug = t.eventSlug;
-        if (t.conditionId) conditionId = t.conditionId;
-        if (t.asset) asset = t.asset;
-        if (Number.isFinite(t.outcomeIndex)) outcomeIndex = t.outcomeIndex;
 
         if (t.side === 'BUY') {
           if (hadSell) flush();
@@ -225,10 +204,8 @@ export default function PositionOutcomeList({
       .map(
         // Strip internal fields before passing to child components
         ({ key, title, outcome, icon, boughtShares, soldShares,
-           slug, eventSlug, conditionId, asset, outcomeIndex,
            avgBuyPrice, avgSellPrice, realizedPnl }): AggregatedTradeOutcome => ({
-          key, title, outcome, icon, slug, eventSlug, conditionId, asset,
-          outcomeIndex, boughtShares, soldShares,
+          key, title, outcome, icon, boughtShares, soldShares,
           avgBuyPrice, avgSellPrice, realizedPnl,
         }),
       );

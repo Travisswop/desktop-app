@@ -30,7 +30,6 @@ import { v4 as uuidv4 } from 'uuid';
 import Cookies from 'js-cookie';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import logger from '@/utils/logger';
-import { copyTextToClipboard } from '@/lib/clipboard';
 
 const AddBankModal = ({ bankShow, setBankShow }: any) => {
   const [stepper, setStepper] = useState('bank-account');
@@ -384,8 +383,7 @@ const AddBankModal = ({ bankShow, setBankShow }: any) => {
   // Utility function to handle copying and state updates
   const handleCopy = async (text: string, itemId: string) => {
     try {
-      const didCopy = await copyTextToClipboard(text);
-      if (!didCopy) throw new Error('Unable to copy text');
+      await navigator.clipboard.writeText(text);
       setCopiedItem(itemId); // Set the copied item ID
       setTimeout(() => setCopiedItem(''), 2000); // Reset after 2 seconds
     } catch (err) {

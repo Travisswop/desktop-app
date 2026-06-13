@@ -14,7 +14,7 @@ const customJestConfig = {
     '!**/*.d.ts',
     '!**/node_modules/**',
   ],
-  moduleNameMapper: {
+  moduleNameMapping: {
     '^@/(.*)$': '<rootDir>/$1',
   },
   testTimeout: 10000,

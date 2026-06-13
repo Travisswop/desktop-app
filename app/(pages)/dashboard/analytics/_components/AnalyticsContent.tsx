@@ -19,11 +19,6 @@ interface MetricCardProps {
   period: string;
 }
 
-interface AnalyticsContentProps {
-  userData: any;
-  analyticsData: any;
-}
-
 const MetricCard = ({ value, label, period }: MetricCardProps) => (
   <div className="flex flex-col items-center p-4 bg-white rounded-lg border border-gray-200">
     <div className="flex items-center gap-2 mb-2">
@@ -44,12 +39,10 @@ const MetricCard = ({ value, label, period }: MetricCardProps) => (
   </div>
 );
 
-const AnalyticsContent = ({
-  userData,
-  analyticsData,
-}: AnalyticsContentProps) => {
-  const [selectectedSmartsiteData, setSelectectedSmartsiteData] =
-    useState<any>(userData?.microsites?.[0]);
+const AnalyticsContent = ({ userData, analyticsData }) => {
+  const [selectectedSmartsiteData, setSelectectedSmartsiteData] = useState(
+    userData.microsites[0]
+  );
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   console.log("selectectedSmartsiteData", selectectedSmartsiteData);
@@ -122,7 +115,7 @@ const AnalyticsContent = ({
           </h2>
           <div className="space-y-3">
             {userData &&
-              userData.microsites.map((microsite: any, index: number) => (
+              userData.microsites.map((microsite, index: number) => (
                 <div
                   key={microsite._id}
                   className="flex items-center justify-between p-3 rounded-lg cursor-pointer shadow-small hover:shadow-medium"
@@ -176,7 +169,7 @@ const AnalyticsContent = ({
 
           {/* Social Links */}
           <div className="space-y-3">
-            {selectectedSmartsiteData.info.socialTop.map((item: any, index: number) => (
+            {selectectedSmartsiteData.info.socialTop.map((item, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between pb-3 border-b"
@@ -199,7 +192,7 @@ const AnalyticsContent = ({
               </div>
             ))}
 
-            {selectectedSmartsiteData.info.infoBar.map((item: any, index: number) => (
+            {selectectedSmartsiteData.info.infoBar.map((item, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between pb-3 border-b"
@@ -234,7 +227,7 @@ const AnalyticsContent = ({
                 </span>
               </div>
             ))}
-            {selectectedSmartsiteData.info.socialLarge.map((item: any, index: number) => (
+            {selectectedSmartsiteData.info.socialLarge.map((item, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between pb-3 border-b"
@@ -269,7 +262,7 @@ const AnalyticsContent = ({
                 </span>
               </div>
             ))}
-            {selectectedSmartsiteData.info.blog.map((item: any, index: number) => (
+            {selectectedSmartsiteData.info.blog.map((item, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between pb-3 border-b"
@@ -293,7 +286,7 @@ const AnalyticsContent = ({
                 </span>
               </div>
             ))}
-            {selectectedSmartsiteData.info.audio.map((item: any, index: number) => (
+            {selectectedSmartsiteData.info.audio.map((item, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between pb-3 border-b"
@@ -317,7 +310,7 @@ const AnalyticsContent = ({
                 </span>
               </div>
             ))}
-            {selectectedSmartsiteData.info.video.map((item: any, index: number) => (
+            {selectectedSmartsiteData.info.video.map((item, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between pb-3 border-b"
@@ -342,7 +335,7 @@ const AnalyticsContent = ({
                 </span>
               </div>
             ))}
-            {selectectedSmartsiteData.info.contact.map((item: any, index: number) => (
+            {selectectedSmartsiteData.info.contact.map((item, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between pb-3 border-b"

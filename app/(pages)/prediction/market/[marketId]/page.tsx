@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { PolymarketProviders, useTrading } from '@/providers/polymarket';
-import { usePolymarketCollateralBalance } from '@/hooks/polymarket';
+import { usePolygonBalances } from '@/hooks/polymarket';
 import MarketDetailView from '@/components/wallet/polymarket/Markets/MarketDetailView';
 import {
   useMarketDetailStore,
@@ -29,19 +29,13 @@ export default function MarketDetailPage() {
 
 function MarketDetailPageInner() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const params = useParams<{ marketId: string }>();
   const marketId = decodeURIComponent(params?.marketId ?? '');
   const { safeAddress, portfolioAddresses } = useTrading();
   const portfolioAddressInput = portfolioAddresses.length
     ? portfolioAddresses
     : safeAddress;
-  const {
-    orderableBalance,
-    displayBalance,
-    legacyBalanceHint,
-    isNormalizingCollateral,
-  } = usePolymarketCollateralBalance(portfolioAddressInput);
+  const { usdcBalance } = usePolygonBalances(portfolioAddressInput);
 
   const entry = useMarketDetailStore((s) => s.entries[marketId]);
   const clearEntry = useMarketDetailStore((s) => s.clear);
@@ -85,58 +79,12 @@ function MarketDetailPageInner() {
     <MarketDetailView
       onClose={handleBack}
       market={snapshot.market}
-      balance={orderableBalance}
-      displayBalance={displayBalance}
-      balanceHint={legacyBalanceHint}
-      isConvertingBalance={isNormalizingCollateral}
+      balance={usdcBalance}
       yesShares={snapshot.yesShares}
       noShares={snapshot.noShares}
-      initialOutcome={
-        snapshot.initialOutcome ||
-        normalizeOutcomeParam(searchParams?.get('outcome') ?? null)
-      }
-      initialAmount={snapshot.initialAmount || searchParams?.get('amount') || undefined}
-      initialSide={
-        snapshot.initialSide || normalizeSideParam(searchParams?.get('side') ?? null)
-      }
-      initialOrderType={
-        snapshot.initialOrderType ||
-        normalizeOrderTypeParam(searchParams?.get('orderType') ?? null)
-      }
-      initialLimitPrice={
-        snapshot.initialLimitPrice ||
-        searchParams?.get('limitPrice') ||
-        undefined
-      }
-      agentProposalId={searchParams?.get('proposalId') || undefined}
-      onAgentActionComplete={(completion) => {
-        if (completion.groupId) {
-          router.push(
-            `/dashboard/chat?groupId=${encodeURIComponent(
-              completion.groupId,
-            )}`,
-          );
-        } else {
-          router.push('/dashboard/chat');
-        }
-      }}
-      onAddFunds={() => router.push('/prediction?funds=deposit')}
+      initialOutcome={snapshot.initialOutcome}
+      initialAmount={snapshot.initialAmount}
       outcomeLabels={snapshot.outcomeLabels}
     />
   );
-}
-
-function normalizeOutcomeParam(value: string | null): 'yes' | 'no' | undefined {
-  if (value === 'yes' || value === 'no') return value;
-  return undefined;
-}
-
-function normalizeSideParam(value: string | null): 'BUY' | 'SELL' | undefined {
-  if (value === 'BUY' || value === 'SELL') return value;
-  return undefined;
-}
-
-function normalizeOrderTypeParam(value: string | null): 'market' | 'limit' | undefined {
-  if (value === 'market' || value === 'limit') return value;
-  return undefined;
 }

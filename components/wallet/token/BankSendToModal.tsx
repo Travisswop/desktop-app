@@ -473,7 +473,7 @@ export default function BankSendToModal({
           tokenLogo={selectedToken.logoURI}
           tokenSymbol={selectedToken.symbol}
           tokenDecimals={selectedToken.decimals}
-          tokenPrice={selectedToken.marketData?.price || "0"}
+          tokenPrice={selectedToken.marketData.price}
           isUSD={isUSD}
         />
       )}

@@ -2,23 +2,20 @@
 
 import React, { FC, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { fetchTokenLivePrice } from "@/lib/utils/marketPriceClient";
+
+const CHAIN_MAP: Record<number, string> = {
+  1: "ethereum",
+  137: "polygon",
+  8453: "base",
+  1151111081099710: "solana",
+};
 
 type Props = {
   outputToken: {
     mint?: string;
-    address?: string;
-    chain?: number | string;
-    chainId?: number | string;
-    network?: string;
+    chainId?: number;
     price?: number | string;
     amount?: number | string;
-    symbol?: string;
-    usdPrice?: number | string;
-    marketData?: {
-      price?: number | string;
-      currentPrice?: number | string;
-    };
   };
   token: string; // Auth token passed as prop instead of Redux
   apiUrl?: string; // Optional API URL
@@ -32,39 +29,67 @@ const TokenValueChangeFetcher: FC<Props> = ({
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const buyPrice = Number(
-    outputToken?.price || outputToken?.usdPrice || outputToken?.marketData?.price,
-  );
+  const buyPrice = Number(outputToken?.price);
   const buyAmount = Number(outputToken?.amount);
 
   /** ---------------- FETCH LIVE PRICE ---------------- */
   useEffect(() => {
-    let cancelled = false;
-
     const fetchPrice = async () => {
+      if (!outputToken?.chainId) {
+        setCurrentPrice(buyPrice || null);
+        return;
+      }
+
+      const chain = CHAIN_MAP[outputToken.chainId];
+      if (!chain) {
+        setCurrentPrice(buyPrice || null);
+        return;
+      }
+
+      const address = outputToken.mint || null;
+      const key = address ? address.toLowerCase() : "native";
+
       try {
-        if (!cancelled) setIsLoading(true);
-        const price = await fetchTokenLivePrice({
-          outputToken,
-          apiUrl,
-          authToken: token,
+        setIsLoading(true);
+        const payload = {
+          tokens: [
+            {
+              address,
+              chain,
+            },
+          ],
+        };
+
+        const res = await fetch(`${apiUrl}/api/v5/market/prices`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
         });
 
-        if (!cancelled) setCurrentPrice(price ?? (buyPrice || null));
+        if (!res.ok) {
+          throw new Error("Price fetch failed");
+        }
+
+        const json = await res.json();
+        const livePrice = json?.data?.prices?.[key]?.price;
+
+        setCurrentPrice(
+          livePrice !== undefined && livePrice !== null
+            ? Number(livePrice)
+            : buyPrice || null
+        );
       } catch (error) {
         console.error("Error fetching price:", error);
-        if (!cancelled) setCurrentPrice(buyPrice || null);
+        setCurrentPrice(buyPrice || null);
       } finally {
-        if (!cancelled) setIsLoading(false);
+        setIsLoading(false);
       }
     };
 
     fetchPrice();
-    const interval = window.setInterval(fetchPrice, 30000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
   }, [buyPrice, outputToken, token, apiUrl]);
 
   /** ---------------- CALCULATION ---------------- */

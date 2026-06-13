@@ -24,7 +24,7 @@ interface Props {
     poolId: string;
   };
   socialType: string;
-  parentId?: string;
+  parentId: string;
   number: number;
   accessToken: string;
   fontColor?: string;

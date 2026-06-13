@@ -18,40 +18,27 @@ const normalizeChain = (chain: string): ChainType =>
  */
 export const useMultiChainTokenData = (
   solWalletAddress?: string,
-  evmWalletAddress?: string | string[],
+  evmWalletAddress?: string,
   chains: ChainType[] = ['ETHEREUM']
 ) => {
   const { accessToken } = useUser();
 
   // Build wallet list based on provided addresses and chains
   const wallets: WalletInput[] = [];
-  const evmWalletAddresses = Array.from(
-    new Set(
-      (Array.isArray(evmWalletAddress)
-        ? evmWalletAddress
-        : [evmWalletAddress]
-      )
-        .filter((address): address is string => Boolean(address))
-        .map((address) => address.trim())
-        .filter(Boolean)
-    )
-  );
 
-  if (evmWalletAddresses.length) {
+  if (evmWalletAddress) {
     // Add requested EVM chains
     const evmChains = chains.filter((chain) => chain !== 'SOLANA');
-    evmWalletAddresses.forEach((address) => {
-      for (const chain of evmChains) {
-        wallets.push({
-          address,
-          chain: chain.toLowerCase() as
-            | 'ethereum'
-            | 'polygon'
-            | 'base'
-            | 'arbitrum',
-        });
-      }
-    });
+    for (const chain of evmChains) {
+      wallets.push({
+        address: evmWalletAddress,
+        chain: chain.toLowerCase() as
+          | 'ethereum'
+          | 'polygon'
+          | 'base'
+          | 'arbitrum',
+      });
+    }
   }
 
   if (solWalletAddress && chains.includes('SOLANA')) {
@@ -65,9 +52,8 @@ export const useMultiChainTokenData = (
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: [
       'walletTokens',
-      'owner-address-v3',
       solWalletAddress,
-      evmWalletAddresses,
+      evmWalletAddress,
       chains,
       accessToken,
     ],

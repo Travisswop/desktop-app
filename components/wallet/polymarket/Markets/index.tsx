@@ -1,19 +1,12 @@
 'use client';
 
-import {
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useMemo, useEffect, useRef, useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { useTrading } from '@/providers/polymarket';
 import {
   useMarkets,
-  usePolymarketCollateralBalance,
+  usePolygonBalances,
   useUserPositions,
   useBtc5mPolymarketMarket,
   type PolymarketMarket,
@@ -100,7 +93,6 @@ export default function HighVolumeMarkets({
     initialSportSub ?? DEFAULT_SPORT_SUBCATEGORY,
   );
   const [searchQuery, setSearchQuery] = useState('');
-  const deferredSearchQuery = useDeferredValue(searchQuery);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // BTC 5-min order modal state
@@ -111,11 +103,7 @@ export default function HighVolumeMarkets({
   const portfolioAddressInput = portfolioAddresses.length
     ? portfolioAddresses
     : safeAddress;
-  const {
-    orderableBalance,
-    displayBalance,
-    legacyBalanceHint,
-  } = usePolymarketCollateralBalance(portfolioAddressInput);
+  const { usdcBalance } = usePolygonBalances(portfolioAddressInput);
   const { data: positions } = useUserPositions(portfolioAddressInput);
 
   const isSportsActive = activeCategory === 'sports';
@@ -134,7 +122,7 @@ export default function HighVolumeMarkets({
       return (
         sportsMeta?.tagIdBySlug.get('sports') ??
         getCategoryById('sports')?.tagId ??
-        1
+        100639
       );
     }
 
@@ -157,17 +145,16 @@ export default function HighVolumeMarkets({
   } = useMarkets({
     categoryId: activeCategory,
     overrideTagId,
-    searchQuery: deferredSearchQuery,
     enabled: !isSportsActive,
   });
 
   const allMarkets = useMemo(() => marketsData?.pages.flat() ?? [], [marketsData]);
 
   const filteredMarkets = useMemo(() => {
-    if (!deferredSearchQuery.trim()) return allMarkets;
-    const q = deferredSearchQuery.toLowerCase();
+    if (!searchQuery.trim()) return allMarkets;
+    const q = searchQuery.toLowerCase();
     return allMarkets.filter((m) => m.question.toLowerCase().includes(q));
-  }, [allMarkets, deferredSearchQuery]);
+  }, [allMarkets, searchQuery]);
 
   // ── Sports events ─────────────────────────────────────────────────────────
   const {
@@ -179,7 +166,6 @@ export default function HighVolumeMarkets({
     isFetchingNextPage: isFetchingNextSportsPage,
   } = useSportsEvents({
     tagId: overrideTagId,
-    searchQuery: deferredSearchQuery,
     enabled: isSportsActive,
   });
 
@@ -194,10 +180,10 @@ export default function HighVolumeMarkets({
   }, [allSportsMarkets, teamsData]);
 
   const filteredGames = useMemo(() => {
-    if (!deferredSearchQuery.trim()) return allGames;
-    const q = deferredSearchQuery.toLowerCase();
+    if (!searchQuery.trim()) return allGames;
+    const q = searchQuery.toLowerCase();
     return allGames.filter((g) => g.title.toLowerCase().includes(q));
-  }, [allGames, deferredSearchQuery]);
+  }, [allGames, searchQuery]);
 
   // ── Unified pagination state (drives the single sentinel) ────────────────
   const isLoading = isSportsActive ? isSportsLoading : isMarketsLoading;
@@ -285,7 +271,6 @@ export default function HighVolumeMarkets({
     tokenId: string,
     _negRisk: boolean,
   ) => {
-    void _negRisk;
     const market = allMarkets?.find((m) => m.question === marketTitle);
     if (!market) return;
 
@@ -464,15 +449,9 @@ export default function HighVolumeMarkets({
       initialOutcome={btcInitialOutcome}
       upTokenId={btcTokenIds.upTokenId}
       downTokenId={btcTokenIds.downTokenId}
-      conditionId={btc5mMarket.market?.conditionId}
-      marketSlug={btc5mMarket.market?.slug}
-      windowLabel={btc5mMarket.market?.windowLabel}
-      windowStart={btc5mMarket.market?.windowStart}
       negRisk={btc5mMarket.market?.negRisk ?? false}
       orderMinSize={btc5mMarket.market?.orderMinSize ?? MIN_ORDER_SIZE}
-      balance={orderableBalance}
-      displayBalance={displayBalance}
-      balanceHint={legacyBalanceHint}
+      balance={usdcBalance}
       upShares={btcShares.upShares}
       downShares={btcShares.downShares}
     />

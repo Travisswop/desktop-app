@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { CartItem } from '../components/types';
 import { useParams } from 'next/navigation';
+import { useUser } from '@/lib/UserContext';
 import { useMicrositeData } from '../../context/MicrositeContext';
 
 interface CartState {
@@ -16,6 +17,8 @@ interface CartState {
   loading: boolean;
   error: string | null;
 }
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 type CartAction =
   | { type: 'SET_CART'; payload: CartItem[] }
@@ -39,9 +42,6 @@ const initialState: CartState = {
 const getCartStorageKey = (username: string) =>
   `marketplace-cart-${username}`;
 
-const isMarketplaceCartItem = (item: CartItem) =>
-  Boolean(item?.marketplaceProductId);
-
 // Helper function to save cart to localStorage
 const saveCartToLocalStorage = (
   items: CartItem[],
@@ -49,9 +49,8 @@ const saveCartToLocalStorage = (
 ) => {
   if (typeof window !== 'undefined' && username) {
     const storageKey = getCartStorageKey(username);
-    const marketplaceItems = (items || []).filter(isMarketplaceCartItem);
-    if (marketplaceItems.length > 0) {
-      localStorage.setItem(storageKey, JSON.stringify(marketplaceItems));
+    if (items && items.length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify(items));
     } else {
       localStorage.removeItem(storageKey);
     }
@@ -69,11 +68,7 @@ const loadCartFromLocalStorage = (
       try {
         const parsedCart = JSON.parse(savedCart);
         if (Array.isArray(parsedCart) && parsedCart.length > 0) {
-          const marketplaceItems = parsedCart.filter(isMarketplaceCartItem);
-          if (marketplaceItems.length > 0) {
-            return marketplaceItems;
-          }
-          localStorage.removeItem(storageKey);
+          return parsedCart;
         }
       } catch (error) {
         console.error('Error parsing cart from localStorage:', error);
@@ -170,6 +165,7 @@ const CartContext = createContext<CartContextType | undefined>(
 export const CartProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
+  const { user, loading: userLoading, accessToken } = useUser();
   const { micrositeData } = useMicrositeData();
   const [sellerId, setSellerId] = useState<string | null>(null);
   const params = useParams();
@@ -186,7 +182,7 @@ export const CartProvider: React.FC<{
   const subtotal =
     state.items?.reduce(
       (total, item) =>
-        total + Number(item.nftTemplate?.price || 0) * item.quantity,
+        total + (item.nftTemplate?.price || 0) * item.quantity,
       0
     ) || 0;
 
@@ -211,39 +207,99 @@ export const CartProvider: React.FC<{
   const hasPhygitalProducts =
     state.items?.some(
       (item) => item.nftTemplate?.nftType === 'phygital'
-        || item.productType === 'physical'
     ) || false;
 
-  // Load the SmartSite marketplace cart from localStorage for every buyer state.
+  // Load cart from localStorage on mount if user is not authenticated
   useEffect(() => {
-    if (!username) return;
+    if (!userLoading && !user && username) {
+      const savedCart = loadCartFromLocalStorage(username);
+      if (savedCart) {
+        dispatch({ type: 'SET_CART', payload: savedCart });
 
-    const savedCart = loadCartFromLocalStorage(username);
-    if (savedCart) {
-      dispatch({ type: 'SET_CART', payload: savedCart });
-
-      if (savedCart.length > 0 && savedCart[0].sellerId) {
-        setSellerId(savedCart[0].sellerId);
+        // Extract sellerId from the first cart item for unauthenticated users
+        if (savedCart.length > 0 && savedCart[0].sellerId) {
+          setSellerId(savedCart[0].sellerId);
+        }
       }
     }
-  }, [username]);
+  }, [user, userLoading, username]);
 
+  // Fetch cart data from backend for authenticated users
   useEffect(() => {
-    if (micrositeData?._id) {
-      setSellerId(micrositeData._id);
-    }
-  }, [micrositeData?._id]);
+    const fetchCartFromBackend = async () => {
+      // Don't proceed if user data is still loading
+      if (userLoading) return;
 
-  // Also update the sellerId when new items are added to the cart.
+      // If user is authenticated, fetch from backend
+      if (user) {
+        try {
+          dispatch({ type: 'SET_LOADING', payload: true });
+
+          const response = await fetch(
+            `${API_URL}/api/v5/orders/getUserCart/${micrositeData?._id}`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch cart data');
+          }
+
+          const { data: cartData } = await response.json();
+
+          // Check if data structure is as expected
+          if (cartData.cartItems) {
+            dispatch({
+              type: 'SET_CART',
+              payload: cartData.cartItems,
+            });
+
+            // Make sure we have a valid parentId before setting
+            if (micrositeData && micrositeData._id) {
+              setSellerId(micrositeData._id);
+            } else if (
+              cartData.cartItems &&
+              cartData.cartItems.length > 0 &&
+              cartData.cartItems[0].sellerId
+            ) {
+              // Alternative: try to get sellerId from first cart item
+              setSellerId(cartData.cartItems[0].sellerId);
+            } else {
+              console.warn('No seller ID found in response data');
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching cart:', error);
+          dispatch({
+            type: 'SET_ERROR',
+            payload:
+              'Failed to load cart data. Please try again later.',
+          });
+        } finally {
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
+      }
+    };
+
+    fetchCartFromBackend();
+  }, [user, username, userLoading, accessToken]);
+
+  // Also update the sellerId when new items are added to the cart for unauthenticated users
   useEffect(() => {
+    // For unauthenticated users, update sellerId when cart items change
     if (
+      !user &&
       state.items.length > 0 &&
       state.items[0].sellerId &&
       !sellerId
     ) {
       setSellerId(state.items[0].sellerId);
     }
-  }, [state.items, sellerId]);
+  }, [state.items, user, sellerId]);
 
   return (
     <CartContext.Provider

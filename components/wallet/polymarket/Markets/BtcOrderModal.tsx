@@ -21,7 +21,6 @@ import { usePolymarketWallet } from '@/providers/polymarket';
 import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import { postFeed } from '@/actions/postFeed';
-import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 
 import Portal from '../shared/Portal';
@@ -34,10 +33,6 @@ import YoullReceiveDisplay from '../OrderModal/YoullReceiveDisplay';
 import OrderConfirmSheet, {
   type PendingOrderData,
 } from '../shared/OrderConfirmSheet';
-import {
-  getSafePolymarketMaxBuyAmount,
-  getSafePolymarketMaxLimitShares,
-} from '@/lib/polymarket/validation';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -72,15 +67,9 @@ export interface BtcOrderModalProps {
   /** Token IDs from the Polymarket backing market (Up = yes token, Down = no token) */
   upTokenId: string;
   downTokenId: string;
-  conditionId?: string;
-  marketSlug?: string;
-  windowLabel?: string;
-  windowStart?: number;
   negRisk: boolean;
   orderMinSize?: number;
   balance: number;
-  displayBalance?: number;
-  balanceHint?: string;
   upShares?: number;
   downShares?: number;
 }
@@ -93,15 +82,9 @@ export default function BtcOrderModal({
   initialOutcome,
   upTokenId,
   downTokenId,
-  conditionId,
-  marketSlug,
-  windowLabel,
-  windowStart,
   negRisk,
   orderMinSize = MIN_ORDER_SIZE,
   balance,
-  displayBalance = balance,
-  balanceHint,
   upShares = 0,
   downShares = 0,
 }: BtcOrderModalProps) {
@@ -145,7 +128,7 @@ export default function BtcOrderModal({
   const { tickSize, isLoading: isLoadingTickSize } = useTickSize(
     isOpen ? activeTokenId : null,
   );
-  const { submitOrder, isSubmitting, orderStage, error: orderError, orderId, resetOrder } = useClobOrder(
+  const { submitOrder, isSubmitting, error: orderError, orderId, resetOrder } = useClobOrder(
     clobClient,
     eoaAddress,
   );
@@ -173,8 +156,6 @@ export default function BtcOrderModal({
     side === 'BUY'
       ? totalCost - balance > EPSILON
       : inputNum - activeShares > EPSILON;
-  const hasPendingCollateral =
-    side === 'BUY' && displayBalance - balance > EPSILON;
 
   // ── State reset ─────────────────────────────────────────────────────────
   // Called on every close path so the modal is always blank when reopened.
@@ -297,7 +278,6 @@ export default function BtcOrderModal({
       potentialWin,
       amountToReceive,
       priceDecimal: effectivePrice,
-      acceptedPrice: effectivePrice,
       tokenId: activeTokenId,
       size: orderSize,
       price: isLimitVariant ? limitPriceNum : undefined,
@@ -315,25 +295,15 @@ export default function BtcOrderModal({
         tokenId: pendingOrder.tokenId,
         size: pendingOrder.size,
         price: pendingOrder.price,
-        acceptedPrice: pendingOrder.acceptedPrice,
         side: pendingOrder.side,
         negRisk: pendingOrder.negRisk,
         isMarketOrder: pendingOrder.isMarketOrder,
         fillType: pendingOrder.fillType,
         expiration: pendingOrder.expiration,
-        showWalletUIs: false,
       });
 
       // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
       if (result?.success && user?.primaryMicrosite && user?._id) {
-        const feedExecution = resolvePredictionFeedExecution(result, {
-          side: pendingOrder.side,
-          cost: pendingOrder.cost,
-          potentialWin: pendingOrder.potentialWin,
-          price: pendingOrder.priceDecimal,
-          acceptedPrice: pendingOrder.acceptedPrice,
-        });
-
         getAccessToken()
           .then((token) => {
             if (!token) return;
@@ -344,25 +314,13 @@ export default function BtcOrderModal({
                 userId: user._id,
                 content: {
                   marketTitle: `BTC 5-Minute Up or Down`,
-                  marketType: 'btc5m',
-                  marketId: conditionId,
-                  marketSlug,
-                  btcWindowStart: windowStart,
-                  btcWindowLabel: windowLabel,
                   outcome: pendingOrder.outcomeName,
                   side: pendingOrder.side,
-                  cost: feedExecution.cost,
-                  potentialWin: feedExecution.potentialWin,
-                  price: feedExecution.price,
+                  cost: pendingOrder.cost,
+                  potentialWin: pendingOrder.potentialWin,
+                  price: pendingOrder.priceDecimal,
                   orderId: result.orderId,
                   orderType,
-                  ...feedExecution.fields,
-                  yesOutcome: 'Up',
-                  noOutcome: 'Down',
-                  yesTokenId: upTokenId,
-                  noTokenId: downTokenId,
-                  yesPrice: upPrice,
-                  noPrice: downPrice,
                 },
               },
               token,
@@ -386,11 +344,9 @@ export default function BtcOrderModal({
 
   const handleMaxAmount = () => {
     if (isLimitVariant && limitPriceNum > 0) {
-      setInputValue(
-        String(getSafePolymarketMaxLimitShares(balance, limitPriceNum)),
-      );
+      setInputValue(String(Math.floor(balance / limitPriceNum)));
     } else if (balance > 0) {
-      setInputValue(getSafePolymarketMaxBuyAmount(balance).toFixed(2));
+      setInputValue((Math.floor((balance - 0.000001) * 100) / 100).toFixed(2));
     }
     setLocalError(null);
   };
@@ -550,8 +506,6 @@ export default function BtcOrderModal({
                 amount={inputValue}
                 onAmountChange={(v) => { setInputValue(v); setLocalError(null); }}
                 balance={balance}
-                displayBalance={displayBalance}
-                balanceHint={balanceHint}
                 onQuickAmount={(a) => { setInputValue(String(a)); setLocalError(null); }}
                 onMaxAmount={handleMaxAmount}
                 isSubmitting={isSubmitting}
@@ -581,13 +535,6 @@ export default function BtcOrderModal({
                 isLoadingTickSize={isLoadingTickSize}
                 minShares={orderMinSize}
               />
-            )}
-
-            {hasPendingCollateral && (
-              <p className="text-[11px] text-amber-600 -mt-3 mb-4 text-center">
-                Orders use ready pUSD. Included USDC.e is converting before it
-                can be spent.
-              </p>
             )}
 
             {/* To win / You'll receive — live because effectivePrice and shares are re-derived */}
@@ -704,7 +651,6 @@ export default function BtcOrderModal({
           onClose={() => setPendingOrder(null)}
           onConfirm={handleConfirm}
           isSubmitting={isSubmitting}
-          orderStage={orderStage}
           marketTitle="BTC 5 Minute Up or Down"
           order={pendingOrder}
           error={orderError?.message}

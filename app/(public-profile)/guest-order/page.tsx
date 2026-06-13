@@ -56,7 +56,11 @@ export default function GuestOrderPage() {
       }
 
       // If verification is successful, redirect to the order details page
-      router.push(`/guest-order/${orderId}?email=${encodeURIComponent(email)}`);
+      router.push(
+        `/public-profile/guest-order/${orderId}?email=${encodeURIComponent(
+          email
+        )}`
+      );
     } catch (error: any) {
       setError(error.message || 'An unexpected error occurred');
     } finally {

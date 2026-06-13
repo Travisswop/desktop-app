@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2017",
     "lib": [
       "dom",
       "dom.iterable",
@@ -26,21 +26,14 @@
     "paths": {
       "@/*": [
         "./*"
-      ],
-      "react": [
-        "./node_modules/@types/react"
-      ],
-      "react-dom": [
-        "./node_modules/@types/react-dom"
       ]
     }
   },
   "include": [
+    "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    "next-env.d.ts",
-    ".next-dev/types/**/*.ts"
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { ChainId } from "@lifi/widget";
 import LiFiPrivyWrapper from "./LiFiPrivyWrapper";
+import { useWallets } from "@privy-io/react-auth";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { SolanaProvider } from "../SolanaProvider";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { TbArrowsExchange2 } from "react-icons/tb";
@@ -24,6 +26,12 @@ export default function SwapButton({
   initialAmount,
 }: SwapButtonProps) {
   const [openSwapModal, setOpenSwapModal] = useState(false);
+  const { wallets } = useWallets();
+  const { wallets: solWallets } = useSolanaWallets();
+
+  const hasWallets =
+    wallets.length > 0 || (solWallets && solWallets.length > 0);
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -32,55 +40,47 @@ export default function SwapButton({
   const outputTokenParam = searchParams?.get("outputToken");
   const amountParam = searchParams?.get("amount");
   const outputChainParam = searchParams?.get("outputChain");
-  const hasSwapUrlParams = Boolean(
-    inputTokenParam ||
-      outputTokenParam ||
-      amountParam ||
-      outputChainParam ||
-      searchParams?.get("inputMint") ||
-      searchParams?.get("outputMint") ||
-      searchParams?.get("copyTrade") ||
-      searchParams?.get("copyTradePostId")
-  );
-  const wasSwapModalOpenRef = useRef(false);
 
   // Auto-open modal if params exist
   useEffect(() => {
-    if (hasSwapUrlParams) {
+    if (
+      inputTokenParam ||
+      outputTokenParam ||
+      amountParam ||
+      outputChainParam
+    ) {
       setOpenSwapModal(true);
     }
-  }, [hasSwapUrlParams]);
+  }, [inputTokenParam, outputTokenParam, amountParam, outputChainParam]);
 
   useEffect(() => {
-    const wasOpen = wasSwapModalOpenRef.current;
-    wasSwapModalOpenRef.current = openSwapModal;
+    if (
+      !openSwapModal &&
+      (inputTokenParam || outputTokenParam || amountParam || outputChainParam)
+    ) {
+      const newParams = new URLSearchParams(searchParams as any);
+      // existing params
+      newParams.delete("inputToken");
+      newParams.delete("inputChain");
+      newParams.delete("outputToken");
+      newParams.delete("outputChain");
+      newParams.delete("amount");
+      // new feed params
+      newParams.delete("inputMint");
+      newParams.delete("inputImg");
+      newParams.delete("inputDecimals");
+      newParams.delete("outputMint");
+      newParams.delete("outputImg");
+      newParams.delete("outputDecimals");
 
-    if (!wasOpen || openSwapModal || !hasSwapUrlParams || !pathname) {
-      return;
+      router.replace(`${pathname}?${newParams.toString()}`);
     }
-
-    const newParams = new URLSearchParams(searchParams as any);
-    // existing params
-    newParams.delete("inputToken");
-    newParams.delete("inputChain");
-    newParams.delete("outputToken");
-    newParams.delete("outputChain");
-    newParams.delete("amount");
-    // new feed params
-    newParams.delete("inputMint");
-    newParams.delete("inputImg");
-    newParams.delete("inputDecimals");
-    newParams.delete("outputMint");
-    newParams.delete("outputImg");
-    newParams.delete("outputDecimals");
-    newParams.delete("copyTrade");
-    newParams.delete("copyTradePostId");
-
-    const nextQuery = newParams.toString();
-    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
   }, [
     openSwapModal,
-    hasSwapUrlParams,
+    inputTokenParam,
+    outputTokenParam,
+    amountParam,
+    outputChainParam,
     pathname,
     router,
     searchParams,

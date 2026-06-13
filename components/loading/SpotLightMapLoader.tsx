@@ -1,13 +1,13 @@
 const SpotLightMapLoader = () => {
   return (
-    <div className="flex h-full min-h-[calc(100vh-6rem)] w-full flex-col items-center justify-center overflow-hidden">
+    <div className="w-full h-full flex flex-col items-center justify-center">
       {/* Map Container Skeleton */}
-      <div className="relative h-full min-h-[calc(100vh-6rem)] w-full overflow-hidden bg-sky-100">
+      <div className="relative w-full h-[600px] bg-gray-200 rounded-2xl overflow-hidden shadow-lg">
         {/* Shimmer effect */}
         <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
         {/* Map background with gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-sky-200 via-emerald-100 to-blue-100" />
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-300 via-gray-200 to-gray-300" />
 
         {/* Simulated map grid */}
         <div className="absolute inset-0 opacity-10">
@@ -19,7 +19,12 @@ const SpotLightMapLoader = () => {
                 height="40"
                 patternUnits="userSpaceOnUse"
               >
-                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#2563eb" strokeWidth="1" />
+                <path
+                  d="M 40 0 L 0 0 0 40"
+                  fill="none"
+                  stroke="gray"
+                  strokeWidth="1"
+                />
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
@@ -27,9 +32,9 @@ const SpotLightMapLoader = () => {
         </div>
 
         {/* Multiple marker placeholders */}
-        <div className="absolute left-[45%] top-[35%] h-10 w-10 animate-pulse rounded-full bg-emerald-400 shadow-lg" />
-        <div className="absolute left-[60%] top-[55%] h-8 w-8 animate-pulse rounded-full bg-sky-400 shadow-md" />
-        <div className="absolute left-[30%] top-[40%] h-6 w-6 animate-pulse rounded-full bg-violet-400 shadow-md" />
+        <div className="absolute top-[35%] left-[45%] w-10 h-10 bg-gray-400 rounded-full animate-pulse shadow-lg" />
+        <div className="absolute top-[55%] left-[60%] w-8 h-8 bg-gray-300 rounded-full animate-pulse shadow-md" />
+        <div className="absolute top-[40%] left-[30%] w-6 h-6 bg-gray-300 rounded-full animate-pulse shadow-md" />
       </div>
     </div>
   );

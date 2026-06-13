@@ -17,8 +17,8 @@ export async function getNftData(
       }
     );
     //   revalidatePath(`/smartsites/icons/${contactCardInfo.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = response.json();
+
     return data;
   } catch (error) {
     console.error('Error from action:', error);

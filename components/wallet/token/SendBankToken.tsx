@@ -67,7 +67,7 @@ export default function SendBankToken({
     const fetchBanks = async () => {
       const externalDBInfo = await getDBExternalAccountInfo(
         userId,
-        accessToken ?? ""
+        accessToken
       );
       setExternalBanks(externalDBInfo?.data?.accounts || []);
     };
@@ -104,14 +104,9 @@ export default function SendBankToken({
     }
   };
   const handleSend = async (amount: any, isUSD: any) => {
-    if (!user?._id || !accessToken || !wallets?.[0]?.address) {
-      toast.error('Wallet or user information is unavailable');
-      return;
-    }
-
     // const kycData = await getKycInfo(user?._id);
     const externalData = await getDBExternalAccountInfo(
-      user._id,
+      user?._id,
       accessToken
     );
 

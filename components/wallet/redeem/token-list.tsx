@@ -8,7 +8,6 @@ import Image from 'next/image';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { usePrivy } from '@privy-io/react-auth';
 import RedeemModal from '../token/redeem-modal';
-import { copyTextToClipboard } from '@/lib/clipboard';
 
 export interface RedemptionPool {
   pool_id: string;
@@ -197,8 +196,7 @@ export default function RedeemTokenList() {
 
   const handleCopy = async (id: string, link: string) => {
     try {
-      const didCopy = await copyTextToClipboard(link);
-      if (!didCopy) throw new Error('Unable to copy link');
+      await navigator.clipboard.writeText(link);
       setCopiedId(id);
       toast.success('Link copied!');
       setTimeout(() => setCopiedId(null), 2000);

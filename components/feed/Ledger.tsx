@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation";
 import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
-import TokenTransferFeedCard from "./TokenTransferFeedCard";
+import { formatEns } from "@/lib/formatEnsName";
 
 dayjs.extend(relativeTime);
 
@@ -154,6 +154,9 @@ const Ledger = memo(
         receiver_ens,
         receiver_wallet_address,
         amount,
+        token,
+        chain,
+        tokenPrice,
         image,
         name,
         currency,
@@ -193,7 +196,24 @@ const Ledger = memo(
           </div>
         );
       } else if (transaction_type === "token") {
-        return <TokenTransferFeedCard feed={feed} />;
+        return (
+          <p className="text-black text-sm">
+            Transferred{" "}
+            <span className="font-medium">
+              {amount.toFixed(2)} {token}
+            </span>{" "}
+            {tokenPrice && <span>(${Number(tokenPrice).toFixed(2)})</span>}{" "}
+            tokens to{" "}
+            <a
+              href={`https://${recipientDisplay}`}
+              target="_blank"
+              className="font-semibold"
+            >
+              {formatEns(recipientDisplay)}
+            </a>{" "}
+            on the {chain}.
+          </p>
+        );
       } else {
         return (
           <p className="text-gray-600 text-sm">

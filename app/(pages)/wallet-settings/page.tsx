@@ -6,6 +6,7 @@ import {
   Settings,
   CreditCard,
   AlertTriangle,
+  X,
   Download,
   Share2,
 } from "lucide-react";
@@ -20,15 +21,19 @@ import CustomModal from "@/components/modal/CustomModal";
 import { SiEthereum, SiSolana } from "react-icons/si";
 import {
   useWallets as useSolanaWallets,
+  useFundWallet,
   useExportWallet as useSolanaExportWallet,
 } from "@privy-io/react-auth/solana";
+import coinbaseImg from "@/public/images/coinbase.png";
+import bridgeImg from "@/public/images/bridge.png";
+import Image from "next/image";
 import { QRCodeSVG } from "qrcode.react";
 import { useUser } from "@/lib/UserContext";
-import CoinbaseOnrampFunding from "@/components/wallet/CoinbaseOnrampFunding";
 
 export default function WalletSetting() {
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const { user } = useUser();
+  console.log(user);
 
   const [openKeysModal, setOpenKeysModal] = useState(false);
   const [openBuyCryptoModal, setOpenBuyCryptoModal] = useState(false);
@@ -36,6 +41,8 @@ export default function WalletSetting() {
   const { exportWallet, user: privyUser } = usePrivy();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { exportWallet: exportSolanaWallet } = useSolanaExportWallet();
+  const { fundWallet } = useFundWallet();
+  const [isLoading, setIsLoading] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
 
   // Check for wallets
@@ -72,6 +79,31 @@ export default function WalletSetting() {
     } catch (error) {
       console.error("Failed to export Solana wallet:", error);
     }
+  };
+
+  const handleCoinbaseClick = async () => {
+    if (!solanaWalletAddress) {
+      console.error("No wallet address available");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await fundWallet({
+        address: solanaWalletAddress,
+        asset: "USDC",
+        amount: "20",
+      });
+    } catch (error) {
+      console.error("Failed to open Coinbase funding:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBridgeClick = () => {
+    // Implement Bridge functionality
+    console.log("Bridge clicked");
   };
 
   const handleSaveQR = async () => {
@@ -304,10 +336,61 @@ export default function WalletSetting() {
         <CustomModal
           isOpen={openBuyCryptoModal}
           onCloseModal={setOpenBuyCryptoModal}
-          width="max-w-5xl"
         >
           <div className="relative bg-white rounded-2xl w-full mx-auto p-6">
-            <CoinbaseOnrampFunding />
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-semibold">Buy Crypto</h2>
+            </div>
+
+            <div className="space-y-6">
+              <div className="border p-6 rounded-2xl">
+                <h3 className="text-lg font-semibold mb-2 text-center">
+                  Add founds
+                </h3>
+                <p className="text-sm text-gray-500 text-center mb-6">
+                  Select a method for funding your Swop wallet.
+                </p>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={handleCoinbaseClick}
+                    disabled={isLoading || !solanaWalletAddress}
+                    className="w-full border-2 border-gray-200 rounded-xl p-4 flex items-center gap-4 hover:border-blue-500 hover:bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Image src={coinbaseImg} alt="coinbase" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Coinbase</span>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={handleBridgeClick}
+                    disabled={isLoading}
+                    className="w-full border-2 border-gray-200 rounded-xl p-4 flex items-center gap-4 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Image src={bridgeImg} alt="bridge" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Bridge</span>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-center pt-4">
+                <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
+                  Protected by
+                  <span className="font-semibold text-gray-700">privy</span>
+                </p>
+              </div>
+            </div>
           </div>
         </CustomModal>
       )}

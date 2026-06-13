@@ -5,7 +5,6 @@ import {
   useQueryClient,
   useInfiniteQuery,
 } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api/apiFetch';
 
 // Types based on the API guide
 interface OrderResponse {
@@ -186,7 +185,7 @@ export function useOrder(
       const url = `${
         process.env.NEXT_PUBLIC_API_URL
       }/api/v5/orders/${orderId}${refresh ? '?refresh=true' : ''}`;
-      const response = await apiFetch(url);
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(
@@ -235,7 +234,7 @@ export function useOrderList(
   return useQuery({
     queryKey: orderKeys.list(filtersForKey),
     queryFn: async () => {
-      const response = await apiFetch(
+      const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/orders/getUserOrders?${queryParams}`,
         {
           headers: {
@@ -281,7 +280,7 @@ export function useGuestOrder(
       const params = new URLSearchParams({ email });
       if (refresh) params.append('refresh', 'true');
 
-      const response = await apiFetch(
+      const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/orders/guest/${orderId}?${params}`
       );
 
@@ -321,7 +320,7 @@ export function useInfiniteOrders(
         ),
       });
 
-      const response = await apiFetch(
+      const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/orders?${queryParams}`,
         {
           headers: {
@@ -361,7 +360,7 @@ export function useRefreshOrder() {
 
   return useMutation({
     mutationFn: async (orderId: string) => {
-      const response = await apiFetch(
+      const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/orders/${orderId}?refresh=true`
       );
 
@@ -399,7 +398,7 @@ export function useRealtimeOrder(orderId: string) {
   const { data: order, ...queryResult } = useQuery({
     queryKey: orderKeys.detail(orderId, { refresh: false }),
     queryFn: async () => {
-      const response = await apiFetch(
+      const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/orders/${orderId}`
       );
       if (!response.ok) throw new Error('Failed to fetch order');
@@ -466,7 +465,7 @@ export function useErrorHandler() {
       await queryClient.fetchQuery({
         queryKey: orderKeys.detail(orderId, { refresh: true }),
         queryFn: () =>
-          apiFetch(
+          fetch(
             `${process.env.NEXT_PUBLIC_API_URL}/api/v5/orders/${orderId}?refresh=true`
           )
             .then((res) => res.json())

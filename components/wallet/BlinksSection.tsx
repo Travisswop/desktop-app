@@ -36,8 +36,6 @@ import {
   RENT_PER_TOKEN_ACCOUNT,
   type RedeemLinkToken,
 } from '@/lib/hooks/useCreateRedeemLink';
-import { copyTextToClipboard } from '@/lib/clipboard';
-import { useUser } from '@/lib/UserContext';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,15 +152,9 @@ function toRedeemLinkToken(t: SolanaToken): RedeemLinkToken {
 
 export default function BlinksSection() {
   const { user, authenticated, ready, user: PrivyUser } = usePrivy();
-  const { user: swopUser } = useUser();
 
   // ── Token fetching (for the inline picker) ─────────────────────────────────
-  const walletData = useWalletData(
-    authenticated,
-    ready,
-    PrivyUser,
-    swopUser,
-  );
+  const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
   const { tokens: rawTokens = [], loading: tokensLoading } =
@@ -213,26 +205,6 @@ export default function BlinksSection() {
   const [poolsLoading, setPoolsLoading] = useState(true);
   const [filter, setFilter] = useState<BlinkFilter>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (window.location.hash !== '#blinks') return;
-
-    const scrollToBlinks = () => {
-      document
-        .getElementById('blinks')
-        ?.scrollIntoView({ block: 'start' });
-    };
-
-    const frameId = window.requestAnimationFrame(scrollToBlinks);
-    const timeoutIds = [150, 600, 1200].map((delay) =>
-      window.setTimeout(scrollToBlinks, delay),
-    );
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      timeoutIds.forEach((id) => window.clearTimeout(id));
-    };
-  }, []);
 
   const fetchPools = useCallback(async () => {
     if (!user?.id) return;
@@ -407,8 +379,7 @@ export default function BlinksSection() {
 
   const handleCopy = async (poolId: string, link: string) => {
     try {
-      const didCopy = await copyTextToClipboard(link);
-      if (!didCopy) throw new Error('Unable to copy link');
+      await navigator.clipboard.writeText(link);
       setCopiedId(poolId);
       toast.success('Link copied!');
       setTimeout(() => setCopiedId(null), 1800);

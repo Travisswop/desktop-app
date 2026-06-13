@@ -21,9 +21,9 @@ export async function addProductToCart(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       throw new Error(
-        errorData?.message || 'Failed to add item to cart'
+        errorData.message || 'Failed to add item to cart'
       );
     }
 
@@ -53,9 +53,9 @@ export async function getCartData(token: string, parentId: string) {
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       throw new Error(
-        errorData?.message || 'Failed to fetch cart data'
+        errorData.message || 'Failed to fetch cart data'
       );
     }
 
@@ -84,9 +84,9 @@ export async function getNftDetails(payload: any) {
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       throw new Error(
-        errorData?.message || 'Failed to get NFT details'
+        errorData.message || 'Failed to get NFT details'
       );
     }
 
@@ -120,9 +120,9 @@ export async function updateCartQuantity(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       throw new Error(
-        errorData?.message || 'Failed to update cart quantity'
+        errorData.message || 'Failed to update cart quantity'
       );
     }
 
@@ -158,9 +158,9 @@ export async function deleteCartItem(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       throw new Error(
-        errorData?.message || 'Failed to remove item from cart'
+        errorData.message || 'Failed to remove item from cart'
       );
     }
 

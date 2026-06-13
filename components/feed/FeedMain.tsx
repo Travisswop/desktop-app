@@ -21,7 +21,6 @@ import Ledger from "./Ledger";
 import PostFeed from "./PostFeed";
 import CustomModal from "../modal/CustomModal";
 import { useModalStore } from "@/zustandStore/modalstore";
-import FeedMarketTicker from "./FeedMarketTicker";
 
 // Constants to avoid duplication
 const CONTAINER_HEIGHT = "calc(100vh - 150px)";
@@ -74,17 +73,13 @@ const useAuthData = (userId?: string) => {
 };
 
 // Custom hook for derived auth values
-const useEffectiveAuth = (
-  authData: AuthData | null,
-  user: any,
-  userAccessToken?: string | null,
-) => {
+const useEffectiveAuth = (authData: AuthData | null, user: any) => {
   return useMemo(
     () => ({
       userId: authData?.userId || user?._id,
-      accessToken: authData?.accessToken || userAccessToken,
+      accessToken: authData?.accessToken,
     }),
-    [authData?.userId, authData?.accessToken, user?._id, userAccessToken],
+    [authData?.userId, authData?.accessToken, user?._id],
   );
 };
 
@@ -318,14 +313,10 @@ const MainContentInner = memo(
 MainContentInner.displayName = "MainContentInner";
 
 const FeedMain = memo(() => {
-  const { user, accessToken: userAccessToken, loading: userLoading } = useUser();
+  const { user, loading: userLoading } = useUser();
   const searchParams = useSearchParams();
   const authData = useAuthData(user?._id);
-  const { userId, accessToken } = useEffectiveAuth(
-    authData,
-    user,
-    userAccessToken,
-  );
+  const { userId, accessToken } = useEffectiveAuth(authData, user);
   const primaryMicrositeImg = usePrimaryMicrositeImg(user?.microsites);
 
   const tab = useMemo(() => searchParams?.get("tab") || "feed", [searchParams]);
@@ -342,11 +333,6 @@ const FeedMain = memo(() => {
     }),
     [userId, accessToken, primaryMicrositeImg, tab],
   );
-  const isKnownTab = useMemo(
-    () => ["feed", "timeline", "transaction", "ledger", "map"].includes(tab),
-    [tab],
-  );
-  const activeTab = useMemo(() => (isKnownTab ? tab : "feed"), [isKnownTab, tab]);
 
   // Early return with loading state - after all hooks
   if (!userId || !accessToken || userLoading) {
@@ -358,15 +344,9 @@ const FeedMain = memo(() => {
   }
 
   return (
-    <div className="w-full h-full relative">
-      <FeedMarketTicker accessToken={accessToken as string} className="mb-6" />
-      <div className="w-full flex justify-center gap-4 2xl:gap-6 relative">
-        <MainContent
-          {...mainContentProps}
-          tab={activeTab}
-        />
-        {/* <RightSidebar {...rightSidebarProps} /> */}
-      </div>
+    <div className="w-full flex h-full justify-center relative">
+      <MainContent {...mainContentProps} />
+      {/* <RightSidebar {...rightSidebarProps} /> */}
     </div>
   );
 });

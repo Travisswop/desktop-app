@@ -7,11 +7,7 @@ export { useClobClient } from "./useClobClient";
 
 // Market and order hooks
 export { useMarkets, type PolymarketMarket } from "./useMarkets";
-export {
-  useClobOrder,
-  type OrderParams,
-  type OrderSubmissionStage,
-} from "./useClobOrder";
+export { useClobOrder, type OrderParams } from "./useClobOrder";
 export { useActiveOrders, type PolymarketOrder } from "./useActiveOrders";
 export { useUserPositions, type PolymarketPosition } from "./useUserPositions";
 
@@ -19,7 +15,6 @@ export { useUserPositions, type PolymarketPosition } from "./useUserPositions";
 export { useClobHeartbeat } from "./useClobHeartbeat";
 export { useUserOrdersChannel } from "./useUserOrdersChannel";
 export { usePolygonBalances } from "./usePolygonBalances";
-export { usePolymarketCollateralBalance } from "./usePolymarketCollateralBalance";
 export { useGeoblock, type GeoblockStatus } from "./useGeoblock";
 export { useTickSize } from "./useTickSize";
 export { useRedeemPosition } from "./useRedeemPosition";

@@ -8,7 +8,7 @@ import {
   useRedeemPosition,
   useUserPositions,
   useActiveOrders,
-  usePolymarketCollateralBalance,
+  usePolygonBalances,
   useNetDeposits,
   usePolymarketTeams,
   PolymarketPosition,
@@ -29,15 +29,10 @@ import PositionCard from './PositionCard';
 import OrderCard from '../Orders/OrderCard';
 import OrderPlacementModal from '../OrderModal';
 import PositionOutcomeList from './PositionOutcomeList';
-import PendingRedemptionNotice, {
-  type PendingRedemptionSnapshot,
-} from './PendingRedemptionNotice';
 
 import { createPollingInterval } from '@/lib/polymarket/polling';
 import {
-  getRedeemablePayout,
   hasRedeemablePayout,
-  isVisiblePortfolioPosition,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
 import {
@@ -136,17 +131,14 @@ export default function UserPositions() {
     error,
   } = useUserPositions(portfolioAddresses.length ? portfolioAddresses : safeAddress);
 
-  const {
-    orderableBalance,
-    displayBalance,
-    legacyBalanceHint,
-    totalUsdcBalance,
-  } = usePolymarketCollateralBalance(
+  const { usdcBalance } = usePolygonBalances(
     portfolioAddresses.length ? portfolioAddresses : safeAddress,
   );
   const { data: teamsData } = usePolymarketTeams();
+  console.log('safe address', safeAddress);
   const { data: netDeposits, isLoading: isNetDepositsLoading } =
     useNetDeposits(portfolioAddresses.length ? portfolioAddresses : safeAddress);
+  console.log('netDeposits', netDeposits);
 
   // Limit orders are placed from the Safe (proxy) wallet, so maker_address matches
   // safeAddress — not eoaAddress.  Using eoaAddress here would always return [].
@@ -248,37 +240,7 @@ export default function UserPositions() {
   const [pendingVerification, setPendingVerification] = useState<
     Map<string, number>
   >(new Map());
-  const [pendingRedemptions, setPendingRedemptions] = useState<
-    PendingRedemptionSnapshot[]
-  >([]);
   const queryClient = useQueryClient();
-
-  const rememberPendingRedemption = useCallback(
-    (
-      position: PolymarketPosition,
-      result?: { txId?: string; redeemedAmount?: number },
-    ) => {
-      const snapshot: PendingRedemptionSnapshot = {
-        asset: position.asset,
-        title: position.title,
-        outcome: position.outcome,
-        amount: result?.redeemedAmount ?? getRedeemablePayout(position),
-        txId: result?.txId,
-        position,
-      };
-
-      setPendingRedemptions((prev) => [
-        snapshot,
-        ...prev.filter((item) => item.asset !== position.asset),
-      ]);
-      setTimeout(() => {
-        setPendingRedemptions((prev) =>
-          prev.filter((item) => item.asset !== position.asset),
-        );
-      }, POLLING_DURATION);
-    },
-    [],
-  );
 
   useEffect(() => {
     if (!positions || pendingVerification.size === 0) return;
@@ -299,7 +261,6 @@ export default function UserPositions() {
         tokenId: position.asset,
         conditionId: position.conditionId,
         size: position.size,
-        acceptedPrice: position.curPrice,
         side: 'SELL',
         negRisk: position.negativeRisk,
         isMarketOrder: true,
@@ -337,7 +298,7 @@ export default function UserPositions() {
     if (!hasRedeemablePayout(position)) return;
     setRedeemingAsset(position.asset);
     try {
-      const result = await redeemPosition({
+      await redeemPosition({
         conditionId: position.conditionId,
         asset: position.asset,
         outcomeIndex: position.outcomeIndex,
@@ -345,22 +306,17 @@ export default function UserPositions() {
         size: position.size,
         safeAddress: safeAddress!,
       });
-      rememberPendingRedemption(position, result);
       queryClient.invalidateQueries({
         queryKey: ['polymarket-positions'],
       });
-      queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['usdcBalance'] });
       createPollingInterval(
         () => {
           queryClient.invalidateQueries({
             queryKey: ['polymarket-positions'],
           });
           queryClient.invalidateQueries({
-            queryKey: ['pusdBalance'],
-          });
-          queryClient.invalidateQueries({
-            queryKey: ['legacyUsdcBalance'],
+            queryKey: ['usdcBalance'],
           });
         },
         POLLING_INTERVAL,
@@ -376,13 +332,7 @@ export default function UserPositions() {
     } finally {
       setRedeemingAsset(null);
     }
-  }, [
-    isTradingSessionComplete,
-    safeAddress,
-    redeemPosition,
-    queryClient,
-    rememberPendingRedemption,
-  ]);
+  }, [isTradingSessionComplete, safeAddress, redeemPosition, queryClient]);
 
   const handleCancelOrder = async (orderId: string) => {
     setCancellingOrderId(orderId);
@@ -397,9 +347,11 @@ export default function UserPositions() {
 
   const activePositions = useMemo(() => {
     if (!positions) return [];
-    return positions.filter((p) =>
-      isVisiblePortfolioPosition(p, DUST_THRESHOLD),
-    );
+    return positions
+      .filter((p) => p.size >= DUST_THRESHOLD)
+      .filter(
+        (p) => p.redeemable || p.currentValue >= DUST_THRESHOLD,
+      );
   }, [positions]);
 
   // ── Market title lookup (asset_id → market question) ────────────────────
@@ -416,13 +368,17 @@ export default function UserPositions() {
   // ── Portfolio stats ──────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const deposited = netDeposits?.totalDeposited ?? 0;
+    console.log('deposited', deposited);
     const withdrawn = netDeposits?.totalWithdrawn ?? 0;
+    console.log('withdrawn', withdrawn);
     const positionsValue = activePositions.reduce(
       (s, p) => s + (p.currentValue ?? 0),
       0,
     );
+    console.log('positionsValue', positionsValue);
     const lifetimeEarned =
-      totalUsdcBalance + positionsValue + withdrawn - deposited;
+      usdcBalance + positionsValue + withdrawn - deposited;
+    console.log('lifetimeEarned', lifetimeEarned);
     if (!activePositions.length)
       return { portfolioPct: 0, lifetimeEarned, inOrdersValue: 0 };
 
@@ -446,7 +402,7 @@ export default function UserPositions() {
       }, 0);
 
     return { portfolioPct, lifetimeEarned, inOrdersValue };
-  }, [activePositions, activeOrders, netDeposits, totalUsdcBalance]);
+  }, [activePositions, activeOrders, netDeposits, usdcBalance]);
 
   const hasOutcomes = useMemo(() => {
     // Also show the Outcomes section when there are no active positions but the
@@ -482,7 +438,6 @@ export default function UserPositions() {
 
       return (
         <div className="space-y-4">
-          <PendingRedemptionNotice redemptions={pendingRedemptions} />
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
             <p className="text-sm font-semibold text-amber-800 mb-1">
               {activeOrders.length} limit order
@@ -511,7 +466,6 @@ export default function UserPositions() {
     if (positions && hasOutcomes) {
       return (
         <div className="space-y-3">
-          <PendingRedemptionNotice redemptions={pendingRedemptions} />
           <h3 className="text-lg font-bold text-gray-900 pt-1">
             Outcomes
           </h3>
@@ -521,18 +475,6 @@ export default function UserPositions() {
             onRedeem={handleRedeem}
             redeemingAsset={redeemingAsset}
             canRedeem={!!clobClient}
-          />
-        </div>
-      );
-    }
-
-    if (pendingRedemptions.length > 0) {
-      return (
-        <div className="space-y-3">
-          <PendingRedemptionNotice redemptions={pendingRedemptions} />
-          <EmptyState
-            title="No Open Positions"
-            message="You don't have any open positions."
           />
         </div>
       );
@@ -550,7 +492,6 @@ export default function UserPositions() {
 
   return (
     <div className="space-y-4">
-      <PendingRedemptionNotice redemptions={pendingRedemptions} />
       {/* ── Stats Row ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3">
         {/* Available */}
@@ -566,7 +507,7 @@ export default function UserPositions() {
           </div>
           <p className="text-xl font-bold text-gray-900">
             $
-            {totalUsdcBalance.toLocaleString('en-US', {
+            {usdcBalance.toLocaleString('en-US', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -695,9 +636,7 @@ export default function UserPositions() {
               currentPrice={buyMorePosition.curPrice}
               tokenId={buyMorePosition.asset}
               negRisk={buyMorePosition.negativeRisk}
-              balance={orderableBalance}
-              displayBalance={displayBalance}
-              balanceHint={legacyBalanceHint}
+              balance={usdcBalance}
             />
           );
         })()}

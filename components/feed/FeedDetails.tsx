@@ -290,36 +290,9 @@ const FeedDetails = ({ feedData, feedDetails }: any) => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const inputToken = feedData.content.inputToken;
-                              const outputToken = feedData.content.outputToken;
-                              const params = new URLSearchParams({
-                                inputToken: inputToken?.symbol || "",
-                                inputMint: inputToken?.mint || "",
-                                inputChain: String(
-                                  inputToken?.chain ||
-                                    inputToken?.chainId ||
-                                    "",
-                                ),
-                                inputImg: inputToken?.tokenImg || "",
-                                inputDecimals: String(
-                                  inputToken?.decimals ?? "",
-                                ),
-                                outputToken: outputToken?.symbol || "",
-                                outputMint: outputToken?.mint || "",
-                                outputChain: String(
-                                  outputToken?.chain ||
-                                    outputToken?.chainId ||
-                                    "",
-                                ),
-                                outputImg: outputToken?.tokenImg || "",
-                                outputDecimals: String(
-                                  outputToken?.decimals ?? "",
-                                ),
-                                amount: String(inputToken?.amount ?? ""),
-                                copyTrade: "1",
-                                copyTradePostId: feedData?._id || "",
-                              });
-                              router.push(`/wallet?${params.toString()}`);
+                              // router.push(
+                              //   `/wallet?inputToken=${feedData.content.inputToken.symbol}&outputToken=${feedData.content.outputToken.symbol}&amount=${feedData.content.inputToken.amount}`,
+                              // );
                             }}
                             className="text-xs border border-gray-300 rounded px-3 py-1 font-medium hover:bg-gray-200"
                           >
@@ -396,7 +369,6 @@ const FeedDetails = ({ feedData, feedDetails }: any) => {
               commentCount={feedData.commentCount}
               repostCount={feedData.repostCount}
               viewsCount={feedData.viewsCount}
-              feed={feedData}
               // setIsPosting={() => {}}
             />
           </div>

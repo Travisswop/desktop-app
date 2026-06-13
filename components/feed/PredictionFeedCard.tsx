@@ -1,11 +1,6 @@
 'use client';
 
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
-import { useBtcUpDownMarket } from '@/hooks/polymarket/useBtcUpDownMarket';
+import React, { useEffect, useMemo, useState } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,24 +46,9 @@ export interface PredictionContent {
   cost: number;
   potentialWin?: number;
   price: number; // decimal 0–1, price of the picked outcome
-  quotePrice?: number | string;
-  acceptedPrice?: number | string;
-  requestedCost?: number | string;
-  requestedPotentialWin?: number | string;
-  executedPrice?: number | string;
-  executedShares?: number | string;
-  executedCost?: number | string;
-  executedProceeds?: number | string;
-  fillStatus?: string;
-  tradeIds?: string[];
-  transactionHashes?: string[];
   orderId?: string;
   orderType?: string;
   marketId?: string;
-  marketType?: string;
-  marketSlug?: string;
-  btcWindowStart?: number | string;
-  btcWindowLabel?: string;
   eventSlug?: string;
   // Sports panel (optional – present only for sports markets)
   yesOutcome?: string; // "yes" outcome label, e.g., "Knicks"
@@ -100,7 +80,6 @@ export interface PredictionContent {
 interface PredictionFeedCardProps {
   content: PredictionContent;
   userName?: string;
-  createdAt?: string | Date;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -111,6 +90,12 @@ function toAmericanOdds(price: number): string {
     return `-${Math.round((price / (1 - price)) * 100)}`;
   }
   return `+${Math.round(((1 - price) / price) * 100)}`;
+}
+
+function formatGraphPrice(price: number): string {
+  if (price <= 0) return '0%';
+  if (price >= 1) return '100%';
+  return toAmericanOdds(price);
 }
 
 function seededRand(seed: string, idx: number): number {
@@ -143,6 +128,30 @@ function formatUsd(value: number | undefined): string {
   return `${sign}$${Math.abs(value).toFixed(2)}`;
 }
 
+function formatCompactUsd(value: number | undefined): string {
+  if (value === undefined) return '—';
+  const sign = value < 0 ? '-' : '';
+  return `${sign}$${Math.abs(value).toFixed(0)}`;
+}
+
+function formatCents(price: number | undefined): string {
+  if (price === undefined) return '—';
+  return `${(price * 100).toFixed(1)}¢`;
+}
+
+function getInitials(name: string | undefined): string {
+  const parts = (name || 'Someone')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (
+    parts
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || 'S'
+  );
+}
+
 function parseList(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String);
   if (typeof value !== 'string') return [];
@@ -157,107 +166,6 @@ function parseList(value: unknown): string[] {
 function sameId(a: unknown, b: unknown): boolean {
   if (!a || !b) return false;
   return String(a).toLowerCase() === String(b).toLowerCase();
-}
-
-function isBtcFiveMinutePrediction(content: PredictionContent): boolean {
-  const source = [
-    content.marketType,
-    content.marketTitle,
-    content.marketSlug,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-
-  return (
-    source.includes('btc5m') ||
-    ((source.includes('btc') || source.includes('bitcoin')) &&
-      (source.includes('5 minute') ||
-        source.includes('5-minute') ||
-        source.includes('5m')) &&
-      (source.includes('up') || source.includes('down')))
-  );
-}
-
-function currentBtcWindowStart(): number {
-  return Math.floor(Date.now() / 1000 / 300) * 300;
-}
-
-function useCurrentBtcWindowStart(): number {
-  const [windowStart, setWindowStart] = useState(currentBtcWindowStart);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setWindowStart(currentBtcWindowStart());
-    }, 1_000);
-    return () => clearInterval(id);
-  }, []);
-
-  return windowStart;
-}
-
-function windowStartFromDate(value: string | Date | undefined): number | null {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  const time = date.getTime();
-  if (!Number.isFinite(time)) return null;
-  return Math.floor(time / 1000 / 300) * 300;
-}
-
-function resolveBtcWindowStart(
-  content: PredictionContent,
-  createdAt?: string | Date,
-): number {
-  const explicit = firstNumber(content.btcWindowStart);
-  if (explicit && explicit > 0) return Math.floor(explicit / 300) * 300;
-
-  const slugWindow = String(content.marketSlug || '').match(/(\d{10})$/);
-  if (slugWindow) {
-    const parsed = Number(slugWindow[1]);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-
-  return windowStartFromDate(createdAt) ?? currentBtcWindowStart();
-}
-
-function parseBtcFeedMarket(raw: Record<string, unknown> | null): {
-  conditionId?: string;
-  slug?: string;
-  question?: string;
-  upTokenId?: string;
-  downTokenId?: string;
-  yesPrice?: number;
-  noPrice?: number;
-  closed: boolean;
-} | null {
-  if (!raw) return null;
-
-  const tokenIds = parseList(raw.clobTokenIds);
-  const prices = parseList(raw.outcomePrices)
-    .map(Number)
-    .filter(
-      (price) => Number.isFinite(price) && price >= 0 && price <= 1,
-    );
-
-  return {
-    conditionId: String(raw.conditionId || raw.condition_id || ''),
-    slug: String(raw.slug || ''),
-    question: String(raw.question || raw.title || ''),
-    upTokenId: tokenIds[0],
-    downTokenId: tokenIds[1],
-    yesPrice: prices[0],
-    noPrice: prices[1],
-    closed: Boolean(raw.closed || raw.active === false),
-  };
-}
-
-function inferBtcWinnerFromPrices(
-  yesPrice: number | undefined,
-  noPrice: number | undefined,
-): 'Up' | 'Down' | null {
-  if (yesPrice === undefined || noPrice === undefined) return null;
-  if (Math.abs(yesPrice - noPrice) < 0.01) return null;
-  return yesPrice > noPrice ? 'Up' : 'Down';
 }
 
 function resolveMarketState(
@@ -543,6 +451,15 @@ function resolveTradeState(
   };
 }
 
+function toneClasses(tone: TradeStateMeta['tone']) {
+  if (tone === 'green')
+    return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+  if (tone === 'red') return 'bg-red-50 text-red-700 border-red-100';
+  if (tone === 'blue')
+    return 'bg-blue-50 text-blue-700 border-blue-100';
+  return 'bg-gray-50 text-gray-700 border-gray-100';
+}
+
 // ─── Live score hook ──────────────────────────────────────────────────────────
 
 function useLiveScore(
@@ -611,7 +528,7 @@ function usePriceHistory(
       fetch(
         `/api/polymarket/prices-history?tokenId=${encodeURIComponent(
           id,
-        )}&interval=max&fidelity=30`,
+        )}&interval=1d&fidelity=30`,
       )
         .then((r) => (r.ok ? r.json() : { history: [] }))
         .then((j) => {
@@ -648,80 +565,6 @@ function usePriceHistory(
   return { yesHistory, noHistory, loading };
 }
 
-function useHistoricalBtcFeedMarket(
-  windowStart: number,
-  enabled: boolean,
-) {
-  const [market, setMarket] = useState<ReturnType<
-    typeof parseBtcFeedMarket
-  >>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!enabled || !windowStart) return;
-    let cancelled = false;
-    setLoading(true);
-
-    fetch(`/api/polymarket/btc5m-market?window_start=${windowStart}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((raw) => {
-        if (cancelled) return;
-        setMarket(parseBtcFeedMarket(raw));
-      })
-      .catch(() => {
-        if (!cancelled) setMarket(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, windowStart]);
-
-  return { market, loading };
-}
-
-function useBtcWindowWinner(
-  windowStart: number,
-  enabled: boolean,
-): 'Up' | 'Down' | null {
-  const [winner, setWinner] = useState<'Up' | 'Down' | null>(null);
-
-  useEffect(() => {
-    if (!enabled || !windowStart) return;
-    let cancelled = false;
-    setWinner(null);
-
-    const startTime = windowStart * 1000;
-    fetch(
-      `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&startTime=${startTime}&limit=1`,
-      { cache: 'no-store' },
-    )
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        const candle = Array.isArray(data) ? data[0] : null;
-        const open = Number(candle?.[1]);
-        const close = Number(candle?.[4]);
-        if (!Number.isFinite(open) || !Number.isFinite(close)) return;
-        if (close > open) setWinner('Up');
-        else if (close < open) setWinner('Down');
-        else setWinner(null);
-      })
-      .catch(() => {
-        if (!cancelled) setWinner(null);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, windowStart]);
-
-  return winner;
-}
-
 // ─── Chart path builder ───────────────────────────────────────────────────────
 
 function historyToPath(
@@ -749,309 +592,44 @@ function historyToPath(
   return d;
 }
 
-function clampProbability(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(Math.max(value, 0), 1);
-}
+// ─── Team badge ───────────────────────────────────────────────────────────────
 
-function formatPercent(price: number): string {
-  return `${Math.round(clampProbability(price) * 100)}%`;
-}
-
-function formatSignedUsd(value: number | undefined): string {
-  if (value === undefined) return '—';
-  return `${value >= 0 ? '+' : ''}${formatUsd(value)}`;
-}
-
-function formatShares(value: number | undefined): string {
-  if (value === undefined || !Number.isFinite(value)) return '—';
-  return new Intl.NumberFormat('en-US', {
-    maximumFractionDigits: value >= 100 ? 0 : value >= 10 ? 1 : 2,
-  }).format(value);
-}
-
-function formatEntrySummary({
-  cost,
-  shares,
-  entryPriceLabel,
-  entryIsEstimate,
-}: {
-  cost: number;
-  shares: number | undefined;
-  entryPriceLabel: string;
-  entryIsEstimate?: boolean;
-}) {
-  if (entryIsEstimate) {
-    return `${formatUsd(cost)} · pre-fill quote @ ${entryPriceLabel}`;
-  }
-
-  return `${formatUsd(cost)} · ${formatShares(shares)} sh @ ${entryPriceLabel}`;
-}
-
-function resolveExecutedPredictionPosition(content: PredictionContent) {
-  const executedPrice = firstNumber(content.executedPrice);
-  const executedShares = firstNumber(content.executedShares);
-  const executedCost = firstNumber(content.executedCost);
-  const executedProceeds = firstNumber(content.executedProceeds);
-  const derivedExecutedPrice =
-    executedShares && executedShares > 0
-      ? content.side === 'SELL'
-        ? executedProceeds !== undefined
-          ? executedProceeds / executedShares
-          : undefined
-        : executedCost !== undefined
-          ? executedCost / executedShares
-          : undefined
-      : undefined;
-  const quotedPrice = firstNumber(content.price, content.acceptedPrice);
-  const entryPrice = clampProbability(
-    executedPrice ?? derivedExecutedPrice ?? quotedPrice ?? 0,
-  );
-  const cost =
-    content.side === 'SELL'
-      ? firstNumber(executedProceeds, content.saleAmount, content.cost) ??
-        content.cost
-      : firstNumber(executedCost, content.cost) ?? content.cost;
-  const shares =
-    executedShares ??
-    firstNumber(content.potentialWin, content.requestedPotentialWin);
-
-  return {
-    cost,
-    entryPrice,
-    shares,
-    hasExecutedFill:
-      executedPrice !== undefined ||
-      executedShares !== undefined ||
-      executedCost !== undefined ||
-      executedProceeds !== undefined,
-  };
-}
-
-function hasSubmittedPredictionOrder(content: PredictionContent): boolean {
-  const orderId =
-    typeof content.orderId === 'string'
-      ? content.orderId.trim()
-      : content.orderId;
-  const fillStatus =
-    typeof content.fillStatus === 'string'
-      ? content.fillStatus.trim()
-      : content.fillStatus;
-
-  return Boolean(
-    orderId ||
-      fillStatus ||
-      (Array.isArray(content.tradeIds) && content.tradeIds.length > 0) ||
-      (Array.isArray(content.transactionHashes) &&
-        content.transactionHashes.length > 0),
-  );
-}
-
-function isPredictionEntryEstimate(
-  content: PredictionContent,
-  executedPosition: ReturnType<typeof resolveExecutedPredictionPosition>,
-): boolean {
-  return (
-    !executedPosition.hasExecutedFill &&
-    !hasSubmittedPredictionOrder(content)
-  );
-}
-
-function initials(value?: string): string {
-  if (!value) return 'AS';
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  const next = parts.length >= 2
-    ? `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`
-    : value.slice(0, 2);
-  return next.toUpperCase();
-}
-
-function formatClock(date: Date, includeMeridiem = true): string {
-  const formatted = date.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-  return includeMeridiem ? formatted : formatted.replace(/\s?[AP]M$/i, '');
-}
-
-function formatGameCenter(gameStartTime?: string): string {
-  if (!gameStartTime) return 'Market open';
-  const date = new Date(gameStartTime);
-  if (Number.isNaN(date.getTime())) return 'Market open';
-  const day = date
-    .toLocaleDateString([], { weekday: 'short' })
-    .toUpperCase();
-  return `${day} · ${formatClock(date)}`;
-}
-
-function inferLeagueLabel(
-  marketTitle: string,
-  eventSlug?: string,
-): string {
-  const source = `${marketTitle} ${eventSlug ?? ''}`.toLowerCase();
-  const leagues = [
-    'nba',
-    'wnba',
-    'nfl',
-    'mlb',
-    'nhl',
-    'ncaab',
-    'ncaaf',
-    'epl',
-    'mls',
-    'ipl',
-  ];
-  const found = leagues.find((league) =>
-    new RegExp(`(^|[^a-z])${league}([^a-z]|$)`).test(source),
-  );
-  return found ? found.toUpperCase() : 'SPORTS';
-}
-
-function inferMarketKind(marketTitle: string): string {
-  const lower = marketTitle.toLowerCase();
-  if (lower.includes('spread')) return 'SPREAD';
-  if (lower.includes('total') || lower.includes('over/under'))
-    return 'TOTAL';
-  return 'MONEYLINE';
-}
-
-function statusPill(
-  tradeState: TradeStateMeta,
-  liveScore: LiveScore | null,
-  gameStartTime?: string,
-): {
-  label: string;
-  className: string;
-  dotClassName?: string;
-} {
-  if (liveScore?.live) {
-    const suffix = liveScore.period || liveScore.elapsed;
-    return {
-      label: suffix ? `LIVE · ${suffix}` : 'LIVE',
-      className: 'bg-red-50 text-red-500 border-red-100',
-      dotClassName: 'bg-red-400',
-    };
-  }
-
-  if (
-    liveScore?.ended ||
-    liveScore?.closed ||
-    tradeState.state === 'won' ||
-    tradeState.state === 'lost'
-  ) {
-    return {
-      label: 'FINAL',
-      className: 'bg-gray-50 text-gray-500 border-gray-100',
-    };
-  }
-
-  if (
-    tradeState.state === 'sold' ||
-    tradeState.state === 'sold-profit' ||
-    tradeState.state === 'sold-loss'
-  ) {
-    return {
-      label: 'SOLD',
-      className: 'bg-blue-50 text-blue-600 border-blue-100',
-    };
-  }
-
-  if (gameStartTime) {
-    const date = new Date(gameStartTime);
-    if (!Number.isNaN(date.getTime()) && date.getTime() > Date.now()) {
-      return {
-        label: `TIP-OFF ${formatClock(date, false)}`,
-        className: 'bg-amber-50 text-amber-600 border-amber-100',
-      };
-    }
-  }
-
-  return {
-    label: 'OPEN',
-    className: 'bg-gray-50 text-gray-500 border-gray-100',
-  };
-}
-
-function predictionStatusPill(tradeState: TradeStateMeta): {
-  label: string;
-  className: string;
-} {
-  if (tradeState.state === 'won') {
-    return {
-      label: 'Won',
-      className: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    };
-  }
-  if (tradeState.state === 'lost') {
-    return {
-      label: 'Lost',
-      className: 'bg-red-50 text-red-600 border-red-100',
-    };
-  }
-  if (
-    tradeState.state === 'sold' ||
-    tradeState.state === 'sold-profit' ||
-    tradeState.state === 'sold-loss'
-  ) {
-    return {
-      label: tradeState.label,
-      className: 'bg-blue-50 text-blue-600 border-blue-100',
-    };
-  }
-  if (tradeState.state === 'live') {
-    return {
-      label: 'Live',
-      className: 'bg-red-50 text-red-500 border-red-100',
-    };
-  }
-  return {
-    label: 'Open',
-    className: 'bg-gray-50 text-gray-500 border-gray-100',
-  };
-}
-
-function splitProbabilities(yesPrice: number, noPrice: number) {
-  const yes = clampProbability(yesPrice);
-  const no = clampProbability(noPrice);
-  const total = yes + no;
-  if (total <= 0) {
-    return { yes: 50, no: 50 };
-  }
-  return {
-    yes: (yes / total) * 100,
-    no: (no / total) * 100,
-  };
-}
-
-function TeamMark({
+function TeamBadge({
   team,
   abbr,
+  name,
 }: {
   team?: TeamMeta;
   abbr: string;
+  name: string;
 }) {
   const color = team?.color || '#374151';
   const logo = team?.logo;
   const displayAbbr = team?.abbreviation || abbr;
+  const displayName = team?.name || name;
 
   return (
-    <div
-      className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-[0_4px_10px_rgba(15,23,42,0.16)]"
-      style={{ backgroundColor: color }}
-    >
-      {logo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={logo}
-          alt={displayAbbr}
-          className="h-7 w-7 object-contain"
-        />
-      ) : (
-        <span className="font-mono text-[10px] font-black text-white">
-          {displayAbbr}
-        </span>
-      )}
+    <div className="flex flex-col items-center gap-1.5">
+      <div
+        className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0"
+        style={{ backgroundColor: color }}
+      >
+        {logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logo}
+            alt={displayAbbr}
+            className="w-8 h-8 object-contain"
+          />
+        ) : (
+          <span className="text-[10px] font-extrabold tracking-wide text-white">
+            {displayAbbr}
+          </span>
+        )}
+      </div>
+      <p className="text-[11px] font-semibold text-gray-700 text-center leading-tight max-w-[64px] truncate">
+        {displayName}
+      </p>
     </div>
   );
 }
@@ -1059,8 +637,6 @@ function TeamMark({
 // ─── Sports mini panel ────────────────────────────────────────────────────────
 
 function SportsMiniPanel({
-  marketTitle,
-  eventSlug,
   yesOutcome,
   noOutcome,
   yesPrice: yP,
@@ -1068,6 +644,7 @@ function SportsMiniPanel({
   yesTeam,
   noTeam,
   gameStartTime,
+  volume,
   yesTokenId,
   noTokenId,
   liveScore,
@@ -1075,14 +652,11 @@ function SportsMiniPanel({
   userName,
   side,
   cost,
+  potentialWin,
   entryPrice,
-  positionShares,
-  entryIsEstimate,
   tradeState,
   marketUrl,
 }: {
-  marketTitle: string;
-  eventSlug?: string;
   yesOutcome: string;
   noOutcome: string;
   yesPrice: number;
@@ -1090,6 +664,7 @@ function SportsMiniPanel({
   yesTeam?: TeamMeta;
   noTeam?: TeamMeta;
   gameStartTime?: string;
+  volume?: string;
   yesTokenId?: string;
   noTokenId?: string;
   liveScore: LiveScore | null;
@@ -1097,9 +672,8 @@ function SportsMiniPanel({
   userName?: string;
   side: 'BUY' | 'SELL';
   cost: number;
+  potentialWin?: number;
   entryPrice: number;
-  positionShares?: number;
-  entryIsEstimate?: boolean;
   tradeState: TradeStateMeta;
   marketUrl?: string;
 }) {
@@ -1109,14 +683,15 @@ function SportsMiniPanel({
     true,
   );
 
-  // Chart geometry - tuned for the compact card in the feed.
+  // Chart geometry - designed for a narrow feed card (~340px wide)
   const VB_W = 300;
-  const VB_H = 72;
+  const VB_H = 166;
   const PLOT_X = 2;
-  const PLOT_Y = 8;
-  const PLOT_W = VB_W - PLOT_X * 2;
-  const PLOT_H = 48;
-  const BASELINE_Y = PLOT_Y + PLOT_H + 6;
+  const PLOT_Y = 12;
+  const RIGHT_PAD = 62; // room for end labels
+  const BOTTOM_PAD = 10;
+  const PLOT_W = VB_W - PLOT_X - RIGHT_PAD;
+  const PLOT_H = VB_H - PLOT_Y - BOTTOM_PAD;
 
   const seed = (yesTokenId || yesOutcome) + 'feedseed';
 
@@ -1164,11 +739,8 @@ function SportsMiniPanel({
     };
   }, [yesHistory, noHistory, yP, nP, seed]);
 
-  const pickedIsYes =
-    pickedOutcome.toLowerCase() === yesOutcome.toLowerCase();
-  const pickedSeries = pickedIsYes ? yesSeries : noSeries;
-  const chartPath = historyToPath(
-    pickedSeries,
+  const yesPath = historyToPath(
+    yesSeries,
     tMin,
     tMax,
     PLOT_X,
@@ -1176,41 +748,79 @@ function SportsMiniPanel({
     PLOT_W,
     PLOT_H,
   );
-  const latestPoint = pickedSeries[pickedSeries.length - 1];
-  const latestPointX = latestPoint
-    ? PLOT_X +
-      ((latestPoint.t - tMin) / Math.max(1, tMax - tMin)) * PLOT_W
-    : PLOT_X + PLOT_W;
-  const latestPointY = latestPoint
-    ? PLOT_Y + (1 - latestPoint.p) * PLOT_H
-    : PLOT_Y + PLOT_H / 2;
-  const chartAreaPath = chartPath
-    ? `${chartPath} L ${latestPointX.toFixed(2)} ${BASELINE_Y} L ${PLOT_X} ${BASELINE_Y} Z`
-    : '';
-
-  const showScores = Boolean(
-    liveScore &&
-      (liveScore.live || liveScore.ended || liveScore.closed) &&
-      liveScore.teams.length >= 2,
+  const noPath = historyToPath(
+    noSeries,
+    tMin,
+    tMax,
+    PLOT_X,
+    PLOT_Y,
+    PLOT_W,
+    PLOT_H,
   );
+
+  const yesLeads = yP >= nP;
+  const yesColor = yesLeads ? '#3B82F6' : '#36584D';
+  const noColor = yesLeads ? '#36584D' : '#3B82F6';
+
+  const yesPct = Math.round(yP * 100);
+  const noPct = Math.round(nP * 100);
+
+  const endX = PLOT_X + PLOT_W;
+  const endYesY = PLOT_Y + (1 - yP) * PLOT_H;
+  const endNoY = PLOT_Y + (1 - nP) * PLOT_H;
+
+  // Position end-labels so they don't overlap
+  const [upperY, upperColor, upperName, upperPct] = yesLeads
+    ? [endYesY, yesColor, yesOutcome, yesPct]
+    : [endNoY, noColor, noOutcome, noPct];
+  const [lowerY, lowerColor, lowerName, lowerPct] = yesLeads
+    ? [endNoY, noColor, noOutcome, noPct]
+    : [endYesY, yesColor, yesOutcome, yesPct];
+
+  const labelGap = Math.max(22, Math.abs(upperY - lowerY));
+  const upperLabelY = Math.max(
+    14,
+    Math.min(upperY, PLOT_Y + PLOT_H - labelGap),
+  );
+  const lowerLabelY = Math.min(
+    PLOT_Y + PLOT_H - 2,
+    Math.max(lowerY, upperLabelY + labelGap),
+  );
+
+  // Game time text
+  const gameDate = gameStartTime ? new Date(gameStartTime) : null;
+  const timeText = gameDate
+    ? gameDate.toLocaleTimeString([], {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
+    : null;
+  const dateText = gameDate
+    ? gameDate.toLocaleDateString([], {
+        month: 'long',
+        day: 'numeric',
+      })
+    : null;
+
+  // Live score matching
+  const isLive = liveScore?.live === true;
   const matchScore = (
     teamName: string,
-    teamAbbr: string,
     fallbackIdx: number,
   ): number | null => {
-    if (!showScores || !liveScore) return null;
+    if (!isLive || !liveScore || liveScore.teams.length < 2)
+      return null;
     const lower = teamName.toLowerCase();
-    const abbr = teamAbbr.toLowerCase();
     const found = liveScore.teams.find((t) => {
       const n = (t.name ?? '').toLowerCase();
-      const a = (t.abbreviation ?? '').toLowerCase();
-      return (
-        (n && (n.includes(lower) || lower.includes(n))) ||
-        (a && a === abbr)
-      );
+      return n && (n.includes(lower) || lower.includes(n));
     });
     return (found ?? liveScore.teams[fallbackIdx])?.score ?? null;
   };
+  const yesScore = matchScore(yesOutcome, 0);
+  const noScore = matchScore(noOutcome, 1);
+  const hasScores = isLive && yesScore != null && noScore != null;
 
   const yesAbbr = (
     yesTeam?.abbreviation || yesOutcome.slice(0, 3)
@@ -1218,19 +828,14 @@ function SportsMiniPanel({
   const noAbbr = (
     noTeam?.abbreviation || noOutcome.slice(0, 3)
   ).toUpperCase();
-  const yesScore = matchScore(yesOutcome, yesAbbr, 0);
-  const noScore = matchScore(noOutcome, noAbbr, 1);
-  const hasScores = yesScore != null && noScore != null;
   const pickedCurrentPrice =
-    pickedIsYes ? yP : nP;
+    pickedOutcome.toLowerCase() === yesOutcome.toLowerCase()
+      ? yP
+      : nP;
   const impliedShares =
-    positionShares !== undefined && Number.isFinite(positionShares)
-      ? positionShares
-      : !entryIsEstimate && entryPrice > 0
-        ? cost / entryPrice
-        : undefined;
+    entryPrice > 0 ? cost / entryPrice : undefined;
   const currentValue =
-    !entryIsEstimate && impliedShares !== undefined
+    impliedShares !== undefined
       ? impliedShares * pickedCurrentPrice
       : undefined;
   const currentDelta =
@@ -1238,85 +843,29 @@ function SportsMiniPanel({
       ? currentValue - cost
       : undefined;
   const selectedPnl =
-    entryIsEstimate
-      ? undefined
-      : tradeState.state === 'open' ||
-          tradeState.state === 'live' ||
-          tradeState.state === 'won' ||
-          tradeState.state === 'lost'
-        ? (currentDelta ?? tradeState.amount)
-        : (tradeState.amount ?? currentDelta);
-  const summaryValue =
-    currentValue ??
-    (selectedPnl !== undefined ? cost + selectedPnl : undefined);
+    tradeState.state === 'open' || tradeState.state === 'live'
+      ? currentDelta
+      : tradeState.amount;
+  const canOpenMarket = Boolean(marketUrl);
+  const userInitials = getInitials(userName);
   const filterId = `feed-shadow-${String(yesTokenId || yesOutcome)
     .replace(/[^a-zA-Z0-9_-]/g, '')
     .slice(0, 48)}`;
-  const gradientId = `${filterId}-trend`;
-  const split = splitProbabilities(yP, nP);
-  const pill = statusPill(tradeState, liveScore, gameStartTime);
-  const open =
-    tradeState.state === 'open' || tradeState.state === 'live';
-  const chartColor =
-    tradeState.tone === 'red'
-      ? '#E85D5D'
-      : tradeState.tone === 'green'
-        ? '#51AD7D'
-        : pickedIsYes
-          ? '#20242D'
-          : '#2F7ED8';
-  const pnlTone =
-    selectedPnl === undefined
-      ? 'text-gray-400'
-      : selectedPnl >= 0
-        ? 'text-[#51AD7D]'
-        : 'text-[#E85D5D]';
-  const positionVerb =
-    entryIsEstimate
-      ? 'Quote shown for'
-      : side === 'SELL'
-      ? 'You sold'
-      : open
-        ? "You're on"
-        : 'You backed';
-  const isWonResult = !open && tradeState.state === 'won';
-  const payoutDisplayValue =
-    !entryIsEstimate && isWonResult && summaryValue !== undefined
-      ? summaryValue
-      : undefined;
-  const resultDisplay = entryIsEstimate
-    ? '—'
-    : formatSignedUsd(selectedPnl);
-  const resultSubcopy =
-    payoutDisplayValue !== undefined
-      ? `${formatUsd(payoutDisplayValue)} payout`
-      : undefined;
-  const positionKicker = entryIsEstimate
-    ? 'QUOTE'
-    : open
-    ? selectedPnl === undefined
-      ? 'LIVE'
-      : selectedPnl >= 0
-        ? 'UP'
-        : 'DOWN'
-    : isWonResult || tradeState.state === 'lost'
-      ? 'RESULT'
-      : tradeState.label.toUpperCase();
-  const entryPriceLabel = `${Math.round(clampProbability(entryPrice) * 100)}¢`;
-
+  const betButtonBase =
+    'h-[34px] rounded-lg px-3 text-[11px] font-bold transition-colors flex items-center justify-center min-w-0 shadow-sm';
   const buttonForOutcome = (
     label: string,
     price: number,
-    selected: boolean,
+    variant: 'yes' | 'no',
   ) => {
     const odds = toAmericanOdds(price);
-    const classes = `flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 text-[13px] font-extrabold transition-colors ${
-      selected
-        ? 'border-[#2F7ED8] bg-[#2F7ED8] text-white shadow-[0_8px_18px_rgba(47,126,216,0.24)]'
-        : 'border-gray-100 bg-white text-gray-900 hover:border-gray-200 hover:bg-gray-50'
-    }`;
+    const classes =
+      variant === 'yes'
+        ? `${betButtonBase} bg-emerald-500 text-white hover:bg-emerald-600`
+        : `${betButtonBase} bg-red-500 text-white hover:bg-red-600`;
+    const buttonText = `${label} ${odds}`;
 
-    if (marketUrl) {
+    if (canOpenMarket) {
       return (
         <a
           href={marketUrl}
@@ -1326,14 +875,7 @@ function SportsMiniPanel({
           className={classes}
           title={`Open ${label} market`}
         >
-          <span className="truncate">{label}</span>
-          <span
-            className={`shrink-0 font-mono text-[12px] ${
-              selected ? 'text-white' : 'text-[#2F7ED8]'
-            }`}
-          >
-            {odds}
-          </span>
+          <span className="truncate">{buttonText}</span>
         </a>
       );
     }
@@ -1344,276 +886,251 @@ function SportsMiniPanel({
         disabled
         className={`${classes} opacity-60`}
       >
-        <span className="truncate">{label}</span>
-        <span className="shrink-0 font-mono text-[12px]">{odds}</span>
+        <span className="truncate">{buttonText}</span>
       </button>
     );
   };
 
   return (
-    <div className="mt-2 w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#ECECEB] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.10)]">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 text-[13px] font-black text-gray-950">
-            {inferLeagueLabel(marketTitle, eventSlug)}
-          </span>
-          <span className="h-1 w-1 shrink-0 rounded-full bg-gray-300" />
-          <span className="truncate font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-            {inferMarketKind(marketTitle)}
-          </span>
-        </div>
-        <span
-          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] font-black uppercase tracking-[0.18em] ${pill.className}`}
-        >
-          {pill.dotClassName && (
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${pill.dotClassName} animate-pulse`}
-            />
-          )}
-          {pill.label}
+    <div className="px-4 pt-4 pb-4">
+      <div className="flex items-center justify-center gap-1.5 mb-2">
+        <span className="text-[12px] font-extrabold text-gray-950">
+          {hasScores ? 'Live' : tradeState.label}
         </span>
+        {hasScores && (
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+        )}
       </div>
 
-      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-start gap-3">
-        <div className="flex min-w-0 items-start gap-2">
-          <TeamMark team={yesTeam} abbr={yesAbbr} />
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-extrabold text-gray-950">
-              {yesOutcome}
-            </p>
-            {hasScores && (
-              <p className="font-mono text-[28px] font-black leading-none text-gray-950">
-                {yesScore}
+      <div className="grid grid-cols-[64px_1fr_64px] items-center gap-2 mb-1">
+        <TeamBadge team={yesTeam} abbr={yesAbbr} name={yesOutcome} />
+
+        <div className="text-center min-w-0">
+          {hasScores ? (
+            <>
+              <div className="flex items-center justify-center gap-4">
+                <span className="text-2xl font-extrabold text-gray-950 tabular-nums">
+                  {yesScore}
+                </span>
+                <span className="text-2xl font-extrabold text-gray-950 tabular-nums">
+                  {noScore}
+                </span>
+              </div>
+              {liveScore &&
+                (liveScore.period || liveScore.elapsed) && (
+                  <p className="text-[10px] font-bold text-gray-700 mt-0.5 tabular-nums">
+                    {[liveScore.elapsed, liveScore.period]
+                      .filter(Boolean)
+                      .join(' ')}
+                  </p>
+                )}
+            </>
+          ) : (
+            <>
+              <p className="text-[12px] font-extrabold text-gray-950 leading-tight">
+                {timeText || 'Matchup'}
               </p>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-3 min-w-[76px] text-center">
-          <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-gray-400">
-            {hasScores
-              ? [liveScore?.period, liveScore?.elapsed]
-                  .filter(Boolean)
-                  .join(' · ') || 'GAME'
-              : formatGameCenter(gameStartTime)}
-          </p>
-        </div>
-
-        <div className="flex min-w-0 items-start justify-end gap-2 text-right">
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-extrabold text-gray-950">
-              {noOutcome}
-            </p>
-            {hasScores && (
-              <p className="font-mono text-[28px] font-black leading-none text-gray-400">
-                {noScore}
+              <p className="text-[10px] font-medium text-gray-500 mt-0.5">
+                {dateText || tradeState.detail}
               </p>
-            )}
-          </div>
-          <TeamMark team={noTeam} abbr={noAbbr} />
+            </>
+          )}
         </div>
+
+        <TeamBadge team={noTeam} abbr={noAbbr} name={noOutcome} />
       </div>
 
-      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="h-2 w-2 shrink-0 rounded-[3px] bg-[#20242D]" />
-          <span className="truncate text-[12px] font-extrabold text-gray-900">
-            {yesOutcome}
-          </span>
-        </div>
-        <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-          {open ? 'WIN PROB' : 'FINAL'}
-        </p>
-        <div className="flex min-w-0 items-center justify-end gap-1.5">
-          <span className="truncate text-right text-[12px] font-extrabold text-gray-900">
-            {noOutcome}
-          </span>
-          <span className="h-2 w-2 shrink-0 rounded-[3px] bg-[#2F7ED8]" />
-        </div>
-      </div>
-
-      <div className="relative mt-2 h-[74px] overflow-hidden rounded-[20px] bg-[#20242D] shadow-inner">
-        <div
-          className="absolute inset-y-0 left-0 bg-gradient-to-b from-[#3A404B] to-[#1E222B]"
-          style={{ width: `${split.yes}%` }}
-        />
-        <div
-          className="absolute inset-y-0 right-0 bg-gradient-to-b from-[#5BA2F1] to-[#2F7ED8]"
-          style={{ width: `${split.no}%` }}
-        />
-        <div className="absolute inset-y-0 left-0 flex items-center px-4 text-white">
-          <div>
-            <p className="font-mono text-[10px] font-black uppercase text-white/70">
-              {yesAbbr}
-            </p>
-            <p className="font-mono text-[26px] font-black leading-none">
-              {formatPercent(yP)}
-            </p>
-          </div>
-        </div>
-        <div className="absolute inset-y-0 right-0 flex items-center px-4 text-right text-white">
-          <div>
-            <p className="font-mono text-[10px] font-black uppercase text-white/70">
-              {noAbbr}
-            </p>
-            <p className="font-mono text-[26px] font-black leading-none">
-              {formatPercent(nP)}
-            </p>
-          </div>
-        </div>
-        {split.yes > 6 && split.yes < 94 && (
-          <div
-            className="absolute top-0 h-full w-px bg-white/40"
-            style={{ left: `${split.yes}%` }}
+      {/* Probability chart */}
+      <svg
+        viewBox={`0 0 ${VB_W} ${VB_H}`}
+        className="w-full -mx-1"
+        style={{ height: 166 }}
+        aria-label={`${yesOutcome} vs ${noOutcome} probability history`}
+      >
+        <defs>
+          <filter
+            id={filterId}
+            x="-20%"
+            y="-20%"
+            width="140%"
+            height="140%"
           >
-            <span className="absolute left-1/2 top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_8px_18px_rgba(15,23,42,0.20)]">
-              <span className="mr-0.5 h-3 w-[2px] rounded-full bg-gray-300" />
-              <span className="h-3 w-[2px] rounded-full bg-gray-300" />
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="mt-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-            Win Prob · Timeline
-          </p>
-          <p className="truncate text-right font-mono text-[10px] font-black text-gray-400">
-            {entryIsEstimate ? 'quoted' : 'backing'} {pickedOutcome}
-          </p>
-        </div>
-        <svg
-          viewBox={`0 0 ${VB_W} ${VB_H}`}
-          className="mt-1 block h-[72px] w-full"
-          role="img"
-          aria-label={`${pickedOutcome} probability timeline`}
-        >
-          <defs>
-            <linearGradient
-              id={gradientId}
-              x1="0"
-              x2="0"
-              y1="0"
-              y2="1"
-            >
-              <stop
-                offset="0%"
-                stopColor={chartColor}
-                stopOpacity="0.20"
-              />
-              <stop
-                offset="100%"
-                stopColor={chartColor}
-                stopOpacity="0"
-              />
-            </linearGradient>
-          </defs>
-          <line
-            x1={PLOT_X}
-            x2={PLOT_X + PLOT_W}
-            y1={PLOT_Y + PLOT_H / 2}
-            y2={PLOT_Y + PLOT_H / 2}
-            stroke="#E5E7EB"
-            strokeDasharray="3 5"
-            strokeWidth={1}
-          />
-          {chartAreaPath && (
-            <path d={chartAreaPath} fill={`url(#${gradientId})`} />
-          )}
-          {chartPath && (
-            <path
-              d={chartPath}
-              fill="none"
-              stroke={chartColor}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2.5}
-              opacity={loading ? 0.55 : 1}
+            <feDropShadow
+              dx="0"
+              dy="1"
+              stdDeviation="1.1"
+              floodColor="#000000"
+              floodOpacity="0.12"
             />
-          )}
-          <circle
-            cx={latestPointX}
-            cy={latestPointY}
-            r={4.5}
-            fill="white"
-            stroke={chartColor}
-            strokeWidth={2.5}
-          />
-        </svg>
-      </div>
+          </filter>
+        </defs>
 
-      <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-black text-[#2F7ED8]">
-            {initials(userName)}
-          </span>
-          <div className="min-w-0">
+        {/* Probability lines */}
+        <path
+          d={noPath}
+          fill="none"
+          stroke={noColor}
+          strokeWidth={2.4}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={loading ? 0.5 : 1}
+        />
+        <path
+          d={yesPath}
+          fill="none"
+          stroke={yesColor}
+          strokeWidth={2.4}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={loading ? 0.5 : 1}
+        />
+
+        {/* Endpoint dots */}
+        <circle cx={endX} cy={endNoY} r={7} fill={`${noColor}33`} />
+        <circle
+          cx={endX}
+          cy={endNoY}
+          r={3.6}
+          fill={noColor}
+          filter={`url(#${filterId})`}
+        />
+        <circle cx={endX} cy={endYesY} r={7} fill={`${yesColor}33`} />
+        <circle
+          cx={endX}
+          cy={endYesY}
+          r={3.6}
+          fill={yesColor}
+          filter={`url(#${filterId})`}
+        />
+
+        {/* End labels: team name + percentage */}
+        <text
+          x={endX + 11}
+          y={upperLabelY - 1}
+          fontSize={9}
+          fontWeight={800}
+          fill={upperColor}
+          fontFamily="system-ui, sans-serif"
+        >
+          {upperName}
+        </text>
+        <text
+          x={endX + 11}
+          y={upperLabelY + 15}
+          fontSize={18}
+          fontWeight={800}
+          fill={upperColor}
+          fontFamily="system-ui, sans-serif"
+        >
+          {formatGraphPrice(upperPct / 100)}
+        </text>
+
+        <text
+          x={endX + 11}
+          y={lowerLabelY - 12}
+          fontSize={9}
+          fontWeight={800}
+          fill={lowerColor}
+          fontFamily="system-ui, sans-serif"
+        >
+          {lowerName}
+        </text>
+        <text
+          x={endX + 11}
+          y={lowerLabelY + 6}
+          fontSize={18}
+          fontWeight={800}
+          fill={lowerColor}
+          fontFamily="system-ui, sans-serif"
+        >
+          {formatGraphPrice(lowerPct / 100)}
+        </text>
+      </svg>
+
+      <div className="relative mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="pointer-events-none absolute left-[-5px] top-8 h-2.5 w-2.5 rounded-full border border-gray-200 bg-gray-50" />
+        <div className="pointer-events-none absolute right-[-5px] top-8 h-2.5 w-2.5 rounded-full border border-gray-200 bg-gray-50" />
+
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2">
             <p className="truncate text-[13px] font-extrabold text-gray-950">
-              {positionVerb}{' '}
-              <span className="text-[#2F7ED8]">{pickedOutcome}</span>
+              {userName || 'Someone'}{' '}
+              {side === 'BUY' ? 'picked' : 'sold'}{' '}
+              <span className="text-blue-600">{pickedOutcome}</span>
             </p>
-            <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-gray-400">
-              {formatEntrySummary({
-                cost,
-                shares: impliedShares,
-                entryPriceLabel,
-                entryIsEstimate,
-              })}
+          </div>
+          {tradeState.state !== 'open' && (
+            <span
+              className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${toneClasses(
+                tradeState.tone,
+              )}`}
+            >
+              {tradeState.label}
+            </span>
+          )}
+        </div>
+
+        <div className="border-t border-dashed border-gray-200" />
+
+        <div className="grid grid-cols-3">
+          <div className="px-3 py-3 text-center">
+            <p className="text-[10px] font-medium text-gray-500">
+              Cost
+            </p>
+            <p className="mt-0.5 text-[13px] font-extrabold text-emerald-600">
+              {formatUsd(cost)}
+            </p>
+          </div>
+          <div className="border-x border-gray-100 px-3 py-3 text-center">
+            <p className="text-[10px] font-medium text-gray-500">
+              Current
+            </p>
+            <p className="mt-0.5 text-[13px] font-extrabold text-emerald-600">
+              {formatUsd(currentValue)}
+            </p>
+            {selectedPnl !== undefined && (
+              <p
+                className={`text-[8px] font-bold ${
+                  selectedPnl >= 0
+                    ? 'text-emerald-500'
+                    : 'text-red-500'
+                }`}
+              >
+                {selectedPnl >= 0 ? '+' : ''}
+                {formatUsd(selectedPnl)}
+              </p>
+            )}
+          </div>
+          <div className="px-3 py-3 text-center">
+            <p className="text-[10px] font-medium text-gray-500">
+              {tradeState.state === 'sold' ||
+              tradeState.state === 'sold-profit' ||
+              tradeState.state === 'sold-loss'
+                ? 'Sold'
+                : tradeState.state === 'won' ||
+                    tradeState.state === 'lost'
+                  ? 'Result'
+                  : 'To win'}
+            </p>
+            <p
+              className={`mt-0.5 text-[13px] font-extrabold ${
+                tradeState.tone === 'red'
+                  ? 'text-red-600'
+                  : 'text-emerald-600'
+              }`}
+            >
+              {tradeState.state === 'open' ||
+              tradeState.state === 'live'
+                ? formatCompactUsd(potentialWin)
+                : formatCompactUsd(tradeState.amount)}
             </p>
           </div>
         </div>
-        <div className="shrink-0 text-right">
-          <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">
-            {positionKicker}
-          </p>
-          <p className={`font-mono text-[22px] font-black ${pnlTone}`}>
-            {resultDisplay}
-          </p>
-          {resultSubcopy && (
-            <p className="mt-0.5 font-mono text-[10px] font-black text-gray-400">
-              {resultSubcopy}
-            </p>
-          )}
-        </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        {open ? (
-          <>
-            {buttonForOutcome(yesOutcome, yP, pickedIsYes)}
-            {buttonForOutcome(noOutcome, nP, !pickedIsYes)}
-          </>
-        ) : (
-          <>
-            {marketUrl ? (
-              <a
-                href={marketUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="flex h-11 items-center justify-center rounded-xl border border-gray-100 bg-white px-3 text-[13px] font-extrabold text-gray-900 transition-colors hover:border-gray-200 hover:bg-gray-50"
-              >
-                Market →
-              </a>
-            ) : (
-              <button
-                type="button"
-                disabled
-                className="flex h-11 items-center justify-center rounded-xl border border-gray-100 bg-white px-3 text-[13px] font-extrabold text-gray-400"
-              >
-                Market →
-              </button>
-            )}
-            <a
-              href="/prediction"
-              onClick={(e) => e.stopPropagation()}
-              className="flex h-11 items-center justify-center rounded-xl bg-gray-950 px-3 text-[13px] font-extrabold text-white transition-colors hover:bg-black"
-            >
-              View Predictions
-            </a>
-          </>
-        )}
+      <div className="mt-5 grid grid-cols-2 gap-3 px-1">
+        {buttonForOutcome(yesOutcome, yP, 'yes')}
+        {buttonForOutcome(noOutcome, nP, 'no')}
       </div>
     </div>
   );
@@ -1626,9 +1143,8 @@ function PredictionPositionPanel({
   noOutcome,
   side,
   cost,
+  potentialWin,
   entryPrice,
-  positionShares,
-  entryIsEstimate,
   currentPrice,
   yesPrice,
   noPrice,
@@ -1642,9 +1158,8 @@ function PredictionPositionPanel({
   noOutcome?: string;
   side: 'BUY' | 'SELL';
   cost: number;
+  potentialWin?: number;
   entryPrice: number;
-  positionShares?: number;
-  entryIsEstimate?: boolean;
   currentPrice: number;
   yesPrice?: number;
   noPrice?: number;
@@ -1652,16 +1167,9 @@ function PredictionPositionPanel({
   marketUrl?: string;
   userName?: string;
 }) {
-  const shares =
-    positionShares !== undefined && Number.isFinite(positionShares)
-      ? positionShares
-      : !entryIsEstimate && entryPrice > 0
-        ? cost / entryPrice
-        : undefined;
+  const shares = entryPrice > 0 ? cost / entryPrice : undefined;
   const currentValue =
-    !entryIsEstimate && shares !== undefined
-      ? shares * currentPrice
-      : undefined;
+    shares !== undefined ? shares * currentPrice : undefined;
   const delta =
     currentValue !== undefined && Number.isFinite(currentValue)
       ? currentValue - cost
@@ -1672,433 +1180,153 @@ function PredictionPositionPanel({
       : undefined;
   const open =
     tradeState.state === 'open' || tradeState.state === 'live';
-  const selectedPnl = entryIsEstimate
-    ? undefined
-    : open || tradeState.state === 'won' || tradeState.state === 'lost'
-      ? (delta ?? tradeState.amount)
-      : (tradeState.amount ?? delta);
-  const summaryValue =
-    currentValue ??
-    (selectedPnl !== undefined ? cost + selectedPnl : undefined);
-  const status = predictionStatusPill(tradeState);
-  const yesLabel = yesOutcome || 'Yes';
-  const noLabel = noOutcome || 'No';
-  const normalizedOutcome = outcome.toLowerCase();
-  const pickedIsYes =
-    normalizedOutcome === yesLabel.toLowerCase() ||
-    normalizedOutcome === 'yes';
-  const resolvedYesPrice = clampProbability(
-    yesPrice ?? (pickedIsYes ? currentPrice : 1 - currentPrice),
-  );
-  const resolvedNoPrice = clampProbability(
-    noPrice ?? (pickedIsYes ? 1 - currentPrice : currentPrice),
-  );
-  const split = splitProbabilities(resolvedYesPrice, resolvedNoPrice);
-  const chartColor =
-    tradeState.tone === 'red'
-      ? '#E85D5D'
-      : tradeState.tone === 'green'
-        ? '#51AD7D'
-        : pickedIsYes
-          ? '#20242D'
-          : '#2F7ED8';
-  const pnlTone =
-    selectedPnl === undefined
-      ? 'text-gray-400'
-      : selectedPnl >= 0
-        ? 'text-[#07976B]'
-        : 'text-[#E85D5D]';
-  const positionVerb =
-    entryIsEstimate
-      ? 'Quote shown for'
-      : side === 'SELL'
-      ? 'You sold'
-      : open
-        ? "You're on"
-        : 'You backed';
-  const isWonResult = !open && tradeState.state === 'won';
-  const payoutDisplayValue =
-    !entryIsEstimate && isWonResult && summaryValue !== undefined
-      ? summaryValue
-      : undefined;
-  const resultDisplay = entryIsEstimate
-    ? '—'
-    : formatSignedUsd(selectedPnl);
-  const resultSubcopy =
-    payoutDisplayValue !== undefined
-      ? `${formatUsd(payoutDisplayValue)} payout`
-      : undefined;
-  const positionKicker = entryIsEstimate
-    ? 'QUOTE'
-    : open
-    ? selectedPnl === undefined
-      ? 'OPEN'
-      : selectedPnl >= 0
-        ? 'UP'
-        : 'DOWN'
-    : isWonResult || tradeState.state === 'lost'
-      ? 'RESULT'
-      : tradeState.label.toUpperCase();
-  const deltaSummary =
-    delta !== undefined && deltaPct !== undefined
-      ? `${formatSignedUsd(delta)} (${deltaPct >= 0 ? '+' : ''}${deltaPct.toFixed(1)}%)`
-      : undefined;
-
-  const VB_W = 300;
-  const VB_H = 72;
-  const PLOT_X = 2;
-  const PLOT_Y = 8;
-  const PLOT_W = VB_W - PLOT_X * 2;
-  const PLOT_H = 48;
-  const BASELINE_Y = PLOT_Y + PLOT_H + 6;
-  const chartSeries = useMemo<HistoryPoint[]>(() => {
-    const startP = clampProbability(entryPrice || currentPrice);
-    const endP = clampProbability(currentPrice || entryPrice);
-    const now = Math.floor(Date.now() / 1000);
-    const start = now - 24 * 60 * 60;
-    const count = 20;
-    const seed = `${marketTitle}-${outcome}`;
-
-    return Array.from({ length: count }, (_, index) => {
-      const ratio = index / Math.max(1, count - 1);
-      const base = startP + (endP - startP) * ratio;
-      const wave = Math.sin(index * 1.15) * 0.018;
-      const noise = (seededRand(seed, index) - 0.5) * 0.055;
-      const p = clampProbability(base + wave + noise * (1 - ratio * 0.45));
-      return {
-        t: start + Math.round((now - start) * ratio),
-        p,
-      };
-    });
-  }, [currentPrice, entryPrice, marketTitle, outcome]);
-  const tMin = chartSeries[0]?.t ?? 0;
-  const tMax = chartSeries[chartSeries.length - 1]?.t ?? 1;
-  const chartPath = historyToPath(
-    chartSeries,
-    tMin,
-    tMax,
-    PLOT_X,
-    PLOT_Y,
-    PLOT_W,
-    PLOT_H,
-  );
-  const latestPoint = chartSeries[chartSeries.length - 1];
-  const latestPointX = latestPoint
-    ? PLOT_X +
-      ((latestPoint.t - tMin) / Math.max(1, tMax - tMin)) * PLOT_W
-    : PLOT_X + PLOT_W;
-  const latestPointY = latestPoint
-    ? PLOT_Y + (1 - latestPoint.p) * PLOT_H
-    : PLOT_Y + PLOT_H / 2;
-  const chartAreaPath = chartPath
-    ? `${chartPath} L ${latestPointX.toFixed(2)} ${BASELINE_Y} L ${PLOT_X} ${BASELINE_Y} Z`
-    : '';
-  const gradientId = `prediction-trend-${String(marketTitle + outcome)
-    .replace(/[^a-zA-Z0-9_-]/g, '')
-    .slice(0, 48)}`;
-  const marketKind =
-    yesLabel.toLowerCase() === 'yes' && noLabel.toLowerCase() === 'no'
-      ? 'BINARY'
-      : 'MARKET';
-  const formatPredictionPrice = (price: number) =>
-    `${Math.round(clampProbability(price) * 100)}¢`;
-  const entryPriceLabel = formatPredictionPrice(entryPrice);
-  const buttonForOutcome = (
-    label: string,
-    price: number,
-    selected: boolean,
+  const userInitials = getInitials(userName);
+  const renderOutcomeButton = (
+    label: string | undefined,
+    price: number | undefined,
+    tone: 'green' | 'red',
   ) => {
-    const classes = `flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 text-[13px] font-extrabold transition-colors ${
-      selected
-        ? 'border-[#2F7ED8] bg-[#2F7ED8] text-white shadow-[0_8px_18px_rgba(47,126,216,0.24)]'
-        : 'border-gray-100 bg-white text-gray-900 hover:border-gray-200 hover:bg-gray-50'
-    }`;
+    const className =
+      tone === 'green'
+        ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+        : 'bg-red-500 text-white hover:bg-red-600';
+    const content = `${label || 'Outcome'} ${formatCents(price)}`;
 
-    if (marketUrl) {
+    if (!marketUrl || !open) {
       return (
-        <a
-          href={marketUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className={classes}
-          title={`Open ${label} market`}
+        <button
+          type="button"
+          disabled
+          className={`flex h-[34px] min-w-0 items-center justify-center rounded-lg px-3 text-[12px] font-extrabold opacity-60 shadow-sm ${className}`}
         >
-          <span className="truncate">{label}</span>
-          <span
-            className={`shrink-0 font-mono text-[12px] ${
-              selected ? 'text-white' : 'text-[#2F7ED8]'
-            }`}
-          >
-            {formatPredictionPrice(price)}
-          </span>
-        </a>
+          <span className="truncate">{content}</span>
+        </button>
       );
     }
 
     return (
-      <button
-        type="button"
-        disabled
-        className={`${classes} opacity-60`}
+      <a
+        href={marketUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className={`flex h-[34px] min-w-0 items-center justify-center rounded-lg px-3 text-[12px] font-extrabold shadow-sm transition-colors ${className}`}
       >
-        <span className="truncate">{label}</span>
-        <span className="shrink-0 font-mono text-[12px]">
-          {formatPredictionPrice(price)}
-        </span>
-      </button>
+        <span className="truncate">{content}</span>
+      </a>
     );
   };
 
   return (
-    <div className="mt-2 w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#ECECEB] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.10)]">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 text-[13px] font-black text-gray-950">
-            PREDICTION
-          </span>
-          <span className="h-1 w-1 shrink-0 rounded-full bg-gray-300" />
-          <span className="truncate font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-            {marketKind}
-          </span>
-        </div>
-        <span
-          className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-[12px] font-extrabold ${status.className}`}
-        >
-          {status.label}
-        </span>
-      </div>
+    <div>
+      <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="pointer-events-none absolute left-[-5px] top-12 h-2.5 w-2.5 rounded-full border border-gray-200 bg-gray-50" />
+        <div className="pointer-events-none absolute right-[-5px] top-12 h-2.5 w-2.5 rounded-full border border-gray-200 bg-gray-50" />
 
-      <p className="mt-4 line-clamp-2 text-[17px] font-black leading-snug text-gray-950">
-        {marketTitle}
-      </p>
-
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-black text-[#2F7ED8]">
-            {initials(userName)}
-          </span>
-          <p className="min-w-0 truncate text-[14px] font-extrabold text-gray-950">
-            {(userName || 'Someone').split(' ')[0]}{' '}
-            {side === 'BUY' ? 'picked' : 'sold'}{' '}
-            <span className="text-[#2F7ED8]">{outcome}</span>
+        <div className="px-3 py-1">
+          <p className="line-clamp-2 text-[13px] font-extrabold leading-snug text-gray-950">
+            {marketTitle}
           </p>
         </div>
-        {deltaSummary && (
-          <span className={`shrink-0 font-mono text-[11px] font-black ${pnlTone}`}>
-            {deltaSummary}
-          </span>
-        )}
-      </div>
 
-      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="h-2 w-2 shrink-0 rounded-[3px] bg-[#20242D]" />
-          <span className="truncate text-[12px] font-extrabold text-gray-900">
-            {yesLabel}
-          </span>
-        </div>
-        <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-          {open ? 'CHANCE' : 'FINAL'}
-        </p>
-        <div className="flex min-w-0 items-center justify-end gap-1.5">
-          <span className="truncate text-right text-[12px] font-extrabold text-gray-900">
-            {noLabel}
-          </span>
-          <span className="h-2 w-2 shrink-0 rounded-[3px] bg-[#2F7ED8]" />
-        </div>
-      </div>
-
-      <div className="relative mt-2 h-[74px] overflow-hidden rounded-[20px] bg-[#20242D] shadow-inner">
-        <div
-          className="absolute inset-y-0 left-0 bg-gradient-to-b from-[#3A404B] to-[#1E222B]"
-          style={{ width: `${split.yes}%` }}
-        />
-        <div
-          className="absolute inset-y-0 right-0 bg-gradient-to-b from-[#5BA2F1] to-[#2F7ED8]"
-          style={{ width: `${split.no}%` }}
-        />
-        <div className="absolute inset-y-0 left-0 flex items-center px-4 text-white">
-          <div>
-            <p className="font-mono text-[10px] font-black uppercase text-white/70">
-              {yesLabel}
-            </p>
-            <p className="font-mono text-[26px] font-black leading-none">
-              {formatPercent(resolvedYesPrice)}
+        <div className="flex items-center justify-between gap-2 px-3 py-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-[13px] font-extrabold text-gray-950">
+              {userName || 'Someone'}{' '}
+              {side === 'BUY' ? 'picked' : 'sold'}{' '}
+              <span className="text-blue-600">{outcome}</span>
             </p>
           </div>
-        </div>
-        <div className="absolute inset-y-0 right-0 flex items-center px-4 text-right text-white">
-          <div>
-            <p className="font-mono text-[10px] font-black uppercase text-white/70">
-              {noLabel}
-            </p>
-            <p className="font-mono text-[26px] font-black leading-none">
-              {formatPercent(resolvedNoPrice)}
-            </p>
-          </div>
-        </div>
-        {split.yes > 6 && split.yes < 94 && (
-          <div
-            className="absolute top-0 h-full w-px bg-white/40"
-            style={{ left: `${split.yes}%` }}
-          >
-            <span className="absolute left-1/2 top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_8px_18px_rgba(15,23,42,0.20)]">
-              <span className="mr-0.5 h-3 w-[2px] rounded-full bg-gray-300" />
-              <span className="h-3 w-[2px] rounded-full bg-gray-300" />
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="mt-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-            Price · Timeline
-          </p>
-          <p className="truncate text-right font-mono text-[10px] font-black text-gray-400">
-            {entryIsEstimate ? 'quoted' : 'backing'} {outcome}
-          </p>
-        </div>
-        <svg
-          viewBox={`0 0 ${VB_W} ${VB_H}`}
-          className="mt-1 block h-[72px] w-full"
-          role="img"
-          aria-label={`${outcome} probability timeline`}
-        >
-          <defs>
-            <linearGradient
-              id={gradientId}
-              x1="0"
-              x2="0"
-              y1="0"
-              y2="1"
-            >
-              <stop
-                offset="0%"
-                stopColor={chartColor}
-                stopOpacity="0.20"
-              />
-              <stop
-                offset="100%"
-                stopColor={chartColor}
-                stopOpacity="0"
-              />
-            </linearGradient>
-          </defs>
-          <line
-            x1={PLOT_X}
-            x2={PLOT_X + PLOT_W}
-            y1={PLOT_Y + PLOT_H / 2}
-            y2={PLOT_Y + PLOT_H / 2}
-            stroke="#E5E7EB"
-            strokeDasharray="3 5"
-            strokeWidth={1}
-          />
-          {chartAreaPath && (
-            <path d={chartAreaPath} fill={`url(#${gradientId})`} />
-          )}
-          {chartPath && (
-            <path
-              d={chartPath}
-              fill="none"
-              stroke={chartColor}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2.5}
-            />
-          )}
-          <circle
-            cx={latestPointX}
-            cy={latestPointY}
-            r={4.5}
-            fill="white"
-            stroke={chartColor}
-            strokeWidth={2.5}
-          />
-        </svg>
-      </div>
-
-      <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
-        <div className="min-w-0">
-          <p className="truncate text-[13px] font-extrabold text-gray-950">
-            {positionVerb}{' '}
-            <span className="text-[#2F7ED8]">{outcome}</span>
-          </p>
-          <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-gray-400">
-            {formatEntrySummary({
-              cost,
-              shares,
-              entryPriceLabel,
-              entryIsEstimate,
-            })}
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">
-            {positionKicker}
-          </p>
-          <p className={`font-mono text-[22px] font-black ${pnlTone}`}>
-            {resultDisplay}
-          </p>
-          {resultSubcopy && (
-            <p className="mt-0.5 font-mono text-[10px] font-black text-gray-400">
-              {resultSubcopy}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        {open ? (
-          <>
-            {buttonForOutcome(yesLabel, resolvedYesPrice, pickedIsYes)}
-            {buttonForOutcome(noLabel, resolvedNoPrice, !pickedIsYes)}
-          </>
-        ) : (
-          <>
-            {marketUrl ? (
-              <a
-                href={marketUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="flex h-11 items-center justify-center rounded-xl border border-gray-100 bg-white px-3 text-[13px] font-extrabold text-gray-900 transition-colors hover:border-gray-200 hover:bg-gray-50"
+          {tradeState.state !== 'open' &&
+            tradeState.state !== 'live' && (
+              <span
+                className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${toneClasses(
+                  tradeState.tone,
+                )}`}
               >
-                Market →
-              </a>
-            ) : (
-              <button
-                type="button"
-                disabled
-                className="flex h-11 items-center justify-center rounded-xl border border-gray-100 bg-white px-3 text-[13px] font-extrabold text-gray-400"
-              >
-                Market →
-              </button>
+                {tradeState.label}
+              </span>
             )}
-            <a
-              href="/prediction"
-              onClick={(e) => e.stopPropagation()}
-              className="flex h-11 items-center justify-center rounded-xl bg-gray-950 px-3 text-[13px] font-extrabold text-white transition-colors hover:bg-black"
+        </div>
+
+        <div className="border-t border-dashed border-gray-200" />
+
+        <div className="grid grid-cols-3">
+          <div className="px-3 py-3 text-center">
+            <p className="text-[10px] font-medium text-gray-500">
+              Cost
+            </p>
+            <p className="mt-1 text-[13px] font-extrabold text-emerald-600">
+              {formatUsd(cost)}
+            </p>
+          </div>
+          <div className="border-x border-gray-100 px-3 py-3 text-center">
+            <p className="text-[10px] font-medium text-gray-500">
+              Current
+            </p>
+            <p className="mt-1 text-[13px] font-extrabold text-emerald-600">
+              {formatUsd(currentValue)}
+            </p>
+            {delta !== undefined && (
+              <p
+                className={`mt-0.5 text-[11px] font-bold ${
+                  delta >= 0 ? 'text-emerald-600' : 'text-red-500'
+                }`}
+              >
+                {delta >= 0 ? '+' : ''}
+                {formatUsd(delta)}
+                {deltaPct !== undefined &&
+                  ` (${deltaPct >= 0 ? '+' : ''}${deltaPct.toFixed(1)}%)`}
+              </p>
+            )}
+          </div>
+          <div className="px-3 py-3 text-center">
+            <p className="text-[10px] font-medium text-gray-500">
+              {tradeState.state === 'sold' ||
+              tradeState.state === 'sold-profit' ||
+              tradeState.state === 'sold-loss'
+                ? 'Sold'
+                : tradeState.state === 'won' ||
+                    tradeState.state === 'lost'
+                  ? 'Result'
+                  : 'To win'}
+            </p>
+            <p
+              className={`mt-1 text-[13px] font-extrabold ${
+                tradeState.tone === 'red'
+                  ? 'text-red-600'
+                  : 'text-emerald-600'
+              }`}
             >
-              View Predictions
-            </a>
-          </>
-        )}
+              {open
+                ? formatUsd(potentialWin)
+                : formatUsd(tradeState.amount)}
+            </p>
+          </div>
+        </div>
       </div>
+
+      {(yesOutcome || noOutcome) && (
+        <div className="mt-5 grid grid-cols-2 gap-3 px-1">
+          {renderOutcomeButton(yesOutcome, yesPrice, 'green')}
+          {renderOutcomeButton(noOutcome, noPrice, 'red')}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-function RegularPredictionFeedCard({
+export default function PredictionFeedCard({
   content,
   userName,
 }: PredictionFeedCardProps) {
   const {
     outcome,
     side,
+    cost,
+    potentialWin,
     price,
     eventSlug,
     yesOutcome,
@@ -2108,28 +1336,14 @@ function RegularPredictionFeedCard({
     yesTeam,
     noTeam,
     gameStartTime,
+    volume,
     yesTokenId,
     noTokenId,
   } = content;
-  const executedPosition = resolveExecutedPredictionPosition(content);
-  const entryPrice = executedPosition.entryPrice || price;
-  const displayCost = executedPosition.cost;
-  const displayContent: PredictionContent = {
-    ...content,
-    cost: displayCost,
-    price: entryPrice,
-    potentialWin: executedPosition.shares ?? content.potentialWin,
-  };
-  const entryIsEstimate = isPredictionEntryEstimate(
-    content,
-    executedPosition,
-  );
 
   const liveScore = useLiveScore(eventSlug);
   const marketUrl = eventSlug
     ? `https://polymarket.com/event/${encodeURIComponent(eventSlug)}`
-    : content.marketSlug
-      ? `https://polymarket.com/market/${encodeURIComponent(content.marketSlug)}`
     : undefined;
 
   // Show sports panel when at least yesOutcome + noOutcome + some sports signal present
@@ -2144,10 +1358,10 @@ function RegularPredictionFeedCard({
   );
 
   const marketState = resolveMarketState(content, liveScore);
-  const resolvedYesPrice = marketState.yesPrice ?? yesPrice ?? entryPrice;
-  const resolvedNoPrice = marketState.noPrice ?? noPrice ?? 1 - entryPrice;
+  const resolvedYesPrice = marketState.yesPrice ?? yesPrice ?? price;
+  const resolvedNoPrice = marketState.noPrice ?? noPrice ?? 1 - price;
   const tradeState = resolveTradeState(
-    displayContent,
+    content,
     liveScore?.live === true,
     marketState,
   );
@@ -2160,15 +1374,13 @@ function RegularPredictionFeedCard({
     currentPrice >= 0 &&
     currentPrice <= 1
       ? currentPrice
-      : entryPrice;
+      : price;
 
   return (
     <div className="mt-2">
       {/* ── Sports panel: team badges + probability chart ───────────────────── */}
       {isSports && (
         <SportsMiniPanel
-          marketTitle={content.marketTitle}
-          eventSlug={eventSlug}
           yesOutcome={yesOutcome!}
           noOutcome={noOutcome!}
           yesPrice={resolvedYesPrice}
@@ -2176,16 +1388,16 @@ function RegularPredictionFeedCard({
           yesTeam={yesTeam}
           noTeam={noTeam}
           gameStartTime={gameStartTime}
+          volume={volume}
           yesTokenId={yesTokenId}
           noTokenId={noTokenId}
           liveScore={liveScore}
           pickedOutcome={outcome}
           userName={userName}
           side={side}
-          cost={displayCost}
-          entryPrice={entryPrice}
-          positionShares={executedPosition.shares}
-          entryIsEstimate={entryIsEstimate}
+          cost={cost}
+          potentialWin={potentialWin}
+          entryPrice={price}
           tradeState={tradeState}
           marketUrl={marketUrl}
         />
@@ -2198,10 +1410,9 @@ function RegularPredictionFeedCard({
           yesOutcome={yesOutcome}
           noOutcome={noOutcome}
           side={side}
-          cost={displayCost}
-          entryPrice={entryPrice}
-          positionShares={executedPosition.shares}
-          entryIsEstimate={entryIsEstimate}
+          cost={cost}
+          potentialWin={potentialWin}
+          entryPrice={price}
           currentPrice={currentDisplayPrice}
           yesPrice={resolvedYesPrice}
           noPrice={resolvedNoPrice}
@@ -2255,221 +1466,4 @@ function RegularPredictionFeedCard({
         )}
     </div>
   );
-}
-
-function normalizeBtcOutcome(outcome: string | undefined): 'Up' | 'Down' {
-  return String(outcome || '').toLowerCase().includes('up')
-    ? 'Up'
-    : 'Down';
-}
-
-function btcEntryPrices(content: PredictionContent) {
-  const outcome = normalizeBtcOutcome(content.outcome);
-  const entry = clampProbability(finiteNumber(content.price) ?? 0.5);
-  return {
-    yesPrice: clampProbability(
-      finiteNumber(content.yesPrice) ?? (outcome === 'Up' ? entry : 1 - entry),
-    ),
-    noPrice: clampProbability(
-      finiteNumber(content.noPrice) ?? (outcome === 'Down' ? entry : 1 - entry),
-    ),
-  };
-}
-
-function LiveBtcFiveMinutePredictionFeedCard({
-  content,
-  userName,
-}: PredictionFeedCardProps) {
-  const { upProbability } = useBtcUpDownMarket();
-  const outcome = normalizeBtcOutcome(content.outcome);
-  const executedPosition = resolveExecutedPredictionPosition(content);
-  const entryIsEstimate = isPredictionEntryEstimate(
-    content,
-    executedPosition,
-  );
-  const yesPrice = clampProbability(upProbability / 100);
-  const noPrice = clampProbability(1 - yesPrice);
-  const currentPrice = outcome === 'Up' ? yesPrice : noPrice;
-  const marketState: ResolvedMarketState = {
-    closed: false,
-    yesPrice,
-    noPrice,
-    pickedPrice: currentPrice,
-  };
-  const liveContent: PredictionContent = {
-    ...content,
-    marketTitle: content.marketTitle || 'BTC 5-Minute Up or Down',
-    outcome,
-    cost: executedPosition.cost,
-    price: executedPosition.entryPrice || content.price,
-    potentialWin: executedPosition.shares ?? content.potentialWin,
-    yesOutcome: 'Up',
-    noOutcome: 'Down',
-    yesPrice,
-    noPrice,
-    currentPrice,
-  };
-  const tradeState = resolveTradeState(liveContent, false, marketState);
-  const marketUrl = content.marketSlug
-    ? `https://polymarket.com/market/${encodeURIComponent(content.marketSlug)}`
-    : undefined;
-
-  return (
-    <div className="mt-2">
-      <PredictionPositionPanel
-        marketTitle={liveContent.marketTitle}
-        outcome={outcome}
-        yesOutcome="Up"
-        noOutcome="Down"
-        side={content.side}
-        cost={executedPosition.cost}
-        entryPrice={executedPosition.entryPrice || content.price}
-        positionShares={executedPosition.shares}
-        entryIsEstimate={entryIsEstimate}
-        currentPrice={currentPrice}
-        yesPrice={yesPrice}
-        noPrice={noPrice}
-        tradeState={tradeState}
-        marketUrl={marketUrl}
-        userName={userName}
-      />
-    </div>
-  );
-}
-
-function HistoricalBtcFiveMinutePredictionFeedCard({
-  content,
-  userName,
-  createdAt,
-}: PredictionFeedCardProps) {
-  const windowStart = resolveBtcWindowStart(content, createdAt);
-  const { market } = useHistoricalBtcFeedMarket(windowStart, true);
-  const outcome = normalizeBtcOutcome(content.outcome);
-  const executedPosition = resolveExecutedPredictionPosition(content);
-  const entryIsEstimate = isPredictionEntryEstimate(
-    content,
-    executedPosition,
-  );
-  const entryPrices = btcEntryPrices(content);
-  const isExpired = Date.now() / 1000 >= windowStart + 300;
-  const candleWinner = useBtcWindowWinner(windowStart, isExpired);
-  const finalYesPrice = clampProbability(
-    market?.yesPrice ?? entryPrices.yesPrice,
-  );
-  const finalNoPrice = clampProbability(
-    market?.noPrice ?? entryPrices.noPrice,
-  );
-  const resolvedWinner =
-    candleWinner ?? inferBtcWinnerFromPrices(finalYesPrice, finalNoPrice);
-  const yesPrice =
-    isExpired && resolvedWinner
-      ? resolvedWinner === 'Up'
-        ? 1
-        : 0
-      : finalYesPrice;
-  const noPrice =
-    isExpired && resolvedWinner
-      ? resolvedWinner === 'Down'
-        ? 1
-        : 0
-      : finalNoPrice;
-  const currentPrice = outcome === 'Up' ? yesPrice : noPrice;
-  const entryPrice = clampProbability(
-    executedPosition.entryPrice ||
-      (finiteNumber(content.price) ??
-        (outcome === 'Up' ? entryPrices.yesPrice : entryPrices.noPrice)),
-  );
-  const shares =
-    executedPosition.shares !== undefined &&
-    Number.isFinite(executedPosition.shares)
-      ? executedPosition.shares
-      : entryPrice > 0
-        ? executedPosition.cost / entryPrice
-        : undefined;
-  const payoutValue =
-    shares !== undefined && Number.isFinite(shares)
-      ? shares * currentPrice
-      : undefined;
-  const pnl =
-    payoutValue !== undefined && Number.isFinite(payoutValue)
-      ? payoutValue - executedPosition.cost
-      : undefined;
-  const marketState: ResolvedMarketState = {
-    closed: Boolean(market?.closed || isExpired),
-    yesPrice,
-    noPrice,
-    pickedPrice: currentPrice,
-    pickedWon: resolvedWinner ? outcome === resolvedWinner : undefined,
-  };
-  const resolvedTitle =
-    content.marketTitle || market?.question || 'BTC 5-Minute Up or Down';
-  const historicalContent: PredictionContent = {
-    ...content,
-    marketTitle: resolvedTitle,
-    cost: executedPosition.cost,
-    price: entryPrice,
-    potentialWin: shares ?? content.potentialWin,
-    marketId: content.marketId || market?.conditionId,
-    marketSlug: content.marketSlug || market?.slug,
-    outcome,
-    yesOutcome: 'Up',
-    noOutcome: 'Down',
-    yesTokenId: content.yesTokenId || market?.upTokenId,
-    noTokenId: content.noTokenId || market?.downTokenId,
-    yesPrice,
-    noPrice,
-    currentPrice,
-    pnl,
-  };
-  const tradeState = resolveTradeState(
-    historicalContent,
-    false,
-    marketState,
-  );
-  const marketUrl = historicalContent.marketSlug
-    ? `https://polymarket.com/market/${encodeURIComponent(
-        historicalContent.marketSlug,
-      )}`
-    : undefined;
-
-  return (
-    <div className="mt-2">
-      <PredictionPositionPanel
-        marketTitle={resolvedTitle}
-        outcome={outcome}
-        yesOutcome="Up"
-        noOutcome="Down"
-        side={content.side}
-        cost={executedPosition.cost}
-        entryPrice={entryPrice}
-        positionShares={shares}
-        entryIsEstimate={entryIsEstimate}
-        currentPrice={currentPrice}
-        yesPrice={yesPrice}
-        noPrice={noPrice}
-        tradeState={tradeState}
-        marketUrl={marketUrl}
-        userName={userName}
-      />
-    </div>
-  );
-}
-
-function BtcFiveMinutePredictionFeedCard(props: PredictionFeedCardProps) {
-  const windowStart = resolveBtcWindowStart(props.content, props.createdAt);
-  const activeWindowStart = useCurrentBtcWindowStart();
-
-  if (windowStart === activeWindowStart) {
-    return <LiveBtcFiveMinutePredictionFeedCard {...props} />;
-  }
-
-  return <HistoricalBtcFiveMinutePredictionFeedCard {...props} />;
-}
-
-export default function PredictionFeedCard(props: PredictionFeedCardProps) {
-  if (isBtcFiveMinutePrediction(props.content)) {
-    return <BtcFiveMinutePredictionFeedCard {...props} />;
-  }
-
-  return <RegularPredictionFeedCard {...props} />;
 }

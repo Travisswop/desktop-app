@@ -11,9 +11,7 @@ export interface ModelInfo {
   success: boolean;
   nftType: string;
   details?: string;
-  /** Optional overrides — when set, replace the default success/error titles. */
-  successTitle?: string;
-  errorTitle?: string;
+  title?: string;
 }
 
 interface MintAlertModalProps {
@@ -58,11 +56,9 @@ export default function MintAlertModal({
                 id="mint-result-modal"
                 className="font-bold text-lg mt-4"
               >
-                {modelInfo.successTitle ??
-                  `${
-                    modelInfo.nftType.charAt(0).toUpperCase() +
-                    modelInfo.nftType.slice(1)
-                  } NFT Template Created`}
+                {modelInfo.title ||
+                  `${modelInfo.nftType.charAt(0).toUpperCase() +
+                    modelInfo.nftType.slice(1)} NFT Template Created`}
               </h2>
             ) : (
               <div className="mt-4">
@@ -70,7 +66,7 @@ export default function MintAlertModal({
                   id="mint-result-modal"
                   className="font-bold text-lg"
                 >
-                  {modelInfo.errorTitle ?? 'Failed to create NFT template'}
+                  Failed to create NFT template
                 </h2>
                 {modelInfo.details && (
                   <p className="text-lg mt-2" role="alert">

@@ -1,5 +1,3 @@
-import { apiFetch } from '@/lib/api/apiFetch';
-
 export async function getTemplateDetails(
   collectionId: string,
   templateId: string,
@@ -8,7 +6,7 @@ export async function getTemplateDetails(
   const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/nft/getTemplateDetails?collectionId=${collectionId}&templateId=${templateId}`;
 
   try {
-    const response = await apiFetch(apiUrl, {
+    const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

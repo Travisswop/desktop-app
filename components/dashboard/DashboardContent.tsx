@@ -3,24 +3,19 @@ import { useUser } from "@/lib/UserContext";
 import { Skeleton } from "../ui/skeleton";
 import ProfileHeader from "./profile-header";
 import DashboardAnalytics from "./analytics";
-import WalletBalanceChart from "./BalanceChart";
+import WalletBalanceChart from "./walletBalanceChart";
 import PortfolioChart, { PortfolioAsset } from "./PortfolioChart";
 import { useQuery } from "@tanstack/react-query";
 import { getFollowers, followersQueryKey } from "@/services/followers-service";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets, useSolanaWallets } from "@privy-io/react-auth";
 import { useMemo } from "react";
 import { useMultiChainTokenData } from "@/lib/hooks/useToken";
 import { useRouter } from "next/navigation";
-import {
-  getPortfolioEvmWalletInput,
-  useWalletAddresses,
-  useWalletData,
-} from "../wallet/hooks/useWalletData";
 
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
   SOL: "#10b981",
-  SWOP: "#14b8a6",
+  SWOP: "#d1fae5",
   ETH: "#047857",
   BTC: "#f59e0b",
   USDC: "#2563eb",
@@ -38,32 +33,34 @@ const getTokenColor = (symbol: string): string => {
 
 export default function DashboardContent() {
   const { user, loading, error, accessToken } = useUser();
-  const {
-    authenticated,
-    ready,
-    user: privyUser,
-  } = usePrivy();
+  const { user: privyUser } = usePrivy();
+  const { wallets: ethWallets } = useWallets();
+  const { wallets: solanaWallets } = useSolanaWallets();
   const router = useRouter();
 
-  const walletData = useWalletData(authenticated, ready, privyUser, user);
-  const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
-    useWalletAddresses(walletData);
-  const portfolioEvmWalletInput = useMemo(
-    () => getPortfolioEvmWalletInput(evmWalletAddress, evmWalletAddresses),
-    [evmWalletAddress, evmWalletAddresses],
-  );
+  // Get wallet addresses
+  const solWalletAddress = useMemo(() => {
+    return solanaWallets?.find(
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
+    )?.address;
+  }, [solanaWallets]);
+
+  const evmWalletAddress = useMemo(() => {
+    return ethWallets?.find(
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
+    )?.address;
+  }, [ethWallets]);
 
   // Fetch token data
   const {
     tokens,
     loading: tokenLoading,
     error: tokenError,
-  } = useMultiChainTokenData(solWalletAddress, portfolioEvmWalletInput, [
+  } = useMultiChainTokenData(solWalletAddress, evmWalletAddress, [
     "SOLANA",
     "ETHEREUM",
     "POLYGON",
     "BASE",
-    "ARBITRUM",
   ]);
 
   // Transform tokens into portfolio assets
@@ -80,15 +77,7 @@ export default function DashboardContent() {
       .map((token) => {
         const balance = parseFloat(token.balance || "0");
         const price = parseFloat(token.marketData?.price || "0");
-        const tokenValue = (token as any).value;
-        const backendValue =
-          typeof tokenValue === "number"
-            ? tokenValue
-            : parseFloat(String(tokenValue ?? "0"));
-        const value =
-          Number.isFinite(backendValue) && backendValue > 0
-            ? backendValue
-            : balance * price;
+        const value = balance * price;
 
         return {
           name: token.symbol,

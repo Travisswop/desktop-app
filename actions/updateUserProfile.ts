@@ -15,8 +15,7 @@ export async function updateUserProfile(payload: any, token: string) {
       }
     );
     revalidatePath(`/`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error("Error from action:", error);
@@ -36,8 +35,7 @@ export async function updateUserWalletInfo(payload: any, email: string) {
         body: JSON.stringify(payload),
       }
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error("Error from action:", error);

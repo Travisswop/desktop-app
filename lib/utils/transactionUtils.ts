@@ -1,38 +1,11 @@
 import { SendFlowState } from '@/types/wallet-types';
 
-function getTokenDecimals(flowData: SendFlowState) {
-  const decimals = Number(flowData.token?.decimals);
-  return Number.isFinite(decimals) && decimals >= 0 ? Math.floor(decimals) : 18;
-}
-
-function trimToTokenDecimals(value: string, decimals: number) {
-  const normalized = String(value || '0').trim().replace(/,/g, '');
-  if (!normalized || normalized === '.') return '0';
-
-  const asNumber = Number(normalized);
-  const decimalLimit = Math.min(Math.max(decimals, 0), 100);
-  const decimalString = /e/i.test(normalized)
-    ? Number.isFinite(asNumber)
-      ? asNumber.toFixed(decimalLimit)
-      : '0'
-    : normalized;
-  const sign = decimalString.startsWith('-') ? '-' : '';
-  const unsigned = sign ? decimalString.slice(1) : decimalString;
-  const [wholeRaw = '0', fractionRaw = ''] = unsigned.split('.');
-  const whole = wholeRaw.replace(/[^\d]/g, '') || '0';
-  const fraction = fractionRaw.replace(/[^\d]/g, '').slice(0, decimalLimit);
-
-  return `${sign}${fraction ? `${whole}.${fraction}` : whole}`;
-}
-
 /**
  * Calculate transaction amount in token units
  * If sending in USD, converts USD to token amount using market price
  * Otherwise returns the amount as-is
  */
 export function calculateTransactionAmount(flowData: SendFlowState): string {
-  const tokenDecimals = getTokenDecimals(flowData);
-
   if (flowData.isUSD && flowData.token?.marketData?.price) {
     const amountInUSD = Number(flowData.amount);
     const tokenPrice = Number(flowData.token.marketData.price);
@@ -42,10 +15,9 @@ export function calculateTransactionAmount(flowData: SendFlowState): string {
     }
 
     const tokenAmount = amountInUSD / tokenPrice;
-    const safePrecision = Math.min(Math.max(tokenDecimals + 6, 20), 100);
-    return trimToTokenDecimals(tokenAmount.toFixed(safePrecision), tokenDecimals);
+    return tokenAmount.toString();
   }
-  return trimToTokenDecimals(flowData.amount, tokenDecimals);
+  return flowData.amount;
 }
 
 export function createTransactionPayload({

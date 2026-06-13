@@ -1,9 +1,17 @@
 "use client";
 
+import { X } from "lucide-react";
+
 // Types
 interface NFCCard {
   id: string;
   url: string;
+}
+
+interface CreateNFCPageProps {
+  onClose?: () => void;
+  cards?: NFCCard[];
+  onCardClick?: (card: NFCCard) => void;
 }
 
 // Simple NFC Card Component - matches exact design
@@ -12,7 +20,7 @@ const NFCCardItem = ({
   onClick,
 }: {
   card: NFCCard;
-  onClick?: (card: NFCCard) => void;
+  onClick?: () => void;
 }) => {
   return (
     <div
@@ -26,7 +34,11 @@ const NFCCardItem = ({
 };
 
 // Main Create NFC Page Component
-export default function CreateNFCPage() {
+export default function CreateNFCPage({
+  onClose,
+  cards,
+  onCardClick,
+}: CreateNFCPageProps) {
   // Default sample data matching the image
   const defaultCards: NFCCard[] = [
     { id: "0f46b98-1001", url: "https://www.youtube.com/" },
@@ -46,7 +58,7 @@ export default function CreateNFCPage() {
     { id: "0f46b98-1015", url: "https://www.youtube.com/" },
   ];
 
-  const displayCards = defaultCards;
+  const displayCards = cards || defaultCards;
 
   return (
     <div className="bg-white p-5 rounded-xl">
@@ -57,7 +69,7 @@ export default function CreateNFCPage() {
         {/* Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {displayCards.map((card) => (
-            <NFCCardItem key={card.id} card={card} />
+            <NFCCardItem key={card.id} card={card} onClick={onCardClick} />
           ))}
         </div>
 

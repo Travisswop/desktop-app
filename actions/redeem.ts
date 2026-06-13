@@ -16,8 +16,7 @@ export async function updateRedeem(payload: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${payload.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from posting redeem link:', error);
@@ -38,8 +37,7 @@ export async function postRedeem(payload: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${payload.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from posting redeem link:', error);
@@ -60,8 +58,7 @@ export async function deleteRedeem(payload: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${payload.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from posting redeem link:', error);

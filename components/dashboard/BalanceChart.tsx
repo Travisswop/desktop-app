@@ -33,10 +33,11 @@ import CustomModal from '../modal/CustomModal';
 import WalletReceiveCryptoPopup from '../wallet/WalletReceiveCryptoPopup';
 import WalletFundandSettingsPopup from '../wallet/WalletFundandSettingsPopup';
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
+import { useWallets } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import TransactionList from '../wallet/transaction/transaction-list';
-import { ChainType, TokenData } from '@/types/token';
-import { useWalletAddresses } from '../wallet/hooks/useWalletData';
 import { SUPPORTED_CHAINS } from '../wallet/constants';
+import { ChainType, TokenData } from '@/types/token';
 
 interface BalanceChartProps {
   userId?: string;
@@ -122,8 +123,21 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   const [showTransactionList, setShowTransactionList] =
     useState(false);
 
-  const { solWalletAddress, evmWalletAddress } =
-    useWalletAddresses(walletData);
+  const { wallets: ethWallets } = useWallets();
+  const { ready: solanaReady, wallets: solWallets } =
+    useSolanaWallets();
+  const solWalletAddress = solanaReady
+    ? (solWallets[0]?.address ?? '')
+    : '';
+  const evmWalletAddress = useMemo(
+    () =>
+      ethWallets?.find(
+        (w) =>
+          w.walletClientType === 'privy' ||
+          w.connectorType === 'embedded',
+      )?.address ?? '',
+    [ethWallets],
+  );
   const showBalance = useBalanceVisibilityStore(
     (state) => state.showBalance,
   );
@@ -192,16 +206,11 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   const balanceHistory = balanceHistoryData?.balanceHistory || [];
   const fetchedBalance = balanceHistoryData?.currentBalance || 0;
 
-  // The backend balance snapshot is the account source of truth. Token
-  // fetching may complete after the snapshot and can be scoped to a subset of
-  // wallets/chains, so only fall back to the token-derived total when the
-  // snapshot has no current balance.
+  // Use prop balance if provided, otherwise use fetched balance
   const totalBalance =
-    typeof propTotalBalance === 'number' && Number.isFinite(propTotalBalance)
+    propTotalBalance !== undefined
       ? propTotalBalance
-      : fetchedBalance > 0
-        ? fetchedBalance
-        : 0;
+      : fetchedBalance;
 
   // Log any errors
   if (error) {
@@ -319,49 +328,9 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     return result;
   }, [balanceHistory, selectedPeriod]);
 
-  const chartData = useMemo((): BalanceHistoryEntry[] => {
-    if (filteredData.length > 0) return filteredData;
-
-    const safeBalance =
-      Number.isFinite(totalBalance) && totalBalance > 0
-        ? totalBalance
-        : 0;
-    if (safeBalance <= 0) return [];
-
-    const now = new Date();
-    const start = new Date(now.getTime());
-
-    switch (selectedPeriod) {
-      case '1day':
-        start.setTime(now.getTime() - 24 * 60 * 60 * 1000);
-        break;
-      case '7days':
-        start.setTime(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case '1month':
-        start.setMonth(start.getMonth() - 1);
-        break;
-      case '6months':
-        start.setMonth(start.getMonth() - 6);
-        break;
-      case '1year':
-        start.setFullYear(start.getFullYear() - 1);
-        break;
-      case 'all':
-      default:
-        start.setMonth(start.getMonth() - 1);
-        break;
-    }
-
-    return [
-      { createdAt: start.toISOString(), amount: safeBalance },
-      { createdAt: now.toISOString(), amount: safeBalance },
-    ];
-  }, [filteredData, selectedPeriod, totalBalance]);
-
   // Calculate growth percentage
   const calculateGrowthPercentage = () => {
-    const nonZeroData = chartData.filter((d) => d.amount > 0);
+    const nonZeroData = filteredData.filter((d) => d.amount > 0);
 
     if (nonZeroData.length < 2) return 0;
 
@@ -496,10 +465,10 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
         </div>
 
         {/* Chart */}
-        <div className="relative w-full h-[200px] mb-4">
+        <div className="w-full h-[200px] mb-4">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
-              data={chartData}
+              data={filteredData}
               margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
             >
               <defs>
@@ -582,17 +551,6 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
               />
             </AreaChart>
           </ResponsiveContainer>
-          {chartData.length === 0 && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center rounded-lg bg-white text-center">
-              <p className="text-sm font-semibold text-gray-700">
-                No portfolio history yet
-              </p>
-              <p className="mt-1 max-w-[220px] text-xs text-gray-400">
-                Your balance chart will appear after the first wallet
-                snapshot.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Time Period Selector */}

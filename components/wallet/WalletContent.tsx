@@ -35,21 +35,24 @@ import {
   isPrivyEmbeddedWallet,
 } from '@/types/privy';
 
-import { TransactionService } from '@/services/transaction-service';
+import {
+  TransactionService,
+  USDC_ADDRESS,
+  SWOP_ADDRESS,
+} from '@/services/transaction-service';
 import { useSendFlow } from '@/lib/hooks/useSendFlow';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { useNFT } from '@/lib/hooks/useNFT';
 import { useUser } from '@/lib/UserContext';
-import type { HyperliquidAgentOrderPrefill } from '@/lib/chat/agentActionHandoff';
 
 // Custom hooks
 import {
-  getPortfolioEvmWalletInput,
   useWalletData,
   useWalletAddresses,
 } from './hooks/useWalletData';
 import { useTransactionPayload } from './hooks/useTransactionPayload';
 import { usePostTransactionEffects } from './hooks/usePostTransactionEffects';
+import { TokenTicker } from './token-ticker';
 
 // Constants
 import { SUPPORTED_CHAINS, ERROR_MESSAGES } from './constants';
@@ -77,20 +80,15 @@ import {
 import { useHyperliquidBalanceCheck } from './perps/hooks/useHyperliquidBalanceCheck';
 import SwapTokenModal from './SwapTokenModal';
 
-// DeFi (Aave lending markets)
-import { DefiSection } from './defi';
-
 // Predictions (Polymarket)
 import WalletPredictionsSection from './WalletPredictionsSection';
 import BlinksSection from './BlinksSection';
-
-// Swap (Jupiter limit orders + LiFi/Jupiter market swaps)
-import WalletSwapSection from './swap/WalletSwapSection';
 
 // Stores
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
 
 // Utilities
+import Cookies from 'js-cookie';
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
 import {
   ArrowRight,
@@ -107,7 +105,7 @@ import {
 // Token colors mapping for consistent visual representation
 const TOKEN_COLORS: Record<string, string> = {
   SOL: '#10b981',
-  SWOP: '#14b8a6',
+  SWOP: '#d1fae5',
   ETH: '#047857',
   BTC: '#f59e0b',
   USDC: '#2563eb',
@@ -201,28 +199,6 @@ function parseChartNumber(value?: string | null) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parsePerpsPanelSide(
-  value?: string | null,
-): 'long' | 'short' | null {
-  const normalized = value?.trim().toLowerCase();
-  return normalized === 'long' || normalized === 'short'
-    ? normalized
-    : null;
-}
-
-function parsePerpsPanelLeverage(value?: string | null) {
-  if (!value) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
-function parsePerpsPanelCoin(
-  params?: SearchParamReader | null,
-): string | null {
-  const value = params?.get('coin')?.trim();
-  return value ? value.toUpperCase() : null;
-}
-
 function getChartTokenSymbol(params?: SearchParamReader | null) {
   return params?.get('chartToken')?.trim().toUpperCase() || '';
 }
@@ -238,10 +214,7 @@ function normalizeChartTokenChain(
 }
 
 function tokenUsdValue(token: TokenData) {
-  if (
-    typeof token.value === 'number' &&
-    Number.isFinite(token.value)
-  ) {
+  if (typeof token.value === 'number' && Number.isFinite(token.value)) {
     return token.value;
   }
 
@@ -262,10 +235,8 @@ function findChartWalletToken(
   if (!matches.length) return null;
 
   return matches.sort((a, b) => {
-    const chainScoreA =
-      preferredChain && a.chain === preferredChain ? 1000 : 0;
-    const chainScoreB =
-      preferredChain && b.chain === preferredChain ? 1000 : 0;
+    const chainScoreA = preferredChain && a.chain === preferredChain ? 1000 : 0;
+    const chainScoreB = preferredChain && b.chain === preferredChain ? 1000 : 0;
     const nativeScoreA = a.isNative ? 100 : 0;
     const nativeScoreB = b.isNative ? 100 : 0;
     return (
@@ -321,9 +292,7 @@ function withChartTokenMarketData(
     ...token,
     name: token.name || metadata.name,
     logoURI:
-      token.logoURI ||
-      metadata.image ||
-      `/assets/crypto-icons/${symbol}.png`,
+      token.logoURI || metadata.image || `/assets/crypto-icons/${symbol}.png`,
     marketData: {
       ...(token.marketData || {}),
       id: metadata.marketId,
@@ -333,8 +302,7 @@ function withChartTokenMarketData(
       price: token.marketData?.price || metadata.priceText,
       change: token.marketData?.change || metadata.changeText,
       priceChangePercentage24h:
-        token.marketData?.priceChangePercentage24h ||
-        metadata.changeText,
+        token.marketData?.priceChangePercentage24h || metadata.changeText,
     },
   };
 }
@@ -407,16 +375,12 @@ function formatRewardAmount(value?: number | string | null) {
 }
 
 function formatRewardUsd(value?: number | string | null) {
-  const amount = rewardNumber(value);
-  // Copy-trade rewards on small trades are worth fractions of a cent —
-  // rounding them to "$0.00" reads as if the reward never arrived.
-  if (amount > 0 && amount < 0.01) return '< $0.01';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(rewardNumber(value));
 }
 
 function shortenWallet(address?: string | null) {
@@ -528,12 +492,9 @@ function RewardsBox({
   const pendingAmount = rewardNumber(rewardWallet?.pendingAmount);
   const pendingUsd = rewardNumber(rewardWallet?.pendingUsd);
   const claimedAmount = rewardNumber(rewardWallet?.claimedAmount);
-  const lifetimeAmount = rewardNumber(
-    rewardWallet?.lifetimeEarnedAmount,
-  );
+  const lifetimeAmount = rewardNumber(rewardWallet?.lifetimeEarnedAmount);
   const tokenSymbol = rewardWallet?.token?.symbol || 'SWOP';
-  const canClaim =
-    claimableAmount > 0 && Boolean(destinationWallet) && !claiming;
+  const canClaim = claimableAmount > 0 && Boolean(destinationWallet) && !claiming;
   const latestClaim = recentClaims[0];
   const statusLabel =
     pendingClaimCount > 0
@@ -580,8 +541,8 @@ function RewardsBox({
               </div>
             </div>
             <p className="mt-2 text-[13px] text-gray-500">
-              {formatRewardUsd(claimableUsd)} ready after confirmed
-              SWOP buybacks.
+              {formatRewardUsd(claimableUsd)} ready after confirmed SWOP
+              buybacks.
             </p>
             {error && (
               <p className="mt-2 text-[12px] font-medium text-red-500">
@@ -633,8 +594,7 @@ function RewardsBox({
               Earned
             </p>
             <p className="mt-1 truncate text-[13px] font-semibold text-gray-900">
-              {formatRewardAmount(lifetimeAmount || claimedAmount)}{' '}
-              {tokenSymbol}
+              {formatRewardAmount(lifetimeAmount || claimedAmount)} {tokenSymbol}
             </p>
             {latestClaim?.status && (
               <p className="truncate text-[11px] text-gray-400">
@@ -707,23 +667,26 @@ export default function WalletContent() {
 }
 
 const WalletContentInner = () => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   // UI state
   const [selectedToken, setSelectedToken] =
     useState<TokenData | null>(null);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
+  const [accessToken, setAccessToken] = useState('');
   const [rewardWallet, setRewardWallet] =
     useState<RewardWalletData | null>(null);
   const [recentRewardClaims, setRecentRewardClaims] = useState<
     RewardClaimData[]
   >([]);
-  const [pendingRewardClaimCount, setPendingRewardClaimCount] =
-    useState(0);
-  const [rewardWalletLoading, setRewardWalletLoading] =
-    useState(false);
-  const [rewardWalletError, setRewardWalletError] = useState<
-    string | null
-  >(null);
+  const [pendingRewardClaimCount, setPendingRewardClaimCount] = useState(0);
+  const [rewardWalletLoading, setRewardWalletLoading] = useState(false);
+  const [rewardWalletError, setRewardWalletError] = useState<string | null>(
+    null,
+  );
   const [rewardClaimLoading, setRewardClaimLoading] = useState(false);
 
   // QR code modals state
@@ -749,35 +712,100 @@ const WalletContentInner = () => {
 
   const [perpsPanelOpen, setPerpsPanelOpen] = useState(false);
   const [perpsDepositOpen, setPerpsDepositOpen] = useState(false);
-  const [perpsAgentPrefill, setPerpsAgentPrefill] =
-    useState<HyperliquidAgentOrderPrefill | null>(null);
   // Coin requested by the row the user clicked in PerpsCard; null = let the
   // panel use its own default. Cleared back to null on close so the next
   // top-level "Trade" press doesn't re-open on a stale coin.
   const [perpsInitialCoin, setPerpsInitialCoin] = useState<
     string | null
   >(null);
+  const [perpsInitialOrder, setPerpsInitialOrder] = useState<{
+    side?: 'long' | 'short';
+    leverage?: number;
+    isCross?: boolean;
+    sizeUsd?: string;
+    sizeCoins?: string;
+  } | null>(null);
 
-  const openPerpsPanel = (coin?: string) => {
+  const openPerpsPanel = useCallback((coin?: string) => {
     setPerpsInitialCoin(coin ?? null);
-    setPerpsAgentPrefill(null);
+    setPerpsInitialOrder(null);
     setPerpsPanelOpen(true);
-  };
+  }, []);
 
   const closePerpsPanel = () => {
     setPerpsPanelOpen(false);
     setPerpsInitialCoin(null);
-    setPerpsAgentPrefill(null);
+    setPerpsInitialOrder(null);
   };
+
+  useEffect(() => {
+    const shouldOpenPerps =
+      searchParams?.get('perps') === '1' ||
+      searchParams?.get('perps') === 'true';
+
+    if (!shouldOpenPerps) return;
+
+    const coin = searchParams?.get('coin')?.trim().toUpperCase();
+    const sideParam = searchParams?.get('side')?.trim().toLowerCase();
+    const leverageParam = Number(searchParams?.get('leverage'));
+    const marginModeParam = searchParams
+      ?.get('marginMode')
+      ?.trim()
+      .toLowerCase();
+    const sizeUsdParam = searchParams?.get('sizeUsd')?.trim();
+    const sizeCoinsParam = searchParams?.get('sizeCoins')?.trim();
+
+    setPerpsInitialCoin(coin || null);
+    setPerpsInitialOrder({
+      side: sideParam === 'short' ? 'short' : sideParam === 'long' ? 'long' : undefined,
+      leverage:
+        Number.isFinite(leverageParam) && leverageParam > 0
+          ? leverageParam
+          : undefined,
+      isCross:
+        marginModeParam === 'isolated'
+          ? false
+          : marginModeParam === 'cross'
+            ? true
+            : undefined,
+      sizeUsd: sizeUsdParam || undefined,
+      sizeCoins: sizeCoinsParam || undefined,
+    });
+    setPerpsPanelOpen(true);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('perps');
+    nextParams.delete('coin');
+    nextParams.delete('side');
+    nextParams.delete('leverage');
+    nextParams.delete('marginMode');
+    nextParams.delete('sizeUsd');
+    nextParams.delete('sizeCoins');
+
+    const nextQuery = nextParams.toString();
+    const nextPath = pathname ?? '/wallet';
+    router.replace(nextQuery ? `${nextPath}?${nextQuery}` : nextPath, {
+      scroll: false,
+    });
+  }, [openPerpsPanel, pathname, router, searchParams]);
+
+  // Hyperliquid agent — lives here so the ExchangeClient persists across
+  // PerpsPanel open/close cycles and never triggers repeated sign messages.
+  const hlAgent = useHyperliquidAgent();
+
+  // Balance check — shared between PerpsPanel (gates approveAgent) and
+  // DepositModal (starts polling after a deposit tx is submitted).
+  const {
+    status: hlDepositStatus,
+    check: hlRecheckBalance,
+    startPolling: hlStartDepositPolling,
+  } = useHyperliquidBalanceCheck(hlAgent.masterAddress);
 
   const [arbitrumBridgeOpen, setArbitrumBridgeOpen] = useState(false);
 
   // Ref to track wallet creation attempts
   const walletCreationAttempted = useRef(false);
-  const rewardWalletRequestRef = useRef(0);
   const assetsMenuRef = useRef<HTMLDivElement>(null);
-  const autoOpenedPerpsQueryRef = useRef('');
-  const autoOpenedSendQueryRef = useRef('');
 
   // Hooks
   const {
@@ -790,6 +818,12 @@ const WalletContentInner = () => {
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
 
+  // Find the first Solana wallet with a valid address
+  const selectedSolanaWallet = useMemo(() => {
+    if (!solanaReady || !directSolanaWallets.length) return undefined;
+    return directSolanaWallets[0];
+  }, [solanaReady, directSolanaWallets]);
+
   const { createWallet } = useCreateWallet();
 
   // Privy's native sponsored transaction hooks
@@ -799,58 +833,12 @@ const WalletContentInner = () => {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user, accessToken: userAccessToken } = useUser();
-  const accessToken = userAccessToken || '';
-  const searchParams = useSearchParams();
-  const perpsQueryString = searchParams?.toString() || '';
-  const pathname = usePathname();
-  const router = useRouter();
+  const { user } = useUser();
 
   // Custom hooks
-  const walletData = useWalletData(
-    authenticated,
-    ready,
-    PrivyUser,
-    user,
-  );
-  const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
+  const walletData = useWalletData(authenticated, ready, PrivyUser);
+  const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
-  // Hyperliquid agent — lives here so the ExchangeClient persists across
-  // PerpsPanel open/close cycles and never triggers repeated sign messages.
-  // NOTE: the hook resolves its own *signable* master wallet from Privy (the
-  // stored EVM address or the embedded wallet) — it deliberately does not take
-  // a master address from here, since the UI-selected display address isn't
-  // guaranteed to be a Privy wallet that can sign approveAgent.
-  const hlAgent = useHyperliquidAgent();
-  const portfolioEvmWalletInput = useMemo(
-    () =>
-      getPortfolioEvmWalletInput(
-        evmWalletAddress,
-        evmWalletAddresses,
-      ),
-    [evmWalletAddress, evmWalletAddresses],
-  );
-  const [loadCollectibles, setLoadCollectibles] = useState(false);
-  // Find the Solana wallet that matches the selected wallet-data address.
-  const selectedSolanaWallet = useMemo(() => {
-    if (!solanaReady || !directSolanaWallets.length) return undefined;
-    const selectedAddress = solWalletAddress.toLowerCase();
-    return (
-      directSolanaWallets.find(
-        (wallet) => wallet.address.toLowerCase() === selectedAddress,
-      ) ?? directSolanaWallets[0]
-    );
-  }, [solanaReady, directSolanaWallets, solWalletAddress]);
-  const perpsMasterAddress =
-    evmWalletAddress || hlAgent.masterAddress || null;
-
-  // Balance check — shared between PerpsPanel (gates approveAgent) and
-  // DepositModal (starts polling after a deposit tx is submitted).
-  const {
-    status: hlDepositStatus,
-    check: hlRecheckBalance,
-    startPolling: hlStartDepositPolling,
-  } = useHyperliquidBalanceCheck(perpsMasterAddress);
   const { payload } = useTransactionPayload(user);
   const {
     handlePointsUpdate,
@@ -870,34 +858,14 @@ const WalletContentInner = () => {
     resetSendFlow,
   } = useSendFlow();
 
+  // Initialize access token and create Solana wallet
   useEffect(() => {
-    if (!searchParams) return;
-
-    const sendParam = searchParams.get('send') || searchParams.get('openSend');
-    const shouldOpenWalletSend = sendParam === '1' || sendParam === 'wallet';
-    if (!shouldOpenWalletSend) {
-      autoOpenedSendQueryRef.current = '';
-      return;
+    // Get access token from cookies
+    const token = Cookies.get('access-token');
+    if (token && token !== accessToken) {
+      setAccessToken(token);
     }
-
-    const queryKey = searchParams.toString();
-    if (autoOpenedSendQueryRef.current === queryKey) return;
-    autoOpenedSendQueryRef.current = queryKey;
-
-    setSelectedToken(null);
-    setSelectedNFT(null);
-    setSendFlow({
-      step: 'select-method',
-      token: null,
-      amount: '',
-      isUSD: false,
-      recipient: null,
-      nft: null,
-      networkFee: '0',
-      network: 'ETHEREUM',
-      hash: '',
-    });
-  }, [searchParams, setSendFlow]);
+  }, [accessToken]);
 
   // Solana wallet auto-creation.
   // Persists the "already attempted" flag in localStorage so it survives
@@ -963,18 +931,6 @@ const WalletContentInner = () => {
     );
   }, [hiddenNfts]);
 
-  useEffect(() => {
-    setLoadCollectibles(false);
-
-    if (!solWalletAddress && !evmWalletAddress) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setLoadCollectibles(true);
-    }, 1200);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [solWalletAddress, evmWalletAddress]);
-
   const toggleNftVisibility = useCallback((nftId: string) => {
     setHiddenNfts((prev) => {
       const next = new Set(prev);
@@ -1008,7 +964,7 @@ const WalletContentInner = () => {
     refetch: refetchTokens,
   } = useMultiChainTokenData(
     solWalletAddress,
-    portfolioEvmWalletInput,
+    evmWalletAddress,
     SUPPORTED_CHAINS,
   );
 
@@ -1017,12 +973,7 @@ const WalletContentInner = () => {
     loading: nftLoading,
     error: nftError,
     refetch: refetchNFTs,
-  } = useNFT(solWalletAddress, evmWalletAddress, SUPPORTED_CHAINS, {
-    enabled: loadCollectibles,
-  });
-  const collectiblesPending =
-    !loadCollectibles &&
-    Boolean(solWalletAddress || evmWalletAddress);
+  } = useNFT(solWalletAddress, evmWalletAddress, SUPPORTED_CHAINS);
 
   // Filter tokens by selected chain chip.
   const filteredTokens = useMemo(() => {
@@ -1053,10 +1004,7 @@ const WalletContentInner = () => {
           searchParams as SearchParamReader,
           symbol,
         )
-      : buildMarketOnlyChartToken(
-          searchParams as SearchParamReader,
-          symbol,
-        );
+      : buildMarketOnlyChartToken(searchParams as SearchParamReader, symbol);
 
     if (walletToken) {
       setTokenChain(walletToken.chain);
@@ -1069,44 +1017,6 @@ const WalletContentInner = () => {
       return tokenForDetail;
     });
   }, [searchParams, tokens]);
-
-  useEffect(() => {
-    if (!searchParams || !perpsQueryString) {
-      autoOpenedPerpsQueryRef.current = '';
-      return;
-    }
-
-    const shouldOpenPerps = searchParams.get('perps') === '1';
-    if (!shouldOpenPerps) {
-      autoOpenedPerpsQueryRef.current = '';
-      return;
-    }
-
-    if (autoOpenedPerpsQueryRef.current === perpsQueryString) return;
-
-    const coin = parsePerpsPanelCoin(searchParams);
-    const side = parsePerpsPanelSide(searchParams.get('side'));
-    const leverage = parsePerpsPanelLeverage(
-      searchParams.get('leverage'),
-    );
-    const now = Date.now();
-
-    setPerpsInitialCoin(coin);
-    setPerpsAgentPrefill(
-      coin || side || leverage != null
-        ? {
-            proposalId: `wallet:${now}`,
-            proposalNonce: `${now}${Math.floor(Math.random() * 1_000_000)}`,
-            coin: coin ?? undefined,
-            side: side ?? undefined,
-            leverage: leverage ?? undefined,
-            orderMode: 'market',
-          }
-        : null,
-    );
-    setPerpsPanelOpen(true);
-    autoOpenedPerpsQueryRef.current = perpsQueryString;
-  }, [perpsMasterAddress, perpsQueryString, searchParams]);
 
   const visibleNftCount = useMemo(
     () =>
@@ -1124,7 +1034,7 @@ const WalletContentInner = () => {
     return tokens
       .map(
         (t) =>
-          `${t.symbol}:${t.balance}:${t.marketData?.price || '0'}:${(t as any).value ?? '0'}`,
+          `${t.symbol}:${t.balance}:${t.marketData?.price || '0'}`,
       )
       .sort()
       .join('|');
@@ -1151,15 +1061,7 @@ const WalletContentInner = () => {
     for (const token of tokens) {
       const balance = parseFloat(token.balance || '0');
       const price = parseFloat(token.marketData?.price || '0');
-      const tokenValue = (token as any).value;
-      const backendValue =
-        typeof tokenValue === 'number'
-          ? tokenValue
-          : parseFloat(String(tokenValue ?? '0'));
-      const value =
-        Number.isFinite(backendValue) && backendValue > 0
-          ? backendValue
-          : balance * price;
+      const value = balance * price;
 
       if (value <= 0) continue;
 
@@ -1241,92 +1143,41 @@ const WalletContentInner = () => {
   const fetchRewardWallet = useCallback(async () => {
     if (!authenticated || !accessToken) return;
 
-    const requestId = rewardWalletRequestRef.current + 1;
-    rewardWalletRequestRef.current = requestId;
-    const isCurrentRequest = () =>
-      rewardWalletRequestRef.current === requestId;
-
     setRewardWalletLoading(true);
     setRewardWalletError(null);
 
-    // The backend (localhost:4000 / API host) is restarted periodically by the
-    // sync process, leaving a ~10s window where this client-side fetch throws a
-    // native "Failed to fetch". Unlike the rest of the wallet (server actions /
-    // React Query), this request runs once on mount, so a single blip used to
-    // leave the box stuck. Retry transient failures (network error or 5xx) with
-    // a short backoff so it self-heals. Do NOT retry 4xx (e.g. 401) — those are
-    // legitimate responses, not transient.
-    const MAX_ATTEMPTS = 3;
-    const RETRY_DELAY_MS = 1500;
-    const sleep = (ms: number) =>
-      new Promise((resolve) => setTimeout(resolve, ms));
-
     try {
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-        // A newer request superseded this one — abandon silently.
-        if (!isCurrentRequest()) return;
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/reward-wallet`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      const data = await response.json().catch(() => ({}));
 
-        try {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/reward-wallet`,
-            {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-              },
-            },
-          );
-          const data = await response.json().catch(() => ({}));
-
-          if (!response.ok) {
-            // Retry only transient server-side failures (5xx); surface 4xx now.
-            if (response.status >= 500 && attempt < MAX_ATTEMPTS) {
-              await sleep(RETRY_DELAY_MS * attempt);
-              continue;
-            }
-            throw new Error(
-              data?.message ||
-                data?.error ||
-                'Could not load rewards.',
-            );
-          }
-
-          if (isCurrentRequest()) {
-            setRewardWallet(data.rewardWallet || null);
-            setPendingRewardClaimCount(
-              Number(data.pendingClaimCount || 0),
-            );
-            setRecentRewardClaims(
-              Array.isArray(data.recentClaims)
-                ? data.recentClaims
-                : [],
-            );
-          }
-          return;
-        } catch (error) {
-          // fetch() throws a TypeError on network-level failures (backend
-          // mid-restart, offline). Retry those; rethrow once attempts run out.
-          const isNetworkError = error instanceof TypeError;
-          if (isNetworkError && attempt < MAX_ATTEMPTS) {
-            await sleep(RETRY_DELAY_MS * attempt);
-            continue;
-          }
-          throw error;
-        }
-      }
-    } catch (error) {
-      if (isCurrentRequest()) {
-        setRewardWalletError(
-          error instanceof Error
-            ? error.message
-            : 'Could not load rewards.',
+      if (!response.ok) {
+        throw new Error(
+          data?.message || data?.error || 'Could not load rewards.',
         );
       }
+
+      setRewardWallet(data.rewardWallet || null);
+      setPendingRewardClaimCount(Number(data.pendingClaimCount || 0));
+      setRecentRewardClaims(
+        Array.isArray(data.recentClaims) ? data.recentClaims : [],
+      );
+    } catch (error) {
+      setRewardWalletError(
+        error instanceof Error
+          ? error.message
+          : 'Could not load rewards.',
+      );
     } finally {
-      if (isCurrentRequest()) {
-        setRewardWalletLoading(false);
-      }
+      setRewardWalletLoading(false);
     }
   }, [accessToken, authenticated]);
 
@@ -1348,8 +1199,7 @@ const WalletContentInner = () => {
       toast({
         variant: 'destructive',
         title: 'Solana wallet required',
-        description:
-          'Connect a Solana wallet before claiming SWOP rewards.',
+        description: 'Connect a Solana wallet before claiming SWOP rewards.',
       });
       return;
     }
@@ -1374,9 +1224,7 @@ const WalletContentInner = () => {
 
       if (!response.ok) {
         throw new Error(
-          data?.message ||
-            data?.error ||
-            'Could not request reward claim.',
+          data?.message || data?.error || 'Could not request reward claim.',
         );
       }
 
@@ -1401,12 +1249,7 @@ const WalletContentInner = () => {
     } finally {
       setRewardClaimLoading(false);
     }
-  }, [
-    accessToken,
-    fetchRewardWallet,
-    rewardDestinationWallet,
-    toast,
-  ]);
+  }, [accessToken, fetchRewardWallet, rewardDestinationWallet, toast]);
 
   // Transaction execution
   const executeTransaction = useCallback(async () => {
@@ -1435,7 +1278,7 @@ const WalletContentInner = () => {
         let privyAccessToken: string | null = null;
         try {
           privyAccessToken = await getAccessToken();
-        } catch {
+        } catch (tokenError) {
           throw new Error(
             'Authentication session expired. Please refresh the page and log in again.',
           );
@@ -1473,7 +1316,7 @@ const WalletContentInner = () => {
 
         try {
           await connection.getLatestBlockhash();
-        } catch {
+        } catch (rpcError) {
           throw new Error(
             'Unable to connect to Solana network. Please check your connection and try again.',
           );
@@ -1505,7 +1348,7 @@ const WalletContentInner = () => {
             const result = await signAndSendTransaction({
               transaction: new Uint8Array(serializedNFTTransaction),
               wallet: selectedSolanaWallet!,
-              options: { sponsor: true },
+              options: { sponsor: false },
             });
             hash = bs58.encode(result.signature);
           } catch (privyError) {
@@ -1560,7 +1403,7 @@ const WalletContentInner = () => {
                 data: nftData as `0x${string}`,
                 chainId,
               },
-              { sponsor: true },
+              { sponsor: false },
             );
             hash = result.hash;
           } catch (evmError) {
@@ -1599,7 +1442,7 @@ const WalletContentInner = () => {
               transaction: new Uint8Array(serializedTransaction),
               wallet: selectedSolanaWallet!,
               options: {
-                sponsor: true,
+                sponsor: false,
               },
             });
 
@@ -1627,7 +1470,7 @@ const WalletContentInner = () => {
                   value: ethers.parseEther(sendFlow.amount),
                   chainId,
                 },
-                { sponsor: true },
+                { sponsor: false },
               );
               hash = result.hash;
             } else {
@@ -1649,7 +1492,7 @@ const WalletContentInner = () => {
                   data: tokenData as `0x${string}`,
                   chainId,
                 },
-                { sponsor: true },
+                { sponsor: false },
               );
               hash = result.hash;
             }
@@ -1676,6 +1519,8 @@ const WalletContentInner = () => {
       };
     }
   }, [
+    solanaReady,
+    directSolanaWallets,
     sendFlow,
     PrivyUser,
     evmWalletAddress,
@@ -1774,7 +1619,6 @@ const WalletContentInner = () => {
     toast,
     resetSendFlow,
     setSendFlow,
-    queryClient,
   ]);
 
   // Memoized event handlers
@@ -1809,12 +1653,9 @@ const WalletContentInner = () => {
     const nextParams = new URLSearchParams(searchParams.toString());
     removeChartTokenParams(nextParams);
     const nextQuery = nextParams.toString();
-    router.replace(
-      nextQuery ? `${pathname}?${nextQuery}` : pathname,
-      {
-        scroll: false,
-      },
-    );
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+      scroll: false,
+    });
   }, [pathname, router, searchParams]);
 
   const handleTokenSend = useCallback(
@@ -1843,11 +1684,9 @@ const WalletContentInner = () => {
     (tokens?.length ?? 0) === 1 ? 'asset' : 'assets'
   } across ${SUPPORTED_CHAINS.length} chains`;
 
-  const collectiblesCaption = collectiblesPending
-    ? 'Loading items'
-    : `${visibleNftCount} ${
-        visibleNftCount === 1 ? 'item' : 'items'
-      }${hiddenNfts.size > 0 ? ` · ${hiddenNfts.size} hidden` : ''}`;
+  const collectiblesCaption = `${visibleNftCount} ${
+    visibleNftCount === 1 ? 'item' : 'items'
+  }${hiddenNfts.size > 0 ? ` · ${hiddenNfts.size} hidden` : ''}`;
 
   const assetsMenuItems = [
     {
@@ -1989,42 +1828,6 @@ const WalletContentInner = () => {
           </BentoCard>
         </section>
 
-        {/* ───────── SWAP ───────── */}
-        <section className="mt-8">
-          <SectionHead
-            title="Swap"
-            caption="Trade tokens at the best route · limit orders"
-          />
-          <WalletSwapSection
-            tokens={tokens}
-            accessToken={accessToken}
-            onTokenRefresh={refetchTokens}
-            solWalletAddress={solWalletAddress}
-            evmWalletAddress={evmWalletAddress}
-            chains={SUPPORTED_CHAINS}
-          />
-        </section>
-
-        {/* ───────── DEFI (AAVE) ───────── */}
-        <section className="mt-8">
-          <SectionHead
-            title="DeFi"
-            caption="Earn interest and borrow against your tokens"
-            action={
-              <span className="text-[13px] text-gray-500">
-                Powered by{' '}
-                <span className="font-semibold text-[#7C7CF5]">
-                  Aave
-                </span>
-              </span>
-            }
-          />
-          <DefiSection
-            accessToken={accessToken}
-            evmWalletAddress={evmWalletAddress ?? null}
-          />
-        </section>
-
         {/* ───────── PERPS ───────── */}
         <section className="mt-8">
           <SectionHead
@@ -2038,7 +1841,7 @@ const WalletContentInner = () => {
             }
           />
           <PerpsCard
-            masterAddress={perpsMasterAddress ?? undefined}
+            masterAddress={hlAgent.masterAddress ?? undefined}
             isReconnecting={hlAgent.isReconnecting}
             onOpenTrading={openPerpsPanel}
             onBridgeToArbitrum={() => setArbitrumBridgeOpen(true)}
@@ -2069,7 +1872,7 @@ const WalletContentInner = () => {
               onSelectNft={handleSelectNFT}
               address={currentWalletAddress}
               nfts={nfts as unknown as NFT[]}
-              loading={collectiblesPending || nftLoading}
+              loading={nftLoading}
               error={nftError as Error | null}
               refetch={refetchNFTs}
               hiddenNfts={hiddenNfts}
@@ -2154,17 +1957,14 @@ const WalletContentInner = () => {
         {perpsPanelOpen && (
           <PerpsPanel
             agentClient={hlAgent.agentClient}
-            masterClient={hlAgent.masterClient}
-            masterAddress={perpsMasterAddress}
+            masterAddress={hlAgent.masterAddress}
             isInitialized={hlAgent.isInitialized}
             isInitializing={hlAgent.isInitializing}
             isReconnecting={hlAgent.isReconnecting}
-            isHydrating={hlAgent.isHydrating}
             agentError={hlAgent.error}
             initializeAgent={hlAgent.initializeAgent}
-            resetAgent={hlAgent.resetAgent}
             initialCoin={perpsInitialCoin}
-            agentOrderPrefill={perpsAgentPrefill}
+            initialOrder={perpsInitialOrder}
             onClose={closePerpsPanel}
             onOpenDeposit={() => {
               setPerpsDepositOpen(true);
@@ -2181,7 +1981,7 @@ const WalletContentInner = () => {
         <DepositModal
           isOpen={perpsDepositOpen}
           onClose={() => setPerpsDepositOpen(false)}
-          masterAddress={perpsMasterAddress}
+          masterAddress={hlAgent.masterAddress}
           onBridgeToArbitrum={() => {
             setPerpsDepositOpen(false);
             setArbitrumBridgeOpen(true);

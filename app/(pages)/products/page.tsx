@@ -6,27 +6,34 @@ import ProductsScreen, {
   type ProductRow,
 } from '@/components/mint/ProductsScreen';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  listMarketplaceOrders,
-  listMarketplaceProducts,
-  updateMarketplaceProduct,
-  type MarketplaceOrder,
-  type MarketplaceProduct,
-} from '@/lib/marketplace-api';
-import { getMarketplaceProductDisplayType } from '@/lib/marketplace-display';
+import { Modal, ModalBody, ModalContent } from '@nextui-org/react';
 
-interface ProductSalesRow {
-  productId: string;
+interface NFTRecord {
+  _id?: string;
+  name: string;
+  description?: string;
+  image: string;
+  price: number | string;
+  currency?: string;
+  mintLimit?: number;
+  nftType?: string;
+  category?: 'physical' | 'digital';
+}
+
+interface TemplateSalesRow {
+  templateId: string;
   units: number;
   revenue: number;
+  orderCount: number;
 }
 
 interface SalesSummary {
-  perProduct: ProductSalesRow[];
+  perTemplate: TemplateSalesRow[];
   totals: { units: number; revenue: number; templates: number; orders: number };
 }
 
 const CREATE_HREF = '/products/create';
+const API = process.env.NEXT_PUBLIC_API_URL;
 
 export default function ProductsPage() {
   const { user, accessToken } = useUser();
@@ -34,38 +41,61 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<ProductRow[]>([]);
   const [summary, setSummary] = useState<SalesSummary | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<ProductRow | null>(null);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   const load = useCallback(
     async (token: string) => {
-      const [productsRes, ordersRes] = await Promise.all([
-        listMarketplaceProducts(token, { scope: 'mine', limit: 200 }),
-        listMarketplaceOrders(token, { role: 'seller', limit: 200 }),
+      const [templatesRes, summaryRes] = await Promise.all([
+        fetch(`${API}/api/v2/desktop/nft/listByUser`, {
+          method: 'GET',
+          headers: { authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API}/api/v2/desktop/orders/summaryByUser?since=30d`, {
+          method: 'GET',
+          headers: { authorization: `Bearer ${token}` },
+        }),
       ]);
 
-      const summary = summarizeSales(ordersRes.items || []);
-      const salesByProduct: Record<string, ProductSalesRow> = {};
-      for (const r of summary.perProduct) {
-        salesByProduct[r.productId] = r;
+      if (!templatesRes.ok) {
+        throw new Error(`templates ${templatesRes.status}`);
       }
 
-      const mapped = (productsRes.items || [])
-        .filter((item) => item.status !== 'archived')
-        .map<ProductRow>((item) => mapProductRow(item, salesByProduct[item._id]));
+      const { data: templates } = (await templatesRes.json()) as {
+        data: NFTRecord[];
+      };
 
-      return { rows: mapped, summary };
+      const salesByTemplate: Record<string, TemplateSalesRow> = {};
+      let parsedSummary: SalesSummary | null = null;
+      if (summaryRes.ok) {
+        const { data } = (await summaryRes.json()) as { data: SalesSummary };
+        parsedSummary = data;
+        for (const r of data.perTemplate) {
+          salesByTemplate[r.templateId] = r;
+        }
+      }
+
+      const mapped = (templates || []).map<ProductRow>((item) => {
+        const sales = item._id ? salesByTemplate[item._id] : undefined;
+        return {
+          id: item._id ?? `${item.nftType}-${item.name}`,
+          name: item.name,
+          type: item.category === 'physical' ? 'Physical' : 'Digital',
+          price: Number(item.price) || 0,
+          stock: item.mintLimit,
+          units: sales?.units,
+          revenue: sales?.revenue,
+          currency: (item.currency || 'usdc').toUpperCase(),
+          status: 'live',
+          glyph: glyphFor(item.name),
+          image: item.image,
+        };
+      });
+
+      return { rows: mapped, summary: parsedSummary };
     },
     []
-  );
-
-  const handleDeleteProduct = useCallback(
-    async (productId: string) => {
-      if (!accessToken) throw new Error('Authentication required.');
-      await updateMarketplaceProduct(accessToken, productId, {
-        status: 'archived',
-      });
-      setRows((current) => current.filter((row) => row.id !== productId));
-    },
-    [accessToken]
   );
 
   useEffect(() => {
@@ -105,6 +135,47 @@ export default function ProductsPage() {
     };
   }, [user, accessToken, load]);
 
+  const handleArchive = useCallback((product: ProductRow) => {
+    setArchiveTarget(product);
+    setArchiveError(null);
+  }, []);
+
+  const confirmArchive = useCallback(
+    async () => {
+      if (!accessToken || !archiveTarget) return;
+
+      setArchivingId(archiveTarget.id);
+      setArchiveError(null);
+      try {
+        const response = await fetch(
+          `${API}/api/v2/desktop/nft/template/${archiveTarget.id}/archive`,
+          {
+            method: 'PATCH',
+            headers: { authorization: `Bearer ${accessToken}` },
+          }
+        );
+        const data = await response.json().catch(() => null);
+        if (!response.ok || data?.state !== 'success') {
+          throw new Error(data?.message || `archive ${response.status}`);
+        }
+        setRows((prev) => prev.filter((row) => row.id !== archiveTarget.id));
+        setArchiveTarget(null);
+      } catch (err) {
+        console.error(err);
+        setArchiveError('Failed to archive product. Please try again.');
+      } finally {
+        setArchivingId(null);
+      }
+    },
+    [accessToken, archiveTarget]
+  );
+
+  const closeArchiveModal = useCallback(() => {
+    if (archivingId) return;
+    setArchiveTarget(null);
+    setArchiveError(null);
+  }, [archivingId]);
+
   if (loading) return <LoadingSkeleton />;
   if (error) {
     return (
@@ -125,6 +196,7 @@ export default function ProductsPage() {
   }
 
   return (
+    <>
     <main className="main-container">
       <div
         style={{
@@ -136,15 +208,142 @@ export default function ProductsPage() {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <ProductsScreen
             rows={rows}
-            hideBack
+            backHref="/dashboard"
             createHref={CREATE_HREF}
             kicker={kickerFor(rows)}
             totals={summary?.totals}
-            onDeleteProduct={handleDeleteProduct}
+            onArchive={handleArchive}
+            archivingId={archivingId}
           />
         </div>
       </div>
     </main>
+      <ArchiveConfirmModal
+        product={archiveTarget}
+        isArchiving={Boolean(archivingId)}
+        error={archiveError}
+        onClose={closeArchiveModal}
+        onConfirm={confirmArchive}
+      />
+    </>
+  );
+}
+
+function ArchiveConfirmModal({
+  product,
+  isArchiving,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  product: ProductRow | null;
+  isArchiving: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal
+      size="md"
+      isOpen={Boolean(product)}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      backdrop="blur"
+      aria-labelledby="archive-product-title"
+    >
+      <ModalContent>
+        <ModalBody className="py-8">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <h2
+                id="archive-product-title"
+                style={{
+                  margin: 0,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: '#0a0a0c',
+                }}
+              >
+                Archive product?
+              </h2>
+              <p
+                style={{
+                  margin: '8px 0 0',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  color: '#6e6e76',
+                }}
+              >
+                {product
+                  ? `"${product.name}" will be hidden from your products list.`
+                  : ''}
+              </p>
+            </div>
+
+            {error && (
+              <div
+                role="alert"
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  background: 'rgba(220,38,38,0.08)',
+                  border: '1px solid rgba(220,38,38,0.16)',
+                  color: '#b91c1c',
+                  fontSize: 12.5,
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+              }}
+            >
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isArchiving}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  background: '#fff',
+                  color: '#0a0a0c',
+                  border: '1px solid rgba(0,0,0,0.06)',
+                  cursor: isArchiving ? 'not-allowed' : 'pointer',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={isArchiving}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  background: '#b91c1c',
+                  color: '#fff',
+                  border: 0,
+                  cursor: isArchiving ? 'not-allowed' : 'pointer',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  opacity: isArchiving ? 0.7 : 1,
+                }}
+              >
+                {isArchiving ? 'Archiving...' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
   );
 }
 
@@ -152,74 +351,14 @@ function kickerFor(rows: ProductRow[]): string {
   if (rows.length === 0) return 'No products yet · create your first one';
   const live = rows.filter((r) => r.status === 'live').length;
   const physical = rows.filter((r) => r.type === 'Physical').length;
-  const digital = rows.filter((r) => r.type === 'Digital').length;
-  const service = rows.filter((r) => r.type === 'Service').length;
+  const digital = rows.length - physical;
   const parts: string[] = [
     `${rows.length} product${rows.length === 1 ? '' : 's'}`,
   ];
   if (live) parts.push(`${live} live`);
   parts.push(`${physical} physical`);
   parts.push(`${digital} digital`);
-  if (service) parts.push(`${service} service`);
   return parts.join(' · ');
-}
-
-function mapProductRow(
-  item: MarketplaceProduct,
-  sales?: ProductSalesRow
-): ProductRow {
-  const available = item.inventory?.available;
-  return {
-    id: item._id,
-    name: item.title,
-    type: getMarketplaceProductDisplayType(item.productType),
-    price: Number(item.price?.amount) || 0,
-    stock: typeof available === 'number' ? available : undefined,
-    units: sales?.units,
-    revenue: sales?.revenue,
-    currency: (item.price?.currency || 'USDC').toUpperCase(),
-    status:
-      item.status === 'draft'
-        ? 'draft'
-        : typeof available === 'number' && available <= 5
-        ? 'low'
-        : 'live',
-    glyph: glyphFor(item.title),
-    image: item.primaryImage || item.images?.[0]?.url,
-  };
-}
-
-function summarizeSales(orders: MarketplaceOrder[]): SalesSummary {
-  const byProduct: Record<string, ProductSalesRow> = {};
-  let totalUnits = 0;
-  let totalRevenue = 0;
-
-  for (const order of orders) {
-    if (order.payment?.status !== 'completed') continue;
-    for (const item of order.lineItems || []) {
-      const productId = String(item.productId || '');
-      if (!productId) continue;
-      const quantity = Number(item.quantity) || 0;
-      const revenue = Number(item.totalAmount ?? item.unitAmount * quantity) || 0;
-      totalUnits += quantity;
-      totalRevenue += revenue;
-      byProduct[productId] = {
-        productId,
-        units: (byProduct[productId]?.units || 0) + quantity,
-        revenue: (byProduct[productId]?.revenue || 0) + revenue,
-      };
-    }
-  }
-
-  return {
-    perProduct: Object.values(byProduct),
-    totals: {
-      units: totalUnits,
-      revenue: totalRevenue,
-      templates: Object.keys(byProduct).length,
-      orders: orders.filter((order) => order.payment?.status === 'completed').length,
-    },
-  };
 }
 
 function glyphFor(name: string): string {

@@ -8,8 +8,6 @@ import { useQuery } from '@tanstack/react-query';
  */
 export interface GammaSportEntry {
   id?: number | string;
-  /** Gamma /sports often uses this compact league slug, e.g. "nba" */
-  sport?: string;
   /** Human-readable name, e.g. "NBA Basketball" */
   name?: string;
   /** URL-friendly slug, e.g. "nba", "nfl" */
@@ -18,66 +16,11 @@ export interface GammaSportEntry {
   tagId?: number;
   /** Alias field name sometimes used in the response */
   tag_id?: number;
-  /** Comma-separated Polymarket tag IDs, e.g. "1,745,100639" */
-  tags?: string;
   /** Icon / logo URL */
   icon?: string;
   logo?: string;
   imageUrl?: string;
   [key: string]: unknown;
-}
-
-const SPORT_PARENT_TAG_ID = 1;
-const GAMES_PARENT_TAG_ID = 100639;
-
-const PREFERRED_TAG_BY_SPORT: Record<string, number> = {
-  nba: 745,
-  wnba: 100254,
-  nfl: 450,
-  cfb: 100351,
-  ncaab: 100149,
-  mlb: 100381,
-  nhl: 899,
-  tennis: 864,
-  f1: 435,
-  cricket: 517,
-  ipl: 517,
-  esports: 64,
-  mlbb: 64,
-  sc: 64,
-};
-
-const SPORT_TAG_OVERRIDES: Record<string, number> = {
-  ufc: 279,
-  mma: 279,
-};
-
-function parseTags(raw: unknown): number[] {
-  if (typeof raw !== 'string') return [];
-  return raw
-    .split(',')
-    .map((part) => Number(part.trim()))
-    .filter((tagId) => Number.isFinite(tagId));
-}
-
-function resolveSportTagId(entry: GammaSportEntry): number | undefined {
-  const explicit = entry.tagId ?? entry.tag_id;
-  if (explicit != null) return Number(explicit);
-
-  const tags = parseTags(entry.tags);
-  const slug = String(entry.slug ?? entry.sport ?? entry.name ?? '')
-    .trim()
-    .toLowerCase();
-  const override = SPORT_TAG_OVERRIDES[slug];
-  if (override != null) return override;
-
-  const preferred = PREFERRED_TAG_BY_SPORT[slug];
-  if (preferred != null && tags.includes(preferred)) return preferred;
-
-  return tags.find(
-    (tagId) =>
-      tagId !== SPORT_PARENT_TAG_ID && tagId !== GAMES_PARENT_TAG_ID,
-  );
 }
 
 export interface SportsMeta {
@@ -109,17 +52,14 @@ async function fetchSportsMeta(): Promise<SportsMeta> {
 
   const tagIdBySlug = new Map<string, number>();
   const iconBySlug = new Map<string, string>();
-  tagIdBySlug.set('sports', SPORT_PARENT_TAG_ID);
-  tagIdBySlug.set('games', GAMES_PARENT_TAG_ID);
 
   for (const entry of sports) {
     // Some responses use tag_id (snake_case), some use tagId (camelCase)
-    const tagId = resolveSportTagId(entry);
+    const tagId = entry.tagId ?? (entry.tag_id as number | undefined);
     const icon = entry.icon ?? entry.logo ?? entry.imageUrl;
-    const slugRaw = entry.slug ?? entry.sport;
 
-    if (slugRaw) {
-      const slug = String(slugRaw).toLowerCase();
+    if (entry.slug) {
+      const slug = entry.slug.toLowerCase();
       if (tagId != null) tagIdBySlug.set(slug, Number(tagId));
       if (icon) iconBySlug.set(slug, icon as string);
     }

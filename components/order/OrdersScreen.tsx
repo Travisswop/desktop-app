@@ -16,7 +16,6 @@ import {
   posGreen,
 } from '@/components/mint/design-system';
 import { Download } from 'lucide-react';
-import { isInPersonCheckoutMode } from '@/lib/marketplace-display';
 
 export type OrderTab = 'Payments' | 'Sold' | 'Purchases';
 
@@ -32,7 +31,6 @@ export interface OrderRow {
   chain: 'USDC' | 'SOL';
   role: 'buyer' | 'seller';
   _id: string;
-  checkoutMode?: string;
 }
 
 export interface OrderTotals {
@@ -46,13 +44,38 @@ export default function OrdersScreen({
   onTabChange,
   rows,
   totals,
+  getDetailHref,
+  isFetching,
+  backHref,
+  eyebrow,
 }: {
   tab: OrderTab;
   onTabChange: (next: OrderTab) => void;
   rows: OrderRow[];
   totals?: OrderTotals;
+  /**
+   * Builder for the per-row detail URL. Defaults to `/order/{_id}?tab={tab}`
+   * so the standalone /order route works out of the box; pass a custom
+   * builder from /dashboard/order (or anywhere else hosting this screen).
+   */
+  getDetailHref?: (row: OrderRow, tab: OrderTab) => string;
+  /**
+   * Subsequent-fetch indicator. The screen stays mounted; pass true while a
+   * tab refetch is in flight so we can render a top progress bar + dim the
+   * table without unmounting the whole tree.
+   */
+  isFetching?: boolean;
+  /**
+   * When set, renders a back button + breadcrumb routing to this href. Leave
+   * undefined to hide the back affordance (root-page usage).
+   */
+  backHref?: string;
+  /** Breadcrumb prefix shown next to the back chevron. Defaults to 'Dashboard'. */
+  eyebrow?: string;
 }) {
   const router = useRouter();
+  const buildHref =
+    getDetailHref ?? ((row, t) => `/order/${row._id}?tab=${t.toLowerCase()}`);
 
   const tabs: OrderTab[] = ['Payments', 'Sold', 'Purchases'];
 
@@ -94,7 +117,7 @@ export default function OrdersScreen({
     }
     if (tab === 'Sold') {
       return [
-        { l: 'Units sold', v: (totals?.units ?? 0).toLocaleString(), em: true, mono: true },
+        { l: 'Total Mints', v: (totals?.units ?? 0).toLocaleString(), em: true, mono: true },
         { l: 'Gross Sales', v: `$${revenue.toLocaleString()}`, em: true, mono: true },
         { l: '$ in Escrow', v: '$0', mono: true },
         { l: 'Open Orders', v: pending.toString() },
@@ -121,7 +144,9 @@ export default function OrdersScreen({
 
   return (
     <ScreenShell
-      hideBack
+      hideBack={!backHref}
+      onBack={backHref ? () => router.push(backHref) : undefined}
+      eyebrow={eyebrow ?? 'Dashboard'}
       title="Orders"
       kicker="Manage payments, sales & purchases"
       action={
@@ -232,7 +257,38 @@ export default function OrdersScreen({
       </div>
 
       {/* Orders table */}
-      <Card pad={0}>
+      <Card pad={0} style={{ position: 'relative' }}>
+        {isFetching && (
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 2,
+              overflow: 'hidden',
+              borderTopLeftRadius: 22,
+              borderTopRightRadius: 22,
+              zIndex: 2,
+            }}
+          >
+            <div
+              style={{
+                width: '40%',
+                height: '100%',
+                background: ink,
+                opacity: 0.65,
+                animation: 'orders-progress 1.1s ease-in-out infinite',
+              }}
+            />
+            <style>{`@keyframes orders-progress {
+              0%   { transform: translateX(-100%); }
+              50%  { transform: translateX(150%); }
+              100% { transform: translateX(250%); }
+            }`}</style>
+          </div>
+        )}
         <div
           style={{
             padding: '14px 20px',
@@ -280,6 +336,13 @@ export default function OrdersScreen({
         </div>
 
         {/* Rows */}
+        <div
+          style={{
+            opacity: isFetching ? 0.55 : 1,
+            pointerEvents: isFetching ? 'none' : 'auto',
+            transition: 'opacity .15s',
+          }}
+        >
         {rows.length === 0 ? (
           <div
             style={{
@@ -295,7 +358,7 @@ export default function OrdersScreen({
           rows.map((o, i) => (
             <div
               key={o.id}
-              onClick={() => router.push(`/order/${o._id}?tab=${tab.toLowerCase()}`)}
+              onClick={() => router.push(buildHref(o, tab))}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '0.9fr 1.4fr 1.4fr 0.7fr 0.9fr 0.9fr',
@@ -323,27 +386,7 @@ export default function OrdersScreen({
                 </Avatar>
                 <div style={{ fontSize: 13 }}>{o.counterparty}</div>
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  minWidth: 0,
-                }}
-              >
-                <span
-                  style={{
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    color: ink,
-                  }}
-                >
-                  {o.item}
-                </span>
-                {isInPersonCheckoutMode(o.checkoutMode) && <CheckoutModePill />}
-              </div>
+              <div style={{ fontSize: 13, color: ink }}>{o.item}</div>
               <Mono size={13}>${o.price.toFixed(2)}</Mono>
               <div style={{ fontSize: 12.5, color: muted }}>{o.date}</div>
               <div>
@@ -352,27 +395,8 @@ export default function OrdersScreen({
             </div>
           ))
         )}
+        </div>
       </Card>
     </ScreenShell>
-  );
-}
-
-function CheckoutModePill() {
-  return (
-    <span
-      style={{
-        flexShrink: 0,
-        padding: '3px 7px',
-        borderRadius: 5,
-        background: '#f2f2f0',
-        color: muted,
-        fontSize: 10.5,
-        fontWeight: 700,
-        letterSpacing: 0.2,
-        fontFamily: 'var(--font-jetbrains-mono), monospace',
-      }}
-    >
-      In-person
-    </span>
   );
 }

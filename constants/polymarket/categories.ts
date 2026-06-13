@@ -2,19 +2,13 @@ export type CategoryId =
   | 'trending'
   | 'politics'
   | 'finance'
-  | 'business'
   | 'crypto'
   | 'sports'
   | 'tech'
-  | 'ai'
   | 'geopolitics'
-  | 'world'
-  | 'middle-east'
   | 'economy'
   | 'elections'
-  | 'culture'
-  | 'weather'
-  | 'science';
+  | 'memes';
 
 export interface Category {
   id: CategoryId;
@@ -31,7 +25,7 @@ export const CATEGORIES: Category[] = [
   {
     id: 'sports',
     label: 'Sports',
-    tagId: 1,
+    tagId: 100639,
   },
   {
     id: 'politics',
@@ -41,22 +35,7 @@ export const CATEGORIES: Category[] = [
   {
     id: 'elections',
     label: 'Elections',
-    tagId: 144,
-  },
-  {
-    id: 'world',
-    label: 'World',
-    tagId: 101970,
-  },
-  {
-    id: 'middle-east',
-    label: 'Middle East',
-    tagId: 154,
-  },
-  {
-    id: 'geopolitics',
-    label: 'Geopolitics',
-    tagId: 100265,
+    tagId: 339,
   },
   {
     id: 'economy',
@@ -69,19 +48,9 @@ export const CATEGORIES: Category[] = [
     tagId: 120,
   },
   {
-    id: 'business',
-    label: 'Business',
-    tagId: 107,
-  },
-  {
     id: 'crypto',
     label: 'Crypto',
     tagId: 21,
-  },
-  {
-    id: 'ai',
-    label: 'AI',
-    tagId: 439,
   },
   {
     id: 'tech',
@@ -89,19 +58,14 @@ export const CATEGORIES: Category[] = [
     tagId: 1401,
   },
   {
-    id: 'culture',
-    label: 'Culture',
+    id: 'memes',
+    label: 'Memes',
     tagId: 596,
   },
   {
-    id: 'weather',
-    label: 'Weather',
-    tagId: 84,
-  },
-  {
-    id: 'science',
-    label: 'Science',
-    tagId: 74,
+    id: 'geopolitics',
+    label: 'Geopolitics',
+    tagId: 100265,
   },
 ];
 
@@ -119,7 +83,6 @@ export type SportSubcategoryId =
   | 'all'
   | 'nfl'
   | 'nba'
-  | 'wnba'
   | 'mlb'
   | 'nhl'
   | 'soccer'
@@ -127,37 +90,32 @@ export type SportSubcategoryId =
   | 'cricket'
   | 'esports'
   | 'mma'
-  | 'f1'
-  | 'cfb'
   | 'ncaa'
-  | 'ncaab';
+  | 'ncaab'
+  | 'wnba';
 
 export interface SportSubcategory {
   id: SportSubcategoryId;
   label: string;
-  /** Polymarket Gamma API tag ID — null means "all sports" (tag 1) */
+  /** Polymarket Gamma API tag ID — null means "all sports" (tag 100639) */
   tagId: number | null;
   emoji: string;
 }
 
 /**
  * Tag IDs verified from https://gamma-api.polymarket.com/sports
- * Sports parent tag 1 is the broad Polymarket sports tag. Many leagues also
- * carry the Games tag 100639, but using 1 surfaces more available events.
+ * Sports parent tag is always 100639 (used as fallback for "All").
  */
 export const SPORT_SUBCATEGORIES: SportSubcategory[] = [
   { id: 'all', label: 'All Sports', tagId: null, emoji: '🏆' },
   { id: 'nfl', label: 'NFL', tagId: 450, emoji: '🏈' },
   { id: 'nba', label: 'NBA', tagId: 745, emoji: '🏀' },
-  { id: 'wnba', label: 'WNBA', tagId: 100254, emoji: '🏀' },
-  { id: 'cfb', label: 'CFB', tagId: 100351, emoji: '🏈' },
   { id: 'ncaab', label: 'NCAAB', tagId: 101178, emoji: '🏐' },
   { id: 'soccer', label: 'Soccer', tagId: 100350, emoji: '⚽' },
   { id: 'mlb', label: 'MLB', tagId: 100381, emoji: '⚾' },
   { id: 'nhl', label: 'NHL', tagId: 899, emoji: '🏒' },
   { id: 'tennis', label: 'Tennis', tagId: 864, emoji: '🎾' },
-  { id: 'mma', label: 'MMA / UFC', tagId: 279, emoji: '🥊' },
-  { id: 'f1', label: 'F1', tagId: 435, emoji: '🏎️' },
+  { id: 'mma', label: 'MMA / UFC', tagId: 100639, emoji: '🥊' },
   { id: 'cricket', label: 'Cricket', tagId: 517, emoji: '🏏' },
   { id: 'esports', label: 'Esports', tagId: 64, emoji: '🎮' },
 ];

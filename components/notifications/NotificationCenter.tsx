@@ -106,7 +106,7 @@ export function NotificationCenter({ onClose }: NotificationCenterProps) {
               No notifications yet
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              When you get notifications, they&apos;ll show up here
+              When you get notifications, they'll show up here
             </p>
           </div>
         ) : (

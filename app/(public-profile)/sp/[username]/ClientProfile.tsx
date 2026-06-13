@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import Header from "@/components/publicProfile/header";
 import Bio from "@/components/publicProfile/bio";
 import Blog from "@/components/publicProfile/blog";
@@ -35,10 +34,6 @@ import getMediaType from "@/utils/getMediaType";
 import MediaList from "@/components/publicProfile/MediaList";
 import EmbeddedFeed from "./_EmbeddedFeed";
 import Cookies from "js-cookie";
-import {
-  groupSmartsiteMarketplaceItems,
-  normalizeSmartsiteMarketplaceItems,
-} from "@/lib/smartsite-marketplace-display";
 
 interface ClientProfileProps {
   userName: string;
@@ -48,14 +43,6 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
   const { micrositeData } = useMicrositeData();
   const { user, accessToken } = useUser();
   const accessUserIdFromCookie = Cookies.get("user-id");
-  const marketplaceItems = useMemo(
-    () => normalizeSmartsiteMarketplaceItems(micrositeData?.info?.marketPlace),
-    [micrositeData?.info?.marketPlace],
-  );
-  const groupedMarketplaceItems = useMemo(
-    () => groupSmartsiteMarketplaceItems(marketplaceItems),
-    [marketplaceItems],
-  );
 
   if (!micrositeData) {
     return <div>Loading...</div>;
@@ -64,6 +51,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
   if (micrositeData.redirect) {
     redirect(`/sp/${micrositeData.username}`);
   }
+
+  console.log("micrositeData", micrositeData);
 
   const {
     _id,
@@ -83,6 +72,22 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     theme,
     ens,
   } = micrositeData;
+
+  console.log("micrositeData", micrositeData);
+
+  const groupMarketPlaceByType = (marketPlaceItems: any[]) => {
+    const grouped: { [key: string]: any[] } = {};
+
+    marketPlaceItems.forEach((item) => {
+      const nftType = item.templateId?.nftType || "other";
+      if (!grouped[nftType]) {
+        grouped[nftType] = [];
+      }
+      grouped[nftType].push(item);
+    });
+
+    return grouped;
+  };
 
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
@@ -148,21 +153,23 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               </div>
             )}
 
-            {/* market place */}
-            {marketplaceItems.length > 0 && (
+            {/* market place - Grouped by nftType */}
+            {info?.marketPlace && info.marketPlace.length > 0 && (
               <div className="w-full space-y-1 mb-4">
-                {Object.entries(groupedMarketplaceItems).map(
-                  ([sectionTitle, items]) => (
-                    <div key={sectionTitle} className="w-full">
+                {Object.entries(groupMarketPlaceByType(info.marketPlace)).map(
+                  ([nftType, items]: [string, any[]]) => (
+                    <div key={nftType} className="w-full">
+                      {/* Group Title */}
                       <h2
                         style={{
                           color: fontColor ? fontColor : "black",
                         }}
                         className="text-base font-medium capitalize mb-1"
                       >
-                        {sectionTitle}
+                        {nftType === "phygital" ? "Product" : nftType}
                       </h2>
 
+                      {/* If items > 2, show carousel, else show grid */}
                       {items.length > 2 ? (
                         <Carousel
                           opts={{
@@ -204,7 +211,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                               number={index}
                               userId={user?._id}
                               accessToken={accessToken}
-                              fontColor={fontColor}
+                              secondaryFontColor={secondaryFontColor}
                             />
                           ))}
                         </div>

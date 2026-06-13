@@ -1,74 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
-import {
-  reconcilePositionsWithEventLive,
-  type EventLiveState,
-  type PolymarketPositionLike,
-} from '@/lib/polymarket/positions-reconciliation';
-
-async function fetchEventLive(
-  eventSlug: string,
-): Promise<EventLiveState | null> {
-  try {
-    const response = await fetch(
-      `${POLYMARKET_BACKEND_URL}/api/prediction-markets/events/live?slug=${encodeURIComponent(
-        eventSlug,
-      )}`,
-      { cache: 'no-store' },
-    );
-
-    if (!response.ok) return null;
-    return (await response.json()) as EventLiveState;
-  } catch {
-    return null;
-  }
-}
-
-function shouldCheckEventResolution(position: PolymarketPositionLike) {
-  if (position.redeemable) return false;
-  if (!String(position.eventSlug || '').trim()) return false;
-
-  const endMs = Date.parse(String(position.endDate || ''));
-  if (!Number.isFinite(endMs)) return true;
-  if (endMs <= Date.now()) return true;
-
-  const curPrice = Number(position.curPrice);
-  const currentValue = Number(position.currentValue);
-  return (
-    Number.isFinite(curPrice) &&
-    curPrice <= 0.005 &&
-    Number.isFinite(currentValue) &&
-    currentValue <= 0.005
-  );
-}
-
-async function reconcilePositions(
-  positions: PolymarketPositionLike[],
-) {
-  const eventSlugs = Array.from(
-    new Set(
-      positions
-        .filter(shouldCheckEventResolution)
-        .map((position) => String(position.eventSlug || '').trim())
-        .filter(Boolean),
-    ),
-  );
-
-  if (eventSlugs.length === 0) return positions;
-
-  const eventEntries = await Promise.all(
-    eventSlugs.map(async (eventSlug) => [
-      eventSlug,
-      await fetchEventLive(eventSlug),
-    ] as const),
-  );
-
-  return reconcilePositionsWithEventLive(
-    positions,
-    new Map(eventEntries),
-  );
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -91,11 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    const positions = Array.isArray(data)
-      ? await reconcilePositions(data)
-      : data;
-
-    return NextResponse.json(positions);
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching positions:', error);
     return NextResponse.json(

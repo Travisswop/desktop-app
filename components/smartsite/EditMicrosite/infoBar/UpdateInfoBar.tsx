@@ -410,7 +410,6 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                           </DropdownItem>
                         ))}
                         <DropdownItem
-                          key="custom-image"
                           onClick={() => handleSelectIconType("custom")}
                           className="border-b rounded-none hover:rounded-md"
                         >

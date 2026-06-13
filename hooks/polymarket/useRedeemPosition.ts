@@ -1,15 +1,8 @@
 import { useState, useCallback } from "react";
 import { hexToBytes } from "viem";
-import { usePrivy, useSignTypedData } from "@privy-io/react-auth";
-import { useQueryClient } from "@tanstack/react-query";
 import { usePolymarketWallet, useTrading } from "@/providers/polymarket";
 import { useUser } from "@/lib/UserContext";
-import {
-  getDepositWalletWrapTypedData,
-  getRedeemTypedData,
-  submitDepositWalletWrap,
-  submitRedeem,
-} from "@/lib/polymarket/backend-session";
+import { getRedeemTypedData, submitRedeem } from "@/lib/polymarket/backend-session";
 
 export interface RedeemParams {
   conditionId: string;
@@ -22,302 +15,16 @@ export interface RedeemParams {
   walletType?: "safe" | "deposit";
 }
 
-export interface RedeemResult {
-  success: boolean;
-  txId?: string;
-  collateralToken?: string;
-  shouldWrapCollateral?: boolean;
-  redeemedAmount?: number;
-  normalizedCollateral?: boolean;
-  normalizationError?: string;
-}
-
-type DelegatedSignerConfig = {
-  signerId: string;
-  policyIds: string[];
-};
-
-const swopApiBase = () => (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-const delegatedSignerId =
-  process.env.NEXT_PUBLIC_PRIVY_DELEGATED_SIGNER_ID ||
-  process.env.NEXT_PUBLIC_PRIVY_SIGNER_WALLET_ID;
-const delegatedPolicyIds = (
-  process.env.NEXT_PUBLIC_PRIVY_DELEGATED_POLICY_IDS ||
-  process.env.NEXT_PUBLIC_PRIVY_SIGNER_POLICY_IDS ||
-  ""
-)
-  .split(",")
-  .map((id) => id.trim())
-  .filter(Boolean);
-
-function serializeForJson(value: unknown): unknown {
-  if (typeof value === "bigint") return value.toString();
-  if (Array.isArray(value)) return value.map(serializeForJson);
-  if (typeof value === "object" && value !== null) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, nested]) => [
-        key,
-        serializeForJson(nested),
-      ])
-    );
-  }
-  return value;
-}
-
 export function useRedeemPosition() {
   const [isRedeeming, setIsRedeeming] = useState(false);
-  const [isNormalizingCollateral, setIsNormalizingCollateral] =
-    useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [delegatedSignerConfig, setDelegatedSignerConfig] =
-    useState<DelegatedSignerConfig | null>(null);
 
   const { eoaAddress, walletClient } = usePolymarketWallet();
   const { walletType, depositWalletAddress } = useTrading();
   const { accessToken } = useUser();
-  const { user: privyUser } = usePrivy();
-  const { signTypedData: signTypedDataWithPrivy } = useSignTypedData();
-  const queryClient = useQueryClient();
-
-  const isEmbeddedPrivyWallet = useCallback(
-    (address: string) => {
-      const target = address.toLowerCase();
-      return (privyUser?.linkedAccounts || []).some((account: any) => {
-        if (account?.type !== "wallet") return false;
-        if (account?.address?.toLowerCase() !== target) return false;
-        return (
-          account.walletClientType === "privy" ||
-          account.wallet_client_type === "privy" ||
-          account.connectorType === "embedded" ||
-          account.connector_type === "embedded"
-        );
-      });
-    },
-    [privyUser]
-  );
-
-  const getDelegatedSignerConfig = useCallback(async () => {
-    if (delegatedSignerId) {
-      return {
-        signerId: delegatedSignerId,
-        policyIds: delegatedPolicyIds,
-      };
-    }
-
-    if (delegatedSignerConfig) return delegatedSignerConfig;
-    if (!accessToken || !swopApiBase()) return null;
-
-    const response = await fetch(
-      `${swopApiBase()}/api/v5/wallet/privy/delegated-signer-config`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-
-    if (!response.ok) return null;
-    const body = await response.json().catch(() => null);
-    const data = body?.data || body;
-    if (!data?.configured || !data?.signerId) return null;
-
-    const config = {
-      signerId: String(data.signerId),
-      policyIds: Array.isArray(data.policyIds)
-        ? data.policyIds.map((id: unknown) => String(id)).filter(Boolean)
-        : [],
-    };
-    setDelegatedSignerConfig(config);
-    return config;
-  }, [accessToken, delegatedSignerConfig]);
-
-  const ensureDelegatedSigner = useCallback(
-    async () => {
-      const config = await getDelegatedSignerConfig();
-      return Boolean(config?.signerId);
-    },
-    [getDelegatedSignerConfig]
-  );
-
-  const signWithDelegatedPrivy = useCallback(
-    async (
-      path: "sign-typed-data" | "sign-message",
-      body: Record<string, unknown>
-    ) => {
-      if (!eoaAddress || !accessToken || !swopApiBase()) {
-        throw new Error("Silent redeem signing is not configured.");
-      }
-
-      const delegatedSignerReady = await ensureDelegatedSigner();
-      if (!delegatedSignerReady) {
-        throw new Error("Silent redeem signing is not ready for this wallet.");
-      }
-
-      const response = await fetch(
-        `${swopApiBase()}/api/v5/wallet/privy/ethereum/${path}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            address: eoaAddress,
-            ...body,
-          }),
-        }
-      );
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || !data?.signature) {
-        throw new Error(
-          data.message ||
-            data.error ||
-            "Silent redeem signing failed. Please refresh and try again."
-        );
-      }
-
-      return data.signature as `0x${string}`;
-    },
-    [accessToken, eoaAddress, ensureDelegatedSigner]
-  );
-
-  const signTypedDataWithoutPopup = useCallback(
-    async (typedData: Record<string, unknown>) => {
-      let delegatedError: unknown;
-
-      try {
-        return await signWithDelegatedPrivy("sign-typed-data", {
-          typedData,
-        });
-      } catch (error) {
-        delegatedError = error;
-      }
-
-      if (!eoaAddress || !isEmbeddedPrivyWallet(eoaAddress)) {
-        throw delegatedError instanceof Error
-          ? delegatedError
-          : new Error("Silent redeem signing is not ready for this wallet.");
-      }
-
-      const { signature } = await signTypedDataWithPrivy(typedData as any, {
-        address: eoaAddress,
-        uiOptions: { showWalletUIs: false },
-      });
-
-      return signature as `0x${string}`;
-    },
-    [
-      eoaAddress,
-      isEmbeddedPrivyWallet,
-      signTypedDataWithPrivy,
-      signWithDelegatedPrivy,
-    ]
-  );
-
-  const normalizeLegacyUsdcBalance = useCallback(
-    async ({
-      depositWalletAddress: sourceDepositWalletAddress,
-      destinationAddress,
-      amount,
-      silentOnly = false,
-    }: {
-      depositWalletAddress: string;
-      destinationAddress?: string;
-      amount: number;
-      silentOnly?: boolean;
-    }) => {
-      if (!eoaAddress || !walletClient || !accessToken) {
-        throw new Error("Wallet not connected or not authenticated");
-      }
-
-      const wrapAmount = Number(amount);
-      if (!Number.isFinite(wrapAmount) || wrapAmount <= 0) {
-        throw new Error("Conversion amount must be positive.");
-      }
-
-      setIsNormalizingCollateral(true);
-      try {
-        const wrapData = await getDepositWalletWrapTypedData(
-          {
-            depositWalletAddress: sourceDepositWalletAddress,
-            eoaAddress,
-            destinationAddress:
-              destinationAddress ?? sourceDepositWalletAddress,
-            amount: wrapAmount,
-          },
-          accessToken
-        );
-
-        const wrapTypedDataMessage = {
-          ...wrapData.typedData.message,
-          nonce: BigInt(wrapData.nonce),
-          deadline: BigInt(wrapData.deadline),
-          calls: wrapData.calls.map((call) => ({
-            ...call,
-            value: BigInt(call.value),
-          })),
-        };
-
-        const useDelegatedSigning =
-          silentOnly || isEmbeddedPrivyWallet(eoaAddress);
-        const wrapSignature = useDelegatedSigning
-          ? await signTypedDataWithoutPopup({
-              domain: wrapData.typedData.domain,
-              types: wrapData.typedData.types,
-              primaryType: wrapData.typedData.primaryType ?? "Batch",
-              message: serializeForJson(wrapTypedDataMessage),
-            })
-          : await walletClient.signTypedData({
-              account: eoaAddress as `0x${string}`,
-              domain: wrapData.typedData.domain as Parameters<
-                typeof walletClient.signTypedData
-              >[0]["domain"],
-              types: wrapData.typedData.types as Parameters<
-                typeof walletClient.signTypedData
-              >[0]["types"],
-              primaryType: wrapData.typedData.primaryType ?? "Batch",
-              message: wrapTypedDataMessage as Parameters<
-                typeof walletClient.signTypedData
-              >[0]["message"],
-            });
-
-        const result = await submitDepositWalletWrap(
-          {
-            depositWalletAddress: sourceDepositWalletAddress,
-            eoaAddress,
-            destinationAddress:
-              destinationAddress ?? sourceDepositWalletAddress,
-            amount: wrapAmount,
-            signature: wrapSignature,
-            nonce: wrapData.nonce,
-            deadline: wrapData.deadline,
-          },
-          accessToken
-        );
-
-        queryClient.invalidateQueries({ queryKey: ["pusdBalance"] });
-        queryClient.invalidateQueries({ queryKey: ["legacyUsdcBalance"] });
-
-        return result;
-      } finally {
-        setIsNormalizingCollateral(false);
-      }
-    },
-    [
-      accessToken,
-      eoaAddress,
-      isEmbeddedPrivyWallet,
-      queryClient,
-      signTypedDataWithoutPopup,
-      walletClient,
-    ]
-  );
 
   const redeemPosition = useCallback(
-    async (
-      params: RedeemParams,
-    ): Promise<RedeemResult> => {
+    async (params: RedeemParams): Promise<boolean> => {
       if (!eoaAddress || !walletClient || !accessToken) {
         throw new Error("Wallet not connected or not authenticated");
       }
@@ -368,59 +75,29 @@ export function useRedeemPosition() {
         });
 
         // Step 2: Sign using the active wallet version's required scheme.
-        const isEmbeddedWallet = isEmbeddedPrivyWallet(eoaAddress);
-        let signature: `0x${string}`;
-        if (redeemWalletType === "deposit") {
-          if (!typedData.typedData || !typedData.deadline || !typedData.calls) {
-            throw new Error("Redeem signing data is incomplete.");
-          }
-
-          const depositTypedDataMessage = {
-            ...typedData.typedData.message,
-            nonce: BigInt(typedData.nonce),
-            deadline: BigInt(typedData.deadline),
-            calls: typedData.calls.map((call) => ({
-              ...call,
-              value: BigInt(call.value),
-            })),
-          };
-
-          signature = isEmbeddedWallet
-            ? await signTypedDataWithoutPopup({
-                domain: typedData.typedData.domain,
-                types: typedData.typedData.types,
-                primaryType: typedData.typedData.primaryType ?? "Batch",
-                message: serializeForJson(depositTypedDataMessage),
-              })
-            : await walletClient.signTypedData({
-                account: eoaAddress as `0x${string}`,
-                domain: typedData.typedData.domain as Parameters<
-                  typeof walletClient.signTypedData
-                >[0]["domain"],
-                types: typedData.typedData.types as Parameters<
-                  typeof walletClient.signTypedData
-                >[0]["types"],
-                primaryType: typedData.typedData.primaryType ?? "Batch",
-                message: depositTypedDataMessage as Parameters<
-                  typeof walletClient.signTypedData
-                >[0]["message"],
-              });
-        } else {
-          if (!typedData.txHash) {
-            throw new Error("Redeem signing hash is missing.");
-          }
-
-          signature = isEmbeddedWallet
-            ? await signWithDelegatedPrivy("sign-message", {
-                message: typedData.txHash,
-              })
+        const signature =
+          redeemWalletType === "deposit"
+            ? await walletClient.signTypedData({
+              account: eoaAddress as `0x${string}`,
+              domain: typedData.typedData!.domain as Parameters<typeof walletClient.signTypedData>[0]["domain"],
+              types: typedData.typedData!.types as Parameters<typeof walletClient.signTypedData>[0]["types"],
+              primaryType: typedData.typedData!.primaryType ?? "Batch",
+              message: {
+                ...typedData.typedData!.message,
+                nonce: BigInt(typedData.nonce),
+                deadline: BigInt(typedData.deadline!),
+                calls: typedData.calls!.map((call) => ({
+                  ...call,
+                  value: BigInt(call.value),
+                })),
+              } as Parameters<typeof walletClient.signTypedData>[0]["message"],
+            })
             : await walletClient.signMessage({
-                account: eoaAddress as `0x${string}`,
-                message: {
-                  raw: hexToBytes(typedData.txHash as `0x${string}`),
-                },
-              });
-        }
+              account: eoaAddress as `0x${string}`,
+              message: {
+                raw: hexToBytes(typedData.txHash as `0x${string}`),
+              },
+            });
 
         // Step 3: Submit
         console.debug("[Polymarket Redeem] submit request", {
@@ -440,51 +117,7 @@ export function useRedeemPosition() {
         );
         console.debug("[Polymarket Redeem] submit response", result);
 
-        let normalizedCollateral = false;
-        let normalizationError: string | undefined;
-        const wrapAmount = Number(
-          result.redeemedAmount ?? params.size ?? 0
-        );
-        if (
-          result.shouldWrapCollateral &&
-          redeemWalletType === "deposit" &&
-          redeemDepositWalletAddress &&
-          wrapAmount > 0
-        ) {
-          try {
-            await normalizeLegacyUsdcBalance({
-              depositWalletAddress: redeemDepositWalletAddress,
-              destinationAddress: redeemDepositWalletAddress,
-              amount: wrapAmount,
-              silentOnly: true,
-            });
-            normalizedCollateral = true;
-          } catch (wrapError) {
-            normalizationError =
-              wrapError instanceof Error
-                ? wrapError.message
-                : "Failed to convert redeemed USDC.e to pUSD.";
-            console.warn("[Polymarket Redeem] collateral normalization failed", {
-              message: normalizationError,
-              redeemWalletType,
-              redeemDepositWalletAddress,
-              wrapAmount,
-            });
-          }
-        }
-
-        queryClient.invalidateQueries({ queryKey: ["pusdBalance"] });
-        queryClient.invalidateQueries({ queryKey: ["legacyUsdcBalance"] });
-
-        return {
-          success: result.success,
-          txId: result.txId,
-          collateralToken: result.collateralToken,
-          shouldWrapCollateral: result.shouldWrapCollateral,
-          redeemedAmount: result.redeemedAmount,
-          normalizedCollateral,
-          normalizationError,
-        };
+        return result.success;
       } catch (err) {
         const error = err instanceof Error ? err : new Error("Failed to redeem position");
         console.debug("[Polymarket Redeem] failed", {
@@ -497,28 +130,8 @@ export function useRedeemPosition() {
         setIsRedeeming(false);
       }
     },
-    [
-      eoaAddress,
-      walletClient,
-      accessToken,
-      walletType,
-      depositWalletAddress,
-      isEmbeddedPrivyWallet,
-      queryClient,
-      signWithDelegatedPrivy,
-      signTypedDataWithoutPopup,
-      normalizeLegacyUsdcBalance,
-    ]
+    [eoaAddress, walletClient, accessToken, walletType, depositWalletAddress]
   );
 
-  return {
-    isRedeeming,
-    isNormalizingCollateral,
-    canSilentlyNormalizeCollateral: eoaAddress
-      ? isEmbeddedPrivyWallet(eoaAddress)
-      : false,
-    normalizeLegacyUsdcBalance,
-    error,
-    redeemPosition,
-  };
+  return { isRedeeming, error, redeemPosition };
 }

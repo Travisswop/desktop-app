@@ -15,8 +15,7 @@ export async function createOrder(info: any, token: string) {
         body: JSON.stringify(info),
       }
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     logger.log('🚀 ~ createOrder ~ data:', data);
     return data;
   } catch (error) {

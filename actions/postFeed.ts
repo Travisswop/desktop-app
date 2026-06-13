@@ -13,8 +13,7 @@ export async function getUserFeed(url: string, token: string) {
       },
       cache: "no-store",
     });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     logger.info("Fetched user feed data:", data);
     return data;
   } catch (error) {
@@ -30,8 +29,7 @@ export async function getFeedDetails(url: string) {
         "Content-Type": "application/json",
       },
     });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from getting feed:", error);
@@ -65,8 +63,7 @@ export async function getSmartsiteFeed(url: string, token: string) {
       },
       cache: "no-store",
     });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from getting feed:", error);
@@ -82,8 +79,7 @@ export async function getFeedComments(url: string, token: string) {
       },
       cache: "no-store",
     });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from getting feed:", error);
@@ -104,8 +100,7 @@ export async function postFeed(payload: any, token: string) {
         body: JSON.stringify(payload),
       },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     revalidatePath("/");
     return data;
   } catch (error) {
@@ -125,8 +120,7 @@ export async function postComment(payload: any, token: string) {
         body: JSON.stringify(payload),
       },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
 
     return data;
   } catch (error) {
@@ -146,8 +140,7 @@ export async function deleteFeedComment(commentId: string, token: string) {
         },
       },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from posting feed:", error);
@@ -170,8 +163,7 @@ export async function deleteFeed(
         },
       },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from posting feed:", error);
@@ -193,8 +185,7 @@ export async function deleteReply(
         },
       },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from posting feed:", error);
@@ -215,8 +206,7 @@ export async function postFeedLike(payload: any, token: string) {
         body: JSON.stringify(payload),
       },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from posting feed:", error);
@@ -237,8 +227,7 @@ export async function addFeedLikePoints(payload: any, token: string) {
         body: JSON.stringify(payload),
       },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from posting feed:", error);
@@ -258,8 +247,7 @@ export async function removeFeedLike(payload: any, token: string) {
         body: JSON.stringify(payload),
       },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from posting feed:", error);
@@ -279,8 +267,7 @@ export async function isPostLiked(payload: any, token: string) {
         },
       },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from posting feed:", error);
@@ -301,8 +288,7 @@ export async function AddPollVote(payload: any, token: string) {
         body: JSON.stringify(payload),
       },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     logger.error("Error from posting poll vote:", error);

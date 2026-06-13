@@ -193,8 +193,7 @@ const CreateWalletPage: React.FC = () => {
         ready
       );
 
-      let ethWallet: { address?: string } | undefined;
-      let solWallet: { address?: string } | undefined;
+      let ethWallet, solWallet;
 
       // Check if user already has wallets
       const existingEthWallet = user.linkedAccounts?.find(
@@ -301,8 +300,7 @@ const CreateWalletPage: React.FC = () => {
             { authenticated, ready, userId: user.id }
           );
 
-          const solanaResult = await createSolanaWallet();
-          solWallet = solanaResult.wallet;
+          solWallet = await createSolanaWallet();
           console.log(
             'Solana wallet created successfully:',
             solWallet
@@ -324,8 +322,7 @@ const CreateWalletPage: React.FC = () => {
               console.log(
                 'Retry: Attempting to create Solana wallet...'
               );
-              const solanaRetryResult = await createSolanaWallet();
-              solWallet = solanaRetryResult.wallet;
+              solWallet = await createSolanaWallet();
               console.log(
                 'Retry successful: Solana wallet created:',
                 solWallet
@@ -544,7 +541,9 @@ const CreateWalletPage: React.FC = () => {
     const ethWallet = ethWallets.find(
       (wallet) => wallet.type === 'ethereum'
     );
-    const solWallet = solanaWallets[0];
+    const solWallet = solanaWallets.find(
+      (wallet) => wallet.type === 'solana'
+    );
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">

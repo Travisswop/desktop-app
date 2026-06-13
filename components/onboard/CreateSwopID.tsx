@@ -10,7 +10,6 @@ import { useRouter } from "next/navigation";
 import { Loader2, ArrowRight } from "lucide-react";
 import Image from "next/image";
 import swopImg from "@/public/images/swop-world.png";
-import { useUser } from "@/lib/UserContext";
 
 interface OnboardingData {
   userInfo?: {
@@ -36,7 +35,6 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
   const { wallets: solanaWallets } = useSolanaWallets();
   const { toast } = useToast();
   const router = useRouter();
-  const { refreshUser } = useUser();
 
   const [swopID, setSwopID] = useState("");
   const [isChecking, setIsChecking] = useState(false);
@@ -98,11 +96,6 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
 
   const createSwopID = useCallback(async () => {
     try {
-      const primaryMicrosite = userData.userInfo?.primaryMicrosite;
-      if (!primaryMicrosite) {
-        throw new Error("No Smartsite found for SwopID setup");
-      }
-
       const ethereumWallet = wallets.find(
         (wallet: any) =>
           wallet.type === "ethereum" && wallet.walletClientType === "privy"
@@ -156,32 +149,28 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
         throw new Error(`Failed to create Swop ID: ${errorData}`);
       }
 
-      const attachResponse = await fetch(
+      await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/addSocial`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contentType: "ensDomain",
-            micrositeId: primaryMicrosite,
+            micrositeId: userData.userInfo?.primaryMicrosite,
             domain: ens,
           }),
         }
       );
-
-      if (!attachResponse.ok) {
-        const errorData = await attachResponse.text();
-        throw new Error(`Failed to attach Swop ID: ${errorData}`);
-      }
-
-      await refreshUser();
 
       toast({
         title: "Success",
         description: "SwopID created successfully!",
       });
 
-      return true;
+      setTimeout(() => {
+        setIsSubmitting(false);
+        router.push("/");
+      }, 2000);
     } catch (error) {
       console.error("Error creating SwopID:", error);
       toast({
@@ -190,9 +179,9 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
         description:
           error instanceof Error ? error.message : "Failed to create SwopID",
       });
-      return false;
+      setIsSubmitting(false);
     }
-  }, [swopID, userData, toast, refreshUser, solanaWallets, wallets]);
+  }, [swopID, userData, toast, router, solanaWallets, wallets]);
 
   const handleSubmit = async () => {
     if (!swopID || availabilityMessage.type !== "success") {
@@ -200,13 +189,8 @@ export default function CreateSwopID({ userData }: CreateSwopIDProps) {
     }
 
     setIsSubmitting(true);
-    const created = await createSwopID();
-    setIsSubmitting(false);
-
-    if (created) {
-      router.refresh();
-      router.push("/");
-    }
+    await createSwopID();
+    router.push("/");
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

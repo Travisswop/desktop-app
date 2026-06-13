@@ -49,7 +49,7 @@ export function usePolygonBalances(address: string | string[] | undefined) {
     enabled: addresses.length > 0,
     staleTime: QUERY_STALE_TIMES.BALANCE,
     refetchInterval: QUERY_REFETCH_INTERVALS.BALANCE,
-    refetchIntervalInBackground: false,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
 
@@ -75,7 +75,7 @@ export function usePolygonBalances(address: string | string[] | undefined) {
       enabled: addresses.length > 0,
       staleTime: QUERY_STALE_TIMES.BALANCE,
       refetchInterval: QUERY_REFETCH_INTERVALS.BALANCE,
-      refetchIntervalInBackground: false,
+      refetchIntervalInBackground: true,
       refetchOnWindowFocus: true,
     });
 
@@ -86,13 +86,10 @@ export function usePolygonBalances(address: string | string[] | undefined) {
   const legacyUsdcBalance = legacyUsdcRaw
     ? parseFloat(formatUnits(legacyUsdcRaw, USDC_E_DECIMALS))
     : 0;
-  const totalUsdcBalance = formattedUsdcBalance + legacyUsdcBalance;
 
   return {
     usdcBalance: formattedUsdcBalance,
     formattedUsdcBalance: formattedUsdcBalance.toFixed(2),
-    totalUsdcBalance,
-    formattedTotalUsdcBalance: totalUsdcBalance.toFixed(2),
     rawUsdcBalance: usdcBalance,
     legacyUsdcBalance,
     rawLegacyUsdcBalance: legacyUsdcRaw,

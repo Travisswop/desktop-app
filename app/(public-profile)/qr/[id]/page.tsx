@@ -2,11 +2,10 @@ import { redirect } from 'next/navigation';
 export default async function QR({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
   const fetchData = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v1/web/qr/${id}`,
+    `${process.env.NEXT_PUBLIC_API_URL}/api/v1/web/qr/${params.id}`,
     { next: { revalidate: 1 } }
   );
   const data = await fetchData.json();

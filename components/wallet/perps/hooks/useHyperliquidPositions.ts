@@ -27,18 +27,6 @@ export interface PerpsAccountSummary {
   withdrawable: string;
 }
 
-interface UseHyperliquidPositionsOptions {
-  enabled?: boolean;
-  refetchInterval?: number | false;
-  staleTime?: number;
-  /**
-   * Builder-deployed (HIP-3) perp DEX name (e.g. "xyz"). When set, the account
-   * state is read from that DEX's isolated collateral account instead of the
-   * main USDC perp account. Leave undefined/empty for the main DEX.
-   */
-  dex?: string;
-}
-
 // ─── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -50,25 +38,18 @@ interface UseHyperliquidPositionsOptions {
  * IMPORTANT: Pass the MASTER address (external wallet), not the agent address.
  * Positions are owned by the master account even when traded via the agent.
  */
-export function useHyperliquidPositions(
-  masterAddress: string | null,
-  options: UseHyperliquidPositionsOptions = {},
-) {
-  const dex = options.dex?.trim() || '';
-
+export function useHyperliquidPositions(masterAddress: string | null) {
   return useQuery({
-    queryKey: ['hl-positions', masterAddress, dex],
+    queryKey: ['hl-positions', masterAddress],
     queryFn: async (): Promise<PerpsAccountSummary> => {
       if (!masterAddress) throw new Error('No master address provided');
 
       const [state, openOrders] = await Promise.all([
         infoClient.clearinghouseState({
           user: masterAddress as `0x${string}`,
-          ...(dex ? { dex } : {}),
         }),
         infoClient.openOrders({
           user: masterAddress as `0x${string}`,
-          ...(dex ? { dex } : {}),
         }),
       ]);
 
@@ -87,10 +68,9 @@ export function useHyperliquidPositions(
         withdrawable: state.withdrawable,
       };
     },
-    enabled: options.enabled !== false && !!masterAddress,
-    refetchInterval: options.refetchInterval ?? 10_000,
-    refetchIntervalInBackground: false,
-    staleTime: options.staleTime ?? 5_000,
+    enabled: !!masterAddress,
+    refetchInterval: 10_000,
+    staleTime: 5_000,
     retry: 2,
   });
 }

@@ -15,15 +15,6 @@ const FORWARD_PARAMS = [
   'tag_id',
   'live',
   'kind',
-  'q',
-  'search',
-  'quality',
-  'market_set',
-  'marketSet',
-  'include_other',
-  'includeOther',
-  'event_slug',
-  'eventSlug',
   'date_from',
   'date_to',
 ];
@@ -43,21 +34,19 @@ export async function GET(request: NextRequest) {
 
     const url = `${POLYMARKET_BACKEND_URL}/api/prediction-markets/desktop/markets?${forward.toString()}`;
 
-    // Bound the upstream call so a slow/hung backend can't stall the request.
-    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const response = await fetch(url);
 
     if (!response.ok) {
-      throw new Error(`Upstream responded ${response.status}`);
+      throw new Error('Failed to fetch desktop markets');
     }
 
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    // This endpoint feeds a cosmetic market ticker that already renders
-    // fallback content on an empty list. Degrade gracefully with 200 + []
-    // instead of a 500 so a transient backend hiccup never surfaces as a
-    // browser console error (which the Next.js dev overlay tallies).
-    console.warn('Desktop markets ticker upstream unavailable:', error);
-    return NextResponse.json([], { status: 200 });
+    console.error('Error fetching desktop markets:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch desktop markets' },
+      { status: 500 },
+    );
   }
 }

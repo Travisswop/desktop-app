@@ -1,6 +1,6 @@
 import { useUser } from '@/lib/UserContext';
 
-export type PaymentMethod = 'wallet';
+export type PaymentMethod = 'stripe' | 'wallet';
 export type Status =
   | 'pending'
   | 'processing'
@@ -34,15 +34,11 @@ export interface CustomerInfo {
 
 export interface CartItem {
   _id: string;
-  marketplaceProductId?: string;
-  productType?: 'digital' | 'physical' | 'in_person_checkout';
   quantity: number;
-  timestamp?: number;
   collectionId?: string;
   templateId?: string;
   userId?: string;
   sellerId?: string;
-  /** Variant choices made in the product details popup, e.g. { Size: "23" } */
   selectedOptions?: Record<string, string>;
   nftTemplate: {
     _id?: string;
@@ -91,8 +87,8 @@ export interface CheckoutCardProps {
   toggleUseSwopId: () => void;
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleCountryChange: (value: string) => void;
+  handleOpenPaymentSheet: () => void;
   handleOpenWalletPayment: () => void;
-  handleOpenPhantomPayment: () => void;
   errorMessage: string | null;
   cartItems: CartItem[];
   subtotal: number;

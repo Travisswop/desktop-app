@@ -579,8 +579,6 @@ import {
   useWallets as useSolanaWallets,
 } from "@privy-io/react-auth/solana";
 import { Connection, Transaction } from "@solana/web3.js";
-import { copyTextToClipboard } from "@/lib/clipboard";
-import { useUser } from "@/lib/UserContext";
 
 // Rent-exempt minimum for a token account (in SOL)
 const TOKEN_ACCOUNT_RENT_EXEMPT = 0.00203928;
@@ -612,11 +610,11 @@ export interface WalletToken {
   name: string;
   logo?: string;
   logoURI?: string;
-  balance: string | number;
+  balance: number;
   chain: string;
   isNative?: boolean;
-  address?: string | null; // SPL mint — used as tokenMint in handleRedeem
-  mint?: string | null;
+  address?: string; // SPL mint — used as tokenMint in handleRedeem
+  mint?: string;
   decimals?: number;
 }
 
@@ -757,7 +755,7 @@ function TokenSelector({
                 </div>
               </div>
               <div className="text-sm font-medium text-right shrink-0 text-gray-700">
-                {Number(token.balance).toLocaleString(undefined, {
+                {token.balance.toLocaleString(undefined, {
                   maximumFractionDigits: 4,
                 })}
               </div>
@@ -780,16 +778,10 @@ export default function RedeemModal(props: RedeemModalProps) {
 
   // ── Auth / wallet hooks ───────────────────────────────────────────────────
   const { authenticated, ready, user, user: PrivyUser } = usePrivy();
-  const { user: swopUser } = useUser();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { signTransaction } = useSignTransaction();
 
-  const walletData = useWalletData(
-    authenticated,
-    ready,
-    PrivyUser,
-    swopUser,
-  );
+  const walletData = useWalletData(authenticated, ready, PrivyUser);
   const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
   const { tokens = [], loading: tokenLoading } = useMultiChainTokenData(
     solWalletAddress,
@@ -879,7 +871,7 @@ export default function RedeemModal(props: RedeemModalProps) {
 
   const handleMaxDeposit = () => {
     if (!selectedToken) return;
-    const max = Number(selectedToken.balance) || 0;
+    const max = selectedToken.balance;
     setDepositInput(String(max));
     setTotalToken(max);
     recalcPerWallet(max, parseInt(maxWallets, 10) || 0);
@@ -1128,7 +1120,7 @@ export default function RedeemModal(props: RedeemModalProps) {
   const depositExceedsBalance =
     isWalletMode &&
     !!selectedToken &&
-    parseFloat(depositInput) > Number(selectedToken.balance);
+    parseFloat(depositInput) > selectedToken.balance;
 
   const canConfirm =
     !!maxWallets &&
@@ -1171,11 +1163,9 @@ export default function RedeemModal(props: RedeemModalProps) {
               {redeemLink}
             </span>
             <button
-              onClick={async () => {
-                const didCopy = await copyTextToClipboard(redeemLink);
-                toast({
-                  title: didCopy ? "Link copied!" : "Could not copy link",
-                });
+              onClick={() => {
+                navigator.clipboard.writeText(redeemLink);
+                toast({ title: "Link copied!" });
               }}
               className="shrink-0 flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
             >
@@ -1365,7 +1355,7 @@ export default function RedeemModal(props: RedeemModalProps) {
                   <p className="text-xs text-gray-400 -mt-1 px-1">
                     Available:{" "}
                     <span className="font-medium text-gray-600">
-                      {Number(selectedToken.balance).toLocaleString(undefined, {
+                      {selectedToken.balance.toLocaleString(undefined, {
                         maximumFractionDigits: 4,
                       })}{" "}
                       {selectedToken.symbol}
@@ -1391,7 +1381,7 @@ export default function RedeemModal(props: RedeemModalProps) {
                           "border-red-400 focus-visible:ring-red-400",
                       )}
                       min="0"
-                      max={Number(selectedToken?.balance ?? 0)}
+                      max={selectedToken?.balance}
                       step="any"
                     />
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
@@ -1408,7 +1398,7 @@ export default function RedeemModal(props: RedeemModalProps) {
                   {depositExceedsBalance && (
                     <p className="text-xs text-red-500">
                       Amount exceeds your balance of{" "}
-                      {Number(selectedToken?.balance ?? 0).toFixed(4)} {symbol}.
+                      {selectedToken?.balance.toFixed(4)} {symbol}.
                     </p>
                   )}
                 </div>

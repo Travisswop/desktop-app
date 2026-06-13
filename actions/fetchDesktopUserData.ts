@@ -11,9 +11,8 @@ export async function fetchUserInfo(id: string, token: string) {
         },
       }
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
-    return data?.data;
+    const data = await response.json();
+    return data.data;
   } catch (error) {
     console.error("Error from fetchUserInfo action:", error);
   }
@@ -31,9 +30,8 @@ export async function fetchAnalyticsInfo(token: string) {
         },
       }
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
-    return data?.data;
+    const data = await response.json();
+    return data.data;
   } catch (error) {
     console.error("Error from fetchAnalyticsInfo action:", error);
   }

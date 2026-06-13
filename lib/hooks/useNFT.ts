@@ -11,10 +11,8 @@ import {
 export const useNFT = (
   solWalletAddress?: string,
   evmWalletAddress?: string,
-  chains: ChainType[] = ['ETHEREUM'],
-  options: { enabled?: boolean } = {}
+  chains: ChainType[] = ['ETHEREUM']
 ): UseNFTResult => {
-  const enabled = options.enabled !== false;
   const evmChains = chains.filter(
     (chain): chain is Exclude<ChainType, 'SOLANA'> =>
       chain !== 'SOLANA'
@@ -30,8 +28,9 @@ export const useNFT = (
             evmWalletAddress!,
             EVM_CHAIN_CONFIG[chain as keyof typeof EVM_CHAIN_CONFIG].apiKey
           ),
-        enabled: enabled && Boolean(evmWalletAddress),
-        retry: 0,
+        enabled: Boolean(evmWalletAddress),
+        retry: 2,
+        retryDelay: 1000,
         staleTime: 5 * 60 * 1000, // 5 minutes
         gcTime: 10 * 60 * 1000, // 10 minutes
       })),
@@ -39,8 +38,9 @@ export const useNFT = (
         queryKey: ['solanaNFTs', solWalletAddress],
         queryFn: () =>
           NFTService.getNFTsForChain('solana', solWalletAddress!),
-        enabled: enabled && Boolean(solWalletAddress),
-        retry: 0,
+        enabled: Boolean(solWalletAddress),
+        retry: 2,
+        retryDelay: 1000,
         staleTime: 5 * 60 * 1000, // 5 minutes
         gcTime: 10 * 60 * 1000, // 10 minutes
       },

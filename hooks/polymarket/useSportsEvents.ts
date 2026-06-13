@@ -1,9 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTrading } from '@/providers/polymarket';
-import {
-  QUERY_REFETCH_INTERVALS,
-  QUERY_STALE_TIMES,
-} from '@/constants/polymarket';
+import { QUERY_STALE_TIMES } from '@/constants/polymarket';
 import { fetchChunkedPrices } from '@/lib/polymarket/clob-prices';
 import type { PolymarketMarket } from '@/hooks/polymarket';
 
@@ -12,7 +9,7 @@ import type { PolymarketMarket } from '@/hooks/polymarket';
  * spread / total) are very likely to land on the same page and get grouped
  * correctly.  20 games × 3 markets = 60 markets per page.
  */
-const PAGE_SIZE = 96;
+const PAGE_SIZE = 60;
 
 export interface UseSportsEventsOptions {
   /** Polymarket tag ID for the sport (e.g. 745 = NBA, 100639 = all sports). */
@@ -27,8 +24,6 @@ export interface UseSportsEventsOptions {
   dateFrom?: string;
   /** Backend filter — keep events whose startDate is < this ISO timestamp. */
   dateTo?: string;
-  /** Server-side game/market search. */
-  searchQuery?: string;
 }
 
 /**
@@ -47,13 +42,8 @@ export function useSportsEvents({
   kind,
   dateFrom,
   dateTo,
-  searchQuery = '',
 }: UseSportsEventsOptions = {}) {
   const { isTradingSessionComplete } = useTrading();
-  const trimmedSearch = searchQuery.trim();
-  const shouldApplyDateWindow = kind !== 'futures' && !live;
-  const effectiveDateFrom = shouldApplyDateWindow ? dateFrom : undefined;
-  const effectiveDateTo = shouldApplyDateWindow ? dateTo : undefined;
 
   return useInfiniteQuery({
     queryKey: [
@@ -61,9 +51,8 @@ export function useSportsEvents({
       tagId ?? null,
       live ?? false,
       kind ?? null,
-      effectiveDateFrom ?? null,
-      effectiveDateTo ?? null,
-      trimmedSearch,
+      dateFrom ?? null,
+      dateTo ?? null,
       !!isTradingSessionComplete,
     ],
     enabled,
@@ -72,13 +61,11 @@ export function useSportsEvents({
       const qs = new URLSearchParams();
       qs.set('limit', String(PAGE_SIZE));
       qs.set('offset', String(pageParam));
-      qs.set('quality', 'relaxed');
       if (tagId != null) qs.set('tag_id', String(tagId));
       if (live) qs.set('live', 'true');
       if (kind) qs.set('kind', kind);
-      if (effectiveDateFrom) qs.set('date_from', effectiveDateFrom);
-      if (effectiveDateTo) qs.set('date_to', effectiveDateTo);
-      if (trimmedSearch) qs.set('q', trimmedSearch);
+      if (dateFrom) qs.set('date_from', dateFrom);
+      if (dateTo) qs.set('date_to', dateTo);
       // Desktop endpoint — exposes the live / kind / date filters and the
       // extra event-level fields the A2 sportsbook table needs. Mobile
       // continues to call the original /markets proxy.
@@ -130,7 +117,7 @@ export function useSportsEvents({
       return allPages.reduce((total, page) => total + page.length, 0);
     },
     staleTime: QUERY_STALE_TIMES.MARKETS,
-    refetchInterval: QUERY_REFETCH_INTERVALS.MARKETS,
+    refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });

@@ -29,15 +29,9 @@ export const useOrderDisputes = (
     try {
       const result = await getOrderDisputes(orderId, accessToken);
 
-      const rawDisputes = Array.isArray((result as any).disputes)
-        ? (result as any).disputes
-        : result.dispute
-          ? [result.dispute]
-          : [];
-
-      if (result.success && rawDisputes.length) {
+      if (result.success && result.disputes) {
         // Map the disputes to our simplified format
-        const mappedDisputes: DisputeItem[] = rawDisputes.map(
+        const mappedDisputes: DisputeItem[] = result.disputes.map(
           (dispute: any) => ({
             id: dispute.id,
             status: dispute.status,

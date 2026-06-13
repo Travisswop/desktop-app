@@ -16,8 +16,7 @@ export async function postReferral(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
 
     return data;
   } catch (error) {
@@ -38,8 +37,7 @@ export async function updateReferral(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -60,8 +58,7 @@ export async function deleteReferral(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from action:', error);

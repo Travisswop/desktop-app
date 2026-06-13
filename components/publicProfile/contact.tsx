@@ -97,13 +97,9 @@ const Contact: FC<Props> = ({
           stiffness: 400,
           damping: 10,
         }}
-        onClick={() => {
-          if (onClick) {
-            onClick();
-          } else if (parentId) {
-            download(data, parentId, accessToken);
-          }
-        }}
+        onClick={() =>
+          onClick ? onClick() : download(data, parentId, accessToken)
+        }
         className="my-2 mx-1 flex flex-row items-center cursor-pointer bg-white shadow-small p-2 rounded-[12px] max-w-full"
       >
         <div>

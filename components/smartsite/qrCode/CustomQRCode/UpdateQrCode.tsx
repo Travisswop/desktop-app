@@ -29,19 +29,12 @@ import DynamicPrimaryBtn from '@/components/ui/Button/DynamicPrimaryBtn';
 import colorCancel from '@/public/images/color-cancel.png';
 import Link from 'next/link';
 import QRCodeStyling from 'qr-code-styling';
-import type {
-  CornerDotType,
-  CornerSquareType,
-  DotType,
-} from 'qr-code-styling';
 
 const UpdateQRCode = ({ session, data }: any) => {
   const [color, setColor] = useState('#B396FF');
   const [bgColor, setBgColor] = useState('#FFFFFF');
-  const [qrCodeShape, setqrCodeShape] =
-    useState<CornerSquareType>('dot');
-  const [qrCodeFrame, setqrCodeFrame] =
-    useState<CornerDotType>('dot');
+  const [qrCodeShape, setqrCodeShape] = useState('dot');
+  const [qrCodeFrame, setqrCodeFrame] = useState('dot');
   const [selectQrCodeSocialLink, setSelectQrCodeSocialLink] =
     useState(data.data);
 
@@ -62,7 +55,7 @@ const UpdateQRCode = ({ session, data }: any) => {
 
   const ref = useRef<any>(null);
 
-  const [qrPattern, setQrPattern] = useState<DotType>('dots');
+  const [qrPattern, setQrPattern] = useState('dots');
   const backgroundUpdatePickerRef = useRef<HTMLDivElement>(null);
   const updateColorPickerRef = useRef<HTMLDivElement>(null);
 
@@ -107,14 +100,12 @@ const UpdateQRCode = ({ session, data }: any) => {
   }, []);
 
   useEffect(() => {
-    setQrPattern(data.qrCodeSvgName as DotType);
+    setQrPattern(data.qrCodeSvgName);
     setColor(data.qrDotColor);
     setBgColor(data.backgroundColor);
     setSocialImage(data.overLayImage);
-    setqrCodeShape(
-      data.cornersSquareOptions.squareType as CornerSquareType,
-    );
-    setqrCodeFrame(data.cornersDotOptions.dotType as CornerDotType);
+    setqrCodeShape(data.cornersSquareOptions.squareType);
+    setqrCodeFrame(data.cornersDotOptions.dotType);
   }, [
     data.backgroundColor,
     data.cornersDotOptions.dotType,
@@ -790,9 +781,7 @@ const UpdateQRCode = ({ session, data }: any) => {
                         : 'border-gray-200'
                     }`}
                     key={data._id}
-                    onClick={() =>
-                      setqrCodeShape(data.shapeTitle as CornerSquareType)
-                    }
+                    onClick={() => setqrCodeShape(data.shapeTitle)}
                   >
                     <Image
                       src={data.shapeUrl}
@@ -817,9 +806,7 @@ const UpdateQRCode = ({ session, data }: any) => {
                         : 'border-gray-200'
                     }`}
                     key={data._id}
-                    onClick={() =>
-                      setqrCodeFrame(data.frameTitle as CornerDotType)
-                    }
+                    onClick={() => setqrCodeFrame(data.frameTitle)}
                   >
                     <Image
                       src={data.frameUrl}

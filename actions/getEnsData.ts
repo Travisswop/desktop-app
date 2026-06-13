@@ -11,8 +11,7 @@ export async function getEnsDataUsingEns(ens: string) {
         },
       }
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error("Error from action:", error);
@@ -30,8 +29,7 @@ export const getConnectionsUserData = async (url: string, token: string) => {
         authorization: `Bearer ${token}`,
       },
     });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error("Error from action:", error);

@@ -339,7 +339,6 @@ const AddInfoBar = ({ onCloseModal }: any) => {
                   </DropdownItem>
                 ))}
                 <DropdownItem
-                  key="custom-image"
                   onClick={() => handleSelectIconType("Upload Custom Image")}
                   className="border-b rounded-none hover:rounded-md"
                 >
@@ -355,7 +354,6 @@ const AddInfoBar = ({ onCloseModal }: any) => {
                   </div>
                 </DropdownItem>
                 <DropdownItem
-                  key="product-link"
                   onClick={() => handleSelectIconType("Product Link")}
                   className="border-b rounded-none hover:rounded-md"
                 >
@@ -369,7 +367,6 @@ const AddInfoBar = ({ onCloseModal }: any) => {
                   </div>
                 </DropdownItem>
                 <DropdownItem
-                  key="contact-card"
                   onClick={() => handleSelectIconType("Contact Card")}
                   className="border-b rounded-none hover:rounded-md"
                 >

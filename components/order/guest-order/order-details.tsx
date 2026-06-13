@@ -278,268 +278,6 @@ export default function GuestOrderInfos() {
     }).format(new Date(dateString));
   };
 
-  const formatTokenAmount = (amount: number, currency = 'USDC') => {
-    const numeric = Number(amount);
-    const value = Number.isFinite(numeric) ? numeric : 0;
-    return `${value.toFixed(2)} ${String(currency || 'USDC').toUpperCase()}`;
-  };
-
-  const isMarketplaceOrder =
-    order.orderSystem === 'marketplace' ||
-    Array.isArray(order.lineItems) ||
-    Boolean(order.settlement?.policy);
-
-  if (isMarketplaceOrder) {
-    const lineItems = Array.isArray(order.lineItems) ? order.lineItems : [];
-    const currency = order.financial?.currency || order.payment?.currency || 'USDC';
-    const paymentComplete = order.payment?.status === 'completed';
-    const orderReceived = Boolean(
-      order.fulfillment?.receiptConfirmedAt ||
-        order.fulfillment?.status === 'receipt_confirmed'
-    );
-    const released = order.settlement?.status === 'released';
-    const canConfirmMarketplaceOrder =
-      Boolean(order.fulfillment?.requiresShipping) &&
-      paymentComplete &&
-      !orderReceived &&
-      !released;
-    const autoReleaseDate = order.fulfillment?.deliveredAt
-      ? new Date(
-          new Date(order.fulfillment.deliveredAt).getTime() +
-            30 * 24 * 60 * 60 * 1000
-        )
-      : null;
-
-    return (
-      <div className="container mx-auto px-4 py-4 max-w-5xl">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Order #{order.publicReference || order.orderId}
-          </h1>
-          <p className="text-gray-500">
-            Placed on{' '}
-            {order.createdAt ? formatDate(order.createdAt) : 'Unknown date'}
-          </p>
-        </div>
-
-        {updateSuccess && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center gap-2 text-green-700">
-              <AlertCircle className="w-5 h-5" />
-              <span className="font-medium">{updateSuccess}</span>
-            </div>
-          </div>
-        )}
-
-        {updateError && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center gap-2 text-red-700">
-              <AlertTriangle className="w-5 h-5" />
-              <span className="font-medium">{updateError}</span>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <Card className="mb-6">
-              <CardHeader className="pb-0">
-                <h2 className="text-xl font-semibold">Items</h2>
-              </CardHeader>
-              <CardBody>
-                {lineItems.map((item: any, index: number) => (
-                  <div
-                    key={`${item.productId || item.productSnapshot?.title || index}`}
-                    className="flex flex-col md:flex-row items-start md:items-center py-4 border-b last:border-b-0"
-                  >
-                    {item.productSnapshot?.image ? (
-                      <div className="relative h-20 w-20 rounded-md overflow-hidden mb-4 md:mb-0 mr-0 md:mr-4">
-                        <Image
-                          src={item.productSnapshot.image}
-                          alt={item.productSnapshot?.title || 'Order item'}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    ) : null}
-                    <div className="flex-grow">
-                      <h3 className="font-medium text-gray-900">
-                        {item.productSnapshot?.title || 'Order item'}
-                      </h3>
-                      {item.productSnapshot?.description ? (
-                        <p className="text-gray-500 text-sm">
-                          {item.productSnapshot.description.substring(0, 120)}
-                          {item.productSnapshot.description.length > 120 ? '...' : ''}
-                        </p>
-                      ) : null}
-                      <div className="flex items-center mt-1">
-                        <Chip size="sm" variant="flat" color="primary">
-                          {item.productSnapshot?.productType || order.orderType}
-                        </Chip>
-                      </div>
-                    </div>
-                    <div className="mt-4 md:mt-0 text-right">
-                      <div className="font-semibold text-gray-900">
-                        {formatTokenAmount(item.totalAmount, item.currency || currency)}
-                      </div>
-                      <div className="text-gray-500 text-sm">
-                        Qty: {item.quantity || 1}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </CardBody>
-            </Card>
-
-            <Card className="mb-6">
-              <CardHeader className="pb-0">
-                <h2 className="text-xl font-semibold">Actions</h2>
-              </CardHeader>
-              <CardBody className="flex flex-col gap-4">
-                {canConfirmMarketplaceOrder ? (
-                  <Button
-                    color="success"
-                    onClick={() => setIsConfirmOrderModalOpen(true)}
-                  >
-                    Confirm Order Received
-                  </Button>
-                ) : (
-                  <p className="text-sm text-gray-600">
-                    {released
-                      ? 'Funds have been released to the seller.'
-                      : orderReceived
-                      ? 'Order received has already been confirmed.'
-                      : paymentComplete
-                      ? 'The seller has not marked this order as delivered yet.'
-                      : 'Payment must complete before this order can be confirmed as received.'}
-                  </p>
-                )}
-                {autoReleaseDate && !released && !orderReceived ? (
-                  <p className="text-sm text-gray-500">
-                    Escrow auto-releases after 30 days from delivery:{' '}
-                    {formatDate(autoReleaseDate.toISOString())}.
-                  </p>
-                ) : null}
-              </CardBody>
-            </Card>
-          </div>
-
-          <div className="lg:col-span-1">
-            <Card className="mb-6">
-              <CardHeader className="pb-0">
-                <h2 className="text-xl font-semibold">Order Summary</h2>
-              </CardHeader>
-              <CardBody>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Payment</span>
-                    <Chip color={paymentComplete ? 'success' : 'warning'}>
-                      {order.payment?.status || 'pending'}
-                    </Chip>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Fulfillment</span>
-                    <Chip color={orderReceived || released ? 'success' : 'primary'}>
-                      {orderReceived ? 'Order received' : order.fulfillment?.status || 'pending'}
-                    </Chip>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Settlement</span>
-                    <Chip color={released ? 'success' : 'warning'}>
-                      {order.settlement?.status || 'pending'}
-                    </Chip>
-                  </div>
-                  <Divider />
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal</span>
-                    <span className="font-medium">
-                      {formatTokenAmount(order.financial?.subtotal || 0, currency)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Shipping</span>
-                    <span className="font-medium">
-                      {formatTokenAmount(order.financial?.shippingCost || 0, currency)}
-                    </span>
-                  </div>
-                  <Divider />
-                  <div className="flex justify-between text-lg">
-                    <span className="font-semibold">Total</span>
-                    <span className="font-bold">
-                      {formatTokenAmount(order.financial?.totalCost || 0, currency)}
-                    </span>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-
-            <Card className="mb-6">
-              <CardHeader className="pb-0">
-                <h2 className="text-xl font-semibold">Shipping Information</h2>
-              </CardHeader>
-              <CardBody>
-                <div className="space-y-2">
-                  <p className="font-medium">{order.buyer?.name || 'Guest buyer'}</p>
-                  <p className="text-gray-600">{order.buyer?.email}</p>
-                  {order.buyer?.phone ? (
-                    <p className="text-gray-600">{order.buyer.phone}</p>
-                  ) : null}
-                  {order.buyer?.address?.line1 ? (
-                    <p className="text-gray-600">{order.buyer.address.line1}</p>
-                  ) : null}
-                  {order.fulfillment?.trackingNumber ? (
-                    <div className="mt-4 pt-4 border-t">
-                      <h3 className="font-medium mb-2">Tracking</h3>
-                      <p className="text-sm text-gray-600">
-                        {order.fulfillment.trackingNumber}
-                      </p>
-                      {order.fulfillment.carrier ? (
-                        <p className="text-sm text-gray-600">
-                          {order.fulfillment.carrier}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </CardBody>
-            </Card>
-          </div>
-        </div>
-
-        <Modal
-          isOpen={isConfirmOrderModalOpen}
-          onOpenChange={setIsConfirmOrderModalOpen}
-        >
-          <ModalContent>
-            <ModalHeader>Confirm Order Received</ModalHeader>
-            <ModalBody>
-              <p>
-                By confirming, you acknowledge that you received the order in
-                satisfactory condition. This releases the escrow hold to the seller.
-              </p>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                color="danger"
-                variant="light"
-                onPress={() => setIsConfirmOrderModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                color="success"
-                onPress={handleOrderConfirm}
-                isLoading={isUpdating}
-              >
-                Confirm Order Received
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      </div>
-    );
-  }
-
   const canConfirmOrder =
     order.status.payment === 'completed' &&
     order.status.delivery === 'Completed' &&
@@ -652,7 +390,7 @@ export default function GuestOrderInfos() {
                           setIsConfirmOrderModalOpen(true)
                         }
                       >
-                        Confirm Order Received
+                        Confirm Order Receipt
                       </Button>
                     )}
                     {canDispute && (
@@ -1016,11 +754,12 @@ export default function GuestOrderInfos() {
         onOpenChange={setIsConfirmOrderModalOpen}
       >
         <ModalContent>
-          <ModalHeader>Confirm Order Received</ModalHeader>
+          <ModalHeader>Confirm Order Receipt</ModalHeader>
           <ModalBody>
             <p>
-              By confirming, you acknowledge that you received the order in
-              satisfactory condition. This action cannot be undone.
+              By confirming receipt, you acknowledge that you have
+              received the order in satisfactory condition. This
+              action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>
@@ -1036,7 +775,7 @@ export default function GuestOrderInfos() {
               onPress={handleOrderConfirm}
               isLoading={isUpdating}
             >
-              Confirm Order Received
+              Confirm Receipt
             </Button>
           </ModalFooter>
         </ModalContent>

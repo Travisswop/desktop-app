@@ -1,6 +1,5 @@
 'use client';
 
-import type { OrderSubmissionStage } from '@/hooks/polymarket';
 import Portal from './Portal';
 
 export type PendingOrderData = {
@@ -11,7 +10,6 @@ export type PendingOrderData = {
   potentialWin: number;
   amountToReceive: number;
   priceDecimal: number;
-  acceptedPrice?: number;
   // Submit params
   tokenId: string;
   conditionId?: string;
@@ -28,7 +26,6 @@ type OrderConfirmSheetProps = {
   onClose: () => void;
   onConfirm: () => void;
   isSubmitting: boolean;
-  orderStage?: OrderSubmissionStage;
   marketTitle: string;
   order: PendingOrderData;
   error?: string | null;
@@ -47,7 +44,6 @@ export default function OrderConfirmSheet({
   onClose,
   onConfirm,
   isSubmitting,
-  orderStage = 'idle',
   marketTitle,
   order,
   error,
@@ -56,7 +52,6 @@ export default function OrderConfirmSheet({
 
   const odds = decimalToAmericanOdds(order.priceDecimal);
   const priceCents = Math.round(order.priceDecimal * 100);
-  const stageCopy = getStageCopy(orderStage);
 
   return (
     <Portal>
@@ -117,117 +112,85 @@ export default function OrderConfirmSheet({
             </p>
           </div>
 
-          {isSubmitting ? (
-            <div className="mx-4 mb-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-8 text-center">
-              <svg
-                className="mx-auto mb-4 h-7 w-7 animate-spin text-gray-900"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-20"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <path
-                  className="opacity-90"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-              <p className="text-base font-semibold text-gray-900">
-                {stageCopy.title}
-              </p>
-              <p className="mt-2 text-sm leading-5 text-gray-500">
-                {stageCopy.detail}
+          {/* "You bought / sold [outcome]" */}
+          <div className="flex items-center justify-center gap-2 mb-5 px-4">
+            <span className="text-base text-gray-700">
+              {order.side === 'BUY' ? 'You buy' : 'You sell'}
+            </span>
+            <span className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-full px-3 py-1">
+              <span className="text-sm font-bold text-gray-900">
+                {order.outcomeName}
+              </span>
+            </span>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="mx-4 mb-3 bg-red-50 border border-red-200 rounded-xl p-3">
+              <p className="text-red-500 text-sm text-center">
+                {error}
               </p>
             </div>
-          ) : (
-            <>
-              {/* "You bought / sold [outcome]" */}
-              <div className="flex items-center justify-center gap-2 mb-5 px-4">
-                <span className="text-base text-gray-700">
-                  {order.side === 'BUY' ? 'You buy' : 'You sell'}
-                </span>
-                <span className="inline-flex items-center bg-gray-100 border border-gray-200 rounded-full px-3 py-1">
-                  <span className="text-sm font-bold text-gray-900">
-                    {order.outcomeName}
-                  </span>
-                </span>
-              </div>
-
-              {/* Error */}
-              {error && (
-                <div className="mx-4 mb-3 bg-red-50 border border-red-200 rounded-xl p-3">
-                  <p className="text-red-500 text-sm text-center">
-                    {error}
-                  </p>
-                </div>
-              )}
-
-              {/* Stats table */}
-              <div className="mx-4 border border-gray-100 rounded-xl overflow-hidden mb-4">
-                {/* Cost */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                  <span className="text-sm text-gray-500">Cost</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ${order.cost.toFixed(2)}
-                  </span>
-                </div>
-
-                {/* Odds */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                  <span className="text-sm text-gray-500">Odds</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {odds}{' '}
-                    <span className="text-gray-400 font-normal">
-                      ({priceCents}¢)
-                    </span>
-                  </span>
-                </div>
-
-                {/* To win (BUY) */}
-                {order.side === 'BUY' && (
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm text-gray-500">
-                        To win
-                      </span>
-                      <svg
-                        className="w-3.5 h-3.5 text-gray-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900">
-                      ${order.potentialWin.toFixed(2)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Receive (SELL) */}
-                {order.side === 'SELL' && (
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <span className="text-sm text-gray-500">Receive</span>
-                    <span className="text-sm font-semibold text-green-600">
-                      ${order.amountToReceive.toFixed(2)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </>
           )}
+
+          {/* Stats table */}
+          <div className="mx-4 border border-gray-100 rounded-xl overflow-hidden mb-4">
+            {/* Cost */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-sm text-gray-500">Cost</span>
+              <span className="text-sm font-semibold text-gray-900">
+                ${order.cost.toFixed(2)}
+              </span>
+            </div>
+
+            {/* Odds */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-sm text-gray-500">Odds</span>
+              <span className="text-sm font-semibold text-gray-900">
+                {odds}{' '}
+                <span className="text-gray-400 font-normal">
+                  ({priceCents}¢)
+                </span>
+              </span>
+            </div>
+
+            {/* To win (BUY) */}
+            {order.side === 'BUY' && (
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-gray-500">
+                    To win
+                  </span>
+                  <svg
+                    className="w-3.5 h-3.5 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <span className="text-sm font-semibold text-gray-900">
+                  ${order.potentialWin.toFixed(2)}
+                </span>
+              </div>
+            )}
+
+            {/* Receive (SELL) */}
+            {order.side === 'SELL' && (
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-gray-500">Receive</span>
+                <span className="text-sm font-semibold text-green-600">
+                  ${order.amountToReceive.toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
 
           {/* Confirm button */}
           <div className="px-4 pb-4">
@@ -257,7 +220,7 @@ export default function OrderConfirmSheet({
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
-                  {stageCopy.button}
+                  Confirming...
                 </span>
               ) : (
                 'Confirm'
@@ -268,34 +231,4 @@ export default function OrderConfirmSheet({
       </div>
     </Portal>
   );
-}
-
-function getStageCopy(stage: OrderSubmissionStage) {
-  switch (stage) {
-    case 'preparing':
-      return {
-        title: 'Preparing order',
-        detail: 'Swop is building the order details before signature.',
-        button: 'Preparing...',
-      };
-    case 'signing':
-      return {
-        title: 'Sign in your wallet',
-        detail:
-          'Approve the signature request to place this self-custodied order.',
-        button: 'Waiting for signature...',
-      };
-    case 'submitting':
-      return {
-        title: 'Submitting order',
-        detail: 'Your signed order is being sent to Polymarket.',
-        button: 'Submitting...',
-      };
-    default:
-      return {
-        title: 'Confirming order',
-        detail: 'Swop is confirming your order.',
-        button: 'Confirming...',
-      };
-  }
 }

@@ -3,22 +3,13 @@
 import { Stripe } from 'stripe';
 import logger from '../utils/logger';
 
-let stripeClient: Stripe | null = null;
-
-function getStripeClient() {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error('Stripe is not configured.');
-  }
-
-  stripeClient ??= new Stripe(process.env.STRIPE_SECRET_KEY);
-  return stripeClient;
-}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function createPaymentIntent(
   amount: number,
 ): Promise<{ clientSecret: string }> {
   try {
-    const paymentIntent = await getStripeClient().paymentIntents.create({
+    const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency: 'usd',
       automatic_payment_methods: {
@@ -48,7 +39,7 @@ export async function verifyStripeWebhook(
 ) {
   try {
     // Use Stripe's webhook signature verification
-    const event = getStripeClient().webhooks.constructEvent(
+    const event = stripe.webhooks.constructEvent(
       payload,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!,
@@ -68,7 +59,7 @@ export async function verifyStripeWebhook(
 export async function getPaymentDetails(paymentIntentId: string) {
   try {
     const paymentIntent =
-      await getStripeClient().paymentIntents.retrieve(paymentIntentId);
+      await stripe.paymentIntents.retrieve(paymentIntentId);
     return paymentIntent;
   } catch (error) {
     logger.error('Error retrieving payment details:', error);
@@ -83,7 +74,7 @@ export async function handleSuccessfulPayment(
   try {
     // Get the payment details
     const paymentIntent =
-      await getStripeClient().paymentIntents.retrieve(paymentIntentId);
+      await stripe.paymentIntents.retrieve(paymentIntentId);
 
     return {
       success: true,

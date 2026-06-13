@@ -52,7 +52,7 @@ export default function Registration({ user, onComplete }: RegistrationProps) {
   const [countryFlag, setCountryFlag] = useState("🇺🇸");
   const [birthdate, setBirthdate] = useState(0);
   const [apartment, setApartment] = useState("");
-  const [address, setAddress] = useState<any>(null);
+  const [address, setAddress] = useState("");
   const [profileImage, setProfileImage] = useState("1");
   const [profileImageUrl, setProfileImageUrl] = useState(
     "/images/user_avator/1.png?height=32&width=32",

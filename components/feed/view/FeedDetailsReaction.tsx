@@ -81,8 +81,7 @@ const FeedDetailsReaction = memo(
     const [likeCount, setLikeCount] = useState(initialLikeCount);
     const [animate, setAnimate] = useState(false); // Trigger for the animation
     const [smartsiteId, setSmartsiteId] = useState(""); // Trigger for the animation
-    const [primarySmartsiteData, setPrimarySmartsiteData] =
-      useState<any>(null); // Store the primary smartsite data
+    const [primarySmartsiteData, setPrimarySmartsiteData] = useState(null); // Store the primary smartsite data
     const [isCommentInputOpen, setIsCommentInputOpen] = useState(false);
     const [latestCommentCount, setLatestCommentCount] = useState(
       commentCount || 0,
@@ -295,11 +294,7 @@ const FeedDetailsReaction = memo(
 
     const handleUndoRepost = async () => {
       setRepostLoading(true);
-      const deletePost = await deleteFeed(
-        postId,
-        accessToken,
-        user?._id ?? "",
-      );
+      const deletePost = await deleteFeed(postId, accessToken);
       if (deletePost.state === "success") {
         setRepostLoading(false);
         toast.success("Undo Repost successfully");

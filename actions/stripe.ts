@@ -2,13 +2,13 @@
 
 import { headers } from 'next/headers';
 
-import { getStripe } from '@/lib/stripe';
+import { stripe } from '@/lib/stripe';
 
 export async function fetchClientSecret() {
   const origin = (await headers()).get('origin');
 
   // Create Checkout Sessions from body params.
-  const session = await getStripe().checkout.sessions.create({
+  const session = await stripe.checkout.sessions.create({
     ui_mode: 'embedded',
     line_items: [
       {

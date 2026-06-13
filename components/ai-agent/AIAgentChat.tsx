@@ -63,11 +63,7 @@ export function AIAgentChat({ token, onClose }: AIAgentChatProps) {
       const response = await sendMessage(message, wallet?.address);
 
       // If action requires confirmation, store it
-      if (
-        response.requiresConfirmation &&
-        response.action !== 'general_chat' &&
-        response.agentMessage
-      ) {
+      if (response.requiresConfirmation && response.action !== 'general_chat') {
         setPendingAction({
           action: response.action,
           params: response.params,

@@ -122,45 +122,6 @@ export class MarketService {
   }
 
   /**
-   * Get top crypto markets by market cap
-   */
-  static async getTopMarketData(
-    limit = 16,
-    accessToken?: string
-  ): Promise<MarketData[]> {
-    try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      if (accessToken) {
-        headers.Authorization = `Bearer ${accessToken}`;
-      }
-
-      const response = await fetch(
-        `${MARKET_API_URL}/top?limit=${encodeURIComponent(String(limit))}`,
-        {
-          method: 'GET',
-          headers,
-          signal: AbortSignal.timeout(10000),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch top market data: ${response.status}`
-        );
-      }
-
-      const result = await response.json();
-      return result.data?.markets ?? [];
-    } catch (error) {
-      console.error('Error fetching top market data:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Get historical price data for a token
    */
   static async getHistoricalPrices(

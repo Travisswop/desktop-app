@@ -16,7 +16,7 @@ interface Props {
     description: string;
   };
   socialType: string;
-  parentId?: string;
+  parentId: string;
   number: number;
   accessToken: string;
   fontColor?: string;

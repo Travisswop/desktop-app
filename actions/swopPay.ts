@@ -18,8 +18,7 @@ export async function postSwopPay(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
 
     return data;
   } catch (error) {
@@ -40,8 +39,7 @@ export async function updateSwopPay(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -62,8 +60,7 @@ export async function deleteSwopPay(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
 
     return data;
   } catch (error) {

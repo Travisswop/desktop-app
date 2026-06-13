@@ -39,7 +39,6 @@ export const NotificationProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   const { accessToken, user } = useUser();
-  const userId = user?._id;
   const [notifications, setNotifications] = useState<Notification[]>(
     [],
   );
@@ -53,25 +52,12 @@ export const NotificationProvider: React.FC<{
 
   const socketRef = useRef<Socket | null>(null);
   const isConnectedRef = useRef(false);
-  const tokenRef = useRef<string | null>(null);
 
   /**
    * Initialize Socket.IO connection for real-time notifications
    */
   useEffect(() => {
-    if (!accessToken || !userId) return;
-
-    if (socketRef.current && tokenRef.current === accessToken) {
-      return;
-    }
-
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-      isConnectedRef.current = false;
-    }
-
-    tokenRef.current = accessToken;
+    if (!accessToken || !user || isConnectedRef.current) return;
 
     const API_URL =
       process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -177,14 +163,13 @@ export const NotificationProvider: React.FC<{
     socketRef.current = socket;
 
     return () => {
-      if (socketRef.current === socket) {
-        socket.disconnect();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
         socketRef.current = null;
-        tokenRef.current = null;
         isConnectedRef.current = false;
       }
     };
-  }, [accessToken, userId]);
+  }, [accessToken, user]);
 
   /**
    * Fetch notifications with pagination
@@ -429,18 +414,12 @@ export const NotificationProvider: React.FC<{
 
   // Initial data fetch
   useEffect(() => {
-    if (accessToken && userId) {
-      void fetchNotifications(1);
-      void refreshUnreadCount();
-      void fetchPreferences();
+    if (accessToken && user) {
+      fetchNotifications(1);
+      refreshUnreadCount();
+      fetchPreferences();
     }
-  }, [
-    accessToken,
-    userId,
-    fetchNotifications,
-    refreshUnreadCount,
-    fetchPreferences,
-  ]);
+  }, [accessToken, user]);
 
   const value: NotificationContextType = {
     notifications,

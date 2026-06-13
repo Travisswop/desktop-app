@@ -12,10 +12,7 @@ import {
   useLogout,
   usePrivy,
 } from '@privy-io/react-auth';
-import {
-  useCreateWallet as useSolanaCreateWallet,
-  useWallets as useSolanaWallets,
-} from '@privy-io/react-auth/solana';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
@@ -194,9 +191,8 @@ const DebugPrivy: React.FC = () => {
   });
 
   // Use the specific hook for Solana wallets
-  const { wallets: solanaWallets } = useSolanaWallets();
-  const { createWallet: createSolanaWallet } =
-    useSolanaCreateWallet();
+  const { wallets: solanaWallets, createWallet: createSolanaWallet } =
+    useSolanaWallets();
 
   // Function to create both Ethereum and Solana wallets
   const createPrivyWallets = useCallback(async () => {

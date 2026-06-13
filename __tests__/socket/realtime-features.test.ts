@@ -1,9 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 
-const describeSocket =
-  process.env.RUN_SOCKET_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
-
-describeSocket('Socket Real-time Features', () => {
+describe('Socket Real-time Features', () => {
   let userSocket1: Socket;
   let userSocket2: Socket;
   let userSocket3: Socket;
@@ -308,7 +305,7 @@ describeSocket('Socket Real-time Features', () => {
         expect(Array.isArray(presenceStatuses)).toBe(true);
         expect(presenceStatuses.length).toBeGreaterThan(0);
         
-        const userStatus = presenceStatuses.find((s: any) => s.userId === mockUser2.id);
+        const userStatus = presenceStatuses.find(s => s.userId === mockUser2.id);
         expect(userStatus).toBeDefined();
         expect(['online', 'offline', 'away'].includes(userStatus.status)).toBe(true);
         done();

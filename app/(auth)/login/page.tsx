@@ -6,22 +6,11 @@ import { Card } from '@/components/ui/card';
 import { useUser } from '@/lib/UserContext';
 import blackPlanet from '@/public/onboard/black-planet.svg';
 import swopLogo from '@/public/swopLogo.png';
-import {
-  selectPreferredWallet,
-  tradingWalletSelectionOptions,
-} from '@/components/wallet/hooks/useWalletData';
-import {
-  PrivyLinkedAccount,
-  isEthereumWalletAccount,
-  isSolanaWalletAccount,
-} from '@/types/privy';
 import { WalletItem } from '@/types/wallet';
 import {
   useCreateWallet,
   useLoginWithEmail,
-  useLoginWithPasskey,
   usePrivy,
-  useSignupWithPasskey,
 } from '@privy-io/react-auth';
 import {
   useCreateWallet as useSolanaCreateWallet,
@@ -31,15 +20,9 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GoArrowLeft } from 'react-icons/go';
 import { LuArrowRight } from 'react-icons/lu';
-import { RiFingerprintLine, RiMailSendLine } from 'react-icons/ri';
+import { RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
 import logger from '@/utils/logger';
-import { buildSwopApiUrl, getSwopApiBaseUrl } from '@/lib/api/apiBaseUrl';
-import { apiFetch } from '@/lib/api/apiFetch';
-import {
-  requiresSwopIdCompletion,
-  SWOP_ID_ONBOARDING_PATH,
-} from '@/lib/onboardingStatus';
 
 // Login flow states
 enum LoginFlow {
@@ -57,158 +40,10 @@ interface WalletCreationStatus {
   inProgress: boolean;
 }
 
-function getErrorCode(error: unknown): string {
-  if (!error || typeof error !== 'object') return '';
-
-  const maybeError = error as {
-    code?: unknown;
-    data?: { code?: unknown };
-    privyErrorCode?: unknown;
-  };
-
-  const code = maybeError.privyErrorCode ?? maybeError.code ?? maybeError.data?.code;
-  return typeof code === 'string' ? code : '';
-}
-
-function formatEmailCodeError(error: unknown): string {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : 'Unable to send a verification code.';
-  const code = getErrorCode(error);
-  const normalized = message.toLowerCase();
-
-  if (normalized.includes('rate') || normalized.includes('too many')) {
-    return 'Too many code requests. Wait a minute, then try again.';
-  }
-
-  if (code === 'disallowed_login_method') {
-    return 'Email login is disabled for this Privy app or client. Enable Email in Privy Authentication settings.';
-  }
-
-  if (code === 'allowlist_rejected') {
-    return 'This app URL is not in Privy allowed origins. Add the current origin to the Privy app and web client.';
-  }
-
-  if (code === 'missing_or_invalid_privy_app_id') {
-    return 'Privy rejected the app ID. Check the deployed NEXT_PUBLIC_PRIVY_APP_ID value.';
-  }
-
-  if (code === 'invalid_data') {
-    return message;
-  }
-
-  if (
-    normalized.includes('origin') ||
-    normalized.includes('domain') ||
-    normalized.includes('allowed origin')
-  ) {
-    return 'This app URL is not in Privy allowed origins. Check the Privy app and web client settings.';
-  }
-
-  if (normalized.includes('email')) {
-    return message;
-  }
-
-  return 'Could not send the email code. Please try again.';
-}
-
-function formatPasskeyError(error: unknown): string {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : 'Passkey authentication failed.';
-  const code = getErrorCode(error);
-  const normalized = message.toLowerCase();
-
-  if (code === 'disallowed_login_method' || code === 'passkey_not_allowed') {
-    return 'Passkey login is disabled for this Privy app or client. Enable Passkey in Privy Authentication settings.';
-  }
-
-  if (
-    normalized.includes('origin') ||
-    normalized.includes('domain') ||
-    normalized.includes('allowed origin')
-  ) {
-    return 'This app URL is not in Privy allowed origins. Add the current origin to the Privy app and web client.';
-  }
-
-  if (
-    normalized.includes('not supported') ||
-    normalized.includes('webauthn') ||
-    normalized.includes('publickeycredential')
-  ) {
-    return 'This browser or device does not support passkeys here. Try email login instead.';
-  }
-
-  if (
-    normalized.includes('cancel') ||
-    normalized.includes('abort') ||
-    normalized.includes('notallowed')
-  ) {
-    return 'Passkey prompt was canceled. Try again or use email login.';
-  }
-
-  return message || 'Passkey authentication failed. Try email login instead.';
-}
-
-function formatLoginProcessingError(error: unknown): string {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : 'Login failed';
-
-  if (message.toLowerCase().includes('failed to fetch')) {
-    const apiBaseUrl = getSwopApiBaseUrl();
-    if (apiBaseUrl.includes('localhost') || apiBaseUrl.includes('127.0.0.1')) {
-      return 'Swop backend is not reachable. Make sure the local backend is running on port 4000, then try again.';
-    }
-
-    return `Swop backend is not reachable at ${apiBaseUrl}. Check the backend deployment and CORS settings, then try again.`;
-  }
-
-  return message;
-}
-
-function getAuthCookieOptions() {
-  return {
-    path: '/',
-    sameSite: 'lax' as const,
-    secure:
-      typeof window !== 'undefined' &&
-      window.location.protocol === 'https:',
-  };
-}
-
-function clearStaleSwopAuthStorage() {
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem('swop:user-cache');
-  }
-
-  Cookies.remove('user-id');
-  Cookies.remove('access-token');
-  Cookies.remove('user-id', { path: '/' });
-  Cookies.remove('access-token', { path: '/' });
-}
-
 const Login: React.FC = () => {
   // Privy hooks
   const { authenticated, ready, user } = usePrivy();
   const { state, sendCode, loginWithCode } = useLoginWithEmail();
-  const {
-    state: passkeyLoginState,
-    loginWithPasskey,
-  } = useLoginWithPasskey();
-  const {
-    state: passkeySignupState,
-    signupWithPasskey,
-  } = useSignupWithPasskey();
   const { createWallet: createEthereumWallet } = useCreateWallet();
   const { createWallet: createSolanaWallet } =
     useSolanaCreateWallet();
@@ -224,7 +59,6 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [pendingPasskeyAuth, setPendingPasskeyAuth] = useState(false);
   const [walletStatus, setWalletStatus] =
     useState<WalletCreationStatus>({
       ethereum: false,
@@ -243,14 +77,6 @@ const Login: React.FC = () => {
   const [timeRemaining, setTimeRemaining] = useState(480); // 8 minutes = 480 seconds
   const [canResend, setCanResend] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const passkeyBusy =
-    pendingPasskeyAuth ||
-    passkeyLoginState.status === 'generating-challenge' ||
-    passkeyLoginState.status === 'awaiting-passkey' ||
-    passkeyLoginState.status === 'submitting-response' ||
-    passkeySignupState.status === 'generating-challenge' ||
-    passkeySignupState.status === 'awaiting-passkey' ||
-    passkeySignupState.status === 'submitting-response';
 
   // Refs for preventing race conditions
   const loginProcessingRef = useRef(false);
@@ -322,24 +148,15 @@ const Login: React.FC = () => {
   const processWalletData = useCallback((user: any): WalletItem[] => {
     if (!user?.linkedAccounts) return [];
 
-    const linkedAccounts = user.linkedAccounts as PrivyLinkedAccount[];
-    const walletSelectionOptions = tradingWalletSelectionOptions();
-    const ethereumWallet = selectPreferredWallet(
-      linkedAccounts.filter(isEthereumWalletAccount),
-      user.wallet?.address,
-      walletSelectionOptions,
-    );
-    const solanaWallet = selectPreferredWallet(
-      linkedAccounts.filter(isSolanaWalletAccount),
-      undefined,
-      walletSelectionOptions,
-    );
-
-    return [solanaWallet, ethereumWallet]
-      .filter((account): account is NonNullable<typeof account> =>
-        Boolean(account?.address),
+    return user.linkedAccounts
+      .filter(
+        (account: any) =>
+          (account.chainType === 'ethereum' ||
+            account.chainType === 'solana') &&
+          (account.walletClientType === 'privy' ||
+            account.connectorType === 'embedded'),
       )
-      .map((account) => ({
+      .map((account: any) => ({
         address: account.address,
         isActive: true,
         isEVM: account.chainType === 'ethereum',
@@ -466,7 +283,7 @@ const Login: React.FC = () => {
         setWalletStatus((prev) => ({ ...prev, inProgress: false }));
       }
     },
-    [createEthereumWallet, createSolanaWallet, ready, walletStatus.inProgress],
+    [createEthereumWallet, createSolanaWallet, ready],
   );
 
   useEffect(() => {
@@ -488,7 +305,6 @@ const Login: React.FC = () => {
     walletStatus.inProgress,
     walletStatus.ethereum,
     walletStatus.solana,
-    createPrivyWallets,
   ]);
 
   // Handle successful login
@@ -503,25 +319,19 @@ const Login: React.FC = () => {
       try {
         const userEmail = extractEmailFromUser(user);
         if (!userEmail) {
-          logger.log(
-            'No email found on Privy account; sending user to onboarding for profile/email capture',
-          );
-          router.push('/onboard-ai');
-          return;
+          throw new Error('No email found in account');
         }
 
         // Check if user exists in backend
-        const apiUrl = buildSwopApiUrl(
-          `/api/v2/desktop/user/${encodeURIComponent(userEmail)}`,
-        );
-        const response = await apiFetch(apiUrl, {
+        const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/${userEmail}`;
+        const response = await fetch(apiUrl, {
           headers: { 'Content-Type': 'application/json' },
         });
 
         if (!response.ok) {
           if (response.status === 404) {
             logger.log('User not found, redirecting to onboard');
-            router.push('/onboard-ai');
+            router.push('/onboard');
             return;
           }
           throw new Error(`API error: ${response.status}`);
@@ -533,50 +343,35 @@ const Login: React.FC = () => {
           throw new Error('Invalid user data from backend');
         }
 
-        const shouldCompleteSwopId = requiresSwopIdCompletion(data.user);
-
         // Set user ID cookie
-        Cookies.set(
-          'user-id',
-          data.user._id.toString(),
-          getAuthCookieOptions(),
-        );
-        Cookies.set(
-          'access-token',
-          data.token,
-          getAuthCookieOptions(),
-        );
+        Cookies.set('user-id', data.user._id.toString());
+        Cookies.set('access-token', data.token);
 
-        const privyIdMatchesBackendUser =
-          !data.user.privyId || !user?.id || data.user.privyId === user.id;
+        // Process wallet data for balance update
+        const walletData = processWalletData(user);
+        const payload = {
+          userId: data.user._id,
+          ethAddress: walletData.find((w) => w.isEVM)?.address,
+          solanaAddress: walletData.find((w) => !w.isEVM)?.address,
+        };
 
-        if (privyIdMatchesBackendUser) {
-          // Process wallet data for balance update
-          const walletData = processWalletData(user);
-          const payload = {
-            userId: data.user._id,
-            ethAddress: walletData.find((w) => w.isEVM)?.address,
-            solanaAddress: walletData.find((w) => !w.isEVM)?.address,
-          };
-
-          // Update wallet balances (non-blocking)
-          createLoginWalletBalance(payload).catch((error) => {
-            logger.error('Wallet balance update failed:', error);
-          });
-        }
+        // Update wallet balances (non-blocking)
+        createLoginWalletBalance(payload).catch((error) => {
+          logger.error('Wallet balance update failed:', error);
+        });
 
         setLoginFlow(LoginFlow.SUCCESS);
 
         // Redirect after short delay
         redirectTimeoutRef.current = setTimeout(() => {
           router.refresh();
-          router.push(
-            shouldCompleteSwopId ? SWOP_ID_ONBOARDING_PATH : '/',
-          );
+          router.push('/');
         }, 1500);
       } catch (error) {
         logger.error('Login processing failed:', error);
-        setLoginError(formatLoginProcessingError(error));
+        setLoginError(
+          error instanceof Error ? error.message : 'Login failed',
+        );
         setLoginFlow(LoginFlow.ERROR);
       } finally {
         loginProcessingRef.current = false;
@@ -585,41 +380,9 @@ const Login: React.FC = () => {
     [extractEmailFromUser, processWalletData, router],
   );
 
-  const handlePasskeyLogin = useCallback(async () => {
-    setLoginError(null);
-    setEmailError('');
-    clearStaleSwopAuthStorage();
-    setPendingPasskeyAuth(true);
-
-    try {
-      await loginWithPasskey();
-      setLoginFlow(LoginFlow.PROCESSING);
-    } catch (error) {
-      setPendingPasskeyAuth(false);
-      setLoginError(formatPasskeyError(error));
-      setLoginFlow(LoginFlow.ERROR);
-    }
-  }, [loginWithPasskey]);
-
-  const handlePasskeySignup = useCallback(async () => {
-    setLoginError(null);
-    setEmailError('');
-    clearStaleSwopAuthStorage();
-    setPendingPasskeyAuth(true);
-
-    try {
-      await signupWithPasskey();
-      setLoginFlow(LoginFlow.PROCESSING);
-    } catch (error) {
-      setPendingPasskeyAuth(false);
-      setLoginError(formatPasskeyError(error));
-      setLoginFlow(LoginFlow.ERROR);
-    }
-  }, [signupWithPasskey]);
-
   // Handle email form submission
   const handleEmailSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    (e: React.FormEvent) => {
       e.preventDefault();
 
       const error = validateEmail(email);
@@ -629,30 +392,19 @@ const Login: React.FC = () => {
       }
 
       setEmailError('');
-      setLoginError(null);
-      clearStaleSwopAuthStorage();
-      try {
-        await sendCode({ email: email.trim() });
-        setLoginFlow(LoginFlow.OTP_INPUT);
-      } catch (sendCodeError) {
-        setEmailError(formatEmailCodeError(sendCodeError));
-      }
+      sendCode({ email });
+      setLoginFlow(LoginFlow.OTP_INPUT);
     },
     [email, validateEmail, sendCode],
   );
 
   // Handle resend code
-  const handleSendCode = useCallback(async () => {
+  const handleSendCode = useCallback(() => {
     if (canResend) {
-      try {
-        await sendCode({ email: email.trim() });
-        setLoginError(null);
-        setTimeRemaining(480);
-        setCanResend(false);
-        setOtp(new Array(otpLength).fill(''));
-      } catch (sendCodeError) {
-        setLoginError(formatEmailCodeError(sendCodeError));
-      }
+      sendCode({ email });
+      setTimeRemaining(480);
+      setCanResend(false);
+      setOtp(new Array(otpLength).fill(''));
     }
   }, [email, sendCode, canResend, otpLength]);
 
@@ -730,26 +482,6 @@ const Login: React.FC = () => {
       loginWithCode({ code: otp.join('') });
     }
   }, [otp, state.status, loginWithCode]);
-
-  useEffect(() => {
-    if (
-      pendingPasskeyAuth &&
-      ready &&
-      authenticated &&
-      user &&
-      !loginProcessingRef.current
-    ) {
-      handleLoginSuccess(user).finally(() => {
-        setPendingPasskeyAuth(false);
-      });
-    }
-  }, [
-    pendingPasskeyAuth,
-    ready,
-    authenticated,
-    user,
-    handleLoginSuccess,
-  ]);
 
   // Handle successful login
   useEffect(() => {
@@ -850,37 +582,6 @@ const Login: React.FC = () => {
                 className="w-32 h-auto"
                 priority
               />
-            </div>
-
-            <div className="flex w-[350px] flex-col gap-3">
-              <button
-                type="button"
-                onClick={handlePasskeyLogin}
-                disabled={passkeyBusy}
-                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <RiFingerprintLine size={20} />
-                {passkeyBusy ? 'Check your passkey prompt...' : 'Sign in with passkey'}
-              </button>
-              <button
-                type="button"
-                onClick={handlePasskeySignup}
-                disabled={passkeyBusy}
-                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <RiFingerprintLine size={20} />
-                Create account with passkey
-              </button>
-              <p className="text-center text-xs leading-5 text-gray-500">
-                For Apple cross-device sign-in, save your passkey to Apple
-                Passwords or iCloud Keychain.
-              </p>
-            </div>
-
-            <div className="flex w-[350px] items-center gap-3 text-xs font-medium uppercase tracking-[0.18em] text-gray-400">
-              <span className="h-px flex-1 bg-gray-200" />
-              <span>or email</span>
-              <span className="h-px flex-1 bg-gray-200" />
             </div>
 
             <form

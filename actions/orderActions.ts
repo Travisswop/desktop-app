@@ -52,8 +52,8 @@ export async function createOrder(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.message || 'Failed to create order');
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to create order');
     }
 
     const { data } = await response.json();
@@ -91,9 +91,9 @@ export async function updateOrderPayment(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       throw new Error(
-        errorData?.message || 'Failed to update order payment'
+        errorData.message || 'Failed to update order payment'
       );
     }
 
@@ -144,8 +144,8 @@ export async function prepareTransaction(
   );
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.message || 'Failed to prepare transaction');
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to prepare transaction');
   }
 
   const data = await response.json();
@@ -180,10 +180,10 @@ export async function submitTransaction(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      const errorData = await response.json();
       return {
         success: false,
-        error: errorData?.message || 'Failed to submit transaction',
+        error: errorData.message || 'Failed to submit transaction',
       };
     }
 
@@ -221,8 +221,8 @@ export async function getOrderById(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.message || 'Failed to get order');
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to get order');
     }
 
     return response.json();

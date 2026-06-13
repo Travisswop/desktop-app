@@ -1,11 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { Share2 } from 'lucide-react';
 import type { PolymarketPosition } from '@/hooks/polymarket';
-import PositionShareModal, {
-  type PredictionShareStatus,
-} from './PositionShareModal';
 
 type OutcomeResult = 'WIN' | 'LOSS' | 'BREAKEVEN' | 'UNKNOWN';
 
@@ -94,7 +89,6 @@ export default function PositionOutcomeCard({
   isRedeeming?: boolean;
   canRedeem?: boolean;
 }) {
-  const [shareOpen, setShareOpen] = useState(false);
   const avgBuyPrice = computeAvgBuyPrice(position);
   const avgSellPrice = computeAvgSellPrice(position, avgBuyPrice);
   const resolvedPrice = inferResolvedPrice(position);
@@ -120,11 +114,6 @@ export default function PositionOutcomeCard({
     position.size > 0 &&
     // If we can't infer the resolved price, still allow redeem to avoid hiding funds.
     (resolvedPrice == null || resolvedPrice > 0);
-  const shareStatus: PredictionShareStatus | undefined = position.redeemable
-    ? undefined
-    : soldShares > 0
-      ? 'sold'
-      : undefined;
 
   const badge =
     result === 'WIN'
@@ -136,9 +125,8 @@ export default function PositionOutcomeCard({
           : { text: '—', cls: 'bg-gray-100 text-gray-500' };
 
   return (
-    <>
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-        <div className="flex items-start gap-3 p-4">
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <div className="flex items-start gap-3 p-4">
         {/* Icon */}
         {position.icon ? (
           <img
@@ -177,16 +165,7 @@ export default function PositionOutcomeCard({
           </div>
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-2">
-          <button
-            onClick={() => setShareOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200"
-            title="Share prediction"
-          >
-            <Share2 className="h-4 w-4" />
-          </button>
-
-          {canShowRedeem && (
+        {canShowRedeem && (
           <button
             onClick={() => onRedeem?.(position)}
             disabled={!!isRedeeming || !canRedeem}
@@ -195,8 +174,7 @@ export default function PositionOutcomeCard({
           >
             {isRedeeming ? '...' : 'Redeem'}
           </button>
-          )}
-        </div>
+        )}
       </div>
 
       <div className="border-t border-dashed border-gray-200 mx-4" />
@@ -224,14 +202,6 @@ export default function PositionOutcomeCard({
           </p>
         </div>
       </div>
-      </div>
-
-      <PositionShareModal
-        position={position}
-        isOpen={shareOpen}
-        onClose={() => setShareOpen(false)}
-        statusOverride={shareStatus}
-      />
-    </>
+    </div>
   );
 }

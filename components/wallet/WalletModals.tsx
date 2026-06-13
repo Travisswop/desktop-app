@@ -201,7 +201,7 @@ const WalletModals: React.FC<WalletModalsProps> = ({
         nft={sendFlow.nft}
         token={sendFlow.token}
         isUSD={sendFlow.isUSD}
-        hash={sendFlow.hash || ""}
+        hash={sendFlow.hash}
       />
 
       {/* QR code related modals */}

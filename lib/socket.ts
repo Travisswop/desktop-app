@@ -1,83 +1,57 @@
-// lib/socket.ts
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+// lib/socket.js
+import { useEffect, useRef, useState, useCallback } from "react";
+import io from "socket.io-client";
 
-interface UseSocketOptions {
-  onConnect?: () => void;
-  onDisconnect?: (reason: Socket.DisconnectReason) => void;
-  onConnectError?: (error: Error) => void;
-}
+export const useSocket = ({ onConnect, onDisconnect, onConnectError }) => {
+  const socketRef = useRef(null);
+  const [socket, setSocket] = useState(null);
 
-const socketDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true';
-
-const logSocketDebug = (...args: unknown[]) => {
-  if (socketDebugEnabled) {
-    console.debug(...args);
-  }
-};
-
-export const useSocket = ({
-  onConnect,
-  onDisconnect,
-  onConnectError,
-}: UseSocketOptions = {}) => {
-  const socketRef = useRef<Socket | null>(null);
-  const tokenRef = useRef<string | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
-
-  const connectSocket = useCallback((token: string) => {
-    if (
-      socketRef.current &&
-      tokenRef.current === token &&
-      socketRef.current.connected
-    ) {
-      return socketRef.current;
-    }
-
+  const connectSocket = useCallback((token) => {
     if (socketRef.current) {
       socketRef.current.disconnect();
     }
-    tokenRef.current = token;
 
-    logSocketDebug('[Socket] Attempting connection...');
-    logSocketDebug('[Socket] URL:', process.env.NEXT_PUBLIC_API_URL);
-    logSocketDebug('[Socket] Token present:', Boolean(token));
+    console.log('🔌 [Socket] Attempting connection...');
+    console.log('🔌 [Socket] URL:', process.env.NEXT_PUBLIC_API_URL);
+    console.log('🔌 [Socket] Token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
 
+    // Debugging: Check if URL is undefined
     if (!process.env.NEXT_PUBLIC_API_URL) {
-      logSocketDebug('[Socket] NEXT_PUBLIC_API_URL is not set. Using fallback.');
+      console.error('❌ [Socket] NEXT_PUBLIC_API_URL is NOT SET! Using fallback.');
+      console.error('❌ [Socket] Check your .env file or deployment environment variables.');
     }
 
     const socketURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    logSocketDebug('[Socket] Connecting to:', socketURL);
+    console.log('🔌 [Socket] Connecting to:', socketURL);
 
-    const socketInstance = io(socketURL, {
+    socketRef.current = io(socketURL, {
       auth: { token },
       extraHeaders: {
         "ngrok-skip-browser-warning": "true",
       },
-      transports: ['polling', 'websocket'],
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
     });
 
-    socketRef.current = socketInstance;
-    setSocket(socketInstance);
+    const socketInstance = socketRef.current;
 
     socketInstance.on("connect", () => {
-      logSocketDebug('[Socket] Connected successfully!', socketInstance.id);
+      console.log('✅ [Socket] Connected successfully!', socketInstance.id);
       setSocket(socketInstance);
       onConnect?.();
     });
 
     socketInstance.on("disconnect", (reason) => {
-      logSocketDebug('[Socket] Disconnected:', reason);
+      console.log('❌ [Socket] Disconnected:', reason);
       setSocket(null);
       onDisconnect?.(reason);
     });
 
-    socketInstance.on("connect_error", (error: Error) => {
-      logSocketDebug('[Socket] Connection retry:', error.message);
+    socketInstance.on("connect_error", (error) => {
+      console.error('❌ [Socket] Connection error:', error.message);
+      console.error('❌ [Socket] Error details:', error);
       onConnectError?.(error);
     });
 
@@ -88,7 +62,6 @@ export const useSocket = ({
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current = null;
-      tokenRef.current = null;
       setSocket(null);
     }
   }, []);
@@ -97,7 +70,6 @@ export const useSocket = ({
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
-        tokenRef.current = null;
       }
     };
   }, []);

@@ -1,6 +1,5 @@
 import { Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
-import { copyTextToClipboard } from '@/lib/clipboard';
 
 export function generateWalletFromPrivateKey(privateKeyString: string): string {
   try {
@@ -24,9 +23,5 @@ export function formatAddress(address: string): string {
 }
 
 export function copyToClipboard(text: string): Promise<void> {
-  return copyTextToClipboard(text).then((copied) => {
-    if (!copied) {
-      throw new Error('Unable to copy text to clipboard');
-    }
-  });
-}
+  return navigator.clipboard.writeText(text);
+} 

@@ -15,9 +15,9 @@ export async function getDefaultConnection(token: string) {
     );
 
     if (!response.ok) {
-      const errorResponse = await response.json().catch(() => null);
+      const errorResponse = await response.json();
       throw new Error(
-        errorResponse?.message ||
+        errorResponse.message ||
           `API Error: ${response.status} ${response.statusText}`
       );
     }

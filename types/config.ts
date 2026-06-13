@@ -19,11 +19,6 @@ export const EVM_CHAIN_CONFIG = {
     network: 'arb-mainnet',
     apiKey: process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_API_KEY,
   },
-  SEPOLIA: {
-    id: 11155111,
-    network: 'eth-sepolia',
-    apiKey: process.env.NEXT_PUBLIC_ALCHEMY_SEPOLIA_API_KEY,
-  },
 } as const;
 
 export const CHAINS = {
@@ -88,21 +83,6 @@ export const CHAINS = {
       uuid: 'ethereum', // Arbitrum uses ETH as native gas token
       symbol: 'ETH',
       name: 'Ethereum',
-      decimals: 18,
-    },
-    type: 'evm',
-  },
-  SEPOLIA: {
-    chainId: 11155111,
-    transactionApiUrl: 'https://api.etherscan.io/v2',
-    accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
-    rpcUrl:
-      process.env.NEXT_PUBLIC_ALCHEMY_SEPOLIA_URL ||
-      process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
-    nativeToken: {
-      uuid: 'ethereum',
-      symbol: 'ETH',
-      name: 'Sepolia ETH',
       decimals: 18,
     },
     type: 'evm',

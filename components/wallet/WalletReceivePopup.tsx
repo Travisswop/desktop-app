@@ -19,7 +19,6 @@ import { QRCodeSVG } from "qrcode.react";
 import { useUser } from "@/lib/UserContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
-import { selectPreferredWallet } from "./hooks/useWalletData";
 
 export default function ReceiveOptions() {
   const [navigateCryptoFiat, setNavigateCryptoFiat] = useState({
@@ -38,20 +37,16 @@ export default function ReceiveOptions() {
   const { user } = useUser();
 
   const { ready: solanaReady, wallets: solWallets } = useSolanaWallets();
-  const solWalletAddress = solanaReady
-    ? selectPreferredWallet(solWallets)?.address
-    : undefined;
+  const solWalletAddress = solanaReady ? solWallets[0]?.address : undefined;
   const { wallets: ethWallets } = useWallets();
 
   const evmWalletAddress = useMemo(() => {
-    return selectPreferredWallet(
-      ethWallets,
-      privyUser?.wallet?.address,
+    return ethWallets?.find(
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
     )?.address;
-  }, [ethWallets, privyUser?.wallet?.address]);
+  }, [ethWallets]);
 
-  const handleCopy = (address: string | undefined, index: number) => {
-    if (!address) return;
+  const handleCopy = (address: string, index: number) => {
     navigator.clipboard.writeText(address);
     setCopiedIndex(index);
 
@@ -61,7 +56,7 @@ export default function ReceiveOptions() {
   };
 
   const handleShareUsername = async () => {
-    const username = user?.ens || user?.ensName || "";
+    const username = user?.ens || user?.ensName;
 
     const shareData = {
       title: "My Swop ID",
@@ -237,7 +232,7 @@ export default function ReceiveOptions() {
     }
   };
 
-  const handleQrOpen = (chain: (typeof chainAddresses)[number]) => {
+  const handleQrOpen = (chain) => {
     if (chain?.name === "Solana") {
       setQrOpenStatus("sol");
     } else if (chain?.name === "Ethereum") {
@@ -357,7 +352,7 @@ export default function ReceiveOptions() {
                   </div>
                   <div className="text-center">
                     <p className="text-2xl font-bold text-gray-900">
-                      {user?.ens || user?.ensName || ""}
+                      {user.ens || user.ensName}
                     </p>
                   </div>
                 </div>

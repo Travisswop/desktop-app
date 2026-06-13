@@ -41,15 +41,12 @@ export default function Feed({
   // logger.info("Feed component rendered with initial hasMore:", hasMore);
 
   const pageRef = useRef(initialArray.length > 0 ? 2 : 1);
-  const isFetchingRef = useRef(false);
 
   const fetchFeedData = useCallback(
     async (reset = false) => {
       // console.log("reset", reset);
 
-      if (!reset && !hasMore && !initialLoading) return;
-      if (isFetchingRef.current) return;
-      isFetchingRef.current = true;
+      if (!reset && !hasMore) return;
 
       try {
         const currentPage = reset ? 1 : pageRef.current;
@@ -66,28 +63,26 @@ export default function Feed({
         });
         const data = await response.json();
         const feedItems = data?.data ?? [];
-        const totalPages = data?.pagination?.totalPages ?? currentPage;
 
         if (reset) {
           setFeedData(feedItems);
           pageRef.current = 2;
-          setHasMore(totalPages >= pageRef.current);
+          setHasMore(initialTotalPages > pageRef.current);
         } else {
           setFeedData((prev: any[]) => [...prev, ...feedItems]);
           pageRef.current += 1;
 
           // ✅ safer logic
-          setHasMore(pageRef.current <= totalPages);
+          setHasMore(pageRef.current <= initialTotalPages);
         }
       } catch (error) {
         console.error(error);
         setHasMore(false);
       } finally {
-        isFetchingRef.current = false;
         setInitialLoading(false);
       }
     },
-    [hasMore, initialLoading, userId, accessToken],
+    [hasMore, userId, accessToken, initialTotalPages],
   );
 
   // initial load
@@ -105,17 +100,6 @@ export default function Feed({
     setHasMore(true);
     fetchFeedData(true);
   }, [feedRefetchTrigger, fetchFeedData]);
-
-  const handlePostInteraction = useCallback(
-    (postId: string, updates: Record<string, unknown>) => {
-      setFeedData((prev: any[]) =>
-        prev.map((item) =>
-          item?._id === postId ? { ...item, ...updates } : item,
-        ),
-      );
-    },
-    [],
-  );
 
   if (initialLoading) {
     return (
@@ -149,7 +133,7 @@ export default function Feed({
                 setHasMore(true);
                 fetchFeedData(true);
               }}
-              onPostInteraction={handlePostInteraction}
+              onPostInteraction={() => {}}
             />
           ))}
         </InfiniteScroll>

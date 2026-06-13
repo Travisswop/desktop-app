@@ -11,7 +11,6 @@ import { QRCodeSVG } from "qrcode.react";
 import { useUser } from "@/lib/UserContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
-import { selectPreferredWallet } from "./hooks/useWalletData";
 
 export default function WalletReceiveCryptoPopup() {
   const [qrOpenStatus, setQrOpenStatus] = useState<
@@ -25,17 +24,14 @@ export default function WalletReceiveCryptoPopup() {
   const { user } = useUser();
 
   const { ready: solanaReady, wallets: solWallets } = useSolanaWallets();
-  const solWalletAddress = solanaReady
-    ? selectPreferredWallet(solWallets)?.address
-    : undefined;
+  const solWalletAddress = solanaReady ? solWallets[0]?.address : undefined;
   const { wallets: ethWallets } = useWallets();
 
   const evmWalletAddress = useMemo(() => {
-    return selectPreferredWallet(
-      ethWallets,
-      privyUser?.wallet?.address,
+    return ethWallets?.find(
+      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
     )?.address;
-  }, [ethWallets, privyUser?.wallet?.address]);
+  }, [ethWallets]);
 
   const chainAddresses = [
     {
@@ -68,7 +64,7 @@ export default function WalletReceiveCryptoPopup() {
   };
 
   const handleShareUsername = async () => {
-    const username = user?.ens || user?.ensName || "";
+    const username = user?.ens || user?.ensName;
     const shareData = { title: "My Swop ID", text: username };
     try {
       if (navigator.share) {

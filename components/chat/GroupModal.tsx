@@ -1,36 +1,21 @@
 'use client';
-
-import type { ReactNode } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import Image from 'next/image';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import CustomModal from '../modal/CustomModal';
+import { ChevronDown, X } from 'lucide-react';
+import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
-import {
-  Loader2,
-  MessageCircle,
-  Search,
-  Users,
-  X,
-} from 'lucide-react';
+import { useUser } from '@/lib/UserContext';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { useNFT } from '@/lib/hooks/useNFT';
 
 interface User {
-  _id?: string;
-  userId?: string;
-  name?: string;
-  displayName?: string;
-  username?: string;
+  _id: string;
+  name: string;
   ens?: string;
   avatar?: string;
-  profilePic?: string;
   microsite?: {
-    _id?: string;
-    parentId?: string;
     ens?: string;
-    name?: string;
-    username?: string;
     profilePic?: string;
-    profileUrl?: string;
-    brandImg?: string;
   };
 }
 
@@ -38,29 +23,28 @@ interface GroupModalProps {
   isOpen: boolean;
   onClose: () => void;
   socket: any;
+  currentUser: string;
   onGroupCreated?: (group: any) => void;
-  onDirectSelected?: (user: any) => void;
 }
-
-type ChatMode = 'direct' | 'group';
-
-const SOCKET_ACK_TIMEOUT_MS = 12000;
 
 export default function GroupModal({
   isOpen,
   onClose,
   socket,
+  currentUser,
   onGroupCreated,
-  onDirectSelected,
 }: GroupModalProps) {
-  const [mode, setMode] = useState<ChatMode>('direct');
   const [groupName, setGroupName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<User[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>(
+    []
+  );
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [tokenGated, setTokenGated] = useState(false);
+  const [tokenType, setTokenType] = useState<'NFT' | 'Token'>('NFT');
+  const [selectedToken, setSelectedToken] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { user } = useUser();
   const solanaWalletAddress =
@@ -122,111 +106,46 @@ export default function GroupModal({
     }
   }, [selectedToken, tokenOptions]);
 
-  const canCreateGroup = useMemo(
-    () =>
-      mode === 'group' &&
-      Boolean(groupName.trim()) &&
-      selectedMembers.length > 0 &&
-      !isCreating,
-    [groupName, isCreating, mode, selectedMembers.length]
-  );
-
+  // Search users with debounce
   useEffect(() => {
-    if (!isOpen) return;
-    const timeoutId = setTimeout(() => searchInputRef.current?.focus(), 80);
-    return () => clearTimeout(timeoutId);
-  }, [isOpen, mode]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const query = searchQuery.trim();
-    if (!query || query.length < 2 || !socket) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-
-    let isActive = true;
-    setIsSearching(true);
-    setFormError(null);
-
-    const timeoutId = setTimeout(async () => {
-      try {
-        const response = await emitSocketAck<any>(
-          socket,
-          mode === 'direct' ? 'search_contacts' : 'search_users',
-          mode === 'direct'
-            ? { query, limit: 8 }
-            : { query, limit: 10, forGroupCreation: true }
+    if (searchQuery.trim() && socket) {
+      const timeoutId = setTimeout(() => {
+        socket.emit(
+          'search_users',
+          {
+            query: searchQuery,
+            limit: 10,
+            forGroupCreation: true,
+          },
+          (response: any) => {
+            if (response?.success) {
+              setSearchResults(response.users || []);
+              setShowDropdown(true);
+            }
+          }
         );
-
-        if (!isActive) return;
-
-        if (response?.success) {
-          setSearchResults(
-            mode === 'direct'
-              ? response.results || []
-              : response.users || []
-          );
-          setFormError(null);
-        } else {
-          setSearchResults([]);
-          setFormError(
-            response?.error || 'Could not search users right now.'
-          );
-        }
-      } catch (error) {
-        if (!isActive) return;
-        setSearchResults([]);
-        setFormError(getErrorMessage(error, 'Search timed out.'));
-      } finally {
-        if (isActive) setIsSearching(false);
-      }
-    }, 250);
-
-    return () => {
-      isActive = false;
-      clearTimeout(timeoutId);
-    };
-  }, [isOpen, mode, searchQuery, socket]);
-
-  const handleModeChange = (nextMode: ChatMode) => {
-    setMode(nextMode);
-    setSearchQuery('');
-    setSearchResults([]);
-    setFormError(null);
-  };
-
-  const handleSelectDirect = (user: User) => {
-    const directChat = normalizeDirectChat(user);
-    if (!directChat?._id) {
-      setFormError('This contact is missing a user id.');
-      return;
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else {
+      setSearchResults([]);
+      setShowDropdown(false);
     }
+  }, [searchQuery, socket]);
 
-    onDirectSelected?.(directChat);
-    handleClose();
-  };
-
+  // Select member
   const handleSelectMember = (user: User) => {
-    const userId = getUserId(user);
-    if (!userId) return;
-
-    setSelectedMembers((members) => {
-      if (members.some((member) => getUserId(member) === userId)) {
-        return members;
-      }
-      return [...members, user];
-    });
+    if (!selectedMembers.some((m) => m._id === user._id)) {
+      setSelectedMembers([...selectedMembers, user]);
+    }
     setSearchQuery('');
-    setSearchResults([]);
+    setShowDropdown(false);
     searchInputRef.current?.focus();
   };
 
+  // Remove member
   const handleRemoveMember = (userId: string) => {
-    setSelectedMembers((members) =>
-      members.filter((member) => getUserId(member) !== userId)
+    setSelectedMembers(
+      selectedMembers.filter((m) => m._id !== userId)
     );
     setSelectedAdminIds((adminIds) =>
       adminIds.filter((adminId) => adminId !== userId)
@@ -241,43 +160,50 @@ export default function GroupModal({
     );
   };
 
-  const handleCreateGroup = async () => {
-    if (!canCreateGroup || !socket) return;
+  // Create group
+  const handleCreateGroup = () => {
+    if (!groupName.trim() || !socket) return;
 
-    setIsCreating(true);
-    setFormError(null);
+    const groupData = {
+      name: groupName,
+      members: selectedMembers.map((m) => m._id),
+      admins: selectedAdminIds,
+      tokenGated,
+      tokenType: tokenGated ? tokenType : undefined,
+      selectedToken:
+        tokenGated && selectedToken ? selectedToken : undefined,
+      selectedTokenName:
+        tokenGated && selectedGateAsset
+          ? selectedGateAsset.label
+          : undefined,
+      selectedTokenSymbol:
+        tokenGated && selectedGateAsset
+          ? selectedGateAsset.symbol
+          : undefined,
+      network: tokenGated ? 'SOLANA' : undefined,
+    };
 
-    try {
-      const response = await emitSocketAck<any>(socket, 'create_group', {
-        name: groupName.trim(),
-        members: selectedMembers.map((member) => getUserId(member)),
-        tokenGated: false,
-        isPublic: false,
-      });
-
-      if (response?.success && response.group) {
+    socket.emit('create_group', groupData, (response: any) => {
+      if (response?.success) {
         onGroupCreated?.(response.group);
         handleClose();
-        return;
+      } else {
+        alert(`Failed to create group: ${response?.error}`);
       }
-
-      throw new Error(response?.error || 'Failed to create group.');
-    } catch (error) {
-      setFormError(getErrorMessage(error, 'Failed to create group.'));
-    } finally {
-      setIsCreating(false);
-    }
+    });
   };
 
+  // Reset form
   const handleClose = () => {
-    setMode('direct');
     setGroupName('');
     setSearchQuery('');
     setSearchResults([]);
     setSelectedMembers([]);
-    setIsSearching(false);
-    setIsCreating(false);
-    setFormError(null);
+    setSelectedAdminIds([]);
+    setShowDropdown(false);
+    setTokenGated(false);
+    setTokenType('NFT');
+    setSelectedToken('');
     onClose();
   };
 
@@ -285,374 +211,342 @@ export default function GroupModal({
     <CustomModal
       isOpen={isOpen}
       onCloseModal={handleClose}
-      ariaLabel="Create Chat"
-      width="max-w-[520px]"
-      removeCloseButton
-      panelClassName="rounded-[18px] border border-white/[0.08] bg-[#111318] shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
-      contentClassName="dm-scroll max-h-[86vh] overflow-y-auto"
+      title="Create Chat"
+      width="max-w-lg"
     >
-      <div className="border-b border-white/[0.07] px-5 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="dm-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[#5a5e69]">
-              Messages
-            </div>
-            <h2 className="mt-1 text-[20px] font-semibold leading-tight tracking-[-0.03em] text-[#eceef2]">
-              Create Chat
-            </h2>
-          </div>
-          <button
-            type="button"
-            title="Close"
-            onClick={handleClose}
-            className="dm-btn grid h-9 w-9 place-items-center rounded-[10px] border border-white/[0.07] bg-[#171a21] text-[#8d93a1] hover:text-[#eceef2]"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 rounded-[12px] border border-white/[0.07] bg-black/25 p-1">
-          <ModeButton
-            active={mode === 'direct'}
-            icon={<MessageCircle className="h-4 w-4" />}
-            label="Direct"
-            onClick={() => handleModeChange('direct')}
-          />
-          <ModeButton
-            active={mode === 'group'}
-            icon={<Users className="h-4 w-4" />}
-            label="Group"
-            onClick={() => handleModeChange('group')}
+      <div className="p-6 space-y-5">
+        {/* Chat Name */}
+        <div>
+          <label className="block text-sm font-medium mb-2 text-gray-700">
+            Chat Name:
+          </label>
+          <input
+            type="text"
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+            className="w-full text-gray-900 px-4 py-3 rounded-xl focus:outline-none shadow-md"
+            placeholder="Enter chat name"
           />
         </div>
-      </div>
 
-      <div className="space-y-4 px-5 py-5">
-        {mode === 'group' && (
-          <Field label="Group Name" htmlFor="group-chat-name">
-            <input
-              id="group-chat-name"
-              name="groupChatName"
-              type="text"
-              value={groupName}
-              onChange={(event) => setGroupName(event.target.value)}
-              className="h-11 w-full rounded-[12px] border border-white/[0.07] bg-black/30 px-3.5 text-[14px] font-semibold text-[#eceef2] outline-none placeholder:text-[#5a5e69] focus:border-[#3fe08f]/60 focus:ring-2 focus:ring-[#3fe08f]/15"
-              placeholder="Trading desk, friends, team..."
-            />
-          </Field>
-        )}
-
-        <Field
-          label={mode === 'direct' ? 'Recipient' : 'Members'}
-          htmlFor="chat-user-search"
-        >
+        {/* Chat Members */}
+        <div>
+          <label className="block text-sm font-medium mb-2 text-gray-700">
+            Chat Members:
+          </label>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5a5e69]" />
-            <input
-              id="chat-user-search"
-              name="chatUserSearch"
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              className="h-11 w-full rounded-[12px] border border-white/[0.07] bg-black/30 pl-10 pr-10 text-[14px] font-semibold text-[#eceef2] outline-none placeholder:text-[#5a5e69] focus:border-[#3fe08f]/60 focus:ring-2 focus:ring-[#3fe08f]/15"
-              placeholder="Search name, handle, or swop id..."
-            />
-            {isSearching && (
-              <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#3fe08f]" />
+            {/* Search input */}
+            <div className="relative">
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => searchQuery && setShowDropdown(true)}
+                className="w-full text-gray-900 px-4 py-3 rounded-xl focus:outline-none shadow-md"
+                placeholder="Search by ENS name..."
+              />
+
+              {/* Search dropdown */}
+              {showDropdown && searchResults.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {searchResults.map((user) => (
+                    <div
+                      key={user._id}
+                      onClick={() => handleSelectMember(user)}
+                      className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                          {user.avatar ||
+                          user.microsite?.profilePic ? (
+                            <Image
+                              src={
+                                isUrl(
+                                  user.avatar ||
+                                    user.microsite?.profilePic ||
+                                    ''
+                                )
+                                  ? user.avatar ||
+                                    user.microsite?.profilePic ||
+                                    ''
+                                  : `/images/user_avator/${
+                                      user.avatar ||
+                                      user.microsite?.profilePic
+                                    }@3x.png`
+                              }
+                              alt={user.name}
+                              width={40}
+                              height={40}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-white bg-gradient-to-br from-blue-500 to-purple-600 font-semibold">
+                              {user.name?.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">
+                            {user.name || 'Unknown User'}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {user.ens || user.microsite?.ens || ''}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Selected member tags */}
+            {selectedMembers.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {selectedMembers.map((member) => (
+                  <div
+                    key={member._id}
+                    className="inline-flex items-center gap-2 bg-gray-100 text-gray-800 px-3 py-1.5 rounded-full text-sm"
+                  >
+                    <span>
+                      {member.ens ||
+                        member.microsite?.ens ||
+                        member.name}
+                    </span>
+                    {selectedAdminIds.includes(member._id) && (
+                      <span className="text-[10px] font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded-full">
+                        Admin
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handleRemoveMember(member._id)}
+                      className="hover:text-red-600 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-        </Field>
+        </div>
 
-        {selectedMembers.length > 0 && mode === 'group' && (
-          <div className="flex flex-wrap gap-2">
-            {selectedMembers.map((member) => {
-              const userId = getUserId(member);
-              return (
-                <span
-                  key={userId}
-                  className="inline-flex h-8 items-center gap-2 rounded-full border border-[#3fe08f]/25 bg-[#10241b] px-3 text-[12px] font-bold text-[#3fe08f]"
-                >
-                  {getUserName(member)}
-                  <button
-                    type="button"
-                    title={`Remove ${getUserName(member)}`}
-                    onClick={() => userId && handleRemoveMember(userId)}
-                    className="grid h-4 w-4 place-items-center rounded-full text-[#3fe08f] hover:bg-white/10"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="min-h-[148px] overflow-hidden rounded-[14px] border border-white/[0.07] bg-black/20">
-          {searchQuery.trim().length < 2 ? (
-            <EmptyState
-              title={
-                mode === 'direct'
-                  ? 'Search for a contact'
-                  : 'Search for members'
-              }
-              detail={
-                mode === 'direct'
-                  ? 'Direct messages open as soon as you select someone.'
-                  : 'Add at least one member to create a group.'
-              }
-            />
-          ) : searchResults.length > 0 ? (
-            <div className="dm-scroll max-h-[238px] overflow-y-auto p-1.5">
-              {searchResults.map((user) => {
-                const userId = getUserId(user);
-                const selected =
-                  mode === 'group' &&
-                  selectedMembers.some(
-                    (member) => getUserId(member) === userId
-                  );
+        {/* Add Admins */}
+        {selectedMembers.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium mb-3 text-gray-700">
+              Add Admins:
+            </label>
+            <div className="flex gap-4 overflow-x-auto pb-1">
+              {selectedMembers.map((member) => {
+                const isAdmin = selectedAdminIds.includes(member._id);
+                const avatar =
+                  member.avatar || member.microsite?.profilePic;
+                const displayName =
+                  member.ens || member.microsite?.ens || member.name;
 
                 return (
                   <button
-                    key={userId || getUserName(user)}
+                    key={member._id}
                     type="button"
-                    onClick={() =>
-                      mode === 'direct'
-                        ? handleSelectDirect(user)
-                        : handleSelectMember(user)
-                    }
-                    className="dm-row flex w-full items-center gap-3 rounded-[12px] px-3 py-2.5 text-left"
+                    onClick={() => handleToggleAdmin(member._id)}
+                    className="flex w-16 shrink-0 flex-col items-center gap-2"
                   >
-                    <UserAvatar user={user} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13.5px] font-bold text-[#eceef2]">
-                        {getUserName(user)}
-                      </div>
-                      <div className="dm-mono mt-0.5 truncate text-[10.5px] font-semibold text-[#5a5e69]">
-                        {getUserHandle(user)}
-                      </div>
-                    </div>
-                    {selected && (
-                      <span className="dm-mono rounded-full bg-[#153425] px-2 py-1 text-[9.5px] font-bold uppercase tracking-[0.1em] text-[#3fe08f]">
-                        added
-                      </span>
-                    )}
+                    <span
+                      className={`relative w-14 h-14 rounded-full overflow-hidden border-2 transition-colors ${
+                        isAdmin
+                          ? 'border-black'
+                          : 'border-transparent'
+                      }`}
+                    >
+                      {avatar ? (
+                        <Image
+                          src={
+                            isUrl(avatar)
+                              ? avatar
+                              : `/images/user_avator/${avatar}@3x.png`
+                          }
+                          alt={member.name}
+                          width={56}
+                          height={56}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex w-full h-full items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
+                          {member.name?.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      {isAdmin && (
+                        <span className="absolute -right-0.5 -bottom-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black text-[10px] text-white">
+                          ✓
+                        </span>
+                      )}
+                    </span>
+                    <span className="w-full truncate text-center text-xs text-gray-600">
+                      {displayName}
+                    </span>
                   </button>
                 );
               })}
             </div>
-          ) : (
-            <EmptyState title="No matches" detail="Try another name or handle." />
-          )}
+          </div>
+        )}
+
+        {/* Token Gated */}
+        <div>
+          <label className="block text-sm font-medium mb-3 text-gray-700">
+            Token Gated
+          </label>
+          <div className="inline-flex w-44 rounded-full bg-gray-100 p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setTokenGated(true)}
+              className={`flex-1 px-4 py-2 rounded-full text-sm transition-colors ${
+                tokenGated
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              On
+            </button>
+            <button
+              type="button"
+              onClick={() => setTokenGated(false)}
+              className={`flex-1 px-4 py-2 rounded-full text-sm transition-colors ${
+                !tokenGated
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Off
+            </button>
+          </div>
         </div>
 
-        {formError && (
-          <div className="rounded-[12px] border border-[#ff6b6b]/20 bg-[#2b1518] px-3 py-2.5 text-[12px] font-semibold text-[#ffb3b3]">
-            {formError}
-          </div>
+        {/* Token Type (only show if Token Gated is On) */}
+        {tokenGated && (
+          <>
+            <div>
+              <label className="block text-sm font-medium mb-3 text-gray-700">
+                Token Type:
+              </label>
+              <div className="inline-flex w-44 rounded-full bg-gray-100 p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setTokenType('NFT')}
+                  className={`flex-1 px-4 py-2 rounded-full text-sm transition-colors ${
+                    tokenType === 'NFT'
+                      ? 'bg-white text-gray-900 shadow'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  NFT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTokenType('Token')}
+                  className={`flex-1 px-4 py-2 rounded-full text-sm transition-colors ${
+                    tokenType === 'Token'
+                      ? 'bg-white text-gray-900 shadow'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Token
+                </button>
+              </div>
+            </div>
+
+            {/* Select Token */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-700">
+                Select {tokenType}:
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedToken}
+                  onChange={(e) => setSelectedToken(e.target.value)}
+                  className="w-full bg-white text-gray-900 px-4 py-3 pr-10 rounded-xl focus:outline-none shadow-md appearance-none cursor-pointer"
+                  disabled={
+                    !solanaWalletAddress ||
+                    tokensLoading ||
+                    nftsLoading ||
+                    tokenOptions.length === 0
+                  }
+                >
+                  <option value="">
+                    {!solanaWalletAddress
+                      ? 'Connect a Solana wallet first'
+                      : tokenType === 'NFT' && nftsLoading
+                      ? 'Loading NFTs...'
+                      : tokenType === 'Token' && tokensLoading
+                      ? 'Loading tokens...'
+                      : tokenOptions.length === 0
+                      ? `No Solana ${tokenType === 'NFT' ? 'NFTs' : 'tokens'} found`
+                      : `Select a ${tokenType.toLowerCase()}...`}
+                  </option>
+                  {tokenOptions.map((asset) => (
+                    <option key={asset.value} value={asset.value}>
+                      {asset.symbol
+                        ? `${asset.label} (${asset.symbol})`
+                        : asset.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={18}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-700"
+                />
+              </div>
+              {(tokensError || nftsError) && (
+                <p className="mt-2 text-xs text-red-500">
+                  Failed to load wallet assets. Please try again.
+                </p>
+              )}
+              {selectedGateAsset && (
+                <div className="mt-3 flex items-center gap-3 rounded-xl bg-gray-50 p-3">
+                  {selectedGateAsset.image ? (
+                    <Image
+                      src={selectedGateAsset.image}
+                      alt={selectedGateAsset.label}
+                      width={32}
+                      height={32}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black text-xs text-white">
+                      {selectedGateAsset.label.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-gray-900">
+                      {selectedGateAsset.label}
+                    </div>
+                    <div className="truncate text-xs text-gray-500">
+                      {selectedGateAsset.value}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
-      {mode === 'group' && (
-        <div className="border-t border-white/[0.07] px-5 py-4">
-          <button
-            type="button"
-            onClick={handleCreateGroup}
-            disabled={!canCreateGroup}
-            className="dm-btn inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-[#3fe08f] px-4 text-[14px] font-bold text-[#031008] hover:bg-[#64f2aa] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create Group
-          </button>
-        </div>
-      )}
+      {/* Footer */}
+      <div className="px-6 pb-6">
+        <button
+          onClick={handleCreateGroup}
+          disabled={
+            !groupName.trim() ||
+            selectedMembers.length === 0 ||
+            (tokenGated && !selectedToken)
+          }
+          className="mx-auto block w-full max-w-sm bg-gray-200 text-gray-800 py-3 rounded-xl hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+        >
+          Create
+        </button>
+      </div>
     </CustomModal>
   );
-}
-
-function ModeButton({
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`dm-btn inline-flex h-9 items-center justify-center gap-2 rounded-[9px] text-[12px] font-bold ${
-        active
-          ? 'bg-[#183425] text-[#3fe08f]'
-          : 'text-[#8d93a1] hover:bg-white/[0.04] hover:text-[#eceef2]'
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function Field({
-  children,
-  htmlFor,
-  label,
-}: {
-  children: ReactNode;
-  htmlFor: string;
-  label: string;
-}) {
-  return (
-    <label className="block" htmlFor={htmlFor}>
-      <span className="dm-mono mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#7b808c]">
-        {label}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function EmptyState({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="flex min-h-[148px] flex-col items-center justify-center px-6 text-center">
-      <div className="text-[13px] font-bold text-[#eceef2]">{title}</div>
-      <div className="mt-1 max-w-[280px] text-[12px] leading-relaxed text-[#7b808c]">
-        {detail}
-      </div>
-    </div>
-  );
-}
-
-function UserAvatar({ user }: { user: User }) {
-  const avatar = getUserAvatar(user);
-  const name = getUserName(user);
-
-  if (avatar) {
-    return (
-      <Image
-        src={isUrl(avatar) ? avatar : `/images/user_avator/${avatar}@3x.png`}
-        alt={name}
-        width={40}
-        height={40}
-        className="h-10 w-10 rounded-full object-cover"
-      />
-    );
-  }
-
-  return (
-    <div className="grid h-10 w-10 place-items-center rounded-full bg-[#2f4256] text-[13px] font-bold text-[#eceef2]">
-      {getInitials(name)}
-    </div>
-  );
-}
-
-function emitSocketAck<T>(
-  socket: any,
-  eventName: string,
-  payload: Record<string, unknown>
-) {
-  return new Promise<T>((resolve, reject) => {
-    if (!socket) {
-      reject(new Error('Socket is not connected.'));
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      reject(new Error(`${eventName} timed out.`));
-    }, SOCKET_ACK_TIMEOUT_MS);
-
-    socket.emit(eventName, payload, (response: T) => {
-      clearTimeout(timeoutId);
-      resolve(response);
-    });
-  });
-}
-
-function normalizeDirectChat(user: User) {
-  const userId = getUserId(user);
-  const name = getUserName(user);
-  const avatar = getUserAvatar(user);
-  const microsite = {
-    ...(user.microsite || {}),
-    parentId: userId,
-    name,
-    ens: user.ens || user.microsite?.ens || user.username || '',
-    username: user.username || user.microsite?.username || '',
-    profilePic: avatar,
-  };
-
-  return {
-    ...user,
-    _id: userId,
-    name,
-    displayName: user.displayName || name,
-    avatar,
-    participant: {
-      _id: userId,
-      name,
-      profilePic: avatar,
-    },
-    microsite,
-  };
-}
-
-function getUserId(user: User) {
-  return (
-    user._id ||
-    user.userId ||
-    user.microsite?.parentId ||
-    user.microsite?._id ||
-    ''
-  );
-}
-
-function getUserName(user: User) {
-  return (
-    user.displayName ||
-    user.name ||
-    user.microsite?.name ||
-    user.username ||
-    user.ens ||
-    'Unknown User'
-  );
-}
-
-function getUserHandle(user: User) {
-  return (
-    user.ens ||
-    user.microsite?.ens ||
-    user.username ||
-    user.microsite?.username ||
-    'swop contact'
-  );
-}
-
-function getUserAvatar(user: User) {
-  return (
-    user.avatar ||
-    user.profilePic ||
-    user.microsite?.profilePic ||
-    user.microsite?.profileUrl ||
-    user.microsite?.brandImg ||
-    ''
-  );
-}
-
-function getInitials(name: string) {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  return fallback;
 }

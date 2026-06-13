@@ -215,8 +215,6 @@ export async function handleSwap({
   outputToken,
   platformFeeBps = 100, // Default to 1%
   accessToken,
-  userId,
-  smartsiteId,
   socket,
 }: {
   quote: any;
@@ -234,8 +232,6 @@ export async function handleSwap({
   outputToken?: any;
   platformFeeBps?: number;
   accessToken: string;
-  userId?: string;
-  smartsiteId?: string;
   socket?: Socket | null;
 }) {
   if (!quote || !solanaAddress) return;
@@ -701,27 +697,21 @@ export async function handleSwap({
       const swapDetails = {
         signature,
         solanaAddress,
-        walletAddress: solanaAddress,
-        userId,
-        smartsiteId,
         inputToken: {
           symbol: inputToken?.symbol || quote.inputMint,
           amount: inputAmount,
           decimals: inputToken?.decimals || 6,
           mint: quote.inputMint,
-          chain: '1151111081099710',
           price: inputToken?.price || inputToken?.usdPrice || '0', // Include token price in USD'
-          logo: inputToken?.icon || inputToken?.logoURI || inputToken?.symbol,
+          logo: inputToken?.icon || inputToken?.symbol,
         },
         outputToken: {
           symbol: outputToken?.symbol || quote.outputMint,
           amount: outputAmount,
           decimals: outputToken?.decimals || 6,
           mint: quote.outputMint,
-          chain: '1151111081099710',
           price: outputToken?.price || outputToken?.usdPrice || '0', // Include token price in USD
-          logo:
-            outputToken?.icon || outputToken?.logoURI || outputToken?.symbol,
+          logo: outputToken?.icon || outputToken?.symbol,
         },
         slippageBps,
         platformFeeBps: platformFeeBps || 50,
@@ -729,7 +719,7 @@ export async function handleSwap({
       };
 
       // Save to database
-      const feedData = await saveSwapTransaction(swapDetails, accessToken);
+      saveSwapTransaction(swapDetails, accessToken);
 
       // Emit Socket.IO notification for swap completion
       if (socket) {
@@ -769,7 +759,7 @@ export async function handleSwap({
 
       // Call onSuccess callback with both signature and feed data
       if (onSuccess) {
-        onSuccess(signature, feedData);
+        onSuccess(signature);
       }
     } catch (saveError) {
       logger.error('Failed to save swap details:', saveError);

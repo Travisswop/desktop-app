@@ -5,18 +5,9 @@ import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
 import toast from 'react-hot-toast';
 import { useUser } from '@/lib/UserContext';
-import {
-  Loader2,
-  LogOut,
-  Menu,
-  Pencil,
-  Search,
-  Trash2,
-  UserMinus,
-  UserPlus,
-  X,
-} from 'lucide-react';
-import { apiFetch } from '@/lib/api/apiFetch';
+import { ChevronDown, Loader } from 'lucide-react';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { useNFT } from '@/lib/hooks/useNFT';
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -31,9 +22,8 @@ interface User {
 }
 
 interface Participant {
-  userId: User | string;
+  participantUser: User;
   role?: string;
-  permissions?: string[];
   joinedAt?: string;
   permissions?: string[];
 }
@@ -65,14 +55,14 @@ interface Group {
   description?: string;
   participants?: Participant[];
   settings?: GroupSettings;
-  createdBy?: { _id?: string } | string;
+  createdBy?: string | User;
 }
 
 interface GroupMenuProps {
   group: Group;
   socket: any;
   currentUser: string;
-  onGroupUpdate?: (updatedGroup?: Group) => void;
+  onGroupUpdate?: () => void;
   onLeaveGroup?: () => void;
 }
 
@@ -100,105 +90,21 @@ type ModalType =
   | 'deleteGroup'
   | 'leaveGroup';
 
-// ==================== SHARED HELPERS / STYLES ====================
+const getUserId = (user?: string | User) =>
+  typeof user === 'string' ? user : user?._id;
 
-function getObjectIdString(value: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object' && '_id' in (value as any)) {
-    const id = (value as { _id?: unknown })._id;
-    return id ? String(id) : '';
-  }
-  return String(value);
-}
+const getParticipantUser = (
+  participant: Participant | RawParticipant,
+) =>
+  participant.participantUser ||
+  (participant as RawParticipant).userId;
 
-function getParticipantId(participant: Participant): string {
-  return getObjectIdString(participant.userId);
-}
+const isGroupAdmin = (participant?: Participant) =>
+  participant?.role === 'admin' ||
+  participant?.permissions?.includes('manage_members');
 
-function getParticipantUser(participant: Participant): User | null {
-  if (
-    participant.userId &&
-    typeof participant.userId === 'object' &&
-    '_id' in participant.userId
-  ) {
-    return participant.userId as User;
-  }
-  return null;
-}
-
-const OVERLAY_CLASS =
-  'fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4';
-const PANEL_CLASS =
-  'w-full max-w-md rounded-[18px] border border-white/[0.08] bg-[#111318] text-[#eceef2] shadow-[0_30px_90px_rgba(0,0,0,0.65)]';
-const INPUT_CLASS =
-  'h-11 w-full rounded-[12px] border border-white/[0.07] bg-black/30 px-3.5 text-[14px] font-semibold text-[#eceef2] outline-none placeholder:text-[#5a5e69] focus:border-[#3fe08f]/60 focus:ring-2 focus:ring-[#3fe08f]/15';
-const CANCEL_BUTTON_CLASS =
-  'dm-btn inline-flex h-10 items-center justify-center rounded-[11px] border border-white/[0.07] bg-black/20 px-4 text-[13px] font-semibold text-[#eceef2] hover:bg-white/[0.05]';
-const PRIMARY_BUTTON_CLASS =
-  'dm-btn inline-flex h-10 items-center justify-center gap-2 rounded-[11px] bg-[#3fe08f] px-4 text-[13px] font-bold text-[#031008] hover:bg-[#64f2aa] disabled:cursor-not-allowed disabled:opacity-50';
-const DANGER_BUTTON_CLASS =
-  'dm-btn inline-flex h-10 items-center justify-center gap-2 rounded-[11px] bg-[#e5484d] px-4 text-[13px] font-bold text-white hover:bg-[#f2555a] disabled:cursor-not-allowed disabled:opacity-50';
-const WARNING_BUTTON_CLASS =
-  'dm-btn inline-flex h-10 items-center justify-center gap-2 rounded-[11px] bg-[#f59e0b] px-4 text-[13px] font-bold text-[#1a1203] hover:bg-[#fbbf24] disabled:cursor-not-allowed disabled:opacity-50';
-const ROW_CLASS =
-  'flex items-center justify-between gap-3 rounded-[12px] border border-white/[0.07] bg-black/20 p-3';
-
-function ModalHeader({
-  title,
-  subtitle,
-  onClose,
-}: {
-  title: string;
-  subtitle?: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className="border-b border-white/[0.07] px-5 py-4">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-[17px] font-semibold tracking-[-0.02em] text-[#eceef2]">
-          {title}
-        </h3>
-        <button
-          type="button"
-          title="Close"
-          onClick={onClose}
-          className="dm-btn grid h-9 w-9 place-items-center rounded-[10px] border border-white/[0.07] bg-[#171a21] text-[#8d93a1] hover:text-[#eceef2]"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      {subtitle && (
-        <p className="dm-mono mt-1 truncate text-[11px] font-semibold text-[#5a5e69]">
-          {subtitle}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function MemberAvatar({ user }: { user: User }) {
-  if (user.profilePic) {
-    return (
-      <Image
-        src={
-          isUrl(user.profilePic)
-            ? user.profilePic
-            : `/images/user_avator/${user.profilePic}@3x.png`
-        }
-        alt={user.name || 'User'}
-        width={40}
-        height={40}
-        className="h-10 w-10 rounded-full object-cover"
-      />
-    );
-  }
-  return (
-    <div className="grid h-10 w-10 place-items-center rounded-full bg-[#2f4256] text-[13px] font-bold text-[#eceef2]">
-      {(user.name || 'U').charAt(0).toUpperCase()}
-    </div>
-  );
-}
+const isGroupCreator = (group: Group, userId?: string) =>
+  Boolean(userId && getUserId(group.createdBy) === userId);
 
 // ==================== MAIN COMPONENT ====================
 
@@ -222,36 +128,11 @@ export default function GroupMenu({
   const canDeleteGroup =
     canManageGroup || isGroupCreator(group, currentUser);
 
-  const { canManageMembers, canEditInfo, canDelete } = useMemo(() => {
-    const me = group.participants?.find(
-      (participant) => getParticipantId(participant) === currentUser,
-    );
-    const isCreator =
-      getObjectIdString(group.createdBy) === currentUser;
-    const isAdmin = me?.role === 'admin';
-    const permissions = me?.permissions;
-
-    return {
-      canManageMembers:
-        isCreator ||
-        isAdmin ||
-        (Array.isArray(permissions) &&
-          permissions.includes('manage_members')),
-      canEditInfo:
-        isCreator ||
-        isAdmin ||
-        !Array.isArray(permissions) ||
-        permissions.includes('edit_group_info'),
-      canDelete: isCreator || isAdmin,
-    };
-  }, [group.participants, group.createdBy, currentUser]);
-
   const menuItems = [
-    ...(canManageMembers
+    ...(canManageGroup
       ? [
           {
-            label: 'Add Member',
-            icon: <UserPlus className="h-4 w-4" />,
+            label: '👥 Add Member',
             action: () => {
               setActiveModal('addMember');
               closeMenu();
@@ -259,21 +140,23 @@ export default function GroupMenu({
             color: 'default',
           },
           {
-            label: 'Remove Member',
-            icon: <UserMinus className="h-4 w-4" />,
+            label: '👤 Remove Member',
             action: () => {
               setActiveModal('removeMember');
               closeMenu();
             },
             color: 'default',
           },
-        ]
-      : []),
-    ...(canEditInfo
-      ? [
+          // {
+          //   label: '⭐ Manage Admins',
+          //   action: () => {
+          //     setActiveModal('manageAdmins');
+          //     closeMenu();
+          //   },
+          //   color: 'default',
+          // },
           {
-            label: 'Edit Group',
-            icon: <Pencil className="h-4 w-4" />,
+            label: '✏️ Edit Group',
             action: () => {
               setActiveModal('editGroup');
               closeMenu();
@@ -283,19 +166,17 @@ export default function GroupMenu({
         ]
       : []),
     {
-      label: 'Leave Group',
-      icon: <LogOut className="h-4 w-4" />,
+      label: '🚪 Leave Group',
       action: () => {
         setActiveModal('leaveGroup');
         closeMenu();
       },
       color: 'warning',
     },
-    ...(canDelete
+    ...(canDeleteGroup
       ? [
           {
-            label: 'Delete Group',
-            icon: <Trash2 className="h-4 w-4" />,
+            label: '🗑️ Delete Group',
             action: () => {
               setActiveModal('deleteGroup');
               closeMenu();
@@ -309,12 +190,10 @@ export default function GroupMenu({
   return (
     <div className="relative">
       <button
-        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        title="Group menu"
-        className="dm-btn grid h-11 w-11 place-items-center rounded-[13px] border border-white/[0.07] bg-[#101217] text-[#9396a0] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+        className="p-2 rounded-full hover:bg-gray-100 transition-colors text-xl font-bold"
       >
-        <Menu className="h-[18px] w-[18px]" />
+        ⋮
       </button>
 
       {isOpen && (
@@ -323,21 +202,19 @@ export default function GroupMenu({
           <div className="fixed inset-0 z-40" onClick={closeMenu} />
 
           {/* Menu */}
-          <div className="absolute right-0 top-full z-50 mt-2 min-w-52 overflow-hidden rounded-[14px] border border-white/[0.08] bg-[#111318] py-1 shadow-[0_18px_50px_rgba(0,0,0,0.6)]">
+          <div className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-48">
             {menuItems.map((item, index) => (
               <button
                 key={index}
-                type="button"
                 onClick={item.action}
-                className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[13px] font-semibold transition-colors ${
+                className={`w-full text-left px-4 py-3 border-b border-gray-200 last:border-b-0 transition-colors ${
                   item.color === 'danger'
-                    ? 'text-[#ff8589] hover:bg-[#e5484d]/10'
+                    ? 'text-red-600 hover:bg-red-50'
                     : item.color === 'warning'
-                      ? 'text-[#fbbf24] hover:bg-[#f59e0b]/10'
-                      : 'text-[#c8ccd5] hover:bg-white/[0.05]'
+                      ? 'text-orange-600 hover:bg-orange-50'
+                      : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
-                {item.icon}
                 {item.label}
               </button>
             ))}
@@ -350,6 +227,7 @@ export default function GroupMenu({
         <AddMemberModal
           group={group}
           socket={socket}
+          currentUser={currentUser}
           onClose={closeModal}
           onSuccess={onGroupUpdate}
         />
@@ -388,8 +266,8 @@ export default function GroupMenu({
       {activeModal === 'leaveGroup' && (
         <LeaveGroupModal
           group={group}
-          socket={socket}
           onClose={closeModal}
+          onSuccess={onGroupUpdate}
           onLeaveGroup={onLeaveGroup}
         />
       )}
@@ -399,7 +277,7 @@ export default function GroupMenu({
           group={group}
           socket={socket}
           onClose={closeModal}
-          onDeleted={onLeaveGroup}
+          onSuccess={onGroupUpdate}
         />
       )}
     </div>
@@ -411,13 +289,15 @@ export default function GroupMenu({
 function AddMemberModal({
   group,
   socket,
+  currentUser,
   onClose,
   onSuccess,
 }: {
   group: Group;
   socket: any;
+  currentUser: string;
   onClose: () => void;
-  onSuccess?: (updatedGroup?: Group) => void;
+  onSuccess?: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -425,6 +305,8 @@ function AddMemberModal({
   const [addingUserId, setAddingUserId] = useState<string | null>(
     null,
   );
+
+  // const { toast } = useToast();
 
   const searchUsers = useCallback(
     (query: string) => {
@@ -436,29 +318,25 @@ function AddMemberModal({
       setIsSearching(true);
       socket.emit(
         'search_users',
-        // Passing groupId makes the backend exclude existing members
-        { query, limit: 10, groupId: group._id },
+        { query, limit: 10, forGroupCreation: true },
         (response: SearchResponse) => {
-          if (response?.success) {
+          if (response.success) {
             const users = response.results || response.users || [];
-            // Also filter client-side in case the group changed meanwhile
-            const existingUserIds = new Set(
-              (group.participants || []).map((participant) =>
-                getParticipantId(participant),
-              ),
-            );
+            // Filter out users already in the group
+            const existingUserIds =
+              group.participants?.map(
+                (participant) => getParticipantUser(participant)._id,
+              ) || [];
             const filteredUsers = users.filter(
-              (user) => !existingUserIds.has(getObjectIdString(user)),
+              (user) => !existingUserIds.includes(user._id),
             );
             setSearchResults(filteredUsers);
-          } else {
-            setSearchResults([]);
           }
           setIsSearching(false);
         },
       );
     },
-    [socket, group._id, group.participants],
+    [socket, group.participants],
   );
 
   useEffect(() => {
@@ -470,6 +348,8 @@ function AddMemberModal({
   }, [searchQuery, searchUsers]);
 
   const handleAddMember = (userId: string, displayName: string) => {
+    // console.log("hit add member");
+
     if (!socket || addingUserId) return;
 
     setAddingUserId(userId);
@@ -482,20 +362,18 @@ function AddMemberModal({
         role: 'member',
       },
       (response: SocketResponse) => {
-        if (response?.success) {
+        if (response.success) {
           toast.success(`${displayName} added successfully!`, {
             position: 'top-right',
           });
 
           setSearchQuery('');
           setSearchResults([]);
-          onSuccess?.(response.group);
+          onSuccess?.();
           onClose();
         } else {
           toast.error(
-            `Failed to add ${displayName}: ${
-              response?.error || 'Unknown error'
-            }`,
+            `Failed to add ${displayName}: ${response.error}`,
             {
               position: 'top-right',
             },
@@ -507,39 +385,48 @@ function AddMemberModal({
   };
 
   return (
-    <div className={OVERLAY_CLASS}>
-      <div className={`${PANEL_CLASS} flex max-h-[80vh] flex-col`}>
-        <ModalHeader
-          title="Add Member"
-          subtitle={`Group: ${group.name}`}
-          onClose={onClose}
-        />
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Add Member</h3>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+          <p className="text-sm text-gray-600 mt-1">
+            Group: {group.name}
+          </p>
+        </div>
 
         {/* Search */}
-        <div className="px-5 pt-5">
+        <div className="p-6">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5a5e69]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search username, ENS, or name..."
-              className={`${INPUT_CLASS} pl-10`}
+              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            {isSearching && (
-              <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#3fe08f]" />
-            )}
+            <span className="absolute left-3 top-2.5 text-gray-400">
+              🔍
+            </span>
           </div>
         </div>
 
         {/* Results */}
-        <div className="dm-scroll flex-1 overflow-y-auto px-5 py-5">
-          {isSearching && searchResults.length === 0 ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-7 w-7 animate-spin text-[#3fe08f]" />
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
+          {isSearching ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-700 mx-auto"></div>
             </div>
           ) : searchResults.length === 0 ? (
-            <div className="py-8 text-center text-[13px] font-semibold text-[#7b808c]">
+            <div className="text-center py-8 text-gray-500">
               {searchQuery
                 ? 'No users found'
                 : 'Start typing to search'}
@@ -547,20 +434,36 @@ function AddMemberModal({
           ) : (
             <div className="space-y-2">
               {searchResults.map((user) => (
-                <div key={user._id} className={ROW_CLASS}>
-                  <div className="flex min-w-0 items-center gap-3">
-                    <MemberAvatar user={user} />
-                    <div className="min-w-0">
-                      <div className="truncate text-[13.5px] font-bold text-[#eceef2]">
-                        {user.displayName || user.name}
+                <div
+                  key={user._id}
+                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-3">
+                    {user.profilePic ? (
+                      <Image
+                        src={
+                          isUrl(user.profilePic)
+                            ? user.profilePic
+                            : `/images/user_avator/${user.profilePic}@3x.png`
+                        }
+                        alt={user.name}
+                        width={120}
+                        height={120}
+                        className="rounded-full w-10 h-10"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold">
+                        {user.name?.charAt(0).toUpperCase()}
                       </div>
-                      <div className="dm-mono truncate text-[11px] font-semibold text-[#5a5e69]">
+                    )}
+                    <div>
+                      <div className="font-medium">{user.name}</div>
+                      <div className="text-sm text-gray-500">
                         {user.ens || user.username || user.email}
                       </div>
                     </div>
                   </div>
                   <button
-                    type="button"
                     onClick={() =>
                       handleAddMember(
                         user._id,
@@ -568,7 +471,7 @@ function AddMemberModal({
                       )
                     }
                     disabled={addingUserId === user._id}
-                    className={PRIMARY_BUTTON_CLASS}
+                    className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
                   >
                     {addingUserId === user._id ? 'Adding...' : 'Add'}
                   </button>
@@ -595,7 +498,7 @@ function RemoveMemberModal({
   socket: any;
   currentUser: string;
   onClose: () => void;
-  onSuccess?: (updatedGroup?: Group) => void;
+  onSuccess?: () => void;
 }) {
   const [removingUserId, setRemovingUserId] = useState<string | null>(
     null,
@@ -604,22 +507,25 @@ function RemoveMemberModal({
     null,
   );
 
-  // Filter out current user (can't remove yourself) and unpopulated rows
-  const removableMembers = (group.participants || []).filter(
-    (participant) => {
-      const participantId = getParticipantId(participant);
+  // Filter out current user and group creator
+  const removableMembers =
+    group.participants?.filter((participant) => {
+      const participantUser = getParticipantUser(participant);
+
       return (
-        participantId &&
-        participantId !== currentUser &&
-        getParticipantUser(participant)
+        participantUser._id !== currentUser &&
+        !isGroupCreator(group, participantUser._id)
       );
-    },
-  );
+    }) || [];
+
+  const confirmRemoveMember = (user: User) => {
+    setConfirmingUser(user);
+  };
 
   const handleConfirmRemove = () => {
-    if (!confirmingUser || !socket) return;
-    const user = confirmingUser;
-    setRemovingUserId(user._id);
+    if (!confirmingUser) return;
+    const participantUser = confirmingUser;
+    setRemovingUserId(participantUser._id);
 
     socket.emit(
       'remove_group_member',
@@ -628,18 +534,19 @@ function RemoveMemberModal({
         userIdToRemove: participantUser._id,
       },
       (response: SocketResponse) => {
-        if (response?.success) {
-          toast.success(`${user.name} removed successfully!`, {
-            position: 'top-right',
-          });
-          onSuccess?.(response.group);
+        if (response.success) {
+          toast.success(
+            `${participantUser.name} removed successfully!`,
+            {
+              position: 'top-right',
+            },
+          );
+          onSuccess?.();
           setConfirmingUser(null);
           onClose();
         } else {
           toast.error(
-            `Failed to remove ${user.name}: ${
-              response?.error || 'Unknown error'
-            }`,
+            `Failed to remove ${participantUser.name}: ${response.error}`,
             {
               position: 'top-right',
             },
@@ -653,44 +560,84 @@ function RemoveMemberModal({
   return (
     <>
       {/* Main Modal */}
-      <div className={OVERLAY_CLASS}>
-        <div className={`${PANEL_CLASS} flex max-h-[80vh] flex-col`}>
-          <ModalHeader
-            title="Remove Member"
-            subtitle={`Group: ${group.name}`}
-            onClose={onClose}
-          />
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Remove Member</h3>
+              <button
+                onClick={onClose}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mt-1">
+              Group: {group.name}
+            </p>
+          </div>
 
           {/* Members List */}
-          <div className="dm-scroll flex-1 overflow-y-auto px-5 py-5">
+          <div className="flex-1 overflow-y-auto p-6">
             {removableMembers.length === 0 ? (
-              <div className="py-8 text-center text-[13px] font-semibold text-[#7b808c]">
+              <div className="text-center py-8 text-gray-500">
                 No members to remove (you cannot remove yourself)
               </div>
             ) : (
               <div className="space-y-2">
                 {removableMembers.map((participant) => {
-                  const user = getParticipantUser(participant)!;
+                  const participantUser =
+                    getParticipantUser(participant);
                   return (
-                    <div key={user._id} className={ROW_CLASS}>
-                      <div className="flex min-w-0 items-center gap-3">
-                        <MemberAvatar user={user} />
-                        <div className="min-w-0">
-                          <div className="truncate text-[13.5px] font-bold text-[#eceef2]">
-                            {user.name}
+                    <div
+                      key={participantUser._id}
+                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        {participantUser.profilePic ? (
+                          <Image
+                            src={
+                              isUrl(participantUser.profilePic)
+                                ? participantUser.profilePic
+                                : `/images/user_avator/${participantUser.profilePic}@3x.png`
+                            }
+                            alt={participantUser.name}
+                            width={40}
+                            height={40}
+                            className="rounded-full"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-semibold">
+                            {participantUser.name
+                              ?.charAt(0)
+                              .toUpperCase()}
                           </div>
-                          <div className="dm-mono truncate text-[11px] font-semibold text-[#5a5e69]">
-                            {participant.role === 'admin'
-                              ? 'admin'
-                              : user.username || user.ens || 'member'}
+                        )}
+                        <div>
+                          <div className="font-medium">
+                            {participantUser.name}
+                            {isGroupAdmin(participant) && (
+                              <span className="ml-2 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                                Admin
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {participantUser.username ||
+                              participantUser.ens ||
+                              ''}
                           </div>
                         </div>
                       </div>
                       <button
-                        type="button"
-                        onClick={() => setConfirmingUser(user)}
-                        disabled={removingUserId === user._id}
-                        className={DANGER_BUTTON_CLASS}
+                        onClick={() =>
+                          confirmRemoveMember(participantUser)
+                        }
+                        disabled={
+                          removingUserId === participantUser._id
+                        }
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
                       >
                         {removingUserId === participantUser._id
                           ? 'Removing...'
@@ -707,33 +654,27 @@ function RemoveMemberModal({
 
       {/* Confirmation Modal */}
       {confirmingUser && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4">
-          <div className={`${PANEL_CLASS} max-w-sm p-5`}>
-            <h3 className="mb-3 text-[16px] font-semibold text-[#ff8589]">
-              Remove Member
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-semibold mb-3 text-red-600">
+              ⚠️ Remove Member
             </h3>
-            <p className="mb-6 text-[13.5px] leading-relaxed text-[#c8ccd5]">
+            <p className="text-gray-700 mb-6">
               Are you sure you want to remove{' '}
-              <strong className="text-[#eceef2]">
-                {confirmingUser.name}
-              </strong>{' '}
-              from the group{' '}
-              <strong className="text-[#eceef2]">{group.name}</strong>
-              ?
+              <strong>{confirmingUser.name}</strong> from the group{' '}
+              <strong>{group.name}</strong>?
             </p>
             <div className="flex justify-end gap-3">
               <button
-                type="button"
                 onClick={() => setConfirmingUser(null)}
-                className={CANCEL_BUTTON_CLASS}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
               >
                 No
               </button>
               <button
-                type="button"
                 onClick={handleConfirmRemove}
                 disabled={removingUserId === confirmingUser._id}
-                className={DANGER_BUTTON_CLASS}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {removingUserId === confirmingUser._id
                   ? 'Removing...'
@@ -760,7 +701,7 @@ function ManageAdminsModal({
   socket: any;
   currentUser: string;
   onClose: () => void;
-  onSuccess?: (updatedGroup?: Group) => void;
+  onSuccess?: () => void;
 }) {
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(
     null,
@@ -1051,9 +992,7 @@ function EditGroupModal({
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        toast.error('Photo must be smaller than 5MB', {
-          position: 'top-right',
-        });
+        alert('Photo must be smaller than 5MB');
         return;
       }
       setGroupPhoto(file);
@@ -1062,12 +1001,12 @@ function EditGroupModal({
   };
 
   const handleRemovePhoto = async () => {
-    if (!confirm('Are you sure you want to remove the group photo?'))
+    if (!confirm('Are you sure you want to remove the group photos?'))
       return;
 
     try {
       setIsRemovingPhoto(true);
-      const response = await apiFetch(
+      const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/photo`,
         {
           method: 'DELETE',
@@ -1079,25 +1018,26 @@ function EditGroupModal({
       );
 
       const data = await response.json();
+      console.log('data response', data);
 
       if (data.success) {
         setPhotoPreview(null);
-        setGroupPhoto(null);
-        toast.success('Group photo removed successfully!', {
+        toast.success(`Group photo removed successfully!`, {
           position: 'top-right',
         });
         onSuccess?.();
+        setIsRemovingPhoto(false);
       } else {
         toast.error(`Failed to remove photo: ${data.message}`, {
           position: 'top-right',
         });
+        setIsRemovingPhoto(false);
       }
     } catch (error) {
       console.error('Error removing photo:', error);
       toast.error('Error removing group photo', {
         position: 'top-right',
       });
-    } finally {
       setIsRemovingPhoto(false);
     }
   };
@@ -1130,7 +1070,7 @@ function EditGroupModal({
         groupName !== group.name ||
         groupDescription !== (group.description || '')
       ) {
-        const response = await apiFetch(
+        const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/info`,
           {
             method: 'PUT',
@@ -1168,7 +1108,7 @@ function EditGroupModal({
         const formData = new FormData();
         formData.append('groupPhoto', groupPhoto);
 
-        const response = await apiFetch(
+        const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/photo`,
           {
             method: 'POST',
@@ -1262,28 +1202,37 @@ function EditGroupModal({
   };
 
   return (
-    <div className={OVERLAY_CLASS}>
-      <div
-        className={`${PANEL_CLASS} dm-scroll max-h-[90vh] overflow-y-auto`}
-      >
-        <ModalHeader title="Edit Group" onClose={onClose} />
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200 sticky top-0 bg-white">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Edit Group</h3>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
 
         {/* Body */}
-        <div className="space-y-6 px-5 py-5">
+        <div className="p-6 space-y-6">
           {/* Group Photo */}
           <div>
-            <label className="dm-mono mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#7b808c]">
+            <label className="block text-sm font-medium mb-2">
               Group Photo
             </label>
             <div className="flex items-center gap-4">
-              <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-full border border-white/[0.07] bg-black/30">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
                 {photoPreview ? (
                   <Image
                     src={photoPreview}
                     alt="Group"
                     width={80}
                     height={80}
-                    className="h-full w-full object-cover"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
                   <span className="text-2xl">👥</span>
@@ -1298,25 +1247,22 @@ function EditGroupModal({
                   className="hidden"
                 />
                 <button
-                  type="button"
                   onClick={() =>
                     document.getElementById('photoInput')?.click()
                   }
-                  className={`${PRIMARY_BUTTON_CLASS} w-full`}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  Choose Photo
+                  📷 Choose Photo
                 </button>
                 {photoPreview && (
                   <button
-                    type="button"
                     onClick={handleRemovePhoto}
-                    disabled={isRemovingPhoto}
-                    className={`${DANGER_BUTTON_CLASS} w-full`}
+                    className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                   >
                     {isRemovingPhoto ? (
-                      <Loader2 className="h-5 w-auto animate-spin" />
+                      <Loader className="w-6 h-auto animate-spin mx-auto text-white" />
                     ) : (
-                      'Remove Photo'
+                      '🗑️ Remove Photo'
                     )}
                   </button>
                 )}
@@ -1326,7 +1272,7 @@ function EditGroupModal({
 
           {/* Group Name */}
           <div>
-            <label className="dm-mono mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#7b808c]">
+            <label className="block text-sm font-medium mb-2">
               Group Name *
             </label>
             <input
@@ -1335,13 +1281,13 @@ function EditGroupModal({
               onChange={(e) => setGroupName(e.target.value)}
               maxLength={100}
               placeholder="Enter group name"
-              className={INPUT_CLASS}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           {/* Group Description */}
           <div>
-            <label className="dm-mono mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#7b808c]">
+            <label className="block text-sm font-medium mb-2">
               Description (Optional)
             </label>
             <textarea
@@ -1350,7 +1296,7 @@ function EditGroupModal({
               maxLength={500}
               placeholder="Add a group description"
               rows={4}
-              className="w-full resize-none rounded-[12px] border border-white/[0.07] bg-black/30 px-3.5 py-2.5 text-[14px] font-semibold text-[#eceef2] outline-none placeholder:text-[#5a5e69] focus:border-[#3fe08f]/60 focus:ring-2 focus:ring-[#3fe08f]/15"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
           </div>
 
@@ -1537,19 +1483,17 @@ function EditGroupModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 border-t border-white/[0.07] px-5 py-4">
+        <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
           <button
-            type="button"
             onClick={onClose}
-            className={CANCEL_BUTTON_CLASS}
+            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
           >
             Cancel
           </button>
           <button
-            type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className={PRIMARY_BUTTON_CLASS}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
@@ -1573,13 +1517,13 @@ function EditGroupModal({
 
 function LeaveGroupModal({
   group,
-  socket,
   onClose,
+  onSuccess,
   onLeaveGroup,
 }: {
   group: Group;
-  socket: any;
   onClose: () => void;
+  onSuccess?: () => void;
   onLeaveGroup?: () => void;
 }) {
   const [isLeaving, setIsLeaving] = useState(false);
@@ -1590,7 +1534,7 @@ function LeaveGroupModal({
     setIsLeaving(true);
 
     try {
-      const response = await apiFetch(
+      const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/group/${group._id}/leave`,
         {
           method: 'POST',
@@ -1602,21 +1546,18 @@ function LeaveGroupModal({
       );
 
       const data = await response.json();
+      console.log('data response', data);
       if (data.success) {
-        // Leave the socket room so no further group events arrive
-        socket?.emit('leave_group', { groupId: group._id });
         toast.success('Left group successfully', {
           position: 'top-right',
         });
+        onSuccess?.();
         onLeaveGroup?.();
         onClose();
       } else {
-        toast.error(
-          `Failed to leave group: ${data.message || 'Unknown error'}`,
-          {
-            position: 'top-right',
-          },
-        );
+        toast.error(`Failed to leave group: ${data.message}`, {
+          position: 'top-right',
+        });
       }
     } catch (error) {
       console.error('Error leaving group:', error);
@@ -1629,14 +1570,15 @@ function LeaveGroupModal({
   };
 
   return (
-    <div className={OVERLAY_CLASS}>
-      <div className={`${PANEL_CLASS} p-5`}>
-        <h3 className="mb-3 text-[16px] font-semibold text-[#fbbf24]">
-          Leave Group
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-semibold mb-4 text-orange-600">
+          🚪 Leave Group
         </h3>
-        <p className="mb-6 text-[13.5px] leading-relaxed text-[#c8ccd5]">
+        <p className="text-gray-700 mb-6">
           Are you sure you want to leave the group{' '}
-          <strong className="text-[#eceef2]">{group.name}</strong>?
+          <strong>{group.name}</strong>
+          ?
           <br />
           <br />
           You will no longer receive messages from this group and will
@@ -1644,17 +1586,15 @@ function LeaveGroupModal({
         </p>
         <div className="flex justify-end gap-3">
           <button
-            type="button"
             onClick={onClose}
-            className={CANCEL_BUTTON_CLASS}
+            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
           >
             Cancel
           </button>
           <button
-            type="button"
             onClick={handleLeave}
             disabled={isLeaving}
-            className={WARNING_BUTTON_CLASS}
+            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isLeaving ? 'Leaving...' : 'Leave Group'}
           </button>
@@ -1670,43 +1610,32 @@ function DeleteGroupModal({
   group,
   socket,
   onClose,
-  onDeleted,
+  onSuccess,
 }: {
   group: Group;
   socket: any;
   onClose: () => void;
-  onDeleted?: () => void;
+  onSuccess?: () => void;
 }) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = () => {
-    if (!socket) {
-      toast.error('Not connected. Please try again.', {
-        position: 'top-right',
-      });
-      return;
-    }
     setIsDeleting(true);
 
     socket.emit(
       'delete_group',
       { groupId: group._id },
       (response: SocketResponse) => {
-        if (response?.success) {
+        if (response.success) {
           toast.success('Group deleted successfully', {
             position: 'top-right',
           });
+          onSuccess?.();
           onClose();
-          onDeleted?.();
         } else {
-          toast.error(
-            `Failed to delete group: ${
-              response?.error || 'Unknown error'
-            }`,
-            {
-              position: 'top-right',
-            },
-          );
+          toast.error(`Failed to delete group: ${response.error}`, {
+            position: 'top-right',
+          });
         }
         setIsDeleting(false);
       },
@@ -1714,34 +1643,32 @@ function DeleteGroupModal({
   };
 
   return (
-    <div className={OVERLAY_CLASS}>
-      <div className={`${PANEL_CLASS} p-5`}>
-        <h3 className="mb-3 text-[16px] font-semibold text-[#ff8589]">
-          Delete Group
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-semibold mb-4 text-red-600">
+          ⚠️ Delete Group
         </h3>
-        <p className="mb-6 text-[13.5px] leading-relaxed text-[#c8ccd5]">
+        <p className="text-gray-700 mb-6">
           Are you sure you want to delete the group{' '}
-          <strong className="text-[#eceef2]">{group.name}</strong>?
+          <strong>{group.name}</strong>?
           <br />
           <br />
-          <strong className="text-[#ff8589]">
+          <strong className="text-red-600">
             This action cannot be undone.
           </strong>{' '}
           All messages and group data will be permanently deleted.
         </p>
         <div className="flex justify-end gap-3">
           <button
-            type="button"
             onClick={onClose}
-            className={CANCEL_BUTTON_CLASS}
+            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
           >
             Cancel
           </button>
           <button
-            type="button"
             onClick={handleDelete}
             disabled={isDeleting}
-            className={DANGER_BUTTON_CLASS}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isDeleting ? 'Deleting...' : 'Delete Group'}
           </button>

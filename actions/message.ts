@@ -14,8 +14,7 @@ export async function isENSAvailable(ens: any, token: string) {
         },
       }
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from get ens data action:', error);
@@ -36,8 +35,7 @@ export async function postMessage(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
 
     return data;
   } catch (error) {
@@ -59,8 +57,7 @@ export async function updateMessage(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -81,8 +78,7 @@ export async function deleteMessage(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json().catch(() => null);
-    if (!response.ok) return null;
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error from action:', error);

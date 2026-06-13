@@ -3,7 +3,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useUser } from "@/lib/UserContext";
-import { apiFetch } from "@/lib/api/apiFetch";
 import {
   Card as NextUICard,
   CardBody,
@@ -137,7 +136,7 @@ export default function OrderPage() {
         throw new Error("API base URL is not defined.");
       }
 
-      const response = await apiFetch(
+      const response = await fetch(
         `${API_URL}/api/v5/orders/${orderId}/confirm-receipt`,
         {
           method: "POST",
@@ -384,10 +383,10 @@ export default function OrderPage() {
         backdrop="blur"
       >
         <ModalContent>
-          <ModalHeader>Confirm Order Received</ModalHeader>
+          <ModalHeader>Confirm Order Receipt</ModalHeader>
           <ModalBody>
             <p>
-              By confirming, you acknowledge that you received the
+              By confirming receipt, you acknowledge that you have received the
               order in satisfactory condition. This action cannot be undone.
             </p>
           </ModalBody>
@@ -405,7 +404,7 @@ export default function OrderPage() {
               onPress={confirmOrderUpdate}
               isLoading={isConfirming}
             >
-              Confirm Order Received
+              Confirm Receipt
             </NextUIButton>
           </ModalFooter>
         </ModalContent>

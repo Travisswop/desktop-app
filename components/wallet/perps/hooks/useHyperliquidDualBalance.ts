@@ -72,7 +72,6 @@ export function useHyperliquidDualBalance(masterAddress: string | null | undefin
     },
     enabled: !!masterAddress,
     refetchInterval: 15_000,
-    refetchIntervalInBackground: false,
     staleTime: 10_000,
     retry: 1,
   });

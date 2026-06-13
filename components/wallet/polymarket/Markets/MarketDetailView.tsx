@@ -1,11 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  useClobOrder,
-  useTickSize,
-  type OrderSubmissionStage,
-} from '@/hooks/polymarket';
+import { useState, useEffect, useMemo } from 'react';
+import { useClobOrder, useTickSize } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
@@ -13,17 +9,10 @@ import { postFeed } from '@/actions/postFeed';
 import type { PolymarketMarket } from '@/hooks/polymarket';
 import { useTrading } from '@/providers/polymarket';
 import {
-  completeAgentActionFromHandoff,
-  type AgentActionCompletion,
-} from '@/lib/chat/agentActionHandoff';
-import {
   CTF_CONTRACT_ADDRESS,
   MIN_ORDER_SIZE,
   USDC_E_DECIMALS,
 } from '@/constants/polymarket';
-import { getSafePolymarketMaxBuyAmount } from '@/lib/polymarket/validation';
-import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
-import EnableTradingModal from '@/components/wallet/polymarket/EnableTradingModal';
 
 import { InfoIcon, Clock, CheckCircle2, AlertCircle, X } from 'lucide-react';
 
@@ -146,32 +135,6 @@ function formatVolumeLabel(
   return `$${n.toFixed(0)} Vol.`;
 }
 
-function getOrderStageButtonLabel(stage: OrderSubmissionStage): string {
-  switch (stage) {
-    case 'preparing':
-      return 'Preparing order...';
-    case 'signing':
-      return 'Sign in wallet...';
-    case 'submitting':
-      return 'Submitting order...';
-    default:
-      return 'Placing order...';
-  }
-}
-
-function getOrderStageHint(stage: OrderSubmissionStage): string {
-  switch (stage) {
-    case 'preparing':
-      return 'Building the order for signature.';
-    case 'signing':
-      return 'Approve the wallet signature window to place this order.';
-    case 'submitting':
-      return 'Sending your signed order to Polymarket.';
-    default:
-      return 'Placing order.';
-  }
-}
-
 // ── Order feedback helpers ───────────────────────────────────────────────────
 //
 // Errors bubble up here from three layers: the CLOB SDK (already mapped to
@@ -246,24 +209,13 @@ function getFriendlyOrderError(
   }
   if (
     (msg.includes('insufficient') || msg.includes('not enough')) &&
-    msg.includes('allowance')
-  ) {
-    return {
-      title: 'USDC approval or balance issue',
-      detail:
-        'Refresh trading approvals or try a slightly smaller amount to leave room for fees.',
-    };
-  }
-  if (
-    (msg.includes('insufficient') || msg.includes('not enough')) &&
     (msg.includes('usdc') ||
       msg.includes('balance') ||
       msg.includes('funds'))
   ) {
     return {
       title: 'Not enough USDC',
-      detail:
-        'Try a slightly smaller amount or add USDC to cover the order and fees.',
+      detail: 'Add USDC to your wallet to place this order.',
     };
   }
   if (msg.includes('allowance') || msg.includes('approval')) {
@@ -513,15 +465,9 @@ function OrderSuccessNotification({
 function OrderInfoNotification({
   title,
   detail,
-  actionLabel,
-  onAction,
-  actionDisabled,
 }: {
   title: string;
   detail: string;
-  actionLabel?: string;
-  onAction?: () => void;
-  actionDisabled?: boolean;
 }) {
   return (
     <div
@@ -575,27 +521,6 @@ function OrderInfoNotification({
           {detail}
         </div>
       </div>
-      {actionLabel && onAction && (
-        <button
-          onClick={onAction}
-          disabled={actionDisabled}
-          style={{
-            flexShrink: 0,
-            alignSelf: 'center',
-            padding: '8px 14px',
-            background: actionDisabled ? D.muted2 : D.ink,
-            color: '#fff',
-            border: 'none',
-            borderRadius: 10,
-            fontSize: 12.5,
-            fontWeight: 700,
-            cursor: actionDisabled ? 'not-allowed' : 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {actionLabel}
-        </button>
-      )}
     </div>
   );
 }
@@ -739,7 +664,7 @@ function usePriceHistory(
       fetch(
         `/api/polymarket/prices-history?tokenId=${encodeURIComponent(
           id,
-        )}&interval=max&fidelity=30`,
+        )}&interval=1d&fidelity=30`,
       )
         .then((r) => (r.ok ? r.json() : { history: [] }))
         .then((j) => {
@@ -825,21 +750,15 @@ type LiveScoreTeam = {
 
 type LiveScoreState = {
   live: boolean;
-  ended?: boolean;
-  closed?: boolean;
   period: string | null;
   elapsed: string | null;
-  startTime?: string | null;
   teams: LiveScoreTeam[];
 };
 
 const EMPTY_LIVE: LiveScoreState = {
   live: false,
-  ended: false,
-  closed: false,
   period: null,
   elapsed: null,
-  startTime: null,
   teams: [],
 };
 
@@ -874,11 +793,8 @@ function useLiveEventScore(
         if (cancelled) return;
         setState({
           live: Boolean(json.live),
-          ended: Boolean(json.ended),
-          closed: Boolean(json.closed),
           period: json.period ?? null,
           elapsed: json.elapsed ?? null,
-          startTime: json.startTime ?? null,
           teams: Array.isArray(json.teams) ? json.teams : [],
         });
         // Only keep polling while the game is live.
@@ -925,125 +841,6 @@ function pickTeamScore(
   );
   if (byAbbr?.score != null) return byAbbr.score;
   return teams[fallbackIndex]?.score ?? null;
-}
-
-function parseScorePair(raw: unknown): [number | null, number | null] {
-  if (typeof raw !== 'string') return [null, null];
-  const match = raw.match(/(\d+)\D+(\d+)/);
-  if (!match) return [null, null];
-  const first = Number(match[1]);
-  const second = Number(match[2]);
-  return [
-    Number.isFinite(first) ? first : null,
-    Number.isFinite(second) ? second : null,
-  ];
-}
-
-function toLiveScoreNumber(value: unknown): number | null {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function getMarketLiveEventSlug(market: PolymarketMarket): string | undefined {
-  const explicit =
-    market.eventSlug ||
-    market.event?.slug ||
-    market.events?.find?.((event: { slug?: string }) => event?.slug)?.slug;
-  if (explicit) return String(explicit);
-
-  if (!market.slug || !market.gameStartTime || !market.eventTeams?.length) {
-    return undefined;
-  }
-
-  return String(market.slug)
-    .replace(/-(moneyline|spread|total|totals|o-u|over-under).*$/i, '')
-    .replace(/-(home|away|yes|no)-?[a-z0-9.]*$/i, '');
-}
-
-function extractEmbeddedLiveState(market: PolymarketMarket): LiveScoreState {
-  const event = Array.isArray(market.events) ? market.events[0] : market.event;
-  const [score0, score1] = parseScorePair(
-    event?.score ?? market.score ?? market.eventScore,
-  );
-  const rawTeams = Array.isArray(event?.teams)
-    ? event.teams
-    : Array.isArray(market.eventTeams)
-      ? market.eventTeams
-      : [];
-
-  return {
-    live: Boolean(market.eventLive || event?.live),
-    ended: Boolean(market.eventEnded || event?.ended || event?.closed || market.closed),
-    closed: Boolean(
-      market.eventClosed || event?.closed || event?.ended || market.closed,
-    ),
-    period: market.eventPeriod ?? event?.period ?? null,
-    elapsed: market.eventElapsed ?? event?.elapsed ?? null,
-    startTime:
-      market.eventStartDate ||
-      event?.startDate ||
-      event?.startTime ||
-      market.gameStartTime ||
-      null,
-    teams: rawTeams.map((team: LiveScoreTeam & { logo?: string; color?: string }, index: number) => ({
-      name: team?.name ?? null,
-      abbreviation: team?.abbreviation ?? null,
-      score:
-        team?.score != null
-          ? toLiveScoreNumber(team.score)
-          : index === 0
-            ? score0
-            : index === 1
-              ? score1
-              : null,
-    })),
-  };
-}
-
-function mergeLiveStates(
-  fetched: LiveScoreState,
-  embedded: LiveScoreState,
-): LiveScoreState {
-  const fetchedHasEventState =
-    fetched.live ||
-    fetched.ended ||
-    fetched.closed ||
-    fetched.period != null ||
-    fetched.elapsed != null ||
-    fetched.startTime != null ||
-    fetched.teams.length > 0;
-  const fetchedHasScores = fetched.teams.some((team) => team.score != null);
-  const embeddedHasScores = embedded.teams.some((team) => team.score != null);
-  const teams =
-    fetched.teams.length && (fetchedHasScores || !embeddedHasScores)
-      ? fetched.teams
-      : embedded.teams;
-
-  return {
-    live: fetchedHasEventState ? fetched.live : embedded.live,
-    ended: Boolean(fetched.ended || embedded.ended),
-    closed: Boolean(fetched.closed || embedded.closed),
-    period: fetched.period ?? embedded.period,
-    elapsed: fetched.elapsed ?? embedded.elapsed,
-    startTime: fetched.startTime ?? embedded.startTime,
-    teams,
-  };
-}
-
-function formatHistoryTimestamp(timestampSeconds: number): string {
-  return new Date(timestampSeconds * 1000).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function nearestHistoryPoint(series: HistoryPoint[], target: number) {
-  if (!series.length) return null;
-  return series.reduce((best, point) =>
-    Math.abs(point.t - target) < Math.abs(best.t - target) ? point : best,
-  );
 }
 
 // ── Sports probability panel ──────────────────────────────────────────────────
@@ -1631,13 +1428,8 @@ type OrderTicketProps = {
   noAbbr: string;
   yesPrice: number;
   noPrice: number;
-  yesBid?: number;
-  noBid?: number;
-  yesAsk?: number;
-  noAsk?: number;
   outcomeLabels?: [string, string];
   activePrice: number;
-  activeBid: number | undefined;
   activeAsk: number | undefined;
   activeMid: number | undefined;
   inputValue: string;
@@ -1647,9 +1439,6 @@ type OrderTicketProps = {
   tickSize: number;
   isLoadingTickSize: boolean;
   balance: number;
-  displayBalance: number;
-  balanceHint?: string;
-  isConvertingBalance?: boolean;
   activeShareBalance: number;
   isShareBalanceLoading: boolean;
   shares: number;
@@ -1658,13 +1447,9 @@ type OrderTicketProps = {
   amountToReceive: number;
   hasInsufficientBalance: boolean;
   isSubmitting: boolean;
-  orderStage: OrderSubmissionStage;
   clobClient: unknown;
   onPlaceOrder: () => void;
-  onAddFunds?: () => void;
   minLimitShares: number;
-  disabled?: boolean;
-  disabledLabel?: string;
 };
 
 function ChipBtn({
@@ -1741,6 +1526,8 @@ function FieldHint({ children }: { children: React.ReactNode }) {
 function OrderTicket(p: OrderTicketProps) {
   const yesLabel = p.outcomeLabels?.[0] ?? p.yesOutcomeName;
   const noLabel = p.outcomeLabels?.[1] ?? p.noOutcomeName;
+  const yesCents = Math.round(p.yesPrice * 100);
+  const noCents = Math.round(p.noPrice * 100);
 
   const isLimit = p.orderType === 'limit';
   const inputNum = parseFloat(p.inputValue) || 0;
@@ -1784,29 +1571,6 @@ function OrderTicket(p: OrderTicketProps) {
     ask - (p.tickSize > 0 ? p.tickSize * 2 : 0.02),
   );
   const mid = p.activeMid ?? Math.max(p.tickSize, ask - p.tickSize);
-  const activeMarketQuote = p.side === 'BUY' ? p.activeAsk : p.activeBid;
-  const marketQuoteMissing = !isLimit && activeMarketQuote == null;
-  const marketQuoteMissingLabel =
-    p.side === 'BUY' ? 'No live ask' : 'No live bid';
-  const marketQuoteKind = p.side === 'BUY' ? 'Best ask' : 'Best bid';
-  const getOutcomeQuote = (outcome: 'yes' | 'no') => {
-    const base = outcome === 'yes' ? p.yesPrice : p.noPrice;
-    if (isLimit) {
-      return { price: base, missing: false };
-    }
-    const quote =
-      p.side === 'BUY'
-        ? outcome === 'yes'
-          ? p.yesAsk
-          : p.noAsk
-        : outcome === 'yes'
-          ? p.yesBid
-          : p.noBid;
-    return {
-      price: quote ?? base,
-      missing: quote == null,
-    };
-  };
 
   const limitChips = [
     { label: 'Best bid', value: bid },
@@ -1838,7 +1602,7 @@ function OrderTicket(p: OrderTicketProps) {
     : p.side === 'SELL' && p.isShareBalanceLoading
       ? 'Checking holdings...'
     : p.isSubmitting
-      ? getOrderStageButtonLabel(p.orderStage)
+      ? 'Placing order...'
       : isLimit
         ? `Place limit · ${p.shares.toFixed(2)} ${outcomeShort} @ ${fmtMoney(p.effectivePrice)}`
         : p.side === 'BUY'
@@ -1861,7 +1625,10 @@ function OrderTicket(p: OrderTicketProps) {
 
   const onMaxAmount = () => {
     if (p.side === 'BUY') {
-      const safe = getSafePolymarketMaxBuyAmount(p.balance);
+      const safe = Math.max(
+        0,
+        Math.floor((p.balance - 1e-6) * 100) / 100,
+      );
       p.onInputChange(safe.toFixed(2));
       return;
     }
@@ -1891,44 +1658,14 @@ function OrderTicket(p: OrderTicketProps) {
   ];
   const quickChips =
     p.side === 'BUY' ? buyQuickChips : sellQuickChips;
-  const hasBuyShortfall = p.side === 'BUY' && p.hasInsufficientBalance;
-  const hasPendingCollateral =
-    hasBuyShortfall &&
-    p.displayBalance - p.balance > 0.005 &&
-    p.totalCost - p.balance > 0.01 &&
-    p.totalCost <= p.displayBalance + 0.01;
-  const needsBuyFunds = hasBuyShortfall && !hasPendingCollateral;
 
   const placeDisabled =
-    p.disabled ||
     p.isSubmitting ||
-    marketQuoteMissing ||
-    hasPendingCollateral ||
     (p.side === 'SELL' && p.isShareBalanceLoading) ||
     inputNum <= 0 ||
     !p.clobClient ||
-    (p.hasInsufficientBalance && (!needsBuyFunds || !p.onAddFunds)) ||
+    p.hasInsufficientBalance ||
     (isLimit && limitDollars <= 0);
-  const ctaLabel = p.disabled
-    ? p.disabledLabel || 'Unavailable'
-    : hasPendingCollateral
-    ? p.isConvertingBalance
-      ? 'Converting funds...'
-      : 'Preparing funds...'
-    : marketQuoteMissing
-      ? `${marketQuoteMissingLabel} · use Limit`
-    : needsBuyFunds
-      ? 'Add funds'
-      : placeLabel;
-  const handlePrimaryClick = () => {
-    if (p.disabled) return;
-    if (hasPendingCollateral) return;
-    if (needsBuyFunds && p.onAddFunds) {
-      p.onAddFunds();
-      return;
-    }
-    p.onPlaceOrder();
-  };
 
   return (
     <div
@@ -2046,8 +1783,7 @@ function OrderTicket(p: OrderTicketProps) {
           {(['yes', 'no'] as const).map((o) => {
             const active = p.selectedOutcome === o;
             const label = o === 'yes' ? yesLabel : noLabel;
-            const quote = getOutcomeQuote(o);
-            const cents = Math.round(quote.price * 100);
+            const cents = o === 'yes' ? yesCents : noCents;
             return (
               <button
                 key={o}
@@ -2087,10 +1823,7 @@ function OrderTicket(p: OrderTicketProps) {
                     marginTop: 4,
                   }}
                 >
-                  {/* Even when there's no live ask/bid, fall back to the
-                      share price (cents from option.base) rather than
-                      showing "No ask"/"No bid". */}
-                  {`${cents}¢`}
+                  {cents}¢
                 </div>
               </button>
             );
@@ -2133,9 +1866,7 @@ function OrderTicket(p: OrderTicketProps) {
               </span>
             </div>
             <FieldHint>
-              {marketQuoteMissing
-                ? marketQuoteMissingLabel
-                : `${marketQuoteKind} · ${Math.round(p.activePrice * 100)}¢`}
+              ≈ {Math.round(p.activePrice * 100)}% implied
             </FieldHint>
           </div>
         </div>
@@ -2316,7 +2047,7 @@ function OrderTicket(p: OrderTicketProps) {
           <FieldLabel>Amount</FieldLabel>
           <FieldHint>
             {p.side === 'BUY'
-              ? `Balance · ${p.displayBalance.toFixed(2)} USDC`
+              ? `Balance · ${p.balance.toFixed(2)} USDC`
               : `Holdings · ${p.activeShareBalance.toFixed(2)} shares`}
           </FieldHint>
         </div>
@@ -2419,18 +2150,6 @@ function OrderTicket(p: OrderTicketProps) {
           ))}
           <ChipBtn onClick={onMaxAmount}>Max</ChipBtn>
         </div>
-        {p.side === 'BUY' && p.balanceHint && (
-          <div
-            style={{
-              marginTop: 8,
-              fontSize: 11,
-              color: hasPendingCollateral ? D.warnText : D.muted,
-              fontFamily: D.mono,
-            }}
-          >
-            {p.balanceHint}. Ready pUSD ${p.balance.toFixed(2)}.
-          </div>
-        )}
       </div>
 
       {/* Order summary */}
@@ -2552,7 +2271,7 @@ function OrderTicket(p: OrderTicketProps) {
       <div style={{ padding: '0 22px 22px' }}>
         <button
           type="button"
-          onClick={handlePrimaryClick}
+          onClick={p.onPlaceOrder}
           disabled={placeDisabled}
           style={{
             width: '100%',
@@ -2596,48 +2315,8 @@ function OrderTicket(p: OrderTicketProps) {
               />
             </svg>
           )}
-          {ctaLabel}
+          {placeLabel}
         </button>
-        {needsBuyFunds && (
-          <div
-            style={{
-              fontSize: 11,
-              color: D.warnText,
-              textAlign: 'center',
-              marginTop: 8,
-              fontFamily: D.mono,
-            }}
-          >
-            Add funds first · balance {fmtMoney(p.balance)} · required{' '}
-            {fmtMoney(p.totalCost)}
-          </div>
-        )}
-        {hasPendingCollateral && (
-          <div
-            style={{
-              fontSize: 11,
-              color: D.warnText,
-              textAlign: 'center',
-              marginTop: 8,
-              fontFamily: D.mono,
-            }}
-          >
-            Included USDC.e is converting to pUSD before it can be spent.
-          </div>
-        )}
-        {p.isSubmitting && p.orderStage !== 'idle' && (
-          <div
-            style={{
-              fontSize: 11,
-              color: p.orderStage === 'signing' ? D.warnText : D.muted,
-              textAlign: 'center',
-              marginTop: 8,
-              fontFamily: D.mono,
-            }}
-          >
-            {getOrderStageHint(p.orderStage)}
-          </div>
-        )}
         <div
           style={{
             fontSize: 10.5,
@@ -2831,13 +2510,10 @@ function LiveScoreboardCard({
     pMin,
     pMax,
   );
-  const [activeTime, setActiveTime] = useState<number | null>(null);
 
   const yesLeads = yesPrice >= noPrice;
   const yesColor = yesLeads ? D.posGreen : '#3B82F6';
   const noColor = yesLeads ? '#3B82F6' : D.posGreen;
-  const yesDisplayName = yesTeam?.name || yesName;
-  const noDisplayName = noTeam?.name || noName;
   const yesPctInt = Math.round(yesPrice * 100);
   const noPctInt = Math.round(noPrice * 100);
 
@@ -2847,67 +2523,14 @@ function LiveScoreboardCard({
   const yesEndY = endY(yesPrice);
   const noEndY = endY(noPrice);
   const endX = PLOT_X + PLOT_W;
-  const activeYesPoint = activeTime
-    ? nearestHistoryPoint(yesSeries, activeTime)
-    : null;
-  const activeNoPoint = activeTime
-    ? nearestHistoryPoint(noSeries, activeTime)
-    : null;
-  const activePointTime =
-    activeYesPoint?.t ?? activeNoPoint?.t ?? activeTime ?? null;
-  const activeX =
-    activePointTime != null
-      ? PLOT_X +
-        ((activePointTime - tMin) / Math.max(1, tMax - tMin)) * PLOT_W
-      : null;
-  const activeYesPrice = activeYesPoint?.p ?? yesPrice;
-  const activeNoPrice = activeNoPoint?.p ?? noPrice;
-  const activeYesY = endY(activeYesPrice);
-  const activeNoY = endY(activeNoPrice);
-  const tooltipX =
-    activeX == null
-      ? 0
-      : Math.max(PLOT_X + 4, Math.min(activeX + 10, endX - 136));
-  const tooltipY = Math.max(PLOT_Y + 4, Math.min(activeYesY - 42, PLOT_Y + PLOT_H - 54));
-  const activeTimeLabel = activePointTime
-    ? formatHistoryTimestamp(activePointTime)
-    : '';
-
-  const setActiveFromClientX = (clientX: number, rect: DOMRect) => {
-    const ratio = Math.max(
-      0,
-      Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)),
-    );
-    const target = tMin + (tMax - tMin) * ratio;
-    const series = yesSeries.length >= noSeries.length ? yesSeries : noSeries;
-    setActiveTime(nearestHistoryPoint(series, target)?.t ?? target);
-  };
-
-  const moveActiveBy = (delta: number) => {
-    const series = yesSeries.length >= noSeries.length ? yesSeries : noSeries;
-    if (!series.length) return;
-    const current =
-      activeTime == null
-        ? series.length - 1
-        : series.reduce(
-            (bestIndex, point, index) =>
-              Math.abs(point.t - activeTime) <
-              Math.abs(series[bestIndex].t - activeTime)
-                ? index
-                : bestIndex,
-            0,
-          );
-    const next = Math.max(0, Math.min(series.length - 1, current + delta));
-    setActiveTime(series[next].t);
-  };
 
   const [upperY, upperColor, upperName, upperPct] = yesLeads
-    ? [yesEndY, yesColor, yesDisplayName, yesPctInt]
-    : [noEndY, noColor, noDisplayName, noPctInt];
+    ? [yesEndY, yesColor, yesName, yesPctInt]
+    : [noEndY, noColor, noName, noPctInt];
   const [lowerY, lowerColor, lowerName, lowerPct] = yesLeads
-    ? [noEndY, noColor, noDisplayName, noPctInt]
-    : [yesEndY, yesColor, yesDisplayName, yesPctInt];
-  const labelGap = Math.max(44, Math.abs(upperY - lowerY));
+    ? [noEndY, noColor, noName, noPctInt]
+    : [yesEndY, yesColor, yesName, yesPctInt];
+  const labelGap = Math.max(28, Math.abs(upperY - lowerY));
   const upperLabelY = Math.max(
     20,
     Math.min(upperY, PLOT_Y + PLOT_H - labelGap),
@@ -2917,28 +2540,18 @@ function LiveScoreboardCard({
     Math.max(lowerY, upperLabelY + labelGap),
   );
   const yesScore = pickTeamScore(
-    yesDisplayName,
-    yesTeam?.abbreviation || yesAbbr,
+    yesName,
+    yesAbbr,
     liveEvent.teams,
     0,
   );
-  const noScore = pickTeamScore(
-    noDisplayName,
-    noTeam?.abbreviation || noAbbr,
-    liveEvent.teams,
-    1,
-  );
-  const hasScore = yesScore != null && noScore != null;
+  const noScore = pickTeamScore(noName, noAbbr, liveEvent.teams, 1);
   const liveNow =
-    liveEvent.live || Boolean(isLive && !liveEvent.ended && !liveEvent.closed);
+    isLive &&
+    (liveEvent.live || (yesScore != null && noScore != null));
   const period =
     [liveEvent.period, liveEvent.elapsed].filter(Boolean).join(' ') ||
     (liveNow ? 'Live' : null);
-  const statusText = liveNow
-    ? `LIVE${period ? ` · ${period}` : ''}`
-    : liveEvent.ended || liveEvent.closed || hasScore
-      ? 'FINAL'
-      : null;
 
   const gameDate = gameStartTime ? new Date(gameStartTime) : null;
   const dateText = gameDate
@@ -2958,7 +2571,7 @@ function LiveScoreboardCard({
     score: number | null,
   ) => {
     const dim =
-      hasScore && score != null && yesScore != null && noScore != null
+      liveNow && score != null && yesScore != null && noScore != null
         ? side === 'away'
           ? yesScore < noScore
           : noScore < yesScore
@@ -3134,7 +2747,7 @@ function LiveScoreboardCard({
             {question}
           </div>
         </div>
-        {statusText ? (
+        {liveNow ? (
           <span
             style={{
               display: 'inline-flex',
@@ -3142,7 +2755,7 @@ function LiveScoreboardCard({
               gap: 5,
               fontSize: 10.5,
               fontWeight: 700,
-              color: liveNow ? '#ff5a5f' : D.muted,
+              color: '#ff5a5f',
               fontFamily: D.mono,
               letterSpacing: 0.6,
               flexShrink: 0,
@@ -3153,13 +2766,11 @@ function LiveScoreboardCard({
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
-                background: liveNow ? '#ff5a5f' : D.muted2,
-                boxShadow: liveNow
-                  ? '0 0 0 3px rgba(255,90,95,0.18)'
-                  : 'none',
+                background: '#ff5a5f',
+                boxShadow: '0 0 0 3px rgba(255,90,95,0.18)',
               }}
             />
-            {statusText}
+            LIVE{period ? ` · ${period}` : ''}
           </span>
         ) : dateText ? (
           <span
@@ -3224,35 +2835,9 @@ function LiveScoreboardCard({
             height: 'auto',
             display: 'block',
             margin: '0 auto',
-            cursor: 'crosshair',
-            outline: 'none',
           }}
           role="img"
-          tabIndex={0}
-          aria-label={`${yesDisplayName} vs ${noDisplayName} interactive probability history`}
-          onPointerMove={(event) =>
-            setActiveFromClientX(
-              event.clientX,
-              event.currentTarget.getBoundingClientRect(),
-            )
-          }
-          onPointerDown={(event) =>
-            setActiveFromClientX(
-              event.clientX,
-              event.currentTarget.getBoundingClientRect(),
-            )
-          }
-          onPointerLeave={() => setActiveTime(null)}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowLeft') {
-              event.preventDefault();
-              moveActiveBy(-1);
-            }
-            if (event.key === 'ArrowRight') {
-              event.preventDefault();
-              moveActiveBy(1);
-            }
-          }}
+          aria-label={`${yesName} vs ${noName} probability history`}
         >
           {/* Horizontal gridlines + Y-axis tick labels (right side) */}
           {/* {yTicks.map((tickP, i) => {
@@ -3310,14 +2895,6 @@ function LiveScoreboardCard({
           })} */}
 
           {/* Series lines */}
-          <rect
-            x={PLOT_X}
-            y={PLOT_Y}
-            width={PLOT_W}
-            height={PLOT_H}
-            fill="transparent"
-            pointerEvents="all"
-          />
           <path
             d={noPath}
             fill="none"
@@ -3336,78 +2913,6 @@ function LiveScoreboardCard({
             strokeLinejoin="round"
             opacity={chartLoading ? 0.6 : 1}
           />
-
-          {activeX != null && (
-            <g pointerEvents="none">
-              <line
-                x1={activeX}
-                x2={activeX}
-                y1={PLOT_Y}
-                y2={PLOT_Y + PLOT_H}
-                stroke={D.muted2}
-                strokeWidth={1}
-                strokeDasharray="3 4"
-                opacity={0.7}
-              />
-              <circle
-                cx={activeX}
-                cy={activeYesY}
-                r={4}
-                fill={yesColor}
-                stroke="#fff"
-                strokeWidth={1.5}
-              />
-              <circle
-                cx={activeX}
-                cy={activeNoY}
-                r={4}
-                fill={noColor}
-                stroke="#fff"
-                strokeWidth={1.5}
-              />
-              <rect
-                x={tooltipX}
-                y={tooltipY}
-                width={132}
-                height={48}
-                rx={8}
-                fill="#fff"
-                stroke={D.hair}
-              />
-              <text
-                x={tooltipX + 8}
-                y={tooltipY + 14}
-                fontSize={8.5}
-                fontWeight={700}
-                fill={D.muted}
-                fontFamily={D.mono}
-              >
-                {activeTimeLabel}
-              </text>
-              <text
-                x={tooltipX + 8}
-                y={tooltipY + 30}
-                fontSize={10}
-                fontWeight={700}
-                fill={yesColor}
-                fontFamily={D.mono}
-              >
-                {yesDisplayName.slice(0, 14)}{' '}
-                {Math.round(activeYesPrice * 100)}%
-              </text>
-              <text
-                x={tooltipX + 8}
-                y={tooltipY + 43}
-                fontSize={10}
-                fontWeight={700}
-                fill={noColor}
-                fontFamily={D.mono}
-              >
-                {noDisplayName.slice(0, 14)}{' '}
-                {Math.round(activeNoPrice * 100)}%
-              </text>
-            </g>
-          )}
 
           {/* Endpoint dots */}
           <circle cx={endX} cy={noEndY} r={3.5} fill={noColor} />
@@ -3803,19 +3308,10 @@ type MarketDetailViewProps = {
   onClose: () => void;
   market: PolymarketMarket;
   balance?: number;
-  displayBalance?: number;
-  balanceHint?: string;
-  isConvertingBalance?: boolean;
   yesShares?: number;
   noShares?: number;
   initialOutcome?: 'yes' | 'no';
   initialAmount?: string;
-  initialSide?: 'BUY' | 'SELL';
-  initialOrderType?: OrderVariant;
-  initialLimitPrice?: string;
-  agentProposalId?: string;
-  onAgentActionComplete?: (completion: AgentActionCompletion) => void;
-  onAddFunds?: () => void;
   /** Optional display-name overrides for the two outcome buttons.
    *  Used for spread markets so the buttons show "+1.5"/"-1.5" instead of
    *  the raw market outcome names ("Yes"/"No" or team names). */
@@ -3826,49 +3322,13 @@ export default function MarketDetailView({
   onClose,
   market,
   balance = 0,
-  displayBalance = balance,
-  balanceHint,
-  isConvertingBalance,
   yesShares = 0,
   noShares = 0,
   initialOutcome,
   initialAmount,
-  initialSide,
-  initialOrderType,
-  initialLimitPrice,
-  agentProposalId,
-  onAgentActionComplete,
-  onAddFunds,
   outcomeLabels,
 }: MarketDetailViewProps) {
-  const {
-    clobClient,
-    portfolioAddresses,
-    initializeTradingSession,
-    currentStep,
-    isGeoblocked,
-    isGeoblockLoading,
-    geoblockStatus,
-  } = useTrading();
-  const [showEnableModal, setShowEnableModal] = useState(false);
-  const tradingDisabledReason = isGeoblockLoading
-    ? 'Checking trading availability…'
-    : isGeoblocked
-      ? `Trading is not available in your region${
-          geoblockStatus?.country ? ` (${geoblockStatus.country})` : ''
-        }.`
-      : undefined;
-  const handleEnableTrading = async () => {
-    if (tradingDisabledReason) return;
-    setShowEnableModal(false);
-    try {
-      await initializeTradingSession();
-    } catch (err) {
-      setLocalError(
-        err instanceof Error ? err.message : 'Failed to enable trading',
-      );
-    }
-  };
+  const { clobClient, portfolioAddresses } = useTrading();
   // ── Derived market data ───────────────────────────────────────────────────
   const outcomes = useMemo(
     () =>
@@ -3895,16 +3355,19 @@ export default function MarketDetailView({
   const yesTokenId = tokenIds[0] || '';
   const noTokenId = tokenIds[1] || '';
 
-  const yesQuote = market.realtimePrices?.[yesTokenId];
-  const noQuote = market.realtimePrices?.[noTokenId];
-  const yesBid = yesQuote?.bidPrice;
-  const noBid = noQuote?.bidPrice;
-  const yesAsk = yesQuote?.askPrice;
-  const noAsk = noQuote?.askPrice;
-  const yesMid = yesQuote?.midPrice;
-  const noMid = noQuote?.midPrice;
-  const yesPrice = yesBid ?? staticPrices[0] ?? 0.5;
-  const noPrice = noBid ?? staticPrices[1] ?? 0.5;
+  const yesPrice =
+    market.realtimePrices?.[yesTokenId]?.bidPrice ??
+    staticPrices[0] ??
+    0.5;
+  const noPrice =
+    market.realtimePrices?.[noTokenId]?.bidPrice ??
+    staticPrices[1] ??
+    0.5;
+
+  const yesAsk = market.realtimePrices?.[yesTokenId]?.askPrice;
+  const noAsk = market.realtimePrices?.[noTokenId]?.askPrice;
+  const yesMid = market.realtimePrices?.[yesTokenId]?.midPrice;
+  const noMid = market.realtimePrices?.[noTokenId]?.midPrice;
 
   const yesOutcomeName = outcomes[0] || 'Yes';
   const noOutcomeName = outcomes[1] || 'No';
@@ -3948,26 +3411,9 @@ export default function MarketDetailView({
   );
 
   // Live game score (sports only) — drives the A3 / A3L "context strip".
-  // Fetch whenever we have a sports event slug; some Gamma events expose final
-  // scores even when `live` is false, so don't gate this only on start time.
-  const liveEventSlug = useMemo(
-    () => getMarketLiveEventSlug(market),
-    [market],
-  );
-  const fetchedLiveEvent = useLiveEventScore(
-    liveEventSlug,
-    isSports && Boolean(liveEventSlug),
-  );
-  const embeddedLiveEvent = useMemo(
-    () => extractEmbeddedLiveState(market),
-    [market],
-  );
-  const liveEvent = useMemo(
-    () => mergeLiveStates(fetchedLiveEvent, embeddedLiveEvent),
-    [fetchedLiveEvent, embeddedLiveEvent],
-  );
-  const isFinalSportsEvent = Boolean(
-    isSports && (liveEvent.ended || liveEvent.closed),
+  const liveEvent = useLiveEventScore(
+    market.eventSlug,
+    isSports && isLive,
   );
 
   // Category label for the context-strip header (e.g. "NBA · Regular season").
@@ -4021,22 +3467,11 @@ export default function MarketDetailView({
 
   const { eoaAddress, publicClient } = usePolymarketWallet();
   const { getAccessToken } = usePrivy();
-  const { user, accessToken }: any = useUser();
-  const agentCompletionPendingRef = useRef(false);
+  const { user }: any = useUser();
 
   const activeTokenId =
     selectedOutcome === 'yes' ? yesTokenId : noTokenId;
-  const isMarketVariant = orderType === 'market';
-  const isLimitVariant = orderType === 'limit';
-  const activeDisplayPrice =
-    selectedOutcome === 'yes' ? yesPrice : noPrice;
-  const activeBid = selectedOutcome === 'yes' ? yesBid : noBid;
-  const activeAsk = selectedOutcome === 'yes' ? yesAsk : noAsk;
-  const activeMid = selectedOutcome === 'yes' ? yesMid : noMid;
-  const activeMarketQuote = side === 'BUY' ? activeAsk : activeBid;
-  const activePrice = isMarketVariant
-    ? activeMarketQuote ?? activeDisplayPrice
-    : activeDisplayPrice;
+  const activePrice = selectedOutcome === 'yes' ? yesPrice : noPrice;
   const apiShareBalance =
     selectedOutcome === 'yes' ? yesShares : noShares;
   const [onchainShareBalance, setOnchainShareBalance] = useState<
@@ -4108,7 +3543,6 @@ export default function MarketDetailView({
     submitOrder,
     resetOrder,
     isSubmitting,
-    orderStage,
     error: orderError,
     orderId,
   } = useClobOrder(clobClient, eoaAddress);
@@ -4117,15 +3551,15 @@ export default function MarketDetailView({
   // the page is navigated to with new initial outcome/amount.
   useEffect(() => {
     setInputValue(initialAmount ?? '');
-    setOrderType(initialOrderType ?? 'market');
-    setSide(initialSide ?? 'BUY');
+    setOrderType('market');
+    setSide('BUY');
     setSelectedOutcome(initialOutcome ?? 'yes');
-    setLimitPrice(initialLimitPrice ?? '');
+    setLimitPrice('');
     setLocalError(null);
     setShowSuccess(false);
     setSuccessInfo(null);
     setShowFullDescription(false);
-  }, [initialOutcome, initialAmount, initialSide, initialOrderType, initialLimitPrice]);
+  }, [initialOutcome, initialAmount]);
 
   useEffect(() => {
     setInputValue('');
@@ -4135,7 +3569,6 @@ export default function MarketDetailView({
   // After a successful order, show the success banner briefly then go back.
   useEffect(() => {
     if (!orderId) return;
-    if (agentCompletionPendingRef.current) return;
     setShowSuccess(true);
     const t = setTimeout(() => onClose(), 2000);
     return () => clearTimeout(t);
@@ -4153,6 +3586,8 @@ export default function MarketDetailView({
   const inputNum = parseFloat(inputValue) || 0;
   // limitPrice is entered by the user in cents (1–99); convert to decimal (0–1) for the API
   const limitPriceNum = (parseFloat(limitPrice) || 0) / 100;
+  const isMarketVariant = orderType === 'market';
+  const isLimitVariant = orderType === 'limit';
   const effectivePrice = isLimitVariant ? limitPriceNum : activePrice;
 
   // Per the new wireframe (A3 / A3L), BUY always takes a dollar amount and
@@ -4179,20 +3614,6 @@ export default function MarketDetailView({
   const LIMIT_MIN_SHARES = market.orderMinSize ?? MIN_ORDER_SIZE;
 
   const handlePlaceOrder = async () => {
-    if (isFinalSportsEvent) {
-      setLocalError('This game is final, so new orders are disabled.');
-      return;
-    }
-
-    if (isMarketVariant && activeMarketQuote == null) {
-      setLocalError(
-        side === 'BUY'
-          ? 'No live ask is available for this market. Use a limit order instead.'
-          : 'No live bid is available for this market. Use a limit order instead.',
-      );
-      return;
-    }
-
     if (isLimitVariant) {
       if (!limitPrice || limitPriceNum <= 0) {
         setLocalError('Limit price is required');
@@ -4247,7 +3668,6 @@ export default function MarketDetailView({
         conditionId: market.conditionId || market.id,
         size: orderSize,
         price: isLimitVariant ? limitPriceNum : undefined,
-        acceptedPrice: effectivePrice,
         side,
         negRisk,
         isMarketOrder: isMarketVariant,
@@ -4257,88 +3677,24 @@ export default function MarketDetailView({
 
       // ── Capture summary for the success notification ──────────────────────
       if (result?.success) {
-        const outcomeName =
-          selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName;
-        const cost =
-          side === 'SELL'
-            ? amountToReceive
-            : isLimitVariant
-              ? totalCost
-              : inputNum;
-        const win = side === 'BUY' ? shares : 0;
-        const feedExecution = resolvePredictionFeedExecution(result, {
-          side,
-          cost,
-          potentialWin: win,
-          price: effectivePrice,
-          acceptedPrice: effectivePrice,
-        });
-        const executionShares = Number(result.execution?.shares);
-        const displayShares =
-          Number.isFinite(executionShares) && executionShares > 0
-            ? executionShares
-            : shares;
         setSuccessInfo({
           side,
-          outcomeLabel: outcomeName,
+          outcomeLabel:
+            selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName,
           outcomeAbbr: (selectedOutcome === 'yes'
             ? yesAbbr
             : noAbbr
           ).toUpperCase(),
-          shares: displayShares,
-          priceCents: Math.round(feedExecution.price * 100),
-          usd: feedExecution.cost,
+          shares,
+          priceCents: Math.round(effectivePrice * 100),
+          usd:
+            side === 'SELL'
+              ? amountToReceive
+              : isLimitVariant
+                ? totalCost
+                : inputNum,
           isLimit: isLimitVariant,
         });
-
-        if (agentProposalId) {
-          try {
-            const completion = await completeAgentActionFromHandoff(
-              {
-                proposalId: agentProposalId,
-                status: 'executed',
-                provider: 'polymarket',
-                title: market.question,
-                subtitle: `${outcomeName} · ${side.toLowerCase()} ${
-                  orderType
-                }`,
-                subject: outcomeName,
-                side,
-                stake: feedExecution.cost,
-                toWin:
-                  side === 'BUY'
-                    ? Math.max(0, displayShares - feedExecution.cost)
-                    : feedExecution.cost,
-                payout: side === 'BUY' ? displayShares : feedExecution.cost,
-                orderId: result.orderId,
-                explorerLabel: result.orderId ? 'View order' : undefined,
-                executionResult: {
-                  orderId: result.orderId,
-                  marketId: market.conditionId || market.id,
-                  marketTitle: market.question,
-                  outcome: outcomeName,
-                  side,
-                  shares: displayShares,
-                  price: feedExecution.price,
-                  cost: feedExecution.cost,
-                  orderType,
-                },
-              },
-              accessToken,
-            );
-            if (completion) {
-              agentCompletionPendingRef.current = true;
-              window.setTimeout(() => {
-                onAgentActionComplete?.(completion);
-              }, 900);
-            }
-          } catch (completionError) {
-            console.error(
-              'Failed to report prediction agent completion:',
-              completionError,
-            );
-          }
-        }
       }
 
       // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
@@ -4352,13 +3708,6 @@ export default function MarketDetailView({
               ? totalCost
               : inputNum;
         const win = side === 'BUY' ? shares : 0;
-        const feedExecution = resolvePredictionFeedExecution(result, {
-          side,
-          cost,
-          potentialWin: win,
-          price: effectivePrice,
-          acceptedPrice: effectivePrice,
-        });
 
         getAccessToken()
           .then((token) => {
@@ -4373,13 +3722,12 @@ export default function MarketDetailView({
                   marketTitle: market.question,
                   outcome: outcomeName,
                   side,
-                  cost: feedExecution.cost,
-                  potentialWin: feedExecution.potentialWin,
-                  price: feedExecution.price,
+                  cost,
+                  potentialWin: win,
+                  price: effectivePrice,
                   orderId: result.orderId,
                   orderType,
                   eventSlug: market.eventSlug,
-                  ...feedExecution.fields,
                   // Sports panel data
                   yesOutcome: yesOutcomeName,
                   noOutcome: noOutcomeName,
@@ -4427,10 +3775,14 @@ export default function MarketDetailView({
   // The (pages) layout wraps every page in a white <main> with p-6 padding.
   // The wireframe wants a full-bleed cream canvas — `-m-6` cancels the parent
   // padding so the cream fills edge-to-edge under the global Swop header.
+  const activeBid =
+    selectedOutcome === 'yes'
+      ? market.realtimePrices?.[yesTokenId]?.bidPrice
+      : market.realtimePrices?.[noTokenId]?.bidPrice;
   const activeSpread =
     selectedOutcome === 'yes'
-      ? yesQuote?.spread
-      : noQuote?.spread;
+      ? market.realtimePrices?.[yesTokenId]?.spread
+      : market.realtimePrices?.[noTokenId]?.spread;
   const userLimitForBook =
     isLimitVariant &&
     side === 'BUY' &&
@@ -4594,26 +3946,7 @@ export default function MarketDetailView({
         {!clobClient && !localError && !orderError && (
           <OrderInfoNotification
             title="Trading session not started"
-            detail={
-              tradingDisabledReason ??
-              'Initialize your Polymarket trading session to start placing orders on this market.'
-            }
-            actionLabel={
-              tradingDisabledReason
-                ? undefined
-                : currentStep !== 'idle'
-                  ? 'Initializing…'
-                  : 'Enable trading'
-            }
-            onAction={() => setShowEnableModal(true)}
-            actionDisabled={currentStep !== 'idle'}
-          />
-        )}
-        {showEnableModal && (
-          <EnableTradingModal
-            onConfirm={() => void handleEnableTrading()}
-            onDismiss={() => setShowEnableModal(false)}
-            disabledReason={tradingDisabledReason}
+            detail="Initialize your Polymarket trading session from the Predictions panel to start placing orders on this market."
           />
         )}
 
@@ -4644,15 +3977,10 @@ export default function MarketDetailView({
           noAbbr={noAbbr}
           yesPrice={yesPrice}
           noPrice={noPrice}
-          yesBid={yesBid}
-          noBid={noBid}
-          yesAsk={yesAsk}
-          noAsk={noAsk}
           outcomeLabels={outcomeLabels}
           activePrice={activePrice}
-          activeBid={activeBid}
-          activeAsk={activeAsk}
-          activeMid={activeMid}
+          activeAsk={selectedOutcome === 'yes' ? yesAsk : noAsk}
+          activeMid={selectedOutcome === 'yes' ? yesMid : noMid}
           inputValue={inputValue}
           onInputChange={(v) => {
             setInputValue(v);
@@ -4666,9 +3994,6 @@ export default function MarketDetailView({
           tickSize={tickSize}
           isLoadingTickSize={isLoadingTickSize}
           balance={balance}
-          displayBalance={displayBalance}
-          balanceHint={balanceHint}
-          isConvertingBalance={isConvertingBalance}
           activeShareBalance={activeShareBalance}
           isShareBalanceLoading={isShareBalanceLoading}
           shares={shares}
@@ -4677,13 +4002,9 @@ export default function MarketDetailView({
           amountToReceive={amountToReceive}
           hasInsufficientBalance={hasInsufficientBalance}
           isSubmitting={isSubmitting}
-          orderStage={orderStage}
           clobClient={clobClient}
           onPlaceOrder={handlePlaceOrder}
-          onAddFunds={onAddFunds}
           minLimitShares={LIMIT_MIN_SHARES}
-          disabled={isFinalSportsEvent}
-          disabledLabel="Final"
         />
 
         {/* ── Order book preview ──────────────────────────────────────────── */}

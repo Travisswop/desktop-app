@@ -51,14 +51,6 @@ const MONO =
 
 const PERIODS = ['1D', '1W', '1M', '1Y'] as const;
 type Period = (typeof PERIODS)[number];
-type ChartPoint = { timestamp: number; value: number };
-
-const PERIOD_MS: Record<Period, number> = {
-  '1D': 24 * 60 * 60 * 1000,
-  '1W': 7 * 24 * 60 * 60 * 1000,
-  '1M': 30 * 24 * 60 * 60 * 1000,
-  '1Y': 365 * 24 * 60 * 60 * 1000,
-};
 
 const TX_FILTERS = ['All', 'Sends', 'Receives', 'Swaps'] as const;
 type TxFilter = (typeof TX_FILTERS)[number];
@@ -73,22 +65,6 @@ const CHAIN_TAGS: Record<string, string> = {
 
 const normalizeChain = (chain: string): ChainType =>
   chain.toUpperCase() as ChainType;
-
-const tokenSymbolAliases = (symbol?: string, chain?: string) => {
-  const normalized = symbol?.toUpperCase();
-  if (!normalized) return new Set<string>();
-  const aliases = new Set([normalized]);
-
-  if (
-    chain?.toUpperCase() === 'POLYGON' &&
-    (normalized === 'MATIC' || normalized === 'POL')
-  ) {
-    aliases.add('MATIC');
-    aliases.add('POL');
-  }
-
-  return aliases;
-};
 
 // SOL-style gradient avatars per chain — matches the G5 reference look.
 const TOKEN_AVATAR_BG: Record<string, string> = {
@@ -147,73 +123,6 @@ const formatTxWhen = (timeStamp: string | number) => {
     minute: '2-digit',
     hour12: false,
   });
-};
-
-const normalizeChartPoints = (
-  points: Array<Partial<ChartPoint>> | null | undefined,
-): ChartPoint[] => {
-  if (!points?.length) return [];
-
-  return points
-    .map((point) => {
-      const timestamp =
-        typeof point.timestamp === 'number'
-          ? point.timestamp
-          : parseFloat(String(point.timestamp ?? 'NaN'));
-      const value =
-        typeof point.value === 'number'
-          ? point.value
-          : parseFloat(String(point.value ?? 'NaN'));
-
-      return Number.isFinite(timestamp) && Number.isFinite(value)
-        ? { timestamp, value }
-        : null;
-    })
-    .filter((point): point is ChartPoint => Boolean(point));
-};
-
-const sparklineToChartPoints = (
-  values: unknown,
-  period: Period,
-): ChartPoint[] => {
-  if (!Array.isArray(values) || values.length < 2) return [];
-
-  const numericValues = values
-    .map((value) =>
-      typeof value === 'number'
-        ? value
-        : parseFloat(String(value ?? 'NaN')),
-    )
-    .filter((value) => Number.isFinite(value));
-
-  if (numericValues.length < 2) return [];
-
-  const end = Date.now();
-  const span = PERIOD_MS[period];
-  const step = span / (numericValues.length - 1);
-
-  return numericValues.map((value, index) => ({
-    timestamp: end - span + step * index,
-    value,
-  }));
-};
-
-const fallbackChartDataForToken = (
-  token: TokenData,
-  period: Period,
-): ChartPoint[] => {
-  const periodData = normalizeChartPoints(token.timeSeriesData?.[period]);
-  if (periodData.length >= 2) return periodData;
-
-  if (period !== '1D') return [];
-
-  const tokenSparkline = normalizeChartPoints(token.sparklineData);
-  if (tokenSparkline.length >= 2) return tokenSparkline;
-
-  return sparklineToChartPoints(
-    (token.marketData as { sparkline?: unknown } | null)?.sparkline,
-    period,
-  );
 };
 
 interface TokenDetailsProps {
@@ -315,23 +224,17 @@ export default function TokenDetails({
   onBack,
   onSend,
 }: TokenDetailsProps) {
-  const { accessToken, user } = useUser();
+  const { accessToken } = useUser();
   const { fundWallet } = useFundWallet();
   const { wallets: solanaWallets } = useSolanaWallets();
-  const isMarketOnly = Boolean(token.isMarketOnly);
-  const marketId = token.marketData?.id || null;
 
   if (!accessToken) {
     throw new Error('No access token found');
   }
 
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('1D');
-  const fallbackChartData = useMemo(
-    () => fallbackChartDataForToken(token, selectedPeriod),
-    [token, selectedPeriod],
-  );
-  const [chartData, setChartData] = useState<ChartPoint[]>(
-    () => fallbackChartDataForToken(token, '1D'),
+  const [chartData, setChartData] = useState(
+    token.timeSeriesData['1D'] || [],
   );
   const [changePercentage, setChangePercentage] = useState(
     token.marketData?.priceChangePercentage24h || '0',
@@ -353,7 +256,6 @@ export default function TokenDetails({
     '1D',
     selectedPeriod === '1D',
     accessToken,
-    marketId,
   );
   const week = useTokenChartData(
     token.address,
@@ -361,7 +263,6 @@ export default function TokenDetails({
     '1W',
     selectedPeriod === '1W',
     accessToken,
-    marketId,
   );
   const month = useTokenChartData(
     token.address,
@@ -369,7 +270,6 @@ export default function TokenDetails({
     '1M',
     selectedPeriod === '1M',
     accessToken,
-    marketId,
   );
   const year = useTokenChartData(
     token.address,
@@ -377,12 +277,10 @@ export default function TokenDetails({
     '1Y',
     selectedPeriod === '1Y',
     accessToken,
-    marketId,
   );
 
   const periodChangeNumeric = parseFloat(changePercentage || '0');
   const strokeColor = periodChangeNumeric >= 0 ? POS_GREEN : NEG_RED;
-  const hasChartData = chartData.length >= 2;
 
   // Sync chart data + change percent + loading flag when period or query data changes.
   useEffect(() => {
@@ -412,24 +310,9 @@ export default function TokenDetails({
     if (newData && newData.length > 0) {
       setChartData(newData);
       setChangePercentage(newChange);
-      return;
-    }
-
-    if (!loadingMap[selectedPeriod]) {
-      setChartData(fallbackChartData);
-      setChangePercentage(
-        selectedPeriod === '1D'
-          ? token.marketData?.priceChangePercentage24h ||
-              token.marketData?.change ||
-              newChange
-          : newChange,
-      );
     }
   }, [
     selectedPeriod,
-    fallbackChartData,
-    token.marketData?.change,
-    token.marketData?.priceChangePercentage24h,
     day.data,
     day.isLoading,
     week.data,
@@ -441,17 +324,12 @@ export default function TokenDetails({
   ]);
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();
-  const walletData = useWalletData(
-    authenticated,
-    ready,
-    PrivyUser,
-    user,
-  );
-  const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
+  const walletData = useWalletData(authenticated, ready, PrivyUser);
+  const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
   const { tokens } = useMultiChainTokenData(
     solWalletAddress,
-    evmWalletAddresses.length ? evmWalletAddresses : evmWalletAddress,
+    evmWalletAddress,
     SUPPORTED_CHAINS,
   );
 
@@ -470,18 +348,18 @@ export default function TokenDetails({
     error: txError,
   } = useMultiChainTransactionData(
     solWalletAddress || '',
-    evmWalletAddresses.length ? evmWalletAddresses : evmWalletAddress || '',
+    evmWalletAddress || '',
     txChainList,
     { limit: 200, offset: 0 },
   );
 
   const tokenTransactions = useMemo(() => {
     if (!rawTransactions) return [] as Transaction[];
-    const symbolAliases = tokenSymbolAliases(token.symbol, token.chain);
+    const sym = token.symbol?.toUpperCase();
     const addr = token.address?.toLowerCase();
 
     const symbolMatches = (symbol?: string) =>
-      !!symbol && symbolAliases.has(symbol.toUpperCase());
+      !!sym && !!symbol && sym === symbol.toUpperCase();
     const addressMatches = (contractAddress?: string) =>
       !!addr &&
       !!contractAddress &&
@@ -509,7 +387,7 @@ export default function TokenDetails({
       // Last-resort fallback for APIs that omit token contract metadata.
       return !addr && symbolMatches(tx.tokenSymbol);
     });
-  }, [rawTransactions, token.symbol, token.address, token.chain]);
+  }, [rawTransactions, token.symbol, token.address]);
 
   const filteredTxs = useMemo(() => {
     const list = tokenTransactions.filter((tx) => {
@@ -593,9 +471,7 @@ export default function TokenDetails({
     text.length <= max ? text : `${text.slice(0, max)}…`;
 
   const chainLabelCode = (token.chain || '').toUpperCase();
-  const chainTag = isMarketOnly
-    ? 'MARKET'
-    : CHAIN_TAGS[chainLabelCode] || chainLabelCode;
+  const chainTag = CHAIN_TAGS[chainLabelCode] || chainLabelCode;
   const avatarBg =
     TOKEN_AVATAR_BG[chainLabelCode] ||
     'linear-gradient(135deg,#dfe6ef,#a3aab2)';
@@ -613,28 +489,25 @@ export default function TokenDetails({
       key: 'send',
       label: 'Send',
       icon: <Send className="w-4 h-4" strokeWidth={1.75} />,
-      disabled: isMarketOnly || balanceNum <= 0,
+      disabled: balanceNum <= 0,
       onClick: () => onSend(token),
     },
     {
       key: 'receive',
       label: 'Receive',
       icon: <Plus className="w-4 h-4" strokeWidth={1.75} />,
-      disabled: isMarketOnly,
       onClick: handleWalletQrOpen,
     },
     {
       key: 'swap',
       label: 'Swap',
       icon: <Repeat2 className="w-4 h-4" strokeWidth={1.75} />,
-      disabled: isMarketOnly,
       onClick: () => setOpenWalletSwapOpen(true),
     },
     {
       key: 'buy',
       label: 'Buy',
       icon: <DollarSign className="w-4 h-4" strokeWidth={1.75} />,
-      disabled: isMarketOnly,
       onClick: handleWalletOptionsOpen,
     },
   ];
@@ -642,8 +515,6 @@ export default function TokenDetails({
   // Walls + descriptions for the About card chips. Pulls from market data
   // when available, falls back to a chain-aware explorer.
   const explorerLink = useMemo(() => {
-    if (isMarketOnly) return null;
-
     const addr = token.address;
     switch (chainLabelCode) {
       case 'SOLANA':
@@ -665,7 +536,7 @@ export default function TokenDetails({
       default:
         return null;
     }
-  }, [chainLabelCode, isMarketOnly, token.address]);
+  }, [chainLabelCode, token.address]);
 
   return (
     <>
@@ -707,17 +578,6 @@ export default function TokenDetails({
           <div className="max-w-[820px] mx-auto px-5 py-5 space-y-3">
             {/* ───────── Token hero ───────── */}
             <div className="bg-white rounded-[22px] border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_20px_48px_-20px_rgba(10,10,12,0.18)] p-6">
-              <div className="mb-4">
-                <button
-                  type="button"
-                  onClick={onBack}
-                  aria-label="Back to wallet"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/[0.06] bg-[#fafafa] pl-2.5 pr-3.5 text-[12.5px] font-semibold text-gray-900 transition hover:border-black/[0.14] hover:bg-white"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Wallet
-                </button>
-              </div>
               <div className="flex justify-between items-start gap-4 mb-5">
                 <div className="flex items-center gap-4 min-w-0">
                   <div
@@ -783,81 +643,67 @@ export default function TokenDetails({
                     </div>
                   </div>
                 )}
-                {hasChartData ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={chartData}
-                      margin={{ top: 6, right: 0, left: 0, bottom: 0 }}
-                    >
-                      <defs>
-                        <linearGradient
-                          id="td-fill"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor={strokeColor}
-                            stopOpacity={0.18}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor={strokeColor}
-                            stopOpacity={0}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid
-                        vertical={false}
-                        stroke={HAIR}
-                        strokeDasharray="3 5"
-                      />
-                      <XAxis
-                        dataKey="timestamp"
-                        hide
-                        type="number"
-                        scale="time"
-                        domain={['auto', 'auto']}
-                      />
-                      <YAxis domain={['auto', 'auto']} hide />
-                      <Tooltip
-                        content={<ChartTooltip />}
-                        cursor={{ stroke: strokeColor, strokeWidth: 1 }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        stroke={strokeColor}
-                        strokeWidth={2.4}
-                        fill="url(#td-fill)"
-                        isAnimationActive
-                        animationDuration={600}
-                        connectNulls
-                        dot={false}
-                        activeDot={{
-                          r: 4,
-                          stroke: '#fff',
-                          strokeWidth: 2,
-                          fill: strokeColor,
-                        }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-lg border border-dashed border-black/[0.06] bg-[#fafafa]">
-                    <span
-                      className="text-[11px] font-semibold uppercase text-gray-400"
-                      style={{
-                        fontFamily: MONO,
-                        letterSpacing: '1.1px',
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={chartData}
+                    margin={{ top: 6, right: 0, left: 0, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient
+                        id="td-fill"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor={strokeColor}
+                          stopOpacity={0.18}
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor={strokeColor}
+                          stopOpacity={0}
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      vertical={false}
+                      stroke={HAIR}
+                      strokeDasharray="3 5"
+                    />
+                    <XAxis
+                      dataKey="timestamp"
+                      hide
+                      type="number"
+                      scale="time"
+                      domain={['auto', 'auto']}
+                    />
+                    <YAxis domain={['auto', 'auto']} hide />
+                    <Tooltip
+                      content={<ChartTooltip />}
+                      cursor={{ stroke: strokeColor, strokeWidth: 1 }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke={strokeColor}
+                      strokeWidth={2.4}
+                      fill="url(#td-fill)"
+                      isAnimationActive
+                      animationDuration={600}
+                      connectNulls
+                      dot={false}
+                      activeDot={{
+                        r: 4,
+                        stroke: '#fff',
+                        strokeWidth: 2,
+                        fill: strokeColor,
                       }}
-                    >
-                      Chart unavailable
-                    </span>
-                  </div>
-                )}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
 
               {/* Period selector + High/Low */}
@@ -1188,10 +1034,7 @@ export default function TokenDetails({
                   ? 'Receive'
                   : 'Send';
 
-                const selectedSymbolAliases = tokenSymbolAliases(
-                  token.symbol,
-                  token.chain,
-                );
+                const selectedSymbol = token.symbol?.toUpperCase();
                 const selectedAddress = token.address?.toLowerCase();
                 const swapFromMatches =
                   isSwap &&
@@ -1200,9 +1043,8 @@ export default function TokenDetails({
                     tx.swapped.from.contractAddress?.toLowerCase() ===
                       selectedAddress) ||
                     (!selectedAddress &&
-                      selectedSymbolAliases.has(
-                        tx.swapped.from.symbol?.toUpperCase() || '',
-                      )));
+                      tx.swapped.from.symbol?.toUpperCase() ===
+                        selectedSymbol));
                 const swapToMatches =
                   isSwap &&
                   tx.swapped?.to &&
@@ -1210,9 +1052,8 @@ export default function TokenDetails({
                     tx.swapped.to.contractAddress?.toLowerCase() ===
                       selectedAddress) ||
                     (!selectedAddress &&
-                      selectedSymbolAliases.has(
-                        tx.swapped.to.symbol?.toUpperCase() || '',
-                      )));
+                      tx.swapped.to.symbol?.toUpperCase() ===
+                        selectedSymbol));
                 const swapLeg = swapFromMatches
                   ? tx.swapped?.from
                   : swapToMatches
