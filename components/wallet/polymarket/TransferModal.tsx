@@ -372,7 +372,7 @@ function DepositTab({
     } catch {}
   }, [getAccessToken]);
 
-  const evmAddress = user?.wallet?.address;
+  const evmAddress = eoaAddress || user?.wallet?.address;
   const solanaAddress = selectedSolanaWallet?.address;
 
   const {
