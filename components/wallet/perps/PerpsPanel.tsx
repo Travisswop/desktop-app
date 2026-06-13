@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import Cookies from 'js-cookie';
 import { useToast } from '@/hooks/use-toast';
+import { postFeed } from '@/actions/postFeed';
 import * as hl from '@nktkas/hyperliquid';
 import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
 
@@ -808,7 +810,7 @@ export function PerpsPanel({
           : entryPrice * (1 + 1 / leverage)
         : undefined;
 
-      const token = Cookies.get('access-token') || userAccessToken;
+      const token = Cookies.get('access-token') || accessToken;
       if (!token) return;
 
       Promise.resolve(
@@ -849,7 +851,7 @@ export function PerpsPanel({
     [
       tradeLeverage.isCross,
       tradeLeverage.value,
-      userAccessToken,
+      accessToken,
       user?._id,
       user?.primaryMicrosite,
     ],
