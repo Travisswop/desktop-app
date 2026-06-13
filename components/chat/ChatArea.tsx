@@ -2417,6 +2417,10 @@ function isLocalSwapProposalId(proposalId?: string | null) {
   );
 }
 
+function isLocalWalletSendProposalId(proposalId?: string | null) {
+  return Boolean(proposalId && proposalId.startsWith('local-wallet-send-'));
+}
+
 function isAgentProposalNotFoundError(error: unknown) {
   const codedError = error as { code?: unknown; message?: unknown } | null;
   return (
@@ -2507,6 +2511,74 @@ function buildHyperliquidOrderPromptFromApprovalParams(
   }
 
   return parts.join(' ');
+}
+
+function hasWalletSendApprovalParams(params?: Record<string, unknown>) {
+  if (!params) return false;
+  const token = firstTicketValue(params, [
+    'token',
+    'tokenSymbol',
+    'asset',
+    'currency',
+  ]);
+  const amount = firstTicketValue(params, ['amount', 'amountUsd']);
+  const recipient = firstTicketValue(params, [
+    'recipient',
+    'recipientAddress',
+    'recipientEns',
+    'recipientName',
+    'to',
+  ]);
+  return Boolean(token && amount && recipient);
+}
+
+function buildWalletSendPromptFromApprovalParams(
+  params?: Record<string, unknown>
+) {
+  const token =
+    firstTicketValue(params, ['token', 'tokenSymbol', 'asset', 'currency']) ||
+    'TOKEN';
+  const amount = firstTicketValue(params, ['amount', 'amountUsd']) || '0';
+  const amountType =
+    firstTicketValue(params, ['amountType']) ||
+    (initialTicketBool(params, ['isUSD'], false) ? 'usd' : 'token');
+  const recipient =
+    firstTicketValue(params, [
+      'recipient',
+      'recipientEns',
+      'recipientName',
+      'recipientAddress',
+      'to',
+    ]) || 'recipient';
+  const rawNetwork = firstTicketValue(params, ['chain', 'network']);
+  const network = rawNetwork ? normalizeWalletSendChainValue(rawNetwork) : '';
+  const amountLabel =
+    amountType === 'usd' ? `$${amount} in ${token}` : `${amount} ${token}`;
+  const parts = ['@astro send', amountLabel, 'to', recipient];
+
+  if (network) parts.push('on', network);
+
+  return parts.join(' ');
+}
+
+function buildLocalWalletSendApprovalHandoff(
+  proposalId: string,
+  params?: Record<string, unknown>
+): AgentApprovalHandoff {
+  return {
+    status: 'approved',
+    nextStep: 'wallet_send_inline_signing_required',
+    payload: {
+      proposalId,
+      action: 'wallet.send',
+      toolType: 'wallet.write',
+      provider: 'swop',
+      route: '/dashboard/chat',
+      panel: 'send',
+      normalizedParams: params || {},
+      prefill: params || {},
+    },
+  };
 }
 
 function isHyperliquidPlaceOrderMessage(message: Message) {
@@ -4995,8 +5067,56 @@ export default function ChatArea({
           }
         };
 
+        const prepareFreshWalletSendProposal = async () => {
+          if (!selectedChat || !isGroup) {
+            throw new Error('Open this send action from the Astro group chat.');
+          }
+
+          setAgentStatusText('Preparing send ticket');
+          const prepareResponse: any = await invokeGroupAgent({
+            groupId: selectedChat._id,
+            agentId: 'astro',
+            message: buildWalletSendPromptFromApprovalParams(approvalParams),
+          });
+          const preparedProposal = prepareResponse?.data?.proposal;
+          const responseMessage = prepareResponse?.data?.responseMessage;
+
+          if (preparedProposal?.proposalId) {
+            setProposalsById((prev) => ({
+              ...prev,
+              [preparedProposal.proposalId]: preparedProposal,
+            }));
+            return preparedProposal.proposalId as string;
+          } else {
+            appendMessageIfNew(responseMessage);
+            throw new Error(
+              'Astro did not return a send approval ticket. Try sending the transfer again.'
+            );
+          }
+        };
+
         if (isLocalHyperliquidProposalId(proposalId)) {
           approvalProposalId = await prepareFreshHyperliquidProposal();
+        }
+
+        if (isLocalWalletSendProposalId(proposalId)) {
+          if (isGroup) {
+            approvalProposalId = await prepareFreshWalletSendProposal();
+          } else {
+            const localApprovalResult = buildLocalWalletSendApprovalHandoff(
+              proposalId,
+              approvalParams
+            );
+            setActionResultsByProposalId((prev) => ({
+              ...prev,
+              [proposalId]: {
+                proposalId,
+                status: 'approved',
+                result: localApprovalResult,
+              },
+            }));
+            return localApprovalResult;
+          }
         }
 
         let response: any;
@@ -5009,6 +5129,17 @@ export default function ChatArea({
             hasHyperliquidApprovalParams(approvalParams)
           ) {
             approvalProposalId = await prepareFreshHyperliquidProposal();
+            response = await approveAgentAction(
+              approvalProposalId,
+              approvalParams
+            );
+          } else if (
+            !isLocalWalletSendProposalId(proposalId) &&
+            isGroup &&
+            isRecoverableHyperliquidProposalError(error) &&
+            hasWalletSendApprovalParams(approvalParams)
+          ) {
+            approvalProposalId = await prepareFreshWalletSendProposal();
             response = await approveAgentAction(
               approvalProposalId,
               approvalParams
@@ -5602,18 +5733,21 @@ export default function ChatArea({
               const walletNetworkReply = isOwnOrLocalText
                 ? parseWalletSendNetworkReply(renderedMessageText)
                 : '';
+              const canRenderLocalWalletSendCards = !isGroup;
               const pendingWalletSendNetworkIntent =
-                walletNetworkReply && message.messageType === 'text'
+                canRenderLocalWalletSendCards &&
+                walletNetworkReply &&
+                message.messageType === 'text'
                   ? findPendingWalletSendNetworkIntent(messages, index)
                   : null;
               const canRenderLocalWalletSend =
+                canRenderLocalWalletSendCards &&
                 typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
                 !isAgentMessage &&
                 renderedMessageText.trim().length > 0 &&
                 message.messageType === 'text' &&
                 hasWalletSendIntent(renderedMessageText) &&
-                (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !renderedSyntheticOrderSourceTexts.has(normalizedOrderSource);
               const rawLocalWalletSendIntent = canRenderLocalWalletSend
                 ? findWalletSendIntent(renderedMessageText)
@@ -5662,13 +5796,13 @@ export default function ChatArea({
                 renderedSyntheticOrderSourceTexts.add(normalizedOrderSource);
               }
               const localWalletSendDraftMessage =
+                canRenderLocalWalletSendCards &&
                 typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
                 !isAgentMessage &&
                 renderedMessageText.trim().length > 0 &&
                 message.messageType === 'text' &&
                 isChatWalletSendCommand(renderedMessageText) &&
-                (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !rawLocalWalletSendIntent &&
                 !localWalletSendNetworkPromptMessage &&
                 !localWalletSendMessage
@@ -9643,9 +9777,14 @@ function Message({
               onAddFunds={onAddPerpsFunds}
             />
           )}
-          {isAgent && walletSendNetworkPrompt && (
+          {isAgent && walletSendNetworkPrompt && !proposalId && (
             <WalletSendNetworkPromptCard
               prompt={walletSendNetworkPrompt}
+              proposal={proposal}
+              proposalId={proposalId || undefined}
+              status={status}
+              canAct={canAct}
+              isPending={isProposalPending}
               onApproveInline={onApproveInlineProposal}
               onInlineActionComplete={onInlineActionComplete}
               onReject={onRejectProposal}
@@ -9654,6 +9793,7 @@ function Message({
           )}
           {isAgent &&
             walletSendDraftPrompt &&
+            !proposalId &&
             String(message._id || '').startsWith('local-wallet-send-draft-') && (
             <WalletSendDraftCard
               prompt={walletSendDraftPrompt}
@@ -11537,7 +11677,7 @@ function WalletSendProposalTicket({
       'to',
     ]) || 'recipient';
   const chain = firstTicketValue(params, ['chain', 'network']);
-  const isLocalProposal = proposalId.startsWith('local-wallet-send-');
+  const isLocalProposal = isLocalWalletSendProposalId(proposalId);
   const sendAmountLabel =
     amountType === 'usd'
       ? `${formatCompactUsd(amount)} in ${token}`
@@ -11672,35 +11812,18 @@ function WalletSendProposalTicket({
 
     setSendError(null);
     setIsConfirming(true);
+    let executionProposalId = proposalId;
 
     try {
-      let approvalResult: AgentApprovalHandoff | null = null;
-      if (isLocalProposal) {
-        approvalResult = {
-          status: 'approved',
-          nextStep: 'wallet_send_inline_signing_required',
-          payload: {
-            proposalId,
-            action: 'wallet.send',
-            toolType: 'wallet.write',
-            provider: 'swop',
-            route: '/dashboard/chat',
-            panel: 'send',
-            normalizedParams: approvalParams,
-            prefill: approvalParams,
-          },
-        };
-        persistAgentActionHandoff(approvalResult);
-      } else {
-        approvalResult =
-          proposal?.approvalResult?.payload?.proposalId === proposalId
-            ? proposal.approvalResult
-            : await onApproveInline(proposalId, approvalParams);
-        if (!approvalResult?.payload?.proposalId) {
-          throw new Error('Swop approval was not returned by the backend.');
-        }
-        persistAgentActionHandoff(approvalResult);
+      const approvalResult =
+        proposal?.approvalResult?.payload?.proposalId === proposalId
+          ? proposal.approvalResult
+          : await onApproveInline(proposalId, approvalParams);
+      if (!approvalResult?.payload?.proposalId) {
+        throw new Error('Swop approval was not returned by the backend.');
       }
+      executionProposalId = String(approvalResult.payload.proposalId);
+      persistAgentActionHandoff(approvalResult);
 
       const recipientData = await resolveChatWalletSendRecipient({
         recipientValue: recipient,
@@ -11849,7 +11972,7 @@ function WalletSendProposalTicket({
         | 'action'
         | 'toolType'
       > & { proposalId?: string } = {
-        proposalId,
+        proposalId: executionProposalId,
         status: 'executed',
         provider: 'swop',
         title: `Sent ${sendAmountLabel}`,
@@ -11875,9 +11998,9 @@ function WalletSendProposalTicket({
 
       let completion = {
         ...completionDraft,
-        proposalId,
+        proposalId: executionProposalId,
       } as AgentActionCompletion;
-      if (!isLocalProposal) {
+      if (!isLocalWalletSendProposalId(executionProposalId)) {
         try {
           completion =
             (await completeAgentActionFromHandoff(
@@ -11890,6 +12013,8 @@ function WalletSendProposalTicket({
             completionError
           );
         }
+      } else {
+        clearAgentActionHandoff();
       }
 
       setLocalReceipt(completion);
@@ -11901,28 +12026,32 @@ function WalletSendProposalTicket({
       const message =
         error instanceof Error ? error.message : 'Failed to send transaction.';
       try {
-        const failedCompletion = await completeAgentActionFromHandoff(
-          {
-            proposalId,
-            status: 'failed',
-            provider: 'swop',
-            title: `Send ${token}`,
-            subtitle: chain || 'wallet send',
-            subject: token,
-            error: message,
-            executionResult: {
-              kind: 'send',
-              token,
-              amount,
-              amountType,
-              network: chain || undefined,
-              recipientName: recipient,
+        if (!isLocalWalletSendProposalId(executionProposalId)) {
+          const failedCompletion = await completeAgentActionFromHandoff(
+            {
+              proposalId: executionProposalId,
+              status: 'failed',
+              provider: 'swop',
+              title: `Send ${token}`,
+              subtitle: chain || 'wallet send',
+              subject: token,
+              error: message,
+              executionResult: {
+                kind: 'send',
+                token,
+                amount,
+                amountType,
+                network: chain || undefined,
+                recipientName: recipient,
+              },
             },
-          },
-          accessToken
-        );
-        if (failedCompletion) {
-          onInlineActionComplete(failedCompletion);
+            accessToken
+          );
+          if (failedCompletion) {
+            onInlineActionComplete(failedCompletion);
+          } else {
+            clearAgentActionHandoff();
+          }
         } else {
           clearAgentActionHandoff();
         }
