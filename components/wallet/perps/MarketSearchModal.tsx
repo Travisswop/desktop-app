@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Search, Star, TrendingUp, X } from 'lucide-react';
+import { Search, TrendingUp, X } from 'lucide-react';
 import type { HLMarket } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
+import { MarketIcon } from './MarketIcon';
 
 const FEATURED_COINS = [
   'BTC',
@@ -292,7 +293,12 @@ export function MarketSearchModal({
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <CoinDot coin={dc} favorite={isFav} selected={isSelected} />
+                    <MarketIcon
+                      coin={market.coin}
+                      favorite={isFav}
+                      selected={isSelected}
+                      size="md"
+                    />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-[13.5px] font-semibold tracking-tight text-gray-900">
@@ -350,32 +356,6 @@ export function MarketSearchModal({
   );
 }
 
-function CoinDot({
-  coin,
-  favorite,
-  selected,
-}: {
-  coin: string;
-  favorite: boolean;
-  selected: boolean;
-}) {
-  return (
-    <div className="relative flex-shrink-0">
-      <div
-        className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold ${
-          selected ? 'bg-gray-900 text-white' : 'text-white'
-        }`}
-        style={selected ? undefined : { background: coinBg(coin) }}
-      >
-        {coin.charAt(0)}
-      </div>
-      {favorite && (
-        <Star className="absolute -top-0.5 -right-0.5 w-3 h-3 text-amber-400 fill-amber-400" />
-      )}
-    </div>
-  );
-}
-
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
     <kbd className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded border border-black/[0.08] bg-[#f7f7f5] text-[10px] font-semibold text-gray-500">
@@ -389,21 +369,4 @@ function formatNotional(value: number): string {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(0)}M`;
   if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
   return `$${value.toFixed(0)}`;
-}
-
-function coinBg(coin: string): string {
-  const map: Record<string, string> = {
-    BTC: '#F7931A',
-    ETH: '#0a0a0c',
-    SOL: '#14F195',
-    HYPE: '#10B981',
-    BRENTOIL: '#1f8a70',
-    SPCX: '#334155',
-    DOGE: '#C2A633',
-    AVAX: '#E84142',
-    ARB: '#28A0F0',
-    OP: '#FF0420',
-    PAXG: '#C5A028',
-  };
-  return map[coin] ?? '#0a0a0c';
 }

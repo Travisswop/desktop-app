@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
+import { MarketIcon } from './MarketIcon';
 
 export interface OrderConfirmDetails {
   /** Long or Short. */
@@ -159,7 +160,7 @@ export function OrderConfirmModal({
             id="order-confirm-title"
             className="flex items-center gap-2.5"
           >
-            <Avatar coin={details.coin} />
+            <MarketIcon coin={details.coin} size="md" />
             <div className="flex-1 min-w-0">
               <div className="text-[18px] font-semibold tracking-tight text-gray-900">
                 {directionLabel} {details.coin}-PERP
@@ -288,27 +289,5 @@ function Tag({ children }: { children: React.ReactNode }) {
     <span className="text-[10.5px] font-bold tracking-[0.14em] text-gray-500 font-mono uppercase">
       {children}
     </span>
-  );
-}
-
-function Avatar({ coin }: { coin: string }) {
-  const map: Record<string, string> = {
-    BTC: '#F7931A',
-    ETH: '#0a0a0c',
-    SOL: '#14F195',
-    HYPE: '#10B981',
-    DOGE: '#C2A633',
-    AVAX: '#E84142',
-    ARB: '#28A0F0',
-    OP: '#FF0420',
-  };
-  const bg = map[coin] ?? '#0a0a0c';
-  return (
-    <div
-      className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-[16px]"
-      style={{ background: bg }}
-    >
-      {coin.charAt(0)}
-    </div>
   );
 }
