@@ -40,7 +40,7 @@ interface Participant {
 
 interface GroupSettings {
   groupInfo?: {
-    groupPicture?: string;
+    groupPicture?: string | null;
     description?: string;
   };
   isPublic?: boolean;
@@ -77,9 +77,12 @@ interface SocketResponse {
   error?: string | { message?: string };
   data?: {
     agent?: GroupAgent;
+    group?: Group;
   };
   group?: Group;
   participants?: Participant[];
+  deletedForEveryone?: boolean;
+  deletedForUser?: boolean;
 }
 
 interface GroupAgent {
@@ -171,6 +174,21 @@ function getSocketErrorMessage(error: SocketResponse['error']) {
   if (!error) return '';
   if (typeof error === 'string') return error;
   return error.message || '';
+}
+
+function getResponseErrorMessage(
+  response: SocketResponse | undefined,
+  fallback: string,
+) {
+  return getSocketErrorMessage(response?.error) || response?.message || fallback;
+}
+
+function getApiErrorMessage(data: any, fallback: string) {
+  return data?.message || data?.error?.message || data?.error || fallback;
+}
+
+function extractUpdatedGroup(data: any): Group | undefined {
+  return data?.data?.group || data?.group;
 }
 
 function isAstroActive(group: Group) {
@@ -594,9 +612,10 @@ function AddMemberModal({
           onClose();
         } else {
           toast.error(
-            `Failed to add ${displayName}: ${
-              response?.error || 'Unknown error'
-            }`,
+            `Failed to add ${displayName}: ${getResponseErrorMessage(
+              response,
+              'Unknown error',
+            )}`,
             {
               position: 'top-right',
             },
@@ -738,9 +757,10 @@ function RemoveMemberModal({
           onClose();
         } else {
           toast.error(
-            `Failed to remove ${user.name}: ${
-              response?.error || 'Unknown error'
-            }`,
+            `Failed to remove ${user.name}: ${getResponseErrorMessage(
+              response,
+              'Unknown error',
+            )}`,
             {
               position: 'top-right',
             },
@@ -910,16 +930,38 @@ function EditGroupModal({
       const data = await response.json();
 
       if (data.success) {
+        const updatedGroup = extractUpdatedGroup(data);
         setPhotoPreview(null);
         setGroupPhoto(null);
         toast.success('Group photo removed successfully!', {
           position: 'top-right',
         });
-        onSuccess?.();
-      } else {
-        toast.error(`Failed to remove photo: ${data.message}`, {
-          position: 'top-right',
+        socket?.emit('update_group_info', {
+          groupId: group._id,
+          groupPicture: null,
         });
+        onSuccess?.(
+          updatedGroup || {
+            ...group,
+            settings: {
+              ...group.settings,
+              groupInfo: {
+                ...group.settings?.groupInfo,
+                groupPicture: undefined,
+              },
+            },
+          },
+        );
+      } else {
+        toast.error(
+          `Failed to remove photo: ${getApiErrorMessage(
+            data,
+            'Unknown error',
+          )}`,
+          {
+            position: 'top-right',
+          },
+        );
       }
     } catch (error) {
       console.error('Error removing photo:', error);
@@ -943,6 +985,7 @@ function EditGroupModal({
 
     try {
       let hasChanges = false;
+      let updatedGroup: Group | undefined;
 
       // Update name and description
       if (
@@ -967,9 +1010,10 @@ function EditGroupModal({
         const data = await response.json();
         if (!data.success) {
           throw new Error(
-            data.message || 'Failed to update group info',
+            getApiErrorMessage(data, 'Failed to update group info'),
           );
         }
+        updatedGroup = extractUpdatedGroup(data) || updatedGroup;
         hasChanges = true;
 
         // Emit socket event for real-time updates
@@ -1000,7 +1044,14 @@ function EditGroupModal({
 
         const data = await response.json();
         if (!data.success) {
-          throw new Error(data.message || 'Failed to upload photo');
+          throw new Error(getApiErrorMessage(data, 'Failed to upload photo'));
+        }
+        updatedGroup = extractUpdatedGroup(data) || updatedGroup;
+        if (socket) {
+          socket.emit('update_group_info', {
+            groupId: group._id,
+            groupPicture: data.data?.photoUrl || data.photoUrl || null,
+          });
         }
         hasChanges = true;
       }
@@ -1009,7 +1060,7 @@ function EditGroupModal({
         toast.success('Group updated successfully!', {
           position: 'top-right',
         });
-        onSuccess?.();
+        onSuccess?.(updatedGroup);
         onClose();
       } else {
         toast('No changes to save', {
@@ -1263,20 +1314,26 @@ function DeleteGroupModal({
     setIsDeleting(true);
 
     socket.emit(
-      'delete_group',
+      'delete_group_chat',
       { groupId: group._id },
       (response: SocketResponse) => {
         if (response?.success) {
-          toast.success('Group deleted successfully', {
-            position: 'top-right',
-          });
+          toast.success(
+            response.deletedForEveryone
+              ? 'Group deleted successfully'
+              : 'Group removed from your chats',
+            {
+              position: 'top-right',
+            },
+          );
           onClose();
           onDeleted?.();
         } else {
           toast.error(
-            `Failed to delete group: ${
-              response?.error || 'Unknown error'
-            }`,
+            `Failed to delete group: ${getResponseErrorMessage(
+              response,
+              'Unknown error',
+            )}`,
             {
               position: 'top-right',
             },
