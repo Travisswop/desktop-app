@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import GroupModal from './GroupModal';
 import isUrl from '@/lib/isUrl';
 import Image from 'next/image';
+import { getProtectedAgentThreadLabel } from './protectedAgentThreads';
 import {
   Activity,
   ArrowRight,
@@ -170,14 +171,27 @@ export default function Sidebar({
     return b.lastActivity.getTime() - a.lastActivity.getTime();
   });
 
-  const unreadTotal = allItems.reduce(
-    (sum, item) => sum + Number(item.unreadCount || 0),
-    0
-  );
   const agentPins = DEFAULT_AGENT_PINS.map((config) => ({
     config,
     thread: allItems.find((item) => isAgentThread(item, config.agentId)),
   }));
+  const pinnedThreads = agentPins
+    .map(({ thread }) => thread)
+    .filter(Boolean);
+  const visibleItems = allItems.filter((item) => {
+    const type =
+      item.type === 'direct' ? 'private' : (item.type as ThreadSelectionType);
+    return !getProtectedAgentThreadLabel(item, type);
+  });
+  const countedItems = [...visibleItems, ...pinnedThreads];
+
+  const unreadTotal = countedItems.reduce(
+    (sum, item) => sum + Number(item.unreadCount || 0),
+    0
+  );
+  const selectedProtectedLabel = selectedChat
+    ? getProtectedAgentThreadLabel(selectedChat, chatType)
+    : null;
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -226,7 +240,14 @@ export default function Sidebar({
 
   const isSelected = (item: any, type: ThreadSelectionType) => {
     if (!selectedChat) return false;
-    return chatType === type && selectedChat._id === item._id;
+    if (chatType === type && selectedChat._id === item._id) return true;
+
+    const itemLabel = getProtectedAgentThreadLabel(item, type);
+    return Boolean(
+      selectedProtectedLabel &&
+        itemLabel &&
+        selectedProtectedLabel === itemLabel
+    );
   };
 
   const handleThreadContextMenu = (
@@ -237,7 +258,7 @@ export default function Sidebar({
     event.preventDefault();
     event.stopPropagation();
 
-    const isProtected = isProtectedAgentThread(item);
+    const protectedLabel = getProtectedAgentThreadLabel(item, type);
     const x =
       typeof window === 'undefined'
         ? event.clientX
@@ -252,8 +273,8 @@ export default function Sidebar({
       y: Math.max(8, y),
       item,
       type,
-      protectedReason: isProtected
-        ? `${getDisplayInfo(item, currentUser).name} cannot be deleted`
+      protectedReason: protectedLabel
+        ? `${protectedLabel} chats cannot be deleted`
         : undefined,
     });
   };
@@ -353,7 +374,7 @@ export default function Sidebar({
 
           <div className="dm-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3">
             <div className="space-y-2">
-              {allItems.map((item) => {
+              {visibleItems.map((item) => {
                 const type =
                   item.type === 'direct'
                     ? 'private'
@@ -391,7 +412,7 @@ export default function Sidebar({
                   Messages
                 </h2>
                 <div className="dm-mono mt-0.5 text-[10.5px] font-semibold text-[#5a5e69] max-md:text-[#77746f]">
-                  {allItems.length} threads · {unreadTotal} unread
+                  {countedItems.length} threads · {unreadTotal} unread
                   <span className="hidden max-md:inline"> · sol mainnet</span>
                 </div>
               </div>
@@ -435,6 +456,12 @@ export default function Sidebar({
                       }
                     }
                     isSelected={Boolean(thread) && isSelected(thread, type)}
+                    onContextMenu={
+                      thread
+                        ? (event) =>
+                            handleThreadContextMenu(event, thread, type)
+                        : undefined
+                    }
                     onClick={() => {
                       if (onOpenAgentThread) {
                         void onOpenAgentThread(config.agentId);
@@ -522,13 +549,13 @@ export default function Sidebar({
           </div>
 
           <div className="dm-scroll min-h-0 flex-1 overflow-y-auto px-3 pb-3 max-md:px-3 max-md:pt-3">
-            {allItems.length === 0 ? (
+            {visibleItems.length === 0 ? (
               <div className="dm-mono rounded-[12px] border border-white/[0.07] bg-[#15171d] p-4 text-center text-[11px] text-[#5a5e69] max-md:border-[#e6e5df] max-md:bg-white max-md:text-[#77746f]">
                 no threads yet
               </div>
             ) : (
               <div className="max-md:overflow-hidden max-md:rounded-[16px] max-md:border max-md:border-[#e6e5df] max-md:bg-white">
-                {allItems
+                {visibleItems
                   .filter((item: any) => filterThread(item, searchQuery))
                   .map((item) => {
                     const type =
@@ -698,31 +725,24 @@ function isAgentThread(item: any, agentId: string) {
   );
 }
 
-function isProtectedAgentThread(item: any) {
-  if (item?.type !== 'group') return false;
-  const name = String(item?.name || item?.displayName || '')
-    .trim()
-    .toLowerCase();
-  return DEFAULT_AGENT_PINS.some(
-    (pin) => pin.fallbackThreadName.toLowerCase() === name
-  );
-}
-
 function AgentQuickPin({
   config,
   item,
   isSelected,
   onClick,
+  onContextMenu,
   onCommand,
 }: {
   config: AgentQuickPinConfig;
   item: any;
   isSelected: boolean;
   onClick: () => void;
+  onContextMenu?: (event: ReactMouseEvent) => void;
   onCommand?: (agentId: string, commandSeed: string) => void | Promise<void>;
 }) {
   return (
     <div
+      onContextMenu={onContextMenu}
       className={`overflow-hidden rounded-[16px] border bg-[#0a0a0c] text-white shadow-[0_16px_42px_-28px_rgba(0,0,0,0.8)] ${
         isSelected ? 'border-[#3fe08f]/55' : 'border-[#0a0a0c]'
       }`}

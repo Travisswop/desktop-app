@@ -5,6 +5,7 @@ import { ChevronLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Sidebar from './Sidebar';
 import ChatArea from './ChatArea';
+import { getProtectedAgentThreadLabel } from './protectedAgentThreads';
 
 interface InitialDirectRecipient {
   userId?: string | null;
@@ -266,10 +267,77 @@ function findSecureAstroGroup(groups: any[]) {
   return findAgentThreadGroup(groups, 'astro');
 }
 
-function isProtectedAgentThreadGroup(group: any) {
-  return (Object.keys(AGENT_THREAD_CONFIGS) as AgentThreadId[]).some(
-    (agentId) => isDedicatedAgentThreadGroup(group, agentId)
+function getAgentThreadGroupId(group: any): AgentThreadId | null {
+  const agentIds = Object.keys(AGENT_THREAD_CONFIGS) as AgentThreadId[];
+  return (
+    agentIds.find((agentId) => isDedicatedAgentThreadGroup(group, agentId)) ||
+    null
   );
+}
+
+function getGroupTimestamp(group: any) {
+  const rawDate =
+    group?.lastMessage?.createdAt ||
+    group?.updatedAt ||
+    group?.createdAt ||
+    '';
+  const timestamp = rawDate ? new Date(rawDate).getTime() : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getAgentGroupScore(group: any, agentId: AgentThreadId) {
+  const config = AGENT_THREAD_CONFIGS[agentId];
+  const hasActiveAgent = group?.botUsers?.some(
+    (agent: any) =>
+      agent.agentId === config.agent.agentId && agent.isActive !== false
+  );
+
+  return {
+    hasActiveAgent: hasActiveAgent ? 1 : 0,
+    timestamp: getGroupTimestamp(group),
+    participantCount: Array.isArray(group?.participants)
+      ? group.participants.length
+      : 0,
+  };
+}
+
+function shouldPreferAgentGroup(
+  candidate: any,
+  current: any,
+  agentId: AgentThreadId
+) {
+  const candidateScore = getAgentGroupScore(candidate, agentId);
+  const currentScore = getAgentGroupScore(current, agentId);
+
+  if (candidateScore.hasActiveAgent !== currentScore.hasActiveAgent) {
+    return candidateScore.hasActiveAgent > currentScore.hasActiveAgent;
+  }
+
+  if (candidateScore.timestamp !== currentScore.timestamp) {
+    return candidateScore.timestamp > currentScore.timestamp;
+  }
+
+  return candidateScore.participantCount > currentScore.participantCount;
+}
+
+function dedupeAgentThreadGroups(groups: any[]) {
+  const selectedByAgent = new Map<AgentThreadId, any>();
+
+  groups.forEach((group) => {
+    const agentId = getAgentThreadGroupId(group);
+    if (!agentId) return;
+
+    const current = selectedByAgent.get(agentId);
+    if (!current || shouldPreferAgentGroup(group, current, agentId)) {
+      selectedByAgent.set(agentId, group);
+    }
+  });
+
+  return groups.filter((group) => {
+    const agentId = getAgentThreadGroupId(group);
+    if (!agentId) return true;
+    return selectedByAgent.get(agentId)?._id === group?._id;
+  });
 }
 
 export default function ChatContainer({
@@ -358,7 +426,7 @@ export default function ChatContainer({
       { page: 1, limit: 20 },
       (res: any) => {
         if (res?.success) {
-          setGroups(res.groups || []);
+          setGroups(dedupeAgentThreadGroups(res.groups || []));
           setHasLoadedGroups(true);
         }
       }
@@ -597,6 +665,18 @@ export default function ChatContainer({
   }, [groups, initialGroupId, selectedChat?._id]);
 
   useEffect(() => {
+    if (chatType !== 'group' || !selectedChat || !hasLoadedGroups) return;
+
+    const agentId = getAgentThreadGroupId(selectedChat);
+    if (!agentId) return;
+
+    const canonicalGroup = findAgentThreadGroup(groups, agentId);
+    if (canonicalGroup && canonicalGroup._id !== selectedChat._id) {
+      setSelectedChat(canonicalGroup);
+    }
+  }, [chatType, groups, hasLoadedGroups, selectedChat]);
+
+  useEffect(() => {
     if (
       !hasInitialDirectRecipient ||
       initialGroupId ||
@@ -729,6 +809,12 @@ export default function ChatContainer({
       if (!chat) return;
 
       try {
+        const protectedLabel = getProtectedAgentThreadLabel(chat, type);
+        if (protectedLabel) {
+          toast.error(`${protectedLabel} chats cannot be deleted`);
+          return;
+        }
+
         if (type === 'private') {
           const receiverId = getDirectUserId(chat);
           if (!receiverId) {
@@ -753,11 +839,6 @@ export default function ChatContainer({
 
           toast.success('Chat deleted');
           loadInitialData();
-          return;
-        }
-
-        if (isProtectedAgentThreadGroup(chat)) {
-          toast.error(`${chat.name || 'This chat'} cannot be deleted`);
           return;
         }
 
@@ -867,10 +948,12 @@ export default function ChatContainer({
           : [...(group.botUsers || []), activeAgent],
       };
 
-      setGroups((prev: any[]) => [
-        groupWithAgent,
-        ...prev.filter((item: any) => item._id !== groupWithAgent._id),
-      ]);
+      setGroups((prev: any[]) =>
+        dedupeAgentThreadGroups([
+          groupWithAgent,
+          ...prev.filter((item: any) => item._id !== groupWithAgent._id),
+        ])
+      );
       setSelectedChat(groupWithAgent);
       setChatType('group');
       loadInitialData();

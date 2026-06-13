@@ -3650,6 +3650,34 @@ export default function ChatArea({
       );
     };
 
+    const handleGoldmanStrategyVaultReady = (data: {
+      groupId?: string;
+      agentId?: string;
+      vault?: GoldmanStrategyVault | null;
+      strategies?: GoldmanTradingStrategy[];
+    }) => {
+      if (
+        data.groupId !== selectedChat?._id ||
+        data.agentId !== 'goldman-sacks' ||
+        !data.vault?.walletAddress
+      ) {
+        return;
+      }
+
+      queryClient.setQueryData<GoldmanStrategyVault | null>(
+        goldmanStrategyVaultQueryKey,
+        (current) => ({
+          ...data.vault!,
+          strategies: Array.isArray(data.strategies)
+            ? data.strategies
+            : current?.strategies || [],
+        })
+      );
+      void queryClient.invalidateQueries({
+        queryKey: goldmanStrategyVaultQueryKey,
+      });
+    };
+
     socket.on('group_info_updated', handleGroupInfoUpdated);
     socket.on(
       'group_participants_updated',
@@ -3661,6 +3689,10 @@ export default function ChatArea({
     socket.on('group_agent_added', handleGroupAgentAdded);
     socket.on('group_agent_updated', handleGroupAgentAdded);
     socket.on('group_agent_removed', handleGroupAgentRemoved);
+    socket.on(
+      'group_agent_strategy_vault_ready',
+      handleGoldmanStrategyVaultReady
+    );
     socket.on('group_agent_strategy_updated', handleGoldmanStrategyUpdated);
 
     return () => {
@@ -3681,6 +3713,10 @@ export default function ChatArea({
       socket.off('group_agent_added', handleGroupAgentAdded);
       socket.off('group_agent_updated', handleGroupAgentAdded);
       socket.off('group_agent_removed', handleGroupAgentRemoved);
+      socket.off(
+        'group_agent_strategy_vault_ready',
+        handleGoldmanStrategyVaultReady
+      );
       socket.off('group_agent_strategy_updated', handleGoldmanStrategyUpdated);
     };
   }, [
