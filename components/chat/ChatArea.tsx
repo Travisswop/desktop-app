@@ -1915,6 +1915,12 @@ function hasChatSwapIntent(text?: string | null) {
   );
 }
 
+function isExplicitChatSwapCommand(text?: string | null) {
+  return /^\/swap(?:\s|$)/i.test(
+    stripLeadingAstroMention(String(text || ''))
+  );
+}
+
 function findChatSwapIntent(text: string) {
   if (!hasChatSwapIntent(text)) return null;
 
@@ -2525,6 +2531,56 @@ function isWalletSwapMessage(message: Message) {
   );
 }
 
+function isWalletSwapProposalMessage(message: Message) {
+  return (
+    isWalletSwapMessage(message) &&
+    (message.messageType === 'agent_action_proposal' ||
+      Boolean(getMessageProposalId(message)))
+  );
+}
+
+function isWalletSwapClarificationMessage(message: Message) {
+  const responseType = String(
+    message.agentData?.metadata?.responseType || ''
+  );
+  return (
+    isWalletSwapMessage(message) &&
+    message.messageType !== 'agent_action_proposal' &&
+    (responseType === 'write_parameter_clarification' ||
+      /before preparing that swap/i.test(String(message.message || '')))
+  );
+}
+
+function shouldHideWalletSwapClarification(
+  messages: Message[],
+  currentIndex: number
+) {
+  const message = messages[currentIndex];
+  if (!message || !isWalletSwapClarificationMessage(message)) return false;
+
+  const currentTime = messageTime(message);
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    const candidateTime = messageTime(candidate);
+    if (
+      currentTime &&
+      candidateTime &&
+      currentTime - candidateTime > 10 * 60 * 1000
+    ) {
+      break;
+    }
+    if (isAgentLikeMessage(candidate)) continue;
+    if (
+      candidate.messageType === 'text' &&
+      isExplicitChatSwapCommand(candidate.message)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function hasMatchingWalletSendProposal(
   messages: Message[],
   sourceMessage: Message,
@@ -2582,7 +2638,7 @@ function hasMatchingWalletSwapProposal(
   ).toUpperCase();
 
   return messages.some((message) => {
-    if (!isWalletSwapMessage(message)) return false;
+    if (!isWalletSwapProposalMessage(message)) return false;
     const params = message.agentData?.metadata?.normalizedParams || {};
     const messageFromToken = String(
       params.fromTokenSymbol ||
@@ -5455,6 +5511,9 @@ export default function ChatArea({
                 isAgentMessage &&
                 isGenericAstroOnlineText(message.message)
               ) {
+                return null;
+              }
+              if (shouldHideWalletSwapClarification(messages, index)) {
                 return null;
               }
               if (isAgentMessage && !isNamedAgentMessage(message)) {
