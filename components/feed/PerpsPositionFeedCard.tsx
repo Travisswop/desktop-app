@@ -15,8 +15,11 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import * as shape from 'd3-shape';
 import isUrl from '@/lib/isUrl';
 import { useHyperliquidCandles } from '@/components/wallet/perps/hooks/useHyperliquidCandles';
-import { useMarketContext } from '@/components/wallet/perps/hooks/useHyperliquidMarkets';
 import { useAllMids } from '@/components/wallet/perps/hooks/useHyperliquidWebSocket';
+import {
+  normalizePerpsCoin,
+  useLivePerpsMarkPrice,
+} from './useLivePerpsMarkPrice';
 import type { PerpsPositionFeedContent } from '@/lib/perps/perpsFeed';
 
 interface PerpsPositionFeedCardProps {
@@ -211,15 +214,6 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function normalizeHyperliquidCoin(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed.includes(':')) return trimmed.toUpperCase();
-
-  const [dex, ...assetParts] = trimmed.split(':');
-  const asset = assetParts.join(':');
-  return `${dex.toLowerCase()}:${asset.toUpperCase()}`;
-}
-
 function formatPointTime(time?: number) {
   if (!time) return 'Feed snapshot';
   const milliseconds = time < 1_000_000_000_000 ? time * 1000 : time;
@@ -309,12 +303,14 @@ export default function PerpsPositionFeedCard({
 
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('1D');
   const candleInterval = PERIOD_INTERVAL[selectedPeriod];
-  const marketCoin = normalizeHyperliquidCoin(rawCoin);
-  const isBuilderDexCoin = marketCoin.includes(':');
-  const { data: liveMarketContext } = useMarketContext(
-    !hasStoredTerminalStatus && isBuilderDexCoin ? marketCoin : null,
+  const normalizedCoin = normalizePerpsCoin(rawCoin);
+  const marketCoin = normalizedCoin?.requestCoin || coin;
+  const isBuilderDexCoin = Boolean(normalizedCoin?.dex);
+  const liveBuilderMarkPrice = useLivePerpsMarkPrice(
+    marketCoin,
+    !hasStoredTerminalStatus && isBuilderDexCoin,
   );
-  const liveMarketCoin = liveMarketContext?.meta?.name || marketCoin;
+  const liveMarketCoin = marketCoin;
   const candleCoin =
     !hasStoredTerminalStatus && Boolean(liveMarketCoin)
       ? liveMarketCoin
@@ -333,13 +329,12 @@ export default function PerpsPositionFeedCard({
         ? null
         : firstMaybeFiniteNumber([
             liveMidPriceForCoin(mids, rawCoin, liveMarketCoin, coin),
-            liveMarketContext?.context?.markPx,
-            liveMarketContext?.context?.midPx,
+            liveBuilderMarkPrice,
           ]),
     [
       coin,
       hasStoredTerminalStatus,
-      liveMarketContext,
+      liveBuilderMarkPrice,
       liveMarketCoin,
       mids,
       rawCoin,

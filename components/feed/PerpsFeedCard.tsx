@@ -3,7 +3,7 @@
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import Link from 'next/link';
-import { useMarketContext } from '@/components/wallet/perps/hooks/useHyperliquidMarkets';
+import { useLivePerpsMarkPrice } from './useLivePerpsMarkPrice';
 
 type PerpsContent = {
   platform?: string;
@@ -98,9 +98,8 @@ export default function PerpsFeedCard({
     content.sizeCoins,
     content.sizeUsd,
   ]);
-  const { data: liveMarketContext } = useMarketContext(content.coin ?? null);
   const entryPrice = Number(content.entryPrice);
-  const liveMarkPrice = Number(liveMarketContext?.context?.markPx);
+  const liveMarkPrice = useLivePerpsMarkPrice(content.coin ?? null);
   const snapshotPrice = Number(content.markPrice ?? content.entryPrice);
   const currentPrice =
     Number.isFinite(liveMarkPrice) && liveMarkPrice > 0
