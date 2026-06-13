@@ -912,6 +912,11 @@ export default function ChatContainer({
         });
       } catch (error) {
         console.error('Failed to open agent command composer', error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Could not open the agent desk.'
+        );
       }
     },
     [openAgentThread]
@@ -927,7 +932,16 @@ export default function ChatContainer({
   const openAgentThreadById = useCallback(
     async (agentId: string) => {
       if (!isKnownAgentThreadId(agentId)) return;
-      await openAgentThread(agentId);
+      try {
+        await openAgentThread(agentId);
+      } catch (error) {
+        console.error('Failed to open agent thread', error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Could not open the agent desk.'
+        );
+      }
     },
     [openAgentThread]
   );

@@ -8348,8 +8348,14 @@ function DmContextPanel({
   onStopGoldmanStrategy?: () => void;
   onPositionClick?: (selection: AstroConsolePositionSelection) => void;
 }) {
-  const panelVisibilityClass = showOnTablet ? 'hidden md:block' : 'hidden xl:block';
-  const panelWidthClass = showOnTablet ? 'w-[280px] lg:w-[300px]' : 'w-[300px]';
+  const shouldShowAgentPanelOnDesktop =
+    showOnTablet || mode === 'astro' || mode === 'goldman';
+  const panelVisibilityClass = shouldShowAgentPanelOnDesktop
+    ? 'hidden md:block'
+    : 'hidden xl:block';
+  const panelWidthClass = shouldShowAgentPanelOnDesktop
+    ? 'w-[280px] lg:w-[300px]'
+    : 'w-[300px]';
 
   if (mode === 'goldman') {
     const goldmanAgent = activeAgents?.find(

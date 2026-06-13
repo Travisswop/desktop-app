@@ -326,6 +326,31 @@ export default function Sidebar({
             )}
           </div>
 
+          <div className="flex flex-shrink-0 flex-col items-center gap-2 border-y border-white/[0.07] px-2 py-3">
+            {agentPins.map(({ config, thread }) => {
+              const type =
+                thread?.type === 'direct'
+                  ? 'private'
+                  : (thread?.type as ThreadSelectionType) || 'group';
+              return (
+                <CollapsedAgentPin
+                  key={config.agentId}
+                  config={config}
+                  isSelected={Boolean(thread) && isSelected(thread, type)}
+                  onClick={() => {
+                    if (onOpenAgentThread) {
+                      void onOpenAgentThread(config.agentId);
+                      return;
+                    }
+                    if (thread) {
+                      onSelectChat(thread, type);
+                    }
+                  }}
+                />
+              );
+            })}
+          </div>
+
           <div className="dm-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3">
             <div className="space-y-2">
               {allItems.map((item) => {
@@ -747,6 +772,39 @@ function AgentQuickPin({
         ))}
       </div>
     </div>
+  );
+}
+
+function CollapsedAgentPin({
+  config,
+  isSelected,
+  onClick,
+}: {
+  config: AgentQuickPinConfig;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={config.displayName}
+      aria-label={`Open ${config.displayName}`}
+      onClick={onClick}
+      className={`dm-row relative grid h-[48px] w-full place-items-center rounded-[12px] border ${
+        isSelected
+          ? 'border-[#3fe08f]/55 bg-[#1b1e25]'
+          : 'border-white/[0.07] bg-[#15171d]'
+      }`}
+    >
+      {isSelected && (
+        <span className="absolute left-0 top-1/2 h-[24px] w-[3px] -translate-y-1/2 rounded-[3px] bg-[#3fe08f]" />
+      )}
+      <span
+        className={`dm-mono grid h-9 w-9 place-items-center rounded-[10px] border text-[11px] font-bold ${config.accentClass} ${config.accentBgClass}`}
+      >
+        {config.initials}
+      </span>
+    </button>
   );
 }
 
