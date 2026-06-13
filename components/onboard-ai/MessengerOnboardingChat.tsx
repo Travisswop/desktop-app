@@ -8,6 +8,7 @@ import { Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/lib/UserContext";
 import {
+  attachAiOnboardingSmartSiteLinks,
   attachSwopIdToSmartSite,
   createAiOnboardingSocials,
   createAiOnboardingUser,
@@ -29,6 +30,7 @@ import type {
 } from "./types";
 
 const SWOP_ID_GATEWAY = "https://swop-id-ens-gateway.swop.workers.dev";
+const POST_ONBOARDING_ROUTE = "/wallet";
 
 const EMPTY_PROFILE: AiOnboardingProfile = {
   name: "",
@@ -137,13 +139,15 @@ export default function MessengerOnboardingChat({
   const [micrositeId, setMicrositeId] = useState<string | null>(null);
   const [avatar, setAvatar] = useState("1");
   const [birthday, setBirthday] = useState("");
-  const ethereumWalletRef = useRef<any>(null);
+  const [isFinishing, setIsFinishing] = useState(false);
 
   const [messages, setMessages] = useState<OnboardingChatMessage[]>([
     makeMessage("assistant", "Welcome to Swop. I'm Astro."),
     makeMessage(
       "assistant",
-      `${selectedSwopId.ens} is yours. Let's set up your SmartSite — fill in a couple of quick cards and you're live.`,
+      selectedSwopId.claimed
+        ? `${selectedSwopId.ens} is claimed. Let's set up your SmartSite — fill in a couple of quick cards and you're live.`
+        : `${selectedSwopId.ens} is ready. Let's set up your SmartSite — fill in a couple of quick cards and you're live.`,
     ),
   ]);
 
@@ -212,6 +216,11 @@ export default function MessengerOnboardingChat({
   };
 
   const claimSwopId = async (ethereumWallet: any, micrositeIdToUse: string) => {
+    if (selectedSwopId.claimed) {
+      await attachSwopIdToSmartSite(micrositeIdToUse, selectedSwopId.ens);
+      return;
+    }
+
     if (!ethereumWallet?.getEthereumProvider && !ethereumWallet?.address) {
       throw new Error("No Ethereum wallet available for SwopID creation");
     }
@@ -262,7 +271,6 @@ export default function MessengerOnboardingChat({
 
     try {
       const { ethereumWallet, solanaWallet } = await ensureWallets();
-      ethereumWalletRef.current = ethereumWallet;
 
       const createdUser = await createAiOnboardingUser({
         profile: nextProfile,
@@ -276,16 +284,69 @@ export default function MessengerOnboardingChat({
 
       setMicrositeId(createdUser.primaryMicrosite);
 
-      // The account now exists in the backend — refresh UserContext so it
-      // picks up the user + access token (the funding card needs the token).
+      let claimedSwopId = false;
+      if (createdUser.primaryMicrosite) {
+        try {
+          await claimSwopId(ethereumWallet, createdUser.primaryMicrosite);
+          claimedSwopId = true;
+        } catch (claimError) {
+          console.error("SwopID claim failed:", claimError);
+          toast({
+            variant: "destructive",
+            title: selectedSwopId.claimed
+              ? "Could not attach your SwopID"
+              : "SwopID not claimed yet",
+            description:
+              selectedSwopId.claimed
+                ? "Your profile is saved. You can attach your SwopID later from settings."
+                : "Your profile is saved. You can finish claiming your SwopID later from settings.",
+          });
+        }
+      }
+
+      // Pick up the backend user/token and, when available, the attached ENS
+      // before the flow can continue to wallet.
       void refreshUser().catch((error) => {
         console.error("User context refresh failed:", error);
       });
 
+      if (createdUser.primaryMicrosite && createdUser.token) {
+        void attachAiOnboardingSmartSiteLinks({
+          profile: nextProfile,
+          micrositeId: createdUser.primaryMicrosite,
+          accessToken: createdUser.token,
+        })
+          .then((result) => {
+            const count = result?.data?.smartSiteLinks?.length || 0;
+            if (!count) return;
+
+            appendMessages(
+              makeMessage(
+                "assistant",
+                `I also found ${count} public link${
+                  count === 1 ? "" : "s"
+                } for your SmartSite.`,
+              ),
+            );
+          })
+          .catch((error) => {
+            console.warn("Onboarding social lookup skipped:", error);
+          });
+      }
+
+      let swopIdFollowupMessage =
+        "Your SmartSite is live. We can finish claiming your SwopID later; for now, drop in the links you want on it.";
+      if (claimedSwopId) {
+        swopIdFollowupMessage = `Done — ${selectedSwopId.ens} is attached. Now drop in the links you want on your SmartSite.`;
+      } else if (selectedSwopId.claimed) {
+        swopIdFollowupMessage =
+          "Your SmartSite is live. We can finish attaching your SwopID later; for now, drop in the links you want on it.";
+      }
+
       appendMessages(
         makeMessage(
           "assistant",
-          "Your SmartSite is live. Now drop in the links you want on it.",
+          swopIdFollowupMessage,
         ),
       );
       setPhase("socials");
@@ -315,39 +376,6 @@ export default function MessengerOnboardingChat({
         await createAiOnboardingSocials(micrositeId, nextProfile);
       }
 
-      // Claim the SwopID chosen earlier (needs the microsite to exist first).
-      // A rejected signature shouldn't trap the user — warn and continue.
-      if (micrositeId) {
-        try {
-          await claimSwopId(ethereumWalletRef.current, micrositeId);
-          // Pick up the claimed ENS so the post-onboarding redirect guard
-          // (requiresSwopIdCompletion) sees a completed account on /wallet.
-          void refreshUser().catch((error) => {
-            console.error("User context refresh failed:", error);
-          });
-          appendMessages(
-            makeMessage(
-              "assistant",
-              `Done — ${selectedSwopId.ens} is claimed and your SmartSite is ready.`,
-            ),
-          );
-        } catch (claimError) {
-          console.error("SwopID claim failed:", claimError);
-          toast({
-            variant: "destructive",
-            title: "SwopID not claimed yet",
-            description:
-              "Your SmartSite is saved. You can claim your SwopID later from settings.",
-          });
-          appendMessages(
-            makeMessage(
-              "assistant",
-              "Your SmartSite is saved. We can finish claiming your SwopID later.",
-            ),
-          );
-        }
-      }
-
       appendMessages(
         makeMessage(
           "assistant",
@@ -367,10 +395,18 @@ export default function MessengerOnboardingChat({
     }
   };
 
-  const finish = () => {
+  const finish = async () => {
+    if (isFinishing) return;
+    setIsFinishing(true);
     setPhase("done");
-    router.refresh();
-    router.push("/wallet");
+
+    try {
+      await refreshUser();
+    } catch (error) {
+      console.error("User context refresh failed before wallet redirect:", error);
+    }
+
+    router.replace(POST_ONBOARDING_ROUTE);
   };
 
   const profileDone = phase !== "profile" && phase !== "savingProfile";
@@ -502,6 +538,14 @@ export default function MessengerOnboardingChat({
                     }}
                     done={profileDone}
                     isSaving={phase === "savingProfile"}
+                    submitLabel={
+                      selectedSwopId.claimed
+                        ? "Save profile"
+                        : "Save profile and claim SwopID"
+                    }
+                    savingLabel={
+                      selectedSwopId.claimed ? "Saving" : "Saving and claiming"
+                    }
                     onSubmit={handleProfileSubmit}
                   />
                 </div>
@@ -530,6 +574,7 @@ export default function MessengerOnboardingChat({
                 <div className="flex">
                   <FundingCard
                     done={phase === "done"}
+                    isFinishing={isFinishing}
                     onSkip={finish}
                     onDone={finish}
                   />

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useUser } from "@/lib/UserContext";
 import { ShippingUpdateData } from "../types/order.types";
 import { apiFetch } from "@/lib/api/apiFetch";
@@ -13,7 +13,7 @@ interface UseShippingUpdateReturn {
   setShippingData: (data: ShippingUpdateData) => void;
   handleShippingUpdate: (
     orderId: string,
-    onSuccess?: () => void
+    onSuccess?: () => void | Promise<void>
   ) => Promise<void>;
   resetUpdateState: () => void;
 }
@@ -36,10 +36,16 @@ export const useShippingUpdate = (
     ...initialShippingData,
   });
 
-  console.log("shippingData", shippingData);
+  useEffect(() => {
+    if (!initialShippingData) return;
+    setShippingData((current) => ({
+      ...current,
+      ...initialShippingData,
+    }));
+  }, [initialShippingData]);
 
   const handleShippingUpdate = useCallback(
-    async (orderId: string, onSuccess?: () => void) => {
+    async (orderId: string, onSuccess?: () => void | Promise<void>) => {
       if (!orderId || !accessToken) return;
 
       setIsUpdating(true);

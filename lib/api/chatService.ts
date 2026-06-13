@@ -1,6 +1,9 @@
 // Chat service for API interactions with the new backend
+import { safeLocalStorage } from '@/lib/browserStorage';
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const USER_CACHE_KEY = 'swop:user-cache';
 
 interface CreateMessageRequest {
   receiverId: string;
@@ -39,11 +42,9 @@ class ChatApiService {
     // names kept as fallbacks for legacy chat surfaces.
     const token =
       this.getCookieValue('access-token') ||
-      (typeof localStorage !== 'undefined'
-        ? localStorage.getItem('authToken') ||
-          localStorage.getItem('jwt_token') ||
-          localStorage.getItem('accessToken')
-        : null);
+      safeLocalStorage.getItem('authToken') ||
+      safeLocalStorage.getItem('jwt_token') ||
+      safeLocalStorage.getItem('accessToken');
 
     return {
       'Content-Type': 'application/json',

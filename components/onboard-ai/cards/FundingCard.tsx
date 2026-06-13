@@ -10,6 +10,7 @@ import {
 
 interface FundingCardProps {
   done?: boolean;
+  isFinishing?: boolean;
   onSkip: () => void;
   onDone: () => void;
 }
@@ -19,13 +20,20 @@ interface FundingCardProps {
  * (components/wallet/CoinbaseOnrampFunding, rendered by ChatArea) in the
  * agent-panel container so it matches the chat cards.
  */
-export default function FundingCard({ done, onSkip, onDone }: FundingCardProps) {
+export default function FundingCard({
+  done,
+  isFinishing = false,
+  onSkip,
+  onDone,
+}: FundingCardProps) {
   if (done) {
     return (
       <div className={`${AGENT_PANEL_CLASS} w-full max-w-[420px] p-4`}>
         <p className={TICKET_LABEL_CLASS}>Funding</p>
         <p className="mt-1 text-[12.5px] text-[#a9adb8]">
-          You can always fund your wallet later from the wallet menu.
+          {isFinishing
+            ? "Opening your wallet..."
+            : "You can always fund your wallet later from the wallet menu."}
         </p>
       </div>
     );
@@ -48,11 +56,21 @@ export default function FundingCard({ done, onSkip, onDone }: FundingCardProps) 
       />
 
       <div className="mt-4 flex gap-2">
-        <button type="button" onClick={onSkip} className={`${GHOST_BUTTON_CLASS} flex-1`}>
+        <button
+          type="button"
+          onClick={onSkip}
+          disabled={isFinishing}
+          className={`${GHOST_BUTTON_CLASS} flex-1 disabled:cursor-not-allowed disabled:opacity-60`}
+        >
           Maybe later
         </button>
-        <button type="button" onClick={onDone} className={`${PRIMARY_BUTTON_CLASS} flex-1`}>
-          Go to Swop
+        <button
+          type="button"
+          onClick={onDone}
+          disabled={isFinishing}
+          className={`${PRIMARY_BUTTON_CLASS} flex-1 disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          {isFinishing ? "Opening..." : "Go to Wallet"}
         </button>
       </div>
     </div>

@@ -8,7 +8,7 @@ async function getSingleSmartsiteData(id: string, token: string) {
           "Content-Type": "application/json",
           authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
 
     const data = await res.json().catch(() => null);

@@ -24,6 +24,7 @@ interface FormData {
 interface SmartsiteFormStore {
   formData: FormData;
   setFormData: <K extends keyof FormData>(field: K, value: FormData[K]) => void;
+  setAllFormData: (data: Partial<FormData>) => void;
 }
 
 // Create the Zustand store
@@ -46,6 +47,13 @@ const useSmartsiteFormStore = create<SmartsiteFormStore>((set) => ({
       formData: {
         ...state.formData,
         [field]: value,
+      },
+    })),
+  setAllFormData: (data) =>
+    set((state) => ({
+      formData: {
+        ...state.formData,
+        ...data,
       },
     })),
 }));

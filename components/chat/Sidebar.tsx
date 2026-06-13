@@ -1,10 +1,16 @@
 // app/components/Sidebar.js
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import {
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import GroupModal from './GroupModal';
 import isUrl from '@/lib/isUrl';
 import Image from 'next/image';
+import { getProtectedAgentThreadLabel } from './protectedAgentThreads';
 import {
   Activity,
   ArrowRight,
@@ -18,6 +24,7 @@ import {
   PanelLeftOpen,
   Plus,
   Search,
+  Trash2,
   Users,
   X,
 } from 'lucide-react';
@@ -31,6 +38,10 @@ interface SidebarProps {
     chat: any,
     type: 'private' | 'group'
   ) => void;
+  onDeleteChat?: (
+    chat: any,
+    type: 'private' | 'group'
+  ) => void | Promise<void>;
   currentUser: string;
   socket: any;
   isCollapsed?: boolean;
@@ -45,6 +56,14 @@ interface SidebarProps {
 }
 
 type ThreadSelectionType = 'private' | 'group';
+
+type ThreadContextMenuState = {
+  x: number;
+  y: number;
+  item: any;
+  type: ThreadSelectionType;
+  protectedReason?: string;
+};
 
 type AgentQuickPinConfig = {
   agentId: string;
@@ -114,6 +133,7 @@ export default function Sidebar({
   selectedChat,
   chatType,
   onSelectChat,
+  onDeleteChat,
   currentUser,
   socket,
   isCollapsed = false,
@@ -128,6 +148,8 @@ export default function Sidebar({
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [contextMenu, setContextMenu] =
+    useState<ThreadContextMenuState | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const allItems = [
@@ -149,14 +171,27 @@ export default function Sidebar({
     return b.lastActivity.getTime() - a.lastActivity.getTime();
   });
 
-  const unreadTotal = allItems.reduce(
-    (sum, item) => sum + Number(item.unreadCount || 0),
-    0
-  );
   const agentPins = DEFAULT_AGENT_PINS.map((config) => ({
     config,
     thread: allItems.find((item) => isAgentThread(item, config.agentId)),
   }));
+  const pinnedThreads = agentPins
+    .map(({ thread }) => thread)
+    .filter(Boolean);
+  const visibleItems = allItems.filter((item) => {
+    const type =
+      item.type === 'direct' ? 'private' : (item.type as ThreadSelectionType);
+    return !getProtectedAgentThreadLabel(item, type);
+  });
+  const countedItems = [...visibleItems, ...pinnedThreads];
+
+  const unreadTotal = countedItems.reduce(
+    (sum, item) => sum + Number(item.unreadCount || 0),
+    0
+  );
+  const selectedProtectedLabel = selectedChat
+    ? getProtectedAgentThreadLabel(selectedChat, chatType)
+    : null;
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -190,6 +225,7 @@ export default function Sidebar({
     onSelectChat(normalizeDirectChat(user), 'private');
     setSearchQuery('');
     setShowSearchResults(false);
+    setContextMenu(null);
   };
 
   const handleToggleCollapsed = () => {
@@ -197,14 +233,85 @@ export default function Sidebar({
       setSearchQuery('');
       setShowSearchResults(false);
       setSearchResults([]);
+      setContextMenu(null);
     }
     onToggleCollapsed?.();
   };
 
   const isSelected = (item: any, type: ThreadSelectionType) => {
     if (!selectedChat) return false;
-    return chatType === type && selectedChat._id === item._id;
+    if (chatType === type && selectedChat._id === item._id) return true;
+
+    const itemLabel = getProtectedAgentThreadLabel(item, type);
+    return Boolean(
+      selectedProtectedLabel &&
+        itemLabel &&
+        selectedProtectedLabel === itemLabel
+    );
   };
+
+  const handleThreadContextMenu = (
+    event: ReactMouseEvent,
+    item: any,
+    type: ThreadSelectionType
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const protectedLabel = getProtectedAgentThreadLabel(item, type);
+    const x =
+      typeof window === 'undefined'
+        ? event.clientX
+        : Math.min(event.clientX, window.innerWidth - 208);
+    const y =
+      typeof window === 'undefined'
+        ? event.clientY
+        : Math.min(event.clientY, window.innerHeight - 72);
+
+    setContextMenu({
+      x: Math.max(8, x),
+      y: Math.max(8, y),
+      item,
+      type,
+      protectedReason: protectedLabel
+        ? `${protectedLabel} chats cannot be deleted`
+        : undefined,
+    });
+  };
+
+  const handleContextDelete = () => {
+    if (!contextMenu || contextMenu.protectedReason || !onDeleteChat) return;
+
+    const info = getDisplayInfo(contextMenu.item, currentUser);
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(`Delete ${info.name}?`);
+
+    if (!confirmed) return;
+
+    const { item, type } = contextMenu;
+    setContextMenu(null);
+    void onDeleteChat(item, type);
+  };
+
+  useEffect(() => {
+    if (!contextMenu) return undefined;
+
+    const close = () => setContextMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [contextMenu]);
 
   return (
     <aside
@@ -240,9 +347,34 @@ export default function Sidebar({
             )}
           </div>
 
+          <div className="flex flex-shrink-0 flex-col items-center gap-2 border-y border-white/[0.07] px-2 py-3">
+            {agentPins.map(({ config, thread }) => {
+              const type =
+                thread?.type === 'direct'
+                  ? 'private'
+                  : (thread?.type as ThreadSelectionType) || 'group';
+              return (
+                <CollapsedAgentPin
+                  key={config.agentId}
+                  config={config}
+                  isSelected={Boolean(thread) && isSelected(thread, type)}
+                  onClick={() => {
+                    if (onOpenAgentThread) {
+                      void onOpenAgentThread(config.agentId);
+                      return;
+                    }
+                    if (thread) {
+                      onSelectChat(thread, type);
+                    }
+                  }}
+                />
+              );
+            })}
+          </div>
+
           <div className="dm-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3">
             <div className="space-y-2">
-              {allItems.map((item) => {
+              {visibleItems.map((item) => {
                 const type =
                   item.type === 'direct'
                     ? 'private'
@@ -253,6 +385,9 @@ export default function Sidebar({
                     item={item}
                     isSelected={isSelected(item, type)}
                     onClick={() => onSelectChat(item, type)}
+                    onContextMenu={(event) =>
+                      handleThreadContextMenu(event, item, type)
+                    }
                     currentUser={currentUser}
                   />
                 );
@@ -277,7 +412,7 @@ export default function Sidebar({
                   Messages
                 </h2>
                 <div className="dm-mono mt-0.5 text-[10.5px] font-semibold text-[#5a5e69] max-md:text-[#77746f]">
-                  {allItems.length} threads · {unreadTotal} unread
+                  {countedItems.length} threads · {unreadTotal} unread
                   <span className="hidden max-md:inline"> · sol mainnet</span>
                 </div>
               </div>
@@ -321,12 +456,20 @@ export default function Sidebar({
                       }
                     }
                     isSelected={Boolean(thread) && isSelected(thread, type)}
+                    onContextMenu={
+                      thread
+                        ? (event) =>
+                            handleThreadContextMenu(event, thread, type)
+                        : undefined
+                    }
                     onClick={() => {
-                      if (thread) {
-                        onSelectChat(thread, type);
+                      if (onOpenAgentThread) {
+                        void onOpenAgentThread(config.agentId);
                         return;
                       }
-                      void onOpenAgentThread?.(config.agentId);
+                      if (thread) {
+                        onSelectChat(thread, type);
+                      }
                     }}
                     onCommand={(agentId, seed) => {
                       if (onOpenAgentCommand) {
@@ -406,13 +549,13 @@ export default function Sidebar({
           </div>
 
           <div className="dm-scroll min-h-0 flex-1 overflow-y-auto px-3 pb-3 max-md:px-3 max-md:pt-3">
-            {allItems.length === 0 ? (
+            {visibleItems.length === 0 ? (
               <div className="dm-mono rounded-[12px] border border-white/[0.07] bg-[#15171d] p-4 text-center text-[11px] text-[#5a5e69] max-md:border-[#e6e5df] max-md:bg-white max-md:text-[#77746f]">
                 no threads yet
               </div>
             ) : (
               <div className="max-md:overflow-hidden max-md:rounded-[16px] max-md:border max-md:border-[#e6e5df] max-md:bg-white">
-                {allItems
+                {visibleItems
                   .filter((item: any) => filterThread(item, searchQuery))
                   .map((item) => {
                     const type =
@@ -425,6 +568,9 @@ export default function Sidebar({
                         item={item}
                         isSelected={isSelected(item, type)}
                         onClick={() => onSelectChat(item, type)}
+                        onContextMenu={(event) =>
+                          handleThreadContextMenu(event, item, type)
+                        }
                         currentUser={currentUser}
                       />
                     );
@@ -437,6 +583,30 @@ export default function Sidebar({
             </div>
           </div>
         </>
+      )}
+
+      {contextMenu && (
+        <div
+          className="fixed z-[80] min-w-[196px] overflow-hidden rounded-[12px] border border-white/[0.08] bg-[#111318] py-1 shadow-[0_18px_50px_rgba(0,0,0,0.6)] max-md:border-[#e6e5df] max-md:bg-white"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {contextMenu.protectedReason ? (
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.5px] font-semibold text-[#5a5e69] max-md:text-[#77746f]">
+              <LockKeyhole className="h-4 w-4" />
+              <span>{contextMenu.protectedReason}</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleContextDelete}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-semibold text-[#ff8589] hover:bg-[#e5484d]/10 max-md:text-[#c1272d]"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete chat
+            </button>
+          )}
+        </div>
       )}
 
       {showGroupModal && (
@@ -550,12 +720,8 @@ function isAgentThread(item: any, agentId: string) {
       ?.fallbackThreadName.toLowerCase() || '';
   return (
     item?.type === 'group' &&
-    ((fallbackName && name === fallbackName) ||
-      item?.botUsers?.some(
-        (agent: any) =>
-          String(agent?.agentId || '').toLowerCase() === agentId &&
-          agent?.isActive !== false
-      ))
+    Boolean(fallbackName) &&
+    name === fallbackName
   );
 }
 
@@ -564,16 +730,19 @@ function AgentQuickPin({
   item,
   isSelected,
   onClick,
+  onContextMenu,
   onCommand,
 }: {
   config: AgentQuickPinConfig;
   item: any;
   isSelected: boolean;
   onClick: () => void;
+  onContextMenu?: (event: ReactMouseEvent) => void;
   onCommand?: (agentId: string, commandSeed: string) => void | Promise<void>;
 }) {
   return (
     <div
+      onContextMenu={onContextMenu}
       className={`overflow-hidden rounded-[16px] border bg-[#0a0a0c] text-white shadow-[0_16px_42px_-28px_rgba(0,0,0,0.8)] ${
         isSelected ? 'border-[#3fe08f]/55' : 'border-[#0a0a0c]'
       }`}
@@ -626,15 +795,50 @@ function AgentQuickPin({
   );
 }
 
+function CollapsedAgentPin({
+  config,
+  isSelected,
+  onClick,
+}: {
+  config: AgentQuickPinConfig;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={config.displayName}
+      aria-label={`Open ${config.displayName}`}
+      onClick={onClick}
+      className={`dm-row relative grid h-[48px] w-full place-items-center rounded-[12px] border ${
+        isSelected
+          ? 'border-[#3fe08f]/55 bg-[#1b1e25]'
+          : 'border-white/[0.07] bg-[#15171d]'
+      }`}
+    >
+      {isSelected && (
+        <span className="absolute left-0 top-1/2 h-[24px] w-[3px] -translate-y-1/2 rounded-[3px] bg-[#3fe08f]" />
+      )}
+      <span
+        className={`dm-mono grid h-9 w-9 place-items-center rounded-[10px] border text-[11px] font-bold ${config.accentClass} ${config.accentBgClass}`}
+      >
+        {config.initials}
+      </span>
+    </button>
+  );
+}
+
 function ConversationItem({
   item,
   isSelected,
   onClick,
+  onContextMenu,
   currentUser,
 }: {
   item: any;
   isSelected: boolean;
   onClick: () => void;
+  onContextMenu?: (event: ReactMouseEvent) => void;
   currentUser: string;
 }) {
   const isGroup = item.type === 'group';
@@ -644,6 +848,7 @@ function ConversationItem({
     <button
       type="button"
       onClick={onClick}
+      onContextMenu={onContextMenu}
       className={`dm-row relative mt-1 flex w-full items-start gap-[11px] rounded-[12px] px-3 py-[11px] text-left max-md:mt-0 max-md:rounded-none max-md:border-b max-md:border-[#e6e5df] max-md:bg-white max-md:px-[14px] max-md:py-3 ${
         isSelected
           ? 'bg-[#1b1e25] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)] max-md:bg-[#fafafa]'
@@ -726,11 +931,13 @@ function CollapsedConversationItem({
   item,
   isSelected,
   onClick,
+  onContextMenu,
   currentUser,
 }: {
   item: any;
   isSelected: boolean;
   onClick: () => void;
+  onContextMenu?: (event: ReactMouseEvent) => void;
   currentUser: string;
 }) {
   const isGroup = item.type === 'group';
@@ -743,6 +950,7 @@ function CollapsedConversationItem({
       title={info.name}
       aria-label={`Open ${info.name}`}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       className={`dm-row relative grid h-[52px] w-full place-items-center rounded-[12px] ${
         isSelected
           ? 'bg-[#1b1e25] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]'

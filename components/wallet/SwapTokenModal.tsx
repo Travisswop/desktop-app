@@ -34,10 +34,10 @@ import {
 import {
   useWallets as useSolanaWallets,
   useSignAndSendTransaction,
-  useSignTransaction,
 } from '@privy-io/react-auth/solana';
 import {
   createPublicClient,
+  custom,
   encodeFunctionData,
   erc20Abi,
   http,
@@ -79,6 +79,10 @@ import {
   getSafeSwapInputAmount,
   normalizeTokenDecimals,
 } from '@/lib/wallet/swapAmounts';
+import {
+  ensureSponsoredSolanaTokenAccount,
+  isNativeSolMint,
+} from '@/lib/solana/sponsoredTokenAccounts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Module-level LiFi token cache
@@ -92,7 +96,6 @@ const _lifiTokenCache = new Map<
 >();
 const LIFI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MARKET_QUOTE_CACHE_TTL_MS = 60 * 1000; // 1 minute
-const MAX_SUBMIT_QUOTE_AGE_MS = 45 * 1000;
 
 type TokenMarketQuote = {
   price?: number | null;
@@ -484,6 +487,15 @@ const getChainId = (chainName: string) => {
 const isPrivyEmbeddedWalletType = (walletClientType?: string) =>
   walletClientType === 'privy' || walletClientType === 'privy-v2';
 
+const normalizeEvmAddress = (address?: string | null) =>
+  typeof address === 'string' ? address.trim().toLowerCase() : '';
+
+const normalizeWalletAddress = (address?: string | null) =>
+  address?.trim().toLowerCase() ?? '';
+
+const formatShortWalletAddress = (address: string) =>
+  `${address.slice(0, 4)}...${address.slice(-4)}`;
+
 const parseOptionalBigInt = (value: unknown) => {
   if (value === undefined || value === null || value === '')
     return undefined;
@@ -687,15 +699,6 @@ const isNativeEvmToken = (token?: any) => {
 // Error formatting
 // ─────────────────────────────────────────────────────────────────────────────
 
-const getSwapErrorMessage = (error: unknown, fallback = 'Swap failed') => {
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message || fallback;
-  if (error && typeof error === 'object' && 'message' in error) {
-    return String((error as { message?: unknown }).message || fallback);
-  }
-  return fallback;
-};
-
 const isRouteUnavailableErrorMessage = (message: string) => {
   const lowerError = message.toLowerCase();
   return (
@@ -710,29 +713,31 @@ const isRouteUnavailableErrorMessage = (message: string) => {
   );
 };
 
-const isTransientQuoteRefreshError = (error: unknown) => {
-  const lowerError = getSwapErrorMessage(error, '').toLowerCase();
-  if (!lowerError || isRouteUnavailableErrorMessage(lowerError)) return false;
-
-  return (
-    lowerError.includes('network error') ||
-    lowerError.includes('fetch failed') ||
-    lowerError.includes('failed to fetch') ||
-    lowerError.includes('fetch error') ||
-    lowerError.includes('network request failed') ||
-    lowerError.includes('timeout') ||
-    lowerError.includes('taking too long') ||
-    lowerError.includes('temporarily unavailable') ||
-    lowerError.includes('rate limit') ||
-    lowerError.includes('too many requests')
-  );
-};
-
 const hasExecutableLiFiQuote = (quoteCandidate: any) =>
   Boolean(quoteCandidate?.transactionRequest);
 
+const isUserCancellationError = (error: unknown) => {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error || '');
+  const lowerError = message.toLowerCase();
+  return (
+    lowerError.includes('user rejected') ||
+    lowerError.includes('rejected by user') ||
+    lowerError.includes('user denied') ||
+    lowerError.includes('cancelled') ||
+    lowerError.includes('canceled')
+  );
+};
+
 const formatUserFriendlyError = (error: string): string => {
   const lowerError = error.toLowerCase();
+  if (
+    lowerError.includes('gas sponsorship failed') ||
+    lowerError.includes('sponsored transaction failed')
+  )
+    return 'Gas sponsorship failed. Please try again in a moment.';
   if (
     lowerError.includes('network error') ||
     lowerError.includes('fetch failed') ||
@@ -1387,6 +1392,7 @@ export default function SwapTokenModal({
   defaultPayChainId,
   defaultReceiveToken,
   defaultReceiveChainId,
+  preferredSolanaWalletAddress,
   onSwapComplete,
 }: {
   tokens: any[];
@@ -1401,6 +1407,8 @@ export default function SwapTokenModal({
   defaultReceiveToken?: any;
   /** Chain ID string for the pre-selected receive token (e.g. "42161") */
   defaultReceiveChainId?: string;
+  /** Solana address used to load balances; swaps must sign from this wallet. */
+  preferredSolanaWalletAddress?: string;
   /** Called after a swap tx is submitted successfully */
   onSwapComplete?: (txHash: string) => void;
 }) {
@@ -1529,19 +1537,51 @@ export default function SwapTokenModal({
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
   const { signAndSendTransaction } = useSignAndSendTransaction();
-  const { signTransaction } = useSignTransaction();
   const { socket: chatSocket } = useNewSocketChat();
   const socket = chatSocket;
   const ethWallet = wallets[0]?.address;
+  const normalizedPreferredSolanaWalletAddress =
+    normalizeWalletAddress(preferredSolanaWalletAddress);
 
   const selectedSolanaWallet = useMemo(() => {
     if (!solanaReady || !directSolanaWallets.length) return undefined;
+    if (normalizedPreferredSolanaWalletAddress) {
+      return directSolanaWallets.find(
+        (w) =>
+          normalizeWalletAddress(w.address) ===
+          normalizedPreferredSolanaWalletAddress,
+      );
+    }
     return (
       directSolanaWallets.find(
         (w) => w.address && w.address.length > 0,
       ) ?? directSolanaWallets[0]
     );
-  }, [solanaReady, directSolanaWallets]);
+  }, [
+    solanaReady,
+    directSolanaWallets,
+    normalizedPreferredSolanaWalletAddress,
+  ]);
+
+  const solanaWalletMismatchError = useMemo(() => {
+    if (
+      !normalizedPreferredSolanaWalletAddress ||
+      !preferredSolanaWalletAddress ||
+      !solanaReady ||
+      !directSolanaWallets.length ||
+      selectedSolanaWallet
+    ) {
+      return null;
+    }
+
+    return `The Solana wallet with these balances (${formatShortWalletAddress(preferredSolanaWalletAddress)}) is not connected for signing. Connect that wallet or switch accounts, then try again.`;
+  }, [
+    directSolanaWallets.length,
+    normalizedPreferredSolanaWalletAddress,
+    preferredSolanaWalletAddress,
+    selectedSolanaWallet,
+    solanaReady,
+  ]);
 
   const [fromWalletAddress, setFromWalletAddress] = useState(
     selectedSolanaWallet?.address || '',
@@ -1549,6 +1589,23 @@ export default function SwapTokenModal({
   const [toWalletAddress, setToWalletAddress] = useState(
     selectedSolanaWallet?.address || '',
   );
+
+  const isSourceEvmWalletPrivySponsored = useMemo(() => {
+    if (
+      !fromWalletAddress ||
+      isSolanaToken(payToken, chainId) ||
+      !wallets.length
+    ) {
+      return false;
+    }
+
+    const normalizedFrom = normalizeWalletAddress(fromWalletAddress);
+    return wallets.some(
+      (wallet) =>
+        normalizeWalletAddress(wallet.address) === normalizedFrom &&
+        isPrivyEmbeddedWalletType(wallet.walletClientType),
+    );
+  }, [chainId, fromWalletAddress, payToken, wallets]);
 
   const { user: PrivyUser, getAccessToken } = usePrivy();
   const { user: userData } = useUser();
@@ -1927,24 +1984,30 @@ export default function SwapTokenModal({
       const chain = getViemChain(chainId);
       if (!chain) throw new Error('Unsupported EVM chain');
 
-      const client = createPublicClient({ chain, transport: http() });
-      const allowance = await client.readContract({
-        address: tokenAddress as `0x${string}`,
-        abi: erc20Abi,
-        functionName: 'allowance',
-        args: [owner as `0x${string}`, spender as `0x${string}`],
-      });
-
-      if (allowance >= BigInt(amountWei)) return; // Already approved
-
-      // Switch to the correct chain for ALL wallet types.
-      // Previously this was guarded by `walletClientType !== 'privy'`, which
-      // meant Privy wallets never switched — causing approvals to be sent on
-      // whatever chain the wallet was last used on (e.g. Polygon) instead of
-      // the source chain (e.g. Arbitrum).
       if (switchChain) {
         await switchChain(chainId);
       }
+
+      const client = createPublicClient({
+        chain,
+        transport: custom(provider),
+      });
+      let allowance: bigint;
+      try {
+        allowance = await client.readContract({
+          address: tokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [owner as `0x${string}`, spender as `0x${string}`],
+        });
+      } catch (allowanceErr) {
+        console.warn('Token allowance check failed:', allowanceErr);
+        throw new Error(
+          'Unable to check token approval. Please reconnect your wallet and try again.',
+        );
+      }
+
+      if (allowance >= BigInt(amountWei)) return; // Already approved
 
       const approveData = encodeFunctionData({
         abi: erc20Abi,
@@ -1963,7 +2026,7 @@ export default function SwapTokenModal({
             chainId,
           },
           {
-            sponsor: false,
+            sponsor: true,
             address: owner,
             uiOptions: { showWalletUIs: false },
           },
@@ -2909,7 +2972,13 @@ export default function SwapTokenModal({
     // Only applies to EVM LiFi swaps (not Solana-to-Solana Jupiter swaps)
     const isSolSol = isSolanaToSolanaSwap();
 
-    if (!quote || isSolSol || !fromWalletAddress || !chainId) {
+    if (
+      !quote ||
+      isSolSol ||
+      !fromWalletAddress ||
+      !chainId ||
+      isSourceEvmWalletPrivySponsored
+    ) {
       setGasBalanceError(null);
       setEstimatedGasFeeEth(null);
       return;
@@ -3016,7 +3085,12 @@ export default function SwapTokenModal({
     // payToken.chain changes update chainId (separate effect) → re-triggers here.
     // receiveToken/receiverChainId changes invalidate the quote → re-triggers here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quote, chainId, fromWalletAddress]);
+  }, [
+    quote,
+    chainId,
+    fromWalletAddress,
+    isSourceEvmWalletPrivySponsored,
+  ]);
 
   useEffect(() => {
     const nextChainId = getTokenChainId(payToken);
@@ -3249,6 +3323,8 @@ export default function SwapTokenModal({
   // ── Jupiter swap (/order + /execute) ─────────────────────────────────────────
   const executeJupiterSwap = async () => {
     try {
+      let canRunUserFundedSimulation = true;
+
       if (!solanaReady) {
         setSwapError(
           'Solana wallet is not ready. Please wait and try again.',
@@ -3257,7 +3333,9 @@ export default function SwapTokenModal({
         return;
       }
       if (!selectedSolanaWallet?.address) {
-        setSwapError('No Solana wallet connected');
+        setSwapError(
+          solanaWalletMismatchError || 'No Solana wallet connected',
+        );
         setIsSwapping(false);
         return;
       }
@@ -3286,181 +3364,70 @@ export default function SwapTokenModal({
         confirmTransactionInitialTimeout: 60000,
       });
 
-      // ── Pre-flight: verify SOL covers fees + any ATA rent ──────────────────
-      // ATA rent-exempt minimum: 2,039,280 lamports (~0.00204 SOL).
-      // TX fee buffer: 15,000 lamports (base fee + priority headroom).
-      setSwapStatus('Checking wallet balance...');
-      {
-        const ATA_RENT = 2_039_280;
-        const TX_FEE_BUFFER = 15_000;
-        const walletPubkey = new PublicKey(
-          selectedSolanaWallet.address,
+      setSwapStatus('Preparing swap...');
+      await safeRefreshSession();
+
+      const USER_FEE_PAYER_SIMULATION_BUFFER = 15_000;
+      const walletPubkey = new PublicKey(selectedSolanaWallet.address);
+      const outputMintPubkey = new PublicKey(outputMint);
+      const isSOLInput = isNativeSolMint(inputMint);
+      const isSOLOutput = isNativeSolMint(outputMint);
+
+      if (!isSOLOutput) {
+        const outputTokenProgram = await detectSolanaTokenProgram(
+          connection,
+          outputMint,
         );
-        const outputMintPubkey = new PublicKey(outputMint);
-
-        // Fetch SOL balance and output mint info in one round trip
-        const [solLamports, outputMintAcct] = await Promise.all([
-          connection.getBalance(walletPubkey),
-          connection
-            .getAccountInfo(outputMintPubkey)
-            .catch(() => null),
-        ]);
-
-        // Detect token program so we derive the correct ATA address
-        const outputTokenProgram = outputMintAcct?.owner.equals(
-          TOKEN_2022_PROGRAM_ID,
-        )
-          ? TOKEN_2022_PROGRAM_ID
-          : TOKEN_PROGRAM_ID;
         const outputAtaAddr = await getAssociatedTokenAddress(
           outputMintPubkey,
           walletPubkey,
           false,
           outputTokenProgram,
         );
-        const outputAtaAcct = await connection
+        let outputAtaAcct = await connection
           .getAccountInfo(outputAtaAddr)
           .catch(() => null);
 
-        const rentNeeded = outputAtaAcct ? 0 : ATA_RENT;
-        const SOL_MINT =
-          'So11111111111111111111111111111111111111112';
-        const isSOLInput = inputMint === SOL_MINT;
-
-        // When the input token IS SOL, the swap amount itself is drawn from
-        // the SOL balance, so we must include it in the requirement.
-        const swapLamports = isSOLInput
-          ? Number(
-              formatTokenAmount(payAmount, payToken?.decimals ?? 9),
-            )
-          : 0;
-
-        const minRequired = TX_FEE_BUFFER + rentNeeded + swapLamports;
-
-        if (solLamports < minRequired) {
-          const shortfall = (
-            (minRequired - solLamports) /
-            1e9
-          ).toFixed(5);
-          const reason = isSOLInput
-            ? `the swap amount and fees${!outputAtaAcct ? ` (including account creation for ${receiveToken?.symbol ?? 'output token'})` : ''}`
-            : !outputAtaAcct
-              ? `transaction fees and creating your ${receiveToken?.symbol ?? 'output token'} account`
-              : 'transaction fees';
-          throw new Error(
-            `Insufficient SOL: you need ${shortfall} more SOL to cover ${reason}.`,
+        if (!outputAtaAcct) {
+          setSwapStatus(
+            `Preparing ${receiveToken?.symbol ?? 'token'} account...`,
           );
+          await ensureSponsoredSolanaTokenAccount({
+            ownerAddress: selectedSolanaWallet.address,
+            mint: outputMint,
+            tokenProgramId: outputTokenProgram.toString(),
+            accessToken,
+            label: `${receiveToken?.symbol ?? 'output token'}`,
+          });
+
+          outputAtaAcct = await connection
+            .getAccountInfo(outputAtaAddr)
+            .catch(() => null);
+          if (!outputAtaAcct) {
+            throw new Error(
+              `Could not prepare your ${receiveToken?.symbol ?? 'output token'} account. Please try again.`,
+            );
+          }
         }
       }
 
-      // Warm up Privy session and run ATA pre-creation in parallel so neither
-      // blocks the time-critical build → submit path.
-      setSwapStatus('Preparing swap...');
-      await Promise.allSettled([
-        safeRefreshSession(),
-        (async () => {
-          try {
-            const walletPubkey = new PublicKey(
-              selectedSolanaWallet.address,
-            );
-            const inputMintPubkey = new PublicKey(inputMint);
-            const outputMintPubkey = new PublicKey(outputMint);
+      setSwapStatus('Checking wallet balance...');
+      const solLamports = await connection.getBalance(walletPubkey);
+      const swapLamports = isSOLInput
+        ? Number(formatTokenAmount(payAmount, payToken?.decimals ?? 9))
+        : 0;
 
-            const detectTokenProgram = async (
-              mintPubkey: typeof PublicKey.prototype,
-            ) => {
-              try {
-                const mintInfo =
-                  await connection.getAccountInfo(mintPubkey);
-                if (!mintInfo) return TOKEN_PROGRAM_ID;
-                if (mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID))
-                  return TOKEN_2022_PROGRAM_ID;
-                return TOKEN_PROGRAM_ID;
-              } catch {
-                return TOKEN_PROGRAM_ID;
-              }
-            };
+      canRunUserFundedSimulation =
+        solLamports >= USER_FEE_PAYER_SIMULATION_BUFFER + swapLamports;
 
-            const [inputTokenProgram, outputTokenProgram] =
-              await Promise.all([
-                detectTokenProgram(inputMintPubkey),
-                detectTokenProgram(outputMintPubkey),
-              ]);
-
-            const [inputATA, outputATA] = await Promise.all([
-              getAssociatedTokenAddress(
-                inputMintPubkey,
-                walletPubkey,
-                false,
-                inputTokenProgram,
-              ),
-              getAssociatedTokenAddress(
-                outputMintPubkey,
-                walletPubkey,
-                false,
-                outputTokenProgram,
-              ),
-            ]);
-
-            const [inputAccountInfo, outputAccountInfo] =
-              await Promise.all([
-                connection.getAccountInfo(inputATA),
-                connection.getAccountInfo(outputATA),
-              ]);
-
-            if (!inputAccountInfo || !outputAccountInfo) {
-              const createAta = async (
-                mint: string,
-                tokenProgram: typeof TOKEN_PROGRAM_ID,
-              ) => {
-                const headers: Record<string, string> = {
-                  'Content-Type': 'application/json',
-                };
-                // Prefer cookie-based auth via Next API route; fall back to
-                // client token if available (e.g. when cookie isn't set yet).
-                if (accessToken) {
-                  headers.Authorization = `Bearer ${accessToken}`;
-                }
-                const resp = await fetch(
-                  `/api/v5/wallet/ensure-user-token-account`,
-                  {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                      userAddress: selectedSolanaWallet!.address,
-                      mint,
-                      // Pass the detected program ID so the backend skips its
-                      // own on-chain detection round-trip for Token-2022 mints.
-                      tokenProgramId: tokenProgram.toString(),
-                    }),
-                  },
-                );
-                if (!resp.ok) {
-                  const err = await resp.json().catch(() => ({}));
-                  throw new Error(
-                    err?.message ||
-                      `Failed to create ATA for ${mint}`,
-                  );
-                }
-              };
-              await Promise.allSettled([
-                ...(!inputAccountInfo
-                  ? [createAta(inputMint, inputTokenProgram)]
-                  : []),
-                ...(!outputAccountInfo
-                  ? [createAta(outputMint, outputTokenProgram)]
-                  : []),
-              ]);
-            }
-          } catch (ataError) {
-            // Non-fatal: Jupiter's CreateIdempotent handles missing ATAs.
-            console.warn(
-              'ATA pre-creation failed, Jupiter will handle it:',
-              ataError,
-            );
-          }
-        })(),
-      ]);
+      if (solLamports < swapLamports) {
+        const shortfall = ((swapLamports - solLamports) / 1e9).toFixed(
+          5,
+        );
+        throw new Error(
+          `Insufficient SOL: you need ${shortfall} more SOL to cover the swap amount.`,
+        );
+      }
 
       {
         const [inputTokenProgram, outputTokenProgram] =
@@ -3511,42 +3478,48 @@ export default function SwapTokenModal({
 
         setSwapStatus('Simulating Jupiter swap...');
         let computeUnitLimit = JUPITER_MAX_COMPUTE_UNITS;
-        try {
-          const simulationTx = buildJupiterVersionedTransaction({
-            build,
-            feePayer: selectedSolanaWallet.address,
-            computeUnitLimit: JUPITER_MAX_COMPUTE_UNITS,
-          });
-          const simulation = await connection.simulateTransaction(
-            simulationTx,
-            {
-              sigVerify: false,
-              replaceRecentBlockhash: true,
-              commitment: 'confirmed',
-            },
-          );
-
-          if (simulation.value.err) {
-            const logs =
-              simulation.value.logs?.slice(-4).join(' ') || '';
-            throw new Error(
-              `Jupiter swap simulation failed. ${logs}`.trim(),
+        if (canRunUserFundedSimulation) {
+          try {
+            const simulationTx = buildJupiterVersionedTransaction({
+              build,
+              feePayer: selectedSolanaWallet.address,
+              computeUnitLimit: JUPITER_MAX_COMPUTE_UNITS,
+            });
+            const simulation = await connection.simulateTransaction(
+              simulationTx,
+              {
+                sigVerify: false,
+                replaceRecentBlockhash: true,
+                commitment: 'confirmed',
+              },
             );
-          }
 
-          const unitsConsumed = simulation.value.unitsConsumed;
-          if (unitsConsumed) {
-            computeUnitLimit = Math.min(
-              Math.ceil(unitsConsumed * 1.2),
-              JUPITER_MAX_COMPUTE_UNITS,
+            if (simulation.value.err) {
+              const logs =
+                simulation.value.logs?.slice(-4).join(' ') || '';
+              throw new Error(
+                `Jupiter swap simulation failed. ${logs}`.trim(),
+              );
+            }
+
+            const unitsConsumed = simulation.value.unitsConsumed;
+            if (unitsConsumed) {
+              computeUnitLimit = Math.min(
+                Math.ceil(unitsConsumed * 1.2),
+                JUPITER_MAX_COMPUTE_UNITS,
+              );
+            }
+          } catch (simulationError) {
+            console.warn(
+              'Jupiter simulation failed before signing:',
+              simulationError,
             );
+            throw simulationError;
           }
-        } catch (simulationError) {
+        } else {
           console.warn(
-            'Jupiter simulation failed before signing:',
-            simulationError,
+            'Skipping user-funded Jupiter simulation because Privy sponsorship will replace the fee payer.',
           );
-          throw simulationError;
         }
 
         const tx = buildJupiterVersionedTransaction({
@@ -3555,24 +3528,32 @@ export default function SwapTokenModal({
           computeUnitLimit,
         });
 
-        setSwapStatus('Signing transaction...');
         await safeRefreshSession();
-        const { signedTransaction } = await signTransaction({
-          transaction: new Uint8Array(tx.serialize()),
-          wallet: selectedSolanaWallet,
-          options: {
-            uiOptions: { showWalletUIs: false },
-          },
-        });
 
-        setSwapStatus('Submitting Jupiter swap...');
-        const txId = await connection.sendRawTransaction(
-          signedTransaction,
-          {
-            maxRetries: 3,
-            skipPreflight: false,
-          },
-        );
+        const serializedTransaction = new Uint8Array(tx.serialize());
+        let txId: string;
+        try {
+          setSwapStatus('Submitting sponsored Jupiter swap...');
+          const sponsoredResult = await signAndSendTransaction({
+            transaction: serializedTransaction,
+            wallet: selectedSolanaWallet,
+            options: {
+              sponsor: true,
+              uiOptions: { showWalletUIs: false },
+            },
+          });
+          txId = bs58.encode(sponsoredResult.signature);
+        } catch (sponsoredError) {
+          if (isUserCancellationError(sponsoredError)) {
+            throw sponsoredError;
+          }
+
+          console.warn(
+            'Sponsored Jupiter swap failed:',
+            sponsoredError,
+          );
+          throw new Error('Gas sponsorship failed for this swap.');
+        }
 
         setTxHash(txId);
         setSwapStatus('Transaction submitted!');
@@ -3637,7 +3618,9 @@ export default function SwapTokenModal({
         return;
       }
       if (!selectedSolanaWallet?.address) {
-        setSwapError('No Solana wallet connected');
+        setSwapError(
+          solanaWalletMismatchError || 'No Solana wallet connected',
+        );
         setIsSwapping(false);
         return;
       }
@@ -3674,13 +3657,26 @@ export default function SwapTokenModal({
         transaction.serialize(),
       );
 
-      const result = await signAndSendTransaction({
-        transaction: serializedTransaction,
-        wallet: selectedSolanaWallet,
-        options: {
-          uiOptions: { showWalletUIs: false },
-        },
-      });
+      let result;
+      try {
+        result = await signAndSendTransaction({
+          transaction: serializedTransaction,
+          wallet: selectedSolanaWallet,
+          options: {
+            sponsor: true,
+            uiOptions: { showWalletUIs: false },
+          },
+        });
+      } catch (sponsoredError) {
+        if (isUserCancellationError(sponsoredError)) {
+          throw sponsoredError;
+        }
+        console.warn(
+          'Sponsored Solana swap failed:',
+          sponsoredError,
+        );
+        throw new Error('Gas sponsorship failed for this swap.');
+      }
       const signature = bs58.encode(result.signature);
 
       setTxHash(signature);
@@ -3725,24 +3721,34 @@ export default function SwapTokenModal({
         await executeSolanaSwap(activeQuote);
       } else {
         const allAccounts = PrivyUser?.linkedAccounts || [];
-        const ethereumAccount = allAccounts.find(
+        const fallbackEthereumAccount = allAccounts.find(
           (account: any) =>
             account.chainType === 'ethereum' &&
             account.type === 'wallet' &&
             account.address,
         );
-        if (!ethereumAccount) {
+        const quoteFromAddress =
+          (activeQuote as any)?.action?.fromAddress ||
+          (activeQuote as any)?.fromAddress ||
+          (activeQuote as any)?.transactionRequest?.from;
+        const sourceWalletAddress =
+          quoteFromAddress ||
+          fromWalletAddress ||
+          ethWallet ||
+          (fallbackEthereumAccount as any)?.address ||
+          '';
+        if (!sourceWalletAddress) {
           setSwapError('No Ethereum wallet connected');
           setIsSwapping(false);
           return;
         }
         const wallet = wallets.find(
           (w) =>
-            w.address?.toLowerCase() ===
-            (ethereumAccount as any).address.toLowerCase(),
+            normalizeEvmAddress(w.address) ===
+            normalizeEvmAddress(sourceWalletAddress),
         );
         if (!wallet) {
-          setSwapError('Wallet not found');
+          setSwapError('Selected wallet not found');
           setIsSwapping(false);
           return;
         }
@@ -3858,7 +3864,7 @@ export default function SwapTokenModal({
               maxPriorityFeePerGas;
 
           const result = await sendPrivyTransaction(privyTxRequest, {
-            sponsor: false,
+            sponsor: true,
             address: wallet.address,
             uiOptions: { showWalletUIs: false },
           });
@@ -3978,14 +3984,18 @@ export default function SwapTokenModal({
         await executeJupiterSwap();
       } else {
         const existingQuote = quote;
-        const existingQuoteAgeMs = lastQuoteTime
-          ? Date.now() - lastQuoteTime
-          : Number.POSITIVE_INFINITY;
-        const canUseExistingQuote =
-          hasExecutableLiFiQuote(existingQuote) &&
-          existingQuoteAgeMs <= MAX_SUBMIT_QUOTE_AGE_MS;
+        if (hasExecutableLiFiQuote(existingQuote)) {
+          if (quoteRefreshInterval.current) {
+            clearInterval(quoteRefreshInterval.current);
+          }
+          setSwapStatus('Using latest quote...');
+          setIsQuoteLoading(false);
+          setIsCalculating(false);
+          await executeLiFiSwap(existingQuote);
+          return;
+        }
 
-        setSwapStatus('Refreshing quote...');
+        setSwapStatus('Getting quote...');
         if (quoteRefreshInterval.current) {
           clearInterval(quoteRefreshInterval.current);
         }
@@ -3993,26 +4003,7 @@ export default function SwapTokenModal({
         quoteRequestIdRef.current = submitQuoteRequestId;
         setIsQuoteLoading(true);
 
-        let freshQuote;
-        try {
-          freshQuote = await getLifiQuote();
-        } catch (quoteRefreshError) {
-          if (
-            canUseExistingQuote &&
-            isTransientQuoteRefreshError(quoteRefreshError)
-          ) {
-            console.warn(
-              'LiFi quote refresh failed; using the latest available quote.',
-              quoteRefreshError,
-            );
-            setSwapStatus('Using latest quote...');
-            setIsQuoteLoading(false);
-            setIsCalculating(false);
-            await executeLiFiSwap(existingQuote);
-            return;
-          }
-          throw quoteRefreshError;
-        }
+        const freshQuote = await getLifiQuote();
 
         if (quoteRequestIdRef.current !== submitQuoteRequestId) {
           throw new Error(
@@ -4118,9 +4109,8 @@ export default function SwapTokenModal({
       isSOLInput ? 9 : 6,
     );
 
-    // Always reserve worst-case fees + ATA rent so a SOL Max swap doesn't
-    // exhaust the SOL needed for the transaction itself.
-    const reserveRawUnits = isSOLInput ? 2_039_280n + 15_000n : 0n;
+    // Gas sponsorship covers swap fees, and the backend sponsor prepares ATAs.
+    const reserveRawUnits = 0n;
 
     setPayAmount(
       getSafeSwapInputAmount({
@@ -4206,6 +4196,13 @@ export default function SwapTokenModal({
     };
   };
 
+  const solanaSwapWalletError =
+    solanaWalletMismatchError &&
+    (isSolanaToken(payToken, chainId) ||
+      isSolanaToken(receiveToken, receiverChainId))
+      ? solanaWalletMismatchError
+      : null;
+
   const isSwapButtonLoading = () =>
     isQuoteLoading ||
     isCalculating ||
@@ -4215,7 +4212,8 @@ export default function SwapTokenModal({
       receiveToken &&
       !quote &&
       !jupiterQuote &&
-      !swapError
+      !swapError &&
+      !solanaSwapWalletError
     );
 
   const balanceValidation = validateBalance();
@@ -4780,6 +4778,7 @@ export default function SwapTokenModal({
           {(swapError ||
             swapStatus ||
             !balanceValidation.isValid ||
+            solanaSwapWalletError ||
             gasBalanceError) && (
             <div
               className={`p-3 rounded-lg border ${isSwapDone ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}
@@ -4792,6 +4791,11 @@ export default function SwapTokenModal({
               {gasBalanceError && (
                 <div className="text-red-600 text-sm mb-2 text-center">
                   {gasBalanceError}
+                </div>
+              )}
+              {solanaSwapWalletError && (
+                <div className="text-red-600 text-sm mb-2 text-center">
+                  {solanaSwapWalletError}
                 </div>
               )}
               {swapError && (
@@ -4883,6 +4887,7 @@ export default function SwapTokenModal({
                 isSwapping ||
                 (!balanceValidation.isValid && !isSwapDone) ||
                 (!!gasBalanceError && !isSwapDone) ||
+                (!!solanaSwapWalletError && !isSwapDone) ||
                 (isSwapButtonLoading() && !isSwapDone) ||
                 !payToken ||
                 !receiveToken ||
@@ -4898,6 +4903,8 @@ export default function SwapTokenModal({
                 'Insufficient balance'
               ) : gasBalanceError ? (
                 'Insufficient gas'
+              ) : solanaSwapWalletError ? (
+                'Connect wallet'
               ) : isSwapButtonLoading() ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />

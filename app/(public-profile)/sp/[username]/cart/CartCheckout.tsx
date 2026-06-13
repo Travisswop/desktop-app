@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useCallback, useMemo } from "react";
 import { useUser } from "@/lib/UserContext";
@@ -26,7 +26,7 @@ const clearCartFromLocalStorage = (username: string) => {
 const CartCheckout = () => {
   const { user, accessToken } = useUser();
   const { solanaWallets } = useSolanaWalletContext();
-  const { state, dispatch, subtotal } = useCart();
+  const { state, dispatch, subtotal, shippingCost, totalCost } = useCart();
   const params = useParams();
   const router = useRouter();
   const name = params?.username as string;
@@ -42,7 +42,21 @@ const CartCheckout = () => {
   const [loadingOperations, setLoadingOperations] = React.useState<
     Record<string, { updating: boolean; deleting: boolean }>
   >({});
-  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = React.useState<
+    string | null
+  >(null);
+  const activeSolanaWalletAddress = useMemo(() => {
+    const privyWallet = solanaWallets?.find(
+      (w: any) => w.walletClientType === 'privy' && w.address,
+    );
+    const solanaWallet = solanaWallets?.find(
+      (w: any) =>
+        (w.chainType === 'solana' || w.type === 'solana') &&
+        w.address,
+    );
+
+    return privyWallet?.address || solanaWallet?.address || '';
+  }, [solanaWallets]);
 
   const privySolanaAddress =
     solanaWallets?.find((w: any) => w.walletClientType === "privy")?.address ||
@@ -50,21 +64,21 @@ const CartCheckout = () => {
 
   // Default customer information
   const defaultCustomerInfo: CustomerInfo = {
-    email: "",
-    name: "",
-    phone: "",
+    email: '',
+    name: '',
+    phone: '',
     wallet: {
       ens: "",
       address: privySolanaAddress,
     },
     useSwopId: false,
     address: {
-      line1: "",
-      line2: "",
-      city: "",
-      state: "",
-      postalCode: "",
-      country: "US",
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      country: 'US',
     },
   };
   const [customerInfo, setCustomerInfo] =
@@ -105,6 +119,8 @@ const CartCheckout = () => {
   const handleUpdateQuantity = useCallback(
     async (item: CartItem, type: "inc" | "dec") => {
       const itemId = item._id;
+      const itemName = item.nftTemplate?.name || 'Item';
+      const unitPrice = Number(item.nftTemplate?.price || 0);
       try {
         setLoadingOperations((prev) => ({
           ...prev,
@@ -112,19 +128,26 @@ const CartCheckout = () => {
         }));
 
         const newQuantity =
-          type === "inc" ? item.quantity + 1 : item.quantity - 1;
+          type === 'inc' ? item.quantity + 1 : item.quantity - 1;
         if (newQuantity < 1) return;
 
         dispatch({
-          type: "UPDATE_QUANTITY",
+          type: 'UPDATE_QUANTITY',
           payload: { id: itemId, quantity: newQuantity },
         });
-        toast.success("Cart updated successfully");
+
+        const direction =
+          type === 'inc' ? 'added to' : 'removed from';
+        toast.success(`1 × ${itemName} ${direction} cart`, {
+          duration: 2500,
+        });
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to update quantity";
+          error instanceof Error
+            ? error.message
+            : 'Failed to update quantity';
         setErrorMessage(errorMessage);
-        toast.error(errorMessage);
+        toast.error(`Couldn't update cart: ${errorMessage}`);
       } finally {
         setTimeout(() => {
           setLoadingOperations((prev) => ({
@@ -139,6 +162,15 @@ const CartCheckout = () => {
 
   const handleRemoveItem = useCallback(
     async (id: string) => {
+      // Snapshot the item before the dispatch wipes it from state so the
+      // toast can describe what was removed.
+      const removedItem = state.items?.find((it) => it._id === id);
+      const itemName = removedItem?.nftTemplate?.name || 'Item';
+      const remainingAfter = Math.max(
+        (state.items?.length || 1) - 1,
+        0,
+      );
+
       try {
         setLoadingOperations((prev) => ({
           ...prev,
@@ -149,9 +181,11 @@ const CartCheckout = () => {
         toast.success("Item removed from cart");
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to remove item";
+          error instanceof Error
+            ? error.message
+            : 'Failed to remove item';
         setErrorMessage(errorMessage);
-        toast.error(errorMessage);
+        toast.error(`Couldn't remove item: ${errorMessage}`);
       } finally {
         setTimeout(() => {
           setLoadingOperations((prev) => ({
@@ -176,9 +210,9 @@ const CartCheckout = () => {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = e.target;
       setCustomerInfo((prev) => {
-        if (name.includes(".")) {
-          const [parent, child] = name.split(".");
-          if (parent === "address") {
+        if (name.includes('.')) {
+          const [parent, child] = name.split('.');
+          if (parent === 'address') {
             return {
               ...prev,
               address: { ...prev.address, [child]: value },
@@ -189,7 +223,7 @@ const CartCheckout = () => {
         return { ...prev, [name]: value };
       });
     },
-    []
+    [],
   );
 
   const toggleUseSwopId = useCallback(() => {
@@ -240,12 +274,12 @@ const CartCheckout = () => {
     const requiredFields = [
       {
         field: customerInfo.email,
-        message: "Please enter your email address",
+        message: 'Please enter your email address',
       },
-      { field: customerInfo.name, message: "Please enter your name" },
+      { field: customerInfo.name, message: 'Please enter your name' },
       {
         field: customerInfo.phone,
-        message: "Please enter your phone number",
+        message: 'Please enter your phone number',
       },
     ];
 
@@ -253,35 +287,34 @@ const CartCheckout = () => {
       requiredFields.push(
         {
           field: customerInfo.address.line1,
-          message: "Please enter your address",
+          message: 'Please enter your address',
         },
         {
           field: customerInfo.address.city,
-          message: "Please enter your city",
+          message: 'Please enter your city',
         },
         {
           field: customerInfo.address.state,
-          message: "Please enter your state/province",
+          message: 'Please enter your state/province',
         },
         {
           field: customerInfo.address.postalCode,
-          message: "Please enter your postal code",
-        }
+          message: 'Please enter your postal code',
+        },
       );
     }
 
     for (const { field, message } of requiredFields) {
-      if (!field || field.trim() === "") {
+      if (!field || field.trim() === '') {
         setErrorMessage(message);
-        toast.error(message);
         return false;
       }
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(customerInfo.email)) {
-      setErrorMessage("Please enter a valid email address");
-      toast.error("Please enter a valid email address");
+      setErrorMessage('Please enter a valid email address');
+      toast.error('Please enter a valid email address');
       return false;
     }
 
@@ -391,7 +424,7 @@ const CartCheckout = () => {
   const hasItems = cartItems.length > 0;
 
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full flex flex-col gap-4">
       <CartItemsList
         cartItems={cartItems}
         loadingOperations={loadingOperations}
@@ -399,7 +432,7 @@ const CartCheckout = () => {
         onRemove={handleRemoveItem}
       />
 
-      {subtotal > 0 && hasItems && (
+      {totalCost > 0 && hasItems && (
         <CheckoutCard
           user={user}
           customerInfo={customerInfo}
@@ -411,6 +444,8 @@ const CartCheckout = () => {
           errorMessage={errorMessage}
           cartItems={cartItems}
           subtotal={subtotal}
+          shippingCost={shippingCost}
+          totalCost={totalCost}
           hasPhygitalProducts={hasPhygitalProducts}
         />
       )}

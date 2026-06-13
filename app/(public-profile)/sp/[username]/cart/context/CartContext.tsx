@@ -155,6 +155,8 @@ interface CartContextType {
   state: CartState;
   dispatch: React.Dispatch<CartAction>;
   subtotal: number;
+  shippingCost: number;
+  totalCost: number;
   itemCount: number;
   sellerId: string | null;
   hasPhygitalProducts: boolean;
@@ -187,6 +189,20 @@ export const CartProvider: React.FC<{
         total + Number(item.nftTemplate?.price || 0) * item.quantity,
       0
     ) || 0;
+
+  // Shipping is a single flat fee per order (the cart is scoped to one
+  // seller via the URL). We pick the highest configured shippingCost among
+  // items that require shipping — multiplying by quantity or summing across
+  // line items would over-charge a buyer who orders multiple things in one
+  // shipment from the same seller.
+  const shippingCost =
+    state.items?.reduce((max, item) => {
+      const cost = Number(item.nftTemplate?.shippingCost || 0);
+      if (!item.nftTemplate?.shippingRequired || cost <= 0) return max;
+      return cost > max ? cost : max;
+    }, 0) || 0;
+
+  const totalCost = subtotal + shippingCost;
 
   const itemCount =
     state.items?.reduce((total, item) => total + item.quantity, 0) ||
@@ -235,6 +251,8 @@ export const CartProvider: React.FC<{
         state,
         dispatch,
         subtotal,
+        shippingCost,
+        totalCost,
         itemCount,
         sellerId,
         hasPhygitalProducts,

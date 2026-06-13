@@ -116,6 +116,7 @@ export default function WalletSwapSection({
             <LiFiPrivyWrapper
               config={{}}
               tokens={tokens}
+              preferredSolanaWalletAddress={solWalletAddress}
               onSwapComplete={onTokenRefresh}
             />
           ) : (

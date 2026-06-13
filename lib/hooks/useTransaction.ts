@@ -500,6 +500,8 @@ export const useMultiChainTransactionData = (
           return TransactionAPI.getSolanaTransactions(address);
         }
 
+        if (!evmWalletAddress) return [];
+
         const [nativeTxs, erc20Txs] = await Promise.all([
           TransactionAPI.getNativeTransactions(
             chain,

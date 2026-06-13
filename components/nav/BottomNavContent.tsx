@@ -165,7 +165,8 @@ const BottomNavContent = () => {
     "/subscription",
     "/notifications",
     "/feed/",
-  ]; // Add your routes here
+    // "/smartsite/profile/",
+  ]; // Add routes here which we want to hide the bottom nav on
 
   // Hide bottom nav on specific routes
   if (hideOnRoutes.some((route) => pathname?.startsWith(route))) {

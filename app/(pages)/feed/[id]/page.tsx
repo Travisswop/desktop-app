@@ -243,6 +243,10 @@ function extractOgTitle(feed: any): string {
       return `Claimed ${content.claimEnsName ?? ""} on Swop`;
     case "joiningDate":
       return `Joined Swop`;
+    case "prediction":
+      return content.marketTitle
+        ? `Picked ${content.outcome ?? ""} on "${content.marketTitle}"`
+        : "Prediction on Swop";
     default:
       return "Swop Feed";
   }
@@ -307,15 +311,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description: "No feed post available.",
       };
     }
-
-    // For reposts, use the original post's content for OG
-    // if (
-    //   feed.postType === "repost" &&
-    //   feed.repostedPostDetails &&
-    //   !feed.isOriginalDeleted
-    // ) {
-    //   feed = feed.repostedPostDetails;
-    // }
 
     // ── Repost logic ──────────────────────────────────────────────────────────
     if (feed.postType === "repost") {
@@ -512,6 +507,8 @@ const FeedDetailsPage = async ({
     : `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}`;
 
   const feedData = await getFeedDetails(url);
+
+  console.log("feed data", feedData);
 
   return (
     <div className="relative flex flex-col items-center">

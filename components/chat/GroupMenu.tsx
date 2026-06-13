@@ -6,6 +6,7 @@ import isUrl from '@/lib/isUrl';
 import toast from 'react-hot-toast';
 import { useUser } from '@/lib/UserContext';
 import {
+  Bot,
   Loader2,
   LogOut,
   Menu,
@@ -39,7 +40,7 @@ interface Participant {
 
 interface GroupSettings {
   groupInfo?: {
-    groupPicture?: string;
+    groupPicture?: string | null;
     description?: string;
   };
   isPublic?: boolean;
@@ -50,6 +51,7 @@ interface Group {
   name: string;
   description?: string;
   participants?: Participant[];
+  botUsers?: GroupAgent[];
   settings?: GroupSettings;
   createdBy?: { _id?: string } | string;
 }
@@ -72,9 +74,26 @@ interface SearchResponse {
 interface SocketResponse {
   success: boolean;
   message?: string;
-  error?: string;
+  error?: string | { message?: string };
+  data?: {
+    agent?: GroupAgent;
+    group?: Group;
+  };
   group?: Group;
   participants?: Participant[];
+  deletedForEveryone?: boolean;
+  deletedForUser?: boolean;
+}
+
+interface GroupAgent {
+  agentId: string;
+  provider?: string;
+  displayName?: string;
+  avatarUrl?: string | null;
+  mentionAliases?: string[];
+  responseMode?: 'mention_only';
+  enabledTools?: string[];
+  isActive?: boolean;
 }
 
 type ModalType =
@@ -128,6 +147,73 @@ const WARNING_BUTTON_CLASS =
   'dm-btn inline-flex h-10 items-center justify-center gap-2 rounded-[11px] bg-[#f59e0b] px-4 text-[13px] font-bold text-[#1a1203] hover:bg-[#fbbf24] disabled:cursor-not-allowed disabled:opacity-50';
 const ROW_CLASS =
   'flex items-center justify-between gap-3 rounded-[12px] border border-white/[0.07] bg-black/20 p-3';
+const PROTECTED_AGENT_GROUP_NAMES = new Set(
+  ['Astro Trading Desk', 'Goldman Sacks'].map((name) => name.toLowerCase())
+);
+const ASTRO_ENABLED_TOOLS = [
+  'perps.read',
+  'perps.write',
+  'prediction.read',
+  'prediction.write',
+  'marketplace.read',
+  'marketplace.write',
+  'sports.read',
+  'wallet.read',
+  'wallet.write',
+];
+
+function isProtectedAgentGroup(group: Group) {
+  return PROTECTED_AGENT_GROUP_NAMES.has(
+    String(group.name || '')
+      .trim()
+      .toLowerCase()
+  );
+}
+
+function getSocketErrorMessage(error: SocketResponse['error']) {
+  if (!error) return '';
+  if (typeof error === 'string') return error;
+  return error.message || '';
+}
+
+function getResponseErrorMessage(
+  response: SocketResponse | undefined,
+  fallback: string,
+) {
+  return getSocketErrorMessage(response?.error) || response?.message || fallback;
+}
+
+function getApiErrorMessage(data: any, fallback: string) {
+  return data?.message || data?.error?.message || data?.error || fallback;
+}
+
+function extractUpdatedGroup(data: any): Group | undefined {
+  return data?.data?.group || data?.group;
+}
+
+function isAstroActive(group: Group) {
+  return Boolean(
+    group.botUsers?.some(
+      (agent) => agent.agentId === 'astro' && agent.isActive !== false,
+    ),
+  );
+}
+
+function upsertGroupAgent(group: Group, agent: GroupAgent): Group {
+  const existingAgents = group.botUsers || [];
+  const hasAgent = existingAgents.some(
+    (item) => item.agentId === agent.agentId,
+  );
+
+  return {
+    ...group,
+    botUsers: hasAgent
+      ? existingAgents.map((item) =>
+          item.agentId === agent.agentId ? { ...item, ...agent } : item,
+        )
+      : [...existingAgents, agent],
+  };
+}
 
 function ModalHeader({
   title,
@@ -196,6 +282,9 @@ export default function GroupMenu({
 }: GroupMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const [isAddingAstro, setIsAddingAstro] = useState(false);
+  const isProtectedSystemGroup = isProtectedAgentGroup(group);
+  const hasAstroAgent = isAstroActive(group);
 
   const closeMenu = () => setIsOpen(false);
   const closeModal = () => setActiveModal(null);
@@ -224,7 +313,66 @@ export default function GroupMenu({
     };
   }, [group.participants, group.createdBy, currentUser]);
 
+  const handleAddAstro = useCallback(() => {
+    if (!socket || isAddingAstro || hasAstroAgent) return;
+
+    setIsAddingAstro(true);
+    socket.emit(
+      'add_group_agent',
+      {
+        groupId: group._id,
+        agentId: 'astro',
+        provider: 'elizaos',
+        enabledTools: ASTRO_ENABLED_TOOLS,
+        responseMode: 'mention_only',
+      },
+      (response: SocketResponse) => {
+        if (response?.success) {
+          const agent = response.data?.agent || {
+            agentId: 'astro',
+            provider: 'elizaos',
+            displayName: 'Astro',
+            mentionAliases: ['@astro', 'astro'],
+            responseMode: 'mention_only' as const,
+            enabledTools: ASTRO_ENABLED_TOOLS,
+            isActive: true,
+          };
+
+          toast.success('Astro added. Mention @astro to chat.', {
+            position: 'top-right',
+          });
+          onGroupUpdate?.(response.group || upsertGroupAgent(group, agent));
+        } else {
+          toast.error(
+            getSocketErrorMessage(response?.error) || 'Failed to add Astro',
+            {
+              position: 'top-right',
+            },
+          );
+        }
+        setIsAddingAstro(false);
+      },
+    );
+  }, [group, hasAstroAgent, isAddingAstro, onGroupUpdate, socket]);
+
   const menuItems = [
+    ...(canManageMembers && !isProtectedSystemGroup && !hasAstroAgent
+      ? [
+          {
+            label: isAddingAstro ? 'Adding Astro...' : 'Add Astro',
+            icon: isAddingAstro ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Bot className="h-4 w-4" />
+            ),
+            action: () => {
+              handleAddAstro();
+              closeMenu();
+            },
+            color: 'default',
+          },
+        ]
+      : []),
     ...(canManageMembers
       ? [
           {
@@ -260,16 +408,20 @@ export default function GroupMenu({
           },
         ]
       : []),
-    {
-      label: 'Leave Group',
-      icon: <LogOut className="h-4 w-4" />,
-      action: () => {
-        setActiveModal('leaveGroup');
-        closeMenu();
-      },
-      color: 'warning',
-    },
-    ...(canDelete
+    ...(isProtectedSystemGroup
+      ? []
+      : [
+          {
+            label: 'Leave Group',
+            icon: <LogOut className="h-4 w-4" />,
+            action: () => {
+              setActiveModal('leaveGroup');
+              closeMenu();
+            },
+            color: 'warning',
+          },
+        ]),
+    ...(!isProtectedSystemGroup && canDelete
       ? [
           {
             label: 'Delete Group',
@@ -460,9 +612,10 @@ function AddMemberModal({
           onClose();
         } else {
           toast.error(
-            `Failed to add ${displayName}: ${
-              response?.error || 'Unknown error'
-            }`,
+            `Failed to add ${displayName}: ${getResponseErrorMessage(
+              response,
+              'Unknown error',
+            )}`,
             {
               position: 'top-right',
             },
@@ -604,9 +757,10 @@ function RemoveMemberModal({
           onClose();
         } else {
           toast.error(
-            `Failed to remove ${user.name}: ${
-              response?.error || 'Unknown error'
-            }`,
+            `Failed to remove ${user.name}: ${getResponseErrorMessage(
+              response,
+              'Unknown error',
+            )}`,
             {
               position: 'top-right',
             },
@@ -776,16 +930,38 @@ function EditGroupModal({
       const data = await response.json();
 
       if (data.success) {
+        const updatedGroup = extractUpdatedGroup(data);
         setPhotoPreview(null);
         setGroupPhoto(null);
         toast.success('Group photo removed successfully!', {
           position: 'top-right',
         });
-        onSuccess?.();
-      } else {
-        toast.error(`Failed to remove photo: ${data.message}`, {
-          position: 'top-right',
+        socket?.emit('update_group_info', {
+          groupId: group._id,
+          groupPicture: null,
         });
+        onSuccess?.(
+          updatedGroup || {
+            ...group,
+            settings: {
+              ...group.settings,
+              groupInfo: {
+                ...group.settings?.groupInfo,
+                groupPicture: undefined,
+              },
+            },
+          },
+        );
+      } else {
+        toast.error(
+          `Failed to remove photo: ${getApiErrorMessage(
+            data,
+            'Unknown error',
+          )}`,
+          {
+            position: 'top-right',
+          },
+        );
       }
     } catch (error) {
       console.error('Error removing photo:', error);
@@ -809,6 +985,7 @@ function EditGroupModal({
 
     try {
       let hasChanges = false;
+      let updatedGroup: Group | undefined;
 
       // Update name and description
       if (
@@ -833,9 +1010,10 @@ function EditGroupModal({
         const data = await response.json();
         if (!data.success) {
           throw new Error(
-            data.message || 'Failed to update group info',
+            getApiErrorMessage(data, 'Failed to update group info'),
           );
         }
+        updatedGroup = extractUpdatedGroup(data) || updatedGroup;
         hasChanges = true;
 
         // Emit socket event for real-time updates
@@ -866,7 +1044,14 @@ function EditGroupModal({
 
         const data = await response.json();
         if (!data.success) {
-          throw new Error(data.message || 'Failed to upload photo');
+          throw new Error(getApiErrorMessage(data, 'Failed to upload photo'));
+        }
+        updatedGroup = extractUpdatedGroup(data) || updatedGroup;
+        if (socket) {
+          socket.emit('update_group_info', {
+            groupId: group._id,
+            groupPicture: data.data?.photoUrl || data.photoUrl || null,
+          });
         }
         hasChanges = true;
       }
@@ -875,7 +1060,7 @@ function EditGroupModal({
         toast.success('Group updated successfully!', {
           position: 'top-right',
         });
-        onSuccess?.();
+        onSuccess?.(updatedGroup);
         onClose();
       } else {
         toast('No changes to save', {
@@ -1129,20 +1314,26 @@ function DeleteGroupModal({
     setIsDeleting(true);
 
     socket.emit(
-      'delete_group',
+      'delete_group_chat',
       { groupId: group._id },
       (response: SocketResponse) => {
         if (response?.success) {
-          toast.success('Group deleted successfully', {
-            position: 'top-right',
-          });
+          toast.success(
+            response.deletedForEveryone
+              ? 'Group deleted successfully'
+              : 'Group removed from your chats',
+            {
+              position: 'top-right',
+            },
+          );
           onClose();
           onDeleted?.();
         } else {
           toast.error(
-            `Failed to delete group: ${
-              response?.error || 'Unknown error'
-            }`,
+            `Failed to delete group: ${getResponseErrorMessage(
+              response,
+              'Unknown error',
+            )}`,
             {
               position: 'top-right',
             },

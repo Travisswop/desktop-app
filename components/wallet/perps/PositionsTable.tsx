@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { HLPosition, HLOpenOrder } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
+import { MarketIcon } from './MarketIcon';
 
 export interface PerpsFill {
   coin: string;
@@ -200,7 +201,7 @@ function PositionsBody({
                   onClick={() => onSelectCoin?.(p.coin)}
                   className="flex items-center gap-2 text-left"
                 >
-                  <CoinDot coin={p.coin} />
+                  <MarketIcon coin={p.coin} size="sm" />
                   <span className="flex flex-col">
                     <span className="text-[12.5px] font-semibold text-gray-900">
                       {p.coin}-PERP
@@ -301,7 +302,7 @@ function OrdersBody({
                   onClick={() => onSelectCoin?.(o.coin)}
                   className="flex items-center gap-2 text-left"
                 >
-                  <CoinDot coin={o.coin} />
+                  <MarketIcon coin={o.coin} size="sm" />
                   <span className="text-[12.5px] font-semibold text-gray-900">
                     {o.coin}-PERP
                   </span>
@@ -374,7 +375,7 @@ function HistoryBody({
                   onClick={() => onSelectCoin?.(f.coin)}
                   className="flex items-center gap-2 text-left"
                 >
-                  <CoinDot coin={f.coin} />
+                  <MarketIcon coin={f.coin} size="sm" />
                   <span className="text-[12.5px] font-semibold text-gray-900">
                     {f.coin}-PERP
                   </span>
@@ -484,17 +485,6 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
-function CoinDot({ coin }: { coin: string }) {
-  return (
-    <div
-      className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
-      style={{ background: coinBg(coin) }}
-    >
-      {coin.charAt(0)}
-    </div>
-  );
-}
-
 function LiqBar({ pct }: { pct: number }) {
   return (
     <div className="relative">
@@ -523,22 +513,4 @@ function timeAgo(ms: number): string {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
   return `${Math.floor(diff / 86_400_000)}d`;
-}
-
-function coinBg(coin: string): string {
-  const base = coin.split(':').pop() ?? coin;
-  const map: Record<string, string> = {
-    BTC: '#F7931A',
-    ETH: '#0a0a0c',
-    SOL: '#14F195',
-    HYPE: '#10B981',
-    BRENTOIL: '#1f8a70',
-    SPCX: '#334155',
-    DOGE: '#C2A633',
-    AVAX: '#E84142',
-    ARB: '#28A0F0',
-    OP: '#FF0420',
-    PAXG: '#C5A028',
-  };
-  return map[base] ?? '#0a0a0c';
 }

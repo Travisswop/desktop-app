@@ -1,3 +1,5 @@
+import { safeLocalStorage } from "@/lib/browserStorage";
+
 export interface TradingSession {
   eoaAddress: string;
   walletType?: "safe" | "deposit";
@@ -33,9 +35,7 @@ export type SessionStep =
   | "complete";
 
 export const loadSession = (address: string): TradingSession | null => {
-  if (typeof window === "undefined") return null;
-
-  const stored = localStorage.getItem(
+  const stored = safeLocalStorage.getItem(
     `polymarket_trading_session_${address.toLowerCase()}`
   );
   if (!stored) return null;
@@ -86,18 +86,14 @@ export const loadSession = (address: string): TradingSession | null => {
 };
 
 export const saveSession = (address: string, session: TradingSession): void => {
-  if (typeof window === "undefined") return;
-
-  localStorage.setItem(
+  safeLocalStorage.setItem(
     `polymarket_trading_session_${address.toLowerCase()}`,
     JSON.stringify(session)
   );
 };
 
 export const clearSession = (address: string): void => {
-  if (typeof window === "undefined") return;
-
-  localStorage.removeItem(
+  safeLocalStorage.removeItem(
     `polymarket_trading_session_${address.toLowerCase()}`
   );
 };

@@ -119,7 +119,8 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   // const [showBalance, setShowBalance] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
   const [fundandSettings, setFundandSettings] = useState(false);
-  const [showTransactionList, setShowTransactionList] = useState(false);
+  const [showTransactionList, setShowTransactionList] =
+    useState(false);
 
   const { solWalletAddress, evmWalletAddress } =
     useWalletAddresses(walletData);
@@ -691,17 +692,19 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
       {/* Transaction List Popup */}
       {showTransactionList && (
         <CustomModal
-          width="max-w-lg"
+          width="max-w-xl"
           isOpen={showTransactionList}
           onCloseModal={setShowTransactionList}
+          removeCloseButton
         >
-          <div className="p-4 h-[500px]">
+          <div className="h-[640px]">
             <TransactionList
               solWalletAddress={solWalletAddress}
               evmWalletAddress={evmWalletAddress}
               chains={SUPPORTED_CHAINS as ChainType[]}
               tokens={tokens as unknown as TokenData[]}
               newTransactions={[]}
+              onClose={() => setShowTransactionList(false)}
             />
           </div>
         </CustomModal>

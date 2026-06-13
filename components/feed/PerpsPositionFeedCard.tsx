@@ -16,6 +16,10 @@ import * as shape from 'd3-shape';
 import isUrl from '@/lib/isUrl';
 import { useHyperliquidCandles } from '@/components/wallet/perps/hooks/useHyperliquidCandles';
 import { useAllMids } from '@/components/wallet/perps/hooks/useHyperliquidWebSocket';
+import {
+  normalizePerpsCoin,
+  useLivePerpsMarkPrice,
+} from './useLivePerpsMarkPrice';
 import type { PerpsPositionFeedContent } from '@/lib/perps/perpsFeed';
 
 interface PerpsPositionFeedCardProps {
@@ -102,15 +106,31 @@ function firstFiniteNumber(values: unknown[], fallback = 0) {
   return fallback;
 }
 
+function firstMaybeFiniteNumber(values: unknown[]) {
+  for (const value of values) {
+    const number = maybeFiniteNumber(value);
+    if (number !== null) return number;
+  }
+  return null;
+}
+
 function liveMidPriceForCoin(
   mids: Record<string, string | number | null | undefined>,
-  coin: string,
+  ...coins: Array<string | null | undefined>
 ) {
-  const normalized = coin.trim().toUpperCase();
-  const displayCoin = normalized.includes(':')
-    ? normalized.split(':').pop() || normalized
-    : normalized;
-  const candidates = Array.from(new Set([coin, normalized, displayCoin]));
+  const candidates = Array.from(
+    new Set(
+      coins.flatMap((coin) => {
+        if (!coin) return [];
+        const trimmed = coin.trim();
+        const normalized = trimmed.toUpperCase();
+        const displayCoin = normalized.includes(':')
+          ? normalized.split(':').pop() || normalized
+          : normalized;
+        return [trimmed, normalized, displayCoin];
+      }),
+    ),
+  );
 
   for (const key of candidates) {
     const direct = maybeFiniteNumber(mids[key]);
@@ -255,7 +275,8 @@ export default function PerpsPositionFeedCard({
   feed,
 }: PerpsPositionFeedCardProps) {
   const content = useMemo(() => feed.content || {}, [feed.content]);
-  const coin = String(content.coin || 'BTC').toUpperCase();
+  const rawCoin = String(content.coin || 'BTC');
+  const coin = rawCoin.toUpperCase();
   const side = content.side === 'short' ? 'short' : 'long';
   const storedStatus = normalizePositionStatus(content.status, content.event);
   const hasStoredTerminalStatus = storedStatus !== 'open';
@@ -282,16 +303,42 @@ export default function PerpsPositionFeedCard({
 
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('1D');
   const candleInterval = PERIOD_INTERVAL[selectedPeriod];
-  const { bars, isLoading } = useHyperliquidCandles(
-    coin,
-    candleInterval,
-    Boolean(coin),
+  const normalizedCoin = normalizePerpsCoin(rawCoin);
+  const marketCoin = normalizedCoin?.requestCoin || coin;
+  const isBuilderDexCoin = Boolean(normalizedCoin?.dex);
+  const liveBuilderMarkPrice = useLivePerpsMarkPrice(
+    marketCoin,
+    !hasStoredTerminalStatus && isBuilderDexCoin,
   );
-  const { mids } = useAllMids(!hasStoredTerminalStatus && Boolean(coin));
-  const liveMidPrice = useMemo(
+  const liveMarketCoin = marketCoin;
+  const candleCoin =
+    !hasStoredTerminalStatus && Boolean(liveMarketCoin)
+      ? liveMarketCoin
+      : null;
+  const { bars, isLoading } = useHyperliquidCandles(
+    candleCoin,
+    candleInterval,
+    Boolean(candleCoin),
+  );
+  const { mids } = useAllMids(
+    !hasStoredTerminalStatus && !isBuilderDexCoin && Boolean(liveMarketCoin),
+  );
+  const liveMarkPrice = useMemo(
     () =>
-      hasStoredTerminalStatus ? null : liveMidPriceForCoin(mids, coin),
-    [coin, hasStoredTerminalStatus, mids],
+      hasStoredTerminalStatus
+        ? null
+        : firstMaybeFiniteNumber([
+            liveMidPriceForCoin(mids, rawCoin, liveMarketCoin, coin),
+            liveBuilderMarkPrice,
+          ]),
+    [
+      coin,
+      hasStoredTerminalStatus,
+      liveBuilderMarkPrice,
+      liveMarketCoin,
+      mids,
+      rawCoin,
+    ],
   );
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
@@ -318,11 +365,11 @@ export default function PerpsPositionFeedCard({
     const live = visibleBars
       .map((bar) => ({ time: bar.time, price: bar.close }))
       .filter((point) => Number.isFinite(point.price) && point.price > 0);
-    const livePoints = pointsWithLiveMark(live, liveMidPrice);
+    const livePoints = pointsWithLiveMark(live, liveMarkPrice);
     return livePoints.length >= 2
       ? livePoints
-      : fallbackPoints(content, selectedPeriod, liveMidPrice);
-  }, [bars, content, liveMidPrice, selectedPeriod]);
+      : fallbackPoints(content, selectedPeriod, liveMarkPrice);
+  }, [bars, content, liveMarkPrice, selectedPeriod]);
 
   useEffect(() => {
     if (selectedIndex !== null && selectedIndex >= points.length) {
@@ -332,7 +379,7 @@ export default function PerpsPositionFeedCard({
 
   const displayMarkPrice =
     !hasStoredTerminalStatus
-      ? liveMidPrice || points[points.length - 1]?.price || storedMarkPrice
+      ? liveMarkPrice || points[points.length - 1]?.price || storedMarkPrice
       : storedMarkPrice;
   const status =
     storedStatus === 'open' &&

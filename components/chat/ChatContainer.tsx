@@ -2,8 +2,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
+import toast from 'react-hot-toast';
 import Sidebar from './Sidebar';
 import ChatArea from './ChatArea';
+import { getProtectedAgentThreadLabel } from './protectedAgentThreads';
 
 interface InitialDirectRecipient {
   userId?: string | null;
@@ -35,6 +37,7 @@ const EVENTS = {
 
 const SECURE_ASTRO_GROUP_NAME = 'Astro Trading Desk';
 const THREAD_RAIL_COLLAPSED_KEY = 'swop.chat.threadRailCollapsed';
+const GROUP_LOAD_LIMIT = 100;
 
 const AGENT_THREAD_CONFIGS = {
   astro: {
@@ -240,25 +243,102 @@ function createDirectChatFromRecipient(recipient: InitialDirectRecipient) {
   );
 }
 
-function hasActiveAgent(group: any, agentId: AgentThreadId) {
+function normalizeGroupName(value?: string | null) {
+  return String(value || '')
+    .trim()
+    .toLowerCase();
+}
+
+function isDedicatedAgentThreadGroup(group: any, agentId: AgentThreadId) {
   return (
-    group?.botUsers?.some(
-      (agent: any) => agent.agentId === agentId && agent.isActive !== false
-    ) || false
+    normalizeGroupName(group?.name) ===
+    normalizeGroupName(AGENT_THREAD_CONFIGS[agentId].groupName)
   );
 }
 
 function findAgentThreadGroup(groups: any[], agentId: AgentThreadId) {
-  const config = AGENT_THREAD_CONFIGS[agentId];
   return (
-    groups.find((item: any) => hasActiveAgent(item, agentId)) ||
-    groups.find((item: any) => item.name === config.groupName) ||
-    null
+    groups.find((item: any) =>
+      isDedicatedAgentThreadGroup(item, agentId)
+    ) || null
   );
 }
 
 function findSecureAstroGroup(groups: any[]) {
   return findAgentThreadGroup(groups, 'astro');
+}
+
+function getAgentThreadGroupId(group: any): AgentThreadId | null {
+  const agentIds = Object.keys(AGENT_THREAD_CONFIGS) as AgentThreadId[];
+  return (
+    agentIds.find((agentId) => isDedicatedAgentThreadGroup(group, agentId)) ||
+    null
+  );
+}
+
+function getGroupTimestamp(group: any) {
+  const rawDate =
+    group?.lastMessage?.createdAt ||
+    group?.updatedAt ||
+    group?.createdAt ||
+    '';
+  const timestamp = rawDate ? new Date(rawDate).getTime() : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getAgentGroupScore(group: any, agentId: AgentThreadId) {
+  const config = AGENT_THREAD_CONFIGS[agentId];
+  const hasActiveAgent = group?.botUsers?.some(
+    (agent: any) =>
+      agent.agentId === config.agent.agentId && agent.isActive !== false
+  );
+
+  return {
+    hasActiveAgent: hasActiveAgent ? 1 : 0,
+    timestamp: getGroupTimestamp(group),
+    participantCount: Array.isArray(group?.participants)
+      ? group.participants.length
+      : 0,
+  };
+}
+
+function shouldPreferAgentGroup(
+  candidate: any,
+  current: any,
+  agentId: AgentThreadId
+) {
+  const candidateScore = getAgentGroupScore(candidate, agentId);
+  const currentScore = getAgentGroupScore(current, agentId);
+
+  if (candidateScore.hasActiveAgent !== currentScore.hasActiveAgent) {
+    return candidateScore.hasActiveAgent > currentScore.hasActiveAgent;
+  }
+
+  if (candidateScore.timestamp !== currentScore.timestamp) {
+    return candidateScore.timestamp > currentScore.timestamp;
+  }
+
+  return candidateScore.participantCount > currentScore.participantCount;
+}
+
+function dedupeAgentThreadGroups(groups: any[]) {
+  const selectedByAgent = new Map<AgentThreadId, any>();
+
+  groups.forEach((group) => {
+    const agentId = getAgentThreadGroupId(group);
+    if (!agentId) return;
+
+    const current = selectedByAgent.get(agentId);
+    if (!current || shouldPreferAgentGroup(group, current, agentId)) {
+      selectedByAgent.set(agentId, group);
+    }
+  });
+
+  return groups.filter((group) => {
+    const agentId = getAgentThreadGroupId(group);
+    if (!agentId) return true;
+    return selectedByAgent.get(agentId)?._id === group?._id;
+  });
 }
 
 export default function ChatContainer({
@@ -293,6 +373,9 @@ export default function ChatContainer({
   const directRecipientAppliedRef = useRef('');
   const initialAstroOpenAttemptedRef = useRef(false);
   const initialAgentOpenAttemptedRef = useRef('');
+  const agentThreadEnsureRef = useRef<
+    Partial<Record<AgentThreadId, Promise<any>>>
+  >({});
   const initialDirectRecipientKey = useMemo(
     () => directRecipientKey(initialDirectRecipient),
     [initialDirectRecipient]
@@ -344,10 +427,10 @@ export default function ChatContainer({
     // Load groups (groups don't have V2 yet, still using old event)
     socket.emit(
       'get_user_groups',
-      { page: 1, limit: 20 },
+      { page: 1, limit: GROUP_LOAD_LIMIT },
       (res: any) => {
         if (res?.success) {
-          setGroups(res.groups || []);
+          setGroups(dedupeAgentThreadGroups(res.groups || []));
           setHasLoadedGroups(true);
         }
       }
@@ -369,7 +452,7 @@ export default function ChatContainer({
       // Groups still use old event (no V2 yet)
       socket.emit(
         'get_user_groups',
-        { page: 1, limit: 20 },
+        { page: 1, limit: GROUP_LOAD_LIMIT },
         (res: any) => {
           if (res?.success) {
             const updatedGroup = res.groups?.find(
@@ -518,6 +601,7 @@ export default function ChatContainer({
 
     // Register all event listeners (V2 events for direct chats, old events for groups)
     socket.on(EVENTS.CONVERSATION_UPDATED, handleConversationUpdate);
+    socket.on('conversation_deleted', handleConversationUpdate);
     socket.on(EVENTS.NEW_MESSAGE, handleNewMessage);
     socket.on(EVENTS.UNREAD_COUNT_UPDATED, handleUnreadCountUpdated);
 
@@ -543,6 +627,7 @@ export default function ChatContainer({
         EVENTS.CONVERSATION_UPDATED,
         handleConversationUpdate
       );
+      socket.off('conversation_deleted', handleConversationUpdate);
       socket.off(EVENTS.NEW_MESSAGE, handleNewMessage);
       socket.off(
         EVENTS.UNREAD_COUNT_UPDATED,
@@ -582,6 +667,18 @@ export default function ChatContainer({
     setSelectedChat(matchingGroup);
     setChatType('group');
   }, [groups, initialGroupId, selectedChat?._id]);
+
+  useEffect(() => {
+    if (chatType !== 'group' || !selectedChat || !hasLoadedGroups) return;
+
+    const agentId = getAgentThreadGroupId(selectedChat);
+    if (!agentId) return;
+
+    const canonicalGroup = findAgentThreadGroup(groups, agentId);
+    if (canonicalGroup && canonicalGroup._id !== selectedChat._id) {
+      setSelectedChat(canonicalGroup);
+    }
+  }, [chatType, groups, hasLoadedGroups, selectedChat]);
 
   useEffect(() => {
     if (
@@ -684,6 +781,99 @@ export default function ChatContainer({
     setChatType(type);
   };
 
+  const emitSocketAck = useCallback(
+    (event: string, payload: any) =>
+      new Promise<any>((resolve, reject) => {
+        if (!socket) {
+          reject(new Error('Socket is not connected.'));
+          return;
+        }
+
+        socket.emit(event, payload, (response: any) => {
+          if (response?.success) {
+            resolve(response);
+            return;
+          }
+
+          const rawError = response?.error;
+          reject(
+            new Error(
+              typeof rawError === 'string'
+                ? rawError
+                : rawError?.message || `Socket event ${event} failed`
+            )
+          );
+        });
+      }),
+    [socket]
+  );
+
+  const deleteChat = useCallback(
+    async (chat: any, type: 'private' | 'group') => {
+      if (!chat) return;
+
+      try {
+        const protectedLabel = getProtectedAgentThreadLabel(chat, type);
+        if (protectedLabel) {
+          toast.error(`${protectedLabel} chats cannot be deleted`);
+          return;
+        }
+
+        if (type === 'private') {
+          const receiverId = getDirectUserId(chat);
+          if (!receiverId) {
+            throw new Error('Could not identify this conversation.');
+          }
+
+          await emitSocketAck('delete_conversation', { receiverId });
+          setConversations((prev) =>
+            prev.filter(
+              (conversation: any) =>
+                getDirectUserId(conversation) !== receiverId
+            )
+          );
+
+          if (
+            chatType === 'private' &&
+            getDirectUserId(selectedChat) === receiverId
+          ) {
+            setSelectedChat(null);
+            setChatType(null);
+          }
+
+          toast.success('Chat deleted');
+          loadInitialData();
+          return;
+        }
+
+        const response = await emitSocketAck('delete_group_chat', {
+          groupId: chat._id,
+        });
+        setGroups((prev) =>
+          prev.filter((group: any) => group._id !== chat._id)
+        );
+
+        if (chatType === 'group' && selectedChat?._id === chat._id) {
+          setSelectedChat(null);
+          setChatType(null);
+        }
+
+        toast.success(
+          response?.deletedForEveryone
+            ? 'Group deleted'
+            : 'Chat deleted'
+        );
+        loadInitialData();
+      } catch (error) {
+        console.error('Failed to delete chat', error);
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to delete chat'
+        );
+      }
+    },
+    [chatType, emitSocketAck, loadInitialData, selectedChat]
+  );
+
   const openAgentThread = useCallback(
     async (agentId: AgentThreadId, initialMessage?: string) => {
       if (!socket) {
@@ -709,63 +899,95 @@ export default function ChatContainer({
           });
         });
 
-      let group = findAgentThreadGroup(groups, agentId);
+      const ensureAgentThread = async () => {
+        let group = findAgentThreadGroup(groups, agentId);
 
-      if (!group) {
-        const response = await emitAck<{ group: any }>('create_group', {
-          name: config.groupName,
-          description: config.description,
-          members: [],
-          tokenGated: false,
-          isPublic: false,
-        });
-        group = response.group;
-      }
+        if (!group) {
+          const response = await emitAck<{ groups?: any[] }>(
+            'get_user_groups',
+            { page: 1, limit: GROUP_LOAD_LIMIT }
+          );
+          const refreshedGroups = dedupeAgentThreadGroups(
+            response.groups || []
+          );
+          setGroups(refreshedGroups);
+          group = findAgentThreadGroup(refreshedGroups, agentId);
+        }
 
-      const existingAgent = group.botUsers?.find(
-        (agent: any) =>
-          agent.agentId === config.agent.agentId && agent.isActive !== false
-      );
-      const missingEnabledTools = config.agent.enabledTools.filter(
-        (tool) => !existingAgent?.enabledTools?.includes(tool)
-      );
+        if (!group) {
+          const response = await emitAck<{ group: any }>('create_group', {
+            name: config.groupName,
+            description: config.description,
+            members: [],
+            tokenGated: false,
+            isPublic: false,
+          });
+          group = response.group;
+        }
 
-      let activeAgent = existingAgent || config.agent;
-      if (!existingAgent || missingEnabledTools.length > 0) {
-        const response = await emitAck<{ data?: { agent?: any } }>(
-          'add_group_agent',
-          {
-            groupId: group._id,
-            agentId: config.agent.agentId,
-            provider: config.agent.provider,
-            enabledTools: config.agent.enabledTools,
-            responseMode: config.agent.responseMode,
-          }
+        const existingAgent = group.botUsers?.find(
+          (agent: any) =>
+            agent.agentId === config.agent.agentId &&
+            agent.isActive !== false
         );
-        activeAgent = response.data?.agent || config.agent;
-      }
+        const missingEnabledTools = config.agent.enabledTools.filter(
+          (tool) => !existingAgent?.enabledTools?.includes(tool)
+        );
 
-      const groupWithAgent = {
-        ...group,
-        botUsers: existingAgent
-          ? group.botUsers.map((agent: any) =>
-              agent.agentId === config.agent.agentId
-                ? {
-                    ...agent,
-                    ...activeAgent,
-                    enabledTools:
-                      activeAgent.enabledTools ||
-                      config.agent.enabledTools,
-                  }
-                : agent
-            )
-          : [...(group.botUsers || []), activeAgent],
+        let activeAgent = existingAgent || config.agent;
+        if (!existingAgent || missingEnabledTools.length > 0) {
+          const response = await emitAck<{ data?: { agent?: any } }>(
+            'add_group_agent',
+            {
+              groupId: group._id,
+              agentId: config.agent.agentId,
+              provider: config.agent.provider,
+              enabledTools: config.agent.enabledTools,
+              responseMode: config.agent.responseMode,
+            }
+          );
+          activeAgent = response.data?.agent || config.agent;
+        }
+
+        const groupWithAgent = {
+          ...group,
+          botUsers: existingAgent
+            ? group.botUsers.map((agent: any) =>
+                agent.agentId === config.agent.agentId
+                  ? {
+                      ...agent,
+                      ...activeAgent,
+                      enabledTools:
+                        activeAgent.enabledTools ||
+                        config.agent.enabledTools,
+                    }
+                  : agent
+              )
+            : [...(group.botUsers || []), activeAgent],
+        };
+
+        setGroups((prev: any[]) =>
+          dedupeAgentThreadGroups([
+            groupWithAgent,
+            ...prev.filter((item: any) => item._id !== groupWithAgent._id),
+          ])
+        );
+
+        return groupWithAgent;
       };
 
-      setGroups((prev: any[]) => [
-        groupWithAgent,
-        ...prev.filter((item: any) => item._id !== groupWithAgent._id),
-      ]);
+      let ensurePromise = agentThreadEnsureRef.current[agentId];
+      if (!ensurePromise) {
+        ensurePromise = ensureAgentThread();
+        agentThreadEnsureRef.current[agentId] = ensurePromise;
+      }
+
+      const groupWithAgent = await ensurePromise.finally(() => {
+        if (agentThreadEnsureRef.current[agentId] === ensurePromise) {
+          delete agentThreadEnsureRef.current[agentId];
+        }
+      });
+
       setSelectedChat(groupWithAgent);
       setChatType('group');
       loadInitialData();
@@ -800,25 +1022,21 @@ export default function ChatContainer({
       if (!isKnownAgentThreadId(agentId)) return;
 
       try {
-        const group = findAgentThreadGroup(groups, agentId);
-
-        if (group) {
-          setSelectedChat(group);
-          setChatType('group');
-          socket?.emit('join_group', { groupId: group._id });
-        } else {
-          await openAgentThread(agentId);
-        }
-
+        await openAgentThread(agentId);
         setAstroComposerSeed({
           command: commandSeed,
           nonce: Date.now(),
         });
       } catch (error) {
         console.error('Failed to open agent command composer', error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Could not open the agent desk.'
+        );
       }
     },
-    [groups, openAgentThread, socket]
+    [openAgentThread]
   );
 
   const openAstroComposerCommand = useCallback(
@@ -831,7 +1049,16 @@ export default function ChatContainer({
   const openAgentThreadById = useCallback(
     async (agentId: string) => {
       if (!isKnownAgentThreadId(agentId)) return;
-      await openAgentThread(agentId);
+      try {
+        await openAgentThread(agentId);
+      } catch (error) {
+        console.error('Failed to open agent thread', error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Could not open the agent desk.'
+        );
+      }
     },
     [openAgentThread]
   );
@@ -953,6 +1180,7 @@ export default function ChatContainer({
             selectedChat={selectedChat}
             chatType={chatType}
             onSelectChat={handleSelectChat}
+            onDeleteChat={deleteChat}
             currentUser={currentUser}
             socket={socket}
             isCollapsed={isThreadListCollapsed}
@@ -973,6 +1201,7 @@ export default function ChatContainer({
               initialComposerSeed={astroComposerSeed}
               onComposerSeedConsumed={clearAstroComposerSeed}
               onChatUpdate={refreshSelectedChat}
+              onOpenAgentThread={openAgentThreadById}
               onBackToList={returnToThreadList}
               onLeaveGroup={returnToThreadList}
             />

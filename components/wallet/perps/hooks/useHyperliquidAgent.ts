@@ -19,6 +19,7 @@ import {
   shouldUseStoredWalletAddresses,
   walletAddressEquals,
 } from '@/components/wallet/hooks/useWalletData';
+import { safeLocalStorage } from '@/lib/browserStorage';
 
 // ─── Agent key persistence ──────────────────────────────────────────────────
 //
@@ -30,18 +31,15 @@ function agentStorageKey(masterAddress: string) {
 }
 
 function loadAgentKey(masterAddress: string): `0x${string}` | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(agentStorageKey(masterAddress)) as `0x${string}` | null;
+  return safeLocalStorage.getItem(agentStorageKey(masterAddress)) as `0x${string}` | null;
 }
 
 function saveAgentKey(masterAddress: string, pk: `0x${string}`) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(agentStorageKey(masterAddress), pk);
+  safeLocalStorage.setItem(agentStorageKey(masterAddress), pk);
 }
 
 function deleteAgentKey(masterAddress: string) {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(agentStorageKey(masterAddress));
+  safeLocalStorage.removeItem(agentStorageKey(masterAddress));
 }
 
 const AGENT_NAME = 'Swop';

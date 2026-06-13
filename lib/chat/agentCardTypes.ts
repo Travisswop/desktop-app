@@ -46,6 +46,12 @@ export interface PnlOverviewPreview {
   checkedAt: string;
 }
 
+export interface WalletPortfolioSnapshot {
+  checkedAt?: string | null;
+  query?: string | null;
+  source?: string | null;
+}
+
 export interface ResearchSourcePreview {
   title?: string | null;
   snippet?: string | null;

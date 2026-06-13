@@ -26,6 +26,13 @@ import {
 interface TradingFormProps {
   market: HLMarket | null;
   markPrice: string;
+  initialOrder?: {
+    side?: 'long' | 'short';
+    leverage?: number;
+    isCross?: boolean;
+    sizeUsd?: string;
+    sizeCoins?: string;
+  } | null;
   existingPosition?: HLPosition;
   accountValue: string;
   availableMargin?: string;
@@ -63,6 +70,7 @@ interface TradingFormProps {
 export function TradingForm({
   market,
   markPrice,
+  initialOrder,
   existingPosition,
   accountValue,
   availableMargin,
@@ -96,6 +104,7 @@ export function TradingForm({
   const [stopLoss, setStopLoss] = useState('');
   const [leverage, setLeverage] = useState(10);
   const [isCross, setIsCross] = useState(true);
+  const appliedInitialOrderKeyRef = useRef('');
 
   // Pending order details snapshot — populated when the user clicks the
   // primary CTA, drives the OrderConfirmModal. Kept as a separate piece of
@@ -116,6 +125,69 @@ export function TradingForm({
   const leverageThumbLeft = `calc(${leveragePct}% - ${
     (leveragePct / 100) * 16
   }px + 8px)`;
+
+  const initialOrderKey = useMemo(
+    () =>
+      initialOrder
+        ? [
+            market?.coin ?? '',
+            initialOrder.side ?? '',
+            initialOrder.leverage ?? '',
+            initialOrder.isCross === undefined
+              ? ''
+              : initialOrder.isCross
+                ? 'cross'
+                : 'isolated',
+            initialOrder.sizeUsd ?? '',
+            initialOrder.sizeCoins ?? '',
+          ].join('|')
+        : '',
+    [initialOrder, market?.coin],
+  );
+
+  useEffect(() => {
+    if (!initialOrder || !initialOrderKey || !market) return;
+    if (appliedInitialOrderKeyRef.current === initialOrderKey) return;
+    appliedInitialOrderKeyRef.current = initialOrderKey;
+
+    if (initialOrder.side) setSide(initialOrder.side);
+
+    if (initialOrder.isCross !== undefined) {
+      setIsCross(initialOrder.isCross);
+    }
+
+    if (initialOrder.leverage) {
+      const nextLeverage = Math.max(
+        1,
+        Math.min(Math.round(initialOrder.leverage), maxLev),
+      );
+      setLeverage(nextLeverage);
+      onLeverageChange?.(
+        nextLeverage,
+        initialOrder.isCross ?? isCross,
+      );
+    }
+
+    if (initialOrder.sizeUsd) {
+      const nextSize = Number(initialOrder.sizeUsd);
+      if (Number.isFinite(nextSize) && nextSize > 0) {
+        setSize(nextSize.toFixed(2));
+      }
+    } else if (initialOrder.sizeCoins && markNum) {
+      const nextSize = Number(initialOrder.sizeCoins) * markNum;
+      if (Number.isFinite(nextSize) && nextSize > 0) {
+        setSize(nextSize.toFixed(2));
+      }
+    }
+  }, [
+    initialOrder,
+    initialOrderKey,
+    isCross,
+    market,
+    markNum,
+    maxLev,
+    onLeverageChange,
+  ]);
 
   const sizeInCoins = useMemo(() => {
     const sizeUsd = parseFloat(size);

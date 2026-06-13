@@ -29,6 +29,10 @@ export const USDC_ADDRESS =
 export const SWOP_ADDRESS =
   'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1';
 
+type SolanaBuildOptions = {
+  createRecipientTokenAccount?: boolean;
+};
+
 // Utility to detect Token-2022 tokens by mint address
 async function getSolanaTokenProgramId(
   connection: Connection,
@@ -157,6 +161,7 @@ export class TransactionService {
     solanaWallet: any,
     sendFlow: SendFlowState,
     connection: Connection,
+    options: SolanaBuildOptions = {},
   ): Promise<SolanaTransaction> {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
@@ -210,6 +215,12 @@ export class TransactionService {
 
       // Create recipient token account if needed
       if (!(await connection.getAccountInfo(toTokenAccount))) {
+        if (options.createRecipientTokenAccount === false) {
+          throw new Error(
+            'Recipient token account is not ready. Please try again.',
+          );
+        }
+
         tx.add(
           createAssociatedTokenAccountInstruction(
             new PublicKey(solanaWallet.address),
@@ -395,6 +406,7 @@ export class TransactionService {
     solanaWallet: any,
     sendFlow: SendFlowState,
     connection: Connection,
+    options: SolanaBuildOptions = {},
   ): Promise<SolanaTransaction> {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
@@ -427,6 +439,12 @@ export class TransactionService {
     const tx = new SolanaTransaction();
 
     if (!(await connection.getAccountInfo(destinationAccount))) {
+      if (options.createRecipientTokenAccount === false) {
+        throw new Error(
+          'Recipient token account is not ready. Please try again.',
+        );
+      }
+
       tx.add(
         createAssociatedTokenAccountInstruction(
           new PublicKey(solanaWallet.address),

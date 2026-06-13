@@ -4,7 +4,7 @@
 // research sources, loading placeholder, wallet receive QR, and marketplace
 // item previews. Extracted from ChatArea.tsx.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
@@ -14,21 +14,27 @@ import {
   Copy,
   ExternalLink,
   Loader2,
+  PieChart,
   QrCode,
   ShoppingBag,
+  Wallet,
 } from 'lucide-react';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import {
   formatCompactUsd,
   formatWalletAddress,
+  toFiniteNumber,
 } from '@/lib/chat/ticketFormat';
-import { AGENT_PANEL_CLASS } from '@/lib/chat/ticketStyles';
+import { AGENT_PANEL_CLASS, TICKET_LABEL_CLASS } from '@/lib/chat/ticketStyles';
 import type {
+  AstroConsoleData,
   MarketplaceItemPreview,
   ResearchSourcePreview,
   SportsResearchBrief,
+  WalletPortfolioSnapshot,
   WalletReceiveQrDetails,
 } from '@/lib/chat/agentCardTypes';
+import type { TokenData } from '@/types/token';
 
 function getResearchSourceHost(source: ResearchSourcePreview) {
   if (source.sourceName) return source.sourceName;
@@ -191,6 +197,282 @@ export function AgentLoadingCard({ label }: { label: string }) {
         <Loader2 className="h-4 w-4 animate-spin text-[#3fe08f]" />
         {label}
       </div>
+    </div>
+  );
+}
+
+const PORTFOLIO_SEGMENT_COLORS = [
+  '#3fe08f',
+  '#62a8ff',
+  '#f4c95d',
+  '#ff7a7f',
+  '#b78cff',
+  '#7de2ff',
+];
+const EMPTY_PORTFOLIO_TOKENS: TokenData[] = [];
+
+type PortfolioHolding = {
+  key: string;
+  symbol: string;
+  chain: string;
+  amount: number;
+  value: number;
+  percent: number;
+  color: string;
+};
+
+function getTokenUsdValue(token: TokenData) {
+  const explicitValue = toFiniteNumber(token.value);
+  if (explicitValue > 0) return explicitValue;
+
+  const balance = toFiniteNumber(token.balance);
+  const price = toFiniteNumber(token.marketData?.price || token.nativeTokenPrice);
+  return balance > 0 && price > 0 ? balance * price : 0;
+}
+
+function formatPortfolioAmount(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0';
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: value >= 1000 ? 0 : value >= 10 ? 2 : 5,
+  }).format(value);
+}
+
+function formatPortfolioPercent(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0%';
+  return `${value >= 10 ? value.toFixed(1) : value.toFixed(2)}%`;
+}
+
+function normalizePortfolioChain(chain?: string | null) {
+  return String(chain || 'wallet')
+    .replace(/_/g, ' ')
+    .toLowerCase();
+}
+
+function buildPortfolioHoldings(tokens: TokenData[], totalValue: number) {
+  return tokens
+    .map((token, index) => {
+      const value = getTokenUsdValue(token);
+      const amount = toFiniteNumber(token.balance);
+      const symbol = String(token.symbol || 'TOKEN').toUpperCase();
+      return {
+        key: `${symbol}-${token.chain || 'chain'}-${token.address || 'native'}-${token.walletAddress || index}`,
+        symbol,
+        chain: normalizePortfolioChain(token.chain),
+        amount,
+        value,
+        percent: totalValue > 0 ? (value / totalValue) * 100 : 0,
+        color: PORTFOLIO_SEGMENT_COLORS[index % PORTFOLIO_SEGMENT_COLORS.length],
+      };
+    })
+    .filter((holding) => holding.value > 0 || holding.amount > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+function buildConicGradient(holdings: PortfolioHolding[]) {
+  const visible = holdings.filter((holding) => holding.percent > 0);
+  if (!visible.length) return 'conic-gradient(#252a32 0deg 360deg)';
+
+  let cursor = 0;
+  const stops = visible.map((holding) => {
+    const start = cursor;
+    const end = Math.min(360, cursor + (holding.percent / 100) * 360);
+    cursor = end;
+    return `${holding.color} ${start.toFixed(2)}deg ${end.toFixed(2)}deg`;
+  });
+
+  if (cursor < 360) {
+    stops.push(`#252a32 ${cursor.toFixed(2)}deg 360deg`);
+  }
+
+  return `conic-gradient(${stops.join(', ')})`;
+}
+
+function getPortfolioCheckedLabel(checkedAt?: string | null) {
+  if (!checkedAt) return '';
+  const date = new Date(checkedAt);
+  if (!Number.isFinite(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+export function WalletPortfolioCard({
+  consoleData,
+  snapshot,
+}: {
+  consoleData: AstroConsoleData;
+  snapshot?: WalletPortfolioSnapshot | null;
+}) {
+  const totalValue = toFiniteNumber(consoleData.walletPortfolioBalance);
+  const tokens = consoleData.walletPortfolioTokens || EMPTY_PORTFOLIO_TOKENS;
+  const holdings = useMemo(
+    () => buildPortfolioHoldings(tokens, totalValue),
+    [tokens, totalValue]
+  );
+  const visibleHoldings = useMemo(() => holdings.slice(0, 5), [holdings]);
+  const otherValue = useMemo(
+    () => holdings.slice(5).reduce((sum, holding) => sum + holding.value, 0),
+    [holdings]
+  );
+  const chartHoldings = useMemo(
+    () =>
+      otherValue > 0 && totalValue > 0
+        ? [
+            ...visibleHoldings,
+            {
+              key: 'other',
+              symbol: 'OTHER',
+              chain: 'mixed',
+              amount: 0,
+              value: otherValue,
+              percent: (otherValue / totalValue) * 100,
+              color: '#565b66',
+            },
+          ]
+        : visibleHoldings,
+    [otherValue, totalValue, visibleHoldings]
+  );
+  const checkedLabel = useMemo(
+    () => getPortfolioCheckedLabel(snapshot?.checkedAt),
+    [snapshot?.checkedAt]
+  );
+  const addressLabel =
+    consoleData.evmWalletAddress || consoleData.solWalletAddress
+      ? formatWalletAddress(
+          consoleData.evmWalletAddress || consoleData.solWalletAddress || ''
+        )
+      : consoleData.walletIdentityLabel;
+
+  return (
+    <div className={`${AGENT_PANEL_CLASS} mt-2 w-full overflow-hidden text-xs`}>
+      <div className="flex items-start justify-between gap-3 border-b border-white/[0.07] bg-[#111318] px-3.5 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 font-semibold text-[#eceef2]">
+            <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-[8px] bg-[#3fe08f]/15">
+              <PieChart className="h-3.5 w-3.5 text-[#3fe08f]" />
+            </span>
+            <span className="truncate">Portfolio allocation</span>
+          </div>
+          <div className="dm-mono mt-1 truncate text-[10px] font-semibold text-[#6d717d]">
+            {consoleData.walletIdentityLabel || addressLabel || 'Swop wallet'}
+          </div>
+        </div>
+        <div className="dm-mono shrink-0 text-right text-[10px] font-semibold text-[#5a5e69]">
+          <div className="text-[#eceef2]">{formatCompactUsd(totalValue)}</div>
+          <div>{checkedLabel ? `checked ${checkedLabel}` : 'live wallet'}</div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 p-3.5 sm:grid-cols-[140px_1fr]">
+        <div className="flex items-center justify-center">
+          <div
+            className="relative grid h-32 w-32 place-items-center rounded-full border border-white/[0.08] shadow-[inset_0_0_24px_rgba(0,0,0,0.42)]"
+            style={{ background: buildConicGradient(chartHoldings) }}
+          >
+            <div className="grid h-[82px] w-[82px] place-items-center rounded-full border border-white/[0.07] bg-[#111318] text-center">
+              <div>
+                <div className={TICKET_LABEL_CLASS}>value</div>
+                <div className="dm-mono mt-1 text-[15px] font-black text-[#eceef2]">
+                  {formatCompactUsd(totalValue)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <div className="mb-2 grid grid-cols-3 gap-2">
+            <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+              <div className={TICKET_LABEL_CLASS}>tokens</div>
+              <div className="dm-mono mt-1 text-[12px] font-bold text-[#eceef2]">
+                {holdings.length}
+              </div>
+            </div>
+            <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+              <div className={TICKET_LABEL_CLASS}>wallet</div>
+              <div className="dm-mono mt-1 truncate text-[12px] font-bold text-[#eceef2]">
+                {addressLabel || '--'}
+              </div>
+            </div>
+            <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+              <div className={TICKET_LABEL_CLASS}>largest</div>
+              <div className="dm-mono mt-1 truncate text-[12px] font-bold text-[#eceef2]">
+                {holdings[0]?.symbol || '--'}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            {consoleData.isWalletPortfolioBalanceLoading && !holdings.length ? (
+              <div className="flex items-center gap-2 rounded-[10px] border border-white/[0.07] bg-black/20 px-3 py-2.5 text-[12px] font-semibold text-[#9396a0]">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-[#3fe08f]" />
+                Loading wallet tokens
+              </div>
+            ) : holdings.length ? (
+              <>
+                {visibleHoldings.map((holding) => (
+                  <div
+                    key={holding.key}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-[10px] border border-white/[0.07] bg-black/20 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                          style={{ backgroundColor: holding.color }}
+                        />
+                        <span className="truncate text-[13px] font-bold text-[#eceef2]">
+                          {holding.symbol}
+                        </span>
+                        <span className="dm-mono shrink-0 text-[9.5px] font-semibold uppercase text-[#5a5e69]">
+                          {holding.chain}
+                        </span>
+                      </div>
+                      <div className="dm-mono mt-1 truncate text-[10.5px] font-semibold text-[#7d828d]">
+                        {formatPortfolioAmount(holding.amount)} {holding.symbol}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="dm-mono text-[12px] font-black text-[#eceef2]">
+                        {formatCompactUsd(holding.value)}
+                      </div>
+                      <div className="dm-mono mt-1 text-[10.5px] font-bold text-[#3fe08f]">
+                        {formatPortfolioPercent(holding.percent)}
+                      </div>
+                    </div>
+                    <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(2, Math.min(100, holding.percent))}%`,
+                          backgroundColor: holding.color,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {otherValue > 0 && (
+                  <div className="dm-mono flex items-center justify-between rounded-[9px] border border-white/[0.06] bg-[#101217] px-3 py-2 text-[10.5px] font-semibold text-[#737783]">
+                    <span>{holdings.length - visibleHoldings.length} more tokens</span>
+                    <span>{formatCompactUsd(otherValue)}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="rounded-[10px] border border-[#e8920f]/25 bg-[#e8920f]/10 px-3 py-2.5 text-[11px] font-semibold text-[#ffd08a]">
+                No wallet token balances found yet.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {(consoleData.evmWalletAddress || consoleData.solWalletAddress) && (
+        <div className="flex items-center gap-2 border-t border-white/[0.06] px-3.5 py-2.5 text-[10px] font-semibold text-[#6d717d]">
+          <Wallet className="h-3.5 w-3.5 text-[#3fe08f]" />
+          <span className="dm-mono truncate">
+            {consoleData.evmWalletAddress || consoleData.solWalletAddress}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

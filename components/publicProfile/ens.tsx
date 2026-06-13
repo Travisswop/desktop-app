@@ -3,7 +3,7 @@
 import { FC } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import toast from 'react-hot-toast';
+import { toast as sonner } from 'sonner';
 import InfoCardContent from './InfoCardContent';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -48,7 +48,11 @@ const Ens: FC<Props> = ({
     //   return;
     // }
     navigator.clipboard.writeText(domain);
-    toast.success('Copied to clipboard');
+    sonner.success('Copied — ENS', {
+      description:
+        domain.length > 40 ? `${domain.slice(0, 38)}…` : domain,
+      duration: 2200,
+    });
     try {
       fetch(`${API_URL}/api/v1/web/updateCount`, {
         method: 'POST',

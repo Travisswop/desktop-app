@@ -39,8 +39,7 @@ const FEATURED_ORDER = [
 // Rows beyond this scroll inside the card instead of growing the page
 const MARKETS_MAX_HEIGHT = 'max-h-[240px]';
 
-// Hide reserves whose supply APY would display as 0.00% — mostly
-// collateral-only assets (PT tokens, LSTs) that make the list look dead.
+// Hide/display-disable rates that would round to 0.00% in the UI.
 // Positions in hidden assets still work: lookups use the unfiltered set.
 const MIN_DISPLAY_APY = 0.00005;
 
@@ -55,6 +54,15 @@ const formatPct = (value: number) => `${(value * 100).toFixed(2)}%`;
 
 const formatAmount = (value: number) =>
   value.toLocaleString('en-US', { maximumFractionDigits: 6 });
+
+const hasDisplayableSupplyApy = (reserve: AaveReserve) =>
+  reserve.supplyApy >= MIN_DISPLAY_APY;
+
+const hasDisplayableBorrowApy = (reserve: AaveReserve) =>
+  reserve.borrowingEnabled && reserve.variableBorrowApy >= MIN_DISPLAY_APY;
+
+const hasDisplayableApy = (reserve: AaveReserve) =>
+  hasDisplayableSupplyApy(reserve) || hasDisplayableBorrowApy(reserve);
 
 interface DefiSectionProps {
   accessToken: string;
@@ -96,7 +104,7 @@ export function DefiSection({
   const marketReserves = useMemo(
     () =>
       sortedReserves.filter(
-        (reserve) => reserve.supplyApy >= MIN_DISPLAY_APY,
+        (reserve) => hasDisplayableApy(reserve),
       ),
     [sortedReserves],
   );
@@ -432,46 +440,67 @@ function MarketsTab({
         className={`${MARKETS_MAX_HEIGHT} overflow-y-auto overscroll-contain`}
       >
         {reserves.map((reserve) => (
-          <div
+          <MarketRow
             key={reserve.asset}
-            className="grid grid-cols-[1fr_120px_120px_170px] items-center px-5 py-3 border-t border-black/[0.04] hover:bg-gray-50/60 transition-colors"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <AaveTokenIcon symbol={reserve.symbol} />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">
-                  {reserve.symbol}
-                </p>
-                <p className="text-xs text-gray-400 truncate">{reserve.name}</p>
-              </div>
-            </div>
-            <span className="text-right font-mono text-sm text-emerald-600">
-              {formatPct(reserve.supplyApy)}
-            </span>
-            <span className="text-right font-mono text-sm text-gray-900">
-              {reserve.borrowingEnabled
-                ? formatPct(reserve.variableBorrowApy)
-                : '—'}
-            </span>
-            <div className="flex items-center justify-end gap-2">
-              <RowButton
-                label="Supply"
-                disabled={!walletConnected}
-                onClick={() => onAction('supply', reserve)}
-              />
-              <RowButton
-                label="Borrow"
-                disabled={!walletConnected || !reserve.borrowingEnabled}
-                onClick={() => onAction('borrow', reserve)}
-              />
-            </div>
-          </div>
+            reserve={reserve}
+            walletConnected={walletConnected}
+            onAction={onAction}
+          />
         ))}
       </div>
 
       <p className="px-5 py-2.5 text-right font-mono text-[10px] uppercase tracking-wider text-gray-300 border-t border-black/[0.04]">
         {reserves.length} of {totalCount} assets
       </p>
+    </div>
+  );
+}
+
+function MarketRow({
+  reserve,
+  walletConnected,
+  onAction,
+}: {
+  reserve: AaveReserve;
+  walletConnected: boolean;
+  onAction: (mode: AaveActionMode, reserve: AaveReserve) => void;
+}) {
+  const canSupply = walletConnected && hasDisplayableSupplyApy(reserve);
+  const canBorrow = walletConnected && hasDisplayableBorrowApy(reserve);
+
+  return (
+    <div className="grid grid-cols-[1fr_120px_120px_170px] items-center px-5 py-3 border-t border-black/[0.04] hover:bg-gray-50/60 transition-colors">
+      <div className="flex items-center gap-3 min-w-0">
+        <AaveTokenIcon symbol={reserve.symbol} />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900 truncate">
+            {reserve.symbol}
+          </p>
+          <p className="text-xs text-gray-400 truncate">{reserve.name}</p>
+        </div>
+      </div>
+      <span className="text-right font-mono text-sm text-emerald-600">
+        {hasDisplayableSupplyApy(reserve)
+          ? formatPct(reserve.supplyApy)
+          : '—'}
+      </span>
+      <span className="text-right font-mono text-sm text-gray-900">
+        {hasDisplayableBorrowApy(reserve)
+          ? formatPct(reserve.variableBorrowApy)
+          : '—'}
+      </span>
+      <div className="flex items-center justify-end gap-2">
+        <RowButton
+          label="Supply"
+          disabled={!canSupply}
+          onClick={() => onAction('supply', reserve)}
+        />
+        <RowButton
+          label="Borrow"
+          disabled={!canBorrow}
+          onClick={() => onAction('borrow', reserve)}
+        />
+      </div>
     </div>
   );
 }

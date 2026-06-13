@@ -46,6 +46,8 @@ interface ProfileCardProps {
   /** When true the card is locked (submitted) and shows a read-only summary. */
   done?: boolean;
   isSaving?: boolean;
+  submitLabel?: string;
+  savingLabel?: string;
   onSubmit: (values: ProfileCardValues) => void;
 }
 
@@ -53,6 +55,8 @@ export default function ProfileCard({
   initial,
   done,
   isSaving,
+  submitLabel = "Save profile",
+  savingLabel = "Saving",
   onSubmit,
 }: ProfileCardProps) {
   const { toast } = useToast();
@@ -276,10 +280,10 @@ export default function ProfileCard({
         {isSaving ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Saving
+            {savingLabel}
           </>
         ) : (
-          "Save profile"
+          submitLabel
         )}
       </button>
     </form>
