@@ -6,6 +6,7 @@ import {
   useCallback,
   useMemo,
   useRef,
+  type CSSProperties,
 } from 'react';
 import Image from 'next/image';
 import {
@@ -29,7 +30,9 @@ import {
   Droplets,
   ArrowUpDown,
   RefreshCw,
+  Rocket,
   Search,
+  Sparkles,
   X,
 } from 'lucide-react';
 import {
@@ -212,6 +215,19 @@ const STABLE_SYMBOLS = new Set([
 
 const ARBITRUM_USDC_LOGO =
   'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/arbitrum/assets/0xaf88d065e77c8cC2239327C5EDb3A432268e5831/logo.png';
+
+const WAIT_CONFETTI_PIECES = [
+  { left: '8%', top: '20%', color: '#38bdf8', x: '-8px', y: '-34px', delay: '0s' },
+  { left: '18%', top: '10%', color: '#22c55e', x: '-14px', y: '-26px', delay: '0.12s' },
+  { left: '28%', top: '24%', color: '#f59e0b', x: '-10px', y: '-38px', delay: '0.24s' },
+  { left: '38%', top: '12%', color: '#ec4899', x: '-4px', y: '-30px', delay: '0.05s' },
+  { left: '50%', top: '18%', color: '#6366f1', x: '0px', y: '-42px', delay: '0.18s' },
+  { left: '62%', top: '11%', color: '#14b8a6', x: '8px', y: '-31px', delay: '0.28s' },
+  { left: '72%', top: '25%', color: '#f97316', x: '14px', y: '-36px', delay: '0.08s' },
+  { left: '84%', top: '16%', color: '#a855f7', x: '10px', y: '-28px', delay: '0.2s' },
+  { left: '12%', top: '52%', color: '#f43f5e', x: '-16px', y: '-24px', delay: '0.34s' },
+  { left: '88%', top: '54%', color: '#10b981', x: '16px', y: '-24px', delay: '0.31s' },
+];
 
 const sleep = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -1731,22 +1747,99 @@ function ProcessingView({
   phase: ProcessingPhase;
   status: string;
 }) {
+  const isWaitingForFunds = needsConversion && phase === 'wait';
+
   return (
     <div className="px-6 pb-6 pt-4 space-y-5">
       <FlowSteps currentStep="processing" needsConversion={needsConversion} phase={phase} />
-      <div className="flex flex-col items-center text-center gap-4 py-6">
-        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center">
-          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-        </div>
+      <div
+        className="flex flex-col items-center text-center gap-4 py-6"
+        role="status"
+        aria-live="polite"
+      >
+        {isWaitingForFunds ? (
+          <FundsOnTheWayCelebration />
+        ) : (
+          <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          </div>
+        )}
         <div>
           <h3 className="text-lg font-bold text-gray-800">
-            {needsConversion ? 'Converting & Depositing' : 'Depositing USDC'}
+            {isWaitingForFunds
+              ? 'Funds are on the way 🚀'
+              : needsConversion
+                ? 'Converting & Depositing'
+                : 'Depositing USDC'}
           </h3>
           <p className="text-sm text-gray-500 mt-1">
             {status || 'Confirm the transaction in your wallet.'}
           </p>
+          {isWaitingForFunds && (
+            <p className="mt-3 text-xs leading-relaxed text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+              Keep this window open. As soon as the USDC lands on Arbitrum,
+              Swop will deposit it to your perps account automatically.
+            </p>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function FundsOnTheWayCelebration() {
+  return (
+    <div className="relative h-28 w-full max-w-xs overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-emerald-50 shadow-sm">
+      <div className="absolute inset-x-6 bottom-5 h-10 rounded-full bg-emerald-200/30 blur-xl" />
+      {WAIT_CONFETTI_PIECES.map((piece, index) => (
+        <span
+          key={`${piece.left}-${piece.top}`}
+          className="absolute h-2.5 w-1.5 rounded-sm opacity-0"
+          style={
+            {
+              left: piece.left,
+              top: piece.top,
+              backgroundColor: piece.color,
+              animation:
+                'swop-wait-confetti 1.7s ease-out infinite',
+              animationDelay: piece.delay,
+              '--confetti-x': piece.x,
+              '--confetti-y': piece.y,
+              transform: `rotate(${index * 28}deg)`,
+            } as CSSProperties
+          }
+        />
+      ))}
+
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-sky-100">
+          <div className="absolute -inset-2 rounded-full bg-sky-200/40 animate-ping" />
+          <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-emerald-500 text-white shadow-sm">
+            <Rocket className="h-6 w-6 animate-bounce" />
+          </div>
+        </div>
+      </div>
+
+      <div className="absolute left-4 top-4 flex items-center gap-1 rounded-full bg-white/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-sky-700 shadow-sm">
+        <Sparkles className="h-3 w-3" />
+        Auto-deposit queued
+      </div>
+
+      <style>{`
+        @keyframes swop-wait-confetti {
+          0% {
+            opacity: 0;
+            transform: translate3d(0, 0, 0) rotate(0deg) scale(0.8);
+          }
+          18% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform: translate3d(var(--confetti-x), var(--confetti-y), 0) rotate(220deg) scale(1);
+          }
+        }
+      `}</style>
     </div>
   );
 }
