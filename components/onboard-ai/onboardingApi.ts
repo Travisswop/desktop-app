@@ -2,6 +2,7 @@ import type { AiOnboardingProfile } from "./types";
 import { socialGroup, socialMediaBaseUrls } from "@/types/smartsite";
 import { apiFetch } from "@/lib/api/apiFetch";
 import { buildSwopApiUrl } from "@/lib/api/apiBaseUrl";
+import { safeLocalStorage } from "@/lib/browserStorage";
 import Cookies from "js-cookie";
 import type {
   InfoBarData,
@@ -37,6 +38,7 @@ function persistCreatedUserAuth(userId?: string, token?: string) {
   if (!userId) return;
 
   Cookies.set("user-id", userId, getAuthCookieOptions());
+  safeLocalStorage.setItem("swop:last-authenticated-at", String(Date.now()));
   if (token) {
     Cookies.set("access-token", token, getAuthCookieOptions());
   }

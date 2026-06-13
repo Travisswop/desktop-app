@@ -34,6 +34,7 @@ import { RiFingerprintLine, RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
 import logger from '@/utils/logger';
 import { buildSwopApiUrl, getSwopApiBaseUrl } from '@/lib/api/apiBaseUrl';
+import { safeLocalStorage, safeSessionStorage } from '@/lib/browserStorage';
 import { apiFetch } from '@/lib/api/apiFetch';
 import {
   AI_ONBOARDING_PATH,
@@ -187,9 +188,7 @@ function getAuthCookieOptions() {
 }
 
 function clearStaleSwopAuthStorage() {
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem('swop:user-cache');
-  }
+  safeLocalStorage.removeItem('swop:user-cache');
 
   Cookies.remove('user-id');
   Cookies.remove('access-token');
@@ -201,10 +200,8 @@ function clearPrivyBrowserSession() {
   clearStaleSwopAuthStorage();
 
   if (typeof window !== 'undefined') {
-    for (const storage of [window.localStorage, window.sessionStorage]) {
-      const keys = Array.from({ length: storage.length }, (_, index) =>
-        storage.key(index),
-      ).filter((key): key is string => Boolean(key));
+    for (const storage of [safeLocalStorage, safeSessionStorage]) {
+      const keys = storage.keys();
 
       for (const key of keys) {
         if (key.toLowerCase().includes('privy')) {

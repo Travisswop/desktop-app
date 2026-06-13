@@ -3,14 +3,20 @@
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import Cookies from 'js-cookie';
+import { safeLocalStorage } from '@/lib/browserStorage';
 
 const AUTH_CACHE_KEY = 'swop:last-authenticated-at';
 const AUTH_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
-function hasRecentAuthenticatedSession() {
-  if (typeof window === 'undefined') return false;
+function hasSwopBackendSession() {
+  return Boolean(Cookies.get('user-id') && Cookies.get('access-token'));
+}
 
-  const cachedAt = Number(window.localStorage.getItem(AUTH_CACHE_KEY));
+function hasRecentAuthenticatedSession() {
+  if (hasSwopBackendSession()) return true;
+
+  const cachedAt = Number(safeLocalStorage.getItem(AUTH_CACHE_KEY));
   return (
     Number.isFinite(cachedAt) &&
     Date.now() - cachedAt < AUTH_CACHE_MAX_AGE_MS
@@ -33,13 +39,13 @@ export default function AuthGuard({
   useEffect(() => {
     if (!ready) return;
 
-    if (authenticated) {
-      window.localStorage.setItem(AUTH_CACHE_KEY, String(Date.now()));
+    if (authenticated || hasSwopBackendSession()) {
+      safeLocalStorage.setItem(AUTH_CACHE_KEY, String(Date.now()));
       setHasCachedSession(true);
       return;
     }
 
-    window.localStorage.removeItem(AUTH_CACHE_KEY);
+    safeLocalStorage.removeItem(AUTH_CACHE_KEY);
     setHasCachedSession(false);
     router.replace('/login');
   }, [ready, authenticated, router]);
@@ -47,7 +53,7 @@ export default function AuthGuard({
   useEffect(() => {
     const handleOnline = () => {
       if (authenticated) {
-        window.localStorage.setItem(AUTH_CACHE_KEY, String(Date.now()));
+        safeLocalStorage.setItem(AUTH_CACHE_KEY, String(Date.now()));
       }
     };
 

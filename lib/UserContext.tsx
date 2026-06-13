@@ -28,6 +28,7 @@ import {
   requiresSwopIdCompletion,
   SWOP_ID_ONBOARDING_PATH,
 } from '@/lib/onboardingStatus';
+import { safeLocalStorage } from '@/lib/browserStorage';
 
 const userContextDebugEnabled =
   process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true';
@@ -57,7 +58,7 @@ export interface UserData {
     followerCount?: number;
     followingCount?: number;
     totalFollowers?: number;
-  };
+  } | any[];
   ensName?: string;
   ens?: string;
   primaryMicrosite?: string;
@@ -76,8 +77,6 @@ export interface UserData {
     [key: string]: unknown;
   };
   referralCode?: string;
-  connections?: any[];
-
   // Bot-related fields
   isBot?: boolean;
   botType?: 'crypto' | 'ai' | 'trading' | 'defi' | 'nft' | 'custom';
@@ -194,9 +193,7 @@ function getAuthCookieOptions() {
 }
 
 function clearStoredUserContext() {
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(USER_CACHE_KEY);
-  }
+  safeLocalStorage.removeItem(USER_CACHE_KEY);
 
   Cookies.remove('user-id');
   Cookies.remove('access-token');
@@ -204,11 +201,13 @@ function clearStoredUserContext() {
   Cookies.remove('access-token', { path: '/' });
 }
 
-function readCachedUserContext(): CachedUserContext | null {
-  if (typeof window === 'undefined') return null;
+function hasStoredSwopBackendSession() {
+  return Boolean(Cookies.get('user-id') && Cookies.get('access-token'));
+}
 
+function readCachedUserContext(): CachedUserContext | null {
   try {
-    const rawCache = window.localStorage.getItem(USER_CACHE_KEY);
+    const rawCache = safeLocalStorage.getItem(USER_CACHE_KEY);
     if (!rawCache) return null;
 
     const cache = JSON.parse(rawCache) as CachedUserContext;
@@ -219,14 +218,14 @@ function readCachedUserContext(): CachedUserContext | null {
         normalizeEmail(cache.user.email) ||
       Date.now() - cache.cachedAt > USER_CACHE_MAX_AGE_MS
     ) {
-      window.localStorage.removeItem(USER_CACHE_KEY);
+      safeLocalStorage.removeItem(USER_CACHE_KEY);
       return null;
     }
 
     return cache;
   } catch (error) {
     console.warn('Failed to read cached user context:', error);
-    window.localStorage.removeItem(USER_CACHE_KEY);
+    safeLocalStorage.removeItem(USER_CACHE_KEY);
     return null;
   }
 }
@@ -235,10 +234,8 @@ function writeCachedUserContext(
   user: UserData,
   accessToken: string | null,
 ) {
-  if (typeof window === 'undefined') return;
-
   try {
-    window.localStorage.setItem(
+    safeLocalStorage.setItem(
       USER_CACHE_KEY,
       JSON.stringify({
         user,
@@ -498,7 +495,7 @@ export function UserProvider({
       setUser(null);
       setAccessToken(null);
       setError(null);
-      window.localStorage.removeItem('swop:last-authenticated-at');
+      safeLocalStorage.removeItem('swop:last-authenticated-at');
       clearStoredUserContext();
       lastFetchedEmailRef.current = null;
       await privyLogout();
@@ -528,6 +525,11 @@ export function UserProvider({
 
     // Not authenticated - middleware handles redirects
     if (!authenticated || !privyUser) {
+      if (hasStoredSwopBackendSession()) {
+        setLoading(false);
+        return;
+      }
+
       setUser(null);
       setAccessToken(null);
       clearStoredUserContext();
