@@ -37,6 +37,7 @@ const EVENTS = {
 
 const SECURE_ASTRO_GROUP_NAME = 'Astro Trading Desk';
 const THREAD_RAIL_COLLAPSED_KEY = 'swop.chat.threadRailCollapsed';
+const GROUP_LOAD_LIMIT = 100;
 
 const AGENT_THREAD_CONFIGS = {
   astro: {
@@ -372,6 +373,9 @@ export default function ChatContainer({
   const directRecipientAppliedRef = useRef('');
   const initialAstroOpenAttemptedRef = useRef(false);
   const initialAgentOpenAttemptedRef = useRef('');
+  const agentThreadEnsureRef = useRef<
+    Partial<Record<AgentThreadId, Promise<any>>>
+  >({});
   const initialDirectRecipientKey = useMemo(
     () => directRecipientKey(initialDirectRecipient),
     [initialDirectRecipient]
@@ -423,7 +427,7 @@ export default function ChatContainer({
     // Load groups (groups don't have V2 yet, still using old event)
     socket.emit(
       'get_user_groups',
-      { page: 1, limit: 20 },
+      { page: 1, limit: GROUP_LOAD_LIMIT },
       (res: any) => {
         if (res?.success) {
           setGroups(dedupeAgentThreadGroups(res.groups || []));
@@ -448,7 +452,7 @@ export default function ChatContainer({
       // Groups still use old event (no V2 yet)
       socket.emit(
         'get_user_groups',
-        { page: 1, limit: 20 },
+        { page: 1, limit: GROUP_LOAD_LIMIT },
         (res: any) => {
           if (res?.success) {
             const updatedGroup = res.groups?.find(
@@ -895,65 +899,95 @@ export default function ChatContainer({
           });
         });
 
-      let group = findAgentThreadGroup(groups, agentId);
+      const ensureAgentThread = async () => {
+        let group = findAgentThreadGroup(groups, agentId);
 
-      if (!group) {
-        const response = await emitAck<{ group: any }>('create_group', {
-          name: config.groupName,
-          description: config.description,
-          members: [],
-          tokenGated: false,
-          isPublic: false,
-        });
-        group = response.group;
-      }
+        if (!group) {
+          const response = await emitAck<{ groups?: any[] }>(
+            'get_user_groups',
+            { page: 1, limit: GROUP_LOAD_LIMIT }
+          );
+          const refreshedGroups = dedupeAgentThreadGroups(
+            response.groups || []
+          );
+          setGroups(refreshedGroups);
+          group = findAgentThreadGroup(refreshedGroups, agentId);
+        }
 
-      const existingAgent = group.botUsers?.find(
-        (agent: any) =>
-          agent.agentId === config.agent.agentId && agent.isActive !== false
-      );
-      const missingEnabledTools = config.agent.enabledTools.filter(
-        (tool) => !existingAgent?.enabledTools?.includes(tool)
-      );
+        if (!group) {
+          const response = await emitAck<{ group: any }>('create_group', {
+            name: config.groupName,
+            description: config.description,
+            members: [],
+            tokenGated: false,
+            isPublic: false,
+          });
+          group = response.group;
+        }
 
-      let activeAgent = existingAgent || config.agent;
-      if (!existingAgent || missingEnabledTools.length > 0) {
-        const response = await emitAck<{ data?: { agent?: any } }>(
-          'add_group_agent',
-          {
-            groupId: group._id,
-            agentId: config.agent.agentId,
-            provider: config.agent.provider,
-            enabledTools: config.agent.enabledTools,
-            responseMode: config.agent.responseMode,
-          }
+        const existingAgent = group.botUsers?.find(
+          (agent: any) =>
+            agent.agentId === config.agent.agentId &&
+            agent.isActive !== false
         );
-        activeAgent = response.data?.agent || config.agent;
-      }
+        const missingEnabledTools = config.agent.enabledTools.filter(
+          (tool) => !existingAgent?.enabledTools?.includes(tool)
+        );
 
-      const groupWithAgent = {
-        ...group,
-        botUsers: existingAgent
-          ? group.botUsers.map((agent: any) =>
-              agent.agentId === config.agent.agentId
-                ? {
-                    ...agent,
-                    ...activeAgent,
-                    enabledTools:
-                      activeAgent.enabledTools ||
-                      config.agent.enabledTools,
-                  }
-                : agent
-            )
-          : [...(group.botUsers || []), activeAgent],
+        let activeAgent = existingAgent || config.agent;
+        if (!existingAgent || missingEnabledTools.length > 0) {
+          const response = await emitAck<{ data?: { agent?: any } }>(
+            'add_group_agent',
+            {
+              groupId: group._id,
+              agentId: config.agent.agentId,
+              provider: config.agent.provider,
+              enabledTools: config.agent.enabledTools,
+              responseMode: config.agent.responseMode,
+            }
+          );
+          activeAgent = response.data?.agent || config.agent;
+        }
+
+        const groupWithAgent = {
+          ...group,
+          botUsers: existingAgent
+            ? group.botUsers.map((agent: any) =>
+                agent.agentId === config.agent.agentId
+                  ? {
+                      ...agent,
+                      ...activeAgent,
+                      enabledTools:
+                        activeAgent.enabledTools ||
+                        config.agent.enabledTools,
+                    }
+                  : agent
+              )
+            : [...(group.botUsers || []), activeAgent],
+        };
+
+        setGroups((prev: any[]) =>
+          dedupeAgentThreadGroups([
+            groupWithAgent,
+            ...prev.filter((item: any) => item._id !== groupWithAgent._id),
+          ])
+        );
+
+        return groupWithAgent;
       };
 
-      setGroups((prev: any[]) =>
-        dedupeAgentThreadGroups([
-          groupWithAgent,
-          ...prev.filter((item: any) => item._id !== groupWithAgent._id),
-        ])
-      );
+      let ensurePromise = agentThreadEnsureRef.current[agentId];
+      if (!ensurePromise) {
+        ensurePromise = ensureAgentThread();
+        agentThreadEnsureRef.current[agentId] = ensurePromise;
+      }
+
+      const groupWithAgent = await ensurePromise.finally(() => {
+        if (agentThreadEnsureRef.current[agentId] === ensurePromise) {
+          delete agentThreadEnsureRef.current[agentId];
+        }
+      });
+
       setSelectedChat(groupWithAgent);
       setChatType('group');
       loadInitialData();
