@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentApprovalHandoff } from '@/lib/chat/agentActionHandoff';
 
 export interface GroupAgentDescriptor {
@@ -179,9 +179,23 @@ export function useGroupAgents(socket: any) {
   );
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
   const [agentError, setAgentError] = useState<string | null>(null);
+  const loadRequestIdRef = useRef(0);
 
   const loadAvailableAgents = useCallback(() => {
-    if (!socket) return Promise.resolve([] as GroupAgentDescriptor[]);
+    const requestId = ++loadRequestIdRef.current;
+
+    if (!socket) {
+      setAvailableAgents([]);
+      setAgentError(null);
+      setIsLoadingAgents(false);
+      return Promise.resolve([] as GroupAgentDescriptor[]);
+    }
+
+    if (!socket.connected) {
+      setAgentError(null);
+      setIsLoadingAgents(true);
+      return Promise.resolve([] as GroupAgentDescriptor[]);
+    }
 
     setIsLoadingAgents(true);
     setAgentError(null);
@@ -193,6 +207,10 @@ export function useGroupAgents(socket: any) {
       timeoutMessage: 'Timed out loading group agents.',
     })
       .then((response) => {
+        if (requestId !== loadRequestIdRef.current) {
+          return [] as GroupAgentDescriptor[];
+        }
+
         if (response?.success) {
           const agents = response.data?.agents || [];
           setAvailableAgents(agents);
@@ -206,6 +224,10 @@ export function useGroupAgents(socket: any) {
         return [];
       })
       .catch((error) => {
+        if (requestId !== loadRequestIdRef.current) {
+          return [] as GroupAgentDescriptor[];
+        }
+
         setAvailableAgents([]);
         setAgentError(
           error instanceof Error
@@ -215,7 +237,9 @@ export function useGroupAgents(socket: any) {
         return [];
       })
       .finally(() => {
-        setIsLoadingAgents(false);
+        if (requestId === loadRequestIdRef.current) {
+          setIsLoadingAgents(false);
+        }
       });
   }, [socket]);
 
@@ -382,8 +406,35 @@ export function useGroupAgents(socket: any) {
   );
 
   useEffect(() => {
-    loadAvailableAgents();
-  }, [loadAvailableAgents]);
+    if (!socket) {
+      void loadAvailableAgents();
+      return undefined;
+    }
+
+    const handleConnect = () => {
+      void loadAvailableAgents();
+    };
+
+    const handleDisconnect = () => {
+      setAgentError(null);
+      setIsLoadingAgents(false);
+    };
+
+    if (socket.connected) {
+      void loadAvailableAgents();
+    } else {
+      setAgentError(null);
+      setIsLoadingAgents(true);
+    }
+
+    socket.on?.('connect', handleConnect);
+    socket.on?.('disconnect', handleDisconnect);
+
+    return () => {
+      socket.off?.('connect', handleConnect);
+      socket.off?.('disconnect', handleDisconnect);
+    };
+  }, [loadAvailableAgents, socket]);
 
   return {
     addGroupAgent,
