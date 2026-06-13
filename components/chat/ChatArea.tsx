@@ -5297,6 +5297,8 @@ export default function ChatArea({
                               participants:
                                 updatedGroup.participants ??
                                 prev.participants,
+                              botUsers:
+                                updatedGroup.botUsers ?? prev.botUsers,
                               settings:
                                 updatedGroup.settings ?? prev.settings,
                             }

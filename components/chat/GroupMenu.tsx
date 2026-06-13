@@ -6,6 +6,7 @@ import isUrl from '@/lib/isUrl';
 import toast from 'react-hot-toast';
 import { useUser } from '@/lib/UserContext';
 import {
+  Bot,
   Loader2,
   LogOut,
   Menu,
@@ -50,6 +51,7 @@ interface Group {
   name: string;
   description?: string;
   participants?: Participant[];
+  botUsers?: GroupAgent[];
   settings?: GroupSettings;
   createdBy?: { _id?: string } | string;
 }
@@ -72,9 +74,23 @@ interface SearchResponse {
 interface SocketResponse {
   success: boolean;
   message?: string;
-  error?: string;
+  error?: string | { message?: string };
+  data?: {
+    agent?: GroupAgent;
+  };
   group?: Group;
   participants?: Participant[];
+}
+
+interface GroupAgent {
+  agentId: string;
+  provider?: string;
+  displayName?: string;
+  avatarUrl?: string | null;
+  mentionAliases?: string[];
+  responseMode?: 'mention_only';
+  enabledTools?: string[];
+  isActive?: boolean;
 }
 
 type ModalType =
@@ -131,6 +147,17 @@ const ROW_CLASS =
 const PROTECTED_AGENT_GROUP_NAMES = new Set(
   ['Astro Trading Desk', 'Goldman Sacks'].map((name) => name.toLowerCase())
 );
+const ASTRO_ENABLED_TOOLS = [
+  'perps.read',
+  'perps.write',
+  'prediction.read',
+  'prediction.write',
+  'marketplace.read',
+  'marketplace.write',
+  'sports.read',
+  'wallet.read',
+  'wallet.write',
+];
 
 function isProtectedAgentGroup(group: Group) {
   return PROTECTED_AGENT_GROUP_NAMES.has(
@@ -138,6 +165,36 @@ function isProtectedAgentGroup(group: Group) {
       .trim()
       .toLowerCase()
   );
+}
+
+function getSocketErrorMessage(error: SocketResponse['error']) {
+  if (!error) return '';
+  if (typeof error === 'string') return error;
+  return error.message || '';
+}
+
+function isAstroActive(group: Group) {
+  return Boolean(
+    group.botUsers?.some(
+      (agent) => agent.agentId === 'astro' && agent.isActive !== false,
+    ),
+  );
+}
+
+function upsertGroupAgent(group: Group, agent: GroupAgent): Group {
+  const existingAgents = group.botUsers || [];
+  const hasAgent = existingAgents.some(
+    (item) => item.agentId === agent.agentId,
+  );
+
+  return {
+    ...group,
+    botUsers: hasAgent
+      ? existingAgents.map((item) =>
+          item.agentId === agent.agentId ? { ...item, ...agent } : item,
+        )
+      : [...existingAgents, agent],
+  };
 }
 
 function ModalHeader({
@@ -207,7 +264,9 @@ export default function GroupMenu({
 }: GroupMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const [isAddingAstro, setIsAddingAstro] = useState(false);
   const isProtectedSystemGroup = isProtectedAgentGroup(group);
+  const hasAstroAgent = isAstroActive(group);
 
   const closeMenu = () => setIsOpen(false);
   const closeModal = () => setActiveModal(null);
@@ -236,7 +295,66 @@ export default function GroupMenu({
     };
   }, [group.participants, group.createdBy, currentUser]);
 
+  const handleAddAstro = useCallback(() => {
+    if (!socket || isAddingAstro || hasAstroAgent) return;
+
+    setIsAddingAstro(true);
+    socket.emit(
+      'add_group_agent',
+      {
+        groupId: group._id,
+        agentId: 'astro',
+        provider: 'elizaos',
+        enabledTools: ASTRO_ENABLED_TOOLS,
+        responseMode: 'mention_only',
+      },
+      (response: SocketResponse) => {
+        if (response?.success) {
+          const agent = response.data?.agent || {
+            agentId: 'astro',
+            provider: 'elizaos',
+            displayName: 'Astro',
+            mentionAliases: ['@astro', 'astro'],
+            responseMode: 'mention_only' as const,
+            enabledTools: ASTRO_ENABLED_TOOLS,
+            isActive: true,
+          };
+
+          toast.success('Astro added. Mention @astro to chat.', {
+            position: 'top-right',
+          });
+          onGroupUpdate?.(response.group || upsertGroupAgent(group, agent));
+        } else {
+          toast.error(
+            getSocketErrorMessage(response?.error) || 'Failed to add Astro',
+            {
+              position: 'top-right',
+            },
+          );
+        }
+        setIsAddingAstro(false);
+      },
+    );
+  }, [group, hasAstroAgent, isAddingAstro, onGroupUpdate, socket]);
+
   const menuItems = [
+    ...(canManageMembers && !isProtectedSystemGroup && !hasAstroAgent
+      ? [
+          {
+            label: isAddingAstro ? 'Adding Astro...' : 'Add Astro',
+            icon: isAddingAstro ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Bot className="h-4 w-4" />
+            ),
+            action: () => {
+              handleAddAstro();
+              closeMenu();
+            },
+            color: 'default',
+          },
+        ]
+      : []),
     ...(canManageMembers
       ? [
           {
