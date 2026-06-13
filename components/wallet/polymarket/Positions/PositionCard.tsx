@@ -59,6 +59,9 @@ export default function PositionCard({
   const toWin = position.size; // shares × $1.00 = max payout
   const redeemValue = getRedeemablePayout(position);
   const canClaimRedeem = isRedeemable && hasRedeemablePayout(position);
+  const isWaitingForRedemption =
+    !isRedeemable &&
+    (position.marketResolutionPending || position.marketClosed);
   const value = isRedeemable ? redeemValue : position.currentValue;
   const pnl = position.cashPnl;
   const pnlPct = position.percentPnl;
@@ -108,19 +111,7 @@ export default function PositionCard({
             className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
             title="Share"
           >
-            <svg
-              viewBox="0 0 24 24"
-              className="w-4 h-4 text-gray-700"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-              <polyline points="16 6 12 2 8 6" />
-              <line x1="12" y1="2" x2="12" y2="15" />
-            </svg>
+            <Share2 className="w-4 h-4 text-gray-700" />
           </button>
         </div>
 
@@ -181,6 +172,15 @@ export default function PositionCard({
                 : canClaimRedeem
                   ? `Redeem $${redeemValue.toFixed(2)}`
                   : 'No payout'}
+            </button>
+          </div>
+        ) : isWaitingForRedemption ? (
+          <div className="flex gap-2 px-4 pb-4">
+            <button
+              disabled
+              className="flex-1 py-2.5 bg-amber-50 border border-amber-100 text-amber-700 disabled:cursor-not-allowed text-sm font-semibold rounded-xl"
+            >
+              Waiting to redeem
             </button>
           </div>
         ) : !position.redeemable ? (

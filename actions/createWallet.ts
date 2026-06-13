@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 
 export async function createWalletAction(
   ens: string,
@@ -11,7 +12,8 @@ export async function createWalletAction(
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v4/wallet/createWallet/${ens}`
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
 
     const ensId = `${ens}.swop.id`;
 
@@ -64,7 +66,8 @@ export async function createWalletBalance(payload: any) {
         body: JSON.stringify(payload),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -74,7 +77,7 @@ export async function createWalletBalance(payload: any) {
 export async function createLoginWalletBalance(payload: any) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/create-login-balance`,
+      buildSwopApiUrl('/api/v5/wallet/create-login-balance'),
       {
         method: 'POST',
         headers: {
@@ -84,7 +87,8 @@ export async function createLoginWalletBalance(payload: any) {
         body: JSON.stringify(payload),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -104,7 +108,8 @@ export async function getWalletCurrentBalance(payload: any) {
         body: JSON.stringify(payload),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);

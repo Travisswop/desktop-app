@@ -1,5 +1,5 @@
-import { formatEns } from '@/lib/formatEnsName';
 import Image from 'next/image';
+import TokenTransferFeedCard from '../../TokenTransferFeedCard';
 
 const RenderTransactionContent = (feed: any) => {
   const {
@@ -7,9 +7,6 @@ const RenderTransactionContent = (feed: any) => {
     receiver_ens,
     receiver_wallet_address,
     amount,
-    token,
-    chain,
-    tokenPrice,
     image,
     name,
     currency,
@@ -55,26 +52,7 @@ const RenderTransactionContent = (feed: any) => {
       </div>
     );
   } else if (transaction_type === 'token') {
-    return (
-      <p className="text-black text-sm">
-        Transferred{' '}
-        <span className="font-medium">
-          {amount.toFixed(2)} {token}
-        </span>{' '}
-        {tokenPrice && (
-          <span>(${Number(tokenPrice).toFixed(2)})</span>
-        )}{' '}
-        tokens to{' '}
-        <a
-          href={`https://${recipientDisplay}`}
-          target="_blank"
-          className="font-semibold"
-        >
-          {formatEns(recipientDisplay)}
-        </a>{' '}
-        on the {chain}.
-      </p>
-    );
+    return <TokenTransferFeedCard feed={feed?.feed} />;
   } else {
     return (
       <p className="text-gray-600 text-sm">

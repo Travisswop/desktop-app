@@ -1,15 +1,12 @@
 "use client";
 
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
-import dashboard from "@/public/images/nav/dashboard.png";
-import feed from "@/public/images/nav/feed.png";
-import smartsite from "@/public/images/nav/smartsite.png";
-import wallet from "@/public/images/nav/wallet.png";
 import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
+import { Layers, LayoutGrid, Menu, WalletCards } from "lucide-react";
 import { VscChip } from "react-icons/vsc";
-import { useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
 import { IoAdd, IoClose } from "react-icons/io5";
@@ -47,9 +44,76 @@ import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { FiEdit } from "react-icons/fi";
 import { AiOutlineFileAdd } from "react-icons/ai";
 
+const baseNavItemClass =
+  "flex h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[14px] px-1 text-[10px] font-semibold leading-none tracking-[0] transition-colors duration-150 sm:max-w-16";
+
+const SMARTSITE_TEMPLATES = [
+  {
+    id: "small-icons",
+    title: "Small Icons",
+    description: "Miniature Icons For Header Area",
+    image: smallIconImg,
+  },
+  {
+    id: "infobar",
+    title: "Infobar",
+    description: "Display Bar for your links or CTAs",
+    image: infobarImg,
+  },
+  {
+    id: "embed",
+    title: "Embed",
+    description: "Embed Youtube videos, Spotify list and more",
+    image: embedImg,
+  },
+  {
+    id: "app-icon",
+    title: "App Icon",
+    description: "Displays your links like a App",
+    image: appIconImg,
+  },
+  {
+    id: "redeem-link",
+    title: "Redeem Link",
+    description: "Incentivize your following",
+    image: redeemLinkImg,
+  },
+  {
+    id: "blog",
+    title: "Blog",
+    description: "Write a blog and host on your page",
+    image: blogImg,
+  },
+  {
+    id: "photo-video",
+    title: "Photo/Video",
+    description: "Upload videos or photos to display",
+    image: photoVideoImg,
+  },
+  {
+    id: "mp3",
+    title: "MP3",
+    description: "Upload MP3 files and host your album",
+    image: mp3Img,
+  },
+  {
+    id: "marketplace",
+    title: "Marketplace",
+    description: "Sell Products, Subscriptions and more",
+    image: marketplaceImg,
+  },
+  {
+    id: "feed",
+    title: "Feed",
+    description: "Display your Swop Feed",
+    image: feedImg,
+  },
+];
+
 const BottomNavContent = () => {
   const params = useParams();
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { openModal } = useModalStore();
 
@@ -67,82 +131,24 @@ const BottomNavContent = () => {
   // console.log("params", params);
 
   const isSmartsite = pathname?.startsWith("/smartsite/");
+  const isFeedSurface = pathname === "/" || pathname?.startsWith("/feed");
+  const showFeedCompose = isFeedSurface && tab !== "map";
+
+  useEffect(() => {
+    router.prefetch("/wallet");
+  }, [router]);
 
   // Get the dynamic ID from the route
   const pageId =
     (params?.editId as string | undefined) ||
     (params?.id as string | undefined);
 
-  // Template data
-  const templates = [
-    {
-      id: "small-icons",
-      title: "Small Icons",
-      description: "Miniature Icons For Header Area",
-      image: smallIconImg,
-    },
-    {
-      id: "infobar",
-      title: "Infobar",
-      description: "Display Bar for your links or CTAs",
-      image: infobarImg,
-    },
-    {
-      id: "embed",
-      title: "Embed",
-      description: "Embed Youtube videos, Spotify list and more",
-      image: embedImg,
-    },
-    {
-      id: "app-icon",
-      title: "App Icon",
-      description: "Displays your links like a App",
-      image: appIconImg,
-    },
-    {
-      id: "redeem-link",
-      title: "Redeem Link",
-      description: "Incentivize your following",
-      image: redeemLinkImg,
-    },
-    {
-      id: "blog",
-      title: "Blog",
-      description: "Write a blog and host on your page",
-      image: blogImg,
-    },
-    {
-      id: "photo-video",
-      title: "Photo/Video",
-      description: "Upload videos or photos to display",
-      image: photoVideoImg,
-    },
-    {
-      id: "mp3",
-      title: "MP3",
-      description: "Upload MP3 files and host your album",
-      image: mp3Img,
-    },
-    {
-      id: "marketplace",
-      title: "Marketplace",
-      description: "Sell Products, Subscriptions and more",
-      image: marketplaceImg,
-    },
-    {
-      id: "feed",
-      title: "Feed",
-      description: "Display your Swop Feed",
-      image: feedImg,
-    },
-  ];
-
   // Filter templates based on search query
   const filteredTemplates = useMemo(() => {
-    if (!searchQuery.trim()) return templates;
+    if (!searchQuery.trim()) return SMARTSITE_TEMPLATES;
 
     const query = searchQuery.toLowerCase();
-    return templates.filter(
+    return SMARTSITE_TEMPLATES.filter(
       (template) =>
         template.title.toLowerCase().includes(query) ||
         template.description.toLowerCase().includes(query),
@@ -462,145 +468,92 @@ const BottomNavContent = () => {
     }
   };
 
+  const navItems = [
+    {
+      href: "/dashboard",
+      label: "Dashboard",
+      Icon: LayoutGrid,
+      isActive: Boolean(pathname?.startsWith("/dashboard")),
+    },
+    {
+      href: "/",
+      label: "Feed",
+      Icon: Menu,
+      isActive: pathname === "/" || pathname === "/feed",
+    },
+    {
+      href: "/wallet",
+      label: "Wallet",
+      Icon: WalletCards,
+      isActive: Boolean(pathname?.startsWith("/wallet")),
+      prefetch: true,
+      onPointerEnter: () => router.prefetch("/wallet"),
+      onFocus: () => router.prefetch("/wallet"),
+    },
+    {
+      href: "/smartsite",
+      label: "Build",
+      Icon: Layers,
+      isActive: Boolean(pathname?.startsWith("/smartsite")),
+    },
+  ];
+
   return (
     <>
       <div
-        className={`${
-          isSmartsite ? "w-[26rem]" : "w-[20rem]"
-        } fixed bottom-2 left-1/2 transform -translate-x-1/2 `}
+        className={`fixed bottom-5 left-1/2 z-50 w-[calc(100vw_-_32px)] -translate-x-1/2 ${
+          isSmartsite || showFeedCompose ? "max-w-[340px]" : "max-w-[272px]"
+        }`}
       >
-        {(pathname === "/" || pathname?.startsWith("/feed")) && (
-          <div className="flex text-sm font-medium w-[70%] bg-white p-3 rounded-xl shadow-large items-center justify-between mb-1 mx-auto">
-            <Link
-              href={"/?tab=feed"}
-              className="flex flex-col gap-1 items-center"
-            >
-              <div
-                className={`${
-                  (tab === "feed" || !tab) && "bg-gray-100"
-                } rounded-full px-6 py-1.5`}
+        <nav
+          aria-label="Primary"
+          className="flex h-14 w-full items-center justify-between gap-0 rounded-[22px] border border-black/[0.03] bg-white px-1.5 py-1.5 shadow-[0_10px_22px_rgba(15,23,42,0.12),0_2px_6px_rgba(15,23,42,0.05)]"
+        >
+          {navItems.map(({ href, label, Icon, isActive, ...linkProps }) => (
+            <Fragment key={href}>
+              <Link
+                href={href}
+                aria-current={isActive ? "page" : undefined}
+                className={`${baseNavItemClass} ${
+                  isActive
+                    ? "bg-[#f3f3f2] text-[#171717]"
+                    : "text-[#73747b] hover:bg-[#f8f8f7]"
+                }`}
+                {...linkProps}
               >
-                <p>Feed</p>
-              </div>
-            </Link>
-            {/* <Link
-              href={"/?tab=ledger"}
-              className="flex flex-col gap-1 items-center"
-            >
-              <div
-                className={`${
-                  tab === "ledger" && "bg-gray-100"
-                } rounded-full px-3 py-1`}
-              >
-                <p>Ledger</p>
-              </div>
-            </Link> */}
-            <Link
-              href={"/?tab=map"}
-              className="flex flex-col gap-1 items-center"
-            >
-              <div
-                className={`${
-                  tab === "map" && "bg-gray-100"
-                } rounded-full px-6 py-1.5`}
-              >
-                <p>Map</p>
-              </div>
-            </Link>
+                <Icon
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0"
+                  strokeWidth={isActive ? 2.4 : 2.2}
+                />
+                <span className="whitespace-nowrap">{label}</span>
+              </Link>
+            </Fragment>
+          ))}
+          {showFeedCompose ? (
             <button
+              type="button"
+              aria-label="Compose feed post"
               onClick={openModal}
-              className="flex flex-col gap-1 items-center"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-black text-white transition-colors hover:bg-gray-900"
             >
-              <div
-                className={`${
-                  tab === "create-feed" && "bg-gray-100"
-                } rounded-full px-6 py-1.5`}
-              >
-                <BiSolidEdit size={18} />
-              </div>
+              <BiSolidEdit size={17} />
             </button>
-          </div>
-        )}
-
-        <div className="flex w-full bg-white p-3 rounded-2xl shadow-large items-center justify-between gap-2">
-          <Link
-            href={"/dashboard"}
-            className="flex flex-col gap-1 items-center"
-          >
-            <div
-              className={`border ${
-                pathname?.startsWith("/dashboard")
-                  ? "border-gray-300"
-                  : "border-gray-50"
-              } bg-gray-100 rounded-lg p-3`}
-            >
-              <Image src={dashboard} alt="dashboard" className="h-5 w-auto" />
-            </div>
-            <p className="text-sm">Dashboard</p>
-          </Link>
-          <Link href={"/"} className="flex flex-col gap-1 items-center">
-            <div
-              className={`border ${
-                pathname === "/" ? " border-gray-300" : " border-gray-50"
-              } bg-gray-100 rounded-lg p-3`}
-            >
-              <Image src={feed} alt="feed" className="h-5 w-auto" />
-            </div>
-            <p className="text-sm">Feed</p>
-          </Link>
-          <Link href={"/wallet"} className="flex flex-col gap-1 items-center">
-            <div
-              className={`border ${
-                pathname?.startsWith("/wallet")
-                  ? "border-gray-300"
-                  : "border-gray-50"
-              } bg-gray-100 rounded-lg p-3`}
-            >
-              <Image src={wallet} alt="wallet" className="h-5 w-auto" />
-            </div>
-            <p className="text-sm">Wallet</p>
-          </Link>
-          {/* <Link href={"/market"} className="flex flex-col gap-1 items-center">
-            <div
-              className={`border ${
-                pathname?.startsWith("/market")
-                  ? "border-gray-300"
-                  : "border-gray-50"
-              } bg-gray-100 rounded-lg p-3`}
-            >
-              <TrendingUp className="h-5 w-auto" strokeWidth={1.5} />
-            </div>
-            <p className="text-sm">Market</p>
-          </Link> */}
-          <Link
-            href={"/smartsite"}
-            className={`flex flex-col gap-1 items-center ${
-              isSmartsite && "border-r pr-3"
-            }`}
-          >
-            <div
-              className={`border ${
-                pathname?.startsWith("/smartsite")
-                  ? "border-gray-300"
-                  : "border-gray-50"
-              } bg-gray-100 rounded-lg p-3`}
-            >
-              <Image src={smartsite} alt="smartsite" className="h-5 w-auto" />
-            </div>
-            <p className="text-sm">Build</p>
-          </Link>
+          ) : null}
           {isSmartsite && (
             <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
               <DropdownMenuTrigger asChild>
-                <button className="flex flex-col gap-1 items-center">
-                  <div className={`border bg-black rounded-lg p-3`}>
+                <button
+                  className={`${baseNavItemClass} bg-black text-white hover:bg-gray-900`}
+                >
+                  <div className="flex h-4 w-4 items-center justify-center">
                     {isMenuOpen ? (
-                      <IoClose size={20} color="white" className="h-5 w-auto" />
+                      <IoClose size={16} color="white" />
                     ) : (
-                      <IoAdd size={20} color="white" className="h-5 w-auto" />
+                      <IoAdd size={16} color="white" />
                     )}
                   </div>
-                  <p className="text-sm">Add</p>
+                  <span className="whitespace-nowrap">Add</span>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -707,7 +660,7 @@ const BottomNavContent = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-        </div>
+        </nav>
       </div>
 
       {/* Icons Modal */}

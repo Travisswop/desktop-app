@@ -7,6 +7,7 @@ import {
   UserRole,
 } from '../types/order.types';
 import { stageDisplayNames } from '../constants/order.constants';
+import { apiFetch } from '@/lib/api/apiFetch';
 
 interface UseOrderDataReturn {
   order: OrderData | null;
@@ -47,7 +48,7 @@ export const useOrderData = (orderId: string): UseOrderDataReturn => {
         throw new Error('API base URL is not defined.');
       }
 
-      const response = await fetch(
+      const response = await apiFetch(
         `${API_URL}/api/v5/orders/${orderId}`,
         {
           headers: {

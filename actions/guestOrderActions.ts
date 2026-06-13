@@ -46,10 +46,10 @@ export async function verifyGuestOrder({
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => null);
       return {
         success: false,
-        message: errorData.message || 'Invalid Order ID or Email',
+        message: errorData?.message || 'Invalid Order ID or Email',
       };
     }
 
@@ -84,8 +84,8 @@ export async function getGuestOrderById(
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to get order');
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || 'Failed to get order');
     }
 
     const { data } = await response.json();
@@ -122,11 +122,11 @@ export async function confirmGuestOrderReceipt({
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => null);
       return {
         success: false,
         message:
-          errorData.message || 'Failed to confirm order receipt',
+          errorData?.message || 'Failed to confirm order receipt',
       };
     }
 
@@ -178,10 +178,10 @@ export async function createGuestOrderDispute({
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => null);
       return {
         success: false,
-        message: errorData.message || 'Failed to create dispute',
+        message: errorData?.message || 'Failed to create dispute',
       };
     }
 
@@ -226,10 +226,10 @@ export async function getGuestOrderDisputes(
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => null);
       return {
         success: false,
-        message: errorData.message || 'Failed to fetch disputes',
+        message: errorData?.message || 'Failed to fetch disputes',
       };
     }
 

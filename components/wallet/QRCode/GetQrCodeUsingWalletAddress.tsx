@@ -7,6 +7,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { Download, Share2 } from "lucide-react";
+import { selectPreferredWallet } from "../hooks/useWalletData";
 
 const GetQrCodeUsingWalletAddress = ({
   walletName,
@@ -32,16 +33,15 @@ const GetQrCodeUsingWalletAddress = ({
   const { wallets: ethWallets } = useWallets();
 
   const solWalletAddress = useMemo(() => {
-    return solWallets?.find(
-      (w) => w.walletClientType === "privy" && w.chainType === "solana",
-    )?.address;
+    return selectPreferredWallet(solWallets)?.address;
   }, [solWallets]);
 
   const evmWalletAddress = useMemo(() => {
-    return ethWallets?.find(
-      (w) => w.walletClientType === "privy" || w.connectorType === "embedded",
+    return selectPreferredWallet(
+      ethWallets,
+      privyUser?.wallet?.address,
     )?.address;
-  }, [ethWallets]);
+  }, [ethWallets, privyUser?.wallet?.address]);
 
   const chainAddresses = [
     {

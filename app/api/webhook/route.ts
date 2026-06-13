@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { getStripe } from '@/lib/stripe';
 import { updateOrderPayment } from '@/actions/orderActions';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -12,10 +12,13 @@ export async function POST(req: NextRequest) {
 
   try {
     if (!webhookSecret) {
-      throw new Error('Webhook secret is not set');
+      return NextResponse.json(
+        { error: 'Stripe webhook is not configured' },
+        { status: 503 }
+      );
     }
 
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       payload,
       signature,
       webhookSecret

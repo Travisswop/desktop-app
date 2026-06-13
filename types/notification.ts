@@ -7,11 +7,13 @@ export type NotificationType =
   | 'nft_sent'
   | 'swap_completed'
   | 'swap_failed'
+  | 'copy_trade_reward_claimable'
   // Social Engagement
   | 'lead_received'
   | 'like_received'
   | 'comment_received'
   | 'follower_received'
+  | 'trade_alert'
   // Messaging
   | 'message_received'
   | 'group_message_received'
@@ -77,12 +79,14 @@ export interface NotificationPreferences {
     nftReceive: NotificationPreferenceChannel;
     nftSend: NotificationPreferenceChannel;
     swap: NotificationPreferenceChannel;
+    copyTradeRewards: NotificationPreferenceChannel;
   };
   social: {
     leads: NotificationPreferenceChannel;
     likes: NotificationPreferenceChannel;
     comments: NotificationPreferenceChannel;
     followers: NotificationPreferenceChannel;
+    tradeAlerts: NotificationPreferenceChannel;
   };
   commerce: {
     productSold: NotificationPreferenceChannel & { email: boolean };
@@ -189,6 +193,7 @@ export type NotificationIconType =
   | 'like'
   | 'comment'
   | 'follower'
+  | 'trade'
   | 'lead'
   | 'message'
   | 'order'

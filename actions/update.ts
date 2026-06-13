@@ -19,7 +19,8 @@ export async function handleCreateSmartSite(smartSiteInfo: any, token: string) {
     );
     revalidatePath(`/smartsites`);
     revalidatePath(`/`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error("Error from action:", error);
@@ -41,7 +42,8 @@ export async function handleSmartSiteUpdate(smartSiteInfo: any, token: string) {
     );
     revalidatePath(`/smartsites`);
     revalidatePath(`/`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
 
     return data;
   } catch (error) {
@@ -65,7 +67,8 @@ export async function handleV5SmartSiteUpdate(
         body: JSON.stringify(smartSiteInfo),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
 
     revalidatePath(`/smartsites/icons/${data?.data?.micrositeId}`);
     return data;

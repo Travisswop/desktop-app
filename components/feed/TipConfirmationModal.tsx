@@ -46,12 +46,14 @@ export default function TipConfirmation({
   useEffect(() => {
     // Calculate network fee based on chain
     const calculateNetworkFee = async () => {
+      const tokenPrice = Number(
+        token.nativeTokenPrice || token.marketData?.price || 0,
+      );
+
       if (token.chain === "SOLANA") {
         const fee = "0.000005";
         setNetworkFee(fee);
-        const feeUSD =
-          Number(fee) *
-          Number(token.nativeTokenPrice || token.marketData.price || 0);
+        const feeUSD = Number(fee) * tokenPrice;
         setGasFeeUSD(Number(feeUSD.toFixed(6)));
       } else {
         // For EVM chains, you can use your existing calculateEVMGasFee function
@@ -59,9 +61,7 @@ export default function TipConfirmation({
         // For now, using approximate values
         const estimatedGas = "0.0001";
         setNetworkFee(estimatedGas);
-        const feeUSD =
-          Number(estimatedGas) *
-          Number(token.nativeTokenPrice || token.marketData.price || 0);
+        const feeUSD = Number(estimatedGas) * tokenPrice;
         setGasFeeUSD(Number(feeUSD.toFixed(6)));
       }
     };
@@ -150,10 +150,10 @@ export default function TipConfirmation({
                       height={20}
                       className="rounded-full"
                     /> */}
-                    {isUrl(token?.marketData?.iconUrl) ? (
+                    {isUrl(token.marketData?.iconUrl || "") ? (
                       <Image
                         src={sanitizeNextImageSrc(
-                          token?.marketData?.iconUrl ||
+                          token.marketData?.iconUrl ||
                             token.logoURI ||
                             "/icons/default.png",
                         )}

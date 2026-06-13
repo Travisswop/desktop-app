@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import bundleAnalyzer from '@next/bundle-analyzer';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
@@ -7,9 +8,11 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  distDir: process.env.NEXT_DIST_DIR || '.next',
 
-  // Reduce memory usage in production
-  productionBrowserSourceMaps: false,
+  // Generate browser source maps only when a production build is configured to
+  // upload them to Sentry.
+  productionBrowserSourceMaps: Boolean(process.env.SENTRY_AUTH_TOKEN),
 
   // Turbopack config (used by `next dev --turbopack`)
   // Mirrors the webpack resolve.fallback + resolve.alias below, which only
@@ -82,6 +85,19 @@ const nextConfig: NextConfig = {
 
   eslint: {
     ignoreDuringBuilds: true,
+  },
+
+  async headers() {
+    return [
+      {
+        source: '/.well-known/apple-app-site-association',
+        headers: [{ key: 'Content-Type', value: 'application/json' }],
+      },
+      {
+        source: '/.well-known/assetlinks.json',
+        headers: [{ key: 'Content-Type', value: 'application/json' }],
+      },
+    ];
   },
 
   webpack: (config, { isServer }) => {
@@ -157,4 +173,34 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [],
 };
 
-export default withBundleAnalyzer(nextConfig);
+const sentryNextConfig = withBundleAnalyzer(nextConfig);
+
+export default withSentryConfig(sentryNextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  telemetry: false,
+  silent: !process.env.SENTRY_DEBUG,
+  widenClientFileUpload: true,
+  tunnelRoute: process.env.SENTRY_TUNNEL_ROUTE || '/monitoring',
+  release: {
+    name: process.env.SENTRY_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA,
+    deploy: {
+      env:
+        process.env.SENTRY_ENVIRONMENT ||
+        process.env.VERCEL_ENV ||
+        process.env.NODE_ENV ||
+        'production',
+    },
+  },
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+    deleteSourcemapsAfterUpload: true,
+  },
+  webpack: {
+    automaticVercelMonitors: true,
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+});

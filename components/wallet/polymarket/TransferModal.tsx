@@ -11,6 +11,7 @@ import {
   usePrivy,
   useWallets,
   useSendTransaction,
+  useSignTypedData,
 } from '@privy-io/react-auth';
 import {
   useWallets as useSolanaWallets,
@@ -29,6 +30,7 @@ import { encodeFunctionData } from 'viem';
 import { useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import {
   Check,
   Loader2,
@@ -51,6 +53,7 @@ import { useUser } from '@/lib/UserContext';
 import {
   getWithdrawTypedData,
   submitWithdraw,
+  type WithdrawTypedData,
 } from '@/lib/polymarket/backend-session';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { formatPolymarketError } from '@/lib/polymarket';
@@ -59,6 +62,7 @@ import { usePolygonBalances } from '@/hooks/polymarket';
 import {
   USDC_E_CONTRACT_ADDRESS,
   USDC_E_DECIMALS,
+  LEGACY_USDC_E_ADDRESS,
 } from '@/constants/polymarket';
 import {
   Connection,
@@ -90,6 +94,8 @@ type WithdrawStep =
   | 'processing'
   | 'success'
   | 'error';
+
+type WithdrawToken = 'pUSD' | 'USDC.e';
 
 interface DepositToken {
   name: string;
@@ -185,6 +191,25 @@ const CHAIN_MIN_DEPOSIT_USD: Record<string, number> = {
   SOLANA: 2,
 };
 
+type DelegatedSignerConfig = {
+  signerId: string;
+  policyIds: string[];
+};
+
+const swopApiBase = () =>
+  (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+const delegatedSignerId =
+  process.env.NEXT_PUBLIC_PRIVY_DELEGATED_SIGNER_ID ||
+  process.env.NEXT_PUBLIC_PRIVY_SIGNER_WALLET_ID;
+const delegatedPolicyIds = (
+  process.env.NEXT_PUBLIC_PRIVY_DELEGATED_POLICY_IDS ||
+  process.env.NEXT_PUBLIC_PRIVY_SIGNER_POLICY_IDS ||
+  ''
+)
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const getPublicClientForChain = (chainId: string) => {
@@ -192,6 +217,20 @@ const getPublicClientForChain = (chainId: string) => {
   if (!chain) return null;
   return createPublicClient({ chain, transport: http() });
 };
+
+function serializeForJson(value: unknown): unknown {
+  if (typeof value === 'bigint') return value.toString();
+  if (Array.isArray(value)) return value.map(serializeForJson);
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [
+        key,
+        serializeForJson(nested),
+      ]),
+    );
+  }
+  return value;
+}
 
 const formatTokenAmount = (
   amount: string | number,
@@ -307,6 +346,7 @@ function DepositTab({
   const { safeAddress } = useTrading();
   const { publicClient, eoaAddress, switchToPolygon } =
     usePolymarketWallet();
+  const queryClient = useQueryClient();
   const { wallets } = useWallets();
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
@@ -879,6 +919,14 @@ function DepositTab({
         });
       isTransactionInProgress.current = false;
       setStep('success');
+      queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
+        queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
+        queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
+      }, 3000);
     } catch (err: any) {
       isTransactionInProgress.current = false;
       setError(formatPolymarketError(err));
@@ -1432,7 +1480,11 @@ function WithdrawTab({
   } = useTrading();
   const { eoaAddress, walletClient } = usePolymarketWallet();
   const { accessToken } = useUser();
-  const { usdcBalance } = usePolygonBalances(safeAddress);
+  const { user: privyUser } = usePrivy();
+  const { signTypedData: signTypedDataWithPrivy } =
+    useSignTypedData();
+  const { usdcBalance, legacyUsdcBalance } =
+    usePolygonBalances(safeAddress);
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<WithdrawStep>('amount');
@@ -1440,13 +1492,24 @@ function WithdrawTab({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selectedWithdrawToken, setSelectedWithdrawToken] =
+    useState<WithdrawToken>('pUSD');
+  const [delegatedSignerConfig, setDelegatedSignerConfig] =
+    useState<DelegatedSignerConfig | null>(null);
 
   const destination = eoaAddress;
 
   // Derived state for active token
-  const activeBalance = usdcBalance;
-  const activeAddress = USDC_E_CONTRACT_ADDRESS;
-  const activeLabel = 'pUSD';
+  const activeBalance =
+    selectedWithdrawToken === 'pUSD'
+      ? usdcBalance
+      : legacyUsdcBalance;
+  const activeAddress =
+    selectedWithdrawToken === 'pUSD'
+      ? USDC_E_CONTRACT_ADDRESS
+      : LEGACY_USDC_E_ADDRESS;
+  const activeLabel = selectedWithdrawToken;
+  const showTokenSelector = legacyUsdcBalance > 0;
   const walletLabel =
     walletType === 'deposit' ? 'Deposit wallet' : 'Safe wallet';
 
@@ -1463,15 +1526,209 @@ function WithdrawTab({
       setAmount('');
       setTxHash(null);
       setError(null);
+      setSelectedWithdrawToken('pUSD');
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    setSelectedWithdrawToken(
+      legacyUsdcBalance > 0 && usdcBalance === 0 ? 'USDC.e' : 'pUSD',
+    );
+    setAmount('');
+  }, [legacyUsdcBalance, usdcBalance, open]);
+
   const handleCopyAddress = async () => {
     if (!destination) return;
-    await navigator.clipboard.writeText(destination);
+    const didCopy = await copyTextToClipboard(destination);
+    if (!didCopy) {
+      setError('Could not copy address. Please try again.');
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const handleSelectWithdrawToken = (token: WithdrawToken) => {
+    setSelectedWithdrawToken(token);
+    setAmount('');
+    setError(null);
+  };
+
+  const isEmbeddedPrivyWallet = useCallback(
+    (address: string) => {
+      const target = address.toLowerCase();
+      return (privyUser?.linkedAccounts || []).some((account: any) => {
+        if (account?.type !== 'wallet') return false;
+        if (account?.address?.toLowerCase() !== target) return false;
+        return (
+          account.walletClientType === 'privy' ||
+          account.wallet_client_type === 'privy' ||
+          account.connectorType === 'embedded' ||
+          account.connector_type === 'embedded'
+        );
+      });
+    },
+    [privyUser],
+  );
+
+  const getDelegatedSignerConfig = useCallback(async () => {
+    if (delegatedSignerId) {
+      return {
+        signerId: delegatedSignerId,
+        policyIds: delegatedPolicyIds,
+      };
+    }
+
+    if (delegatedSignerConfig) return delegatedSignerConfig;
+    if (!accessToken || !swopApiBase()) return null;
+
+    const response = await fetch(
+      `${swopApiBase()}/api/v5/wallet/privy/delegated-signer-config`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) return null;
+    const body = await response.json().catch(() => null);
+    const data = body?.data || body;
+    if (!data?.configured || !data?.signerId) return null;
+
+    const config = {
+      signerId: String(data.signerId),
+      policyIds: Array.isArray(data.policyIds)
+        ? data.policyIds
+            .map((id: unknown) => String(id))
+            .filter(Boolean)
+        : [],
+    };
+    setDelegatedSignerConfig(config);
+    return config;
+  }, [accessToken, delegatedSignerConfig]);
+
+  const signWithDelegatedPrivy = useCallback(
+    async (
+      path: 'sign-typed-data' | 'sign-message',
+      body: Record<string, unknown>,
+    ) => {
+      if (!eoaAddress || !accessToken || !swopApiBase()) {
+        throw new Error('Silent withdrawal signing is not configured.');
+      }
+
+      const config = await getDelegatedSignerConfig();
+      if (!config?.signerId) {
+        throw new Error('Silent withdrawal signing is not ready.');
+      }
+
+      const response = await fetch(
+        `${swopApiBase()}/api/v5/wallet/privy/ethereum/${path}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            address: eoaAddress,
+            ...body,
+          }),
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.signature) {
+        throw new Error(
+          data.message ||
+            data.error ||
+            'Silent withdrawal signing failed.',
+        );
+      }
+
+      return data.signature as `0x${string}`;
+    },
+    [accessToken, eoaAddress, getDelegatedSignerConfig],
+  );
+
+  const signDepositWithdrawTypedData = useCallback(
+    async (withdrawTypedData: WithdrawTypedData) => {
+      if (
+        !withdrawTypedData.typedData ||
+        !withdrawTypedData.deadline ||
+        !withdrawTypedData.calls
+      ) {
+        throw new Error('Withdrawal signing data is incomplete.');
+      }
+
+      const message = {
+        ...withdrawTypedData.typedData.message,
+        nonce: BigInt(withdrawTypedData.nonce),
+        deadline: BigInt(withdrawTypedData.deadline),
+        calls: withdrawTypedData.calls.map((call) => ({
+          ...call,
+          value: BigInt(call.value),
+        })),
+      };
+
+      if (!eoaAddress || !walletClient) {
+        throw new Error('Wallet not connected.');
+      }
+
+      if (isEmbeddedPrivyWallet(eoaAddress)) {
+        const typedDataPayload = {
+          domain: withdrawTypedData.typedData.domain,
+          types: withdrawTypedData.typedData.types,
+          primaryType:
+            withdrawTypedData.typedData.primaryType ?? 'Batch',
+          message: serializeForJson(message),
+        };
+
+        try {
+          return await signWithDelegatedPrivy('sign-typed-data', {
+            typedData: typedDataPayload,
+          });
+        } catch (delegatedError) {
+          console.warn(
+            'Silent delegated withdrawal signing unavailable; using hidden Privy signing:',
+            delegatedError,
+          );
+        }
+
+        const { signature } = await signTypedDataWithPrivy(
+          typedDataPayload as any,
+          {
+            address: eoaAddress,
+            uiOptions: { showWalletUIs: false },
+          },
+        );
+        return signature as `0x${string}`;
+      }
+
+      return walletClient.signTypedData({
+        account: eoaAddress as `0x${string}`,
+        domain: withdrawTypedData.typedData.domain as Parameters<
+          typeof walletClient.signTypedData
+        >[0]['domain'],
+        types: withdrawTypedData.typedData.types as Parameters<
+          typeof walletClient.signTypedData
+        >[0]['types'],
+        primaryType: withdrawTypedData.typedData.primaryType ?? 'Batch',
+        message: message as Parameters<
+          typeof walletClient.signTypedData
+        >[0]['message'],
+      });
+    },
+    [
+      eoaAddress,
+      isEmbeddedPrivyWallet,
+      signTypedDataWithPrivy,
+      signWithDelegatedPrivy,
+      walletClient,
+    ],
+  );
 
   const executeWithdraw = useCallback(async () => {
     if (
@@ -1502,29 +1759,16 @@ function WithdrawTab({
         accessToken,
       );
 
-      const signature =
-        walletType === 'deposit'
-          ? await walletClient!.signTypedData({
-              account: eoaAddress as `0x${string}`,
-              domain: typedData.typedData!.domain as Parameters<
-                typeof walletClient.signTypedData
-              >[0]['domain'],
-              types: typedData.typedData!.types as Parameters<
-                typeof walletClient.signTypedData
-              >[0]['types'],
-              primaryType:
-                typedData.typedData!.primaryType ?? 'Batch',
-              message: {
-                ...typedData.typedData!.message,
-                nonce: BigInt(typedData.nonce),
-                deadline: BigInt(typedData.deadline!),
-                calls: typedData.calls!.map((call) => ({
-                  ...call,
-                  value: BigInt(call.value),
-                })),
-              } as Parameters<
-                typeof walletClient.signTypedData
-              >[0]['message'],
+      let signature: `0x${string}`;
+      if (walletType === 'deposit') {
+        signature = await signDepositWithdrawTypedData(typedData);
+      } else {
+        if (!typedData.txHash) {
+          throw new Error('Withdrawal signing hash is missing.');
+        }
+        signature = isEmbeddedPrivyWallet(eoaAddress)
+          ? await signWithDelegatedPrivy('sign-message', {
+              message: typedData.txHash,
             })
           : await walletClient!.signMessage({
               account: eoaAddress as `0x${string}`,
@@ -1532,6 +1776,7 @@ function WithdrawTab({
                 raw: hexToBytes(typedData.txHash as `0x${string}`),
               },
             });
+      }
 
       const result = await submitWithdraw(
         {
@@ -1554,7 +1799,10 @@ function WithdrawTab({
       setStep('success');
       setTimeout(() => {
         queryClient.invalidateQueries({
-          queryKey: ['usdcBalance', safeAddress],
+          queryKey: ['pusdBalance'],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ['legacyUsdcBalance'],
         });
       }, 3000);
     } catch (err: any) {
@@ -1584,7 +1832,10 @@ function WithdrawTab({
     walletClient,
     walletType,
     depositWalletAddress,
+    isEmbeddedPrivyWallet,
     queryClient,
+    signDepositWithdrawTypedData,
+    signWithDelegatedPrivy,
   ]);
 
   if (step === 'processing')
@@ -1718,7 +1969,7 @@ function WithdrawTab({
             className="flex-1 bg-black text-white hover:bg-gray-800"
             onClick={executeWithdraw}
           >
-            Confirm Withdrawal
+            Approve Withdrawal
           </Button>
         </div>
       </div>
@@ -1727,6 +1978,53 @@ function WithdrawTab({
   // step === 'amount'
   return (
     <div className="px-6 pb-6 space-y-5">
+      {showTokenSelector && (
+        <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+          <button
+            type="button"
+            aria-pressed={selectedWithdrawToken === 'pUSD'}
+            onClick={() => handleSelectWithdrawToken('pUSD')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+              selectedWithdrawToken === 'pUSD'
+                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            pUSD
+            <span
+              className={`text-xs ${
+                selectedWithdrawToken === 'pUSD'
+                  ? 'text-gray-600'
+                  : 'text-gray-400'
+              }`}
+            >
+              ${usdcBalance.toFixed(2)}
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={selectedWithdrawToken === 'USDC.e'}
+            onClick={() => handleSelectWithdrawToken('USDC.e')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+              selectedWithdrawToken === 'USDC.e'
+                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            USDC.e
+            <span
+              className={`text-xs ${
+                selectedWithdrawToken === 'USDC.e'
+                  ? 'text-gray-600'
+                  : 'text-gray-400'
+              }`}
+            >
+              ${legacyUsdcBalance.toFixed(2)}
+            </span>
+          </button>
+        </div>
+      )}
+
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
         <p className="text-xs text-gray-500 mb-1">
           Available to withdraw

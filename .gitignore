@@ -43,3 +43,5 @@ Dockerfile
 docker-compose.yml
 
 /docs
+# Local dev-server build cache
+.next-dev/

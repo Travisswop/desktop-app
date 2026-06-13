@@ -8,7 +8,7 @@ export async function postKycInBridge(options: any) {
       `https://api.bridge.xyz/v0/kyc_links`,
       options
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -23,7 +23,7 @@ export async function postExternalAccountInBridge(
       `https://api.bridge.xyz/v0/customers/${customerId}/external_accounts`,
       options
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -45,7 +45,7 @@ export async function postExternalAccountInSwopDB(
         body: JSON.stringify({ user_id: userId, data }), // Convert data to JSON before sending
       }
     );
-    const res = await response.json();
+    const res = await response.json().catch(() => null);
     return res;
   } catch (error) {
     console.error('Error from action:', error);
@@ -64,7 +64,7 @@ export async function saveQycInfoToSwopDB(data: any, userId: string) {
         body: JSON.stringify({ ...data, user_id: userId }), // Convert data to JSON before sending
       }
     );
-    const result = await response.json();
+    const result = await response.json().catch(() => null);
     return result;
   } catch (error) {
     console.error('Error from action:', error);
@@ -88,7 +88,7 @@ export async function saveVirtualInfoToSwopDB(
         body: JSON.stringify({ user_id: userId, data }), // !need to be sure
       }
     );
-    const result = await response.json();
+    const result = await response.json().catch(() => null);
     return result;
   } catch (error) {
     console.error('Error from action:', error);
@@ -110,7 +110,7 @@ export async function getDBExternalAccountInfo(
         },
       }
     );
-    const result = await response.json();
+    const result = await response.json().catch(() => null);
     return result;
   } catch (error) {
     console.error('Error from action:', error);
@@ -132,7 +132,7 @@ export async function getVirtualAccountInfo(
         },
       }
     );
-    const result = await response.json();
+    const result = await response.json().catch(() => null);
     return result;
   } catch (error) {
     console.error('Error from action:', error);
@@ -148,7 +148,7 @@ export async function getVirtualAccountInfoFromBridge(
       `https://api.bridge.xyz/v0/customers/${customerId}/virtual_accounts`,
       options
     );
-    const result = await response.json();
+    const result = await response.json().catch(() => null);
     return result;
   } catch (error) {
     console.error('Error from action:', error);
@@ -164,7 +164,7 @@ export async function postVirtualAccountInfoIntoBridge(
       `https://api.bridge.xyz/v0/customers/${customerId}/virtual_accounts`,
       options
     );
-    const result = await response.json();
+    const result = await response.json().catch(() => null);
     return result;
   } catch (error) {
     console.error('Error from action:', error);
@@ -186,7 +186,7 @@ export async function getKycInfo(
         },
       }
     );
-    const result = await response.json();
+    const result = await response.json().catch(() => null);
     return result;
   } catch (error) {
     console.error('Error from action:', error);
@@ -202,7 +202,7 @@ export async function getKycInfoFromBridge(
       `https://api.bridge.xyz/v0/kyc_links/${customerId}`,
       options
     );
-    const result = await response.json();
+    const result = await response.json().catch(() => null);
     return result;
   } catch (error) {
     console.error('Error from action:', error);
@@ -250,7 +250,7 @@ export const createBridgePayment = async (
       'https://api.bridge.xyz/v0/transfers',
       options
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
 
     if (
       data?.source_deposit_instructions &&

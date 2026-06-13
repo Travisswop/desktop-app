@@ -7,6 +7,8 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import TokenValueChangeFetcher from "../wallet/TokenValueChangeFetched";
 import { useUser } from "@/lib/UserContext";
 import SwapTransactionShowGraph from "./SwapTransactionShowGraph";
+import { fetchTokenLivePrice } from "@/lib/utils/marketPriceClient";
+import { getTokenFallbackPrice } from "@/lib/utils/tokenMarketData";
 dayjs.extend(relativeTime);
 
 // ---------------------------------------------------------------------------
@@ -31,17 +33,6 @@ function formatNumber(value: any): string {
   const str = num.toPrecision(4);
   return str.replace(/\.?0+$/, "");
 }
-
-// ---------------------------------------------------------------------------
-// Chain map — same as RN TransactionSwapCard
-// ---------------------------------------------------------------------------
-const CHAIN_MAP: Record<number, string> = {
-  1: "ethereum",
-  137: "polygon",
-  8453: "base",
-  1151111081099710: "solana",
-  //need to add arbitram
-};
 
 // ---------------------------------------------------------------------------
 // Token image helper — handles SVG + PNG/JPG (mirrors RN RenderTokenImage)
@@ -91,7 +82,11 @@ interface SwapTransactionCardProps {
   refetchPosts?: () => void;
   secondaryFontColor?: string;
   onPress?: () => void;
+  onFeedClick?: () => void;
   onTransactionPress?: () => void;
+  showAmountDetails?: boolean;
+  showCopyTrade?: boolean;
+  showSolscanLink?: boolean;
   setIsTipOpen?: (v: boolean) => void;
   setCurrentPost?: (v: any) => void;
   navigateBack?: () => void;
@@ -104,20 +99,21 @@ interface SwapTransactionCardProps {
 const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
   feed,
   onPress,
+  onFeedClick,
   onTransactionPress,
   refreshKey,
 }) => {
   const { accessToken } = useUser();
 
   const [livePrice, setLivePrice] = useState<number | null>(null);
-  const [growth, setGrowth] = useState(0);
+  const [, setGrowth] = useState(0);
   const [cardWidth, setCardWidth] = useState(0);
 
   const cardRef = useRef<HTMLDivElement>(null);
-  const hasFetchedPrice = useRef(false);
 
   const inputToken = feed?.content?.inputToken;
   const outputToken = feed?.content?.outputToken;
+  const marketApiBase = process.env.NEXT_PUBLIC_API_URL || "";
 
   const profilePic =
     feed?.smartsiteId?.profilePic ||
@@ -134,58 +130,32 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
   };
 
   // ---------------------------------------------------------------------------
-  // Live price fetch — exact port of RN fetchPrice
+  // Live price fetch
   // ---------------------------------------------------------------------------
   const fetchPrice = useCallback(async () => {
-    if (!outputToken?.chain) {
-      setLivePrice(Number(outputToken?.price) || null);
-      return;
-    }
-    const chain = CHAIN_MAP[outputToken.chain];
-    if (!chain) {
-      setLivePrice(Number(outputToken?.price) || null);
-      return;
-    }
-    const address = outputToken?.mint ?? null;
-    const key = address ? address.toLowerCase() : "native";
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/market/prices`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ tokens: [{ address, chain }] }),
-        },
-      );
-      if (!res.ok) throw new Error("Price fetch failed");
-      const json = await res.json();
-      const price = json?.data?.prices?.[key]?.price;
-      setLivePrice(
-        price !== undefined && price !== null
-          ? Number(price)
-          : Number(outputToken?.price) || null,
-      );
-    } catch {
-      setLivePrice(Number(outputToken?.price) || null);
-    }
-  }, [outputToken, accessToken]);
+    setLivePrice(
+      await fetchTokenLivePrice({
+        outputToken,
+        apiUrl: marketApiBase,
+        authToken: accessToken,
+      }),
+    );
+  }, [outputToken, accessToken, marketApiBase]);
 
-  // On mount — guarded by ref (mirrors RN hasFetchedPrice pattern)
+  // Keep the header live while the card is on screen.
   useEffect(() => {
-    if (hasFetchedPrice.current) return;
-    hasFetchedPrice.current = true;
     fetchPrice();
+    const interval = window.setInterval(fetchPrice, 30000);
+    return () => window.clearInterval(interval);
   }, [fetchPrice]);
 
   // Re-fetch on pull-to-refresh equivalent
   useEffect(() => {
     if (!refreshKey) return;
-    hasFetchedPrice.current = false;
     fetchPrice();
   }, [refreshKey, fetchPrice]);
+
+  const displayPrice = livePrice ?? getTokenFallbackPrice(outputToken);
 
   // ---------------------------------------------------------------------------
   // Measure card width — mirrors RN onLayout
@@ -234,10 +204,10 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
 
               {/* Live price */}
               <div className="flex flex-col items-end">
-                <span className="text-xl font-semibold text-gray-900 leading-tight">
-                  ${livePrice ? livePrice.toFixed(3) : "0.000"}
+                <span className="font-mono text-[28px] font-black leading-none tabular-nums text-gray-950">
+                  ${displayPrice ? displayPrice.toFixed(3) : "0.000"}
                 </span>
-                <span className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">
+                <span className="mt-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                   {outputToken?.symbol} PRICE
                 </span>
               </div>
@@ -262,7 +232,8 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
                 chartWidth={cardWidth}
                 outputToken={outputToken}
                 authToken={accessToken || ""}
-                apiBase={`${process.env.NEXT_PUBLIC_API_URL}/api/v5` || ""}
+                apiBase={marketApiBase ? `${marketApiBase}/api/v5` : ""}
+                livePrice={livePrice}
               />
             )}
           </div>
@@ -273,12 +244,11 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
             <div className="flex items-start justify-around mb-4">
               <div className="flex flex-col items-center">
                 <span
-                  className="text-[10px] font-semibold uppercase tracking-widest mb-1"
-                  style={{ color: "#949494" }}
+                  className="mb-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400"
                 >
                   QUANTITY
                 </span>
-                <span className="text-[15px] font-bold text-green-500">
+                <span className="font-mono text-[16px] font-black tabular-nums text-green-500">
                   {formatNumber(outputToken?.amount)} {outputToken?.symbol}
                 </span>
               </div>
@@ -287,12 +257,11 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
 
               <div className="flex flex-col items-center">
                 <span
-                  className="text-[10px] font-semibold uppercase tracking-widest mb-1"
-                  style={{ color: "#949494" }}
+                  className="mb-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400"
                 >
                   PRICE
                 </span>
-                <span className="text-[15px] font-bold text-red-500">
+                <span className="font-mono text-[16px] font-black tabular-nums text-red-500">
                   {formatNumber(inputToken?.amount)} {inputToken?.symbol}
                 </span>
               </div>
@@ -306,14 +275,14 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
               {onPress ? (
                 <button
                   onClick={onPress}
-                  className="px-7 py-2 rounded-full text-sm font-medium text-gray-900 bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all"
+                  className="rounded-full bg-gray-100 px-7 py-2 text-[13px] font-extrabold text-gray-950 transition-all hover:bg-gray-200 active:scale-95"
                 >
                   Copy Trade
                 </button>
               ) : (
                 <Link
-                  href={`/wallet?inputToken=${inputToken?.symbol}&inputMint=${inputToken?.mint}&inputChain=${inputToken?.chain || inputToken?.chainId}&inputImg=${encodeURIComponent(resolveTokenImg(inputToken))}&inputDecimals=${inputToken?.decimals}&outputToken=${outputToken?.symbol}&outputMint=${outputToken?.mint}&outputChain=${outputToken?.chain || outputToken?.chainId}&outputImg=${encodeURIComponent(resolveTokenImg(outputToken))}&outputDecimals=${outputToken?.decimals}&amount=${inputToken?.amount}`}
-                  className="px-7 py-2 rounded-lg text-sm font-medium text-gray-900 bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all"
+                  href={`/wallet?inputToken=${inputToken?.symbol}&inputMint=${inputToken?.mint}&inputChain=${inputToken?.chain || inputToken?.chainId}&inputImg=${encodeURIComponent(resolveTokenImg(inputToken))}&inputDecimals=${inputToken?.decimals}&outputToken=${outputToken?.symbol}&outputMint=${outputToken?.mint}&outputChain=${outputToken?.chain || outputToken?.chainId}&outputImg=${encodeURIComponent(resolveTokenImg(outputToken))}&outputDecimals=${outputToken?.decimals}&amount=${inputToken?.amount}&copyTrade=1&copyTradePostId=${encodeURIComponent(feed?._id || "")}`}
+                  className="rounded-lg bg-gray-100 px-7 py-2 text-[13px] font-extrabold text-gray-950 transition-all hover:bg-gray-200 active:scale-95"
                 >
                   Copy Trade
                 </Link>

@@ -12,7 +12,8 @@ export async function getCashFlow(walletInfo: any, token: string) {
         body: JSON.stringify(walletInfo),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -34,7 +35,8 @@ export async function getCurrentCashFlow(
         },
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);

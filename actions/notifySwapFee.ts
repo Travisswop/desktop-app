@@ -9,6 +9,10 @@ interface SwapFeeNotifyPayload {
   outputTokenSymbol?: string;
   outputAmount?: string;
   outputUsdValue?: string;
+  priceImpactPct?: string | number;
+  route?: string;
+  network?: string;
+  skipSwopBuyback?: boolean;
 }
 
 export async function notifySwapFee(

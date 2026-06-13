@@ -1,6 +1,7 @@
 import logger from '@/utils/logger';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { apiFetch } from '@/lib/api/apiFetch';
 
 export interface FilterOptions {
   page?: number;
@@ -79,7 +80,7 @@ async function fetchUserOrders(
 
   logger.info('access token', accessToken);
 
-  const res = await fetch(
+  const res = await apiFetch(
     `${
       process.env.NEXT_PUBLIC_API_URL
     }/api/v5/orders/getUserOrders?${params.toString()}`,

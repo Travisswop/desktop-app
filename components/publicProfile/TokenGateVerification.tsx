@@ -188,11 +188,12 @@ export default function TokenGateVerification({
             const encodedMessage = new TextEncoder().encode(
               messageToSign
             );
-            const signedMessage =
-              solanaWallet.signMessage(encodedMessage);
-            signature = Buffer.from(await signedMessage).toString(
-              'base64'
-            );
+            const signedMessage = await solanaWallet.signMessage({
+              message: encodedMessage,
+            });
+            signature = Buffer.from(
+              signedMessage.signature
+            ).toString('base64');
           }
         } else {
           // For EVM chains

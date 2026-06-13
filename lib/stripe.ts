@@ -1,9 +1,18 @@
 import Stripe from 'stripe';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error(
-    'STRIPE_SECRET_KEY is missing. Please add it to your .env file'
-  );
+let stripeClient: Stripe | null = null;
+
+export function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('Stripe is not configured.');
+  }
+
+  stripeClient ??= new Stripe(process.env.STRIPE_SECRET_KEY);
+  return stripeClient;
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+export const stripe = new Proxy({} as Stripe, {
+  get(_target, property) {
+    return getStripe()[property as keyof Stripe];
+  },
+});

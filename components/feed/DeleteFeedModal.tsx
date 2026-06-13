@@ -17,16 +17,18 @@ import { logger } from "ethers5";
 interface DeleteFeedModalProps {
   postId: string;
   token: string;
-  onDeleteSuccess: () => void;
-  userId: string;
+  onDeleteSuccess?: () => void;
+  userId?: string;
+  setIsPosting?: (value: boolean) => void;
   isFromReply?: boolean;
 }
 
 export default function DeleteFeedModal({
   postId,
   token,
-  onDeleteSuccess,
+  onDeleteSuccess = () => {},
   userId,
+  setIsPosting,
   isFromReply = false,
 }: DeleteFeedModalProps) {
   const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
@@ -35,9 +37,10 @@ export default function DeleteFeedModal({
 
   const handlePostDelete = async () => {
     setDeleteLoading(true);
+    setIsPosting?.(true);
     const deletePost = isFromReply
-      ? await deleteReply(postId, token, userId)
-      : await deleteFeed(postId, token, userId);
+      ? await deleteReply(postId, token, userId ?? "")
+      : await deleteFeed(postId, token, userId ?? "");
     logger.info("Delete post response:", deletePost);
     if (deletePost.success) {
       setDeleteLoading(false);
@@ -47,6 +50,7 @@ export default function DeleteFeedModal({
       });
       onDeleteSuccess();
     }
+    setIsPosting?.(false);
     onClose();
   };
 

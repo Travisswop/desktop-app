@@ -149,6 +149,186 @@ body {
     transform: translateY(-5px);
   }
 }
+
+/* Swop desktop messenger dark kit */
+.swop-dm-shell {
+  --dm-void: #070809;
+  --dm-rail: #0b0c0f;
+  --dm-panel: #0e1014;
+  --dm-conv: #08090b;
+  --dm-surface: #15171d;
+  --dm-surface-2: #1b1e25;
+  --dm-hair: rgba(255, 255, 255, 0.07);
+  --dm-hair-2: rgba(255, 255, 255, 0.045);
+  --dm-ink: #eceef2;
+  --dm-sub: #9396a0;
+  --dm-faint: #5a5e69;
+  --dm-green: #3ddc97;
+  --dm-accent: #3fe08f;
+  --dm-red: #ff5d63;
+  --dm-amber: #e8920f;
+  color: var(--dm-ink);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui,
+    sans-serif;
+  background:
+    radial-gradient(circle 700px at 70% 10%, rgba(63, 224, 143, 0.047) 0%, transparent 60%),
+    radial-gradient(circle 600px at 10% 90%, rgba(26, 42, 58, 0.095) 0%, transparent 55%),
+    var(--dm-void);
+}
+
+.dm-mono {
+  font-family:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+.dm-window {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--dm-panel);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 40px 120px -20px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes dmblink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes dmblob {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@keyframes dmrise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dmdraw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes dmfade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dmgrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.dm-rise {
+  animation: dmrise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.dm-draw {
+  stroke-dasharray: 1;
+  animation: dmdraw 1.3s cubic-bezier(0.4, 0, 0.2, 1) both 0.12s;
+}
+
+.dm-fade {
+  animation: dmfade 1s ease both 0.5s;
+}
+
+.dm-grow {
+  transform-origin: left center;
+  animation: dmgrow 1s cubic-bezier(0.3, 0.8, 0.3, 1) both 0.3s;
+}
+
+.dm-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+.dm-scroll::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.dm-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.09);
+  background-clip: padding-box;
+}
+
+.dm-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+  background-clip: padding-box;
+}
+
+.dm-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dm-row,
+.dm-btn,
+.dm-hover {
+  transition:
+    background 0.12s ease,
+    transform 0.12s ease,
+    opacity 0.12s ease,
+    filter 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.dm-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.dm-hover:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dm-btn:hover {
+  filter: brightness(1.12);
+}
+
+.dm-btn:active {
+  transform: scale(0.96);
+}
+
+.dm-caret {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--dm-accent);
+  animation: dmblink 1.05s steps(1) infinite;
+}
 /* chat end  */
 
 @layer base {
@@ -490,4 +670,34 @@ body {
   border-radius: 9999px;
   border: 2px solid white;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+}
+
+/* Pay-amount dial used by the swap Market + Limit forms */
+.swop-dial {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 9999px;
+  outline: none;
+}
+.swop-dial::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 1px solid rgba(10, 10, 12, 0.12);
+  box-shadow: 0 1px 2px rgba(10, 10, 12, 0.12),
+    0 4px 12px -4px rgba(10, 10, 12, 0.2);
+  cursor: pointer;
+}
+.swop-dial::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 1px solid rgba(10, 10, 12, 0.12);
+  box-shadow: 0 1px 2px rgba(10, 10, 12, 0.12),
+    0 4px 12px -4px rgba(10, 10, 12, 0.2);
+  cursor: pointer;
 }

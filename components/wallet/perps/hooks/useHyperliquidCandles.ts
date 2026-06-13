@@ -30,6 +30,7 @@ const UI_TO_HL: Record<string, HLInterval> = {
   '1h': '1h',
   '4h': '4h',
   '1D': '1d',
+  '1W': '1w',
 };
 
 /** How many bars of history to load up-front (covers ~1 screen of zooming-out). */
@@ -101,6 +102,7 @@ export function useHyperliquidCandles(
   coin: string | null,
   uiInterval: string,
   enabled = true,
+  historyBars = HISTORY_BARS,
 ) {
   const interval = toHLInterval(uiInterval);
   const [bars, setBars] = useState<OhlcvBar[]>([]);
@@ -124,7 +126,7 @@ export function useHyperliquidCandles(
     setIsLoading(true);
     setBars([]);
 
-    const lookback = INTERVAL_MS[interval] * HISTORY_BARS;
+    const lookback = INTERVAL_MS[interval] * historyBars;
     const startTime = Date.now() - lookback;
 
     infoClient
@@ -151,7 +153,7 @@ export function useHyperliquidCandles(
       cancelled = true;
       ac.abort();
     };
-  }, [coin, interval, enabled]);
+  }, [coin, interval, enabled, historyBars]);
 
   // Live updates via the `candle` channel
   const handleMessage = useCallback(

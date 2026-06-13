@@ -12,6 +12,9 @@ interface CustomModalProps {
   title?: string;
   width?: string;
   removeCloseButton?: boolean;
+  panelClassName?: string;
+  contentClassName?: string;
+  ariaLabel?: string;
 }
 
 const CustomModal: React.FC<CustomModalProps> = ({
@@ -22,6 +25,9 @@ const CustomModal: React.FC<CustomModalProps> = ({
   title,
   width = 'max-w-lg',
   removeCloseButton = false,
+  panelClassName,
+  contentClassName,
+  ariaLabel,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const [mouseDownOnBackdrop, setMouseDownOnBackdrop] =
@@ -87,7 +93,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           onMouseDown={handleBackdropMouseDown}
           onMouseUp={handleBackdropMouseUp}
           initial={{ opacity: 0 }}
@@ -96,6 +102,9 @@ const CustomModal: React.FC<CustomModalProps> = ({
         >
           <motion.div
             ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={ariaLabel || title || 'Dialog'}
             layout
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -105,7 +114,9 @@ const CustomModal: React.FC<CustomModalProps> = ({
               stiffness: 300,
               damping: 28,
             }}
-            className={`bg-white rounded-2xl shadow-lg w-full ${width} relative overflow-hidden`}
+            className={`w-full ${width} relative overflow-hidden ${
+              panelClassName || 'rounded-2xl bg-white shadow-lg'
+            }`}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
             onMouseUp={(e) => e.stopPropagation()}
@@ -138,7 +149,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
               transition={{
                 layout: { duration: 0.1, ease: 'easeOut' },
               }}
-              className="overflow-y-auto"
+              className={contentClassName || 'overflow-y-auto'}
               style={{ maxHeight: 'calc(90vh - 64px)' }}
             >
               {children}

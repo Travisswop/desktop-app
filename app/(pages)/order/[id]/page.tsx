@@ -6,30 +6,60 @@ import OrderDetailScreen, {
   type OrderDetail,
 } from '@/components/order/OrderDetailScreen';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  completeMarketplacePayment,
+  confirmMarketplaceReceipt,
+  downloadMarketplaceDigitalAsset,
+  getMarketplaceOrder,
+  getMarketplaceReceipt,
+  submitMarketplacePayment,
+  updateMarketplaceShipping,
+  type MarketplaceDigitalAsset,
+  type MarketplaceOrder,
+  type MarketplaceParty,
+  type MarketplaceReceiptState,
+} from '@/lib/marketplace-api';
 
 interface Props {
   params: Promise<{ id: string }>;
 }
-
-const API = process.env.NEXT_PUBLIC_API_URL;
 
 export default function OrderDetailPage({ params }: Props) {
   const { id } = use(params);
   const { user, accessToken } = useUser();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(
-    async (orderId: string, token: string) => {
-      const res = await fetch(`${API}/api/v2/desktop/orders/${orderId}`, {
-        headers: { authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error(`order ${res.status}`);
-      const { data } = (await res.json()) as { data: OrderDetail };
-      return data;
+    async (orderId: string, token: string, currentUserId: string) => {
+      const [marketplaceOrder, receiptPayload] = await Promise.all([
+        getMarketplaceOrder(token, orderId),
+        getMarketplaceReceipt(token, orderId).catch(() => null),
+      ]);
+      const receipt = receiptPayload?.receipt
+        ? mergeReceiptState(
+            receiptPayload.order?.receipt || marketplaceOrder.receipt,
+            receiptPayload.receipt
+          )
+        : marketplaceOrder.receipt;
+      return mapMarketplaceOrderDetail(
+        receiptPayload?.order || marketplaceOrder,
+        currentUserId,
+        receipt
+      );
     },
     []
+  );
+
+  const replaceOrder = useCallback(
+    (nextOrder: MarketplaceOrder, receipt?: MarketplaceReceiptState) => {
+      if (!user?._id) return;
+      setOrder(mapMarketplaceOrderDetail(nextOrder, user._id, receipt));
+    },
+    [user?._id]
   );
 
   useEffect(() => {
@@ -48,7 +78,8 @@ export default function OrderDetailPage({ params }: Props) {
     }
     setLoading(true);
     setError(null);
-    load(id, accessToken)
+    setActionError(null);
+    load(id, accessToken, user._id)
       .then((data) => {
         if (!cancelled) {
           setOrder(data);
@@ -67,11 +98,129 @@ export default function OrderDetailPage({ params }: Props) {
     };
   }, [id, user, accessToken, load]);
 
-  const refetchOrder = useCallback(async () => {
-    if (!accessToken) return;
-    const data = await load(id, accessToken);
-    setOrder(data);
-  }, [accessToken, id, load]);
+  const handleCompletePayment = useCallback(
+    async (payload: {
+      method: 'wallet' | 'stripe';
+      txHash?: string;
+      paymentIntentId?: string;
+    }) => {
+      if (!accessToken || !order) return;
+      setActionLoading(true);
+      setActionError(null);
+      try {
+        const result =
+          payload.method === 'wallet'
+            ? await submitMarketplacePayment(
+                accessToken,
+                order._id || order.orderId,
+                payload
+              )
+            : await completeMarketplacePayment(
+                accessToken,
+                order._id || order.orderId,
+                payload
+              );
+        replaceOrder(result.order, result.order.receipt);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to complete payment.';
+        setActionError(message);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [accessToken, order, replaceOrder]
+  );
+
+  const handleUpdateShipping = useCallback(
+    async (payload: {
+      status: string;
+      trackingNumber?: string;
+      carrier?: string;
+      estimatedDeliveryDate?: string;
+      note?: string;
+    }) => {
+      if (!accessToken || !order) return;
+      setActionLoading(true);
+      setActionError(null);
+      try {
+        const updated = await updateMarketplaceShipping(
+          accessToken,
+          order._id || order.orderId,
+          payload
+        );
+        replaceOrder(updated, updated.receipt);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to update shipping.';
+        setActionError(message);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [accessToken, order, replaceOrder]
+  );
+
+  const handleConfirmReceipt = useCallback(
+    async (payload: { rating?: number; feedback?: string }) => {
+      if (!accessToken || !order) return;
+      setActionLoading(true);
+      setActionError(null);
+      try {
+        const updated = await confirmMarketplaceReceipt(
+          accessToken,
+          order._id || order.orderId,
+          payload
+        );
+        replaceOrder(updated, updated.receipt);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to confirm order received.';
+        setActionError(message);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [accessToken, order, replaceOrder]
+  );
+
+  const handleDownloadDigitalAsset = useCallback(
+    async (line: { productId: string | null; digitalAsset?: MarketplaceDigitalAsset | null }) => {
+      if (!accessToken || !order || !line.productId) return;
+      setActionLoading(true);
+      setActionError(null);
+      try {
+        const result = await downloadMarketplaceDigitalAsset(
+          accessToken,
+          order._id || order.orderId,
+          line.productId
+        );
+        const url = URL.createObjectURL(result.blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download =
+          result.fileName ||
+          line.digitalAsset?.fileName ||
+          line.digitalAsset?.originalName ||
+          'swop-digital-download';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to download item.';
+        setActionError(message);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [accessToken, order]
+  );
 
   return (
     <main className="main-container">
@@ -91,7 +240,12 @@ export default function OrderDetailPage({ params }: Props) {
             <OrderDetailScreen
               order={order}
               backHref="/order"
-              onOrderUpdated={refetchOrder}
+              actionLoading={actionLoading}
+              actionError={actionError}
+              onCompletePayment={handleCompletePayment}
+              onUpdateShipping={handleUpdateShipping}
+              onConfirmReceipt={handleConfirmReceipt}
+              onDownloadDigitalAsset={handleDownloadDigitalAsset}
             />
           ) : (
             <div className="text-center py-16 text-gray-500">
@@ -102,6 +256,142 @@ export default function OrderDetailPage({ params }: Props) {
       </div>
     </main>
   );
+}
+
+function mapMarketplaceOrderDetail(
+  order: MarketplaceOrder,
+  currentUserId: string,
+  receipt?: MarketplaceReceiptState
+): OrderDetail {
+  const role =
+    String(order.buyer?.id || '') === String(currentUserId) ? 'buyer' : 'seller';
+  const counterparty = role === 'buyer' ? order.merchant : order.buyer;
+
+  return {
+    orderId: order.publicReference || order.orderId || order._id,
+    _id: order._id || order.orderId,
+    orderDate: order.createdAt || order.updatedAt || '',
+    delivery: deliveryLabel(order, role),
+    payment: order.payment?.status || 'pending',
+    chain:
+      String(order.financial?.currency || order.payment?.currency || 'USDC')
+        .toUpperCase() === 'SOL'
+        ? 'SOL'
+        : 'USDC',
+    financial: order.financial,
+    counterparty: mapCounterparty(counterparty),
+    lines: (order.lineItems || []).map((item) => ({
+      productId: item.productId || null,
+      name: item.productSnapshot?.title || 'Marketplace item',
+      image: item.productSnapshot?.image || null,
+      price: Number(item.unitAmount) || 0,
+      quantity: Number(item.quantity) || 1,
+      digitalAsset: item.productSnapshot?.digitalAsset || null,
+    })),
+    userRole: role,
+    status: order.status,
+    orderType: order.orderType,
+    checkoutMode: order.checkoutMode,
+    settlement: order.settlement,
+    receipt: receipt || order.receipt,
+    fulfillment: order.fulfillment,
+    processingStages: (order.fulfillment?.events || []).map((event) => ({
+      stage: event.stage,
+      timestamp: event.timestamp || order.createdAt || '',
+      status: event.status || 'completed',
+    })),
+  };
+}
+
+function mapCounterparty(party?: MarketplaceParty | null) {
+  if (!party) return null;
+  return {
+    id: party.id || null,
+    name: partyName(party),
+    email: party.email || '',
+    wallet: party.wallet || null,
+    avatar: initials(party),
+  };
+}
+
+function deliveryLabel(order: MarketplaceOrder, role: 'buyer' | 'seller') {
+  if (
+    order.payment?.status === 'cancelled' ||
+    order.status === 'cancelled' ||
+    order.status === 'failed' ||
+    order.settlement?.status === 'failed'
+  ) {
+    return 'Cancel';
+  }
+  if (order.payment?.status === 'refunded') return 'Refunded';
+  if (order.fulfillment?.status === 'receipt_confirmed') {
+    return role === 'buyer' ? 'Delivered' : 'Complete';
+  }
+  if (order.settlement?.status === 'released' || order.status === 'completed') {
+    return role === 'buyer' ? 'Delivered' : 'Complete';
+  }
+  switch (order.fulfillment?.status) {
+    case 'delivered':
+      return 'Delivered';
+    case 'shipped':
+    case 'out_for_delivery':
+      return 'In transit';
+    case 'processing':
+    case 'pending':
+      return 'Processing';
+    case 'not_required':
+      return order.payment?.status === 'completed' ? 'Complete' : 'Pending';
+    default:
+      return order.payment?.status === 'completed' ? 'Processing' : 'Pending';
+  }
+}
+
+function partyName(party?: MarketplaceParty | null) {
+  return (
+    party?.name ||
+    party?.email ||
+    shortWallet(party?.wallet?.address) ||
+    'Unknown'
+  );
+}
+
+function initials(party?: MarketplaceParty | null) {
+  const name = partyName(party);
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || 'U'
+  );
+}
+
+function shortWallet(address?: string) {
+  if (!address) return '';
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+
+function mergeReceiptState(
+  fallback: MarketplaceReceiptState | undefined,
+  receipt: unknown
+): MarketplaceReceiptState {
+  if (!receipt || typeof receipt !== 'object') return fallback || {};
+  const data = receipt as Record<string, unknown>;
+  return {
+    receiptId: String(data._id || data.receiptId || fallback?.receiptId || ''),
+    status:
+      (data.status as MarketplaceReceiptState['status']) ||
+      fallback?.status ||
+      'pending',
+    mintAddress: String(data.mintAddress || fallback?.mintAddress || '') || null,
+    provider: String(data.provider || fallback?.provider || '') || null,
+    txHash: String(data.txHash || fallback?.txHash || '') || null,
+    metadataUri: String(data.metadataUri || fallback?.metadataUri || '') || null,
+    error: String(data.error || fallback?.error || '') || null,
+    mintedAt: String(data.mintedAt || fallback?.mintedAt || '') || null,
+  };
 }
 
 const LoadingSkeleton = () => (

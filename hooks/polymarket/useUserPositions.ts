@@ -31,6 +31,11 @@ export type PolymarketPosition = {
   oppositeAsset: string;
   endDate: string;
   negativeRisk: boolean;
+  marketClosed?: boolean;
+  marketResolutionPending?: boolean;
+  marketResolutionSource?: "event-live";
+  resolvedOutcomeIndex?: number;
+  resolvedOutcomePrice?: number;
 };
 
 function normalizeAddresses(
@@ -80,7 +85,7 @@ export function useUserPositions(
     enabled: walletAddresses.length > 0,
     staleTime: QUERY_STALE_TIMES.POSITIONS,
     refetchInterval: QUERY_REFETCH_INTERVALS.POSITIONS,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 }

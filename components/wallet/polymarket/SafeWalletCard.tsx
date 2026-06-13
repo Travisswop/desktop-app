@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
+import { copyTextToClipboard } from '@/lib/clipboard';
 
 const formatAddress = (address: string) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -24,7 +25,12 @@ export default function SafeWalletCard() {
 
   const handleCopy = async () => {
     if (!safeAddress) return;
-    await navigator.clipboard.writeText(safeAddress);
+    const didCopy = await copyTextToClipboard(safeAddress);
+    if (!didCopy) {
+      alert('Could not copy address. Please try again.');
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

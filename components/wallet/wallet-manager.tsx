@@ -7,6 +7,7 @@ import { DialogTitle } from '@radix-ui/react-dialog';
 import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Check, Copy } from 'lucide-react';
+import { copyTextToClipboard } from '@/lib/clipboard';
 
 const formatAddress = (address: string) => {
   return `${address.slice(0, 5)}...${address.slice(-3)}`;
@@ -21,7 +22,12 @@ interface WalletManagerProps {
 const CopyButton = ({ content }: { content: string }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(content);
+    const didCopy = await copyTextToClipboard(content);
+    if (!didCopy) {
+      alert('Could not copy address. Please try again.');
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

@@ -2,6 +2,7 @@
 
 import { useBalanceVisibilityStore } from "@/zustandStore/useBalanceVisibilityStore";
 import { LiFiWalletProvider } from "@/providers/WalletManagementProvider";
+import { PolymarketProviders } from "@/providers/polymarket";
 import { ReactNode, useEffect } from "react";
 
 interface WalletLayoutProps {
@@ -17,5 +18,9 @@ export default function WalletLayout({ children }: WalletLayoutProps) {
     initializeFromCookie();
   }, [initializeFromCookie]);
 
-  return <LiFiWalletProvider>{children}</LiFiWalletProvider>;
+  return (
+    <LiFiWalletProvider>
+      <PolymarketProviders>{children}</PolymarketProviders>
+    </LiFiWalletProvider>
+  );
 }

@@ -29,7 +29,17 @@ interface Viewer {
 
 interface ViewData {
   day: string;
+  date: string;
   views: number;
+}
+
+interface ViewerDataEntry {
+  createdAt: string;
+  viewerName: string;
+  micrositeName: string;
+  device: string;
+  country: string;
+  name?: string;
 }
 
 const viewers: Viewer[] = [
@@ -50,7 +60,11 @@ const viewers: Viewer[] = [
 //   { day: "Fri", views: 10000 },
 // ];
 
-export default function ViewerAnalytics({ viewersData }: any) {
+export default function ViewerAnalytics({
+  viewersData,
+}: {
+  viewersData?: ViewerDataEntry[];
+}) {
   // const generateLastWeekData = (): ViewData[] => {
   //   return Array.from({ length: 7 })
   //     .map((_, index) => {
@@ -96,10 +110,12 @@ export default function ViewerAnalytics({ viewersData }: any) {
     });
   };
 
-  const getWeeklyViewData = (viewersData: typeof viewersData): ViewData[] => {
+  const getWeeklyViewData = (
+    weeklyViewersData?: ViewerDataEntry[]
+  ): ViewData[] => {
     const lastWeekData = generateLastWeekData();
 
-    viewersData?.forEach(({ createdAt }) => {
+    weeklyViewersData?.forEach(({ createdAt }) => {
       const createdAtDate = new Date(createdAt);
 
       lastWeekData.forEach((dayData) => {

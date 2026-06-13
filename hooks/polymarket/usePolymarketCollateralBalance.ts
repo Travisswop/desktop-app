@@ -1,0 +1,83 @@
+import { useEffect } from 'react';
+import { useTrading } from '@/providers/polymarket';
+import { usePolygonBalances } from './usePolygonBalances';
+import { useRedeemPosition } from './useRedeemPosition';
+
+const LEGACY_COLLATERAL_DUST = 0.005;
+const attemptedNormalizations = new Set<string>();
+
+function firstAddress(address: string | string[] | undefined) {
+  return Array.isArray(address) ? address[0] : address;
+}
+
+export function usePolymarketCollateralBalance(
+  address: string | string[] | undefined,
+) {
+  const balances = usePolygonBalances(address);
+  const {
+    safeAddress,
+    depositWalletAddress,
+    walletType,
+  } = useTrading();
+  const {
+    isNormalizingCollateral,
+    normalizeLegacyUsdcBalance,
+  } = useRedeemPosition();
+
+  const normalizationAddress =
+    walletType === 'deposit'
+      ? depositWalletAddress ?? firstAddress(address) ?? safeAddress
+      : undefined;
+  const hasLegacyCollateral =
+    balances.legacyUsdcBalance > LEGACY_COLLATERAL_DUST;
+
+  useEffect(() => {
+    if (
+      balances.isLoading ||
+      walletType !== 'deposit' ||
+      !normalizationAddress ||
+      !hasLegacyCollateral
+    ) {
+      return;
+    }
+
+    const key = `${normalizationAddress.toLowerCase()}:${balances.legacyUsdcBalance.toFixed(6)}`;
+    if (attemptedNormalizations.has(key)) return;
+    attemptedNormalizations.add(key);
+
+    void normalizeLegacyUsdcBalance({
+      depositWalletAddress: normalizationAddress,
+      destinationAddress: normalizationAddress,
+      amount: balances.legacyUsdcBalance,
+      silentOnly: true,
+    }).catch((error) => {
+      console.warn('[Polymarket] legacy USDC.e normalization failed', {
+        message: error instanceof Error ? error.message : String(error),
+        normalizationAddress,
+        legacyUsdcBalance: balances.legacyUsdcBalance,
+      });
+    });
+  }, [
+    balances.isLoading,
+    balances.legacyUsdcBalance,
+    hasLegacyCollateral,
+    normalizeLegacyUsdcBalance,
+    normalizationAddress,
+    walletType,
+  ]);
+
+  const legacyBalanceHint = hasLegacyCollateral
+    ? isNormalizingCollateral
+      ? `converting $${balances.legacyUsdcBalance.toFixed(2)} USDC.e`
+      : `includes $${balances.legacyUsdcBalance.toFixed(2)} USDC.e`
+    : undefined;
+
+  return {
+    ...balances,
+    orderableBalance: balances.usdcBalance,
+    displayBalance: balances.totalUsdcBalance,
+    hasLegacyCollateral,
+    legacyBalanceHint,
+    isNormalizingCollateral,
+  };
+}

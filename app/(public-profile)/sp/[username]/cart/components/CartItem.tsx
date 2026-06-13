@@ -74,13 +74,12 @@ export const CartItem: React.FC<CartItemProps> = ({
     onUpdateQuantity(item._id, newQuantity);
   };
 
-  const lineTotal = tpl.price * quantity;
-  const physical = isPhygital(tpl.nftType);
-  const shippingPerUnit = Number(tpl.shippingCost || 0);
-  const showShipping = physical && tpl.shippingRequired;
-  const benefits = formatPerks(tpl.benefits);
-  const addons = formatPerks(tpl.addons);
-  const requirements = formatPerks(tpl.requirements);
+  const unitPrice = Number(item.nftTemplate.price) || 0;
+  const lineTotal = Number((unitPrice * quantity).toFixed(6));
+
+  const handleRemove = () => {
+    onRemoveItem(item._id);
+  };
 
   return (
     <div
@@ -108,276 +107,25 @@ export const CartItem: React.FC<CartItemProps> = ({
         }}
       >
         <Image
-          src={tpl.image}
-          alt={tpl.name}
-          width={84}
-          height={84}
-          style={{
-            width: 84,
-            height: 84,
-            objectFit: 'cover',
-            display: 'block',
-          }}
+          src={item.nftTemplate.image || '/images/placeholder-photo.png'}
+          alt={item.nftTemplate.name}
+          width={320}
+          height={320}
+          className="w-32 h-auto rounded"
           loading="lazy"
         />
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0, paddingRight: 22 }}>
-        {/* Type pill */}
-
-        <div
-          style={{
-            fontSize: 14.5,
-            fontWeight: 600,
-            letterSpacing: -0.2,
-            color: ink,
-            lineHeight: 1.3,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-          }}
-        >
-          {tpl.name}
-        </div>
-
-        {tpl.description && (
-          <div
-            style={{
-              fontSize: 11.5,
-              color: muted,
-              lineHeight: 1.45,
-              marginTop: 4,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-            }}
-          >
-            {tpl.description}
-          </div>
-        )}
-
-        {selectedOptions.length > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 5,
-              marginTop: 8,
-            }}
-          >
-            {selectedOptions.map(([name, option]) => (
-              <span
-                key={name}
-                style={{
-                  padding: '3px 8px',
-                  borderRadius: 999,
-                  background: '#f4f4f2',
-                  border: `1px solid ${hair}`,
-                  fontSize: 10.5,
-                  fontWeight: 500,
-                  color: muted,
-                  letterSpacing: -0.1,
-                }}
-              >
-                <span style={{ color: muted2 }}>{name}:</span>{' '}
-                <span style={{ color: ink, fontWeight: 600 }}>
-                  {option}
-                </span>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Meta strip: includes / shipping / stock */}
-        {(benefits.length > 0 ||
-          addons.length > 0 ||
-          requirements.length > 0 ||
-          showShipping ||
-          isLowStock) && (
-          <div
-            style={{
-              marginTop: 10,
-              paddingTop: 10,
-              borderTop: `1px solid ${hair2}`,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 5,
-            }}
-          >
-            {benefits.length > 0 && (
-              <MetaRow label="Includes" items={benefits} />
-            )}
-            {addons.length > 0 && (
-              <MetaRow label="Add-ons" items={addons} />
-            )}
-            {requirements.length > 0 && (
-              <MetaRow label="Requires" items={requirements} />
-            )}
-            {/* {showShipping && (
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 11,
-                  color: muted,
-                }}
-              >
-                <Truck size={12} />
-                {shippingPerUnit > 0 ? (
-                  <>
-                    Shipping{' '}
-                    <span
-                      style={{
-                        fontFamily: mono,
-                        color: ink,
-                        fontWeight: 600,
-                      }}
-                    >
-                      ${shippingPerUnit.toFixed(2)}
-                    </span>{' '}
-                    flat — added once per order
-                  </>
-                ) : (
-                  'Free shipping'
-                )}
-              </div>
-            )} */}
-            {/* {isLowStock && (
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 11,
-                  color: '#b45309',
-                  fontWeight: 600,
-                }}
-              >
-                <AlertCircle size={12} />
-                Only {availableQuantity - quantity} more left
-              </div>
-            )} */}
-          </div>
-        )}
-
-        {/* Stepper + price */}
-        <div
-          style={{
-            marginTop: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            flexWrap: 'wrap',
-          }}
-        >
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              border: `1px solid ${hair}`,
-              borderRadius: 999,
-              background: '#fff',
-              overflow: 'hidden',
-            }}
-          >
-            <button
-              onClick={() => handleQuantityChange(quantity - 1)}
-              disabled={updating || quantity <= 1}
-              aria-label="Decrease quantity"
-              style={{
-                width: 30,
-                height: 30,
-                background: 'transparent',
-                border: 0,
-                cursor:
-                  updating || quantity <= 1
-                    ? 'not-allowed'
-                    : 'pointer',
-                color: ink,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: updating || quantity <= 1 ? 0.4 : 1,
-              }}
-            >
-              <Minus size={14} />
-            </button>
-            <span
-              style={{
-                minWidth: 28,
-                textAlign: 'center',
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: mono,
-                color: ink,
-              }}
-            >
-              {updating ? (
-                <Loader className="animate-spin" size={14} />
-              ) : (
-                quantity
-              )}
-            </span>
-            <button
-              onClick={() => handleQuantityChange(quantity + 1)}
-              disabled={updating || isAtAvailabilityLimit}
-              aria-label={
-                isAtAvailabilityLimit
-                  ? 'Maximum available quantity reached'
-                  : 'Increase quantity'
-              }
-              style={{
-                width: 30,
-                height: 30,
-                background: 'transparent',
-                border: 0,
-                cursor:
-                  updating || isAtAvailabilityLimit
-                    ? 'not-allowed'
-                    : 'pointer',
-                color: ink,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: updating || isAtAvailabilityLimit ? 0.4 : 1,
-              }}
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-
-          <div style={{ textAlign: 'right' }}>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                fontFamily: mono,
-                color: ink,
-                letterSpacing: -0.2,
-              }}
-            >
-              ${lineTotal.toFixed(2)}
-            </div>
+        <div>
+          <p className="text-lg font-semibold mb-1">
+            {item.nftTemplate.name}
+          </p>
+          <p>
+            ${lineTotal}
             {quantity > 1 && (
-              <div
-                style={{
-                  fontSize: 10.5,
-                  color: muted,
-                  fontFamily: mono,
-                  marginTop: 2,
-                }}
-              >
-                ${tpl.price.toFixed(2)} each
-              </div>
+              <span className="text-xs text-gray-500 ml-1">
+                (${unitPrice} each)
+              </span>
             )}
-          </div>
+          </p>
         </div>
       </div>
 

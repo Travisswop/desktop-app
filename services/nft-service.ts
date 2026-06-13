@@ -240,12 +240,17 @@ class SolanaNFTServiceClass {
 
     // Try multiple providers in order
     const providers = [
-      () => this.getNFTsFromQuickNode(ownerAddress),
+      ...(this.QUICKNODE_API_ENDPOINT
+        ? [() => this.getNFTsFromQuickNode(ownerAddress)]
+        : []),
       () => this.getNFTsFromHelius(ownerAddress),
     ];
 
     for (const [index, provider] of providers.entries()) {
-      const providerName = index === 0 ? 'QuickNode' : 'Helius';
+      const providerName =
+        provider === providers[0] && this.QUICKNODE_API_ENDPOINT
+          ? 'QuickNode'
+          : 'Helius';
       logger.info(
         `📡 Attempting to fetch NFTs from ${providerName} (provider ${
           index + 1
@@ -274,12 +279,12 @@ class SolanaNFTServiceClass {
           logger.warn(`⚠️ ${providerName} returned no NFTs`);
         }
       } catch (error) {
-        logger.error(`❌ ${providerName} failed:`, error);
+        logger.warn(`Solana NFT provider ${providerName} failed`, error);
         continue;
       }
     }
 
-    logger.error('❌ All Solana NFT providers failed');
+    logger.warn('Solana NFT providers unavailable; showing empty collectibles');
     return [];
   }
 
@@ -378,10 +383,7 @@ class SolanaNFTServiceClass {
 
       return transformedNFTs;
     } catch (error) {
-      logger.error(
-        '❌ Error fetching Solana NFTs from Helius:',
-        error,
-      );
+      logger.warn('Error fetching Solana NFTs from Helius', error);
       throw error;
     }
   }
@@ -402,8 +404,6 @@ class SolanaNFTServiceClass {
       );
 
       while (hasMoreResults && page <= maxPages) {
-        const pageStartTime = Date.now();
-
         const requestBody = {
           jsonrpc: '2.0',
           id: 1,
@@ -538,10 +538,7 @@ class SolanaNFTServiceClass {
 
       return allNFTs;
     } catch (error) {
-      logger.error(
-        '❌ Error fetching Solana NFTs from QuickNode:',
-        error,
-      );
+      logger.warn('Error fetching Solana NFTs from QuickNode', error);
       throw error;
     }
   }

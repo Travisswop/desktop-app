@@ -2,7 +2,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  QrCode,
   Wallet,
   BarChart2,
   FileText,
@@ -10,9 +9,9 @@ import {
   ImageIcon,
   LayoutDashboard,
   Newspaper,
-  LayoutGrid,
   Bot,
   ScanQrCode,
+  ReceiptText,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import swopLogo from "@/public/images/swop-logo.png";
@@ -26,7 +25,6 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -46,6 +44,7 @@ const baseNavItems = [
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/products", label: "Products", icon: ImageIcon },
   { href: "/order", label: "Orders", icon: ShoppingBag },
+  { href: "/dashboard/settlements", label: "Settlements", icon: ReceiptText },
   { href: "/content", label: "Content", icon: FileText },
 ];
 
@@ -64,7 +63,10 @@ export default function Sidenav() {
   // Create the final nav items array based on email
   const navItems = useMemo(() => {
     if (user?.email === "salmansaikote9@gmail.com") {
-      return [...baseNavItems, { href: "/agent", label: "Agent", icon: Bot }];
+      return [
+        ...baseNavItems,
+        { href: "/dashboard/chat?astro=1", label: "Agent", icon: Bot },
+      ];
     }
     return baseNavItems;
   }, [user?.email]);
@@ -147,8 +149,10 @@ export default function Sidenav() {
 
                     // Check if pathname starts with item's href
                     const isActive =
-                      (pathname && pathname === item.href) ||
-                      (pathname && pathname.startsWith(item.href + "/"));
+                      item.href === "/dashboard"
+                        ? pathname === "/dashboard"
+                        : (pathname && pathname === item.href) ||
+                          (pathname && pathname.startsWith(item.href + "/"));
 
                     return (
                       <SidebarMenuItem key={item.href}>

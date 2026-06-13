@@ -30,6 +30,11 @@ import {
   useCreateRedeemLink,
 } from '@/lib/hooks/useCreateRedeemLink';
 import { toast } from '@/hooks/use-toast';
+import { copyTextToClipboard } from '@/lib/clipboard';
+import {
+  looksLikePublicEnsName,
+  resolvePublicEnsName,
+} from '@/lib/api/publicEnsResolver';
 
 interface SendTokenModalProps {
   open: boolean;
@@ -109,6 +114,11 @@ export default function SendTokenModal({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [connections, setConnections] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [externalEnsResult, setExternalEnsResult] =
+    useState<ReceiverData | null>(null);
+  const [externalEnsResolving, setExternalEnsResolving] =
+    useState(false);
+  const [externalEnsError, setExternalEnsError] = useState('');
   const [method, setMethod] = useState<SendMethod>('address');
   const [maxWalletsInput, setMaxWalletsInput] =
     useState<string>('10');
@@ -137,6 +147,9 @@ export default function SendTokenModal({
       setSearchQuery('');
       setSearchResults([]);
       setSearching(false);
+      setExternalEnsResult(null);
+      setExternalEnsResolving(false);
+      setExternalEnsError('');
       setMethod('address');
       setMaxWalletsInput('10');
       setCustomWalletsActive(false);
@@ -213,7 +226,9 @@ export default function SendTokenModal({
 
   // ── Derived numeric helpers ─────────────────────────────────────────────
   const balanceNum = parseFloat(token?.balance || '0') || 0;
-  const priceNum = hasPrice ? parseFloat(token.marketData.price) : 0;
+  const priceNum = hasPrice
+    ? parseFloat(token.marketData?.price || '0')
+    : 0;
 
   const tokenEquivalent = useMemo(() => {
     if (!amount) return 0;
@@ -320,6 +335,56 @@ export default function SendTokenModal({
     return validateEthereumAddress(searchQuery.trim());
   }, [searchQuery, network]);
 
+  const typedAddressRecipient = useMemo<ReceiverData | null>(() => {
+    if (!isValidAddress) return null;
+    return {
+      address: searchQuery.trim(),
+      isEns: false,
+    };
+  }, [isValidAddress, searchQuery]);
+
+  useEffect(() => {
+    const query = debouncedQuery.trim();
+    if (
+      !open ||
+      recipient ||
+      isValidAddress ||
+      network === 'SOLANA' ||
+      !looksLikePublicEnsName(query)
+    ) {
+      setExternalEnsResult(null);
+      setExternalEnsResolving(false);
+      setExternalEnsError('');
+      return;
+    }
+
+    let cancelled = false;
+    setExternalEnsResolving(true);
+    setExternalEnsError('');
+
+    (async () => {
+      const resolved = await resolvePublicEnsName(query, network);
+      if (cancelled) return;
+
+      if (resolved) {
+        setExternalEnsResult({
+          address: resolved.address,
+          ensName: resolved.ensName,
+          isEns: true,
+        });
+        setExternalEnsError('');
+      } else {
+        setExternalEnsResult(null);
+        setExternalEnsError(`No ENS address found for ${query}.`);
+      }
+      setExternalEnsResolving(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, isValidAddress, network, open, recipient]);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handlePickResult = (result: any) => {
     const addr =
@@ -338,11 +403,19 @@ export default function SendTokenModal({
   };
 
   const handlePickAddress = () => {
-    setRecipient({
-      address: searchQuery.trim(),
-      isEns: false,
-    });
+    if (!typedAddressRecipient) return;
+    setRecipient(typedAddressRecipient);
+    setSearchQuery(typedAddressRecipient.address);
     setSearchResults([]);
+  };
+
+  const handlePickExternalEns = () => {
+    if (!externalEnsResult) return;
+    setRecipient(externalEnsResult);
+    setSearchQuery(externalEnsResult.ensName || externalEnsResult.address);
+    setSearchResults([]);
+    setExternalEnsResult(null);
+    setExternalEnsError('');
   };
 
   const clearRecipient = () => {
@@ -352,7 +425,7 @@ export default function SendTokenModal({
 
   const overBalance = tokenEquivalent > balanceNum + 1e-9;
   const amountReady = tokenEquivalent > 0 && !overBalance;
-  const recipientReady = !!recipient;
+  const recipientReady = !!recipient || !!typedAddressRecipient;
 
   // Link-mode helpers
   const maxWalletsNum = parseInt(maxWalletsInput || '0', 10) || 0;
@@ -396,12 +469,13 @@ export default function SendTokenModal({
       });
       return;
     }
-    if (!amountReady || !recipient) return;
+    const finalRecipient = recipient || typedAddressRecipient;
+    if (!amountReady || !finalRecipient) return;
     setSendFlow((prev) => ({
       ...prev,
       amount,
       isUSD,
-      recipient,
+      recipient: finalRecipient,
       step: 'confirm',
     }));
   };
@@ -427,7 +501,8 @@ export default function SendTokenModal({
   const handleCopyLink = async () => {
     if (!redeemLink) return;
     try {
-      await navigator.clipboard.writeText(redeemLink);
+      const didCopy = await copyTextToClipboard(redeemLink);
+      if (!didCopy) throw new Error('Unable to copy link');
       toast({ title: 'Link copied' });
     } catch {
       // Clipboard can fail (e.g. permissions / non-secure ctx) — fall through.
@@ -904,9 +979,21 @@ export default function SendTokenModal({
                   placeholder="ENS, Swop user, or wallet address"
                   className="flex-1 bg-transparent outline-none text-[13.5px] text-gray-900 placeholder:text-gray-400"
                 />
-                {searching && (
+                {(searching || externalEnsResolving) && (
                   <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin flex-shrink-0" />
                 )}
+                {externalEnsResult &&
+                  !searching &&
+                  !externalEnsResolving && (
+                    <button
+                      type="button"
+                      onClick={handlePickExternalEns}
+                      className="inline-flex items-center px-2 py-1 rounded-full text-[10.5px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition flex-shrink-0"
+                      style={{ fontFamily: MONO }}
+                    >
+                      use ENS
+                    </button>
+                  )}
                 {isValidAddress && !searching && (
                   <button
                     type="button"
@@ -917,6 +1004,11 @@ export default function SendTokenModal({
                     use
                   </button>
                 )}
+              </div>
+            )}
+            {!recipient && externalEnsError && !externalEnsResolving && (
+              <div className="text-[11.5px] text-gray-500 mt-1.5">
+                {externalEnsError}
               </div>
             )}
 

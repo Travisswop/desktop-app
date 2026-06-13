@@ -3,15 +3,15 @@ import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import React, { useRef, useEffect } from "react";
 
 interface EmojiProps {
-  showEmojiPicker: boolean;
-  setShowEmojiPicker: (show: boolean) => void;
+  showEmojiPicker?: boolean;
+  setShowEmojiPicker?: (show: boolean) => void;
   onEmojiSelect: (emoji: string) => void;
 }
 
 const Emoji = ({
   onEmojiSelect,
-  showEmojiPicker,
-  setShowEmojiPicker,
+  showEmojiPicker = false,
+  setShowEmojiPicker = () => {},
 }: EmojiProps) => {
   const pickerRef = useRef<HTMLDivElement>(null);
 

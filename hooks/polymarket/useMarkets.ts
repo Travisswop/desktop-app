@@ -1,5 +1,5 @@
 import type { CategoryId } from "@/constants/polymarket";
-import { getCategoryById, QUERY_STALE_TIMES } from "@/constants/polymarket";
+import { getCategoryById, QUERY_REFETCH_INTERVALS, QUERY_STALE_TIMES } from "@/constants/polymarket";
 import { useTrading } from "@/providers/polymarket";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchChunkedPrices } from "@/lib/polymarket/clob-prices";
@@ -32,10 +32,16 @@ export type PolymarketMarket = {
   /** True when Polymarket has flagged the parent event as currently live.
    *  Drives the red "● LIVE · Q4 · 6:44" header in the A2 sports row. */
   eventLive?: boolean;
+  /** True when the parent sports event has ended even if Polymarket markets remain open. */
+  eventEnded?: boolean;
+  /** True when the parent sports event is closed/ended/inactive. */
+  eventClosed?: boolean;
   /** Period string from Polymarket (e.g. "Q4", "Half"). */
   eventPeriod?: string | null;
   /** Elapsed-in-period string from Polymarket (e.g. "6:44"). */
   eventElapsed?: string | null;
+  /** Event score string from Polymarket, e.g. "3-4". */
+  eventScore?: string | null;
   /** ISO start time for the parent event (used by the date strip filter). */
   eventStartDate?: string | null;
   /**
@@ -49,6 +55,7 @@ export type PolymarketMarket = {
     logo?: string;
     abbreviation?: string;
     color?: string;
+    score?: number | string | null;
   }>;
   negRisk?: boolean;
   orderMinSize?: number;
@@ -56,44 +63,61 @@ export type PolymarketMarket = {
   realtimePrices?: Record<
     string,
     {
-      bidPrice: number;
-      askPrice: number;
-      midPrice: number;
-      spread: number;
+      bidPrice?: number;
+      askPrice?: number;
+      midPrice?: number;
+      spread?: number;
     }
   >;
   [key: string]: any;
 };
 
-export const MARKETS_PAGE_SIZE = 20;
+export const MARKETS_PAGE_SIZE = 48;
 
 interface UseMarketsOptions {
   categoryId?: CategoryId;
   /** Override the tag_id used for filtering (e.g. a sport subcategory tag) */
   overrideTagId?: number | null;
+  /** Server-side market search. */
+  searchQuery?: string;
   /** Set to false to skip fetching (e.g. when the sports events view is active) */
   enabled?: boolean;
 }
 
 export function useMarkets(options: UseMarketsOptions = {}) {
-  const { categoryId = "trending", overrideTagId, enabled = true } = options;
+  const {
+    categoryId = "trending",
+    overrideTagId,
+    searchQuery = "",
+    enabled = true,
+  } = options;
   const { isTradingSessionComplete } = useTrading();
+  const trimmedSearch = searchQuery.trim();
 
   return useInfiniteQuery({
-    queryKey: ["high-volume-markets", categoryId, overrideTagId, !!isTradingSessionComplete],
+    queryKey: [
+      "high-volume-markets",
+      categoryId,
+      overrideTagId,
+      trimmedSearch,
+      !!isTradingSessionComplete,
+    ],
     enabled,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<PolymarketMarket[]> => {
       const category = getCategoryById(categoryId);
       // Desktop endpoint — adds A2 sports filters and event-level fields.
       // Mobile continues to call the original /markets proxy.
-      let url = `/api/polymarket/desktop/markets?limit=${MARKETS_PAGE_SIZE}&offset=${pageParam}`;
+      let url = `/api/polymarket/desktop/markets?limit=${MARKETS_PAGE_SIZE}&offset=${pageParam}&quality=relaxed`;
 
       // overrideTagId (sport subcategory) takes priority over category-level tagId
       const tagId =
         overrideTagId !== undefined ? overrideTagId : category?.tagId;
       if (tagId) {
         url += `&tag_id=${tagId}`;
+      }
+      if (trimmedSearch) {
+        url += `&q=${encodeURIComponent(trimmedSearch)}`;
       }
 
       const response = await fetch(url);
@@ -150,7 +174,7 @@ export function useMarkets(options: UseMarketsOptions = {}) {
       return allPages.reduce((total, page) => total + page.length, 0);
     },
     staleTime: QUERY_STALE_TIMES.MARKETS,
-    refetchInterval: 60_000,
+    refetchInterval: QUERY_REFETCH_INTERVALS.MARKETS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });

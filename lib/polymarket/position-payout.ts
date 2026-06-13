@@ -35,6 +35,19 @@ export function hasRedeemablePayout(position: PolymarketPosition) {
   return getRedeemablePayout(position) > 0;
 }
 
+export function isVisiblePortfolioPosition(
+  position: PolymarketPosition,
+  dustThreshold: number,
+) {
+  const size = Math.max(0, finiteNumber(position.size));
+  if (size < dustThreshold) return false;
+  if (position.redeemable) return true;
+  if (finiteNumber(position.currentValue) >= dustThreshold) return true;
+
+  const endMs = Date.parse(position.endDate || '');
+  return !Number.isFinite(endMs) || endMs > Date.now();
+}
+
 export function isZeroPositionBalanceRedeemError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   return (

@@ -19,6 +19,7 @@ const NATIVE_TOKEN_MAP: Record<string, string> = {
   ETHEREUM: 'ethereum',
   POLYGON: 'matic-network',
   BASE: 'ethereum', // Base chain uses ETH as native token
+  ARBITRUM: 'ethereum', // Arbitrum uses ETH as native token
   SEPOLIA: 'ethereum', // Testnet uses ETH
 };
 
@@ -39,11 +40,13 @@ function periodToDays(period: string): number {
  * Check if a token is a native token (no contract address)
  */
 function isNativeToken(address: string | null): boolean {
+  const normalized = address?.toLowerCase();
   return (
-    !address ||
-    address === 'null' ||
-    address === '0x0' ||
-    address === '0x0000000000000000000000000000000000000000'
+    !normalized ||
+    normalized === 'null' ||
+    normalized === 'native' ||
+    normalized === '0x0' ||
+    normalized === '0x0000000000000000000000000000000000000000'
   );
 }
 
@@ -56,16 +59,27 @@ async function fetchChartData(
   tokenAddress: string | null,
   chain: string,
   period: string,
-  accessToken: string
+  accessToken: string,
+  marketId?: string | null
 ): Promise<ChartData> {
   const days = periodToDays(period);
   let prices: Array<{ timestamp: number; price: number }> = [];
+  let chartLabel = `${chain}:${tokenAddress || 'native'}`;
 
-  if (isNativeToken(tokenAddress)) {
+  if (marketId) {
+    chartLabel = marketId;
+    const historical = await MarketService.getHistoricalPrices(
+      marketId,
+      days,
+      accessToken
+    );
+    prices = historical.prices;
+  } else if (isNativeToken(tokenAddress)) {
     const tokenId = NATIVE_TOKEN_MAP[chain.toUpperCase()];
     if (!tokenId) {
       throw new Error(`Native token mapping not found for chain: ${chain}`);
     }
+    chartLabel = tokenId;
     const historical = await MarketService.getHistoricalPrices(
       tokenId,
       days,
@@ -97,7 +111,7 @@ async function fetchChartData(
   const uniqueValues = new Set(sparklineData.map((d) => d.value));
   if (uniqueValues.size === 1) {
     console.warn(
-      `[useTokenChartData] Flat line detected for ${tokenId} - all values are ${sparklineData[0]?.value}`
+      `[useTokenChartData] Flat line detected for ${chartLabel} - all values are ${sparklineData[0]?.value}`
     );
   }
 
@@ -127,17 +141,20 @@ export function useTokenChartData(
   chain: string,
   period: string,
   enabled: boolean = true,
-  accessToken: string
+  accessToken: string,
+  marketId?: string | null
 ): UseQueryResult<ChartData, unknown> {
   // Create a unique query key that works for both native and contract tokens
-  const queryKey = isNativeToken(tokenAddress)
+  const queryKey = marketId
+    ? ['tokenChartData', 'market', marketId, period]
+    : isNativeToken(tokenAddress)
     ? ['tokenChartData', 'native', chain, period]
     : ['tokenChartData', tokenAddress, chain, period];
 
   return useQuery({
     queryKey,
     queryFn: () =>
-      fetchChartData(tokenAddress, chain, period, accessToken),
+      fetchChartData(tokenAddress, chain, period, accessToken, marketId),
     enabled: enabled && !!chain && !!period, // Only require chain and period, address can be null for native
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,

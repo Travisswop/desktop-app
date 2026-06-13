@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { usePolymarketWallet } from "@/providers/polymarket";
 import { useTokenApprovals } from "@/hooks/polymarket/useTokenApprovals";
 import { useUserApiCredentials } from "@/hooks/polymarket/useUserApiCredentials";
@@ -12,7 +12,7 @@ import {
 } from "@/lib/polymarket/session";
 import {
   deployDepositWallet,
-  getDepositWalletAddress,
+  fetchCachedCredentials,
   getWalletInfo,
   syncBalanceAllowance,
 } from "@/lib/polymarket/backend-session";
@@ -28,6 +28,7 @@ export function useTradingSession() {
   const [tradingSession, setTradingSession] = useState<TradingSession | null>(
     null
   );
+  const silentRestoreAttemptRef = useRef<string | null>(null);
 
   const { eoaAddress } = usePolymarketWallet();
   const { accessToken } = useUser();
@@ -38,13 +39,14 @@ export function useTradingSession() {
   // session object from localStorage to track the status of the user's trading session
   useEffect(() => {
     if (!eoaAddress) {
+      silentRestoreAttemptRef.current = null;
       setTradingSession(null);
       setCurrentStep("idle");
       setSessionError(null);
       return;
     }
 
-    const stored = loadSession(eoaAddress);
+    let stored = loadSession(eoaAddress);
 
     // If the session claims to have credentials, verify they are actually complete.
     // An incomplete secret causes postHeartbeat → buildPolyHmacSignature to throw
@@ -56,9 +58,7 @@ export function useTradingSession() {
           "[Polymarket] Stored session has incomplete API credentials — clearing session to force re-initialization.",
         );
         clearStoredSession(eoaAddress);
-        setTradingSession(null);
-        setCurrentStep("idle");
-        return;
+        stored = null;
       }
     }
 
@@ -70,6 +70,137 @@ export function useTradingSession() {
       return;
     }
   }, [eoaAddress]);
+
+  const silentlyRestoreTradingSession = useCallback(async (): Promise<boolean> => {
+    if (!eoaAddress || !accessToken) return false;
+
+    setCurrentStep("checking");
+    setSessionError(null);
+
+    try {
+      const storedSession = loadSession(eoaAddress);
+      const walletInfo = await getWalletInfo(eoaAddress, accessToken);
+      const walletType: "safe" | "deposit" = walletInfo.recommendedWalletType;
+      const tradingWalletAddress =
+        walletType === "safe"
+          ? walletInfo.safeAddress
+          : walletInfo.depositWalletAddress;
+
+      if (!tradingWalletAddress) return false;
+      if (walletType === "deposit" && !walletInfo.depositWalletDeployed) {
+        return false;
+      }
+      if (walletType === "safe" && !walletInfo.safeDeployed) {
+        return false;
+      }
+
+      const baseRestoredSession: TradingSession = {
+        eoaAddress,
+        walletType,
+        safeAddress: tradingWalletAddress,
+        depositWalletAddress:
+          walletType === "deposit" ? walletInfo.depositWalletAddress : undefined,
+        isSafeDeployed:
+          walletType === "safe" ? walletInfo.safeDeployed : true,
+        isDepositWalletDeployed:
+          walletType === "deposit" ? walletInfo.depositWalletDeployed : false,
+        hasApiCredentials: false,
+        apiCredentialsAddress: eoaAddress,
+        hasApprovals: false,
+        depositWalletRegisteredAt:
+          walletType === "deposit"
+            ? storedSession?.depositWalletRegisteredAt ?? Date.now()
+            : undefined,
+        lastChecked: Date.now(),
+      };
+
+      setTradingSession(baseRestoredSession);
+      saveSession(eoaAddress, baseRestoredSession);
+
+      const flowOpts =
+        walletType === "deposit"
+          ? {
+              walletType,
+              depositWalletAddress: walletInfo.depositWalletAddress,
+            }
+          : { walletType };
+      const apiCreds = await fetchCachedCredentials(
+        eoaAddress,
+        accessToken,
+        flowOpts
+      );
+
+      if (!apiCreds) return true;
+
+      // On-chain approvals are durable — only an explicit user action revokes
+      // them. If the RPC read fails we must NOT downgrade a previously-confirmed
+      // `hasApprovals: true`, otherwise a transient/dead RPC re-prompts a fully
+      // approved user to "Enable trading" with no way to recover.
+      let hasApprovals = storedSession?.hasApprovals === true;
+      try {
+        const approvalStatus = await checkAllTokenApprovals(tradingWalletAddress);
+        hasApprovals = approvalStatus.allApproved;
+      } catch (err) {
+        console.warn(
+          "[Polymarket] Approval re-check failed during restore — preserving stored approval flag:",
+          err
+        );
+      }
+
+      const restoredSession: TradingSession = {
+        ...baseRestoredSession,
+        hasApiCredentials: true,
+        hasApprovals,
+        apiCredentials: apiCreds,
+        lastChecked: Date.now(),
+      };
+
+      setTradingSession(restoredSession);
+      saveSession(eoaAddress, restoredSession);
+      return true;
+    } catch (err) {
+      console.warn("[Polymarket] Silent trading-session restore failed:", err);
+      return false;
+    } finally {
+      setCurrentStep("idle");
+    }
+  }, [eoaAddress, accessToken, checkAllTokenApprovals]);
+
+  useEffect(() => {
+    if (!eoaAddress || !accessToken) {
+      silentRestoreAttemptRef.current = null;
+      return;
+    }
+    if (currentStep !== "idle") return;
+    if (
+      tradingSession?.isSafeDeployed &&
+      tradingSession?.hasApiCredentials &&
+      tradingSession?.hasApprovals
+    ) {
+      return;
+    }
+
+    // Attempt a silent re-check at most once per provider mount. We key the
+    // dedup ref on the EOA only (not lastChecked) so that the lastChecked bump
+    // a successful restore writes can't re-trigger this effect into a loop. A
+    // deployed-but-incomplete session (e.g. a stale hasApprovals:false left by a
+    // dead-RPC read) therefore gets one fresh on-chain re-check per page load,
+    // which lets a genuinely-approved user self-heal without re-initializing.
+    const restoreKey = eoaAddress.toLowerCase();
+    if (silentRestoreAttemptRef.current === restoreKey) return;
+    silentRestoreAttemptRef.current = restoreKey;
+
+    void silentlyRestoreTradingSession();
+  }, [
+    eoaAddress,
+    accessToken,
+    currentStep,
+    tradingSession?.isSafeDeployed,
+    tradingSession?.hasApiCredentials,
+    tradingSession?.hasApprovals,
+    tradingSession?.lastChecked,
+    silentlyRestoreTradingSession,
+  ]);
 
   // The core function that orchestrates the trading session initialization
   const initializeTradingSession = useCallback(async () => {
@@ -120,7 +251,12 @@ export function useTradingSession() {
         }
         tradingWalletAddress = walletInfo.depositWalletAddress;
 
-        if (!isDepositWalletDeployed || !storedSession?.depositWalletRegisteredAt) {
+        if (!isDepositWalletDeployed) {
+          // Only hit the relayer when the wallet genuinely isn't on-chain yet.
+          // If walletInfo already reports it deployed, a missing local
+          // depositWalletRegisteredAt (e.g. cleared localStorage) must not
+          // trigger a force-redeploy — the relayer rejects WALLET_CREATE for
+          // an existing wallet, which previously 500'd and blocked the session.
           setCurrentStep("deploying");
           const deployResult = await deployDepositWallet(eoaAddress, accessToken, {
             force: !storedSession?.depositWalletRegisteredAt,

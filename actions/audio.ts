@@ -20,7 +20,8 @@ export async function postAudio(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -40,7 +41,8 @@ export async function updateAudio(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);
@@ -61,7 +63,8 @@ export async function deleteAudio(info: any, token: string) {
       }
     );
     revalidatePath(`/smartsites/icons/${info.micrositeId}`);
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
     return data;
   } catch (error) {
     console.error('Error from action:', error);

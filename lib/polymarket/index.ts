@@ -8,10 +8,7 @@ export {
 } from "./session";
 
 // Token approvals
-export { checkAllApprovals, createAllApprovalTxs } from "./approvals";
-
-// Position redemption
-export { createRedeemTx, type RedeemParams } from "./redeem";
+export { checkAllApprovals } from "./approvals";
 
 // Formatting utilities
 export {
