@@ -38,6 +38,7 @@ import {
 } from '@privy-io/react-auth/solana';
 import {
   createPublicClient,
+  custom,
   encodeFunctionData,
   erc20Abi,
   http,
@@ -482,6 +483,9 @@ const getChainId = (chainName: string) => {
 
 const isPrivyEmbeddedWalletType = (walletClientType?: string) =>
   walletClientType === 'privy' || walletClientType === 'privy-v2';
+
+const normalizeEvmAddress = (address?: string | null) =>
+  typeof address === 'string' ? address.trim().toLowerCase() : '';
 
 const parseOptionalBigInt = (value: unknown) => {
   if (value === undefined || value === null || value === '')
@@ -1899,24 +1903,30 @@ export default function SwapTokenModal({
       const chain = getViemChain(chainId);
       if (!chain) throw new Error('Unsupported EVM chain');
 
-      const client = createPublicClient({ chain, transport: http() });
-      const allowance = await client.readContract({
-        address: tokenAddress as `0x${string}`,
-        abi: erc20Abi,
-        functionName: 'allowance',
-        args: [owner as `0x${string}`, spender as `0x${string}`],
-      });
-
-      if (allowance >= BigInt(amountWei)) return; // Already approved
-
-      // Switch to the correct chain for ALL wallet types.
-      // Previously this was guarded by `walletClientType !== 'privy'`, which
-      // meant Privy wallets never switched — causing approvals to be sent on
-      // whatever chain the wallet was last used on (e.g. Polygon) instead of
-      // the source chain (e.g. Arbitrum).
       if (switchChain) {
         await switchChain(chainId);
       }
+
+      const client = createPublicClient({
+        chain,
+        transport: custom(provider),
+      });
+      let allowance: bigint;
+      try {
+        allowance = await client.readContract({
+          address: tokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [owner as `0x${string}`, spender as `0x${string}`],
+        });
+      } catch (allowanceErr) {
+        console.warn('Token allowance check failed:', allowanceErr);
+        throw new Error(
+          'Unable to check token approval. Please reconnect your wallet and try again.',
+        );
+      }
+
+      if (allowance >= BigInt(amountWei)) return; // Already approved
 
       const approveData = encodeFunctionData({
         abi: erc20Abi,
@@ -3697,24 +3707,34 @@ export default function SwapTokenModal({
         await executeSolanaSwap(activeQuote);
       } else {
         const allAccounts = PrivyUser?.linkedAccounts || [];
-        const ethereumAccount = allAccounts.find(
+        const fallbackEthereumAccount = allAccounts.find(
           (account: any) =>
             account.chainType === 'ethereum' &&
             account.type === 'wallet' &&
             account.address,
         );
-        if (!ethereumAccount) {
+        const quoteFromAddress =
+          (activeQuote as any)?.action?.fromAddress ||
+          (activeQuote as any)?.fromAddress ||
+          (activeQuote as any)?.transactionRequest?.from;
+        const sourceWalletAddress =
+          quoteFromAddress ||
+          fromWalletAddress ||
+          ethWallet ||
+          (fallbackEthereumAccount as any)?.address ||
+          '';
+        if (!sourceWalletAddress) {
           setSwapError('No Ethereum wallet connected');
           setIsSwapping(false);
           return;
         }
         const wallet = wallets.find(
           (w) =>
-            w.address?.toLowerCase() ===
-            (ethereumAccount as any).address.toLowerCase(),
+            normalizeEvmAddress(w.address) ===
+            normalizeEvmAddress(sourceWalletAddress),
         );
         if (!wallet) {
-          setSwapError('Wallet not found');
+          setSwapError('Selected wallet not found');
           setIsSwapping(false);
           return;
         }
