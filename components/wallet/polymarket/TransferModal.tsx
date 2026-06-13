@@ -46,6 +46,11 @@ import CustomModal from '@/components/modal/CustomModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  getPortfolioEvmWalletInput,
+  useWalletAddresses,
+  useWalletData,
+} from '@/components/wallet/hooks/useWalletData';
+import {
   useTrading,
   usePolymarketWallet,
 } from '@/providers/polymarket';
@@ -102,6 +107,7 @@ interface DepositToken {
   symbol: string;
   balance: string;
   decimals: number;
+  walletAddress?: string;
   address: string | null;
   logoURI: string;
   chain: string;
@@ -342,7 +348,13 @@ function DepositTab({
   open: boolean;
   onClose: () => void;
 }) {
-  const { user, getAccessToken } = usePrivy();
+  const {
+    authenticated,
+    ready,
+    user: privyUser,
+    getAccessToken,
+  } = usePrivy();
+  const { user: swopUser } = useUser();
   const { safeAddress } = useTrading();
   const { publicClient, eoaAddress, switchToPolygon } =
     usePolymarketWallet();
@@ -372,8 +384,32 @@ function DepositTab({
     } catch {}
   }, [getAccessToken]);
 
-  const evmAddress = eoaAddress || user?.wallet?.address;
-  const solanaAddress = selectedSolanaWallet?.address;
+  const walletData = useWalletData(
+    authenticated,
+    ready,
+    privyUser,
+    swopUser,
+  );
+  const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
+    useWalletAddresses(walletData);
+  const solanaAddress = solWalletAddress || selectedSolanaWallet?.address;
+  const evmAddress = useMemo(
+    () =>
+      getPortfolioEvmWalletInput(
+        evmWalletAddress || eoaAddress || privyUser?.wallet?.address,
+        [
+          ...evmWalletAddresses,
+          eoaAddress,
+          privyUser?.wallet?.address,
+        ].filter((address): address is string => Boolean(address)),
+      ),
+    [
+      evmWalletAddress,
+      evmWalletAddresses,
+      eoaAddress,
+      privyUser?.wallet?.address,
+    ],
+  );
 
   const {
     tokens,
@@ -523,7 +559,8 @@ function DepositTab({
       const fromWalletAddress =
         selectedToken.chain.toUpperCase() === 'SOLANA'
           ? solanaAddress
-          : evmAddress;
+          : selectedToken.walletAddress ||
+            (Array.isArray(evmAddress) ? evmAddress[0] : evmAddress);
       if (!fromWalletAddress)
         throw new Error('Wallet address not available');
       const result = await getLifiDepositQuote({
@@ -553,9 +590,17 @@ function DepositTab({
   ]);
 
   const executeDirectTransfer = async () => {
-    if (!eoaAddress || !safeAddress)
+    const sourceEvmAddress = selectedToken?.walletAddress || eoaAddress;
+    if (!sourceEvmAddress || !safeAddress)
       throw new Error('Wallet not ready');
-    await switchToPolygon();
+    const wallet = wallets.find(
+      (w) => w.address?.toLowerCase() === sourceEvmAddress.toLowerCase(),
+    );
+    if (wallet && wallet.chainId !== `eip155:${polygon.id}`) {
+      await wallet.switchChain(polygon.id);
+    } else {
+      await switchToPolygon();
+    }
 
     // Safely coerce to string (balance fields can be numeric at runtime)
     // and truncate to max USDC_E_DECIMALS places to prevent viem parseUnits errors
@@ -600,9 +645,14 @@ function DepositTab({
   };
 
   const executeLifiEvmSwap = async () => {
-    if (!lifiQuote) throw new Error('No quote available');
+    if (!lifiQuote || !selectedToken)
+      throw new Error('No quote available');
+    const sourceEvmAddress =
+      selectedToken.walletAddress ||
+      (Array.isArray(evmAddress) ? evmAddress[0] : evmAddress);
+    if (!sourceEvmAddress) throw new Error('EVM wallet not found');
     const wallet = wallets.find(
-      (w) => w.address?.toLowerCase() === evmAddress?.toLowerCase(),
+      (w) => w.address?.toLowerCase() === sourceEvmAddress.toLowerCase(),
     );
     if (!wallet) throw new Error('EVM wallet not found');
     const sourceChainIdStr =
@@ -634,7 +684,7 @@ function DepositTab({
         abi: erc20Abi,
         functionName: 'allowance',
         args: [
-          evmAddress as `0x${string}`,
+          sourceEvmAddress as `0x${string}`,
           estimate.approvalAddress as `0x${string}`,
         ],
       });
