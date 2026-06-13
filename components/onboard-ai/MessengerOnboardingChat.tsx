@@ -8,6 +8,7 @@ import { Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/lib/UserContext";
 import {
+  attachAiOnboardingSmartSiteLinks,
   attachSwopIdToSmartSite,
   createAiOnboardingSocials,
   createAiOnboardingUser,
@@ -281,6 +282,30 @@ export default function MessengerOnboardingChat({
       void refreshUser().catch((error) => {
         console.error("User context refresh failed:", error);
       });
+
+      if (createdUser.primaryMicrosite && createdUser.token) {
+        void attachAiOnboardingSmartSiteLinks({
+          profile: nextProfile,
+          micrositeId: createdUser.primaryMicrosite,
+          accessToken: createdUser.token,
+        })
+          .then((result) => {
+            const count = result?.data?.smartSiteLinks?.length || 0;
+            if (!count) return;
+
+            appendMessages(
+              makeMessage(
+                "assistant",
+                `I also found ${count} public link${
+                  count === 1 ? "" : "s"
+                } for your SmartSite.`,
+              ),
+            );
+          })
+          .catch((error) => {
+            console.warn("Onboarding social lookup skipped:", error);
+          });
+      }
 
       appendMessages(
         makeMessage(

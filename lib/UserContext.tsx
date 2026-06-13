@@ -24,6 +24,7 @@ import {
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { apiFetch } from '@/lib/api/apiFetch';
 import {
+  AI_ONBOARDING_PATH,
   requiresSwopIdCompletion,
   SWOP_ID_ONBOARDING_PATH,
 } from '@/lib/onboardingStatus';
@@ -583,7 +584,7 @@ export function UserProvider({
 
     if (
       window.location.pathname === '/onboard' ||
-      window.location.pathname === '/onboard-ai' ||
+      window.location.pathname === AI_ONBOARDING_PATH ||
       window.location.pathname === '/login'
     ) {
       return;

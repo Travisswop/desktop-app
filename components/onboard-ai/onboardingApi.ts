@@ -1,6 +1,8 @@
 import type { AiOnboardingProfile } from "./types";
 import { socialGroup, socialMediaBaseUrls } from "@/types/smartsite";
 import { apiFetch } from "@/lib/api/apiFetch";
+import { buildSwopApiUrl } from "@/lib/api/apiBaseUrl";
+import Cookies from "js-cookie";
 import type {
   InfoBarData,
   SocialLargeData,
@@ -21,6 +23,25 @@ export interface CreateAiProfilePayload {
   dob?: string;
 }
 
+function getAuthCookieOptions() {
+  return {
+    path: "/",
+    sameSite: "lax" as const,
+    secure:
+      typeof window !== "undefined" &&
+      window.location.protocol === "https:",
+  };
+}
+
+function persistCreatedUserAuth(userId?: string, token?: string) {
+  if (!userId) return;
+
+  Cookies.set("user-id", userId, getAuthCookieOptions());
+  if (token) {
+    Cookies.set("access-token", token, getAuthCookieOptions());
+  }
+}
+
 export async function createAiOnboardingUser({
   profile,
   privyId,
@@ -31,7 +52,7 @@ export async function createAiOnboardingUser({
   dob,
 }: CreateAiProfilePayload) {
   const response = await apiFetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/create`,
+    buildSwopApiUrl("/api/v2/desktop/user/create"),
     {
       method: "POST",
       headers: {
@@ -63,10 +84,16 @@ export async function createAiOnboardingUser({
   }
 
   const result = await response.json();
+  const createdUser = {
+    ...result.data,
+    token: result.token as string | undefined,
+  };
+
+  persistCreatedUserAuth(createdUser?._id?.toString(), createdUser.token);
 
   // Fire-and-forget: creating the wallet-balance snapshot can take several
   // seconds and nothing downstream in onboarding needs it, so don't block the UI.
-  void apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/create-balance`, {
+  void apiFetch(buildSwopApiUrl("/api/v5/wallet/create-balance"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -80,7 +107,45 @@ export async function createAiOnboardingUser({
     console.error("Error creating wallet balance:", error);
   });
 
-  return result.data;
+  return createdUser;
+}
+
+export async function attachAiOnboardingSmartSiteLinks({
+  profile,
+  micrositeId,
+  accessToken,
+}: {
+  profile: Pick<AiOnboardingProfile, "name" | "email" | "bio">;
+  micrositeId: string;
+  accessToken?: string | null;
+}) {
+  if (!accessToken || !profile.name.trim()) {
+    return null;
+  }
+
+  const response = await apiFetch(
+    buildSwopApiUrl("/api/v5/social-lookup/smartsite-links"),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        name: profile.name,
+        company: profile.bio || undefined,
+        email: profile.email || undefined,
+        micrositeId,
+      }),
+    },
+  );
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(result?.error || "Onboarding social lookup failed");
+  }
+
+  return result;
 }
 
 export async function createAiOnboardingSocials(
@@ -180,7 +245,7 @@ export async function createAiOnboardingSocials(
   }
 
   const response = await apiFetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/createSocial`,
+    buildSwopApiUrl("/api/v2/desktop/user/createSocial"),
     {
       method: "POST",
       headers: {
@@ -202,7 +267,7 @@ export async function createAiOnboardingSocials(
 
 export async function attachSwopIdToSmartSite(micrositeId: string, ens: string) {
   const response = await apiFetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/addSocial`,
+    buildSwopApiUrl("/api/v2/desktop/user/addSocial"),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

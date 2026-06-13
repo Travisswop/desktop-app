@@ -30,7 +30,14 @@ const PROTECTED_ROUTES = new Set([
   "/account-deletion",
 ]);
 
-const AUTH_ROUTES = new Set(["/login", "/onboard"]);
+const AI_ONBOARDING_PATH = "/onboard-ai";
+const LEGACY_ONBOARDING_PATH = "/onboard";
+
+const AUTH_ROUTES = new Set([
+  "/login",
+  LEGACY_ONBOARDING_PATH,
+  AI_ONBOARDING_PATH,
+]);
 
 const PUBLIC_ROUTES = new Set([
   "/api",
@@ -207,7 +214,8 @@ function handleMobileRedirect(
 ): string | null {
   if (
     pathname === "/login" ||
-    pathname === "/onboard" ||
+    pathname === LEGACY_ONBOARDING_PATH ||
+    pathname === AI_ONBOARDING_PATH ||
     pathname.startsWith("/checkout/")
   ) {
     return null;
@@ -568,14 +576,18 @@ async function handleAuthenticatedUser(
 
   // If userId is empty (from failed verification), skip backend check
   if (!userId) {
-    if (pathname === "/login") {
-      return createRedirect(req, "/onboard");
-    }
+    return NextResponse.next();
+  }
+
+  // New-user onboarding is resolved in the client using the active Privy user.
+  // Allow access even after the backend profile is created so refreshes don't
+  // kick users out mid-onboarding.
+  if (pathname === AI_ONBOARDING_PATH) {
     return NextResponse.next();
   }
 
   // Handle /onboard route
-  if (pathname === "/onboard") {
+  if (pathname === LEGACY_ONBOARDING_PATH) {
     if (req.nextUrl.searchParams.get("step") === "swop-id") {
       return NextResponse.next();
     }
@@ -836,6 +848,7 @@ export const config = {
     "/content/:path*",
     "/login",
     "/onboard",
+    "/onboard-ai",
     "/guest-order/:path*",
   ],
 };

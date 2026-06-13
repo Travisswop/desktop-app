@@ -3,7 +3,6 @@
 import { createLoginWalletBalance } from '@/actions/createWallet';
 import Loader from '@/components/loading/Loader';
 import { Card } from '@/components/ui/card';
-import { useUser } from '@/lib/UserContext';
 import blackPlanet from '@/public/onboard/black-planet.svg';
 import swopLogo from '@/public/swopLogo.png';
 import {
@@ -37,6 +36,7 @@ import logger from '@/utils/logger';
 import { buildSwopApiUrl, getSwopApiBaseUrl } from '@/lib/api/apiBaseUrl';
 import { apiFetch } from '@/lib/api/apiFetch';
 import {
+  AI_ONBOARDING_PATH,
   requiresSwopIdCompletion,
   SWOP_ID_ONBOARDING_PATH,
 } from '@/lib/onboardingStatus';
@@ -197,6 +197,36 @@ function clearStaleSwopAuthStorage() {
   Cookies.remove('access-token', { path: '/' });
 }
 
+function clearPrivyBrowserSession() {
+  clearStaleSwopAuthStorage();
+
+  if (typeof window !== 'undefined') {
+    for (const storage of [window.localStorage, window.sessionStorage]) {
+      const keys = Array.from({ length: storage.length }, (_, index) =>
+        storage.key(index),
+      ).filter((key): key is string => Boolean(key));
+
+      for (const key of keys) {
+        if (key.toLowerCase().includes('privy')) {
+          storage.removeItem(key);
+        }
+      }
+    }
+  }
+
+  const privyCookieNames = [
+    'privy-token',
+    'privy-id-token',
+    'privy-refresh-token',
+    'privy-session',
+  ];
+
+  for (const cookieName of privyCookieNames) {
+    Cookies.remove(cookieName);
+    Cookies.remove(cookieName, { path: '/' });
+  }
+}
+
 const Login: React.FC = () => {
   // Privy hooks
   const { authenticated, ready, user } = usePrivy();
@@ -214,7 +244,6 @@ const Login: React.FC = () => {
     useSolanaCreateWallet();
 
   // Custom hooks
-  const { isAuthenticated } = useUser();
   const router = useRouter();
 
   // State management
@@ -225,6 +254,7 @@ const Login: React.FC = () => {
   const [emailError, setEmailError] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [pendingPasskeyAuth, setPendingPasskeyAuth] = useState(false);
+  const [privyInitTimedOut, setPrivyInitTimedOut] = useState(false);
   const [walletStatus, setWalletStatus] =
     useState<WalletCreationStatus>({
       ethereum: false,
@@ -491,6 +521,19 @@ const Login: React.FC = () => {
     createPrivyWallets,
   ]);
 
+  useEffect(() => {
+    if (ready) {
+      setPrivyInitTimedOut(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setPrivyInitTimedOut(true);
+    }, 12000);
+
+    return () => clearTimeout(timeout);
+  }, [ready]);
+
   // Handle successful login
   const handleLoginSuccess = useCallback(
     async (user: any) => {
@@ -506,7 +549,7 @@ const Login: React.FC = () => {
           logger.log(
             'No email found on Privy account; sending user to onboarding for profile/email capture',
           );
-          router.push('/onboard-ai');
+          router.push(AI_ONBOARDING_PATH);
           return;
         }
 
@@ -521,7 +564,7 @@ const Login: React.FC = () => {
         if (!response.ok) {
           if (response.status === 404) {
             logger.log('User not found, redirecting to onboard');
-            router.push('/onboard-ai');
+            router.push(AI_ONBOARDING_PATH);
             return;
           }
           throw new Error(`API error: ${response.status}`);
@@ -710,12 +753,18 @@ const Login: React.FC = () => {
     [otpLength],
   );
 
-  // Redirect authenticated users
+  // Process an existing Privy session when a user lands on /login directly.
   useEffect(() => {
-    if (ready && (authenticated || isAuthenticated)) {
-      return;
+    if (
+      ready &&
+      authenticated &&
+      user &&
+      loginFlow === LoginFlow.EMAIL_INPUT &&
+      !loginProcessingRef.current
+    ) {
+      void handleLoginSuccess(user);
     }
-  }, [ready, authenticated, isAuthenticated]);
+  }, [ready, authenticated, user, loginFlow, handleLoginSuccess]);
 
   // Handle OTP completion and login
   useEffect(() => {
@@ -782,6 +831,41 @@ const Login: React.FC = () => {
       }
     };
   }, []);
+
+  if (!ready && privyInitTimedOut) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
+          <h2 className="text-xl font-semibold text-gray-950">
+            Authentication is taking too long
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            This usually means the browser has stale auth data. Reset the local
+            session and try again.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              className="h-11 flex-1 rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 transition hover:bg-gray-50"
+              onClick={() => window.location.reload()}
+            >
+              Reload
+            </button>
+            <button
+              type="button"
+              className="h-11 flex-1 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+              onClick={() => {
+                clearPrivyBrowserSession();
+                window.location.reload();
+              }}
+            >
+              Reset session
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Loading states
   if (!ready || loginFlow === LoginFlow.PROCESSING) {
