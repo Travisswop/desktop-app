@@ -23,6 +23,7 @@ import {
   formatUnits,
   hexToBytes,
   createPublicClient,
+  fallback,
   http,
 } from 'viem';
 import { polygon, mainnet, base, arbitrum } from 'viem/chains';
@@ -82,6 +83,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
 } from '@solana/spl-token';
 import bs58 from 'bs58';
+import toast from 'react-hot-toast';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -189,6 +191,29 @@ const VIEM_CHAINS: Record<
   '8453': base,
   '42161': arbitrum,
 };
+const RPC_URLS_BY_CHAIN_ID: Record<string, Array<string | undefined>> = {
+  '1': [
+    process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
+    'https://ethereum-rpc.publicnode.com',
+    'https://rpc.flashbots.net',
+    'https://eth.llamarpc.com',
+  ],
+  '137': [
+    process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
+    'https://polygon-bor-rpc.publicnode.com',
+    'https://polygon.drpc.org',
+  ],
+  '8453': [
+    process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
+    'https://base-rpc.publicnode.com',
+    'https://mainnet.base.org',
+  ],
+  '42161': [
+    process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL,
+    'https://arbitrum-one-rpc.publicnode.com',
+    'https://arb1.arbitrum.io/rpc',
+  ],
+};
 const CHAIN_MIN_DEPOSIT_USD: Record<string, number> = {
   ETHEREUM: 7,
   POLYGON: 2,
@@ -221,8 +246,49 @@ const delegatedPolicyIds = (
 const getPublicClientForChain = (chainId: string) => {
   const chain = VIEM_CHAINS[chainId];
   if (!chain) return null;
-  return createPublicClient({ chain, transport: http() });
+  const rpcUrls = Array.from(
+    new Set(
+      (RPC_URLS_BY_CHAIN_ID[chainId] ?? [])
+        .map((url) => url?.trim())
+        .filter((url): url is string => Boolean(url)),
+    ),
+  );
+  const transport =
+    rpcUrls.length > 1
+      ? fallback(rpcUrls.map((url) => http(url)))
+      : http(rpcUrls[0]);
+  return createPublicClient({ chain, transport });
 };
+
+const sleep = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+const readWithRetry = async <T,>(
+  read: () => Promise<T>,
+  retries = 2,
+  baseDelayMs = 450,
+): Promise<T> => {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await read();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await sleep(baseDelayMs * (attempt + 1));
+      }
+    }
+  }
+  throw lastErr;
+};
+
+const getDepositExplorerUrl = (chain: string, hash: string) =>
+  ({
+    SOLANA: `https://solscan.io/tx/${hash}`,
+    ETHEREUM: `https://etherscan.io/tx/${hash}`,
+    POLYGON: `https://polygonscan.com/tx/${hash}`,
+    BASE: `https://basescan.org/tx/${hash}`,
+  })[chain.toUpperCase()] || `https://polygonscan.com/tx/${hash}`;
 
 function serializeForJson(value: unknown): unknown {
   if (typeof value === 'bigint') return value.toString();
@@ -433,6 +499,111 @@ function DepositTab({
   const [depositStatus, setDepositStatus] = useState('');
   const isTransactionInProgress = useRef(false);
 
+  const depositHandedOffToToast = useRef(false);
+  const activeDepositToastId = useRef<string | undefined>();
+
+  const isDirectUsdcE =
+    selectedToken?.chain.toUpperCase() === 'POLYGON' &&
+    selectedToken?.address?.toLowerCase() ===
+      USDC_E_ADDRESS.toLowerCase();
+
+  const needsBridge = selectedToken && !isDirectUsdcE;
+
+  const showDepositProcessingToast = useCallback(
+    (hash: string) => {
+      if (!selectedToken || depositHandedOffToToast.current) return;
+
+      depositHandedOffToToast.current = true;
+      const symbol = selectedToken.symbol || 'Funds';
+      const explorerUrl = getDepositExplorerUrl(
+        selectedToken.chain,
+        hash,
+      );
+      const body = needsBridge
+        ? `${symbol} is converting to pUSD. You can keep using Swop; it should be in your Predictions balance soon.`
+        : `${symbol} is moving into your Predictions wallet. You can keep using Swop; it should be there soon.`;
+
+      activeDepositToastId.current = toast.loading(
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-white">
+            Deposit processing
+          </p>
+          <p className="text-xs leading-5 text-white/70">{body}</p>
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex text-xs font-semibold text-[#3fe08f]"
+          >
+            View transaction
+          </a>
+        </div>,
+        {
+          id: activeDepositToastId.current,
+          duration: Infinity,
+        },
+      );
+
+      onClose();
+    },
+    [needsBridge, onClose, selectedToken],
+  );
+
+  const updateDepositToastSuccess = useCallback(
+    (hash: string | null) => {
+      if (!activeDepositToastId.current || !selectedToken) return;
+
+      const explorerUrl = hash
+        ? getDepositExplorerUrl(selectedToken.chain, hash)
+        : null;
+      const body = needsBridge
+        ? 'Bridge submitted. Your pUSD will appear after the route finishes settling.'
+        : 'Deposit confirmed. Your pUSD balance should update shortly.';
+
+      toast.success(
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-white">
+            {needsBridge ? 'Bridge submitted' : 'Deposit confirmed'}
+          </p>
+          <p className="text-xs leading-5 text-white/70">{body}</p>
+          {explorerUrl && (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex text-xs font-semibold text-[#3fe08f]"
+            >
+              View transaction
+            </a>
+          )}
+        </div>,
+        {
+          id: activeDepositToastId.current,
+          duration: 9000,
+        },
+      );
+      activeDepositToastId.current = undefined;
+    },
+    [needsBridge, selectedToken],
+  );
+
+  const updateDepositToastError = useCallback((message: string) => {
+    if (!activeDepositToastId.current) return;
+    toast.error(
+      <div className="space-y-1">
+        <p className="text-sm font-semibold text-white">
+          Deposit needs attention
+        </p>
+        <p className="text-xs leading-5 text-white/70">{message}</p>
+      </div>,
+      {
+        id: activeDepositToastId.current,
+        duration: 9000,
+      },
+    );
+    activeDepositToastId.current = undefined;
+  }, []);
+
   const filteredTokens = tokens.filter((t) => {
     const hasBalance = parseFloat(t.balance) > 0;
     const matchesChain =
@@ -446,13 +617,6 @@ function DepositTab({
       t.chain.toUpperCase() === 'POLYGON' &&
       t.address?.toLowerCase() === USDC_E_ADDRESS.toLowerCase(),
   );
-
-  const isDirectUsdcE =
-    selectedToken?.chain.toUpperCase() === 'POLYGON' &&
-    selectedToken?.address?.toLowerCase() ===
-      USDC_E_ADDRESS.toLowerCase();
-
-  const needsBridge = selectedToken && !isDirectUsdcE;
 
   useEffect(() => {
     if (isDirectUsdcE) return;
@@ -679,16 +843,30 @@ function DepositTab({
         amount,
         selectedToken!.decimals || 6,
       );
-      const currentAllowance = await sourcePublicClient.readContract({
-        address: fromTokenAddress as `0x${string}`,
-        abi: erc20Abi,
-        functionName: 'allowance',
-        args: [
-          sourceEvmAddress as `0x${string}`,
-          estimate.approvalAddress as `0x${string}`,
-        ],
-      });
-      if (currentAllowance < BigInt(fromAmount)) {
+      let currentAllowance: bigint | null = null;
+      try {
+        currentAllowance = await readWithRetry(() =>
+          sourcePublicClient.readContract({
+            address: fromTokenAddress as `0x${string}`,
+            abi: erc20Abi,
+            functionName: 'allowance',
+            args: [
+              sourceEvmAddress as `0x${string}`,
+              estimate.approvalAddress as `0x${string}`,
+            ],
+          }),
+        );
+      } catch (allowanceErr) {
+        console.warn(
+          '[Polymarket deposit] Token approval check failed; requesting approval.',
+          allowanceErr,
+        );
+      }
+
+      if (
+        currentAllowance === null ||
+        currentAllowance < BigInt(fromAmount)
+      ) {
         setDepositStatus('Requesting token approval...');
         const approveData = encodeFunctionData({
           abi: erc20Abi,
@@ -720,9 +898,14 @@ function DepositTab({
           approvalHash = r.hash;
         }
         setDepositStatus('Waiting for approval confirmation...');
-        await sourcePublicClient.waitForTransactionReceipt({
-          hash: approvalHash as `0x${string}`,
-        });
+        await readWithRetry(
+          () =>
+            sourcePublicClient.waitForTransactionReceipt({
+              hash: approvalHash as `0x${string}`,
+            }),
+          2,
+          1000,
+        );
       }
     }
     setDepositStatus('Waiting for transaction approval...');
@@ -761,6 +944,7 @@ function DepositTab({
       hash = r.hash;
     }
     setDepositStatus('Waiting for confirmation...');
+    showDepositProcessingToast(hash);
     try {
       await sourcePublicClient.waitForTransactionReceipt({
         hash: hash as `0x${string}`,
@@ -924,6 +1108,7 @@ function DepositTab({
       }
     }
     setDepositStatus('Waiting for confirmation...');
+    showDepositProcessingToast(signatureString);
     await new Promise((r) => setTimeout(r, 2000));
     try {
       await connection.confirmTransaction(
@@ -945,6 +1130,8 @@ function DepositTab({
       return;
     }
     isTransactionInProgress.current = true;
+    depositHandedOffToToast.current = false;
+    activeDepositToastId.current = undefined;
     setStep('processing');
     setError(null);
     setDepositStatus('Initiating deposit...');
@@ -960,15 +1147,28 @@ function DepositTab({
       }
       setTxHash(hash);
       setDepositStatus('Waiting for confirmation...');
+      showDepositProcessingToast(hash);
       if (
         selectedToken.chain.toUpperCase() !== 'SOLANA' &&
         isDirectUsdcE
-      )
-        await publicClient.waitForTransactionReceipt({
-          hash: hash as `0x${string}`,
-        });
+      ) {
+        try {
+          await publicClient.waitForTransactionReceipt({
+            hash: hash as `0x${string}`,
+          });
+        } catch (receiptErr) {
+          console.warn(
+            '[Polymarket deposit] Direct deposit receipt wait failed after tx submission.',
+            receiptErr,
+          );
+        }
+      }
       isTransactionInProgress.current = false;
-      setStep('success');
+      if (depositHandedOffToToast.current) {
+        updateDepositToastSuccess(hash);
+      } else {
+        setStep('success');
+      }
       queryClient.invalidateQueries({ queryKey: ['pusdBalance'] });
       queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] });
       queryClient.invalidateQueries({ queryKey: ['polymarket-positions'] });
@@ -979,18 +1179,15 @@ function DepositTab({
       }, 3000);
     } catch (err: any) {
       isTransactionInProgress.current = false;
-      setError(formatPolymarketError(err));
-      setStep('error');
+      const formattedError = formatPolymarketError(err);
+      if (depositHandedOffToToast.current) {
+        updateDepositToastError(formattedError);
+      } else {
+        setError(formattedError);
+        setStep('error');
+      }
     }
   };
-
-  const getExplorerUrl = (chain: string, hash: string) =>
-    ({
-      SOLANA: `https://solscan.io/tx/${hash}`,
-      ETHEREUM: `https://etherscan.io/tx/${hash}`,
-      POLYGON: `https://polygonscan.com/tx/${hash}`,
-      BASE: `https://basescan.org/tx/${hash}`,
-    })[chain.toUpperCase()] || `https://polygonscan.com/tx/${hash}`;
 
   // Render helpers
   if (step === 'processing')
@@ -1007,7 +1204,7 @@ function DepositTab({
         </p>
         {txHash && selectedToken && (
           <a
-            href={getExplorerUrl(selectedToken.chain, txHash)}
+            href={getDepositExplorerUrl(selectedToken.chain, txHash)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-blue-600 mt-4"
@@ -1034,7 +1231,7 @@ function DepositTab({
         </p>
         {txHash && selectedToken && (
           <a
-            href={getExplorerUrl(selectedToken.chain, txHash)}
+            href={getDepositExplorerUrl(selectedToken.chain, txHash)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-blue-600 mb-4"
