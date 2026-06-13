@@ -35,13 +35,7 @@ interface Participant {
   role?: string;
   permissions?: string[];
   joinedAt?: string;
-  permissions?: string[];
 }
-
-type RawParticipant = Omit<Participant, 'participantUser'> & {
-  userId: User;
-  participantUser?: User;
-};
 
 interface GroupSettings {
   groupInfo?: {
@@ -49,14 +43,6 @@ interface GroupSettings {
     description?: string;
   };
   isPublic?: boolean;
-  tokenGate?: {
-    enabled?: boolean;
-    tokenType?: 'NFT' | 'Token';
-    selectedToken?: string | null;
-    selectedTokenName?: string | null;
-    selectedTokenSymbol?: string | null;
-    network?: 'SOLANA';
-  };
 }
 
 interface Group {
@@ -95,7 +81,6 @@ type ModalType =
   | null
   | 'addMember'
   | 'removeMember'
-  | 'manageAdmins'
   | 'editGroup'
   | 'deleteGroup'
   | 'leaveGroup';
@@ -143,6 +128,17 @@ const WARNING_BUTTON_CLASS =
   'dm-btn inline-flex h-10 items-center justify-center gap-2 rounded-[11px] bg-[#f59e0b] px-4 text-[13px] font-bold text-[#1a1203] hover:bg-[#fbbf24] disabled:cursor-not-allowed disabled:opacity-50';
 const ROW_CLASS =
   'flex items-center justify-between gap-3 rounded-[12px] border border-white/[0.07] bg-black/20 p-3';
+const PROTECTED_AGENT_GROUP_NAMES = new Set(
+  ['Astro Trading Desk', 'Goldman Sacks'].map((name) => name.toLowerCase())
+);
+
+function isProtectedAgentGroup(group: Group) {
+  return PROTECTED_AGENT_GROUP_NAMES.has(
+    String(group.name || '')
+      .trim()
+      .toLowerCase()
+  );
+}
 
 function ModalHeader({
   title,
@@ -211,16 +207,10 @@ export default function GroupMenu({
 }: GroupMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const isProtectedSystemGroup = isProtectedAgentGroup(group);
 
   const closeMenu = () => setIsOpen(false);
   const closeModal = () => setActiveModal(null);
-  const currentParticipant = group.participants?.find(
-    (participant) =>
-      getParticipantUser(participant)._id === currentUser,
-  );
-  const canManageGroup = isGroupAdmin(currentParticipant);
-  const canDeleteGroup =
-    canManageGroup || isGroupCreator(group, currentUser);
 
   const { canManageMembers, canEditInfo, canDelete } = useMemo(() => {
     const me = group.participants?.find(
@@ -282,16 +272,20 @@ export default function GroupMenu({
           },
         ]
       : []),
-    {
-      label: 'Leave Group',
-      icon: <LogOut className="h-4 w-4" />,
-      action: () => {
-        setActiveModal('leaveGroup');
-        closeMenu();
-      },
-      color: 'warning',
-    },
-    ...(canDelete
+    ...(isProtectedSystemGroup
+      ? []
+      : [
+          {
+            label: 'Leave Group',
+            icon: <LogOut className="h-4 w-4" />,
+            action: () => {
+              setActiveModal('leaveGroup');
+              closeMenu();
+            },
+            color: 'warning',
+          },
+        ]),
+    ...(!isProtectedSystemGroup && canDelete
       ? [
           {
             label: 'Delete Group',
@@ -365,21 +359,10 @@ export default function GroupMenu({
         />
       )}
 
-      {activeModal === 'manageAdmins' && (
-        <ManageAdminsModal
-          group={group}
-          socket={socket}
-          currentUser={currentUser}
-          onClose={closeModal}
-          onSuccess={onGroupUpdate}
-        />
-      )}
-
       {activeModal === 'editGroup' && (
         <EditGroupModal
           group={group}
           socket={socket}
-          currentUser={currentUser}
           onClose={closeModal}
           onSuccess={onGroupUpdate}
         />
@@ -625,7 +608,7 @@ function RemoveMemberModal({
       'remove_group_member',
       {
         groupId: group._id,
-        userIdToRemove: participantUser._id,
+        userIdToRemove: user._id,
       },
       (response: SocketResponse) => {
         if (response?.success) {
@@ -692,7 +675,7 @@ function RemoveMemberModal({
                         disabled={removingUserId === user._id}
                         className={DANGER_BUTTON_CLASS}
                       >
-                        {removingUserId === participantUser._id
+                        {removingUserId === user._id
                           ? 'Removing...'
                           : 'Remove'}
                       </button>
@@ -747,201 +730,19 @@ function RemoveMemberModal({
   );
 }
 
-// ==================== MANAGE ADMINS MODAL ====================
-
-function ManageAdminsModal({
-  group,
-  socket,
-  currentUser,
-  onClose,
-  onSuccess,
-}: {
-  group: Group;
-  socket: any;
-  currentUser: string;
-  onClose: () => void;
-  onSuccess?: (updatedGroup?: Group) => void;
-}) {
-  const [updatingUserId, setUpdatingUserId] = useState<string | null>(
-    null,
-  );
-
-  const participants = group.participants || [];
-  const adminCount = participants.filter(isGroupAdmin).length;
-
-  const handleRoleChange = (
-    participant: Participant,
-    nextRole: 'admin' | 'member',
-  ) => {
-    const participantUser = getParticipantUser(participant);
-    setUpdatingUserId(participantUser._id);
-
-    socket.emit(
-      'update_group_member_role',
-      {
-        groupId: group._id,
-        userIdToUpdate: participantUser._id,
-        role: nextRole,
-      },
-      (response: SocketResponse) => {
-        if (response.success) {
-          toast.success(
-            nextRole === 'admin'
-              ? `${participantUser.name} is now an admin`
-              : `${participantUser.name} is no longer an admin`,
-            { position: 'top-right' },
-          );
-          onSuccess?.();
-        } else {
-          toast.error(
-            `Failed to update ${participantUser.name}: ${response.error}`,
-            { position: 'top-right' },
-          );
-        }
-        setUpdatingUserId(null);
-      },
-    );
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Manage Admins</h3>
-            <button
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl"
-            >
-              ×
-            </button>
-          </div>
-          <p className="text-sm text-gray-600 mt-1">
-            {adminCount} admin{adminCount === 1 ? '' : 's'} in{' '}
-            {group.name}
-          </p>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          {participants.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No members found
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {participants.map((participant) => {
-                const participantUser =
-                  getParticipantUser(participant);
-                const isAdmin = isGroupAdmin(participant);
-                const isCreator = isGroupCreator(
-                  group,
-                  participantUser._id,
-                );
-                const isSelf = participantUser._id === currentUser;
-                const canDemote = isAdmin && !isCreator && !isSelf;
-
-                return (
-                  <div
-                    key={participantUser._id}
-                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {participantUser.profilePic ? (
-                        <Image
-                          src={
-                            isUrl(participantUser.profilePic)
-                              ? participantUser.profilePic
-                              : `/images/user_avator/${participantUser.profilePic}@3x.png`
-                          }
-                          alt={participantUser.name}
-                          width={40}
-                          height={40}
-                          className="rounded-full"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white font-semibold shrink-0">
-                          {participantUser.name
-                            ?.charAt(0)
-                            .toUpperCase()}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">
-                          {participantUser.name}
-                        </div>
-                        <div className="text-sm text-gray-500 truncate">
-                          {isCreator
-                            ? 'Creator'
-                            : isAdmin
-                              ? 'Admin'
-                              : participantUser.username ||
-                                participantUser.ens ||
-                                'Member'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {isAdmin ? (
-                      <button
-                        onClick={() =>
-                          handleRoleChange(participant, 'member')
-                        }
-                        disabled={
-                          !canDemote ||
-                          updatingUserId === participantUser._id
-                        }
-                        className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm"
-                      >
-                        {updatingUserId === participantUser._id
-                          ? 'Updating...'
-                          : isCreator
-                            ? 'Creator'
-                            : isSelf
-                              ? 'You'
-                              : 'Dismiss'}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() =>
-                          handleRoleChange(participant, 'admin')
-                        }
-                        disabled={
-                          updatingUserId === participantUser._id
-                        }
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-                      >
-                        {updatingUserId === participantUser._id
-                          ? 'Updating...'
-                          : 'Make Admin'}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ==================== EDIT GROUP MODAL ====================
 
 function EditGroupModal({
   group,
   socket,
-  currentUser,
   onClose,
   onSuccess,
 }: {
   group: Group;
   socket: any;
-  currentUser: string;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (updatedGroup?: Group) => void;
 }) {
-  const tokenGate = group.settings?.tokenGate;
   const [groupName, setGroupName] = useState(group.name || '');
   const [groupDescription, setGroupDescription] = useState(
     group.description || '',
@@ -952,98 +753,8 @@ function EditGroupModal({
   );
   const [isSaving, setIsSaving] = useState(false);
   const [isRemovingPhoto, setIsRemovingPhoto] = useState(false);
-  const [showManageAdmins, setShowManageAdmins] = useState(false);
-  const [tokenGated, setTokenGated] = useState(
-    Boolean(tokenGate?.enabled),
-  );
-  const [tokenType, setTokenType] = useState<'NFT' | 'Token'>(
-    tokenGate?.tokenType || 'NFT',
-  );
-  const [selectedToken, setSelectedToken] = useState(
-    tokenGate?.selectedToken || '',
-  );
 
-  const { accessToken, user } = useUser();
-  const solanaWalletAddress =
-    user?.solanaAddress || user?.solanaWallet || '';
-
-  const {
-    tokens: walletTokens,
-    loading: tokensLoading,
-    error: tokensError,
-  } = useMultiChainTokenData(
-    solanaWalletAddress || undefined,
-    undefined,
-    ['SOLANA'],
-  );
-
-  const {
-    nfts: walletNfts,
-    loading: nftsLoading,
-    error: nftsError,
-  } = useNFT(solanaWalletAddress || undefined, undefined, ['SOLANA']);
-
-  const tokenOptions = useMemo(() => {
-    const options =
-      tokenType === 'NFT'
-        ? walletNfts.map((nft) => ({
-            value: nft.contract,
-            label: nft.name || nft.symbol || nft.contract,
-            symbol: nft.symbol,
-            image: nft.image,
-          }))
-        : walletTokens
-            .filter((token) => {
-              const balance = Number(token.balance || 0);
-              return Number.isFinite(balance) && balance > 0;
-            })
-            .map((token) => ({
-              value: token.address || token.symbol,
-              label:
-                token.name ||
-                token.symbol ||
-                token.address ||
-                'Token',
-              symbol: token.symbol,
-              image: token.logoURI || token.marketData?.image,
-            }));
-
-    if (
-      tokenGate?.selectedToken &&
-      (tokenGate.tokenType || 'NFT') === tokenType &&
-      !options.some(
-        (option) => option.value === tokenGate.selectedToken,
-      )
-    ) {
-      return [
-        {
-          value: tokenGate.selectedToken,
-          label:
-            tokenGate.selectedTokenName ||
-            tokenGate.selectedTokenSymbol ||
-            tokenGate.selectedToken,
-          symbol: tokenGate.selectedTokenSymbol || undefined,
-          image: undefined,
-        },
-        ...options,
-      ];
-    }
-
-    return options;
-  }, [tokenType, walletNfts, walletTokens, tokenGate]);
-
-  const selectedGateAsset = tokenOptions.find(
-    (option) => option.value === selectedToken,
-  );
-
-  useEffect(() => {
-    if (
-      selectedToken &&
-      !tokenOptions.some((option) => option.value === selectedToken)
-    ) {
-      setSelectedToken('');
-    }
-  }, [selectedToken, tokenOptions]);
+  const { accessToken } = useUser();
 
   const handlePhotoChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -1110,16 +821,6 @@ function EditGroupModal({
       return;
     }
 
-    if (tokenGated && !selectedToken) {
-      toast.error(
-        `Select a ${tokenType.toLowerCase()} for token gate`,
-        {
-          position: 'top-right',
-        },
-      );
-      return;
-    }
-
     setIsSaving(true);
 
     try {
@@ -1183,60 +884,6 @@ function EditGroupModal({
         if (!data.success) {
           throw new Error(data.message || 'Failed to upload photo');
         }
-        hasChanges = true;
-      }
-
-      const nextTokenGate = {
-        enabled: tokenGated,
-        tokenType,
-        selectedToken: tokenGated ? selectedToken : null,
-        selectedTokenName:
-          tokenGated && selectedGateAsset
-            ? selectedGateAsset.label
-            : null,
-        selectedTokenSymbol:
-          tokenGated && selectedGateAsset
-            ? selectedGateAsset.symbol || null
-            : null,
-        network: 'SOLANA' as const,
-      };
-
-      const currentTokenGate = {
-        enabled: Boolean(tokenGate?.enabled),
-        tokenType: tokenGate?.tokenType || 'NFT',
-        selectedToken: tokenGate?.selectedToken || null,
-        selectedTokenName: tokenGate?.selectedTokenName || null,
-        selectedTokenSymbol: tokenGate?.selectedTokenSymbol || null,
-        network: tokenGate?.network || 'SOLANA',
-      };
-
-      if (
-        JSON.stringify(nextTokenGate) !==
-        JSON.stringify(currentTokenGate)
-      ) {
-        await new Promise<void>((resolve, reject) => {
-          socket.emit(
-            'update_group_settings',
-            {
-              groupId: group._id,
-              settings: {
-                tokenGate: nextTokenGate,
-              },
-            },
-            (response: SocketResponse) => {
-              if (response?.success) {
-                resolve();
-              } else {
-                reject(
-                  new Error(
-                    response?.error ||
-                      'Failed to update token gate settings',
-                  ),
-                );
-              }
-            },
-          );
-        });
         hasChanges = true;
       }
 
@@ -1353,187 +1000,6 @@ function EditGroupModal({
               className="w-full resize-none rounded-[12px] border border-white/[0.07] bg-black/30 px-3.5 py-2.5 text-[14px] font-semibold text-[#eceef2] outline-none placeholder:text-[#5a5e69] focus:border-[#3fe08f]/60 focus:ring-2 focus:ring-[#3fe08f]/15"
             />
           </div>
-
-          {/* Token Gate */}
-          <div className="rounded-lg border border-gray-200 p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900">
-                  Token Gated
-                </h4>
-                <p className="mt-1 text-xs text-gray-500">
-                  Require a Solana token or NFT before the chat loads.
-                </p>
-              </div>
-              <div className="inline-flex w-36 shrink-0 rounded-full bg-gray-100 p-1 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setTokenGated(true)}
-                  className={`flex-1 rounded-full px-3 py-2 text-sm transition-colors ${
-                    tokenGated
-                      ? 'bg-white text-gray-900 shadow'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  On
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTokenGated(false)}
-                  className={`flex-1 rounded-full px-3 py-2 text-sm transition-colors ${
-                    !tokenGated
-                      ? 'bg-white text-gray-900 shadow'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Off
-                </button>
-              </div>
-            </div>
-
-            {tokenGated && (
-              <div className="mt-4 space-y-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Token Type
-                  </label>
-                  <div className="inline-flex w-44 rounded-full bg-gray-100 p-1 shadow-sm">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTokenType('NFT');
-                        setSelectedToken('');
-                      }}
-                      className={`flex-1 rounded-full px-4 py-2 text-sm transition-colors ${
-                        tokenType === 'NFT'
-                          ? 'bg-white text-gray-900 shadow'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      NFT
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTokenType('Token');
-                        setSelectedToken('');
-                      }}
-                      className={`flex-1 rounded-full px-4 py-2 text-sm transition-colors ${
-                        tokenType === 'Token'
-                          ? 'bg-white text-gray-900 shadow'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      Token
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Select {tokenType}
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedToken}
-                      onChange={(event) =>
-                        setSelectedToken(event.target.value)
-                      }
-                      disabled={
-                        !solanaWalletAddress ||
-                        tokensLoading ||
-                        nftsLoading ||
-                        tokenOptions.length === 0
-                      }
-                      className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-3 pr-10 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-                    >
-                      <option value="">
-                        {!solanaWalletAddress
-                          ? 'Connect a Solana wallet first'
-                          : tokenType === 'NFT' && nftsLoading
-                            ? 'Loading NFTs...'
-                            : tokenType === 'Token' && tokensLoading
-                              ? 'Loading tokens...'
-                              : tokenOptions.length === 0
-                                ? `No Solana ${
-                                    tokenType === 'NFT'
-                                      ? 'NFTs'
-                                      : 'tokens'
-                                  } found`
-                                : `Select a ${tokenType.toLowerCase()}...`}
-                      </option>
-                      {tokenOptions.map((asset) => (
-                        <option key={asset.value} value={asset.value}>
-                          {asset.symbol
-                            ? `${asset.label} (${asset.symbol})`
-                            : asset.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={18}
-                      className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-700"
-                    />
-                  </div>
-
-                  {(tokensError || nftsError) && (
-                    <p className="mt-2 text-xs text-red-500">
-                      Failed to load wallet assets. Please try again.
-                    </p>
-                  )}
-
-                  {selectedGateAsset && (
-                    <div className="mt-3 flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-                      {selectedGateAsset.image ? (
-                        <Image
-                          src={selectedGateAsset.image}
-                          alt={selectedGateAsset.label}
-                          width={32}
-                          height={32}
-                          className="h-8 w-8 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black text-xs text-white">
-                          {selectedGateAsset.label
-                            .charAt(0)
-                            .toUpperCase()}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-gray-900">
-                          {selectedGateAsset.label}
-                        </div>
-                        <div className="truncate text-xs text-gray-500">
-                          {selectedGateAsset.value}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Admin Management */}
-          <div className="rounded-lg border border-gray-200 p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900">
-                  Admins
-                </h4>
-                <p className="mt-1 text-xs text-gray-500">
-                  Promote members or dismiss existing admins.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowManageAdmins(true)}
-                className="shrink-0 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800"
-              >
-                Manage
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
@@ -1555,16 +1021,6 @@ function EditGroupModal({
           </button>
         </div>
       </div>
-
-      {showManageAdmins && (
-        <ManageAdminsModal
-          group={group}
-          socket={socket}
-          currentUser={currentUser}
-          onClose={() => setShowManageAdmins(false)}
-          onSuccess={onSuccess}
-        />
-      )}
     </div>
   );
 }

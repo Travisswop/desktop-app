@@ -1,6 +1,11 @@
 // app/components/Sidebar.js
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import {
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import GroupModal from './GroupModal';
 import isUrl from '@/lib/isUrl';
@@ -18,6 +23,7 @@ import {
   PanelLeftOpen,
   Plus,
   Search,
+  Trash2,
   Users,
   X,
 } from 'lucide-react';
@@ -31,6 +37,10 @@ interface SidebarProps {
     chat: any,
     type: 'private' | 'group'
   ) => void;
+  onDeleteChat?: (
+    chat: any,
+    type: 'private' | 'group'
+  ) => void | Promise<void>;
   currentUser: string;
   socket: any;
   isCollapsed?: boolean;
@@ -45,6 +55,14 @@ interface SidebarProps {
 }
 
 type ThreadSelectionType = 'private' | 'group';
+
+type ThreadContextMenuState = {
+  x: number;
+  y: number;
+  item: any;
+  type: ThreadSelectionType;
+  protectedReason?: string;
+};
 
 type AgentQuickPinConfig = {
   agentId: string;
@@ -114,6 +132,7 @@ export default function Sidebar({
   selectedChat,
   chatType,
   onSelectChat,
+  onDeleteChat,
   currentUser,
   socket,
   isCollapsed = false,
@@ -128,6 +147,8 @@ export default function Sidebar({
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [contextMenu, setContextMenu] =
+    useState<ThreadContextMenuState | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const allItems = [
@@ -190,6 +211,7 @@ export default function Sidebar({
     onSelectChat(normalizeDirectChat(user), 'private');
     setSearchQuery('');
     setShowSearchResults(false);
+    setContextMenu(null);
   };
 
   const handleToggleCollapsed = () => {
@@ -197,6 +219,7 @@ export default function Sidebar({
       setSearchQuery('');
       setShowSearchResults(false);
       setSearchResults([]);
+      setContextMenu(null);
     }
     onToggleCollapsed?.();
   };
@@ -205,6 +228,69 @@ export default function Sidebar({
     if (!selectedChat) return false;
     return chatType === type && selectedChat._id === item._id;
   };
+
+  const handleThreadContextMenu = (
+    event: ReactMouseEvent,
+    item: any,
+    type: ThreadSelectionType
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const isProtected = isProtectedAgentThread(item);
+    const x =
+      typeof window === 'undefined'
+        ? event.clientX
+        : Math.min(event.clientX, window.innerWidth - 208);
+    const y =
+      typeof window === 'undefined'
+        ? event.clientY
+        : Math.min(event.clientY, window.innerHeight - 72);
+
+    setContextMenu({
+      x: Math.max(8, x),
+      y: Math.max(8, y),
+      item,
+      type,
+      protectedReason: isProtected
+        ? `${getDisplayInfo(item, currentUser).name} cannot be deleted`
+        : undefined,
+    });
+  };
+
+  const handleContextDelete = () => {
+    if (!contextMenu || contextMenu.protectedReason || !onDeleteChat) return;
+
+    const info = getDisplayInfo(contextMenu.item, currentUser);
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(`Delete ${info.name}?`);
+
+    if (!confirmed) return;
+
+    const { item, type } = contextMenu;
+    setContextMenu(null);
+    void onDeleteChat(item, type);
+  };
+
+  useEffect(() => {
+    if (!contextMenu) return undefined;
+
+    const close = () => setContextMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [contextMenu]);
 
   return (
     <aside
@@ -253,6 +339,9 @@ export default function Sidebar({
                     item={item}
                     isSelected={isSelected(item, type)}
                     onClick={() => onSelectChat(item, type)}
+                    onContextMenu={(event) =>
+                      handleThreadContextMenu(event, item, type)
+                    }
                     currentUser={currentUser}
                   />
                 );
@@ -322,11 +411,13 @@ export default function Sidebar({
                     }
                     isSelected={Boolean(thread) && isSelected(thread, type)}
                     onClick={() => {
-                      if (thread) {
-                        onSelectChat(thread, type);
+                      if (onOpenAgentThread) {
+                        void onOpenAgentThread(config.agentId);
                         return;
                       }
-                      void onOpenAgentThread?.(config.agentId);
+                      if (thread) {
+                        onSelectChat(thread, type);
+                      }
                     }}
                     onCommand={(agentId, seed) => {
                       if (onOpenAgentCommand) {
@@ -425,6 +516,9 @@ export default function Sidebar({
                         item={item}
                         isSelected={isSelected(item, type)}
                         onClick={() => onSelectChat(item, type)}
+                        onContextMenu={(event) =>
+                          handleThreadContextMenu(event, item, type)
+                        }
                         currentUser={currentUser}
                       />
                     );
@@ -437,6 +531,30 @@ export default function Sidebar({
             </div>
           </div>
         </>
+      )}
+
+      {contextMenu && (
+        <div
+          className="fixed z-[80] min-w-[196px] overflow-hidden rounded-[12px] border border-white/[0.08] bg-[#111318] py-1 shadow-[0_18px_50px_rgba(0,0,0,0.6)] max-md:border-[#e6e5df] max-md:bg-white"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {contextMenu.protectedReason ? (
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.5px] font-semibold text-[#5a5e69] max-md:text-[#77746f]">
+              <LockKeyhole className="h-4 w-4" />
+              <span>{contextMenu.protectedReason}</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleContextDelete}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-semibold text-[#ff8589] hover:bg-[#e5484d]/10 max-md:text-[#c1272d]"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete chat
+            </button>
+          )}
+        </div>
       )}
 
       {showGroupModal && (
@@ -550,12 +668,18 @@ function isAgentThread(item: any, agentId: string) {
       ?.fallbackThreadName.toLowerCase() || '';
   return (
     item?.type === 'group' &&
-    ((fallbackName && name === fallbackName) ||
-      item?.botUsers?.some(
-        (agent: any) =>
-          String(agent?.agentId || '').toLowerCase() === agentId &&
-          agent?.isActive !== false
-      ))
+    Boolean(fallbackName) &&
+    name === fallbackName
+  );
+}
+
+function isProtectedAgentThread(item: any) {
+  if (item?.type !== 'group') return false;
+  const name = String(item?.name || item?.displayName || '')
+    .trim()
+    .toLowerCase();
+  return DEFAULT_AGENT_PINS.some(
+    (pin) => pin.fallbackThreadName.toLowerCase() === name
   );
 }
 
@@ -630,11 +754,13 @@ function ConversationItem({
   item,
   isSelected,
   onClick,
+  onContextMenu,
   currentUser,
 }: {
   item: any;
   isSelected: boolean;
   onClick: () => void;
+  onContextMenu?: (event: ReactMouseEvent) => void;
   currentUser: string;
 }) {
   const isGroup = item.type === 'group';
@@ -644,6 +770,7 @@ function ConversationItem({
     <button
       type="button"
       onClick={onClick}
+      onContextMenu={onContextMenu}
       className={`dm-row relative mt-1 flex w-full items-start gap-[11px] rounded-[12px] px-3 py-[11px] text-left max-md:mt-0 max-md:rounded-none max-md:border-b max-md:border-[#e6e5df] max-md:bg-white max-md:px-[14px] max-md:py-3 ${
         isSelected
           ? 'bg-[#1b1e25] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)] max-md:bg-[#fafafa]'
@@ -726,11 +853,13 @@ function CollapsedConversationItem({
   item,
   isSelected,
   onClick,
+  onContextMenu,
   currentUser,
 }: {
   item: any;
   isSelected: boolean;
   onClick: () => void;
+  onContextMenu?: (event: ReactMouseEvent) => void;
   currentUser: string;
 }) {
   const isGroup = item.type === 'group';
@@ -743,6 +872,7 @@ function CollapsedConversationItem({
       title={info.name}
       aria-label={`Open ${info.name}`}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       className={`dm-row relative grid h-[52px] w-full place-items-center rounded-[12px] ${
         isSelected
           ? 'bg-[#1b1e25] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]'

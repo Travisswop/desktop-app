@@ -2,12 +2,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
+import toast from 'react-hot-toast';
 import Sidebar from './Sidebar';
 import ChatArea from './ChatArea';
-import toast from 'react-hot-toast';
-import { useUser } from '@/lib/UserContext';
-import { useMultiChainTokenData } from '@/lib/hooks/useToken';
-import { useNFT } from '@/lib/hooks/useNFT';
 
 interface InitialDirectRecipient {
   userId?: string | null;
@@ -244,25 +241,35 @@ function createDirectChatFromRecipient(recipient: InitialDirectRecipient) {
   );
 }
 
-function hasActiveAgent(group: any, agentId: AgentThreadId) {
+function normalizeGroupName(value?: string | null) {
+  return String(value || '')
+    .trim()
+    .toLowerCase();
+}
+
+function isDedicatedAgentThreadGroup(group: any, agentId: AgentThreadId) {
   return (
-    group?.botUsers?.some(
-      (agent: any) => agent.agentId === agentId && agent.isActive !== false
-    ) || false
+    normalizeGroupName(group?.name) ===
+    normalizeGroupName(AGENT_THREAD_CONFIGS[agentId].groupName)
   );
 }
 
 function findAgentThreadGroup(groups: any[], agentId: AgentThreadId) {
-  const config = AGENT_THREAD_CONFIGS[agentId];
   return (
-    groups.find((item: any) => hasActiveAgent(item, agentId)) ||
-    groups.find((item: any) => item.name === config.groupName) ||
-    null
+    groups.find((item: any) =>
+      isDedicatedAgentThreadGroup(item, agentId)
+    ) || null
   );
 }
 
 function findSecureAstroGroup(groups: any[]) {
   return findAgentThreadGroup(groups, 'astro');
+}
+
+function isProtectedAgentThreadGroup(group: any) {
+  return (Object.keys(AGENT_THREAD_CONFIGS) as AgentThreadId[]).some(
+    (agentId) => isDedicatedAgentThreadGroup(group, agentId)
+  );
 }
 
 export default function ChatContainer({
@@ -470,28 +477,10 @@ export default function ChatContainer({
       }
     };
 
-    const handleGroupSettingsUpdated = (data: any) => {
-      console.log('Group settings updated:', data);
-      loadInitialData();
-
-      if (data?.groupId === selectedChat?._id) {
-        refreshSelectedChat();
-      }
-    };
-
     const handleGroupParticipantsUpdated = (data: any) => {
       loadInitialData();
 
       // Update selected chat if it's the same group
-      if (data?.groupId === selectedChat?._id) {
-        refreshSelectedChat();
-      }
-    };
-
-    const handleGroupMemberRoleUpdated = (data: any) => {
-      console.log('Group member role updated:', data);
-      loadInitialData();
-
       if (data?.groupId === selectedChat?._id) {
         refreshSelectedChat();
       }
@@ -540,6 +529,7 @@ export default function ChatContainer({
 
     // Register all event listeners (V2 events for direct chats, old events for groups)
     socket.on(EVENTS.CONVERSATION_UPDATED, handleConversationUpdate);
+    socket.on('conversation_deleted', handleConversationUpdate);
     socket.on(EVENTS.NEW_MESSAGE, handleNewMessage);
     socket.on(EVENTS.UNREAD_COUNT_UPDATED, handleUnreadCountUpdated);
 
@@ -547,12 +537,10 @@ export default function ChatContainer({
     socket.on('group_updated', handleGroupUpdate);
     socket.on('new_group_message', handleNewGroupMessage);
     socket.on('group_info_updated', handleGroupInfoUpdated);
-    socket.on('group_settings_updated', handleGroupSettingsUpdated);
     socket.on(
       'group_participants_updated',
       handleGroupParticipantsUpdated
     );
-    socket.on('group_member_role_updated', handleGroupMemberRoleUpdated);
     socket.on('group_member_added', handleGroupMemberAdded);
     socket.on('group_member_removed', handleGroupMemberRemoved);
     socket.on('group_deleted', handleGroupDeleted);
@@ -567,6 +555,7 @@ export default function ChatContainer({
         EVENTS.CONVERSATION_UPDATED,
         handleConversationUpdate
       );
+      socket.off('conversation_deleted', handleConversationUpdate);
       socket.off(EVENTS.NEW_MESSAGE, handleNewMessage);
       socket.off(
         EVENTS.UNREAD_COUNT_UPDATED,
@@ -577,14 +566,9 @@ export default function ChatContainer({
       socket.off('group_updated', handleGroupUpdate);
       socket.off('new_group_message', handleNewGroupMessage);
       socket.off('group_info_updated', handleGroupInfoUpdated);
-      socket.off('group_settings_updated', handleGroupSettingsUpdated);
       socket.off(
         'group_participants_updated',
         handleGroupParticipantsUpdated
-      );
-      socket.off(
-        'group_member_role_updated',
-        handleGroupMemberRoleUpdated
       );
       socket.off('group_member_added', handleGroupMemberAdded);
       socket.off('group_member_removed', handleGroupMemberRemoved);
@@ -709,26 +693,101 @@ export default function ChatContainer({
     chat: any,
     type: 'private' | 'group'
   ) => {
-    if (type === 'group' && chat?.settings?.tokenGate?.enabled) {
-      if (!solanaWalletAddress) {
-        toast.error('Connect a Solana wallet to join this chat.');
-        return;
-      }
-
-      if (tokensLoading || nftsLoading) {
-        toast('Checking your wallet assets...');
-        return;
-      }
-
-      if (!userHasGateAsset(chat)) {
-        toast.error(getTokenGateMessage(chat));
-        return;
-      }
-    }
-
     setSelectedChat(chat);
     setChatType(type);
   };
+
+  const emitSocketAck = useCallback(
+    (event: string, payload: any) =>
+      new Promise<any>((resolve, reject) => {
+        if (!socket) {
+          reject(new Error('Socket is not connected.'));
+          return;
+        }
+
+        socket.emit(event, payload, (response: any) => {
+          if (response?.success) {
+            resolve(response);
+            return;
+          }
+
+          const rawError = response?.error;
+          reject(
+            new Error(
+              typeof rawError === 'string'
+                ? rawError
+                : rawError?.message || `Socket event ${event} failed`
+            )
+          );
+        });
+      }),
+    [socket]
+  );
+
+  const deleteChat = useCallback(
+    async (chat: any, type: 'private' | 'group') => {
+      if (!chat) return;
+
+      try {
+        if (type === 'private') {
+          const receiverId = getDirectUserId(chat);
+          if (!receiverId) {
+            throw new Error('Could not identify this conversation.');
+          }
+
+          await emitSocketAck('delete_conversation', { receiverId });
+          setConversations((prev) =>
+            prev.filter(
+              (conversation: any) =>
+                getDirectUserId(conversation) !== receiverId
+            )
+          );
+
+          if (
+            chatType === 'private' &&
+            getDirectUserId(selectedChat) === receiverId
+          ) {
+            setSelectedChat(null);
+            setChatType(null);
+          }
+
+          toast.success('Chat deleted');
+          loadInitialData();
+          return;
+        }
+
+        if (isProtectedAgentThreadGroup(chat)) {
+          toast.error(`${chat.name || 'This chat'} cannot be deleted`);
+          return;
+        }
+
+        const response = await emitSocketAck('delete_group_chat', {
+          groupId: chat._id,
+        });
+        setGroups((prev) =>
+          prev.filter((group: any) => group._id !== chat._id)
+        );
+
+        if (chatType === 'group' && selectedChat?._id === chat._id) {
+          setSelectedChat(null);
+          setChatType(null);
+        }
+
+        toast.success(
+          response?.deletedForEveryone
+            ? 'Group deleted'
+            : 'Chat deleted'
+        );
+        loadInitialData();
+      } catch (error) {
+        console.error('Failed to delete chat', error);
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to delete chat'
+        );
+      }
+    },
+    [chatType, emitSocketAck, loadInitialData, selectedChat]
+  );
 
   const openAgentThread = useCallback(
     async (agentId: AgentThreadId, initialMessage?: string) => {
@@ -846,16 +905,7 @@ export default function ChatContainer({
       if (!isKnownAgentThreadId(agentId)) return;
 
       try {
-        const group = findAgentThreadGroup(groups, agentId);
-
-        if (group) {
-          setSelectedChat(group);
-          setChatType('group');
-          socket?.emit('join_group', { groupId: group._id });
-        } else {
-          await openAgentThread(agentId);
-        }
-
+        await openAgentThread(agentId);
         setAstroComposerSeed({
           command: commandSeed,
           nonce: Date.now(),
@@ -864,7 +914,7 @@ export default function ChatContainer({
         console.error('Failed to open agent command composer', error);
       }
     },
-    [groups, openAgentThread, socket]
+    [openAgentThread]
   );
 
   const openAstroComposerCommand = useCallback(
@@ -999,6 +1049,7 @@ export default function ChatContainer({
             selectedChat={selectedChat}
             chatType={chatType}
             onSelectChat={handleSelectChat}
+            onDeleteChat={deleteChat}
             currentUser={currentUser}
             socket={socket}
             isCollapsed={isThreadListCollapsed}
