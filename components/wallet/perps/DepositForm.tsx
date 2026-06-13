@@ -118,7 +118,7 @@ const ARBITRUM_CHAIN_ID = String(HL_DEPOSIT_CONFIG.chainId);
 const ARBITRUM_USDC_ADDRESS = HL_DEPOSIT_CONFIG.usdcAddress;
 const USDC_DECIMALS = 6;
 const QUOTE_DEBOUNCE_MS = 550;
-const USDC_SETTLE_TIMEOUT_MS = 8 * 60 * 1000;
+const USDC_SETTLE_TIMEOUT_MS = 30 * 60 * 1000;
 const USDC_SETTLE_POLL_MS = 5_000;
 const USDC_SETTLE_TOLERANCE = 0.005;
 
@@ -965,12 +965,18 @@ export function DepositForm({
         const current = parseBalance(currentRaw);
         setUsdcBalance(currentRaw);
         if (current >= target) return currentRaw;
-        setDepositStatus('Waiting for Arbitrum USDC to arrive...');
+        const elapsedMinutes = Math.max(
+          1,
+          Math.ceil((Date.now() - startedAt) / 60_000),
+        );
+        setDepositStatus(
+          `Waiting for Arbitrum USDC to arrive... ${elapsedMinutes}m elapsed`,
+        );
         await sleep(USDC_SETTLE_POLL_MS);
       }
 
       throw new Error(
-        'USDC is still arriving on Arbitrum. Open deposit again once it lands to finish funding Hyperliquid.',
+        'USDC is still arriving on Arbitrum. Keep this deposit open so Swop can finish funding Hyperliquid as soon as it lands.',
       );
     },
     [fetchArbitrumUsdcBalance, masterAddress],
