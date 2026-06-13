@@ -62,65 +62,6 @@ export default function GroupModal({
   const [isCreating, setIsCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const { user } = useUser();
-  const solanaWalletAddress =
-    user?.solanaAddress || user?.solanaWallet || '';
-
-  const {
-    tokens: walletTokens,
-    loading: tokensLoading,
-    error: tokensError,
-  } = useMultiChainTokenData(
-    solanaWalletAddress || undefined,
-    undefined,
-    ['SOLANA']
-  );
-
-  const {
-    nfts: walletNfts,
-    loading: nftsLoading,
-    error: nftsError,
-  } = useNFT(solanaWalletAddress || undefined, undefined, ['SOLANA']);
-
-  const tokenOptions = useMemo(() => {
-    if (tokenType === 'NFT') {
-      return walletNfts.map((nft) => ({
-        value: nft.contract,
-        label: nft.name || nft.symbol || nft.contract,
-        symbol: nft.symbol,
-        image: nft.image,
-      }));
-    }
-
-    return walletTokens
-      .filter((token) => {
-        const balance = Number(token.balance || 0);
-        return Number.isFinite(balance) && balance > 0;
-      })
-      .map((token) => ({
-        value: token.address || token.symbol,
-        label: token.name || token.symbol || token.address || 'Token',
-        symbol: token.symbol,
-        image: token.logoURI || token.marketData?.image,
-      }));
-  }, [tokenType, walletNfts, walletTokens]);
-
-  const selectedGateAsset = tokenOptions.find(
-    (option) => option.value === selectedToken
-  );
-
-  useEffect(() => {
-    setSelectedToken('');
-  }, [tokenType, solanaWalletAddress]);
-
-  useEffect(() => {
-    if (
-      selectedToken &&
-      !tokenOptions.some((option) => option.value === selectedToken)
-    ) {
-      setSelectedToken('');
-    }
-  }, [selectedToken, tokenOptions]);
 
   const canCreateGroup = useMemo(
     () =>
@@ -227,17 +168,6 @@ export default function GroupModal({
   const handleRemoveMember = (userId: string) => {
     setSelectedMembers((members) =>
       members.filter((member) => getUserId(member) !== userId)
-    );
-    setSelectedAdminIds((adminIds) =>
-      adminIds.filter((adminId) => adminId !== userId)
-    );
-  };
-
-  const handleToggleAdmin = (userId: string) => {
-    setSelectedAdminIds((adminIds) =>
-      adminIds.includes(userId)
-        ? adminIds.filter((adminId) => adminId !== userId)
-        : [...adminIds, userId]
     );
   };
 
