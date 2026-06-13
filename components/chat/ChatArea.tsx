@@ -185,6 +185,7 @@ import {
   useTrading,
 } from '@/providers/polymarket';
 import {
+  getPortfolioEvmWalletInput,
   useWalletAddresses,
   useWalletData,
 } from '@/components/wallet/hooks/useWalletData';
@@ -2986,6 +2987,17 @@ export default function ChatArea({
   );
   const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
+  const portfolioEvmWalletInput = useMemo(
+    () => getPortfolioEvmWalletInput(evmWalletAddress, evmWalletAddresses),
+    [evmWalletAddress, evmWalletAddresses]
+  );
+  const primaryEvmWalletAddress = useMemo(() => {
+    if (Array.isArray(portfolioEvmWalletInput)) {
+      return portfolioEvmWalletInput[0];
+    }
+    return portfolioEvmWalletInput || undefined;
+  }, [portfolioEvmWalletInput]);
+  const predictionOwnerAddress = eoaAddress || primaryEvmWalletAddress;
   const goldmanGroupId = isGoldmanConsoleChat ? activeConsoleChat?._id || '' : '';
   const goldmanStrategyVaultQueryKey = useMemo(
     () => ['goldmanStrategyVault', goldmanGroupId] as const,
@@ -3138,9 +3150,7 @@ export default function ChatArea({
     shouldLoadAstroConsoleData
       ? isGoldmanConsoleChat
         ? goldmanStrategyVault?.walletAddress || ''
-        : evmWalletAddresses.length
-        ? evmWalletAddresses
-        : evmWalletAddress
+        : portfolioEvmWalletInput
       : '',
     SUPPORTED_CHAINS
   );
@@ -3152,9 +3162,7 @@ export default function ChatArea({
       ? solWalletAddress
       : '',
     shouldLoadAstroConsoleData && isGoldmanConsoleChat
-      ? evmWalletAddresses.length
-        ? evmWalletAddresses
-        : evmWalletAddress
+      ? portfolioEvmWalletInput
       : '',
     SUPPORTED_CHAINS
   );
@@ -3181,9 +3189,11 @@ export default function ChatArea({
 
   const { data: predictionWalletInfo, isLoading: isPredictionWalletInfoLoading } =
     useQuery({
-      queryKey: ['polymarketWalletInfo', eoaAddress],
-      queryFn: () => getWalletInfo(eoaAddress!, accessToken!),
-      enabled: shouldLoadAstroConsoleData && Boolean(eoaAddress && accessToken),
+      queryKey: ['polymarketWalletInfo', predictionOwnerAddress],
+      queryFn: () => getWalletInfo(predictionOwnerAddress!, accessToken!),
+      enabled:
+        shouldLoadAstroConsoleData &&
+        Boolean(predictionOwnerAddress && accessToken),
       staleTime: 30_000,
       refetchOnWindowFocus: true,
     });
@@ -3198,12 +3208,12 @@ export default function ChatArea({
       return predictionWalletInfo.depositWalletAddress;
     }
     if (predictionWalletInfo?.safeAddress) return predictionWalletInfo.safeAddress;
-    return eoaAddress;
+    return predictionOwnerAddress;
   }, [
-    eoaAddress,
     predictionWalletInfo?.depositWalletAddress,
     predictionWalletInfo?.recommendedWalletType,
     predictionWalletInfo?.safeAddress,
+    predictionOwnerAddress,
     shouldLoadAstroConsoleData,
     trading.tradingWalletAddress,
   ]);
@@ -3218,6 +3228,7 @@ export default function ChatArea({
       predictionWalletInfo?.depositWalletAddress,
       predictionWalletInfo?.safeAddress,
       predictionActiveWalletAddress,
+      predictionOwnerAddress,
     ].filter((address): address is string => Boolean(address));
     return Array.from(
       new Map(addresses.map((address) => [address.toLowerCase(), address])).values()
@@ -3226,6 +3237,7 @@ export default function ChatArea({
     predictionActiveWalletAddress,
     predictionWalletInfo?.depositWalletAddress,
     predictionWalletInfo?.safeAddress,
+    predictionOwnerAddress,
     shouldLoadAstroConsoleData,
     trading.depositWalletAddress,
     trading.portfolioAddresses,
@@ -3262,17 +3274,15 @@ export default function ChatArea({
     }
     return Array.from(set);
   }, [perpsMarkets]);
+  const perpsMasterAddress = shouldLoadAstroConsoleData
+    ? primaryEvmWalletAddress || perpsAgent.masterAddress || eoaAddress || null
+    : null;
   // Aggregate across the main DEX + every builder (HIP-3) DEX so Astro sees ALL
   // positions and the combined balance — one perps wallet.
   const {
     data: perpsAccount,
     isLoading: isPerpsLoading,
-  } = useHyperliquidPortfolio(
-    shouldLoadAstroConsoleData
-      ? perpsAgent.masterAddress || eoaAddress || null
-      : null,
-    perpsBuilderDexes
-  );
+  } = useHyperliquidPortfolio(perpsMasterAddress, perpsBuilderDexes);
 
   const astroConsoleData = useMemo<AstroConsoleData>(
     () => ({
@@ -3301,7 +3311,7 @@ export default function ChatArea({
       aavePositions: goldmanAavePositions || null,
       isAavePositionsLoading: isGoldmanAavePositionsLoading,
       perpsAccount,
-      perpsMasterAddress: perpsAgent.masterAddress || eoaAddress || null,
+      perpsMasterAddress,
       isPerpsLoading,
       perpsMarkets,
       isPerpsAgentInitialized: perpsAgent.isInitialized,
@@ -3333,8 +3343,8 @@ export default function ChatArea({
       perpsAgent.initializeAgent,
       perpsAgent.isInitialized,
       perpsAgent.isInitializing,
-      perpsAgent.masterAddress,
       perpsAgent.isReconnecting,
+      perpsMasterAddress,
       perpsMarkets,
       perpsTrading.clearError,
       perpsTrading.closePosition,
