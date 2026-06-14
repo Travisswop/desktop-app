@@ -2087,6 +2087,7 @@ const WalletContentInner = () => {
           />
           <PerpsCard
             masterAddress={perpsMasterAddress ?? undefined}
+            masterClient={hlAgent.masterClient}
             isReconnecting={hlAgent.isReconnecting}
             onOpenTrading={openPerpsPanel}
             onBridgeToArbitrum={() => setArbitrumBridgeOpen(true)}
