@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import {
   ArrowLeft,
   ArrowUpFromLine,
@@ -470,6 +471,7 @@ export default function PredictionsPanel({
         amount: result?.redeemedAmount ?? getRedeemablePayout(position),
         txId: result?.txId,
         submittedAt: Math.floor(Date.now() / 1000),
+        position,
       };
 
       setPendingRedemptions((prev) => [
@@ -487,10 +489,26 @@ export default function PredictionsPanel({
 
   const handleRedeem = useCallback(
     async (position: PolymarketPosition) => {
-      if (!clobClient || !safeAddress) return;
+      if (!clobClient) {
+        toast.error(
+          'Trading session is still connecting. Try again in a moment.',
+        );
+        return;
+      }
+
       const redeemValue = getRedeemablePayout(position);
-      if (redeemValue <= 0) return;
-      const positionWallet = position.proxyWallet || safeAddress;
+      if (redeemValue <= 0) {
+        toast.error('No redeemable payout found for this position.');
+        return;
+      }
+
+      const positionWallet =
+        position.proxyWallet || safeAddress || depositWalletAddress;
+      if (!positionWallet) {
+        toast.error('Redeem wallet is still loading. Refresh and try again.');
+        return;
+      }
+
       const isCurrentDepositWallet =
         walletType === 'deposit' &&
         depositWalletAddress &&
@@ -499,7 +517,16 @@ export default function PredictionsPanel({
       const redeemWalletType = isCurrentDepositWallet
         ? 'deposit'
         : 'safe';
+
+      if (redeemWalletType === 'deposit' && !depositWalletAddress) {
+        toast.error('Deposit wallet is still loading. Refresh and try again.');
+        return;
+      }
+
       setRedeemingAsset(position.asset);
+      const redeemToastId = toast.loading(
+        `Redeeming $${redeemValue.toFixed(2)}...`,
+      );
       try {
         const balanceAddressCandidates: Array<{
           label: string;
@@ -630,6 +657,19 @@ export default function PredictionsPanel({
           walletType: redeemWalletType,
         });
         rememberPendingRedemption(position, result);
+        const redeemedAmount = result.redeemedAmount ?? redeemValue;
+        const redeemedAmountLabel = redeemedAmount.toFixed(2);
+
+        if (result.normalizationError) {
+          toast.success(
+            `Redeemed $${redeemedAmountLabel}. Balance conversion will retry automatically.`,
+            { id: redeemToastId },
+          );
+        } else {
+          toast.success(`Redeemed $${redeemedAmountLabel}.`, {
+            id: redeemToastId,
+          });
+        }
 
         queryClient.invalidateQueries({
           queryKey: ['polymarket-positions'],
@@ -660,8 +700,15 @@ export default function PredictionsPanel({
           queryClient.invalidateQueries({
             queryKey: ['polymarket-positions'],
           });
+          toast.success(formatRedeemError(err), { id: redeemToastId });
+          console.info(
+            'Redeem skipped because the position balance is gone:',
+            err,
+          );
+        } else {
+          toast.error(formatRedeemError(err), { id: redeemToastId });
+          console.error('Failed to redeem position:', err);
         }
-        console.error('Failed to redeem position:', err);
       } finally {
         setRedeemingAsset(null);
       }
@@ -1445,6 +1492,28 @@ const BET_STATUS_TONE: Record<
 
 const BETS_GRID = '90px minmax(0,1.4fr) 60px 70px 80px 100px 140px';
 const CLAIMED_WINS_GRID = '90px minmax(0,1.5fr) 70px 110px 110px';
+
+function formatRedeemError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (isZeroPositionBalanceRedeemError(error)) {
+    return 'This payout was already redeemed. Refreshing your bets.';
+  }
+
+  if (
+    message.includes('Silent redeem signing') ||
+    message.includes('signing is not ready') ||
+    message.includes('signing failed')
+  ) {
+    return 'Redeem signing is not ready. Refresh and try again.';
+  }
+
+  if (message.startsWith('PRECHECK_SKIPPED: redeem skipped: ')) {
+    return message.replace('PRECHECK_SKIPPED: redeem skipped: ', '');
+  }
+
+  return message || 'Could not redeem this payout. Please try again.';
+}
 
 interface MyBetsViewProps {
   actionable: PolymarketPosition[];
