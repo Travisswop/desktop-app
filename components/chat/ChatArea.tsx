@@ -142,6 +142,7 @@ import {
   getReceiptIdentityKeys,
   isOpenPredictionConsolePosition,
   isProposalNoLongerPendingError,
+  normalizePredictionConsolePositions,
   normalizeIntentText,
   normalizePerpsMarketQuery,
   parseLivePolymarketPrice,
@@ -3525,6 +3526,10 @@ export default function ChatArea({
   const { data: predictionPositions = [] } = useUserPositions(
     shouldLoadAstroConsoleData ? predictionWalletAddresses : []
   );
+  const predictionConsolePositions = useMemo(
+    () => normalizePredictionConsolePositions(predictionPositions),
+    [predictionPositions]
+  );
   const { data: predictionOpenOrders = [] } = useActiveOrders(
     trading.tradingSession,
     trading.tradingWalletAddress,
@@ -3566,7 +3571,7 @@ export default function ChatArea({
       predictionUsdcBalance: activePredictionUsdcBalance,
       predictionPortfolioUsdcBalance,
       predictionLegacyUsdcBalance,
-      predictionPositions,
+      predictionPositions: predictionConsolePositions,
       predictionOpenOrders,
       isWalletPortfolioBalanceLoading,
       isWalletFundingBalanceLoading,
@@ -3626,7 +3631,7 @@ export default function ChatArea({
       predictionActiveWalletAddress,
       predictionLegacyUsdcBalance,
       predictionOpenOrders,
-      predictionPositions,
+      predictionConsolePositions,
       activePredictionUsdcBalance,
       evmWalletAddress,
       evmWalletAddresses,
