@@ -3404,11 +3404,14 @@ export default function ChatArea({
   const perpsAgent = useHyperliquidAgent({
     enabled: shouldLoadAstroConsoleData,
   });
-  const { data: perpsMarkets = [] } = useHyperliquidMarkets({
+  const {
+    data: perpsMarkets = [],
+    isLoading: isPerpsMarketsLoading,
+    isFetching: isPerpsMarketsFetching,
+    error: perpsMarketsError,
+  } = useHyperliquidMarkets({
     enabled: shouldLoadAstroConsoleData,
-    // Chat needs quick context for tickets and snapshots; the full builder-DEX
-    // sweep is reserved for the dedicated Perps surfaces to avoid freezing chat.
-    includeBuilderDexes: false,
+    includeBuilderDexes: true,
   });
   const perpsTrading = useHyperliquidTrading(perpsAgent.agentClient);
 
@@ -3568,6 +3571,16 @@ export default function ChatArea({
       perpsMasterAddress,
       isPerpsLoading,
       perpsMarkets,
+      isPerpsMarketsLoading:
+        shouldLoadAstroConsoleData &&
+        (isPerpsMarketsLoading ||
+          (isPerpsMarketsFetching && perpsMarkets.length === 0)),
+      perpsMarketsError:
+        perpsMarketsError instanceof Error
+          ? perpsMarketsError.message
+          : perpsMarketsError
+          ? 'Hyperliquid markets unavailable.'
+          : null,
       isPerpsAgentInitialized: perpsAgent.isInitialized,
       isPerpsAgentInitializing: perpsAgent.isInitializing,
       isPerpsAgentHydrating: perpsAgent.isHydrating,
@@ -3588,6 +3601,8 @@ export default function ChatArea({
       eoaAddress,
       isWalletPortfolioBalanceLoading,
       isPerpsLoading,
+      isPerpsMarketsFetching,
+      isPerpsMarketsLoading,
       isActivePredictionBalanceLoading,
       isPredictionPortfolioBalanceLoading,
       isPredictionWalletInfoLoading,
@@ -3602,6 +3617,7 @@ export default function ChatArea({
       perpsAgent.isReconnecting,
       perpsMasterAddress,
       perpsMarkets,
+      perpsMarketsError,
       perpsTrading.clearError,
       perpsTrading.closePosition,
       perpsTrading.error,
@@ -16614,6 +16630,13 @@ function HyperliquidProposalFlowTicket({
     astroConsoleData.isPerpsAgentHydrating ||
       astroConsoleData.isPerpsAgentReconnecting
   );
+  const marketIsLoading =
+    !selectedMarket && Boolean(astroConsoleData.isPerpsMarketsLoading);
+  const marketUnavailable =
+    !selectedMarket &&
+    !marketIsLoading &&
+    (astroConsoleData.perpsMarkets.length > 0 ||
+      Boolean(astroConsoleData.perpsMarketsError));
   const isTicketActionBusy =
     flow === 'authorizing' || flow === 'opening' || closeAfterSignerReady;
   const isAuthorizingSigner =
@@ -16687,8 +16710,10 @@ function HyperliquidProposalFlowTicket({
       ? 'Set size'
       : !astroConsoleData.isPerpsAgentInitialized
       ? 'Approve perps signer'
-      : !selectedMarket
+      : marketIsLoading
       ? 'Loading market'
+      : marketUnavailable
+      ? 'Market unavailable'
       : isClosePosition
       ? `Close ${sideLabel} ${ticketDisplayCoin}-PERP`
       : isPositionTpsl
@@ -17875,6 +17900,8 @@ function HyperliquidProposalFlowTicket({
         )}
 
         {(astroConsoleData.isPerpsLoading ||
+          marketIsLoading ||
+          marketUnavailable ||
           isBelowMinimumNotional ||
           closePositionUnavailable ||
           needsEntryPrice ||
@@ -17899,6 +17926,11 @@ function HyperliquidProposalFlowTicket({
           >
             {astroConsoleData.isPerpsLoading ? (
               'Checking Hyperliquid margin...'
+            ) : marketIsLoading ? (
+              'Loading Hyperliquid market data...'
+            ) : marketUnavailable ? (
+              astroConsoleData.perpsMarketsError ||
+              `No Hyperliquid market data found for ${ticketDisplayCoin}-PERP. Try another market.`
             ) : localError ||
               astroConsoleData.perpsTradingError ||
               astroConsoleData.perpsAgentError ? (
@@ -17949,6 +17981,7 @@ function HyperliquidProposalFlowTicket({
             onClick={isClosePosition ? handleClosePosition : handleOpenPosition}
             disabled={
               isAgentBusy ||
+              marketUnavailable ||
               (!canSubmit &&
                 !canDepositForOrder &&
                 astroConsoleData.isPerpsAgentInitialized)

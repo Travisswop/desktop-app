@@ -188,6 +188,8 @@ export interface AstroConsoleData {
   perpsMasterAddress?: string | null;
   isPerpsLoading: boolean;
   perpsMarkets: HLMarket[];
+  isPerpsMarketsLoading?: boolean;
+  perpsMarketsError?: string | null;
   isPerpsAgentInitialized: boolean;
   isPerpsAgentInitializing: boolean;
   isPerpsAgentHydrating: boolean;
