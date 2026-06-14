@@ -79,6 +79,7 @@ interface PerpsPanelProps {
   /** Approved agent proposal defaults. The ticket still requires user review/confirm. */
   agentOrderPrefill?: HyperliquidAgentOrderPrefill | null;
   onAgentActionComplete?: (completion: AgentActionCompletion) => void;
+  onPredictionWithdrawSubmitted?: (amountUsd: number) => void;
 }
 
 interface HyperliquidUserFill {
@@ -201,6 +202,7 @@ export function PerpsPanel({
   initialCoin,
   agentOrderPrefill,
   onAgentActionComplete,
+  onPredictionWithdrawSubmitted,
 }: PerpsPanelProps) {
   const { toast } = useToast();
   const { accessToken, user, primaryMicrosite } = useUser();
@@ -1116,6 +1118,7 @@ export function PerpsPanel({
         masterClient={masterClient}
         withdrawable={aggregateWithdrawable}
         dexWithdrawables={dexWithdrawables}
+        onPredictionWithdrawSubmitted={onPredictionWithdrawSubmitted}
       />
 
       <AgentSetupModal

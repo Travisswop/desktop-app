@@ -43,6 +43,8 @@ interface PerpsCardProps {
   /** Optional: called after a deposit tx is submitted — used by the parent to
    *  start polling the Hyperliquid balance for agent-approval readiness. */
   onDepositSubmitted?: () => void;
+  /** Called after a perps withdrawal intended for Predictions is submitted. */
+  onPredictionWithdrawSubmitted?: (amountUsd: number) => void;
 }
 
 const POS_GREEN = '#19a974';
@@ -214,6 +216,7 @@ export function PerpsCard({
   onOpenTrading,
   onBridgeToArbitrum,
   onDepositSubmitted,
+  onPredictionWithdrawSubmitted,
 }: PerpsCardProps) {
   // Aggregate across the main DEX + every builder (HIP-3) DEX so this summary
   // reflects ALL positions and the combined balance — one perps wallet.
@@ -322,6 +325,7 @@ export function PerpsCard({
         dexWithdrawables={dexWithdrawables}
         onBridgeToArbitrum={onBridgeToArbitrum}
         onDepositSubmitted={onDepositSubmitted}
+        onPredictionWithdrawSubmitted={onPredictionWithdrawSubmitted}
       />
     </>
   );

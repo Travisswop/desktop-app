@@ -31,6 +31,7 @@ interface PerpsActionsModalProps {
   initialTab?: PerpsActionTab;
   onBridgeToArbitrum?: () => void;
   onDepositSubmitted?: () => void;
+  onPredictionWithdrawSubmitted?: (amountUsd: number) => void;
 }
 
 export function PerpsActionsModal({
@@ -43,6 +44,7 @@ export function PerpsActionsModal({
   initialTab = 'deposit',
   onBridgeToArbitrum,
   onDepositSubmitted,
+  onPredictionWithdrawSubmitted,
 }: PerpsActionsModalProps) {
   const [tab, setTab] = useState<PerpsActionTab>(initialTab);
 
@@ -105,6 +107,7 @@ export function PerpsActionsModal({
             withdrawable={withdrawable}
             dexWithdrawables={dexWithdrawables}
             onClose={onClose}
+            onPredictionWithdrawSubmitted={onPredictionWithdrawSubmitted}
           />
         )}
       </div>
@@ -146,10 +149,8 @@ interface DestinationOption {
   label: string;
   detail: string;
   address: string | null;
+  withdrawAddress: string | null;
 }
-
-const sameAddress = (a?: string | null, b?: string | null) =>
-  Boolean(a && b && a.toLowerCase() === b.toLowerCase());
 
 const formatAddress = (address: string) =>
   `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -166,14 +167,21 @@ function WithdrawForm({
   withdrawable,
   dexWithdrawables,
   onClose,
+  onPredictionWithdrawSubmitted,
 }: {
   masterAddress: string | null;
   masterClient: hl.ExchangeClient | null;
   withdrawable: number;
   dexWithdrawables: Record<string, number>;
   onClose: () => void;
+  onPredictionWithdrawSubmitted?: (amountUsd: number) => void;
 }) {
-  const { depositWalletAddress, walletType } = useTrading();
+  const {
+    depositWalletAddress,
+    safeAddress,
+    tradingWalletAddress,
+    walletType,
+  } = useTrading();
   const { withdraw, isWithdrawing } = useHyperliquidWithdraw({
     masterClient,
     masterAddress,
@@ -191,9 +199,7 @@ function WithdrawForm({
   const [processingStatus, setProcessingStatus] = useState('');
 
   const predictionAddress =
-    depositWalletAddress && !sameAddress(depositWalletAddress, masterAddress)
-      ? depositWalletAddress
-      : null;
+    tradingWalletAddress ?? depositWalletAddress ?? safeAddress ?? null;
   const availableWithdrawable = Number.isFinite(withdrawable)
     ? Math.max(withdrawable, 0)
     : 0;
@@ -229,15 +235,17 @@ function WithdrawForm({
         label: 'Main wallet',
         detail: 'Back to your selected EVM wallet',
         address: masterAddress,
+        withdrawAddress: masterAddress,
       },
       {
         id: 'predictions',
         label: 'Predictions wallet',
         detail:
           walletType === 'deposit'
-            ? 'To your prediction deposit wallet'
-            : 'Prediction deposit wallet not available',
+            ? 'Withdraw USDC to Arbitrum, then convert to pUSD'
+            : 'Withdraw USDC to Arbitrum, then fund your Safe',
         address: predictionAddress,
+        withdrawAddress: masterAddress,
       },
     ],
     [masterAddress, predictionAddress, walletType],
@@ -246,9 +254,11 @@ function WithdrawForm({
     (option) => option.id === selectedDestination,
   );
   const destinationAddress = destination?.address ?? null;
+  const withdrawAddress = destination?.withdrawAddress ?? null;
+  const isPredictionDestination = selectedDestination === 'predictions';
   const canSubmit =
     isAmountValid &&
-    Boolean(destinationAddress) &&
+    Boolean(withdrawAddress) &&
     Boolean(masterAddress) &&
     Boolean(masterClient);
 
@@ -281,7 +291,7 @@ function WithdrawForm({
   };
 
   const executeWithdraw = async () => {
-    if (!destinationAddress) {
+    if (!withdrawAddress) {
       setError('Choose a withdrawal destination.');
       setStep('error');
       return;
@@ -305,7 +315,7 @@ function WithdrawForm({
 
       setProcessingStatus('Submitting Hyperliquid withdrawal...');
       await withdraw({
-        destination: destinationAddress,
+        destination: withdrawAddress,
         amountUsd: parsedAmount,
       });
       setStep('success');
@@ -356,8 +366,11 @@ function WithdrawForm({
             Withdrawal submitted
           </h3>
           <p className="text-sm text-gray-500 mt-1 max-w-xs">
-            ${formatUsd(parsedAmount)} USDC is headed to{' '}
-            {destination?.label.toLowerCase() || 'your wallet'}.
+            {isPredictionDestination
+              ? `$${formatUsd(parsedAmount)} USDC is headed to your Arbitrum wallet. Convert it to pUSD with the Predictions deposit flow once it lands.`
+              : `$${formatUsd(parsedAmount)} USDC is headed to ${
+                  destination?.label.toLowerCase() || 'your wallet'
+                }.`}
           </p>
         </div>
         {destinationAddress && (
@@ -365,9 +378,24 @@ function WithdrawForm({
             {formatAddress(destinationAddress)}
           </div>
         )}
+        {isPredictionDestination && onPredictionWithdrawSubmitted && (
+          <button
+            onClick={() => {
+              onPredictionWithdrawSubmitted(parsedAmount);
+              resetAndClose();
+            }}
+            className="w-full py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-xl transition-colors text-sm"
+          >
+            Open pUSD Deposit
+          </button>
+        )}
         <button
           onClick={resetAndClose}
-          className="w-full py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-xl transition-colors text-sm"
+          className={`w-full py-2.5 font-semibold rounded-xl transition-colors text-sm ${
+            isPredictionDestination && onPredictionWithdrawSubmitted
+              ? 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              : 'bg-gray-900 hover:bg-gray-800 text-white'
+          }`}
         >
           Done
         </button>
@@ -423,14 +451,19 @@ function WithdrawForm({
                 destinationAddress ? formatAddress(destinationAddress) : ''
               }`,
             ],
-            ['Network', 'Arbitrum USDC'],
+            [
+              'Network',
+              isPredictionDestination ? 'Arbitrum USDC → pUSD' : 'Arbitrum USDC',
+            ],
             [
               'Preparation',
               needsSweep
                 ? `Move ${sweepPlan.length} DEX balance${
                     sweepPlan.length === 1 ? '' : 's'
                   } to main first`
-                : 'Ready in main perps',
+                : isPredictionDestination
+                  ? 'Withdraw first, then LiFi deposit'
+                  : 'Ready in main perps',
             ],
           ].map(([label, value]) => (
             <div key={label} className="flex justify-between gap-4 text-sm">
@@ -525,8 +558,22 @@ function WithdrawForm({
                     >
                       {option.address
                         ? formatAddress(option.address)
-                        : 'Not available'}
+                        : option.id === 'predictions'
+                          ? 'Enable Predictions trading first'
+                          : 'Not available'}
                     </p>
+                    {option.id === 'predictions' &&
+                      option.address &&
+                      masterAddress && (
+                        <p
+                          className={`mt-1 text-[11px] ${
+                            active ? 'text-white/60' : 'text-gray-400'
+                          }`}
+                        >
+                          Hyperliquid withdrawal lands at{' '}
+                          {formatAddress(masterAddress)} first.
+                        </p>
+                      )}
                   </div>
                 </button>
                 {option.address && (

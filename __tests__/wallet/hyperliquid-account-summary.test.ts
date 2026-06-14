@@ -75,4 +75,28 @@ describe('hyperliquid account summary', () => {
       ]).toFixed(2),
     ).toBe('0.30');
   });
+
+  it('falls back to free collateral when reported withdrawable is zero', () => {
+    const summary = buildPerpsAccountSummary(
+      {
+        assetPositions: [],
+        marginSummary: {
+          accountValue: '125.50',
+          totalNtlPos: '0',
+          totalRawUsd: '125.50',
+          totalMarginUsed: '0',
+        },
+        crossMarginSummary: {
+          accountValue: '125.50',
+          totalNtlPos: '0',
+          totalRawUsd: '125.50',
+          totalMarginUsed: '0',
+        },
+        withdrawable: '0',
+      },
+      [],
+    );
+
+    expect(summary.withdrawable).toBe('125.50');
+  });
 });
