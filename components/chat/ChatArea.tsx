@@ -142,6 +142,7 @@ import {
   getReceiptIdentityKeys,
   isOpenPredictionConsolePosition,
   isProposalNoLongerPendingError,
+  normalizePredictionConsolePositions,
   normalizeIntentText,
   normalizePerpsMarketQuery,
   parseLivePolymarketPrice,
@@ -215,6 +216,7 @@ import { useHyperliquidTrading } from '@/components/wallet/perps/hooks/useHyperl
 import type { HLMarket, HLPosition } from '@/services/hyperliquid/types';
 import {
   buildPerpsPositionKey,
+  resolvePerpsFeedSmartsiteId,
   upsertPerpsPositionFeed,
   type PerpsPositionFeedEvent,
   type PerpsPositionFeedStatus,
@@ -3524,6 +3526,10 @@ export default function ChatArea({
   const { data: predictionPositions = [] } = useUserPositions(
     shouldLoadAstroConsoleData ? predictionWalletAddresses : []
   );
+  const predictionConsolePositions = useMemo(
+    () => normalizePredictionConsolePositions(predictionPositions),
+    [predictionPositions]
+  );
   const { data: predictionOpenOrders = [] } = useActiveOrders(
     trading.tradingSession,
     trading.tradingWalletAddress,
@@ -3565,7 +3571,7 @@ export default function ChatArea({
       predictionUsdcBalance: activePredictionUsdcBalance,
       predictionPortfolioUsdcBalance,
       predictionLegacyUsdcBalance,
-      predictionPositions,
+      predictionPositions: predictionConsolePositions,
       predictionOpenOrders,
       isWalletPortfolioBalanceLoading,
       isWalletFundingBalanceLoading,
@@ -3581,6 +3587,7 @@ export default function ChatArea({
       perpsMarkets,
       isPerpsAgentInitialized: perpsAgent.isInitialized,
       isPerpsAgentInitializing: perpsAgent.isInitializing,
+      isPerpsAgentHydrating: perpsAgent.isHydrating,
       isPerpsAgentReconnecting: perpsAgent.isReconnecting,
       perpsAgentError: perpsAgent.error,
       initializePerpsAgent: perpsAgent.initializeAgent,
@@ -3605,6 +3612,7 @@ export default function ChatArea({
       isGoldmanAavePositionsLoading,
       perpsAccount,
       perpsAgent.error,
+      perpsAgent.isHydrating,
       perpsAgent.initializeAgent,
       perpsAgent.isInitialized,
       perpsAgent.isInitializing,
@@ -3623,7 +3631,7 @@ export default function ChatArea({
       predictionActiveWalletAddress,
       predictionLegacyUsdcBalance,
       predictionOpenOrders,
-      predictionPositions,
+      predictionConsolePositions,
       activePredictionUsdcBalance,
       evmWalletAddress,
       evmWalletAddresses,
@@ -16307,6 +16315,7 @@ function HyperliquidProposalFlowTicket({
   sourceText?: string;
 }) {
   const { accessToken, user, primaryMicrosite } = useUser();
+  const feedSmartsiteId = resolvePerpsFeedSmartsiteId(user, primaryMicrosite);
   const queryClient = useQueryClient();
   const params = useMemo(
     () =>
@@ -16355,6 +16364,9 @@ function HyperliquidProposalFlowTicket({
   const [flow, setFlow] = useState<HyperliquidTicketFlow>('order');
   const [localError, setLocalError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<HyperliquidInlineReceipt | null>(null);
+  const [closeAfterSignerReady, setCloseAfterSignerReady] = useState(false);
+  const closeAfterSignerSubmittedRef = useRef(false);
+  const closePositionHandlerRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     setCoin(initialPerpsCoin(params) || 'ETH');
@@ -16376,6 +16388,8 @@ function HyperliquidProposalFlowTicket({
     setFlow('order');
     setLocalError(null);
     setReceipt(null);
+    setCloseAfterSignerReady(false);
+    closeAfterSignerSubmittedRef.current = false;
   }, [params, proposalId, isClosePosition]);
 
   const requestedAssetIndex = Number(
@@ -16559,12 +16573,17 @@ function HyperliquidProposalFlowTicket({
     (accountValue <= 0 || collateralUsdValue > availableMargin);
   const canDepositForOrder = needsPerpsFunds && !isBelowMinimumNotional;
   const fundingShortfall = Math.max(0, collateralUsdValue - availableMargin);
-  const isTicketActionBusy = flow === 'authorizing' || flow === 'opening';
+  const isPerpsSignerRestoring = Boolean(
+    astroConsoleData.isPerpsAgentHydrating ||
+      astroConsoleData.isPerpsAgentReconnecting
+  );
+  const isTicketActionBusy =
+    flow === 'authorizing' || flow === 'opening' || closeAfterSignerReady;
   const isAuthorizingSigner =
     flow === 'authorizing' || astroConsoleData.isPerpsAgentInitializing;
   const isAgentBusy =
     isAuthorizingSigner ||
-    astroConsoleData.isPerpsAgentReconnecting ||
+    isPerpsSignerRestoring ||
     astroConsoleData.isPerpsSubmitting ||
     isTicketActionBusy ||
     isPending;
@@ -16613,7 +16632,9 @@ function HyperliquidProposalFlowTicket({
     isClosePosition ? (closeIsCross ? 'cross' : 'isolated') : isCross ? 'cross' : 'isolated'
   } margin${isClosePosition || reduceOnly ? ' · reduce only' : ''}`;
   const primaryLabel =
-    isAuthorizingSigner
+    isPerpsSignerRestoring
+      ? 'Restoring perps signer...'
+      : isAuthorizingSigner
       ? 'Approving perps signer...'
       : isTicketActionBusy
       ? isClosePosition
@@ -16699,9 +16720,13 @@ function HyperliquidProposalFlowTicket({
       try {
         setFlow('authorizing');
         await astroConsoleData.initializePerpsAgent();
+        closeAfterSignerSubmittedRef.current = false;
+        setCloseAfterSignerReady(true);
         setFlow('order');
       } catch (error) {
         setFlow('order');
+        setCloseAfterSignerReady(false);
+        closeAfterSignerSubmittedRef.current = false;
         setLocalError(
           error instanceof Error
             ? error.message
@@ -16756,10 +16781,10 @@ function HyperliquidProposalFlowTicket({
       const orderId = extractInlineHyperliquidOrderId(orderResult);
       const closed = buildCloseReceipt(orderId);
       const closeCoin = selectedMarket.coin || matchingClosePosition?.coin || coin;
-      upsertPerpsPositionFeed({
+      await upsertPerpsPositionFeed({
         token: accessToken,
         userId: user?._id,
-        smartsiteId: user?.primaryMicrosite || primaryMicrosite,
+        smartsiteId: feedSmartsiteId,
         content: {
           provider: 'hyperliquid',
           positionKey: buildPerpsPositionKey({
@@ -16862,6 +16887,47 @@ function HyperliquidProposalFlowTicket({
       toast.error(message);
     }
   };
+
+  useEffect(() => {
+    closePositionHandlerRef.current = handleClosePosition;
+  });
+
+  useEffect(() => {
+    if (!isClosePosition || !closeAfterSignerReady) return;
+
+    if (astroConsoleData.perpsAgentError) {
+      setCloseAfterSignerReady(false);
+      closeAfterSignerSubmittedRef.current = false;
+      setFlow('order');
+      return;
+    }
+
+    if (
+      closeAfterSignerSubmittedRef.current ||
+      !astroConsoleData.isPerpsAgentInitialized ||
+      astroConsoleData.isPerpsAgentInitializing ||
+      astroConsoleData.isPerpsAgentHydrating ||
+      astroConsoleData.isPerpsAgentReconnecting ||
+      !closeCanSubmit ||
+      !selectedMarket
+    ) {
+      return;
+    }
+
+    closeAfterSignerSubmittedRef.current = true;
+    setCloseAfterSignerReady(false);
+    void closePositionHandlerRef.current?.();
+  }, [
+    astroConsoleData.isPerpsAgentHydrating,
+    astroConsoleData.isPerpsAgentInitialized,
+    astroConsoleData.isPerpsAgentInitializing,
+    astroConsoleData.isPerpsAgentReconnecting,
+    astroConsoleData.perpsAgentError,
+    closeAfterSignerReady,
+    closeCanSubmit,
+    isClosePosition,
+    selectedMarket,
+  ]);
 
   const handleOpenPosition = async () => {
     if (canDepositForOrder) {
@@ -17055,10 +17121,10 @@ function HyperliquidProposalFlowTicket({
           : opened.notionalUsd;
 
       if (!isPositionTpsl) {
-        upsertPerpsPositionFeed({
+        await upsertPerpsPositionFeed({
           token: accessToken,
           userId: user?._id,
-          smartsiteId: user?.primaryMicrosite || primaryMicrosite,
+          smartsiteId: feedSmartsiteId,
           content: {
             provider: 'hyperliquid',
             positionKey: buildPerpsPositionKey({

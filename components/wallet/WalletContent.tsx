@@ -75,6 +75,7 @@ import {
   PerpsPanel,
   DepositModal,
   useHyperliquidAgent,
+  type PerpsInitialOrder,
 } from './perps';
 import { useHyperliquidBalanceCheck } from './perps/hooks/useHyperliquidBalanceCheck';
 import SwapTokenModal from './SwapTokenModal';
@@ -759,6 +760,8 @@ const WalletContentInner = () => {
   const [perpsInitialCoin, setPerpsInitialCoin] = useState<
     string | null
   >(null);
+  const [perpsInitialOrder, setPerpsInitialOrder] =
+    useState<PerpsInitialOrder | null>(null);
 
   const openPerpsPanel = (coin?: string) => {
     setPerpsInitialCoin(coin ?? null);
@@ -845,6 +848,16 @@ const WalletContentInner = () => {
       ) ?? directSolanaWallets[0]
     );
   }, [solanaReady, directSolanaWallets, solWalletAddress]);
+  // Market swaps need balances for the wallet Privy can sign with, even when
+  // the portfolio is showing a stored/read-only Solana address.
+  const swapSolWalletAddress =
+    selectedSolanaWallet?.address || solWalletAddress;
+  const swapSolWalletDiffersFromPortfolio = Boolean(
+    selectedSolanaWallet?.address &&
+      solWalletAddress &&
+      selectedSolanaWallet.address.toLowerCase() !==
+        solWalletAddress.toLowerCase(),
+  );
   const perpsMasterAddress =
     evmWalletAddress || hlAgent.masterAddress || null;
 
@@ -1015,6 +1028,27 @@ const WalletContentInner = () => {
     portfolioEvmWalletInput,
     SUPPORTED_CHAINS,
   );
+  const {
+    tokens: swapTokens,
+    refetch: refetchSwapTokens,
+  } = useMultiChainTokenData(
+    swapSolWalletAddress,
+    portfolioEvmWalletInput,
+    SUPPORTED_CHAINS,
+  );
+  const marketSwapTokens = swapSolWalletDiffersFromPortfolio
+    ? swapTokens
+    : tokens;
+  const refetchMarketSwapTokens = useCallback(() => {
+    void refetchTokens();
+    if (swapSolWalletDiffersFromPortfolio) {
+      void refetchSwapTokens();
+    }
+  }, [
+    refetchSwapTokens,
+    refetchTokens,
+    swapSolWalletDiffersFromPortfolio,
+  ]);
 
   const {
     nfts,
@@ -1123,6 +1157,17 @@ const WalletContentInner = () => {
             sizeUsd,
             sizeCoins,
             orderMode: 'market',
+          }
+        : null,
+    );
+    setPerpsInitialOrder(
+      coin || side || leverage != null || isCross !== undefined || sizeUsd || sizeCoins
+        ? {
+            side: side ?? undefined,
+            leverage: leverage ?? undefined,
+            isCross,
+            sizeUsd,
+            sizeCoins,
           }
         : null,
     );
@@ -2033,10 +2078,10 @@ const WalletContentInner = () => {
             caption="Trade tokens at the best route · limit orders"
           />
           <WalletSwapSection
-            tokens={tokens}
+            tokens={marketSwapTokens}
             accessToken={accessToken}
-            onTokenRefresh={refetchTokens}
-            solWalletAddress={solWalletAddress}
+            onTokenRefresh={refetchMarketSwapTokens}
+            solWalletAddress={swapSolWalletAddress}
             evmWalletAddress={evmWalletAddress}
             chains={SUPPORTED_CHAINS}
           />
@@ -2076,6 +2121,7 @@ const WalletContentInner = () => {
           />
           <PerpsCard
             masterAddress={perpsMasterAddress ?? undefined}
+            masterClient={hlAgent.masterClient}
             isReconnecting={hlAgent.isReconnecting}
             onOpenTrading={openPerpsPanel}
             onBridgeToArbitrum={() => setArbitrumBridgeOpen(true)}
@@ -2247,8 +2293,8 @@ const WalletContentInner = () => {
                 </button>
               </div>
               <SwapTokenModal
-                tokens={tokens}
-                preferredSolanaWalletAddress={solWalletAddress}
+                tokens={marketSwapTokens}
+                preferredSolanaWalletAddress={swapSolWalletAddress}
                 defaultReceiveToken={{
                   symbol: 'USDC',
                   name: 'USD Coin',

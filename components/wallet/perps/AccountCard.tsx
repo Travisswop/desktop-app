@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDownToLine, Zap } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, Zap } from 'lucide-react';
 
 interface AccountCardProps {
   accountValue: string;
@@ -12,6 +12,7 @@ interface AccountCardProps {
   isInitialized: boolean;
   isReconnecting: boolean;
   onOpenDeposit: () => void;
+  onOpenWithdraw: () => void;
   onEnableTrading: () => void;
 }
 
@@ -28,6 +29,7 @@ export function AccountCard({
   isInitialized,
   isReconnecting,
   onOpenDeposit,
+  onOpenWithdraw,
   onEnableTrading,
 }: AccountCardProps) {
   const acct = parseFloat(accountValue) || 0;
@@ -60,13 +62,26 @@ export function AccountCard({
             Account value
           </div>
         </div>
-        <button
-          onClick={onOpenDeposit}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gray-900 text-white text-[12.5px] font-semibold hover:bg-black transition-colors"
-        >
-          <ArrowDownToLine className="w-3.5 h-3.5" />
-          Deposit
-        </button>
+        <div className="flex items-center gap-2">
+          {avail > 0 && (
+            <button
+              type="button"
+              onClick={onOpenWithdraw}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-black/[0.06] bg-[#fafafa] text-gray-900 text-[12.5px] font-semibold hover:bg-gray-100 transition-colors"
+            >
+              <ArrowUpFromLine className="w-3.5 h-3.5" />
+              Withdraw
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onOpenDeposit}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gray-900 text-white text-[12.5px] font-semibold hover:bg-black transition-colors"
+          >
+            <ArrowDownToLine className="w-3.5 h-3.5" />
+            Deposit
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3 mt-4 pt-3.5 border-t border-black/[0.04]">

@@ -4,28 +4,15 @@ import { useQuery } from '@tanstack/react-query';
 import * as hl from '@nktkas/hyperliquid';
 import type { HLPosition, HLOpenOrder } from '@/services/hyperliquid/types';
 import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
+import {
+  buildPerpsAccountSummary,
+  type PerpsAccountSummary,
+} from '@/lib/perps/hyperliquidAccountSummary';
 
 const transport = new hl.HttpTransport({ isTestnet: HL_IS_TESTNET, apiUrl: getHLApiUrl(HL_IS_TESTNET) });
 const infoClient = new hl.InfoClient({ transport });
 
-// ─── Derived summary types ──────────────────────────────────────────────────
-
-export interface PerpsAccountSummary {
-  /** All open positions (filtered out zero-size entries) */
-  positions: HLPosition[];
-  /** All open limit / trigger orders */
-  openOrders: HLOpenOrder[];
-  /** Total account value in USD */
-  accountValue: string;
-  /** Total position notional value */
-  totalNtlPos: string;
-  /** Unrealized PnL across all positions */
-  unrealizedPnl: string;
-  /** Total margin currently in use */
-  marginUsed: string;
-  /** Amount available to withdraw (not in margin) */
-  withdrawable: string;
-}
+export type { PerpsAccountSummary };
 
 interface UseHyperliquidPositionsOptions {
   enabled?: boolean;
@@ -72,20 +59,10 @@ export function useHyperliquidPositions(
         }),
       ]);
 
-      // Filter positions that actually have a non-zero size
-      const positions: HLPosition[] = state.assetPositions
-        .filter((ap) => parseFloat(ap.position.szi) !== 0)
-        .map((ap) => ap.position as unknown as HLPosition);
-
-      return {
-        positions,
-        openOrders: openOrders as unknown as HLOpenOrder[],
-        accountValue: state.marginSummary.accountValue,
-        totalNtlPos: state.marginSummary.totalNtlPos,
-        unrealizedPnl: state.marginSummary.totalRawUsd,
-        marginUsed: state.crossMarginSummary?.totalMarginUsed ?? '0',
-        withdrawable: state.withdrawable,
-      };
+      return buildPerpsAccountSummary(
+        state as unknown as Parameters<typeof buildPerpsAccountSummary>[0],
+        openOrders as unknown as HLOpenOrder[],
+      );
     },
     enabled: options.enabled !== false && !!masterAddress,
     refetchInterval: options.refetchInterval ?? 10_000,

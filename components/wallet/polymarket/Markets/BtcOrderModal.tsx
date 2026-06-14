@@ -35,6 +35,12 @@ import YoullReceiveDisplay from '../OrderModal/YoullReceiveDisplay';
 import OrderConfirmSheet, {
   type PendingOrderData,
 } from '../shared/OrderConfirmSheet';
+import OrderSuccessNotification, {
+  buildOrderSuccessInfo,
+  getOutcomeAbbr,
+  showOrderSuccessToast,
+  type OrderSuccessInfo,
+} from '../shared/OrderSuccessNotification';
 import {
   getSafePolymarketMaxBuyAmount,
   getSafePolymarketMaxLimitShares,
@@ -127,6 +133,7 @@ export default function BtcOrderModal({
   const [limitPrice, setLimitPrice] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successInfo, setSuccessInfo] = useState<OrderSuccessInfo | null>(null);
   const [pendingOrder, setPendingOrder] = useState<PendingOrderData | null>(null);
 
   const { eoaAddress } = usePolymarketWallet();
@@ -190,6 +197,7 @@ export default function BtcOrderModal({
     setLimitPrice('');
     setLocalError(null);
     setShowSuccess(false);
+    setSuccessInfo(null);
     setPendingOrder(null);
     resetOrder(); // ← must come last; clears orderId so the success effect won't re-trigger
   }, [initialOutcome, resetOrder]);
@@ -325,8 +333,8 @@ export default function BtcOrderModal({
         showWalletUIs: false,
       });
 
-      // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
-      if (result?.success && user?.primaryMicrosite && user?._id) {
+      if (result?.success) {
+        const outcomeName = pendingOrder.outcomeName;
         const feedExecution = resolvePredictionFeedExecution(result, {
           side: pendingOrder.side,
           cost: pendingOrder.cost,
@@ -334,44 +342,62 @@ export default function BtcOrderModal({
           price: pendingOrder.priceDecimal,
           acceptedPrice: pendingOrder.acceptedPrice,
         });
+        const orderSuccessInfo = buildOrderSuccessInfo({
+          result,
+          side: pendingOrder.side,
+          outcomeLabel: outcomeName,
+          outcomeAbbr: getOutcomeAbbr(outcomeName),
+          shares:
+            pendingOrder.side === 'BUY'
+              ? pendingOrder.potentialWin
+              : pendingOrder.size,
+          price: feedExecution.price,
+          usd: feedExecution.cost,
+          isLimit: !pendingOrder.isMarketOrder,
+        });
+        setSuccessInfo(orderSuccessInfo);
+        showOrderSuccessToast(orderSuccessInfo);
 
-        getAccessToken()
-          .then((token) => {
-            if (!token) return;
-            return postFeed(
-              {
-                postType: 'prediction',
-                smartsiteId: user.primaryMicrosite,
-                userId: user._id,
-                content: {
-                  marketTitle: `BTC 5-Minute Up or Down`,
-                  marketType: 'btc5m',
-                  marketId: conditionId,
-                  marketSlug,
-                  btcWindowStart: windowStart,
-                  btcWindowLabel: windowLabel,
-                  outcome: pendingOrder.outcomeName,
-                  side: pendingOrder.side,
-                  cost: feedExecution.cost,
-                  potentialWin: feedExecution.potentialWin,
-                  price: feedExecution.price,
-                  orderId: result.orderId,
-                  orderType,
-                  ...feedExecution.fields,
-                  yesOutcome: 'Up',
-                  noOutcome: 'Down',
-                  yesTokenId: upTokenId,
-                  noTokenId: downTokenId,
-                  yesPrice: upPrice,
-                  noPrice: downPrice,
+        // ── POST PREDICTION TO FEED (fire-and-forget) ────────────────────────
+        if (user?.primaryMicrosite && user?._id) {
+          getAccessToken()
+            .then((token) => {
+              if (!token) return;
+              return postFeed(
+                {
+                  postType: 'prediction',
+                  smartsiteId: user.primaryMicrosite,
+                  userId: user._id,
+                  content: {
+                    marketTitle: `BTC 5-Minute Up or Down`,
+                    marketType: 'btc5m',
+                    marketId: conditionId,
+                    marketSlug,
+                    btcWindowStart: windowStart,
+                    btcWindowLabel: windowLabel,
+                    outcome: outcomeName,
+                    side: pendingOrder.side,
+                    cost: feedExecution.cost,
+                    potentialWin: feedExecution.potentialWin,
+                    price: feedExecution.price,
+                    orderId: result.orderId,
+                    orderType,
+                    ...feedExecution.fields,
+                    yesOutcome: 'Up',
+                    noOutcome: 'Down',
+                    yesTokenId: upTokenId,
+                    noTokenId: downTokenId,
+                    yesPrice: upPrice,
+                    noPrice: downPrice,
+                  },
                 },
-              },
-              token,
+                token,
+              );
+            })
+            .catch((err) =>
+              console.error('[BtcOrderModal] Failed to post to feed:', err),
             );
-          })
-          .catch((err) =>
-            console.error('[BtcOrderModal] Failed to post to feed:', err),
-          );
+        }
       }
     } catch (err) {
       console.error('[BtcOrderModal] Order failed:', err);
@@ -477,12 +503,15 @@ export default function BtcOrderModal({
           {/* ── Body ── */}
           <div className="px-4 pb-4">
             {/* Success */}
-            {showSuccess && (
-              <div className="mb-4 bg-green-500/10 border border-green-500/30 rounded-xl p-3">
-                <p className="text-green-600 font-medium text-sm text-center">
-                  Order placed successfully!
-                </p>
-              </div>
+            {showSuccess && successInfo && (
+              <OrderSuccessNotification
+                className="mb-4"
+                info={successInfo}
+                onDismiss={() => {
+                  setShowSuccess(false);
+                  setSuccessInfo(null);
+                }}
+              />
             )}
 
             {/* Errors */}

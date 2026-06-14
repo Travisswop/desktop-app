@@ -91,6 +91,100 @@ export function isOpenPredictionConsolePosition(position: PolymarketPosition) {
   );
 }
 
+function normalizePredictionKeyPart(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase();
+}
+
+function predictionPositionMarketKey(position: PolymarketPosition) {
+  const marketId =
+    normalizePredictionKeyPart(position.conditionId) ||
+    normalizePredictionKeyPart(position.slug) ||
+    normalizePredictionKeyPart(position.title) ||
+    'market';
+  const outcomeId =
+    normalizePredictionKeyPart(position.asset) ||
+    normalizePredictionKeyPart(position.outcomeIndex) ||
+    normalizePredictionKeyPart(position.outcome) ||
+    'outcome';
+
+  return `${marketId}:${outcomeId}`;
+}
+
+function predictionPositionExactKey(position: PolymarketPosition) {
+  return `${normalizePredictionKeyPart(
+    position.proxyWallet
+  )}:${predictionPositionMarketKey(position)}`;
+}
+
+function mergePredictionConsolePositions(
+  base: PolymarketPosition,
+  next: PolymarketPosition
+): PolymarketPosition {
+  const baseSize = toFiniteNumber(base.size);
+  const nextSize = toFiniteNumber(next.size);
+  const size = baseSize + nextSize;
+  const initialValue =
+    toFiniteNumber(base.initialValue) + toFiniteNumber(next.initialValue);
+  const currentValue =
+    toFiniteNumber(base.currentValue) + toFiniteNumber(next.currentValue);
+  const cashPnl = toFiniteNumber(base.cashPnl) + toFiniteNumber(next.cashPnl);
+  const realizedPnl =
+    toFiniteNumber(base.realizedPnl) + toFiniteNumber(next.realizedPnl);
+  const totalBought =
+    toFiniteNumber(base.totalBought) + toFiniteNumber(next.totalBought);
+  const avgPrice =
+    size > 0 ? initialValue / size : toFiniteNumber(base.avgPrice);
+  const curPrice =
+    size > 0 ? currentValue / size : toFiniteNumber(base.curPrice);
+  const percentPnl = initialValue > 0 ? (cashPnl / initialValue) * 100 : 0;
+  const percentRealizedPnl =
+    totalBought > 0 ? (realizedPnl / totalBought) * 100 : 0;
+
+  return {
+    ...base,
+    size,
+    avgPrice,
+    initialValue,
+    currentValue,
+    cashPnl,
+    percentPnl,
+    totalBought,
+    realizedPnl,
+    percentRealizedPnl,
+    curPrice,
+    redeemable: Boolean(base.redeemable && next.redeemable),
+    mergeable: Boolean(base.mergeable || next.mergeable),
+    marketClosed: Boolean(base.marketClosed && next.marketClosed),
+    marketResolutionPending: Boolean(
+      base.marketResolutionPending || next.marketResolutionPending
+    ),
+  };
+}
+
+export function normalizePredictionConsolePositions(
+  positions: PolymarketPosition[] = []
+) {
+  const seenExactPositions = new Set<string>();
+  const byMarketOutcome = new Map<string, PolymarketPosition>();
+
+  for (const position of positions) {
+    const exactKey = predictionPositionExactKey(position);
+    if (seenExactPositions.has(exactKey)) continue;
+    seenExactPositions.add(exactKey);
+
+    const marketKey = predictionPositionMarketKey(position);
+    const existing = byMarketOutcome.get(marketKey);
+    byMarketOutcome.set(
+      marketKey,
+      existing ? mergePredictionConsolePositions(existing, position) : position
+    );
+  }
+
+  return Array.from(byMarketOutcome.values());
+}
+
 export function isProposalNoLongerPendingError(error: unknown) {
   const agentError = error as {
     code?: string;

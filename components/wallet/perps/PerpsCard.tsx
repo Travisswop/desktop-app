@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import type * as hl from '@nktkas/hyperliquid';
 import {
   AlertTriangle,
   ArrowRight,
@@ -27,6 +28,8 @@ import {
 interface PerpsCardProps {
   /** Selected EVM wallet address used as the Hyperliquid master account. */
   masterAddress: string | undefined;
+  /** Master-signed client for account-level actions like withdrawals. */
+  masterClient: hl.ExchangeClient | null;
   /** True while silently reconnecting after a brief disconnect */
   isReconnecting?: boolean;
   /**
@@ -90,6 +93,11 @@ const formatTokenSize = (raw: string, dp = 4): string => {
   if (abs >= 1000) return formatBalance(abs, 2);
   if (abs >= 1) return abs.toFixed(dp).replace(/\.?0+$/, '');
   return abs.toFixed(6).replace(/\.?0+$/, '');
+};
+
+const toFiniteBalance = (value: string | undefined): number => {
+  const parsed = parseFloat(value ?? '0');
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 function pickPrimaryPosition(positions: HLPosition[]): HLPosition | null {
@@ -201,6 +209,7 @@ function isShareCancel(err: unknown) {
  */
 export function PerpsCard({
   masterAddress,
+  masterClient,
   isReconnecting = false,
   onOpenTrading,
   onBridgeToArbitrum,
@@ -236,10 +245,23 @@ export function PerpsCard({
     () => pickPrimaryPosition(positions),
     [positions],
   );
-  const accountValue = parseFloat(data?.accountValue ?? '0');
-  const unrealizedPnl = parseFloat(data?.unrealizedPnl ?? '0');
-  const marginUsed = parseFloat(data?.marginUsed ?? '0');
-  const withdrawable = parseFloat(data?.withdrawable ?? '0');
+  const accountValue = toFiniteBalance(data?.accountValue);
+  const unrealizedPnl = toFiniteBalance(data?.unrealizedPnl);
+  const marginUsed = toFiniteBalance(data?.marginUsed);
+  const withdrawable = toFiniteBalance(data?.withdrawable);
+  const dexWithdrawables = useMemo(() => {
+    const perDex = data?.perDex ?? {};
+    const entries = Object.entries(perDex).map(([dex, summary]) => [
+      dex,
+      toFiniteBalance(summary.withdrawable),
+    ]);
+
+    if (!entries.some(([dex]) => dex === '')) {
+      entries.push(['', withdrawable]);
+    }
+
+    return Object.fromEntries(entries) as Record<string, number>;
+  }, [data?.perDex, withdrawable]);
 
   // Use the primary position's leverage for the buying-power label, default
   // to a conservative 5× when no position is open so the line still has
@@ -295,6 +317,9 @@ export function PerpsCard({
         initialTab={actionsTab}
         onClose={() => setActionsOpen(false)}
         masterAddress={masterAddress ?? null}
+        masterClient={masterClient}
+        withdrawable={withdrawable}
+        dexWithdrawables={dexWithdrawables}
         onBridgeToArbitrum={onBridgeToArbitrum}
         onDepositSubmitted={onDepositSubmitted}
       />

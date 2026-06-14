@@ -34,7 +34,7 @@ import { postFeed } from '@/actions/postFeed';
 import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
 import { useTrading } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
+import { POLYMARKET_BACKEND_PROXY_URL } from '@/constants/polymarket';
 import { type PolymarketPosition } from '@/hooks/polymarket/useUserPositions';
 import {
   useClobOrder,
@@ -53,6 +53,7 @@ import {
   hasRenderedReceiptIdentity,
   isOpenPredictionConsolePosition,
   isProposalNoLongerPendingError,
+  normalizePredictionConsolePositions,
   normalizeIntentText,
   parseLivePolymarketPrice,
   parsePolymarketProbability,
@@ -349,11 +350,11 @@ export function PolymarketPositionsCard({
 }: {
   positions: PolymarketPosition[];
 }) {
-  const openPositions = positions.filter(isOpenPredictionConsolePosition);
-  const displayPositions = (openPositions.length ? openPositions : positions).slice(
-    0,
-    4
-  );
+  const consolePositions = normalizePredictionConsolePositions(positions);
+  const openPositions = consolePositions.filter(isOpenPredictionConsolePosition);
+  const displayPositions = (
+    openPositions.length ? openPositions : consolePositions
+  ).slice(0, 4);
   const totalValue = displayPositions.reduce(
     (sum, position) => sum + toFiniteNumber(position.currentValue),
     0
@@ -362,7 +363,7 @@ export function PolymarketPositionsCard({
     (sum, position) => sum + toFiniteNumber(position.cashPnl),
     0
   );
-  const hasMore = positions.length > displayPositions.length;
+  const hasMore = consolePositions.length > displayPositions.length;
 
   return (
     <div className={`${AGENT_PANEL_CLASS} mt-2 w-full overflow-hidden text-xs`}>
@@ -372,8 +373,8 @@ export function PolymarketPositionsCard({
             polymarket positions
           </div>
           <div className="mt-1 text-[15px] font-bold text-[#eceef2]">
-            {openPositions.length || positions.length} position
-            {(openPositions.length || positions.length) === 1 ? '' : 's'}
+            {openPositions.length || consolePositions.length} position
+            {(openPositions.length || consolePositions.length) === 1 ? '' : 's'}
           </div>
         </div>
         <div className="dm-mono shrink-0 text-right text-[10px] font-semibold">
@@ -427,8 +428,8 @@ export function PolymarketPositionsCard({
 
       {hasMore && (
         <div className="border-t border-white/[0.045] px-3.5 py-2 text-[11px] font-semibold text-[#737783]">
-          {positions.length - displayPositions.length} more position
-          {positions.length - displayPositions.length === 1 ? '' : 's'} available.
+          {consolePositions.length - displayPositions.length} more position
+          {consolePositions.length - displayPositions.length === 1 ? '' : 's'} available.
         </div>
       )}
     </div>
@@ -2016,7 +2017,7 @@ async function fetchPolymarketLiveQuote(
   tokenId: string
 ): Promise<PolymarketLiveQuote> {
   const response = await apiFetch(
-    `${POLYMARKET_BACKEND_URL}/api/prediction-markets/prices`,
+    `${POLYMARKET_BACKEND_PROXY_URL}/prices`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

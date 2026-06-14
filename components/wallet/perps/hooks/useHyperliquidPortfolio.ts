@@ -5,6 +5,7 @@ import * as hl from '@nktkas/hyperliquid';
 import type { HLPosition, HLOpenOrder } from '@/services/hyperliquid/types';
 import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
 import type { PerpsAccountSummary } from './useHyperliquidPositions';
+import { buildPerpsAccountSummary } from '@/lib/perps/hyperliquidAccountSummary';
 
 const transport = new hl.HttpTransport({
   isTestnet: HL_IS_TESTNET,
@@ -28,20 +29,12 @@ async function fetchDexSummary(
       infoClient.clearinghouseState({ user, ...(dex ? { dex } : {}) }),
       infoClient.openOrders({ user, ...(dex ? { dex } : {}) }),
     ]);
-    const positions = state.assetPositions
-      .filter((ap) => parseFloat(ap.position.szi) !== 0)
-      .map((ap) => ap.position as unknown as HLPosition);
     return {
       dex,
-      summary: {
-        positions,
-        openOrders: openOrders as unknown as HLOpenOrder[],
-        accountValue: state.marginSummary.accountValue,
-        totalNtlPos: state.marginSummary.totalNtlPos,
-        unrealizedPnl: state.marginSummary.totalRawUsd,
-        marginUsed: state.crossMarginSummary?.totalMarginUsed ?? '0',
-        withdrawable: state.withdrawable,
-      },
+      summary: buildPerpsAccountSummary(
+        state as unknown as Parameters<typeof buildPerpsAccountSummary>[0],
+        openOrders as unknown as HLOpenOrder[],
+      ),
     };
   } catch {
     // A single DEX failing (e.g. user never traded it) must not sink the whole

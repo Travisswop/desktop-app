@@ -190,6 +190,7 @@ export interface AstroConsoleData {
   perpsMarkets: HLMarket[];
   isPerpsAgentInitialized: boolean;
   isPerpsAgentInitializing: boolean;
+  isPerpsAgentHydrating: boolean;
   isPerpsAgentReconnecting: boolean;
   perpsAgentError: string | null;
   initializePerpsAgent: () => Promise<unknown>;

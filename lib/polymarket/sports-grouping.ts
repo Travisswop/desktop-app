@@ -539,6 +539,42 @@ function resolveEventIcon(
   );
 }
 
+function stripMoreMarketsSuffix(title: string): string {
+  return title
+    .replace(/\s*(?:[-–—:]\s*)?more\s+markets\s*$/i, '')
+    .trim();
+}
+
+function canonicalGameStartKey(market: PolymarketMarket): string {
+  const raw =
+    market.gameStartTime ??
+    market.eventStartDate ??
+    (market.startDate as string | undefined) ??
+    '';
+  if (!raw) return '';
+
+  const ms = Date.parse(raw);
+  if (Number.isFinite(ms)) return new Date(ms).toISOString();
+  return normalizeText(String(raw));
+}
+
+function flatMarketGroupKey(market: PolymarketMarket): string {
+  const rawTitle = market.eventTitle ?? market.question ?? '';
+  const title = stripMoreMarketsSuffix(rawTitle);
+  const hasTeams =
+    Array.isArray(market.eventTeams) && market.eventTeams.length >= 2;
+
+  if (hasTeams && /\bvs\.?\b/i.test(title)) {
+    return [
+      'sports-game',
+      normalizeText(title),
+      canonicalGameStartKey(market),
+    ].join(':');
+  }
+
+  return (market.eventId as string | undefined) ?? market.id;
+}
+
 function binaryMoneylineOutcomeLabel(
   market: PolymarketMarket,
   eventTeams: RawEventTeam[] | undefined,
@@ -781,7 +817,7 @@ export function groupFlatMarketsIntoGames(
   const eventMap = new Map<string, PolymarketMarket[]>();
 
   for (const market of markets) {
-    const key = (market.eventId as string | undefined) ?? market.id;
+    const key = flatMarketGroupKey(market);
     if (!eventMap.has(key)) eventMap.set(key, []);
     eventMap.get(key)!.push(market);
   }
@@ -792,7 +828,9 @@ export function groupFlatMarketsIntoGames(
     const first = eventMarkets[0];
     // Prefer the event-level title; fall back to the market question
     const title =
-      (first.eventTitle as string | undefined) ?? first.question ?? '';
+      stripMoreMarketsSuffix(
+        (first.eventTitle as string | undefined) ?? first.question ?? '',
+      );
 
     const grouped = groupPolymarketMarketsForEvent(eventMarkets);
 

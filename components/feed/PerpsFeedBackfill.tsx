@@ -1,15 +1,21 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
   type PerpsLiquidationFillSnapshot,
   reconcilePerpsPositionFeed,
+  resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
 } from '@/lib/perps/perpsFeed';
-import { useHyperliquidAgent } from '@/components/wallet/perps/hooks/useHyperliquidAgent';
+import {
+  getStoredEvmWalletAddress,
+  selectPreferredWallet,
+  shouldPreferEmbeddedWallets,
+} from '@/components/wallet/hooks/useWalletData';
 import { useHyperliquidMarkets } from '@/components/wallet/perps/hooks/useHyperliquidMarkets';
 import { useHyperliquidPositions } from '@/components/wallet/perps/hooks/useHyperliquidPositions';
 import type { HLPosition } from '@/services/hyperliquid/types';
@@ -88,7 +94,31 @@ async function fetchRecentLiquidationsByCoin(masterAddress: string) {
 
 export default function PerpsFeedBackfill() {
   const { accessToken, user, primaryMicrosite } = useUser();
-  const { masterAddress } = useHyperliquidAgent();
+  const {
+    ready: privyReady,
+    user: privyUser,
+  } = usePrivy();
+  const { wallets, ready: walletsReady } = useWallets();
+  const feedSmartsiteId = resolvePerpsFeedSmartsiteId(user, primaryMicrosite);
+  const storedMasterAddress = getStoredEvmWalletAddress(user);
+  const useEmbeddedWalletProvider = shouldPreferEmbeddedWallets();
+  const selectedMasterWallet = selectPreferredWallet(
+    privyReady && walletsReady ? wallets : [],
+    storedMasterAddress || privyUser?.wallet?.address,
+    {
+      ...(useEmbeddedWalletProvider
+        ? { preferEmbedded: true, embeddedOnly: true }
+        : {}),
+      preferredAddresses: [storedMasterAddress, privyUser?.wallet?.address],
+    },
+  );
+  // Backfill reads public Hyperliquid account state; it should not depend on
+  // rehydrating the local trading agent key.
+  const masterAddress =
+    storedMasterAddress ||
+    selectedMasterWallet?.address ||
+    privyUser?.wallet?.address ||
+    null;
   const { data: accountData } = useHyperliquidPositions(masterAddress);
   const { data: markets = [] } = useHyperliquidMarkets({
     enabled: Boolean(masterAddress && accountData),
@@ -111,7 +141,7 @@ export default function PerpsFeedBackfill() {
   }, [markets]);
 
   useEffect(() => {
-    const smartsiteId = user?.primaryMicrosite || primaryMicrosite;
+    const smartsiteId = feedSmartsiteId;
     const positions = accountData?.positions || [];
 
     if (
@@ -218,8 +248,7 @@ export default function PerpsFeedBackfill() {
     accountData,
     accessToken,
     user?._id,
-    user?.primaryMicrosite,
-    primaryMicrosite,
+    feedSmartsiteId,
     masterAddress,
     markPricesByCoin,
   ]);

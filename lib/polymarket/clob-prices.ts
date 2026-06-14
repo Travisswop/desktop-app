@@ -1,4 +1,4 @@
-import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
+import { POLYMARKET_BACKEND_PROXY_URL } from '@/constants/polymarket';
 
 const CHUNK_SIZE = 100;
 
@@ -31,7 +31,7 @@ function parseProbabilityPrice(value: number | string | null | undefined) {
 export async function fetchChunkedPrices(tokenIds: string[]): Promise<PriceMap> {
   if (tokenIds.length === 0) return {};
 
-  const backendUrl = `${POLYMARKET_BACKEND_URL}/api/prediction-markets/prices`;
+  const backendUrl = `${POLYMARKET_BACKEND_PROXY_URL}/prices`;
   const chunks = chunkArray(tokenIds, CHUNK_SIZE);
 
   const chunkResults = await Promise.all(
@@ -39,6 +39,7 @@ export async function fetchChunkedPrices(tokenIds: string[]): Promise<PriceMap> 
       const res = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify({ tokenIds: chunk }),
       });
       if (!res.ok) return {} as Record<string, RawPriceEntry>;

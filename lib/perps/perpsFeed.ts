@@ -68,6 +68,59 @@ interface ReconcilePerpsPositionFeedParams {
   >;
 }
 
+type IdLike = {
+  _id?: unknown;
+  id?: unknown;
+  toString?: () => string;
+};
+
+type PerpsFeedUserLike = {
+  primaryMicrosite?: unknown;
+  microsites?: Array<{
+    _id?: unknown;
+    id?: unknown;
+    primary?: boolean;
+  }>;
+};
+
+function normalizePerpsFeedId(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value).trim();
+  }
+  if (typeof value !== 'object') return '';
+
+  const idLike = value as IdLike;
+  const nestedId =
+    normalizePerpsFeedId(idLike._id) || normalizePerpsFeedId(idLike.id);
+  if (nestedId) return nestedId;
+
+  if (
+    typeof idLike.toString === 'function' &&
+    idLike.toString !== Object.prototype.toString
+  ) {
+    const stringValue = idLike.toString().trim();
+    return stringValue === '[object Object]' ? '' : stringValue;
+  }
+
+  return '';
+}
+
+export function resolvePerpsFeedSmartsiteId(
+  user?: PerpsFeedUserLike | null,
+  fallback?: unknown,
+) {
+  const primaryMicrosite = normalizePerpsFeedId(user?.primaryMicrosite);
+  if (primaryMicrosite) return primaryMicrosite;
+
+  const fallbackMicrosite = normalizePerpsFeedId(fallback);
+  if (fallbackMicrosite) return fallbackMicrosite;
+
+  const microsites = Array.isArray(user?.microsites) ? user.microsites : [];
+  const primary = microsites.find((microsite) => microsite?.primary);
+  return normalizePerpsFeedId(primary) || normalizePerpsFeedId(microsites[0]);
+}
+
 export function buildPerpsPositionKey({
   userId,
   masterAddress,

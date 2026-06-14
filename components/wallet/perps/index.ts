@@ -1,6 +1,7 @@
 // ─── Perps Components ─────────────────────────────────────────────────────────
 export { PerpsCard } from './PerpsCard';
 export { PerpsPanel } from './PerpsPanel';
+export type { PerpsInitialOrder } from './PerpsPanel';
 export { AgentSetupModal } from './AgentSetupModal';
 export { DepositModal } from './DepositModal';
 export { DepositForm } from './DepositForm';
@@ -22,6 +23,7 @@ export { useHyperliquidAgent } from './hooks/useHyperliquidAgent';
 export { useHyperliquidBalanceCheck } from './hooks/useHyperliquidBalanceCheck';
 export type { DepositCheckStatus } from './hooks/useHyperliquidBalanceCheck';
 export { useHyperliquidDeposit } from './hooks/useHyperliquidDeposit';
+export { useHyperliquidWithdraw } from './hooks/useHyperliquidWithdraw';
 export { useHyperliquidFaucet, hasClaimedFaucet } from './hooks/useHyperliquidFaucet';
 export { useHyperliquidDualBalance } from './hooks/useHyperliquidDualBalance';
 export type { DualBalance, NetworkBalance } from './hooks/useHyperliquidDualBalance';

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
 
+export const dynamic = 'force-dynamic';
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, max-age=0',
+};
+
 /**
  * GET /api/polymarket/event-live?slug=<event-slug>
  *
@@ -15,7 +21,7 @@ export async function GET(request: NextRequest) {
   if (!slug) {
     return NextResponse.json(
       { error: 'Missing required query param: slug' },
-      { status: 400 },
+      { status: 400, headers: NO_STORE_HEADERS },
     );
   }
 
@@ -34,16 +40,16 @@ export async function GET(request: NextRequest) {
         {
           error: data?.error || 'Failed to fetch event live data',
         },
-        { status: response.status },
+        { status: response.status, headers: NO_STORE_HEADERS },
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
     console.error('[polymarket/event-live] Backend fetch error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }

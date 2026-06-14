@@ -17,6 +17,12 @@ import YoullReceiveDisplay from './YoullReceiveDisplay';
 import OrderConfirmSheet, {
   type PendingOrderData,
 } from '../shared/OrderConfirmSheet';
+import OrderSuccessNotification, {
+  buildOrderSuccessInfo,
+  getOutcomeAbbr,
+  showOrderSuccessToast,
+  type OrderSuccessInfo,
+} from '../shared/OrderSuccessNotification';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 import {
   getSafePolymarketMaxBuyAmount,
@@ -95,6 +101,8 @@ export default function OrderPlacementModal({
   const [limitPrice, setLimitPrice] = useState<string>('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successInfo, setSuccessInfo] =
+    useState<OrderSuccessInfo | null>(null);
   const [pendingOrder, setPendingOrder] =
     useState<PendingOrderData | null>(null);
 
@@ -132,6 +140,7 @@ export default function OrderPlacementModal({
       setLimitPrice('');
       setLocalError(null);
       setShowSuccess(false);
+      setSuccessInfo(null);
       setPendingOrder(null);
     }
   }, [isOpen, outcome]);
@@ -312,8 +321,7 @@ export default function OrderPlacementModal({
         expiration: pendingOrder.expiration,
       });
 
-      // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
-      if (result?.success && user?.primaryMicrosite && user?._id) {
+      if (result?.success) {
         const outcomeName =
           pendingOrder.outcomeName ||
           (pendingOrder.side === 'BUY' ? yesOutcomeName : noOutcomeName);
@@ -324,35 +332,53 @@ export default function OrderPlacementModal({
           price: pendingOrder.priceDecimal,
           acceptedPrice: pendingOrder.acceptedPrice,
         });
+        const orderSuccessInfo = buildOrderSuccessInfo({
+          result,
+          side: pendingOrder.side,
+          outcomeLabel: outcomeName,
+          outcomeAbbr: getOutcomeAbbr(outcomeName),
+          shares:
+            pendingOrder.side === 'BUY'
+              ? pendingOrder.potentialWin
+              : pendingOrder.size,
+          price: feedExecution.price,
+          usd: feedExecution.cost,
+          isLimit: !pendingOrder.isMarketOrder,
+        });
+        setSuccessInfo(orderSuccessInfo);
+        showOrderSuccessToast(orderSuccessInfo);
 
-        getAccessToken()
-          .then((token) => {
-            if (!token) return;
-            return postFeed(
-              {
-                postType: 'prediction',
-                smartsiteId: user.primaryMicrosite,
-                userId: user._id,
-                content: {
-                  marketId: marketId,
-                  marketTitle,
-                  outcome: outcomeName,
-                  side: pendingOrder.side,
-                  cost: feedExecution.cost,
-                  potentialWin: feedExecution.potentialWin,
-                  price: feedExecution.price,
-                  orderId: result.orderId,
-                  orderType: orderType,
-                  eventSlug,
-                  ...feedExecution.fields,
+        // ── POST PREDICTION TO FEED (fire-and-forget) ────────────────────────
+        if (user?.primaryMicrosite && user?._id) {
+          getAccessToken()
+            .then((token) => {
+              if (!token) return;
+              return postFeed(
+                {
+                  postType: 'prediction',
+                  smartsiteId: user.primaryMicrosite,
+                  userId: user._id,
+                  content: {
+                    marketId: marketId,
+                    marketTitle,
+                    outcome: outcomeName,
+                    side: pendingOrder.side,
+                    cost: feedExecution.cost,
+                    potentialWin: feedExecution.potentialWin,
+                    price: feedExecution.price,
+                    orderId: result.orderId,
+                    orderType: orderType,
+                    eventSlug,
+                    ...feedExecution.fields,
+                  },
                 },
-              },
-              token,
+                token,
+              );
+            })
+            .catch((err) =>
+              console.error('Failed to post prediction to feed:', err),
             );
-          })
-          .catch((err) =>
-            console.error('Failed to post prediction to feed:', err),
-          );
+        }
       }
     } catch (err) {
       console.error('Error placing order:', err);
@@ -427,12 +453,15 @@ export default function OrderPlacementModal({
           {/* Main Content */}
           <div className="px-4 pb-4">
             {/* Success Message */}
-            {showSuccess && (
-              <div className="mb-4 bg-green-500/10 border border-green-500/30 rounded-xl p-3">
-                <p className="text-green-600 font-medium text-sm text-center">
-                  Order placed successfully!
-                </p>
-              </div>
+            {showSuccess && successInfo && (
+              <OrderSuccessNotification
+                className="mb-4"
+                info={successInfo}
+                onDismiss={() => {
+                  setShowSuccess(false);
+                  setSuccessInfo(null);
+                }}
+              />
             )}
 
             {/* Error Message */}

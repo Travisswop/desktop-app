@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { TradingSession } from "@/lib/polymarket/session";
-import { POLYMARKET_BACKEND_URL } from "@/constants/polymarket";
+import { POLYMARKET_BACKEND_PROXY_URL } from "@/constants/polymarket";
 import { useUser } from "@/lib/UserContext";
 
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -25,7 +25,7 @@ export function useClobHeartbeat(
 
     const sendHeartbeat = async () => {
       try {
-        await fetch(`${POLYMARKET_BACKEND_URL}/api/prediction-markets/heartbeat`, {
+        await fetch(`${POLYMARKET_BACKEND_PROXY_URL}/heartbeat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

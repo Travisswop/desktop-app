@@ -24,7 +24,11 @@ import {
   fetchTokensFromLiFi,
   getLifiQuote as fetchLifiQuote,
 } from '@/actions/lifiForTokenSwap';
-import { getJupiterBuild as fetchJupiterBuild } from '@/actions/jupiterSwap';
+import {
+  getJupiterBuild as fetchJupiterBuild,
+  getSolanaSponsorPayer,
+} from '@/actions/jupiterSwap';
+import { sponsorSolanaTransaction } from '@/actions/sponsorSolanaTransaction';
 import { notifySwapFee } from '@/actions/notifySwapFee';
 import {
   usePrivy,
@@ -34,6 +38,7 @@ import {
 import {
   useWallets as useSolanaWallets,
   useSignAndSendTransaction,
+  useSignTransaction,
 } from '@privy-io/react-auth/solana';
 import {
   createPublicClient,
@@ -489,6 +494,13 @@ const getChainId = (chainName: string) => {
 const isPrivyEmbeddedWalletType = (walletClientType?: string) =>
   walletClientType === 'privy' || walletClientType === 'privy-v2';
 
+const isPrivyEmbeddedSolanaWallet = (wallet?: any) =>
+  Boolean(
+    wallet &&
+      (isPrivyEmbeddedWalletType(wallet.walletClientType) ||
+        wallet.connectorType === 'embedded'),
+  );
+
 const normalizeEvmAddress = (address?: string | null) =>
   typeof address === 'string' ? address.trim().toLowerCase() : '';
 
@@ -732,6 +744,16 @@ const isUserCancellationError = (error: unknown) => {
     lowerError.includes('canceled')
   );
 };
+
+const formatSolanaSignature = (signature: unknown) =>
+  typeof signature === 'string'
+    ? signature
+    : bs58.encode(signature as Uint8Array);
+
+const getSolanaFeeFallbackError = (walletSupportsSponsorship: boolean) =>
+  walletSupportsSponsorship
+    ? 'Gas sponsorship is unavailable and this wallet does not have enough SOL to pay the network fee. Add a small amount of SOL, then try again.'
+    : 'This Solana wallet cannot use gas sponsorship. Add a small amount of SOL for the network fee, or switch to your Swop embedded wallet.';
 
 const formatUserFriendlyError = (error: string): string => {
   const lowerError = error.toLowerCase();
@@ -1541,6 +1563,7 @@ export default function SwapTokenModal({
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
   const { signAndSendTransaction } = useSignAndSendTransaction();
+  const { signTransaction } = useSignTransaction();
   const { socket: chatSocket } = useNewSocketChat();
   const socket = chatSocket;
   const ethWallet = wallets[0]?.address;
@@ -3351,6 +3374,71 @@ export default function SwapTokenModal({
     }
   };
 
+  const submitSolanaTransactionWithFallback = async ({
+    serializedTransaction,
+    wallet,
+    connection,
+    canUseUserFundedFallback,
+    sponsoredStatus,
+    userFundedStatus,
+    context,
+  }: {
+    serializedTransaction: Uint8Array;
+    wallet: any;
+    connection: Connection;
+    canUseUserFundedFallback: boolean;
+    sponsoredStatus: string;
+    userFundedStatus: string;
+    context: string;
+  }) => {
+    const walletSupportsSponsorship =
+      isPrivyEmbeddedSolanaWallet(wallet);
+
+    if (walletSupportsSponsorship) {
+      try {
+        setSwapStatus(sponsoredStatus);
+        const sponsoredResult = await signAndSendTransaction({
+          transaction: serializedTransaction,
+          wallet,
+          options: {
+            sponsor: true,
+            uiOptions: { showWalletUIs: false },
+          },
+        });
+        return formatSolanaSignature(sponsoredResult.signature);
+      } catch (sponsoredError) {
+        if (isUserCancellationError(sponsoredError)) {
+          throw sponsoredError;
+        }
+
+        console.warn(
+          `${context} gas sponsorship failed; checking user-funded fallback:`,
+          sponsoredError,
+        );
+
+        if (!canUseUserFundedFallback) {
+          throw new Error(getSolanaFeeFallbackError(true));
+        }
+      }
+    } else if (!canUseUserFundedFallback) {
+      throw new Error(getSolanaFeeFallbackError(false));
+    }
+
+    setSwapStatus(userFundedStatus);
+    const { signedTransaction } = await signTransaction({
+      transaction: serializedTransaction,
+      wallet,
+      options: {
+        uiOptions: { showWalletUIs: false },
+      },
+    });
+
+    return connection.sendRawTransaction(signedTransaction, {
+      maxRetries: 3,
+      skipPreflight: false,
+    });
+  };
+
   // ── Jupiter swap (/order + /execute) ─────────────────────────────────────────
   const executeJupiterSwap = async () => {
     try {
@@ -3460,6 +3548,22 @@ export default function SwapTokenModal({
         );
       }
 
+      let sponsorPayerAddress: string | null = null;
+      setSwapStatus('Preparing gas sponsorship...');
+      const sponsorPayerResult = await getSolanaSponsorPayer();
+      if (
+        sponsorPayerResult.success &&
+        normalizeWalletAddress(sponsorPayerResult.address) !==
+          normalizeWalletAddress(selectedSolanaWallet.address)
+      ) {
+        sponsorPayerAddress = sponsorPayerResult.address;
+      } else if (!sponsorPayerResult.success) {
+        console.warn(
+          'Solana sponsor payer unavailable; falling back to wallet/Privy sponsorship:',
+          sponsorPayerResult.error,
+        );
+      }
+
       {
         const [inputTokenProgram, outputTokenProgram] =
           await Promise.all([
@@ -3473,7 +3577,7 @@ export default function SwapTokenModal({
           connection,
         });
         const requiresInstructionV2 =
-          isNativeSolOutput ||
+          isSOLOutput ||
           inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           feeInfo.tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
@@ -3484,6 +3588,7 @@ export default function SwapTokenModal({
           outputMint,
           amount: amountInSmallestUnit,
           taker: selectedSolanaWallet.address,
+          payer: sponsorPayerAddress ?? undefined,
           slippageBps: Math.floor(slippage * 100),
           mode: 'fast',
           platformFeeBps: PLATFORM_FEE_BPS,
@@ -3491,9 +3596,9 @@ export default function SwapTokenModal({
           instructionVersion: requiresInstructionV2
             ? 'V2'
             : undefined,
-          wrapAndUnwrapSol: isNativeSolInput || isNativeSolOutput,
+          wrapAndUnwrapSol: isSOLInput || isSOLOutput,
           nativeDestinationAccount:
-            isNativeSolOutput ? selectedSolanaWallet.address : undefined,
+            isSOLOutput ? selectedSolanaWallet.address : undefined,
         });
 
         if (!buildResult.success || !buildResult.data) {
@@ -3513,11 +3618,12 @@ export default function SwapTokenModal({
 
         setSwapStatus('Simulating Jupiter swap...');
         let computeUnitLimit = JUPITER_MAX_COMPUTE_UNITS;
-        if (canRunUserFundedSimulation) {
+        if (canRunUserFundedSimulation || sponsorPayerAddress) {
           try {
             const simulationTx = buildJupiterVersionedTransaction({
               build,
-              feePayer: selectedSolanaWallet.address,
+              feePayer:
+                sponsorPayerAddress || selectedSolanaWallet.address,
               computeUnitLimit: JUPITER_MAX_COMPUTE_UNITS,
             });
             const simulation = await connection.simulateTransaction(
@@ -3559,7 +3665,8 @@ export default function SwapTokenModal({
 
         const tx = buildJupiterVersionedTransaction({
           build,
-          feePayer: selectedSolanaWallet.address,
+          feePayer:
+            sponsorPayerAddress || selectedSolanaWallet.address,
           computeUnitLimit,
         });
 
@@ -3567,27 +3674,35 @@ export default function SwapTokenModal({
 
         const serializedTransaction = new Uint8Array(tx.serialize());
         let txId: string;
-        try {
-          setSwapStatus('Submitting sponsored Jupiter swap...');
-          const sponsoredResult = await signAndSendTransaction({
+        if (sponsorPayerAddress) {
+          setSwapStatus('Signing Jupiter swap...');
+          const { signedTransaction } = await signTransaction({
             transaction: serializedTransaction,
             wallet: selectedSolanaWallet,
             options: {
-              sponsor: true,
               uiOptions: { showWalletUIs: false },
             },
           });
-          txId = bs58.encode(sponsoredResult.signature);
-        } catch (sponsoredError) {
-          if (isUserCancellationError(sponsoredError)) {
-            throw sponsoredError;
-          }
 
-          console.warn(
-            'Sponsored Jupiter swap failed:',
-            sponsoredError,
+          setSwapStatus('Submitting sponsored Jupiter swap...');
+          const sponsorResult = await sponsorSolanaTransaction(
+            Buffer.from(signedTransaction).toString('base64'),
           );
-          throw new Error('Gas sponsorship failed for this swap.');
+          if (!sponsorResult.success) {
+            throw new Error(sponsorResult.error);
+          }
+          txId = sponsorResult.signature;
+        } else {
+          txId = await submitSolanaTransactionWithFallback({
+            serializedTransaction,
+            wallet: selectedSolanaWallet,
+            connection,
+            canUseUserFundedFallback: canRunUserFundedSimulation,
+            sponsoredStatus: 'Submitting sponsored Jupiter swap...',
+            userFundedStatus:
+              'Gas sponsorship unavailable; signing Jupiter swap...',
+            context: 'Jupiter swap',
+          });
         }
 
         setTxHash(txId);
@@ -3686,33 +3801,42 @@ export default function SwapTokenModal({
       const { blockhash } = await connection.getLatestBlockhash();
       transaction.message.recentBlockhash = blockhash;
 
+      const walletPubkey = new PublicKey(selectedSolanaWallet.address);
+      const solLamports = await connection.getBalance(walletPubkey);
+      const inputMint = payToken?.address || payToken?.id;
+      const isSOLInput =
+        payToken?.symbol === 'SOL' || isNativeSolMint(inputMint);
+      const swapLamports = isSOLInput
+        ? Number(formatTokenAmount(payAmount, payToken?.decimals ?? 9))
+        : 0;
+      const canUseUserFundedFallback =
+        solLamports >= 15_000 + swapLamports;
+
+      if (solLamports < swapLamports) {
+        const shortfall = ((swapLamports - solLamports) / 1e9).toFixed(
+          5,
+        );
+        throw new Error(
+          `Insufficient SOL: you need ${shortfall} more SOL to cover the swap amount.`,
+        );
+      }
+
       setSwapStatus('Signing and sending transaction...');
       await safeRefreshSession();
       const serializedTransaction = new Uint8Array(
         transaction.serialize(),
       );
 
-      let result;
-      try {
-        result = await signAndSendTransaction({
-          transaction: serializedTransaction,
-          wallet: selectedSolanaWallet,
-          options: {
-            sponsor: true,
-            uiOptions: { showWalletUIs: false },
-          },
-        });
-      } catch (sponsoredError) {
-        if (isUserCancellationError(sponsoredError)) {
-          throw sponsoredError;
-        }
-        console.warn(
-          'Sponsored Solana swap failed:',
-          sponsoredError,
-        );
-        throw new Error('Gas sponsorship failed for this swap.');
-      }
-      const signature = bs58.encode(result.signature);
+      const signature = await submitSolanaTransactionWithFallback({
+        serializedTransaction,
+        wallet: selectedSolanaWallet,
+        connection,
+        canUseUserFundedFallback,
+        sponsoredStatus: 'Submitting sponsored Solana swap...',
+        userFundedStatus:
+          'Gas sponsorship unavailable; signing Solana swap...',
+        context: 'Solana swap',
+      });
 
       setTxHash(signature);
       setSwapStatus('Transaction submitted!');
