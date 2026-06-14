@@ -23,6 +23,10 @@ import {
 } from '@/constants/polymarket';
 import { getSafePolymarketMaxBuyAmount } from '@/lib/polymarket/validation';
 import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
+import {
+  fetchChunkedPrices,
+  type PriceMap,
+} from '@/lib/polymarket/clob-prices';
 import EnableTradingModal from '@/components/wallet/polymarket/EnableTradingModal';
 
 import { InfoIcon, Clock, CheckCircle2, AlertCircle, X } from 'lucide-react';
@@ -3894,9 +3898,43 @@ export default function MarketDetailView({
 
   const yesTokenId = tokenIds[0] || '';
   const noTokenId = tokenIds[1] || '';
+  const quoteTokenKey = useMemo(
+    () => tokenIds.filter(Boolean).join(','),
+    [tokenIds],
+  );
+  const [refreshedPrices, setRefreshedPrices] = useState<PriceMap>({});
 
-  const yesQuote = market.realtimePrices?.[yesTokenId];
-  const noQuote = market.realtimePrices?.[noTokenId];
+  useEffect(() => {
+    let cancelled = false;
+    setRefreshedPrices({});
+    const quoteTokenIds = quoteTokenKey ? quoteTokenKey.split(',') : [];
+
+    if (quoteTokenIds.length === 0) return;
+
+    const refreshPrices = async () => {
+      try {
+        const prices = await fetchChunkedPrices(quoteTokenIds);
+        if (!cancelled) setRefreshedPrices(prices);
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('[MarketDetailView] Real-time price refresh failed:', error);
+        }
+      }
+    };
+
+    void refreshPrices();
+    const interval = window.setInterval(refreshPrices, 15_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [quoteTokenKey]);
+
+  const yesQuote =
+    refreshedPrices[yesTokenId] ?? market.realtimePrices?.[yesTokenId];
+  const noQuote =
+    refreshedPrices[noTokenId] ?? market.realtimePrices?.[noTokenId];
   const yesBid = yesQuote?.bidPrice;
   const noBid = noQuote?.bidPrice;
   const yesAsk = yesQuote?.askPrice;
