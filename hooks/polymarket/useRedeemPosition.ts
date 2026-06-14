@@ -341,27 +341,18 @@ export function useRedeemPosition() {
           })),
         };
 
-        const useDelegatedSigning =
-          silentOnly || isEmbeddedPrivyWallet(eoaAddress);
-        const wrapSignature = useDelegatedSigning
+        const wrapSignature = silentOnly
           ? await signTypedDataWithoutPopup({
               domain: wrapData.typedData.domain,
               types: wrapData.typedData.types,
               primaryType: wrapData.typedData.primaryType ?? "Batch",
               message: serializeForJson(wrapTypedDataMessage),
             })
-          : await walletClient.signTypedData({
-              account: eoaAddress as `0x${string}`,
-              domain: wrapData.typedData.domain as Parameters<
-                typeof walletClient.signTypedData
-              >[0]["domain"],
-              types: wrapData.typedData.types as Parameters<
-                typeof walletClient.signTypedData
-              >[0]["types"],
+          : await signRedeemTypedData({
+              domain: wrapData.typedData.domain,
+              types: wrapData.typedData.types,
               primaryType: wrapData.typedData.primaryType ?? "Batch",
-              message: wrapTypedDataMessage as Parameters<
-                typeof walletClient.signTypedData
-              >[0]["message"],
+              message: wrapTypedDataMessage,
             });
 
         const result = await submitDepositWalletWrap(
@@ -389,8 +380,8 @@ export function useRedeemPosition() {
     [
       accessToken,
       eoaAddress,
-      isEmbeddedPrivyWallet,
       queryClient,
+      signRedeemTypedData,
       signTypedDataWithoutPopup,
       walletClient,
     ]
@@ -514,7 +505,7 @@ export function useRedeemPosition() {
               depositWalletAddress: redeemDepositWalletAddress,
               destinationAddress: redeemDepositWalletAddress,
               amount: wrapAmount,
-              silentOnly: true,
+              silentOnly: false,
             });
             normalizedCollateral = true;
           } catch (wrapError) {

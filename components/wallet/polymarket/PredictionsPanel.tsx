@@ -714,7 +714,12 @@ export default function PredictionsPanel({
         const redeemedAmount = result.redeemedAmount ?? redeemValue;
         const redeemedAmountLabel = redeemedAmount.toFixed(2);
 
-        if (result.normalizationError) {
+        if (result.normalizedCollateral) {
+          toast.success(
+            `Redeemed $${redeemedAmountLabel} and converted to pUSD.`,
+            { id: redeemToastId },
+          );
+        } else if (result.normalizationError) {
           toast.success(
             `Redeemed $${redeemedAmountLabel}. Balance conversion will retry automatically.`,
             { id: redeemToastId },
