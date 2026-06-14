@@ -282,6 +282,7 @@ const Login: React.FC = () => {
   // Refs for preventing race conditions
   const loginProcessingRef = useRef(false);
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const walletCreationAttemptedRef = useRef<string | null>(null);
 
   // Format time as MM:SS
   const formatTime = (seconds: number): string => {
@@ -396,6 +397,12 @@ const Login: React.FC = () => {
               acc.connectorType === 'embedded'),
         );
 
+        setWalletStatus((prev) => ({
+          ...prev,
+          ethereum: prev.ethereum || hasEthWallet,
+          solana: prev.solana || hasSolWallet,
+        }));
+
         // Add production debugging
         const isProduction = process.env.NODE_ENV === 'production';
         if (isProduction) {
@@ -497,13 +504,16 @@ const Login: React.FC = () => {
   );
 
   useEffect(() => {
+    const creationAttemptKey = user?.id || user?.email?.address;
     if (
       authenticated &&
       ready &&
       user &&
       !walletStatus.inProgress &&
-      !(walletStatus.ethereum && walletStatus.solana)
+      !(walletStatus.ethereum && walletStatus.solana) &&
+      walletCreationAttemptedRef.current !== creationAttemptKey
     ) {
+      walletCreationAttemptedRef.current = creationAttemptKey ?? null;
       createPrivyWallets(user).catch((error) => {
         logger.error('Wallet creation failed (post-auth):', error);
       });
