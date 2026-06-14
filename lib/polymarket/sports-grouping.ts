@@ -37,6 +37,8 @@ export interface ParsedOutcome {
   /** 0–1 probability price, e.g. 0.47 */
   price: number;
   tokenId: string;
+  /** Source market for split binary soccer-style moneylines. */
+  market?: PolymarketMarket;
 }
 
 export interface GroupedMarket {
@@ -146,6 +148,28 @@ function safeParseJson<T>(raw: string | undefined, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function normalizeText(value: string | undefined): string {
+  return (value ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isBinaryYesNoMarket(outcomes: string[]): boolean {
+  return (
+    outcomes.length === 2 &&
+    /^yes$/i.test(outcomes[0]?.trim() ?? '') &&
+    /^no$/i.test(outcomes[1]?.trim() ?? '')
+  );
+}
+
+function isCompanionSportsMarket(question = '', eventTitle = ''): boolean {
+  return /\b(exact score|first team|first to score|score first|first corner|total corners|corner|cards?|booking|player props?|both teams to score|half|halftime|period|quarter)\b/.test(
+    normalizeText(`${eventTitle} ${question}`),
+  );
 }
 
 /**
@@ -515,6 +539,120 @@ function resolveEventIcon(
   );
 }
 
+function stripMoreMarketsSuffix(title: string): string {
+  return title
+    .replace(/\s*(?:[-–—:]\s*)?more\s+markets\s*$/i, '')
+    .trim();
+}
+
+function canonicalGameStartKey(market: PolymarketMarket): string {
+  const raw =
+    market.gameStartTime ??
+    market.eventStartDate ??
+    (market.startDate as string | undefined) ??
+    '';
+  if (!raw) return '';
+
+  const ms = Date.parse(raw);
+  if (Number.isFinite(ms)) return new Date(ms).toISOString();
+  return normalizeText(String(raw));
+}
+
+function flatMarketGroupKey(market: PolymarketMarket): string {
+  const rawTitle = market.eventTitle ?? market.question ?? '';
+  const title = stripMoreMarketsSuffix(rawTitle);
+  const hasTeams =
+    Array.isArray(market.eventTeams) && market.eventTeams.length >= 2;
+
+  if (hasTeams && /\bvs\.?\b/i.test(title)) {
+    return [
+      'sports-game',
+      normalizeText(title),
+      canonicalGameStartKey(market),
+    ].join(':');
+  }
+
+  return (market.eventId as string | undefined) ?? market.id;
+}
+
+function binaryMoneylineOutcomeLabel(
+  market: PolymarketMarket,
+  eventTeams: RawEventTeam[] | undefined,
+): string | null {
+  const outcomes = safeParseJson<string[]>(market.outcomes, []);
+  if (!isBinaryYesNoMarket(outcomes)) return null;
+
+  const question = normalizeText(market.question);
+  const title = normalizeText(market.eventTitle);
+
+  if (isCompanionSportsMarket(question, title)) {
+    return null;
+  }
+
+  if (/\b(end|ends|ending|finish|finishes|result)\b.*\b(draw|tie)\b/.test(question)) {
+    return 'Draw';
+  }
+
+  for (const team of eventTeams ?? []) {
+    const teamName = team.name?.trim();
+    if (!teamName) continue;
+    const normalizedTeam = normalizeText(teamName);
+    if (
+      new RegExp(`\\b${normalizedTeam}\\b.*\\b(win|wins|beat|beats)\\b`).test(question) ||
+      new RegExp(`\\bwill\\b.*\\b${normalizedTeam}\\b.*\\b(win|beat)\\b`).test(question)
+    ) {
+      return teamName;
+    }
+  }
+
+  return null;
+}
+
+function buildBinaryMoneylineGroup(
+  markets: PolymarketMarket[],
+): GroupedMarket | null {
+  const first = markets[0];
+  const eventTeams = first?.eventTeams as RawEventTeam[] | undefined;
+  if (!eventTeams?.length) return null;
+
+  const rows: ParsedOutcome[] = [];
+  for (const market of markets) {
+    const label = binaryMoneylineOutcomeLabel(market, eventTeams);
+    if (!label) continue;
+
+    const staticPrices = safeParseJson<string[]>(
+      market.outcomePrices,
+      [],
+    ).map(Number);
+    const tokenIds = safeParseJson<string[]>(market.clobTokenIds, []);
+    const tokenId = tokenIds[0] ?? '';
+    const realtimePrice = tokenId
+      ? market.realtimePrices?.[tokenId]?.bidPrice
+      : undefined;
+    const price = realtimePrice ?? staticPrices[0] ?? 0;
+    rows.push({ label, price, tokenId, market });
+  }
+
+  const teamOrder = eventTeams.map((team) => normalizeText(team.name));
+  rows.sort((a, b) => {
+    const indexFor = (label: string) => {
+      if (/^(draw|tie)$/i.test(label.trim())) return 2;
+      const idx = teamOrder.indexOf(normalizeText(label));
+      return idx >= 0 ? idx : 50;
+    };
+    return indexFor(a.label) - indexFor(b.label);
+  });
+
+  const teamRows = rows.filter((row) => !/^(draw|tie)$/i.test(row.label.trim()));
+  if (teamRows.length < 2) return null;
+
+  return {
+    type: 'moneyline',
+    market: rows[0].market ?? first,
+    outcomes: rows,
+  };
+}
+
 // ─── Flat-market grouping (used by useSportsEvents via /markets route) ────────
 
 /**
@@ -559,11 +697,20 @@ function groupPolymarketMarketsForEvent(
     spread: null,
     total: null,
   };
+  const binaryMoneyline = buildBinaryMoneylineGroup(markets);
+  if (binaryMoneyline) result.moneyline = binaryMoneyline;
+  const binaryMoneylineMarketIds = new Set(
+    binaryMoneyline?.outcomes
+      .map((outcome) => outcome.market?.id)
+      .filter(Boolean),
+  );
 
   for (const market of markets) {
     if (market.closed) continue;
+    if (binaryMoneylineMarketIds.has(market.id)) continue;
     const outcomes = safeParseJson<string[]>(market.outcomes, []);
     if (outcomes.length < 2) continue;
+    if (isCompanionSportsMarket(market.question, market.eventTitle)) continue;
 
     const type = detectMarketType(outcomes, market.question);
     if (result[type]) continue; // first match wins
@@ -670,7 +817,7 @@ export function groupFlatMarketsIntoGames(
   const eventMap = new Map<string, PolymarketMarket[]>();
 
   for (const market of markets) {
-    const key = (market.eventId as string | undefined) ?? market.id;
+    const key = flatMarketGroupKey(market);
     if (!eventMap.has(key)) eventMap.set(key, []);
     eventMap.get(key)!.push(market);
   }
@@ -681,7 +828,9 @@ export function groupFlatMarketsIntoGames(
     const first = eventMarkets[0];
     // Prefer the event-level title; fall back to the market question
     const title =
-      (first.eventTitle as string | undefined) ?? first.question ?? '';
+      stripMoreMarketsSuffix(
+        (first.eventTitle as string | undefined) ?? first.question ?? '',
+      );
 
     const grouped = groupPolymarketMarketsForEvent(eventMarkets);
 
