@@ -192,13 +192,39 @@ function getAuthCookieOptions() {
   };
 }
 
+// Cookies the app sets via js-cookie (non-httpOnly). httpOnly cookies are
+// invisible to js-cookie and must be cleared server-side via /api/auth/logout.
+const CLIENT_AUTH_COOKIE_NAMES = [
+  'user-id',
+  'access-token',
+  'privy-token',
+  'privy-id-token',
+  'privy-refresh-token',
+  'privy-session',
+];
+
 function clearStoredUserContext() {
   safeLocalStorage.removeItem(USER_CACHE_KEY);
 
-  Cookies.remove('user-id');
-  Cookies.remove('access-token');
-  Cookies.remove('user-id', { path: '/' });
-  Cookies.remove('access-token', { path: '/' });
+  for (const name of CLIENT_AUTH_COOKIE_NAMES) {
+    Cookies.remove(name);
+    Cookies.remove(name, { path: '/' });
+  }
+}
+
+// Server-side cookie clear. This is the only way to remove httpOnly auth
+// cookies (e.g. the `access-token` written by /api/auth/refresh-token), which
+// otherwise survive logout and keep the middleware + server-rendered feed
+// treating the user as logged in.
+async function clearServerAuthCookies() {
+  try {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch (error) {
+    console.warn('Failed to clear server auth cookies:', error);
+  }
 }
 
 function hasStoredSwopBackendSession() {
@@ -306,6 +332,14 @@ export function UserProvider({
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchedEmailRef = useRef<string | null>(null);
   const lastSyncedWalletsRef = useRef<string | null>(null);
+  // Set synchronously at the start of logout. While true, the main effect and
+  // fetchUserData must not re-fetch or re-write session storage. Without this,
+  // setUser(null) re-triggers the main effect while Privy is still
+  // `authenticated` (privyLogout hasn't resolved yet), which re-runs
+  // fetchUserData and resurrects the `swop:user-cache` localStorage plus the
+  // `access-token`/`user-id` cookies that logout just cleared — leaving the
+  // user able to reach protected routes after signing out.
+  const isLoggingOutRef = useRef(false);
 
   // Extract email from Privy user
   const extractEmail = useCallback(
@@ -376,6 +410,9 @@ export function UserProvider({
     async (email: string): Promise<boolean> => {
       const normalizedEmail = normalizeEmail(email);
       if (!normalizedEmail) return false;
+      // Logout in progress — don't re-fetch and re-write the session we're
+      // tearing down.
+      if (isLoggingOutRef.current) return false;
       if (fetchInProgressRef.current) return false;
       if (
         lastFetchedEmailRef.current === normalizedEmail &&
@@ -491,6 +528,10 @@ export function UserProvider({
   // Logout - just handle Privy logout, middleware handles redirects
   const handleLogout = useCallback(async () => {
     try {
+      // Block the main effect / fetchUserData from re-fetching and resurrecting
+      // the cleared session while privyLogout() is still resolving. Released in
+      // the main effect once Privy reports the user as unauthenticated.
+      isLoggingOutRef.current = true;
       abortControllerRef.current?.abort();
       setUser(null);
       setAccessToken(null);
@@ -498,12 +539,18 @@ export function UserProvider({
       safeLocalStorage.removeItem('swop:last-authenticated-at');
       clearStoredUserContext();
       lastFetchedEmailRef.current = null;
+      // Clear Privy's session first, then strip every auth cookie server-side
+      // (httpOnly included) so neither the middleware nor the server-rendered
+      // feed can treat the stale session as logged in.
       await privyLogout();
-      router.push('/login');
+      await clearServerAuthCookies();
+      clearStoredUserContext();
+      router.replace('/login');
     } catch (err) {
       console.error('Error during logout:', err);
+      await clearServerAuthCookies();
       clearStoredUserContext();
-      router.push('/login');
+      router.replace('/login');
     }
   }, [privyLogout, router]);
 
@@ -525,6 +572,10 @@ export function UserProvider({
 
     // Not authenticated - middleware handles redirects
     if (!authenticated || !privyUser) {
+      // Privy has fully logged out — the session we were tearing down is gone,
+      // so it's safe to release the logout guard for the next login.
+      isLoggingOutRef.current = false;
+
       if (hasStoredSwopBackendSession()) {
         setLoading(false);
         return;
@@ -534,6 +585,13 @@ export function UserProvider({
       setAccessToken(null);
       clearStoredUserContext();
       setLoading(false);
+      return;
+    }
+
+    // Logout is in flight but Privy still reports the old session as
+    // authenticated. Bail so we don't re-fetch and resurrect the cleared
+    // cookies/cache before privyLogout() resolves.
+    if (isLoggingOutRef.current) {
       return;
     }
 
