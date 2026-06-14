@@ -215,6 +215,40 @@ export function useRedeemPosition() {
     ]
   );
 
+  const signSafeTxHash = useCallback(
+    async (txHash: string) => {
+      if (!eoaAddress || !walletClient) {
+        throw new Error("Wallet not connected.");
+      }
+
+      if (isEmbeddedPrivyWallet(eoaAddress)) {
+        try {
+          return await signWithDelegatedPrivy("sign-message", {
+            message: txHash,
+          });
+        } catch (delegatedError) {
+          console.warn(
+            "Silent delegated redeem signing unavailable; falling back to wallet signing:",
+            delegatedError
+          );
+        }
+      }
+
+      return walletClient.signMessage({
+        account: eoaAddress as `0x${string}`,
+        message: {
+          raw: hexToBytes(txHash as `0x${string}`),
+        },
+      });
+    },
+    [
+      eoaAddress,
+      isEmbeddedPrivyWallet,
+      signWithDelegatedPrivy,
+      walletClient,
+    ]
+  );
+
   const normalizeLegacyUsdcBalance = useCallback(
     async ({
       depositWalletAddress: sourceDepositWalletAddress,
@@ -410,16 +444,7 @@ export function useRedeemPosition() {
             throw new Error("Redeem signing hash is missing.");
           }
 
-          signature = isEmbeddedWallet
-            ? await signWithDelegatedPrivy("sign-message", {
-                message: typedData.txHash,
-              })
-            : await walletClient.signMessage({
-                account: eoaAddress as `0x${string}`,
-                message: {
-                  raw: hexToBytes(typedData.txHash as `0x${string}`),
-                },
-              });
+          signature = await signSafeTxHash(typedData.txHash);
         }
 
         // Step 3: Submit
@@ -505,7 +530,7 @@ export function useRedeemPosition() {
       depositWalletAddress,
       isEmbeddedPrivyWallet,
       queryClient,
-      signWithDelegatedPrivy,
+      signSafeTxHash,
       signTypedDataWithoutPopup,
       normalizeLegacyUsdcBalance,
     ]
