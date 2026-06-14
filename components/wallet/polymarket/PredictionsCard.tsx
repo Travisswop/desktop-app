@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ArrowRight,
+  Share2,
   TrendingUp,
   TrendingDown,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ import {
   marketRouteKey,
   useMarketDetailStore,
 } from '@/zustandStore/marketDetailStore';
+import PositionShareModal from '@/components/wallet/polymarket/Positions/PositionShareModal';
 
 interface PredictionsCardProps {
   safeAddress: string | undefined;
@@ -235,6 +237,8 @@ export default function PredictionsCard({
   const { portfolioAddresses } = useTrading();
   const stashMarketDetail = useMarketDetailStore((s) => s.set);
   const { data: teamsData } = usePolymarketTeams();
+  const [sharePosition, setSharePosition] =
+    useState<PolymarketPosition | null>(null);
   const portfolioAddressInput = portfolioAddresses.length
     ? portfolioAddresses
     : safeAddress;
@@ -486,77 +490,99 @@ export default function PredictionsCard({
             const projected = bet.size * 1; // settlement at $1 if YES wins
             const timeLabel = timeUntil(bet.endDate);
             return (
-              <button
-                type="button"
+              <div
                 key={`${bet.conditionId}-${bet.outcomeIndex}`}
-                onClick={() => navigateToPosition(bet)}
-                className={`w-full text-left py-3 grid grid-cols-[1fr_auto] items-center gap-3.5 ${
+                className={`group w-full py-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 ${
                   i === 0 ? '' : 'border-t border-black/[0.04]'
                 } hover:bg-gray-50/60 transition-colors -mx-1 px-1 rounded-md`}
-                aria-label={`Open ${bet.title}`}
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className={`inline-flex items-center text-[10px] font-bold px-2 py-[2px] rounded-full tracking-[0.4px] ${
-                        positive
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-red-50 text-red-600'
+                <button
+                  type="button"
+                  onClick={() => navigateToPosition(bet)}
+                  className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 text-left"
+                  aria-label={`Open ${bet.title}`}
+                >
+                  <div className="min-w-0">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-[2px] text-[10px] font-bold tracking-[0.4px] ${
+                          positive
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-red-50 text-red-600'
+                        }`}
+                        style={{ fontFamily: MONO }}
+                      >
+                        {bet.outcome.toUpperCase()} ·{' '}
+                        {Math.round(bet.curPrice * 100)}¢
+                      </span>
+                      <span
+                        className="text-[10px] text-gray-400"
+                        style={{ fontFamily: MONO }}
+                      >
+                        {timeLabel}
+                      </span>
+                    </div>
+                    <div className="truncate text-[13px] font-semibold tracking-tight">
+                      {bet.title}
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="relative h-1 flex-1 overflow-hidden rounded-full bg-gray-100">
+                        <div
+                          className="absolute inset-y-0 left-0 rounded-full"
+                          style={{
+                            width: `${pct}%`,
+                            background: positive ? POS_GREEN : NEG_RED,
+                          }}
+                        />
+                      </div>
+                      <span
+                        className="min-w-[28px] text-right text-[10.5px] font-semibold text-gray-500 tabular-nums"
+                        style={{ fontFamily: MONO }}
+                      >
+                        {pct}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div
+                      className="text-[13px] font-semibold tracking-tight tabular-nums"
+                      style={{ fontFamily: MONO }}
+                    >
+                      ${stake.toFixed(2)}
+                    </div>
+                    <div
+                      className={`mt-0.5 text-[10.5px] font-semibold tabular-nums ${
+                        positive ? 'text-emerald-600' : 'text-red-600'
                       }`}
                       style={{ fontFamily: MONO }}
                     >
-                      {bet.outcome.toUpperCase()} · {Math.round(bet.curPrice * 100)}¢
-                    </span>
-                    <span
-                      className="text-[10px] text-gray-400"
-                      style={{ fontFamily: MONO }}
-                    >
-                      {timeLabel}
-                    </span>
-                  </div>
-                  <div className="text-[13px] font-semibold tracking-tight truncate">
-                    {bet.title}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <div className="flex-1 relative h-1 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-full"
-                        style={{
-                          width: `${pct}%`,
-                          background: positive ? POS_GREEN : NEG_RED,
-                        }}
-                      />
+                      → ${projected.toFixed(2)}
                     </div>
-                    <span
-                      className="text-[10.5px] text-gray-500 font-semibold min-w-[28px] text-right tabular-nums"
-                      style={{ fontFamily: MONO }}
-                    >
-                      {pct}%
-                    </span>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div
-                    className="text-[13px] font-semibold tracking-tight tabular-nums"
-                    style={{ fontFamily: MONO }}
-                  >
-                    ${stake.toFixed(2)}
-                  </div>
-                  <div
-                    className={`text-[10.5px] font-semibold mt-0.5 tabular-nums ${
-                      positive ? 'text-emerald-600' : 'text-red-600'
-                    }`}
-                    style={{ fontFamily: MONO }}
-                  >
-                    → ${projected.toFixed(2)}
-                  </div>
-                </div>
-              </button>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSharePosition(bet)}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/[0.08] bg-white text-gray-500 transition-colors hover:bg-black hover:text-white focus:outline-none focus:ring-2 focus:ring-black/20"
+                  aria-label={`Share prediction for ${bet.title}`}
+                  title="Share prediction"
+                >
+                  <Share2 className="h-3.5 w-3.5" strokeWidth={2.3} />
+                </button>
+              </div>
             );
           })
         )}
       </div>
 
+      {sharePosition && (
+        <PositionShareModal
+          position={sharePosition}
+          isOpen={!!sharePosition}
+          onClose={() => setSharePosition(null)}
+          statusOverride="open"
+        />
+      )}
     </div>
   );
 }

@@ -40,6 +40,63 @@ export interface BalanceCheckState {
 const POLL_INTERVAL_MS = 8_000;
 const MAX_POLL_ATTEMPTS = 30; // 30 × 8s = 4 minutes
 
+let builderDexNamesCache: string[] | null = null;
+let builderDexNamesPromise: Promise<string[]> | null = null;
+
+async function getBuilderDexNames() {
+  if (builderDexNamesCache) return builderDexNamesCache;
+  if (!builderDexNamesPromise) {
+    builderDexNamesPromise = infoClient
+      .perpDexs()
+      .then((dexs) =>
+        dexs
+          .map((dex, dexIndex) => ({ dex, dexIndex }))
+          .filter(
+            (
+              item,
+            ): item is {
+              dex: NonNullable<(typeof dexs)[number]>;
+              dexIndex: number;
+            } =>
+              item.dexIndex > 0 &&
+              Boolean(item.dex?.name) &&
+              typeof item.dex?.name === 'string',
+          )
+          .map((item) => item.dex.name.trim())
+          .filter(Boolean),
+      )
+      .then((names) => {
+        builderDexNamesCache = Array.from(new Set(names)).sort();
+        return builderDexNamesCache;
+      })
+      .finally(() => {
+        builderDexNamesPromise = null;
+      });
+  }
+
+  return builderDexNamesPromise;
+}
+
+async function getAggregateAccountValue(masterAddress: string) {
+  const dexNames = await getBuilderDexNames();
+  const states = await Promise.allSettled(
+    ['', ...dexNames].map((dex) =>
+      infoClient.clearinghouseState({
+        user: masterAddress as `0x${string}`,
+        ...(dex ? { dex } : {}),
+      }),
+    ),
+  );
+
+  let accountValue = 0;
+  for (const state of states) {
+    if (state.status !== 'fulfilled') continue;
+    accountValue += parseFloat(state.value.marginSummary.accountValue) || 0;
+  }
+
+  return accountValue.toFixed(6);
+}
+
 /**
  * useHyperliquidBalanceCheck
  *
@@ -111,11 +168,7 @@ export function useHyperliquidBalanceCheck(
     if (isMountedRef.current) setStatus('checking');
 
     try {
-      const state = await infoClient.clearinghouseState({
-        user: masterAddress as `0x${string}`,
-      });
-
-      const value = state.marginSummary.accountValue;
+      const value = await getAggregateAccountValue(masterAddress);
       const hasBalance = parseFloat(value) > 0;
 
       if (isMountedRef.current) {
@@ -170,10 +223,7 @@ export function useHyperliquidBalanceCheck(
       }
 
       try {
-        const state = await infoClient.clearinghouseState({
-          user: masterAddress as `0x${string}`,
-        });
-        const value = state.marginSummary.accountValue;
+        const value = await getAggregateAccountValue(masterAddress);
         const hasBalance = parseFloat(value) > 0;
 
         if (hasBalance) {

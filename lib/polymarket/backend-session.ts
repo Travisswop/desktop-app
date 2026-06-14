@@ -760,9 +760,9 @@ export async function getDepositWalletWrapTypedData(
   const res = await fetch(`${base()}/wrap/deposit-wallet/typed-data?${searchParams}`, {
     headers: authHeaders(accessToken),
   });
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to get USDC.e conversion typed data');
+    throw new Error(data.error || 'Failed to get USDC.e conversion typed data');
   }
   return res.json();
 }

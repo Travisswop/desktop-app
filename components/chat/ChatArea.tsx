@@ -27,6 +27,7 @@ import {
 import { Connection, VersionedTransaction } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import bs58 from 'bs58';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   createPublicClient,
   encodeFunctionData,
@@ -42,6 +43,7 @@ import { sendCloudinaryFile } from '@/lib/SendCloudinaryAnyFile';
 import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
 import CoinbaseOnrampFunding from '@/components/wallet/CoinbaseOnrampFunding';
+import { useAavePositions } from '@/components/wallet/defi/hooks/useAaveData';
 import {
   CryptoChartCard,
   parseCoinGeckoChartIntent,
@@ -51,6 +53,12 @@ import {
   normalizeFundingOnrampSourceText,
   type FundingOnrampPrefill,
 } from '@/lib/chat/fundingOnrampIntent';
+import {
+  looksLikePublicEnsName,
+  resolvePublicEnsName,
+} from '@/lib/api/publicEnsResolver';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import { apiFetch } from '@/lib/api/apiFetch';
 import toast from 'react-hot-toast';
 import {
   Activity,
@@ -60,21 +68,29 @@ import {
   BarChart3,
   Bot,
   ChevronDown,
+  ChevronLeft,
   Check,
   Clock3,
+  Copy,
   Download,
+  ExternalLink,
   FileText,
   Grid2X2,
   Loader2,
   Menu,
   Plus,
+  Play,
+  QrCode,
   Radio,
   RefreshCw,
+  Search,
   Send,
   ShieldCheck,
   ShoppingBag,
+  Square,
   UserRound,
   Users,
+  Wallet,
   X,
   Zap,
 } from 'lucide-react';
@@ -84,6 +100,7 @@ import {
   MarketplaceItemCards,
   SportsResearchBriefCard,
   SportsResearchSourceCards,
+  WalletPortfolioCard,
   WalletReceiveQrCard,
 } from '@/components/chat/cards/AgentInfoCards';
 import { ChatChartCommandCard } from '@/components/chat/cards/ChatChartCommandCard';
@@ -104,6 +121,7 @@ import type {
   ResearchSourcePreview,
   SportsResearchBrief,
   User,
+  WalletPortfolioSnapshot,
   WalletReceiveQrDetails,
 } from '@/lib/chat/agentCardTypes';
 import { getReceiptId } from '@/lib/chat/receiptShare';
@@ -170,6 +188,7 @@ import {
   useTrading,
 } from '@/providers/polymarket';
 import {
+  getPortfolioEvmWalletInput,
   useWalletAddresses,
   useWalletData,
 } from '@/components/wallet/hooks/useWalletData';
@@ -213,6 +232,7 @@ import { CHAIN_ID } from '@/types/wallet-types';
 import { TransactionService } from '@/services/transaction-service';
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
 import { getConnectionsUserData } from '@/actions/getEnsData';
+import { copyTextToClipboard } from '@/lib/clipboard';
 // ==================== FEATURE FLAGS ====================
 
 // Socket event names (V1 or V2 based on feature flag)
@@ -284,6 +304,7 @@ interface Message {
     proposalId?: string;
     toolType?: string;
     metadata?: {
+      responseType?: string | null;
       riskSummary?: AgentActionProposal['riskSummary'];
       normalizedParams?: AgentActionProposal['normalizedParams'];
         toolExecution?: {
@@ -293,6 +314,7 @@ interface Message {
           positions?: PolymarketPosition[];
           perpsPositions?: HyperliquidPositionsPreview | null;
           pnlOverview?: PnlOverviewPreview | null;
+          portfolioSnapshot?: WalletPortfolioSnapshot | null;
           items?: MarketplaceItemPreview[];
           walletReceive?: WalletReceiveQrDetails | null;
           sources?: ResearchSourcePreview[];
@@ -304,6 +326,7 @@ interface Message {
       walletSendNetworkPrompt?: WalletSendNetworkPrompt | null;
       walletSendDraftPrompt?: WalletSendDraftPrompt | null;
       perpsPositionPrompt?: PerpsPositionPrompt | null;
+      strategyRuntime?: GoldmanStrategyRuntimeCardPayload | null;
       receipt?: AgentActionCompletion | null;
       fundingOnramp?: FundingOnrampPrefill | null;
     };
@@ -577,6 +600,15 @@ function isLogicalDuplicateMessage(a: Message, b: Message) {
   if (a._id && b._id && a._id === b._id) return true;
   if (messageThreadKey(a) !== messageThreadKey(b)) return false;
   if (hasMatchingReceiptIdentity(a, b)) return true;
+  if (
+    a._id &&
+    b._id &&
+    a._id !== b._id &&
+    !isTempMessage(a) &&
+    !isTempMessage(b)
+  ) {
+    return false;
+  }
 
   const normalizedA = normalizeMessageForDedupe(a.message);
   const normalizedB = normalizeMessageForDedupe(b.message);
@@ -702,6 +734,15 @@ interface WalletSendDraftPrompt {
   amountType: string;
   recipient: string;
   chain: string;
+  recipientCandidates?: WalletSendDraftCandidate[];
+}
+
+interface WalletSendDraftCandidate {
+  userId?: string | null;
+  displayName?: string | null;
+  swopId?: string | null;
+  capabilities?: string[];
+  avatar?: string | null;
 }
 
 interface PerpsPositionPromptOption {
@@ -796,6 +837,12 @@ const CHAT_COMMAND_SUGGESTIONS = [
     hint: 'Review portfolio and trading performance',
     seed: '/pnl ',
   },
+  {
+    command: '/portfolio',
+    label: 'Portfolio graph',
+    hint: 'Show wallet token allocation',
+    seed: '/portfolio ',
+  },
 ] as const;
 
 interface SelectedChat {
@@ -816,8 +863,15 @@ interface ChatAreaProps {
   currentUser: string;
   socket: any; // You can use Socket from socket.io-client if you have it
   isThreadListCollapsed?: boolean;
+  initialComposerSeed?: {
+    command: string;
+    nonce: number;
+  } | null;
+  onComposerSeedConsumed?: () => void;
   onChatUpdate?: () => void; // ADD THIS
+  onBackToList?: () => void;
   onLeaveGroup?: () => void;
+  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
 }
 
 interface SocketResponse {
@@ -861,6 +915,14 @@ function hasActiveAstroAgent(chat: SelectedChat | null) {
   );
 }
 
+function hasActiveGoldmanAgent(chat: SelectedChat | null) {
+  return (
+    chat?.botUsers?.some(
+      (agent) => agent.agentId === 'goldman-sacks' && agent.isActive !== false
+    ) || false
+  );
+}
+
 function isAstroTradingDeskChat(
   chat: SelectedChat | null,
   isGroup: boolean
@@ -873,6 +935,41 @@ function isAstroTradingDeskChat(
       name === 'astro trading desk' ||
       name === 'astro')
   );
+}
+
+function isGoldmanSacksChat(
+  chat: SelectedChat | null,
+  isGroup: boolean
+) {
+  const name = String(chat?.name || '').trim().toLowerCase();
+
+  return (
+    isGroup &&
+    (hasActiveGoldmanAgent(chat) ||
+      name === 'goldman sacks' ||
+      name === 'goldman')
+  );
+}
+
+type DedicatedAgentThreadId = 'astro' | 'goldman-sacks';
+
+function getAgentDedicatedThreadId(
+  agentId?: string | null
+): DedicatedAgentThreadId | null {
+  if (agentId === 'astro' || agentId === 'goldman-sacks') {
+    return agentId;
+  }
+
+  return null;
+}
+
+function getDedicatedAgentThreadId(
+  chat: SelectedChat | null,
+  isGroup: boolean
+): DedicatedAgentThreadId | null {
+  if (isAstroTradingDeskChat(chat, isGroup)) return 'astro';
+  if (isGoldmanSacksChat(chat, isGroup)) return 'goldman-sacks';
+  return null;
 }
 
 function toAstroDeskDisplayMessage(
@@ -1486,20 +1583,22 @@ function parseChatWalletSendDraft(text?: string | null): WalletSendDraftPrompt {
 
 function buildSyntheticWalletSendDraftPromptMessage(
   draft: WalletSendDraftPrompt,
-  sourceMessageId?: string
+  sourceMessageId?: string,
+  agentSender: NonNullable<Message['agentSender']> = {
+    agentId: 'astro',
+    provider: 'elizaos',
+    displayName: 'Astro',
+    avatarUrl: null,
+  },
+  message = 'Let’s build your send. Pick a token, amount, and recipient.'
 ): Message {
   return {
     _id: sourceMessageId
       ? `local-wallet-send-draft-${sourceMessageId}`
       : `local-wallet-send-draft-${Date.now()}`,
-    message: 'Let’s build your send. Pick a token, amount, and recipient.',
+    message,
     senderKind: 'agent',
-    agentSender: {
-      agentId: 'astro',
-      provider: 'elizaos',
-      displayName: 'Astro',
-      avatarUrl: null,
-    },
+    agentSender,
     messageType: 'agent_response',
     createdAt: new Date().toISOString(),
     agentData: {
@@ -1713,6 +1812,19 @@ function getWalletSendNetworkOptions(
     .map((option, index) => ({ ...option, isBest: index === 0 }));
 }
 
+function getWalletSendFundingTokens(consoleData: AstroConsoleData) {
+  return Array.isArray(consoleData.walletFundingTokens)
+    ? consoleData.walletFundingTokens
+    : consoleData.walletPortfolioTokens;
+}
+
+function isWalletSendFundingBalanceLoading(consoleData: AstroConsoleData) {
+  return Boolean(
+    consoleData.isWalletFundingBalanceLoading ??
+      consoleData.isWalletPortfolioBalanceLoading
+  );
+}
+
 function buildSyntheticWalletSendNetworkPromptMessage(
   intent: { params: Record<string, unknown> },
   options: WalletSendNetworkOption[],
@@ -1851,6 +1963,12 @@ function hasChatSwapIntent(text?: string | null) {
       intent.fromSymbol ||
       intent.toSymbol ||
       intent.quoteOnly
+  );
+}
+
+function isExplicitChatSwapCommand(text?: string | null) {
+  return /^\/swap(?:\s|$)/i.test(
+    stripLeadingAstroMention(String(text || ''))
   );
 }
 
@@ -2350,6 +2468,10 @@ function isLocalSwapProposalId(proposalId?: string | null) {
   );
 }
 
+function isLocalWalletSendProposalId(proposalId?: string | null) {
+  return Boolean(proposalId && proposalId.startsWith('local-wallet-send-'));
+}
+
 function isAgentProposalNotFoundError(error: unknown) {
   const codedError = error as { code?: unknown; message?: unknown } | null;
   return (
@@ -2442,6 +2564,74 @@ function buildHyperliquidOrderPromptFromApprovalParams(
   return parts.join(' ');
 }
 
+function hasWalletSendApprovalParams(params?: Record<string, unknown>) {
+  if (!params) return false;
+  const token = firstTicketValue(params, [
+    'token',
+    'tokenSymbol',
+    'asset',
+    'currency',
+  ]);
+  const amount = firstTicketValue(params, ['amount', 'amountUsd']);
+  const recipient = firstTicketValue(params, [
+    'recipient',
+    'recipientAddress',
+    'recipientEns',
+    'recipientName',
+    'to',
+  ]);
+  return Boolean(token && amount && recipient);
+}
+
+function buildWalletSendPromptFromApprovalParams(
+  params?: Record<string, unknown>
+) {
+  const token =
+    firstTicketValue(params, ['token', 'tokenSymbol', 'asset', 'currency']) ||
+    'TOKEN';
+  const amount = firstTicketValue(params, ['amount', 'amountUsd']) || '0';
+  const amountType =
+    firstTicketValue(params, ['amountType']) ||
+    (initialTicketBool(params, ['isUSD'], false) ? 'usd' : 'token');
+  const recipient =
+    firstTicketValue(params, [
+      'recipient',
+      'recipientEns',
+      'recipientName',
+      'recipientAddress',
+      'to',
+    ]) || 'recipient';
+  const rawNetwork = firstTicketValue(params, ['chain', 'network']);
+  const network = rawNetwork ? normalizeWalletSendChainValue(rawNetwork) : '';
+  const amountLabel =
+    amountType === 'usd' ? `$${amount} in ${token}` : `${amount} ${token}`;
+  const parts = ['@astro send', amountLabel, 'to', recipient];
+
+  if (network) parts.push('on', network);
+
+  return parts.join(' ');
+}
+
+function buildLocalWalletSendApprovalHandoff(
+  proposalId: string,
+  params?: Record<string, unknown>
+): AgentApprovalHandoff {
+  return {
+    status: 'approved',
+    nextStep: 'wallet_send_inline_signing_required',
+    payload: {
+      proposalId,
+      action: 'wallet.send',
+      toolType: 'wallet.write',
+      provider: 'swop',
+      route: '/dashboard/chat',
+      panel: 'send',
+      normalizedParams: params || {},
+      prefill: params || {},
+    },
+  };
+}
+
 function isHyperliquidPlaceOrderMessage(message: Message) {
   return (
     message.agentData?.toolType === 'perps.write' &&
@@ -2462,6 +2652,56 @@ function isWalletSwapMessage(message: Message) {
     (message.agentData?.action === 'wallet.swap' ||
       message.agentData?.action === 'swap_tokens')
   );
+}
+
+function isWalletSwapProposalMessage(message: Message) {
+  return (
+    isWalletSwapMessage(message) &&
+    (message.messageType === 'agent_action_proposal' ||
+      Boolean(getMessageProposalId(message)))
+  );
+}
+
+function isWalletSwapClarificationMessage(message: Message) {
+  const responseType = String(
+    message.agentData?.metadata?.responseType || ''
+  );
+  return (
+    isWalletSwapMessage(message) &&
+    message.messageType !== 'agent_action_proposal' &&
+    (responseType === 'write_parameter_clarification' ||
+      /before preparing that swap/i.test(String(message.message || '')))
+  );
+}
+
+function shouldHideWalletSwapClarification(
+  messages: Message[],
+  currentIndex: number
+) {
+  const message = messages[currentIndex];
+  if (!message || !isWalletSwapClarificationMessage(message)) return false;
+
+  const currentTime = messageTime(message);
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    const candidateTime = messageTime(candidate);
+    if (
+      currentTime &&
+      candidateTime &&
+      currentTime - candidateTime > 10 * 60 * 1000
+    ) {
+      break;
+    }
+    if (isAgentLikeMessage(candidate)) continue;
+    if (
+      candidate.messageType === 'text' &&
+      isExplicitChatSwapCommand(candidate.message)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function hasMatchingWalletSendProposal(
@@ -2521,7 +2761,7 @@ function hasMatchingWalletSwapProposal(
   ).toUpperCase();
 
   return messages.some((message) => {
-    if (!isWalletSwapMessage(message)) return false;
+    if (!isWalletSwapProposalMessage(message)) return false;
     const params = message.agentData?.metadata?.normalizedParams || {};
     const messageFromToken = String(
       params.fromTokenSymbol ||
@@ -2783,8 +3023,12 @@ export default function ChatArea({
   currentUser,
   socket,
   isThreadListCollapsed = false,
+  initialComposerSeed,
+  onComposerSeedConsumed,
   onChatUpdate,
+  onBackToList,
   onLeaveGroup,
+  onOpenAgentThread,
 }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState<string>('');
@@ -2814,6 +3058,7 @@ export default function ChatArea({
     invokeGroupAgent,
     rejectAgentAction,
     removeGroupAgent,
+    updateGroupAgentAccessStation,
   } = useGroupAgents(socket);
   const [pendingPolymarketBetKey, setPendingPolymarketBetKey] = useState<
     string | null
@@ -2887,12 +3132,17 @@ export default function ChatArea({
     previousScrollHeightRef.current = 0;
     scrollMessagesToBottom('auto');
   }, [scrollMessagesToBottom]);
-  const shouldLoadAstroConsoleData = isAstroTradingDeskChat(
-    currentGroupData || selectedChat,
+  const activeConsoleChat = currentGroupData || selectedChat;
+  const isAstroConsoleChat = isAstroTradingDeskChat(
+    activeConsoleChat,
     isGroup
   );
+  const isGoldmanConsoleChat = isGoldmanSacksChat(activeConsoleChat, isGroup);
+  const shouldLoadAstroConsoleData =
+    isAstroConsoleChat || isGoldmanConsoleChat;
   const { eoaAddress } = usePolymarketWallet();
   const { accessToken, user } = useUser();
+  const queryClient = useQueryClient();
   const currentChatUser = useMemo(() => {
     const chat = currentGroupData || selectedChat;
     return chat?.participants?.find(
@@ -2917,18 +3167,251 @@ export default function ChatArea({
   );
   const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
+  const portfolioEvmWalletInput = useMemo(
+    () => getPortfolioEvmWalletInput(evmWalletAddress, evmWalletAddresses),
+    [evmWalletAddress, evmWalletAddresses]
+  );
+  const primaryEvmWalletAddress = useMemo(() => {
+    if (Array.isArray(portfolioEvmWalletInput)) {
+      return portfolioEvmWalletInput[0];
+    }
+    return portfolioEvmWalletInput || undefined;
+  }, [portfolioEvmWalletInput]);
+  const predictionOwnerAddress = eoaAddress || primaryEvmWalletAddress;
+  const goldmanGroupId = isGoldmanConsoleChat ? activeConsoleChat?._id || '' : '';
+  const goldmanStrategyVaultQueryKey = useMemo(
+    () => ['goldmanStrategyVault', goldmanGroupId] as const,
+    [goldmanGroupId]
+  );
+  const {
+    data: goldmanStrategyVault = null,
+    isLoading: isGoldmanStrategyVaultLoading,
+    error: goldmanStrategyVaultQueryError,
+  } = useQuery({
+    queryKey: goldmanStrategyVaultQueryKey,
+    queryFn: () =>
+      readGoldmanStrategyVault({
+        groupId: goldmanGroupId,
+        accessToken: accessToken!,
+        method: 'POST',
+      }),
+    enabled: isGoldmanConsoleChat && Boolean(goldmanGroupId && accessToken),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const [isActivatingGoldmanVault, setIsActivatingGoldmanVault] =
+    useState(false);
+  const [isTogglingGoldmanStrategy, setIsTogglingGoldmanStrategy] =
+    useState(false);
+  const goldmanStrategyVaultError =
+    goldmanStrategyVaultQueryError instanceof Error
+      ? goldmanStrategyVaultQueryError.message
+      : null;
+  const goldmanVaultWalletAddress = isGoldmanConsoleChat
+    ? goldmanStrategyVault?.walletAddress || undefined
+    : undefined;
+  const consolePredictionOwnerAddress =
+    isGoldmanConsoleChat && goldmanVaultWalletAddress
+      ? goldmanVaultWalletAddress
+      : predictionOwnerAddress;
+  const activeGoldmanStrategy = useMemo(
+    () => getRunnableGoldmanStrategy(goldmanStrategyVault),
+    [goldmanStrategyVault]
+  );
+  const isGoldmanStrategyRunning =
+    activeGoldmanStrategy?.runtime?.state === 'running' ||
+    activeGoldmanStrategy?.status === 'active';
+  const ensureGoldmanStrategyVault = useCallback(async () => {
+    if (goldmanStrategyVault?.walletAddress) return goldmanStrategyVault;
+    if (!goldmanGroupId || !accessToken) {
+      throw new Error('Goldman Sacks group or auth session is not ready.');
+    }
+
+    setIsActivatingGoldmanVault(true);
+    try {
+      const vault = await readGoldmanStrategyVault({
+        groupId: goldmanGroupId,
+        accessToken,
+        method: 'POST',
+      });
+      queryClient.setQueryData(goldmanStrategyVaultQueryKey, vault);
+      return vault;
+    } finally {
+      setIsActivatingGoldmanVault(false);
+    }
+  }, [
+    accessToken,
+    goldmanGroupId,
+    goldmanStrategyVault,
+    goldmanStrategyVaultQueryKey,
+    queryClient,
+  ]);
+  const handleToggleGoldmanStrategy = useCallback(
+    async (action: 'run' | 'stop') => {
+      if (!goldmanGroupId || !accessToken) {
+        toast.error('Goldman Sacks group or auth session is not ready.');
+        return;
+      }
+
+      let vault = goldmanStrategyVault;
+      if (!vault?.walletAddress) {
+        try {
+          vault = await ensureGoldmanStrategyVault();
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : 'Could not activate Goldman Sacks vault.'
+          );
+          return;
+        }
+      }
+
+      const strategy = getRunnableGoldmanStrategy(vault);
+      if (!strategy?.id) {
+        toast.error('Approve a Goldman strategy before pressing Run.');
+        return;
+      }
+
+      setIsTogglingGoldmanStrategy(true);
+      try {
+        const result = await updateGoldmanStrategyRuntime({
+          groupId: goldmanGroupId,
+          strategyId: strategy.id,
+          accessToken,
+          action,
+        });
+        queryClient.setQueryData<GoldmanStrategyVault | null>(
+          goldmanStrategyVaultQueryKey,
+          (current) =>
+            mergeGoldmanStrategyIntoVault(
+              result.vault ? { ...result.vault, strategies: current?.strategies || [] } : current || vault,
+              result.strategy
+            )
+        );
+        toast.success(
+          action === 'run'
+            ? 'Goldman strategy is running.'
+            : 'Goldman strategy stopped.'
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : `Could not ${action} Goldman strategy.`
+        );
+      } finally {
+        setIsTogglingGoldmanStrategy(false);
+      }
+    },
+    [
+      accessToken,
+      ensureGoldmanStrategyVault,
+      goldmanGroupId,
+      goldmanStrategyVault,
+      goldmanStrategyVaultQueryKey,
+      queryClient,
+    ]
+  );
+  const handleRunGoldmanStrategy = useCallback(
+    () => handleToggleGoldmanStrategy('run'),
+    [handleToggleGoldmanStrategy]
+  );
+  const handleStopGoldmanStrategy = useCallback(
+    () => handleToggleGoldmanStrategy('stop'),
+    [handleToggleGoldmanStrategy]
+  );
+  const handleSaveGoldmanStrategyFile = useCallback(
+    async (fileName: string, content: string) => {
+      if (!goldmanGroupId || !accessToken) {
+        throw new Error('Goldman Sacks group or auth session is not ready.');
+      }
+
+      let vault = goldmanStrategyVault;
+      if (!vault?.walletAddress) {
+        vault = await ensureGoldmanStrategyVault();
+      }
+
+      const result = await updateGoldmanStrategyFile({
+        groupId: goldmanGroupId,
+        fileName,
+        content,
+        accessToken,
+      });
+      const savedFile = result.file || null;
+      queryClient.setQueryData<GoldmanStrategyVault | null>(
+        goldmanStrategyVaultQueryKey,
+        (current) => {
+          const nextVault = result.vault
+            ? {
+                ...result.vault,
+                strategies: current?.strategies || vault?.strategies || [],
+              }
+            : current || vault;
+          if (!nextVault || !savedFile) return nextVault || null;
+          const existingFiles = hydrateGoldmanStrategyFiles(
+            nextVault.strategyFiles
+          );
+          return {
+            ...nextVault,
+            strategyFiles: existingFiles.map((file) =>
+              file.file === savedFile.file
+                ? { ...file, ...savedFile }
+                : file
+            ),
+          };
+        }
+      );
+      return savedFile;
+    },
+    [
+      accessToken,
+      ensureGoldmanStrategyVault,
+      goldmanGroupId,
+      goldmanStrategyVault,
+      goldmanStrategyVaultQueryKey,
+      queryClient,
+    ]
+  );
+  const goldmanAaveAddress = isGoldmanConsoleChat
+    ? goldmanStrategyVault?.walletAddress || null
+    : null;
+  const {
+    data: goldmanAavePositions,
+    isLoading: isGoldmanAavePositionsLoading,
+  } = useAavePositions('polygon', goldmanAaveAddress, accessToken || '');
   const {
     tokens: walletPortfolioTokens,
     loading: isWalletPortfolioBalanceLoading,
   } = useMultiChainTokenData(
-    shouldLoadAstroConsoleData ? solWalletAddress : '',
+    shouldLoadAstroConsoleData && !isGoldmanConsoleChat
+      ? solWalletAddress
+      : '',
     shouldLoadAstroConsoleData
-      ? evmWalletAddresses.length
-        ? evmWalletAddresses
-        : evmWalletAddress
+      ? isGoldmanConsoleChat
+        ? goldmanStrategyVault?.walletAddress || ''
+        : portfolioEvmWalletInput
       : '',
     SUPPORTED_CHAINS
   );
+  const {
+    tokens: mainWalletFundingTokens,
+    loading: isMainWalletFundingBalanceLoading,
+  } = useMultiChainTokenData(
+    shouldLoadAstroConsoleData && isGoldmanConsoleChat
+      ? solWalletAddress
+      : '',
+    shouldLoadAstroConsoleData && isGoldmanConsoleChat
+      ? portfolioEvmWalletInput
+      : '',
+    SUPPORTED_CHAINS
+  );
+  const walletFundingTokens = isGoldmanConsoleChat
+    ? mainWalletFundingTokens
+    : walletPortfolioTokens;
+  const isWalletFundingBalanceLoading = isGoldmanConsoleChat
+    ? isMainWalletFundingBalanceLoading
+    : isWalletPortfolioBalanceLoading;
 
   const walletPortfolioBalance = useMemo(() => {
     return walletPortfolioTokens.reduce((sum, token) => {
@@ -2946,15 +3429,27 @@ export default function ChatArea({
 
   const { data: predictionWalletInfo, isLoading: isPredictionWalletInfoLoading } =
     useQuery({
-      queryKey: ['polymarketWalletInfo', eoaAddress],
-      queryFn: () => getWalletInfo(eoaAddress!, accessToken!),
-      enabled: shouldLoadAstroConsoleData && Boolean(eoaAddress && accessToken),
+      queryKey: ['polymarketWalletInfo', consolePredictionOwnerAddress],
+      queryFn: () => getWalletInfo(consolePredictionOwnerAddress!, accessToken!),
+      enabled:
+        shouldLoadAstroConsoleData &&
+        Boolean(consolePredictionOwnerAddress && accessToken),
       staleTime: 30_000,
       refetchOnWindowFocus: true,
     });
 
   const predictionActiveWalletAddress = useMemo(() => {
     if (!shouldLoadAstroConsoleData) return undefined;
+    if (isGoldmanConsoleChat) {
+      if (predictionWalletInfo?.recommendedWalletType === 'safe') {
+        return predictionWalletInfo.safeAddress;
+      }
+      if (predictionWalletInfo?.depositWalletAddress) {
+        return predictionWalletInfo.depositWalletAddress;
+      }
+      if (predictionWalletInfo?.safeAddress) return predictionWalletInfo.safeAddress;
+      return consolePredictionOwnerAddress;
+    }
     if (trading.tradingWalletAddress) return trading.tradingWalletAddress;
     if (predictionWalletInfo?.recommendedWalletType === 'safe') {
       return predictionWalletInfo.safeAddress;
@@ -2963,12 +3458,14 @@ export default function ChatArea({
       return predictionWalletInfo.depositWalletAddress;
     }
     if (predictionWalletInfo?.safeAddress) return predictionWalletInfo.safeAddress;
-    return eoaAddress;
+    return predictionOwnerAddress;
   }, [
-    eoaAddress,
     predictionWalletInfo?.depositWalletAddress,
     predictionWalletInfo?.recommendedWalletType,
     predictionWalletInfo?.safeAddress,
+    consolePredictionOwnerAddress,
+    isGoldmanConsoleChat,
+    predictionOwnerAddress,
     shouldLoadAstroConsoleData,
     trading.tradingWalletAddress,
   ]);
@@ -2976,21 +3473,34 @@ export default function ChatArea({
   const predictionWalletAddresses = useMemo(() => {
     if (!shouldLoadAstroConsoleData) return [];
 
-    const addresses = [
-      ...trading.portfolioAddresses,
-      trading.tradingWalletAddress,
-      trading.depositWalletAddress,
-      predictionWalletInfo?.depositWalletAddress,
-      predictionWalletInfo?.safeAddress,
-      predictionActiveWalletAddress,
-    ].filter((address): address is string => Boolean(address));
+    const addresses = (
+      isGoldmanConsoleChat
+        ? [
+            predictionWalletInfo?.depositWalletAddress,
+            predictionWalletInfo?.safeAddress,
+            predictionActiveWalletAddress,
+            consolePredictionOwnerAddress,
+          ]
+        : [
+            ...trading.portfolioAddresses,
+            trading.tradingWalletAddress,
+            trading.depositWalletAddress,
+            predictionWalletInfo?.depositWalletAddress,
+            predictionWalletInfo?.safeAddress,
+            predictionActiveWalletAddress,
+            predictionOwnerAddress,
+          ]
+    ).filter((address): address is string => Boolean(address));
     return Array.from(
       new Map(addresses.map((address) => [address.toLowerCase(), address])).values()
     );
   }, [
+    consolePredictionOwnerAddress,
+    isGoldmanConsoleChat,
     predictionActiveWalletAddress,
     predictionWalletInfo?.depositWalletAddress,
     predictionWalletInfo?.safeAddress,
+    predictionOwnerAddress,
     shouldLoadAstroConsoleData,
     trading.depositWalletAddress,
     trading.portfolioAddresses,
@@ -3017,7 +3527,7 @@ export default function ChatArea({
   const { data: predictionOpenOrders = [] } = useActiveOrders(
     trading.tradingSession,
     trading.tradingWalletAddress,
-    { enabled: shouldLoadAstroConsoleData }
+    { enabled: shouldLoadAstroConsoleData && !isGoldmanConsoleChat }
   );
   const perpsBuilderDexes = useMemo(() => {
     const set = new Set<string>();
@@ -3027,17 +3537,17 @@ export default function ChatArea({
     }
     return Array.from(set);
   }, [perpsMarkets]);
+  const perpsMasterAddress = shouldLoadAstroConsoleData
+    ? isGoldmanConsoleChat
+      ? goldmanVaultWalletAddress || null
+      : primaryEvmWalletAddress || perpsAgent.masterAddress || eoaAddress || null
+    : null;
   // Aggregate across the main DEX + every builder (HIP-3) DEX so Astro sees ALL
   // positions and the combined balance — one perps wallet.
   const {
     data: perpsAccount,
     isLoading: isPerpsLoading,
-  } = useHyperliquidPortfolio(
-    shouldLoadAstroConsoleData
-      ? perpsAgent.masterAddress || eoaAddress || null
-      : null,
-    perpsBuilderDexes
-  );
+  } = useHyperliquidPortfolio(perpsMasterAddress, perpsBuilderDexes);
 
   const astroConsoleData = useMemo<AstroConsoleData>(
     () => ({
@@ -3048,6 +3558,7 @@ export default function ChatArea({
       walletIdentityLabel,
       walletPortfolioBalance,
       walletPortfolioTokens,
+      walletFundingTokens,
       predictionWalletAddress:
         predictionActiveWalletAddress || predictionWalletAddresses[0],
       predictionWalletAddresses,
@@ -3057,12 +3568,15 @@ export default function ChatArea({
       predictionPositions,
       predictionOpenOrders,
       isWalletPortfolioBalanceLoading,
+      isWalletFundingBalanceLoading,
       isPredictionBalanceLoading:
         isPredictionWalletInfoLoading ||
         isActivePredictionBalanceLoading ||
         isPredictionPortfolioBalanceLoading,
+      aavePositions: goldmanAavePositions || null,
+      isAavePositionsLoading: isGoldmanAavePositionsLoading,
       perpsAccount,
-      perpsMasterAddress: perpsAgent.masterAddress || eoaAddress || null,
+      perpsMasterAddress,
       isPerpsLoading,
       perpsMarkets,
       isPerpsAgentInitialized: perpsAgent.isInitialized,
@@ -3087,13 +3601,15 @@ export default function ChatArea({
       isActivePredictionBalanceLoading,
       isPredictionPortfolioBalanceLoading,
       isPredictionWalletInfoLoading,
+      goldmanAavePositions,
+      isGoldmanAavePositionsLoading,
       perpsAccount,
       perpsAgent.error,
       perpsAgent.initializeAgent,
       perpsAgent.isInitialized,
       perpsAgent.isInitializing,
-      perpsAgent.masterAddress,
       perpsAgent.isReconnecting,
+      perpsMasterAddress,
       perpsMarkets,
       perpsTrading.clearError,
       perpsTrading.closePosition,
@@ -3111,9 +3627,11 @@ export default function ChatArea({
       activePredictionUsdcBalance,
       evmWalletAddress,
       evmWalletAddresses,
+      isWalletFundingBalanceLoading,
       predictionPortfolioUsdcBalance,
       predictionWalletAddresses,
       solWalletAddress,
+      walletFundingTokens,
       walletPortfolioBalance,
       walletPortfolioTokens,
       walletIdentityLabel,
@@ -3388,6 +3906,76 @@ export default function ChatArea({
       onChatUpdate?.();
     };
 
+    const handleGoldmanStrategyUpdated = (data: {
+      groupId?: string;
+      agentId?: string;
+      strategy?: GoldmanTradingStrategy;
+    }) => {
+      if (
+        data.groupId !== selectedChat?._id ||
+        data.agentId !== 'goldman-sacks' ||
+        !data.strategy
+      ) {
+        return;
+      }
+
+      queryClient.setQueryData<GoldmanStrategyVault | null>(
+        goldmanStrategyVaultQueryKey,
+        (current) => mergeGoldmanStrategyIntoVault(current, data.strategy)
+      );
+    };
+
+    const handleGoldmanStrategyVaultReady = (data: {
+      groupId?: string;
+      agentId?: string;
+      vault?: GoldmanStrategyVault | null;
+      strategies?: GoldmanTradingStrategy[];
+    }) => {
+      if (
+        data.groupId !== selectedChat?._id ||
+        data.agentId !== 'goldman-sacks' ||
+        !data.vault?.walletAddress
+      ) {
+        return;
+      }
+
+      queryClient.setQueryData<GoldmanStrategyVault | null>(
+        goldmanStrategyVaultQueryKey,
+        (current) => ({
+          ...data.vault!,
+          strategies: Array.isArray(data.strategies)
+            ? data.strategies
+            : current?.strategies || [],
+        })
+      );
+      void queryClient.invalidateQueries({
+        queryKey: goldmanStrategyVaultQueryKey,
+      });
+    };
+
+    const handleGoldmanStrategyFileUpdated = (data: {
+      groupId?: string;
+      agentId?: string;
+      vault?: GoldmanStrategyVault | null;
+      file?: GoldmanStrategyFile | null;
+    }) => {
+      if (
+        data.groupId !== selectedChat?._id ||
+        data.agentId !== 'goldman-sacks' ||
+        !data.vault?.walletAddress
+      ) {
+        return;
+      }
+
+      queryClient.setQueryData<GoldmanStrategyVault | null>(
+        goldmanStrategyVaultQueryKey,
+        (current) => ({
+          ...data.vault!,
+          strategies: current?.strategies || [],
+        })
+      );
+    };
+
     socket.on('group_info_updated', handleGroupInfoUpdated);
     socket.on(
       'group_participants_updated',
@@ -3395,13 +3983,19 @@ export default function ChatArea({
     );
     socket.on('group_member_added', handleGroupParticipantsUpdated);
     socket.on('group_member_removed', handleGroupParticipantsUpdated);
-    socket.on(
-      'group_member_role_updated',
-      handleGroupParticipantsUpdated
-    );
     socket.on('group_deleted', handleGroupDeleted);
     socket.on('group_agent_added', handleGroupAgentAdded);
+    socket.on('group_agent_updated', handleGroupAgentAdded);
     socket.on('group_agent_removed', handleGroupAgentRemoved);
+    socket.on(
+      'group_agent_strategy_vault_ready',
+      handleGoldmanStrategyVaultReady
+    );
+    socket.on(
+      'group_agent_strategy_file_updated',
+      handleGoldmanStrategyFileUpdated
+    );
+    socket.on('group_agent_strategy_updated', handleGoldmanStrategyUpdated);
 
     return () => {
       socket.off('group_info_updated', handleGroupInfoUpdated);
@@ -3417,13 +4011,19 @@ export default function ChatArea({
         'group_member_removed',
         handleGroupParticipantsUpdated
       );
-      socket.off(
-        'group_member_role_updated',
-        handleGroupParticipantsUpdated
-      );
       socket.off('group_deleted', handleGroupDeleted);
       socket.off('group_agent_added', handleGroupAgentAdded);
+      socket.off('group_agent_updated', handleGroupAgentAdded);
       socket.off('group_agent_removed', handleGroupAgentRemoved);
+      socket.off(
+        'group_agent_strategy_vault_ready',
+        handleGoldmanStrategyVaultReady
+      );
+      socket.off(
+        'group_agent_strategy_file_updated',
+        handleGoldmanStrategyFileUpdated
+      );
+      socket.off('group_agent_strategy_updated', handleGoldmanStrategyUpdated);
     };
   }, [
     socket,
@@ -3434,6 +4034,8 @@ export default function ChatArea({
     markGroupAgentRemoved,
     onChatUpdate,
     onLeaveGroup,
+    queryClient,
+    goldmanStrategyVaultQueryKey,
     upsertGroupAgent,
   ]);
   // UPDATE: Sync currentGroupData when selectedChat changes
@@ -3926,23 +4528,45 @@ export default function ChatArea({
     }
     recentOutgoingMessageRef.current = { key: outgoingKey, at: now };
 
+    const activePredictionWalletAddress =
+      predictionActiveWalletAddress || predictionWalletAddresses[0];
+    const socketEvmWalletAddress =
+      isGoldmanConsoleChat && goldmanVaultWalletAddress
+        ? goldmanVaultWalletAddress
+        : evmWalletAddress;
+    const socketEvmWalletAddresses =
+      isGoldmanConsoleChat && goldmanVaultWalletAddress
+        ? [goldmanVaultWalletAddress]
+        : evmWalletAddresses;
+    const socketTradingWalletAddress = isGoldmanConsoleChat
+      ? activePredictionWalletAddress
+      : trading.tradingWalletAddress;
+    const socketDepositWalletAddress = isGoldmanConsoleChat
+      ? predictionWalletInfo?.depositWalletAddress
+      : trading.depositWalletAddress ||
+        predictionWalletInfo?.depositWalletAddress;
+
     const messageData = isGroup
       ? {
           groupId: selectedChat._id,
           message: messageForTransport,
           messageType: 'text' as const,
           clientWalletContext: {
-            evmWalletAddress,
-            evmWalletAddresses,
+            evmWalletAddress: socketEvmWalletAddress,
+            evmWalletAddresses: socketEvmWalletAddresses,
             solWalletAddress,
-            predictionWalletAddress:
-              predictionActiveWalletAddress || predictionWalletAddresses[0],
+            predictionWalletAddress: activePredictionWalletAddress,
             predictionWalletAddresses,
-            tradingWalletAddress: trading.tradingWalletAddress,
-            depositWalletAddress:
-              trading.depositWalletAddress ||
-              predictionWalletInfo?.depositWalletAddress,
+            tradingWalletAddress: socketTradingWalletAddress,
+            depositWalletAddress: socketDepositWalletAddress,
             safeAddress: predictionWalletInfo?.safeAddress,
+            agentId: isGoldmanConsoleChat ? 'goldman-sacks' : undefined,
+            agentWalletAddress: isGoldmanConsoleChat
+              ? goldmanVaultWalletAddress || null
+              : undefined,
+            strategyVaultWalletAddress: isGoldmanConsoleChat
+              ? goldmanVaultWalletAddress || null
+              : undefined,
           },
         }
       : {
@@ -3978,15 +4602,25 @@ export default function ChatArea({
             sourceMessageId: optimisticMessage._id,
           })
         : null;
+    const localPortfolioResponseMessage =
+      shouldLoadAstroConsoleData &&
+      canUseAstroLocalActions &&
+      isPortfolioCommand(outgoingMessage)
+        ? buildLocalPortfolioResponseMessage({
+            consoleData: astroConsoleData,
+            groupId: isGroup ? selectedChat._id : null,
+            sourceMessageId: optimisticMessage._id,
+          })
+        : null;
 
-    if (localPnlResponseMessage) {
+    if (localPnlResponseMessage || localPortfolioResponseMessage) {
       forceScrollToBottomRef.current = true;
       isPinnedToBottomRef.current = true;
       setMessages((prev) =>
         dedupeMessages([
           ...prev,
           { ...optimisticMessage, status: 'sent' as const },
-          localPnlResponseMessage,
+          (localPnlResponseMessage || localPortfolioResponseMessage)!,
         ])
       );
       if (typeof messageOverride !== 'string') {
@@ -4054,6 +4688,8 @@ export default function ChatArea({
     evmWalletAddress,
     evmWalletAddresses,
     getPolymarketIntentMarkets,
+    goldmanVaultWalletAddress,
+    isGoldmanConsoleChat,
     isGroup,
     messages,
     newMessage,
@@ -4386,6 +5022,17 @@ export default function ChatArea({
   };
 
   const handleMentionAgent = (agent: GroupAgent) => {
+    const agentThreadId = getAgentDedicatedThreadId(agent.agentId);
+    const activeThreadId = getDedicatedAgentThreadId(
+      chatType === 'group' ? currentGroupData : selectedChat,
+      chatType === 'group'
+    );
+
+    if (agentThreadId && agentThreadId !== activeThreadId && onOpenAgentThread) {
+      void onOpenAgentThread(agentThreadId);
+      return;
+    }
+
     const alias = agent.mentionAliases?.[0] || `@${agent.agentId}`;
     setNewMessage((prev) => {
       const trimmed = prev.trim();
@@ -4417,6 +5064,21 @@ export default function ChatArea({
     [focusComposer]
   );
 
+  useEffect(() => {
+    const command = initialComposerSeed?.command;
+    if (selectedChatKey === 'none' || !command) return;
+
+    setNewMessage(command);
+    focusComposer();
+    onComposerSeedConsumed?.();
+  }, [
+    focusComposer,
+    initialComposerSeed?.command,
+    initialComposerSeed?.nonce,
+    onComposerSeedConsumed,
+    selectedChatKey,
+  ]);
+
   const handleAstroConsolePositionClick = useCallback(
     (selection: AstroConsolePositionSelection) => {
       if (!selectedChat || !shouldLoadAstroConsoleData) return;
@@ -4435,6 +5097,55 @@ export default function ChatArea({
     },
     [astroConsoleData, isGroup, selectedChat, shouldLoadAstroConsoleData]
   );
+
+  const handleOpenGoldmanWalletTransfer = useCallback(async () => {
+    if (!selectedChat || !shouldLoadAstroConsoleData) return;
+
+    let vault: GoldmanStrategyVault | null = null;
+    try {
+      vault = await ensureGoldmanStrategyVault();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Could not activate Goldman Sacks vault.'
+      );
+      return;
+    }
+
+    const fundingAddress = getGoldmanFundingAddress(vault);
+    if (!fundingAddress?.address) {
+      toast.error('Goldman Sacks vault is not ready yet.');
+      return;
+    }
+
+    const draftMessage = buildSyntheticWalletSendDraftPromptMessage(
+      {
+        token: 'USDC',
+        amount: '',
+        amountType: 'token',
+        recipient: fundingAddress.address,
+        chain: normalizeWalletSendChainValue(fundingAddress.network),
+      },
+      `goldman-transfer-${Date.now()}`,
+      {
+        agentId: 'goldman-sacks',
+        provider: 'elizaos',
+        displayName: 'Goldman Sacks',
+        avatarUrl: null,
+      },
+      'Fund Goldman Sacks. Pick a token and amount; the destination is prefilled.'
+    );
+
+    forceScrollToBottomRef.current = true;
+    isPinnedToBottomRef.current = true;
+    setMessages((prev) => dedupeMessages([...prev, draftMessage]));
+    toast.success('Goldman Sacks send card ready.');
+  }, [
+    ensureGoldmanStrategyVault,
+    selectedChat,
+    shouldLoadAstroConsoleData,
+  ]);
 
   const handleComposerCommandButton = useCallback(() => {
     setNewMessage((prev) => (prev.trim() ? prev : '/'));
@@ -4475,12 +5186,18 @@ export default function ChatArea({
         return;
       }
 
+      if (provider === 'strategy') {
+        toast.success('Strategy approved. Opening Goldman Sacks funding card.');
+        void handleOpenGoldmanWalletTransfer();
+        return;
+      }
+
       if (route === '/products/create' && provider === 'marketplace') {
         toast.success('Opening Products to review the marketplace item.');
         router.push('/products/create?agentAction=approved');
       }
     },
-    [router]
+    [handleOpenGoldmanWalletTransfer, router]
   );
 
   const handleAddPredictionFunds = useCallback(() => {
@@ -4563,8 +5280,56 @@ export default function ChatArea({
           }
         };
 
+        const prepareFreshWalletSendProposal = async () => {
+          if (!selectedChat || !isGroup) {
+            throw new Error('Open this send action from the Astro group chat.');
+          }
+
+          setAgentStatusText('Preparing send ticket');
+          const prepareResponse: any = await invokeGroupAgent({
+            groupId: selectedChat._id,
+            agentId: 'astro',
+            message: buildWalletSendPromptFromApprovalParams(approvalParams),
+          });
+          const preparedProposal = prepareResponse?.data?.proposal;
+          const responseMessage = prepareResponse?.data?.responseMessage;
+
+          if (preparedProposal?.proposalId) {
+            setProposalsById((prev) => ({
+              ...prev,
+              [preparedProposal.proposalId]: preparedProposal,
+            }));
+            return preparedProposal.proposalId as string;
+          } else {
+            appendMessageIfNew(responseMessage);
+            throw new Error(
+              'Astro did not return a send approval ticket. Try sending the transfer again.'
+            );
+          }
+        };
+
         if (isLocalHyperliquidProposalId(proposalId)) {
           approvalProposalId = await prepareFreshHyperliquidProposal();
+        }
+
+        if (isLocalWalletSendProposalId(proposalId)) {
+          if (isGroup) {
+            approvalProposalId = await prepareFreshWalletSendProposal();
+          } else {
+            const localApprovalResult = buildLocalWalletSendApprovalHandoff(
+              proposalId,
+              approvalParams
+            );
+            setActionResultsByProposalId((prev) => ({
+              ...prev,
+              [proposalId]: {
+                proposalId,
+                status: 'approved',
+                result: localApprovalResult,
+              },
+            }));
+            return localApprovalResult;
+          }
         }
 
         let response: any;
@@ -4577,6 +5342,17 @@ export default function ChatArea({
             hasHyperliquidApprovalParams(approvalParams)
           ) {
             approvalProposalId = await prepareFreshHyperliquidProposal();
+            response = await approveAgentAction(
+              approvalProposalId,
+              approvalParams
+            );
+          } else if (
+            !isLocalWalletSendProposalId(proposalId) &&
+            isGroup &&
+            isRecoverableHyperliquidProposalError(error) &&
+            hasWalletSendApprovalParams(approvalParams)
+          ) {
+            approvalProposalId = await prepareFreshWalletSendProposal();
             response = await approveAgentAction(
               approvalProposalId,
               approvalParams
@@ -4755,6 +5531,30 @@ export default function ChatArea({
     return keys;
   }, [messages]);
 
+  const handleUpdateGoldmanAccessStation = useCallback(
+    async (accessStation: GoldmanAccessStationInput) => {
+      const groupId = (currentGroupData || selectedChat)?._id;
+      if (!groupId) {
+        throw new Error('Select the Goldman Sacks group before saving access.');
+      }
+
+      const agent = await updateGroupAgentAccessStation({
+        groupId,
+        agentId: 'goldman-sacks',
+        accessStation,
+      });
+      upsertGroupAgent(agent);
+      onChatUpdate?.();
+    },
+    [
+      currentGroupData,
+      onChatUpdate,
+      selectedChat,
+      updateGroupAgentAccessStation,
+      upsertGroupAgent,
+    ]
+  );
+
   if (!selectedChat) {
     return (
       <div className="flex min-w-0 flex-1 items-center justify-center bg-[#08090b]">
@@ -4791,6 +5591,15 @@ export default function ChatArea({
   );
   const isSecureAstroDesk =
     isAstroTradingDeskChat(displayChat, isGroup);
+  const isGoldmanSacksDesk = isGoldmanSacksChat(displayChat, isGroup);
+  const currentAgentThreadId = getDedicatedAgentThreadId(displayChat, isGroup);
+  const contextPanelMode = isSecureAstroDesk
+    ? 'astro'
+    : isGoldmanSacksDesk
+    ? 'goldman'
+    : isGroup
+    ? 'group'
+    : 'contact';
   const headerTitle = isSecureAstroDesk
     ? 'Astro'
     : isGroup
@@ -4852,10 +5661,20 @@ export default function ChatArea({
   }
 
   return (
-    <div className="flex min-w-0 flex-1 overflow-hidden bg-[#08090b]">
-      <div className="flex min-w-0 flex-1 flex-col bg-[#08090b]">
-        <div className="flex h-[80px] flex-shrink-0 items-center justify-between gap-4 border-b border-white/[0.07] bg-[#0b0d10] px-5 sm:px-7">
+    <div className="flex min-w-0 flex-1 overflow-hidden bg-[#08090b] max-md:bg-[#f4f4f2]">
+      <div className="flex min-w-0 flex-1 flex-col bg-[#08090b] max-md:bg-[#f4f4f2]">
+        <div className="flex h-[80px] flex-shrink-0 items-center justify-between gap-4 border-b border-white/[0.07] bg-[#0b0d10] px-5 max-md:h-[64px] max-md:border-[#e6e5df] max-md:bg-[#f4f4f2] max-md:px-3 sm:px-7">
           <div className="flex min-w-0 items-center gap-3">
+            {onBackToList && (
+              <button
+                type="button"
+                aria-label="Back to messages"
+                onClick={onBackToList}
+                className="dm-btn -ml-1 grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] border border-transparent bg-transparent text-[#0a0a0c] md:hidden"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            )}
             <ChatAvatar
               displayChat={displayChat}
               isGroup={isGroup}
@@ -4870,13 +5689,13 @@ export default function ChatArea({
                   <a
                     {...smartsiteAnchorAttrs}
                     onClick={handleSmartsiteClick}
-                    className="min-w-0 truncate text-left text-[19px] font-semibold leading-none text-[#eceef2] hover:text-[#3fe08f]"
+                    className="min-w-0 truncate text-left text-[19px] font-semibold leading-none text-[#eceef2] hover:text-[#3fe08f] max-md:text-[15.5px] max-md:text-[#0a0a0c]"
                     title="Open SmartSite"
                   >
                     {headerTitle}
                   </a>
                 ) : (
-                  <h3 className="min-w-0 truncate text-left text-[19px] font-semibold leading-none text-[#eceef2]">
+                  <h3 className="min-w-0 truncate text-left text-[19px] font-semibold leading-none text-[#eceef2] max-md:text-[15.5px] max-md:text-[#0a0a0c]">
                     {headerTitle}
                   </h3>
                 )}
@@ -4890,13 +5709,13 @@ export default function ChatArea({
                 <a
                   {...smartsiteAnchorAttrs}
                   onClick={handleSmartsiteClick}
-                  className="dm-mono mt-2 block max-w-full truncate text-left text-[12px] font-semibold text-[#5a5e69] hover:text-[#3fe08f]"
+                  className="dm-mono mt-2 block max-w-full truncate text-left text-[12px] font-semibold text-[#5a5e69] hover:text-[#3fe08f] max-md:mt-1 max-md:text-[10.5px] max-md:text-[#77746f]"
                   title="Open SmartSite"
                 >
                   {headerSubtitle}
                 </a>
               ) : (
-                <p className="dm-mono mt-2 truncate text-[12px] font-semibold text-[#5a5e69]">
+                <p className="dm-mono mt-2 truncate text-[12px] font-semibold text-[#5a5e69] max-md:mt-1 max-md:text-[10.5px] max-md:text-[#77746f]">
                   {headerSubtitle}
                 </p>
               )}
@@ -4925,6 +5744,8 @@ export default function ChatArea({
                               participants:
                                 updatedGroup.participants ??
                                 prev.participants,
+                              botUsers:
+                                updatedGroup.botUsers ?? prev.botUsers,
                               settings:
                                 updatedGroup.settings ?? prev.settings,
                             }
@@ -4982,19 +5803,21 @@ export default function ChatArea({
             isLoadingAgents={isLoadingAgents}
             mutationAgentId={agentMutationId}
             onAddAgent={handleAddAgent}
+            onOpenAgentThread={onOpenAgentThread}
             onMentionAgent={handleMentionAgent}
             onRemoveAgent={handleRemoveAgent}
+            currentAgentThreadId={currentAgentThreadId}
           />
         )}
 
         <div
           ref={messagesContainerRef}
           onScroll={handleScroll}
-          className="dm-scroll min-h-0 flex-1 overflow-y-auto px-[22px] py-[14px]"
+          className="dm-scroll min-h-0 flex-1 overflow-y-auto px-[22px] py-[14px] max-md:bg-[#f4f4f2] max-md:px-3 max-md:py-3"
         >
           <div
             ref={messagesContentRef}
-            className="mx-auto max-w-[760px] space-y-2"
+            className="mx-auto max-w-[760px] space-y-2 max-md:max-w-none"
           >
             {isLoadingMore && (
               <div className="flex justify-center py-2">
@@ -5035,6 +5858,9 @@ export default function ChatArea({
                 isAgentMessage &&
                 isGenericAstroOnlineText(message.message)
               ) {
+                return null;
+              }
+              if (shouldHideWalletSwapClarification(messages, index)) {
                 return null;
               }
               if (isAgentMessage && !isNamedAgentMessage(message)) {
@@ -5123,18 +5949,21 @@ export default function ChatArea({
               const walletNetworkReply = isOwnOrLocalText
                 ? parseWalletSendNetworkReply(renderedMessageText)
                 : '';
+              const canRenderLocalWalletSendCards = !isGroup;
               const pendingWalletSendNetworkIntent =
-                walletNetworkReply && message.messageType === 'text'
+                canRenderLocalWalletSendCards &&
+                walletNetworkReply &&
+                message.messageType === 'text'
                   ? findPendingWalletSendNetworkIntent(messages, index)
                   : null;
               const canRenderLocalWalletSend =
+                canRenderLocalWalletSendCards &&
                 typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
                 !isAgentMessage &&
                 renderedMessageText.trim().length > 0 &&
                 message.messageType === 'text' &&
                 hasWalletSendIntent(renderedMessageText) &&
-                (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !renderedSyntheticOrderSourceTexts.has(normalizedOrderSource);
               const rawLocalWalletSendIntent = canRenderLocalWalletSend
                 ? findWalletSendIntent(renderedMessageText)
@@ -5150,7 +5979,7 @@ export default function ChatArea({
               const localWalletSendNetworkOptions =
                 getWalletSendNetworkOptions(
                   rawLocalWalletSendIntent,
-                  walletPortfolioTokens
+                  walletFundingTokens
                 );
               const localWalletSendNeedsNetwork =
                 Boolean(rawLocalWalletSendIntent) &&
@@ -5183,13 +6012,13 @@ export default function ChatArea({
                 renderedSyntheticOrderSourceTexts.add(normalizedOrderSource);
               }
               const localWalletSendDraftMessage =
+                canRenderLocalWalletSendCards &&
                 typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
                 !isAgentMessage &&
                 renderedMessageText.trim().length > 0 &&
                 message.messageType === 'text' &&
                 isChatWalletSendCommand(renderedMessageText) &&
-                (!isGroup || hasAstroMention || isSecureAstroDesk) &&
                 !rawLocalWalletSendIntent &&
                 !localWalletSendNetworkPromptMessage &&
                 !localWalletSendMessage
@@ -5727,9 +6556,9 @@ export default function ChatArea({
           </div>
         </div>
 
-        <div className="flex-shrink-0 border-t border-white/[0.07] bg-[#0b0d10] px-[22px] pb-[18px] pt-[12px]">
+        <div className="flex-shrink-0 border-t border-white/[0.07] bg-[#0b0d10] px-[22px] pb-[18px] pt-[12px] max-md:border-[#e6e5df] max-md:bg-[#f4f4f2] max-md:px-3 max-md:pb-[calc(16px+env(safe-area-inset-bottom))]">
           <div className="relative mx-auto max-w-[980px]">
-            <div className="dm-mono mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-bold text-[#5a5e69]">
+            <div className="dm-mono mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-bold text-[#5a5e69] max-md:hidden">
               <button
                 type="button"
                 onClick={handleComposerCommandButton}
@@ -5786,7 +6615,7 @@ export default function ChatArea({
               </div>
             )}
 
-            <div className="relative flex min-h-[64px] items-center gap-3 rounded-[18px] border border-white/[0.06] bg-black px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.28)] focus-within:border-[#3fe08f]/45 focus-within:shadow-[0_0_0_1px_rgba(63,224,143,0.16),0_18px_50px_rgba(0,0,0,0.28)]">
+            <div className="relative flex min-h-[64px] items-center gap-3 rounded-[18px] border border-white/[0.06] bg-black px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.28)] focus-within:border-[#3fe08f]/45 focus-within:shadow-[0_0_0_1px_rgba(63,224,143,0.16),0_18px_50px_rgba(0,0,0,0.28)] max-md:min-h-[52px] max-md:rounded-[18px] max-md:border-[#e6e5df] max-md:bg-white max-md:px-2.5 max-md:py-2 max-md:shadow-[0_1px_0_rgba(255,255,255,0.8)_inset]">
               <ChatAttachmentMenu
                 disabled={!selectedChat}
                 onSendFiles={handleSendAttachments}
@@ -5811,8 +6640,8 @@ export default function ChatArea({
                     handleSendMessage();
                   }
                 }}
-                placeholder="ask anything - try /search, /chart, /send, /swap, /pnl"
-                className="dm-mono max-h-28 min-h-[30px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent pt-[3px] text-[15px] font-semibold leading-[1.65] text-[#eceef2] outline-none placeholder:text-[#4d515b]"
+                placeholder="ask anything - try /search, /chart, /send, /swap, /portfolio"
+                className="dm-mono max-h-28 min-h-[30px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent pt-[3px] text-[15px] font-semibold leading-[1.65] text-[#eceef2] outline-none placeholder:text-[#4d515b] max-md:text-[#0a0a0c] max-md:placeholder:text-[#77746f]"
               />
 
               <button
@@ -5822,7 +6651,7 @@ export default function ChatArea({
                     ? handleSendMessage()
                     : handleComposerCommandButton()
                 }
-                className="dm-btn dm-mono inline-flex h-10 flex-shrink-0 items-center justify-center gap-2 rounded-[12px] border border-white/[0.07] bg-[#050607] px-3 text-[12px] font-bold uppercase tracking-[0.08em] text-[#9396a0] hover:text-[#eceef2]"
+                className="dm-btn dm-mono inline-flex h-10 flex-shrink-0 items-center justify-center gap-2 rounded-[12px] border border-white/[0.07] bg-[#050607] px-3 text-[12px] font-bold uppercase tracking-[0.08em] text-[#9396a0] hover:text-[#eceef2] max-md:h-9 max-md:rounded-full max-md:border-[#3fe08f] max-md:bg-[#3fe08f] max-md:px-3 max-md:text-[#031008]"
               >
                 {newMessage.trim() ? (
                   <>
@@ -5839,10 +6668,8 @@ export default function ChatArea({
       </div>
 
       <DmContextPanel
-        key={`${displayChat?._id || 'empty'}-${
-          activeGroupAgents.length > 0 ? 'astro' : isGroup ? 'group' : 'contact'
-        }`}
-        mode={activeGroupAgents.length > 0 ? 'astro' : isGroup ? 'group' : 'contact'}
+        key={`${displayChat?._id || 'empty'}-${contextPanelMode}`}
+        mode={contextPanelMode}
         displayChat={displayChat}
         activeAgents={activeGroupAgents}
         consoleData={astroConsoleData}
@@ -5850,6 +6677,19 @@ export default function ChatArea({
         showOnTablet={isThreadListCollapsed}
         onSmartsiteClick={handleSmartsiteClick}
         onQuickCommand={applyComposerCommand}
+        onUpdateGoldmanAccessStation={handleUpdateGoldmanAccessStation}
+        goldmanStrategyVault={goldmanStrategyVault}
+        isGoldmanStrategyVaultLoading={isGoldmanStrategyVaultLoading}
+        isActivatingGoldmanVault={isActivatingGoldmanVault}
+        goldmanStrategyVaultError={goldmanStrategyVaultError}
+        onEnsureGoldmanStrategyVault={ensureGoldmanStrategyVault}
+        onOpenGoldmanWalletTransfer={handleOpenGoldmanWalletTransfer}
+        onSaveGoldmanStrategyFile={handleSaveGoldmanStrategyFile}
+        activeGoldmanStrategy={activeGoldmanStrategy}
+        isGoldmanStrategyRunning={isGoldmanStrategyRunning}
+        isTogglingGoldmanStrategy={isTogglingGoldmanStrategy}
+        onRunGoldmanStrategy={handleRunGoldmanStrategy}
+        onStopGoldmanStrategy={handleStopGoldmanStrategy}
         onPositionClick={handleAstroConsolePositionClick}
       />
     </div>
@@ -5894,7 +6734,7 @@ function ChatAvatar({
           quality={100}
           className="h-10 w-10 rounded-full object-cover"
         />
-        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#08090b] bg-[#3ddc97]" />
+        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#08090b] bg-[#3ddc97] max-md:border-[#f4f4f2]" />
       </>
     );
 
@@ -5929,7 +6769,7 @@ function ChatAvatar({
             return (
               <div
                 key={participant.userId?._id || index}
-                className="absolute grid h-[23px] w-[23px] place-items-center rounded-full border-2 border-[#08090b] text-[9px] font-bold text-[#eceef2]"
+                className="absolute grid h-[23px] w-[23px] place-items-center rounded-full border-2 border-[#08090b] text-[9px] font-bold text-[#eceef2] max-md:border-[#f4f4f2]"
                 style={{
                   left: index * 9,
                   top: index * 6,
@@ -5952,7 +6792,7 @@ function ChatAvatar({
   const fallbackAvatar = (
     <>
       {getChatInitials(name)}
-      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#08090b] bg-[#3ddc97]" />
+      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#08090b] bg-[#3ddc97] max-md:border-[#f4f4f2]" />
     </>
   );
 
@@ -6001,6 +6841,20 @@ function isPnlCommand(text: string) {
   return (
     /^\/pnl(?:\s|$)/i.test(commandText) ||
     /^(?:show|check|review|get|open|pull up|what'?s|what is|how is)?\s*(?:me\s+)?(?:my\s+)?(?:pnl|p&l|profit\s+and\s+loss|performance)(?:\s|$)/i.test(
+      commandText
+    )
+  );
+}
+
+function normalizeAstroSlashCommand(text: string) {
+  return stripLeadingAstroMention(text).replace(/^\/\s+/, '/').trim();
+}
+
+function isPortfolioCommand(text: string) {
+  const commandText = normalizeAstroSlashCommand(text).toLowerCase();
+  return (
+    /^\/portfolio(?:\s|$)/i.test(commandText) ||
+    /^(?:show|check|review|get|open|pull up|what'?s|what is)?\s*(?:me\s+)?(?:my\s+)?(?:wallet\s+)?(?:portfolio|token allocation|wallet allocation|holdings)(?:\s|$)/i.test(
       commandText
     )
   );
@@ -6252,6 +7106,54 @@ function buildLocalPnlResponseMessage({
   };
 }
 
+function buildLocalPortfolioResponseMessage({
+  consoleData,
+  groupId,
+  sourceMessageId,
+}: {
+  consoleData: AstroConsoleData;
+  groupId?: string | null;
+  sourceMessageId: string;
+}): Message {
+  const checkedAt = new Date().toISOString();
+
+  return {
+    _id: `local-portfolio-${sourceMessageId}`,
+    message: `Portfolio allocation ready: ${formatCompactUsd(
+      consoleData.walletPortfolioBalance
+    )} across ${consoleData.walletPortfolioTokens.length} tokens.`,
+    groupId: groupId || null,
+    messageType: 'agent_response',
+    createdAt: checkedAt,
+    senderKind: 'agent',
+    agentSender: {
+      agentId: 'astro',
+      provider: 'local',
+      displayName: 'Astro',
+      avatarUrl: null,
+    },
+    agentData: {
+      invocationId: `local-portfolio-${sourceMessageId}`,
+      action: 'wallet.portfolio',
+      toolType: 'wallet.read',
+      metadata: {
+        responseType: 'portfolio_snapshot',
+        toolExecution: {
+          provider: 'swop',
+          action: 'wallet.portfolio',
+          portfolioSnapshot: {
+            checkedAt,
+            query: '/portfolio',
+            source: 'client_session',
+          },
+          checkedAt,
+          query: '/portfolio',
+        },
+      },
+    },
+  };
+}
+
 function buildLocalPositionResponseMessage({
   selection,
   consoleData,
@@ -6494,17 +7396,1772 @@ function showSwopAccessToast(
   );
 }
 
+type GoldmanAccessKey =
+  | 'perps'
+  | 'predictions'
+  | 'swaps'
+  | 'sends'
+  | 'aave'
+  | 'vault'
+  | 'balances'
+  | 'strategy';
+
+type GoldmanAccessControl = {
+  enabled: boolean;
+  approvalRequired: boolean;
+};
+
+type GoldmanAccessState = Record<GoldmanAccessKey, GoldmanAccessControl>;
+
+type GoldmanLimitKey =
+  | 'maxSendUsd'
+  | 'dailyCapUsd'
+  | 'maxLeverage'
+  | 'predictionExposureUsd'
+  | 'reserveUsd';
+
+type GoldmanLimits = Record<GoldmanLimitKey, string>;
+
+const DEFAULT_GOLDMAN_ACCESS: GoldmanAccessState = {
+  perps: { enabled: false, approvalRequired: true },
+  predictions: { enabled: false, approvalRequired: true },
+  swaps: { enabled: false, approvalRequired: true },
+  sends: { enabled: false, approvalRequired: true },
+  aave: { enabled: false, approvalRequired: true },
+  vault: { enabled: true, approvalRequired: true },
+  balances: { enabled: true, approvalRequired: false },
+  strategy: { enabled: true, approvalRequired: true },
+};
+
+const DEFAULT_GOLDMAN_LIMITS: GoldmanLimits = {
+  maxSendUsd: '250',
+  dailyCapUsd: '750',
+  maxLeverage: '2',
+  predictionExposureUsd: '500',
+  reserveUsd: '100',
+};
+
+const GOLDMAN_ACCESS_ROWS: Array<{
+  key: GoldmanAccessKey;
+  label: string;
+  shortLabel: string;
+  detail: string;
+  icon: typeof Activity;
+  iconClassName: string;
+}> = [
+  {
+    key: 'perps',
+    label: 'Perps',
+    shortLabel: 'perps',
+    detail: 'Open, close, and manage leveraged positions',
+    icon: Activity,
+    iconClassName: 'bg-[#173329] text-[#3fe08f]',
+  },
+  {
+    key: 'predictions',
+    label: 'Predictions',
+    shortLabel: 'predictions',
+    detail: 'Buy and sell prediction market outcomes',
+    icon: BarChart3,
+    iconClassName: 'bg-[#18243f] text-[#6b9bff]',
+  },
+  {
+    key: 'swaps',
+    label: 'Swapping',
+    shortLabel: 'swaps',
+    detail: 'Route token swaps from connected wallets',
+    icon: ArrowRightLeft,
+    iconClassName: 'bg-[#2b2441] text-[#b893ff]',
+  },
+  {
+    key: 'sends',
+    label: 'Sending',
+    shortLabel: 'sends',
+    detail: 'Send tokens or stablecoins to recipients',
+    icon: Send,
+    iconClassName: 'bg-[#402525] text-[#ff8585]',
+  },
+  {
+    key: 'aave',
+    label: 'Aave',
+    shortLabel: 'aave',
+    detail: 'Supply, withdraw, borrow, and repay on Aave',
+    icon: ShieldCheck,
+    iconClassName: 'bg-[#14342f] text-[#68e0c8]',
+  },
+  {
+    key: 'vault',
+    label: 'Sack vault',
+    shortLabel: 'vault',
+    detail: 'Move money in or out of the Goldman sack',
+    icon: Download,
+    iconClassName: 'bg-[#3b3116] text-[#f4c95d]',
+  },
+  {
+    key: 'balances',
+    label: 'Balance reads',
+    shortLabel: 'balances',
+    detail: 'Inspect wallet, perps, and vault balances',
+    icon: Radio,
+    iconClassName: 'bg-[#14323a] text-[#67d9ff]',
+  },
+  {
+    key: 'strategy',
+    label: 'Strategy files',
+    shortLabel: 'strategy',
+    detail: 'Read, draft, and publish agent markdown',
+    icon: FileText,
+    iconClassName: 'bg-[#262b34] text-[#cfd6e6]',
+  },
+];
+
+const GOLDMAN_WRITE_ACCESS_KEYS: GoldmanAccessKey[] = [
+  'perps',
+  'predictions',
+  'swaps',
+  'sends',
+  'aave',
+  'vault',
+];
+
+const GOLDMAN_LIMIT_ROWS: Array<{
+  key: GoldmanLimitKey;
+  label: string;
+  prefix?: string;
+  suffix?: string;
+  min: string;
+  step: string;
+}> = [
+  {
+    key: 'maxSendUsd',
+    label: 'Max send',
+    prefix: '$',
+    min: '0',
+    step: '10',
+  },
+  {
+    key: 'dailyCapUsd',
+    label: 'Daily cap',
+    prefix: '$',
+    min: '0',
+    step: '25',
+  },
+  {
+    key: 'maxLeverage',
+    label: 'Perps max',
+    suffix: 'x',
+    min: '1',
+    step: '0.5',
+  },
+  {
+    key: 'predictionExposureUsd',
+    label: 'Prediction cap',
+    prefix: '$',
+    min: '0',
+    step: '25',
+  },
+];
+
+const GOLDMAN_STRATEGY_FILES = [
+  {
+    file: 'strategy.md',
+    detail: 'active thesis',
+    status: 'ACTIVE',
+    command: '@goldman edit strategy.md ',
+    defaultContent: [
+      '# Strategy',
+      '',
+      'Describe the thesis Goldman should communicate and evaluate before using vault funds.',
+      '',
+      '## Objective',
+      '- Target:',
+      '- Venues:',
+      '- Assets:',
+      '',
+      '## Entry Rules',
+      '-',
+      '',
+      '## Exit Rules',
+      '-',
+    ].join('\n'),
+  },
+  {
+    file: 'risk.md',
+    detail: 'limits and stop rules',
+    status: 'GATED',
+    command: '@goldman edit risk.md ',
+    defaultContent: [
+      '# Risk Rules',
+      '',
+      'Define hard limits Goldman must respect before any autonomous action.',
+      '',
+      '## Caps',
+      '- Max order:',
+      '- Daily deployment cap:',
+      '- Daily loss cap:',
+      '- Reserve:',
+      '',
+      '## Stop Conditions',
+      '-',
+    ].join('\n'),
+  },
+  {
+    file: 'execution-rules.md',
+    detail: 'order and approval policy',
+    status: 'DRAFT',
+    command: '@goldman edit execution-rules.md ',
+    defaultContent: [
+      '# Execution Rules',
+      '',
+      'Explain when Goldman should propose, monitor, or execute.',
+      '',
+      '## Approval Policy',
+      '-',
+      '',
+      '## Autonomous DeFi',
+      '- Use Aave only when Aave access is enabled and approval is set to live.',
+      '- Keep the configured vault reserve untouched.',
+    ].join('\n'),
+  },
+  {
+    file: 'allowed-markets.md',
+    detail: 'market and token whitelist',
+    status: 'DRAFT',
+    command: '@goldman edit allowed-markets.md ',
+    defaultContent: [
+      '# Allowed Markets',
+      '',
+      'List the venues, tokens, and market types Goldman may consider.',
+      '',
+      '## Venues',
+      '- Polymarket',
+      '- Aave on Polygon',
+      '',
+      '## Assets',
+      '- USDC',
+    ].join('\n'),
+  },
+];
+
+function hydrateGoldmanStrategyFiles(
+  strategyFiles?: GoldmanStrategyFile[] | null
+): GoldmanStrategyFile[] {
+  return GOLDMAN_STRATEGY_FILES.map((spec) => {
+    const saved = strategyFiles?.find((file) => file.file === spec.file);
+    return {
+      file: spec.file,
+      detail: saved?.detail || spec.detail,
+      status: saved?.status || spec.status,
+      content:
+        typeof saved?.content === 'string'
+          ? saved.content
+          : spec.defaultContent,
+      updatedAt: saved?.updatedAt || null,
+      updatedBy: saved?.updatedBy || null,
+    };
+  });
+}
+
+function buildGoldmanStrategyFilesPrompt(files: GoldmanStrategyFile[]) {
+  const body = files
+    .map(
+      (file) =>
+        `## ${file.file}\n\n${(file.content || '').trim() || '(empty)'}`
+    )
+    .join('\n\n');
+
+  return [
+    '@goldman publish these saved strategy markdown files for approval.',
+    'Explain the strategy back to me, call out the autonomous DeFi permissions you need, then draft the approval card.',
+    '',
+    body,
+  ].join('\n');
+}
+
+type GoldmanFundingMode = 'transfer' | 'qr';
+
+type GoldmanStrategyRuntimeState =
+  | 'idle'
+  | 'running'
+  | 'stopping'
+  | 'stopped'
+  | 'error';
+
+type GoldmanStrategyRuntime = {
+  state?: GoldmanStrategyRuntimeState;
+  runId?: string | null;
+  executionMode?: 'monitor' | 'proposal' | 'execute' | string;
+  startedAt?: string | null;
+  stoppedAt?: string | null;
+  lastHeartbeatAt?: string | null;
+  lastActivity?: string | null;
+  lastError?: string | null;
+  cycleCount?: number | null;
+};
+
+type GoldmanTradingStrategy = {
+  id: string;
+  title?: string | null;
+  prompt?: string | null;
+  venues?: string[];
+  assets?: string[];
+  status?: 'draft' | 'pending_authorization' | 'active' | 'paused' | 'revoked' | 'expired' | string;
+  rules?: Record<string, unknown>;
+  limits?: Record<string, unknown>;
+  runtime?: GoldmanStrategyRuntime;
+  metadata?: Record<string, unknown>;
+  lastEvaluatedAt?: string | null;
+  lastExecutedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+type GoldmanStrategyFile = {
+  file: string;
+  detail?: string | null;
+  status?: string | null;
+  content: string;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+};
+
+type GoldmanStrategyVault = {
+  id: string;
+  userId?: string | null;
+  groupId?: string | null;
+  agentId: string;
+  walletAddress: string;
+  walletChain?: string | null;
+  walletRole?: string | null;
+  privyWalletId?: string | null;
+  status?: string | null;
+  network?: string | null;
+  networkLabel?: string | null;
+  chainType?: string | null;
+  chainId?: number | null;
+  assetHint?: string | null;
+  warning?: string | null;
+  source?: string | null;
+  activatedAt?: string | null;
+  limits?: Record<string, unknown>;
+  strategyFiles?: GoldmanStrategyFile[];
+  strategies?: GoldmanTradingStrategy[];
+};
+
+type GoldmanStrategyRuntimeCardPayload = {
+  runId?: string | null;
+  phase?: string | null;
+  status?: string | null;
+  title?: string | null;
+  detail?: string | null;
+  executionMode?: string | null;
+  executionReady?: boolean | null;
+  walletAddress?: string | null;
+  strategy?: GoldmanTradingStrategy | null;
+  checks?: Array<{ label?: string; status?: string; detail?: string }>;
+  actions?: Array<{ label?: string; status?: string; detail?: string }>;
+  markets?: PolymarketMarketPreview[];
+  positions?: PolymarketPosition[];
+  swaps?: Array<{
+    fromToken?: string;
+    toToken?: string;
+    amount?: string;
+    status?: string;
+    detail?: string;
+  }>;
+  updatedAt?: string | null;
+};
+
+async function readGoldmanStrategyVault({
+  groupId,
+  accessToken,
+  method = 'GET',
+}: {
+  groupId: string;
+  accessToken: string;
+  method?: 'GET' | 'POST';
+}): Promise<GoldmanStrategyVault | null> {
+  const response = await apiFetch(
+    buildSwopApiUrl(
+      `/api/v5/messages/groups/${encodeURIComponent(
+        groupId
+      )}/agents/goldman-sacks/strategy-vault`
+    ),
+    {
+      method,
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  const body = await response.json().catch(() => null);
+  if (response.status === 404 && method === 'GET') return null;
+  if (!response.ok) {
+    throw new Error(
+      body?.message ||
+        body?.error?.message ||
+        `Goldman strategy vault request failed (${response.status})`
+    );
+  }
+
+  const vault = body?.data?.vault || null;
+  if (!vault) return null;
+
+  return {
+    ...vault,
+    strategies: Array.isArray(body?.data?.strategies)
+      ? body.data.strategies
+      : [],
+  };
+}
+
+async function updateGoldmanStrategyRuntime({
+  groupId,
+  strategyId,
+  accessToken,
+  action,
+}: {
+  groupId: string;
+  strategyId: string;
+  accessToken: string;
+  action: 'run' | 'stop';
+}): Promise<{
+  strategy?: GoldmanTradingStrategy;
+  vault?: GoldmanStrategyVault;
+}> {
+  const response = await apiFetch(
+    buildSwopApiUrl(
+      `/api/v5/messages/groups/${encodeURIComponent(
+        groupId
+      )}/agents/goldman-sacks/strategies/${encodeURIComponent(
+        strategyId
+      )}/${action}`
+    ),
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(
+      body?.message ||
+        body?.error?.message ||
+        `Goldman strategy ${action} failed (${response.status})`
+    );
+  }
+
+  return body?.data || {};
+}
+
+async function updateGoldmanStrategyFile({
+  groupId,
+  fileName,
+  content,
+  accessToken,
+}: {
+  groupId: string;
+  fileName: string;
+  content: string;
+  accessToken: string;
+}): Promise<{
+  file?: GoldmanStrategyFile | null;
+  vault?: GoldmanStrategyVault;
+}> {
+  const response = await apiFetch(
+    buildSwopApiUrl(
+      `/api/v5/messages/groups/${encodeURIComponent(
+        groupId
+      )}/agents/goldman-sacks/strategy-vault/files/${encodeURIComponent(
+        fileName
+      )}`
+    ),
+    {
+      method: 'PATCH',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ content }),
+    }
+  );
+
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(
+      body?.message ||
+        body?.error?.message ||
+        `Goldman strategy file save failed (${response.status})`
+    );
+  }
+
+  return body?.data || {};
+}
+
+function goldmanVaultToFundingDetails(
+  vault?: GoldmanStrategyVault | null
+): WalletReceiveQrDetails | null {
+  if (!vault?.walletAddress) return null;
+
+  return {
+    address: vault.walletAddress,
+    network: vault.network || vault.walletChain || 'polygon',
+    networkLabel: vault.networkLabel || 'Polygon / EVM',
+    chainType: vault.chainType || 'evm',
+    chainId: vault.chainId || 137,
+    assetHint: vault.assetHint || 'USDC and supported EVM assets',
+    warning: vault.warning || 'Use the same network you pick in the sending wallet.',
+    source: vault.source || 'agent_strategy_vault',
+  };
+}
+
+function getGoldmanFundingAddress(
+  vault?: GoldmanStrategyVault | null
+): WalletReceiveQrDetails | null {
+  return goldmanVaultToFundingDetails(vault);
+}
+
+function sortGoldmanStrategies(strategies: GoldmanTradingStrategy[] = []) {
+  const rank = (strategy: GoldmanTradingStrategy) => {
+    if (strategy.runtime?.state === 'running') return 0;
+    if (strategy.status === 'active') return 1;
+    if (strategy.status === 'pending_authorization') return 2;
+    if (strategy.status === 'paused') return 3;
+    return 4;
+  };
+
+  return [...strategies].sort((left, right) => {
+    const rankDiff = rank(left) - rank(right);
+    if (rankDiff !== 0) return rankDiff;
+    return (
+      new Date(right.updatedAt || right.createdAt || 0).getTime() -
+      new Date(left.updatedAt || left.createdAt || 0).getTime()
+    );
+  });
+}
+
+function getRunnableGoldmanStrategy(vault?: GoldmanStrategyVault | null) {
+  return sortGoldmanStrategies(vault?.strategies || [])[0] || null;
+}
+
+function mergeGoldmanStrategyIntoVault(
+  vault: GoldmanStrategyVault | null | undefined,
+  strategy?: GoldmanTradingStrategy | null
+): GoldmanStrategyVault | null {
+  if (!vault || !strategy?.id) return vault || null;
+  const existing = vault.strategies || [];
+  const nextStrategies = existing.some((item) => item.id === strategy.id)
+    ? existing.map((item) => (item.id === strategy.id ? { ...item, ...strategy } : item))
+    : [strategy, ...existing];
+
+  return {
+    ...vault,
+    strategies: sortGoldmanStrategies(nextStrategies),
+  };
+}
+
+function buildGoldmanFundingQrValue(walletReceive: WalletReceiveQrDetails) {
+  if (
+    walletReceive.chainType === 'evm' &&
+    walletReceive.chainId &&
+    walletReceive.address
+  ) {
+    return `ethereum:${walletReceive.address}@${walletReceive.chainId}`;
+  }
+
+  return walletReceive.address;
+}
+
+type GoldmanMetricTone = 'positive' | 'negative' | 'neutral';
+
+type GoldmanConsoleMetric = {
+  key: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone: GoldmanMetricTone;
+  icon: typeof Activity;
+};
+
+function goldmanMetricTone(value: number): GoldmanMetricTone {
+  if (value > 0) return 'positive';
+  if (value < 0) return 'negative';
+  return 'neutral';
+}
+
+function buildGoldmanConsoleMetrics(
+  consoleData?: AstroConsoleData
+): GoldmanConsoleMetric[] {
+  const perpsPositions = consoleData?.perpsAccount?.positions || [];
+  const perpsPnl = toFiniteNumber(consoleData?.perpsAccount?.unrealizedPnl);
+
+  const openPredictionPositions = (consoleData?.predictionPositions || []).filter(
+    isOpenPredictionConsolePosition
+  );
+  const predictionPnl = openPredictionPositions.reduce(
+    (sum, position) => sum + toFiniteNumber(position.cashPnl),
+    0
+  );
+
+  const aaveSupplies = consoleData?.aavePositions?.supplies || [];
+  const aaveSuppliedUsd =
+    toFiniteNumber(consoleData?.aavePositions?.account?.totalCollateralUsd) ||
+    aaveSupplies.reduce(
+      (sum, position) => sum + toFiniteNumber(position.usdValue),
+      0
+    );
+  const annualizedAaveYieldUsd = aaveSupplies.reduce(
+    (sum, position) =>
+      sum +
+      toFiniteNumber(position.usdValue) *
+        Math.max(0, toFiniteNumber(position.supplyApy)),
+    0
+  );
+  const aaveDetail = consoleData?.isAavePositionsLoading
+    ? 'loading Aave'
+    : `${formatCompactUsd(aaveSuppliedUsd)} supplied`;
+
+  return [
+    {
+      key: 'swaps',
+      label: 'Swaps',
+      value: formatSignedUsd(0),
+      detail: 'realized P/L pending',
+      tone: 'neutral',
+      icon: ArrowRightLeft,
+    },
+    {
+      key: 'perps',
+      label: 'Perps',
+      value: formatSignedUsd(perpsPnl),
+      detail: `${perpsPositions.length} open positions`,
+      tone: goldmanMetricTone(perpsPnl),
+      icon: Activity,
+    },
+    {
+      key: 'predictions',
+      label: 'Predictions',
+      value: formatSignedUsd(predictionPnl),
+      detail: `${openPredictionPositions.length} open markets`,
+      tone: goldmanMetricTone(predictionPnl),
+      icon: BarChart3,
+    },
+    {
+      key: 'sends',
+      label: 'Sends',
+      value: formatSignedUsd(0),
+      detail: 'net transfer P/L pending',
+      tone: 'neutral',
+      icon: Send,
+    },
+    {
+      key: 'yield',
+      label: 'Interest / yield',
+      value: formatSignedUsd(annualizedAaveYieldUsd),
+      detail: aaveDetail,
+      tone: goldmanMetricTone(annualizedAaveYieldUsd),
+      icon: ShieldCheck,
+    },
+  ];
+}
+
+function normalizeStoredGoldmanAccess(
+  stored?: Partial<Record<GoldmanAccessKey, Partial<GoldmanAccessControl>>>
+): GoldmanAccessState {
+  return (Object.keys(DEFAULT_GOLDMAN_ACCESS) as GoldmanAccessKey[]).reduce(
+    (next, key) => {
+      const storedControl = stored?.[key];
+      const defaultControl = DEFAULT_GOLDMAN_ACCESS[key];
+      next[key] = {
+        enabled:
+          typeof storedControl?.enabled === 'boolean'
+            ? storedControl.enabled
+            : defaultControl.enabled,
+        approvalRequired:
+          typeof storedControl?.approvalRequired === 'boolean'
+            ? storedControl.approvalRequired
+            : defaultControl.approvalRequired,
+      };
+      return next;
+    },
+    {} as GoldmanAccessState
+  );
+}
+
+function normalizeStoredGoldmanLimits(
+  stored?: Partial<Record<GoldmanLimitKey, string | number>>
+): GoldmanLimits {
+  return (Object.keys(DEFAULT_GOLDMAN_LIMITS) as GoldmanLimitKey[]).reduce(
+    (next, key) => {
+      const value = stored?.[key];
+      next[key] =
+        typeof value === 'string' || typeof value === 'number'
+          ? String(value) || DEFAULT_GOLDMAN_LIMITS[key]
+          : DEFAULT_GOLDMAN_LIMITS[key];
+      return next;
+    },
+    {} as GoldmanLimits
+  );
+}
+
+type GoldmanAccessStationInput = {
+  version?: string;
+  access?: Partial<Record<GoldmanAccessKey, Partial<GoldmanAccessControl>>>;
+  limits?: Partial<Record<GoldmanLimitKey, string | number>>;
+};
+
+function normalizeGoldmanAccessStationState(
+  station?: GoldmanAccessStationInput | null
+): {
+  access: GoldmanAccessState;
+  limits: GoldmanLimits;
+} {
+  return {
+    access: normalizeStoredGoldmanAccess(station?.access),
+    limits: normalizeStoredGoldmanLimits(station?.limits),
+  };
+}
+
+function GoldmanAccessStation({
+  panelVisibilityClass,
+  panelWidthClass,
+  accessStation,
+  consoleData,
+  strategyVault,
+  isStrategyVaultLoading = false,
+  isActivatingStrategyVault = false,
+  strategyVaultError,
+  activeStrategy,
+  isStrategyRunning = false,
+  isTogglingStrategy = false,
+  groupId,
+  onQuickCommand,
+  onUpdateAccessStation,
+  onEnsureStrategyVault,
+  onOpenWalletTransfer,
+  onSaveStrategyFile,
+  onRunStrategy,
+  onStopStrategy,
+}: {
+  panelVisibilityClass: string;
+  panelWidthClass: string;
+  accessStation?: GoldmanAccessStationInput | null;
+  consoleData?: AstroConsoleData;
+  strategyVault?: GoldmanStrategyVault | null;
+  isStrategyVaultLoading?: boolean;
+  isActivatingStrategyVault?: boolean;
+  strategyVaultError?: string | null;
+  activeStrategy?: GoldmanTradingStrategy | null;
+  isStrategyRunning?: boolean;
+  isTogglingStrategy?: boolean;
+  groupId?: string;
+  onQuickCommand?: (command: string) => void;
+  onUpdateAccessStation?: (
+    accessStation: GoldmanAccessStationInput
+  ) => Promise<void>;
+  onEnsureStrategyVault?: () => Promise<GoldmanStrategyVault | null>;
+  onOpenWalletTransfer?: () => void;
+  onSaveStrategyFile?: (
+    fileName: string,
+    content: string
+  ) => Promise<GoldmanStrategyFile | null>;
+  onRunStrategy?: () => void;
+  onStopStrategy?: () => void;
+}) {
+  const accessStationKey = JSON.stringify(accessStation || {});
+  const [{ access, limits }, setStationState] = useState(
+    () => normalizeGoldmanAccessStationState(accessStation)
+  );
+  const [isSavingAccessStation, setIsSavingAccessStation] = useState(false);
+  const [accessStationError, setAccessStationError] = useState<string | null>(
+    null
+  );
+  const [fundingMode, setFundingMode] = useState<GoldmanFundingMode | null>(
+    null
+  );
+  const strategyFiles = useMemo(
+    () => hydrateGoldmanStrategyFiles(strategyVault?.strategyFiles),
+    [strategyVault?.strategyFiles]
+  );
+  const [editingStrategyFile, setEditingStrategyFile] =
+    useState<GoldmanStrategyFile | null>(null);
+  const [strategyFileDraft, setStrategyFileDraft] = useState('');
+  const [isSavingStrategyFile, setIsSavingStrategyFile] = useState(false);
+  const fundingAddress = getGoldmanFundingAddress(strategyVault);
+  const isVaultBusy = isStrategyVaultLoading || isActivatingStrategyVault;
+
+  useEffect(() => {
+    setStationState(normalizeGoldmanAccessStationState(accessStation));
+  }, [accessStationKey, accessStation]);
+
+  const persistAccessStation = useCallback(
+    (nextState: { access: GoldmanAccessState; limits: GoldmanLimits }) => {
+      if (!groupId || !onUpdateAccessStation) {
+        return;
+      }
+
+      setIsSavingAccessStation(true);
+      setAccessStationError(null);
+      onUpdateAccessStation(nextState)
+        .catch((error) => {
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Failed to update Access Station.';
+          setAccessStationError(message);
+          toast.error(message);
+        })
+        .finally(() => {
+          setIsSavingAccessStation(false);
+        });
+    },
+    [groupId, onUpdateAccessStation]
+  );
+
+  const setAccessControl = useCallback(
+    (key: GoldmanAccessKey, patch: Partial<GoldmanAccessControl>) => {
+      setStationState((current) => {
+        const next = {
+          ...current,
+          access: {
+            ...current.access,
+            [key]: {
+              ...current.access[key],
+              ...patch,
+            },
+          },
+        };
+        persistAccessStation(next);
+        return next;
+      });
+    },
+    [persistAccessStation]
+  );
+
+  const setLimitValue = useCallback(
+    (key: GoldmanLimitKey, value: string) => {
+      setStationState((current) => {
+        const next = {
+          ...current,
+          limits: {
+            ...current.limits,
+            [key]: value,
+          },
+        };
+        persistAccessStation(next);
+        return next;
+      });
+    },
+    [persistAccessStation]
+  );
+
+  const handleCopyFundingAddress = useCallback(async () => {
+    if (!fundingAddress?.address) {
+      toast.error('Activate the Goldman vault before copying its address.');
+      return;
+    }
+
+    const didCopy = await copyTextToClipboard(fundingAddress.address);
+    if (didCopy) {
+      toast.success('Goldman funding address copied.');
+    } else {
+      toast.error('Could not copy funding address.');
+    }
+  }, [fundingAddress?.address]);
+
+  const handleActivateFunding = useCallback(
+    async (mode: GoldmanFundingMode = 'transfer') => {
+      setFundingMode(mode);
+      if (fundingAddress?.address || !onEnsureStrategyVault) return;
+
+      try {
+        await onEnsureStrategyVault();
+        toast.success('Goldman Sacks vault activated.');
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Could not activate Goldman Sacks vault.'
+        );
+      }
+    },
+    [fundingAddress?.address, onEnsureStrategyVault]
+  );
+
+  const handleOpenWalletTransfer = useCallback(async () => {
+    if (!fundingAddress?.address && onEnsureStrategyVault) {
+      try {
+        await onEnsureStrategyVault();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Could not activate Goldman Sacks vault.'
+        );
+        return;
+      }
+    }
+
+    if (onOpenWalletTransfer) {
+      onOpenWalletTransfer();
+      return;
+    }
+    toast.error('Wallet transfer is not available from this panel.');
+  }, [
+    fundingAddress?.address,
+    onEnsureStrategyVault,
+    onOpenWalletTransfer,
+  ]);
+
+  const openStrategyFileEditor = useCallback((file: GoldmanStrategyFile) => {
+    setEditingStrategyFile(file);
+    setStrategyFileDraft(file.content || '');
+  }, []);
+
+  const closeStrategyFileEditor = useCallback(() => {
+    if (isSavingStrategyFile) return;
+    setEditingStrategyFile(null);
+    setStrategyFileDraft('');
+  }, [isSavingStrategyFile]);
+
+  const handleSaveStrategyFile = useCallback(async () => {
+    if (!editingStrategyFile) return;
+    if (!onSaveStrategyFile) {
+      toast.error('Strategy file saving is not available yet.');
+      return;
+    }
+
+    setIsSavingStrategyFile(true);
+    try {
+      const saved = await onSaveStrategyFile(
+        editingStrategyFile.file,
+        strategyFileDraft
+      );
+      const nextFile = saved
+        ? { ...editingStrategyFile, ...saved }
+        : { ...editingStrategyFile, content: strategyFileDraft };
+      setEditingStrategyFile(nextFile);
+      setStrategyFileDraft(nextFile.content || '');
+      toast.success(`${editingStrategyFile.file} saved.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : `Could not save ${editingStrategyFile.file}.`
+      );
+    } finally {
+      setIsSavingStrategyFile(false);
+    }
+  }, [editingStrategyFile, onSaveStrategyFile, strategyFileDraft]);
+
+  const handleAskStrategyIdeas = useCallback(() => {
+    onQuickCommand?.(
+      '@goldman suggest three strategy ideas for this vault, including one autonomous DeFi idea using Aave with clear risk limits'
+    );
+  }, [onQuickCommand]);
+
+  const handleExplainStrategy = useCallback(() => {
+    if (activeStrategy?.title) {
+      onQuickCommand?.(
+        `@goldman explain the active strategy "${activeStrategy.title}", what it will do with vault funds, and which actions are autonomous versus approval-gated`
+      );
+      return;
+    }
+    handleAskStrategyIdeas();
+  }, [activeStrategy?.title, handleAskStrategyIdeas, onQuickCommand]);
+
+  const handlePublishStrategyFiles = useCallback(() => {
+    if (!onQuickCommand) return;
+    onQuickCommand(buildGoldmanStrategyFilesPrompt(strategyFiles));
+  }, [onQuickCommand, strategyFiles]);
+
+  const disabledWriteCount = GOLDMAN_WRITE_ACCESS_KEYS.filter(
+    (key) => !access[key].enabled
+  ).length;
+  const enabledCount = GOLDMAN_ACCESS_ROWS.filter(
+    (row) => access[row.key].enabled
+  ).length;
+  const approvalCount = GOLDMAN_ACCESS_ROWS.filter(
+    (row) => access[row.key].enabled && access[row.key].approvalRequired
+  ).length;
+  const stationStatus =
+    disabledWriteCount === GOLDMAN_WRITE_ACCESS_KEYS.length
+      ? 'LOCKED'
+      : disabledWriteCount > 0
+      ? 'LIMITED'
+      : 'ACTIVE';
+  const statusClassName =
+    stationStatus === 'ACTIVE'
+      ? 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
+      : stationStatus === 'LOCKED'
+      ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]'
+      : 'border-[#f4c95d]/35 bg-[#f4c95d]/10 text-[#f4c95d]';
+  const disabledTools =
+    GOLDMAN_ACCESS_ROWS.filter((row) => !access[row.key].enabled)
+      .map((row) => row.shortLabel)
+      .join(', ') || 'none';
+  const gatedTools =
+    GOLDMAN_ACCESS_ROWS.filter(
+      (row) => access[row.key].enabled && access[row.key].approvalRequired
+    )
+      .map((row) => row.shortLabel)
+      .join(', ') || 'none';
+  const goldmanMetrics = buildGoldmanConsoleMetrics(consoleData);
+  const vaultAddressLabel = fundingAddress?.address
+    ? formatWalletAddress(fundingAddress.address)
+    : isVaultBusy
+    ? 'Activating vault...'
+    : strategyVaultError
+    ? 'Vault unavailable'
+    : 'Vault inactive';
+  const goldmanWalletCard = (
+    <>
+      <SectionLabel>strategy vault</SectionLabel>
+      <ConsoleCard padClass="px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="dm-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[#737783]">
+              available
+            </div>
+            <div className="dm-mono mt-2 text-[24px] font-semibold leading-none tracking-[-0.04em] text-[#eceef2]">
+              {formatCompactUsd(consoleData?.walletPortfolioBalance || 0)}
+            </div>
+          </div>
+          <div className="text-right">
+            <label className="dm-mono block text-[9px] font-bold uppercase tracking-[0.12em] text-[#737783]">
+              reserve
+            </label>
+            <span className="mt-1 flex items-center gap-1">
+              <span className="dm-mono text-[11px] font-bold text-[#5a5e69]">
+                $
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="25"
+                value={limits.reserveUsd}
+                onChange={(event) =>
+                  setLimitValue('reserveUsd', event.target.value)
+                }
+                className="dm-mono h-8 w-[74px] rounded-[7px] border border-white/[0.07] bg-[#0e1014] px-2 text-right text-[12px] font-semibold text-[#eceef2] outline-none focus:border-[#f4c95d]/45"
+              />
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
+          <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+            vault address
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="dm-mono min-w-0 flex-1 truncate text-[11px] font-semibold text-[#eceef2]">
+              {vaultAddressLabel}
+            </span>
+            {isVaultBusy && !fundingAddress?.address && (
+              <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin text-[#f4c95d]" />
+            )}
+            {fundingAddress?.address && (
+              <button
+                type="button"
+                title="Copy Goldman vault"
+                onClick={handleCopyFundingAddress}
+                className="dm-btn grid h-7 w-7 flex-shrink-0 place-items-center rounded-[7px] border border-white/[0.07] bg-black/20 text-[#eceef2]"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          {strategyVaultError && !fundingAddress?.address && (
+            <div className="mt-1 text-[10px] font-semibold leading-snug text-[#ff8585]">
+              {strategyVaultError}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 rounded-[9px] border border-[#f4c95d]/20 bg-[#f4c95d]/10 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#8f7c47]">
+                active strategy
+              </div>
+              <div className="mt-1 truncate text-[12px] font-semibold text-[#eceef2]">
+                {activeStrategy?.title || 'No approved strategy'}
+              </div>
+              <div className="dm-mono mt-0.5 truncate text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#a99761]">
+                {activeStrategy
+                  ? `${activeStrategy.runtime?.state || activeStrategy.status || 'idle'} · ${
+                      activeStrategy.runtime?.executionMode || 'proposal'
+                    }`
+                  : 'approve a strategy to run'}
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="goldman-run-stop-button"
+              disabled={
+                isTogglingStrategy ||
+                isVaultBusy ||
+                (!activeStrategy && !onQuickCommand) ||
+                (!isStrategyRunning && Boolean(activeStrategy) && !onRunStrategy) ||
+                (isStrategyRunning && !onStopStrategy)
+              }
+              onClick={() => {
+                if (!activeStrategy) {
+                  toast.error('Ask Goldman for ideas or approve a strategy before running.');
+                  handleAskStrategyIdeas();
+                  return;
+                }
+                if (isStrategyRunning) {
+                  onStopStrategy?.();
+                } else {
+                  onRunStrategy?.();
+                }
+              }}
+              className={`dm-btn dm-mono flex h-9 min-w-[82px] items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[10px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-50 ${
+                isStrategyRunning
+                  ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]'
+                  : 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
+              }`}
+            >
+              {isTogglingStrategy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : isStrategyRunning ? (
+                <Square className="h-3.5 w-3.5" />
+              ) : (
+                <Play className="h-3.5 w-3.5" />
+              )}
+              {isStrategyRunning ? 'Stop' : 'Run'}
+            </button>
+          </div>
+          {activeStrategy?.runtime?.lastActivity && (
+            <div className="mt-2 line-clamp-2 text-[10.5px] font-semibold leading-snug text-[#d7c987]">
+              {activeStrategy.runtime.lastActivity}
+            </div>
+          )}
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={!onQuickCommand}
+              onClick={activeStrategy ? handleExplainStrategy : handleAskStrategyIdeas}
+              className="dm-btn dm-mono flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-white/[0.07] bg-black/20 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#eceef2] disabled:cursor-default disabled:opacity-50"
+            >
+              <Zap className="h-3.5 w-3.5 text-[#f4c95d]" />
+              {activeStrategy ? 'Explain' : 'Ideas'}
+            </button>
+            <button
+              type="button"
+              disabled={!onQuickCommand}
+              onClick={handlePublishStrategyFiles}
+              className="dm-btn dm-mono flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[#f4c95d]/25 bg-[#f4c95d]/10 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#f4c95d] disabled:cursor-default disabled:opacity-50"
+            >
+              <Check className="h-3.5 w-3.5" />
+              Publish
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {[
+            {
+              label: 'Fund',
+              icon: ArrowRight,
+              onClick: () => {
+                if (fundingMode === 'transfer') {
+                  setFundingMode(null);
+                  return;
+                }
+                void handleActivateFunding('transfer');
+              },
+            },
+            {
+              label: 'Withdraw',
+              command: '@goldman withdraw from the sack ',
+              icon: Download,
+            },
+            {
+              label: 'Audit',
+              command: '@goldman reconcile sack vault balances',
+              icon: RefreshCw,
+            },
+          ].map((action) => {
+            const ActionIcon = action.icon;
+            const isFundingAction = action.label === 'Fund';
+            return (
+              <button
+                key={action.label}
+                type="button"
+                disabled={
+                  isFundingAction
+                    ? isVaultBusy && !fundingAddress?.address
+                    : !onQuickCommand
+                }
+                data-testid={isFundingAction ? 'goldman-fund-button' : undefined}
+                onClick={() => {
+                  if (action.onClick) {
+                    action.onClick();
+                    return;
+                  }
+                  if (action.command) onQuickCommand?.(action.command);
+                }}
+                className={`dm-btn flex h-9 items-center justify-center gap-1.5 rounded-[8px] border text-[10.5px] font-semibold disabled:cursor-default ${
+                  isFundingAction && fundingMode
+                    ? 'border-[#f4c95d]/35 bg-[#f4c95d]/15 text-[#f4c95d]'
+                    : 'border-white/[0.07] bg-black/20 text-[#eceef2]'
+                }`}
+              >
+                {isFundingAction && isVaultBusy && !fundingAddress?.address ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#f4c95d]" />
+                ) : (
+                  <ActionIcon className="h-3.5 w-3.5 text-[#f4c95d]" />
+                )}
+                {isFundingAction && isVaultBusy && !fundingAddress?.address
+                  ? 'Activating'
+                  : action.label}
+              </button>
+            );
+          })}
+        </div>
+        {fundingMode && (
+          <div
+            data-testid="goldman-funding-drawer"
+            className="mt-3 border-t border-white/[0.06] pt-3"
+          >
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              {[
+                { mode: 'transfer' as const, label: 'Transfer', icon: Wallet },
+                { mode: 'qr' as const, label: 'QR code', icon: QrCode },
+              ].map((option) => {
+                const OptionIcon = option.icon;
+                const selected = fundingMode === option.mode;
+                return (
+                  <button
+                    key={option.mode}
+                    type="button"
+                    data-testid={`goldman-funding-${option.mode}-tab`}
+                    aria-pressed={selected}
+                    onClick={() => void handleActivateFunding(option.mode)}
+                    className={`dm-btn dm-mono flex h-8 items-center justify-center gap-1.5 rounded-[8px] border text-[9.5px] font-bold uppercase tracking-[0.08em] ${
+                      selected
+                        ? 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
+                        : 'border-white/[0.07] bg-black/20 text-[#9396a0]'
+                    }`}
+                  >
+                    <OptionIcon className="h-3.5 w-3.5" />
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {!fundingAddress?.address ? (
+              <div className="flex items-start gap-2 rounded-[9px] border border-[#f4c95d]/20 bg-[#f4c95d]/10 px-3 py-2 text-[11px] font-semibold leading-relaxed text-[#f4c95d]">
+                {isVaultBusy && (
+                  <Loader2 className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 animate-spin" />
+                )}
+                <span>
+                  {isVaultBusy
+                    ? 'Activating Goldman Sacks strategy vault...'
+                    : strategyVaultError ||
+                      'Activate the Goldman Sacks strategy vault to fund it.'}
+                </span>
+              </div>
+            ) : fundingMode === 'qr' ? (
+              <div className="grid gap-3" data-testid="goldman-funding-qr">
+                <div className="mx-auto rounded-[12px] bg-white p-3">
+                  <QRCodeSVG
+                    value={buildGoldmanFundingQrValue(fundingAddress)}
+                    size={168}
+                    level="H"
+                    includeMargin
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="dm-mono mb-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                    {fundingAddress.networkLabel}
+                  </div>
+                  <div className="dm-mono break-all text-[10.5px] font-semibold leading-relaxed text-[#eceef2]">
+                    {fundingAddress.address}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyFundingAddress}
+                  className="dm-btn dm-mono flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-white/[0.07] bg-black/20 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#eceef2]"
+                >
+                  <Copy className="h-3.5 w-3.5 text-[#f4c95d]" />
+                  Copy address
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-3" data-testid="goldman-funding-transfer">
+                <div>
+                  <div className="dm-mono mb-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                    Destination
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="dm-mono min-w-0 flex-1 truncate text-[11px] font-semibold text-[#eceef2]">
+                      {formatWalletAddress(fundingAddress.address)}
+                    </span>
+                    <button
+                      type="button"
+                      title="Copy address"
+                      onClick={handleCopyFundingAddress}
+                      className="dm-btn grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] border border-white/[0.07] bg-black/20 text-[#eceef2]"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="goldman-open-wallet-transfer"
+                  onClick={handleOpenWalletTransfer}
+                  className="dm-btn dm-mono flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#f4c95d]/30 bg-[#f4c95d]/10 text-[10px] font-bold uppercase tracking-[0.08em] text-[#f4c95d]"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open wallet transfer
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </ConsoleCard>
+    </>
+  );
+
+  return (
+    <aside
+      data-testid="goldman-access-station"
+      className={`dm-scroll ${panelVisibilityClass} ${panelWidthClass} flex-shrink-0 overflow-y-auto border-l border-white/[0.07] bg-[#0e1014] px-4 py-5`}
+    >
+      <div className="mb-5 flex items-center gap-3">
+        <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[10px] border border-[#f4c95d]/45 bg-[#f4c95d]/15 text-[13px] font-bold text-[#f4c95d]">
+          GS
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-semibold leading-tight tracking-[-0.02em] text-[#eceef2]">
+            Access station
+          </div>
+          <div className="dm-mono mt-1.5 inline-flex items-center gap-2 text-[10.5px] font-bold text-[#f4c95d]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#f4c95d]" />
+            Goldman Sacks
+          </div>
+        </div>
+        <span
+          className={`dm-mono rounded-[6px] border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] ${statusClassName}`}
+        >
+          {stationStatus}
+        </span>
+      </div>
+
+      {goldmanWalletCard}
+
+      <SectionLabel>metrics</SectionLabel>
+      <ConsoleCard padClass="p-3">
+        <div className="grid grid-cols-2 gap-2">
+          {goldmanMetrics.map((metric) => {
+            const MetricIcon = metric.icon;
+            const toneClassName =
+              metric.tone === 'positive'
+                ? 'border-[#3fe08f]/20 bg-[#3fe08f]/10 text-[#3fe08f]'
+                : metric.tone === 'negative'
+                ? 'border-[#ff5d63]/20 bg-[#ff5d63]/10 text-[#ff8585]'
+                : 'border-white/[0.06] bg-black/20 text-[#9396a0]';
+            return (
+              <div
+                key={metric.key}
+                className="rounded-[9px] border border-white/[0.06] bg-black/20 p-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="dm-mono truncate text-[9px] font-bold uppercase tracking-[0.1em] text-[#737783]">
+                    {metric.label}
+                  </span>
+                  <span
+                    className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-[7px] border ${toneClassName}`}
+                  >
+                    <MetricIcon className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <div
+                  className={`dm-mono mt-2 text-[15px] font-bold leading-none ${
+                    metric.tone === 'positive'
+                      ? 'text-[#3fe08f]'
+                      : metric.tone === 'negative'
+                      ? 'text-[#ff8585]'
+                      : 'text-[#eceef2]'
+                  }`}
+                >
+                  {metric.value}
+                </div>
+                <div className="dm-mono mt-1 truncate text-[9.5px] font-semibold text-[#5a5e69]">
+                  {metric.detail}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </ConsoleCard>
+
+      <ConsoleCard padClass="px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="dm-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[#737783]">
+              agent access
+            </div>
+            <div className="mt-2 text-[18px] font-semibold leading-none text-[#eceef2]">
+              {enabledCount}/{GOLDMAN_ACCESS_ROWS.length} on
+            </div>
+          </div>
+          <ShieldCheck className="h-5 w-5 text-[#f4c95d]" />
+        </div>
+        <div className="dm-mono mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold">
+          <div className="rounded-[8px] border border-white/[0.06] bg-black/20 px-2 py-2 text-[#9396a0]">
+            <span className="block text-[#3fe08f]">{approvalCount}</span>
+            approval gates
+          </div>
+          <div className="rounded-[8px] border border-white/[0.06] bg-black/20 px-2 py-2 text-[#9396a0]">
+            <span className="block text-[#ff8585]">
+              {disabledWriteCount}
+            </span>
+            writes off
+          </div>
+        </div>
+      </ConsoleCard>
+
+      <SectionLabel>access controls</SectionLabel>
+      <ConsoleCard padClass="p-0">
+        {GOLDMAN_ACCESS_ROWS.map((row) => {
+          const control = access[row.key];
+          const AccessIcon = row.icon;
+          return (
+            <div
+              key={row.key}
+              className="border-t border-white/[0.045] px-3 py-3 first:border-t-0"
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] ${row.iconClassName}`}
+                >
+                  <AccessIcon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12.5px] font-semibold leading-tight text-[#eceef2]">
+                    {row.label}
+                  </span>
+                  <span className="dm-mono mt-1 block truncate text-[10px] font-semibold text-[#5a5e69]">
+                    {row.detail}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  aria-pressed={control.enabled}
+                  aria-label={`${row.label} access`}
+                  data-testid={`goldman-access-toggle-${row.key}`}
+                  title={`${control.enabled ? 'Turn off' : 'Turn on'} ${
+                    row.label
+                  } access`}
+                  onClick={() =>
+                    setAccessControl(row.key, {
+                      enabled: !control.enabled,
+                    })
+                  }
+                  className={`dm-btn relative h-6 w-11 flex-shrink-0 rounded-full border transition ${
+                    control.enabled
+                      ? 'border-[#3fe08f]/35 bg-[#3fe08f]/20'
+                      : 'border-white/[0.08] bg-black/45'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-5 w-5 rounded-full transition ${
+                      control.enabled
+                        ? 'left-[19px] bg-[#3fe08f]'
+                        : 'left-0.5 bg-[#5a5e69]'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  disabled={!control.enabled}
+                  onClick={() =>
+                    setAccessControl(row.key, {
+                      approvalRequired: !control.approvalRequired,
+                    })
+                  }
+                  className={`dm-btn dm-mono h-6 rounded-[7px] border px-2 text-[9px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-45 ${
+                    control.approvalRequired
+                      ? 'border-[#f4c95d]/25 bg-[#f4c95d]/10 text-[#f4c95d]'
+                      : 'border-[#3fe08f]/25 bg-[#3fe08f]/10 text-[#3fe08f]'
+                  }`}
+                >
+                  {control.approvalRequired ? 'approval' : 'live'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </ConsoleCard>
+
+      <SectionLabel>risk limits</SectionLabel>
+      <ConsoleCard padClass="p-3">
+        <div className="grid grid-cols-2 gap-2">
+          {GOLDMAN_LIMIT_ROWS.map((item) => (
+            <label
+              key={item.key}
+              className="block rounded-[8px] border border-white/[0.06] bg-black/20 p-2"
+            >
+              <span className="dm-mono block truncate text-[9px] font-bold uppercase tracking-[0.1em] text-[#737783]">
+                {item.label}
+              </span>
+              <span className="mt-1 flex items-center gap-1">
+                {item.prefix && (
+                  <span className="dm-mono text-[11px] font-bold text-[#5a5e69]">
+                    {item.prefix}
+                  </span>
+                )}
+                <input
+                  type="number"
+                  min={item.min}
+                  step={item.step}
+                  value={limits[item.key]}
+                  onChange={(event) =>
+                    setLimitValue(item.key, event.target.value)
+                  }
+                  className="dm-mono h-7 min-w-0 flex-1 rounded-[7px] border border-white/[0.07] bg-[#0e1014] px-2 text-[12px] font-semibold text-[#eceef2] outline-none focus:border-[#f4c95d]/45"
+                />
+                {item.suffix && (
+                  <span className="dm-mono text-[11px] font-bold text-[#5a5e69]">
+                    {item.suffix}
+                  </span>
+                )}
+              </span>
+            </label>
+          ))}
+        </div>
+      </ConsoleCard>
+
+      <SectionLabel>strategy md files</SectionLabel>
+      <ConsoleCard padClass="p-0">
+        {strategyFiles.map((file) => (
+          <button
+            key={file.file}
+            type="button"
+            onClick={() => openStrategyFileEditor(file)}
+            className="dm-btn flex w-full items-center gap-3 border-t border-white/[0.045] px-3 py-3 text-left first:border-t-0 disabled:cursor-default"
+          >
+            <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] bg-[#262b34] text-[#cfd6e6]">
+              <FileText className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="dm-mono block truncate text-[12px] font-semibold text-[#eceef2]">
+                {file.file}
+              </span>
+              <span className="dm-mono mt-1 block truncate text-[10px] font-semibold text-[#5a5e69]">
+                {file.updatedAt ? 'saved markdown file' : file.detail}
+              </span>
+            </span>
+            <span className="dm-mono rounded-[6px] border border-white/[0.07] bg-black/20 px-2 py-1 text-[8.5px] font-bold uppercase tracking-[0.08em] text-[#9396a0]">
+              {file.status}
+            </span>
+          </button>
+        ))}
+        <div className="grid grid-cols-2 gap-2 border-t border-white/[0.045] p-3">
+          <button
+            type="button"
+            disabled={!onQuickCommand}
+            onClick={handlePublishStrategyFiles}
+            className="dm-btn dm-mono flex h-9 items-center justify-center gap-2 rounded-[8px] border border-[#f4c95d]/25 bg-[#f4c95d]/10 text-[10px] font-bold uppercase tracking-[0.08em] text-[#f4c95d] disabled:cursor-default"
+          >
+            <Check className="h-3.5 w-3.5" />
+            Publish
+          </button>
+          <button
+            type="button"
+            disabled={!onQuickCommand}
+            onClick={handleAskStrategyIdeas}
+            className="dm-btn dm-mono flex h-9 items-center justify-center gap-2 rounded-[8px] border border-white/[0.07] bg-black/20 text-[10px] font-bold uppercase tracking-[0.08em] text-[#eceef2] disabled:cursor-default"
+          >
+            <Plus className="h-3.5 w-3.5 text-[#3fe08f]" />
+            Ideas
+          </button>
+        </div>
+      </ConsoleCard>
+
+      <SectionLabel>audit</SectionLabel>
+      <ConsoleCard padClass="p-0">
+        {[
+          {
+            title: 'Disabled',
+            detail: disabledTools,
+            status: disabledTools === 'none' ? 'CLEAR' : 'OFF',
+            statusClassName:
+              disabledTools === 'none'
+                ? 'text-[#3fe08f] bg-[#3fe08f]/10 border-[#3fe08f]/20'
+                : 'text-[#ff8585] bg-[#ff5d63]/10 border-[#ff5d63]/20',
+          },
+          {
+            title: 'Approvals',
+            detail: gatedTools,
+            status: gatedTools === 'none' ? 'LIVE' : 'GATED',
+            statusClassName:
+              gatedTools === 'none'
+                ? 'text-[#3fe08f] bg-[#3fe08f]/10 border-[#3fe08f]/20'
+                : 'text-[#f4c95d] bg-[#f4c95d]/10 border-[#f4c95d]/20',
+          },
+          {
+            title: 'Policy',
+            detail: accessStationError
+              ? accessStationError
+              : `send $${limits.maxSendUsd || '0'} · day $${
+                  limits.dailyCapUsd || '0'
+                }`,
+            status: accessStationError
+              ? 'ERROR'
+              : isSavingAccessStation
+              ? 'SAVING'
+              : 'SAVED',
+            statusClassName:
+              accessStationError
+                ? 'text-[#ff8585] bg-[#ff5d63]/10 border-[#ff5d63]/20'
+                : isSavingAccessStation
+                ? 'text-[#f4c95d] bg-[#f4c95d]/10 border-[#f4c95d]/20'
+                : 'text-[#9396a0] bg-black/20 border-white/[0.07]',
+          },
+        ].map((item) => (
+          <div
+            key={item.title}
+            className="flex items-center justify-between gap-3 border-t border-white/[0.045] px-3 py-3 first:border-t-0"
+          >
+            <span className="min-w-0">
+              <span className="dm-mono block text-[9.5px] font-semibold uppercase tracking-[0.18em] text-[#9396a0]">
+                {item.title}
+              </span>
+              <span className="dm-mono mt-1 block truncate text-[11px] font-semibold text-[#eceef2]">
+                {item.detail}
+              </span>
+            </span>
+            <span
+              className={`dm-mono shrink-0 rounded-[6px] border px-2 py-1 text-[8.5px] font-bold uppercase tracking-[0.08em] ${item.statusClassName}`}
+            >
+              {item.status}
+            </span>
+          </div>
+        ))}
+      </ConsoleCard>
+
+      {editingStrategyFile && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4 py-5 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="goldman-strategy-file-editor-title"
+          data-testid="goldman-strategy-file-editor"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeStrategyFileEditor();
+            }
+          }}
+        >
+          <div className="flex max-h-[86vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[14px] border border-white/[0.08] bg-[#101217] shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3">
+              <div className="min-w-0">
+                <div
+                  id="goldman-strategy-file-editor-title"
+                  className="dm-mono truncate text-[12px] font-bold uppercase tracking-[0.12em] text-[#eceef2]"
+                >
+                  {editingStrategyFile.file}
+                </div>
+                <div className="dm-mono mt-1 truncate text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#737783]">
+                  {editingStrategyFile.updatedAt
+                    ? 'saved'
+                    : editingStrategyFile.status || 'draft'}
+                </div>
+              </div>
+              <button
+                type="button"
+                title="Close editor"
+                onClick={closeStrategyFileEditor}
+                disabled={isSavingStrategyFile}
+                className="dm-btn grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] border border-white/[0.07] bg-black/20 text-[#eceef2] disabled:cursor-default disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <textarea
+              value={strategyFileDraft}
+              onChange={(event) => setStrategyFileDraft(event.target.value)}
+              spellCheck={false}
+              data-testid="goldman-strategy-file-textarea"
+              className="dm-scroll min-h-[360px] flex-1 resize-none border-0 bg-[#0b0d11] px-4 py-4 font-mono text-[12.5px] leading-relaxed text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
+              placeholder="# Strategy"
+            />
+
+            <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] px-4 py-3">
+              <div className="dm-mono text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#5a5e69]">
+                {strategyFileDraft.length.toLocaleString()} chars
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={closeStrategyFileEditor}
+                  disabled={isSavingStrategyFile}
+                  className="dm-btn dm-mono flex h-9 items-center justify-center rounded-[8px] border border-white/[0.07] bg-black/20 px-3 text-[10px] font-bold uppercase tracking-[0.08em] text-[#9396a0] disabled:cursor-default disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveStrategyFile()}
+                  disabled={isSavingStrategyFile}
+                  className="dm-btn dm-mono flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#3fe08f]/30 bg-[#3fe08f]/10 px-3 text-[10px] font-bold uppercase tracking-[0.08em] text-[#3fe08f] disabled:cursor-default disabled:opacity-50"
+                >
+                  {isSavingStrategyFile ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Check className="h-3.5 w-3.5" />
+                  )}
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </aside>
+  );
+}
+
 function DmContextPanel({
   mode,
   displayChat,
+  activeAgents,
   consoleData,
   smartsiteHref,
   showOnTablet = false,
   onSmartsiteClick,
   onQuickCommand,
+  onUpdateGoldmanAccessStation,
+  goldmanStrategyVault,
+  isGoldmanStrategyVaultLoading,
+  isActivatingGoldmanVault,
+  goldmanStrategyVaultError,
+  onEnsureGoldmanStrategyVault,
+  onOpenGoldmanWalletTransfer,
+  onSaveGoldmanStrategyFile,
+  activeGoldmanStrategy,
+  isGoldmanStrategyRunning,
+  isTogglingGoldmanStrategy,
+  onRunGoldmanStrategy,
+  onStopGoldmanStrategy,
   onPositionClick,
 }: {
-  mode: 'astro' | 'group' | 'contact';
+  mode: 'astro' | 'goldman' | 'group' | 'contact';
   displayChat?: SelectedChat | null;
   activeAgents?: GroupAgent[];
   consoleData?: AstroConsoleData;
@@ -6512,10 +9169,63 @@ function DmContextPanel({
   showOnTablet?: boolean;
   onSmartsiteClick?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
   onQuickCommand?: (command: string) => void;
+  onUpdateGoldmanAccessStation?: (
+    accessStation: GoldmanAccessStationInput
+  ) => Promise<void>;
+  goldmanStrategyVault?: GoldmanStrategyVault | null;
+  isGoldmanStrategyVaultLoading?: boolean;
+  isActivatingGoldmanVault?: boolean;
+  goldmanStrategyVaultError?: string | null;
+  onEnsureGoldmanStrategyVault?: () => Promise<GoldmanStrategyVault | null>;
+  onOpenGoldmanWalletTransfer?: () => void;
+  onSaveGoldmanStrategyFile?: (
+    fileName: string,
+    content: string
+  ) => Promise<GoldmanStrategyFile | null>;
+  activeGoldmanStrategy?: GoldmanTradingStrategy | null;
+  isGoldmanStrategyRunning?: boolean;
+  isTogglingGoldmanStrategy?: boolean;
+  onRunGoldmanStrategy?: () => void;
+  onStopGoldmanStrategy?: () => void;
   onPositionClick?: (selection: AstroConsolePositionSelection) => void;
 }) {
-  const panelVisibilityClass = showOnTablet ? 'hidden md:block' : 'hidden xl:block';
-  const panelWidthClass = showOnTablet ? 'w-[280px] lg:w-[300px]' : 'w-[300px]';
+  const shouldShowAgentPanelOnDesktop =
+    showOnTablet || mode === 'astro' || mode === 'goldman';
+  const panelVisibilityClass = shouldShowAgentPanelOnDesktop
+    ? 'hidden md:block'
+    : 'hidden xl:block';
+  const panelWidthClass = shouldShowAgentPanelOnDesktop
+    ? 'w-[280px] lg:w-[300px]'
+    : 'w-[300px]';
+
+  if (mode === 'goldman') {
+    const goldmanAgent = activeAgents?.find(
+      (agent) => agent.agentId === 'goldman-sacks'
+    );
+    return (
+      <GoldmanAccessStation
+        panelVisibilityClass={panelVisibilityClass}
+        panelWidthClass={panelWidthClass}
+        accessStation={goldmanAgent?.config?.accessStation || null}
+        consoleData={consoleData}
+        strategyVault={goldmanStrategyVault}
+        isStrategyVaultLoading={isGoldmanStrategyVaultLoading}
+        isActivatingStrategyVault={isActivatingGoldmanVault}
+        strategyVaultError={goldmanStrategyVaultError}
+        activeStrategy={activeGoldmanStrategy}
+        isStrategyRunning={Boolean(isGoldmanStrategyRunning)}
+        isTogglingStrategy={Boolean(isTogglingGoldmanStrategy)}
+        groupId={displayChat?._id}
+        onQuickCommand={onQuickCommand}
+        onUpdateAccessStation={onUpdateGoldmanAccessStation}
+        onEnsureStrategyVault={onEnsureGoldmanStrategyVault}
+        onOpenWalletTransfer={onOpenGoldmanWalletTransfer}
+        onSaveStrategyFile={onSaveGoldmanStrategyFile}
+        onRunStrategy={onRunGoldmanStrategy}
+        onStopStrategy={onStopGoldmanStrategy}
+      />
+    );
+  }
 
   if (mode === 'astro') {
     const predictionPositions = consoleData?.predictionPositions || [];
@@ -6638,6 +9348,7 @@ function DmContextPanel({
       { label: '/send', command: '/send ' },
       { label: '/swap', command: '/swap ' },
       { label: '/pnl', command: '/pnl ' },
+      { label: '/portfolio', command: '/portfolio ' },
     ];
 
     return (
@@ -7041,6 +9752,174 @@ interface MessageProps {
   renderedReceiptIdentityKeys: Set<string>;
 }
 
+function strategyRuntimeTone(status?: string | null) {
+  const normalized = String(status || '').toLowerCase();
+  if (['running', 'started', 'ok', 'ready', 'active'].includes(normalized)) {
+    return 'border-[#3fe08f]/25 bg-[#3fe08f]/10 text-[#9af7c4]';
+  }
+  if (['error', 'blocked', 'failed'].includes(normalized)) {
+    return 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]';
+  }
+  if (['stopped', 'paused', 'hold', 'empty'].includes(normalized)) {
+    return 'border-[#f4c95d]/30 bg-[#f4c95d]/10 text-[#f4c95d]';
+  }
+  return 'border-white/[0.08] bg-black/25 text-[#cfd3dd]';
+}
+
+function GoldmanStrategyRuntimeCard({
+  runtime,
+}: {
+  runtime: GoldmanStrategyRuntimeCardPayload;
+}) {
+  const status = strategyString(runtime.status || runtime.phase, 'running');
+  const strategy = runtime.strategy;
+  const checks = Array.isArray(runtime.checks) ? runtime.checks : [];
+  const actions = Array.isArray(runtime.actions) ? runtime.actions : [];
+  const swaps = Array.isArray(runtime.swaps) ? runtime.swaps : [];
+  const updatedAt = runtime.updatedAt
+    ? new Date(runtime.updatedAt)
+    : null;
+
+  return (
+    <div className={`mt-2 w-full max-w-[500px] overflow-hidden text-xs ${AGENT_PANEL_CLASS}`}>
+      <div className="flex items-start justify-between gap-3 border-b border-white/[0.07] bg-[#111318] px-3.5 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 font-semibold text-[#eceef2]">
+            <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-[8px] bg-[#f4c95d]/15">
+              <Radio className="h-3.5 w-3.5 text-[#f4c95d]" />
+            </span>
+            <span className="truncate">
+              {runtime.title || strategy?.title || 'Goldman strategy'}
+            </span>
+          </div>
+          <div className="dm-mono mt-1 truncate text-[10px] text-[#5a5e69]">
+            run {runtime.runId || '--'} · {runtime.executionMode || 'proposal'}
+          </div>
+        </div>
+        <span
+          className={`dm-mono shrink-0 rounded-[5px] border px-2 py-1 text-[9.5px] font-bold uppercase tracking-[0.12em] ${strategyRuntimeTone(
+            status
+          )}`}
+        >
+          {status}
+        </span>
+      </div>
+
+      <div className="space-y-3 px-3.5 py-3">
+        {runtime.detail && (
+          <p className="text-[12.5px] font-medium leading-relaxed text-[#d7dae2]">
+            {runtime.detail}
+          </p>
+        )}
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+            <div className={TICKET_LABEL_CLASS}>mode</div>
+            <div className="dm-mono mt-1 truncate text-[11px] font-bold uppercase text-[#eceef2]">
+              {runtime.executionMode || 'proposal'}
+            </div>
+          </div>
+          <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+            <div className={TICKET_LABEL_CLASS}>markets</div>
+            <div className="dm-mono mt-1 text-[11px] font-bold text-[#eceef2]">
+              {runtime.markets?.length || 0}
+            </div>
+          </div>
+          <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+            <div className={TICKET_LABEL_CLASS}>positions</div>
+            <div className="dm-mono mt-1 text-[11px] font-bold text-[#eceef2]">
+              {runtime.positions?.length || 0}
+            </div>
+          </div>
+        </div>
+
+        {runtime.walletAddress && (
+          <div className="rounded-[9px] border border-white/[0.07] bg-[#101217] px-3 py-2">
+            <div className={TICKET_LABEL_CLASS}>wallet</div>
+            <div className="dm-mono mt-1 truncate text-[11px] font-semibold text-[#eceef2]">
+              {formatWalletAddress(runtime.walletAddress)}
+            </div>
+          </div>
+        )}
+
+        {(checks.length > 0 || actions.length > 0 || swaps.length > 0) && (
+          <div className="grid gap-2">
+            {checks.map((check, index) => (
+              <div
+                key={`runtime-check-${index}-${check.label}`}
+                className="rounded-[9px] border border-white/[0.07] bg-black/25 px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={TICKET_LABEL_CLASS}>{check.label || 'check'}</span>
+                  <span
+                    className={`dm-mono rounded-[5px] border px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-[0.08em] ${strategyRuntimeTone(
+                      check.status
+                    )}`}
+                  >
+                    {check.status || 'info'}
+                  </span>
+                </div>
+                {check.detail && (
+                  <div className="mt-1 text-[11.5px] leading-snug text-[#cfd3dd]">
+                    {check.detail}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {actions.map((action, index) => (
+              <div
+                key={`runtime-action-${index}-${action.label}`}
+                className="rounded-[9px] border border-[#3fe08f]/15 bg-[#3fe08f]/10 px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={TICKET_LABEL_CLASS}>{action.label || 'action'}</span>
+                  <span
+                    className={`dm-mono rounded-[5px] border px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-[0.08em] ${strategyRuntimeTone(
+                      action.status
+                    )}`}
+                  >
+                    {action.status || 'info'}
+                  </span>
+                </div>
+                {action.detail && (
+                  <div className="mt-1 text-[11.5px] leading-snug text-[#dfffee]">
+                    {action.detail}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {swaps.map((swap, index) => (
+              <div
+                key={`runtime-swap-${index}-${swap.fromToken}-${swap.toToken}`}
+                className="rounded-[9px] border border-[#6b9bff]/20 bg-[#6b9bff]/10 px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={TICKET_LABEL_CLASS}>swap</span>
+                  <span className="dm-mono text-[10px] font-bold uppercase text-[#b8c8ff]">
+                    {swap.fromToken || '--'} -&gt; {swap.toToken || '--'}
+                  </span>
+                </div>
+                <div className="mt-1 text-[11.5px] leading-snug text-[#dce5ff]">
+                  {swap.amount ? `${swap.amount} · ` : ''}
+                  {swap.detail || swap.status || 'queued'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {updatedAt && Number.isFinite(updatedAt.getTime()) && (
+          <div className="dm-mono text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#5a5e69]">
+            updated {updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Message({
   message,
   isOwn,
@@ -7083,6 +9962,8 @@ function Message({
     message.agentData?.metadata?.toolExecution?.items || [];
   const pnlOverview =
     message.agentData?.metadata?.toolExecution?.pnlOverview || null;
+  const portfolioSnapshot =
+    message.agentData?.metadata?.toolExecution?.portfolioSnapshot || null;
   const walletReceive =
     message.agentData?.metadata?.toolExecution?.walletReceive || null;
   const perpsPositions =
@@ -7093,6 +9974,8 @@ function Message({
     message.agentData?.metadata?.walletSendDraftPrompt || null;
   const perpsPositionPrompt =
     message.agentData?.metadata?.perpsPositionPrompt || null;
+  const strategyRuntime =
+    message.agentData?.metadata?.strategyRuntime || null;
   const researchSources =
     message.agentData?.metadata?.toolExecution?.sources || [];
   const sportsResearch =
@@ -7182,6 +10065,12 @@ function Message({
     isAgent && polymarketPositions.length > 0;
   const hasAgentMarketplaceItems = isAgent && marketplaceItems.length > 0;
   const hasAgentPnlOverview = isAgent && Boolean(pnlOverview);
+  const hasAgentWalletPortfolio =
+    isAgent &&
+    (Boolean(portfolioSnapshot) ||
+      message.agentData?.action === 'wallet.portfolio' ||
+      message.agentData?.metadata?.toolExecution?.action === 'wallet.portfolio' ||
+      message.agentData?.metadata?.responseType === 'portfolio_snapshot');
   const hasAgentFundingOnramp = isAgent && Boolean(fundingOnramp);
   const hasAgentWalletReceive = isAgent && Boolean(walletReceive?.address);
   const hasAgentPerpsPositions = isAgent && Boolean(perpsPositions);
@@ -7191,6 +10080,8 @@ function Message({
     isAgent && Boolean(walletSendDraftPrompt);
   const hasAgentPerpsPositionPrompt =
     isAgent && Boolean(perpsPositionPrompt);
+  const hasAgentStrategyRuntime =
+    isAgent && Boolean(strategyRuntime);
   const hasAgentResearchSources = isAgent && researchSources.length > 0;
   const hasAgentSportsResearch =
     isAgent && Boolean(sportsResearch?.groups?.some((group) => group.items?.length));
@@ -7205,6 +10096,7 @@ function Message({
     (hasAgentMarkets ||
       hasAgentPolymarketPositions ||
       hasAgentPnlOverview ||
+      hasAgentWalletPortfolio ||
       hasAgentFundingOnramp ||
       hasAgentMarketplaceItems ||
       hasAgentWalletReceive ||
@@ -7212,6 +10104,7 @@ function Message({
       hasAgentWalletSendNetworkPrompt ||
       hasAgentWalletSendDraftPrompt ||
       hasAgentPerpsPositionPrompt ||
+      hasAgentStrategyRuntime ||
       hasAgentSportsResearch ||
       hasAgentResearchSources ||
       shouldResolveResearchToPolymarket ||
@@ -7307,10 +10200,10 @@ function Message({
                 ? 'p-0'
                 : `px-[13px] py-[9px] ${
                   isOwn
-                    ? 'dm-mono rounded-[14px] rounded-tr-[6px] border border-[#43e58f] bg-[#43e58f] text-[#06120b] shadow-[0_18px_45px_rgba(63,224,143,0.16)]'
+                    ? 'dm-mono rounded-[14px] rounded-tr-[6px] border border-[#43e58f] bg-[#43e58f] text-[#06120b] shadow-[0_18px_45px_rgba(63,224,143,0.16)] max-md:rounded-[18px] max-md:rounded-tr-[6px] max-md:shadow-none'
                     : isAgent
-                    ? `${AGENT_TERMINAL_BUBBLE_CLASS} rounded-tl-md`
-                    : 'dm-mono rounded-[14px] rounded-tl-[6px] border border-white/[0.07] bg-[#15171d] text-[#eceef2]'
+                    ? `${AGENT_TERMINAL_BUBBLE_CLASS} rounded-tl-md max-md:border-[#0a0a0c]`
+                    : 'dm-mono rounded-[14px] rounded-tl-[6px] border border-white/[0.07] bg-[#15171d] text-[#eceef2] max-md:rounded-[18px] max-md:rounded-tl-[6px] max-md:border-[#e6e5df] max-md:bg-white max-md:text-[#0a0a0c]'
                 }`
           } ${message.status === 'failed' ? 'opacity-50' : ''}`}
         >
@@ -7430,6 +10323,12 @@ function Message({
           {isAgent && pnlOverview && (
             <PnlOverviewCard overview={pnlOverview} />
           )}
+          {hasAgentWalletPortfolio && (
+            <WalletPortfolioCard
+              consoleData={astroConsoleData}
+              snapshot={portfolioSnapshot}
+            />
+          )}
           {isAgent && (
             <PolymarketMarketCards
               markets={displayPolymarketMarkets}
@@ -7495,18 +10394,21 @@ function Message({
               onAddFunds={onAddPerpsFunds}
             />
           )}
-          {isAgent && walletSendNetworkPrompt && (
+          {isAgent && walletSendNetworkPrompt && !proposalId && (
             <WalletSendNetworkPromptCard
               prompt={walletSendNetworkPrompt}
+              proposal={proposal}
+              proposalId={proposalId || undefined}
+              status={status}
+              canAct={canAct}
+              isPending={isProposalPending}
               onApproveInline={onApproveInlineProposal}
               onInlineActionComplete={onInlineActionComplete}
               onReject={onRejectProposal}
               astroConsoleData={astroConsoleData}
             />
           )}
-          {isAgent &&
-            walletSendDraftPrompt &&
-            String(message._id || '').startsWith('local-wallet-send-draft-') && (
+          {isAgent && walletSendDraftPrompt && !proposalId && (
             <WalletSendDraftCard
               prompt={walletSendDraftPrompt}
               onApproveInline={onApproveInlineProposal}
@@ -7526,6 +10428,37 @@ function Message({
               astroConsoleData={astroConsoleData}
             />
           )}
+          {isAgent && strategyRuntime && (
+            <GoldmanStrategyRuntimeCard
+              runtime={strategyRuntime as GoldmanStrategyRuntimeCardPayload}
+            />
+          )}
+          {isAgent &&
+            strategyRuntime?.markets &&
+            strategyRuntime.markets.length > 0 && (
+              <PolymarketMarketCards
+                markets={strategyRuntime.markets as PolymarketMarketPreview[]}
+                onPrepareBet={onPreparePolymarketBet}
+                pendingBetKey={pendingPolymarketBetKey}
+                inlineProposalsByBetKey={inlinePolymarketProposalsByBetKey}
+                actionResultsByProposalId={actionResultsByProposalId}
+                pendingProposalId={pendingProposalId}
+                canAct={canAct}
+                onApproveInlineProposal={onApproveInlineProposal}
+                onInlineActionComplete={onInlineActionComplete}
+                onRejectProposal={onRejectProposal}
+                onAddPredictionFunds={onAddPredictionFunds}
+                astroConsoleData={astroConsoleData}
+                renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
+              />
+            )}
+          {isAgent &&
+            strategyRuntime?.positions &&
+            strategyRuntime.positions.length > 0 && (
+              <PolymarketPositionsCard
+                positions={strategyRuntime.positions as PolymarketPosition[]}
+              />
+            )}
           {proposalId && !isInlinePolymarketProposal && (
             <AgentProposalCard
               proposal={proposal}
@@ -7548,7 +10481,7 @@ function Message({
         <p
           className={`dm-mono mt-1 px-1 text-[10px] font-semibold ${
             isOwn ? 'text-[#5a5e69]' : 'text-[#5a5e69]'
-          }`}
+          } max-md:text-[#9a9690]`}
         >
           {new Date(message.createdAt).toLocaleTimeString([], {
             hour: '2-digit',
@@ -7737,19 +10670,23 @@ function GroupAgentControls({
   activeAgents,
   agentError,
   availableAgents,
+  currentAgentThreadId,
   isLoadingAgents,
   mutationAgentId,
   onAddAgent,
   onMentionAgent,
+  onOpenAgentThread,
   onRemoveAgent,
 }: {
   activeAgents: GroupAgent[];
   agentError: string | null;
   availableAgents: GroupAgentDescriptor[];
+  currentAgentThreadId?: string | null;
   isLoadingAgents: boolean;
   mutationAgentId: string | null;
   onAddAgent: (agent: GroupAgentDescriptor) => void;
   onMentionAgent: (agent: GroupAgent) => void;
+  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
   onRemoveAgent: (agentId: string) => void;
 }) {
   const activeIds = new Set(activeAgents.map((agent) => agent.agentId));
@@ -7764,53 +10701,82 @@ function GroupAgentControls({
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.07] bg-[#08090b] px-[22px] py-2">
-      {activeAgents.map((agent) => (
-        <div
-          key={agent.agentId}
-          className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[#3fe08f]/35 bg-[#3fe08f]/10 pl-2.5 pr-1 text-[12px] font-semibold text-[#3fe08f]"
-        >
-          <Bot className="h-3 w-3" />
-          <button
-            type="button"
-            title={`Mention ${agent.displayName}`}
-            onClick={() => onMentionAgent(agent)}
-            className="max-w-28 truncate"
+      {activeAgents.map((agent) => {
+        const dedicatedThreadId = getAgentDedicatedThreadId(agent.agentId);
+        const opensDedicatedThread = Boolean(
+          dedicatedThreadId &&
+            dedicatedThreadId !== currentAgentThreadId &&
+            onOpenAgentThread
+        );
+
+        return (
+          <div
+            key={agent.agentId}
+            className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[#3fe08f]/35 bg-[#3fe08f]/10 pl-2.5 pr-1 text-[12px] font-semibold text-[#3fe08f]"
           >
-            {agent.displayName}
-          </button>
+            <Bot className="h-3 w-3" />
+            <button
+              type="button"
+              title={`${opensDedicatedThread ? 'Open' : 'Mention'} ${
+                agent.displayName
+              }`}
+              onClick={() => onMentionAgent(agent)}
+              className="max-w-28 truncate"
+            >
+              {agent.displayName}
+            </button>
+            <button
+              type="button"
+              title={`Remove ${agent.displayName}`}
+              onClick={() => onRemoveAgent(agent.agentId)}
+              disabled={mutationAgentId === agent.agentId}
+              className="dm-btn grid h-5 w-5 place-items-center rounded-full text-[#3fe08f] hover:bg-[#3fe08f]/10 disabled:opacity-50"
+            >
+              {mutationAgentId === agent.agentId ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <X className="h-3 w-3" />
+              )}
+            </button>
+          </div>
+        );
+      })}
+
+      {addableAgents.map((agent) => {
+        const dedicatedThreadId = getAgentDedicatedThreadId(agent.agentId);
+        const opensDedicatedThread = Boolean(
+          currentAgentThreadId && dedicatedThreadId && onOpenAgentThread
+        );
+
+        return (
           <button
+            key={agent.agentId}
             type="button"
-            title={`Remove ${agent.displayName}`}
-            onClick={() => onRemoveAgent(agent.agentId)}
+            title={`${opensDedicatedThread ? 'Open' : 'Add'} ${
+              agent.displayName
+            }`}
+            onClick={() => {
+              if (opensDedicatedThread && dedicatedThreadId) {
+                void onOpenAgentThread?.(dedicatedThreadId);
+                return;
+              }
+
+              onAddAgent(agent);
+            }}
             disabled={mutationAgentId === agent.agentId}
-            className="dm-btn grid h-5 w-5 place-items-center rounded-full text-[#3fe08f] hover:bg-[#3fe08f]/10 disabled:opacity-50"
+            className="dm-btn inline-flex h-7 items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#15171d] px-2.5 text-[12px] font-semibold text-[#eceef2] hover:bg-white/[0.05] disabled:opacity-50"
           >
             {mutationAgentId === agent.agentId ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : opensDedicatedThread ? (
+              <Bot className="h-3.5 w-3.5" />
             ) : (
-              <X className="h-3 w-3" />
+              <Plus className="h-3.5 w-3.5" />
             )}
+            <span className="max-w-28 truncate">{agent.displayName}</span>
           </button>
-        </div>
-      ))}
-
-      {addableAgents.map((agent) => (
-        <button
-          key={agent.agentId}
-          type="button"
-          title={`Add ${agent.displayName}`}
-          onClick={() => onAddAgent(agent)}
-          disabled={mutationAgentId === agent.agentId}
-          className="dm-btn inline-flex h-7 items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#15171d] px-2.5 text-[12px] font-semibold text-[#eceef2] hover:bg-white/[0.05] disabled:opacity-50"
-        >
-          {mutationAgentId === agent.agentId ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Plus className="h-3.5 w-3.5" />
-          )}
-          <span className="max-w-28 truncate">{agent.displayName}</span>
-        </button>
-      ))}
+        );
+      })}
 
       {isLoadingAgents && (
         <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/[0.07] px-2.5 text-xs text-[#9396a0]">
@@ -8394,6 +11360,7 @@ function AgentProposalCard({
     (proposal?.action === 'wallet.send' ||
       proposal?.action === 'transfer_token' ||
       proposal?.action === 'transfer_sol');
+  const isStrategyAction = proposal?.toolType === 'strategy.write';
 
   if (isHyperliquidPerpsAction) {
     return (
@@ -8467,7 +11434,7 @@ function AgentProposalCard({
             recipient,
             options: getWalletSendNetworkOptions(
               walletSendIntent,
-              astroConsoleData.walletPortfolioTokens
+              getWalletSendFundingTokens(astroConsoleData)
             ),
           }}
           proposal={proposal}
@@ -8494,6 +11461,22 @@ function AgentProposalCard({
         onInlineActionComplete={onInlineActionComplete}
         onReject={onReject}
         astroConsoleData={astroConsoleData}
+      />
+    );
+  }
+
+  if (isStrategyAction) {
+    return (
+      <StrategyProposalTicket
+        proposal={proposal}
+        proposalId={proposalId}
+        status={status}
+        actionResult={actionResult}
+        canAct={canAct}
+        isOpen={isOpen}
+        isPending={isPending}
+        onApprove={onApprove}
+        onReject={onReject}
       />
     );
   }
@@ -8608,6 +11591,290 @@ function AgentProposalCard({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function strategyString(value: unknown, fallback = '') {
+  if (value === null || value === undefined) return fallback;
+  return String(value).trim() || fallback;
+}
+
+function strategyList(value: unknown, fallback: string[] = []) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return fallback;
+}
+
+function strategyRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function strategyUsd(value: unknown) {
+  const number = toFiniteNumber(value);
+  if (!Number.isFinite(number) || number <= 0) return '--';
+  return formatCompactUsd(number);
+}
+
+function strategyPercent(value: unknown) {
+  const number = toFiniteNumber(value);
+  if (!Number.isFinite(number) || number <= 0) return '--';
+  return `${number.toLocaleString('en-US', {
+    maximumFractionDigits: 2,
+  })}%`;
+}
+
+function strategyDate(value: unknown) {
+  if (!value) return null;
+  const date = new Date(String(value));
+  if (!Number.isFinite(date.getTime())) return null;
+  return date.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function StrategyProposalTicket({
+  proposal,
+  proposalId,
+  status,
+  actionResult,
+  canAct,
+  isOpen,
+  isPending,
+  onApprove,
+  onReject,
+}: {
+  proposal?: AgentActionProposal | null;
+  proposalId: string;
+  status: string;
+  actionResult?: AgentActionResultPayload;
+  canAct: boolean;
+  isOpen: boolean;
+  isPending: boolean;
+  onApprove: (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>
+  ) => void;
+  onReject: (proposalId: string) => void;
+}) {
+  const params = proposal?.normalizedParams || {};
+  const venues = strategyList(params.venues, ['polymarket']);
+  const assets = strategyList(params.assets, ['USDC']);
+  const executionPlan = strategyList(params.executionPlan).slice(0, 4);
+  const riskControls = strategyList(params.riskControls).slice(0, 4);
+  const idleDeployment = strategyRecord(params.idleDeployment);
+  const nextStep = getApprovalNextStep(actionResult?.result);
+  const title = strategyString(params.title, 'Strategy draft');
+  const brief = strategyString(
+    params.strategyBrief,
+    'Goldman Sacks prepared a concrete strategy for review.'
+  );
+  const expiry = strategyDate(params.expiry || proposal?.expiresAt);
+  const idleVenue = strategyString(idleDeployment.venue, '');
+  const idleAsset = strategyString(idleDeployment.asset, assets[0] || 'USDC');
+  const idleChain = strategyString(idleDeployment.chain, 'polygon');
+  const canSubmit = isOpen && canAct && !isPending;
+
+  return (
+    <div className={`mt-2 w-full max-w-[500px] overflow-hidden text-xs ${AGENT_PANEL_CLASS}`}>
+      <div className="flex items-start justify-between gap-3 border-b border-white/[0.07] bg-[#111318] px-3.5 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 font-semibold text-[#eceef2]">
+            <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-[8px] bg-[#3fe08f]/15">
+              <ShieldCheck className="h-3.5 w-3.5 text-[#3fe08f]" />
+            </span>
+            <span className="truncate">{title}</span>
+          </div>
+          <div className="dm-mono mt-1 truncate text-[10px] text-[#5a5e69]">
+            strategy.write · {proposalId}
+          </div>
+        </div>
+        <span
+          className={`dm-mono shrink-0 rounded-[5px] px-2 py-1 text-[9.5px] font-bold uppercase tracking-[0.12em] ${proposalStatusClass(
+            status
+          )}`}
+        >
+          {status}
+        </span>
+      </div>
+
+      <div className="space-y-3 px-3.5 py-3">
+        <div>
+          <div className={TICKET_LABEL_CLASS}>strategy brief</div>
+          <p className="mt-1 text-[12.5px] font-medium leading-relaxed text-[#d7dae2]">
+            {brief}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+            <div className={TICKET_LABEL_CLASS}>target</div>
+            <div className="dm-mono mt-1 text-[12px] font-bold text-[#eceef2]">
+              {strategyUsd(params.targetProfitUsd)}
+            </div>
+            <div className="dm-mono mt-0.5 text-[10px] text-[#5a5e69]">
+              {strategyPercent(params.targetProfitPct)}
+            </div>
+          </div>
+          <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+            <div className={TICKET_LABEL_CLASS}>max order</div>
+            <div className="dm-mono mt-1 text-[12px] font-bold text-[#eceef2]">
+              {strategyUsd(params.maxOrderUsd)}
+            </div>
+            <div className="dm-mono mt-0.5 text-[10px] text-[#5a5e69]">
+              est {strategyUsd(params.estimatedOrderUsd)}
+            </div>
+          </div>
+          <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+            <div className={TICKET_LABEL_CLASS}>daily loss</div>
+            <div className="dm-mono mt-1 text-[12px] font-bold text-[#eceef2]">
+              {strategyUsd(params.maxDailyLossUsd)}
+            </div>
+            <div className="dm-mono mt-0.5 text-[10px] text-[#5a5e69]">
+              cap {strategyUsd(params.maxDailySpendUsd)}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {venues.map((venue) => (
+            <span
+              key={`venue-${venue}`}
+              className="dm-mono rounded-[7px] border border-[#3fe08f]/20 bg-[#3fe08f]/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#9af7c4]"
+            >
+              {venue}
+            </span>
+          ))}
+          {assets.map((asset) => (
+            <span
+              key={`asset-${asset}`}
+              className="dm-mono rounded-[7px] border border-white/[0.07] bg-black/25 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#cfd3dd]"
+            >
+              {asset}
+            </span>
+          ))}
+          {expiry && (
+            <span className="dm-mono rounded-[7px] border border-white/[0.07] bg-black/25 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#9396a0]">
+              expires {expiry}
+            </span>
+          )}
+        </div>
+
+        <div className="grid gap-2">
+          <div className="rounded-[10px] border border-white/[0.07] bg-[#101217] px-3 py-2.5">
+            <div className={TICKET_LABEL_CLASS}>entry</div>
+            <p className="mt-1 text-[12px] leading-relaxed text-[#d7dae2]">
+              {strategyString(params.entryCondition, 'Wait for a qualified market entry.')}
+            </p>
+          </div>
+          <div className="rounded-[10px] border border-white/[0.07] bg-[#101217] px-3 py-2.5">
+            <div className={TICKET_LABEL_CLASS}>exit</div>
+            <p className="mt-1 text-[12px] leading-relaxed text-[#d7dae2]">
+              {strategyString(params.exitCondition, 'Exit at the approved target or risk limit.')}
+            </p>
+          </div>
+        </div>
+
+        {idleVenue && (
+          <div className="rounded-[10px] border border-[#6b9bff]/20 bg-[#6b9bff]/10 px-3 py-2.5">
+            <div className={TICKET_LABEL_CLASS}>idle deployment</div>
+            <div className="mt-1 text-[12px] font-semibold text-[#eceef2]">
+              {idleAsset} to {idleVenue} on {idleChain}
+            </div>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-[#b8c8ff]">
+              {strategyString(
+                idleDeployment.condition,
+                'Use idle funds only when no qualifying live market is available.'
+              )}
+            </p>
+          </div>
+        )}
+
+        {(executionPlan.length > 0 || riskControls.length > 0) && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {executionPlan.length > 0 && (
+              <div className="rounded-[10px] border border-white/[0.07] bg-black/25 px-3 py-2.5">
+                <div className={TICKET_LABEL_CLASS}>execution</div>
+                <div className="mt-2 space-y-1.5">
+                  {executionPlan.map((item, index) => (
+                    <div
+                      key={`execution-${index}-${item}`}
+                      className="text-[11.5px] leading-snug text-[#d7dae2]"
+                    >
+                      {index + 1}. {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {riskControls.length > 0 && (
+              <div className="rounded-[10px] border border-white/[0.07] bg-black/25 px-3 py-2.5">
+                <div className={TICKET_LABEL_CLASS}>risk controls</div>
+                <div className="mt-2 space-y-1.5">
+                  {riskControls.map((item, index) => (
+                    <div
+                      key={`risk-${index}-${item}`}
+                      className="text-[11.5px] leading-snug text-[#d7dae2]"
+                    >
+                      {index + 1}. {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {nextStep && (
+          <div className="rounded-[9px] border border-[#3fe08f]/15 bg-[#3fe08f]/10 px-3 py-2 text-[11.5px] text-[#dfffee]">
+            {nextStep}
+          </div>
+        )}
+
+        {isOpen && (
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => onApprove(proposalId)}
+              disabled={!canSubmit}
+              className={TICKET_PRIMARY_BUTTON_CLASS}
+            >
+              {isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Check className="h-3.5 w-3.5" />
+              )}
+              Approve strategy
+            </button>
+            <button
+              type="button"
+              onClick={() => onReject(proposalId)}
+              disabled={!canAct || isPending}
+              className={`${TICKET_REJECT_BUTTON_CLASS} flex-1`}
+            >
+              <Ban className="h-3.5 w-3.5" />
+              Reject
+            </button>
+          </div>
+        )}
+
+        {!canAct && isOpen && (
+          <p className="text-[11px] text-[#ffd08a]">
+            Only the user who asked Goldman Sacks to draft this strategy can approve it.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -8958,6 +12225,17 @@ async function resolveChatWalletSendRecipient({
     return { address: trimmed, isEns: false };
   }
 
+  if (tokenChain !== 'SOLANA' && looksLikePublicEnsName(trimmed)) {
+    const resolved = await resolvePublicEnsName(trimmed, token.chain);
+    if (resolved) {
+      return {
+        address: resolved.address,
+        ensName: resolved.ensName,
+        isEns: true,
+      };
+    }
+  }
+
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!apiUrl || !accessToken) return null;
 
@@ -9046,12 +12324,16 @@ function WalletSendProposalTicket({
       'to',
     ]) || 'recipient';
   const chain = firstTicketValue(params, ['chain', 'network']);
-  const isLocalProposal = proposalId.startsWith('local-wallet-send-');
+  const isLocalProposal = isLocalWalletSendProposalId(proposalId);
   const sendAmountLabel =
     amountType === 'usd'
       ? `${formatCompactUsd(amount)} in ${token}`
       : `${formatSwapAmount(amount)} ${token}`;
   const selectedNetwork = chain ? normalizeWalletSendChainValue(chain) : null;
+  const walletSendTokens = useMemo(
+    () => getWalletSendFundingTokens(astroConsoleData),
+    [astroConsoleData]
+  );
   const evmSignerAddresses = useMemo(
     () =>
       getChatSwapSignableAddressSet([
@@ -9080,14 +12362,14 @@ function WalletSendProposalTicket({
   const sendToken = buildChatWalletSendToken({
     symbol: token,
     chain: chain || undefined,
-    tokens: astroConsoleData.walletPortfolioTokens,
+    tokens: walletSendTokens,
     evmSignerAddresses,
     solanaSignerAddresses,
   });
   const hasUnsignableMatchingToken = useMemo(() => {
     const chainName = chain ? normalizeWalletSendChainValue(chain) : '';
     const chainId = chain ? String(getWalletSendChainId(chain) || '') : '';
-    return astroConsoleData.walletPortfolioTokens.some((walletToken) => {
+    return walletSendTokens.some((walletToken) => {
       const tokenSymbol = String(walletToken?.symbol || '').toUpperCase();
       const tokenChain = String(walletToken?.chain || '').toUpperCase();
       const tokenChainId = String(walletToken?.chainId || '');
@@ -9103,11 +12385,11 @@ function WalletSendProposalTicket({
       );
     });
   }, [
-    astroConsoleData.walletPortfolioTokens,
     chain,
     evmSignerAddresses,
     solanaSignerAddresses,
     token,
+    walletSendTokens,
   ]);
   const transactionAmountPreview =
     selectedNetwork && sendToken
@@ -9177,35 +12459,18 @@ function WalletSendProposalTicket({
 
     setSendError(null);
     setIsConfirming(true);
+    let executionProposalId = proposalId;
 
     try {
-      let approvalResult: AgentApprovalHandoff | null = null;
-      if (isLocalProposal) {
-        approvalResult = {
-          status: 'approved',
-          nextStep: 'wallet_send_inline_signing_required',
-          payload: {
-            proposalId,
-            action: 'wallet.send',
-            toolType: 'wallet.write',
-            provider: 'swop',
-            route: '/dashboard/chat',
-            panel: 'send',
-            normalizedParams: approvalParams,
-            prefill: approvalParams,
-          },
-        };
-        persistAgentActionHandoff(approvalResult);
-      } else {
-        approvalResult =
-          proposal?.approvalResult?.payload?.proposalId === proposalId
-            ? proposal.approvalResult
-            : await onApproveInline(proposalId, approvalParams);
-        if (!approvalResult?.payload?.proposalId) {
-          throw new Error('Swop approval was not returned by the backend.');
-        }
-        persistAgentActionHandoff(approvalResult);
+      const approvalResult =
+        proposal?.approvalResult?.payload?.proposalId === proposalId
+          ? proposal.approvalResult
+          : await onApproveInline(proposalId, approvalParams);
+      if (!approvalResult?.payload?.proposalId) {
+        throw new Error('Swop approval was not returned by the backend.');
       }
+      executionProposalId = String(approvalResult.payload.proposalId);
+      persistAgentActionHandoff(approvalResult);
 
       const recipientData = await resolveChatWalletSendRecipient({
         recipientValue: recipient,
@@ -9354,7 +12619,7 @@ function WalletSendProposalTicket({
         | 'action'
         | 'toolType'
       > & { proposalId?: string } = {
-        proposalId,
+        proposalId: executionProposalId,
         status: 'executed',
         provider: 'swop',
         title: `Sent ${sendAmountLabel}`,
@@ -9380,9 +12645,9 @@ function WalletSendProposalTicket({
 
       let completion = {
         ...completionDraft,
-        proposalId,
+        proposalId: executionProposalId,
       } as AgentActionCompletion;
-      if (!isLocalProposal) {
+      if (!isLocalWalletSendProposalId(executionProposalId)) {
         try {
           completion =
             (await completeAgentActionFromHandoff(
@@ -9395,6 +12660,8 @@ function WalletSendProposalTicket({
             completionError
           );
         }
+      } else {
+        clearAgentActionHandoff();
       }
 
       setLocalReceipt(completion);
@@ -9406,28 +12673,32 @@ function WalletSendProposalTicket({
       const message =
         error instanceof Error ? error.message : 'Failed to send transaction.';
       try {
-        const failedCompletion = await completeAgentActionFromHandoff(
-          {
-            proposalId,
-            status: 'failed',
-            provider: 'swop',
-            title: `Send ${token}`,
-            subtitle: chain || 'wallet send',
-            subject: token,
-            error: message,
-            executionResult: {
-              kind: 'send',
-              token,
-              amount,
-              amountType,
-              network: chain || undefined,
-              recipientName: recipient,
+        if (!isLocalWalletSendProposalId(executionProposalId)) {
+          const failedCompletion = await completeAgentActionFromHandoff(
+            {
+              proposalId: executionProposalId,
+              status: 'failed',
+              provider: 'swop',
+              title: `Send ${token}`,
+              subtitle: chain || 'wallet send',
+              subject: token,
+              error: message,
+              executionResult: {
+                kind: 'send',
+                token,
+                amount,
+                amountType,
+                network: chain || undefined,
+                recipientName: recipient,
+              },
             },
-          },
-          accessToken
-        );
-        if (failedCompletion) {
-          onInlineActionComplete(failedCompletion);
+            accessToken
+          );
+          if (failedCompletion) {
+            onInlineActionComplete(failedCompletion);
+          } else {
+            clearAgentActionHandoff();
+          }
         } else {
           clearAgentActionHandoff();
         }
@@ -9661,6 +12932,12 @@ function WalletSendNetworkPromptCard({
   const { connectWallet } = useConnectWallet();
   const { wallets: solanaWallets } = useSolanaWallets();
   const [selectedChain, setSelectedChain] = useState('');
+  const walletSendTokens = useMemo(
+    () => getWalletSendFundingTokens(astroConsoleData),
+    [astroConsoleData]
+  );
+  const isFundingBalanceLoading =
+    isWalletSendFundingBalanceLoading(astroConsoleData);
   const evmSignerAddresses = useMemo(
     () =>
       getChatSwapSignableAddressSet([
@@ -9702,15 +12979,15 @@ function WalletSendNetworkPromptCard({
     () =>
       getWalletSendNetworkOptions(
         promptIntent,
-        astroConsoleData.walletPortfolioTokens,
+        walletSendTokens,
         evmSignerAddresses,
         solanaSignerAddresses
       ),
     [
-      astroConsoleData.walletPortfolioTokens,
       evmSignerAddresses,
       promptIntent,
       solanaSignerAddresses,
+      walletSendTokens,
     ]
   );
   if (selectedChain) {
@@ -9826,7 +13103,9 @@ function WalletSendNetworkPromptCard({
               {amountLabel}
             </div>
           </div>
-          <div className={TICKET_LABEL_CLASS}>pay from · your {prompt.token} balances</div>
+          <div className={TICKET_LABEL_CLASS}>
+            pay from · main wallet {prompt.token} balances
+          </div>
           <div className="grid gap-2">
             {options.length ? (
               options.map((option) => (
@@ -9874,11 +13153,14 @@ function WalletSendNetworkPromptCard({
                   </div>
                 </button>
               ))
+            ) : isFundingBalanceLoading ? (
+              <div className="rounded-[10px] border border-white/[0.07] bg-black/25 px-3 py-2 text-[11px] font-semibold text-[#a9adb8]">
+                Loading main wallet balances...
+              </div>
             ) : (
               <div className="rounded-[10px] border border-[#ffcc66]/25 bg-[#ffcc66]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd17a]">
                 <div>
-                  No {prompt.token} balance was found in your connected
-                  wallets.
+                  No {prompt.token} balance was found in your main wallet.
                 </div>
                 <button
                   type="button"
@@ -9901,6 +13183,69 @@ function WalletSendNetworkPromptCard({
   );
 }
 
+function formatWalletSendDraftSwopId(value?: string | null) {
+  const raw = String(value || '').trim().replace(/^@/, '');
+  if (!raw) return '';
+  return raw.includes('.') ? raw : `${raw}.swop.id`;
+}
+
+type WalletSendDraftSearchResult = {
+  parentId?: string;
+  userId?: string;
+  name?: string;
+  displayName?: string;
+  username?: string;
+  ens?: string;
+  profilePic?: string;
+  avatar?: string;
+  ensData?: {
+    evmAddress?: string;
+    solanaAddress?: string;
+  };
+  ethAddress?: string;
+  ethereumWallet?: string;
+  solanaAddress?: string;
+};
+
+function walletSendDraftCandidateFromSearchResult(
+  result: WalletSendDraftSearchResult
+): WalletSendDraftCandidate | null {
+  const swopId = formatWalletSendDraftSwopId(result.ens || result.username);
+  if (!swopId) return null;
+
+  const capabilities = [
+    result.ensData?.evmAddress || result.ethAddress || result.ethereumWallet
+      ? 'EVM'
+      : '',
+    result.ensData?.solanaAddress || result.solanaAddress ? 'Solana' : '',
+  ].filter(Boolean);
+
+  return {
+    userId: result.parentId || result.userId || null,
+    displayName:
+      result.name ||
+      result.displayName ||
+      result.username ||
+      result.ens ||
+      null,
+    swopId,
+    capabilities,
+    avatar: result.profilePic || result.avatar || null,
+  };
+}
+
+function dedupeWalletSendDraftCandidates(
+  candidates: WalletSendDraftCandidate[]
+) {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = formatWalletSendDraftSwopId(candidate.swopId).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function WalletSendDraftCard({
   prompt,
   onApproveInline,
@@ -9915,9 +13260,16 @@ function WalletSendDraftCard({
   onInlineActionComplete: (completion: AgentActionCompletion) => void;
   astroConsoleData: AstroConsoleData;
 }) {
+  const { accessToken, user } = useUser();
   const { wallets: evmWallets } = useEvmWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { connectWallet } = useConnectWallet();
+  const walletSendTokens = useMemo(
+    () => getWalletSendFundingTokens(astroConsoleData),
+    [astroConsoleData]
+  );
+  const isFundingBalanceLoading =
+    isWalletSendFundingBalanceLoading(astroConsoleData);
   const evmSignerAddresses = useMemo(
     () =>
       getChatSwapSignableAddressSet([
@@ -9943,7 +13295,7 @@ function WalletSendDraftCard({
   );
   const tokenOptions = useMemo(
     () =>
-      getWalletSwapTokenOptions(astroConsoleData.walletPortfolioTokens).filter(
+      getWalletSwapTokenOptions(walletSendTokens).filter(
         (option) =>
           isChatSwapTokenOwnedBySigner(
             option,
@@ -9952,9 +13304,9 @@ function WalletSendDraftCard({
           )
       ),
     [
-      astroConsoleData.walletPortfolioTokens,
       evmSignerAddresses,
       solanaSignerAddresses,
+      walletSendTokens,
     ]
   );
   const promptChain = prompt.chain
@@ -9988,8 +13340,13 @@ function WalletSendDraftCard({
     prompt.amountType === 'usd' ? 'usd' : 'token'
   );
   const [recipientInput, setRecipientInput] = useState(prompt.recipient || '');
+  const [recipientResults, setRecipientResults] = useState<
+    WalletSendDraftCandidate[]
+  >(prompt.recipientCandidates || []);
+  const [isSearchingRecipient, setIsSearchingRecipient] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
+  const normalizedRecipientSearch = recipientInput.trim().replace(/^@/, '');
 
   const selectedToken =
     tokenOptions.find((option) => option.key === selectedTokenKey) ||
@@ -10024,6 +13381,77 @@ function WalletSendDraftCard({
     hasValidAmount &&
     hasEnoughBalance &&
     trimmedRecipient.length > 1;
+
+  useEffect(() => {
+    const baseCandidates = prompt.recipientCandidates || [];
+    const query = normalizedRecipientSearch;
+    const isAddressQuery =
+      /^0x[a-fA-F0-9]{40}$/.test(query) ||
+      /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(query);
+
+    if (!query || query.length < 2 || isAddressQuery) {
+      setRecipientResults(dedupeWalletSendDraftCandidates(baseCandidates));
+      setIsSearchingRecipient(false);
+      return;
+    }
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!apiUrl || !accessToken) {
+      setRecipientResults(dedupeWalletSendDraftCandidates(baseCandidates));
+      setIsSearchingRecipient(false);
+      return;
+    }
+
+    let isCancelled = false;
+    setIsSearchingRecipient(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const url = `${apiUrl}/api/v1/user/search?q=${encodeURIComponent(
+          query
+        )}&userId=${user?._id || ''}&filter=all&page=1&limit=6`;
+        const data = await getConnectionsUserData(url, accessToken);
+        const results = Array.isArray(data?.data?.results)
+          ? data.data.results
+          : [];
+        const searchedCandidates = results
+          .map((result: WalletSendDraftSearchResult) =>
+            walletSendDraftCandidateFromSearchResult(result)
+          )
+          .filter(
+            (candidate: WalletSendDraftCandidate | null): candidate is WalletSendDraftCandidate =>
+              Boolean(candidate)
+          );
+
+        if (!isCancelled) {
+          setRecipientResults(
+            dedupeWalletSendDraftCandidates([
+              ...searchedCandidates,
+              ...baseCandidates,
+            ])
+          );
+        }
+      } catch (error) {
+        console.error('Failed to search Swop IDs for send draft:', error);
+        if (!isCancelled) {
+          setRecipientResults(dedupeWalletSendDraftCandidates(baseCandidates));
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsSearchingRecipient(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    accessToken,
+    normalizedRecipientSearch,
+    prompt.recipientCandidates,
+    user?._id,
+  ]);
 
   if (isDismissed) return null;
 
@@ -10113,7 +13541,7 @@ function WalletSendDraftCard({
           </div>
         </div>
         <div className="grid gap-2.5 p-3">
-          <div className={TICKET_LABEL_CLASS}>pay with · your balances</div>
+          <div className={TICKET_LABEL_CLASS}>pay with · main wallet</div>
           {!showTokenList && selectedToken ? (
             <button
               type="button"
@@ -10183,10 +13611,14 @@ function WalletSendDraftCard({
                 </button>
               ))}
             </div>
+          ) : isFundingBalanceLoading ? (
+            <div className="rounded-[10px] border border-white/[0.07] bg-black/25 px-3 py-2 text-[11px] font-semibold text-[#a9adb8]">
+              Loading main wallet balances...
+            </div>
           ) : (
             <div className="rounded-[10px] border border-[#ffcc66]/25 bg-[#ffcc66]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd17a]">
               <div>
-                No token balances were found in your connected wallets.
+                No token balances were found in your main wallet.
               </div>
               <button
                 type="button"
@@ -10243,13 +13675,50 @@ function WalletSendDraftCard({
             </div>
           )}
           <div className={TICKET_LABEL_CLASS}>recipient</div>
-          <input
-            type="text"
-            value={recipientInput}
-            onChange={(event) => setRecipientInput(event.target.value)}
-            placeholder="swop id, ENS, or wallet address"
-            className={`${TICKET_FIELD_CLASS} w-full`}
-          />
+          <div className="rounded-[10px] border border-white/[0.07] bg-black/25">
+            <div className="flex items-center gap-2 px-3 py-2">
+              <Search className="h-3.5 w-3.5 shrink-0 text-[#5a5e69]" />
+              <input
+                type="text"
+                value={recipientInput}
+                onChange={(event) => setRecipientInput(event.target.value)}
+                placeholder="search swop.id or paste wallet address"
+                className="dm-mono min-w-0 flex-1 bg-transparent text-[12px] font-semibold text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
+              />
+              {isSearchingRecipient && (
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#3fe08f]" />
+              )}
+            </div>
+            {recipientResults.length > 0 && (
+              <div className="grid gap-1 border-t border-white/[0.06] p-1.5">
+                {recipientResults.slice(0, 5).map((candidate) => {
+                  const swopId = formatWalletSendDraftSwopId(candidate.swopId);
+                  return (
+                    <button
+                      type="button"
+                      key={swopId}
+                      onClick={() => setRecipientInput(swopId)}
+                      className="dm-btn flex items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 text-left hover:bg-[#3fe08f]/10"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-[12px] font-bold text-[#eceef2]">
+                          {candidate.displayName || swopId}
+                        </div>
+                        <div className="dm-mono mt-0.5 truncate text-[10px] font-semibold text-[#3fe08f]">
+                          {swopId}
+                        </div>
+                      </div>
+                      {Boolean(candidate.capabilities?.length) && (
+                        <div className="dm-mono shrink-0 text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                          {candidate.capabilities?.join(' + ')}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <div className="mt-1 flex items-center gap-2">
             <button
               type="button"
@@ -15279,6 +18748,14 @@ function PolymarketProposalTicket({
 
 function formatActionLabel(action?: string) {
   if (!action) return 'Action proposal';
+  const labels: Record<string, string> = {
+    'strategy.setup': 'Strategy setup',
+    'strategy.draft': 'Strategy draft',
+    'strategy.pause': 'Pause strategy',
+    'strategy.revoke': 'Revoke strategy access',
+    'strategy.status': 'Strategy status',
+  };
+  if (labels[action]) return labels[action];
   return action
     .split('.')
     .map((part) => part.replace(/_/g, ' '))
@@ -15317,6 +18794,12 @@ function getApprovalNextStep(result: unknown) {
   }
   if (nextStep === 'hyperliquid_order_form_required') {
     return 'Open Perps to review the missing trade details before signing.';
+  }
+  if (nextStep === 'strategy_funding_required') {
+    return 'Strategy approved. Fund the Goldman Sacks vault to activate it.';
+  }
+  if (nextStep === 'strategy_review_required') {
+    return 'Review the missing strategy fields before activating.';
   }
   return nextStep || null;
 }

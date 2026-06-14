@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Share2 } from 'lucide-react';
 import type { PolymarketPosition } from '@/hooks/polymarket';
 import { getOutcomeDisplayLabel } from '@/lib/polymarket/formatting';
 import {
@@ -111,19 +112,7 @@ export default function PositionCard({
             className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
             title="Share"
           >
-            <svg
-              viewBox="0 0 24 24"
-              className="w-4 h-4 text-gray-700"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-              <polyline points="16 6 12 2 8 6" />
-              <line x1="12" y1="2" x2="12" y2="15" />
-            </svg>
+            <Share2 className="w-4 h-4 text-gray-700" />
           </button>
         </div>
 

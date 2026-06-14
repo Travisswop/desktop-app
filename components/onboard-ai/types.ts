@@ -11,6 +11,8 @@ export interface OnboardingChatMessage {
 export interface SelectedSwopId {
   handle: string;
   ens: string;
+  claimed?: boolean;
+  ownerAddress?: string;
 }
 
 export interface AiOnboardingProfile {

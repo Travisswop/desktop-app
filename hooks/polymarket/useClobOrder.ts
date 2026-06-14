@@ -9,6 +9,7 @@ import { useTrading } from '@/providers/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
 import { getDepositWalletAddress } from '@/lib/polymarket/backend-session';
+import { safeLocalStorage } from '@/lib/browserStorage';
 import {
   CTF_CONTRACT_ADDRESS,
   POLLING_DURATION,
@@ -629,7 +630,7 @@ export function useClobOrder(
       if (!config?.signerId) return false;
 
       const storageKey = `privy-delegated-signer:${config.signerId}:${address.toLowerCase()}`;
-      if (typeof window !== 'undefined' && window.localStorage.getItem(storageKey)) {
+      if (safeLocalStorage.getItem(storageKey)) {
         return true;
       }
 
@@ -643,9 +644,7 @@ export function useClobOrder(
         ],
       });
 
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(storageKey, 'true');
-      }
+      safeLocalStorage.setItem(storageKey, 'true');
       return true;
     },
     [addSigners, getDelegatedSignerConfig, isEmbeddedPrivyWallet],

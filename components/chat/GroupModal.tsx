@@ -246,9 +246,6 @@ export default function GroupModal({
     setSelectedMembers((members) =>
       members.filter((member) => getUserId(member) !== userId)
     );
-    setSelectedAdminIds((adminIds) =>
-      adminIds.filter((adminId) => adminId !== userId)
-    );
   };
 
   const handleToggleAdmin = (userId: string) => {

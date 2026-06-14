@@ -460,6 +460,8 @@ export default function SportsGameCard({
   // Raw outcome data for each team
   const mlA = game.moneyline?.outcomes[0];
   const mlB = game.moneyline?.outcomes[1];
+  const extraMoneylineOutcomes =
+    game.moneyline?.outcomes.slice(2).filter((outcome) => outcome.market) ?? [];
   const spA = game.spread?.outcomes[0];
   const spB = game.spread?.outcomes[1];
   const totA = game.total?.outcomes[0];
@@ -523,6 +525,41 @@ export default function SportsGameCard({
   const teamNameClass = onlyMoneyline
     ? 'text-xs font-semibold text-gray-800'
     : 'text-xs font-semibold text-gray-800 truncate leading-tight';
+  const moneylineRows = [
+    {
+      team: teamA,
+      name: nameA,
+      logoUrl: logoA,
+      record: game.teamAMeta?.record,
+      ml: mlA,
+      sp: spA,
+      tot: totA,
+      mlMarket: mlA?.market ?? game.moneyline?.market,
+    },
+    {
+      team: teamB,
+      name: nameB,
+      logoUrl: logoB,
+      record: game.teamBMeta?.record,
+      ml: mlB,
+      sp: spB,
+      tot: totB,
+      mlMarket: mlB?.market ?? game.moneyline?.market,
+    },
+    ...extraMoneylineOutcomes.map((ml) => ({
+      team: {
+        abbrev: ml.label.trim().slice(0, 4).toUpperCase() || 'DRAW',
+        color: '#6b7280',
+      },
+      name: ml.label,
+      logoUrl: undefined,
+      record: undefined,
+      ml,
+      sp: undefined,
+      tot: undefined,
+      mlMarket: ml.market ?? game.moneyline?.market,
+    })),
+  ];
 
   return (
     <Card className="px-3 py-2.5 overflow-hidden">
@@ -566,28 +603,7 @@ export default function SportsGameCard({
       <div className="mb-1" />
 
       {/* ── Team rows ────────────────────────────────────────────────────── */}
-      {(
-        [
-          {
-            team: teamA,
-            name: nameA,
-            logoUrl: logoA,
-            record: game.teamAMeta?.record,
-            ml: mlA,
-            sp: spA,
-            tot: totA,
-          },
-          {
-            team: teamB,
-            name: nameB,
-            logoUrl: logoB,
-            record: game.teamBMeta?.record,
-            ml: mlB,
-            sp: spB,
-            tot: totB,
-          },
-        ] as const
-      ).map(({ team, name, logoUrl, record, ml, sp, tot }, i) => {
+      {moneylineRows.map(({ team, name, logoUrl, record, ml, sp, tot, mlMarket }, i) => {
         // Reformat the spread label: always use the team abbreviation regardless
         // of whether the raw label is a nickname ("Magic"), abbrev+line ("ORL +1.5"),
         // or a bare line ("+1.5"). Result: "ORL", "ORL +1.5", "PHI -1.5", etc.
@@ -599,7 +615,9 @@ export default function SportsGameCard({
         return (
           <div
             key={i}
-            className={`flex items-center gap-1 ${i === 0 ? 'mb-1' : ''}`}
+            className={`flex items-center gap-1 ${
+              i < moneylineRows.length - 1 ? 'mb-1' : ''
+            }`}
           >
             {/* Team badge + name — fixed width so column labels stay aligned */}
             <div className={teamColClass}>
@@ -621,13 +639,13 @@ export default function SportsGameCard({
             {/* Market cells — only render columns for available markets */}
             <div className="flex gap-1 flex-1 min-w-0 justify-end">
               <div className={mlColClass}>
-                {ml && game.moneyline ? (
+                {ml && mlMarket ? (
                   <MoneylineBtn
                     outcome={ml}
                     abbrev={team.abbrev}
                     color={team.color}
                     disabled={cardDisabled}
-                    market={game.moneyline.market}
+                    market={mlMarket}
                     onOutcomeClick={onOutcomeClick}
                   />
                 ) : (

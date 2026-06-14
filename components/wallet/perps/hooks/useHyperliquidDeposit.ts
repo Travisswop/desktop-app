@@ -1,19 +1,74 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { usePrivy, useSendTransaction, useWallets } from '@privy-io/react-auth';
+import {
+  usePrivy,
+  useSendTransaction,
+  useSigners,
+  useWallets,
+} from '@privy-io/react-auth';
 import { encodeFunctionData, parseUnits, erc20Abi } from 'viem';
 import { HL_DEPOSIT_CONFIG } from '@/services/hyperliquid/config';
 import {
   selectPreferredWallet,
   tradingWalletSelectionOptions,
 } from '@/components/wallet/hooks/useWalletData';
+import { useUser } from '@/lib/UserContext';
 
 const { chainId, bridgeAddress, usdcAddress } = HL_DEPOSIT_CONFIG;
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const MIN_DEPOSIT_USDC = 5; // Hyperliquid minimum
+const swopApiBase = () => (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+
+interface DelegatedSignerConfig {
+  signerId: string;
+  policyIds: string[];
+}
+
+interface EvmWalletLike {
+  address?: string;
+  chainId?: string;
+  switchChain?: (chainId: number) => Promise<void>;
+  walletClientType?: string;
+  connectorType?: string;
+}
+
+const delegatedSignerStorageKey = (signerId: string, address: string) =>
+  `privy-delegated-signer:${signerId}:${address.toLowerCase()}`;
+
+const makeDepositIdempotencyKey = (address: string, amountUsd: string) =>
+  `hyperliquid-deposit:${address.toLowerCase()}:${amountUsd}:${Date.now()}:${Math.random()
+    .toString(36)
+    .slice(2)}`;
+
+const isEmbeddedPrivyWallet = (
+  wallet: EvmWalletLike | null | undefined,
+  privyUser: any,
+) => {
+  if (
+    wallet?.walletClientType === 'privy' ||
+    wallet?.walletClientType === 'privy-v2' ||
+    wallet?.connectorType === 'embedded'
+  ) {
+    return true;
+  }
+
+  const target = wallet?.address?.toLowerCase();
+  if (!target) return false;
+
+  return (privyUser?.linkedAccounts || []).some((account: any) => {
+    if (account?.type !== 'wallet') return false;
+    if (account?.address?.toLowerCase() !== target) return false;
+    return (
+      account.walletClientType === 'privy' ||
+      account.wallet_client_type === 'privy' ||
+      account.connectorType === 'embedded' ||
+      account.connector_type === 'embedded'
+    );
+  });
+};
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,8 +97,12 @@ export interface DepositState {
  */
 export function useHyperliquidDeposit() {
   const { sendTransaction } = useSendTransaction();
-  const { user } = usePrivy();
+  const { user: privyUser } = usePrivy();
   const { wallets } = useWallets();
+  const { addSigners } = useSigners();
+  const { accessToken } = useUser();
+  const [delegatedSignerConfig, setDelegatedSignerConfig] =
+    useState<DelegatedSignerConfig | null>(null);
 
   const [state, setState] = useState<DepositState>({
     isDepositing: false,
@@ -79,6 +138,134 @@ export function useHyperliquidDeposit() {
     [],
   );
 
+  const getDelegatedSignerConfig =
+    useCallback(async (): Promise<DelegatedSignerConfig | null> => {
+      if (delegatedSignerConfig) return delegatedSignerConfig;
+      const base = swopApiBase();
+      if (!accessToken || !base) return null;
+
+      const response = await fetch(
+        `${base}/api/v5/wallet/privy/delegated-signer-config`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (!response.ok) return null;
+      const body = await response.json().catch(() => null);
+      const data = body?.data || body;
+      if (!data?.configured || !data?.signerId) return null;
+
+      const config = {
+        signerId: String(data.signerId),
+        policyIds: Array.isArray(data.policyIds)
+          ? data.policyIds.map((id: unknown) => String(id)).filter(Boolean)
+          : [],
+      };
+      setDelegatedSignerConfig(config);
+      return config;
+    }, [accessToken, delegatedSignerConfig]);
+
+  const getSelectedEvmWallet = useCallback(
+    (address?: string | null): EvmWalletLike | undefined => {
+      if (address) {
+        const normalized = address.toLowerCase();
+        return (
+          wallets.find(
+            (candidate) => candidate.address?.toLowerCase() === normalized,
+          ) ?? { address }
+        );
+      }
+
+      return selectPreferredWallet(
+        wallets,
+        privyUser?.wallet?.address,
+        tradingWalletSelectionOptions(),
+      );
+    },
+    [privyUser?.wallet?.address, wallets],
+  );
+
+  const prepareDelegatedDeposit = useCallback(
+    async (address?: string | null) => {
+      const evmWallet = getSelectedEvmWallet(address);
+      const walletAddress = evmWallet?.address ?? address ?? null;
+      if (!walletAddress || !isEmbeddedPrivyWallet(evmWallet, privyUser)) {
+        return false;
+      }
+
+      const config = await getDelegatedSignerConfig();
+      if (!config?.signerId) return false;
+
+      const storageKey = delegatedSignerStorageKey(
+        config.signerId,
+        walletAddress,
+      );
+      if (
+        typeof window !== 'undefined' &&
+        window.localStorage.getItem(storageKey)
+      ) {
+        return true;
+      }
+
+      await addSigners({
+        address: walletAddress,
+        signers: [
+          {
+            signerId: config.signerId,
+            policyIds: config.policyIds,
+          },
+        ],
+      });
+
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(storageKey, 'true');
+      }
+      return true;
+    },
+    [addSigners, getDelegatedSignerConfig, getSelectedEvmWallet, privyUser],
+  );
+
+  const sendDelegatedDeposit = useCallback(
+    async (address: string, amountUsd: string) => {
+      const base = swopApiBase();
+      if (!accessToken || !base) {
+        throw new Error('Silent deposit signing is not configured.');
+      }
+
+      const response = await fetch(
+        `${base}/api/v5/wallet/privy/ethereum/hyperliquid-deposit`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            address,
+            amountUsd,
+            sponsor: true,
+            idempotencyKey: makeDepositIdempotencyKey(address, amountUsd),
+          }),
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.hash) {
+        throw new Error(
+          data.message ||
+            data.error ||
+            'Silent Hyperliquid deposit failed.',
+        );
+      }
+
+      return data.hash as string;
+    },
+    [accessToken],
+  );
+
   // ─── Deposit ──────────────────────────────────────────────────────────
 
   /**
@@ -89,35 +276,32 @@ export function useHyperliquidDeposit() {
     async (amountUsd: string) => {
       const amount = parseFloat(amountUsd);
       if (isNaN(amount) || amount < MIN_DEPOSIT_USDC) {
+        const error = `Minimum deposit is $${MIN_DEPOSIT_USDC} USDC`;
         setState((prev) => ({
           ...prev,
-          error: `Minimum deposit is $${MIN_DEPOSIT_USDC} USDC`,
+          error,
           step: 'error',
         }));
-        return;
+        throw new Error(error);
       }
 
       // Use the same EVM wallet as the perps account selector.
       // Privy's sendTransaction handles chain switching automatically via the chainId param.
-      const evmWallet = selectPreferredWallet(
-        wallets,
-        user?.wallet?.address,
-        tradingWalletSelectionOptions(),
-      );
+      const evmWallet = getSelectedEvmWallet();
 
       if (!evmWallet) {
+        const error = 'EVM wallet not found. Please refresh and try again.';
         setState((prev) => ({
           ...prev,
-          error: 'EVM wallet not found. Please refresh and try again.',
+          error,
           step: 'error',
         }));
-        return;
+        throw new Error(error);
       }
 
       setState({ isDepositing: true, txHash: null, error: null, step: 'confirming' });
 
       try {
-
         // Encode ERC-20 transfer(bridgeAddress, amount) calldata
         const data = encodeFunctionData({
           abi: erc20Abi,
@@ -127,15 +311,45 @@ export function useHyperliquidDeposit() {
 
         setState((prev) => ({ ...prev, step: 'pending' }));
 
+        const delegatedReady = await prepareDelegatedDeposit(evmWallet.address);
+        if (delegatedReady && evmWallet.address) {
+          const hash = await sendDelegatedDeposit(evmWallet.address, amountUsd);
+          setState({
+            isDepositing: false,
+            txHash: hash,
+            error: null,
+            step: 'success',
+          });
+          return hash;
+        }
+
+        if (evmWallet.chainId !== `eip155:${chainId}` && evmWallet.switchChain) {
+          await evmWallet.switchChain(chainId);
+        }
+
         // Send via Privy — gas sponsored if enabled in dashboard.
-        const result = await sendTransaction(
-          {
-            to: usdcAddress,
-            data,
-            chainId,
-          },
-          { sponsor: true },
-        );
+        const txRequest = {
+          to: usdcAddress,
+          data,
+          chainId,
+        };
+        let result: Awaited<ReturnType<typeof sendTransaction>>;
+        try {
+          result = await sendTransaction(txRequest, {
+            address: evmWallet.address,
+            sponsor: true,
+          });
+        } catch (sponsoredErr) {
+          const message =
+            sponsoredErr instanceof Error ? sponsoredErr.message : '';
+          if (message.toLowerCase().includes('rejected')) {
+            throw sponsoredErr;
+          }
+          result = await sendTransaction(txRequest, {
+            address: evmWallet.address,
+            sponsor: false,
+          });
+        }
 
         setState({
           isDepositing: false,
@@ -157,7 +371,12 @@ export function useHyperliquidDeposit() {
         throw err;
       }
     },
-    [sendTransaction, wallets, user?.wallet?.address],
+    [
+      getSelectedEvmWallet,
+      prepareDelegatedDeposit,
+      sendDelegatedDeposit,
+      sendTransaction,
+    ],
   );
 
   const reset = useCallback(() => {
@@ -167,6 +386,7 @@ export function useHyperliquidDeposit() {
   return {
     ...state,
     deposit,
+    prepareDelegatedDeposit,
     reset,
     fetchArbitrumUsdcBalance,
     minDeposit: MIN_DEPOSIT_USDC,

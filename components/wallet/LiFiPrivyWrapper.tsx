@@ -10,10 +10,12 @@ import SwapTokenModal from './SwapTokenModal';
 interface LiFiPrivyWrapperProps {
   config: any;
   tokens?: any;
+  preferredSolanaWalletAddress?: string;
   onSwapComplete?: () => void;
 }
 export default function LiFiPrivyWrapper({
   tokens,
+  preferredSolanaWalletAddress,
   onSwapComplete,
 }: LiFiPrivyWrapperProps) {
   const { authenticated, ready, login } = usePrivy();
@@ -56,6 +58,7 @@ export default function LiFiPrivyWrapper({
   return (
     <SwapTokenModal
       tokens={tokens}
+      preferredSolanaWalletAddress={preferredSolanaWalletAddress}
       onSwapComplete={() => {
         onSwapComplete?.();
       }}

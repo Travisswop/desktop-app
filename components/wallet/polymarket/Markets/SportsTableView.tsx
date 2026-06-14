@@ -589,6 +589,8 @@ function SportsTableRow({
   // Resolve team metadata (abbrev + colour + logo) for both sides.
   const mlA = game.moneyline?.outcomes[0];
   const mlB = game.moneyline?.outcomes[1];
+  const extraMoneylineOutcomes =
+    game.moneyline?.outcomes.slice(2).filter((outcome) => outcome.market) ?? [];
   const spA = game.spread?.outcomes[0];
   const spB = game.spread?.outcomes[1];
   const totA = game.total?.outcomes[0];
@@ -657,7 +659,7 @@ function SportsTableRow({
         ml={mlA}
         sp={spA}
         tot={totA}
-        mlMarket={game.moneyline?.market ?? null}
+        mlMarket={mlA?.market ?? game.moneyline?.market ?? null}
         spMarket={game.spread?.market ?? null}
         totMarket={game.total?.market ?? null}
         disabled={rowDisabled}
@@ -672,12 +674,29 @@ function SportsTableRow({
         ml={mlB}
         sp={spB}
         tot={totB}
-        mlMarket={game.moneyline?.market ?? null}
+        mlMarket={mlB?.market ?? game.moneyline?.market ?? null}
         spMarket={game.spread?.market ?? null}
         totMarket={game.total?.market ?? null}
         disabled={rowDisabled}
         onOutcomeClick={onOutcomeClick}
       />
+      {extraMoneylineOutcomes.map((ml) => (
+        <div key={ml.tokenId || ml.label} className="mt-1">
+          <TeamRow
+            team={{
+              abbrev: ml.label.trim().slice(0, 4).toUpperCase() || 'DRAW',
+              color: '#6b7280',
+            }}
+            name={ml.label}
+            ml={ml}
+            mlMarket={ml.market ?? game.moneyline?.market ?? null}
+            spMarket={game.spread?.market ?? null}
+            totMarket={game.total?.market ?? null}
+            disabled={rowDisabled}
+            onOutcomeClick={onOutcomeClick}
+          />
+        </div>
+      ))}
     </div>
   );
 }

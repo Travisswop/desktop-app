@@ -10,6 +10,10 @@ export type PriceEntry = {
 };
 
 export type PriceMap = Record<string, PriceEntry>;
+type RawPriceEntry = {
+  bid?: number | string | null;
+  ask?: number | string | null;
+};
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -17,6 +21,11 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
     chunks.push(arr.slice(i, i + size));
   }
   return chunks;
+}
+
+function parseProbabilityPrice(value: number | string | null | undefined) {
+  const price = Number(value);
+  return Number.isFinite(price) && price > 0 && price < 1 ? price : null;
 }
 
 export async function fetchChunkedPrices(tokenIds: string[]): Promise<PriceMap> {
@@ -32,21 +41,21 @@ export async function fetchChunkedPrices(tokenIds: string[]): Promise<PriceMap> 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tokenIds: chunk }),
       });
-      if (!res.ok) return {} as Record<string, { bid: number | null; ask: number | null }>;
-      return res.json() as Promise<Record<string, { bid: number | null; ask: number | null }>>;
+      if (!res.ok) return {} as Record<string, RawPriceEntry>;
+      return res.json() as Promise<Record<string, RawPriceEntry>>;
     }),
   );
 
-  const merged: Record<string, { bid: number | null; ask: number | null }> = Object.assign({}, ...chunkResults);
+  const merged: Record<string, RawPriceEntry> = Object.assign({}, ...chunkResults);
 
   const priceMap: PriceMap = {};
   for (const tokenId of tokenIds) {
     const entry = merged[tokenId];
     if (!entry) continue;
-    const bid = entry.bid ?? null;
-    const ask = entry.ask ?? null;
-    const hasBid = bid != null && bid > 0 && bid < 1;
-    const hasAsk = ask != null && ask > 0 && ask < 1;
+    const bid = parseProbabilityPrice(entry.bid);
+    const ask = parseProbabilityPrice(entry.ask);
+    const hasBid = bid != null;
+    const hasAsk = ask != null;
     if (hasBid || hasAsk) {
       priceMap[tokenId] = {
         ...(hasBid ? { bidPrice: bid } : {}),

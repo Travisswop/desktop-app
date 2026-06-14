@@ -264,6 +264,7 @@ export default function UserPositions() {
         outcome: position.outcome,
         amount: result?.redeemedAmount ?? getRedeemablePayout(position),
         txId: result?.txId,
+        position,
       };
 
       setPendingRedemptions((prev) => [

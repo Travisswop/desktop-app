@@ -1,6 +1,9 @@
 import type { AiOnboardingProfile } from "./types";
 import { socialGroup, socialMediaBaseUrls } from "@/types/smartsite";
 import { apiFetch } from "@/lib/api/apiFetch";
+import { buildSwopApiUrl } from "@/lib/api/apiBaseUrl";
+import { safeLocalStorage } from "@/lib/browserStorage";
+import Cookies from "js-cookie";
 import type {
   InfoBarData,
   SocialLargeData,
@@ -15,6 +18,30 @@ export interface CreateAiProfilePayload {
   fallbackEmail?: string;
   ethereumWallet?: string;
   solanaWallet?: string;
+  /** Cloudinary URL or an avatar id like "1". Defaults to the empty avatar. */
+  profilePic?: string;
+  /** Birthday as an epoch-ms timestamp string. */
+  dob?: string;
+}
+
+function getAuthCookieOptions() {
+  return {
+    path: "/",
+    sameSite: "lax" as const,
+    secure:
+      typeof window !== "undefined" &&
+      window.location.protocol === "https:",
+  };
+}
+
+function persistCreatedUserAuth(userId?: string, token?: string) {
+  if (!userId) return;
+
+  Cookies.set("user-id", userId, getAuthCookieOptions());
+  safeLocalStorage.setItem("swop:last-authenticated-at", String(Date.now()));
+  if (token) {
+    Cookies.set("access-token", token, getAuthCookieOptions());
+  }
 }
 
 export async function createAiOnboardingUser({
@@ -23,9 +50,11 @@ export async function createAiOnboardingUser({
   fallbackEmail,
   ethereumWallet,
   solanaWallet,
+  profilePic,
+  dob,
 }: CreateAiProfilePayload) {
   const response = await apiFetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/create`,
+    buildSwopApiUrl("/api/v2/desktop/user/create"),
     {
       method: "POST",
       headers: {
@@ -37,8 +66,8 @@ export async function createAiOnboardingUser({
         mobileNo: profile.phone || "",
         address: profile.officeAddress || "",
         bio: profile.bio || "",
-        dob: "",
-        profilePic: "1",
+        dob: dob || "",
+        profilePic: profilePic || "1",
         apt: "",
         countryFlag: "US",
         countryCode: "+1",
@@ -57,24 +86,68 @@ export async function createAiOnboardingUser({
   }
 
   const result = await response.json();
+  const createdUser = {
+    ...result.data,
+    token: result.token as string | undefined,
+  };
 
-  try {
-    await apiFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/create-balance`, {
+  persistCreatedUserAuth(createdUser?._id?.toString(), createdUser.token);
+
+  // Fire-and-forget: creating the wallet-balance snapshot can take several
+  // seconds and nothing downstream in onboarding needs it, so don't block the UI.
+  void apiFetch(buildSwopApiUrl("/api/v5/wallet/create-balance"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ethAddress: ethereumWallet,
+      solanaAddress: solanaWallet,
+      userId: result.data._id,
+    }),
+  }).catch((error) => {
+    console.error("Error creating wallet balance:", error);
+  });
+
+  return createdUser;
+}
+
+export async function attachAiOnboardingSmartSiteLinks({
+  profile,
+  micrositeId,
+  accessToken,
+}: {
+  profile: Pick<AiOnboardingProfile, "name" | "email" | "bio">;
+  micrositeId: string;
+  accessToken?: string | null;
+}) {
+  if (!accessToken || !profile.name.trim()) {
+    return null;
+  }
+
+  const response = await apiFetch(
+    buildSwopApiUrl("/api/v5/social-lookup/smartsite-links"),
+    {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        ethAddress: ethereumWallet,
-        solanaAddress: solanaWallet,
-        userId: result.data._id,
+        name: profile.name,
+        company: profile.bio || undefined,
+        email: profile.email || undefined,
+        micrositeId,
       }),
-    });
-  } catch (error) {
-    console.error("Error creating wallet balance:", error);
+    },
+  );
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(result?.error || "Onboarding social lookup failed");
   }
 
-  return result.data;
+  return result;
 }
 
 export async function createAiOnboardingSocials(
@@ -153,26 +226,34 @@ export async function createAiOnboardingSocials(
     }
   }
 
+  // The backend only creates a Contact when `contact` is present, and its
+  // schema requires a non-empty mobileNo. Phone is optional in onboarding, so
+  // only send the contact card when we actually have a phone number.
+  const body: Record<string, unknown> = {
+    micrositeId,
+    socialTop,
+    socialLarge,
+    infoBar,
+  };
+
+  if (profile.phone?.trim()) {
+    body.contact = {
+      name: profile.name,
+      email: profile.email,
+      mobileNo: profile.phone,
+      address: profile.officeAddress || "",
+      websiteUrl: profile.website || "",
+    };
+  }
+
   const response = await apiFetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/createSocial`,
+    buildSwopApiUrl("/api/v2/desktop/user/createSocial"),
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        micrositeId,
-        socialTop,
-        socialLarge,
-        infoBar,
-        contact: {
-          name: profile.name,
-          email: profile.email,
-          mobileNo: profile.phone,
-          address: profile.officeAddress || "",
-          websiteUrl: profile.website || "",
-        },
-      }),
+      body: JSON.stringify(body),
     },
   );
 
@@ -188,7 +269,7 @@ export async function createAiOnboardingSocials(
 
 export async function attachSwopIdToSmartSite(micrositeId: string, ens: string) {
   const response = await apiFetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/user/addSocial`,
+    buildSwopApiUrl("/api/v2/desktop/user/addSocial"),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

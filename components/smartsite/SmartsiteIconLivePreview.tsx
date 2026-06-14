@@ -45,6 +45,7 @@ import Referral from "../publicProfile/referral";
 import MediaList from "../publicProfile/MediaList";
 import getMediaType from "@/utils/getMediaType";
 import EmbedVideo from "../publicProfile/embedvideo";
+import EmbeddedFeed from "@/app/(public-profile)/sp/[username]/_EmbeddedFeed";
 import {
   getSmartsiteMarketplaceImage,
   getSmartsiteMarketplaceName,
@@ -52,7 +53,6 @@ import {
   groupSmartsiteMarketplaceItems,
   normalizeSmartsiteMarketplaceItems,
 } from "@/lib/smartsite-marketplace-display";
-import EmbeddedFeed from "@/app/(public-profile)/sp/[username]/_EmbeddedFeed";
 
 const SmartsiteIconLivePreview = ({
   data,

@@ -30,7 +30,6 @@ export default function WalletPredictionsSection() {
     sessionError,
     isTradingSessionComplete,
     initializeTradingSession,
-    eoaAddress,
     safeAddress,
     isGeoblocked,
     isGeoblockLoading,

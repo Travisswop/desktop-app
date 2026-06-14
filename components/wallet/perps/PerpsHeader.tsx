@@ -3,6 +3,7 @@
 import { ArrowLeft, ChevronDown, Menu } from 'lucide-react';
 import type { HLMarket } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
+import { MarketIcon } from './MarketIcon';
 
 interface PerpsHeaderProps {
   market: HLMarket | null;
@@ -67,12 +68,7 @@ export function PerpsHeader({
             onClick={onOpenMarketSearch}
             className="flex items-center gap-3 group"
           >
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-[15px]"
-              style={{ background: coinBg(displayCoin) }}
-            >
-              {displayCoin.charAt(0)}
-            </div>
+            <MarketIcon coin={market?.coin ?? displayCoin} size="md" />
             <div className="text-left">
               <div className="flex items-center gap-1.5">
                 <span className="text-[15px] font-semibold tracking-tight text-gray-900">
@@ -177,20 +173,4 @@ function formatNotional(value: number): string {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(0)}M`;
   if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
   return `$${value.toFixed(0)}`;
-}
-
-function coinBg(coin: string): string {
-  const map: Record<string, string> = {
-    BTC: '#F7931A',
-    ETH: '#0a0a0c',
-    SOL: '#14F195',
-    HYPE: '#10B981',
-    BRENTOIL: '#1f8a70',
-    SPCX: '#334155',
-    DOGE: '#C2A633',
-    AVAX: '#E84142',
-    ARB: '#28A0F0',
-    OP: '#FF0420',
-  };
-  return map[coin] ?? '#0a0a0c';
 }

@@ -31,6 +31,13 @@ export default function ChatPage() {
   const initialAstro =
     searchParams?.get('astro') === '1' ||
     searchParams?.get('agent') === 'astro';
+  const initialAgentParam = searchParams?.get('agent');
+  const initialAgentId =
+    initialAgentParam && initialAgentParam !== 'astro'
+      ? initialAgentParam
+      : initialAstro
+      ? 'astro'
+      : null;
   const initialDirectRecipient = useMemo(() => {
     const recipient = {
       userId:
@@ -331,6 +338,7 @@ export default function ChatPage() {
         setUnreadCount={setUnreadCount}
         initialGroupId={initialGroupId}
         initialAstro={initialAstro}
+        initialAgentId={initialAgentId}
         initialDirectRecipient={initialDirectRecipient}
       />
     </div>

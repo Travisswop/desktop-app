@@ -23,6 +23,7 @@ import { useUser } from '@/lib/UserContext';
 import { postFeed } from '@/actions/postFeed';
 import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
+import { safeLocalStorage } from '@/lib/browserStorage';
 
 import Portal from '../shared/Portal';
 import BuySellToggle, { type OrderVariant } from '../OrderModal/BuySellToggle';
@@ -219,7 +220,7 @@ export default function BtcOrderModal({
   useEffect(() => {
     if (orderId && isOpen) {
       try {
-        localStorage.setItem(
+        safeLocalStorage.setItem(
           'btc5min_position_data',
           JSON.stringify({ upTokenId, downTokenId, windowLabel: formatWindowLabel() }),
         );

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { formatUnits, parseAbiItem } from 'viem';
+import { safeLocalStorage } from '@/lib/browserStorage';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import {
   CTF_CONTRACT_ADDRESS,
@@ -60,7 +61,7 @@ function cacheKey(safeAddress: string) {
 
 function readCache(safeAddress: string): CacheShape | null {
   try {
-    const raw = localStorage.getItem(cacheKey(safeAddress));
+    const raw = safeLocalStorage.getItem(cacheKey(safeAddress));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as CacheShape;
     if (
@@ -80,7 +81,7 @@ function readCache(safeAddress: string): CacheShape | null {
 
 function writeCache(safeAddress: string, cache: CacheShape) {
   try {
-    localStorage.setItem(cacheKey(safeAddress), JSON.stringify(cache));
+    safeLocalStorage.setItem(cacheKey(safeAddress), JSON.stringify(cache));
   } catch {
     // ignore
   }

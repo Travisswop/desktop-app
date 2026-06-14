@@ -16,6 +16,7 @@ import RedeemTokenList from '../redeem/token-list';
 import RedeemModal from '../token/redeem-modal';
 import ManageNFTModal from '../nft/ManageNFTModal';
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
+import { safeLocalStorage } from '@/lib/browserStorage';
 
 type AssetTabType = 'assets' | 'nfts' | 'blinks';
 
@@ -68,7 +69,7 @@ export default function AssetsTab({
   // Load hidden NFTs from localStorage on mount
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(HIDDEN_NFTS_KEY);
+      const stored = safeLocalStorage.getItem(HIDDEN_NFTS_KEY);
       if (stored) setHiddenNfts(new Set(JSON.parse(stored)));
     } catch {
       // ignore
@@ -77,7 +78,7 @@ export default function AssetsTab({
 
   // Persist hidden NFTs whenever they change
   useEffect(() => {
-    localStorage.setItem(
+    safeLocalStorage.setItem(
       HIDDEN_NFTS_KEY,
       JSON.stringify([...hiddenNfts]),
     );

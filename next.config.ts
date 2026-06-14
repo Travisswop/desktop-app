@@ -9,7 +9,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   distDir: process.env.NEXT_DIST_DIR || '.next',
 
-  // Reduce memory usage in production
+  // Keep production browser source maps disabled unless this is deliberately
+  // changed for a debugging build.
   productionBrowserSourceMaps: false,
 
   // Turbopack config (used by `next dev --turbopack`)
@@ -83,6 +84,19 @@ const nextConfig: NextConfig = {
 
   eslint: {
     ignoreDuringBuilds: true,
+  },
+
+  async headers() {
+    return [
+      {
+        source: '/.well-known/apple-app-site-association',
+        headers: [{ key: 'Content-Type', value: 'application/json' }],
+      },
+      {
+        source: '/.well-known/assetlinks.json',
+        headers: [{ key: 'Content-Type', value: 'application/json' }],
+      },
+    ];
   },
 
   webpack: (config, { isServer }) => {

@@ -18,7 +18,27 @@ export interface AgentApprovalHandoffPayload {
   panel?: string;
   requiredFields?: string[];
   normalizedParams?: UnknownRecord;
+  strategy?: UnknownRecord | null;
   prefill?: {
+    prompt?: string | null;
+    strategyBrief?: string | null;
+    targetProfitUsd?: string | number | null;
+    targetProfitPct?: string | number | null;
+    estimatedOrderUsd?: string | number | null;
+    entryCondition?: string | null;
+    exitCondition?: string | null;
+    selectionCriteria?: string[] | null;
+    executionPlan?: string[] | null;
+    riskControls?: string[] | null;
+    idleDeployment?: UnknownRecord | null;
+    allocation?: UnknownRecord | null;
+    fundingAsset?: string | null;
+    maxOrderUsd?: string | number | null;
+    maxDailySpendUsd?: string | number | null;
+    maxDailyLossUsd?: string | number | null;
+    maxOpenPositions?: string | number | null;
+    cooldownSeconds?: string | number | null;
+    expiry?: string | null;
     coin?: string | null;
     side?: string | null;
     size?: string | number | null;

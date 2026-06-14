@@ -344,8 +344,10 @@ export default function OpenLimitOrders({
 
   const count = view === 'active' ? orders.length : historyItems.length;
 
+  const listClassName = 'min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1';
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1 p-0.5 rounded-lg bg-gray-100">
           {([
@@ -382,19 +384,25 @@ export default function OpenLimitOrders({
             No open limit orders.
           </p>
         ) : (
-          <div className="flex flex-col gap-2">{orders.map(renderOrder)}</div>
+          <div className={listClassName}>
+            <div className="flex flex-col gap-2">
+              {orders.map(renderOrder)}
+            </div>
+          </div>
         )
       ) : historyItems.length === 0 && !loading ? (
         <p className="text-[12px] text-gray-500 py-6 text-center">
           No recent swaps or orders.
         </p>
       ) : (
-        <div className="flex flex-col gap-2">
-          {historyItems.map((item) =>
-            item.kind === 'order'
-              ? renderOrder(item.data)
-              : renderSwap(item.data),
-          )}
+        <div className={listClassName}>
+          <div className="flex flex-col gap-2">
+            {historyItems.map((item) =>
+              item.kind === 'order'
+                ? renderOrder(item.data)
+                : renderSwap(item.data),
+            )}
+          </div>
         </div>
       )}
     </div>

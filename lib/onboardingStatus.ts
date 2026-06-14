@@ -1,3 +1,4 @@
+export const AI_ONBOARDING_PATH = '/onboard-ai';
 export const SWOP_ID_ONBOARDING_PATH = '/onboard?step=swop-id';
 
 type MicrositeLike = {

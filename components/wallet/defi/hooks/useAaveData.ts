@@ -6,22 +6,37 @@ import type {
   AaveMarketsData,
   AavePositionsData,
 } from '@/types/aave';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import { apiFetch } from '@/lib/api/apiFetch';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+type AaveApiResponse<T> = {
+  success?: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+};
 
 async function fetchAave<T>(path: string, accessToken?: string): Promise<T> {
-  const response = await fetch(`${API_URL}/api/v5/defi/aave/${path}`, {
+  const response = await apiFetch(buildSwopApiUrl(`/api/v5/defi/aave/${path}`), {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
   });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || !body?.success) {
-    throw new Error(body?.message || 'Could not load Aave data.');
+  const body = (await response
+    .json()
+    .catch(() => ({}))) as AaveApiResponse<T>;
+
+  if (!response.ok || !body?.success || !body.data) {
+    throw new Error(
+      body?.message ||
+        body?.error ||
+        `Could not load Aave data (${response.status}).`,
+    );
   }
-  return body.data as T;
+
+  return body.data;
 }
 
 export function useAaveMarkets(chain: AaveChain) {

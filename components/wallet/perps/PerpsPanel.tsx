@@ -67,6 +67,7 @@ interface PerpsPanelProps {
   isHydrating: boolean;
   agentError: string | null;
   initializeAgent: () => Promise<hl.ExchangeClient | null>;
+  resetAgent: (message?: string | null) => void;
   onClose: () => void;
   onOpenDeposit: () => void;
   depositStatus: DepositCheckStatus;
@@ -192,6 +193,7 @@ export function PerpsPanel({
   isHydrating,
   agentError,
   initializeAgent,
+  resetAgent,
   onClose,
   onOpenDeposit,
   depositStatus,
@@ -472,6 +474,14 @@ export function PerpsPanel({
   );
 
   // Trading
+  const handleAgentInvalid = useCallback(
+    (message: string) => {
+      resetAgent(message);
+      setShowAgentModal(true);
+    },
+    [resetAgent],
+  );
+
   const {
     placeMarketOrder,
     placeLimitOrder,
@@ -481,7 +491,7 @@ export function PerpsPanel({
     isSubmitting,
     error: tradeError,
     clearError,
-  } = useHyperliquidTrading(agentClient);
+  } = useHyperliquidTrading(agentClient, handleAgentInvalid);
 
   const selectedMarket = useMarketByCoins(markets, selectedCoin);
   const liveMarkPrice = selectedCoin
@@ -531,19 +541,26 @@ export function PerpsPanel({
 
   // Aggregated positions/orders across all DEXs (so a builder-DEX position like
   // SPCX shows up in the table, not just main-DEX positions).
-  const allPositions = portfolio?.positions ?? accountData?.positions ?? [];
-  const allOpenOrders = portfolio?.openOrders ?? accountData?.openOrders ?? [];
+  const allPositions = useMemo(
+    () => portfolio?.positions ?? accountData?.positions ?? [],
+    [accountData?.positions, portfolio?.positions],
+  );
+  const allOpenOrders = useMemo(
+    () => portfolio?.openOrders ?? accountData?.openOrders ?? [],
+    [accountData?.openOrders, portfolio?.openOrders],
+  );
 
-  const existingPosition = allPositions.find(
-    (p) => p.coin === selectedCoin,
+  const existingPosition = useMemo(
+    () => allPositions.find((p) => p.coin === selectedCoin),
+    [allPositions, selectedCoin],
   );
 
   useEffect(() => {
-    const positions = accountData?.positions || [];
+    const positions = allPositions;
     const smartsiteId = user?.primaryMicrosite || primaryMicrosite;
 
     if (
-      !accountData ||
+      (!portfolio && !accountData) ||
       !accessToken ||
       !user?._id ||
       !smartsiteId ||
@@ -639,12 +656,14 @@ export function PerpsPanel({
     });
   }, [
     accountData,
+    allPositions,
     accessToken,
     user?._id,
     user?.primaryMicrosite,
     primaryMicrosite,
     masterAddress,
     mids,
+    portfolio,
   ]);
 
   const handleMarketSelect = useCallback((market: HLMarket) => {

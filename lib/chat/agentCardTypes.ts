@@ -6,6 +6,7 @@ import type { HLMarket } from '@/services/hyperliquid/types';
 import type { PerpsAccountSummary } from '@/components/wallet/perps/hooks/useHyperliquidPositions';
 import type { PolymarketPosition } from '@/hooks/polymarket/useUserPositions';
 import type { PolymarketOrder } from '@/hooks/polymarket/useActiveOrders';
+import type { AavePositionsData } from '@/types/aave';
 
 export interface User {
   _id: string;
@@ -43,6 +44,12 @@ export interface PnlOverviewPreview {
   pendingOrderCount: number;
   isLoading: boolean;
   checkedAt: string;
+}
+
+export interface WalletPortfolioSnapshot {
+  checkedAt?: string | null;
+  query?: string | null;
+  source?: string | null;
 }
 
 export interface ResearchSourcePreview {
@@ -164,6 +171,7 @@ export interface AstroConsoleData {
   walletIdentityLabel: string;
   walletPortfolioBalance: number;
   walletPortfolioTokens: TokenData[];
+  walletFundingTokens?: TokenData[];
   predictionWalletAddress?: string;
   predictionWalletAddresses?: string[];
   predictionUsdcBalance: number;
@@ -172,7 +180,10 @@ export interface AstroConsoleData {
   predictionPositions: PolymarketPosition[];
   predictionOpenOrders: PolymarketOrder[];
   isWalletPortfolioBalanceLoading: boolean;
+  isWalletFundingBalanceLoading?: boolean;
   isPredictionBalanceLoading: boolean;
+  aavePositions?: AavePositionsData | null;
+  isAavePositionsLoading?: boolean;
   perpsAccount?: PerpsAccountSummary;
   perpsMasterAddress?: string | null;
   isPerpsLoading: boolean;

@@ -35,15 +35,13 @@ import {
   isPrivyEmbeddedWallet,
 } from '@/types/privy';
 
-import {
-  TransactionService,
-  USDC_ADDRESS,
-  SWOP_ADDRESS,
-} from '@/services/transaction-service';
+import { TransactionService } from '@/services/transaction-service';
 import { useSendFlow } from '@/lib/hooks/useSendFlow';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { useNFT } from '@/lib/hooks/useNFT';
 import { useUser } from '@/lib/UserContext';
+import { safeLocalStorage } from '@/lib/browserStorage';
+import { ensureSponsoredSolanaTokenAccount } from '@/lib/solana/sponsoredTokenAccounts';
 import type { HyperliquidAgentOrderPrefill } from '@/lib/chat/agentActionHandoff';
 
 // Custom hooks
@@ -54,7 +52,6 @@ import {
 } from './hooks/useWalletData';
 import { useTransactionPayload } from './hooks/useTransactionPayload';
 import { usePostTransactionEffects } from './hooks/usePostTransactionEffects';
-import { TokenTicker } from './token-ticker';
 
 // Constants
 import { SUPPORTED_CHAINS, ERROR_MESSAGES } from './constants';
@@ -762,20 +759,13 @@ const WalletContentInner = () => {
   const [perpsInitialCoin, setPerpsInitialCoin] = useState<
     string | null
   >(null);
-  const [perpsInitialOrder, setPerpsInitialOrder] = useState<{
-    side?: 'long' | 'short';
-    leverage?: number;
-    isCross?: boolean;
-    sizeUsd?: string;
-    sizeCoins?: string;
-  } | null>(null);
 
-  const openPerpsPanel = useCallback((coin?: string) => {
+  const openPerpsPanel = (coin?: string) => {
     setPerpsInitialCoin(coin ?? null);
     setPerpsAgentPrefill(null);
     setPerpsInitialOrder(null);
     setPerpsPanelOpen(true);
-  }, []);
+  };
 
   const closePerpsPanel = () => {
     setPerpsPanelOpen(false);
@@ -791,6 +781,7 @@ const WalletContentInner = () => {
   const rewardWalletRequestRef = useRef(0);
   const assetsMenuRef = useRef<HTMLDivElement>(null);
   const autoOpenedPerpsQueryRef = useRef('');
+  const autoOpenedSendQueryRef = useRef('');
 
   // Hooks
   const {
@@ -883,6 +874,35 @@ const WalletContentInner = () => {
     resetSendFlow,
   } = useSendFlow();
 
+  useEffect(() => {
+    if (!searchParams) return;
+
+    const sendParam = searchParams.get('send') || searchParams.get('openSend');
+    const shouldOpenWalletSend = sendParam === '1' || sendParam === 'wallet';
+    if (!shouldOpenWalletSend) {
+      autoOpenedSendQueryRef.current = '';
+      return;
+    }
+
+    const queryKey = searchParams.toString();
+    if (autoOpenedSendQueryRef.current === queryKey) return;
+    autoOpenedSendQueryRef.current = queryKey;
+
+    setSelectedToken(null);
+    setSelectedNFT(null);
+    setSendFlow({
+      step: 'select-method',
+      token: null,
+      amount: '',
+      isUSD: false,
+      recipient: null,
+      nft: null,
+      networkFee: '0',
+      network: 'ETHEREUM',
+      hash: '',
+    });
+  }, [searchParams, setSendFlow]);
+
   // Solana wallet auto-creation.
   // Persists the "already attempted" flag in localStorage so it survives
   // component unmount/remount cycles (Next.js page navigation), which
@@ -892,7 +912,7 @@ const WalletContentInner = () => {
     if (!authenticated || !ready || !PrivyUser) return;
 
     const storageKey = `sol-wallet-created:${PrivyUser.id}`;
-    const alreadyAttempted = localStorage.getItem(storageKey) === '1';
+    const alreadyAttempted = safeLocalStorage.getItem(storageKey) === '1';
     if (alreadyAttempted || walletCreationAttempted.current) return;
 
     const linkedAccounts = (PrivyUser.linkedAccounts ||
@@ -905,12 +925,12 @@ const WalletContentInner = () => {
 
     if (hasExistingSolanaWallet) {
       // Wallet already exists — stamp the flag so we never check again.
-      localStorage.setItem(storageKey, '1');
+      safeLocalStorage.setItem(storageKey, '1');
       return;
     }
 
     walletCreationAttempted.current = true;
-    localStorage.setItem(storageKey, '1');
+    safeLocalStorage.setItem(storageKey, '1');
 
     createWallet()
       .then(() => {
@@ -919,7 +939,7 @@ const WalletContentInner = () => {
       .catch((error) => {
         console.error('Failed to create Solana wallet:', error);
         // Remove the flag so the user can retry on next login.
-        localStorage.removeItem(storageKey);
+        safeLocalStorage.removeItem(storageKey);
         walletCreationAttempted.current = false;
         toast({
           variant: 'destructive',
@@ -933,7 +953,7 @@ const WalletContentInner = () => {
   // Hidden NFT persistence (lifted from the old AssetsTab).
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(HIDDEN_NFTS_KEY);
+      const stored = safeLocalStorage.getItem(HIDDEN_NFTS_KEY);
       if (stored) setHiddenNfts(new Set(JSON.parse(stored)));
     } catch {
       // ignore
@@ -941,7 +961,7 @@ const WalletContentInner = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(
+    safeLocalStorage.setItem(
       HIDDEN_NFTS_KEY,
       JSON.stringify([...hiddenNfts]),
     );
@@ -1425,6 +1445,7 @@ const WalletContentInner = () => {
       const isSolanaTransaction =
         sendFlow.token?.chain?.toUpperCase() === 'SOLANA' ||
         sendFlow.network.toUpperCase() === 'SOLANA';
+      let privyAccessToken: string | null = null;
 
       if (isSolanaTransaction) {
         // Verify authentication before signing
@@ -1434,10 +1455,9 @@ const WalletContentInner = () => {
           );
         }
 
-        let privyAccessToken: string | null = null;
         try {
           privyAccessToken = await getAccessToken();
-        } catch (tokenError) {
+        } catch {
           throw new Error(
             'Authentication session expired. Please refresh the page and log in again.',
           );
@@ -1475,7 +1495,7 @@ const WalletContentInner = () => {
 
         try {
           await connection.getLatestBlockhash();
-        } catch (rpcError) {
+        } catch {
           throw new Error(
             'Unable to connect to Solana network. Please check your connection and try again.',
           );
@@ -1490,12 +1510,20 @@ const WalletContentInner = () => {
       if (sendFlow.nft) {
         // Handle NFT transfer
         if (sendFlow.network.toUpperCase() === 'SOLANA') {
+          await ensureSponsoredSolanaTokenAccount({
+            ownerAddress: sendFlow.recipient?.address,
+            mint: sendFlow.nft?.contract,
+            accessToken: privyAccessToken,
+            label: 'recipient NFT',
+          });
+
           // Build Solana NFT transaction and send via Privy with gas sponsorship
           const nftTransaction =
             await TransactionService.buildSolanaNFTTransfer(
               selectedSolanaWallet,
               sendFlow,
               connection,
+              { createRecipientTokenAccount: false },
             );
 
           const serializedNFTTransaction = nftTransaction.serialize({
@@ -1507,7 +1535,7 @@ const WalletContentInner = () => {
             const result = await signAndSendTransaction({
               transaction: new Uint8Array(serializedNFTTransaction),
               wallet: selectedSolanaWallet!,
-              options: { sponsor: false },
+              options: { sponsor: true },
             });
             hash = bs58.encode(result.signature);
           } catch (privyError) {
@@ -1562,7 +1590,7 @@ const WalletContentInner = () => {
                 data: nftData as `0x${string}`,
                 chainId,
               },
-              { sponsor: false },
+              { sponsor: true },
             );
             hash = result.hash;
           } catch (evmError) {
@@ -1580,6 +1608,12 @@ const WalletContentInner = () => {
         // Handle token transfer
         if (sendFlow.token.chain.toUpperCase() === 'SOLANA') {
           // Use Privy's native gas sponsorship
+          await ensureSponsoredSolanaTokenAccount({
+            ownerAddress: sendFlow.recipient?.address,
+            mint: sendFlow.token.address,
+            accessToken: privyAccessToken,
+            label: `recipient ${sendFlow.token.symbol || 'token'}`,
+          });
 
           // Build the transaction without sending
           const transaction =
@@ -1587,6 +1621,7 @@ const WalletContentInner = () => {
               selectedSolanaWallet,
               sendFlow,
               connection,
+              { createRecipientTokenAccount: false },
             );
 
           // Use Privy's sendTransaction with sponsor: true
@@ -1601,7 +1636,7 @@ const WalletContentInner = () => {
               transaction: new Uint8Array(serializedTransaction),
               wallet: selectedSolanaWallet!,
               options: {
-                sponsor: false,
+                sponsor: true,
               },
             });
 
@@ -1629,7 +1664,7 @@ const WalletContentInner = () => {
                   value: ethers.parseEther(sendFlow.amount),
                   chainId,
                 },
-                { sponsor: false },
+                { sponsor: true },
               );
               hash = result.hash;
             } else {
@@ -1651,7 +1686,7 @@ const WalletContentInner = () => {
                   data: tokenData as `0x${string}`,
                   chainId,
                 },
-                { sponsor: false },
+                { sponsor: true },
               );
               hash = result.hash;
             }
@@ -1678,8 +1713,6 @@ const WalletContentInner = () => {
       };
     }
   }, [
-    solanaReady,
-    directSolanaWallets,
     sendFlow,
     PrivyUser,
     evmWalletAddress,
@@ -1778,6 +1811,7 @@ const WalletContentInner = () => {
     toast,
     resetSendFlow,
     setSendFlow,
+    queryClient,
   ]);
 
   // Memoized event handlers
@@ -2165,6 +2199,7 @@ const WalletContentInner = () => {
             isHydrating={hlAgent.isHydrating}
             agentError={hlAgent.error}
             initializeAgent={hlAgent.initializeAgent}
+            resetAgent={hlAgent.resetAgent}
             initialCoin={perpsInitialCoin}
             agentOrderPrefill={perpsAgentPrefill}
             initialOrder={perpsInitialOrder}
@@ -2213,6 +2248,7 @@ const WalletContentInner = () => {
               </div>
               <SwapTokenModal
                 tokens={tokens}
+                preferredSolanaWalletAddress={solWalletAddress}
                 defaultReceiveToken={{
                   symbol: 'USDC',
                   name: 'USD Coin',

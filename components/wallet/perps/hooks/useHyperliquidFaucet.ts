@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { safeLocalStorage } from '@/lib/browserStorage';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -15,13 +16,12 @@ function claimStorageKey(address: string) {
 }
 
 export function hasClaimedFaucet(address: string | null | undefined): boolean {
-  if (!address || typeof window === 'undefined') return false;
-  return localStorage.getItem(claimStorageKey(address)) === '1';
+  if (!address) return false;
+  return safeLocalStorage.getItem(claimStorageKey(address)) === '1';
 }
 
 function markFaucetClaimed(address: string) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(claimStorageKey(address), '1');
+  safeLocalStorage.setItem(claimStorageKey(address), '1');
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────────

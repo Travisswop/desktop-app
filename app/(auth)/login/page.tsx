@@ -3,7 +3,6 @@
 import { createLoginWalletBalance } from '@/actions/createWallet';
 import Loader from '@/components/loading/Loader';
 import { Card } from '@/components/ui/card';
-import { useUser } from '@/lib/UserContext';
 import blackPlanet from '@/public/onboard/black-planet.svg';
 import swopLogo from '@/public/swopLogo.png';
 import {
@@ -19,7 +18,9 @@ import { WalletItem } from '@/types/wallet';
 import {
   useCreateWallet,
   useLoginWithEmail,
+  useLoginWithPasskey,
   usePrivy,
+  useSignupWithPasskey,
 } from '@privy-io/react-auth';
 import {
   useCreateWallet as useSolanaCreateWallet,
@@ -29,12 +30,14 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GoArrowLeft } from 'react-icons/go';
 import { LuArrowRight } from 'react-icons/lu';
-import { RiMailSendLine } from 'react-icons/ri';
+import { RiFingerprintLine, RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
 import logger from '@/utils/logger';
 import { buildSwopApiUrl, getSwopApiBaseUrl } from '@/lib/api/apiBaseUrl';
+import { safeLocalStorage, safeSessionStorage } from '@/lib/browserStorage';
 import { apiFetch } from '@/lib/api/apiFetch';
 import {
+  AI_ONBOARDING_PATH,
   requiresSwopIdCompletion,
   SWOP_ID_ONBOARDING_PATH,
 } from '@/lib/onboardingStatus';
@@ -113,6 +116,47 @@ function formatEmailCodeError(error: unknown): string {
   return 'Could not send the email code. Please try again.';
 }
 
+function formatPasskeyError(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : 'Passkey authentication failed.';
+  const code = getErrorCode(error);
+  const normalized = message.toLowerCase();
+
+  if (code === 'disallowed_login_method' || code === 'passkey_not_allowed') {
+    return 'Passkey login is disabled for this Privy app or client. Enable Passkey in Privy Authentication settings.';
+  }
+
+  if (
+    normalized.includes('origin') ||
+    normalized.includes('domain') ||
+    normalized.includes('allowed origin')
+  ) {
+    return 'This app URL is not in Privy allowed origins. Add the current origin to the Privy app and web client.';
+  }
+
+  if (
+    normalized.includes('not supported') ||
+    normalized.includes('webauthn') ||
+    normalized.includes('publickeycredential')
+  ) {
+    return 'This browser or device does not support passkeys here. Try email login instead.';
+  }
+
+  if (
+    normalized.includes('cancel') ||
+    normalized.includes('abort') ||
+    normalized.includes('notallowed')
+  ) {
+    return 'Passkey prompt was canceled. Try again or use email login.';
+  }
+
+  return message || 'Passkey authentication failed. Try email login instead.';
+}
+
 function formatLoginProcessingError(error: unknown): string {
   const message =
     error instanceof Error
@@ -144,9 +188,7 @@ function getAuthCookieOptions() {
 }
 
 function clearStaleSwopAuthStorage() {
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem('swop:user-cache');
-  }
+  safeLocalStorage.removeItem('swop:user-cache');
 
   Cookies.remove('user-id');
   Cookies.remove('access-token');
@@ -154,16 +196,51 @@ function clearStaleSwopAuthStorage() {
   Cookies.remove('access-token', { path: '/' });
 }
 
+function clearPrivyBrowserSession() {
+  clearStaleSwopAuthStorage();
+
+  if (typeof window !== 'undefined') {
+    for (const storage of [safeLocalStorage, safeSessionStorage]) {
+      const keys = storage.keys();
+
+      for (const key of keys) {
+        if (key.toLowerCase().includes('privy')) {
+          storage.removeItem(key);
+        }
+      }
+    }
+  }
+
+  const privyCookieNames = [
+    'privy-token',
+    'privy-id-token',
+    'privy-refresh-token',
+    'privy-session',
+  ];
+
+  for (const cookieName of privyCookieNames) {
+    Cookies.remove(cookieName);
+    Cookies.remove(cookieName, { path: '/' });
+  }
+}
+
 const Login: React.FC = () => {
   // Privy hooks
   const { authenticated, ready, user } = usePrivy();
   const { state, sendCode, loginWithCode } = useLoginWithEmail();
+  const {
+    state: passkeyLoginState,
+    loginWithPasskey,
+  } = useLoginWithPasskey();
+  const {
+    state: passkeySignupState,
+    signupWithPasskey,
+  } = useSignupWithPasskey();
   const { createWallet: createEthereumWallet } = useCreateWallet();
   const { createWallet: createSolanaWallet } =
     useSolanaCreateWallet();
 
   // Custom hooks
-  const { isAuthenticated } = useUser();
   const router = useRouter();
 
   // State management
@@ -173,6 +250,8 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [pendingPasskeyAuth, setPendingPasskeyAuth] = useState(false);
+  const [privyInitTimedOut, setPrivyInitTimedOut] = useState(false);
   const [walletStatus, setWalletStatus] =
     useState<WalletCreationStatus>({
       ethereum: false,
@@ -191,6 +270,14 @@ const Login: React.FC = () => {
   const [timeRemaining, setTimeRemaining] = useState(480); // 8 minutes = 480 seconds
   const [canResend, setCanResend] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const passkeyBusy =
+    pendingPasskeyAuth ||
+    passkeyLoginState.status === 'generating-challenge' ||
+    passkeyLoginState.status === 'awaiting-passkey' ||
+    passkeyLoginState.status === 'submitting-response' ||
+    passkeySignupState.status === 'generating-challenge' ||
+    passkeySignupState.status === 'awaiting-passkey' ||
+    passkeySignupState.status === 'submitting-response';
 
   // Refs for preventing race conditions
   const loginProcessingRef = useRef(false);
@@ -406,7 +493,7 @@ const Login: React.FC = () => {
         setWalletStatus((prev) => ({ ...prev, inProgress: false }));
       }
     },
-    [createEthereumWallet, createSolanaWallet, ready],
+    [createEthereumWallet, createSolanaWallet, ready, walletStatus.inProgress],
   );
 
   useEffect(() => {
@@ -428,7 +515,21 @@ const Login: React.FC = () => {
     walletStatus.inProgress,
     walletStatus.ethereum,
     walletStatus.solana,
+    createPrivyWallets,
   ]);
+
+  useEffect(() => {
+    if (ready) {
+      setPrivyInitTimedOut(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setPrivyInitTimedOut(true);
+    }, 12000);
+
+    return () => clearTimeout(timeout);
+  }, [ready]);
 
   // Handle successful login
   const handleLoginSuccess = useCallback(
@@ -442,7 +543,11 @@ const Login: React.FC = () => {
       try {
         const userEmail = extractEmailFromUser(user);
         if (!userEmail) {
-          throw new Error('No email found in account');
+          logger.log(
+            'No email found on Privy account; sending user to onboarding for profile/email capture',
+          );
+          router.push(AI_ONBOARDING_PATH);
+          return;
         }
 
         // Check if user exists in backend
@@ -456,7 +561,7 @@ const Login: React.FC = () => {
         if (!response.ok) {
           if (response.status === 404) {
             logger.log('User not found, redirecting to onboard');
-            router.push('/onboard');
+            router.push(AI_ONBOARDING_PATH);
             return;
           }
           throw new Error(`API error: ${response.status}`);
@@ -519,6 +624,38 @@ const Login: React.FC = () => {
     },
     [extractEmailFromUser, processWalletData, router],
   );
+
+  const handlePasskeyLogin = useCallback(async () => {
+    setLoginError(null);
+    setEmailError('');
+    clearStaleSwopAuthStorage();
+    setPendingPasskeyAuth(true);
+
+    try {
+      await loginWithPasskey();
+      setLoginFlow(LoginFlow.PROCESSING);
+    } catch (error) {
+      setPendingPasskeyAuth(false);
+      setLoginError(formatPasskeyError(error));
+      setLoginFlow(LoginFlow.ERROR);
+    }
+  }, [loginWithPasskey]);
+
+  const handlePasskeySignup = useCallback(async () => {
+    setLoginError(null);
+    setEmailError('');
+    clearStaleSwopAuthStorage();
+    setPendingPasskeyAuth(true);
+
+    try {
+      await signupWithPasskey();
+      setLoginFlow(LoginFlow.PROCESSING);
+    } catch (error) {
+      setPendingPasskeyAuth(false);
+      setLoginError(formatPasskeyError(error));
+      setLoginFlow(LoginFlow.ERROR);
+    }
+  }, [signupWithPasskey]);
 
   // Handle email form submission
   const handleEmailSubmit = useCallback(
@@ -613,12 +750,18 @@ const Login: React.FC = () => {
     [otpLength],
   );
 
-  // Redirect authenticated users
+  // Process an existing Privy session when a user lands on /login directly.
   useEffect(() => {
-    if (ready && (authenticated || isAuthenticated)) {
-      return;
+    if (
+      ready &&
+      authenticated &&
+      user &&
+      loginFlow === LoginFlow.EMAIL_INPUT &&
+      !loginProcessingRef.current
+    ) {
+      void handleLoginSuccess(user);
     }
-  }, [ready, authenticated, isAuthenticated]);
+  }, [ready, authenticated, user, loginFlow, handleLoginSuccess]);
 
   // Handle OTP completion and login
   useEffect(() => {
@@ -633,6 +776,26 @@ const Login: React.FC = () => {
       loginWithCode({ code: otp.join('') });
     }
   }, [otp, state.status, loginWithCode]);
+
+  useEffect(() => {
+    if (
+      pendingPasskeyAuth &&
+      ready &&
+      authenticated &&
+      user &&
+      !loginProcessingRef.current
+    ) {
+      handleLoginSuccess(user).finally(() => {
+        setPendingPasskeyAuth(false);
+      });
+    }
+  }, [
+    pendingPasskeyAuth,
+    ready,
+    authenticated,
+    user,
+    handleLoginSuccess,
+  ]);
 
   // Handle successful login
   useEffect(() => {
@@ -665,6 +828,41 @@ const Login: React.FC = () => {
       }
     };
   }, []);
+
+  if (!ready && privyInitTimedOut) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
+          <h2 className="text-xl font-semibold text-gray-950">
+            Authentication is taking too long
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            This usually means the browser has stale auth data. Reset the local
+            session and try again.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              className="h-11 flex-1 rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 transition hover:bg-gray-50"
+              onClick={() => window.location.reload()}
+            >
+              Reload
+            </button>
+            <button
+              type="button"
+              className="h-11 flex-1 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-gray-800"
+              onClick={() => {
+                clearPrivyBrowserSession();
+                window.location.reload();
+              }}
+            >
+              Reset session
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Loading states
   if (!ready || loginFlow === LoginFlow.PROCESSING) {
@@ -733,6 +931,37 @@ const Login: React.FC = () => {
                 className="w-32 h-auto"
                 priority
               />
+            </div>
+
+            <div className="flex w-[350px] flex-col gap-3">
+              <button
+                type="button"
+                onClick={handlePasskeyLogin}
+                disabled={passkeyBusy}
+                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RiFingerprintLine size={20} />
+                {passkeyBusy ? 'Check your passkey prompt...' : 'Sign in with passkey'}
+              </button>
+              <button
+                type="button"
+                onClick={handlePasskeySignup}
+                disabled={passkeyBusy}
+                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RiFingerprintLine size={20} />
+                Create account with passkey
+              </button>
+              <p className="text-center text-xs leading-5 text-gray-500">
+                For Apple cross-device sign-in, save your passkey to Apple
+                Passwords or iCloud Keychain.
+              </p>
+            </div>
+
+            <div className="flex w-[350px] items-center gap-3 text-xs font-medium uppercase tracking-[0.18em] text-gray-400">
+              <span className="h-px flex-1 bg-gray-200" />
+              <span>or email</span>
+              <span className="h-px flex-1 bg-gray-200" />
             </div>
 
             <form

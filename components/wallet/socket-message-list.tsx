@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useNewSocketChat } from '@/lib/context/NewSocketChatContext';
 import { useUser } from '@/lib/UserContext';
 import { resolveEnsToUserId } from '@/lib/api/ensResolver';
+import { safeSessionStorage } from '@/lib/browserStorage';
 
 interface MessageProps {
   bio?: string;
@@ -318,7 +319,7 @@ const MessageCard = ({
 
         // Store token data in sessionStorage instead of passing it in URL
         if (tokens && tokens.length > 0) {
-          sessionStorage.setItem(
+          safeSessionStorage.setItem(
             'chatTokenData',
             JSON.stringify(tokens)
           );
@@ -329,7 +330,7 @@ const MessageCard = ({
       } else {
         // For regular addresses or already resolved ENS names, proceed directly
         if (tokens && tokens.length > 0) {
-          sessionStorage.setItem(
+          safeSessionStorage.setItem(
             'chatTokenData',
             JSON.stringify(tokens)
           );
