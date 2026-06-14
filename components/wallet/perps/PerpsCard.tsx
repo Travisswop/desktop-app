@@ -218,9 +218,11 @@ export function PerpsCard({
   onDepositSubmitted,
   onPredictionWithdrawSubmitted,
 }: PerpsCardProps) {
-  // Aggregate across the main DEX + every builder (HIP-3) DEX so this summary
-  // reflects ALL positions and the combined balance — one perps wallet.
-  const { data: markets = [] } = useHyperliquidMarkets();
+  // Keep the wallet summary fast on initial page load. The full trading panel
+  // can still load builder DEX markets when the user opens the perps surface.
+  const { data: markets = [] } = useHyperliquidMarkets({
+    includeBuilderDexes: false,
+  });
   const builderDexes = useMemo(() => {
     const set = new Set<string>();
     for (const m of markets) {
