@@ -28,8 +28,13 @@ import {
   type PriceMap,
 } from '@/lib/polymarket/clob-prices';
 import EnableTradingModal from '@/components/wallet/polymarket/EnableTradingModal';
+import OrderSuccessNotification, {
+  buildOrderSuccessInfo,
+  showOrderSuccessToast,
+  type OrderSuccessInfo,
+} from '../shared/OrderSuccessNotification';
 
-import { InfoIcon, Clock, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { InfoIcon, Clock, AlertCircle, X } from 'lucide-react';
 
 // Order ticket variants on the detail page — A3 (Market) and A3L (Limit) only.
 // FAK / GTD are intentionally dropped here per the new wireframes; the
@@ -392,120 +397,6 @@ function getFriendlyOrderError(
     title: 'Order failed',
     detail: "Something went wrong placing your order. Please try again.",
   };
-}
-
-interface OrderSuccessInfo {
-  side: 'BUY' | 'SELL';
-  outcomeLabel: string;
-  outcomeAbbr: string;
-  shares: number;
-  priceCents: number;
-  usd: number;
-  isLimit: boolean;
-}
-
-function formatUsd(n: number): string {
-  return Number.isFinite(n) ? `$${n.toFixed(2)}` : '$—';
-}
-
-/**
- * Polymarket-style success card. Shown in-flow above the order ticket once
- * a fill comes back; auto-closes shortly after via the existing onClose
- * timer in MarketDetailView.
- */
-function OrderSuccessNotification({
-  info,
-  onDismiss,
-}: {
-  info: OrderSuccessInfo;
-  onDismiss: () => void;
-}) {
-  const verb =
-    info.isLimit
-      ? info.side === 'BUY'
-        ? 'Limit buy placed'
-        : 'Limit sell placed'
-      : info.side === 'BUY'
-        ? 'Order filled'
-        : 'Sell filled';
-  const action = info.side === 'BUY' ? 'Bought' : 'Sold';
-  const detail = `${action} ${info.shares.toFixed(2)} ${info.outcomeAbbr} @ ${info.priceCents}¢ · ${formatUsd(info.usd)}`;
-
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      style={{
-        background: '#fff',
-        border: `1px solid rgba(25,169,116,0.30)`,
-        borderRadius: 14,
-        padding: '12px 14px',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 12,
-        boxShadow:
-          '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(25,169,116,0.18)',
-      }}
-    >
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: '50%',
-          background: D.posGreenSoft,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        <CheckCircle2 size={18} color={D.posGreen} strokeWidth={2.4} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 13.5,
-            fontWeight: 700,
-            color: D.ink,
-            letterSpacing: -0.1,
-          }}
-        >
-          {verb}
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: D.muted,
-            marginTop: 2,
-            fontFamily: D.mono,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {detail}
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss"
-        style={{
-          width: 24,
-          height: 24,
-          borderRadius: 8,
-          border: 'none',
-          background: 'transparent',
-          cursor: 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: D.muted2,
-          flexShrink: 0,
-        }}
-      >
-        <X size={14} />
-      </button>
-    </div>
-  );
 }
 
 /**
@@ -4311,23 +4202,22 @@ export default function MarketDetailView({
           price: effectivePrice,
           acceptedPrice: effectivePrice,
         });
-        const executionShares = Number(result.execution?.shares);
-        const displayShares =
-          Number.isFinite(executionShares) && executionShares > 0
-            ? executionShares
-            : shares;
-        setSuccessInfo({
+        const orderSuccessInfo = buildOrderSuccessInfo({
+          result,
           side,
           outcomeLabel: outcomeName,
           outcomeAbbr: (selectedOutcome === 'yes'
             ? yesAbbr
             : noAbbr
           ).toUpperCase(),
-          shares: displayShares,
-          priceCents: Math.round(feedExecution.price * 100),
+          shares,
+          price: feedExecution.price,
           usd: feedExecution.cost,
           isLimit: isLimitVariant,
         });
+        const displayShares = orderSuccessInfo.shares;
+        setSuccessInfo(orderSuccessInfo);
+        showOrderSuccessToast(orderSuccessInfo);
 
         if (agentProposalId) {
           try {

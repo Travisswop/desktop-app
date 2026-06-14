@@ -12,6 +12,11 @@ import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
 
 import Portal from '../shared/Portal';
+import OrderSuccessNotification, {
+  buildOrderSuccessInfo,
+  showOrderSuccessToast,
+  type OrderSuccessInfo,
+} from '../shared/OrderSuccessNotification';
 import BuySellToggle, {
   type OrderVariant,
 } from '../OrderModal/BuySellToggle';
@@ -1056,6 +1061,9 @@ export default function MarketDetailModal({
   const [limitPrice, setLimitPrice] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successInfo, setSuccessInfo] = useState<OrderSuccessInfo | null>(
+    null,
+  );
   const [showFullDescription, setShowFullDescription] =
     useState(false);
 
@@ -1089,6 +1097,7 @@ export default function MarketDetailModal({
       setLimitPrice('');
       setLocalError(null);
       setShowSuccess(false);
+      setSuccessInfo(null);
       setShowFullDescription(false);
     }
   }, [isOpen, initialOutcome, initialAmount]);
@@ -1225,8 +1234,7 @@ export default function MarketDetailModal({
         expiration: gtdExpiration,
       });
 
-      // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
-      if (result?.success && user?.primaryMicrosite && user?._id) {
+      if (result?.success) {
         const outcomeName =
           selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName;
         const cost =
@@ -1243,60 +1251,75 @@ export default function MarketDetailModal({
           price: effectivePrice,
           acceptedPrice: effectivePrice,
         });
+        const orderSuccessInfo = buildOrderSuccessInfo({
+          result,
+          side,
+          outcomeLabel: outcomeName,
+          outcomeAbbr: (selectedOutcome === 'yes' ? yesAbbr : noAbbr).toUpperCase(),
+          shares,
+          price: feedExecution.price,
+          usd: feedExecution.cost,
+          isLimit: isLimitVariant,
+        });
+        setSuccessInfo(orderSuccessInfo);
+        showOrderSuccessToast(orderSuccessInfo);
 
-        getAccessToken()
-          .then((token) => {
-            if (!token) return;
-            return postFeed(
-              {
-                postType: 'prediction',
-                smartsiteId: user.primaryMicrosite,
-                userId: user._id,
-                content: {
-                  marketId: market.conditionId || market.id,
-                  marketTitle: market.question,
-                  outcome: outcomeName,
-                  side,
-                  cost: feedExecution.cost,
-                  potentialWin: feedExecution.potentialWin,
-                  price: feedExecution.price,
-                  orderId: result.orderId,
-                  orderType,
-                  eventSlug: market.eventSlug,
-                  ...feedExecution.fields,
-                  // Sports panel data
-                  yesOutcome: yesOutcomeName,
-                  noOutcome: noOutcomeName,
-                  yesTokenId,
-                  noTokenId,
-                  yesPrice,
-                  noPrice,
-                  gameStartTime: market.gameStartTime,
-                  volume: volumeLabel ?? undefined,
-                  yesTeam: yesTeamMeta
-                    ? {
-                        name: yesTeamMeta.name,
-                        abbreviation: yesTeamMeta.abbreviation,
-                        color: yesTeamMeta.color,
-                        logo: yesTeamMeta.logo,
-                      }
-                    : undefined,
-                  noTeam: noTeamMeta
-                    ? {
-                        name: noTeamMeta.name,
-                        abbreviation: noTeamMeta.abbreviation,
-                        color: noTeamMeta.color,
-                        logo: noTeamMeta.logo,
-                      }
-                    : undefined,
+        // ── POST PREDICTION TO FEED (fire-and-forget) ────────────────────────
+        if (user?.primaryMicrosite && user?._id) {
+          getAccessToken()
+            .then((token) => {
+              if (!token) return;
+              return postFeed(
+                {
+                  postType: 'prediction',
+                  smartsiteId: user.primaryMicrosite,
+                  userId: user._id,
+                  content: {
+                    marketId: market.conditionId || market.id,
+                    marketTitle: market.question,
+                    outcome: outcomeName,
+                    side,
+                    cost: feedExecution.cost,
+                    potentialWin: feedExecution.potentialWin,
+                    price: feedExecution.price,
+                    orderId: result.orderId,
+                    orderType,
+                    eventSlug: market.eventSlug,
+                    ...feedExecution.fields,
+                    // Sports panel data
+                    yesOutcome: yesOutcomeName,
+                    noOutcome: noOutcomeName,
+                    yesTokenId,
+                    noTokenId,
+                    yesPrice,
+                    noPrice,
+                    gameStartTime: market.gameStartTime,
+                    volume: volumeLabel ?? undefined,
+                    yesTeam: yesTeamMeta
+                      ? {
+                          name: yesTeamMeta.name,
+                          abbreviation: yesTeamMeta.abbreviation,
+                          color: yesTeamMeta.color,
+                          logo: yesTeamMeta.logo,
+                        }
+                      : undefined,
+                    noTeam: noTeamMeta
+                      ? {
+                          name: noTeamMeta.name,
+                          abbreviation: noTeamMeta.abbreviation,
+                          color: noTeamMeta.color,
+                          logo: noTeamMeta.logo,
+                        }
+                      : undefined,
+                  },
                 },
-              },
-              token,
+                token,
+              );
+            })
+            .catch((err) =>
+              console.error('Failed to post prediction to feed:', err),
             );
-          })
-          .catch((err) =>
-            console.error('Failed to post prediction to feed:', err),
-          );
+        }
       }
     } catch (err) {
       console.error('Error placing order:', err);
@@ -1368,12 +1391,15 @@ export default function MarketDetailModal({
             )}
 
             {/* ── Success / Error feedback ── */}
-            {showSuccess && (
-              <div className="mb-3 bg-green-50 border border-green-200 rounded-xl p-3">
-                <p className="text-green-600 font-medium text-sm text-center">
-                  Order placed successfully!
-                </p>
-              </div>
+            {showSuccess && successInfo && (
+              <OrderSuccessNotification
+                className="mb-3"
+                info={successInfo}
+                onDismiss={() => {
+                  setShowSuccess(false);
+                  setSuccessInfo(null);
+                }}
+              />
             )}
             {(localError || orderError) && (
               <div className="mb-3 bg-red-50 border border-red-200 rounded-xl p-3">
