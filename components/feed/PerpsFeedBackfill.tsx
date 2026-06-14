@@ -6,6 +6,7 @@ import {
   buildPerpsPositionKey,
   type PerpsLiquidationFillSnapshot,
   reconcilePerpsPositionFeed,
+  resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
 } from '@/lib/perps/perpsFeed';
@@ -88,6 +89,7 @@ async function fetchRecentLiquidationsByCoin(masterAddress: string) {
 
 export default function PerpsFeedBackfill() {
   const { accessToken, user, primaryMicrosite } = useUser();
+  const feedSmartsiteId = resolvePerpsFeedSmartsiteId(user, primaryMicrosite);
   const { masterAddress } = useHyperliquidAgent();
   const { data: accountData } = useHyperliquidPositions(masterAddress);
   const { data: markets = [] } = useHyperliquidMarkets({
@@ -111,7 +113,7 @@ export default function PerpsFeedBackfill() {
   }, [markets]);
 
   useEffect(() => {
-    const smartsiteId = user?.primaryMicrosite || primaryMicrosite;
+    const smartsiteId = feedSmartsiteId;
     const positions = accountData?.positions || [];
 
     if (
@@ -218,8 +220,7 @@ export default function PerpsFeedBackfill() {
     accountData,
     accessToken,
     user?._id,
-    user?.primaryMicrosite,
-    primaryMicrosite,
+    feedSmartsiteId,
     masterAddress,
     markPricesByCoin,
   ]);

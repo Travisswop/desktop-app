@@ -44,6 +44,7 @@ import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
   reconcilePerpsPositionFeed,
+  resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
 } from '@/lib/perps/perpsFeed';
@@ -202,6 +203,7 @@ export function PerpsPanel({
 }: PerpsPanelProps) {
   const { toast } = useToast();
   const { accessToken, user, primaryMicrosite } = useUser();
+  const feedSmartsiteId = resolvePerpsFeedSmartsiteId(user, primaryMicrosite);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const syncedPositionSnapshotsRef = useRef<Set<string>>(new Set());
   const syncedLiquidationFillsRef = useRef<Set<string>>(new Set());
@@ -333,7 +335,7 @@ export function PerpsPanel({
   const { connected: fillsConnected } = useUserFills(
     effectiveMaster,
     useCallback((data: unknown) => {
-      const smartsiteId = user?.primaryMicrosite || primaryMicrosite;
+      const smartsiteId = feedSmartsiteId;
       const fillsList = getUserEventFills(data);
 
       // Accumulate fills for the Trade history + Recent fills views.
@@ -460,12 +462,11 @@ export function PerpsPanel({
     }, [
       accessToken,
       accountData?.positions,
+      feedSmartsiteId,
       masterAddress,
-      primaryMicrosite,
       refetchPositions,
       tradeLeverage.value,
       user?._id,
-      user?.primaryMicrosite,
     ]),
     !!effectiveMaster,
   );
@@ -554,7 +555,7 @@ export function PerpsPanel({
 
   useEffect(() => {
     const positions = allPositions;
-    const smartsiteId = user?.primaryMicrosite || primaryMicrosite;
+    const smartsiteId = feedSmartsiteId;
 
     if (
       (!portfolio && !accountData) ||
@@ -655,9 +656,8 @@ export function PerpsPanel({
     accountData,
     allPositions,
     accessToken,
+    feedSmartsiteId,
     user?._id,
-    user?.primaryMicrosite,
-    primaryMicrosite,
     masterAddress,
     mids,
     portfolio,
@@ -703,7 +703,7 @@ export function PerpsPanel({
         upsertPerpsPositionFeed({
           token: accessToken,
           userId: user?._id,
-          smartsiteId: user?.primaryMicrosite || primaryMicrosite,
+          smartsiteId: feedSmartsiteId,
           content: {
             provider: 'hyperliquid',
             positionKey: buildPerpsPositionKey({
@@ -784,16 +784,15 @@ export function PerpsPanel({
       refetchPortfolio,
       sweepDexToMain,
       accessToken,
+      feedSmartsiteId,
       user?._id,
-      user?.primaryMicrosite,
-      primaryMicrosite,
       masterAddress,
     ],
   );
 
   const postPerpsOrderToFeed = useCallback(
     (details: PerpsFeedOrder) => {
-      if (!user?.primaryMicrosite || !user?._id) return;
+      if (!feedSmartsiteId || !user?._id) return;
       if (!hasAcceptedHyperliquidOrder(details.result)) return;
 
       const entryPrice = finiteNumber(details.entryPrice);
@@ -817,7 +816,7 @@ export function PerpsPanel({
         postFeed(
           {
             postType: 'perps',
-            smartsiteId: user.primaryMicrosite,
+            smartsiteId: feedSmartsiteId,
             userId: user._id,
             content: {
               platform: 'hyperliquid',
@@ -852,8 +851,8 @@ export function PerpsPanel({
       tradeLeverage.isCross,
       tradeLeverage.value,
       accessToken,
+      feedSmartsiteId,
       user?._id,
-      user?.primaryMicrosite,
     ],
   );
 

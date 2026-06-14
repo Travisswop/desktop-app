@@ -215,6 +215,7 @@ import { useHyperliquidTrading } from '@/components/wallet/perps/hooks/useHyperl
 import type { HLMarket, HLPosition } from '@/services/hyperliquid/types';
 import {
   buildPerpsPositionKey,
+  resolvePerpsFeedSmartsiteId,
   upsertPerpsPositionFeed,
   type PerpsPositionFeedEvent,
   type PerpsPositionFeedStatus,
@@ -16309,6 +16310,7 @@ function HyperliquidProposalFlowTicket({
   sourceText?: string;
 }) {
   const { accessToken, user, primaryMicrosite } = useUser();
+  const feedSmartsiteId = resolvePerpsFeedSmartsiteId(user, primaryMicrosite);
   const queryClient = useQueryClient();
   const params = useMemo(
     () =>
@@ -16774,10 +16776,10 @@ function HyperliquidProposalFlowTicket({
       const orderId = extractInlineHyperliquidOrderId(orderResult);
       const closed = buildCloseReceipt(orderId);
       const closeCoin = selectedMarket.coin || matchingClosePosition?.coin || coin;
-      upsertPerpsPositionFeed({
+      await upsertPerpsPositionFeed({
         token: accessToken,
         userId: user?._id,
-        smartsiteId: user?.primaryMicrosite || primaryMicrosite,
+        smartsiteId: feedSmartsiteId,
         content: {
           provider: 'hyperliquid',
           positionKey: buildPerpsPositionKey({
@@ -17114,10 +17116,10 @@ function HyperliquidProposalFlowTicket({
           : opened.notionalUsd;
 
       if (!isPositionTpsl) {
-        upsertPerpsPositionFeed({
+        await upsertPerpsPositionFeed({
           token: accessToken,
           userId: user?._id,
-          smartsiteId: user?.primaryMicrosite || primaryMicrosite,
+          smartsiteId: feedSmartsiteId,
           content: {
             provider: 'hyperliquid',
             positionKey: buildPerpsPositionKey({

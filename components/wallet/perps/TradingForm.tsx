@@ -17,6 +17,7 @@ import {
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
+  resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
   type PerpsPositionFeedEvent,
@@ -94,6 +95,7 @@ export function TradingForm({
   transferToDexError,
 }: TradingFormProps) {
   const { accessToken, user, primaryMicrosite } = useUser();
+  const feedSmartsiteId = resolvePerpsFeedSmartsiteId(user, primaryMicrosite);
   const [side, setSide] = useState<OrderSide>('long');
   const [mode, setMode] = useState<OrderMode>('market');
   const [size, setSize] = useState('');
@@ -482,7 +484,7 @@ export function TradingForm({
       upsertPerpsPositionFeed({
         token: accessToken,
         userId: user?._id,
-        smartsiteId: user?.primaryMicrosite || primaryMicrosite,
+        smartsiteId: feedSmartsiteId,
         content: {
           provider: 'hyperliquid',
           positionKey: buildPerpsPositionKey({
@@ -571,7 +573,7 @@ export function TradingForm({
     sizeInCoins, limitPrice, markPrice, takeProfit, stopLoss, markNum,
     onAgentActionComplete, onPlaceMarket, onPlaceLimit, onPlaceTpSl,
     pendingOrder?.entryPrice, pendingOrder?.marginRequired, pendingOrder?.sizeUsd,
-    side, accessToken, user?._id, user?.primaryMicrosite, primaryMicrosite,
+    side, accessToken, user?._id, feedSmartsiteId,
     masterAddress, existingPosition, estLiqPrice,
     isBuilderMarket, onTransferToDex, marginRequired, availableMarginNum,
     mainAvailNum,
