@@ -291,14 +291,12 @@ export function TradingForm({
       // Builder markets size off the combined main + DEX balance — the DEX is
       // funded automatically at order time, so the selected DEX starting at $0
       // must not zero out the quick-% buttons.
-      const base = isBuilderMarket
-        ? mainAvailNum + availableMarginNum
-        : accountNum;
+      const base = effectiveAvailableMargin;
       const usd = (base * pct * safeLeverage) / 100;
       setSize(usd.toFixed(2));
       setActivePercent(pct);
     },
-    [accountNum, safeLeverage, isBuilderMarket, mainAvailNum, availableMarginNum],
+    [effectiveAvailableMargin, safeLeverage],
   );
 
   const estLiqPrice = useMemo(() => {
