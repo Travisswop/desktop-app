@@ -6,6 +6,10 @@ import React, {
   useState,
 } from 'react';
 import { useBtcUpDownMarket } from '@/hooks/polymarket/useBtcUpDownMarket';
+import {
+  fetchChunkedPrices,
+  type PriceEntry,
+} from '@/lib/polymarket/clob-prices';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -385,6 +389,16 @@ interface ResolvedMarketState {
   pickedWon?: boolean;
 }
 
+interface LivePredictionPrices {
+  yesPrice?: number;
+  noPrice?: number;
+}
+
+const LIVE_SCORE_POLL_MS = 10_000;
+const OPEN_SCORE_POLL_MS = 30_000;
+const LIVE_PRICE_POLL_MS = 10_000;
+const RETRY_POLL_MS = 30_000;
+
 function resolveTradeState(
   content: PredictionContent,
   isLive: boolean,
@@ -545,41 +559,134 @@ function resolveTradeState(
 
 // ─── Live score hook ──────────────────────────────────────────────────────────
 
-function useLiveScore(
-  eventSlug: string | undefined,
-): LiveScore | null {
+function shouldPollLiveScore(score: LiveScore | null): boolean {
+  if (!score) return true;
+  return !score.ended && !score.closed;
+}
+
+function nextLiveScorePollMs(score: LiveScore | null): number {
+  if (!score) return RETRY_POLL_MS;
+  return score.live ? LIVE_SCORE_POLL_MS : OPEN_SCORE_POLL_MS;
+}
+
+function useLiveScore(eventSlug: string | undefined): LiveScore | null {
   const [score, setScore] = useState<LiveScore | null>(null);
 
   useEffect(() => {
-    if (!eventSlug) return;
+    if (!eventSlug) {
+      setScore(null);
+      return;
+    }
+
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    const controller = new AbortController();
+
+    const scheduleNextFetch = (nextScore: LiveScore | null) => {
+      if (cancelled || !shouldPollLiveScore(nextScore)) return;
+      timer = setTimeout(fetchScore, nextLiveScorePollMs(nextScore));
+    };
 
     const fetchScore = async () => {
       try {
         const res = await fetch(
-          `/api/polymarket/event-live?slug=${encodeURIComponent(eventSlug)}`,
+          `/api/polymarket/event-live?slug=${encodeURIComponent(
+            eventSlug,
+          )}&_=${Date.now()}`,
+          {
+            cache: 'no-store',
+            signal: controller.signal,
+          },
         );
-        if (!res.ok || cancelled) return;
+        if (!res.ok || cancelled) {
+          scheduleNextFetch(null);
+          return;
+        }
         const data: LiveScore = await res.json();
         if (cancelled) return;
         setScore(data);
-        if (data.live) {
-          timer = setTimeout(fetchScore, 15_000);
-        }
+        scheduleNextFetch(data);
       } catch {
-        // silently ignore
+        scheduleNextFetch(null);
       }
     };
 
     fetchScore();
     return () => {
       cancelled = true;
+      controller.abort();
       if (timer) clearTimeout(timer);
     };
   }, [eventSlug]);
 
   return score;
+}
+
+function priceFromEntry(entry: PriceEntry | undefined): number | undefined {
+  const price = firstNumber(
+    entry?.midPrice,
+    entry?.askPrice,
+    entry?.bidPrice,
+  );
+  return price !== undefined && price >= 0 && price <= 1
+    ? price
+    : undefined;
+}
+
+function useLivePredictionPrices(
+  yesTokenId: string | undefined,
+  noTokenId: string | undefined,
+  enabled: boolean,
+): LivePredictionPrices {
+  const [prices, setPrices] = useState<LivePredictionPrices>({});
+
+  useEffect(() => {
+    if (!enabled || (!yesTokenId && !noTokenId)) {
+      setPrices({});
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchPrices = async () => {
+      try {
+        const tokenIds = [yesTokenId, noTokenId].filter(
+          (tokenId): tokenId is string => Boolean(tokenId),
+        );
+        const priceMap = await fetchChunkedPrices(tokenIds);
+        if (cancelled) return;
+        const nextPrices = {
+          yesPrice: priceFromEntry(
+            yesTokenId ? priceMap[yesTokenId] : undefined,
+          ),
+          noPrice: priceFromEntry(
+            noTokenId ? priceMap[noTokenId] : undefined,
+          ),
+        };
+        setPrices((prev) =>
+          prev.yesPrice === nextPrices.yesPrice &&
+          prev.noPrice === nextPrices.noPrice
+            ? prev
+            : nextPrices,
+        );
+      } catch {
+        // Keep the last known prices; event-live/Gamma prices remain fallback.
+      } finally {
+        if (!cancelled) {
+          timer = setTimeout(fetchPrices, LIVE_PRICE_POLL_MS);
+        }
+      }
+    };
+
+    fetchPrices();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [enabled, yesTokenId, noTokenId]);
+
+  return prices;
 }
 
 // ─── Price history hook ───────────────────────────────────────────────────────
@@ -1221,6 +1328,14 @@ function SportsMiniPanel({
   const yesScore = matchScore(yesOutcome, yesAbbr, 0);
   const noScore = matchScore(noOutcome, noAbbr, 1);
   const hasScores = yesScore != null && noScore != null;
+  const gameClockLabel =
+    hasScores && (liveScore?.ended || liveScore?.closed)
+      ? 'FINAL'
+      : hasScores
+        ? [liveScore?.period, liveScore?.elapsed]
+            .filter(Boolean)
+            .join(' · ') || 'GAME'
+        : formatGameCenter(gameStartTime);
   const pickedCurrentPrice =
     pickedIsYes ? yP : nP;
   const impliedShares =
@@ -1391,11 +1506,7 @@ function SportsMiniPanel({
 
         <div className="mt-3 min-w-[76px] text-center">
           <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-gray-400">
-            {hasScores
-              ? [liveScore?.period, liveScore?.elapsed]
-                  .filter(Boolean)
-                  .join(' · ') || 'GAME'
-              : formatGameCenter(gameStartTime)}
+            {gameClockLabel}
           </p>
         </div>
 
@@ -2144,15 +2255,34 @@ function RegularPredictionFeedCard({
   );
 
   const marketState = resolveMarketState(content, liveScore);
-  const resolvedYesPrice = marketState.yesPrice ?? yesPrice ?? entryPrice;
-  const resolvedNoPrice = marketState.noPrice ?? noPrice ?? 1 - entryPrice;
+  const livePrices = useLivePredictionPrices(
+    yesTokenId,
+    noTokenId,
+    !marketState.closed,
+  );
+  const pickedIsYes =
+    outcome.toLowerCase() === yesOutcome?.toLowerCase() ||
+    outcome.toLowerCase() === 'yes';
+  const livePickedPrice = pickedIsYes
+    ? livePrices.yesPrice
+    : livePrices.noPrice;
+  const resolvedMarketState: ResolvedMarketState = {
+    ...marketState,
+    yesPrice: livePrices.yesPrice ?? marketState.yesPrice,
+    noPrice: livePrices.noPrice ?? marketState.noPrice,
+    pickedPrice: livePickedPrice ?? marketState.pickedPrice,
+  };
+  const resolvedYesPrice =
+    resolvedMarketState.yesPrice ?? yesPrice ?? entryPrice;
+  const resolvedNoPrice =
+    resolvedMarketState.noPrice ?? noPrice ?? 1 - entryPrice;
   const tradeState = resolveTradeState(
     displayContent,
     liveScore?.live === true,
-    marketState,
+    resolvedMarketState,
   );
   const currentPrice = firstNumber(
-    marketState.pickedPrice,
+    resolvedMarketState.pickedPrice,
     content.currentPrice,
   );
   const currentDisplayPrice =

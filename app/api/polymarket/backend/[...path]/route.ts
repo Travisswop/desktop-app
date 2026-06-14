@@ -52,6 +52,7 @@ async function proxyPolymarketRequest(
     const headers = new Headers();
     const contentType = upstream.headers.get('content-type');
     if (contentType) headers.set('content-type', contentType);
+    headers.set('cache-control', 'no-store, max-age=0');
 
     return new Response(upstream.body, {
       status: upstream.status,

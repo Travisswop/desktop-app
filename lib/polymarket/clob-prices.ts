@@ -39,6 +39,7 @@ export async function fetchChunkedPrices(tokenIds: string[]): Promise<PriceMap> 
       const res = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify({ tokenIds: chunk }),
       });
       if (!res.ok) return {} as Record<string, RawPriceEntry>;
