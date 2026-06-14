@@ -42,6 +42,13 @@ function deleteAgentKey(masterAddress: string) {
   safeLocalStorage.removeItem(agentStorageKey(masterAddress));
 }
 
+function shortAddress(address?: string | null) {
+  if (!address) return '';
+  return address.length > 12
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : address;
+}
+
 const AGENT_NAME = 'Swop';
 const STALE_AGENT_MESSAGE =
   'Your Hyperliquid trading key expired or was replaced. Enable trading again to create a fresh key.';
@@ -218,7 +225,13 @@ export function useHyperliquidAgent({
               : undefined
             : selectedMasterWallet;
         if (!masterWallet) {
-          throw new Error('EVM wallet not found. Please refresh and try again.');
+          const walletLabel =
+            shouldUseStoredMaster && storedMasterAddress
+              ? ` (${shortAddress(storedMasterAddress)})`
+              : '';
+          throw new Error(
+            `EVM wallet${walletLabel} is not connected. Sign in with the wallet that owns this Hyperliquid position, then try again.`
+          );
         }
 
         const masterAddress = masterWallet.address;
@@ -294,7 +307,13 @@ export function useHyperliquidAgent({
                   parameters as SignTypedDataParams,
                   {
                     address: masterWallet.address,
-                    uiOptions: { showWalletUIs: false },
+                    uiOptions: {
+                      showWalletUIs: true,
+                      title: 'Approve perps signer',
+                      description:
+                        'Approve the local Hyperliquid agent key that signs perps orders for this wallet.',
+                      buttonText: 'Approve signer',
+                    },
                   }
                 );
                 return signature as `0x${string}`;
