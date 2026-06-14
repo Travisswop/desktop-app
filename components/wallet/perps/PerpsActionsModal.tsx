@@ -262,12 +262,6 @@ function WithdrawForm({
     Boolean(masterAddress) &&
     Boolean(masterClient);
 
-  useEffect(() => {
-    if (selectedDestination === 'predictions' && !predictionAddress) {
-      setSelectedDestination('main');
-    }
-  }, [predictionAddress, selectedDestination]);
-
   const resetAndClose = () => {
     if (step === 'processing') return;
     setStep('amount');
@@ -520,7 +514,7 @@ function WithdrawForm({
         </label>
         <div className="grid gap-2">
           {destinations.map((option) => {
-            const disabled = !option.address;
+            const disabled = !option.withdrawAddress;
             const active = selectedDestination === option.id;
             return (
               <div
@@ -559,11 +553,10 @@ function WithdrawForm({
                       {option.address
                         ? formatAddress(option.address)
                         : option.id === 'predictions'
-                          ? 'Enable Predictions trading first'
+                          ? 'Predictions setup opens after withdrawal'
                           : 'Not available'}
                     </p>
                     {option.id === 'predictions' &&
-                      option.address &&
                       masterAddress && (
                         <p
                           className={`mt-1 text-[11px] ${
