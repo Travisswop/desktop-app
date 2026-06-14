@@ -280,10 +280,10 @@ function getStageCopy(stage: OrderSubmissionStage) {
       };
     case 'signing':
       return {
-        title: 'Sign in your wallet',
+        title: 'Signing order',
         detail:
-          'Approve the signature request to place this self-custodied order.',
-        button: 'Waiting for signature...',
+          'Swop is signing the order and keeping you on this screen.',
+        button: 'Signing...',
       };
     case 'submitting':
       return {

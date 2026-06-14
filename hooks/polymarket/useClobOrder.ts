@@ -57,6 +57,11 @@ export type OrderParams = {
   isMarketOrder?: boolean;
   fillType?: 'FOK' | 'FAK';
   expiration?: number;
+  /**
+   * Embedded Privy wallets should sign prediction orders without opening the
+   * full Privy confirmation modal. Pass true only for an explicit wallet UI
+   * fallback flow.
+   */
   showWalletUIs?: boolean;
 };
 
@@ -696,7 +701,7 @@ export function useClobOrder(
       assertTypedDataStruct(types, primaryType, message, 'message');
 
       const isEmbeddedWallet = isEmbeddedPrivyWallet(eoaAddress);
-      const shouldHideWalletUIs = options?.showWalletUIs === false;
+      const shouldHideWalletUIs = options?.showWalletUIs !== true;
 
       if (swopApiBase() && isEmbeddedWallet) {
         try {

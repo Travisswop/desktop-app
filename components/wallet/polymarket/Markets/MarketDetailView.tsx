@@ -155,7 +155,7 @@ function getOrderStageButtonLabel(stage: OrderSubmissionStage): string {
     case 'preparing':
       return 'Preparing order...';
     case 'signing':
-      return 'Sign in wallet...';
+      return 'Signing order...';
     case 'submitting':
       return 'Submitting order...';
     default:
@@ -168,7 +168,7 @@ function getOrderStageHint(stage: OrderSubmissionStage): string {
     case 'preparing':
       return 'Building the order for signature.';
     case 'signing':
-      return 'Approve the wallet signature window to place this order.';
+      return 'Signing inside Swop. Keep this screen open.';
     case 'submitting':
       return 'Sending your signed order to Polymarket.';
     default:
