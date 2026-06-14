@@ -31,6 +31,7 @@ import { PositionsTable, type PerpsFill } from './PositionsTable';
 import { AccountCard } from './AccountCard';
 import { RecentFillsCard } from './RecentFillsCard';
 import { MarketSearchModal } from './MarketSearchModal';
+import { PerpsActionsModal } from './PerpsActionsModal';
 
 import type {
   HLMarket,
@@ -215,6 +216,7 @@ export function PerpsPanel({
     initialCoin ?? 'BTC',
   );
   const [closingCoin, setClosingCoin] = useState<string | null>(null);
+  const [withdrawActionsOpen, setWithdrawActionsOpen] = useState(false);
   const [activeTimeframe, setActiveTimeframe] = useState<string>('15m');
   const [tradeLeverage, setTradeLeverage] = useState({
     value: 10,
@@ -518,6 +520,32 @@ export function PerpsPanel({
   // The account that backs the *currently selected* market — used for the trade
   // ticket's balance display, margin check, and auto-funding math.
   const tradeAccount = portfolio?.perDex?.[selectedDex] ?? accountData;
+  const aggregateWithdrawable = Math.max(
+    finiteNumber(portfolio?.withdrawable ?? accountData?.withdrawable) ?? 0,
+    0,
+  );
+  const dexWithdrawables = useMemo(() => {
+    const entries = Object.entries(portfolio?.perDex ?? {}).map(
+      ([dex, summary]) =>
+        [
+          dex,
+          Math.max(finiteNumber(summary.withdrawable) ?? 0, 0),
+        ] as const,
+    );
+
+    if (!entries.some(([dex]) => dex === '')) {
+      entries.push([
+        '',
+        Math.max(
+          finiteNumber(accountData?.withdrawable ?? portfolio?.withdrawable) ??
+            0,
+          0,
+        ),
+      ]);
+    }
+
+    return Object.fromEntries(entries) as Record<string, number>;
+  }, [accountData?.withdrawable, portfolio?.perDex, portfolio?.withdrawable]);
 
   // Move USDC from the main perp account into the selected builder DEX so the
   // user can fund HIP-3 trades. Master-signed (the agent cannot move funds).
@@ -1060,6 +1088,7 @@ export function PerpsPanel({
                   isInitialized={isInitialized}
                   isReconnecting={isReconnecting}
                   onOpenDeposit={onOpenDeposit}
+                  onOpenWithdraw={() => setWithdrawActionsOpen(true)}
                   onEnableTrading={() => setShowAgentModal(true)}
                 />
 
@@ -1077,6 +1106,16 @@ export function PerpsPanel({
         liveMids={mids}
         onSelect={handleMarketSelect}
         onClose={() => setShowMarketSearch(false)}
+      />
+
+      <PerpsActionsModal
+        isOpen={withdrawActionsOpen}
+        initialTab="withdraw"
+        onClose={() => setWithdrawActionsOpen(false)}
+        masterAddress={masterAddress}
+        masterClient={masterClient}
+        withdrawable={aggregateWithdrawable}
+        dexWithdrawables={dexWithdrawables}
       />
 
       <AgentSetupModal
