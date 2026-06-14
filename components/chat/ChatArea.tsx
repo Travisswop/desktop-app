@@ -14937,6 +14937,54 @@ function SwapProposalTicket({
   const quoteCacheRef = useRef(
     new Map<string, { state: ChatSwapQuoteState; ts: number }>()
   );
+  const reverseFromOption = selectedToOption
+    ? walletFromOptions.find((option) => option.key === selectedToOption.key) ||
+      walletFromOptions.find(
+        (option) =>
+          option.chainId === selectedToOption.chainId &&
+          normalizeSwapSymbol(option.symbol) ===
+            normalizeSwapSymbol(selectedToOption.symbol)
+      ) ||
+      null
+    : null;
+  const reverseToOption = selectedFromOption
+    ? quoteTokenOptions.find((option) => option.key === selectedFromOption.key) ||
+      quoteTokenOptions.find(
+        (option) =>
+          option.chainId === selectedFromOption.chainId &&
+          normalizeSwapSymbol(option.symbol) ===
+            normalizeSwapSymbol(selectedFromOption.symbol)
+      ) ||
+      null
+    : null;
+  const handleReverseSwapTokens = () => {
+    if (!selectedFromOption || !selectedToOption) return;
+
+    if (!reverseFromOption || !reverseToOption) {
+      setSwapError(
+        `You need a spendable ${selectedToOption.symbol} balance to swap from ${selectedToOption.symbol}.`
+      );
+      return;
+    }
+
+    quoteRequestIdRef.current += 1;
+    setOpenTokenSelector(null);
+    setSwapError(null);
+    setQuoteState({ status: 'idle' });
+    setSelectedFromKey(reverseFromOption.key);
+    setSelectedToKey(reverseToOption.key);
+
+    if (
+      amountType !== 'usd' &&
+      quoteState.status === 'success' &&
+      quoteState.outputAmount
+    ) {
+      const outputAmount = Number(quoteState.outputAmount);
+      if (Number.isFinite(outputAmount) && outputAmount > 0) {
+        setAmountInput(formatSwapAmountInputValue(outputAmount));
+      }
+    }
+  };
 
   const fetchSwapQuote = useCallback(async () => {
     const requestId = quoteRequestIdRef.current + 1;
@@ -15871,9 +15919,16 @@ function SwapProposalTicket({
         </div>
 
         <div className="flex justify-center">
-          <div className="grid h-8 w-8 place-items-center rounded-[10px] border border-white/[0.07] bg-black/40 text-[#3fe08f]">
+          <button
+            type="button"
+            onClick={handleReverseSwapTokens}
+            disabled={!isOpen || isSwapBusy || !selectedFromOption || !selectedToOption}
+            aria-label="Swap buy and sell tokens"
+            title="Swap buy and sell tokens"
+            className="dm-btn grid h-8 w-8 place-items-center rounded-[10px] border border-white/[0.07] bg-black/40 text-[#3fe08f] transition hover:border-[#3fe08f]/35 hover:bg-[#3fe08f]/10 disabled:cursor-not-allowed disabled:opacity-45"
+          >
             <ArrowRightLeft className="h-3.5 w-3.5 rotate-90" />
-          </div>
+          </button>
         </div>
 
         <div className="rounded-[14px] border border-white/[0.07] bg-[#0f1116] p-3">
