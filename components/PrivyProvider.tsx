@@ -1,7 +1,5 @@
 'use client';
 import { PrivyProvider as Privy } from '@privy-io/react-auth';
-import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana';
-import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { installClipboardWriteFallback } from '@/lib/clipboard';
 
@@ -14,23 +12,11 @@ interface SolanaConfig {
   };
 }
 
-function createSolanaConnectors() {
-  if (typeof window === 'undefined') return undefined;
-
-  try {
-    return toSolanaWalletConnectors();
-  } catch (error) {
-    console.warn('Failed to initialize Solana wallet connectors:', error);
-    return undefined;
-  }
-}
-
 export default function PrivyProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [solanaConnectors, setSolanaConnectors] = useState<any>();
   const [solanaConfig, setSolanaConfig] = useState<
     SolanaConfig | undefined
   >(undefined);
@@ -38,29 +24,14 @@ export default function PrivyProvider({
     string | null
   >(null);
   const initRef = useRef(false);
-  const pathname = usePathname();
 
   const isProduction = process.env.NODE_ENV === 'production';
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const enableExternalWalletsInDev =
-    process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS === 'true';
-  const disableExternalWallets =
-    process.env.NEXT_PUBLIC_PRIVY_DISABLE_EXTERNAL_WALLETS === 'true' ||
-    pathname?.startsWith('/dashboard/chat') ||
-    (!isProduction && !enableExternalWalletsInDev);
-  const loginMethods: Array<'wallet' | 'email' | 'sms'> =
-    disableExternalWallets ? ['email', 'sms'] : ['wallet', 'email', 'sms'];
-  const externalWalletsConfig = disableExternalWallets
-    ? {
-        disableAllExternalWallets: true as const,
-      }
-    : solanaConnectors
-      ? {
-          solana: {
-            connectors: solanaConnectors,
-          },
-        }
-      : undefined;
+  const loginMethods: Array<'passkey' | 'email' | 'sms'> = [
+    'passkey',
+    'email',
+    'sms',
+  ];
 
   useEffect(() => {
     installClipboardWriteFallback();
@@ -81,15 +52,6 @@ export default function PrivyProvider({
     setLocalOriginRedirectUrl(targetUrl);
     window.location.replace(targetUrl);
   }, []);
-
-  useEffect(() => {
-    if (disableExternalWallets) {
-      setSolanaConnectors(undefined);
-      return;
-    }
-    if (solanaConnectors) return;
-    setSolanaConnectors(createSolanaConnectors());
-  }, [disableExternalWallets, solanaConnectors]);
 
   // Initialize Solana config only on client side after mount
   useEffect(() => {
@@ -128,7 +90,7 @@ export default function PrivyProvider({
     };
 
     initSolanaConfig();
-  }, [disableExternalWallets]);
+  }, []);
 
   if (localOriginRedirectUrl) {
     return (
@@ -169,17 +131,15 @@ export default function PrivyProvider({
           },
         },
         loginMethods,
+        externalWallets: {
+          disableAllExternalWallets: true,
+        },
         appearance: {
-          walletChainType: disableExternalWallets
-            ? 'ethereum-only'
-            : 'ethereum-and-solana',
-          showWalletLoginFirst: !disableExternalWallets,
+          walletChainType: 'ethereum-and-solana',
+          showWalletLoginFirst: false,
           theme: 'light',
           accentColor: '#000000',
         },
-        ...(externalWalletsConfig && {
-          externalWallets: externalWalletsConfig,
-        }),
         ...(solanaConfig && {
           solana: solanaConfig,
         }),

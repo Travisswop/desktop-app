@@ -281,6 +281,8 @@ const Login: React.FC = () => {
 
   // Refs for preventing race conditions
   const loginProcessingRef = useRef(false);
+  const walletCreationInProgressRef = useRef(false);
+  const walletCreationAttemptKeyRef = useRef<string | null>(null);
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Format time as MM:SS
@@ -377,9 +379,12 @@ const Login: React.FC = () => {
   // Create wallets
   const createPrivyWallets = useCallback(
     async (user: any) => {
-      if (walletStatus.inProgress) return;
+      if (walletCreationInProgressRef.current) return;
 
-      setWalletStatus((prev) => ({ ...prev, inProgress: true }));
+      walletCreationInProgressRef.current = true;
+      setWalletStatus((prev) =>
+        prev.inProgress ? prev : { ...prev, inProgress: true },
+      );
 
       try {
         const existingWallets = user?.linkedAccounts || [];
@@ -395,6 +400,21 @@ const Login: React.FC = () => {
             (acc.walletClientType === 'privy' ||
               acc.connectorType === 'embedded'),
         );
+
+        if (hasEthWallet || hasSolWallet) {
+          setWalletStatus((prev) => {
+            const next = {
+              ...prev,
+              ethereum: prev.ethereum || hasEthWallet,
+              solana: prev.solana || hasSolWallet,
+            };
+
+            return next.ethereum === prev.ethereum &&
+              next.solana === prev.solana
+              ? prev
+              : next;
+          });
+        }
 
         // Add production debugging
         const isProduction = process.env.NODE_ENV === 'production';
@@ -412,17 +432,18 @@ const Login: React.FC = () => {
         if (!hasEthWallet) {
           try {
             await createEthereumWallet();
-            setWalletStatus((prev) => ({ ...prev, ethereum: true }));
+            setWalletStatus((prev) =>
+              prev.ethereum ? prev : { ...prev, ethereum: true },
+            );
             logger.log('Ethereum wallet created successfully');
           } catch (error: any) {
             if (
               error === 'embedded_wallet_already_exists' ||
               error?.message === 'embedded_wallet_already_exists'
             ) {
-              setWalletStatus((prev) => ({
-                ...prev,
-                ethereum: true,
-              }));
+              setWalletStatus((prev) =>
+                prev.ethereum ? prev : { ...prev, ethereum: true },
+              );
               logger.log('Ethereum wallet already exists');
             } else {
               logger.error('Ethereum wallet creation failed:', error);
@@ -448,14 +469,18 @@ const Login: React.FC = () => {
         if (!hasSolWallet) {
           try {
             await createSolanaWallet();
-            setWalletStatus((prev) => ({ ...prev, solana: true }));
+            setWalletStatus((prev) =>
+              prev.solana ? prev : { ...prev, solana: true },
+            );
             logger.log('Solana wallet created successfully');
           } catch (error: any) {
             if (
               error === 'embedded_wallet_already_exists' ||
               error?.message === 'embedded_wallet_already_exists'
             ) {
-              setWalletStatus((prev) => ({ ...prev, solana: true }));
+              setWalletStatus((prev) =>
+                prev.solana ? prev : { ...prev, solana: true },
+              );
               logger.log('Solana wallet already exists');
             } else {
               logger.error('Solana wallet creation failed:', error);
@@ -490,21 +515,32 @@ const Login: React.FC = () => {
           });
         }
       } finally {
-        setWalletStatus((prev) => ({ ...prev, inProgress: false }));
+        walletCreationInProgressRef.current = false;
+        setWalletStatus((prev) =>
+          prev.inProgress ? { ...prev, inProgress: false } : prev,
+        );
       }
     },
-    [createEthereumWallet, createSolanaWallet, ready, walletStatus.inProgress],
+    [createEthereumWallet, createSolanaWallet, ready],
   );
 
   useEffect(() => {
+    const walletCreationAttemptKey = user?.id
+      ? `${user.id}:${user.linkedAccounts?.length ?? 0}`
+      : null;
+
     if (
       authenticated &&
       ready &&
       user &&
       !walletStatus.inProgress &&
-      !(walletStatus.ethereum && walletStatus.solana)
+      !(walletStatus.ethereum && walletStatus.solana) &&
+      walletCreationAttemptKey &&
+      walletCreationAttemptKeyRef.current !== walletCreationAttemptKey
     ) {
+      walletCreationAttemptKeyRef.current = walletCreationAttemptKey;
       createPrivyWallets(user).catch((error) => {
+        walletCreationAttemptKeyRef.current = null;
         logger.error('Wallet creation failed (post-auth):', error);
       });
     }
@@ -783,6 +819,13 @@ const Login: React.FC = () => {
       ready &&
       authenticated &&
       user &&
+      // Only kick off processing from the pre-auth states. Once
+      // handleLoginSuccess flips loginFlow to PROCESSING/SUCCESS, it resets
+      // loginProcessingRef in its finally — without this guard a fresh Privy
+      // `user` reference (e.g. from wallet creation) would re-enter the
+      // handler and loop ("Maximum update depth exceeded").
+      (loginFlow === LoginFlow.EMAIL_INPUT ||
+        loginFlow === LoginFlow.OTP_INPUT) &&
       !loginProcessingRef.current
     ) {
       handleLoginSuccess(user).finally(() => {
@@ -794,6 +837,7 @@ const Login: React.FC = () => {
     ready,
     authenticated,
     user,
+    loginFlow,
     handleLoginSuccess,
   ]);
 
@@ -802,11 +846,15 @@ const Login: React.FC = () => {
     if (
       state.status === 'done' &&
       user &&
+      // See note above: gate on the pre-auth flow states so a changing Privy
+      // `user` reference can't re-trigger handleLoginSuccess in a loop.
+      (loginFlow === LoginFlow.EMAIL_INPUT ||
+        loginFlow === LoginFlow.OTP_INPUT) &&
       !loginProcessingRef.current
     ) {
       handleLoginSuccess(user);
     }
-  }, [state.status, user, handleLoginSuccess]);
+  }, [state.status, user, loginFlow, handleLoginSuccess]);
 
   // Handle login errors
   useEffect(() => {
