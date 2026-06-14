@@ -39,6 +39,7 @@ import GroupMenu from './GroupMenu';
 import ChatAttachmentMenu, {
   type ChatAttachmentGif,
 } from './ChatAttachmentMenu';
+import { resolveActiveChatData } from './chatSelection';
 import { sendCloudinaryFile } from '@/lib/SendCloudinaryAnyFile';
 import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
@@ -909,34 +910,13 @@ function getDirectReceiverAvatar(chat: SelectedChat | null) {
   return chat.microsite?.profilePic || chat.participant?.profilePic;
 }
 
-function hasActiveAstroAgent(chat: SelectedChat | null) {
-  return (
-    chat?.botUsers?.some(
-      (agent) => agent.agentId === 'astro' && agent.isActive !== false
-    ) || false
-  );
-}
-
-function hasActiveGoldmanAgent(chat: SelectedChat | null) {
-  return (
-    chat?.botUsers?.some(
-      (agent) => agent.agentId === 'goldman-sacks' && agent.isActive !== false
-    ) || false
-  );
-}
-
 function isAstroTradingDeskChat(
   chat: SelectedChat | null,
   isGroup: boolean
 ) {
   const name = String(chat?.name || '').trim().toLowerCase();
 
-  return (
-    isGroup &&
-    (hasActiveAstroAgent(chat) ||
-      name === 'astro trading desk' ||
-      name === 'astro')
-  );
+  return isGroup && name === 'astro trading desk';
 }
 
 function isGoldmanSacksChat(
@@ -945,12 +925,7 @@ function isGoldmanSacksChat(
 ) {
   const name = String(chat?.name || '').trim().toLowerCase();
 
-  return (
-    isGroup &&
-    (hasActiveGoldmanAgent(chat) ||
-      name === 'goldman sacks' ||
-      name === 'goldman')
-  );
+  return isGroup && name === 'goldman sacks';
 }
 
 type DedicatedAgentThreadId = 'astro' | 'goldman-sacks';
@@ -3106,6 +3081,11 @@ export default function ChatArea({
   const selectedChatKey = selectedChat
     ? `${chatType}:${isGroup ? selectedChat._id : getDirectReceiverId(selectedChat)}`
     : 'none';
+  const activeChatData = resolveActiveChatData(
+    selectedChat,
+    currentGroupData,
+    isGroup
+  );
   selectedChatRef.current = selectedChat;
   const scrollMessagesToBottom = useCallback(
     (behavior: ScrollBehavior = 'auto') => {
@@ -3134,7 +3114,7 @@ export default function ChatArea({
     previousScrollHeightRef.current = 0;
     scrollMessagesToBottom('auto');
   }, [scrollMessagesToBottom]);
-  const activeConsoleChat = currentGroupData || selectedChat;
+  const activeConsoleChat = activeChatData;
   const isAstroConsoleChat = isAstroTradingDeskChat(
     activeConsoleChat,
     isGroup
@@ -3146,11 +3126,11 @@ export default function ChatArea({
   const { accessToken, user } = useUser();
   const queryClient = useQueryClient();
   const currentChatUser = useMemo(() => {
-    const chat = currentGroupData || selectedChat;
+    const chat = activeChatData;
     return chat?.participants?.find(
       (participant) => getObjectId(participant.userId?._id) === currentUser
     )?.userId;
-  }, [currentGroupData, currentUser, selectedChat]);
+  }, [activeChatData, currentUser]);
   const walletIdentityLabel = useMemo(
     () => getUserSwopIdLabel(user, currentChatUser),
     [currentChatUser, user]
@@ -4055,8 +4035,8 @@ export default function ChatArea({
   }, [selectedChat]);
 
   useEffect(() => {
-    currentGroupDataRef.current = currentGroupData;
-  }, [currentGroupData]);
+    currentGroupDataRef.current = activeChatData;
+  }, [activeChatData]);
 
   useEffect(() => {
     pendingPolymarketBetKeyRef.current = pendingPolymarketBetKey;
@@ -4516,7 +4496,7 @@ export default function ChatArea({
 
     const hasAstroMention = /(?:^|\s)@?astro\b/i.test(outgoingMessage);
     const isLocalChartCommand = isChartCommand(outgoingMessage);
-    const activeChat = currentGroupData || selectedChat;
+    const activeChat = activeChatData;
     const shouldAutoMentionAstro =
       isAstroTradingDeskChat(activeChat, isGroup) &&
       !hasAstroMention &&
@@ -4695,7 +4675,7 @@ export default function ChatArea({
     );
   }, [
     currentUser,
-    currentGroupData,
+    activeChatData,
     evmWalletAddress,
     evmWalletAddresses,
     getPolymarketIntentMarkets,
@@ -5544,7 +5524,7 @@ export default function ChatArea({
 
   const handleUpdateGoldmanAccessStation = useCallback(
     async (accessStation: GoldmanAccessStationInput) => {
-      const groupId = (currentGroupData || selectedChat)?._id;
+      const groupId = activeChatData?._id;
       if (!groupId) {
         throw new Error('Select the Goldman Sacks group before saving access.');
       }
@@ -5558,9 +5538,8 @@ export default function ChatArea({
       onChatUpdate?.();
     },
     [
-      currentGroupData,
+      activeChatData,
       onChatUpdate,
-      selectedChat,
       updateGroupAgentAccessStation,
       upsertGroupAgent,
     ]
@@ -5584,8 +5563,8 @@ export default function ChatArea({
     );
   }
 
-  // USE currentGroupData instead of selectedChat for display
-  const displayChat = isGroup ? currentGroupData : selectedChat;
+  // Prefer fresh group metadata only when it belongs to the selected thread.
+  const displayChat = activeChatData;
   const smartsiteHref = !isGroup ? getSmartsiteHref(displayChat) : null;
   const smartsiteAnchorAttrs = smartsiteHref
     ? getSmartsiteAnchorAttrs(smartsiteHref)
