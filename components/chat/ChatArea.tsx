@@ -3426,6 +3426,9 @@ export default function ChatArea({
   });
   const { data: perpsMarkets = [] } = useHyperliquidMarkets({
     enabled: shouldLoadAstroConsoleData,
+    // Chat needs quick context for tickets and snapshots; the full builder-DEX
+    // sweep is reserved for the dedicated Perps surfaces to avoid freezing chat.
+    includeBuilderDexes: false,
   });
   const perpsTrading = useHyperliquidTrading(perpsAgent.agentClient);
 
