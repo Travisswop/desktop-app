@@ -249,6 +249,54 @@ export function useRedeemPosition() {
     ]
   );
 
+  const signRedeemTypedData = useCallback(
+    async ({
+      domain,
+      types,
+      primaryType,
+      message,
+    }: {
+      domain: Record<string, unknown>;
+      types: Record<string, unknown[]>;
+      primaryType: string;
+      message: Record<string, unknown>;
+    }) => {
+      if (!eoaAddress || !walletClient) {
+        throw new Error("Wallet not connected.");
+      }
+
+      if (isEmbeddedPrivyWallet(eoaAddress)) {
+        try {
+          return await signTypedDataWithoutPopup({
+            domain,
+            types,
+            primaryType,
+            message: serializeForJson(message),
+          });
+        } catch (silentError) {
+          console.warn(
+            "Silent delegated redeem typed-data signing unavailable; falling back to wallet signing:",
+            silentError
+          );
+        }
+      }
+
+      return walletClient.signTypedData({
+        account: eoaAddress as `0x${string}`,
+        domain: domain as Parameters<typeof walletClient.signTypedData>[0]["domain"],
+        types: types as Parameters<typeof walletClient.signTypedData>[0]["types"],
+        primaryType,
+        message: message as Parameters<typeof walletClient.signTypedData>[0]["message"],
+      });
+    },
+    [
+      eoaAddress,
+      isEmbeddedPrivyWallet,
+      signTypedDataWithoutPopup,
+      walletClient,
+    ]
+  );
+
   const normalizeLegacyUsdcBalance = useCallback(
     async ({
       depositWalletAddress: sourceDepositWalletAddress,
@@ -402,7 +450,6 @@ export function useRedeemPosition() {
         });
 
         // Step 2: Sign using the active wallet version's required scheme.
-        const isEmbeddedWallet = isEmbeddedPrivyWallet(eoaAddress);
         let signature: `0x${string}`;
         if (redeemWalletType === "deposit") {
           if (!typedData.typedData || !typedData.deadline || !typedData.calls) {
@@ -419,26 +466,12 @@ export function useRedeemPosition() {
             })),
           };
 
-          signature = isEmbeddedWallet
-            ? await signTypedDataWithoutPopup({
-                domain: typedData.typedData.domain,
-                types: typedData.typedData.types,
-                primaryType: typedData.typedData.primaryType ?? "Batch",
-                message: serializeForJson(depositTypedDataMessage),
-              })
-            : await walletClient.signTypedData({
-                account: eoaAddress as `0x${string}`,
-                domain: typedData.typedData.domain as Parameters<
-                  typeof walletClient.signTypedData
-                >[0]["domain"],
-                types: typedData.typedData.types as Parameters<
-                  typeof walletClient.signTypedData
-                >[0]["types"],
-                primaryType: typedData.typedData.primaryType ?? "Batch",
-                message: depositTypedDataMessage as Parameters<
-                  typeof walletClient.signTypedData
-                >[0]["message"],
-              });
+          signature = await signRedeemTypedData({
+            domain: typedData.typedData.domain,
+            types: typedData.typedData.types,
+            primaryType: typedData.typedData.primaryType ?? "Batch",
+            message: depositTypedDataMessage,
+          });
         } else {
           if (!typedData.txHash) {
             throw new Error("Redeem signing hash is missing.");
@@ -528,10 +561,9 @@ export function useRedeemPosition() {
       accessToken,
       walletType,
       depositWalletAddress,
-      isEmbeddedPrivyWallet,
       queryClient,
       signSafeTxHash,
-      signTypedDataWithoutPopup,
+      signRedeemTypedData,
       normalizeLegacyUsdcBalance,
     ]
   );
