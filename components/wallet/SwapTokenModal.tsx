@@ -24,7 +24,11 @@ import {
   fetchTokensFromLiFi,
   getLifiQuote as fetchLifiQuote,
 } from '@/actions/lifiForTokenSwap';
-import { getJupiterBuild as fetchJupiterBuild } from '@/actions/jupiterSwap';
+import {
+  getJupiterBuild as fetchJupiterBuild,
+  getSolanaSponsorPayer,
+} from '@/actions/jupiterSwap';
+import { sponsorSolanaTransaction } from '@/actions/sponsorSolanaTransaction';
 import { notifySwapFee } from '@/actions/notifySwapFee';
 import {
   usePrivy,
@@ -3513,6 +3517,22 @@ export default function SwapTokenModal({
         );
       }
 
+      let sponsorPayerAddress: string | null = null;
+      setSwapStatus('Preparing gas sponsorship...');
+      const sponsorPayerResult = await getSolanaSponsorPayer();
+      if (
+        sponsorPayerResult.success &&
+        normalizeWalletAddress(sponsorPayerResult.address) !==
+          normalizeWalletAddress(selectedSolanaWallet.address)
+      ) {
+        sponsorPayerAddress = sponsorPayerResult.address;
+      } else if (!sponsorPayerResult.success) {
+        console.warn(
+          'Solana sponsor payer unavailable; falling back to wallet/Privy sponsorship:',
+          sponsorPayerResult.error,
+        );
+      }
+
       {
         const [inputTokenProgram, outputTokenProgram] =
           await Promise.all([
@@ -3536,6 +3556,7 @@ export default function SwapTokenModal({
           outputMint,
           amount: amountInSmallestUnit,
           taker: selectedSolanaWallet.address,
+          payer: sponsorPayerAddress ?? undefined,
           slippageBps: Math.floor(slippage * 100),
           mode: 'fast',
           platformFeeBps: PLATFORM_FEE_BPS,
@@ -3562,11 +3583,12 @@ export default function SwapTokenModal({
 
         setSwapStatus('Simulating Jupiter swap...');
         let computeUnitLimit = JUPITER_MAX_COMPUTE_UNITS;
-        if (canRunUserFundedSimulation) {
+        if (canRunUserFundedSimulation || sponsorPayerAddress) {
           try {
             const simulationTx = buildJupiterVersionedTransaction({
               build,
-              feePayer: selectedSolanaWallet.address,
+              feePayer:
+                sponsorPayerAddress || selectedSolanaWallet.address,
               computeUnitLimit: JUPITER_MAX_COMPUTE_UNITS,
             });
             const simulation = await connection.simulateTransaction(
@@ -3608,23 +3630,45 @@ export default function SwapTokenModal({
 
         const tx = buildJupiterVersionedTransaction({
           build,
-          feePayer: selectedSolanaWallet.address,
+          feePayer:
+            sponsorPayerAddress || selectedSolanaWallet.address,
           computeUnitLimit,
         });
 
         await safeRefreshSession();
 
         const serializedTransaction = new Uint8Array(tx.serialize());
-        const txId = await submitSolanaTransactionWithFallback({
-          serializedTransaction,
-          wallet: selectedSolanaWallet,
-          connection,
-          canUseUserFundedFallback: canRunUserFundedSimulation,
-          sponsoredStatus: 'Submitting sponsored Jupiter swap...',
-          userFundedStatus:
-            'Gas sponsorship unavailable; signing Jupiter swap...',
-          context: 'Jupiter swap',
-        });
+        let txId: string;
+        if (sponsorPayerAddress) {
+          setSwapStatus('Signing Jupiter swap...');
+          const { signedTransaction } = await signTransaction({
+            transaction: serializedTransaction,
+            wallet: selectedSolanaWallet,
+            options: {
+              uiOptions: { showWalletUIs: false },
+            },
+          });
+
+          setSwapStatus('Submitting sponsored Jupiter swap...');
+          const sponsorResult = await sponsorSolanaTransaction(
+            Buffer.from(signedTransaction).toString('base64'),
+          );
+          if (!sponsorResult.success) {
+            throw new Error(sponsorResult.error);
+          }
+          txId = sponsorResult.signature;
+        } else {
+          txId = await submitSolanaTransactionWithFallback({
+            serializedTransaction,
+            wallet: selectedSolanaWallet,
+            connection,
+            canUseUserFundedFallback: canRunUserFundedSimulation,
+            sponsoredStatus: 'Submitting sponsored Jupiter swap...',
+            userFundedStatus:
+              'Gas sponsorship unavailable; signing Jupiter swap...',
+            context: 'Jupiter swap',
+          });
+        }
 
         setTxHash(txId);
         setSwapStatus('Transaction submitted!');

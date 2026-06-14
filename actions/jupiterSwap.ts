@@ -1,10 +1,13 @@
 'use server';
 
+import { PrivyClient } from '@privy-io/node';
+
 interface JupiterBuildParams {
   inputMint: string;
   outputMint: string;
   amount: string;
   taker: string;
+  payer?: string;
   slippageBps: number;
   platformFeeBps?: number;
   feeAccount?: string;
@@ -44,6 +47,16 @@ type JupiterQuoteEndpoint = {
 const JUPITER_QUOTE_TIMEOUT_MS = 8_000;
 
 const getJupiterApiKey = () => process.env.JUPITER_API_KEY?.trim();
+const getPrivyAppId = () =>
+  process.env.PRIVY_APP_ID?.trim() ||
+  process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
+const getPrivyAppSecret = () => process.env.PRIVY_APP_SECRET?.trim();
+const getPrivySponsorWalletId = () =>
+  process.env.PRIVY_SIGNER_WALLET_ID?.trim() ||
+  process.env.NEXT_PUBLIC_PRIVY_SIGNER_WALLET_ID?.trim();
+const getPrivySponsorWalletAddress = () =>
+  process.env.PRIVY_SIGNER_WALLET_ADDRESS?.trim() ||
+  process.env.NEXT_PUBLIC_PRIVY_SIGNER_WALLET_ADDRESS?.trim();
 
 const getJupiterApiHeaders = (includeApiKey = false) => {
   const headers: Record<string, string> = {
@@ -189,6 +202,59 @@ export const getJupiterQuote = async (params: JupiterQuoteParams) => {
   }
 };
 
+export const getSolanaSponsorPayer = async (): Promise<
+  | { success: true; address: string; walletId: string }
+  | { success: false; error: string }
+> => {
+  const walletId = getPrivySponsorWalletId();
+  if (!walletId) {
+    return {
+      success: false,
+      error: 'Solana sponsor wallet is not configured.',
+    };
+  }
+
+  const configuredAddress = getPrivySponsorWalletAddress();
+  if (configuredAddress) {
+    return { success: true, address: configuredAddress, walletId };
+  }
+
+  const appId = getPrivyAppId();
+  const appSecret = getPrivyAppSecret();
+  if (!appId || !appSecret) {
+    return {
+      success: false,
+      error:
+        'Privy server credentials are not configured for the sponsor wallet.',
+    };
+  }
+
+  try {
+    const privy = new PrivyClient({ appId, appSecret });
+    const wallet = await privy.wallets().get(walletId);
+    if (!wallet?.address) {
+      return {
+        success: false,
+        error: 'Privy sponsor wallet did not return an address.',
+      };
+    }
+    if (wallet.chain_type && wallet.chain_type !== 'solana') {
+      return {
+        success: false,
+        error: 'Configured sponsor wallet is not a Solana wallet.',
+      };
+    }
+    return { success: true, address: wallet.address, walletId };
+  } catch (error: any) {
+    console.error('Failed to resolve Solana sponsor wallet:', error);
+    return {
+      success: false,
+      error:
+        error?.message || 'Failed to resolve Solana sponsor wallet.',
+    };
+  }
+};
+
 export const getJupiterBuild = async (params: JupiterBuildParams) => {
   try {
     const {
@@ -196,6 +262,7 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
       outputMint,
       amount,
       taker,
+      payer,
       slippageBps: slippageBpsParam,
       platformFeeBps = 50,
       feeAccount,
@@ -216,6 +283,9 @@ export const getJupiterBuild = async (params: JupiterBuildParams) => {
     if (mode) searchParams.set('mode', mode);
     if (instructionVersion) {
       searchParams.set('instructionVersion', instructionVersion);
+    }
+    if (payer && payer !== taker) {
+      searchParams.set('payer', payer);
     }
 
     // platformFeeBps requires feeAccount — only include both together
