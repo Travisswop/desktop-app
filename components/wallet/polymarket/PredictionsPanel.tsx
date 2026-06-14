@@ -60,6 +60,10 @@ import {
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
 import {
+  displaySideForMarket,
+  type PredictionSideDisplay,
+} from '@/lib/polymarket/side-labels';
+import {
   groupFlatMarketsIntoGames,
   isValidGameCard,
   type GroupedMarket,
@@ -862,6 +866,7 @@ export default function PredictionsPanel({
                 isSubmitting={isSubmitting}
                 canTrade={!!clobClient}
                 portfolioAddresses={portfolioAddresses}
+                teamsMap={teamsData}
                 onSeeHistory={() => setView('history')}
                 onClaimedWinClick={(trade) =>
                   navigateToMarket(tradeToDetailMarket(trade), {
@@ -875,6 +880,7 @@ export default function PredictionsPanel({
             {view === 'history' && portfolioAddresses.length > 0 && (
               <BetHistoryView
                 safeAddress={portfolioAddresses}
+                teamsMap={teamsData}
                 onMarketClick={(trade) =>
                   navigateToMarket(tradeToDetailMarket(trade), {
                     initialOutcome:
@@ -1264,12 +1270,13 @@ function OpenOrdersView({
 
 type BetStatusKey = 'live' | 'pending' | 'redeemable' | 'settled';
 type BetStatusFilter = BetStatusKey | 'all';
+type ClaimedWinSideDisplay = PredictionSideDisplay | '—';
 
 interface BetRow {
   position: PolymarketPosition;
   statusKey: BetStatusKey;
   statusLabel: string;
-  side: 'YES' | 'NO';
+  side: PredictionSideDisplay;
   staked: number;
   value: number;
   pnl: number;
@@ -1282,7 +1289,7 @@ interface ClaimedWinRow {
   key: string;
   title: string;
   outcome: string;
-  side: 'YES' | 'NO' | '—';
+  side: ClaimedWinSideDisplay;
   icon?: string;
   amount: number;
   timestamp?: number;
@@ -1291,7 +1298,16 @@ interface ClaimedWinRow {
   trade?: TradeActivity;
 }
 
-function deriveBetRow(p: PolymarketPosition): BetRow {
+function predictionSideTone(side: PredictionSideDisplay) {
+  if (side === 'YES') return { bg: POS_GREEN_SOFT, fg: POS_GREEN };
+  if (side === 'NO') return { bg: NEG_RED_SOFT, fg: NEG_RED };
+  return { bg: SURFACE2, fg: MUTED };
+}
+
+function deriveBetRow(
+  p: PolymarketPosition,
+  teamsMap: TeamsMap | undefined,
+): BetRow {
   const claimable = hasRedeemablePayout(p);
   const redeemValue = getRedeemablePayout(p);
   let statusKey: BetStatusKey;
@@ -1309,7 +1325,15 @@ function deriveBetRow(p: PolymarketPosition): BetRow {
     statusKey = 'live';
     statusLabel = 'OPEN';
   }
-  const side: 'YES' | 'NO' = p.outcomeIndex === 0 ? 'YES' : 'NO';
+  const side = displaySideForMarket(
+    {
+      title: p.title,
+      outcome: p.outcome,
+      eventSlug: p.eventSlug,
+      teamsMap,
+    },
+    p.outcomeIndex,
+  );
   const staked = p.initialValue || p.size * p.avgPrice;
   const value =
     p.redeemable && claimable ? redeemValue : p.currentValue;
@@ -1384,6 +1408,7 @@ function claimedTradeRowKey(trade: TradeActivity): string {
 function deriveClaimedWinRows(
   pendingRedemptions: PendingRedemptionSnapshot[],
   claimedTrades: TradeActivity[],
+  teamsMap: TeamsMap | undefined,
 ): ClaimedWinRow[] {
   const seenKeys = new Set<string>();
   const pendingTxKeys = new Set<string>();
@@ -1400,7 +1425,17 @@ function deriveClaimedWinRows(
       key: txKey ?? assetKey,
       title: item.title,
       outcome: item.outcome,
-      side: '—',
+      side: item.position
+        ? displaySideForMarket(
+            {
+              title: item.title,
+              outcome: item.outcome,
+              eventSlug: item.position.eventSlug,
+              teamsMap,
+            },
+            item.position.outcomeIndex,
+          )
+        : '—',
       amount: item.amount,
       timestamp: item.submittedAt,
       source: 'pending',
@@ -1427,7 +1462,15 @@ function deriveClaimedWinRows(
       key: rowKey,
       title: trade.title,
       outcome: trade.outcome,
-      side: trade.outcomeIndex === 0 ? 'YES' : 'NO',
+      side: displaySideForMarket(
+        {
+          title: trade.title,
+          outcome: trade.outcome,
+          eventSlug: trade.eventSlug,
+          teamsMap,
+        },
+        trade.outcomeIndex,
+      ),
       icon: trade.icon,
       amount: tradeAmount(trade),
       timestamp: trade.timestamp,
@@ -1490,8 +1533,8 @@ const BET_STATUS_TONE: Record<
   settled: { bg: SURFACE2, fg: MUTED },
 };
 
-const BETS_GRID = '90px minmax(0,1.4fr) 60px 70px 80px 100px 140px';
-const CLAIMED_WINS_GRID = '90px minmax(0,1.5fr) 70px 110px 110px';
+const BETS_GRID = '90px minmax(0,1.4fr) 118px 70px 80px 100px 140px';
+const CLAIMED_WINS_GRID = '90px minmax(0,1.5fr) 118px 110px 110px';
 
 function formatRedeemError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -1528,6 +1571,7 @@ interface MyBetsViewProps {
   isSubmitting: boolean;
   canTrade: boolean;
   portfolioAddresses: string[];
+  teamsMap?: TeamsMap;
   onSeeHistory: () => void;
   onClaimedWinClick: (trade: TradeActivity) => void;
 }
@@ -1545,6 +1589,7 @@ function MyBetsView({
   isSubmitting,
   canTrade,
   portfolioAddresses,
+  teamsMap,
   onSeeHistory,
   onClaimedWinClick,
 }: MyBetsViewProps) {
@@ -1565,13 +1610,21 @@ function MyBetsView({
   );
 
   const rows = useMemo(
-    () => [...actionable, ...redeemable].map(deriveBetRow),
-    [actionable, redeemable],
+    () =>
+      [...actionable, ...redeemable].map((position) =>
+        deriveBetRow(position, teamsMap),
+      ),
+    [actionable, redeemable, teamsMap],
   );
 
   const claimedWinRows = useMemo(
-    () => deriveClaimedWinRows(pendingRedemptions, claimedTrades),
-    [claimedTrades, pendingRedemptions],
+    () =>
+      deriveClaimedWinRows(
+        pendingRedemptions,
+        claimedTrades,
+        teamsMap,
+      ),
+    [claimedTrades, pendingRedemptions, teamsMap],
   );
 
   const counts = useMemo(() => {
@@ -2025,10 +2078,7 @@ function BetTableRow({
     redeemValue,
   } = row;
   const tone = BET_STATUS_TONE[statusKey];
-  const sideTone =
-    side === 'YES'
-      ? { bg: POS_GREEN_SOFT, fg: POS_GREEN }
-      : { bg: NEG_RED_SOFT, fg: NEG_RED };
+  const sideStyle = predictionSideTone(side);
   const pnlColor =
     pnl > 0.005 ? POS_GREEN : pnl < -0.005 ? NEG_RED : MUTED;
   const pnlSign = pnl > 0.005 ? '+' : pnl < -0.005 ? '−' : '';
@@ -2150,8 +2200,8 @@ function BetTableRow({
         <span
           className="inline-block text-[10px] font-bold tracking-[0.6px] px-2 py-[3px] rounded-full"
           style={{
-            background: sideTone.bg,
-            color: sideTone.fg,
+            background: sideStyle.bg,
+            color: sideStyle.fg,
             fontFamily: MONO,
           }}
         >
@@ -2229,12 +2279,15 @@ interface HistoryRow {
   trade: TradeActivity;
   statusKey: HistoryStatusKey;
   statusLabel: string;
-  side: 'YES' | 'NO';
+  side: PredictionSideDisplay;
   signedAmount: number;
   amount: number;
 }
 
-function deriveHistoryRow(trade: TradeActivity): HistoryRow {
+function deriveHistoryRow(
+  trade: TradeActivity,
+  teamsMap: TeamsMap | undefined,
+): HistoryRow {
   const amount =
     trade.usdcSize != null && Number.isFinite(trade.usdcSize)
       ? Number(trade.usdcSize)
@@ -2257,7 +2310,15 @@ function deriveHistoryRow(trade: TradeActivity): HistoryRow {
   }
   // Cash-flow direction — buys are outflow, everything else is inflow.
   const signedAmount = isBuy ? -amount : amount;
-  const side: 'YES' | 'NO' = trade.outcomeIndex === 0 ? 'YES' : 'NO';
+  const side = displaySideForMarket(
+    {
+      title: trade.title,
+      outcome: trade.outcome,
+      eventSlug: trade.eventSlug,
+      teamsMap,
+    },
+    trade.outcomeIndex,
+  );
   return {
     trade,
     statusKey,
@@ -2300,13 +2361,15 @@ const STATUS_TONE: Record<
   other: { bg: SURFACE2, fg: MUTED },
 };
 
-const HISTORY_GRID = '110px minmax(0,1.6fr) 70px 80px 90px 100px';
+const HISTORY_GRID = '110px minmax(0,1.6fr) 118px 80px 90px 100px';
 
 function BetHistoryView({
   safeAddress,
+  teamsMap,
   onMarketClick,
 }: {
   safeAddress: string | string[];
+  teamsMap?: TeamsMap;
   onMarketClick: (trade: TradeActivity) => void;
 }) {
   const [statusFilter, setStatusFilter] =
@@ -2320,7 +2383,10 @@ function BetHistoryView({
     sort: 'DESC',
   });
 
-  const rows = useMemo(() => trades.map(deriveHistoryRow), [trades]);
+  const rows = useMemo(
+    () => trades.map((trade) => deriveHistoryRow(trade, teamsMap)),
+    [trades, teamsMap],
+  );
 
   const counts = useMemo(() => {
     const c: Record<HistoryStatusKey, number> = {
@@ -2593,10 +2659,7 @@ function HistoryTableRow({
     amount,
   } = row;
   const tone = STATUS_TONE[statusKey];
-  const sideTone =
-    side === 'YES'
-      ? { bg: POS_GREEN_SOFT, fg: POS_GREEN }
-      : { bg: NEG_RED_SOFT, fg: NEG_RED };
+  const sideStyle = predictionSideTone(side);
   const amountColor =
     signedAmount > 0.005
       ? POS_GREEN
@@ -2666,8 +2729,8 @@ function HistoryTableRow({
         <span
           className="inline-block text-[10px] font-bold tracking-[0.6px] px-2 py-[3px] rounded-full"
           style={{
-            background: sideTone.bg,
-            color: sideTone.fg,
+            background: sideStyle.bg,
+            color: sideStyle.fg,
             fontFamily: MONO,
           }}
         >
