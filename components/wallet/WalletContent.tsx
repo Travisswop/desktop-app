@@ -843,6 +843,16 @@ const WalletContentInner = () => {
       ) ?? directSolanaWallets[0]
     );
   }, [solanaReady, directSolanaWallets, solWalletAddress]);
+  // Market swaps need balances for the wallet Privy can sign with, even when
+  // the portfolio is showing a stored/read-only Solana address.
+  const swapSolWalletAddress =
+    selectedSolanaWallet?.address || solWalletAddress;
+  const swapSolWalletDiffersFromPortfolio = Boolean(
+    selectedSolanaWallet?.address &&
+      solWalletAddress &&
+      selectedSolanaWallet.address.toLowerCase() !==
+        solWalletAddress.toLowerCase(),
+  );
   const perpsMasterAddress =
     evmWalletAddress || hlAgent.masterAddress || null;
 
@@ -1013,6 +1023,27 @@ const WalletContentInner = () => {
     portfolioEvmWalletInput,
     SUPPORTED_CHAINS,
   );
+  const {
+    tokens: swapTokens,
+    refetch: refetchSwapTokens,
+  } = useMultiChainTokenData(
+    swapSolWalletAddress,
+    portfolioEvmWalletInput,
+    SUPPORTED_CHAINS,
+  );
+  const marketSwapTokens = swapSolWalletDiffersFromPortfolio
+    ? swapTokens
+    : tokens;
+  const refetchMarketSwapTokens = useCallback(() => {
+    void refetchTokens();
+    if (swapSolWalletDiffersFromPortfolio) {
+      void refetchSwapTokens();
+    }
+  }, [
+    refetchSwapTokens,
+    refetchTokens,
+    swapSolWalletDiffersFromPortfolio,
+  ]);
 
   const {
     nfts,
@@ -2013,10 +2044,10 @@ const WalletContentInner = () => {
             caption="Trade tokens at the best route · limit orders"
           />
           <WalletSwapSection
-            tokens={tokens}
+            tokens={marketSwapTokens}
             accessToken={accessToken}
-            onTokenRefresh={refetchTokens}
-            solWalletAddress={solWalletAddress}
+            onTokenRefresh={refetchMarketSwapTokens}
+            solWalletAddress={swapSolWalletAddress}
             evmWalletAddress={evmWalletAddress}
             chains={SUPPORTED_CHAINS}
           />
@@ -2226,8 +2257,8 @@ const WalletContentInner = () => {
                 </button>
               </div>
               <SwapTokenModal
-                tokens={tokens}
-                preferredSolanaWalletAddress={solWalletAddress}
+                tokens={marketSwapTokens}
+                preferredSolanaWalletAddress={swapSolWalletAddress}
                 defaultReceiveToken={{
                   symbol: 'USDC',
                   name: 'USD Coin',
