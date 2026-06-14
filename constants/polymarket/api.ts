@@ -30,6 +30,11 @@ export const POLYMARKET_BACKEND_URL = (
   'https://polymarket.apiswop.co'
 ).replace(/\/$/, '');
 
+// Same-origin proxy for browser calls into the Polymarket backend. This keeps
+// local, ngrok, and production browser origins from depending on direct access
+// to the backend host.
+export const POLYMARKET_BACKEND_PROXY_URL = '/api/polymarket/backend';
+
 // Remote builder signing — still required by the RelayClient (Safe/relayer operations).
 // In CLOB V2, CLOB order attribution uses builderCode in the order struct instead.
 export const REMOTE_SIGNING_URL = () =>

@@ -14,7 +14,7 @@ import {
   CTF_CONTRACT_ADDRESS,
   POLLING_DURATION,
   POLLING_INTERVAL,
-  POLYMARKET_BACKEND_URL,
+  POLYMARKET_BACKEND_PROXY_URL,
   USDC_E_DECIMALS,
 } from '@/constants/polymarket';
 import { createPollingInterval } from '@/lib/polymarket/polling';
@@ -93,7 +93,7 @@ export type OrderSubmitResult = {
   transactionHashes?: string[];
 };
 
-const backendBase = () => `${POLYMARKET_BACKEND_URL}/api/prediction-markets`;
+const backendBase = () => POLYMARKET_BACKEND_PROXY_URL;
 const swopApiBase = () => (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 const delegatedSignerId =
   process.env.NEXT_PUBLIC_PRIVY_DELEGATED_SIGNER_ID ||

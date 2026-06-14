@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useUser } from "@/lib/UserContext";
 import { usePolymarketWallet } from "@/providers/polymarket";
-import { POLYMARKET_BACKEND_URL } from "@/constants/polymarket";
+import { POLYMARKET_BACKEND_PROXY_URL } from "@/constants/polymarket";
 import {
   getDeployTypedData,
   submitDeploySignature,
@@ -19,7 +19,7 @@ export function useSafeDeployment(eoaAddress?: string) {
     }
     let cancelled = false;
     fetch(
-      `${POLYMARKET_BACKEND_URL}/api/prediction-markets/safe-address?eoa=${encodeURIComponent(eoaAddress)}`
+      `${POLYMARKET_BACKEND_PROXY_URL}/safe-address?eoa=${encodeURIComponent(eoaAddress)}`
     )
       .then((res) => res.json())
       .then((data) => {

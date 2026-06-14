@@ -8,7 +8,7 @@
  * share the same JWT_SECRET, so the same token works for both services.
  */
 
-import { POLYMARKET_BACKEND_URL } from "@/constants/polymarket";
+import { POLYMARKET_BACKEND_PROXY_URL } from "@/constants/polymarket";
 
 export interface ClobCredentials {
   key: string;
@@ -75,7 +75,7 @@ export interface DepositWalletApprovalTypedData {
   alreadyApproved?: boolean;
 }
 
-const base = () => `${POLYMARKET_BACKEND_URL}/api/prediction-markets`;
+const base = () => POLYMARKET_BACKEND_PROXY_URL;
 
 function authHeaders(accessToken: string) {
   return {

@@ -34,7 +34,7 @@ import { postFeed } from '@/actions/postFeed';
 import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
 import { useTrading } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import { POLYMARKET_BACKEND_URL } from '@/constants/polymarket';
+import { POLYMARKET_BACKEND_PROXY_URL } from '@/constants/polymarket';
 import { type PolymarketPosition } from '@/hooks/polymarket/useUserPositions';
 import {
   useClobOrder,
@@ -2016,7 +2016,7 @@ async function fetchPolymarketLiveQuote(
   tokenId: string
 ): Promise<PolymarketLiveQuote> {
   const response = await apiFetch(
-    `${POLYMARKET_BACKEND_URL}/api/prediction-markets/prices`,
+    `${POLYMARKET_BACKEND_PROXY_URL}/prices`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
