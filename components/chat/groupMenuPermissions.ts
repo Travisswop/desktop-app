@@ -76,7 +76,8 @@ export function getGroupMenuPermissions(
         'manage_members',
         'add_participants',
         'remove_participants',
-      ]),
+      ]) ||
+      hasLegacyPermissionShape,
     canEditInfo:
       isCreator ||
       isAdmin ||

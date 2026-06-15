@@ -63,7 +63,7 @@ describe('group menu permissions', () => {
     ).toBe(true);
   });
 
-  it('keeps backward-compatible edit access for legacy groups without permissions arrays', () => {
+  it('keeps backward-compatible member management for legacy groups without permissions arrays', () => {
     expect(
       getGroupMenuPermissions(
         {
@@ -77,7 +77,7 @@ describe('group menu permissions', () => {
         'user-1',
       ),
     ).toEqual({
-      canManageMembers: false,
+      canManageMembers: true,
       canEditInfo: true,
       canDelete: false,
     });
