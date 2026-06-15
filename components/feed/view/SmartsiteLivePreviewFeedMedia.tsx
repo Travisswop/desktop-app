@@ -7,6 +7,7 @@ import {
 } from "@nextui-org/react";
 import Image from "next/image";
 import React, { useState } from "react";
+import VisibilityPausedVideo from "./VisibilityPausedVideo";
 
 const SmartsiteLivePreviewFeedMedia = ({
   mediaFiles,
@@ -50,7 +51,7 @@ const SmartsiteLivePreviewFeedMedia = ({
                   />
                 </div>
               ) : (
-                <video
+                <VisibilityPausedVideo
                   src={mediaFiles[0].src}
                   controls
                   className={`w-full h-auto ${
@@ -81,7 +82,7 @@ const SmartsiteLivePreviewFeedMedia = ({
                       className="object-cover cursor-pointer"
                     />
                   ) : (
-                    <video
+                    <VisibilityPausedVideo
                       src={file.src}
                       controls
                       className="object-cover w-full h-full"
@@ -112,7 +113,7 @@ const SmartsiteLivePreviewFeedMedia = ({
                       className="object-cover cursor-pointer"
                     />
                   ) : (
-                    <video
+                    <VisibilityPausedVideo
                       src={file.src}
                       controls
                       className="object-cover w-full h-full"
@@ -143,7 +144,7 @@ const SmartsiteLivePreviewFeedMedia = ({
                       className="object-cover cursor-pointer"
                     />
                   ) : (
-                    <video
+                    <VisibilityPausedVideo
                       src={file.src}
                       controls
                       className="object-cover w-full h-full"

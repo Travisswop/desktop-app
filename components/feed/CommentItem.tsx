@@ -14,6 +14,7 @@ import DeleteFeedModal from "./DeleteFeedModal";
 import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
 import tipImg from "@/public/images/tip.png";
 import TipContentModal from "./TipContent";
+import VisibilityPausedVideo from "./view/VisibilityPausedVideo";
 
 dayjs.extend(relativeTime);
 
@@ -220,7 +221,7 @@ export default function CommentItem({
                   }}
                 >
                   {item.type === "video" ? (
-                    <video
+                    <VisibilityPausedVideo
                       src={item.src}
                       controls
                       className="w-full h-full object-cover"

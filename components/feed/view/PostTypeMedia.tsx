@@ -7,6 +7,7 @@ import {
 } from "@nextui-org/react";
 import Image from "next/image";
 import React, { useState } from "react";
+import VisibilityPausedVideo from "./VisibilityPausedVideo";
 
 const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
@@ -53,7 +54,7 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
     // Video rendering
     // Video rendering (non-single)
     return (
-      <video
+      <VisibilityPausedVideo
         key={`video-${index}`}
         src={file.src}
         controls
@@ -73,7 +74,7 @@ const PostTypeMedia = ({ mediaFiles, isFromRepost = false }: any) => {
         <source src={file.src} type="video/mp4" />
         <source src={file.src} type="video/webm" />
         <source src={file.src} type="video/ogg" />
-      </video>
+      </VisibilityPausedVideo>
     );
   };
 

@@ -11,6 +11,7 @@ import { HiOutlineGif } from "react-icons/hi2";
 import { motion } from "framer-motion";
 import { PiChartBarHorizontalBold } from "react-icons/pi";
 import { CharacterCounter } from "./view/CharacterCountCircle";
+import VisibilityPausedVideo from "./view/VisibilityPausedVideo";
 import feedNft from "@/public/images/feed_nft.png";
 import feedAI from "@/public/images/feed_AI.png";
 
@@ -72,7 +73,7 @@ const MediaPreview = ({
                   className="w-full h-auto"
                 />
               ) : (
-                <video
+                <VisibilityPausedVideo
                   src={mediaFiles[0].src}
                   controls
                   className="w-full h-auto max-h-[10rem] rounded-2xl"
@@ -107,7 +108,7 @@ const MediaPreview = ({
                       className="object-cover"
                     />
                   ) : (
-                    <video
+                    <VisibilityPausedVideo
                       src={file.src}
                       controls
                       className="object-cover w-full h-full"
@@ -144,7 +145,7 @@ const MediaPreview = ({
                       className="object-cover"
                     />
                   ) : (
-                    <video
+                    <VisibilityPausedVideo
                       src={file.src}
                       controls
                       className="object-cover w-full h-full"
@@ -181,7 +182,7 @@ const MediaPreview = ({
                       className="object-cover"
                     />
                   ) : (
-                    <video
+                    <VisibilityPausedVideo
                       src={file.src}
                       controls
                       className="object-cover w-full h-full"
