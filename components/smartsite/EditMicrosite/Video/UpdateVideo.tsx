@@ -11,6 +11,7 @@ import Image from 'next/image';
 import filePlaceholder from '@/public/images/placeholder-photo.png';
 import toast from 'react-hot-toast';
 import Cookies from 'js-cookie';
+import { isSmartSiteMutationSuccess } from '../smartsiteMutationResult';
 
 const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
   const [token, setToken] = useState('');
@@ -90,7 +91,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
 
         const data = await updateVideo(info, token);
 
-        if ((data.state = 'success')) {
+        if (isSmartSiteMutationSuccess(data)) {
           setOff();
           toast.success('Video updated successfully');
         } else {

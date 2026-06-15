@@ -22,6 +22,7 @@ import Cookies from "js-cookie";
 import { useEffect } from "react";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import { Loader } from "lucide-react";
+import { isSmartSiteMutationSuccess } from "../smartsiteMutationResult";
 
 const AddVideo = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state);
@@ -103,7 +104,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
         const data = await postVideo(info, token);
         // console.log("data", data);
 
-        if ((data.state = "success")) {
+        if (isSmartSiteMutationSuccess(data)) {
           toast.success("Video created successfully");
           handleRemoveIcon("Video");
         } else {

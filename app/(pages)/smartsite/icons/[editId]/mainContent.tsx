@@ -13,6 +13,7 @@ import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 import templates from '@/public/images/smartsite_icon/templates.png';
 import SmartsiteIconsParentProfileCard from '@/components/smartsite/SmartsiteIconsParentProfileCard';
+import { removePendingSmartSiteIcon } from '@/components/smartsite/EditMicrosite/smartsiteMutationResult';
 
 const MicrositeEditMainContentPage = ({ data }: any) => {
   const [toggleIcon, setToggleIcon] = useState<any>([]);
@@ -26,11 +27,10 @@ const MicrositeEditMainContentPage = ({ data }: any) => {
   const { isOn, setOff }: any = useSmallIconToggleStore();
   const iconData: any = useUpdateSmartIcon();
 
-  const handleRemoveIcon = (title: { title: string }) => {
-    const filteredIcon = toggleIcon.filter(
-      (data: any) => data != title
+  const handleRemoveIcon = (title: string) => {
+    setToggleIcon((icons: string[]) =>
+      removePendingSmartSiteIcon(icons, title)
     );
-    setToggleIcon(filteredIcon);
   };
 
   const handleToggleIcon = (title: string) => {

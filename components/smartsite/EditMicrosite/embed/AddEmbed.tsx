@@ -25,6 +25,7 @@ import toast from "react-hot-toast";
 import Cookies from "js-cookie";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import { Loader } from "lucide-react";
+import { isSmartSiteMutationSuccess } from "../smartsiteMutationResult";
 
 const AddEmbed = ({ handleRemoveIcon }: any) => {
   const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
@@ -72,7 +73,7 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
       const data = await postEmbedLink(embedInfo, token);
       // console.log("data", data);
 
-      if ((data.state = "success")) {
+      if (isSmartSiteMutationSuccess(data)) {
         toast.success("Embed created successfully");
         handleRemoveIcon("Embed");
       } else {
