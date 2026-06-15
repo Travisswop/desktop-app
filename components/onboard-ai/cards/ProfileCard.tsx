@@ -2,9 +2,15 @@
 
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import Image from "next/image";
-import { Loader2, Upload } from "lucide-react";
+import { CalendarDays, Loader2, Upload } from "lucide-react";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { useToast } from "@/hooks/use-toast";
+import { Calendar, type CalendarProps } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   AGENT_PANEL_CLASS,
   FieldLabel,
@@ -31,6 +37,66 @@ const dobToInput = (dob: string) =>
   dob ? new Date(Number(dob)).toISOString().split("T")[0] : "";
 const inputToDob = (value: string) =>
   value ? new Date(value).getTime().toString() : "";
+
+const inputToLocalDate = (value: string) => {
+  if (!value) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day);
+};
+
+const dateToInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const inputToDisplay = (value: string) => {
+  const date = inputToLocalDate(value);
+  return date
+    ? date.toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+      })
+    : "";
+};
+
+const BIRTHDAY_FROM_YEAR = 1900;
+
+const TERMINAL_CALENDAR_CLASS_NAMES: CalendarProps["classNames"] = {
+  months: "flex flex-col",
+  month: "space-y-3",
+  caption:
+    "relative flex min-h-12 items-center rounded-[10px] border border-[#3fe08f]/15 bg-black/65 px-2 py-2 pr-[76px]",
+  caption_dropdowns: "flex w-full items-center gap-2",
+  vhidden: "sr-only",
+  dropdown_month: "relative min-w-0 flex-1",
+  dropdown_year: "relative w-[86px] shrink-0",
+  dropdown: "absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0",
+  dropdown_icon: "ml-1 h-3 w-3 shrink-0 text-[#3fe08f]",
+  caption_label:
+    "dm-mono flex h-8 w-full items-center justify-between rounded-[8px] border border-[#3fe08f]/20 bg-[#050806] px-2 text-[11px] font-bold uppercase text-[#dfffee] transition",
+  nav: "absolute right-2 top-2 flex items-center gap-1",
+  nav_button:
+    "grid h-8 w-8 place-items-center rounded-[8px] border border-[#3fe08f]/20 bg-[#3fe08f]/10 p-0 text-[#3fe08f] opacity-85 transition hover:border-[#3fe08f]/50 hover:bg-[#3fe08f]/15 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3fe08f]/25",
+  nav_button_previous: "",
+  nav_button_next: "",
+  table: "w-full border-collapse",
+  head_row: "grid grid-cols-7",
+  head_cell:
+    "dm-mono grid h-8 place-items-center text-[10px] font-bold uppercase tracking-[0.14em] text-[#5a5e69]",
+  row: "mt-1 grid grid-cols-7 gap-1",
+  cell: "relative grid h-9 place-items-center",
+  day: "dm-mono grid h-8 w-8 place-items-center rounded-[8px] border border-transparent bg-transparent p-0 text-[12px] font-bold text-[#d7dce2] transition hover:border-[#3fe08f]/35 hover:bg-[#3fe08f]/10 hover:text-[#9df6c3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3fe08f]/35",
+  day_selected:
+    "border-[#3fe08f] bg-[#3fe08f] text-[#031008] shadow-[0_0_18px_rgba(63,224,143,0.35)] hover:bg-[#64f2aa] hover:text-[#031008]",
+  day_today: "border-[#3fe08f]/45 text-[#3fe08f]",
+  day_outside: "text-[#3d4149] opacity-50",
+  day_disabled: "text-[#343841] opacity-30",
+  day_hidden: "invisible",
+};
 
 /** Resolve a profilePic value (avatar id or full URL) to an <img> src. */
 const resolveAvatarSrc = (profilePic: string) =>
@@ -62,6 +128,7 @@ export default function ProfileCard({
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [values, setValues] = useState<ProfileCardValues>({
     name: initial.name || "",
     bio: initial.bio || "",
@@ -74,6 +141,12 @@ export default function ProfileCard({
 
   const set = (key: keyof ProfileCardValues) => (value: string) =>
     setValues((prev) => ({ ...prev, [key]: value }));
+
+  const birthdayInput = dobToInput(values.dob);
+  const selectedBirthday = inputToLocalDate(birthdayInput);
+  const today = new Date();
+  const defaultBirthdayMonth =
+    selectedBirthday ?? new Date(today.getFullYear() - 18, today.getMonth(), 1);
 
   const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -219,7 +292,7 @@ export default function ProfileCard({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -244,20 +317,74 @@ export default function ProfileCard({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <FieldLabel>
               Birthday <span className="text-[#3fe08f]">*</span>
             </FieldLabel>
-            <input
-              type="date"
-              max={new Date().toISOString().split("T")[0]}
-              value={dobToInput(values.dob)}
-              onChange={(e) => set("dob")(inputToDob(e.target.value))}
-              className={`${TICKET_FIELD_CLASS} [color-scheme:dark]`}
-              disabled={isSaving}
-              required
-            />
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  aria-label="Birthday"
+                  className={`${TICKET_FIELD_CLASS} group flex items-center justify-between gap-2 text-left`}
+                >
+                  <span
+                    className={
+                      birthdayInput ? "text-[#eceef2]" : "text-[#5a5e69]"
+                    }
+                  >
+                    {birthdayInput ? inputToDisplay(birthdayInput) : "MM/DD/YYYY"}
+                  </span>
+                  <CalendarDays className="h-4 w-4 shrink-0 text-[#3fe08f] transition group-hover:text-[#64f2aa]" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                sideOffset={8}
+                className="w-[min(360px,calc(100vw-2rem))] rounded-[14px] border border-[#3fe08f]/25 bg-[#050806] p-3 text-[#eceef2] shadow-[0_24px_80px_rgba(0,0,0,0.55),0_0_0_1px_rgba(63,224,143,0.08),0_0_42px_rgba(63,224,143,0.16)]"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(circle at 50% 0%, rgba(63,224,143,0.12), transparent 45%), repeating-linear-gradient(0deg, rgba(63,224,143,0.045) 0px, rgba(63,224,143,0.045) 1px, transparent 1px, transparent 24px)",
+                }}
+              >
+                <Calendar
+                  mode="single"
+                  selected={selectedBirthday}
+                  defaultMonth={defaultBirthdayMonth}
+                  fromYear={BIRTHDAY_FROM_YEAR}
+                  toYear={today.getFullYear()}
+                  toDate={today}
+                  disabled={{ after: today }}
+                  captionLayout="dropdown-buttons"
+                  initialFocus
+                  className="p-0"
+                  classNames={TERMINAL_CALENDAR_CLASS_NAMES}
+                  onSelect={(date) => {
+                    if (!date) return;
+                    set("dob")(inputToDob(dateToInput(date)));
+                    setCalendarOpen(false);
+                  }}
+                />
+                <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#3fe08f]/10 pt-3">
+                  <button
+                    type="button"
+                    disabled={!birthdayInput}
+                    onClick={() => {
+                      set("dob")("");
+                      setCalendarOpen(false);
+                    }}
+                    className="dm-mono rounded-[8px] border border-white/[0.08] bg-black px-3 py-2 text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#9aa0aa] transition hover:border-[#3fe08f]/30 hover:text-[#dfffee] disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    Clear
+                  </button>
+                  <span className="dm-mono truncate text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                    {birthdayInput || "No date selected"}
+                  </span>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           <div>
             <FieldLabel>Address</FieldLabel>
