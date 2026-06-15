@@ -5,6 +5,7 @@ export async function fetchUserInfo(id: string, token: string) {
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/desktop/user/${id}`,
       {
         method: "GET",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           authorization: `Bearer ${token}`,
@@ -25,6 +26,7 @@ export async function fetchAnalyticsInfo(token: string) {
       `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/analytics`,
       {
         method: "GET",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           authorization: `Bearer ${token}`,

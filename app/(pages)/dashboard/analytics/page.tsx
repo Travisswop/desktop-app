@@ -2,7 +2,6 @@ import {
   fetchAnalyticsInfo,
   fetchUserInfo,
 } from '@/actions/fetchDesktopUserData';
-import logger from '@/utils/logger';
 import { cookies } from 'next/headers';
 import AnalyticsContent from './_components/AnalyticsContent';
 
@@ -16,8 +15,10 @@ export default async function AnalyticsDashboard() {
   // console.log("cookie user id", userId);
 
   if (userId && token) {
-    const analyticsData = await fetchAnalyticsInfo(token);
-    const userData = await fetchUserInfo(userId, token);
+    const [analyticsData, userData] = await Promise.all([
+      fetchAnalyticsInfo(token),
+      fetchUserInfo(userId, token),
+    ]);
 
     return (
       <div className="bg-white p-6 rounded-xl">

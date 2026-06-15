@@ -1,6 +1,6 @@
 "use client";
-import { addDays, format, isSameDay, startOfWeek } from "date-fns";
 
+import { addDays, format, isSameDay, startOfWeek } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -21,12 +21,6 @@ import {
   YAxis,
 } from "recharts";
 
-interface Viewer {
-  name: string;
-  country: string;
-  device: string;
-}
-
 interface ViewData {
   day: string;
   date: string;
@@ -35,111 +29,62 @@ interface ViewData {
 
 interface ViewerDataEntry {
   createdAt: string;
-  viewerName: string;
-  micrositeName: string;
-  device: string;
-  country: string;
-  name?: string;
+  viewerName?: string;
+  micrositeName?: string;
+  device?: string;
+  country?: string;
 }
 
-const viewers: Viewer[] = [
-  { name: "Travis", country: "USA", device: "CPU" },
-  { name: "Salman", country: "Bangladesh", device: "Tablet" },
-  { name: "Neel", country: "Bangladesh", device: "Phone" },
-  { name: "Sadit", country: "India", device: "CPU" },
-  { name: "Abu", country: "UAE", device: "Tablet" },
-];
+function generateCurrentWeekData(): ViewData[] {
+  const startOfCurrentWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
 
-// const viewsData: ViewData[] = [
-//   { day: "Sat", views: 100 },
-//   { day: "Sun", views: 500 },
-//   { day: "Mon", views: 800 },
-//   { day: "Tue", views: 2000 },
-//   { day: "Wed", views: 1000 },
-//   { day: "Thu", views: 5000 },
-//   { day: "Fri", views: 10000 },
-// ];
+  return Array.from({ length: 7 }).map((_, index) => {
+    const date = addDays(startOfCurrentWeek, index);
+
+    return {
+      day: format(date, "EEE"),
+      date: format(date, "yyyy-MM-dd"),
+      views: 0,
+    };
+  });
+}
+
+function getWeeklyViewData(viewersData?: ViewerDataEntry[]): ViewData[] {
+  const weekData = generateCurrentWeekData();
+
+  viewersData?.forEach(({ createdAt }) => {
+    const createdAtDate = new Date(createdAt);
+
+    if (Number.isNaN(createdAtDate.getTime())) {
+      return;
+    }
+
+    weekData.forEach((dayData) => {
+      if (isSameDay(createdAtDate, new Date(dayData.date))) {
+        dayData.views += 1;
+      }
+    });
+  });
+
+  return weekData;
+}
 
 export default function ViewerAnalytics({
   viewersData,
 }: {
   viewersData?: ViewerDataEntry[];
 }) {
-  // const generateLastWeekData = (): ViewData[] => {
-  //   return Array.from({ length: 7 })
-  //     .map((_, index) => {
-  //       const date = subDays(new Date(), index);
-  //       return { day: format(date, "EEE"), views: 0 }; // EEE => "Mon", "Tue", etc.
-  //     })
-  //     .reverse();
-  // };
-
-  // // Process JSON data into last week's format
-  // const getWeeklyViewData = (data: typeof viewersData): ViewData[] => {
-  //   const lastWeekData = generateLastWeekData();
-
-  //   viewersData?.forEach((entry) => {
-  //     const createdAtDate = new Date(entry.createdAt);
-  //     lastWeekData.forEach((dayData) => {
-  //       if (
-  //         isSameDay(
-  //           createdAtDate,
-  //           subDays(new Date(), lastWeekData.indexOf(dayData))
-  //         )
-  //       ) {
-  //         dayData.views += 1; // Increment count if the date matches
-  //       }
-  //     });
-  //   });
-
-  //   return lastWeekData;
-  // };
-
-  // const viewsData: ViewData[] = getWeeklyViewData(viewersData);
-
-  const generateLastWeekData = (): ViewData[] => {
-    const startOfLastWeek = startOfWeek(new Date(), { weekStartsOn: 1 }); // Always start from Monday
-
-    return Array.from({ length: 7 }).map((_, index) => {
-      const date = addDays(startOfLastWeek, index);
-      return {
-        day: format(date, "EEE"),
-        date: format(date, "yyyy-MM-dd"),
-        views: 0,
-      };
-    });
-  };
-
-  const getWeeklyViewData = (
-    weeklyViewersData?: ViewerDataEntry[]
-  ): ViewData[] => {
-    const lastWeekData = generateLastWeekData();
-
-    weeklyViewersData?.forEach(({ createdAt }) => {
-      const createdAtDate = new Date(createdAt);
-
-      lastWeekData.forEach((dayData) => {
-        if (isSameDay(createdAtDate, new Date(dayData.date))) {
-          dayData.views += 1;
-        }
-      });
-    });
-
-    return lastWeekData;
-  };
-
-  const viewsData: ViewData[] = getWeeklyViewData(viewersData);
+  const viewsData = getWeeklyViewData(viewersData);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-      {/* Viewers List */}
+    <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg font-medium">List of Viewers</CardTitle>
         </CardHeader>
         <CardContent>
           {viewersData?.length ? (
-            <div className="">
+            <div>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -150,34 +95,30 @@ export default function ViewerAnalytics({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {viewersData?.slice(0, 6).map((viewer) => (
-                    <TableRow key={viewer.name}>
-                      <TableCell>{viewer.viewerName}</TableCell>
-                      <TableCell>{viewer.micrositeName}</TableCell>
-                      <TableCell>{viewer.device}</TableCell>
-                      <TableCell>{viewer.country}</TableCell>
+                  {viewersData.slice(0, 6).map((viewer, index) => (
+                    <TableRow key={`${viewer.createdAt}-${index}`}>
+                      <TableCell>{viewer.viewerName || "Unknown"}</TableCell>
+                      <TableCell>{viewer.micrositeName || "Unknown"}</TableCell>
+                      <TableCell>{viewer.device || "Unknown"}</TableCell>
+                      <TableCell>{viewer.country || "Unknown"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
           ) : (
-            <p className="text-center mt-20"> Viewers data not available</p>
+            <p className="mt-20 text-center">Viewers data not available</p>
           )}
         </CardContent>
       </Card>
 
-      {/* Views Chart */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-lg font-medium">Views Per Day</CardTitle>
-            {/* <p className="text-3xl font-bold mt-2">1155</p> */}
-          </div>
+          <CardTitle className="text-lg font-medium">Views Per Day</CardTitle>
           <Info className="h-5 w-5 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] mt-4">
+          <div className="mt-4 h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={viewsData}
@@ -207,6 +148,7 @@ export default function ViewerAnalytics({
                     if (value >= 1000) {
                       return `${value / 1000}k`;
                     }
+
                     return value;
                   }}
                 />

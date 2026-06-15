@@ -1,4 +1,5 @@
 "use client";
+
 import getAllSmartsitesIcon from "@/components/smartsite/retriveIconImage/getAllSmartsiteIcon";
 import getSmallIconImage from "@/components/smartsite/retriveIconImage/getSmallIconImage";
 import {
@@ -10,8 +11,9 @@ import {
 import { tintStyle } from "@/components/util/IconTintStyle";
 import isUrl from "@/lib/isUrl";
 import { Info, RefreshCw } from "lucide-react";
-import Image from "next/image";
-import { useState } from "react";
+import Image, { StaticImageData } from "next/image";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 interface MetricCardProps {
   value: number;
@@ -19,359 +21,474 @@ interface MetricCardProps {
   period: string;
 }
 
-interface AnalyticsContentProps {
-  userData: any;
-  analyticsData: any;
+interface AnalyticsData {
+  last30DaysMicrositeTaps?: number;
+  lifetimeMicrositeTaps?: number;
+  last30DaysConnections?: number;
+  last30DaysLeads?: number;
 }
 
+interface AnalyticsItem {
+  _id?: string;
+  active?: boolean;
+  totalTap?: number;
+  name?: string;
+  value?: string;
+  url?: string;
+  iconName?: string;
+  iconPath?: string;
+  group?: string;
+  buttonName?: string;
+  title?: string;
+  headline?: string;
+  link?: string;
+  description?: string;
+  image?: string;
+  coverPhoto?: string;
+  imageUrl?: string;
+  tokenUrl?: string;
+  videoUrl?: string;
+  type?: string;
+  mobileNo?: string;
+  email?: string;
+  address?: string;
+  websiteUrl?: string;
+  domain?: string;
+  ensData?: {
+    domain?: string;
+    name?: string;
+  };
+  mintName?: string;
+  symbol?: string;
+  tokenType?: string;
+  referralCode?: string;
+  itemName?: string;
+  templateId?: {
+    name?: string;
+    image?: string;
+  };
+}
+
+interface MicrositeInfo {
+  socialTop?: AnalyticsItem[];
+  socialLarge?: AnalyticsItem[];
+  infoBar?: AnalyticsItem[];
+  referral?: AnalyticsItem[];
+  redeemLink?: AnalyticsItem[];
+  blog?: AnalyticsItem[];
+  audio?: AnalyticsItem[];
+  video?: AnalyticsItem[];
+  videoUrl?: AnalyticsItem[];
+  contact?: AnalyticsItem[];
+  ensDomain?: AnalyticsItem[];
+  marketPlace?: AnalyticsItem[];
+}
+
+interface Microsite {
+  _id: string;
+  name?: string;
+  ens?: string;
+  profilePic?: string;
+  totalTap?: number;
+  info?: MicrositeInfo;
+}
+
+interface AnalyticsContentProps {
+  userData: {
+    microsites?: Microsite[];
+  } | null;
+  analyticsData: AnalyticsData | null;
+}
+
+type ImageSource = string | StaticImageData;
+
+const sections = [
+  { key: "socialTop", label: "Social Links" },
+  { key: "socialLarge", label: "Featured Links" },
+  { key: "infoBar", label: "Info Links" },
+  { key: "referral", label: "Referral Links" },
+  { key: "redeemLink", label: "Redeem Links" },
+  { key: "blog", label: "Blogs" },
+  { key: "audio", label: "Audio" },
+  { key: "video", label: "Videos" },
+  { key: "videoUrl", label: "Embeds" },
+  { key: "contact", label: "Contacts" },
+  { key: "ensDomain", label: "Domains" },
+  { key: "marketPlace", label: "Marketplace" },
+] as const;
+
+type SectionKey = (typeof sections)[number]["key"];
+
 const MetricCard = ({ value, label, period }: MetricCardProps) => (
-  <div className="flex flex-col items-center p-4 bg-white rounded-lg border border-gray-200">
-    <div className="flex items-center gap-2 mb-2">
+  <div className="flex flex-col items-center rounded-lg border border-gray-200 bg-white p-4 text-center">
+    <div className="mb-2 flex items-center gap-2">
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Info className="w-4 h-4 text-gray-400 cursor-pointer" />
+            <Info className="h-4 w-4 cursor-pointer text-gray-400" />
           </TooltipTrigger>
           <TooltipContent>
-            <p>{`You can see ${label} for ${period}`}</p>
+            <p>{`${label} for ${period}`}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </div>
     <div className="text-3xl font-bold text-gray-900">{value}</div>
     <div className="text-sm font-medium text-gray-600">{label}</div>
-    <div className="text-xs text-gray-400 mt-1">{period}</div>
+    <div className="mt-1 text-xs text-gray-400">{period}</div>
   </div>
 );
 
-const AnalyticsContent = ({
+function safeArray<T>(value?: T[] | null): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function toCount(value?: number) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function readableUrl(value: string) {
+  try {
+    const url = new URL(value);
+
+    if (url.hostname.includes("cloudinary.com")) {
+      return "Image asset";
+    }
+
+    return url.hostname.replace(/^www\./, "");
+  } catch {
+    return value;
+  }
+}
+
+function isReadableText(value?: string | null) {
+  const trimmed = value?.trim();
+
+  return Boolean(trimmed && !isUrl(trimmed));
+}
+
+function firstReadable(candidates: Array<string | undefined | null>) {
+  return candidates.find(isReadableText)?.trim();
+}
+
+function firstUrl(candidates: Array<string | undefined | null>) {
+  return candidates.find((value) => value?.trim() && isUrl(value.trim()))?.trim();
+}
+
+function itemLabel(item: AnalyticsItem, sectionKey: SectionKey) {
+  const common = [
+    item.buttonName,
+    item.title,
+    item.headline,
+    item.name,
+    item.value,
+    item.mintName,
+    item.symbol,
+    item.referralCode,
+    item.domain,
+    item.ensData?.domain,
+    item.ensData?.name,
+    item.templateId?.name,
+    item.itemName,
+    item.description,
+    item.iconName,
+  ];
+
+  const bySection: Record<SectionKey, Array<string | undefined | null>> = {
+    socialTop: [item.name, item.value, item.iconName],
+    socialLarge: [item.name, item.value, item.iconName],
+    infoBar: [item.buttonName, item.title, item.description],
+    referral: [item.buttonName, item.referralCode, item.description],
+    redeemLink: [item.mintName, item.symbol, item.tokenType, item.description],
+    blog: [item.title, item.headline, item.description],
+    audio: [item.name],
+    video: [item.title],
+    videoUrl: [item.title, item.type, item.videoUrl],
+    contact: [item.name, item.email, item.mobileNo, item.websiteUrl],
+    ensDomain: [item.domain, item.ensData?.domain, item.ensData?.name],
+    marketPlace: [item.itemName, item.templateId?.name],
+  };
+
+  const label = firstReadable([...bySection[sectionKey], ...common]);
+
+  if (label) {
+    return label;
+  }
+
+  const url = firstUrl([
+    item.url,
+    item.link,
+    item.tokenUrl,
+    item.websiteUrl,
+    item.videoUrl,
+    item.image,
+    item.coverPhoto,
+    item.imageUrl,
+    item.iconName,
+    item.templateId?.image,
+  ]);
+
+  return url ? readableUrl(url) : "Untitled item";
+}
+
+function itemImage(item: AnalyticsItem, sectionKey: SectionKey) {
+  if (sectionKey === "socialTop" && item.name) {
+    return getSmallIconImage(item.name, item.group) as ImageSource;
+  }
+
+  if (
+    (sectionKey === "socialLarge" || sectionKey === "infoBar") &&
+    item.iconName &&
+    !isUrl(item.iconName)
+  ) {
+    return getAllSmartsitesIcon(item.iconName) as ImageSource;
+  }
+
+  return firstUrl([
+    item.image,
+    item.coverPhoto,
+    item.imageUrl,
+    item.iconName,
+    item.templateId?.image,
+  ]);
+}
+
+function DetailIcon({
+  item,
+  sectionKey,
+}: {
+  item: AnalyticsItem;
+  sectionKey: SectionKey;
+}) {
+  const image = itemImage(item, sectionKey);
+  const shouldTint = sectionKey === "socialTop" && typeof image === "string";
+
+  if (image) {
+    return (
+      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-gray-100">
+        <Image
+          src={image}
+          alt=""
+          fill
+          sizes="36px"
+          className="object-cover"
+          quality={80}
+          style={shouldTint && !isUrl(image) ? tintStyle : undefined}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-100 text-xs font-semibold text-gray-500">
+      {item.name?.slice(0, 1) || item.buttonName?.slice(0, 1) || "-"}
+    </div>
+  );
+}
+
+function SmartsiteAvatar({ microsite }: { microsite: Microsite }) {
+  const profilePic = microsite.profilePic;
+  const src =
+    profilePic && isUrl(profilePic)
+      ? profilePic
+      : `/images/user_avator/${profilePic || "profile-1"}@3x.png`;
+
+  return (
+    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-blue-100">
+      <Image
+        src={src}
+        alt=""
+        width={96}
+        height={96}
+        className="h-full w-full object-cover"
+      />
+    </div>
+  );
+}
+
+export default function AnalyticsContent({
   userData,
   analyticsData,
-}: AnalyticsContentProps) => {
-  const [selectectedSmartsiteData, setSelectectedSmartsiteData] =
-    useState<any>(userData?.microsites?.[0]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+}: AnalyticsContentProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const microsites = useMemo(
+    () => safeArray(userData?.microsites),
+    [userData?.microsites]
+  );
+  const [selectedSmartsiteId, setSelectedSmartsiteId] = useState(
+    microsites[0]?._id || ""
+  );
 
-  console.log("selectectedSmartsiteData", selectectedSmartsiteData);
+  useEffect(() => {
+    if (!microsites.length) {
+      setSelectedSmartsiteId("");
+      return;
+    }
+
+    if (!microsites.some((microsite) => microsite._id === selectedSmartsiteId)) {
+      setSelectedSmartsiteId(microsites[0]._id);
+    }
+  }, [microsites, selectedSmartsiteId]);
+
+  const selectedSmartsite = useMemo(
+    () =>
+      microsites.find((microsite) => microsite._id === selectedSmartsiteId) ||
+      microsites[0],
+    [microsites, selectedSmartsiteId]
+  );
+
+  const detailSections = useMemo(
+    () =>
+      sections
+        .map((section) => ({
+          ...section,
+          items: safeArray(selectedSmartsite?.info?.[section.key]),
+        }))
+        .filter((section) => section.items.length > 0),
+    [selectedSmartsite]
+  );
 
   const metrics = [
     {
-      value: analyticsData?.last30DaysMicrositeTaps || 0,
+      value: toCount(analyticsData?.last30DaysMicrositeTaps),
       label: "Page Visit",
       period: "30 Days",
     },
     {
-      value: analyticsData?.lifetimeMicrositeTaps || 0,
+      value: toCount(analyticsData?.lifetimeMicrositeTaps),
       label: "Page Visit",
       period: "Life Time",
     },
     {
-      value: analyticsData?.last30DaysConnections || 0,
+      value: toCount(analyticsData?.last30DaysConnections),
       label: "Followers",
       period: "30 days",
     },
     {
-      value: analyticsData?.last30DaysLeads,
+      value: toCount(analyticsData?.last30DaysLeads),
       label: "Leads",
       period: "30 days",
     },
   ];
 
-  const handleClickSmartsite = (index: number) => {
-    const data = userData.microsites[index];
-    setSelectectedSmartsiteData(data);
-  };
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsRefreshing(false);
+  const handleRefresh = () => {
+    startTransition(() => {
+      router.refresh();
+    });
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Left Section - Analytics */}
-      <div className="lg:col-span-2 space-y-6">
-        {/* Header */}
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="space-y-6 lg:col-span-2">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-gray-900">Analytics</h1>
           <button
+            type="button"
             onClick={handleRefresh}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-            disabled={isRefreshing}
+            className="flex items-center gap-2 text-sm text-gray-600 transition-colors hover:text-gray-900 disabled:cursor-wait disabled:opacity-60"
+            disabled={isPending}
           >
             Refresh
-            <RefreshCw
-              className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
           </button>
         </div>
 
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {metrics.map((metric, index) => (
-            <MetricCard key={index} {...metric} />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {metrics.map((metric) => (
+            <MetricCard key={`${metric.label}-${metric.period}`} {...metric} />
           ))}
         </div>
 
-        {/* Smartsite Clicks Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="mb-4 text-lg font-semibold text-gray-900">
             Smartsite Clicks
           </h2>
           <div className="space-y-3">
-            {userData &&
-              userData.microsites.map((microsite: any, index: number) => (
-                <div
-                  key={microsite._id}
-                  className="flex items-center justify-between p-3 rounded-lg cursor-pointer shadow-small hover:shadow-medium"
-                  onClick={() => handleClickSmartsite(index)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                      {isUrl(microsite.profilePic) ? (
-                        <Image
-                          src={microsite.profilePic}
-                          alt="user image"
-                          className="w-full h-full rounded-full"
-                        />
-                      ) : (
-                        <Image
-                          src={`/images/user_avator/${microsite.profilePic}@3x.png`}
-                          alt="user image"
-                          width={320}
-                          height={320}
-                          className="w-full h-full rounded-full"
-                        />
-                      )}
+            {microsites.length ? (
+              microsites.map((microsite) => {
+                const isSelected = microsite._id === selectedSmartsite?._id;
+
+                return (
+                  <button
+                    key={microsite._id}
+                    type="button"
+                    className={`flex w-full items-center justify-between rounded-lg border p-3 text-left shadow-small transition hover:shadow-medium ${
+                      isSelected
+                        ? "border-gray-900 bg-gray-50"
+                        : "border-transparent bg-white"
+                    }`}
+                    onClick={() => setSelectedSmartsiteId(microsite._id)}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <SmartsiteAvatar microsite={microsite} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {microsite.name || "Untitled smartsite"}
+                        </p>
+                        {microsite.ens ? (
+                          <small className="block truncate text-gray-500">
+                            {microsite.ens}
+                          </small>
+                        ) : null}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">{microsite.name}</p>
-                      <small>{microsite.ens}</small>
+                    <div className="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
+                      {toCount(microsite.totalTap)}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="bg-black p-1 w-8 h-8 rounded-full flex items-center justify-center">
-                      <p className="text-white">{microsite.totalTap}</p>
-                    </div>
-                    {/* <button className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center">
-                          <span className="text-lg">›</span>
-                        </button> */}
-                  </div>
-                </div>
-              ))}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
+                No smartsites found.
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Right Section - User Profile & Social Links */}
       <div className="space-y-6">
-        {/* User Profile Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-900 text-center">
-            {selectectedSmartsiteData.name}
+        <div className="rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="text-center font-semibold text-gray-900">
+            {selectedSmartsite?.name || "Smartsite Details"}
           </h2>
           <hr className="-mx-6 mb-4 mt-4" />
 
-          {/* Social Links */}
-          <div className="space-y-3">
-            {selectectedSmartsiteData.info.socialTop.map((item: any, index: number) => (
-              <div
-                key={index}
-                className="flex items-center justify-between pb-3 border-b"
-              >
-                <div className="flex items-center gap-3">
-                  <Image
-                    src={getSmallIconImage(item.name, item.group) as any}
-                    alt="icon"
-                    style={tintStyle}
-                    className="w-5 h-auto"
-                    width={1200}
-                    height={1200}
-                    quality={100}
-                  />
-                  <span className="text-sm text-gray-700">{item.iconName}</span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">
-                  {item.totalTap}
-                </span>
-              </div>
-            ))}
-
-            {selectectedSmartsiteData.info.infoBar.map((item: any, index: number) => (
-              <div
-                key={index}
-                className="flex items-center justify-between pb-3 border-b"
-              >
-                <div className="flex items-center gap-3">
-                  {isUrl(item.iconName) ? (
-                    <div className="relative w-5 h-auto rounded-lg">
-                      <Image
-                        src={item.iconName}
-                        alt="icon"
-                        className="rounded-lg object-cover"
-                        quality={100}
-                        fill
-                      />
+          {detailSections.length ? (
+            <div className="space-y-5">
+              {detailSections.map((section) => (
+                <div key={section.key} className="space-y-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    {section.label}
+                  </h3>
+                  {section.items.map((item, index) => (
+                    <div
+                      key={item._id || `${section.key}-${index}`}
+                      className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <DetailIcon item={item} sectionKey={section.key} />
+                        <span className="min-w-0 truncate text-sm text-gray-700">
+                          {itemLabel(item, section.key)}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-sm font-medium text-gray-900">
+                        {toCount(item.totalTap)}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="w-5 h-auto rounded-lg">
-                      <Image
-                        src={getAllSmartsitesIcon(item.iconName) as any}
-                        alt="icon"
-                        className="rounded-lg"
-                        quality={100}
-                        width={320}
-                        height={320}
-                      />
-                    </div>
-                  )}
-                  <span className="text-sm text-gray-700">{item.iconName}</span>
+                  ))}
                 </div>
-                <span className="text-sm font-medium text-gray-900">
-                  {item.totalTap}
-                </span>
-              </div>
-            ))}
-            {selectectedSmartsiteData.info.socialLarge.map((item: any, index: number) => (
-              <div
-                key={index}
-                className="flex items-center justify-between pb-3 border-b"
-              >
-                <div className="flex items-center gap-3">
-                  {isUrl(item.iconName) ? (
-                    <div className="relative w-5 h-auto rounded-lg">
-                      <Image
-                        src={item.iconName}
-                        alt="icon"
-                        className="rounded-lg object-cover"
-                        quality={100}
-                        fill
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-5 h-auto rounded-lg">
-                      <Image
-                        src={getAllSmartsitesIcon(item.iconName) as any}
-                        alt="icon"
-                        className="rounded-lg"
-                        quality={100}
-                        width={320}
-                        height={320}
-                      />
-                    </div>
-                  )}
-                  <span className="text-sm text-gray-700">{item.iconName}</span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">
-                  {item.totalTap}
-                </span>
-              </div>
-            ))}
-            {selectectedSmartsiteData.info.blog.map((item: any, index: number) => (
-              <div
-                key={index}
-                className="flex items-center justify-between pb-3 border-b"
-              >
-                <div className="flex items-center gap-3">
-                  <Image
-                    src={item.image}
-                    alt={item.title}
-                    width={600}
-                    height={400}
-                    className="w-10 h-auto rounded-lg"
-                  />
-                  <span className="text-sm text-gray-700">
-                    {item.title.length > 50
-                      ? `${item.title.slice(0, 50)}...`
-                      : item.title}
-                  </span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">
-                  {item.totalTap}
-                </span>
-              </div>
-            ))}
-            {selectectedSmartsiteData.info.audio.map((item: any, index: number) => (
-              <div
-                key={index}
-                className="flex items-center justify-between pb-3 border-b"
-              >
-                <div className="flex items-center gap-3">
-                  <Image
-                    src={item.coverPhoto}
-                    alt="cover photo"
-                    width={120}
-                    height={60}
-                    className="w-10 h-auto rounded-md object-cover"
-                  />
-                  <span className="text-sm text-gray-700">
-                    {item.name.length > 50
-                      ? `${item.name.slice(0, 50)}...`
-                      : item.name}
-                  </span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">
-                  {item.totalTap}
-                </span>
-              </div>
-            ))}
-            {selectectedSmartsiteData.info.video.map((item: any, index: number) => (
-              <div
-                key={index}
-                className="flex items-center justify-between pb-3 border-b"
-              >
-                <div className="flex items-center gap-3">
-                  {/* <Image
-                    src={item.link}
-                    alt="cover photo"
-                    width={120}
-                    height={60}
-                    className="w-10 h-auto rounded-md object-cover"
-                  /> */}
-                  <div className="w-10 h-auto rounded-md"></div>
-                  <span className="text-sm text-gray-700">
-                    {item.title.length > 50
-                      ? `${item.title.slice(0, 50)}...`
-                      : item.title}
-                  </span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">
-                  {item.totalTap}
-                </span>
-              </div>
-            ))}
-            {selectectedSmartsiteData.info.contact.map((item: any, index: number) => (
-              <div
-                key={index}
-                className="flex items-center justify-between pb-3 border-b"
-              >
-                <div className="flex items-center gap-3">
-                  {/* <Image
-                    src={item.link}
-                    alt="cover photo"
-                    width={120}
-                    height={60}
-                    className="w-10 h-auto rounded-md object-cover"
-                  /> */}
-                  <div className="w-10 h-auto rounded-md"></div>
-                  <span className="text-sm text-gray-700">
-                    {item.name.length > 50
-                      ? `${item.name.slice(0, 50)}...`
-                      : item.name}
-                  </span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">
-                  {item.totalTap}
-                </span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
+              No tracked links yet.
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
-};
-
-export default AnalyticsContent;
+}
