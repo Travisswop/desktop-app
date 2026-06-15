@@ -59,6 +59,29 @@ describe('hyperliquid market identity', () => {
     );
   });
 
+  it('recovers the builder market from the live position when a stale close card only has the coin', () => {
+    const staleCardMarket = markets[0];
+    const liveMatchedPosition = {
+      coin: 'ETH',
+      dex: 'builder-dex',
+    };
+
+    const closeMarket =
+      hyperliquidMarketForPosition(markets, liveMatchedPosition) ||
+      staleCardMarket;
+
+    expect(closeMarket.index).toBe(110000);
+  });
+
+  it('does not fall back to the main market for an unmatched builder DEX position', () => {
+    expect(
+      hyperliquidMarketForPosition([markets[0]], {
+        coin: 'ETH',
+        dex: 'builder-dex',
+      })
+    ).toBeUndefined();
+  });
+
   it('normalizes DEX name case when matching a position to a market', () => {
     expect(
       hyperliquidMarketMatchesPosition(markets[1], {

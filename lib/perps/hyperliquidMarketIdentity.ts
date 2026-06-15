@@ -37,6 +37,8 @@ export function hyperliquidMarketForPosition(
   markets: HLMarket[],
   position: HyperliquidPositionIdentity
 ) {
+  const positionDex = normalizeHyperliquidDex(position.dex);
+
   if (
     typeof position.assetIndex === 'number' &&
     Number.isFinite(position.assetIndex)
@@ -47,9 +49,11 @@ export function hyperliquidMarketForPosition(
     if (indexedMarket) return indexedMarket;
   }
 
-  return (
-    markets.find((market) =>
-      hyperliquidMarketMatchesPosition(market, position)
-    ) || markets.find((market) => perpsCoinMatches(market.coin, position.coin))
+  const dexMatchedMarket = markets.find((market) =>
+    hyperliquidMarketMatchesPosition(market, position)
   );
+  if (dexMatchedMarket) return dexMatchedMarket;
+  if (positionDex) return undefined;
+
+  return markets.find((market) => perpsCoinMatches(market.coin, position.coin));
 }

@@ -16670,15 +16670,10 @@ function HyperliquidProposalFlowTicket({
           perpsCoinMatches(market.coin, coin)
       )
     : undefined;
-  const selectedMarket =
+  const candidateSelectedMarket =
     requestedIndexMarket ||
     requestedDexMarket ||
     perpsMarketForCoin(astroConsoleData.perpsMarkets, coin);
-  const closeAssetIndex =
-    selectedMarket?.index ?? (isClosePosition ? requestedAssetIndex : null);
-  const hasCloseAssetIndex =
-    closeAssetIndex !== null && Number.isFinite(closeAssetIndex);
-  const markPrice = getPerpsMarkPrice(coin, selectedMarket);
   const requestedCloseSide = initialTicketSide(params);
   const closeHasExactMarketIdentity =
     Boolean(requestedDex) || requestedAssetIndex !== null;
@@ -16687,12 +16682,17 @@ function HyperliquidProposalFlowTicket({
         if (Math.abs(toFiniteNumber(position.szi)) <= 0) return false;
         if (
           closeHasExactMarketIdentity &&
-          selectedMarket &&
-          !hyperliquidMarketMatchesPosition(selectedMarket, position)
+          candidateSelectedMarket &&
+          !hyperliquidMarketMatchesPosition(candidateSelectedMarket, position)
         ) {
           return false;
         }
-        if (!perpsCoinMatches(position.coin, selectedMarket?.coin || coin)) {
+        if (
+          !perpsCoinMatches(
+            position.coin,
+            candidateSelectedMarket?.coin || coin
+          )
+        ) {
           return false;
         }
         if (requestedCloseSide !== 'long' && requestedCloseSide !== 'short') {
@@ -16701,6 +16701,29 @@ function HyperliquidProposalFlowTicket({
         return getPerpsPositionSide(position) === requestedCloseSide;
       }) || null
     : null;
+  const matchingClosePositionDex = matchingClosePosition
+    ? getHyperliquidPositionDex(matchingClosePosition)
+    : '';
+  const matchingCloseMarket = matchingClosePosition
+    ? hyperliquidMarketForPosition(astroConsoleData.perpsMarkets, {
+        coin: matchingClosePosition.coin,
+        dex: matchingClosePositionDex || undefined,
+        assetIndex:
+          requestedAssetIndex !== null ? requestedAssetIndex : undefined,
+      })
+    : undefined;
+  const selectedMarket =
+    isClosePosition && matchingClosePosition
+      ? matchingCloseMarket ||
+        (matchingClosePositionDex || requestedAssetIndex !== null
+          ? undefined
+          : candidateSelectedMarket)
+      : candidateSelectedMarket;
+  const closeAssetIndex =
+    selectedMarket?.index ?? (isClosePosition ? requestedAssetIndex : null);
+  const hasCloseAssetIndex =
+    closeAssetIndex !== null && Number.isFinite(closeAssetIndex);
+  const markPrice = getPerpsMarkPrice(coin, selectedMarket);
   const closePositionSide: 'long' | 'short' =
     matchingClosePosition
       ? getPerpsPositionSide(matchingClosePosition)
@@ -16887,13 +16910,22 @@ function HyperliquidProposalFlowTicket({
     isClosePosition &&
     !astroConsoleData.isPerpsLoading &&
     closeSizeCoinsValue <= 0;
-  const closeCanSubmit = Boolean(
-    canTradeInChat &&
-      canAct &&
-      hasCloseAssetIndex &&
-      closeSizeCoinsValue > 0 &&
-      closeMarkPrice > 0
-  );
+  const closeSubmitBlockReason = !isClosePosition
+    ? null
+    : !canTradeInChat
+    ? 'This close ticket is no longer pending.'
+    : !canAct
+    ? 'Only the user who asked Astro to prepare this close can approve it.'
+    : !hasCloseAssetIndex
+    ? `No Hyperliquid market data found for ${displayPerpsCoin(
+        selectedMarket?.coin || coin
+      )}-PERP. Try refreshing positions.`
+    : closeSizeCoinsValue <= 0
+    ? 'No matching open perps position was found to close.'
+    : closeMarkPrice <= 0
+    ? 'Mark price unavailable. Wait for market data to refresh.'
+    : null;
+  const closeCanSubmit = Boolean(isClosePosition && !closeSubmitBlockReason);
   const canSubmit = isClosePosition
     ? closeCanSubmit
     : Boolean(
@@ -16910,6 +16942,14 @@ function HyperliquidProposalFlowTicket({
           !tpslNeedsPrices &&
           !riskPriceError
       );
+  const primaryActionDisabled =
+    isAgentBusy ||
+    actionMarketUnavailable ||
+    (isClosePosition
+      ? Boolean(closeSubmitBlockReason)
+      : !canSubmit &&
+        !canDepositForOrder &&
+        astroConsoleData.isPerpsAgentInitialized);
   const sideLabel = activeSide === 'short' ? 'Short' : 'Long';
   const ticketCoin = isClosePosition
     ? matchingClosePosition?.coin || selectedMarket?.coin || coin
@@ -17010,6 +17050,18 @@ function HyperliquidProposalFlowTicket({
 
   const handleClosePosition = async () => {
     if (
+      closeSubmitBlockReason ||
+      closeAssetIndex === null ||
+      !Number.isFinite(closeAssetIndex)
+    ) {
+      setLocalError(
+        closeSubmitBlockReason ||
+          'This close ticket is missing Hyperliquid market data.'
+      );
+      return;
+    }
+
+    if (
       !astroConsoleData.isPerpsAgentInitialized &&
       !astroConsoleData.isPerpsAgentInitializing
     ) {
@@ -17033,13 +17085,7 @@ function HyperliquidProposalFlowTicket({
       return;
     }
 
-    if (
-      !closeCanSubmit ||
-      closeAssetIndex === null ||
-      !Number.isFinite(closeAssetIndex)
-    ) {
-      return;
-    }
+    if (!closeCanSubmit) return;
     const executableCloseAssetIndex = closeAssetIndex;
     const closeCoin = selectedMarket?.coin || matchingClosePosition?.coin || coin;
 
@@ -18227,13 +18273,7 @@ function HyperliquidProposalFlowTicket({
           <button
             type="button"
             onClick={isClosePosition ? handleClosePosition : handleOpenPosition}
-            disabled={
-              isAgentBusy ||
-              actionMarketUnavailable ||
-              (!canSubmit &&
-                !canDepositForOrder &&
-                astroConsoleData.isPerpsAgentInitialized)
-            }
+            disabled={primaryActionDisabled}
             className={TICKET_PRIMARY_BUTTON_CLASS}
           >
             {isTicketActionBusy || astroConsoleData.isPerpsAgentInitializing ? (
