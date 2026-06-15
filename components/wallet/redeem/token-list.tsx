@@ -20,6 +20,7 @@ export interface RedemptionPool {
   token_mint: string;
   token_decimals: number;
   tokens_per_wallet: number;
+  max_wallets?: number;
   created_at: string;
   expires_at: string | null;
   total_redemptions: number;

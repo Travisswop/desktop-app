@@ -48,6 +48,7 @@ interface BlinkRowData {
   pool: RedemptionPool;
   status: BlinkStatus;
   ageLabel: string;
+  claimLabel: string;
   remainingLabel: string;
 }
 
@@ -103,16 +104,45 @@ function relativeAge(iso: string): string {
 
 function deriveStatus(p: RedemptionPool): BlinkStatus {
   if (p.expires_at && new Date(p.expires_at) < new Date()) return 'expired';
-  if (p.total_amount > 0 && p.remaining_amount <= 0) return 'claimed';
+  const remainingAmount = Number(p.remaining_amount);
+  const perClaimAmount = Number(p.tokens_per_wallet);
+  const maxWallets = Number(p.max_wallets ?? 0);
+  const totalRedemptions = Number(p.total_redemptions ?? 0);
+
+  if (
+    p.total_amount > 0 &&
+    (remainingAmount <= 0 ||
+      perClaimAmount <= 0 ||
+      remainingAmount < perClaimAmount ||
+      (maxWallets > 0 && totalRedemptions >= maxWallets))
+  ) {
+    return 'claimed';
+  }
   return 'open';
 }
 
 function formatTokenAmount(amount: number, symbol: string): string {
+  const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0;
   const fixed =
-    amount >= 1
-      ? amount.toLocaleString(undefined, { maximumFractionDigits: 2 })
-      : amount.toLocaleString(undefined, { maximumFractionDigits: 4 });
-  return `${fixed} ${symbol}`;
+    safeAmount >= 1
+      ? safeAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })
+      : safeAmount.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  return `${fixed} ${symbol || 'TOKEN'}`;
+}
+
+function getBlinkTokenImageSrc(pool: RedemptionPool): string {
+  const symbol = (pool.token_symbol || '').trim().toUpperCase();
+  if (symbol === 'SWOP') return '/assets/crypto-icons/SWOP.png';
+  if (symbol === 'SOL') return '/assets/crypto-icons/SOL.png';
+  const rawLogo = String(pool.token_logo || '').trim();
+  if (
+    !rawLogo ||
+    rawLogo === '/' ||
+    ['undefined', 'null', '[object object]'].includes(rawLogo.toLowerCase())
+  ) {
+    return '';
+  }
+  return sanitizeNextImageSrc(pool.token_logo);
 }
 
 function formatBalance(n: number): string {
@@ -304,6 +334,8 @@ export default function BlinksSection() {
           pool.tokens_per_wallet,
           pool.token_decimals,
         ),
+        total_redemptions: Number(pool.total_redemptions ?? 0),
+        max_wallets: Number(pool.max_wallets ?? 0),
         total_redeemed_amount: fromTokenLamports(
           pool.total_redeemed_amount || 0,
           pool.token_decimals,
@@ -375,6 +407,7 @@ export default function BlinksSection() {
         pool: p,
         status: deriveStatus(p),
         ageLabel: relativeAge(p.created_at),
+        claimLabel: formatTokenAmount(p.tokens_per_wallet, p.token_symbol),
         remainingLabel: formatTokenAmount(p.remaining_amount, p.token_symbol),
       })),
     [pools],
@@ -990,7 +1023,35 @@ function TokenPickerDropdown({
   );
 }
 
-// ── Blink list row (unchanged) ───────────────────────────────────────────────
+// ── Blink list row ───────────────────────────────────────────────────────────
+
+function BlinkPoolAvatar({ pool }: { pool: RedemptionPool }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageSrc = imageFailed ? '' : getBlinkTokenImageSrc(pool);
+  const fallbackText = (pool.token_symbol || 'TOK')
+    .trim()
+    .toUpperCase()
+    .slice(0, 4);
+
+  return (
+    <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center shrink-0">
+      {imageSrc ? (
+        <Image
+          src={imageSrc}
+          alt={pool.token_symbol || 'Token'}
+          width={32}
+          height={32}
+          className="w-8 h-8 rounded-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <span className="text-[9.5px] font-semibold text-gray-700 font-mono leading-none">
+          {fallbackText}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function BlinkRowItem({
   row,
@@ -1003,15 +1064,14 @@ function BlinkRowItem({
   copiedId: string | null;
   onCopy: (poolId: string, link: string) => void;
 }) {
-  const { pool, status, ageLabel, remainingLabel } = row;
+  const { pool, status, ageLabel, claimLabel, remainingLabel } = row;
   const tone = STATUS_TONE[status];
   const isCopied = copiedId === pool.pool_id;
   const linkLabel = `swop.id/blink/${pool.pool_id.slice(0, 6)}`;
+  const headlineLabel = status === 'open' ? claimLabel : remainingLabel;
   const subText =
     status === 'open'
-      ? `Open · ${pool.tokens_per_wallet.toLocaleString(undefined, {
-          maximumFractionDigits: 2,
-        })} ${pool.token_symbol} per claim`
+      ? `Open · ${remainingLabel} left`
       : status === 'claimed'
         ? `Claimed · ${pool.total_redemptions} wallet${
             pool.total_redemptions === 1 ? '' : 's'
@@ -1025,25 +1085,11 @@ function BlinkRowItem({
       }`}
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center shrink-0">
-          {pool.token_logo ? (
-            <Image
-              src={sanitizeNextImageSrc(pool.token_logo)}
-              alt={pool.token_symbol}
-              width={32}
-              height={32}
-              className="w-8 h-8 rounded-full object-cover"
-            />
-          ) : (
-            <span className="text-[11px] font-semibold text-gray-700 font-mono">
-              {pool.token_symbol.slice(0, 1)}
-            </span>
-          )}
-        </div>
+        <BlinkPoolAvatar pool={pool} />
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[13.5px] font-semibold font-mono">
-              {remainingLabel}
+              {headlineLabel}
             </span>
             <span
               className="text-[9.5px] font-bold tracking-[0.6px] px-1.5 py-[2px] rounded-[4px] font-mono"
