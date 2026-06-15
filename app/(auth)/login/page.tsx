@@ -41,6 +41,7 @@ import {
   requiresSwopIdCompletion,
   SWOP_ID_ONBOARDING_PATH,
 } from '@/lib/onboardingStatus';
+import { consumeExplicitLogoutRedirect } from '@/lib/authSession';
 
 // Login flow states
 enum LoginFlow {
@@ -189,6 +190,7 @@ function getAuthCookieOptions() {
 
 function clearStaleSwopAuthStorage() {
   safeLocalStorage.removeItem('swop:user-cache');
+  safeLocalStorage.removeItem('swop:last-authenticated-at');
 
   Cookies.remove('user-id');
   Cookies.remove('access-token');
@@ -226,7 +228,7 @@ function clearPrivyBrowserSession() {
 
 const Login: React.FC = () => {
   // Privy hooks
-  const { authenticated, ready, user } = usePrivy();
+  const { authenticated, ready, user, logout: privyLogout } = usePrivy();
   const { state, sendCode, loginWithCode } = useLoginWithEmail();
   const {
     state: passkeyLoginState,
@@ -252,6 +254,9 @@ const Login: React.FC = () => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [pendingPasskeyAuth, setPendingPasskeyAuth] = useState(false);
   const [privyInitTimedOut, setPrivyInitTimedOut] = useState(false);
+  const [suppressSessionResume, setSuppressSessionResume] = useState<
+    boolean | null
+  >(null);
   const [walletStatus, setWalletStatus] =
     useState<WalletCreationStatus>({
       ethereum: false,
@@ -284,6 +289,7 @@ const Login: React.FC = () => {
   const walletCreationInProgressRef = useRef(false);
   const walletCreationAttemptKeyRef = useRef<string | null>(null);
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const explicitLogoutCleanupAttemptedRef = useRef(false);
 
   // Format time as MM:SS
   const formatTime = (seconds: number): string => {
@@ -568,6 +574,40 @@ const Login: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [ready]);
 
+  useEffect(() => {
+    setSuppressSessionResume(consumeExplicitLogoutRedirect());
+  }, []);
+
+  useEffect(() => {
+    if (
+      suppressSessionResume !== true ||
+      !ready ||
+      !authenticated ||
+      explicitLogoutCleanupAttemptedRef.current
+    ) {
+      return;
+    }
+
+    explicitLogoutCleanupAttemptedRef.current = true;
+
+    void privyLogout()
+      .catch((error) => {
+        logger.error('Privy logout cleanup failed:', error);
+      })
+      .finally(() => {
+        clearPrivyBrowserSession();
+      });
+  }, [authenticated, privyLogout, ready, suppressSessionResume]);
+
+  useEffect(() => {
+    if (suppressSessionResume !== true || !ready || authenticated) {
+      return;
+    }
+
+    clearStaleSwopAuthStorage();
+    setSuppressSessionResume(false);
+  }, [authenticated, ready, suppressSessionResume]);
+
   // Handle successful login
   const handleLoginSuccess = useCallback(
     async (user: any) => {
@@ -793,12 +833,20 @@ const Login: React.FC = () => {
       ready &&
       authenticated &&
       user &&
+      suppressSessionResume === false &&
       loginFlow === LoginFlow.EMAIL_INPUT &&
       !loginProcessingRef.current
     ) {
       void handleLoginSuccess(user);
     }
-  }, [ready, authenticated, user, loginFlow, handleLoginSuccess]);
+  }, [
+    ready,
+    authenticated,
+    user,
+    suppressSessionResume,
+    loginFlow,
+    handleLoginSuccess,
+  ]);
 
   // Handle OTP completion and login
   useEffect(() => {

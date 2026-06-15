@@ -33,6 +33,7 @@ import {
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import { Loader, MapPin } from "lucide-react";
 import { useWallets } from "@privy-io/react-auth";
+import { useUser } from "@/lib/UserContext";
 
 const SWOP_ID_GATEWAY = "https://swop-id-ens-gateway.swop.workers.dev";
 
@@ -55,6 +56,7 @@ const EditProfileContent = ({ data, token }: any) => {
 
   const router = useRouter();
   const { wallets } = useWallets();
+  const { logout } = useUser();
 
   const deleteEnsName = async (ensName: string) => {
     try {
@@ -117,7 +119,7 @@ const EditProfileContent = ({ data, token }: any) => {
     }
 
     toast.success("Successfully deleted account");
-    router.push("/login");
+    await logout();
   };
 
   const handleDeleteAccount = async () => {

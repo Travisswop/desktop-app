@@ -29,6 +29,7 @@ import {
   SWOP_ID_ONBOARDING_PATH,
 } from '@/lib/onboardingStatus';
 import { safeLocalStorage } from '@/lib/browserStorage';
+import { markExplicitLogoutRedirect } from '@/lib/authSession';
 
 const userContextDebugEnabled =
   process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true';
@@ -528,6 +529,7 @@ export function UserProvider({
   // Logout - just handle Privy logout, middleware handles redirects
   const handleLogout = useCallback(async () => {
     try {
+      markExplicitLogoutRedirect();
       // Block the main effect / fetchUserData from re-fetching and resurrecting
       // the cleared session while privyLogout() is still resolving. Released in
       // the main effect once Privy reports the user as unauthenticated.
@@ -548,6 +550,7 @@ export function UserProvider({
       router.replace('/login');
     } catch (err) {
       console.error('Error during logout:', err);
+      markExplicitLogoutRedirect();
       await clearServerAuthCookies();
       clearStoredUserContext();
       router.replace('/login');
