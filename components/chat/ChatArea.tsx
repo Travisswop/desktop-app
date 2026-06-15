@@ -910,6 +910,14 @@ function getDirectReceiverAvatar(chat: SelectedChat | null) {
   return chat.microsite?.profilePic || chat.participant?.profilePic;
 }
 
+function hasActiveChatAgent(chat: SelectedChat | null, agentId: string) {
+  return Boolean(
+    chat?.botUsers?.some(
+      (agent) => agent.agentId === agentId && agent.isActive !== false
+    )
+  );
+}
+
 function isAstroTradingDeskChat(
   chat: SelectedChat | null,
   isGroup: boolean
@@ -3162,9 +3170,11 @@ export default function ChatArea({
     activeConsoleChat,
     isGroup
   );
+  const hasAstroConsoleAgent =
+    isGroup && hasActiveChatAgent(activeConsoleChat, 'astro');
   const isGoldmanConsoleChat = isGoldmanSacksChat(activeConsoleChat, isGroup);
   const shouldLoadAstroConsoleData =
-    isAstroConsoleChat || isGoldmanConsoleChat;
+    isAstroConsoleChat || hasAstroConsoleAgent || isGoldmanConsoleChat;
   const { eoaAddress } = usePolymarketWallet();
   const { accessToken, user } = useUser();
   const queryClient = useQueryClient();
@@ -3649,6 +3659,7 @@ export default function ChatArea({
       isActivePredictionBalanceLoading,
       isPredictionPortfolioBalanceLoading,
       isPredictionWalletInfoLoading,
+      shouldLoadAstroConsoleData,
       goldmanAavePositions,
       isGoldmanAavePositionsLoading,
       perpsAccount,
@@ -5659,7 +5670,7 @@ export default function ChatArea({
     isAstroTradingDeskChat(displayChat, isGroup);
   const isGoldmanSacksDesk = isGoldmanSacksChat(displayChat, isGroup);
   const currentAgentThreadId = getDedicatedAgentThreadId(displayChat, isGroup);
-  const contextPanelMode = isSecureAstroDesk
+  const contextPanelMode = isSecureAstroDesk || hasAstroConsoleAgent
     ? 'astro'
     : isGoldmanSacksDesk
     ? 'goldman'
