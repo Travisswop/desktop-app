@@ -12,6 +12,7 @@ export interface PerpsFill {
   px: string;
   sz: string;
   time: number;
+  startPosition?: string;
   closedPnl?: string;
   hash?: string;
   oid?: number | string;

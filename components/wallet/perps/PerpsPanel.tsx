@@ -44,6 +44,7 @@ import type {
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
+  inferPerpsPositionOpenedFill,
   reconcilePerpsPositionFeed,
   resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
@@ -228,6 +229,7 @@ export function PerpsPanel({
     isCross: true,
   });
   const [fills, setFills] = useState<PerpsFill[]>([]);
+  const [historicalFillsLoaded, setHistoricalFillsLoaded] = useState(false);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -247,8 +249,13 @@ export function PerpsPanel({
   // Seed historical fills (the WS `user` channel only streams *new* fills, never
   // a snapshot — so Recent fills + Trade history would stay empty without this).
   useEffect(() => {
-    if (!masterAddress) return;
+    if (!masterAddress) {
+      setHistoricalFillsLoaded(false);
+      return;
+    }
     let cancelled = false;
+    setHistoricalFillsLoaded(false);
+    setFills([]);
 
     (async () => {
       try {
@@ -269,6 +276,7 @@ export function PerpsPanel({
               px: f.px,
               sz: f.sz,
               time: Number(f.time) || Date.now(),
+              startPosition: f.startPosition,
               closedPnl: f.closedPnl,
               hash: f.hash,
               oid: f.oid,
@@ -281,6 +289,8 @@ export function PerpsPanel({
         });
       } catch (err) {
         console.warn('Failed to fetch historical perps fills:', err);
+      } finally {
+        if (!cancelled) setHistoricalFillsLoaded(true);
       }
     })();
 
@@ -359,6 +369,7 @@ export function PerpsPanel({
               px: f.px,
               sz: f.sz,
               time: Number(f.time) || Date.now(),
+              startPosition: f.startPosition,
               closedPnl: f.closedPnl,
               hash: f.hash,
               oid: f.oid,
@@ -595,7 +606,8 @@ export function PerpsPanel({
       !accessToken ||
       !user?._id ||
       !smartsiteId ||
-      !masterAddress
+      !masterAddress ||
+      !historicalFillsLoaded
     ) {
       return;
     }
@@ -634,8 +646,11 @@ export function PerpsPanel({
         masterAddress,
         coin: position.coin,
       });
+      const openedFill = inferPerpsPositionOpenedFill(position, fills);
+      const eventTimestamp = openedFill?.timestamp || new Date().toISOString();
       const snapshotKey = [
         positionKey,
+        openedFill?.timestamp || 'no-open-fill',
         position.szi,
         position.entryPx,
         position.marginUsed,
@@ -651,7 +666,6 @@ export function PerpsPanel({
       const markPrice = toPerpsFeedNumber(
         mids[position.coin] || position.entryPx,
       );
-      const timestamp = new Date().toISOString();
 
       upsertPerpsPositionFeed({
         token: accessToken,
@@ -677,9 +691,10 @@ export function PerpsPanel({
           sizeCoins: Math.abs(toPerpsFeedNumber(position.szi)),
           returnPct: toPerpsFeedNumber(position.returnOnEquity) * 100,
           unrealizedPnl: toPerpsFeedNumber(position.unrealizedPnl),
+          orderId: openedFill?.orderId,
           masterAddress,
-          openedAt: timestamp,
-          updatedAt: timestamp,
+          openedAt: eventTimestamp,
+          updatedAt: eventTimestamp,
         },
       }).catch((feedError) => {
         console.warn('Failed to backfill perps feed card:', feedError);
@@ -690,6 +705,8 @@ export function PerpsPanel({
     allPositions,
     accessToken,
     feedSmartsiteId,
+    fills,
+    historicalFillsLoaded,
     user?._id,
     masterAddress,
     mids,

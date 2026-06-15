@@ -48,6 +48,28 @@ export interface PerpsLiquidationFillSnapshot {
   timestamp?: string;
 }
 
+export interface PerpsFillLike {
+  coin?: string | null;
+  side?: string | null;
+  sz?: string | number | null;
+  px?: string | number | null;
+  time?: string | number | null;
+  startPosition?: string | number | null;
+  oid?: string | number | null;
+  orderId?: string | number | null;
+}
+
+export interface PerpsPositionLike {
+  coin?: string | null;
+  szi?: string | number | null;
+}
+
+export interface PerpsOpenFillSnapshot {
+  timestamp: string;
+  orderId?: string;
+  price?: number;
+}
+
 interface UpsertPerpsPositionFeedParams {
   token: string | null | undefined;
   userId: string | null | undefined;
@@ -136,6 +158,90 @@ export function buildPerpsPositionKey({
 export function toPerpsFeedNumber(value: unknown, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function maybePerpsFeedNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+function normalizePerpsCoin(value: unknown) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function fillTimeMs(fill: PerpsFillLike) {
+  const rawTime = maybePerpsFeedNumber(fill.time);
+  if (rawTime === undefined || rawTime <= 0) return undefined;
+  return rawTime < 1_000_000_000_000 ? rawTime * 1000 : rawTime;
+}
+
+function fillSignedSize(fill: PerpsFillLike) {
+  const size = maybePerpsFeedNumber(fill.sz);
+  if (size === undefined || size <= 0) return undefined;
+
+  const side = String(fill.side || '').toUpperCase();
+  if (side === 'B') return size;
+  if (side === 'A') return -size;
+  return undefined;
+}
+
+function fillOrderId(fill: PerpsFillLike) {
+  const orderId = fill.orderId ?? fill.oid;
+  return orderId === undefined || orderId === null ? undefined : String(orderId);
+}
+
+export function inferPerpsPositionOpenedFill(
+  position: PerpsPositionLike,
+  fills: PerpsFillLike[] = [],
+): PerpsOpenFillSnapshot | null {
+  const coin = normalizePerpsCoin(position.coin);
+  const currentSize = maybePerpsFeedNumber(position.szi);
+  if (!coin || currentSize === undefined || currentSize === 0) return null;
+
+  const isLong = currentSize > 0;
+  const sameCoinFills = fills
+    .filter((fill) => normalizePerpsCoin(fill.coin) === coin)
+    .map((fill) => {
+      const timeMs = fillTimeMs(fill);
+      const signedSize = fillSignedSize(fill);
+      const startPosition = maybePerpsFeedNumber(fill.startPosition);
+      return { fill, timeMs, signedSize, startPosition };
+    })
+    .filter(
+      (entry) =>
+        entry.timeMs !== undefined &&
+        entry.signedSize !== undefined &&
+        entry.timeMs <= Date.now() + 5 * 60 * 1000,
+    )
+    .sort((a, b) => (a.timeMs || 0) - (b.timeMs || 0));
+
+  if (sameCoinFills.length === 0) return null;
+
+  const crossingFill = [...sameCoinFills].reverse().find((entry) => {
+    if (entry.startPosition === undefined || entry.signedSize === undefined) {
+      return false;
+    }
+    const endPosition = entry.startPosition + entry.signedSize;
+    return isLong
+      ? entry.startPosition <= 0 && endPosition > 0
+      : entry.startPosition >= 0 && endPosition < 0;
+  });
+
+  const directionSide = isLong ? 'B' : 'A';
+  const fallbackFill =
+    crossingFill ||
+    sameCoinFills.find(
+      (entry) => String(entry.fill.side || '').toUpperCase() === directionSide,
+    );
+
+  if (!fallbackFill?.timeMs) return null;
+
+  const price = maybePerpsFeedNumber(fallbackFill.fill.px);
+  return {
+    timestamp: new Date(fallbackFill.timeMs).toISOString(),
+    orderId: fillOrderId(fallbackFill.fill),
+    ...(price !== undefined ? { price } : {}),
+  };
 }
 
 export async function upsertPerpsPositionFeed({

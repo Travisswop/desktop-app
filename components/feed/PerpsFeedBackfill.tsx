@@ -5,7 +5,9 @@ import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
+  inferPerpsPositionOpenedFill,
   type PerpsLiquidationFillSnapshot,
+  type PerpsFillLike,
   reconcilePerpsPositionFeed,
   resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
@@ -20,10 +22,13 @@ import { useHyperliquidMarkets } from '@/components/wallet/perps/hooks/useHyperl
 import { useHyperliquidPositions } from '@/components/wallet/perps/hooks/useHyperliquidPositions';
 import type { HLPosition } from '@/services/hyperliquid/types';
 
-interface HyperliquidUserFill {
+interface HyperliquidUserFill extends PerpsFillLike {
   coin?: string;
   px?: string;
   time?: number;
+  side?: 'B' | 'A';
+  sz?: string;
+  startPosition?: string;
   closedPnl?: string;
   fee?: string;
   oid?: number | string;
@@ -80,16 +85,17 @@ function liquidationFillsByCoin(fills: unknown) {
   );
 }
 
-async function fetchRecentLiquidationsByCoin(masterAddress: string) {
+async function fetchRecentUserFills(masterAddress: string) {
   const response = await fetch('/api/hyperliquid/mainnet/info', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type: 'userFills', user: masterAddress }),
   });
 
-  if (!response.ok) return {};
+  if (!response.ok) return [];
 
-  return liquidationFillsByCoin(await response.json());
+  const fills = await response.json();
+  return Array.isArray(fills) ? (fills as HyperliquidUserFill[]) : [];
 }
 
 export default function PerpsFeedBackfill() {
@@ -167,14 +173,18 @@ export default function PerpsFeedBackfill() {
       ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
     ].join(':');
 
-    if (!reconciledSnapshotsRef.current.has(reconcileSnapshotKey)) {
-      reconciledSnapshotsRef.current.add(reconcileSnapshotKey);
-      fetchRecentLiquidationsByCoin(masterAddress)
-        .catch((error) => {
-          console.warn('Failed to fetch recent perps liquidations:', error);
-          return {};
-        })
-        .then((liquidationsByCoin) =>
+    let cancelled = false;
+
+    fetchRecentUserFills(masterAddress)
+      .catch((error) => {
+        console.warn('Failed to fetch recent perps fills:', error);
+        return [] as HyperliquidUserFill[];
+      })
+      .then((recentFills) => {
+        if (cancelled) return;
+
+        if (!reconciledSnapshotsRef.current.has(reconcileSnapshotKey)) {
+          reconciledSnapshotsRef.current.add(reconcileSnapshotKey);
           reconcilePerpsPositionFeed({
             token: accessToken,
             userId: user._id,
@@ -182,68 +192,81 @@ export default function PerpsFeedBackfill() {
             masterAddress,
             activePositionKeys,
             markPricesByCoin,
-            liquidationsByCoin,
-          }),
-        )
-        .catch((error) => {
-          reconciledSnapshotsRef.current.delete(reconcileSnapshotKey);
-          console.warn('Failed to reconcile perps feed cards:', error);
+            liquidationsByCoin: liquidationFillsByCoin(recentFills),
+          }).catch((error) => {
+            reconciledSnapshotsRef.current.delete(reconcileSnapshotKey);
+            console.warn('Failed to reconcile perps feed cards:', error);
+          });
+        }
+
+        positions.forEach((position) => {
+          const positionKey = buildPerpsPositionKey({
+            userId: user._id,
+            masterAddress,
+            coin: position.coin,
+          });
+          const openedFill = inferPerpsPositionOpenedFill(
+            position,
+            recentFills,
+          );
+          const eventTimestamp =
+            openedFill?.timestamp || new Date().toISOString();
+          const snapshotKey = [
+            positionKey,
+            openedFill?.timestamp || 'no-open-fill',
+            position.szi,
+            position.entryPx,
+            position.marginUsed,
+            position.leverage.value,
+            position.leverage.type,
+          ].join(':');
+
+          if (syncedSnapshotsRef.current.has(snapshotKey)) return;
+          syncedSnapshotsRef.current.add(snapshotKey);
+
+          const sizeCoins = Math.abs(toPerpsFeedNumber(position.szi));
+
+          upsertPerpsPositionFeed({
+            token: accessToken,
+            userId: user._id,
+            smartsiteId,
+            content: {
+              provider: 'hyperliquid',
+              positionKey,
+              coin: position.coin,
+              side: toPerpsFeedNumber(position.szi) > 0 ? 'long' : 'short',
+              status: 'open',
+              event: 'open',
+              leverage: position.leverage.value,
+              marginMode:
+                position.leverage.type === 'isolated' ? 'isolated' : 'cross',
+              entryPrice: toPerpsFeedNumber(position.entryPx),
+              markPrice: markPriceFromPosition(position),
+              liquidationPrice: position.liquidationPx
+                ? toPerpsFeedNumber(position.liquidationPx)
+                : null,
+              collateralUsd: toPerpsFeedNumber(position.marginUsed),
+              notionalUsd: toPerpsFeedNumber(position.positionValue),
+              sizeCoins,
+              returnPct: toPerpsFeedNumber(position.returnOnEquity) * 100,
+              unrealizedPnl: toPerpsFeedNumber(position.unrealizedPnl),
+              orderId: openedFill?.orderId,
+              masterAddress,
+              openedAt: eventTimestamp,
+              updatedAt: eventTimestamp,
+            },
+          }).catch((error) => {
+            console.warn('Failed to backfill perps feed card:', error);
+          });
         });
-    }
-
-    positions.forEach((position) => {
-      const positionKey = buildPerpsPositionKey({
-        userId: user._id,
-        masterAddress,
-        coin: position.coin,
+      })
+      .catch((error) => {
+        console.warn('Failed to sync perps feed cards:', error);
       });
-      const snapshotKey = [
-        positionKey,
-        position.szi,
-        position.entryPx,
-        position.marginUsed,
-        position.leverage.value,
-        position.leverage.type,
-      ].join(':');
 
-      if (syncedSnapshotsRef.current.has(snapshotKey)) return;
-      syncedSnapshotsRef.current.add(snapshotKey);
-
-      const sizeCoins = Math.abs(toPerpsFeedNumber(position.szi));
-      const timestamp = new Date().toISOString();
-
-      upsertPerpsPositionFeed({
-        token: accessToken,
-        userId: user._id,
-        smartsiteId,
-        content: {
-          provider: 'hyperliquid',
-          positionKey,
-          coin: position.coin,
-          side: toPerpsFeedNumber(position.szi) > 0 ? 'long' : 'short',
-          status: 'open',
-          event: 'open',
-          leverage: position.leverage.value,
-          marginMode:
-            position.leverage.type === 'isolated' ? 'isolated' : 'cross',
-          entryPrice: toPerpsFeedNumber(position.entryPx),
-          markPrice: markPriceFromPosition(position),
-          liquidationPrice: position.liquidationPx
-            ? toPerpsFeedNumber(position.liquidationPx)
-            : null,
-          collateralUsd: toPerpsFeedNumber(position.marginUsed),
-          notionalUsd: toPerpsFeedNumber(position.positionValue),
-          sizeCoins,
-          returnPct: toPerpsFeedNumber(position.returnOnEquity) * 100,
-          unrealizedPnl: toPerpsFeedNumber(position.unrealizedPnl),
-          masterAddress,
-          openedAt: timestamp,
-          updatedAt: timestamp,
-        },
-      }).catch((error) => {
-        console.warn('Failed to backfill perps feed card:', error);
-      });
-    });
+    return () => {
+      cancelled = true;
+    };
   }, [
     accountData,
     accessToken,
