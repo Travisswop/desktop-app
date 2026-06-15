@@ -2765,6 +2765,22 @@ function hasMatchingWalletSwapProposal(
   });
 }
 
+function hasLaterMeaningfulChatMessage(messages: Message[], currentIndex: number) {
+  for (let index = currentIndex + 1; index < messages.length; index += 1) {
+    const candidate = messages[index];
+    if (!candidate) continue;
+    if (
+      isAgentLikeMessage(candidate) &&
+      isGenericAstroOnlineText(candidate.message)
+    ) {
+      continue;
+    }
+    return true;
+  }
+
+  return false;
+}
+
 function hasMatchingHyperliquidProposal(
   messages: Message[],
   sourceMessage: Message,
@@ -6065,6 +6081,10 @@ export default function ChatArea({
               const localSwapProposalId = localSwapMessage
                 ? getMessageProposalId(localSwapMessage)
                 : null;
+              const autoFetchSwapQuote = !hasLaterMeaningfulChatMessage(
+                messages,
+                index
+              );
               const canRenderLocalFundingOnramp =
                 typeof renderedMessageText === 'string' &&
                 isOwnOrLocalText &&
@@ -6265,6 +6285,7 @@ export default function ChatArea({
                     pendingProposalId={pendingProposalId}
                     astroConsoleData={astroConsoleData}
                     renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
+                    autoFetchSwapQuote={autoFetchSwapQuote}
                   />
                   {localChartIntent && (
                     <ChatChartCommandCard
@@ -6303,6 +6324,7 @@ export default function ChatArea({
                       pendingProposalId={pendingProposalId}
                       astroConsoleData={astroConsoleData}
                       renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
+                      autoFetchSwapQuote={autoFetchSwapQuote}
                     />
                   )}
                   {localWalletSendNetworkPromptMessage && (
@@ -9756,6 +9778,7 @@ interface MessageProps {
   pendingProposalId?: string | null;
   astroConsoleData: AstroConsoleData;
   renderedReceiptIdentityKeys: Set<string>;
+  autoFetchSwapQuote?: boolean;
 }
 
 function strategyRuntimeTone(status?: string | null) {
@@ -9950,6 +9973,7 @@ function Message({
   pendingProposalId = null,
   astroConsoleData,
   renderedReceiptIdentityKeys,
+  autoFetchSwapQuote = true,
 }: MessageProps) {
   const isAgent = isAgentLikeMessage(message);
   const isUnnamedAgent = isAgent && !isNamedAgentMessage(message);
@@ -10481,6 +10505,7 @@ function Message({
               onAddPerpsFunds={onAddPerpsFunds}
               astroConsoleData={astroConsoleData}
               sourceText={proposalSourceText}
+              autoFetchSwapQuote={autoFetchSwapQuote}
             />
           )}
         </div>
@@ -11325,6 +11350,7 @@ function AgentProposalCard({
   onAddPerpsFunds,
   astroConsoleData,
   sourceText,
+  autoFetchSwapQuote = true,
 }: {
   proposal?: AgentActionProposal | null;
   proposalId: string;
@@ -11346,6 +11372,7 @@ function AgentProposalCard({
   onAddPerpsFunds: () => void;
   astroConsoleData: AstroConsoleData;
   sourceText?: string;
+  autoFetchSwapQuote?: boolean;
 }) {
   const isOpen = status === 'pending';
   const nextStep = getApprovalNextStep(actionResult?.result);
@@ -11399,6 +11426,7 @@ function AgentProposalCard({
         onReject={onReject}
         astroConsoleData={astroConsoleData}
         sourceText={sourceText}
+        autoFetchQuote={autoFetchSwapQuote}
       />
     );
   }
@@ -14619,6 +14647,7 @@ function SwapProposalTicket({
   onReject,
   astroConsoleData,
   sourceText,
+  autoFetchQuote = true,
 }: {
   proposal?: AgentActionProposal | null;
   proposalId: string;
@@ -14630,6 +14659,7 @@ function SwapProposalTicket({
   onReject: (proposalId: string) => void;
   astroConsoleData: AstroConsoleData;
   sourceText?: string;
+  autoFetchQuote?: boolean;
 }) {
   const { accessToken, user } = useUser();
   const { getAccessToken } = usePrivy();
@@ -15251,12 +15281,20 @@ function SwapProposalTicket({
   ]);
 
   useEffect(() => {
+    if (!autoFetchQuote) {
+      quoteRequestIdRef.current += 1;
+      setQuoteState((previous) =>
+        previous.status === 'loading' ? { status: 'idle' } : previous
+      );
+      return;
+    }
+
     const quoteDelayMs = payAmount ? 450 : 0;
     const timeoutId = window.setTimeout(() => {
       void fetchSwapQuote();
     }, quoteDelayMs);
     return () => window.clearTimeout(timeoutId);
-  }, [fetchSwapQuote, payAmount]);
+  }, [autoFetchQuote, fetchSwapQuote, payAmount]);
 
   const fromTokenIsStable = ['USDC', 'USDT', 'DAI', 'PUSD'].includes(
     normalizeSwapSymbol(fromToken)
