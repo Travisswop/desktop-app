@@ -113,6 +113,7 @@ export interface AgentState {
 
 interface UseHyperliquidAgentOptions {
   enabled?: boolean;
+  masterAddress?: string | null;
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────────
@@ -138,6 +139,7 @@ interface UseHyperliquidAgentOptions {
  */
 export function useHyperliquidAgent({
   enabled = true,
+  masterAddress: masterAddressOverride = null,
 }: UseHyperliquidAgentOptions = {}) {
   const { ready, authenticated, user } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
@@ -153,7 +155,13 @@ export function useHyperliquidAgent({
       embeddedOnly: useEmbeddedWalletProvider,
     },
   );
+  const requestedMasterAddressOverride =
+    typeof masterAddressOverride === 'string'
+      ? masterAddressOverride.trim()
+      : '';
+  const hasMasterAddressOverride = Boolean(requestedMasterAddressOverride);
   const shouldUseStoredMaster =
+    !hasMasterAddressOverride &&
     authenticated &&
     shouldUseStoredWalletAddresses(
       user?.id,
@@ -161,7 +169,9 @@ export function useHyperliquidAgent({
       activeMasterWallet?.address,
     ) &&
     Boolean(storedMasterAddress);
-  const requestedMasterAddress = shouldUseStoredMaster
+  const requestedMasterAddress = hasMasterAddressOverride
+    ? requestedMasterAddressOverride
+    : shouldUseStoredMaster
     ? storedMasterAddress
     : user?.wallet?.address;
 
@@ -412,7 +422,11 @@ export function useHyperliquidAgent({
           : undefined
         : selectedMasterWallet;
 
-    if (!masterWallet && agentClientRef.current) {
+    const masterChanged =
+      Boolean(agentClientRef.current && masterWallet && state.masterAddress) &&
+      !walletAddressEquals(state.masterAddress, masterWallet!.address);
+
+    if ((!masterWallet || masterChanged) && agentClientRef.current) {
       agentClientRef.current = null;
       masterClientRef.current = null;
       setState((prev) => ({
@@ -450,6 +464,7 @@ export function useHyperliquidAgent({
     walletsReady,
     requestedMasterAddress,
     shouldUseStoredMaster,
+    state.masterAddress,
     storedMasterAddress,
     useEmbeddedWalletProvider,
     _init,

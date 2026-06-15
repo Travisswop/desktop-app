@@ -3495,8 +3495,14 @@ export default function ChatArea({
       return Number.isFinite(value) && value > 0 ? sum + value : sum;
     }, 0);
   }, [walletPortfolioTokens]);
+  const requestedPerpsMasterAddress = shouldLoadAstroConsoleData
+    ? isGoldmanConsoleChat
+      ? goldmanVaultWalletAddress || null
+      : primaryEvmWalletAddress || eoaAddress || null
+    : null;
   const perpsAgent = useHyperliquidAgent({
     enabled: shouldLoadAstroConsoleData,
+    masterAddress: isGoldmanConsoleChat ? null : requestedPerpsMasterAddress,
   });
   const {
     data: perpsMarkets = [],
@@ -3507,7 +3513,10 @@ export default function ChatArea({
     enabled: shouldLoadAstroConsoleData,
     includeBuilderDexes: true,
   });
-  const perpsTrading = useHyperliquidTrading(perpsAgent.agentClient);
+  const perpsTrading = useHyperliquidTrading(
+    perpsAgent.agentClient,
+    perpsAgent.resetAgent
+  );
 
   const { data: predictionWalletInfo, isLoading: isPredictionWalletInfoLoading } =
     useQuery({
@@ -3626,7 +3635,7 @@ export default function ChatArea({
   const perpsMasterAddress = shouldLoadAstroConsoleData
     ? isGoldmanConsoleChat
       ? goldmanVaultWalletAddress || null
-      : primaryEvmWalletAddress || perpsAgent.masterAddress || eoaAddress || null
+      : requestedPerpsMasterAddress || perpsAgent.masterAddress || null
     : null;
   // Aggregate across the main DEX + every builder (HIP-3) DEX so Astro sees ALL
   // positions and the combined balance — one perps wallet.
@@ -17264,8 +17273,7 @@ function HyperliquidProposalFlowTicket({
       astroConsoleData.isPerpsAgentInitializing ||
       astroConsoleData.isPerpsAgentHydrating ||
       astroConsoleData.isPerpsAgentReconnecting ||
-      !closeCanSubmit ||
-      !selectedMarket
+      !closeCanSubmit
     ) {
       return;
     }
@@ -17282,7 +17290,6 @@ function HyperliquidProposalFlowTicket({
     closeAfterSignerReady,
     closeCanSubmit,
     isClosePosition,
-    selectedMarket,
   ]);
 
   const handleOpenPosition = async () => {
