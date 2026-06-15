@@ -6,6 +6,9 @@ import toast from 'react-hot-toast';
 import Sidebar from './Sidebar';
 import ChatArea from './ChatArea';
 import { getProtectedAgentThreadLabel } from './protectedAgentThreads';
+import { useUser } from '@/lib/UserContext';
+import { useMultiChainTokenData } from '@/lib/hooks/useToken';
+import { useNFT } from '@/lib/hooks/useNFT';
 
 interface InitialDirectRecipient {
   userId?: string | null;
