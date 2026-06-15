@@ -734,6 +734,22 @@ const getTokenSelectionKey = (token: any) => {
 const isSameTokenSelection = (a: any, b: any) =>
   getTokenSelectionKey(a) === getTokenSelectionKey(b);
 
+const applyBalanceDelta = (
+  token: any,
+  tokenKey: string,
+  delta: number,
+) => {
+  if (!token || getTokenIdentityKey(token) !== tokenKey) return token;
+  const currentBalance = Number(token.balance ?? 0);
+  if (!Number.isFinite(currentBalance)) return token;
+
+  const nextBalance = Math.max(0, currentBalance + delta);
+  return {
+    ...token,
+    balance: String(nextBalance),
+  };
+};
+
 const getNativeTokenSymbol = (chainId: string): string => {
   const map: Record<string, string> = {
     '137': 'POL',
@@ -2048,6 +2064,53 @@ export default function SwapTokenModal({
       isSolanaToken(receiveToken, receiverChainId),
     [chainId, payToken, receiveToken, receiverChainId],
   );
+
+  const applySubmittedSwapBalanceUpdate = useCallback(() => {
+    const payKey = getTokenIdentityKey(payToken);
+    const receiveKey = getTokenIdentityKey(receiveToken);
+    const payDelta = Number(payAmount);
+    const receiveDelta = Number(receiveAmount);
+
+    const deltas: Record<string, number> = {};
+    if (payKey && Number.isFinite(payDelta) && payDelta > 0) {
+      deltas[payKey] = (deltas[payKey] || 0) - payDelta;
+    }
+    if (
+      receiveKey &&
+      Number.isFinite(receiveDelta) &&
+      receiveDelta > 0
+    ) {
+      deltas[receiveKey] = (deltas[receiveKey] || 0) + receiveDelta;
+    }
+
+    const hasDeltas = Object.keys(deltas).length > 0;
+    if (!hasDeltas) return;
+
+    const updateToken = (token: any) => {
+      const tokenKey = getTokenIdentityKey(token);
+      const delta = deltas[tokenKey];
+      return delta ? applyBalanceDelta(token, tokenKey, delta) : token;
+    };
+
+    setPayToken((current: any) => updateToken(current));
+    setReceiveToken((current: any) => updateToken(current));
+    setAvailableTokens((current) => current.map(updateToken));
+    setTempTokens((current) => current.map(updateToken));
+    setFilteredList((current) => current.map(updateToken));
+    setTargetList((current) => ({
+      stock: current.stock.map(updateToken),
+      crypto: current.crypto.map(updateToken),
+      metal: current.metal.map(updateToken),
+      stable: current.stable.map(updateToken),
+    }));
+
+    console.debug('[SwapTokenModal] Applied local balance update', {
+      payToken: payToken?.symbol,
+      payDelta: deltas[payKey],
+      receiveToken: receiveToken?.symbol,
+      receiveDelta: deltas[receiveKey],
+    });
+  }, [payAmount, payToken, receiveAmount, receiveToken]);
 
   const isNativeSolToken = (t: any) => {
     const chain =
@@ -3802,6 +3865,7 @@ export default function SwapTokenModal({
 
         setTxHash(txId);
         setSwapStatus('Transaction submitted!');
+        applySubmittedSwapBalanceUpdate();
         setIsSwapping(false);
         onSwapComplete?.(txId);
 
@@ -3935,6 +3999,7 @@ export default function SwapTokenModal({
 
       setTxHash(signature);
       setSwapStatus('Transaction submitted!');
+      applySubmittedSwapBalanceUpdate();
 
       // Unfreeze UI immediately — confirmation runs in background
       setIsSwapping(false);
@@ -4144,6 +4209,7 @@ export default function SwapTokenModal({
         }
         setTxHash(txHashResult);
         setSwapStatus('Transaction submitted!');
+        applySubmittedSwapBalanceUpdate();
 
         // Unfreeze UI immediately — confirmation and database save run in background
         setIsSwapping(false);
