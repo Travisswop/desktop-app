@@ -15034,7 +15034,18 @@ function SwapProposalTicket({
       null
     : null;
   const handleReverseSwapTokens = () => {
-    if (!selectedFromOption || !selectedToOption) return;
+    if (!selectedFromOption || !selectedToOption) {
+      const missingSide = !selectedFromOption ? 'from' : 'to';
+      setOpenTokenSelector(missingSide);
+      setSwapError(
+        !selectedFromOption && !selectedToOption
+          ? 'Pick the tokens for both sides before reversing this swap.'
+          : !selectedFromOption
+          ? 'Pick a token to pay with before reversing this swap.'
+          : 'Pick a token to receive before reversing this swap.'
+      );
+      return;
+    }
 
     if (!reverseFromOption || !reverseToOption) {
       setSwapError(
@@ -15391,6 +15402,12 @@ function SwapProposalTicket({
   const displayFee = quoteState.fee || fee || '--';
   const displayProvider = quoteState.provider || dynamicProvider;
   const displayRouteLabel = quoteState.routeLabel || routeLabel;
+  const swapHeaderMeta = `${fromToken} to ${toToken} · ${displayRouteLabel}`;
+  const fromSelectorEmptyMessage =
+    astroConsoleData.isWalletPortfolioBalanceLoading
+      ? 'Loading wallet tokens...'
+      : 'No spendable wallet tokens found. Fund or connect a wallet before swapping.';
+  const toSelectorEmptyMessage = 'No quote tokens available.';
   const isQuoteLoading = quoteState.status === 'loading';
   const isQuoteError = quoteState.status === 'error';
   const isSwapBusy = isPending || isConfirmingSwap;
@@ -15801,7 +15818,8 @@ function SwapProposalTicket({
     selected: ChatSwapSelectableToken | null | undefined,
     options: ChatSwapSelectableToken[],
     onSelect: (key: string) => void,
-    emphasized = false
+    emphasized = false,
+    emptyMessage = 'No tokens available.'
   ) => {
     const isOpenSelector = openTokenSelector === kind;
     const optionList = options.slice(0, 42);
@@ -15809,15 +15827,17 @@ function SwapProposalTicket({
       <div className="relative shrink-0">
         <button
           type="button"
-          onClick={() =>
-            setOpenTokenSelector(isOpenSelector ? null : kind)
-          }
-          disabled={!options.length}
+          onClick={() => {
+            setSwapError(null);
+            setOpenTokenSelector(isOpenSelector ? null : kind);
+          }}
+          aria-expanded={isOpenSelector}
+          aria-haspopup="listbox"
           className={`dm-btn flex h-10 max-w-[190px] items-center gap-2 rounded-full border py-0 pl-2 pr-3 text-left transition ${
             emphasized
               ? 'border-[#3fe08f]/30 bg-[#3fe08f]/12 text-[#3fe08f]'
               : 'border-white/[0.07] bg-black/30 text-[#eceef2]'
-          } disabled:cursor-not-allowed disabled:opacity-50`}
+          }`}
         >
           <span
             className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-full text-[8.5px] font-black uppercase ${
@@ -15871,7 +15891,7 @@ function SwapProposalTicket({
               })
             ) : (
               <div className="rounded-[11px] border border-[#ffb14a]/25 bg-[#ffb14a]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd08a]">
-                No tokens available.
+                {emptyMessage}
               </div>
             )}
           </div>
@@ -15900,7 +15920,7 @@ function SwapProposalTicket({
             <span className="truncate">swap quote</span>
           </div>
           <div className="dm-mono mt-1 truncate text-[10px] text-[#5a5e69]">
-            {fromToken} to {toToken} · {proposalId}
+            {swapHeaderMeta}
           </div>
         </div>
         <span
@@ -15943,7 +15963,9 @@ function SwapProposalTicket({
               'from',
               selectedFromOption,
               fromSelectOptions,
-              setSelectedFromKey
+              setSelectedFromKey,
+              false,
+              fromSelectorEmptyMessage
             )}
           </div>
           <div className="mt-3 rounded-[12px] border border-white/[0.06] bg-black/25 px-3 py-2.5">
@@ -16006,7 +16028,7 @@ function SwapProposalTicket({
           <button
             type="button"
             onClick={handleReverseSwapTokens}
-            disabled={!isOpen || isSwapBusy || !selectedFromOption || !selectedToOption}
+            disabled={!isOpen || isSwapBusy}
             aria-label="Swap buy and sell tokens"
             title="Swap buy and sell tokens"
             className="dm-btn grid h-8 w-8 place-items-center rounded-[10px] border border-white/[0.07] bg-black/40 text-[#3fe08f] transition hover:border-[#3fe08f]/35 hover:bg-[#3fe08f]/10 disabled:cursor-not-allowed disabled:opacity-45"
@@ -16035,7 +16057,8 @@ function SwapProposalTicket({
               selectedToOption,
               quoteTokenOptions,
               setSelectedToKey,
-              true
+              true,
+              toSelectorEmptyMessage
             )}
           </div>
         </div>
