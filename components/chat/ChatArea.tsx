@@ -5694,6 +5694,16 @@ export default function ChatArea({
     : isGroup
     ? 'group'
     : 'contact';
+  const applyContextPanelCommand = (commandSeed: string) => {
+    const shouldMentionAstro =
+      isGroup &&
+      contextPanelMode === 'astro' &&
+      !isSecureAstroDesk &&
+      !/(?:^|\s)@?astro\b/i.test(commandSeed);
+    applyComposerCommand(
+      shouldMentionAstro ? `@astro ${commandSeed.trimStart()}` : commandSeed
+    );
+  };
   const headerTitle = isSecureAstroDesk
     ? 'Astro'
     : isGroup
@@ -6776,7 +6786,7 @@ export default function ChatArea({
         smartsiteHref={smartsiteHref}
         showOnTablet={isThreadListCollapsed}
         onSmartsiteClick={handleSmartsiteClick}
-        onQuickCommand={applyComposerCommand}
+        onQuickCommand={applyContextPanelCommand}
         onUpdateGoldmanAccessStation={handleUpdateGoldmanAccessStation}
         goldmanStrategyVault={goldmanStrategyVault}
         isGoldmanStrategyVaultLoading={isGoldmanStrategyVaultLoading}
