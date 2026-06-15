@@ -57,9 +57,10 @@ interface SolanaToken {
   balance: number;
   decimals: number;
   isNative: boolean;
-  address?: string;
+  address?: string | null;
   logoURI?: string;
   logo?: string;
+  priceUsd?: number;
 }
 
 const STATUS_TONE: Record<
@@ -74,6 +75,14 @@ const STATUS_TONE: Record<
   },
   expired: { label: 'EXPIRED', bg: '#f2f2f0', fg: '#6e6e76' },
 };
+
+const STABLE_TOKEN_SYMBOLS = new Set([
+  'USDC',
+  'USDT',
+  'DAI',
+  'PYUSD',
+  'FDUSD',
+]);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -111,16 +120,52 @@ function formatBalance(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
+function formatUsd(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n < 0.01) return '<$0.01';
+  return `$${n.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function parseTokenPrice(t: {
+  balance: string | number;
+  value?: number;
+  symbol: string;
+  marketData?: { price?: string | number | null } | null;
+}): number {
+  const marketPrice = Number(t.marketData?.price ?? 0);
+  if (Number.isFinite(marketPrice) && marketPrice > 0) return marketPrice;
+
+  const balance =
+    typeof t.balance === 'string'
+      ? parseFloat(t.balance) || 0
+      : Number(t.balance) || 0;
+  const value = Number(t.value ?? 0);
+  if (balance > 0 && Number.isFinite(value) && value > 0) {
+    return value / balance;
+  }
+
+  if (STABLE_TOKEN_SYMBOLS.has(t.symbol.toUpperCase())) {
+    return 1;
+  }
+
+  return 0;
+}
+
 function toSolanaToken(t: {
   symbol: string;
   name: string;
   balance: string | number;
   decimals?: number;
   isNative?: boolean;
-  address?: string;
+  address?: string | null;
   logoURI?: string;
   logo?: string;
   chain?: string;
+  value?: number;
+  marketData?: { price?: string | number | null } | null;
 }): SolanaToken {
   const balance =
     typeof t.balance === 'string'
@@ -135,6 +180,7 @@ function toSolanaToken(t: {
     address: t.address,
     logoURI: t.logoURI,
     logo: t.logo,
+    priceUsd: parseTokenPrice(t),
   };
 }
 
@@ -355,6 +401,10 @@ export default function BlinksSection() {
     maxWalletsNum > 0 ? amountNum / maxWalletsNum : 0;
   const tokenSymbol = selectedToken?.symbol ?? 'Token';
   const tokenBalance = selectedToken?.balance ?? 0;
+  const tokenPriceUsd = selectedToken?.priceUsd ?? 0;
+  const amountUsdLabel = formatUsd(amountNum * tokenPriceUsd);
+  const balanceUsdLabel = formatUsd(tokenBalance * tokenPriceUsd);
+  const tokensPerWalletUsdLabel = formatUsd(tokensPerWallet * tokenPriceUsd);
   const exceedsBalance = !!selectedToken && amountNum > tokenBalance;
   const insufficientSol =
     !!selectedToken && solBalance < RENT_PER_TOKEN_ACCOUNT;
@@ -417,12 +467,12 @@ export default function BlinksSection() {
     }
   };
 
-  // ── Quick chip presets — labelled as USD but represent token units ─────────
+  // ── Quick chip presets — token units, with USD shown as secondary text ─────
   const quickChips = [
-    { label: '$10', value: 10 },
-    { label: '$25', value: 25 },
-    { label: '$50', value: 50 },
-    { label: '$100', value: 100 },
+    { label: '10', value: 10 },
+    { label: '25', value: 25 },
+    { label: '50', value: 50 },
+    { label: '100', value: 100 },
   ];
 
   return (
@@ -477,6 +527,7 @@ export default function BlinksSection() {
                   >
                     {formatBalance(tokenBalance)}
                   </button>
+                  {balanceUsdLabel && ` (${balanceUsdLabel})`}
                 </span>
               )}
             </div>
@@ -508,6 +559,13 @@ export default function BlinksSection() {
                 />
               </button>
             </div>
+            {amountNum > 0 && (
+              <div className="mt-2 text-[10.5px] text-gray-400 font-mono">
+                {amountUsdLabel
+                  ? `Estimated value (${amountUsdLabel})`
+                  : 'USD estimate unavailable for this token'}
+              </div>
+            )}
 
             {tokenPickerOpen && (
               <TokenPickerDropdown
@@ -531,6 +589,7 @@ export default function BlinksSection() {
                   type="button"
                   onClick={() => handleQuickAmount(c.value)}
                   disabled={isCreating}
+                  aria-label={`Set ${c.value} ${tokenSymbol}`}
                   className={`flex-1 inline-flex items-center justify-center h-7 px-2 rounded-full text-[11.5px] font-semibold border transition disabled:opacity-50 disabled:cursor-not-allowed ${
                     active
                       ? 'bg-gray-900 text-white border-gray-900'
@@ -647,6 +706,11 @@ export default function BlinksSection() {
                     {tokenSymbol}
                   </span>
                 </div>
+                {tokensPerWalletUsdLabel && (
+                  <div className="text-[10px] text-gray-400 mt-1 font-mono">
+                    ({tokensPerWalletUsdLabel})
+                  </div>
+                )}
               </div>
             </div>
             {amountNum > 0 && maxWalletsNum > 0 && (
@@ -655,7 +719,11 @@ export default function BlinksSection() {
                 {tokensPerWallet.toLocaleString(undefined, {
                   maximumFractionDigits: 4,
                 })}{' '}
-                {tokenSymbol} each, first-come
+                {tokenSymbol} each
+                {tokensPerWalletUsdLabel
+                  ? ` (${tokensPerWalletUsdLabel})`
+                  : ''}
+                , first-come
               </div>
             )}
           </div>
@@ -695,7 +763,10 @@ export default function BlinksSection() {
               <>
                 <Shuffle className="w-3.5 h-3.5" />
                 Create blink
-                {amountNum > 0 && ` · ${amountNum} ${tokenSymbol}`}
+                {amountNum > 0 &&
+                  ` · ${amountNum} ${tokenSymbol}${
+                    amountUsdLabel ? ` (${amountUsdLabel})` : ''
+                  }`}
               </>
             )}
           </button>
