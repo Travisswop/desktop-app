@@ -26,7 +26,6 @@ import {
 } from '@/actions/lifiForTokenSwap';
 import {
   getJupiterBuild as fetchJupiterBuild,
-  getSolanaSponsorPayer,
 } from '@/actions/jupiterSwap';
 import { sponsorSolanaTransaction } from '@/actions/sponsorSolanaTransaction';
 import { notifySwapFee } from '@/actions/notifySwapFee';
@@ -506,6 +505,82 @@ const normalizeEvmAddress = (address?: string | null) =>
 
 const normalizeWalletAddress = (address?: string | null) =>
   address?.trim().toLowerCase() ?? '';
+
+const getAccountField = (account: any, camelKey: string, snakeKey: string) =>
+  account?.[camelKey] ?? account?.[snakeKey];
+
+const maskIdentifier = (value?: string | null) => {
+  if (!value) return null;
+  if (value.length <= 10) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+};
+
+const getPrivyEmbeddedSolanaWalletId = (
+  privyUser: any,
+  walletAddress?: string | null,
+) => {
+  const normalizedAddress = normalizeWalletAddress(walletAddress);
+  if (!normalizedAddress) return null;
+
+  const linkedAccounts = privyUser?.linkedAccounts || [];
+  const solanaWalletAccounts = linkedAccounts.filter(
+    (linkedAccount: any) =>
+      linkedAccount?.type === 'wallet' &&
+      getAccountField(linkedAccount, 'chainType', 'chain_type') ===
+        'solana',
+  );
+  const account = solanaWalletAccounts.find((linkedAccount: any) => {
+    const connectorType = getAccountField(
+      linkedAccount,
+      'connectorType',
+      'connector_type',
+    );
+    const walletClientType = getAccountField(
+      linkedAccount,
+      'walletClientType',
+      'wallet_client_type',
+    );
+
+    return (
+      connectorType === 'embedded' &&
+      isPrivyEmbeddedWalletType(walletClientType) &&
+      normalizeWalletAddress(linkedAccount?.address) ===
+        normalizedAddress
+    );
+  });
+
+  console.debug('[Solana sponsorship] User wallet ID resolution', {
+    selectedWallet: maskIdentifier(walletAddress),
+    linkedAccountCount: linkedAccounts.length,
+    solanaWalletAccounts: solanaWalletAccounts.map(
+      (linkedAccount: any) => ({
+        address: maskIdentifier(linkedAccount?.address),
+        id: maskIdentifier(linkedAccount?.id),
+        chainType: getAccountField(
+          linkedAccount,
+          'chainType',
+          'chain_type',
+        ),
+        connectorType: getAccountField(
+          linkedAccount,
+          'connectorType',
+          'connector_type',
+        ),
+        walletClientType: getAccountField(
+          linkedAccount,
+          'walletClientType',
+          'wallet_client_type',
+        ),
+        hasId: Boolean(linkedAccount?.id),
+      }),
+    ),
+    matchedWalletId: maskIdentifier(account?.id),
+  });
+
+  return typeof account?.id === 'string' && account.id.length > 0
+    ? account.id
+    : null;
+};
 
 const formatShortWalletAddress = (address: string) =>
   `${address.slice(0, 4)}...${address.slice(-4)}`;
@@ -3394,6 +3469,16 @@ export default function SwapTokenModal({
     const walletSupportsSponsorship =
       isPrivyEmbeddedSolanaWallet(wallet);
 
+    console.debug('[Solana sponsorship] Fallback submit decision', {
+      context,
+      walletAddress: maskIdentifier(wallet?.address),
+      walletSupportsSponsorship,
+      canUseUserFundedFallback,
+      walletClientType: wallet?.walletClientType,
+      connectorType: wallet?.connectorType,
+      standardWalletName: wallet?.standardWallet?.name,
+    });
+
     if (walletSupportsSponsorship) {
       try {
         setSwapStatus(sponsoredStatus);
@@ -3411,10 +3496,11 @@ export default function SwapTokenModal({
           throw sponsoredError;
         }
 
-        console.warn(
-          `${context} gas sponsorship failed; checking user-funded fallback:`,
-          sponsoredError,
-        );
+        console.warn(`${context} gas sponsorship failed`, {
+          error: sponsoredError,
+          canUseUserFundedFallback,
+          walletAddress: maskIdentifier(wallet?.address),
+        });
 
         if (!canUseUserFundedFallback) {
           throw new Error(getSolanaFeeFallbackError(true));
@@ -3548,21 +3634,18 @@ export default function SwapTokenModal({
         );
       }
 
-      let sponsorPayerAddress: string | null = null;
-      setSwapStatus('Preparing gas sponsorship...');
-      const sponsorPayerResult = await getSolanaSponsorPayer();
-      if (
-        sponsorPayerResult.success &&
-        normalizeWalletAddress(sponsorPayerResult.address) !==
-          normalizeWalletAddress(selectedSolanaWallet.address)
-      ) {
-        sponsorPayerAddress = sponsorPayerResult.address;
-      } else if (!sponsorPayerResult.success) {
-        console.warn(
-          'Solana sponsor payer unavailable; falling back to wallet/Privy sponsorship:',
-          sponsorPayerResult.error,
-        );
-      }
+      const userPrivySolanaWalletId = getPrivyEmbeddedSolanaWalletId(
+        PrivyUser,
+        selectedSolanaWallet.address,
+      );
+      console.debug('[Solana sponsorship] Jupiter sponsorship context', {
+        selectedWallet: maskIdentifier(selectedSolanaWallet.address),
+        userPrivySolanaWalletId: maskIdentifier(userPrivySolanaWalletId),
+        hasPrivyUser: Boolean(PrivyUser),
+        canRunUserFundedSimulation,
+        solLamports,
+        swapLamports,
+      });
 
       {
         const [inputTokenProgram, outputTokenProgram] =
@@ -3588,7 +3671,9 @@ export default function SwapTokenModal({
           outputMint,
           amount: amountInSmallestUnit,
           taker: selectedSolanaWallet.address,
-          payer: sponsorPayerAddress ?? undefined,
+          payer: userPrivySolanaWalletId
+            ? selectedSolanaWallet.address
+            : undefined,
           slippageBps: Math.floor(slippage * 100),
           mode: 'fast',
           platformFeeBps: PLATFORM_FEE_BPS,
@@ -3618,12 +3703,11 @@ export default function SwapTokenModal({
 
         setSwapStatus('Simulating Jupiter swap...');
         let computeUnitLimit = JUPITER_MAX_COMPUTE_UNITS;
-        if (canRunUserFundedSimulation || sponsorPayerAddress) {
+        if (canRunUserFundedSimulation) {
           try {
             const simulationTx = buildJupiterVersionedTransaction({
               build,
-              feePayer:
-                sponsorPayerAddress || selectedSolanaWallet.address,
+              feePayer: selectedSolanaWallet.address,
               computeUnitLimit: JUPITER_MAX_COMPUTE_UNITS,
             });
             const simulation = await connection.simulateTransaction(
@@ -3659,14 +3743,13 @@ export default function SwapTokenModal({
           }
         } else {
           console.warn(
-            'Skipping user-funded Jupiter simulation because Privy sponsorship will replace the fee payer.',
+            'Skipping Jupiter simulation because the selected wallet does not have enough SOL for a user-funded fee simulation.',
           );
         }
 
         const tx = buildJupiterVersionedTransaction({
           build,
-          feePayer:
-            sponsorPayerAddress || selectedSolanaWallet.address,
+          feePayer: selectedSolanaWallet.address,
           computeUnitLimit,
         });
 
@@ -3674,25 +3757,37 @@ export default function SwapTokenModal({
 
         const serializedTransaction = new Uint8Array(tx.serialize());
         let txId: string;
-        if (sponsorPayerAddress) {
-          setSwapStatus('Signing Jupiter swap...');
-          const { signedTransaction } = await signTransaction({
-            transaction: serializedTransaction,
-            wallet: selectedSolanaWallet,
-            options: {
-              uiOptions: { showWalletUIs: false },
+        if (userPrivySolanaWalletId) {
+          console.debug(
+            '[Solana sponsorship] Using user Privy wallet API path',
+            {
+              walletId: maskIdentifier(userPrivySolanaWalletId),
+              feePayer: maskIdentifier(selectedSolanaWallet.address),
             },
-          });
-
+          );
           setSwapStatus('Submitting sponsored Jupiter swap...');
+          const privyAccessToken = await getAccessToken();
           const sponsorResult = await sponsorSolanaTransaction(
-            Buffer.from(signedTransaction).toString('base64'),
+            Buffer.from(serializedTransaction).toString('base64'),
+            userPrivySolanaWalletId,
+            privyAccessToken,
           );
           if (!sponsorResult.success) {
             throw new Error(sponsorResult.error);
           }
           txId = sponsorResult.signature;
         } else {
+          console.debug(
+            '[Solana sponsorship] User Privy wallet ID missing; using fallback path',
+            {
+              selectedWallet: maskIdentifier(
+                selectedSolanaWallet.address,
+              ),
+              hasPrivyUser: Boolean(PrivyUser),
+              linkedAccountCount:
+                PrivyUser?.linkedAccounts?.length ?? 0,
+            },
+          );
           txId = await submitSolanaTransactionWithFallback({
             serializedTransaction,
             wallet: selectedSolanaWallet,

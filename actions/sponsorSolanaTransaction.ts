@@ -3,28 +3,30 @@
 import { PrivyClient } from '@privy-io/node';
 
 /**
- * Signs and sends a partially-signed Solana transaction with the configured
- * Privy payer wallet. Jupiter must build the transaction with this wallet as
- * the `payer`, so this wallet's signature pays the network fee directly.
+ * Signs and sends a partially-signed Solana transaction with the provided
+ * Privy wallet. Jupiter must build the transaction with this wallet as the
+ * `payer`, so this wallet's signature matches the transaction fee payer.
  *
  * Env vars required:
- *   PRIVY_SIGNER_WALLET_ID      — Privy wallet ID of the sponsor/payer wallet
- *   NEXT_PUBLIC_PRIVY_APP_ID   — Privy app ID
- *   PRIVY_APP_SECRET           — Privy app secret
+ *   NEXT_PUBLIC_PRIVY_APP_ID  — Privy app ID
+ *   PRIVY_APP_SECRET          — Privy app secret
+ *
+ * If the payer wallet requires user-owner authorization, pass the user's Privy
+ * access token. The Privy SDK exchanges it for a time-bound user key and adds
+ * the `privy-authorization-signature` header for this exact request.
  */
 export async function sponsorSolanaTransaction(
   takerSignedTransactionBase64: string,
+  walletId: string,
+  privyAccessToken?: string | null,
 ): Promise<
   | { success: true; signature: string }
   | { success: false; error: string }
 > {
-  const walletId =
-    process.env.PRIVY_SIGNER_WALLET_ID ||
-    process.env.NEXT_PUBLIC_PRIVY_SIGNER_WALLET_ID;
   if (!walletId) {
     return {
       success: false,
-      error: 'PRIVY_SIGNER_WALLET_ID is not configured',
+      error: 'Privy wallet ID is required',
     };
   }
 
@@ -50,6 +52,14 @@ export async function sponsorSolanaTransaction(
       .signAndSendTransaction(walletId, {
         caip2: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
         transaction: takerSignedTransactionBase64,
+        sponsor: true,
+        ...(privyAccessToken
+          ? {
+              authorization_context: {
+                user_jwts: [privyAccessToken],
+              },
+            }
+          : {}),
       });
 
     const signature = response.hash;
