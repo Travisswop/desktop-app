@@ -76,12 +76,38 @@ export interface DepositWalletApprovalTypedData {
 }
 
 const base = () => POLYMARKET_BACKEND_PROXY_URL;
+const REDEEM_TYPED_DATA_TIMEOUT_MS = 30000;
+const REDEEM_SUBMIT_TIMEOUT_MS = 120000;
 
 function authHeaders(accessToken: string) {
   return {
     "Content-Type": "application/json",
     Authorization: `Bearer ${accessToken}`,
   };
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if ((err as { name?: string })?.name === "AbortError") {
+      throw new Error(timeoutMessage);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**
@@ -691,9 +717,14 @@ export async function getRedeemTypedData(
     ...(params.outcomeIndex != null ? { outcomeIndex: String(params.outcomeIndex) } : {}),
     ...(params.size != null ? { size: String(params.size) } : {}),
   });
-  const res = await fetch(`${base()}/positions/redeem/typed-data?${searchParams}`, {
-    headers: authHeaders(accessToken),
-  });
+  const res = await fetchWithTimeout(
+    `${base()}/positions/redeem/typed-data?${searchParams}`,
+    {
+      headers: authHeaders(accessToken),
+    },
+    REDEEM_TYPED_DATA_TIMEOUT_MS,
+    'Redeem setup timed out. Please check your bets and try again.',
+  );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Failed to get redeem typed data');
@@ -725,11 +756,16 @@ export async function submitRedeem(
   shouldWrapCollateral?: boolean;
   redeemedAmount?: number;
 }> {
-  const res = await fetch(`${base()}/positions/redeem`, {
-    method: 'POST',
-    headers: authHeaders(accessToken),
-    body: JSON.stringify(params),
-  });
+  const res = await fetchWithTimeout(
+    `${base()}/positions/redeem`,
+    {
+      method: 'POST',
+      headers: authHeaders(accessToken),
+      body: JSON.stringify(params),
+    },
+    REDEEM_SUBMIT_TIMEOUT_MS,
+    'Redeem confirmation timed out. Refresh your bets before trying again.',
+  );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(data.error || 'Redemption failed');
