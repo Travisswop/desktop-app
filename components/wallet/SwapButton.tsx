@@ -134,10 +134,13 @@ export default function SwapButton({
   );
 
   const handleSwapComplete = () => {
-    // setOpenSwapModal(false);
     if (onTokenRefresh) {
       onTokenRefresh();
     }
+  };
+
+  const handleSwapReceiptDismiss = () => {
+    setOpenSwapModal(false);
   };
 
   return (
@@ -160,6 +163,7 @@ export default function SwapButton({
               <LiFiPrivyWrapper
                 config={config}
                 onSwapComplete={handleSwapComplete}
+                onSwapReceiptDismiss={handleSwapReceiptDismiss}
                 tokens={tokens}
               />
             </SolanaProvider>

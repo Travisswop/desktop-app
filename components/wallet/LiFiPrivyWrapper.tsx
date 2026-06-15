@@ -12,11 +12,13 @@ interface LiFiPrivyWrapperProps {
   tokens?: any;
   preferredSolanaWalletAddress?: string;
   onSwapComplete?: () => void;
+  onSwapReceiptDismiss?: () => void;
 }
 export default function LiFiPrivyWrapper({
   tokens,
   preferredSolanaWalletAddress,
   onSwapComplete,
+  onSwapReceiptDismiss,
 }: LiFiPrivyWrapperProps) {
   const { authenticated, ready, login } = usePrivy();
   const { wallets } = useWallets();
@@ -109,6 +111,7 @@ export default function LiFiPrivyWrapper({
       onSwapComplete={() => {
         onSwapComplete?.();
       }}
+      onSwapReceiptDismiss={onSwapReceiptDismiss}
     />
   );
 }
