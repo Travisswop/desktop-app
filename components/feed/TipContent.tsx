@@ -4,7 +4,7 @@ import CustomModal from "../modal/CustomModal";
 import isUrl from "@/lib/isUrl";
 import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import SelectTokenModal from "./SelectTokenModal";
 import {
   useWalletAddresses,
@@ -51,6 +51,10 @@ import { toFixedTruncate } from "@/lib/fixedTruncateNumber";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import bs58 from "bs58";
 import logger from "@/utils/logger";
+import {
+  resolveTipRecipient,
+  resolveTipRecipientAddress,
+} from "@/lib/feed/tipRecipient";
 interface TipContentModalProps {
   isOpen: boolean;
   onClose?: () => void;
@@ -83,6 +87,10 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
     useNewSocketChat();
 
   const { payload } = useTransactionPayload(user);
+  const tipRecipient = useMemo(
+    () => resolveTipRecipient(feedItem),
+    [feedItem],
+  );
 
   const walletData = useWalletData(authenticated, ready, PrivyUser, user);
   const { solWalletAddress, evmWalletAddress } = useWalletAddresses(walletData);
@@ -313,7 +321,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
           amount: tipAmount,
           recipient: {
             address: recipientWalletAddress,
-            ensName: feedItem.smartsiteId?.name || "",
+            ensName: tipRecipient.ens || tipRecipient.name,
             isEns: true,
           },
           network: selectedToken.chain,
@@ -445,6 +453,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
       PrivyUser,
       generateAuthorizationSignature,
       toast,
+      tipRecipient,
     ],
   );
 
@@ -463,11 +472,14 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
     try {
       // Get recipient wallet address
-      const ensData = await getEnsDataUsingEns(feedItem.smartsiteId?.ens);
-      const recipientWalletAddress =
-        ensData?.addresses?.[
-          selectedToken.chain?.toUpperCase() === "SOLANA" ? 501 : 60
-        ];
+      const ensData = tipRecipient.ens
+        ? await getEnsDataUsingEns(tipRecipient.ens)
+        : null;
+      const recipientWalletAddress = resolveTipRecipientAddress({
+        recipient: tipRecipient,
+        ensData,
+        chain: selectedToken.chain,
+      });
 
       if (!recipientWalletAddress) {
         toast({
@@ -528,7 +540,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
             amount: tipAmount,
             recipient: {
               address: recipientWalletAddress,
-              ensName: feedItem.smartsiteId.name || "",
+              ensName: tipRecipient.ens || tipRecipient.name,
               isEns: true,
             },
             network: selectedToken.chain,
@@ -559,7 +571,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
             amount: tipAmount,
             recipientAddress: recipientWalletAddress,
             recipientEnsName:
-              feedItem.smartsiteId.name || recipientWalletAddress,
+              tipRecipient.ens || tipRecipient.name || recipientWalletAddress,
             txSignature: result.hash,
             network: selectedToken.chain?.toUpperCase() || "SOLANA",
             tokenLogo: convertToAbsoluteUrl(selectedToken.logoURI),
@@ -758,11 +770,6 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
     );
   }
 
-  const profilePic =
-    feedItem?.smartsiteId?.profilePic ||
-    feedItem?.smartsiteDetails?.profilePic ||
-    feedItem?.smartsiteProfilePic;
-
   return (
     <>
       <CustomModal
@@ -774,12 +781,8 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
           {/* User profile */}
           <div className="flex flex-col items-center space-y-4">
             <Image
-              src={
-                isUrl(profilePic)
-                  ? profilePic
-                  : `/images/user_avator/${profilePic}@3x.png`
-              }
-              alt="Profile_Img"
+              src={tipRecipient.image}
+              alt={tipRecipient.name}
               width={64}
               height={64}
               className="w-14 h-14 rounded-full object-cover"
@@ -903,13 +906,9 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
           onOpenChange={setIsConfirmModalOpen}
           amount={tipAmount}
           token={selectedToken}
-          recipient={feedItem.smartsiteId?.ens || ""}
-          recipientName={feedItem.smartsiteId?.name || "Unknown"}
-          recipientImage={
-            isUrl(feedItem.smartsiteId?.profilePic)
-              ? feedItem.smartsiteId.profilePic
-              : `/images/user_avator/${feedItem.smartsiteId?.profilePic}@3x.png`
-          }
+          recipient={tipRecipient.ens || tipRecipient.walletAddress}
+          recipientName={tipRecipient.name}
+          recipientImage={tipRecipient.image}
           onConfirm={handleConfirmTip}
           loading={isSending}
         />
