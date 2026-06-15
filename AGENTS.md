@@ -152,6 +152,27 @@ npm run dev
 
 6. For payment-related changes, verify both Stripe and cryptocurrency payment flows
 
+### Astro Card Smoke QA
+
+Astro card production QA lives in `scripts/qa/`.
+
+- `npm run qa:astro-cards:login` opens the dedicated Chrome QA profile for
+  one-time login.
+- `scripts/qa/run-astro-card-smoke.sh` is the scheduled runner.
+- The scheduled runner must always fetch and run from `origin/main` via the
+  detached worktree
+  `/Users/travis/Documents/Swop Desktop Live.nosync/.qa-worktrees/desktop-main-card-qa`.
+- Reports are written to
+  `/Users/travis/Documents/Swop Desktop Live.nosync/logs/astro-card-qa/latest.json`
+  and must include `gitRef` and `gitSha`.
+- Set `SWOP_QA_ALERT_EMAIL` in the launchd environment for failure-only email
+  alerts. Alerts use the local macOS `mail` command, so outbound mail must be
+  configured.
+
+Do not point launchd/cron at a dirty feature checkout for production card QA.
+If the QA harness changes, push those changes to `main` before expecting the
+scheduled task to pick them up.
+
 ## Contribution Guidelines
 
 - Make changes in feature-specific files/directories

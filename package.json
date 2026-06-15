@@ -10,7 +10,9 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "qa:astro-cards": "node scripts/qa/astro-card-smoke.mjs",
+    "qa:astro-cards:login": "node scripts/qa/astro-card-smoke.mjs --setup-login --launch"
   },
   "dependencies": {
     "@farcaster/mini-app-solana": "^1.1.3",
