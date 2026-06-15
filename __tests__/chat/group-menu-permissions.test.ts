@@ -28,6 +28,7 @@ describe('group menu permissions', () => {
       ),
     ).toEqual({
       canManageMembers: true,
+      canManageAgents: false,
       canEditInfo: true,
       canDelete: true,
     });
@@ -78,6 +79,7 @@ describe('group menu permissions', () => {
       ),
     ).toEqual({
       canManageMembers: true,
+      canManageAgents: false,
       canEditInfo: true,
       canDelete: false,
     });
@@ -98,12 +100,13 @@ describe('group menu permissions', () => {
       ),
     ).toEqual({
       canManageMembers: true,
+      canManageAgents: true,
       canEditInfo: true,
       canDelete: true,
     });
   });
 
-  it('does not show member management to regular members with only edit permission', () => {
+  it('lets regular group participants manage members', () => {
     expect(
       getGroupMenuPermissions(
         {
@@ -118,8 +121,31 @@ describe('group menu permissions', () => {
         'user-1',
       ),
     ).toEqual({
-      canManageMembers: false,
+      canManageMembers: true,
+      canManageAgents: false,
       canEditInfo: true,
+      canDelete: false,
+    });
+  });
+
+  it('does not show member management to users outside the group', () => {
+    expect(
+      getGroupMenuPermissions(
+        {
+          participants: [
+            {
+              userId: 'user-1',
+              role: 'member',
+              permissions: ['send_messages', 'edit_group_info'],
+            },
+          ],
+        },
+        'user-2',
+      ),
+    ).toEqual({
+      canManageMembers: false,
+      canManageAgents: false,
+      canEditInfo: false,
       canDelete: false,
     });
   });

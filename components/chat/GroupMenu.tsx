@@ -297,7 +297,7 @@ export default function GroupMenu({
   const closeMenu = () => setIsOpen(false);
   const closeModal = () => setActiveModal(null);
 
-  const { canManageMembers, canEditInfo, canDelete } =
+  const { canManageMembers, canManageAgents, canEditInfo, canDelete } =
     getGroupMenuPermissions(group, currentUser);
 
   const handleAddAstro = useCallback(() => {
@@ -343,7 +343,7 @@ export default function GroupMenu({
   }, [group, hasAstroAgent, isAddingAstro, onGroupUpdate, socket]);
 
   const menuItems = [
-    ...(canManageMembers && !isProtectedSystemGroup && !hasAstroAgent
+    ...(canManageAgents && !isProtectedSystemGroup && !hasAstroAgent
       ? [
           {
             label: isAddingAstro ? 'Adding Astro...' : 'Add Astro',

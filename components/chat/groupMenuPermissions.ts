@@ -64,6 +64,7 @@ export function getGroupMenuPermissions(
     (participant) => getParticipantId(participant) === currentUserId,
   );
   const isCreator = getObjectIdString(group.createdBy) === currentUserId;
+  const isParticipant = Boolean(me);
   const isAdmin = me?.role === 'admin';
   const hasLegacyPermissionShape =
     Boolean(me) && !Array.isArray(me?.permissions);
@@ -71,6 +72,7 @@ export function getGroupMenuPermissions(
   return {
     canManageMembers:
       isCreator ||
+      isParticipant ||
       isAdmin ||
       hasAnyParticipantPermission(me, [
         'manage_members',
@@ -78,6 +80,8 @@ export function getGroupMenuPermissions(
         'remove_participants',
       ]) ||
       hasLegacyPermissionShape,
+    canManageAgents:
+      isAdmin || hasParticipantPermission(me, 'manage_members'),
     canEditInfo:
       isCreator ||
       isAdmin ||
