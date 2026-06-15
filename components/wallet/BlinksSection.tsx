@@ -84,6 +84,7 @@ const STABLE_TOKEN_SYMBOLS = new Set([
   'FDUSD',
 ]);
 const DEFAULT_MAX_WALLETS = '10';
+const DEFAULT_MAX_WALLETS_NUM = Number(DEFAULT_MAX_WALLETS);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -397,7 +398,14 @@ export default function BlinksSection() {
 
   // ── Form derived values ────────────────────────────────────────────────────
   const amountNum = parseFloat(amountStr) || 0;
-  const maxWalletsNum = parseInt(maxWalletsStr, 10) || 0;
+  const trimmedMaxWalletsStr = maxWalletsStr.trim();
+  const parsedMaxWallets = parseInt(trimmedMaxWalletsStr, 10);
+  const maxWalletsNum =
+    trimmedMaxWalletsStr === ''
+      ? DEFAULT_MAX_WALLETS_NUM
+      : Number.isFinite(parsedMaxWallets)
+        ? parsedMaxWallets
+        : 0;
   const missingClaimLimit = amountNum > 0 && maxWalletsNum <= 0;
   const tokensPerWallet =
     maxWalletsNum > 0 ? amountNum / maxWalletsNum : 0;
