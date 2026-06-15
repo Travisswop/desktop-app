@@ -910,10 +910,26 @@ function getDirectReceiverAvatar(chat: SelectedChat | null) {
   return chat.microsite?.profilePic || chat.participant?.profilePic;
 }
 
-function hasActiveChatAgent(chat: SelectedChat | null, agentId: string) {
-  return Boolean(
-    chat?.botUsers?.some(
-      (agent) => agent.agentId === agentId && agent.isActive !== false
+function normalizeAgentIdentity(value?: unknown) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, '')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function isActiveAstroAgent(agent?: Partial<GroupAgent> | null) {
+  if (!agent || agent.isActive === false) return false;
+
+  const identityValues = [
+    agent.agentId,
+    agent.displayName,
+    ...((agent.mentionAliases || []) as string[]),
+  ];
+
+  return identityValues.some((value) =>
+    ['astro', 'astroswop', 'swopagent'].includes(
+      normalizeAgentIdentity(value)
     )
   );
 }
@@ -3171,7 +3187,7 @@ export default function ChatArea({
     isGroup
   );
   const hasAstroConsoleAgent =
-    isGroup && hasActiveChatAgent(activeConsoleChat, 'astro');
+    isGroup && Boolean(activeConsoleChat?.botUsers?.some(isActiveAstroAgent));
   const isGoldmanConsoleChat = isGoldmanSacksChat(activeConsoleChat, isGroup);
   const shouldLoadAstroConsoleData =
     isAstroConsoleChat || hasAstroConsoleAgent || isGoldmanConsoleChat;
@@ -5666,11 +5682,12 @@ export default function ChatArea({
   const activeGroupAgents = (displayChat?.botUsers || []).filter(
     (agent) => agent.agentId && agent.isActive !== false
   );
+  const hasDisplayedAstroAgent = activeGroupAgents.some(isActiveAstroAgent);
   const isSecureAstroDesk =
     isAstroTradingDeskChat(displayChat, isGroup);
   const isGoldmanSacksDesk = isGoldmanSacksChat(displayChat, isGroup);
   const currentAgentThreadId = getDedicatedAgentThreadId(displayChat, isGroup);
-  const contextPanelMode = isSecureAstroDesk || hasAstroConsoleAgent
+  const contextPanelMode = isSecureAstroDesk || hasDisplayedAstroAgent
     ? 'astro'
     : isGoldmanSacksDesk
     ? 'goldman'
