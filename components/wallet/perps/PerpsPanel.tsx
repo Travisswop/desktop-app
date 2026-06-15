@@ -50,6 +50,7 @@ import {
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
 } from '@/lib/perps/perpsFeed';
+import { hyperliquidMarketForPosition } from '@/lib/perps/hyperliquidMarketIdentity';
 
 export type PerpsInitialOrder = {
   side?: 'long' | 'short';
@@ -730,7 +731,9 @@ export function PerpsPanel({
         // currently-selected coin. Mixing one asset's index/price with
         // another's makes Hyperliquid reject the order as ">95% away from
         // the reference price".
-        const positionMarket = markets.find((m) => m.coin === position.coin);
+        const positionMarket =
+          hyperliquidMarketForPosition(markets, position) ||
+          markets.find((m) => m.coin === position.coin);
         if (!positionMarket) {
           throw new Error(
             `No market found for ${position.coin} — cannot close position.`,

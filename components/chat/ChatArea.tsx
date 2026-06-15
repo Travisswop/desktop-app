@@ -223,6 +223,13 @@ import {
   type PerpsPositionFeedStatus,
 } from '@/lib/perps/perpsFeed';
 import {
+  getHyperliquidPositionDex,
+  getHyperliquidMarketDex,
+  hyperliquidMarketForPosition,
+  hyperliquidMarketMatchesPosition,
+  normalizeHyperliquidDex,
+} from '@/lib/perps/hyperliquidMarketIdentity';
+import {
   executeJupiterOrder as postJupiterExecute,
   getJupiterOrder,
   getJupiterQuote as fetchJupiterQuote,
@@ -750,6 +757,9 @@ interface WalletSendDraftCandidate {
 
 interface PerpsPositionPromptOption {
   coin: string;
+  dex?: string | null;
+  dexName?: string | null;
+  assetIndex?: number | null;
   side: 'long' | 'short';
   sizeCoins: string;
   entryPrice: string;
@@ -770,6 +780,9 @@ interface PerpsPositionPrompt {
 
 interface HyperliquidPositionPreview {
   coin: string;
+  dex?: string | null;
+  dexName?: string | null;
+  assetIndex?: number | null;
   displayCoin?: string | null;
   side?: 'long' | 'short' | string | null;
   szi?: string | null;
@@ -2116,10 +2129,13 @@ function getPerpsPositionOption(
   markets: HLMarket[]
 ): PerpsPositionPromptOption {
   const side = getPerpsPositionSide(position);
-  const market = perpsMarketForCoin(markets, position.coin);
+  const market = hyperliquidMarketForPosition(markets, position);
   const markPrice = getPerpsMarkPrice(position.coin, market);
   return {
     coin: position.coin,
+    dex: getHyperliquidPositionDex(position) || undefined,
+    dexName: market?.dexName,
+    assetIndex: market?.index,
     side,
     sizeCoins: formatPerpsOrderSize(
       Math.abs(toFiniteNumber(position.szi)),
@@ -2162,6 +2178,15 @@ function getPerpsPositionIntentWithOption(
     ...intent.params,
     coin: option.coin,
     asset: option.coin,
+    ...(option.assetIndex !== null && option.assetIndex !== undefined
+      ? {
+          assetIndex: option.assetIndex,
+          assetId: option.assetIndex,
+          a: option.assetIndex,
+        }
+      : {}),
+    ...(option.dex ? { dex: option.dex, marketDex: option.dex } : {}),
+    ...(option.dexName ? { dexName: option.dexName } : {}),
     side: option.side,
     direction: option.side,
     isBuy: option.side === 'long',
@@ -7147,11 +7172,14 @@ function buildPerpsPositionPreview(
   position: HLPosition,
   markets: HLMarket[] = []
 ): HyperliquidPositionPreview {
-  const market = perpsMarketForCoin(markets, position.coin);
+  const market = hyperliquidMarketForPosition(markets, position);
   const markPrice = getPerpsMarkPrice(position.coin, market);
 
   return {
     coin: position.coin,
+    dex: getHyperliquidPositionDex(position) || undefined,
+    dexName: market?.dexName,
+    assetIndex: market?.index,
     displayCoin: displayPerpsCoin(position.coin),
     side: toFiniteNumber(position.szi) < 0 ? 'short' : 'long',
     szi: position.szi,
@@ -10926,6 +10954,15 @@ function buildPerpsPositionPromptProposal(
   const params = {
     coin: option.coin,
     asset: option.coin,
+    ...(option.assetIndex !== null && option.assetIndex !== undefined
+      ? {
+          assetIndex: option.assetIndex,
+          assetId: option.assetIndex,
+          a: option.assetIndex,
+        }
+      : {}),
+    ...(option.dex ? { dex: option.dex, marketDex: option.dex } : {}),
+    ...(option.dexName ? { dexName: option.dexName } : {}),
     side: option.side,
     direction: option.side,
     isBuy: option.side === 'long',
@@ -10984,7 +11021,13 @@ function buildHyperliquidClosePositionProposal(
   const side = getHyperliquidPreviewSide(position);
   const sizeCoins = Math.abs(toFiniteNumber(position.szi));
   const closeSize = formatPerpsOrderSize(sizeCoins, market?.szDecimals ?? 4);
-  const proposalSeed = [displayPerpsCoin(position.coin), side, closeSize]
+  const positionDex = String(position.dex || market?.dex || '').trim();
+  const proposalSeed = [
+    positionDex || 'main',
+    displayPerpsCoin(position.coin),
+    side,
+    closeSize,
+  ]
     .join('-')
     .replace(/[^a-zA-Z0-9_-]/g, '-');
   const isCross = position.leverage?.type !== 'isolated';
@@ -10998,6 +11041,10 @@ function buildHyperliquidClosePositionProposal(
     asset: position.coin,
     ...(marketIndex !== null
       ? { assetIndex: marketIndex, assetId: marketIndex, a: marketIndex }
+      : {}),
+    ...(positionDex ? { dex: positionDex, marketDex: positionDex } : {}),
+    ...(position.dexName || market?.dexName
+      ? { dexName: position.dexName || market?.dexName }
       : {}),
     side,
     direction: side,
@@ -11126,13 +11173,16 @@ function HyperliquidPositionsCard({
           </div>
         ) : (
           positions.map((position, index) => {
-            const positionKey = `${position.coin}-${position.szi || index}`;
+            const positionDex = String(position.dex || '').trim();
+            const positionKey = `${positionDex || 'main'}-${position.coin}-${
+              position.szi || index
+            }`;
             const side = getHyperliquidPreviewSide(position);
             const displayCoin =
               position.displayCoin || displayPerpsCoin(position.coin);
-            const market = perpsMarketForCoin(
+            const market = hyperliquidMarketForPosition(
               astroConsoleData.perpsMarkets,
-              position.coin
+              position
             );
             const size = Math.abs(toFiniteNumber(position.szi));
             const markPrice = getHyperliquidPreviewMarkPrice(position, market);
@@ -16605,22 +16655,43 @@ function HyperliquidProposalFlowTicket({
   const requestedAssetIndex = optionalTicketNumber(
     firstTicketValue(params, ['assetIndex', 'assetId', 'a'])
   );
-  const selectedMarket =
-    perpsMarketForCoin(astroConsoleData.perpsMarkets, coin) ||
-    (requestedAssetIndex !== null
+  const requestedDex = firstTicketValue(params, ['dex', 'marketDex']);
+  const requestedIndexMarket =
+    requestedAssetIndex !== null
       ? astroConsoleData.perpsMarkets.find(
           (market) => market.index === requestedAssetIndex
         )
-      : undefined);
+      : undefined;
+  const requestedDexMarket = requestedDex
+    ? astroConsoleData.perpsMarkets.find(
+        (market) =>
+          normalizeHyperliquidDex(getHyperliquidMarketDex(market)) ===
+            normalizeHyperliquidDex(requestedDex) &&
+          perpsCoinMatches(market.coin, coin)
+      )
+    : undefined;
+  const selectedMarket =
+    requestedIndexMarket ||
+    requestedDexMarket ||
+    perpsMarketForCoin(astroConsoleData.perpsMarkets, coin);
   const closeAssetIndex =
     selectedMarket?.index ?? (isClosePosition ? requestedAssetIndex : null);
   const hasCloseAssetIndex =
     closeAssetIndex !== null && Number.isFinite(closeAssetIndex);
   const markPrice = getPerpsMarkPrice(coin, selectedMarket);
   const requestedCloseSide = initialTicketSide(params);
+  const closeHasExactMarketIdentity =
+    Boolean(requestedDex) || requestedAssetIndex !== null;
   const matchingClosePosition = isClosePosition
     ? astroConsoleData.perpsAccount?.positions.find((position) => {
         if (Math.abs(toFiniteNumber(position.szi)) <= 0) return false;
+        if (
+          closeHasExactMarketIdentity &&
+          selectedMarket &&
+          !hyperliquidMarketMatchesPosition(selectedMarket, position)
+        ) {
+          return false;
+        }
         if (!perpsCoinMatches(position.coin, selectedMarket?.coin || coin)) {
           return false;
         }

@@ -51,6 +51,9 @@ export interface HLLeverage {
 
 export interface HLPosition {
   coin: string;
+  /** Empty/undefined = main perp DEX; set for HIP-3 builder DEX positions. */
+  dex?: string;
+  dexName?: string;
   szi: string;                // signed size (positive = long, negative = short)
   entryPx: string;
   unrealizedPnl: string;
@@ -114,6 +117,9 @@ export interface HLOrderRequest {
 
 export interface HLOpenOrder {
   coin: string;
+  /** Empty/undefined = main perp DEX; set for HIP-3 builder DEX orders. */
+  dex?: string;
+  dexName?: string;
   limitPx: string;
   oid: number;
   orderType: string;

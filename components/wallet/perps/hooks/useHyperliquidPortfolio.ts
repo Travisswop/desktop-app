@@ -29,12 +29,25 @@ async function fetchDexSummary(
       infoClient.clearinghouseState({ user, ...(dex ? { dex } : {}) }),
       infoClient.openOrders({ user, ...(dex ? { dex } : {}) }),
     ]);
+    const summary = buildPerpsAccountSummary(
+      state as unknown as Parameters<typeof buildPerpsAccountSummary>[0],
+      openOrders as unknown as HLOpenOrder[],
+    );
+    const dexLabel = dex || undefined;
+
     return {
       dex,
-      summary: buildPerpsAccountSummary(
-        state as unknown as Parameters<typeof buildPerpsAccountSummary>[0],
-        openOrders as unknown as HLOpenOrder[],
-      ),
+      summary: {
+        ...summary,
+        positions: summary.positions.map((position) => ({
+          ...position,
+          dex: dexLabel,
+        })),
+        openOrders: summary.openOrders.map((order) => ({
+          ...order,
+          dex: dexLabel,
+        })),
+      },
     };
   } catch {
     // A single DEX failing (e.g. user never traded it) must not sink the whole
