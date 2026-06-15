@@ -83,6 +83,7 @@ const STABLE_TOKEN_SYMBOLS = new Set([
   'PYUSD',
   'FDUSD',
 ]);
+const DEFAULT_MAX_WALLETS = '10';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -238,7 +239,7 @@ export default function BlinksSection() {
     null,
   );
   const [amountStr, setAmountStr] = useState('');
-  const [maxWalletsStr, setMaxWalletsStr] = useState('');
+  const [maxWalletsStr, setMaxWalletsStr] = useState(DEFAULT_MAX_WALLETS);
   const [recipientMode, setRecipientMode] = useState<
     'open' | 'restricted'
   >('open');
@@ -356,7 +357,7 @@ export default function BlinksSection() {
     if (createStatus === 'success') {
       toast.success('Blink created!');
       setAmountStr('');
-      setMaxWalletsStr('');
+      setMaxWalletsStr(DEFAULT_MAX_WALLETS);
       fetchPools();
       const t = setTimeout(() => resetCreate(), 1800);
       return () => clearTimeout(t);
@@ -397,6 +398,7 @@ export default function BlinksSection() {
   // ── Form derived values ────────────────────────────────────────────────────
   const amountNum = parseFloat(amountStr) || 0;
   const maxWalletsNum = parseInt(maxWalletsStr, 10) || 0;
+  const missingClaimLimit = amountNum > 0 && maxWalletsNum <= 0;
   const tokensPerWallet =
     maxWalletsNum > 0 ? amountNum / maxWalletsNum : 0;
   const tokenSymbol = selectedToken?.symbol ?? 'Token';
@@ -677,7 +679,7 @@ export default function BlinksSection() {
                     inputMode="numeric"
                     value={maxWalletsStr}
                     onChange={(e) => handleMaxWalletsChange(e.target.value)}
-                    placeholder="10"
+                    placeholder={DEFAULT_MAX_WALLETS}
                     disabled={isCreating}
                     className="w-12 bg-transparent text-[18px] font-semibold font-mono leading-none outline-none disabled:opacity-50"
                     style={{ fontVariantNumeric: 'tabular-nums' }}
@@ -724,6 +726,11 @@ export default function BlinksSection() {
                   ? ` (${tokensPerWalletUsdLabel})`
                   : ''}
                 , first-come
+              </div>
+            )}
+            {missingClaimLimit && (
+              <div className="text-[10.5px] text-amber-700 mt-2 font-mono tracking-[-0.1px]">
+                Set max wallets before creating a blink.
               </div>
             )}
           </div>
