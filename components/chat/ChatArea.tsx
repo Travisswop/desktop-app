@@ -10950,10 +10950,17 @@ function buildHyperliquidClosePositionProposal(
     .join('-')
     .replace(/[^a-zA-Z0-9_-]/g, '-');
   const isCross = position.leverage?.type !== 'isolated';
+  const marketIndex =
+    typeof market?.index === 'number' && Number.isFinite(market.index)
+      ? market.index
+      : null;
   // markPrice is intentionally omitted so the ticket uses the live market mark.
   const params = {
     coin: position.coin,
     asset: position.coin,
+    ...(marketIndex !== null
+      ? { assetIndex: marketIndex, assetId: marketIndex, a: marketIndex }
+      : {}),
     side,
     direction: side,
     isLong: side === 'long',
@@ -16236,6 +16243,13 @@ function positiveInput(value: string) {
   return Number.isFinite(number) && number > 0;
 }
 
+function optionalTicketNumber(value: unknown) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return null;
+  const number = Number(trimmed);
+  return Number.isFinite(number) ? number : null;
+}
+
 type HyperliquidTicketFlow =
   | 'order'
   | 'authorizing'
@@ -16527,16 +16541,20 @@ function HyperliquidProposalFlowTicket({
     closeAfterSignerSubmittedRef.current = false;
   }, [params, proposalId, isClosePosition]);
 
-  const requestedAssetIndex = Number(
+  const requestedAssetIndex = optionalTicketNumber(
     firstTicketValue(params, ['assetIndex', 'assetId', 'a'])
   );
   const selectedMarket =
     perpsMarketForCoin(astroConsoleData.perpsMarkets, coin) ||
-    (Number.isFinite(requestedAssetIndex)
+    (requestedAssetIndex !== null
       ? astroConsoleData.perpsMarkets.find(
           (market) => market.index === requestedAssetIndex
         )
       : undefined);
+  const closeAssetIndex =
+    selectedMarket?.index ?? (isClosePosition ? requestedAssetIndex : null);
+  const hasCloseAssetIndex =
+    closeAssetIndex !== null && Number.isFinite(closeAssetIndex);
   const markPrice = getPerpsMarkPrice(coin, selectedMarket);
   const requestedCloseSide = initialTicketSide(params);
   const matchingClosePosition = isClosePosition
@@ -16719,6 +16737,10 @@ function HyperliquidProposalFlowTicket({
     !marketIsLoading &&
     (astroConsoleData.perpsMarkets.length > 0 ||
       Boolean(astroConsoleData.perpsMarketsError));
+  const actionMarketIsLoading =
+    isClosePosition && hasCloseAssetIndex ? false : marketIsLoading;
+  const actionMarketUnavailable =
+    isClosePosition && hasCloseAssetIndex ? false : marketUnavailable;
   const isTicketActionBusy =
     flow === 'authorizing' || flow === 'opening' || closeAfterSignerReady;
   const isAuthorizingSigner =
@@ -16736,10 +16758,9 @@ function HyperliquidProposalFlowTicket({
   const closeCanSubmit = Boolean(
     canTradeInChat &&
       canAct &&
-      selectedMarket &&
+      hasCloseAssetIndex &&
       closeSizeCoinsValue > 0 &&
-      closeMarkPrice > 0 &&
-      !astroConsoleData.isPerpsLoading
+      closeMarkPrice > 0
   );
   const canSubmit = isClosePosition
     ? closeCanSubmit
@@ -16792,9 +16813,9 @@ function HyperliquidProposalFlowTicket({
       ? 'Set size'
       : !astroConsoleData.isPerpsAgentInitialized
       ? 'Approve perps signer'
-      : marketIsLoading
+      : actionMarketIsLoading
       ? 'Loading market'
-      : marketUnavailable
+      : actionMarketUnavailable
       ? 'Market unavailable'
       : isClosePosition
       ? `Close ${sideLabel} ${ticketDisplayCoin}-PERP`
@@ -16880,7 +16901,15 @@ function HyperliquidProposalFlowTicket({
       return;
     }
 
-    if (!closeCanSubmit || !selectedMarket) return;
+    if (
+      !closeCanSubmit ||
+      closeAssetIndex === null ||
+      !Number.isFinite(closeAssetIndex)
+    ) {
+      return;
+    }
+    const executableCloseAssetIndex = closeAssetIndex;
+    const closeCoin = selectedMarket?.coin || matchingClosePosition?.coin || coin;
 
     setLocalError(null);
     astroConsoleData.clearPerpsTradingError();
@@ -16888,9 +16917,9 @@ function HyperliquidProposalFlowTicket({
 
     try {
       const approvalParams = {
-        coin: selectedMarket.coin || matchingClosePosition?.coin || coin,
-        asset: selectedMarket.coin || matchingClosePosition?.coin || coin,
-        assetIndex: selectedMarket.index,
+        coin: closeCoin,
+        asset: closeCoin,
+        assetIndex: executableCloseAssetIndex,
         side: closePositionSide,
         direction: closePositionSide,
         isLong: closePositionSide === 'long',
@@ -16920,7 +16949,7 @@ function HyperliquidProposalFlowTicket({
       }
 
       const orderResult = await astroConsoleData.closePerpsPosition(
-        selectedMarket.index,
+        executableCloseAssetIndex,
         closeSize,
         closePositionSide === 'long',
         String(closeMarkPrice)
@@ -16928,7 +16957,6 @@ function HyperliquidProposalFlowTicket({
 
       const orderId = extractInlineHyperliquidOrderId(orderResult);
       const closed = buildCloseReceipt(orderId);
-      const closeCoin = selectedMarket.coin || matchingClosePosition?.coin || coin;
       await upsertPerpsPositionFeed({
         token: accessToken,
         userId: user?._id,
@@ -16992,7 +17020,7 @@ function HyperliquidProposalFlowTicket({
           orderId,
           coin: closeCoin,
           side: closePositionSide,
-          assetIndex: selectedMarket.index,
+          assetIndex: executableCloseAssetIndex,
           sizeCoins: closeSize,
           entryPrice: closeEntryPrice,
           exitPrice: closeMarkPrice,
@@ -18014,9 +18042,9 @@ function HyperliquidProposalFlowTicket({
           >
             {astroConsoleData.isPerpsLoading ? (
               'Checking Hyperliquid margin...'
-            ) : marketIsLoading ? (
+            ) : actionMarketIsLoading ? (
               'Loading Hyperliquid market data...'
-            ) : marketUnavailable ? (
+            ) : actionMarketUnavailable ? (
               astroConsoleData.perpsMarketsError ||
               `No Hyperliquid market data found for ${ticketDisplayCoin}-PERP. Try another market.`
             ) : localError ||
@@ -18069,7 +18097,7 @@ function HyperliquidProposalFlowTicket({
             onClick={isClosePosition ? handleClosePosition : handleOpenPosition}
             disabled={
               isAgentBusy ||
-              marketUnavailable ||
+              actionMarketUnavailable ||
               (!canSubmit &&
                 !canDepositForOrder &&
                 astroConsoleData.isPerpsAgentInitialized)
