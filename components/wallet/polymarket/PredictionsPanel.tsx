@@ -53,6 +53,8 @@ import {
   useMarketDetailStore,
   marketRouteKey,
 } from '@/zustandStore/marketDetailStore';
+import { Switch } from '@/components/ui/switch';
+import { safeLocalStorage } from '@/lib/browserStorage';
 import {
   getRedeemablePayout,
   hasRedeemablePayout,
@@ -110,6 +112,7 @@ const MUTED = '#6e6e76';
 const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
 const CTF_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
+const AUTO_CLAIM_STORAGE_KEY = 'swop:prediction:auto-claim-wins';
 const ERC1155_BALANCE_OF_ABI = [
   {
     type: 'function',
@@ -197,6 +200,9 @@ export default function PredictionsPanel({
   const [pendingRedemptions, setPendingRedemptions] = useState<
     PendingRedemptionSnapshot[]
   >([]);
+  const [autoClaimEnabled, setAutoClaimEnabled] = useState(false);
+  const [autoClaimAttemptedAssets, setAutoClaimAttemptedAssets] =
+    useState<Set<string>>(() => new Set());
   const [onchainPositionBalances, setOnchainPositionBalances] =
     useState<Map<string, number>>(new Map());
 
@@ -384,6 +390,50 @@ export default function PredictionsPanel({
     () => activePositions.filter((p) => !p.redeemable),
     [activePositions],
   );
+  const redeemablePositions = useMemo(
+    () => activePositions.filter((p) => p.redeemable),
+    [activePositions],
+  );
+  const autoClaimablePositions = useMemo(
+    () => redeemablePositions.filter((p) => hasRedeemablePayout(p)),
+    [redeemablePositions],
+  );
+
+  useEffect(() => {
+    setAutoClaimEnabled(
+      safeLocalStorage.getItem(AUTO_CLAIM_STORAGE_KEY) === 'true',
+    );
+  }, []);
+
+  const handleAutoClaimChange = useCallback((enabled: boolean) => {
+    setAutoClaimEnabled(enabled);
+    safeLocalStorage.setItem(
+      AUTO_CLAIM_STORAGE_KEY,
+      enabled ? 'true' : 'false',
+    );
+    if (enabled) {
+      setAutoClaimAttemptedAssets(new Set());
+    }
+  }, []);
+
+  useEffect(() => {
+    setAutoClaimAttemptedAssets((prev) => {
+      if (prev.size === 0) return prev;
+      const currentAssets = new Set(
+        autoClaimablePositions.map((position) => position.asset),
+      );
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((asset) => {
+        if (currentAssets.has(asset)) {
+          next.add(asset);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [autoClaimablePositions]);
 
   const summary = useMemo(() => {
     const inOrdersValue = activeOrders
@@ -664,7 +714,12 @@ export default function PredictionsPanel({
         const redeemedAmount = result.redeemedAmount ?? redeemValue;
         const redeemedAmountLabel = redeemedAmount.toFixed(2);
 
-        if (result.normalizationError) {
+        if (result.normalizedCollateral) {
+          toast.success(
+            `Redeemed $${redeemedAmountLabel} and converted to pUSD.`,
+            { id: redeemToastId },
+          );
+        } else if (result.normalizationError) {
           toast.success(
             `Redeemed $${redeemedAmountLabel}. Balance conversion will retry automatically.`,
             { id: redeemToastId },
@@ -729,6 +784,40 @@ export default function PredictionsPanel({
       rememberPendingRedemption,
     ],
   );
+
+  useEffect(() => {
+    if (!autoClaimEnabled || !clobClient || redeemingAsset || isSubmitting)
+      return;
+
+    const pendingAssets = new Set([
+      ...pendingRedemptions.map((item) => item.asset),
+      ...Array.from(pendingVerification.keys()),
+    ]);
+    const nextPosition = autoClaimablePositions.find(
+      (position) =>
+        !autoClaimAttemptedAssets.has(position.asset) &&
+        !pendingAssets.has(position.asset),
+    );
+
+    if (!nextPosition) return;
+
+    setAutoClaimAttemptedAssets((prev) => {
+      const next = new Set(prev);
+      next.add(nextPosition.asset);
+      return next;
+    });
+    void handleRedeem(nextPosition);
+  }, [
+    autoClaimAttemptedAssets,
+    autoClaimEnabled,
+    autoClaimablePositions,
+    clobClient,
+    handleRedeem,
+    isSubmitting,
+    pendingRedemptions,
+    pendingVerification,
+    redeemingAsset,
+  ]);
 
   const handleCancelOrder = useCallback(
     async (orderId: string) => {
@@ -853,9 +942,7 @@ export default function PredictionsPanel({
             {view === 'bets' && (
               <MyBetsView
                 actionable={actionablePositions}
-                redeemable={activePositions.filter(
-                  (p) => p.redeemable,
-                )}
+                redeemable={redeemablePositions}
                 onRedeem={handleRedeem}
                 onSell={handleMarketSell}
                 onTitleClick={navigateToPosition}
@@ -865,6 +952,8 @@ export default function PredictionsPanel({
                 pendingRedemptions={pendingRedemptions}
                 isSubmitting={isSubmitting}
                 canTrade={!!clobClient}
+                autoClaimEnabled={autoClaimEnabled}
+                onAutoClaimChange={handleAutoClaimChange}
                 portfolioAddresses={portfolioAddresses}
                 teamsMap={teamsData}
                 onSeeHistory={() => setView('history')}
@@ -1570,6 +1659,8 @@ interface MyBetsViewProps {
   pendingRedemptions: PendingRedemptionSnapshot[];
   isSubmitting: boolean;
   canTrade: boolean;
+  autoClaimEnabled: boolean;
+  onAutoClaimChange: (enabled: boolean) => void;
   portfolioAddresses: string[];
   teamsMap?: TeamsMap;
   onSeeHistory: () => void;
@@ -1588,6 +1679,8 @@ function MyBetsView({
   pendingRedemptions,
   isSubmitting,
   canTrade,
+  autoClaimEnabled,
+  onAutoClaimChange,
   portfolioAddresses,
   teamsMap,
   onSeeHistory,
@@ -1776,6 +1869,19 @@ function MyBetsView({
             Past · {counts.settled}
           </FilterChip>
         )}
+        <label
+          className="ml-auto inline-flex h-9 items-center gap-2 rounded-full border bg-white px-3 text-[11.5px] font-semibold text-gray-900 shadow-sm"
+          style={{ borderColor: HAIR }}
+          title="Auto claim won predictions when this browser sees them."
+        >
+          <span>Auto claim</span>
+          <Switch
+            checked={autoClaimEnabled}
+            onCheckedChange={onAutoClaimChange}
+            aria-label="Auto claim won predictions"
+            className="h-5 w-9 data-[state=checked]:bg-black data-[state=unchecked]:bg-gray-200 [&>span]:h-4 [&>span]:w-4 [&>span]:data-[state=checked]:translate-x-4"
+          />
+        </label>
       </div>
 
       {/* Bets table — header row + body rows on a shared grid. */}

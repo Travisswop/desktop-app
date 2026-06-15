@@ -525,8 +525,9 @@ const Login: React.FC = () => {
   );
 
   useEffect(() => {
-    const walletCreationAttemptKey = user?.id
-      ? `${user.id}:${user.linkedAccounts?.length ?? 0}`
+    const walletCreationAttemptBase = user?.id || user?.email?.address;
+    const walletCreationAttemptKey = walletCreationAttemptBase
+      ? `${walletCreationAttemptBase}:${user.linkedAccounts?.length ?? 0}`
       : null;
 
     if (

@@ -39,6 +39,7 @@ import GroupMenu from './GroupMenu';
 import ChatAttachmentMenu, {
   type ChatAttachmentGif,
 } from './ChatAttachmentMenu';
+import { resolveActiveChatData } from './chatSelection';
 import { sendCloudinaryFile } from '@/lib/SendCloudinaryAnyFile';
 import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
@@ -909,34 +910,13 @@ function getDirectReceiverAvatar(chat: SelectedChat | null) {
   return chat.microsite?.profilePic || chat.participant?.profilePic;
 }
 
-function hasActiveAstroAgent(chat: SelectedChat | null) {
-  return (
-    chat?.botUsers?.some(
-      (agent) => agent.agentId === 'astro' && agent.isActive !== false
-    ) || false
-  );
-}
-
-function hasActiveGoldmanAgent(chat: SelectedChat | null) {
-  return (
-    chat?.botUsers?.some(
-      (agent) => agent.agentId === 'goldman-sacks' && agent.isActive !== false
-    ) || false
-  );
-}
-
 function isAstroTradingDeskChat(
   chat: SelectedChat | null,
   isGroup: boolean
 ) {
   const name = String(chat?.name || '').trim().toLowerCase();
 
-  return (
-    isGroup &&
-    (hasActiveAstroAgent(chat) ||
-      name === 'astro trading desk' ||
-      name === 'astro')
-  );
+  return isGroup && name === 'astro trading desk';
 }
 
 function isGoldmanSacksChat(
@@ -945,12 +925,7 @@ function isGoldmanSacksChat(
 ) {
   const name = String(chat?.name || '').trim().toLowerCase();
 
-  return (
-    isGroup &&
-    (hasActiveGoldmanAgent(chat) ||
-      name === 'goldman sacks' ||
-      name === 'goldman')
-  );
+  return isGroup && name === 'goldman sacks';
 }
 
 type DedicatedAgentThreadId = 'astro' | 'goldman-sacks';
@@ -3106,6 +3081,11 @@ export default function ChatArea({
   const selectedChatKey = selectedChat
     ? `${chatType}:${isGroup ? selectedChat._id : getDirectReceiverId(selectedChat)}`
     : 'none';
+  const activeChatData = resolveActiveChatData(
+    selectedChat,
+    currentGroupData,
+    isGroup
+  );
   selectedChatRef.current = selectedChat;
   const scrollMessagesToBottom = useCallback(
     (behavior: ScrollBehavior = 'auto') => {
@@ -3134,7 +3114,7 @@ export default function ChatArea({
     previousScrollHeightRef.current = 0;
     scrollMessagesToBottom('auto');
   }, [scrollMessagesToBottom]);
-  const activeConsoleChat = currentGroupData || selectedChat;
+  const activeConsoleChat = activeChatData;
   const isAstroConsoleChat = isAstroTradingDeskChat(
     activeConsoleChat,
     isGroup
@@ -3146,11 +3126,11 @@ export default function ChatArea({
   const { accessToken, user } = useUser();
   const queryClient = useQueryClient();
   const currentChatUser = useMemo(() => {
-    const chat = currentGroupData || selectedChat;
+    const chat = activeChatData;
     return chat?.participants?.find(
       (participant) => getObjectId(participant.userId?._id) === currentUser
     )?.userId;
-  }, [currentGroupData, currentUser, selectedChat]);
+  }, [activeChatData, currentUser]);
   const walletIdentityLabel = useMemo(
     () => getUserSwopIdLabel(user, currentChatUser),
     [currentChatUser, user]
@@ -3424,8 +3404,14 @@ export default function ChatArea({
   const perpsAgent = useHyperliquidAgent({
     enabled: shouldLoadAstroConsoleData,
   });
-  const { data: perpsMarkets = [] } = useHyperliquidMarkets({
+  const {
+    data: perpsMarkets = [],
+    isLoading: isPerpsMarketsLoading,
+    isFetching: isPerpsMarketsFetching,
+    error: perpsMarketsError,
+  } = useHyperliquidMarkets({
     enabled: shouldLoadAstroConsoleData,
+    includeBuilderDexes: true,
   });
   const perpsTrading = useHyperliquidTrading(perpsAgent.agentClient);
 
@@ -3585,6 +3571,16 @@ export default function ChatArea({
       perpsMasterAddress,
       isPerpsLoading,
       perpsMarkets,
+      isPerpsMarketsLoading:
+        shouldLoadAstroConsoleData &&
+        (isPerpsMarketsLoading ||
+          (isPerpsMarketsFetching && perpsMarkets.length === 0)),
+      perpsMarketsError:
+        perpsMarketsError instanceof Error
+          ? perpsMarketsError.message
+          : perpsMarketsError
+          ? 'Hyperliquid markets unavailable.'
+          : null,
       isPerpsAgentInitialized: perpsAgent.isInitialized,
       isPerpsAgentInitializing: perpsAgent.isInitializing,
       isPerpsAgentHydrating: perpsAgent.isHydrating,
@@ -3605,6 +3601,8 @@ export default function ChatArea({
       eoaAddress,
       isWalletPortfolioBalanceLoading,
       isPerpsLoading,
+      isPerpsMarketsFetching,
+      isPerpsMarketsLoading,
       isActivePredictionBalanceLoading,
       isPredictionPortfolioBalanceLoading,
       isPredictionWalletInfoLoading,
@@ -3619,6 +3617,7 @@ export default function ChatArea({
       perpsAgent.isReconnecting,
       perpsMasterAddress,
       perpsMarkets,
+      perpsMarketsError,
       perpsTrading.clearError,
       perpsTrading.closePosition,
       perpsTrading.error,
@@ -4052,8 +4051,8 @@ export default function ChatArea({
   }, [selectedChat]);
 
   useEffect(() => {
-    currentGroupDataRef.current = currentGroupData;
-  }, [currentGroupData]);
+    currentGroupDataRef.current = activeChatData;
+  }, [activeChatData]);
 
   useEffect(() => {
     pendingPolymarketBetKeyRef.current = pendingPolymarketBetKey;
@@ -4513,7 +4512,7 @@ export default function ChatArea({
 
     const hasAstroMention = /(?:^|\s)@?astro\b/i.test(outgoingMessage);
     const isLocalChartCommand = isChartCommand(outgoingMessage);
-    const activeChat = currentGroupData || selectedChat;
+    const activeChat = activeChatData;
     const shouldAutoMentionAstro =
       isAstroTradingDeskChat(activeChat, isGroup) &&
       !hasAstroMention &&
@@ -4692,7 +4691,7 @@ export default function ChatArea({
     );
   }, [
     currentUser,
-    currentGroupData,
+    activeChatData,
     evmWalletAddress,
     evmWalletAddresses,
     getPolymarketIntentMarkets,
@@ -5541,7 +5540,7 @@ export default function ChatArea({
 
   const handleUpdateGoldmanAccessStation = useCallback(
     async (accessStation: GoldmanAccessStationInput) => {
-      const groupId = (currentGroupData || selectedChat)?._id;
+      const groupId = activeChatData?._id;
       if (!groupId) {
         throw new Error('Select the Goldman Sacks group before saving access.');
       }
@@ -5555,9 +5554,8 @@ export default function ChatArea({
       onChatUpdate?.();
     },
     [
-      currentGroupData,
+      activeChatData,
       onChatUpdate,
-      selectedChat,
       updateGroupAgentAccessStation,
       upsertGroupAgent,
     ]
@@ -5581,8 +5579,8 @@ export default function ChatArea({
     );
   }
 
-  // USE currentGroupData instead of selectedChat for display
-  const displayChat = isGroup ? currentGroupData : selectedChat;
+  // Prefer fresh group metadata only when it belongs to the selected thread.
+  const displayChat = activeChatData;
   const smartsiteHref = !isGroup ? getSmartsiteHref(displayChat) : null;
   const smartsiteAnchorAttrs = smartsiteHref
     ? getSmartsiteAnchorAttrs(smartsiteHref)
@@ -14934,6 +14932,54 @@ function SwapProposalTicket({
   const quoteCacheRef = useRef(
     new Map<string, { state: ChatSwapQuoteState; ts: number }>()
   );
+  const reverseFromOption = selectedToOption
+    ? walletFromOptions.find((option) => option.key === selectedToOption.key) ||
+      walletFromOptions.find(
+        (option) =>
+          option.chainId === selectedToOption.chainId &&
+          normalizeSwapSymbol(option.symbol) ===
+            normalizeSwapSymbol(selectedToOption.symbol)
+      ) ||
+      null
+    : null;
+  const reverseToOption = selectedFromOption
+    ? quoteTokenOptions.find((option) => option.key === selectedFromOption.key) ||
+      quoteTokenOptions.find(
+        (option) =>
+          option.chainId === selectedFromOption.chainId &&
+          normalizeSwapSymbol(option.symbol) ===
+            normalizeSwapSymbol(selectedFromOption.symbol)
+      ) ||
+      null
+    : null;
+  const handleReverseSwapTokens = () => {
+    if (!selectedFromOption || !selectedToOption) return;
+
+    if (!reverseFromOption || !reverseToOption) {
+      setSwapError(
+        `You need a spendable ${selectedToOption.symbol} balance to swap from ${selectedToOption.symbol}.`
+      );
+      return;
+    }
+
+    quoteRequestIdRef.current += 1;
+    setOpenTokenSelector(null);
+    setSwapError(null);
+    setQuoteState({ status: 'idle' });
+    setSelectedFromKey(reverseFromOption.key);
+    setSelectedToKey(reverseToOption.key);
+
+    if (
+      amountType !== 'usd' &&
+      quoteState.status === 'success' &&
+      quoteState.outputAmount
+    ) {
+      const outputAmount = Number(quoteState.outputAmount);
+      if (Number.isFinite(outputAmount) && outputAmount > 0) {
+        setAmountInput(formatSwapAmountInputValue(outputAmount));
+      }
+    }
+  };
 
   const fetchSwapQuote = useCallback(async () => {
     const requestId = quoteRequestIdRef.current + 1;
@@ -15868,9 +15914,16 @@ function SwapProposalTicket({
         </div>
 
         <div className="flex justify-center">
-          <div className="grid h-8 w-8 place-items-center rounded-[10px] border border-white/[0.07] bg-black/40 text-[#3fe08f]">
+          <button
+            type="button"
+            onClick={handleReverseSwapTokens}
+            disabled={!isOpen || isSwapBusy || !selectedFromOption || !selectedToOption}
+            aria-label="Swap buy and sell tokens"
+            title="Swap buy and sell tokens"
+            className="dm-btn grid h-8 w-8 place-items-center rounded-[10px] border border-white/[0.07] bg-black/40 text-[#3fe08f] transition hover:border-[#3fe08f]/35 hover:bg-[#3fe08f]/10 disabled:cursor-not-allowed disabled:opacity-45"
+          >
             <ArrowRightLeft className="h-3.5 w-3.5 rotate-90" />
-          </div>
+          </button>
         </div>
 
         <div className="rounded-[14px] border border-white/[0.07] bg-[#0f1116] p-3">
@@ -16577,6 +16630,13 @@ function HyperliquidProposalFlowTicket({
     astroConsoleData.isPerpsAgentHydrating ||
       astroConsoleData.isPerpsAgentReconnecting
   );
+  const marketIsLoading =
+    !selectedMarket && Boolean(astroConsoleData.isPerpsMarketsLoading);
+  const marketUnavailable =
+    !selectedMarket &&
+    !marketIsLoading &&
+    (astroConsoleData.perpsMarkets.length > 0 ||
+      Boolean(astroConsoleData.perpsMarketsError));
   const isTicketActionBusy =
     flow === 'authorizing' || flow === 'opening' || closeAfterSignerReady;
   const isAuthorizingSigner =
@@ -16650,8 +16710,10 @@ function HyperliquidProposalFlowTicket({
       ? 'Set size'
       : !astroConsoleData.isPerpsAgentInitialized
       ? 'Approve perps signer'
-      : !selectedMarket
+      : marketIsLoading
       ? 'Loading market'
+      : marketUnavailable
+      ? 'Market unavailable'
       : isClosePosition
       ? `Close ${sideLabel} ${ticketDisplayCoin}-PERP`
       : isPositionTpsl
@@ -17838,6 +17900,8 @@ function HyperliquidProposalFlowTicket({
         )}
 
         {(astroConsoleData.isPerpsLoading ||
+          marketIsLoading ||
+          marketUnavailable ||
           isBelowMinimumNotional ||
           closePositionUnavailable ||
           needsEntryPrice ||
@@ -17862,6 +17926,11 @@ function HyperliquidProposalFlowTicket({
           >
             {astroConsoleData.isPerpsLoading ? (
               'Checking Hyperliquid margin...'
+            ) : marketIsLoading ? (
+              'Loading Hyperliquid market data...'
+            ) : marketUnavailable ? (
+              astroConsoleData.perpsMarketsError ||
+              `No Hyperliquid market data found for ${ticketDisplayCoin}-PERP. Try another market.`
             ) : localError ||
               astroConsoleData.perpsTradingError ||
               astroConsoleData.perpsAgentError ? (
@@ -17912,6 +17981,7 @@ function HyperliquidProposalFlowTicket({
             onClick={isClosePosition ? handleClosePosition : handleOpenPosition}
             disabled={
               isAgentBusy ||
+              marketUnavailable ||
               (!canSubmit &&
                 !canDepositForOrder &&
                 astroConsoleData.isPerpsAgentInitialized)

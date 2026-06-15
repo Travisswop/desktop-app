@@ -1,10 +1,15 @@
 // app/components/GroupMenu.tsx
 'use client';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
 import toast from 'react-hot-toast';
 import { useUser } from '@/lib/UserContext';
+import {
+  getGroupMenuPermissions,
+  getObjectIdString,
+  getParticipantId,
+} from './groupMenuPermissions';
 import {
   Bot,
   Loader2,
@@ -110,20 +115,6 @@ type ModalType =
   | 'leaveGroup';
 
 // ==================== SHARED HELPERS / STYLES ====================
-
-function getObjectIdString(value: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object' && '_id' in (value as any)) {
-    const id = (value as { _id?: unknown })._id;
-    return id ? String(id) : '';
-  }
-  return String(value);
-}
-
-function getParticipantId(participant: Participant): string {
-  return getObjectIdString(participant.userId);
-}
 
 function getParticipantUser(
   participant: Participant | RawParticipant,
@@ -306,28 +297,8 @@ export default function GroupMenu({
   const closeMenu = () => setIsOpen(false);
   const closeModal = () => setActiveModal(null);
 
-  const { canManageMembers, canEditInfo, canDelete } = useMemo(() => {
-    const me = group.participants?.find(
-      (participant) => getParticipantId(participant) === currentUser,
-    );
-    const isCreator = isGroupCreator(group, currentUser);
-    const isAdmin = isGroupAdmin(me);
-    const permissions = me?.permissions;
-
-    return {
-      canManageMembers:
-        isCreator ||
-        isAdmin ||
-        (Array.isArray(permissions) &&
-          permissions.includes('manage_members')),
-      canEditInfo:
-        isCreator ||
-        isAdmin ||
-        !Array.isArray(permissions) ||
-        permissions.includes('edit_group_info'),
-      canDelete: isCreator || isAdmin,
-    };
-  }, [group, currentUser]);
+  const { canManageMembers, canEditInfo, canDelete } =
+    getGroupMenuPermissions(group, currentUser);
 
   const handleAddAstro = useCallback(() => {
     if (!socket || isAddingAstro || hasAstroAgent) return;
@@ -739,6 +710,7 @@ function RemoveMemberModal({
   const [confirmingUser, setConfirmingUser] = useState<User | null>(
     null,
   );
+  const currentUserId = getObjectIdString(currentUser);
 
   // Filter out the current user (can't remove yourself), the group
   // creator, and unpopulated rows
@@ -747,7 +719,7 @@ function RemoveMemberModal({
       const participantId = getParticipantId(participant);
       return (
         participantId &&
-        participantId !== currentUser &&
+        participantId !== currentUserId &&
         !isGroupCreator(group, participantId) &&
         getParticipantUser(participant)
       );

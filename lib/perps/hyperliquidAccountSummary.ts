@@ -31,6 +31,20 @@ interface HyperliquidStateLike {
 const num = (value: string | undefined | null) =>
   Number.parseFloat(value ?? '0') || 0;
 
+function resolveWithdrawable(state: HyperliquidStateLike) {
+  const reportedWithdrawable = num(state.withdrawable);
+  if (reportedWithdrawable > 0) return state.withdrawable;
+
+  const accountValue = num(state.marginSummary.accountValue);
+  const marginUsed = num(
+    state.marginSummary.totalMarginUsed ??
+      state.crossMarginSummary?.totalMarginUsed,
+  );
+  const freeCollateral = Math.max(accountValue - marginUsed, 0);
+
+  return freeCollateral > 0 ? freeCollateral.toFixed(2) : state.withdrawable;
+}
+
 export function getActiveHyperliquidPositions(
   state: Pick<HyperliquidStateLike, 'assetPositions'>,
 ) {
@@ -64,6 +78,6 @@ export function buildPerpsAccountSummary(
       state.marginSummary.totalMarginUsed ??
       state.crossMarginSummary?.totalMarginUsed ??
       '0',
-    withdrawable: state.withdrawable,
+    withdrawable: resolveWithdrawable(state),
   };
 }

@@ -85,6 +85,7 @@ import { DefiSection } from './defi';
 
 // Predictions (Polymarket)
 import WalletPredictionsSection from './WalletPredictionsSection';
+import type { TransferDepositPrefill } from './polymarket/TransferModal';
 import BlinksSection from './BlinksSection';
 
 // Swap (Jupiter limit orders + LiFi/Jupiter market swaps)
@@ -197,6 +198,9 @@ const EMPTY_TIME_SERIES: TokenData['timeSeriesData'] = {
   '1M': [],
   '1Y': [],
 };
+
+const ARBITRUM_USDC_ADDRESS =
+  '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
 
 function parseChartNumber(value?: string | null) {
   if (value == null || value === '') return null;
@@ -754,6 +758,8 @@ const WalletContentInner = () => {
   const [perpsDepositOpen, setPerpsDepositOpen] = useState(false);
   const [perpsAgentPrefill, setPerpsAgentPrefill] =
     useState<HyperliquidAgentOrderPrefill | null>(null);
+  const [predictionDepositPrefill, setPredictionDepositPrefill] =
+    useState<TransferDepositPrefill | null>(null);
   // Coin requested by the row the user clicked in PerpsCard; null = let the
   // panel use its own default. Cleared back to null on close so the next
   // top-level "Trade" press doesn't re-open on a stale coin.
@@ -860,6 +866,32 @@ const WalletContentInner = () => {
   );
   const perpsMasterAddress =
     evmWalletAddress || hlAgent.masterAddress || null;
+
+  const openPredictionDepositFromPerps = useCallback(
+    (amountUsd: number) => {
+      const amount =
+        Number.isFinite(amountUsd) && amountUsd > 0
+          ? amountUsd.toFixed(6).replace(/\.?0+$/, '')
+          : '';
+
+      setPredictionDepositPrefill({
+        chain: 'ARBITRUM',
+        symbol: 'USDC',
+        name: 'USD Coin',
+        amount,
+        address: ARBITRUM_USDC_ADDRESS,
+        walletAddress: perpsMasterAddress ?? undefined,
+        decimals: 6,
+        logoURI:
+          'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/arbitrum/assets/0xaf88d065e77c8cC2239327C5EDb3A432268e5831/logo.png',
+        marketData: { price: '1' },
+      });
+    },
+    [perpsMasterAddress],
+  );
+  const clearPredictionDepositPrefill = useCallback(() => {
+    setPredictionDepositPrefill(null);
+  }, []);
 
   // Balance check — shared between PerpsPanel (gates approveAgent) and
   // DepositModal (starts polling after a deposit tx is submitted).
@@ -2126,11 +2158,15 @@ const WalletContentInner = () => {
             onOpenTrading={openPerpsPanel}
             onBridgeToArbitrum={() => setArbitrumBridgeOpen(true)}
             onDepositSubmitted={hlStartDepositPolling}
+            onPredictionWithdrawSubmitted={openPredictionDepositFromPerps}
           />
         </section>
 
         {/* ───────── PREDICTIONS ───────── */}
-        <WalletPredictionsSection />
+        <WalletPredictionsSection
+          depositPrefill={predictionDepositPrefill}
+          onDepositPrefillConsumed={clearPredictionDepositPrefill}
+        />
 
         {/* ───────── BLINKS ───────── */}
         <BlinksSection />
@@ -2258,6 +2294,10 @@ const WalletContentInner = () => {
             }}
             depositStatus={hlDepositStatus}
             onRecheckBalance={hlRecheckBalance}
+            onPredictionWithdrawSubmitted={(amountUsd) => {
+              openPredictionDepositFromPerps(amountUsd);
+              closePerpsPanel();
+            }}
           />
         )}
 

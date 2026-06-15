@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   useTrading,
@@ -9,14 +9,24 @@ import {
 import { formatPolymarketError } from '@/lib/polymarket';
 import { ArrowRight } from 'lucide-react';
 import GeoBlockedBanner from '@/components/wallet/polymarket/GeoBlockedBanner';
-import TransferModal from '@/components/wallet/polymarket/TransferModal';
+import TransferModal, {
+  type TransferDepositPrefill,
+} from '@/components/wallet/polymarket/TransferModal';
 import PredictionsCard from '@/components/wallet/polymarket/PredictionsCard';
 import EnableTradingModal from '@/components/wallet/polymarket/EnableTradingModal';
 import { type PredictionsPanelView } from '@/components/wallet/polymarket/PredictionsPanel';
 
 type TransferTab = 'deposit' | 'withdraw';
 
-export default function WalletPredictionsSection() {
+interface WalletPredictionsSectionProps {
+  depositPrefill?: TransferDepositPrefill | null;
+  onDepositPrefillConsumed?: () => void;
+}
+
+export default function WalletPredictionsSection({
+  depositPrefill = null,
+  onDepositPrefillConsumed,
+}: WalletPredictionsSectionProps) {
   const router = useRouter();
   const {
     authenticated,
@@ -38,6 +48,8 @@ export default function WalletPredictionsSection() {
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferTab, setTransferTab] = useState<TransferTab>('deposit');
+  const [activeDepositPrefill, setActiveDepositPrefill] =
+    useState<TransferDepositPrefill | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [localSessionError, setLocalSessionError] =
     useState<Error | null>(null);
@@ -95,6 +107,31 @@ export default function WalletPredictionsSection() {
     },
     [isTradingSessionComplete, tradingDisabledReason],
   );
+
+  useEffect(() => {
+    if (!depositPrefill) return;
+
+    if (tradingDisabledReason) {
+      setLocalSessionError(new Error(tradingDisabledReason));
+      onDepositPrefillConsumed?.();
+      return;
+    }
+
+    if (!isTradingSessionComplete) {
+      setShowConsentModal(true);
+      return;
+    }
+
+    setActiveDepositPrefill(depositPrefill);
+    setTransferTab('deposit');
+    setTransferModalOpen(true);
+    onDepositPrefillConsumed?.();
+  }, [
+    depositPrefill,
+    isTradingSessionComplete,
+    onDepositPrefillConsumed,
+    tradingDisabledReason,
+  ]);
 
   const openPanel = useCallback(
     (view?: PredictionsPanelView) => {
@@ -233,8 +270,12 @@ export default function WalletPredictionsSection() {
 
       <TransferModal
         open={transferModalOpen}
-        onOpenChange={setTransferModalOpen}
+        onOpenChange={(nextOpen) => {
+          setTransferModalOpen(nextOpen);
+          if (!nextOpen) setActiveDepositPrefill(null);
+        }}
         defaultTab={transferTab}
+        depositPrefill={activeDepositPrefill}
       />
     </section>
   );

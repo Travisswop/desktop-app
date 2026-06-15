@@ -62,8 +62,16 @@ async function fetchMarketSet({
   });
 }
 
-async function fetchHyperliquidMarkets(): Promise<HLMarket[]> {
+async function fetchHyperliquidMarkets({
+  includeBuilderDexes = true,
+}: {
+  includeBuilderDexes?: boolean;
+} = {}): Promise<HLMarket[]> {
   const mainMarkets = await fetchMarketSet();
+  if (!includeBuilderDexes) {
+    return mainMarkets.filter((m) => !m.isDelisted);
+  }
+
   let builderMarkets: HLMarket[] = [];
 
   try {
@@ -153,11 +161,12 @@ function aliasTargets(value: string) {
  */
 export function useHyperliquidMarkets({
   enabled = true,
-}: { enabled?: boolean } = {}) {
+  includeBuilderDexes = true,
+}: { enabled?: boolean; includeBuilderDexes?: boolean } = {}) {
   return useQuery({
-    queryKey: ['hl-markets'],
+    queryKey: ['hl-markets', includeBuilderDexes ? 'all-dexes' : 'main'],
     queryFn: async (): Promise<HLMarket[]> => {
-      return fetchHyperliquidMarkets();
+      return fetchHyperliquidMarkets({ includeBuilderDexes });
     },
     enabled,
     staleTime: 10_000,

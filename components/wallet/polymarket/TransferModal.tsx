@@ -116,6 +116,18 @@ interface DepositToken {
   marketData?: { price?: string } | null;
 }
 
+export interface TransferDepositPrefill {
+  chain: string;
+  symbol: string;
+  amount?: string;
+  address?: string | null;
+  walletAddress?: string;
+  decimals?: number;
+  name?: string;
+  logoURI?: string;
+  marketData?: { price?: string } | null;
+}
+
 interface LiFiQuote {
   estimate: {
     toAmount: string;
@@ -371,12 +383,14 @@ interface TransferModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultTab?: ActiveTab;
+  depositPrefill?: TransferDepositPrefill | null;
 }
 
 export default function TransferModal({
   open,
   onOpenChange,
   defaultTab = 'deposit',
+  depositPrefill = null,
 }: TransferModalProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>(defaultTab);
 
@@ -418,7 +432,11 @@ export default function TransferModal({
 
       {/* Tab content */}
       {activeTab === 'deposit' && (
-        <DepositTab open={open} onClose={() => onOpenChange(false)} />
+        <DepositTab
+          open={open}
+          onClose={() => onOpenChange(false)}
+          depositPrefill={depositPrefill}
+        />
       )}
       {activeTab === 'withdraw' && (
         <WithdrawTab
@@ -435,9 +453,11 @@ export default function TransferModal({
 function DepositTab({
   open,
   onClose,
+  depositPrefill,
 }: {
   open: boolean;
   onClose: () => void;
+  depositPrefill?: TransferDepositPrefill | null;
 }) {
   const {
     authenticated,
@@ -541,6 +561,7 @@ function DepositTab({
     useState('all');
   const [depositStatus, setDepositStatus] = useState('');
   const isTransactionInProgress = useRef(false);
+  const appliedDepositPrefillRef = useRef<string | null>(null);
 
   const depositHandedOffToToast = useRef(false);
   const activeDepositToastId = useRef<string | undefined>();
@@ -662,6 +683,63 @@ function DepositTab({
   );
 
   useEffect(() => {
+    if (!open || !depositPrefill || tokensLoading) return;
+
+    const prefillKey = JSON.stringify(depositPrefill);
+    if (appliedDepositPrefillRef.current === prefillKey) return;
+
+    const chain = depositPrefill.chain.toUpperCase();
+    const address = depositPrefill.address?.toLowerCase();
+    const symbol = depositPrefill.symbol.toUpperCase();
+    const sourceWalletAddress =
+      depositPrefill.walletAddress ||
+      (Array.isArray(evmAddress) ? evmAddress[0] : evmAddress);
+
+    const tokenMatch = tokens.find((token) => {
+      if (token.chain.toUpperCase() !== chain) return false;
+      if (
+        sourceWalletAddress &&
+        token.walletAddress &&
+        token.walletAddress.toLowerCase() !==
+          sourceWalletAddress.toLowerCase()
+      ) {
+        return false;
+      }
+      if (address && token.address?.toLowerCase() === address) return true;
+      return token.symbol.toUpperCase() === symbol;
+    });
+
+    const fallbackToken: DepositToken = {
+      name: depositPrefill.name ?? depositPrefill.symbol,
+      symbol: depositPrefill.symbol,
+      balance: tokenMatch?.balance ?? '0',
+      decimals: depositPrefill.decimals ?? tokenMatch?.decimals ?? 6,
+      walletAddress: sourceWalletAddress,
+      address: depositPrefill.address ?? tokenMatch?.address ?? null,
+      logoURI: depositPrefill.logoURI ?? tokenMatch?.logoURI ?? '',
+      chain,
+      marketData:
+        depositPrefill.marketData ?? tokenMatch?.marketData ?? { price: '1' },
+    };
+
+    setSelectedChainFilter(chain);
+    setSelectedToken(
+      tokenMatch
+        ? {
+            ...tokenMatch,
+            walletAddress: tokenMatch.walletAddress || sourceWalletAddress,
+          }
+        : fallbackToken,
+    );
+    setAmount(depositPrefill.amount ?? '');
+    setLifiQuote(null);
+    setQuoteError(null);
+    setError(null);
+    setStep('amount');
+    appliedDepositPrefillRef.current = prefillKey;
+  }, [depositPrefill, evmAddress, open, tokens, tokensLoading]);
+
+  useEffect(() => {
     if (isDirectUsdcE) return;
     if (
       !selectedToken ||
@@ -718,6 +796,7 @@ function DepositTab({
       setQuoteError(null);
       setSelectedChainFilter('all');
       setDepositStatus('');
+      appliedDepositPrefillRef.current = null;
     }
   }, [open]);
 

@@ -81,6 +81,7 @@ interface PerpsPanelProps {
   onAgentActionComplete?: (completion: AgentActionCompletion) => void;
   /** Optional order ticket values copied from a perps feed card. */
   initialOrder?: PerpsInitialOrder | null;
+  onPredictionWithdrawSubmitted?: (amountUsd: number) => void;
 }
 
 interface HyperliquidUserFill {
@@ -204,6 +205,7 @@ export function PerpsPanel({
   agentOrderPrefill,
   onAgentActionComplete,
   initialOrder,
+  onPredictionWithdrawSubmitted,
 }: PerpsPanelProps) {
   const { toast } = useToast();
   const { accessToken, user, primaryMicrosite } = useUser();
@@ -1120,6 +1122,7 @@ export function PerpsPanel({
         masterClient={masterClient}
         withdrawable={aggregateWithdrawable}
         dexWithdrawables={dexWithdrawables}
+        onPredictionWithdrawSubmitted={onPredictionWithdrawSubmitted}
       />
 
       <AgentSetupModal
