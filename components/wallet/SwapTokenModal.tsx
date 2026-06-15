@@ -27,7 +27,6 @@ import {
 import {
   getJupiterBuild as fetchJupiterBuild,
 } from '@/actions/jupiterSwap';
-import { sponsorSolanaTransaction } from '@/actions/sponsorSolanaTransaction';
 import { notifySwapFee } from '@/actions/notifySwapFee';
 import {
   usePrivy,
@@ -821,11 +820,40 @@ const isRouteUnavailableErrorMessage = (message: string) => {
 const hasExecutableLiFiQuote = (quoteCandidate: any) =>
   Boolean(quoteCandidate?.transactionRequest);
 
+const MFA_REQUIRED_ERROR_MESSAGE =
+  'Please complete the Privy verification check, then try the swap again.';
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object') {
+    const maybeError = error as {
+      message?: unknown;
+      error?: unknown;
+      details?: unknown;
+      code?: unknown;
+    };
+    if (typeof maybeError.message === 'string')
+      return maybeError.message;
+    if (typeof maybeError.error === 'string') return maybeError.error;
+    if (typeof maybeError.details === 'string')
+      return maybeError.details;
+    if (typeof maybeError.code === 'string') return maybeError.code;
+  }
+  return String(error || '');
+};
+
+const isMfaRequiredError = (error: unknown) => {
+  const lowerError = getErrorMessage(error).toLowerCase();
+  return (
+    lowerError.includes('missing mfa token') ||
+    lowerError.includes('missing_or_invalid_mfa') ||
+    lowerError.includes('missing or invalid mfa')
+  );
+};
+
 const isUserCancellationError = (error: unknown) => {
-  const message =
-    error instanceof Error
-      ? error.message
-      : String(error || '');
+  const message = getErrorMessage(error);
   const lowerError = message.toLowerCase();
   return (
     lowerError.includes('user rejected') ||
@@ -848,6 +876,7 @@ const getSolanaFeeFallbackError = (walletSupportsSponsorship: boolean) =>
 
 const formatUserFriendlyError = (error: string): string => {
   const lowerError = error.toLowerCase();
+  if (isMfaRequiredError(error)) return MFA_REQUIRED_ERROR_MESSAGE;
   if (
     lowerError.includes('gas sponsorship failed') ||
     lowerError.includes('sponsored transaction failed')
@@ -3558,6 +3587,9 @@ export default function SwapTokenModal({
         if (isUserCancellationError(sponsoredError)) {
           throw sponsoredError;
         }
+        if (isMfaRequiredError(sponsoredError)) {
+          throw new Error(MFA_REQUIRED_ERROR_MESSAGE);
+        }
 
         console.warn(`${context} gas sponsorship failed`, {
           error: sponsoredError,
@@ -3574,13 +3606,22 @@ export default function SwapTokenModal({
     }
 
     setSwapStatus(userFundedStatus);
-    const { signedTransaction } = await signTransaction({
-      transaction: serializedTransaction,
-      wallet,
-      options: {
-        uiOptions: { showWalletUIs: false },
-      },
-    });
+    let signedTransaction: Uint8Array;
+    try {
+      const result = await signTransaction({
+        transaction: serializedTransaction,
+        wallet,
+        options: {
+          uiOptions: { showWalletUIs: false },
+        },
+      });
+      signedTransaction = result.signedTransaction;
+    } catch (signError) {
+      if (isMfaRequiredError(signError)) {
+        throw new Error(MFA_REQUIRED_ERROR_MESSAGE);
+      }
+      throw signError;
+    }
 
     return connection.sendRawTransaction(signedTransaction, {
       maxRetries: 3,
@@ -3734,9 +3775,7 @@ export default function SwapTokenModal({
           outputMint,
           amount: amountInSmallestUnit,
           taker: selectedSolanaWallet.address,
-          payer: userPrivySolanaWalletId
-            ? selectedSolanaWallet.address
-            : undefined,
+          payer: selectedSolanaWallet.address,
           slippageBps: Math.floor(slippage * 100),
           mode: 'fast',
           platformFeeBps: PLATFORM_FEE_BPS,
@@ -3819,26 +3858,14 @@ export default function SwapTokenModal({
         await safeRefreshSession();
 
         const serializedTransaction = new Uint8Array(tx.serialize());
-        let txId: string;
         if (userPrivySolanaWalletId) {
           console.debug(
-            '[Solana sponsorship] Using user Privy wallet API path',
+            '[Solana sponsorship] Using client Privy wallet path',
             {
               walletId: maskIdentifier(userPrivySolanaWalletId),
               feePayer: maskIdentifier(selectedSolanaWallet.address),
             },
           );
-          setSwapStatus('Submitting sponsored Jupiter swap...');
-          const privyAccessToken = await getAccessToken();
-          const sponsorResult = await sponsorSolanaTransaction(
-            Buffer.from(serializedTransaction).toString('base64'),
-            userPrivySolanaWalletId,
-            privyAccessToken,
-          );
-          if (!sponsorResult.success) {
-            throw new Error(sponsorResult.error);
-          }
-          txId = sponsorResult.signature;
         } else {
           console.debug(
             '[Solana sponsorship] User Privy wallet ID missing; using fallback path',
@@ -3851,17 +3878,17 @@ export default function SwapTokenModal({
                 PrivyUser?.linkedAccounts?.length ?? 0,
             },
           );
-          txId = await submitSolanaTransactionWithFallback({
-            serializedTransaction,
-            wallet: selectedSolanaWallet,
-            connection,
-            canUseUserFundedFallback: canRunUserFundedSimulation,
-            sponsoredStatus: 'Submitting sponsored Jupiter swap...',
-            userFundedStatus:
-              'Gas sponsorship unavailable; signing Jupiter swap...',
-            context: 'Jupiter swap',
-          });
         }
+        const txId = await submitSolanaTransactionWithFallback({
+          serializedTransaction,
+          wallet: selectedSolanaWallet,
+          connection,
+          canUseUserFundedFallback: canRunUserFundedSimulation,
+          sponsoredStatus: 'Submitting sponsored Jupiter swap...',
+          userFundedStatus:
+            'Gas sponsorship unavailable; signing Jupiter swap...',
+          context: 'Jupiter swap',
+        });
 
         setTxHash(txId);
         setSwapStatus('Transaction submitted!');
