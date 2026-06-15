@@ -62,8 +62,6 @@ const FeedItem = memo(
     // const [isModalOpen, setIsModalOpen] = useState(false);
     // const [redeemFeedData, setRedeemFeedData] = useState({});
 
-    console.log("ffeed indof", feed);
-
     dayjs.extend(relativeTime);
     dayjs.extend(updateLocale);
 

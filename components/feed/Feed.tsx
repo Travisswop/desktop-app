@@ -8,6 +8,11 @@ import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
 import { useModalStore } from "@/zustandStore/modalstore";
 import InfiniteScroll from "react-infinite-scroll-component";
+import {
+  FEED_PAGE_LIMIT,
+  mergeUniqueFeedItems,
+  shouldFetchAnotherFeedPage,
+} from "./feedPagination";
 // import logger from "@/utils/logger";
 
 dayjs.extend(relativeTime);
@@ -25,6 +30,8 @@ export default function Feed({
 }) {
   const initialArray = initialFeedData?.data ?? [];
   const initialTotalPages = initialFeedData?.pagination?.totalPages ?? 1;
+  const initialHasMore =
+    initialArray.length === 0 || initialTotalPages > 1;
 
   const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
   // logger.info("Feed feedRefetchTrigger", feedRefetchTrigger);
@@ -34,27 +41,40 @@ export default function Feed({
     initialArray.length === 0,
   );
 
-  const [hasMore, setHasMore] = useState(
-    initialArray.length > 0 && initialTotalPages > 1,
-  );
+  const [hasMore, setHasMore] = useState(initialHasMore);
   // logger.info("Feed component rendered with initial feedData:", feedData);
   // logger.info("Feed component rendered with initial hasMore:", hasMore);
 
   const pageRef = useRef(initialArray.length > 0 ? 2 : 1);
+  const hasMoreRef = useRef(initialHasMore);
   const isFetchingRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const setHasMoreValue = useCallback((value: boolean) => {
+    hasMoreRef.current = value;
+    setHasMore(value);
+  }, []);
 
   const fetchFeedData = useCallback(
     async (reset = false) => {
-      // console.log("reset", reset);
+      if (!userId || !accessToken) return;
+      if (!reset && !hasMoreRef.current) return;
+      if (isFetchingRef.current) {
+        if (!reset) return;
+        abortControllerRef.current?.abort();
+      }
 
-      if (!reset && !hasMore && !initialLoading) return;
-      if (isFetchingRef.current) return;
+      const requestId = requestIdRef.current + 1;
+      requestIdRef.current = requestId;
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
       isFetchingRef.current = true;
 
       try {
         const currentPage = reset ? 1 : pageRef.current;
 
-        const url = `${API_URL}/api/v2/feed/user/connect/${userId}?page=${currentPage}&limit=10`;
+        const url = `${API_URL}/api/v2/feed/user/connect/${userId}?page=${currentPage}&limit=${FEED_PAGE_LIMIT}`;
 
         const response = await fetch(url, {
           method: "GET",
@@ -63,31 +83,46 @@ export default function Feed({
             authorization: `Bearer ${accessToken}`,
           },
           cache: "no-store",
+          signal: controller.signal,
         });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch feed page ${currentPage}`);
+        }
+
         const data = await response.json();
-        const feedItems = data?.data ?? [];
-        const totalPages = data?.pagination?.totalPages ?? currentPage;
+        if (requestId !== requestIdRef.current) return;
+
+        const feedItems = Array.isArray(data?.data) ? data.data : [];
+        const nextHasMore = shouldFetchAnotherFeedPage({
+          requestedPage: currentPage,
+          returnedCount: feedItems.length,
+          pageSize: FEED_PAGE_LIMIT,
+          totalPages: data?.pagination?.totalPages,
+        });
 
         if (reset) {
-          setFeedData(feedItems);
+          setFeedData(mergeUniqueFeedItems([], feedItems));
           pageRef.current = 2;
-          setHasMore(totalPages >= pageRef.current);
+          setHasMoreValue(nextHasMore);
         } else {
-          setFeedData((prev: any[]) => [...prev, ...feedItems]);
-          pageRef.current += 1;
-
-          // ✅ safer logic
-          setHasMore(pageRef.current <= totalPages);
+          setFeedData((prev: any[]) => mergeUniqueFeedItems(prev, feedItems));
+          pageRef.current = currentPage + 1;
+          setHasMoreValue(nextHasMore);
         }
       } catch (error) {
+        if ((error as Error)?.name === "AbortError") return;
         console.error(error);
-        setHasMore(false);
+        setHasMoreValue(false);
       } finally {
-        isFetchingRef.current = false;
-        setInitialLoading(false);
+        if (requestId === requestIdRef.current) {
+          isFetchingRef.current = false;
+          abortControllerRef.current = null;
+          setInitialLoading(false);
+        }
       }
     },
-    [hasMore, initialLoading, userId, accessToken],
+    [userId, accessToken, setHasMoreValue],
   );
 
   // initial load
@@ -102,9 +137,9 @@ export default function Feed({
     if (feedRefetchTrigger === 0) return;
 
     pageRef.current = 1;
-    setHasMore(true);
+    setHasMoreValue(true);
     fetchFeedData(true);
-  }, [feedRefetchTrigger, fetchFeedData]);
+  }, [feedRefetchTrigger, fetchFeedData, setHasMoreValue]);
 
   const handlePostInteraction = useCallback(
     (postId: string, updates: Record<string, unknown>) => {
@@ -130,8 +165,9 @@ export default function Feed({
       <div className="w-full flex flex-col gap-4">
         <InfiniteScroll
           dataLength={feedData.length}
-          next={fetchFeedData}
+          next={() => fetchFeedData(false)}
           hasMore={hasMore}
+          scrollThreshold="160px"
           loader={<FeedLoading />}
           endMessage={
             <p className="text-center text-sm text-gray-500">No more posts</p>
@@ -146,7 +182,7 @@ export default function Feed({
               onRepostSuccess={() => {}}
               onDeleteSuccess={() => {
                 pageRef.current = 1;
-                setHasMore(true);
+                setHasMoreValue(true);
                 fetchFeedData(true);
               }}
               onPostInteraction={handlePostInteraction}
