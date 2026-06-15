@@ -2439,6 +2439,13 @@ function isLocalHyperliquidProposalId(proposalId?: string | null) {
   );
 }
 
+function isLocalHyperliquidCloseProposalId(proposalId?: string | null) {
+  return Boolean(
+    proposalId &&
+      proposalId.startsWith(`${LOCAL_HYPERLIQUID_PROPOSAL_PREFIX}close-`)
+  );
+}
+
 function isLocalSwapProposalId(proposalId?: string | null) {
   return Boolean(
     proposalId && proposalId.startsWith(LOCAL_SWAP_PROPOSAL_PREFIX)
@@ -2603,6 +2610,26 @@ function buildLocalWalletSendApprovalHandoff(
       provider: 'swop',
       route: '/dashboard/chat',
       panel: 'send',
+      normalizedParams: params || {},
+      prefill: params || {},
+    },
+  };
+}
+
+function buildLocalHyperliquidCloseApprovalHandoff(
+  proposalId: string,
+  params?: Record<string, unknown>
+): AgentApprovalHandoff {
+  return {
+    status: 'approved',
+    nextStep: 'perps_inline_signing_required',
+    payload: {
+      proposalId,
+      action: 'perps.close_position',
+      toolType: 'perps.write',
+      provider: 'hyperliquid',
+      route: '/dashboard/chat',
+      panel: 'perps',
       normalizedParams: params || {},
       prefill: params || {},
     },
@@ -5330,6 +5357,23 @@ export default function ChatArea({
             );
           }
         };
+
+        if (isLocalHyperliquidCloseProposalId(proposalId)) {
+          const localApprovalResult =
+            buildLocalHyperliquidCloseApprovalHandoff(
+              proposalId,
+              approvalParams
+            );
+          setActionResultsByProposalId((prev) => ({
+            ...prev,
+            [proposalId]: {
+              proposalId,
+              status: 'approved',
+              result: localApprovalResult,
+            },
+          }));
+          return localApprovalResult;
+        }
 
         if (isLocalHyperliquidProposalId(proposalId)) {
           approvalProposalId = await prepareFreshHyperliquidProposal();
@@ -16869,7 +16913,11 @@ function HyperliquidProposalFlowTicket({
         throw new Error('Swop approval was not returned by the backend.');
       }
       const executionProposalId = approvalResult.payload.proposalId;
-      persistAgentActionHandoff(approvalResult);
+      const shouldReportCompletion =
+        !isLocalHyperliquidCloseProposalId(executionProposalId);
+      if (shouldReportCompletion) {
+        persistAgentActionHandoff(approvalResult);
+      }
 
       const orderResult = await astroConsoleData.closePerpsPosition(
         selectedMarket.index,
@@ -16961,17 +17009,19 @@ function HyperliquidProposalFlowTicket({
         proposalId: executionProposalId,
       } as AgentActionCompletion;
       let completion = localCompletion;
-      try {
-        completion =
-          (await completeAgentActionFromHandoff(
-            completionDraft,
-            accessToken
-          )) || localCompletion;
-      } catch (completionError) {
-        console.warn(
-          'Hyperliquid close placed, but Swop completion reporting failed:',
-          completionError
-        );
+      if (shouldReportCompletion) {
+        try {
+          completion =
+            (await completeAgentActionFromHandoff(
+              completionDraft,
+              accessToken
+            )) || localCompletion;
+        } catch (completionError) {
+          console.warn(
+            'Hyperliquid close placed, but Swop completion reporting failed:',
+            completionError
+          );
+        }
       }
 
       await queryClient.invalidateQueries({ queryKey: ['hl-positions'] });
