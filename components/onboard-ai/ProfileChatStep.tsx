@@ -393,9 +393,6 @@ export default function ProfileChatStep({
         solanaWallet: solanaWallet?.address,
       });
       setSavedSteps((steps) => [...steps, "Profile created"]);
-      void refreshUser().catch((error) => {
-        console.error("User context refresh failed:", error);
-      });
 
       if (hasSmartSiteDetailsToSave(profile)) {
         await createAiOnboardingSocials(createdUser.primaryMicrosite, profile);
@@ -404,6 +401,9 @@ export default function ProfileChatStep({
 
       await createSwopId(ethereumWallet, createdUser.primaryMicrosite);
       setSavedSteps((steps) => [...steps, "SwopID claimed"]);
+      await refreshUser().catch((error) => {
+        console.error("User context refresh failed:", error);
+      });
 
       toast({
         title: "Profile built",

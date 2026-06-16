@@ -307,7 +307,7 @@ export default function MessengerOnboardingChat({
 
       // Pick up the backend user/token and, when available, the attached ENS
       // before the flow can continue to wallet.
-      void refreshUser().catch((error) => {
+      await refreshUser().catch((error) => {
         console.error("User context refresh failed:", error);
       });
 
