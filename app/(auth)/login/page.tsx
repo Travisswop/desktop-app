@@ -223,6 +223,31 @@ function persistBackendUserAuth(user: any, token?: string | null) {
   );
 }
 
+function readCachedBackendUserAuth(privyUser: any) {
+  try {
+    const rawCache = safeLocalStorage.getItem(USER_CACHE_KEY);
+    if (!rawCache) return null;
+
+    const cache = JSON.parse(rawCache);
+    const cachedUser = cache?.user;
+    if (!cachedUser?._id) return null;
+    if (
+      cachedUser.privyId &&
+      privyUser?.id &&
+      cachedUser.privyId !== privyUser.id
+    ) {
+      return null;
+    }
+
+    return {
+      user: cachedUser,
+      token: cache.accessToken || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function clearPrivyBrowserSession() {
   clearStaleSwopAuthStorage();
 
@@ -664,6 +689,22 @@ const Login: React.FC = () => {
 
         if (!response.ok) {
           if (response.status === 404) {
+            const cachedAuth = !userEmail
+              ? readCachedBackendUserAuth(user)
+              : null;
+            if (cachedAuth) {
+              logger.log(
+                'Backend Privy lookup missed; using cached passkey user session',
+              );
+              persistBackendUserAuth(cachedAuth.user, cachedAuth.token);
+              setLoginFlow(LoginFlow.SUCCESS);
+              redirectTimeoutRef.current = setTimeout(() => {
+                router.refresh();
+                router.push('/');
+              }, 500);
+              return;
+            }
+
             logger.log('User not found by Privy session, redirecting to onboard');
             router.push(AI_ONBOARDING_PATH);
             return;
@@ -722,7 +763,6 @@ const Login: React.FC = () => {
   const handlePasskeyLogin = useCallback(async () => {
     setLoginError(null);
     setEmailError('');
-    clearStaleSwopAuthStorage();
     setPendingPasskeyAuth(true);
 
     try {
