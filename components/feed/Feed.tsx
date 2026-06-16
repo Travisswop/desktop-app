@@ -11,6 +11,8 @@ import InfiniteScroll from "react-infinite-scroll-component";
 import {
   FEED_PAGE_LIMIT,
   filterDuplicateLegacyPerpsItems,
+  getFeedItemKey,
+  mergeFreshFeedItems,
   mergeUniqueFeedItems,
   shouldFetchAnotherFeedPage,
 } from "./feedPagination";
@@ -60,7 +62,10 @@ export default function Feed({
   }, []);
 
   const fetchFeedData = useCallback(
-    async (reset = false) => {
+    async (
+      reset = false,
+      options: { preserveLoadedItems?: boolean } = {},
+    ) => {
       if (!userId || !accessToken) return;
       if (!reset && !hasMoreRef.current) return;
       if (isFetchingRef.current) {
@@ -107,11 +112,23 @@ export default function Feed({
         });
 
         if (reset) {
-          setFeedData(
-            filterDuplicateLegacyPerpsItems(mergeUniqueFeedItems([], feedItems)),
-          );
-          pageRef.current = 2;
-          setHasMoreValue(nextHasMore);
+          if (options.preserveLoadedItems) {
+            setFeedData((prev: any[]) =>
+              filterDuplicateLegacyPerpsItems(
+                mergeFreshFeedItems(feedItems, prev),
+              ),
+            );
+            pageRef.current = Math.max(pageRef.current, 2);
+            setHasMoreValue(nextHasMore || hasMoreRef.current);
+          } else {
+            setFeedData(
+              filterDuplicateLegacyPerpsItems(
+                mergeUniqueFeedItems([], feedItems),
+              ),
+            );
+            pageRef.current = 2;
+            setHasMoreValue(nextHasMore);
+          }
         } else {
           setFeedData((prev: any[]) =>
             filterDuplicateLegacyPerpsItems(
@@ -147,16 +164,14 @@ export default function Feed({
   useEffect(() => {
     if (feedRefetchTrigger === 0) return;
 
-    pageRef.current = 1;
-    setHasMoreValue(true);
-    fetchFeedData(true);
-  }, [feedRefetchTrigger, fetchFeedData, setHasMoreValue]);
+    fetchFeedData(true, { preserveLoadedItems: true });
+  }, [feedRefetchTrigger, fetchFeedData]);
 
   const handlePostInteraction = useCallback(
     (postId: string, updates: Record<string, unknown>) => {
       setFeedData((prev: any[]) =>
         prev.map((item) =>
-          item?._id === postId ? { ...item, ...updates } : item,
+          getFeedItemKey(item) === postId ? { ...item, ...updates } : item,
         ),
       );
     },
@@ -184,21 +199,27 @@ export default function Feed({
             <p className="text-center text-sm text-gray-500">No more posts</p>
           }
         >
-          {feedData.map((feed: any) => (
-            <FeedItem
-              key={feed._id}
-              feed={feed}
-              userId={userId}
-              accessToken={accessToken}
-              onRepostSuccess={() => {}}
-              onDeleteSuccess={() => {
-                pageRef.current = 1;
-                setHasMoreValue(true);
-                fetchFeedData(true);
-              }}
-              onPostInteraction={handlePostInteraction}
-            />
-          ))}
+          {feedData.map((feed: any, index: number) => {
+            const feedKey =
+              getFeedItemKey(feed) ||
+              `${feed?.postType || "feed"}-${feed?.createdAt || index}`;
+
+            return (
+              <FeedItem
+                key={feedKey}
+                feed={feed}
+                userId={userId}
+                accessToken={accessToken}
+                onRepostSuccess={() => {}}
+                onDeleteSuccess={() => {
+                  pageRef.current = 1;
+                  setHasMoreValue(true);
+                  fetchFeedData(true);
+                }}
+                onPostInteraction={handlePostInteraction}
+              />
+            );
+          })}
         </InfiniteScroll>
       </div>
     </div>

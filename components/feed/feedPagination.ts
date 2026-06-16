@@ -38,6 +38,34 @@ export function mergeUniqueFeedItems<T extends FeedItemLike>(
   return [...currentItems, ...uniqueNextItems];
 }
 
+export function mergeFreshFeedItems<T extends FeedItemLike>(
+  freshItems: T[],
+  currentItems: T[],
+) {
+  const seen = new Set<string>();
+  const mergedItems: T[] = [];
+
+  for (const item of freshItems) {
+    const key = getFeedItemKey(item);
+    if (key) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    mergedItems.push(item);
+  }
+
+  for (const item of currentItems) {
+    const key = getFeedItemKey(item);
+    if (key) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    mergedItems.push(item);
+  }
+
+  return mergedItems;
+}
+
 function idPart(value: unknown): string {
   if (typeof value === "string" || typeof value === "number") {
     return String(value);
