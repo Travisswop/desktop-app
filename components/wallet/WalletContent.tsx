@@ -865,7 +865,10 @@ const WalletContentInner = () => {
         solWalletAddress.toLowerCase(),
   );
   const perpsMasterAddress =
-    evmWalletAddress || hlAgent.masterAddress || null;
+    hlAgent.masterAddress ||
+    hlAgent.candidateMasterAddress ||
+    evmWalletAddress ||
+    null;
 
   const openPredictionDepositFromPerps = useCallback(
     (amountUsd: number) => {

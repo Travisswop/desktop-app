@@ -5,6 +5,7 @@ import {
   shouldPreferEmbeddedWallets,
   tradingWalletSelectionOptions,
 } from '@/components/wallet/hooks/useWalletData';
+import { selectHyperliquidMasterWallet } from '@/components/wallet/perps/hyperliquidAgentSelection';
 
 const wallets = [
   {
@@ -147,5 +148,45 @@ describe('trading wallet selection', () => {
       { address: 'storedSolana', isActive: false, isEVM: false },
       { address: '0xStoredEvm', isActive: false, isEVM: true },
     ]);
+  });
+
+  it('rehydrates the Hyperliquid wallet that already has a saved agent key', () => {
+    delete process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS;
+
+    const multipleEmbeddedWallets = [
+      {
+        address: '0xFreshEmbedded',
+        walletClientType: 'privy',
+        connectorType: 'embedded',
+      },
+      {
+        address: '0xSavedAgentEmbedded',
+        walletClientType: 'privy-v2',
+        connectorType: 'embedded',
+      },
+    ];
+
+    expect(
+      selectHyperliquidMasterWallet({
+        wallets: multipleEmbeddedWallets,
+        preferredAddresses: ['0xFreshEmbedded'],
+        options: tradingWalletSelectionOptions(),
+        hasSavedAgentKey: (address) =>
+          address.toLowerCase() === '0xsavedagentembedded',
+      })?.address,
+    ).toBe('0xSavedAgentEmbedded');
+  });
+
+  it('falls back to the preferred Hyperliquid wallet when no saved agent exists', () => {
+    delete process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS;
+
+    expect(
+      selectHyperliquidMasterWallet({
+        wallets,
+        preferredAddresses: ['0xEmbedded'],
+        options: tradingWalletSelectionOptions(),
+        hasSavedAgentKey: () => false,
+      })?.address,
+    ).toBe('0xEmbedded');
   });
 });
