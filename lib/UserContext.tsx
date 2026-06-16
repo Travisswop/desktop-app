@@ -204,8 +204,24 @@ const CLIENT_AUTH_COOKIE_NAMES = [
   'privy-session',
 ];
 
+const LOGOUT_LOCAL_STORAGE_KEYS = ['polymarket_trading_session'];
+const LOGOUT_LOCAL_STORAGE_PREFIXES = ['polymarket_trading_session_'];
+
+function clearLogoutScopedLocalStorage() {
+  for (const key of LOGOUT_LOCAL_STORAGE_KEYS) {
+    safeLocalStorage.removeItem(key);
+  }
+
+  for (const key of safeLocalStorage.keys()) {
+    if (LOGOUT_LOCAL_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      safeLocalStorage.removeItem(key);
+    }
+  }
+}
+
 function clearStoredUserContext() {
   safeLocalStorage.removeItem(USER_CACHE_KEY);
+  clearLogoutScopedLocalStorage();
 
   for (const name of CLIENT_AUTH_COOKIE_NAMES) {
     Cookies.remove(name);
