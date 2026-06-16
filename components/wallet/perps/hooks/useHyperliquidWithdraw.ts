@@ -9,6 +9,7 @@ interface UseHyperliquidWithdrawArgs {
    *  the local agent key. */
   masterClient: hl.ExchangeClient | null;
   masterAddress: string | null;
+  ensureMasterClient?: () => Promise<hl.ExchangeClient | null>;
 }
 
 interface WithdrawArgs {
@@ -25,6 +26,7 @@ function toAmountString(amount: number): string {
 export function useHyperliquidWithdraw({
   masterClient,
   masterAddress,
+  ensureMasterClient,
 }: UseHyperliquidWithdrawArgs) {
   const queryClient = useQueryClient();
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -34,7 +36,8 @@ export function useHyperliquidWithdraw({
     async ({ destination, amountUsd }: WithdrawArgs) => {
       setError(null);
 
-      if (!masterClient || !masterAddress) {
+      const signingClient = masterClient ?? (await ensureMasterClient?.()) ?? null;
+      if (!signingClient || !masterAddress) {
         throw new Error('Perps wallet is not ready. Enable trading first.');
       }
 
@@ -48,7 +51,7 @@ export function useHyperliquidWithdraw({
 
       setIsWithdrawing(true);
       try {
-        const result = await masterClient.withdraw3({
+        const result = await signingClient.withdraw3({
           destination: destination as `0x${string}`,
           amount: toAmountString(amountUsd),
         });
@@ -81,7 +84,7 @@ export function useHyperliquidWithdraw({
         setIsWithdrawing(false);
       }
     },
-    [masterAddress, masterClient, queryClient],
+    [ensureMasterClient, masterAddress, masterClient, queryClient],
   );
 
   return {

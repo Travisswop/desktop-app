@@ -26,6 +26,7 @@ interface PerpsActionsModalProps {
   onClose: () => void;
   masterAddress: string | null;
   masterClient: hl.ExchangeClient | null;
+  ensureMasterClient?: () => Promise<hl.ExchangeClient | null>;
   withdrawable: number;
   dexWithdrawables: Record<string, number>;
   initialTab?: PerpsActionTab;
@@ -39,6 +40,7 @@ export function PerpsActionsModal({
   onClose,
   masterAddress,
   masterClient,
+  ensureMasterClient,
   withdrawable,
   dexWithdrawables,
   initialTab = 'deposit',
@@ -104,6 +106,7 @@ export function PerpsActionsModal({
           <WithdrawForm
             masterAddress={masterAddress}
             masterClient={masterClient}
+            ensureMasterClient={ensureMasterClient}
             withdrawable={withdrawable}
             dexWithdrawables={dexWithdrawables}
             onClose={onClose}
@@ -164,6 +167,7 @@ const formatUsd = (amount: number) =>
 function WithdrawForm({
   masterAddress,
   masterClient,
+  ensureMasterClient,
   withdrawable,
   dexWithdrawables,
   onClose,
@@ -171,6 +175,7 @@ function WithdrawForm({
 }: {
   masterAddress: string | null;
   masterClient: hl.ExchangeClient | null;
+  ensureMasterClient?: () => Promise<hl.ExchangeClient | null>;
   withdrawable: number;
   dexWithdrawables: Record<string, number>;
   onClose: () => void;
@@ -185,10 +190,12 @@ function WithdrawForm({
   const { withdraw, isWithdrawing } = useHyperliquidWithdraw({
     masterClient,
     masterAddress,
+    ensureMasterClient,
   });
   const { sweepDexToMain, isTransferring } = useHyperliquidDexTransfer({
     masterClient,
     masterAddress,
+    ensureMasterClient,
   });
   const [step, setStep] = useState<WithdrawStep>('amount');
   const [amount, setAmount] = useState('');
@@ -256,11 +263,12 @@ function WithdrawForm({
   const destinationAddress = destination?.address ?? null;
   const withdrawAddress = destination?.withdrawAddress ?? null;
   const isPredictionDestination = selectedDestination === 'predictions';
+  const hasSignerPath = Boolean(masterClient || ensureMasterClient);
   const canSubmit =
     isAmountValid &&
     Boolean(withdrawAddress) &&
     Boolean(masterAddress) &&
-    Boolean(masterClient);
+    hasSignerPath;
 
   const resetAndClose = () => {
     if (step === 'processing') return;
@@ -627,7 +635,7 @@ function WithdrawForm({
         )}
       </div>
 
-      {!masterClient && (
+      {!hasSignerPath && (
         <p className="text-xs text-center text-amber-600">
           Enable perps trading before withdrawing.
         </p>

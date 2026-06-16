@@ -30,6 +30,8 @@ interface PerpsCardProps {
   masterAddress: string | undefined;
   /** Master-signed client for account-level actions like withdrawals. */
   masterClient: hl.ExchangeClient | null;
+  /** Lazily creates the master signer from an explicit account-level action. */
+  ensureMasterClient?: () => Promise<hl.ExchangeClient | null>;
   /** True while silently reconnecting after a brief disconnect */
   isReconnecting?: boolean;
   /**
@@ -223,6 +225,7 @@ function isShareCancel(err: unknown) {
 export function PerpsCard({
   masterAddress,
   masterClient,
+  ensureMasterClient,
   isReconnecting = false,
   onOpenTrading,
   onBridgeToArbitrum,
@@ -323,6 +326,7 @@ export function PerpsCard({
         onClose={() => setActionsOpen(false)}
         masterAddress={masterAddress ?? null}
         masterClient={masterClient}
+        ensureMasterClient={ensureMasterClient}
         withdrawable={withdrawable}
         dexWithdrawables={dexWithdrawables}
         onBridgeToArbitrum={onBridgeToArbitrum}

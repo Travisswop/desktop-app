@@ -43,6 +43,7 @@ interface UseHyperliquidDexTransferArgs {
    *  funds and must be signed by the master wallet — the agent cannot. */
   masterClient: hl.ExchangeClient | null;
   masterAddress: string | null;
+  ensureMasterClient?: () => Promise<hl.ExchangeClient | null>;
 }
 
 /**
@@ -55,6 +56,7 @@ interface UseHyperliquidDexTransferArgs {
 export function useHyperliquidDexTransfer({
   masterClient,
   masterAddress,
+  ensureMasterClient,
 }: UseHyperliquidDexTransferArgs) {
   const queryClient = useQueryClient();
   const [isTransferring, setIsTransferring] = useState(false);
@@ -64,7 +66,8 @@ export function useHyperliquidDexTransfer({
   const move = useCallback(
     async (sourceDex: string, destinationDex: string, amountUsd: number) => {
       setError(null);
-      if (!masterClient || !masterAddress) {
+      const signingClient = masterClient ?? (await ensureMasterClient?.()) ?? null;
+      if (!signingClient || !masterAddress) {
         throw new Error('Wallet not ready. Enable trading first.');
       }
       if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
@@ -74,7 +77,7 @@ export function useHyperliquidDexTransfer({
       setIsTransferring(true);
       try {
         const token = await getUsdcTokenSpec();
-        const result = await masterClient.sendAsset({
+        const result = await signingClient.sendAsset({
           destination: masterAddress as `0x${string}`,
           sourceDex: sourceDex.trim(),
           destinationDex: destinationDex.trim(),
@@ -100,7 +103,7 @@ export function useHyperliquidDexTransfer({
         setIsTransferring(false);
       }
     },
-    [masterClient, masterAddress, queryClient],
+    [ensureMasterClient, masterAddress, masterClient, queryClient],
   );
 
   // Main perp account → builder DEX (fund a trade).

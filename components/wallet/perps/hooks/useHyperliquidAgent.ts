@@ -87,6 +87,10 @@ const AGENT_NAME = 'Swop';
 const STALE_AGENT_MESSAGE =
   'Your Hyperliquid trading key expired or was replaced. Enable trading again to create a fresh key.';
 
+type PrivyWallet = ReturnType<typeof useWallets>['wallets'][number];
+
+export type EnsureHyperliquidMasterClient = () => Promise<hl.ExchangeClient | null>;
+
 async function getAgentApprovalStatus(
   infoClient: hl.InfoClient,
   masterAddress: string,
@@ -239,6 +243,36 @@ export function useHyperliquidAgent({
   const masterClientRef = useRef<hl.ExchangeClient | null>(null);
   const wasInitializedRef = useRef(false);
 
+  const createMasterClient = useCallback(
+    async (masterWallet: PrivyWallet, transport: hl.HttpTransport) => {
+      const masterViemAccount = await toViemAccount({ wallet: masterWallet });
+      const masterSigningAccount = isPrivyEmbeddedWallet(masterWallet)
+        ? ({
+            ...masterViemAccount,
+            signTypedData: async (
+              parameters: Parameters<
+                typeof masterViemAccount.signTypedData
+              >[0]
+            ) => {
+              const { signature } = await signTypedData(
+                parameters as SignTypedDataParams,
+                {
+                  address: masterWallet.address,
+                  uiOptions: {
+                    showWalletUIs: false,
+                  },
+                }
+              );
+              return signature as `0x${string}`;
+            },
+          } as typeof masterViemAccount)
+        : masterViemAccount;
+
+      return new hl.ExchangeClient({ wallet: masterSigningAccount, transport });
+    },
+    [signTypedData],
+  );
+
   // ─── Core init logic ───────────────────────────────────────────────────────
 
   const _init = useCallback(
@@ -328,37 +362,15 @@ export function useHyperliquidAgent({
           }
         }
 
-        // ── Master client (Privy wallet) ───────────────────────────────────
-        // Only used for approveAgent. All trading goes through agentClient.
-        const masterViemAccount = await toViemAccount({ wallet: masterWallet });
-        const masterSigningAccount = isPrivyEmbeddedWallet(masterWallet)
-          ? ({
-              ...masterViemAccount,
-              signTypedData: async (
-                parameters: Parameters<
-                  typeof masterViemAccount.signTypedData
-                >[0]
-              ) => {
-                const { signature } = await signTypedData(
-                  parameters as SignTypedDataParams,
-                  {
-                    address: masterWallet.address,
-                    uiOptions: {
-                      showWalletUIs: false,
-                    },
-                  }
-                );
-                return signature as `0x${string}`;
-              },
-            } as typeof masterViemAccount)
-          : masterViemAccount;
-        const masterClient = new hl.ExchangeClient({ wallet: masterSigningAccount, transport });
-
         // ── Approve agent ─────────────────────────────────────────────────
         // ONLY when we just generated a fresh key. Re-approving an existing
         // agent address throws "Extra agent already used." on Hyperliquid —
         // an already-approved agent stays valid until explicitly revoked.
+        // Saved keys must restore without creating a Privy wallet account,
+        // because that can trigger phone-code MFA during a plain perps open.
+        let masterClient: hl.ExchangeClient | null = null;
         if (createdNewKey) {
+          masterClient = await createMasterClient(masterWallet, transport);
           await masterClient.approveAgent({
             agentAddress: agentAccount.address,
             agentName: AGENT_NAME,
@@ -407,9 +419,9 @@ export function useHyperliquidAgent({
       enabled,
       ready,
       walletsReady,
+      createMasterClient,
       preferredMasterAddresses,
       resolveMasterWallet,
-      signTypedData,
       user?.id,
     ],
   );
@@ -417,6 +429,50 @@ export function useHyperliquidAgent({
   // ─── Public: manual initialization ────────────────────────────────────────
 
   const initializeAgent = useCallback(() => _init(false), [_init]);
+
+  const ensureMasterClient = useCallback<EnsureHyperliquidMasterClient>(
+    async () => {
+      if (masterClientRef.current) return masterClientRef.current;
+      if (!enabled || !ready || !walletsReady) return null;
+
+      const masterWallet = resolveMasterWallet();
+      if (!masterWallet) {
+        throw new Error('EVM wallet is not connected. Sign in and try again.');
+      }
+
+      if (
+        state.masterAddress &&
+        !walletAddressEquals(state.masterAddress, masterWallet.address)
+      ) {
+        throw new Error(
+          'Perps wallet changed. Reopen perps before submitting this action.',
+        );
+      }
+
+      const transport = new hl.HttpTransport({
+        isTestnet: HL_IS_TESTNET,
+        apiUrl: getHLApiUrl(HL_IS_TESTNET),
+      });
+      const masterClient = await createMasterClient(masterWallet, transport);
+      masterClientRef.current = masterClient;
+
+      setState((prev) => ({
+        ...prev,
+        masterClient,
+        masterAddress: prev.masterAddress ?? masterWallet.address,
+      }));
+
+      return masterClient;
+    },
+    [
+      createMasterClient,
+      enabled,
+      ready,
+      resolveMasterWallet,
+      state.masterAddress,
+      walletsReady,
+    ],
+  );
 
   // ─── Disconnect / reconnect detection ─────────────────────────────────────
 
@@ -524,6 +580,7 @@ export function useHyperliquidAgent({
     candidateMasterAddress,
     isHydrating,
     initializeAgent,
+    ensureMasterClient,
     resetAgent,
   };
 }

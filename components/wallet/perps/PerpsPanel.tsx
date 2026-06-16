@@ -70,6 +70,7 @@ interface PerpsPanelProps {
   isHydrating: boolean;
   agentError: string | null;
   initializeAgent: () => Promise<hl.ExchangeClient | null>;
+  ensureMasterClient?: () => Promise<hl.ExchangeClient | null>;
   resetAgent: (message?: string | null) => void;
   onClose: () => void;
   onOpenDeposit: () => void;
@@ -154,6 +155,7 @@ export function PerpsPanel({
   isHydrating,
   agentError,
   initializeAgent,
+  ensureMasterClient,
   resetAgent,
   onClose,
   onOpenDeposit,
@@ -533,7 +535,11 @@ export function PerpsPanel({
     sweepDexToMain,
     isTransferring,
     error: transferError,
-  } = useHyperliquidDexTransfer({ masterClient, masterAddress: effectiveMaster });
+  } = useHyperliquidDexTransfer({
+    masterClient,
+    masterAddress: effectiveMaster,
+    ensureMasterClient,
+  });
 
   const handleTransferToDex = useCallback(
     async (amountUsd: number) => {
@@ -1011,6 +1017,7 @@ export function PerpsPanel({
         onClose={() => setWithdrawActionsOpen(false)}
         masterAddress={masterAddress}
         masterClient={masterClient}
+        ensureMasterClient={ensureMasterClient}
         withdrawable={aggregateWithdrawable}
         dexWithdrawables={dexWithdrawables}
         onPredictionWithdrawSubmitted={onPredictionWithdrawSubmitted}
