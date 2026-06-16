@@ -102,14 +102,25 @@ const toFiniteBalance = (value: string | undefined): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-function pickPrimaryPosition(positions: HLPosition[]): HLPosition | null {
-  if (!positions.length) return null;
+function sortPositionsByExposure(positions: HLPosition[]): HLPosition[] {
   // Highest absolute notional value first, then largest |unrealized PnL|.
   return [...positions].sort((a, b) => {
     const av = Math.abs(parseFloat(a.positionValue || '0'));
     const bv = Math.abs(parseFloat(b.positionValue || '0'));
-    return bv - av;
-  })[0];
+    const ap = Math.abs(parseFloat(a.unrealizedPnl || '0'));
+    const bp = Math.abs(parseFloat(b.unrealizedPnl || '0'));
+    return bv - av || bp - ap;
+  });
+}
+
+function positionKey(position: HLPosition, index: number) {
+  return [
+    position.dex || 'main',
+    position.coin,
+    position.szi,
+    position.entryPx,
+    index,
+  ].join(':');
 }
 
 function liqMetrics(
@@ -203,7 +214,7 @@ function isShareCancel(err: unknown) {
  * PerpsCard
  *
  * Two-card bento (1.45fr / 1fr) matching the wallet design:
- *  - Open Position: primary position with size/entry/mark/margin + liq bar
+ *  - Open Positions: scrollable stack with size/entry/mark/margin + liq bar
  *  - Account: account value + Unrealized PnL / Margin used / Withdrawable / Buying power
  *
  * Falls back to clean empty / loading / connect-wallet states when there's no
@@ -243,13 +254,10 @@ export function PerpsCard({
     useState<PerpsActionTab>('deposit');
 
   const positions = useMemo(
-    () => data?.positions ?? [],
+    () => sortPositionsByExposure(data?.positions ?? []),
     [data?.positions],
   );
-  const primaryPosition = useMemo(
-    () => pickPrimaryPosition(positions),
-    [positions],
-  );
+  const primaryPosition = positions[0] ?? null;
   const accountValue = toFiniteBalance(data?.accountValue);
   const unrealizedPnl = toFiniteBalance(data?.unrealizedPnl);
   const marginUsed = toFiniteBalance(data?.marginUsed);
@@ -277,10 +285,6 @@ export function PerpsCard({
   const accountLeverageType = primaryPosition?.leverage.type ?? 'cross';
   const buyingPower = withdrawable * accountLeverage;
 
-  const hasDanger = positions.some(
-    (p) => getLiquidationRisk(p) === 'danger',
-  );
-
   const openActions = (tab: PerpsActionTab) => {
     setActionsTab(tab);
     setActionsOpen(true);
@@ -289,16 +293,12 @@ export function PerpsCard({
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-[1.45fr_1fr] gap-3.5">
-        <OpenPositionCard
-          position={primaryPosition}
-          livePrice={
-            primaryPosition ? mids[primaryPosition.coin] : undefined
-          }
+        <OpenPositionsCard
+          positions={positions}
+          livePrices={mids}
           isLoading={isLoading}
           isReconnecting={isReconnecting}
           masterAddress={masterAddress}
-          extraPositions={Math.max(positions.length - 1, 0)}
-          hasDanger={hasDanger}
           onOpenTrading={onOpenTrading}
           onDeposit={() => openActions('deposit')}
         />
@@ -335,36 +335,28 @@ export function PerpsCard({
 
 // ─── Open Position Card ──────────────────────────────────────────────────────
 
-function OpenPositionCard({
-  position,
-  livePrice,
+function OpenPositionsCard({
+  positions,
+  livePrices,
   isLoading,
   isReconnecting,
   masterAddress,
-  extraPositions,
-  hasDanger,
   onOpenTrading,
   onDeposit,
 }: {
-  position: HLPosition | null;
-  livePrice: string | undefined;
+  positions: HLPosition[];
+  livePrices: Record<string, string>;
   isLoading: boolean;
   isReconnecting: boolean;
   masterAddress: string | undefined;
-  extraPositions: number;
-  hasDanger: boolean;
   onOpenTrading: (coin?: string) => void;
   onDeposit: () => void;
 }) {
-  const shareCardRef = useRef<HTMLDivElement>(null);
-  const [isSharing, setIsSharing] = useState(false);
-  const { toast } = useToast();
-
   // ── Empty / connect / loading states ─────────────────────────────────────
   if (!masterAddress) {
     return (
       <BentoShell padding="p-5" className="flex flex-col">
-        <Tag>Open position</Tag>
+        <Tag>Open positions</Tag>
         <EmptyState
           icon={<Zap className="w-4 h-4" />}
           title="Set up perps trading"
@@ -379,16 +371,16 @@ function OpenPositionCard({
   if (isLoading || isReconnecting) {
     return (
       <BentoShell padding="p-5">
-        <Tag>Open position</Tag>
+        <Tag>Open positions</Tag>
         <PositionSkeleton />
       </BentoShell>
     );
   }
 
-  if (!position) {
+  if (!positions.length) {
     return (
       <BentoShell padding="p-5" className="flex flex-col">
-        <Tag>Open position</Tag>
+        <Tag>Open positions</Tag>
         <EmptyState
           icon={<TrendingUp className="w-4 h-4" />}
           title="No open positions"
@@ -409,7 +401,67 @@ function OpenPositionCard({
     );
   }
 
-  // ── Populated state ──────────────────────────────────────────────────────
+  const isScrollable = positions.length > 1;
+  const positionCountLabel = `${positions.length} position${
+    positions.length === 1 ? '' : 's'
+  }`;
+
+  return (
+    <BentoShell padding="p-5" className="flex flex-col min-h-[390px]">
+      <div className="flex items-center justify-between gap-3">
+        <Tag>{positions.length === 1 ? 'Open position' : 'Open positions'}</Tag>
+        {positions.length > 1 && (
+          <span
+            className="shrink-0 text-[10.5px] font-bold uppercase tracking-[0.8px] text-gray-500 tabular-nums"
+            style={{ fontFamily: MONO }}
+          >
+            {positionCountLabel}
+          </span>
+        )}
+      </div>
+
+      <div
+        role="list"
+        aria-label="Open perps positions"
+        className={
+          isScrollable
+            ? 'mt-3 -mr-1 pr-1 space-y-4 overflow-y-auto overscroll-contain'
+            : 'mt-1.5'
+        }
+        style={isScrollable ? { maxHeight: 'min(70vh, 560px)' } : undefined}
+      >
+        {positions.map((position, index) => (
+          <OpenPositionDetails
+            key={positionKey(position, index)}
+            position={position}
+            livePrice={livePrices[position.coin]}
+            hasDivider={index > 0}
+            hasDanger={getLiquidationRisk(position) === 'danger'}
+            onOpenTrading={onOpenTrading}
+          />
+        ))}
+      </div>
+    </BentoShell>
+  );
+}
+
+function OpenPositionDetails({
+  position,
+  livePrice,
+  hasDivider,
+  hasDanger,
+  onOpenTrading,
+}: {
+  position: HLPosition;
+  livePrice: string | undefined;
+  hasDivider: boolean;
+  hasDanger: boolean;
+  onOpenTrading: (coin?: string) => void;
+}) {
+  const shareCardRef = useRef<HTMLDivElement>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const { toast } = useToast();
+
   const sz = parseFloat(position.szi);
   const isLong = sz > 0;
   const sizeAbs = Math.abs(sz);
@@ -496,18 +548,17 @@ function OpenPositionCard({
   };
 
   return (
-    <BentoShell padding="p-5">
+    <div
+      role="listitem"
+      className={hasDivider ? 'border-t border-black/[0.06] pt-4' : ''}
+    >
       <div className="flex justify-between items-start gap-3 flex-wrap">
-        <div>
-          <Tag>Open position</Tag>
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className="text-[22px] font-bold tracking-[-0.6px] text-gray-900">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="block max-w-[11rem] sm:max-w-[16rem] text-[22px] font-bold tracking-[-0.6px] text-gray-900 truncate">
               {position.coin}
             </span>
-            <LeveragePill
-              leverage={position.leverage.value}
-              isLong={isLong}
-            />
+            <LeveragePill leverage={position.leverage.value} isLong={isLong} />
             {hasDanger && (
               <span
                 className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.4px] px-2 py-0.5 rounded-full"
@@ -567,7 +618,7 @@ function OpenPositionCard({
       />
 
       {/* Stats grid */}
-      <div className="grid grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {[
           {
             l: 'size',
@@ -665,7 +716,6 @@ function OpenPositionCard({
         </div>
       )}
 
-      {/* Action buttons */}
       <div className="grid grid-cols-2 gap-2.5 mt-5">
         <button
           type="button"
@@ -683,17 +733,6 @@ function OpenPositionCard({
         </button>
       </div>
 
-      {extraPositions > 0 && (
-        <button
-          type="button"
-          onClick={() => onOpenTrading()}
-          className="mt-3 w-full text-[11.5px] text-gray-500 hover:text-gray-900 transition"
-        >
-          +{extraPositions} more{' '}
-          {extraPositions === 1 ? 'position' : 'positions'} →
-        </button>
-      )}
-
       <div
         aria-hidden="true"
         className="fixed left-[-9999px] top-0 pointer-events-none"
@@ -708,7 +747,7 @@ function OpenPositionCard({
           <PositionSharePoster details={shareDetails} />
         </div>
       </div>
-    </BentoShell>
+    </div>
   );
 }
 
