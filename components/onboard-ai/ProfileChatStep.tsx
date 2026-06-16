@@ -13,6 +13,7 @@ import {
   attachSwopIdToSmartSite,
   createAiOnboardingSocials,
   createAiOnboardingUser,
+  hasSmartSiteDetailsToSave,
 } from "./onboardingApi";
 import {
   EMPTY_PROFILE,
@@ -396,8 +397,10 @@ export default function ProfileChatStep({
         console.error("User context refresh failed:", error);
       });
 
-      await createAiOnboardingSocials(createdUser.primaryMicrosite, profile);
-      setSavedSteps((steps) => [...steps, "SmartSite details added"]);
+      if (hasSmartSiteDetailsToSave(profile)) {
+        await createAiOnboardingSocials(createdUser.primaryMicrosite, profile);
+        setSavedSteps((steps) => [...steps, "SmartSite details added"]);
+      }
 
       await createSwopId(ethereumWallet, createdUser.primaryMicrosite);
       setSavedSteps((steps) => [...steps, "SwopID claimed"]);
@@ -409,13 +412,16 @@ export default function ProfileChatStep({
       router.push("/");
     } catch (error) {
       console.error("AI onboarding save failed:", error);
+      const description =
+        error instanceof Error
+          ? error.message
+          : "Please try again in a moment.";
       toast({
         variant: "destructive",
-        title: "Could not finish onboarding",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Please try again in a moment.",
+        title: description.includes("different email address")
+          ? "Use another email"
+          : "Could not finish onboarding",
+        description,
       });
     } finally {
       setIsSaving(false);

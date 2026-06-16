@@ -12,6 +12,7 @@ import {
   attachSwopIdToSmartSite,
   createAiOnboardingSocials,
   createAiOnboardingUser,
+  hasSmartSiteDetailsToSave,
 } from "./onboardingApi";
 import {
   AGENT_TERMINAL_BUBBLE_CLASS,
@@ -352,11 +353,14 @@ export default function MessengerOnboardingChat({
       setPhase("socials");
     } catch (error) {
       console.error("Onboarding profile save failed:", error);
+      const description =
+        error instanceof Error ? error.message : "Please try again.";
       toast({
         variant: "destructive",
-        title: "Could not save your profile",
-        description:
-          error instanceof Error ? error.message : "Please try again.",
+        title: description.includes("different email address")
+          ? "Use another email"
+          : "Could not save your profile",
+        description,
       });
       setPhase("profile");
     }
@@ -372,7 +376,7 @@ export default function MessengerOnboardingChat({
     setPhase("savingSocials");
 
     try {
-      if (micrositeId) {
+      if (micrositeId && hasSmartSiteDetailsToSave(nextProfile)) {
         await createAiOnboardingSocials(micrositeId, nextProfile);
       }
 
@@ -400,13 +404,19 @@ export default function MessengerOnboardingChat({
     setIsFinishing(true);
     setPhase("done");
 
-    try {
-      await refreshUser();
-    } catch (error) {
+    void refreshUser().catch((error) => {
       console.error("User context refresh failed before wallet redirect:", error);
-    }
+    });
 
     router.replace(POST_ONBOARDING_ROUTE);
+
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        if (window.location.pathname !== POST_ONBOARDING_ROUTE) {
+          window.location.assign(POST_ONBOARDING_ROUTE);
+        }
+      }, 1200);
+    }
   };
 
   const profileDone = phase !== "profile" && phase !== "savingProfile";

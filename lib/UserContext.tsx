@@ -353,6 +353,17 @@ export function UserProvider({
   // `access-token`/`user-id` cookies that logout just cleared — leaving the
   // user able to reach protected routes after signing out.
   const isLoggingOutRef = useRef(false);
+  // Mirror of the latest `user` so effects/callbacks can read it WITHOUT taking
+  // `user` as a reactive dependency. `setUser` always stores a freshly-spread
+  // object, so depending on `user` made `fetchUserData` (and the main effect
+  // that calls it) re-run on every successful fetch — an infinite
+  // setUser → re-run → setUser loop that surfaced as React #185 in the wallet
+  // tree and a `/onboard?step=swop-id` RSC prefetch storm.
+  const userRef = useRef(user);
+  userRef.current = user;
+  // One-shot guard so the SwopID redirect pushes at most once per session even
+  // if `user` changes again afterwards.
+  const swopIdRedirectedRef = useRef(false);
 
   // Extract email from Privy user
   const extractEmail = useCallback(
@@ -427,10 +438,11 @@ export function UserProvider({
       // tearing down.
       if (isLoggingOutRef.current) return false;
       if (fetchInProgressRef.current) return false;
+      const currentUser = userRef.current;
       if (
         lastFetchedEmailRef.current === normalizedEmail &&
-        user &&
-        normalizeEmail(user.email) === normalizedEmail
+        currentUser &&
+        normalizeEmail(currentUser.email) === normalizedEmail
       ) {
         return true;
       }
@@ -442,7 +454,7 @@ export function UserProvider({
       // to. On initial login (no usable cache) we must give the slow backend
       // enough time to respond, otherwise the user is stranded as null.
       const hasCachedFallback = Boolean(
-        user && normalizeEmail(user.email) === normalizedEmail,
+        currentUser && normalizeEmail(currentUser.email) === normalizedEmail,
       );
       const fetchTimeoutMs = hasCachedFallback
         ? USER_FETCH_TIMEOUT_MS
@@ -508,19 +520,19 @@ export function UserProvider({
         return true;
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
-          if (user && normalizeEmail(user.email) === normalizedEmail) {
+          if (currentUser && normalizeEmail(currentUser.email) === normalizedEmail) {
             console.info(
               'Using cached user data after refresh timed out',
             );
           }
           return false;
         }
-        if (user && normalizeEmail(user.email) === normalizedEmail) {
+        if (currentUser && normalizeEmail(currentUser.email) === normalizedEmail) {
           console.info('Using cached user data after refresh failed:', err);
         } else if (userContextDebugEnabled) {
           console.debug('User data refresh failed:', err);
         }
-        if (user && normalizeEmail(user.email) !== normalizedEmail) {
+        if (currentUser && normalizeEmail(currentUser.email) !== normalizedEmail) {
           setUser(null);
           setAccessToken(null);
           clearStoredUserContext();
@@ -535,7 +547,9 @@ export function UserProvider({
         abortControllerRef.current = null;
       }
     },
-    [router, user],
+    // `user` is read via `userRef` so a successful fetch's setUser doesn't churn
+    // this callback's identity (which previously re-fired the main effect).
+    [router],
   );
 
   // Logout clears Swop-owned session state first so protected pages stop seeing
@@ -603,10 +617,14 @@ export function UserProvider({
     }
   }, [privyUser, extractEmail, fetchUserData]);
 
-  // Main effect - only fetch user data when authenticated
+  // Main effect - only fetch user data when authenticated.
+  // Reads the current user via `userRef` rather than the reactive `user` so a
+  // successful fetch (which calls setUser with a new object) does not re-trigger
+  // this effect. Its real triggers are Privy auth state + the resolved email.
   useEffect(() => {
+    const currentUser = userRef.current;
     if (!ready) {
-      setLoading(!user);
+      setLoading(!currentUser);
       return;
     }
 
@@ -654,7 +672,7 @@ export function UserProvider({
     }
 
     const normalizedEmail = normalizeEmail(email);
-    if (user && normalizeEmail(user.email) !== normalizedEmail) {
+    if (currentUser && normalizeEmail(currentUser.email) !== normalizedEmail) {
       setUser(null);
       setAccessToken(null);
       clearStoredUserContext();
@@ -664,20 +682,22 @@ export function UserProvider({
     // Only fetch if we don't have user data for this email
     if (
       lastFetchedEmailRef.current !== normalizedEmail ||
-      !user ||
-      normalizeEmail(user.email) !== normalizedEmail
+      !currentUser ||
+      normalizeEmail(currentUser.email) !== normalizedEmail
     ) {
       fetchUserData(normalizedEmail).finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
+    // `user` is intentionally read via `userRef` (not a dep) to avoid the
+    // setUser → re-run → setUser loop. The effect's triggers are auth + email.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     ready,
     authenticated,
     privyUser,
     extractEmail,
     fetchUserData,
-    user,
   ]);
 
   useEffect(() => {
@@ -688,6 +708,9 @@ export function UserProvider({
       !requiresSwopIdCompletion(user) ||
       typeof window === 'undefined'
     ) {
+      // Requirement no longer applies — let a future incomplete session
+      // redirect again.
+      swopIdRedirectedRef.current = false;
       return;
     }
 
@@ -699,6 +722,11 @@ export function UserProvider({
       return;
     }
 
+    // Push at most once per session. Without this, any further `user` change
+    // re-fired router.push to the same route, flooding Next.js with RSC
+    // prefetches until the browser hit ERR_INSUFFICIENT_RESOURCES.
+    if (swopIdRedirectedRef.current) return;
+    swopIdRedirectedRef.current = true;
     router.push(SWOP_ID_ONBOARDING_PATH);
   }, [authenticated, loading, router, user]);
 

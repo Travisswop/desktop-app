@@ -32,6 +32,7 @@ import { GoArrowLeft } from 'react-icons/go';
 import { LuArrowRight } from 'react-icons/lu';
 import { RiFingerprintLine, RiMailSendLine } from 'react-icons/ri';
 import Cookies from 'js-cookie';
+import toast from 'react-hot-toast';
 import logger from '@/utils/logger';
 import { buildSwopApiUrl, getSwopApiBaseUrl } from '@/lib/api/apiBaseUrl';
 import { safeLocalStorage, safeSessionStorage } from '@/lib/browserStorage';
@@ -770,8 +771,9 @@ const Login: React.FC = () => {
       setLoginFlow(LoginFlow.PROCESSING);
     } catch (error) {
       setPendingPasskeyAuth(false);
-      setLoginError(formatPasskeyError(error));
-      setLoginFlow(LoginFlow.ERROR);
+      setLoginError(null);
+      setLoginFlow(LoginFlow.EMAIL_INPUT);
+      toast.error(formatPasskeyError(error));
     }
   }, [loginWithPasskey]);
 
@@ -786,8 +788,9 @@ const Login: React.FC = () => {
       setLoginFlow(LoginFlow.PROCESSING);
     } catch (error) {
       setPendingPasskeyAuth(false);
-      setLoginError(formatPasskeyError(error));
-      setLoginFlow(LoginFlow.ERROR);
+      setLoginError(null);
+      setLoginFlow(LoginFlow.EMAIL_INPUT);
+      toast.error(formatPasskeyError(error));
     }
   }, [signupWithPasskey]);
 

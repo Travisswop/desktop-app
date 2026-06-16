@@ -14,6 +14,8 @@ import type {
 
 const USER_CACHE_KEY = "swop:user-cache";
 const USER_CACHE_VERSION = 3;
+const DUPLICATE_EMAIL_MESSAGE =
+  "Please use a different email address for this new profile. The email you entered is already connected to another Swop account.";
 
 export interface CreateAiProfilePayload {
   profile: AiOnboardingProfile;
@@ -97,7 +99,18 @@ export async function createAiOnboardingUser({
     const errorData = await response
       .json()
       .catch(() => ({ message: "Failed to create profile" }));
-    throw new Error(errorData.message || "Failed to create profile");
+    const backendMessage = errorData.message || "";
+    const isDuplicateEmail =
+      response.status === 409 ||
+      /email.+(?:exists|already|duplicate)|already.+email/i.test(
+        backendMessage,
+      );
+
+    throw new Error(
+      isDuplicateEmail
+        ? DUPLICATE_EMAIL_MESSAGE
+        : backendMessage || "We could not create your profile right now. Please try again.",
+    );
   }
 
   const result = await response.json();
@@ -169,6 +182,10 @@ export async function createAiOnboardingSocials(
   micrositeId: string,
   profile: AiOnboardingProfile,
 ) {
+  if (!hasSmartSiteDetailsToSave(profile)) {
+    return null;
+  }
+
   const socialTopInfo: SocialTopInfo = {
     email: profile.email,
     whatsapp: profile.whatsapp,
@@ -280,6 +297,22 @@ export async function createAiOnboardingSocials(
   }
 
   return response.json();
+}
+
+export function hasSmartSiteDetailsToSave(profile: AiOnboardingProfile) {
+  return Boolean(
+    profile.phone?.trim() ||
+      profile.whatsapp?.trim() ||
+      profile.facebook?.trim() ||
+      profile.instagram?.trim() ||
+      profile.linkedin?.trim() ||
+      profile.twitter?.trim() ||
+      profile.tiktok?.trim() ||
+      profile.videoCall?.trim() ||
+      profile.textMessage?.trim() ||
+      profile.website?.trim() ||
+      profile.officeAddress?.trim(),
+  );
 }
 
 export async function attachSwopIdToSmartSite(micrositeId: string, ens: string) {

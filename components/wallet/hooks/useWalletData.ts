@@ -30,6 +30,26 @@ export type StoredWalletAddresses = {
 const normalizeAddress = (address?: string | null) =>
   address?.toLowerCase() ?? '';
 
+// Structural equality so re-runs that produce the same wallets keep the same
+// state reference. Otherwise every run pushed a brand-new array, churning every
+// downstream useMemo (portfolio input, token query key, etc.).
+const sameWalletItems = (
+  a: WalletItem[] | null,
+  b: WalletItem[] | null,
+) => {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((wallet, index) => {
+    const other = b[index];
+    return (
+      normalizeAddress(wallet.address) ===
+        normalizeAddress(other.address) &&
+      wallet.isEVM === other.isEVM &&
+      wallet.isActive === other.isActive
+    );
+  });
+};
+
 export const getStoredEvmWalletAddress = (
   storedWallets?: StoredWalletAddresses | null,
 ) => storedWallets?.ethereumWallet || storedWallets?.ethAddress || '';
@@ -293,12 +313,18 @@ export const useWalletData = (
   );
 
   useEffect(() => {
+    // Only update state when the resolved wallets actually differ, so a parent
+    // re-render (e.g. a new `storedWallets`/user object with identical
+    // addresses) doesn't push a fresh array and churn the wallet's memo chain.
+    const applyWalletData = (next: WalletItem[] | null) =>
+      setWalletData((prev) => (sameWalletItems(prev, next) ? prev : next));
+
     const storedEvmAddress = getStoredEvmAddress(storedWallets);
     const storedSolanaAddress = getStoredSolanaAddress(storedWallets);
     const storedWalletData = getStoredWalletData(storedWallets);
 
     if (!authenticated || !ready || !PrivyUser) {
-      setWalletData(storedWalletData.length ? storedWalletData : null);
+      applyWalletData(storedWalletData.length ? storedWalletData : null);
       return;
     }
 
@@ -336,7 +362,7 @@ export const useWalletData = (
         solanaWallet?.address,
       )
     ) {
-      setWalletData(
+      applyWalletData(
         storedWalletData.map((wallet) => ({ ...wallet, isActive: true })),
       );
       return;
@@ -411,7 +437,7 @@ export const useWalletData = (
       }
     }
 
-    setWalletData(wallets);
+    applyWalletData(wallets);
   }, [PrivyUser, authenticated, ready, storedWallets]);
 
   return walletData;

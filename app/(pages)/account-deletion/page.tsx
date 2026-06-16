@@ -43,6 +43,7 @@ export default function AccountDeletionPage() {
         payload: {
           email: user.email,
           id: user._id,
+          privyId: user.privyId,
         },
       });
 
