@@ -3,6 +3,17 @@
 import { createLoginWalletBalance } from '@/actions/createWallet';
 import Loader from '@/components/loading/Loader';
 import { Card } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import blackPlanet from '@/public/onboard/black-planet.svg';
 import swopLogo from '@/public/swopLogo.png';
 import {
@@ -1100,18 +1111,42 @@ const Login: React.FC = () => {
                 <RiFingerprintLine size={20} />
                 {passkeyBusy ? 'Check your passkey prompt...' : 'Sign in with passkey'}
               </button>
-              <button
-                type="button"
-                onClick={handlePasskeySignup}
-                disabled={passkeyBusy}
-                className="flex h-11 items-center justify-center gap-2 rounded-xl border border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <RiFingerprintLine size={20} />
-                Create account with passkey
-              </button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={passkeyBusy}
+                    className="flex h-11 items-center justify-center gap-2 rounded-xl border border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RiFingerprintLine size={20} />
+                    Create account with passkey
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Before the passkey prompt opens
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Swop will open the browser passkey setup next. The
+                      browser decides which save options are available. For
+                      Apple sync, use Safari or choose Apple Passwords/iCloud
+                      Keychain if your browser offers it; otherwise choose the
+                      password manager you use across devices.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handlePasskeySignup}>
+                      Continue
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <p className="text-center text-xs leading-5 text-gray-500">
-                For Apple cross-device sign-in, save your passkey to Apple
-                Passwords or iCloud Keychain.
+                For cross-device sign-in, save your passkey to a synced
+                password manager like Apple Passwords, iCloud Keychain, or
+                Google Password Manager.
               </p>
             </div>
 

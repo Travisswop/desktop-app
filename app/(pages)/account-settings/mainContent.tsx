@@ -116,7 +116,7 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
     try {
       await linkWithPasskey();
       toast.success(
-        "Passkey linked. Apple Passwords or iCloud Keychain can sync it across Apple devices."
+        "Passkey linked. Use the same synced password manager to sign in across devices."
       );
     } catch (error) {
       toast.error(formatPasskeyLinkError(error));
@@ -556,30 +556,56 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
                       sign in without an email code.
                     </p>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      For Apple cross-device sign-in, save this passkey to Apple
-                      Passwords or iCloud Keychain on swopme.app.
+                      Save passkeys to a synced password manager like Apple
+                      Passwords, iCloud Keychain, or Google Password Manager.
                     </p>
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant={hasPasskey ? "outline" : "black"}
-                  onClick={handleLinkPasskey}
-                  disabled={passkeyLinkBusy}
-                  className="w-full sm:w-auto"
-                >
-                  {passkeyLinkBusy ? (
-                    <>
-                      <Spinner size="sm" color={hasPasskey ? "default" : "white"} />
-                      Check your passkey prompt
-                    </>
-                  ) : (
-                    <>
-                      <RiFingerprintLine size={16} />
-                      {hasPasskey ? "Add another passkey" : "Link a passkey"}
-                    </>
-                  )}
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant={hasPasskey ? "outline" : "black"}
+                      disabled={passkeyLinkBusy}
+                      className="w-full sm:w-auto"
+                    >
+                      {passkeyLinkBusy ? (
+                        <>
+                          <Spinner
+                            size="sm"
+                            color={hasPasskey ? "default" : "white"}
+                          />
+                          Check your passkey prompt
+                        </>
+                      ) : (
+                        <>
+                          <RiFingerprintLine size={16} />
+                          {hasPasskey ? "Add another passkey" : "Link a passkey"}
+                        </>
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Before the passkey prompt opens
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Swop will open the browser passkey setup next. The
+                        browser decides which save options are available. For
+                        Apple sync, use Safari or choose Apple Passwords/iCloud
+                        Keychain if your browser offers it; otherwise choose
+                        the password manager you use across devices.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleLinkPasskey}>
+                        Continue
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           </div>
