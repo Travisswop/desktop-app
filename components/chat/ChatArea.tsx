@@ -16556,6 +16556,42 @@ function mergeMissingHyperliquidPromptParams(
   return base;
 }
 
+function hasHydratedHyperliquidPositionParams(params: Record<string, unknown>) {
+  return Boolean(
+    firstTicketValue(params, [
+      'positionSizeCoins',
+      'sizeCoins',
+      'coinSize',
+      'sz',
+      'totalSize',
+      'size',
+    ]) &&
+      firstTicketValue(params, ['entryPrice', 'price', 'markPrice']) &&
+      firstTicketValue(params, ['assetIndex', 'assetId', 'a'])
+  );
+}
+
+function hydrateHyperliquidPositionTpSlParams(
+  params: Record<string, unknown>,
+  positions: HLPosition[] | undefined,
+  markets: HLMarket[]
+) {
+  const isPositionTpsl = initialTicketBool(params, ['positionTpsl'], false);
+  const orderMode = initialTicketMode(params);
+  const hasRiskPrice = Boolean(
+    firstTicketValue(params, ['takeProfitPrice', 'takeProfit', 'tpPrice', 'tp']) ||
+      firstTicketValue(params, ['stopLossPrice', 'stopLoss', 'slPrice', 'sl'])
+  );
+
+  if (!isPositionTpsl || orderMode !== 'tpsl' || !hasRiskPrice) return params;
+  if (hasHydratedHyperliquidPositionParams(params)) return params;
+
+  const options = getPerpsPositionPromptOptions({ params }, positions, markets);
+  if (options.length !== 1) return params;
+
+  return getPerpsPositionIntentWithOption({ params }, options[0]).params;
+}
+
 function HyperliquidProposalFlowTicket({
   proposal,
   proposalId,
@@ -16588,12 +16624,23 @@ function HyperliquidProposalFlowTicket({
   const feedSmartsiteId = resolvePerpsFeedSmartsiteId(user, primaryMicrosite);
   const queryClient = useQueryClient();
   const params = useMemo(
-    () =>
-      mergeMissingHyperliquidPromptParams(
+    () => {
+      const mergedParams = mergeMissingHyperliquidPromptParams(
         proposal?.normalizedParams,
         sourceText
-      ),
-    [proposal?.normalizedParams, sourceText]
+      );
+      return hydrateHyperliquidPositionTpSlParams(
+        mergedParams,
+        astroConsoleData.perpsAccount?.positions,
+        astroConsoleData.perpsMarkets
+      );
+    },
+    [
+      proposal?.normalizedParams,
+      sourceText,
+      astroConsoleData.perpsAccount?.positions,
+      astroConsoleData.perpsMarkets,
+    ]
   );
   const isClosePosition =
     proposal?.toolType === 'perps.write' &&
