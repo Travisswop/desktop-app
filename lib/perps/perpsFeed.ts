@@ -14,6 +14,7 @@ export interface PerpsPositionFeedContent {
   provider: 'hyperliquid';
   positionKey: string;
   coin: string;
+  dex?: string | null;
   side: 'long' | 'short';
   status: PerpsPositionFeedStatus;
   event: PerpsPositionFeedEvent;
@@ -61,6 +62,7 @@ export interface PerpsFillLike {
 
 export interface PerpsPositionLike {
   coin?: string | null;
+  dex?: string | null;
   szi?: string | number | null;
 }
 
@@ -147,12 +149,14 @@ export function buildPerpsPositionKey({
   userId,
   masterAddress,
   coin,
+  dex,
 }: {
   userId?: string | null;
   masterAddress?: string | null;
   coin: string;
+  dex?: string | null;
 }) {
-  return `hyperliquid:${masterAddress || userId || 'unknown'}:${coin.toUpperCase()}`;
+  return `hyperliquid:${masterAddress || userId || 'unknown'}:${qualifyPerpsPositionCoin({ coin, dex })}`;
 }
 
 export function toPerpsFeedNumber(value: unknown, fallback = 0) {
@@ -167,6 +171,27 @@ function maybePerpsFeedNumber(value: unknown) {
 
 function normalizePerpsCoin(value: unknown) {
   return String(value || '').trim().toUpperCase();
+}
+
+function normalizePerpsDex(value: unknown) {
+  return String(value || '').trim();
+}
+
+export function qualifyPerpsPositionCoin({
+  coin,
+  dex,
+}: {
+  coin: string;
+  dex?: string | null;
+}) {
+  const normalizedCoin = normalizePerpsCoin(coin);
+  const normalizedDex = normalizePerpsDex(dex);
+
+  if (!normalizedCoin || !normalizedDex || normalizedCoin.includes(':')) {
+    return normalizedCoin;
+  }
+
+  return `${normalizedDex}:${normalizedCoin}`.toUpperCase();
 }
 
 function fillTimeMs(fill: PerpsFillLike) {
@@ -194,13 +219,20 @@ export function inferPerpsPositionOpenedFill(
   position: PerpsPositionLike,
   fills: PerpsFillLike[] = [],
 ): PerpsOpenFillSnapshot | null {
-  const coin = normalizePerpsCoin(position.coin);
+  const coin = qualifyPerpsPositionCoin({
+    coin: String(position.coin || ''),
+    dex: position.dex,
+  });
+  const rawCoin = normalizePerpsCoin(position.coin);
   const currentSize = maybePerpsFeedNumber(position.szi);
   if (!coin || currentSize === undefined || currentSize === 0) return null;
 
   const isLong = currentSize > 0;
   const sameCoinFills = fills
-    .filter((fill) => normalizePerpsCoin(fill.coin) === coin)
+    .filter((fill) => {
+      const fillCoin = normalizePerpsCoin(fill.coin);
+      return fillCoin === coin || (rawCoin ? fillCoin === rawCoin : false);
+    })
     .map((fill) => {
       const timeMs = fillTimeMs(fill);
       const signedSize = fillSignedSize(fill);

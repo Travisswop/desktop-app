@@ -10,6 +10,7 @@ import { useModalStore } from "@/zustandStore/modalstore";
 import InfiniteScroll from "react-infinite-scroll-component";
 import {
   FEED_PAGE_LIMIT,
+  filterDuplicateLegacyPerpsItems,
   mergeUniqueFeedItems,
   shouldFetchAnotherFeedPage,
 } from "./feedPagination";
@@ -28,7 +29,9 @@ export default function Feed({
   userId: string;
   initialFeedData?: any;
 }) {
-  const initialArray = initialFeedData?.data ?? [];
+  const initialArray = filterDuplicateLegacyPerpsItems(
+    Array.isArray(initialFeedData?.data) ? initialFeedData.data : [],
+  );
   const initialTotalPages = initialFeedData?.pagination?.totalPages ?? 1;
   const initialHasMore =
     initialArray.length === 0 || initialTotalPages > 1;
@@ -93,7 +96,9 @@ export default function Feed({
         const data = await response.json();
         if (requestId !== requestIdRef.current) return;
 
-        const feedItems = Array.isArray(data?.data) ? data.data : [];
+        const feedItems = Array.isArray(data?.data)
+          ? filterDuplicateLegacyPerpsItems(data.data)
+          : [];
         const nextHasMore = shouldFetchAnotherFeedPage({
           requestedPage: currentPage,
           returnedCount: feedItems.length,
@@ -102,11 +107,17 @@ export default function Feed({
         });
 
         if (reset) {
-          setFeedData(mergeUniqueFeedItems([], feedItems));
+          setFeedData(
+            filterDuplicateLegacyPerpsItems(mergeUniqueFeedItems([], feedItems)),
+          );
           pageRef.current = 2;
           setHasMoreValue(nextHasMore);
         } else {
-          setFeedData((prev: any[]) => mergeUniqueFeedItems(prev, feedItems));
+          setFeedData((prev: any[]) =>
+            filterDuplicateLegacyPerpsItems(
+              mergeUniqueFeedItems(prev, feedItems),
+            ),
+          );
           pageRef.current = currentPage + 1;
           setHasMoreValue(nextHasMore);
         }

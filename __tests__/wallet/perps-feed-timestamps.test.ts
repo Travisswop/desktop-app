@@ -1,4 +1,8 @@
-import { inferPerpsPositionOpenedFill } from '@/lib/perps/perpsFeed';
+import {
+  buildPerpsPositionKey,
+  inferPerpsPositionOpenedFill,
+  qualifyPerpsPositionCoin,
+} from '@/lib/perps/perpsFeed';
 
 describe('perps feed timestamps', () => {
   beforeEach(() => {
@@ -92,5 +96,41 @@ describe('perps feed timestamps', () => {
     );
 
     expect(opened).toBeNull();
+  });
+
+  it('qualifies builder DEX positions for stable feed identity', () => {
+    expect(qualifyPerpsPositionCoin({ coin: 'SPCX', dex: 'xyz' })).toBe(
+      'XYZ:SPCX',
+    );
+    expect(
+      buildPerpsPositionKey({
+        masterAddress: '0xabc',
+        coin: 'SPCX',
+        dex: 'xyz',
+      }),
+    ).toBe('hyperliquid:0xabc:XYZ:SPCX');
+  });
+
+  it('matches builder fills whether Hyperliquid returns raw or qualified coin', () => {
+    const opened = inferPerpsPositionOpenedFill(
+      { coin: 'SPCX', dex: 'xyz', szi: '-2.39' },
+      [
+        {
+          coin: 'XYZ:SPCX',
+          side: 'A',
+          sz: '2.39',
+          startPosition: '0',
+          px: '198.99',
+          time: Date.parse('2026-06-15T11:55:00Z'),
+          oid: 444,
+        },
+      ],
+    );
+
+    expect(opened).toEqual({
+      timestamp: '2026-06-15T11:55:00.000Z',
+      orderId: '444',
+      price: 198.99,
+    });
   });
 });

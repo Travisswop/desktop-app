@@ -1,4 +1,5 @@
 import {
+  filterDuplicateLegacyPerpsItems,
   mergeUniqueFeedItems,
   shouldFetchAnotherFeedPage,
 } from "@/components/feed/feedPagination";
@@ -62,5 +63,58 @@ describe("feed pagination", () => {
         [{ _id: "b" }, { _id: "c" }, { _id: "d" }],
       ),
     ).toEqual([{ _id: "a" }, { _id: "b" }, { _id: "c" }, { _id: "d" }]);
+  });
+
+  it("suppresses legacy perps cards when the lifecycle card exists", () => {
+    const items = [
+      {
+        _id: "legacy",
+        postType: "perps",
+        userId: "user-1",
+        smartsiteId: "site-1",
+        createdAt: "2026-06-15T23:00:00.000Z",
+        content: {
+          coin: "XYZ:SPCX",
+          side: "SHORT",
+          sizeCoins: 2.39,
+        },
+      },
+      {
+        _id: "position",
+        postType: "perpsPosition",
+        userId: "user-1",
+        smartsiteId: "site-1",
+        createdAt: "2026-06-15T23:04:00.000Z",
+        content: {
+          coin: "xyz:SPCX",
+          side: "short",
+          sizeCoins: 2.39,
+        },
+      },
+      { _id: "other", postType: "post", content: { title: "keep" } },
+    ];
+
+    expect(
+      filterDuplicateLegacyPerpsItems(items).map((item) => item._id),
+    ).toEqual(["position", "other"]);
+  });
+
+  it("keeps standalone legacy perps cards without a matching lifecycle card", () => {
+    const items = [
+      {
+        _id: "legacy",
+        postType: "perps",
+        userId: "user-1",
+        smartsiteId: "site-1",
+        createdAt: "2026-06-15T23:00:00.000Z",
+        content: {
+          coin: "ETH",
+          side: "LONG",
+          sizeCoins: 1,
+        },
+      },
+    ];
+
+    expect(filterDuplicateLegacyPerpsItems(items)).toEqual(items);
   });
 });

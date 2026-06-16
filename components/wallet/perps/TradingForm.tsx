@@ -17,6 +17,7 @@ import {
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
+  qualifyPerpsPositionCoin,
   resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
@@ -480,6 +481,10 @@ export function TradingForm({
               ? nextSizeCoins * entryPxNum
               : notionalUsd;
       const timestamp = new Date().toISOString();
+      const feedCoin = qualifyPerpsPositionCoin({
+        coin: market.coin,
+        dex: market.dex,
+      });
 
       upsertPerpsPositionFeed({
         token: accessToken,
@@ -491,8 +496,10 @@ export function TradingForm({
             userId: user?._id,
             masterAddress,
             coin: market.coin,
+            dex: market.dex,
           }),
-          coin: market.coin,
+          coin: feedCoin,
+          dex: market.dex || null,
           side: feedSide,
           status,
           event,

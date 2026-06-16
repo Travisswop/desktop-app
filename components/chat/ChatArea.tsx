@@ -217,6 +217,7 @@ import { useHyperliquidTrading } from '@/components/wallet/perps/hooks/useHyperl
 import type { HLMarket, HLPosition } from '@/services/hyperliquid/types';
 import {
   buildPerpsPositionKey,
+  qualifyPerpsPositionCoin,
   resolvePerpsFeedSmartsiteId,
   upsertPerpsPositionFeed,
   type PerpsPositionFeedEvent,
@@ -17144,6 +17145,12 @@ function HyperliquidProposalFlowTicket({
 
       const orderId = extractInlineHyperliquidOrderId(orderResult);
       const closed = buildCloseReceipt(orderId);
+      const closeFeedDex =
+        getHyperliquidMarketDex(selectedMarket) || matchingClosePositionDex;
+      const closeFeedCoin = qualifyPerpsPositionCoin({
+        coin: closeCoin,
+        dex: closeFeedDex,
+      });
       await upsertPerpsPositionFeed({
         token: accessToken,
         userId: user?._id,
@@ -17154,8 +17161,10 @@ function HyperliquidProposalFlowTicket({
             userId: user?._id,
             masterAddress: astroConsoleData.perpsMasterAddress,
             coin: closeCoin,
+            dex: closeFeedDex,
           }),
-          coin: closeCoin,
+          coin: closeFeedCoin,
+          dex: closeFeedDex || null,
           side: closePositionSide,
           status: 'closed',
           event: 'close',
@@ -17484,6 +17493,8 @@ function HyperliquidProposalFlowTicket({
           : opened.notionalUsd;
 
       if (!isPositionTpsl) {
+        const feedDex = getHyperliquidMarketDex(selectedMarket);
+        const feedCoin = qualifyPerpsPositionCoin({ coin, dex: feedDex });
         await upsertPerpsPositionFeed({
           token: accessToken,
           userId: user?._id,
@@ -17494,8 +17505,10 @@ function HyperliquidProposalFlowTicket({
               userId: user?._id,
               masterAddress: astroConsoleData.perpsMasterAddress,
               coin,
+              dex: feedDex,
             }),
-            coin,
+            coin: feedCoin,
+            dex: feedDex || null,
             side: feedSide,
             status: feedStatus,
             event: feedEvent,

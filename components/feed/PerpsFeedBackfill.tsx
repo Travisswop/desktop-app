@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
   inferPerpsPositionOpenedFill,
+  qualifyPerpsPositionCoin,
   type PerpsLiquidationFillSnapshot,
   type PerpsFillLike,
   reconcilePerpsPositionFeed,
@@ -19,7 +20,7 @@ import {
   shouldPreferEmbeddedWallets,
 } from '@/components/wallet/hooks/useWalletData';
 import { useHyperliquidMarkets } from '@/components/wallet/perps/hooks/useHyperliquidMarkets';
-import { useHyperliquidPositions } from '@/components/wallet/perps/hooks/useHyperliquidPositions';
+import { useHyperliquidPortfolio } from '@/components/wallet/perps/hooks/useHyperliquidPortfolio';
 import type { HLPosition } from '@/services/hyperliquid/types';
 
 interface HyperliquidUserFill extends PerpsFillLike {
@@ -125,10 +126,24 @@ export default function PerpsFeedBackfill() {
     selectedMasterWallet?.address ||
     privyUser?.wallet?.address ||
     null;
-  const { data: accountData } = useHyperliquidPositions(masterAddress);
   const { data: markets = [] } = useHyperliquidMarkets({
-    enabled: Boolean(masterAddress && accountData),
+    enabled: Boolean(masterAddress),
   });
+  const builderDexes = useMemo(() => {
+    const set = new Set<string>();
+    for (const market of markets) {
+      const dex = market.dex?.trim();
+      if (dex) set.add(dex);
+    }
+    return Array.from(set);
+  }, [markets]);
+  const { data: portfolio } = useHyperliquidPortfolio(
+    masterAddress,
+    builderDexes,
+    {
+      enabled: Boolean(masterAddress && markets.length > 0),
+    },
+  );
   const syncedSnapshotsRef = useRef<Set<string>>(new Set());
   const reconciledSnapshotsRef = useRef<Set<string>>(new Set());
   const markPricesByCoin = useMemo(() => {
@@ -148,10 +163,10 @@ export default function PerpsFeedBackfill() {
 
   useEffect(() => {
     const smartsiteId = feedSmartsiteId;
-    const positions = accountData?.positions || [];
+    const positions = portfolio?.positions || [];
 
     if (
-      !accountData ||
+      !portfolio ||
       !accessToken ||
       !user?._id ||
       !smartsiteId ||
@@ -165,6 +180,7 @@ export default function PerpsFeedBackfill() {
         userId: user._id,
         masterAddress,
         coin: position.coin,
+        dex: position.dex,
       }),
     );
     const reconcileSnapshotKey = [
@@ -204,6 +220,11 @@ export default function PerpsFeedBackfill() {
             userId: user._id,
             masterAddress,
             coin: position.coin,
+            dex: position.dex,
+          });
+          const feedCoin = qualifyPerpsPositionCoin({
+            coin: position.coin,
+            dex: position.dex,
           });
           const openedFill = inferPerpsPositionOpenedFill(
             position,
@@ -233,7 +254,8 @@ export default function PerpsFeedBackfill() {
             content: {
               provider: 'hyperliquid',
               positionKey,
-              coin: position.coin,
+              coin: feedCoin,
+              dex: position.dex || null,
               side: toPerpsFeedNumber(position.szi) > 0 ? 'long' : 'short',
               status: 'open',
               event: 'open',
@@ -268,12 +290,12 @@ export default function PerpsFeedBackfill() {
       cancelled = true;
     };
   }, [
-    accountData,
     accessToken,
     user?._id,
     feedSmartsiteId,
     masterAddress,
     markPricesByCoin,
+    portfolio,
   ]);
 
   return null;
