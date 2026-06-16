@@ -87,23 +87,25 @@ export default async function PublicProfile({
     }
 
     // Handle analytics on server side
-    await addSwopPoint({
-      userId: data.microsite.parentId,
-      pointType: "Generating Traffic to Your SmartSite",
-      actionKey: "launch-swop",
-    });
-
-    createMicrositeViewer({
-      userId: data.microsite.parentId,
-      viewerId: viewerId ? viewerId : "anonymous",
-      micrositeName: userName,
-      city: locationData?.city,
-      region: locationData?.region,
-      country: locationData?.country,
-      device: deviceInfo?.deviceType,
-      deviceOs: deviceInfo?.os,
-      deviceBrowser: deviceInfo?.browser,
-    });
+    await Promise.allSettled([
+      addSwopPoint({
+        userId: data.microsite.parentId,
+        pointType: "Generating Traffic to Your SmartSite",
+        actionKey: "launch-swop",
+      }),
+      createMicrositeViewer({
+        userId: data.microsite.parentId,
+        micrositeId: data.microsite._id,
+        viewerId: viewerId ? viewerId : "anonymous",
+        micrositeName: userName,
+        city: locationData?.city,
+        region: locationData?.region,
+        country: locationData?.country,
+        device: deviceInfo?.deviceType,
+        deviceOs: deviceInfo?.os,
+        deviceBrowser: deviceInfo?.browser,
+      }),
+    ]);
 
     return <ClientProfile userName={userName} />;
   } catch (error) {

@@ -153,7 +153,7 @@ function readableUrl(value: string) {
     const url = new URL(value);
 
     if (url.hostname.includes("cloudinary.com")) {
-      return "Image asset";
+      return "";
     }
 
     return url.hostname.replace(/^www\./, "");
@@ -173,8 +173,31 @@ function firstReadable(candidates: Array<string | undefined | null>) {
 }
 
 function firstUrl(candidates: Array<string | undefined | null>) {
-  return candidates.find((value) => value?.trim() && isUrl(value.trim()))?.trim();
+  return candidates.find((value) => {
+    const trimmed = value?.trim();
+
+    if (!trimmed || !isUrl(trimmed)) {
+      return false;
+    }
+
+    return Boolean(readableUrl(trimmed));
+  })?.trim();
 }
+
+const fallbackLabels: Record<SectionKey, string> = {
+  socialTop: "Social link",
+  socialLarge: "Featured link",
+  infoBar: "Info link",
+  referral: "Referral link",
+  redeemLink: "Redeem link",
+  blog: "Blog post",
+  audio: "Audio track",
+  video: "Video",
+  videoUrl: "Embedded video",
+  contact: "Contact",
+  ensDomain: "Domain",
+  marketPlace: "Marketplace item",
+};
 
 function itemLabel(item: AnalyticsItem, sectionKey: SectionKey) {
   const common = [
@@ -192,12 +215,11 @@ function itemLabel(item: AnalyticsItem, sectionKey: SectionKey) {
     item.templateId?.name,
     item.itemName,
     item.description,
-    item.iconName,
   ];
 
   const bySection: Record<SectionKey, Array<string | undefined | null>> = {
-    socialTop: [item.name, item.value, item.iconName],
-    socialLarge: [item.name, item.value, item.iconName],
+    socialTop: [item.name, item.value],
+    socialLarge: [item.name, item.value],
     infoBar: [item.buttonName, item.title, item.description],
     referral: [item.buttonName, item.referralCode, item.description],
     redeemLink: [item.mintName, item.symbol, item.tokenType, item.description],
@@ -222,14 +244,9 @@ function itemLabel(item: AnalyticsItem, sectionKey: SectionKey) {
     item.tokenUrl,
     item.websiteUrl,
     item.videoUrl,
-    item.image,
-    item.coverPhoto,
-    item.imageUrl,
-    item.iconName,
-    item.templateId?.image,
   ]);
 
-  return url ? readableUrl(url) : "Untitled item";
+  return url ? readableUrl(url) : fallbackLabels[sectionKey];
 }
 
 function itemImage(item: AnalyticsItem, sectionKey: SectionKey) {
@@ -252,6 +269,20 @@ function itemImage(item: AnalyticsItem, sectionKey: SectionKey) {
     item.iconName,
     item.templateId?.image,
   ]);
+}
+
+function smartsiteRollupTotal(microsite: Microsite) {
+  const itemTotal = sections.reduce((total, section) => {
+    return (
+      total +
+      safeArray(microsite.info?.[section.key]).reduce(
+        (sectionTotal, item) => sectionTotal + toCount(item.totalTap),
+        0
+      )
+    );
+  }, 0);
+
+  return Math.max(toCount(microsite.totalTap), itemTotal);
 }
 
 function DetailIcon({
@@ -435,7 +466,7 @@ export default function AnalyticsContent({
                       </div>
                     </div>
                     <div className="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
-                      {toCount(microsite.totalTap)}
+                      {smartsiteRollupTotal(microsite)}
                     </div>
                   </button>
                 );
