@@ -138,7 +138,12 @@ export default function CoinbaseOnrampFunding({
   const selectedAddress =
     selectedOption.walletType === "solana" ? solanaAddress : evmAddress;
   const destinationAddress = sessionDestinationAddress || selectedAddress;
-  const canStart = Boolean(accessToken && paymentAmount && phoneNumber.trim());
+
+  const numericAmount = Number(paymentAmount);
+  const amountValid = Number.isFinite(numericAmount) && numericAmount > 0;
+  // Guest checkout requires a valid US phone; a 10+ digit number is the floor.
+  const phoneValid = phoneNumber.replace(/\D/g, "").length >= 10;
+  const canStart = Boolean(accessToken && amountValid && phoneValid);
 
   const handleSelectNetwork = (network: CoinbaseOnrampNetwork) => {
     setSelectedNetwork(network);
@@ -202,7 +207,18 @@ export default function CoinbaseOnrampFunding({
   useEffect(() => {
     if (!onrampUrl || typeof window === "undefined") return;
 
+    // Only trust postMessage events coming from the exact Coinbase frame we
+    // embedded — otherwise any other window could spoof a success/error event.
+    let expectedOrigin: string | null = null;
+    try {
+      expectedOrigin = new URL(onrampUrl).origin;
+    } catch {
+      expectedOrigin = null;
+    }
+
     const handleMessage = (event: MessageEvent) => {
+      if (expectedOrigin && event.origin !== expectedOrigin) return;
+
       let payload = event.data;
       if (typeof payload === "string") {
         try {
@@ -284,7 +300,9 @@ export default function CoinbaseOnrampFunding({
               title="Coinbase embedded onramp"
               src={onrampUrl}
               allow="payment"
-              sandbox="allow-scripts allow-same-origin"
+              // Apple/Google Pay open a payment sheet and submit forms, so the
+              // sandbox must permit popups and forms in addition to scripts.
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
               referrerPolicy="no-referrer"
               className="h-[260px] w-full border-0 bg-transparent"
             />
@@ -561,8 +579,8 @@ export default function CoinbaseOnrampFunding({
           >
             <AlertCircle className="mt-0.5 h-4 w-4 flex-none" />
             <span>
-              Enter an amount and phone number to render the in-app Coinbase
-              payment button.
+              Enter an amount greater than $0 and a valid US phone number to
+              render the in-app Coinbase payment button.
             </span>
           </div>
         )}

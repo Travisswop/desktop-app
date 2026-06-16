@@ -142,6 +142,17 @@ export default function ProfileCard({
   const set = (key: keyof ProfileCardValues) => (value: string) =>
     setValues((prev) => ({ ...prev, [key]: value }));
 
+  const trimmedEmail = values.email.trim();
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+  // Show the inline format hint only once the user has typed something.
+  const emailHasError = trimmedEmail.length > 0 && !emailValid;
+  const canSubmit =
+    Boolean(values.name.trim()) &&
+    emailValid &&
+    Boolean(values.dob) &&
+    !isSaving &&
+    !isUploading;
+
   const birthdayInput = dobToInput(values.dob);
   const selectedBirthday = inputToLocalDate(birthdayInput);
   const today = new Date();
@@ -178,9 +189,8 @@ export default function ProfileCard({
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (!values.name.trim() || !values.dob || isSaving || done || isUploading)
-      return;
-    onSubmit({ ...values, name: values.name.trim() });
+    if (!canSubmit || done) return;
+    onSubmit({ ...values, name: values.name.trim(), email: trimmedEmail });
   };
 
   if (done) {
@@ -294,7 +304,9 @@ export default function ProfileCard({
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <FieldLabel>Email</FieldLabel>
+            <FieldLabel>
+              Email <span className="text-[#3fe08f]">*</span>
+            </FieldLabel>
             <input
               type="email"
               value={values.email}
@@ -302,7 +314,14 @@ export default function ProfileCard({
               placeholder="you@email.com"
               className={TICKET_FIELD_CLASS}
               disabled={isSaving}
+              required
+              aria-invalid={emailHasError}
             />
+            {emailHasError && (
+              <p className="mt-1 text-[11px] text-[#ff6b6b]">
+                Enter a valid email address.
+              </p>
+            )}
           </div>
           <div>
             <FieldLabel>Phone</FieldLabel>
@@ -401,7 +420,7 @@ export default function ProfileCard({
 
       <button
         type="submit"
-        disabled={!values.name.trim() || !values.dob || isSaving || isUploading}
+        disabled={!canSubmit}
         className={`${PRIMARY_BUTTON_CLASS} mt-4 w-full`}
       >
         {isSaving ? (

@@ -104,6 +104,7 @@ const cspConfig = {
     "https://*.li.fi",
     "https://li.quest",
     "https://explorer-api.walletconnect.com",
+    "https://polymarket.com",
     "https://polymarket.apiswop.co",
     "https://maps.googleapis.com",
     "https://maps.gstatic.com",

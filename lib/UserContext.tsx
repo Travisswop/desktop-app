@@ -257,6 +257,18 @@ function readCachedUserContext(): CachedUserContext | null {
   }
 }
 
+function cachedUserBelongsToPrivySession(
+  cache: CachedUserContext | null,
+  privyUser: any,
+): cache is CachedUserContext {
+  if (!cache?.user) return false;
+  return (
+    !cache.user.privyId ||
+    !privyUser?.id ||
+    cache.user.privyId === privyUser.id
+  );
+}
+
 function writeCachedUserContext(
   user: UserData,
   accessToken: string | null,
@@ -526,7 +538,10 @@ export function UserProvider({
     [router, user],
   );
 
-  // Logout - just handle Privy logout, middleware handles redirects
+  // Logout clears Swop-owned session state first so protected pages stop seeing
+  // stale cookies immediately. Privy can take noticeably longer, so let that
+  // cleanup finish in the background while the explicit-logout marker keeps the
+  // login page from resuming the old session.
   const handleLogout = useCallback(async () => {
     try {
       markExplicitLogoutRedirect();
@@ -541,19 +556,32 @@ export function UserProvider({
       safeLocalStorage.removeItem('swop:last-authenticated-at');
       clearStoredUserContext();
       lastFetchedEmailRef.current = null;
-      // Clear Privy's session first, then strip every auth cookie server-side
-      // (httpOnly included) so neither the middleware nor the server-rendered
-      // feed can treat the stale session as logged in.
-      await privyLogout();
+
+      const privyLogoutCleanup = privyLogout()
+        .catch((error) => {
+          console.warn('Privy logout cleanup failed:', error);
+        })
+        .finally(() => {
+          clearStoredUserContext();
+        });
+
+      // Strip every Swop auth cookie server-side (httpOnly included) before
+      // navigation, so middleware and server-rendered routes cannot treat the
+      // stale session as logged in.
       await clearServerAuthCookies();
       clearStoredUserContext();
       router.replace('/login');
+      void privyLogoutCleanup;
     } catch (err) {
       console.error('Error during logout:', err);
       markExplicitLogoutRedirect();
       await clearServerAuthCookies();
       clearStoredUserContext();
       router.replace('/login');
+
+      void privyLogout().catch((error) => {
+        console.warn('Privy logout cleanup failed:', error);
+      });
     }
   }, [privyLogout, router]);
 
@@ -563,6 +591,15 @@ export function UserProvider({
     if (email) {
       lastFetchedEmailRef.current = null;
       await fetchUserData(email);
+      return;
+    }
+
+    const cachedContext = readCachedUserContext();
+    if (cachedUserBelongsToPrivySession(cachedContext, privyUser)) {
+      setUser(cachedContext.user);
+      setAccessToken(cachedContext.accessToken);
+      setError(null);
+      syncStoredUserContext(cachedContext.user, cachedContext.accessToken);
     }
   }, [privyUser, extractEmail, fetchUserData]);
 
@@ -600,6 +637,15 @@ export function UserProvider({
 
     const email = extractEmail(privyUser);
     if (!email) {
+      const cachedContext = readCachedUserContext();
+      if (cachedUserBelongsToPrivySession(cachedContext, privyUser)) {
+        setUser(cachedContext.user);
+        setAccessToken(cachedContext.accessToken);
+        syncStoredUserContext(cachedContext.user, cachedContext.accessToken);
+        setLoading(false);
+        return;
+      }
+
       setUser(null);
       setAccessToken(null);
       clearStoredUserContext();

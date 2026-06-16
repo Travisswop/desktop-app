@@ -12,6 +12,9 @@ import type {
   SocialTopInfo,
 } from "@/types/smartsite";
 
+const USER_CACHE_KEY = "swop:user-cache";
+const USER_CACHE_VERSION = 3;
+
 export interface CreateAiProfilePayload {
   profile: AiOnboardingProfile;
   privyId?: string;
@@ -34,7 +37,8 @@ function getAuthCookieOptions() {
   };
 }
 
-function persistCreatedUserAuth(userId?: string, token?: string) {
+function persistCreatedUserAuth(createdUser: any, token?: string) {
+  const userId = createdUser?._id?.toString();
   if (!userId) return;
 
   Cookies.set("user-id", userId, getAuthCookieOptions());
@@ -42,6 +46,17 @@ function persistCreatedUserAuth(userId?: string, token?: string) {
   if (token) {
     Cookies.set("access-token", token, getAuthCookieOptions());
   }
+
+  safeLocalStorage.setItem(
+    USER_CACHE_KEY,
+    JSON.stringify({
+      user: createdUser,
+      accessToken: token || null,
+      cachedAt: Date.now(),
+      email: createdUser.email || "",
+      cacheVersion: USER_CACHE_VERSION,
+    }),
+  );
 }
 
 export async function createAiOnboardingUser({
@@ -91,7 +106,7 @@ export async function createAiOnboardingUser({
     token: result.token as string | undefined,
   };
 
-  persistCreatedUserAuth(createdUser?._id?.toString(), createdUser.token);
+  persistCreatedUserAuth(createdUser, createdUser.token);
 
   // Fire-and-forget: creating the wallet-balance snapshot can take several
   // seconds and nothing downstream in onboarding needs it, so don't block the UI.

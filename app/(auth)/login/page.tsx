@@ -52,6 +52,9 @@ enum LoginFlow {
   ERROR = 'error',
 }
 
+const USER_CACHE_KEY = 'swop:user-cache';
+const USER_CACHE_VERSION = 3;
+
 // Wallet creation status
 interface WalletCreationStatus {
   ethereum: boolean;
@@ -189,13 +192,35 @@ function getAuthCookieOptions() {
 }
 
 function clearStaleSwopAuthStorage() {
-  safeLocalStorage.removeItem('swop:user-cache');
+  safeLocalStorage.removeItem(USER_CACHE_KEY);
   safeLocalStorage.removeItem('swop:last-authenticated-at');
 
   Cookies.remove('user-id');
   Cookies.remove('access-token');
   Cookies.remove('user-id', { path: '/' });
   Cookies.remove('access-token', { path: '/' });
+}
+
+function persistBackendUserAuth(user: any, token?: string | null) {
+  const userId = user?._id?.toString();
+  if (!userId) return;
+
+  Cookies.set('user-id', userId, getAuthCookieOptions());
+  if (token) {
+    Cookies.set('access-token', token, getAuthCookieOptions());
+  }
+
+  safeLocalStorage.setItem('swop:last-authenticated-at', String(Date.now()));
+  safeLocalStorage.setItem(
+    USER_CACHE_KEY,
+    JSON.stringify({
+      user,
+      accessToken: token || null,
+      cachedAt: Date.now(),
+      email: user.email || '',
+      cacheVersion: USER_CACHE_VERSION,
+    }),
+  );
 }
 
 function clearPrivyBrowserSession() {
@@ -619,25 +644,27 @@ const Login: React.FC = () => {
 
       try {
         const userEmail = extractEmailFromUser(user);
-        if (!userEmail) {
+        const apiPath = userEmail
+          ? `/api/v2/desktop/user/${encodeURIComponent(userEmail)}`
+          : user?.id
+            ? `/api/v2/desktop/user/getPrivyUser/${encodeURIComponent(user.id)}`
+            : null;
+
+        if (!apiPath) {
           logger.log(
-            'No email found on Privy account; sending user to onboarding for profile/email capture',
+            'No email or Privy ID found on Privy account; sending user to onboarding',
           );
           router.push(AI_ONBOARDING_PATH);
           return;
         }
 
-        // Check if user exists in backend
-        const apiUrl = buildSwopApiUrl(
-          `/api/v2/desktop/user/${encodeURIComponent(userEmail)}`,
-        );
-        const response = await apiFetch(apiUrl, {
+        const response = await apiFetch(buildSwopApiUrl(apiPath), {
           headers: { 'Content-Type': 'application/json' },
         });
 
         if (!response.ok) {
           if (response.status === 404) {
-            logger.log('User not found, redirecting to onboard');
+            logger.log('User not found by Privy session, redirecting to onboard');
             router.push(AI_ONBOARDING_PATH);
             return;
           }
@@ -652,17 +679,7 @@ const Login: React.FC = () => {
 
         const shouldCompleteSwopId = requiresSwopIdCompletion(data.user);
 
-        // Set user ID cookie
-        Cookies.set(
-          'user-id',
-          data.user._id.toString(),
-          getAuthCookieOptions(),
-        );
-        Cookies.set(
-          'access-token',
-          data.token,
-          getAuthCookieOptions(),
-        );
+        persistBackendUserAuth(data.user, data.token);
 
         const privyIdMatchesBackendUser =
           !data.user.privyId || !user?.id || data.user.privyId === user.id;

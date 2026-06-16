@@ -8,6 +8,7 @@ import { ArrowUp, Check, Loader2, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/lib/UserContext";
 import {
   attachSwopIdToSmartSite,
   createAiOnboardingSocials,
@@ -71,6 +72,7 @@ export default function ProfileChatStep({
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
   const { createWallet: createSolanaWallet } = useSolanaCreateWallet();
+  const { refreshUser } = useUser();
 
   const [profile, setProfile] = useState<AiOnboardingProfile>({
     ...EMPTY_PROFILE,
@@ -390,6 +392,9 @@ export default function ProfileChatStep({
         solanaWallet: solanaWallet?.address,
       });
       setSavedSteps((steps) => [...steps, "Profile created"]);
+      void refreshUser().catch((error) => {
+        console.error("User context refresh failed:", error);
+      });
 
       await createAiOnboardingSocials(createdUser.primaryMicrosite, profile);
       setSavedSteps((steps) => [...steps, "SmartSite details added"]);
