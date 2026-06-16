@@ -229,10 +229,10 @@ export function PerpsCard({
   onDepositSubmitted,
   onPredictionWithdrawSubmitted,
 }: PerpsCardProps) {
-  // Keep the wallet summary fast on initial page load. The full trading panel
-  // can still load builder DEX markets when the user opens the perps surface.
+  // Load builder DEX metadata too so HIP-3 positions such as SPCX/SpaceX are
+  // included in the wallet summary, not only in the full trading panel.
   const { data: markets = [] } = useHyperliquidMarkets({
-    includeBuilderDexes: false,
+    includeBuilderDexes: true,
   });
   const builderDexes = useMemo(() => {
     const set = new Set<string>();
