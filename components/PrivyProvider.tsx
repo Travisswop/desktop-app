@@ -1,6 +1,7 @@
 'use client';
 import { PrivyProvider as Privy } from '@privy-io/react-auth';
-import { useState, useEffect, useRef } from 'react';
+import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { installClipboardWriteFallback } from '@/lib/clipboard';
 
 interface SolanaConfig {
@@ -32,6 +33,13 @@ export default function PrivyProvider({
     'email',
     'sms',
   ];
+  const solanaWalletConnectors = useMemo(
+    () =>
+      toSolanaWalletConnectors({
+        shouldAutoConnect: false,
+      }),
+    [],
+  );
 
   useEffect(() => {
     installClipboardWriteFallback();
@@ -133,6 +141,9 @@ export default function PrivyProvider({
         loginMethods,
         externalWallets: {
           disableAllExternalWallets: true,
+          solana: {
+            connectors: solanaWalletConnectors,
+          },
         },
         appearance: {
           walletChainType: 'ethereum-and-solana',

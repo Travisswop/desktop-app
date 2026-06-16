@@ -11,6 +11,7 @@ import Loader from '@/components/loading/Loader';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { apiFetch } from '@/lib/api/apiFetch';
 import { requiresSwopIdCompletion } from '@/lib/onboardingStatus';
+import { useUser, type UserData } from '@/lib/UserContext';
 
 // Helper function to safely extract wallet data
 const extractWalletInfo = (
@@ -25,22 +26,44 @@ const extractWalletInfo = (
   };
 };
 
+const toOnboardingUserInfo = (
+  user: UserData | any,
+): OnboardingData['userInfo'] => ({
+  email: user?.email || '',
+  mobileNo: user?.mobileNo || '',
+  apartment: user?.apartment || user?.apt || '',
+  address: user?.address || '',
+  bio: user?.bio || '',
+  birthdate:
+    typeof user?.birthdate === 'number'
+      ? user.birthdate
+      : typeof user?.dob === 'number'
+      ? user.dob
+      : undefined,
+  avatar: user?.avatar || user?.profilePic || '',
+  name: user?.name || '',
+  primaryMicrosite: String(
+    user?.primaryMicrosite?._id || user?.primaryMicrosite || '',
+  ),
+});
+
 const OnboardContent: React.FC = () => {
-  const { user, ready } = usePrivy();
+  const { user: privyAuthUser, ready } = usePrivy();
+  const { user: backendUser, loading: backendUserLoading } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState(0);
-  const [userData, setUserData] = useState({});
+  const [userData, setUserData] = useState<OnboardingData>({});
   const [resumeChecked, setResumeChecked] = useState(false);
 
   const shouldResumeSwopId = searchParams?.get('step') === 'swop-id';
 
   const email =
-    user?.google?.email ||
-    user?.email?.address ||
-    user?.linkedAccounts.find((account) => account.type === 'email')
+    privyAuthUser?.google?.email ||
+    privyAuthUser?.email?.address ||
+    privyAuthUser?.linkedAccounts.find((account) => account.type === 'email')
       ?.address ||
-    user?.linkedAccounts.find(
+    privyAuthUser?.linkedAccounts.find(
       (account) => account.type === 'google_oauth'
     )?.email;
 
@@ -51,11 +74,11 @@ const OnboardContent: React.FC = () => {
 
   // Add effect to handle redirect after Privy is ready
   useEffect(() => {
-    if (ready && !user) {
+    if (ready && !privyAuthUser) {
       // Use Next.js router instead of window.location.href to prevent hard reload
       router.push('/login');
     }
-  }, [ready, user, router]);
+  }, [ready, privyAuthUser, router]);
 
   useEffect(() => {
     if (!shouldResumeSwopId) {
@@ -63,7 +86,27 @@ const OnboardContent: React.FC = () => {
       return;
     }
 
-    if (!ready || !user || !email) return;
+    if (backendUser) {
+      if (requiresSwopIdCompletion(backendUser)) {
+        setUserData({ userInfo: toOnboardingUserInfo(backendUser) });
+        setStep(2);
+        setResumeChecked(true);
+        return;
+      }
+
+      router.push('/');
+      return;
+    }
+
+    if (backendUserLoading) return;
+
+    if (!ready || !privyAuthUser) return;
+
+    if (!email) {
+      setStep(0);
+      setResumeChecked(true);
+      return;
+    }
 
     let cancelled = false;
 
@@ -95,7 +138,7 @@ const OnboardContent: React.FC = () => {
         if (cancelled) return;
 
         if (requiresSwopIdCompletion(data.user)) {
-          setUserData({ userInfo: data.user });
+          setUserData({ userInfo: toOnboardingUserInfo(data.user) });
           setStep(2);
           setResumeChecked(true);
           return;
@@ -116,7 +159,15 @@ const OnboardContent: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [email, ready, router, shouldResumeSwopId, user]);
+  }, [
+    backendUser,
+    backendUserLoading,
+    email,
+    ready,
+    router,
+    shouldResumeSwopId,
+    privyAuthUser,
+  ]);
 
   // Show loading while Privy is initializing
   if (!ready) {
@@ -140,7 +191,7 @@ const OnboardContent: React.FC = () => {
   }
 
   // Show loading while redirecting to login
-  if (!user) {
+  if (!privyAuthUser) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <Loader />
@@ -151,16 +202,16 @@ const OnboardContent: React.FC = () => {
     );
   }
 
-  const privyUser: PrivyUser = {
-    ...user,
-    name: user?.google?.name || '',
+  const onboardPrivyUser: PrivyUser = {
+    ...privyAuthUser,
+    name: privyAuthUser?.google?.name || '',
     email: email || '',
-    wallet: extractWalletInfo(user.wallet),
+    wallet: extractWalletInfo(privyAuthUser.wallet),
   };
 
   return (
     <OnboardingFlow
-      user={privyUser}
+      user={onboardPrivyUser}
       step={step}
       onNextStep={handleNextStep}
       userData={userData}
