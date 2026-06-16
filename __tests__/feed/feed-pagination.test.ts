@@ -1,5 +1,6 @@
 import {
   filterDuplicateLegacyPerpsItems,
+  mergeFreshFeedItems,
   mergeUniqueFeedItems,
   shouldFetchAnotherFeedPage,
 } from "@/components/feed/feedPagination";
@@ -63,6 +64,27 @@ describe("feed pagination", () => {
         [{ _id: "b" }, { _id: "c" }, { _id: "d" }],
       ),
     ).toEqual([{ _id: "a" }, { _id: "b" }, { _id: "c" }, { _id: "d" }]);
+  });
+
+  it("merges a refreshed first page without dropping loaded older posts", () => {
+    expect(
+      mergeFreshFeedItems(
+        [
+          { _id: "new", text: "new post" },
+          { _id: "a", text: "fresh copy" },
+        ],
+        [
+          { _id: "a", text: "stale copy" },
+          { _id: "b", text: "older post" },
+          { id: "c", text: "id fallback" },
+        ],
+      ),
+    ).toEqual([
+      { _id: "new", text: "new post" },
+      { _id: "a", text: "fresh copy" },
+      { _id: "b", text: "older post" },
+      { id: "c", text: "id fallback" },
+    ]);
   });
 
   it("suppresses legacy perps cards when the lifecycle card exists", () => {
