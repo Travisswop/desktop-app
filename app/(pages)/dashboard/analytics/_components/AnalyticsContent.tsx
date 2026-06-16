@@ -29,59 +29,59 @@ interface AnalyticsData {
 }
 
 interface AnalyticsItem {
-  _id?: string;
+  _id?: unknown;
   active?: boolean;
-  totalTap?: number;
-  name?: string;
-  value?: string;
-  url?: string;
-  iconName?: string;
-  iconPath?: string;
-  group?: string;
-  buttonName?: string;
-  title?: string;
-  headline?: string;
-  link?: string;
-  description?: string;
-  image?: string;
-  coverPhoto?: string;
-  imageUrl?: string;
-  tokenUrl?: string;
-  videoUrl?: string;
-  type?: string;
-  mobileNo?: string;
-  email?: string;
-  address?: string;
-  websiteUrl?: string;
-  domain?: string;
+  totalTap?: unknown;
+  name?: unknown;
+  value?: unknown;
+  url?: unknown;
+  iconName?: unknown;
+  iconPath?: unknown;
+  group?: unknown;
+  buttonName?: unknown;
+  title?: unknown;
+  headline?: unknown;
+  link?: unknown;
+  description?: unknown;
+  image?: unknown;
+  coverPhoto?: unknown;
+  imageUrl?: unknown;
+  tokenUrl?: unknown;
+  videoUrl?: unknown;
+  type?: unknown;
+  mobileNo?: unknown;
+  email?: unknown;
+  address?: unknown;
+  websiteUrl?: unknown;
+  domain?: unknown;
   ensData?: {
-    domain?: string;
-    name?: string;
+    domain?: unknown;
+    name?: unknown;
   };
-  mintName?: string;
-  symbol?: string;
-  tokenType?: string;
-  referralCode?: string;
-  itemName?: string;
+  mintName?: unknown;
+  symbol?: unknown;
+  tokenType?: unknown;
+  referralCode?: unknown;
+  itemName?: unknown;
   templateId?: {
-    name?: string;
-    image?: string;
+    name?: unknown;
+    image?: unknown;
   };
 }
 
 interface MicrositeInfo {
-  socialTop?: AnalyticsItem[];
-  socialLarge?: AnalyticsItem[];
-  infoBar?: AnalyticsItem[];
-  referral?: AnalyticsItem[];
-  redeemLink?: AnalyticsItem[];
-  blog?: AnalyticsItem[];
-  audio?: AnalyticsItem[];
-  video?: AnalyticsItem[];
-  videoUrl?: AnalyticsItem[];
-  contact?: AnalyticsItem[];
-  ensDomain?: AnalyticsItem[];
-  marketPlace?: AnalyticsItem[];
+  socialTop?: unknown[];
+  socialLarge?: unknown[];
+  infoBar?: unknown[];
+  referral?: unknown[];
+  redeemLink?: unknown[];
+  blog?: unknown[];
+  audio?: unknown[];
+  video?: unknown[];
+  videoUrl?: unknown[];
+  contact?: unknown[];
+  ensDomain?: unknown[];
+  marketPlace?: unknown[];
 }
 
 interface Microsite {
@@ -143,7 +143,29 @@ function safeArray<T>(value?: T[] | null): T[] {
   return Array.isArray(value) ? value : [];
 }
 
-function toCount(value?: number) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function asItem(value: unknown): AnalyticsItem {
+  return isRecord(value) ? (value as AnalyticsItem) : {};
+}
+
+function toText(value?: unknown) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    return trimmed || undefined;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return undefined;
+}
+
+function toCount(value?: unknown) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
 }
@@ -162,26 +184,33 @@ function readableUrl(value: string) {
   }
 }
 
-function isReadableText(value?: string | null) {
-  const trimmed = value?.trim();
+function isReadableText(value?: unknown) {
+  const trimmed = toText(value);
 
   return Boolean(trimmed && !isUrl(trimmed));
 }
 
-function firstReadable(candidates: Array<string | undefined | null>) {
-  return candidates.find(isReadableText)?.trim();
+function firstReadable(candidates: unknown[]) {
+  const match = candidates.find(isReadableText);
+
+  return toText(match);
 }
 
-function firstUrl(candidates: Array<string | undefined | null>) {
-  return candidates.find((value) => {
-    const trimmed = value?.trim();
+function firstUrl(
+  candidates: unknown[],
+  options: { allowCloudinary?: boolean } = {}
+) {
+  const match = candidates.find((value) => {
+    const trimmed = toText(value);
 
     if (!trimmed || !isUrl(trimmed)) {
       return false;
     }
 
-    return Boolean(readableUrl(trimmed));
-  })?.trim();
+    return options.allowCloudinary || Boolean(readableUrl(trimmed));
+  });
+
+  return toText(match);
 }
 
 const fallbackLabels: Record<SectionKey, string> = {
@@ -250,25 +279,32 @@ function itemLabel(item: AnalyticsItem, sectionKey: SectionKey) {
 }
 
 function itemImage(item: AnalyticsItem, sectionKey: SectionKey) {
-  if (sectionKey === "socialTop" && item.name) {
-    return getSmallIconImage(item.name, item.group) as ImageSource;
+  const name = toText(item.name);
+  const group = toText(item.group);
+  const iconName = toText(item.iconName);
+
+  if (sectionKey === "socialTop" && name) {
+    return getSmallIconImage(name, group) as ImageSource;
   }
 
   if (
     (sectionKey === "socialLarge" || sectionKey === "infoBar") &&
-    item.iconName &&
-    !isUrl(item.iconName)
+    iconName &&
+    !isUrl(iconName)
   ) {
-    return getAllSmartsitesIcon(item.iconName) as ImageSource;
+    return getAllSmartsitesIcon(iconName) as ImageSource;
   }
 
-  return firstUrl([
-    item.image,
-    item.coverPhoto,
-    item.imageUrl,
-    item.iconName,
-    item.templateId?.image,
-  ]);
+  return firstUrl(
+    [
+      item.image,
+      item.coverPhoto,
+      item.imageUrl,
+      item.iconName,
+      item.templateId?.image,
+    ],
+    { allowCloudinary: true }
+  );
 }
 
 function smartsiteRollupTotal(microsite: Microsite) {
@@ -276,13 +312,20 @@ function smartsiteRollupTotal(microsite: Microsite) {
     return (
       total +
       safeArray(microsite.info?.[section.key]).reduce(
-        (sectionTotal, item) => sectionTotal + toCount(item.totalTap),
+        (sectionTotal, entry) => sectionTotal + toCount(asItem(entry).totalTap),
         0
       )
     );
   }, 0);
 
   return Math.max(toCount(microsite.totalTap), itemTotal);
+}
+
+function detailItemKey(entry: unknown, sectionKey: SectionKey, index: number) {
+  const item = asItem(entry);
+  const id = toText(item._id) || (typeof entry === "string" ? entry : "");
+
+  return id || `${sectionKey}-${index}`;
 }
 
 function DetailIcon({
@@ -313,7 +356,9 @@ function DetailIcon({
 
   return (
     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-100 text-xs font-semibold text-gray-500">
-      {item.name?.slice(0, 1) || item.buttonName?.slice(0, 1) || "-"}
+      {toText(item.name)?.slice(0, 1) ||
+        toText(item.buttonName)?.slice(0, 1) ||
+        "-"}
     </div>
   );
 }
@@ -375,7 +420,12 @@ export default function AnalyticsContent({
       sections
         .map((section) => ({
           ...section,
-          items: safeArray(selectedSmartsite?.info?.[section.key]),
+          items: safeArray(selectedSmartsite?.info?.[section.key]).map(
+            (entry, index) => ({
+              item: asItem(entry),
+              key: detailItemKey(entry, section.key, index),
+            })
+          ),
         }))
         .filter((section) => section.items.length > 0),
     [selectedSmartsite]
@@ -494,9 +544,9 @@ export default function AnalyticsContent({
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                     {section.label}
                   </h3>
-                  {section.items.map((item, index) => (
+                  {section.items.map(({ item, key }) => (
                     <div
-                      key={item._id || `${section.key}-${index}`}
+                      key={key}
                       className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0"
                     >
                       <div className="flex min-w-0 items-center gap-3">
