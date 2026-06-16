@@ -49,6 +49,7 @@ import {
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
 } from '@/lib/perps/perpsFeed';
+import { buildHyperliquidMarketPriceMap } from '@/lib/perps/hyperliquidPositionPricing';
 import { hyperliquidMarketForPosition } from '@/lib/perps/hyperliquidMarketIdentity';
 
 export type PerpsInitialOrder = {
@@ -299,11 +300,7 @@ export function PerpsPanel({
   // (WS connecting/dropped) — mirrors the header's `selectedMarket?.markPrice`
   // fallback so the Mark column never silently shows the entry price.
   const marketMarks = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const m of markets) {
-      if (m.markPrice && m.markPrice !== '0') map[m.coin] = m.markPrice;
-    }
-    return map;
+    return buildHyperliquidMarketPriceMap(markets);
   }, [markets]);
 
   const { connected: fillsConnected } = useUserFills(

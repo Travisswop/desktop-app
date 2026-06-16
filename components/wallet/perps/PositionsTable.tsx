@@ -5,6 +5,10 @@ import { Loader2 } from 'lucide-react';
 import type { HLPosition, HLOpenOrder } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
 import { MarketIcon } from './MarketIcon';
+import {
+  lookupHyperliquidPositionPrice,
+  resolveHyperliquidPositionMarkPrice,
+} from '@/lib/perps/hyperliquidPositionPricing';
 
 export interface PerpsFill {
   coin: string;
@@ -169,13 +173,12 @@ function PositionsBody({
           const isLong = size > 0;
           const absSize = Math.abs(size);
           const entry = parseFloat(p.entryPx);
-          // Prefer the live mid; fall back to the polled markets mark price
-          // before the entry price, so a missing live mid never makes Mark
-          // read as the entry (mirrors the header's mark-price fallback).
           const mark =
-            parseFloat(
-              mids[p.coin] ?? marketMarks?.[p.coin] ?? p.entryPx,
-            ) || entry;
+            resolveHyperliquidPositionMarkPrice(
+              p,
+              lookupHyperliquidPositionPrice(p, mids) ??
+                lookupHyperliquidPositionPrice(p, marketMarks),
+            ) ?? entry;
           const pnl = parseFloat(p.unrealizedPnl) || 0;
           const pnlUp = pnl >= 0;
           const roe = (parseFloat(p.returnOnEquity) || 0) * 100;

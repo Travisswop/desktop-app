@@ -24,6 +24,11 @@ import {
   PerpsActionsModal,
   type PerpsActionTab,
 } from './PerpsActionsModal';
+import {
+  buildHyperliquidMarketPriceMap,
+  lookupHyperliquidPositionPrice,
+  resolveHyperliquidPositionMarkPrice,
+} from '@/lib/perps/hyperliquidPositionPricing';
 
 interface PerpsCardProps {
   /** Selected EVM wallet address used as the Hyperliquid master account. */
@@ -125,13 +130,17 @@ function positionKey(position: HLPosition, index: number) {
 
 function liqMetrics(
   position: HLPosition,
-  livePrice: string | undefined,
+  markPx: number | null,
 ) {
   if (!position.liquidationPx) return null;
   const liqPx = parseFloat(position.liquidationPx);
-  const markPx = parseFloat(livePrice || position.entryPx);
   const isLong = parseFloat(position.szi) > 0;
-  if (!Number.isFinite(liqPx) || !Number.isFinite(markPx) || markPx === 0)
+  if (
+    markPx === null ||
+    !Number.isFinite(liqPx) ||
+    !Number.isFinite(markPx) ||
+    markPx === 0
+  )
     return null;
 
   const distance = isLong
@@ -247,6 +256,10 @@ export function PerpsCard({
     builderDexes,
     { refetchInterval: 30_000 },
   );
+  const marketMarks = useMemo(
+    () => buildHyperliquidMarketPriceMap(markets),
+    [markets],
+  );
   const { mids } = useAllMids(!!masterAddress);
 
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -296,6 +309,7 @@ export function PerpsCard({
         <OpenPositionsCard
           positions={positions}
           livePrices={mids}
+          marketPrices={marketMarks}
           isLoading={isLoading}
           isReconnecting={isReconnecting}
           masterAddress={masterAddress}
@@ -338,6 +352,7 @@ export function PerpsCard({
 function OpenPositionsCard({
   positions,
   livePrices,
+  marketPrices,
   isLoading,
   isReconnecting,
   masterAddress,
@@ -346,6 +361,7 @@ function OpenPositionsCard({
 }: {
   positions: HLPosition[];
   livePrices: Record<string, string>;
+  marketPrices: Record<string, string>;
   isLoading: boolean;
   isReconnecting: boolean;
   masterAddress: string | undefined;
@@ -434,7 +450,10 @@ function OpenPositionsCard({
           <OpenPositionDetails
             key={positionKey(position, index)}
             position={position}
-            livePrice={livePrices[position.coin]}
+            markPriceHint={
+              lookupHyperliquidPositionPrice(position, livePrices) ??
+              lookupHyperliquidPositionPrice(position, marketPrices)
+            }
             hasDivider={index > 0}
             hasDanger={getLiquidationRisk(position) === 'danger'}
             onOpenTrading={onOpenTrading}
@@ -447,13 +466,13 @@ function OpenPositionsCard({
 
 function OpenPositionDetails({
   position,
-  livePrice,
+  markPriceHint,
   hasDivider,
   hasDanger,
   onOpenTrading,
 }: {
   position: HLPosition;
-  livePrice: string | undefined;
+  markPriceHint: string | undefined;
   hasDivider: boolean;
   hasDanger: boolean;
   onOpenTrading: (coin?: string) => void;
@@ -468,8 +487,11 @@ function OpenPositionDetails({
   const pnlNum = parseFloat(position.unrealizedPnl || '0');
   const roeNum = parseFloat(position.returnOnEquity || '0') * 100;
   const positive = pnlNum >= 0;
-  const liq = liqMetrics(position, livePrice);
-  const markPx = liq?.markPx ?? parseFloat(livePrice || position.entryPx);
+  const markPx = resolveHyperliquidPositionMarkPrice(
+    position,
+    markPriceHint,
+  );
+  const liq = liqMetrics(position, markPx);
   const shareDetails: PositionShareDetails = {
     coin: position.coin,
     side: isLong ? 'LONG' : 'SHORT',
@@ -481,7 +503,7 @@ function OpenPositionDetails({
     pnlPositive: positive,
     sizeLabel: `${formatTokenSize(String(sizeAbs))} ${position.coin}`,
     entryLabel: `$${formatPrice(position.entryPx)}`,
-    markLabel: Number.isFinite(markPx)
+    markLabel: markPx !== null && Number.isFinite(markPx)
       ? `$${formatPrice(String(markPx))}`
       : '—',
     marginLabel: `$${formatBalance(parseFloat(position.marginUsed), 2)}`,
@@ -627,7 +649,7 @@ function OpenPositionDetails({
           { l: 'entry', v: `$${formatPrice(position.entryPx)}` },
           {
             l: 'mark',
-            v: Number.isFinite(markPx)
+            v: markPx !== null && Number.isFinite(markPx)
               ? `$${formatPrice(String(markPx))}`
               : '—',
           },
