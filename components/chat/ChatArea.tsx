@@ -1504,16 +1504,24 @@ function parseHyperliquidLimitPrice(text: string) {
 }
 
 function parseHyperliquidTakeProfitPrice(text: string) {
-  const match = text.match(
-    /\b(?:take\s*profit|take-profit|tp)\b\s*(?:at|@|to|for|=|:)?\s*\$?([0-9]+(?:\.[0-9]+)?)/i
-  );
+  const match =
+    text.match(
+      /\b(?:take\s*profit|take-profit|tp)\b\s*(?:at|@|to|for|=|:)?\s*\$?([0-9]+(?:\.[0-9]+)?)/i
+    ) ||
+    text.match(
+      /\b(?:take\s*profit|take-profit|tp)\b[\s\S]{0,80}\b(?:at|@|to|for|=|:)\s*\$?([0-9]+(?:\.[0-9]+)?)/i
+    );
   return match?.[1] || '';
 }
 
 function parseHyperliquidStopLossPrice(text: string) {
-  const match = text.match(
-    /\b(?:stop\s*loss|stop-loss|sl)\b\s*(?:at|@|to|for|=|:)?\s*\$?([0-9]+(?:\.[0-9]+)?)/i
-  );
+  const match =
+    text.match(
+      /\b(?:stop\s*loss|stop-loss|sl)\b\s*(?:at|@|to|for|=|:)?\s*\$?([0-9]+(?:\.[0-9]+)?)/i
+    ) ||
+    text.match(
+      /\b(?:stop\s*loss|stop-loss|sl)\b[\s\S]{0,80}\b(?:at|@|to|for|=|:)\s*\$?([0-9]+(?:\.[0-9]+)?)/i
+    );
   return match?.[1] || '';
 }
 
