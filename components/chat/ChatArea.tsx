@@ -9452,36 +9452,47 @@ function DmContextPanel({
         iconClassName: 'bg-[#18243f] text-[#6b9bff]',
       },
     ];
-    const positions = [
-      ...perpsPositions.slice(0, 2).map((position) => {
-        const size = toFiniteNumber(position.szi);
-        const displayCoin = displayPerpsCoin(position.coin);
-        return {
-          key: `perps:${position.coin}:${position.szi}:${position.entryPx}`,
-          symbol: `${displayCoin}-PERP`,
-          tag: `${size >= 0 ? 'LONG' : 'SHORT'} ${position.leverage?.value || 1}x`,
-          pnl: formatSignedUsd(toFiniteNumber(position.unrealizedPnl)),
-          positive: toFiniteNumber(position.unrealizedPnl) >= 0,
-          selection: {
-            kind: 'perps',
-            position: position as HLPosition,
-          } as AstroConsolePositionSelection,
-        };
-      }),
-      ...openPredictionPositions.slice(0, 2).map((position) => ({
-        key: `prediction:${position.conditionId || position.slug || 'market'}:${
-          position.asset || position.outcome || ''
-        }`,
-        symbol: position.title || position.slug || 'Prediction',
-        tag: position.outcome || 'YES',
-        pnl: formatSignedUsd(toFiniteNumber(position.cashPnl)),
-        positive: toFiniteNumber(position.cashPnl) >= 0,
+    const maxVisibleConsolePositions = 4;
+    const perpsConsolePositions = perpsPositions.map((position) => {
+      const size = toFiniteNumber(position.szi);
+      const displayCoin = displayPerpsCoin(position.coin);
+      return {
+        key: `perps:${position.dex || 'main'}:${position.coin}:${position.szi}:${position.entryPx}`,
+        symbol: `${displayCoin}-PERP`,
+        tag: `${size >= 0 ? 'LONG' : 'SHORT'} ${
+          position.leverage?.value || 1
+        }x`,
+        pnl: formatSignedUsd(toFiniteNumber(position.unrealizedPnl)),
+        positive: toFiniteNumber(position.unrealizedPnl) >= 0,
         selection: {
-          kind: 'prediction',
-          position,
+          kind: 'perps',
+          position: position as HLPosition,
         } as AstroConsolePositionSelection,
-      })),
-    ].slice(0, 4);
+      };
+    });
+    const predictionConsolePositions = openPredictionPositions.map((position) => ({
+      key: `prediction:${position.conditionId || position.slug || 'market'}:${
+        position.asset || position.outcome || ''
+      }`,
+      symbol: position.title || position.slug || 'Prediction',
+      tag: position.outcome || 'YES',
+      pnl: formatSignedUsd(toFiniteNumber(position.cashPnl)),
+      positive: toFiniteNumber(position.cashPnl) >= 0,
+      selection: {
+        kind: 'prediction',
+        position,
+      } as AstroConsolePositionSelection,
+    }));
+    const positions = [
+      ...perpsConsolePositions,
+      ...predictionConsolePositions,
+    ].slice(0, maxVisibleConsolePositions);
+    const openTradingPositionCount =
+      perpsPositions.length + openPredictionPositions.length;
+    const hiddenPositionCount = Math.max(
+      0,
+      openTradingPositionCount - positions.length
+    );
     const pendingOrders = [
       ...perpsOpenOrders.slice(0, 1).map((order) => ({
         type: `${order.orderType || 'LIMIT'} ${order.side === 'B' ? 'BUY' : 'SELL'}`,
@@ -9599,40 +9610,48 @@ function DmContextPanel({
           })}
         </ConsoleCard>
 
-        <SectionLabel>open positions · {positions.length}</SectionLabel>
+        <SectionLabel>open positions · {openTradingPositionCount}</SectionLabel>
         <ConsoleCard padClass="p-0">
           {positions.length ? (
-            positions.map((position) => (
-              <div
-                key={position.key}
-                className="border-t border-white/[0.045] first:border-t-0"
-              >
-                <button
-                  type="button"
-                  disabled={!onPositionClick}
-                  onClick={() => onPositionClick?.(position.selection)}
-                  title="Show position card in chat"
-                  aria-label={`Show ${position.symbol} position card in chat`}
-                  className="dm-btn flex w-full items-center justify-between gap-3 px-3 py-3 text-left disabled:cursor-default"
+            <>
+              {positions.map((position) => (
+                <div
+                  key={position.key}
+                  className="border-t border-white/[0.045] first:border-t-0"
                 >
-                  <span className="min-w-0">
-                    <span className="dm-mono block truncate text-[12px] font-semibold leading-tight text-[#eceef2]">
-                      {position.symbol}
-                    </span>
-                    <span className="dm-mono mt-1 inline-flex rounded-[5px] border border-[#3fe08f]/15 bg-black/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#3fe08f]">
-                      {position.tag}
-                    </span>
-                  </span>
-                  <span
-                    className={`dm-mono shrink-0 text-[12px] font-bold ${
-                      position.positive ? 'text-[#3ddc97]' : 'text-[#ff5d63]'
-                    }`}
+                  <button
+                    type="button"
+                    disabled={!onPositionClick}
+                    onClick={() => onPositionClick?.(position.selection)}
+                    title="Show position card in chat"
+                    aria-label={`Show ${position.symbol} position card in chat`}
+                    className="dm-btn flex w-full items-center justify-between gap-3 px-3 py-3 text-left disabled:cursor-default"
                   >
-                    {position.pnl}
-                  </span>
-                </button>
-              </div>
-            ))
+                    <span className="min-w-0">
+                      <span className="dm-mono block truncate text-[12px] font-semibold leading-tight text-[#eceef2]">
+                        {position.symbol}
+                      </span>
+                      <span className="dm-mono mt-1 inline-flex rounded-[5px] border border-[#3fe08f]/15 bg-black/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#3fe08f]">
+                        {position.tag}
+                      </span>
+                    </span>
+                    <span
+                      className={`dm-mono shrink-0 text-[12px] font-bold ${
+                        position.positive ? 'text-[#3ddc97]' : 'text-[#ff5d63]'
+                      }`}
+                    >
+                      {position.pnl}
+                    </span>
+                  </button>
+                </div>
+              ))}
+              {hiddenPositionCount > 0 && (
+                <div className="border-t border-white/[0.045] px-3 py-2.5 text-[11px] font-semibold text-[#737783]">
+                  {hiddenPositionCount} more position
+                  {hiddenPositionCount === 1 ? '' : 's'} available.
+                </div>
+              )}
+            </>
           ) : (
             <div className="px-3 py-3 text-[11px] text-[#737783]">
               No open trading positions yet.
