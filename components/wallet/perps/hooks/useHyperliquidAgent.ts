@@ -18,20 +18,18 @@ import {
   walletAddressEquals,
 } from '@/components/wallet/hooks/useWalletData';
 import { safeLocalStorage } from '@/lib/browserStorage';
+import {
+  agentMasterStorageKey,
+  agentStorageKey,
+  isAgentApprovalActive,
+  legacyAgentMasterStorageKey,
+} from '../hyperliquidAgentPersistence';
 import { selectHyperliquidMasterWallet } from '../hyperliquidAgentSelection';
 
 // ─── Agent key persistence ──────────────────────────────────────────────────
 //
 // We store a per-master-address agent private key in localStorage so the
 // one-time approveAgent signature is never needed again after the initial setup.
-
-function agentStorageKey(masterAddress: string) {
-  return `hl_agent_pk_${masterAddress.toLowerCase()}`;
-}
-
-function agentMasterStorageKey(privyUserId: string) {
-  return `hl_agent_master_${privyUserId}`;
-}
 
 function loadAgentKey(masterAddress: string): `0x${string}` | null {
   return safeLocalStorage.getItem(agentStorageKey(masterAddress)) as `0x${string}` | null;
@@ -47,7 +45,17 @@ function deleteAgentKey(masterAddress: string) {
 
 function loadLastMasterAddress(privyUserId?: string | null) {
   if (!privyUserId) return '';
-  return safeLocalStorage.getItem(agentMasterStorageKey(privyUserId)) || '';
+  const currentKey = agentMasterStorageKey(privyUserId);
+  const current = safeLocalStorage.getItem(currentKey);
+  if (current) return current;
+
+  const legacyKey = legacyAgentMasterStorageKey(privyUserId);
+  const legacy = safeLocalStorage.getItem(legacyKey);
+  if (!legacy) return '';
+
+  safeLocalStorage.setItem(currentKey, legacy);
+  safeLocalStorage.removeItem(legacyKey);
+  return legacy;
 }
 
 function saveLastMasterAddress(
@@ -56,6 +64,7 @@ function saveLastMasterAddress(
 ) {
   if (!privyUserId || !masterAddress) return;
   safeLocalStorage.setItem(agentMasterStorageKey(privyUserId), masterAddress);
+  safeLocalStorage.removeItem(legacyAgentMasterStorageKey(privyUserId));
 }
 
 function compactAddresses(
@@ -101,15 +110,9 @@ async function getAgentApprovalStatus(
       user: masterAddress as `0x${string}`,
     });
     const now = Date.now();
-
-    return agents.some((agent) => {
-      const validUntil = Number(agent.validUntil);
-      const isUnexpired = Number.isFinite(validUntil)
-        ? validUntil > now
-        : true;
-
-      return walletAddressEquals(agent.address, agentAddress) && isUnexpired;
-    });
+    return agents.some((agent) =>
+      isAgentApprovalActive(agent, agentAddress, now),
+    );
   } catch (error) {
     console.warn('Failed to validate Hyperliquid agent key:', error);
     return null;
