@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentApprovalHandoff } from '@/lib/chat/agentActionHandoff';
+import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
 
 export interface GroupAgentDescriptor {
   agentId: string;
@@ -340,19 +341,65 @@ export function useGroupAgents(socket: any) {
   const approveAgentAction = useCallback(
     (proposalId: string, approvalParams?: Record<string, unknown>) => {
       if (!socket) {
+        queueAgentActionClientEvent({
+          proposalId,
+          stage: 'approval_failed',
+          uiSurface: 'group_agent_socket',
+          status: 'failed',
+          reason: 'Socket is not connected.',
+          metadata: { approvalParamKeys: Object.keys(approvalParams || {}) },
+        });
         return Promise.reject(new Error('Socket is not connected.'));
       }
+
+      queueAgentActionClientEvent({
+        proposalId,
+        stage: 'approval_requested',
+        uiSurface: 'group_agent_socket',
+        metadata: { approvalParamKeys: Object.keys(approvalParams || {}) },
+      });
 
       return emitAckWithTimeout({
         socket,
         event: GROUP_AGENT_SOCKET_EVENTS.APPROVE_AGENT_ACTION,
         payload: { proposalId, approvalParams },
         timeoutMessage: 'Timed out approving proposal.',
-      }).then((response) => {
-        if (response?.success) return response;
+      })
+        .then((response) => {
+          if (response?.success) {
+            queueAgentActionClientEvent({
+              proposalId,
+              stage: 'approval_succeeded',
+              uiSurface: 'group_agent_socket',
+            });
+            return response;
+          }
 
-        throw ackError(response, 'Failed to approve proposal.');
-      });
+          queueAgentActionClientEvent({
+            proposalId,
+            stage: 'approval_failed',
+            uiSurface: 'group_agent_socket',
+            status: 'failed',
+            error: response?.error,
+          });
+          const error = ackError(response, 'Failed to approve proposal.') as Error & {
+            __agentTelemetryReported?: boolean;
+          };
+          error.__agentTelemetryReported = true;
+          throw error;
+        })
+        .catch((error) => {
+          if (!(error as { __agentTelemetryReported?: boolean })?.__agentTelemetryReported) {
+            queueAgentActionClientEvent({
+              proposalId,
+              stage: 'approval_failed',
+              uiSurface: 'group_agent_socket',
+              status: 'failed',
+              error,
+            });
+          }
+          throw error;
+        });
     },
     [socket]
   );
@@ -388,6 +435,13 @@ export function useGroupAgents(socket: any) {
   const rejectAgentAction = useCallback(
     (proposalId: string, reason = 'Rejected from desktop chat') => {
       if (!socket) {
+        queueAgentActionClientEvent({
+          proposalId,
+          stage: 'approval_failed',
+          uiSurface: 'group_agent_socket',
+          status: 'failed',
+          reason: 'Socket is not connected while rejecting proposal.',
+        });
         return Promise.reject(new Error('Socket is not connected.'));
       }
 

@@ -1,3 +1,5 @@
+import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
+
 export const AGENT_ACTION_HANDOFF_STORAGE_KEY =
   'swop:agent-approved-action';
 export const AGENT_ACTION_COMPLETION_STORAGE_KEY =
@@ -152,6 +154,19 @@ export function persistAgentActionHandoff(handoff: AgentApprovalHandoff) {
       detail: value,
     })
   );
+  queueAgentActionClientEvent({
+    proposalId: handoff.payload?.proposalId,
+    stage: 'handoff_persisted',
+    action: handoff.payload?.action,
+    toolType: handoff.payload?.toolType,
+    provider: handoff.payload?.provider,
+    groupId: handoff.payload?.groupId,
+    invocationId: handoff.payload?.invocationId,
+    agentId: handoff.payload?.agentId,
+    route: handoff.payload?.route,
+    panel: handoff.payload?.panel,
+    uiSurface: 'agent_action_handoff',
+  });
 }
 
 export function readAgentActionHandoff():
@@ -247,52 +262,122 @@ export async function reportAgentActionCompletion(
   if (!completion.proposalId) return null;
   const token = accessToken || decodeURIComponent(readCookie('access-token'));
   if (!token) return null;
-
-  const response = await fetch(
-    `${swopApiBase()}/api/v5/messages/agent-actions/${encodeURIComponent(
-      completion.proposalId,
-    )}/complete`,
+  queueAgentActionClientEvent(
     {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        status: completion.status,
-        executionResult: {
-          proposalId: completion.proposalId,
-          proposalNonce: completion.proposalNonce,
-          invocationId: completion.invocationId,
-          agentId: completion.agentId,
-          groupId: completion.groupId,
-          action: completion.action,
-          toolType: completion.toolType,
-          provider: completion.provider,
-          title: completion.title,
-          subtitle: completion.subtitle,
-          subject: completion.subject,
-          side: completion.side,
-          stake: completion.stake,
-          toWin: completion.toWin,
-          payout: completion.payout,
-          placedAt: completion.placedAt,
-          txHash: completion.txHash,
-          txUrl: completion.txUrl,
-          orderId: completion.orderId,
-          explorerLabel: completion.explorerLabel,
-          ...(completion.executionResult || {}),
-        },
-        error: completion.error || null,
-      }),
+      proposalId: completion.proposalId,
+      stage: 'completion_report_started',
+      action: completion.action,
+      toolType: completion.toolType,
+      provider: completion.provider,
+      groupId: completion.groupId,
+      invocationId: completion.invocationId,
+      agentId: completion.agentId,
+      uiSurface: 'agent_action_completion',
     },
+    token,
   );
 
+  let response: Response;
+  try {
+    response = await fetch(
+      `${swopApiBase()}/api/v5/messages/agent-actions/${encodeURIComponent(
+        completion.proposalId,
+      )}/complete`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: completion.status,
+          executionResult: {
+            proposalId: completion.proposalId,
+            proposalNonce: completion.proposalNonce,
+            invocationId: completion.invocationId,
+            agentId: completion.agentId,
+            groupId: completion.groupId,
+            action: completion.action,
+            toolType: completion.toolType,
+            provider: completion.provider,
+            title: completion.title,
+            subtitle: completion.subtitle,
+            subject: completion.subject,
+            side: completion.side,
+            stake: completion.stake,
+            toWin: completion.toWin,
+            payout: completion.payout,
+            placedAt: completion.placedAt,
+            txHash: completion.txHash,
+            txUrl: completion.txUrl,
+            orderId: completion.orderId,
+            explorerLabel: completion.explorerLabel,
+            ...(completion.executionResult || {}),
+          },
+          error: completion.error || null,
+        }),
+      },
+    );
+  } catch (error) {
+    queueAgentActionClientEvent(
+      {
+        proposalId: completion.proposalId,
+        stage: 'completion_report_failed',
+        action: completion.action,
+        toolType: completion.toolType,
+        provider: completion.provider,
+        groupId: completion.groupId,
+        invocationId: completion.invocationId,
+        agentId: completion.agentId,
+        uiSurface: 'agent_action_completion',
+        status: 'failed',
+        error,
+      },
+      token,
+    );
+    throw error;
+  }
+
   if (!response.ok) {
+    queueAgentActionClientEvent(
+      {
+        proposalId: completion.proposalId,
+        stage: 'completion_report_failed',
+        action: completion.action,
+        toolType: completion.toolType,
+        provider: completion.provider,
+        groupId: completion.groupId,
+        invocationId: completion.invocationId,
+        agentId: completion.agentId,
+        uiSurface: 'agent_action_completion',
+        status: 'failed',
+        error: {
+          message: `Complete endpoint returned ${response.status}`,
+          status: response.status,
+        },
+      },
+      token,
+    );
     throw new Error(`Failed to report agent completion (${response.status})`);
   }
 
-  return response.json();
+  const payload = await response.json();
+  queueAgentActionClientEvent(
+    {
+      proposalId: completion.proposalId,
+      stage: 'completion_report_succeeded',
+      action: completion.action,
+      toolType: completion.toolType,
+      provider: completion.provider,
+      groupId: completion.groupId,
+      invocationId: completion.invocationId,
+      agentId: completion.agentId,
+      uiSurface: 'agent_action_completion',
+    },
+    token,
+  );
+
+  return payload;
 }
 
 export async function completeAgentActionFromHandoff(
@@ -315,6 +400,19 @@ export async function completeAgentActionFromHandoff(
   const proposalId = completion.proposalId || payload?.proposalId;
 
   if (!payload || !proposalId || payload.proposalId !== proposalId) {
+    queueAgentActionClientEvent(
+      {
+        proposalId,
+        stage: 'completion_skipped',
+        provider: completion.provider,
+        uiSurface: 'agent_action_completion',
+        status: 'blocked',
+        reason: !payload
+          ? 'Missing approved action handoff'
+          : 'Approved action handoff did not match proposal',
+      },
+      accessToken,
+    );
     return null;
   }
   if (
@@ -322,6 +420,26 @@ export async function completeAgentActionFromHandoff(
     payload.provider &&
     payload.provider !== completion.provider
   ) {
+    queueAgentActionClientEvent(
+      {
+        proposalId,
+        stage: 'completion_skipped',
+        action: payload.action,
+        toolType: payload.toolType,
+        provider: completion.provider,
+        groupId: payload.groupId,
+        invocationId: payload.invocationId,
+        agentId: payload.agentId,
+        uiSurface: 'agent_action_completion',
+        status: 'blocked',
+        reason: 'Completion provider did not match approved handoff provider',
+        context: {
+          expectedProvider: payload.provider,
+          completionProvider: completion.provider,
+        },
+      },
+      accessToken,
+    );
     return null;
   }
 
