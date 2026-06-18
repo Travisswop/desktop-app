@@ -1313,7 +1313,7 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                       label="Download file"
                       required
                       error={formErrors.digitalAsset}
-                      help="PDF, ZIP, audio, image, or document files up to 100MB."
+                      help="Any file type, including 3D assets, up to 100MB."
                     >
                       <label
                         htmlFor="digital-asset"
