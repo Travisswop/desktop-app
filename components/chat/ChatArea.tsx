@@ -2852,6 +2852,34 @@ function hasMatchingWalletSwapProposal(
   });
 }
 
+function hasFollowingAgentActionMessage(
+  messages: Message[],
+  sourceIndex: number,
+  action: string
+) {
+  for (let index = sourceIndex + 1; index < messages.length; index += 1) {
+    const candidate = messages[index];
+    if (!candidate) continue;
+
+    if (
+      !isAgentLikeMessage(candidate) &&
+      candidate.messageType === 'text' &&
+      candidate.message?.trim()
+    ) {
+      return false;
+    }
+
+    if (
+      candidate.agentData?.action === action ||
+      candidate.agentData?.metadata?.toolExecution?.action === action
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function hasLaterMeaningfulChatMessage(messages: Message[], currentIndex: number) {
   for (let index = currentIndex + 1; index < messages.length; index += 1) {
     const candidate = messages[index];
@@ -6385,6 +6413,39 @@ export default function ChatArea({
                 !isChartCommand(renderedMessageText)
                   ? parseCoinGeckoChartIntent(renderedMessageText)
                   : null;
+              const canRenderLocalConsoleReadCard =
+                shouldLoadAstroConsoleData &&
+                isOwn &&
+                !isAgentMessage &&
+                message.messageType === 'text' &&
+                renderedMessageText.trim().length > 0 &&
+                (!isGroup || hasAstroMention || isSecureAstroDesk);
+              const localConsoleReadMessage =
+                canRenderLocalConsoleReadCard &&
+                isPnlCommand(renderedMessageText) &&
+                !hasFollowingAgentActionMessage(
+                  messages,
+                  index,
+                  'portfolio.pnl'
+                )
+                  ? buildLocalPnlResponseMessage({
+                      consoleData: astroConsoleData,
+                      groupId: isGroup ? selectedChat?._id : null,
+                      sourceMessageId: message._id || `message-${index}`,
+                    })
+                  : canRenderLocalConsoleReadCard &&
+                    isPortfolioCommand(renderedMessageText) &&
+                    !hasFollowingAgentActionMessage(
+                      messages,
+                      index,
+                      'wallet.portfolio'
+                    )
+                  ? buildLocalPortfolioResponseMessage({
+                      consoleData: astroConsoleData,
+                      groupId: isGroup ? selectedChat?._id : null,
+                      sourceMessageId: message._id || `message-${index}`,
+                    })
+                  : null;
 
               return (
                 <Fragment key={message._id || index}>
@@ -6418,6 +6479,37 @@ export default function ChatArea({
                     renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
                     autoFetchSwapQuote={autoFetchSwapQuote}
                   />
+                  {localConsoleReadMessage && (
+                    <Message
+                      message={localConsoleReadMessage}
+                      isOwn={false}
+                      isGroup={isGroup}
+                      currentUser={currentUser}
+                      proposal={null}
+                      actionResult={undefined}
+                      isProposalPending={false}
+                      onApproveProposal={handleApproveProposal}
+                      onApproveInlineProposal={handleApproveInlineProposal}
+                      onInlineActionComplete={handleInlineActionComplete}
+                      onRejectProposal={handleRejectProposal}
+                      onPreparePolymarketBet={handlePreparePolymarketBet}
+                      onAddPredictionFunds={handleAddPredictionFunds}
+                      onAddPerpsFunds={handleAddPerpsFunds}
+                      onDismissReceipt={handleDismissReceipt}
+                      onRegisterPolymarketMarkets={
+                        registerRenderedPolymarketMarkets
+                      }
+                      pendingPolymarketBetKey={pendingPolymarketBetKey}
+                      inlinePolymarketProposalsByBetKey={
+                        inlinePolymarketProposalsByBetKey
+                      }
+                      actionResultsByProposalId={actionResultsByProposalId}
+                      pendingProposalId={pendingProposalId}
+                      astroConsoleData={astroConsoleData}
+                      renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
+                      autoFetchSwapQuote={autoFetchSwapQuote}
+                    />
+                  )}
                   {localChartIntent && (
                     <ChatChartCommandCard
                       intent={localChartIntent}
