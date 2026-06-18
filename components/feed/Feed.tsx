@@ -39,6 +39,8 @@ export default function Feed({
     initialArray.length === 0 || initialTotalPages > 1;
 
   const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
+  const createdFeedItem = useModalStore((s) => s.createdFeedItem);
+  const clearCreatedFeedItem = useModalStore((s) => s.clearCreatedFeedItem);
   // logger.info("Feed feedRefetchTrigger", feedRefetchTrigger);
 
   const [feedData, setFeedData] = useState(initialArray);
@@ -166,6 +168,17 @@ export default function Feed({
 
     fetchFeedData(true, { preserveLoadedItems: true });
   }, [feedRefetchTrigger, fetchFeedData]);
+
+  useEffect(() => {
+    if (!createdFeedItem) return;
+
+    setFeedData((prev: any[]) =>
+      filterDuplicateLegacyPerpsItems(
+        mergeFreshFeedItems([createdFeedItem], prev),
+      ),
+    );
+    clearCreatedFeedItem();
+  }, [createdFeedItem, clearCreatedFeedItem]);
 
   const handlePostInteraction = useCallback(
     (postId: string, updates: Record<string, unknown>) => {

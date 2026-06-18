@@ -358,6 +358,9 @@ body {
 /* for feed */
 .break-text {
   overflow-wrap: anywhere;
+  font-family:
+    "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+    var(--font-inter), Arial, sans-serif;
 }
 
 /* motion for love react in feed  */

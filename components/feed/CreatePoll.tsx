@@ -33,7 +33,7 @@ export default function CreatePoll({ setIsCreatePollModalOpen }: any) {
 
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const { closeModal } = useModalStore();
+  const { closeModal, publishCreatedFeedItem } = useModalStore();
   const { user, accessToken } = useUser();
   const router = useRouter();
 
@@ -144,9 +144,10 @@ export default function CreatePoll({ setIsCreatePollModalOpen }: any) {
 
       if (response?.state === "success") {
         toast.success("Poll Created Successfully", { position: "top-right" });
+        publishCreatedFeedItem(response.data);
         setIsCreatePollModalOpen(false);
         closeModal();
-        router.push("/?tab=feed");
+        router.refresh();
       } else {
         toast.error("Something Went Wrong!", { position: "top-right" });
       }

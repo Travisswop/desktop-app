@@ -7,7 +7,6 @@ import {
   DropdownTrigger,
   Tooltip,
 } from "@nextui-org/react";
-import { AiOutlineDownCircle } from "react-icons/ai";
 import { IoLinkOutline } from "react-icons/io5";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { embedItems, icon } from "@/util/data/smartsiteIconData";
@@ -47,6 +46,8 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
   const [embedLink, setEmbedLink] = useState("");
 
   const modalRef = useRef<HTMLDivElement>(null);
+  const isSubmittingRef = useRef(false);
+  const isDeletingRef = useRef(false);
 
   const getEmbedItems: any = embedItems;
 
@@ -60,8 +61,11 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
   }, [getEmbedItems, iconDataObj]);
 
   const handleUpdateEmbed = async (e: any) => {
-    setIsLoading(true);
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+
+    isSubmittingRef.current = true;
+    setIsLoading(true);
     const formData = new FormData(e.currentTarget);
     const embedInfo = {
       _id: iconDataObj.data._id,
@@ -85,6 +89,7 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
     } catch (error) {
       console.error(error);
     } finally {
+      isSubmittingRef.current = false;
       setIsLoading(false);
     }
   };
@@ -105,6 +110,9 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
   };
 
   const handleDelete = async () => {
+    if (isDeletingRef.current) return;
+
+    isDeletingRef.current = true;
     setIsDeleteLoading(true);
     const submitData = {
       _id: iconDataObj.data._id,
@@ -123,6 +131,7 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
     } catch (error) {
       console.error(error);
     } finally {
+      isDeletingRef.current = false;
       setIsDeleteLoading(false);
     }
   };
@@ -330,6 +339,7 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
                       className="bg-black text-white py-2 !border-0"
                       whiteLoading={true}
                       isLoading={isLoading}
+                      isDisabled={isLoading || isDeleteLoading}
                       width={"w-52"}
                     >
                       <LiaFileMedicalSolid size={20} />
@@ -341,6 +351,7 @@ const UpdateEmbed = ({ iconDataObj, isOn, setOff }: any) => {
                       type="button"
                       onClick={handleDelete}
                       isLoading={isDeleteLoading}
+                      isDisabled={isLoading || isDeleteLoading}
                       width={"w-28"}
                     >
                       <MdDelete size={20} /> Delete

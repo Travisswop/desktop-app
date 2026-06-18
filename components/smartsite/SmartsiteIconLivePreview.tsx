@@ -227,6 +227,11 @@ const SmartsiteIconLivePreview = ({
   const groupedMarketplaceItems = groupSmartsiteMarketplaceItems(
     marketplaceItems,
   );
+  const previewName = formData.name || data.name;
+  const previewBio = formData.bio || data.bio;
+  const previewFontColor = formData.fontColor || data.fontColor || "black";
+  const previewSecondaryFontColor =
+    formData.secondaryFontColor || data.secondaryFontColor || "#D3D3D3";
 
   return (
     <div
@@ -259,10 +264,10 @@ const SmartsiteIconLivePreview = ({
                   accessToken={accessToken ? accessToken : ""}
                 />
                 <Bio
-                  name={data.name}
-                  bio={data.bio}
-                  primaryFontColor={data.fontColor}
-                  secondaryFontColor={data.secondaryFontColor}
+                  name={previewName}
+                  bio={previewBio}
+                  primaryFontColor={previewFontColor}
+                  secondaryFontColor={previewSecondaryFontColor}
                 />
 
                 {/* small icon display here start */}
@@ -278,7 +283,7 @@ const SmartsiteIconLivePreview = ({
                           number={index}
                           data={item}
                           socialType="socialTop"
-                          fontColor={formData.fontColor}
+                          fontColor={previewFontColor}
                           onClick={() =>
                             handleTriggerUpdate({
                               data: item,
@@ -300,9 +305,7 @@ const SmartsiteIconLivePreview = ({
                       <div key={sectionTitle} className="flex flex-col gap-y-1">
                         <h3
                           style={{
-                            color: formData.fontColor
-                              ? formData.fontColor
-                              : "black",
+                            color: previewFontColor,
                           }}
                           className="text-base font-medium capitalize mb-1"
                         >
@@ -355,9 +358,7 @@ const SmartsiteIconLivePreview = ({
                                         <div className="flex flex-col gap-0.5">
                                           <p
                                             style={{
-                                              color: formData.fontColor
-                                                ? formData.fontColor
-                                                : "black",
+                                              color: previewFontColor,
                                             }}
                                             className="text-sm font-semibold line-clamp-1"
                                           >
@@ -411,9 +412,7 @@ const SmartsiteIconLivePreview = ({
                                     <div className="flex flex-col gap-0.5">
                                       <p
                                         style={{
-                                          color: formData.fontColor
-                                            ? formData.fontColor
-                                            : "black",
+                                          color: previewFontColor,
                                         }}
                                         className="text-sm font-semibold line-clamp-1"
                                       >
@@ -463,7 +462,7 @@ const SmartsiteIconLivePreview = ({
                           <div>
                             {item?.title && (
                               <p
-                                style={{ color: formData.fontColor }}
+                                style={{ color: previewFontColor }}
                                 className="font-medium mt-1 truncate"
                               >
                                 {item.title}
@@ -471,7 +470,7 @@ const SmartsiteIconLivePreview = ({
                             )}
                             {item?.headline && (
                               <p
-                                style={{ color: formData.secondaryFontColor }}
+                                style={{ color: previewSecondaryFontColor }}
                                 className="text-sm truncate"
                               >
                                 {item.headline}
@@ -503,7 +502,7 @@ const SmartsiteIconLivePreview = ({
                         key={index}
                         data={social}
                         socialType="socialLarge"
-                        fontColor={formData.fontColor || "black"}
+                        fontColor={previewFontColor}
                         accessToken={accessToken || ""}
                         onClick={() =>
                           handleTriggerUpdate({
@@ -533,8 +532,8 @@ const SmartsiteIconLivePreview = ({
                         data={social}
                         socialType="referral"
                         accessToken={accessToken || ""}
-                        fontColor={data.fontColor}
-                        secondaryFontColor={data.secondaryFontColor}
+                        fontColor={previewFontColor}
+                        secondaryFontColor={previewSecondaryFontColor}
                       />
                     ))}
                   </div>
@@ -560,8 +559,8 @@ const SmartsiteIconLivePreview = ({
                         key={data.info.ensDomain[0]._id}
                         data={data.info.ensDomain[0]}
                         socialType="ens"
-                        fontColor={data.fontColor}
-                        secondaryFontColor={data.secondaryFontColor}
+                        fontColor={previewFontColor}
+                        secondaryFontColor={previewSecondaryFontColor}
                       />
                     </div>
                   )}
@@ -582,8 +581,8 @@ const SmartsiteIconLivePreview = ({
                           data={item}
                           socialType="redeemLink"
                           accessToken={accessToken || ""}
-                          fontColor={data.fontColor}
-                          secondaryFontColor={data.secondaryFontColor}
+                          fontColor={previewFontColor}
+                          secondaryFontColor={previewSecondaryFontColor}
                         />
                       ))}
                     </div>
@@ -599,8 +598,8 @@ const SmartsiteIconLivePreview = ({
                           data={item}
                           socialType="contact"
                           accessToken={accessToken || ""}
-                          fontColor={data.fontColor}
-                          secondaryFontColor={data.secondaryFontColor}
+                          fontColor={previewFontColor}
+                          secondaryFontColor={previewSecondaryFontColor}
                           onClick={() =>
                             handleTriggerUpdate({
                               data: item,
@@ -623,8 +622,8 @@ const SmartsiteIconLivePreview = ({
                         socialType="ens"
                         // parentId={parentId}
                         accessToken={accessToken || ""}
-                        fontColor={data.fontColor}
-                        secondaryFontColor={data.secondaryFontColor}
+                        fontColor={previewFontColor}
+                        secondaryFontColor={previewSecondaryFontColor}
                         onClick={() =>
                           handleTriggerUpdate({
                             data,
@@ -647,8 +646,8 @@ const SmartsiteIconLivePreview = ({
                           data={item}
                           socialType="infoBar"
                           accessToken={accessToken || ""}
-                          fontColor={data.fontColor}
-                          secondaryFontColor={data.secondaryFontColor}
+                          fontColor={previewFontColor}
+                          secondaryFontColor={previewSecondaryFontColor}
                           onClick={() =>
                             handleTriggerUpdate({
                               data: item,
@@ -672,8 +671,8 @@ const SmartsiteIconLivePreview = ({
                           socialType="product"
                           // parentId={parentId}
                           accessToken={accessToken || ""}
-                          fontColor={data.fontColor}
-                          secondaryFontColor={data.secondaryFontColor}
+                          fontColor={previewFontColor}
+                          secondaryFontColor={previewSecondaryFontColor}
                           onClick={() =>
                             handleTriggerUpdate({
                               data: item,
@@ -702,8 +701,8 @@ const SmartsiteIconLivePreview = ({
                           data={audioData}
                           socialType="audio"
                           length={data.info.audio.length}
-                          fontColor={data.fontColor}
-                          secondaryFontColor={data.secondaryFontColor}
+                          fontColor={previewFontColor}
+                          secondaryFontColor={previewSecondaryFontColor}
                         />
                       ))}
                     </div>
@@ -716,7 +715,7 @@ const SmartsiteIconLivePreview = ({
                   <MediaList
                     items={data.info.video}
                     getMediaType={getMediaType}
-                    fontColor={data.fontColor}
+                    fontColor={previewFontColor}
                     onClick={(item) =>
                       handleTriggerUpdate({
                         data: item,
