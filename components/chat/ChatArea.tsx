@@ -896,6 +896,7 @@ interface SocketResponse {
   success: boolean;
   messages?: Message[];
   message?: Message;
+  clientGeneratedAgentMessages?: Message[];
   error?: string;
 }
 
@@ -4690,7 +4691,7 @@ export default function ChatArea({
               : undefined,
           },
         }
-      : {
+        : {
             receiverId,
             message: messageForTransport,
             messageType: 'text' as const,
@@ -4734,20 +4735,14 @@ export default function ChatArea({
           })
         : null;
 
-    if (localPnlResponseMessage || localPortfolioResponseMessage) {
-      forceScrollToBottomRef.current = true;
-      isPinnedToBottomRef.current = true;
-      setMessages((prev) =>
-        dedupeMessages([
-          ...prev,
-          { ...optimisticMessage, status: 'sent' as const },
-          (localPnlResponseMessage || localPortfolioResponseMessage)!,
-        ])
-      );
-      if (typeof messageOverride !== 'string') {
-        setNewMessage('');
-      }
-      return;
+    const localAgentResponseMessages = [
+      localPnlResponseMessage,
+      localPortfolioResponseMessage,
+    ].filter((message): message is Message => Boolean(message));
+
+    if (isGroup && localAgentResponseMessages.length > 0) {
+      (messageData as any).clientGeneratedAgentMessages =
+        localAgentResponseMessages.map(toClientGeneratedAgentMessagePayload);
     }
 
     const localPolymarketOrderIntent =
@@ -4771,6 +4766,7 @@ export default function ChatArea({
       dedupeMessages([
         ...prev,
         optimisticMessage,
+        ...localAgentResponseMessages,
         ...(syntheticPolymarketOrderMessage
           ? [syntheticPolymarketOrderMessage]
           : []),
@@ -4792,6 +4788,15 @@ export default function ChatArea({
           setMessages((prev) =>
             reconcileIncomingMessage(prev, acknowledgedMessage)
           );
+          if (response.clientGeneratedAgentMessages?.length) {
+            setMessages((prev) =>
+              response.clientGeneratedAgentMessages!.reduce(
+                (next, agentMessage) =>
+                  reconcileIncomingMessage(next, agentMessage),
+                prev
+              )
+            );
+          }
         } else {
           setMessages((prev) =>
             prev.map((msg) =>
@@ -7230,7 +7235,7 @@ function buildLocalPnlResponseMessage({
   );
 
   return {
-    _id: `local-pnl-${sourceMessageId}`,
+    _id: `temp-local-pnl-${sourceMessageId}`,
     message: `PnL snapshot ready: ${formatSignedUsd(tradingPnl)} across trading positions.`,
     groupId: groupId || null,
     messageType: 'agent_response',
@@ -7275,7 +7280,7 @@ function buildLocalPortfolioResponseMessage({
   const checkedAt = new Date().toISOString();
 
   return {
-    _id: `local-portfolio-${sourceMessageId}`,
+    _id: `temp-local-portfolio-${sourceMessageId}`,
     message: `Portfolio allocation ready: ${formatCompactUsd(
       consoleData.walletPortfolioBalance
     )} across ${consoleData.walletPortfolioTokens.length} tokens.`,
@@ -7329,7 +7334,7 @@ function buildLocalPositionResponseMessage({
     : selection.position.title || selection.position.slug || 'Prediction market';
 
   return {
-    _id: `local-position-card-${sourceMessageId}`,
+    _id: `temp-local-position-card-${sourceMessageId}`,
     message: `Position snapshot ready for ${title}.`,
     groupId: groupId || null,
     messageType: 'agent_response',
@@ -7369,6 +7374,16 @@ function buildLocalPositionResponseMessage({
         },
       },
     },
+  };
+}
+
+function toClientGeneratedAgentMessagePayload(message: Message) {
+  return {
+    clientMessageId: message._id,
+    message: message.message,
+    messageType: message.messageType,
+    createdAt: message.createdAt,
+    agentData: message.agentData,
   };
 }
 
