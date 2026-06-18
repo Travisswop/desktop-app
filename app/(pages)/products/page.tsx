@@ -23,7 +23,12 @@ interface ProductSalesRow {
 
 interface SalesSummary {
   perProduct: ProductSalesRow[];
-  totals: { units: number; revenue: number; templates: number; orders: number };
+  totals: {
+    units: number;
+    revenue: number;
+    templates: number;
+    orders: number;
+  };
 }
 
 const CREATE_HREF = '/products/create';
@@ -35,27 +40,26 @@ export default function ProductsPage() {
   const [rows, setRows] = useState<ProductRow[]>([]);
   const [summary, setSummary] = useState<SalesSummary | null>(null);
 
-  const load = useCallback(
-    async (token: string) => {
-      const [productsRes, ordersRes] = await Promise.all([
-        listMarketplaceProducts(token, { scope: 'mine', limit: 200 }),
-        listMarketplaceOrders(token, { role: 'seller', limit: 200 }),
-      ]);
+  const load = useCallback(async (token: string) => {
+    const [productsRes, ordersRes] = await Promise.all([
+      listMarketplaceProducts(token, { scope: 'mine', limit: 200 }),
+      listMarketplaceOrders(token, { role: 'seller', limit: 200 }),
+    ]);
 
-      const summary = summarizeSales(ordersRes.items || []);
-      const salesByProduct: Record<string, ProductSalesRow> = {};
-      for (const r of summary.perProduct) {
-        salesByProduct[r.productId] = r;
-      }
+    const summary = summarizeSales(ordersRes.items || []);
+    const salesByProduct: Record<string, ProductSalesRow> = {};
+    for (const r of summary.perProduct) {
+      salesByProduct[r.productId] = r;
+    }
 
-      const mapped = (productsRes.items || [])
-        .filter((item) => item.status !== 'archived')
-        .map<ProductRow>((item) => mapProductRow(item, salesByProduct[item._id]));
+    const mapped = (productsRes.items || [])
+      .filter((item) => item.status !== 'archived')
+      .map<ProductRow>((item) =>
+        mapProductRow(item, salesByProduct[item._id]),
+      );
 
-      return { rows: mapped, summary };
-    },
-    []
-  );
+    return { rows: mapped, summary };
+  }, []);
 
   const handleDeleteProduct = useCallback(
     async (productId: string) => {
@@ -63,9 +67,11 @@ export default function ProductsPage() {
       await updateMarketplaceProduct(accessToken, productId, {
         status: 'archived',
       });
-      setRows((current) => current.filter((row) => row.id !== productId));
+      setRows((current) =>
+        current.filter((row) => row.id !== productId),
+      );
     },
-    [accessToken]
+    [accessToken],
   );
 
   useEffect(() => {
@@ -117,7 +123,9 @@ export default function ProductsPage() {
           }}
         >
           <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-            <div className="text-center py-16 text-red-600">{error}</div>
+            <div className="text-center py-16 text-red-600">
+              {error}
+            </div>
           </div>
         </div>
       </main>
@@ -149,7 +157,8 @@ export default function ProductsPage() {
 }
 
 function kickerFor(rows: ProductRow[]): string {
-  if (rows.length === 0) return 'No products yet · create your first one';
+  if (rows.length === 0)
+    return 'No products yet · create your first one';
   const live = rows.filter((r) => r.status === 'live').length;
   const physical = rows.filter((r) => r.type === 'Physical').length;
   const digital = rows.filter((r) => r.type === 'Digital').length;
@@ -166,7 +175,7 @@ function kickerFor(rows: ProductRow[]): string {
 
 function mapProductRow(
   item: MarketplaceProduct,
-  sales?: ProductSalesRow
+  sales?: ProductSalesRow,
 ): ProductRow {
   const available = item.inventory?.available;
   return {
@@ -182,8 +191,8 @@ function mapProductRow(
       item.status === 'draft'
         ? 'draft'
         : typeof available === 'number' && available <= 5
-        ? 'low'
-        : 'live',
+          ? 'low'
+          : 'live',
     glyph: glyphFor(item.title),
     image: item.primaryImage || item.images?.[0]?.url,
   };
@@ -200,7 +209,8 @@ function summarizeSales(orders: MarketplaceOrder[]): SalesSummary {
       const productId = String(item.productId || '');
       if (!productId) continue;
       const quantity = Number(item.quantity) || 0;
-      const revenue = Number(item.totalAmount ?? item.unitAmount * quantity) || 0;
+      const revenue =
+        Number(item.totalAmount ?? item.unitAmount * quantity) || 0;
       totalUnits += quantity;
       totalRevenue += revenue;
       byProduct[productId] = {
@@ -217,7 +227,9 @@ function summarizeSales(orders: MarketplaceOrder[]): SalesSummary {
       units: totalUnits,
       revenue: totalRevenue,
       templates: Object.keys(byProduct).length,
-      orders: orders.filter((order) => order.payment?.status === 'completed').length,
+      orders: orders.filter(
+        (order) => order.payment?.status === 'completed',
+      ).length,
     },
   };
 }
