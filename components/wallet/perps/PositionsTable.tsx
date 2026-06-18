@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, ShieldCheck, X } from 'lucide-react';
 import type { HLPosition, HLOpenOrder } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
 import { MarketIcon } from './MarketIcon';
@@ -25,6 +25,13 @@ export interface PerpsFill {
 
 type Tab = 'positions' | 'orders' | 'history';
 
+export interface PositionTpSlRequest {
+  takeProfitPrice?: string;
+  stopLossPrice?: string;
+  replaceExisting: boolean;
+  existingOrdersToCancel: HLOpenOrder[];
+}
+
 interface PositionsTableProps {
   positions: HLPosition[];
   openOrders: HLOpenOrder[];
@@ -36,6 +43,10 @@ interface PositionsTableProps {
   connected?: boolean;
   closingCoin?: string | null;
   onClosePosition: (position: HLPosition) => Promise<void>;
+  onSetPositionTpSl: (
+    position: HLPosition,
+    request: PositionTpSlRequest,
+  ) => Promise<void>;
   onSelectCoin?: (coin: string) => void;
 }
 
@@ -53,9 +64,11 @@ export function PositionsTable({
   connected = false,
   closingCoin,
   onClosePosition,
+  onSetPositionTpSl,
   onSelectCoin,
 }: PositionsTableProps) {
   const [tab, setTab] = useState<Tab>('positions');
+  const [tpSlPosition, setTpSlPosition] = useState<HLPosition | null>(null);
 
   const counts: Record<Tab, number> = {
     positions: positions.length,
@@ -117,6 +130,7 @@ export function PositionsTable({
             marketMarks={marketMarks}
             closingCoin={closingCoin}
             onClosePosition={onClosePosition}
+            onOpenTpSl={setTpSlPosition}
             onSelectCoin={onSelectCoin}
           />
         )}
@@ -127,6 +141,21 @@ export function PositionsTable({
           <HistoryBody fills={fills} onSelectCoin={onSelectCoin} />
         )}
       </div>
+
+      {tpSlPosition && (
+        <PositionTpSlModal
+          key={`${tpSlPosition.dex ?? ''}:${tpSlPosition.coin}:${tpSlPosition.szi}`}
+          position={tpSlPosition}
+          openOrders={openOrders}
+          mids={mids}
+          marketMarks={marketMarks}
+          onClose={() => setTpSlPosition(null)}
+          onSubmit={async (request) => {
+            await onSetPositionTpSl(tpSlPosition, request);
+            setTpSlPosition(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -139,6 +168,7 @@ function PositionsBody({
   marketMarks,
   closingCoin,
   onClosePosition,
+  onOpenTpSl,
   onSelectCoin,
 }: {
   positions: HLPosition[];
@@ -146,6 +176,7 @@ function PositionsBody({
   marketMarks?: Record<string, string>;
   closingCoin?: string | null;
   onClosePosition: (position: HLPosition) => Promise<void>;
+  onOpenTpSl: (position: HLPosition) => void;
   onSelectCoin?: (coin: string) => void;
 }) {
   if (positions.length === 0) {
@@ -253,17 +284,28 @@ function PositionsBody({
                 )}
               </Td>
               <Td className="text-right pr-3">
-                <button
-                  onClick={() => onClosePosition(p)}
-                  disabled={isClosing}
-                  className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-gray-900 text-white text-[11.5px] font-semibold hover:bg-black transition-colors disabled:opacity-60"
-                >
-                  {isClosing ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    'Close'
-                  )}
-                </button>
+                <div className="flex justify-end gap-1.5 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => onOpenTpSl(p)}
+                    className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#f4f4f1] text-gray-900 text-[11.5px] font-semibold hover:bg-gray-100 transition-colors"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    TP/SL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onClosePosition(p)}
+                    disabled={isClosing}
+                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-gray-900 text-white text-[11.5px] font-semibold hover:bg-black transition-colors disabled:opacity-60"
+                  >
+                    {isClosing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      'Close'
+                    )}
+                  </button>
+                </div>
               </Td>
             </tr>
           );
@@ -272,6 +314,330 @@ function PositionsBody({
     </table>
   );
 }
+
+// ─── Position TP/SL ───────────────────────────────────────────────────────────
+
+function PositionTpSlModal({
+  position,
+  openOrders,
+  mids,
+  marketMarks,
+  onClose,
+  onSubmit,
+}: {
+  position: HLPosition;
+  openOrders: HLOpenOrder[];
+  mids: Record<string, string>;
+  marketMarks?: Record<string, string>;
+  onClose: () => void;
+  onSubmit: (request: PositionTpSlRequest) => Promise<void>;
+}) {
+  const [takeProfitPrice, setTakeProfitPrice] = useState('');
+  const [stopLossPrice, setStopLossPrice] = useState('');
+  const [replaceExisting, setReplaceExisting] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const size = parseFloat(position.szi);
+  const isLong = size > 0;
+  const entry = parseFloat(position.entryPx) || 0;
+  const mark =
+    resolveHyperliquidPositionMarkPrice(
+      position,
+      lookupHyperliquidPositionPrice(position, mids) ??
+        lookupHyperliquidPositionPrice(position, marketMarks),
+    ) ?? entry;
+  const triggerOrders = getPositionTriggerOrders(position, openOrders, mark);
+  const existingTakeProfit = triggerOrders.find((item) => item.kind === 'tp');
+  const existingStopLoss = triggerOrders.find((item) => item.kind === 'sl');
+  const cancelCandidates = triggerOrders
+    .filter((item) => {
+      if (item.kind === 'tp') return !!takeProfitPrice.trim();
+      if (item.kind === 'sl') return !!stopLossPrice.trim();
+      return false;
+    })
+    .map((item) => item.order);
+  const tpPlaceholder =
+    mark > 0 ? `$${formatPrice(mark * (isLong ? 1.05 : 0.95))}` : 'Price';
+  const slPlaceholder =
+    mark > 0 ? `$${formatPrice(mark * (isLong ? 0.95 : 1.05))}` : 'Price';
+
+  const validate = () => {
+    const tp = takeProfitPrice.trim();
+    const sl = stopLossPrice.trim();
+    const reference = mark || entry;
+
+    if (!tp && !sl) return 'Add a take-profit or stop-loss price.';
+    if (tp) {
+      const value = Number(tp);
+      if (!Number.isFinite(value) || value <= 0) {
+        return 'Take-profit price must be a positive number.';
+      }
+      if (reference > 0 && (isLong ? value <= reference : value >= reference)) {
+        return isLong
+          ? 'Take profit must be above the current mark for a long.'
+          : 'Take profit must be below the current mark for a short.';
+      }
+    }
+    if (sl) {
+      const value = Number(sl);
+      if (!Number.isFinite(value) || value <= 0) {
+        return 'Stop-loss price must be a positive number.';
+      }
+      if (reference > 0 && (isLong ? value >= reference : value <= reference)) {
+        return isLong
+          ? 'Stop loss must be below the current mark for a long.'
+          : 'Stop loss must be above the current mark for a short.';
+      }
+    }
+
+    return null;
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit({
+        takeProfitPrice: takeProfitPrice.trim() || undefined,
+        stopLossPrice: stopLossPrice.trim() || undefined,
+        replaceExisting,
+        existingOrdersToCancel: replaceExisting ? cancelCandidates : [],
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to add TP/SL triggers.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 px-4">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-[420px] rounded-[18px] border border-black/[0.08] bg-white shadow-[0_24px_80px_rgba(10,10,12,0.24)]"
+      >
+        <div className="flex items-center justify-between border-b border-black/[0.06] px-4 py-3">
+          <div>
+            <p className="text-[11px] font-mono font-bold uppercase tracking-[0.12em] text-gray-400">
+              Add TP/SL
+            </p>
+            <h3 className="text-[16px] font-semibold text-gray-900">
+              {position.coin}-PERP
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+            aria-label="Close TP/SL modal"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-4 py-4">
+          <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#f7f7f4] p-2 text-[11px]">
+            <Metric label="Side" value={isLong ? 'LONG' : 'SHORT'} />
+            <Metric label="Size" value={Math.abs(size).toFixed(4)} />
+            <Metric label="Mark" value={`$${formatPrice(mark)}`} />
+          </div>
+
+          {(existingTakeProfit || existingStopLoss) && (
+            <div className="rounded-xl border border-black/[0.06] bg-[#fafafa] px-3 py-2">
+              <div className="flex flex-wrap gap-2 text-[11px] font-mono">
+                {existingTakeProfit && (
+                  <span className="rounded-md bg-emerald-500/10 px-2 py-1 font-semibold text-emerald-600">
+                    TP ${formatPrice(existingTakeProfit.triggerPx)}
+                  </span>
+                )}
+                {existingStopLoss && (
+                  <span className="rounded-md bg-red-500/10 px-2 py-1 font-semibold text-red-500">
+                    SL ${formatPrice(existingStopLoss.triggerPx)}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500">
+                TAKE PROFIT
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={takeProfitPrice}
+                onChange={(event) => setTakeProfitPrice(event.target.value)}
+                placeholder={tpPlaceholder}
+                className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3.5 py-3 font-mono text-[15px] font-semibold tabular-nums outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500">
+                STOP LOSS
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={stopLossPrice}
+                onChange={(event) => setStopLossPrice(event.target.value)}
+                placeholder={slPlaceholder}
+                className="mt-1.5 w-full rounded-xl border border-red-200 bg-white px-3.5 py-3 font-mono text-[15px] font-semibold tabular-nums outline-none focus:ring-2 focus:ring-red-500/30"
+              />
+            </div>
+          </div>
+
+          {triggerOrders.length > 0 && (
+            <label className="flex items-start gap-2 rounded-xl bg-[#f7f7f4] px-3 py-2 text-[11.5px] text-gray-600">
+              <input
+                type="checkbox"
+                checked={replaceExisting}
+                onChange={(event) => setReplaceExisting(event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-gray-900"
+              />
+              <span>Replace matching existing TP/SL orders</span>
+            </label>
+          )}
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11.5px] text-red-600">
+              <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-black/[0.06] px-4 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 items-center justify-center rounded-lg px-3 text-[12px] font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-gray-900 px-3.5 text-[12px] font-semibold text-white hover:bg-black disabled:opacity-60"
+          >
+            {isSubmitting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ShieldCheck className="h-3.5 w-3.5" />
+            )}
+            Submit TP/SL
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">
+        {label}
+      </div>
+      <div className="mt-0.5 truncate font-mono text-[11px] font-semibold text-gray-900">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function getPositionTriggerOrders(
+  position: HLPosition,
+  openOrders: HLOpenOrder[],
+  mark: number,
+) {
+  return openOrders
+    .filter((order) => orderBelongsToPosition(order, position))
+    .map((order) => {
+      const kind = classifyTriggerOrder(order, position, mark);
+      return kind
+        ? {
+            order,
+            kind,
+            triggerPx: Number(order.triggerPx || order.limitPx),
+          }
+        : null;
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        order: HLOpenOrder;
+        kind: 'tp' | 'sl';
+        triggerPx: number;
+      } => Boolean(item),
+    )
+    .sort((a, b) => b.order.timestamp - a.order.timestamp);
+}
+
+function orderBelongsToPosition(order: HLOpenOrder, position: HLPosition) {
+  const positionDex = position.dex?.trim() || '';
+  const orderDex = order.dex?.trim() || '';
+  const isLong = parseFloat(position.szi) > 0;
+  const closeSide = isLong ? 'A' : 'B';
+
+  return (
+    order.coin === position.coin &&
+    orderDex === positionDex &&
+    order.reduceOnly &&
+    order.side === closeSide &&
+    Boolean(order.triggerPx || order.limitPx)
+  );
+}
+
+function classifyTriggerOrder(
+  order: HLOpenOrder,
+  position: HLPosition,
+  mark: number,
+): 'tp' | 'sl' | null {
+  const triggerPx = Number(order.triggerPx || order.limitPx);
+  if (!Number.isFinite(triggerPx) || triggerPx <= 0) return null;
+
+  const descriptor = `${order.orderType || ''} ${
+    order.triggerCondition || ''
+  }`.toLowerCase();
+  if (/\b(tp|take)\b/.test(descriptor)) return 'tp';
+  if (/\b(sl|stop|loss)\b/.test(descriptor)) return 'sl';
+
+  const isLong = parseFloat(position.szi) > 0;
+  const reference = mark || parseFloat(position.entryPx) || 0;
+  if (reference <= 0) return null;
+
+  return isLong
+    ? triggerPx > reference
+      ? 'tp'
+      : 'sl'
+    : triggerPx < reference
+      ? 'tp'
+      : 'sl';
+}
+
+export const __test = {
+  classifyTriggerOrder,
+  getPositionTriggerOrders,
+  orderBelongsToPosition,
+};
 
 // ─── Open orders ────────────────────────────────────────────────────────────
 

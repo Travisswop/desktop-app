@@ -25,7 +25,11 @@ import { AgentSetupModal } from './AgentSetupModal';
 import { TradingForm } from './TradingForm';
 import { PerpsHeader } from './PerpsHeader';
 import { ChartPanel } from './ChartPanel';
-import { PositionsTable, type PerpsFill } from './PositionsTable';
+import {
+  PositionsTable,
+  type PerpsFill,
+  type PositionTpSlRequest,
+} from './PositionsTable';
 import { AccountCard } from './AccountCard';
 import { RecentFillsCard } from './RecentFillsCard';
 import { MarketSearchModal } from './MarketSearchModal';
@@ -464,8 +468,10 @@ export function PerpsPanel({
     placeMarketOrder,
     placeLimitOrder,
     placeTpSlOrder,
+    placePositionTpSlOrder,
     updateLeverage,
     closePosition,
+    cancelOrder,
     isSubmitting,
     error: tradeError,
     clearError,
@@ -823,6 +829,92 @@ export function PerpsPanel({
     ],
   );
 
+  const handleSetPositionTpSl = useCallback(
+    async (position: HLPosition, request: PositionTpSlRequest) => {
+      const takeProfitPrice = request.takeProfitPrice?.trim() || undefined;
+      const stopLossPrice = request.stopLossPrice?.trim() || undefined;
+      if (!takeProfitPrice && !stopLossPrice) {
+        throw new Error('Add a take-profit or stop-loss price.');
+      }
+
+      const isLong = parseFloat(position.szi) > 0;
+      const positionMarket =
+        hyperliquidMarketForPosition(markets, position) ||
+        markets.find((m) => m.coin === position.coin);
+      if (!positionMarket) {
+        throw new Error(
+          `No market found for ${position.coin} — cannot add TP/SL.`,
+        );
+      }
+
+      const livePrice =
+        mids[position.coin] ??
+        positionMarket.markPrice ??
+        position.entryPx;
+      const reference = Number(livePrice || position.entryPx);
+      const validateTrigger = (
+        label: 'Take profit' | 'Stop loss',
+        price: string | undefined,
+      ) => {
+        if (!price) return;
+        const value = Number(price);
+        if (!Number.isFinite(value) || value <= 0) {
+          throw new Error(`${label} must be a positive number.`);
+        }
+        if (reference > 0 && label === 'Take profit') {
+          if (isLong ? value <= reference : value >= reference) {
+            throw new Error(
+              isLong
+                ? 'Take profit must be above the current mark for a long.'
+                : 'Take profit must be below the current mark for a short.',
+            );
+          }
+        }
+        if (reference > 0 && label === 'Stop loss') {
+          if (isLong ? value >= reference : value <= reference) {
+            throw new Error(
+              isLong
+                ? 'Stop loss must be below the current mark for a long.'
+                : 'Stop loss must be above the current mark for a short.',
+            );
+          }
+        }
+      };
+
+      validateTrigger('Take profit', takeProfitPrice);
+      validateTrigger('Stop loss', stopLossPrice);
+
+      if (request.replaceExisting) {
+        for (const order of request.existingOrdersToCancel) {
+          await cancelOrder(positionMarket.index, Number(order.oid));
+        }
+      }
+
+      await placePositionTpSlOrder({
+        assetIndex: positionMarket.index,
+        isLong,
+        size: Math.abs(parseFloat(position.szi)).toString(),
+        takeProfitPrice,
+        stopLossPrice,
+      });
+
+      await Promise.all([refetchPositions(), refetchPortfolio()]);
+      toast({
+        title: 'TP/SL submitted',
+        description: `${isLong ? 'Long' : 'Short'} ${position.coin} triggers are live.`,
+      });
+    },
+    [
+      cancelOrder,
+      markets,
+      mids,
+      placePositionTpSlOrder,
+      refetchPortfolio,
+      refetchPositions,
+      toast,
+    ],
+  );
+
   const handlePlaceMarketOrder = useCallback(
     async (
       assetIndex: number,
@@ -923,6 +1015,7 @@ export function PerpsPanel({
                   connected={fillsConnected}
                   closingCoin={closingCoin}
                   onClosePosition={handleClosePosition}
+                  onSetPositionTpSl={handleSetPositionTpSl}
                   onSelectCoin={handleSelectCoin}
                 />
               </div>

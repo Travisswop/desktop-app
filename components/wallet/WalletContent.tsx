@@ -77,6 +77,7 @@ import {
   useHyperliquidAgent,
   type PerpsInitialOrder,
 } from './perps';
+import { resolveHyperliquidAccountAddress } from './perps/hyperliquidAccountAddress';
 import { useHyperliquidBalanceCheck } from './perps/hooks/useHyperliquidBalanceCheck';
 import SwapTokenModal from './SwapTokenModal';
 
@@ -864,11 +865,14 @@ const WalletContentInner = () => {
       selectedSolanaWallet.address.toLowerCase() !==
         solWalletAddress.toLowerCase(),
   );
-  const perpsMasterAddress =
-    hlAgent.masterAddress ||
-    hlAgent.candidateMasterAddress ||
-    evmWalletAddress ||
-    null;
+  // Perps account data is keyed by the user's canonical EVM wallet. In local
+  // dev, the signable Privy wallet can be a test embedded wallet, so prefer the
+  // wallet address resolved from the Swop user record for reads.
+  const perpsMasterAddress = resolveHyperliquidAccountAddress({
+    walletAddress: evmWalletAddress,
+    initializedMasterAddress: hlAgent.masterAddress,
+    candidateMasterAddress: hlAgent.candidateMasterAddress,
+  });
 
   const openPredictionDepositFromPerps = useCallback(
     (amountUsd: number) => {
