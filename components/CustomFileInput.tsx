@@ -4,11 +4,13 @@ import { RiUploadCloud2Line } from "react-icons/ri";
 interface CustomFileInputProps {
   handleFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   title?: string;
+  accept?: string;
 }
 
 const CustomFileInput: React.FC<CustomFileInputProps> = ({
   handleFileChange,
   title,
+  accept,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -24,6 +26,7 @@ const CustomFileInput: React.FC<CustomFileInputProps> = ({
         type="file"
         ref={fileInputRef}
         className="hidden"
+        accept={accept}
         onChange={handleFileChange}
       />
       <button

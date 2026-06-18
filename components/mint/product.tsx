@@ -54,6 +54,11 @@ import {
   uploadMarketplaceDigitalAsset,
   type MarketplaceDigitalAsset,
 } from '@/lib/marketplace-api';
+import {
+  PRODUCT_DESCRIPTION_MAX_LENGTH,
+  limitProductDescription,
+  normalizeProductDescription,
+} from '@/lib/marketplace/product-description';
 
 interface ModelInfo {
   success: boolean;
@@ -170,8 +175,11 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
       setType(prefill.category === 'physical' ? 'Physical' : 'Digital');
     }
     if (prefill.name) setName(prefill.name);
-    if (prefill.description) setDescription(prefill.description);
-    if (prefill.description) setDigitalDeliveryNote(prefill.description);
+    if (prefill.description) {
+      const limitedDescription = limitProductDescription(prefill.description);
+      setDescription(limitedDescription);
+      setDigitalDeliveryNote(limitedDescription);
+    }
     if (prefill.image) setImage(prefill.image);
     if (prefill.price) setPrice(prefill.price);
     if (prefill.mintLimit) setQuantity(prefill.mintLimit);
@@ -199,7 +207,7 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
         if (cancelled) return;
         setType(product.productType === 'digital' ? 'Digital' : 'Physical');
         setName(product.title || '');
-        setDescription(product.description || '');
+        setDescription(limitProductDescription(product.description || ''));
         const primary = product.primaryImage || product.images?.[0]?.url || '';
         setImage(primary);
         const extras = (product.images || [])
@@ -457,8 +465,13 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
 
   const validate = () => {
     const errors: Record<string, string> = {};
+    const trimmedDescription = description.trim();
     if (!name.trim()) errors.name = 'Name is required';
-    if (!description.trim()) errors.description = 'Description is required';
+    if (!trimmedDescription) {
+      errors.description = 'Description is required';
+    } else if (trimmedDescription.length > PRODUCT_DESCRIPTION_MAX_LENGTH) {
+      errors.description = `Description must be ${PRODUCT_DESCRIPTION_MAX_LENGTH} characters or less`;
+    }
     if (!image) errors.image = 'Main image is required';
     if (!price.trim()) errors.price = 'Price is required';
     if (price && isNaN(Number(price))) errors.price = 'Price must be a number';
@@ -520,13 +533,14 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
     setIsSubmitting(true);
     try {
       const productType = type === 'Physical' ? 'physical' : 'digital';
+      const productDescription = normalizeProductDescription(description);
       const inventoryAvailable = hasVariantInventory
         ? variantInventoryTotal
         : Number(quantity);
       const payload = {
         productType,
         title: name,
-        description,
+        description: productDescription,
         primaryImage: image,
         images: [image, ...extraImages.filter(Boolean)].map((url) => ({
           url,
@@ -553,7 +567,7 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
               : 0,
           digitalDeliveryNote:
             productType === 'digital'
-              ? digitalDeliveryNote.trim() || description
+              ? digitalDeliveryNote.trim() || productDescription
               : '',
           digitalAsset: productType === 'digital' ? digitalAsset : undefined,
         },
@@ -807,13 +821,17 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                     label="Description"
                     required
                     error={formErrors.description}
+                    help={`${description.length}/${PRODUCT_DESCRIPTION_MAX_LENGTH} characters`}
                   >
                     <TextArea
                       rows={4}
                       placeholder="Write description"
                       value={description}
                       invalid={!!formErrors.description}
-                      onChange={(e) => setDescription(e.target.value)}
+                      maxLength={PRODUCT_DESCRIPTION_MAX_LENGTH}
+                      onChange={(e) =>
+                        setDescription(limitProductDescription(e.target.value))
+                      }
                     />
                   </Field>
                 </Card>
@@ -1295,7 +1313,7 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                       label="Download file"
                       required
                       error={formErrors.digitalAsset}
-                      help="PDF, ZIP, audio, image, or document files up to 100MB."
+                      help="Any file type, including 3D assets, up to 100MB."
                     >
                       <label
                         htmlFor="digital-asset"

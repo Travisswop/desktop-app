@@ -1,5 +1,5 @@
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dropdown,
   DropdownItem,
@@ -8,7 +8,6 @@ import {
   Tooltip,
 } from "@nextui-org/react";
 import { IoLinkOutline } from "react-icons/io5";
-import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { embedItems, icon } from "@/util/data/smartsiteIconData";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 import { TikTokEmbed, XEmbed, YouTubeEmbed } from "react-social-media-embed";
@@ -18,7 +17,6 @@ import { TikTokEmbed, XEmbed, YouTubeEmbed } from "react-social-media-embed";
 import { postEmbedLink } from "@/actions/embedLink";
 import { FaAngleDown, FaTimes } from "react-icons/fa";
 import { embedItems, icon } from "@/components/util/data/smartsiteIconData";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
 import placeholder from "@/public/images/video_player_placeholder.gif";
 import toast from "react-hot-toast";
@@ -55,10 +53,14 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
   console.log("selectted icon", selectedIcon);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const isSubmittingRef = useRef(false);
 
   const handleEmbed = async (e: any) => {
-    setIsLoading(true);
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+
+    isSubmittingRef.current = true;
+    setIsLoading(true);
     const formData = new FormData(e.currentTarget);
     const embedInfo = {
       micrositeId: state._id,
@@ -82,6 +84,7 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
     } catch (error) {
       console.error(error);
     } finally {
+      isSubmittingRef.current = false;
       setIsLoading(false);
     }
   };
@@ -267,7 +270,7 @@ const AddEmbed = ({ handleRemoveIcon }: any) => {
               onChange={(e) => setEmbedLink(e.target.value)}
             />
           </div>
-          <PrimaryButton className="w-full py-3 mt-3">
+          <PrimaryButton className="w-full py-3 mt-3" disabled={isLoading}>
             {isLoading ? (
               <Loader className="w-8 h-8 animate-spin mx-auto" />
             ) : (

@@ -62,7 +62,7 @@ const MENTION_PAGE_LIMIT = 8;
 const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
   const { user } = useUser() as { user: any };
   const router = useRouter();
-  const { closeModal, triggerFeedRefetch } = useModalStore();
+  const { closeModal, publishCreatedFeedItem } = useModalStore();
 
   // ── Core state ──────────────────────────────────────────────────────────────
   const [postContent, setPostContent] = useState("");
@@ -253,6 +253,12 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
 
   // ── Submit handlers ─────────────────────────────────────────────────────────
 
+  const completeFeedCreate = (createdFeedItem?: any | null) => {
+    publishCreatedFeedItem(createdFeedItem);
+    router.refresh();
+    closeModal();
+  };
+
   const handleFeedPosting = async () => {
     setPostLoading(true);
     try {
@@ -280,9 +286,7 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
         toast.success("You posted successfully!");
         setMediaFiles([]);
         setPostContent("");
-        router.push("/");
-        triggerFeedRefetch();
-        closeModal();
+        completeFeedCreate(data.data);
       } else if (data?.state === "not-allowed") {
         toast.error("You are not allowed to create a feed post.");
       }
@@ -317,9 +321,7 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
         toast.success("You posted successfully!");
         setMediaFiles([]);
         setPostContent("");
-        router.push("/");
-        triggerFeedRefetch();
-        closeModal();
+        completeFeedCreate(data.data);
       } else if (data?.state === "not-allowed") {
         toast.error("You are not allowed to create a feed post.");
       }

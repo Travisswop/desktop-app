@@ -246,7 +246,7 @@ function itemLabel(item: AnalyticsItem, sectionKey: SectionKey) {
     item.description,
   ];
 
-  const bySection: Record<SectionKey, Array<string | undefined | null>> = {
+  const bySection: Record<SectionKey, unknown[]> = {
     socialTop: [item.name, item.value],
     socialLarge: [item.name, item.value],
     infoBar: [item.buttonName, item.title, item.description],
@@ -308,10 +308,10 @@ function itemImage(item: AnalyticsItem, sectionKey: SectionKey) {
 }
 
 function smartsiteRollupTotal(microsite: Microsite) {
-  const itemTotal = sections.reduce((total, section) => {
+  const itemTotal = sections.reduce<number>((total, section) => {
     return (
       total +
-      safeArray(microsite.info?.[section.key]).reduce(
+      safeArray<unknown>(microsite.info?.[section.key]).reduce<number>(
         (sectionTotal, entry) => sectionTotal + toCount(asItem(entry).totalTap),
         0
       )

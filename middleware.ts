@@ -135,6 +135,11 @@ function isProtectedRoute(pathname: string): boolean {
     return false;
   }
 
+  // Legacy feed notification detail — public, redirects to /feed/:id
+  if (/^\/feed\/post\/[a-f0-9]{24}$/i.test(pathname)) {
+    return false;
+  }
+
   // Feed comment detail — public
   if (/^\/feed\/comment\/[a-f0-9]{24}$/i.test(pathname)) {
     return false;
@@ -201,6 +206,57 @@ function createRedirect(req: NextRequest, target: string): NextResponse {
   const response = NextResponse.redirect(new URL(target, req.url));
 
   return response;
+}
+
+function createLegacyNotificationRedirect(
+  req: NextRequest,
+): NextResponse | null {
+  const { pathname } = req.nextUrl;
+  const redirectTo = (target: string) =>
+    NextResponse.redirect(new URL(target, req.url));
+
+  const groupChatMatch = pathname.match(/^\/chat\/group\/([^/]+)$/);
+  if (groupChatMatch) {
+    return redirectTo(
+      `/dashboard/chat?groupId=${encodeURIComponent(groupChatMatch[1])}`,
+    );
+  }
+
+  const directChatMatch = pathname.match(/^\/chat\/direct\/([^/]+)$/);
+  if (directChatMatch) {
+    return redirectTo(
+      `/dashboard/chat?recipientId=${encodeURIComponent(directChatMatch[1])}`,
+    );
+  }
+
+  const groupMatch = pathname.match(/^\/groups\/([^/]+)$/);
+  if (groupMatch) {
+    return redirectTo(
+      `/dashboard/chat?groupId=${encodeURIComponent(groupMatch[1])}`,
+    );
+  }
+
+  const messageMatch = pathname.match(/^\/messages\/([^/]+)$/);
+  if (messageMatch) {
+    return redirectTo(
+      `/dashboard/chat?conversationId=${encodeURIComponent(messageMatch[1])}`,
+    );
+  }
+
+  const orderMatch = pathname.match(/^\/orders\/([^/]+)(?:\/dispute)?$/);
+  if (orderMatch) {
+    return redirectTo(`/order/${encodeURIComponent(orderMatch[1])}`);
+  }
+
+  if (/^\/wallet\/(?:transactions|nfts)\/[^/]+$/.test(pathname)) {
+    return redirectTo('/wallet');
+  }
+
+  if (pathname === '/smartsite/leads') {
+    return redirectTo('/dashboard/leads');
+  }
+
+  return null;
 }
 
 function isMobileDevice(userAgent: string): boolean {
@@ -686,6 +742,11 @@ export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
     const userAgent = req.headers.get("user-agent") || "";
 
+    const legacyNotificationRedirect = createLegacyNotificationRedirect(req);
+    if (legacyNotificationRedirect) {
+      return legacyNotificationRedirect;
+    }
+
     // Skip middleware for public routes
     if (isPublicRoute(pathname)) {
       return response;
@@ -840,7 +901,10 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     "/",
+    "/chat/:path*",
     "/feed/:path*",
+    "/groups/:path*",
+    "/messages/:path*",
     "/dashboard/:path*",
     "/smartsite/:path*",
     "/qr-code/:path*",
@@ -848,6 +912,7 @@ export const config = {
     "/analytics/:path*",
     "/products/:path*",
     "/order/:path*",
+    "/orders/:path*",
     "/content/:path*",
     "/login",
     "/onboard",

@@ -6,7 +6,10 @@ interface ModalStore {
   closeModal: () => void;
   toggleModal: () => void;
   feedRefetchTrigger: number;
+  createdFeedItem: any | null;
   triggerFeedRefetch: () => void;
+  publishCreatedFeedItem: (feedItem?: any | null) => void;
+  clearCreatedFeedItem: () => void;
 }
 
 export const useModalStore = create<ModalStore>((set) => ({
@@ -15,6 +18,13 @@ export const useModalStore = create<ModalStore>((set) => ({
   closeModal: () => set({ isOpen: false }),
   toggleModal: () => set((state) => ({ isOpen: !state.isOpen })),
   feedRefetchTrigger: 0,
+  createdFeedItem: null,
   triggerFeedRefetch: () =>
     set((state) => ({ feedRefetchTrigger: state.feedRefetchTrigger + 1 })),
+  publishCreatedFeedItem: (feedItem) =>
+    set((state) => ({
+      createdFeedItem: feedItem || null,
+      feedRefetchTrigger: state.feedRefetchTrigger + 1,
+    })),
+  clearCreatedFeedItem: () => set({ createdFeedItem: null }),
 }));

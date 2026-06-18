@@ -55,6 +55,7 @@ import {
   getMarketplaceProductDisplayType,
   isInPersonCheckoutMode,
 } from "@/lib/marketplace-display";
+import RewardsModal from "./RewardsModal";
 
 const ink = "#0a0a0c";
 const muted = "#6e6e76";
@@ -72,7 +73,8 @@ type Tile = {
   value?: string;
   actionLabel?: string;
   sub: string;
-  href: string;
+  href?: string;
+  modal?: "rewards";
   swatch: string;
   icon: LucideIcon;
   accent?: string;
@@ -186,6 +188,7 @@ export default function DashboardMainContent() {
   });
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [rewardsOpen, setRewardsOpen] = useState(false);
   const primarySmartsite = useMemo(() => getPrimarySmartsite(user), [user]);
   const primarySmartsiteId =
     getRecordId(primarySmartsite) || getRecordId(user?.primaryMicrosite);
@@ -419,7 +422,15 @@ export default function DashboardMainContent() {
         <SectionHead title="Manage" caption="Tap any tile to dive in" />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {moduleTiles.map((tile) => (
-            <DashboardTile key={tile.label} tile={tile} />
+            <DashboardTile
+              key={tile.label}
+              onClick={
+                tile.modal === "rewards"
+                  ? () => setRewardsOpen(true)
+                  : undefined
+              }
+              tile={tile}
+            />
           ))}
         </div>
 
@@ -474,6 +485,12 @@ export default function DashboardMainContent() {
           products={dashboardData.products}
         />
       </div>
+      <RewardsModal
+        accessToken={accessToken}
+        destinationWallet={checkoutAddress}
+        onOpenChange={setRewardsOpen}
+        open={rewardsOpen}
+      />
     </div>
   );
 }
@@ -547,14 +564,18 @@ function ProfileHero({
   );
 }
 
-function DashboardTile({ tile }: { tile: Tile }) {
+function DashboardTile({
+  onClick,
+  tile,
+}: {
+  onClick?: () => void;
+  tile: Tile;
+}) {
   const Icon = tile.icon;
-
-  return (
-    <Link
-      href={tile.href}
-      className="group flex min-h-[132px] flex-col justify-between rounded-[18px] border border-[rgba(0,0,0,0.06)] bg-white p-4 text-[#0a0a0c] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] transition duration-150 hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(10,10,12,0.04),0_16px_34px_-18px_rgba(10,10,12,0.22)]"
-    >
+  const className =
+    "group flex min-h-[132px] flex-col justify-between rounded-[18px] border border-[rgba(0,0,0,0.06)] bg-white p-4 text-left text-[#0a0a0c] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] transition duration-150 hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(10,10,12,0.04),0_16px_34px_-18px_rgba(10,10,12,0.22)]";
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-3">
         <div
           className="flex h-9 w-9 items-center justify-center rounded-[10px]"
@@ -584,6 +605,23 @@ function DashboardTile({ tile }: { tile: Tile }) {
           {tile.sub}
         </div>
       </div>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" className={className} onClick={onClick}>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={tile.href || "/dashboard"}
+      className={className}
+    >
+      {content}
     </Link>
   );
 }
@@ -1907,6 +1945,15 @@ function buildModuleTiles({
       accent: amber,
     },
     {
+      label: "Rewards",
+      actionLabel: "Open",
+      sub: "SWOP buybacks",
+      modal: "rewards",
+      swatch: "#DCE7E2",
+      icon: Gift,
+      accent: positive,
+    },
+    {
       label: "Leads",
       value: formatCount(leadsCount),
       sub: leadsCount === 1 ? "subscriber" : "subscribers",
@@ -1929,14 +1976,6 @@ function buildModuleTiles({
       href: "/?tab=map",
       swatch: "#DCEAF7",
       icon: Map,
-    },
-    {
-      label: "Rewards",
-      actionLabel: "Open",
-      sub: "SWOP buybacks",
-      href: "/dashboard/rewards",
-      swatch: "#DCE7E2",
-      icon: Gift,
     },
     {
       label: "Messages",

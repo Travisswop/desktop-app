@@ -1587,6 +1587,7 @@ export default function SwapTokenModal({
   defaultReceiveChainId,
   preferredSolanaWalletAddress,
   onSwapComplete,
+  onSwapReceiptDismiss,
 }: {
   tokens: any[];
   token?: any;
@@ -1604,6 +1605,8 @@ export default function SwapTokenModal({
   preferredSolanaWalletAddress?: string;
   /** Called after a swap tx is submitted successfully */
   onSwapComplete?: (txHash: string) => void;
+  /** Called when the submitted-swap receipt is dismissed */
+  onSwapReceiptDismiss?: () => void;
 }) {
   // ── Core swap state ──────────────────────────────────────────────────────────
   const [payToken, setPayToken] = useState<any>(
@@ -4852,6 +4855,11 @@ export default function SwapTokenModal({
     setEstimatedGasFeeEth(null);
   };
 
+  const dismissSwapReceipt = useCallback(() => {
+    setShowSwapSuccess(false);
+    onSwapReceiptDismiss?.();
+  }, [onSwapReceiptDismiss]);
+
   useEffect(() => {
     if (txHash && isSwapDone) {
       setShowSwapSuccess(true);
@@ -5884,7 +5892,7 @@ export default function SwapTokenModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
             className="absolute inset-0 bg-[rgba(10,10,12,0.48)] backdrop-blur-[3px]"
-            onClick={() => setShowSwapSuccess(false)}
+            onClick={dismissSwapReceipt}
           />
           <div className="relative mx-4 w-full max-w-[540px] overflow-hidden rounded-3xl border border-black/[0.06] bg-white text-[#0a0a0c] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4),_0_12px_24px_-8px_rgba(0,0,0,0.18)]">
             <div className="flex items-center justify-between border-b border-black/[0.06] px-6 py-5">
@@ -5897,7 +5905,7 @@ export default function SwapTokenModal({
                 </span>
               </div>
               <button
-                onClick={() => setShowSwapSuccess(false)}
+                onClick={dismissSwapReceipt}
                 className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-black/[0.06] bg-[#fafafa] hover:bg-gray-100"
                 aria-label="Close swap receipt"
               >

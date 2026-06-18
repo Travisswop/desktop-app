@@ -184,6 +184,7 @@ import {
   persistAgentActionHandoff,
   type AgentActionCompletion,
 } from '@/lib/chat/agentActionHandoff';
+import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
 import { postFeed } from '@/actions/postFeed';
 import {
   usePolymarketWallet,
@@ -17133,11 +17134,49 @@ function HyperliquidProposalFlowTicket({
   });
 
   const handleClosePosition = async () => {
+    queueAgentActionClientEvent(
+      {
+        proposalId,
+        stage: 'button_clicked',
+        action: 'perps.close_position',
+        toolType: 'perps.write',
+        provider: 'hyperliquid',
+        uiSurface: 'astro_inline_close_position',
+        context: {
+          coin,
+          closeAssetIndex,
+          closeCanSubmit,
+          closeSubmitBlockReason,
+          localProposalId: isLocalHyperliquidCloseProposalId(proposalId),
+        },
+      },
+      accessToken,
+    );
+
     if (
       closeSubmitBlockReason ||
       closeAssetIndex === null ||
       !Number.isFinite(closeAssetIndex)
     ) {
+      queueAgentActionClientEvent(
+        {
+          proposalId,
+          stage: 'blocked',
+          action: 'perps.close_position',
+          toolType: 'perps.write',
+          provider: 'hyperliquid',
+          uiSurface: 'astro_inline_close_position',
+          status: 'blocked',
+          reason:
+            closeSubmitBlockReason ||
+            'This close ticket is missing Hyperliquid market data.',
+          context: {
+            coin,
+            closeAssetIndex,
+          },
+        },
+        accessToken,
+      );
       setLocalError(
         closeSubmitBlockReason ||
           'This close ticket is missing Hyperliquid market data.'
@@ -17157,6 +17196,21 @@ function HyperliquidProposalFlowTicket({
         setCloseAfterSignerReady(true);
         setFlow('order');
       } catch (error) {
+        queueAgentActionClientEvent(
+          {
+            proposalId,
+            stage: 'execution_failed',
+            action: 'perps.close_position',
+            toolType: 'perps.write',
+            provider: 'hyperliquid',
+            uiSurface: 'astro_inline_close_position',
+            status: 'failed',
+            reason: 'Could not enable Perps trading before close.',
+            error,
+            context: { coin },
+          },
+          accessToken,
+        );
         setFlow('order');
         setCloseAfterSignerReady(false);
         closeAfterSignerSubmittedRef.current = false;
@@ -17169,9 +17223,31 @@ function HyperliquidProposalFlowTicket({
       return;
     }
 
-    if (!closeCanSubmit) return;
+    if (!closeCanSubmit) {
+      queueAgentActionClientEvent(
+        {
+          proposalId,
+          stage: 'blocked',
+          action: 'perps.close_position',
+          toolType: 'perps.write',
+          provider: 'hyperliquid',
+          uiSurface: 'astro_inline_close_position',
+          status: 'blocked',
+          reason: 'Close ticket is not currently submittable.',
+          context: {
+            coin,
+            closeCanSubmit,
+            closeSubmitBlockReason,
+            closeAfterSignerReady,
+          },
+        },
+        accessToken,
+      );
+      return;
+    }
     const executableCloseAssetIndex = closeAssetIndex;
     const closeCoin = selectedMarket?.coin || matchingClosePosition?.coin || coin;
+    let telemetryExecutionProposalId = proposalId;
 
     setLocalError(null);
     astroConsoleData.clearPerpsTradingError();
@@ -17204,12 +17280,45 @@ function HyperliquidProposalFlowTicket({
         throw new Error('Swop approval was not returned by the backend.');
       }
       const executionProposalId = approvalResult.payload.proposalId;
+      telemetryExecutionProposalId = executionProposalId;
       const shouldReportCompletion =
         !isLocalHyperliquidCloseProposalId(executionProposalId);
       if (shouldReportCompletion) {
         persistAgentActionHandoff(approvalResult);
+      } else {
+        queueAgentActionClientEvent(
+          {
+            proposalId: executionProposalId,
+            stage: 'completion_skipped',
+            action: 'perps.close_position',
+            toolType: 'perps.write',
+            provider: 'hyperliquid',
+            uiSurface: 'astro_inline_close_position',
+            status: 'blocked',
+            reason: 'Local close proposal executes on the client without backend completion.',
+            context: { sourceProposalId: proposalId, coin: closeCoin },
+          },
+          accessToken,
+        );
       }
 
+      queueAgentActionClientEvent(
+        {
+          proposalId: executionProposalId,
+          stage: 'execution_started',
+          action: 'perps.close_position',
+          toolType: 'perps.write',
+          provider: 'hyperliquid',
+          uiSurface: 'astro_inline_close_position',
+          context: {
+            coin: closeCoin,
+            assetIndex: executableCloseAssetIndex,
+            sizeCoins: closeSize,
+            side: closePositionSide,
+          },
+        },
+        accessToken,
+      );
       const orderResult = await astroConsoleData.closePerpsPosition(
         executableCloseAssetIndex,
         closeSize,
@@ -17323,11 +17432,41 @@ function HyperliquidProposalFlowTicket({
       }
 
       await queryClient.invalidateQueries({ queryKey: ['hl-positions'] });
+      queueAgentActionClientEvent(
+        {
+          proposalId: executionProposalId,
+          stage: 'execution_succeeded',
+          action: 'perps.close_position',
+          toolType: 'perps.write',
+          provider: 'hyperliquid',
+          uiSurface: 'astro_inline_close_position',
+          context: {
+            coin: closeCoin,
+            orderId,
+            localProposalId: isLocalHyperliquidCloseProposalId(executionProposalId),
+          },
+        },
+        accessToken,
+      );
       setReceipt(closed);
       setFlow('opened');
       onInlineActionComplete(completion);
       toast.success('Perps close order sent.');
     } catch (error) {
+      queueAgentActionClientEvent(
+        {
+          proposalId: telemetryExecutionProposalId,
+          stage: 'execution_failed',
+          action: 'perps.close_position',
+          toolType: 'perps.write',
+          provider: 'hyperliquid',
+          uiSurface: 'astro_inline_close_position',
+          status: 'failed',
+          error,
+          context: { coin },
+        },
+        accessToken,
+      );
       const message =
         error instanceof Error ? error.message : 'Failed to close position.';
       setLocalError(message);

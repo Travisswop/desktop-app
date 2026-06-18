@@ -1,6 +1,5 @@
 import Image from "next/image";
-import React, { useState } from "react";
-import { LiaFileMedicalSolid } from "react-icons/lia";
+import React, { useRef, useState } from "react";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
 // import { toast } from "react-toastify";
@@ -10,10 +9,9 @@ import placeholder from "@/public/images/video_player_placeholder.gif";
 // import CustomFileInput from "@/components/CustomFileInput";
 import { postVideo } from "@/actions/video";
 // import { sendCloudinaryVideo } from "@/util/sendCloudinaryVideo";
-import { FaTimes } from "react-icons/fa";
 import { sendCloudinaryVideo } from "@/lib/sendCloudinaryVideo";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import CustomFileInput from "@/components/CustomFileInput";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
 import toast from "react-hot-toast";
 import { MdInfoOutline } from "react-icons/md";
 import { Tooltip } from "@nextui-org/react";
@@ -39,35 +37,56 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [inputError, setInputError] = useState<any>({});
   const [videoFile, setVideoFile] = useState<any>(null);
+  const [videoFileType, setVideoFileType] = useState<"image" | "video" | null>(
+    null,
+  );
   const [fileError, setFileError] = useState<string>("");
+  const isSubmittingRef = useRef(false);
 
   const [attachLink, setAttachLink] = useState<string>("");
 
   const handleFileChange = (event: any) => {
     const file = event.target.files[0];
-    if (file && file.type.startsWith("video/")) {
-      if (file.size > 20 * 1024 * 1024) {
-        // Check if file size is greater than 10 MB
-        setFileError("File size should be less than 20 MB");
-        setVideoFile(null);
-      } else {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setVideoFile(reader.result as any);
-          setFileError("");
-        };
-        reader.readAsDataURL(file);
-      }
-    } else {
-      setFileError("Please upload a valid video file.");
+    if (!file) return;
+
+    const nextFileType = file.type.startsWith("image/")
+      ? "image"
+      : file.type.startsWith("video/")
+        ? "video"
+        : null;
+
+    if (!nextFileType) {
+      setFileError("Please upload a valid image or video file.");
+      setVideoFile(null);
+      setVideoFileType(null);
+      return;
     }
+
+    const maxSize = nextFileType === "video" ? 20 : 10;
+    if (file.size > maxSize * 1024 * 1024) {
+      setFileError(`File size should be less than ${maxSize} MB`);
+      setVideoFile(null);
+      setVideoFileType(null);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setVideoFile(reader.result as any);
+      setVideoFileType(nextFileType);
+      setFileError("");
+    };
+    reader.readAsDataURL(file);
   };
 
   // console.log("videoFile", videoFile);
 
   const handleFormSubmit = async (e: any) => {
-    setIsLoading(true);
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+
+    isSubmittingRef.current = true;
+    setIsLoading(true);
     const formData = new FormData(e.currentTarget);
 
     const info = {
@@ -83,21 +102,26 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
       errors = { ...errors, title: "title is required" };
     }
     if (!info.file && !attachLink) {
-      errors = { ...errors, image: "video is required" };
+      errors = { ...errors, image: "media is required" };
     }
 
     if (Object.keys(errors).length > 0) {
       setInputError(errors);
+      isSubmittingRef.current = false;
       setIsLoading(false);
     } else {
       setInputError("");
       try {
         if (info?.file) {
-          const videoUrl = await sendCloudinaryVideo(info.file);
-          if (!videoUrl) {
-            toast.error("Image upload failed!");
+          const uploadedUrl =
+            videoFileType === "image"
+              ? await sendCloudinaryImage(info.file)
+              : await sendCloudinaryVideo(info.file);
+          if (!uploadedUrl) {
+            toast.error("Media upload failed!");
+            throw new Error("Media upload failed");
           }
-          info.file = videoUrl;
+          info.file = uploadedUrl;
         } else {
           info.file = attachLink;
         }
@@ -113,6 +137,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
       } catch (error) {
         console.error(error);
       } finally {
+        isSubmittingRef.current = false;
         setIsLoading(false);
       }
     }
@@ -126,16 +151,15 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
       <div className="flex items-end gap-1 justify-center">
         <div className="flex items-end gap-1 justify-center">
           <h2 className="font-semibold text-gray-700 text-xl text-center">
-            Video
+            Photo/Video
           </h2>
           <div className="translate-y-0.5">
             <Tooltip
               size="sm"
               content={
                 <span className="font-medium">
-                  You can embed a video by either uploading it directly or
-                  sharing an external link, along with providing a title for the
-                  content.
+                  You can add a photo or video by uploading it directly or
+                  sharing an external link, along with providing a title.
                 </span>
               }
               className={`max-w-40 h-auto`}
@@ -152,22 +176,25 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
         <div className="flex flex-col gap-3 flex-1">
           <div className="flex flex-col gap-1">
             <div className="">
-              <div className="border-2 border-[#d8acff] w-full h-80 p-1 bg-slate-100 rounded-lg">
+              <div className="relative border-2 border-[#d8acff] w-full h-80 p-1 bg-slate-100 rounded-lg">
                 {videoFile ? (
-                  <video
-                    key={videoFile as string}
-                    className="w-full h-full object-cover rounded-lg"
-                    controls
-                  >
-                    <source src={videoFile as string} type="video/mp4" />
-                    <track
-                      src="/path/to/captions.vtt"
-                      kind="subtitles"
-                      srcLang="en"
-                      label="English"
+                  videoFileType === "image" ? (
+                    <Image
+                      src={videoFile as string}
+                      alt="Selected media"
+                      fill
+                      className="rounded-lg object-cover"
                     />
-                    Your browser does not support the video tag.
-                  </video>
+                  ) : (
+                    <video
+                      key={videoFile as string}
+                      className="w-full h-full object-cover rounded-lg"
+                      controls
+                    >
+                      <source src={videoFile as string} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+                  )
                 ) : (
                   <div className="relative w-full h-full">
                     <Image
@@ -181,7 +208,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
               </div>
               {inputError.image && (
                 <p className="text-red-600 font-medium text-sm mt-1">
-                  Video is required
+                  Photo or video is required
                 </p>
               )}
 
@@ -192,7 +219,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
               )}
               <div className="mt-2">
                 <p className="font-medium text-sm mb-1">
-                  Add Your Video
+                  Add Your Photo or Video
                   <span className="text-red-600 font-medium text-sm mt-1">
                     *
                   </span>
@@ -205,11 +232,12 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
                       className="w-12"
                     />
                     <p className="text-gray-400 font-normal text-sm">
-                      Select Video
+                      Select Photo/Video
                     </p>
                     <CustomFileInput
                       title={"Browse"}
                       handleFileChange={handleFileChange}
+                      accept="image/*,video/*"
                     />
                   </div>
                 </div>
@@ -226,7 +254,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
                 type="text"
                 name="title"
                 className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-                placeholder={"Enter video title"}
+                placeholder={"Enter media title"}
                 // required
               />
               {inputError.title && (
@@ -243,14 +271,14 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
                 type="url"
                 name="link"
                 className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-                placeholder={"Enter video url"}
+                placeholder={"Enter image or video URL"}
                 onChange={(e) => setAttachLink(e.target.value)}
               />
             </div>
           </div>
         </div>
       </div>
-      <PrimaryButton className="w-full py-3">
+      <PrimaryButton className="w-full py-3" disabled={isLoading}>
         {isLoading ? (
           <Loader className="w-8 h-8 animate-spin mx-auto" />
         ) : (
