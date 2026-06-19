@@ -277,6 +277,127 @@ function uniqueWalletAddresses(...values: Array<string | undefined | null>) {
   return addresses;
 }
 
+function emptyTimeSeriesData() {
+  return {
+    '1H': [],
+    '1D': [],
+    '1W': [],
+    '1M': [],
+    '1Y': [],
+  };
+}
+
+type LinkedWalletAccount = {
+  type?: string;
+  address?: string;
+  chainType?: string;
+  chain_type?: string;
+};
+
+function linkedSolanaWalletAddress(privyUser: unknown) {
+  const linkedAccounts = (
+    (privyUser as { linkedAccounts?: LinkedWalletAccount[] } | null)
+      ?.linkedAccounts || []
+  ) as LinkedWalletAccount[];
+
+  return (
+    linkedAccounts.find((account) => {
+      const chainType = account.chainType || account.chain_type;
+      return (
+        account.type === 'wallet' &&
+        chainType === 'solana' &&
+        Boolean(account.address)
+      );
+    })?.address || ''
+  );
+}
+
+type SolanaFallbackToken = {
+  mint: string;
+  amount?: number | string | null;
+  decimals?: number;
+  price?: string | number | null;
+  name?: string;
+  symbol?: string;
+  logoURI?: string;
+  tags?: string[];
+};
+
+function solanaFallbackTokenToTokenData(
+  token: SolanaFallbackToken,
+  walletAddress: string
+): TokenData | null {
+  const balance = Number(token.amount || 0);
+  if (!Number.isFinite(balance) || balance <= 0) return null;
+
+  const price = Number(token.price || 0);
+  const isNative =
+    token.mint === SOL_MINT || token.tags?.some((tag) => tag === 'native');
+  const symbol = token.symbol || (isNative ? 'SOL' : 'UNKNOWN');
+  const name = token.name || symbol;
+
+  return {
+    name,
+    symbol,
+    balance: String(balance),
+    decimals: token.decimals ?? (isNative ? 9 : 0),
+    walletAddress,
+    address: isNative ? null : token.mint,
+    logoURI:
+      token.logoURI ||
+      (isNative
+        ? '/assets/crypto-icons/SOL.png'
+        : `/assets/crypto-icons/${symbol}.png`),
+    chain: 'SOLANA',
+    marketData: {
+      price: Number.isFinite(price) && price > 0 ? String(price) : '0',
+      symbol,
+      name,
+    },
+    sparklineData: [],
+    timeSeriesData: emptyTimeSeriesData(),
+    isNative,
+    value: Number.isFinite(price) ? balance * price : 0,
+  };
+}
+
+function mergeCheckoutTokens(
+  primaryTokens: TokenData[],
+  fallbackTokens: TokenData[]
+) {
+  const seen = new Set<string>();
+  const merged: TokenData[] = [];
+
+  [...primaryTokens, ...fallbackTokens].forEach((token) => {
+    const key = [
+      token.chain,
+      token.walletAddress || '',
+      token.address || (token.isNative ? 'native' : ''),
+      token.symbol,
+    ]
+      .join(':')
+      .toLowerCase();
+
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(token);
+  });
+
+  return merged;
+}
+
+function tokenIdentity(token: TokenData | null) {
+  if (!token) return '';
+  return [
+    token.chain,
+    token.walletAddress || '',
+    token.address || (token.isNative ? 'native' : ''),
+    token.symbol,
+  ]
+    .join(':')
+    .toLowerCase();
+}
+
 function explorerUrlForToken(token: TokenData | null, txHash: string) {
   const chain = token?.chain || 'SOLANA';
   return `${CHAIN_CONFIG[chain]?.explorer || CHAIN_CONFIG.SOLANA.explorer}${txHash}`;
@@ -373,7 +494,7 @@ export default function CheckoutPaymentClient({
   initialScanMethod?: ScanMethod;
 }) {
   const router = useRouter();
-  const { login, ready, authenticated } = usePrivy();
+  const { login, ready, authenticated, user: privyUser } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { accessToken, user } = useUser();
   const { wallets: evmWallets } = useEvmWallets();
@@ -382,6 +503,7 @@ export default function CheckoutPaymentClient({
   const { createWallet } = useSolanaCreateWallet();
   const [intent, setIntent] = useState<CheckoutIntent | null>(null);
   const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
+  const [tokenSelectionTouched, setTokenSelectionTouched] = useState(false);
   const [search, setSearch] = useState('');
   const [railFilter, setRailFilter] = useState<RailFilter>('all');
   const [stage, setStage] = useState<Stage>('loading');
@@ -401,6 +523,10 @@ export default function CheckoutPaymentClient({
   const [tokenAmountQuoteError, setTokenAmountQuoteError] = useState<
     string | null
   >(null);
+  const [solanaFallbackTokens, setSolanaFallbackTokens] = useState<TokenData[]>(
+    []
+  );
+  const [solanaFallbackLoading, setSolanaFallbackLoading] = useState(false);
   const [quoteSummary, setQuoteSummary] = useState<{
     quotedOutputAmount?: number;
     minOutputAmount?: number;
@@ -416,8 +542,17 @@ export default function CheckoutPaymentClient({
     return solanaWallets.find((wallet) => wallet.address) || null;
   }, [solanaWallets]);
 
+  const privySolanaWalletAddress = useMemo(
+    () => linkedSolanaWalletAddress(privyUser),
+    [privyUser]
+  );
+
   const activeSolanaWalletAddress =
-    solanaWallet?.address || user?.solanaWallet || user?.solanaAddress || '';
+    solanaWallet?.address ||
+    privySolanaWalletAddress ||
+    user?.solanaWallet ||
+    user?.solanaAddress ||
+    '';
 
   const evmSignerWalletAddresses = useMemo(
     () =>
@@ -444,6 +579,12 @@ export default function CheckoutPaymentClient({
     evmWalletAddresses,
     ['SOLANA', 'ETHEREUM', 'POLYGON', 'BASE', 'ARBITRUM']
   );
+  const checkoutTokens = useMemo(
+    () =>
+      mergeCheckoutTokens(tokens as TokenData[], solanaFallbackTokens),
+    [solanaFallbackTokens, tokens]
+  );
+  const checkoutTokensLoading = tokensLoading || solanaFallbackLoading;
 
   const payable = Boolean(
     intent && !FINAL_STATUSES.has(intent.status)
@@ -451,7 +592,7 @@ export default function CheckoutPaymentClient({
 
   const payableTokens = useMemo(() => {
     const lowerSearch = search.trim().toLowerCase();
-    return (tokens as TokenData[])
+    return checkoutTokens
       .filter((token) => {
         if (railFilter === 'solana') return token.chain === 'SOLANA';
         if (railFilter === 'evm') return token.chain !== 'SOLANA';
@@ -473,7 +614,7 @@ export default function CheckoutPaymentClient({
           token.symbol?.toLowerCase().includes(lowerSearch)
         );
       });
-  }, [railFilter, search, tokens]);
+  }, [checkoutTokens, railFilter, search]);
 
   const estimatedTokenAmount = useMemo(
     () => (intent ? calculateCheckoutTokenAmount(intent, selectedToken) : ''),
@@ -602,22 +743,84 @@ export default function CheckoutPaymentClient({
   }, [intentId]);
 
   useEffect(() => {
-    if (!selectedToken && payableTokens.length > 0) {
-      const preferred =
-        payableTokens.find(
-          (token) =>
-            token.chain === 'SOLANA' &&
-            token.symbol?.toUpperCase() === 'USDC'
-        ) ||
-        payableTokens.find((token) => token.symbol?.toUpperCase() === 'USDC') ||
-        payableTokens[0];
+    let cancelled = false;
+    const walletAddress = activeSolanaWalletAddress.trim();
+
+    if (!walletAddress) {
+      setSolanaFallbackTokens([]);
+      setSolanaFallbackLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    async function loadSolanaFallbackTokens() {
+      setSolanaFallbackLoading(true);
+      try {
+        const response = await fetch(
+          `/api/tokens?address=${encodeURIComponent(walletAddress)}`
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (cancelled) return;
+
+        const fallbackTokens = ((data.tokens || []) as SolanaFallbackToken[])
+          .map((token) =>
+            solanaFallbackTokenToTokenData(token, walletAddress)
+          )
+          .filter((token): token is TokenData => Boolean(token));
+
+        setSolanaFallbackTokens(fallbackTokens);
+      } catch (fallbackError) {
+        if (!cancelled) {
+          console.warn('Solana checkout token fallback unavailable:', fallbackError);
+          setSolanaFallbackTokens([]);
+        }
+      } finally {
+        if (!cancelled) setSolanaFallbackLoading(false);
+      }
+    }
+
+    loadSolanaFallbackTokens();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSolanaWalletAddress]);
+
+  useEffect(() => {
+    if (payableTokens.length === 0) return;
+    const preferred =
+      payableTokens.find(
+        (token) =>
+          token.chain === 'SOLANA' &&
+          token.symbol?.toUpperCase() === 'USDC'
+      ) ||
+      payableTokens.find((token) => token.symbol?.toUpperCase() === 'USDC') ||
+      payableTokens[0];
+
+    if (!selectedToken) {
+      setSelectedToken(preferred);
+      return;
+    }
+
+    if (
+      !tokenSelectionTouched &&
+      preferred.chain === 'SOLANA' &&
+      tokenIdentity(preferred) !== tokenIdentity(selectedToken)
+    ) {
       setSelectedToken(preferred);
     }
-  }, [payableTokens, selectedToken]);
+  }, [payableTokens, selectedToken, tokenSelectionTouched]);
 
   useEffect(() => {
     setTokenMenuOpen(false);
-  }, [selectedToken?.address, selectedToken?.chain, selectedToken?.symbol]);
+  }, [
+    selectedToken?.address,
+    selectedToken?.chain,
+    selectedToken?.symbol,
+    selectedToken?.walletAddress,
+  ]);
 
   useEffect(() => {
     if (!copyFallback) return;
@@ -1193,7 +1396,7 @@ export default function CheckoutPaymentClient({
                 <button
                   type="button"
                   onClick={() => setTokenMenuOpen((open) => !open)}
-                  disabled={tokensLoading}
+                  disabled={checkoutTokensLoading}
                   className="flex min-h-[84px] w-full items-center justify-between gap-4 rounded-2xl border border-[#dedede] bg-[#f6f6f5] px-5 py-4 text-left shadow-sm transition hover:border-[#cfcfcf] disabled:cursor-wait disabled:opacity-70"
                 >
                   <span className="flex min-w-0 items-center gap-4">
@@ -1215,7 +1418,7 @@ export default function CheckoutPaymentClient({
                         Pay with
                       </span>
                       <span className="mt-1 block truncate text-xl font-semibold">
-                        {tokensLoading
+                        {checkoutTokensLoading
                           ? 'Loading...'
                           : selectedToken?.symbol || 'Select token'}
                       </span>
@@ -1241,7 +1444,7 @@ export default function CheckoutPaymentClient({
 
                 {tokenMenuOpen && (
                   <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-72 overflow-y-auto rounded-2xl border border-[#e1e1e1] bg-white p-2 shadow-2xl">
-                    {tokensLoading ? (
+                    {checkoutTokensLoading ? (
                       <div className="flex items-center gap-3 px-3 py-5 text-sm font-semibold text-[#6d7480]">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Loading balances...
@@ -1264,6 +1467,7 @@ export default function CheckoutPaymentClient({
                             }-${token.address || 'native'}`}
                             type="button"
                             onClick={() => {
+                              setTokenSelectionTouched(true);
                               setSelectedToken(token);
                               setTokenMenuOpen(false);
                             }}
@@ -1952,7 +2156,7 @@ export default function CheckoutPaymentClient({
               </div>
 
               <div className="mt-3 max-h-[420px] overflow-y-auto">
-                {tokensLoading ? (
+                {checkoutTokensLoading ? (
                   <div className="flex items-center gap-3 py-8 text-sm text-[#646b78]">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading tokens...
@@ -1967,14 +2171,18 @@ export default function CheckoutPaymentClient({
                       const isSelected =
                         selectedToken?.address === token.address &&
                         selectedToken?.symbol === token.symbol &&
-                        selectedToken?.chain === token.chain;
+                        selectedToken?.chain === token.chain &&
+                        selectedToken?.walletAddress === token.walletAddress;
                       return (
                         <button
                           key={`${token.chain}-${token.walletAddress || ''}-${
                             token.symbol
                           }-${token.address || 'native'}`}
                           type="button"
-                          onClick={() => setSelectedToken(token)}
+                          onClick={() => {
+                            setTokenSelectionTouched(true);
+                            setSelectedToken(token);
+                          }}
                           className={`flex w-full items-center justify-between gap-3 px-1 py-3 text-left transition ${
                             isSelected ? 'bg-[#f4fff8]' : 'hover:bg-[#fafafa]'
                           }`}
