@@ -350,6 +350,9 @@ const getErrorMessage = (error: unknown) => {
   if (lower.includes('no route') || lower.includes('route not found')) {
     return 'No conversion route is available for that token and amount right now.';
   }
+  if (lower.includes('key quorum') || lower.includes('quorums')) {
+    return 'Silent deposit signing is temporarily unavailable. Please try again and approve the deposit in your wallet.';
+  }
   if (
     (lower.includes('request failed') && lower.includes('url:')) ||
     lower.includes('http request failed') ||

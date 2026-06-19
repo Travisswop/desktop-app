@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   usePrivy,
   useSendTransaction,
@@ -42,6 +42,40 @@ const makeDepositIdempotencyKey = (address: string, amountUsd: string) =>
   `hyperliquid-deposit:${address.toLowerCase()}:${amountUsd}:${Date.now()}:${Math.random()
     .toString(36)
     .slice(2)}`;
+
+const isUserRejectionError = (error: unknown) => {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : '';
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('rejected') ||
+    lower.includes('denied') ||
+    lower.includes('cancelled') ||
+    lower.includes('user rejected')
+  );
+};
+
+const isDelegatedSigningConfigError = (error: unknown) => {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : '';
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('key quorum') ||
+    lower.includes('quorums') ||
+    lower.includes('delegated') ||
+    lower.includes('authorization_context') ||
+    lower.includes('authorization context') ||
+    lower.includes('silent deposit signing is not configured')
+  );
+};
 
 const isEmbeddedPrivyWallet = (
   wallet: EvmWalletLike | null | undefined,
@@ -103,6 +137,7 @@ export function useHyperliquidDeposit() {
   const { accessToken } = useUser();
   const [delegatedSignerConfig, setDelegatedSignerConfig] =
     useState<DelegatedSignerConfig | null>(null);
+  const delegatedSignerUnavailableRef = useRef(false);
 
   const [state, setState] = useState<DepositState>({
     isDepositing: false,
@@ -144,28 +179,36 @@ export function useHyperliquidDeposit() {
       const base = swopApiBase();
       if (!accessToken || !base) return null;
 
-      const response = await fetch(
-        `${base}/api/v5/wallet/privy/delegated-signer-config`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
+      try {
+        const response = await fetch(
+          `${base}/api/v5/wallet/privy/delegated-signer-config`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
           },
-        },
-      );
+        );
 
-      if (!response.ok) return null;
-      const body = await response.json().catch(() => null);
-      const data = body?.data || body;
-      if (!data?.configured || !data?.signerId) return null;
+        if (!response.ok) return null;
+        const body = await response.json().catch(() => null);
+        const data = body?.data || body;
+        if (!data?.configured || !data?.signerId) return null;
 
-      const config = {
-        signerId: String(data.signerId),
-        policyIds: Array.isArray(data.policyIds)
-          ? data.policyIds.map((id: unknown) => String(id)).filter(Boolean)
-          : [],
-      };
-      setDelegatedSignerConfig(config);
-      return config;
+        const config = {
+          signerId: String(data.signerId),
+          policyIds: Array.isArray(data.policyIds)
+            ? data.policyIds.map((id: unknown) => String(id)).filter(Boolean)
+            : [],
+        };
+        setDelegatedSignerConfig(config);
+        return config;
+      } catch (error) {
+        console.warn(
+          '[Hyperliquid deposit] Delegated signer config unavailable; using wallet confirmation.',
+          error,
+        );
+        return null;
+      }
     }, [accessToken, delegatedSignerConfig]);
 
   const getSelectedEvmWallet = useCallback(
@@ -190,6 +233,10 @@ export function useHyperliquidDeposit() {
 
   const prepareDelegatedDeposit = useCallback(
     async (address?: string | null) => {
+      if (delegatedSignerUnavailableRef.current) {
+        return false;
+      }
+
       const evmWallet = getSelectedEvmWallet(address);
       const walletAddress = evmWallet?.address ?? address ?? null;
       if (!walletAddress || !isEmbeddedPrivyWallet(evmWallet, privyUser)) {
@@ -210,20 +257,29 @@ export function useHyperliquidDeposit() {
         return true;
       }
 
-      await addSigners({
-        address: walletAddress,
-        signers: [
-          {
-            signerId: config.signerId,
-            policyIds: config.policyIds,
-          },
-        ],
-      });
+      try {
+        await addSigners({
+          address: walletAddress,
+          signers: [
+            {
+              signerId: config.signerId,
+              policyIds: config.policyIds,
+            },
+          ],
+        });
 
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(storageKey, 'true');
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(storageKey, 'true');
+        }
+        return true;
+      } catch (error) {
+        delegatedSignerUnavailableRef.current = true;
+        console.warn(
+          '[Hyperliquid deposit] Delegated signer setup failed; using wallet confirmation.',
+          error,
+        );
+        return false;
       }
-      return true;
     },
     [addSigners, getDelegatedSignerConfig, getSelectedEvmWallet, privyUser],
   );
@@ -313,14 +369,25 @@ export function useHyperliquidDeposit() {
 
         const delegatedReady = await prepareDelegatedDeposit(evmWallet.address);
         if (delegatedReady && evmWallet.address) {
-          const hash = await sendDelegatedDeposit(evmWallet.address, amountUsd);
-          setState({
-            isDepositing: false,
-            txHash: hash,
-            error: null,
-            step: 'success',
-          });
-          return hash;
+          try {
+            const hash = await sendDelegatedDeposit(evmWallet.address, amountUsd);
+            setState({
+              isDepositing: false,
+              txHash: hash,
+              error: null,
+              step: 'success',
+            });
+            return hash;
+          } catch (delegatedErr) {
+            if (!isDelegatedSigningConfigError(delegatedErr)) {
+              throw delegatedErr;
+            }
+            delegatedSignerUnavailableRef.current = true;
+            console.warn(
+              '[Hyperliquid deposit] Delegated deposit failed; retrying with wallet confirmation.',
+              delegatedErr,
+            );
+          }
         }
 
         if (evmWallet.chainId !== `eip155:${chainId}` && evmWallet.switchChain) {
@@ -340,9 +407,7 @@ export function useHyperliquidDeposit() {
             sponsor: true,
           });
         } catch (sponsoredErr) {
-          const message =
-            sponsoredErr instanceof Error ? sponsoredErr.message : '';
-          if (message.toLowerCase().includes('rejected')) {
+          if (isUserRejectionError(sponsoredErr)) {
             throw sponsoredErr;
           }
           result = await sendTransaction(txRequest, {
