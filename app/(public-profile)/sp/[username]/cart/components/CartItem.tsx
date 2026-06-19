@@ -116,7 +116,7 @@ export const CartItem: React.FC<CartItemProps> = ({
           style={{
             width: 84,
             height: 84,
-            objectFit: 'cover',
+            objectFit: 'contain',
             display: 'block',
           }}
           loading="lazy"

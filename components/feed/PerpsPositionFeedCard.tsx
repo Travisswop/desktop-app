@@ -20,7 +20,13 @@ import {
   normalizePerpsCoin,
   useLivePerpsMarkPrice,
 } from './useLivePerpsMarkPrice';
+import {
+  normalizePerpsEntryMarkers,
+  type PerpsEntryMarker,
+} from './perpsEntryMarkers';
 import type { PerpsPositionFeedContent } from '@/lib/perps/perpsFeed';
+
+export type { PerpsEntryMarker } from './perpsEntryMarkers';
 
 interface PerpsPositionFeedCardProps {
   feed: {
@@ -33,15 +39,6 @@ interface PerpsPositionFeedCardProps {
     smartsiteUserName?: string | null;
     createdAt?: string;
   };
-}
-
-interface PerpsEntryMarker {
-  event?: 'open' | 'add';
-  orderId?: string;
-  price?: number;
-  sizeCoins?: number;
-  notionalUsd?: number;
-  timestamp?: string;
 }
 
 interface ChartPoint {
@@ -220,15 +217,6 @@ function formatPointTime(time?: number) {
   return dayjs(milliseconds).format('MMM D, h:mm A');
 }
 
-function timestampMs(value?: string | null) {
-  const milliseconds = Date.parse(value || '');
-  return Number.isFinite(milliseconds) ? milliseconds : null;
-}
-
-function firstTimestamp(values: Array<string | null | undefined>) {
-  return values.find((value) => timestampMs(value) !== null);
-}
-
 function fallbackPoints(
   content: Partial<PerpsPositionFeedContent>,
   selectedPeriod: Period,
@@ -280,82 +268,12 @@ function profileImageSrc(profilePic?: string | null) {
     : `/images/user_avator/${profilePic}@3x.png`;
 }
 
-function normalizePerpsEntryMarkers(
-  rawEntries: PerpsEntryMarker[],
-  content: Partial<PerpsPositionFeedContent>,
-  fallbackCreatedAt?: string,
-) {
-  const earliestOpenTimestamp = rawEntries
-    .filter((entry) => entry.event !== 'add')
-    .map((entry) => entry.timestamp)
-    .filter((value): value is string => timestampMs(value) !== null)
-    .sort((a, b) => (timestampMs(a) || 0) - (timestampMs(b) || 0))[0];
-  const openTimestamp =
-    firstTimestamp([
-      content.openedAt,
-      earliestOpenTimestamp,
-      content.updatedAt,
-      fallbackCreatedAt,
-    ]) ||
-    new Date().toISOString();
-  const sourceEntries =
-    rawEntries.length > 0
-      ? rawEntries
-      : [
-          {
-            event: 'open' as const,
-            price: finiteNumber(content.entryPrice || content.markPrice),
-            timestamp: openTimestamp,
-          },
-        ];
-  const byKey = new Map<string, PerpsEntryMarker>();
-
-  sourceEntries.forEach((entry) => {
-    const event = entry.event === 'add' ? 'add' : 'open';
-    const timestamp =
-      event === 'open'
-        ? openTimestamp
-        : firstTimestamp([entry.timestamp, content.updatedAt]) || openTimestamp;
-    const price = firstFiniteNumber([
-      entry.price,
-      event === 'open' ? content.entryPrice : null,
-      content.entryPrice,
-      content.markPrice,
-    ]);
-    const orderId =
-      entry.orderId === undefined || entry.orderId === null
-        ? undefined
-        : String(entry.orderId);
-    const key =
-      event === 'open'
-        ? 'open'
-        : orderId
-        ? `add:${orderId}`
-        : [
-            'add',
-            timestamp,
-            price,
-            finiteNumber(entry.sizeCoins),
-            finiteNumber(entry.notionalUsd),
-          ].join(':');
-
-    if (byKey.has(key)) return;
-
-    byKey.set(key, {
-      event,
-      ...(orderId ? { orderId } : {}),
-      price,
-      sizeCoins: finiteNumber(entry.sizeCoins),
-      notionalUsd: finiteNumber(entry.notionalUsd),
-      timestamp,
-    });
-  });
-
-  return Array.from(byKey.values()).sort((a, b) => {
-    const aTime = timestampMs(a.timestamp) || 0;
-    const bTime = timestampMs(b.timestamp) || 0;
-    return aTime - bTime;
-  });
+export function selectPerpsChartMarkerEntries(
+  entries: PerpsEntryMarker[],
+): PerpsEntryMarker[] {
+  if (entries.length === 0) return [];
+  const primaryOpen = entries.find((entry) => entry.event !== 'add');
+  return [primaryOpen ?? entries[0]];
 }
 
 export default function PerpsPositionFeedCard({
@@ -482,6 +400,10 @@ export default function PerpsPositionFeedCard({
     const rawEntries = Array.isArray(content.entries) ? content.entries : [];
     return normalizePerpsEntryMarkers(rawEntries, content, feed.createdAt);
   }, [content, feed.createdAt]);
+  const chartMarkerEntries = useMemo(
+    () => selectPerpsChartMarkerEntries(entries),
+    [entries],
+  );
 
   const priceDomain = useMemo(() => {
     const prices = [
@@ -537,37 +459,37 @@ export default function PerpsPositionFeedCard({
     const firstTime = points.find((point) => point.time)?.time;
     const lastTime = [...points].reverse().find((point) => point.time)?.time;
 
-    return entries.reduce<ChartMarkerPosition[]>((markers, entry, index) => {
-      const price = finiteNumber(entry.price || content.entryPrice);
-      const timestamp = entry.timestamp ? dayjs(entry.timestamp).unix() : null;
-      let x = getXForIndex(Math.min(index + 4, points.length - 1));
+    return chartMarkerEntries.reduce<ChartMarkerPosition[]>(
+      (markers, entry) => {
+        const price = finiteNumber(entry.price || content.entryPrice);
+        const timestamp = entry.timestamp ? dayjs(entry.timestamp).unix() : null;
+        let x = width * 0.34;
 
-      if (timestamp && firstTime && lastTime && lastTime > firstTime) {
-        const ratio = (timestamp - firstTime) / (lastTime - firstTime);
-        if (ratio < 0 || ratio > 1) return markers;
-        x = Math.max(0, Math.min(width, ratio * width));
-      } else if (entries.length > 1) {
-        x = width * (0.3 + (index / Math.max(1, entries.length - 1)) * 0.45);
-      } else {
-        x = width * 0.34;
-      }
+        if (timestamp && firstTime && lastTime && lastTime > firstTime) {
+          const ratio = (timestamp - firstTime) / (lastTime - firstTime);
+          if (ratio >= 0 && ratio <= 1) {
+            x = Math.max(0, Math.min(width, ratio * width));
+          }
+        }
 
-      const marker = {
-        x: Math.max(AVATAR_BORDER, Math.min(width - AVATAR_BORDER, x)),
-        y: Math.max(
-          AVATAR_BORDER,
-          Math.min(CHART_HEIGHT - AVATAR_BORDER, getY(price)),
-        ),
-        entry,
-      };
+        const marker = {
+          x: Math.max(AVATAR_BORDER, Math.min(width - AVATAR_BORDER, x)),
+          y: Math.max(
+            AVATAR_BORDER,
+            Math.min(CHART_HEIGHT - AVATAR_BORDER, getY(price)),
+          ),
+          entry,
+        };
 
-      if (Number.isFinite(marker.x) && Number.isFinite(marker.y)) {
-        markers.push(marker);
-      }
+        if (Number.isFinite(marker.x) && Number.isFinite(marker.y)) {
+          markers.push(marker);
+        }
 
-      return markers;
-    }, []);
-  }, [content.entryPrice, entries, getXForIndex, getY, points, width]);
+        return markers;
+      },
+      [],
+    );
+  }, [chartMarkerEntries, content.entryPrice, getY, points, width]);
 
   const selectedChartPoint = useMemo(() => {
     if (selectedIndex === null || width <= 0 || points.length < 2) return null;

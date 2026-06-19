@@ -45,18 +45,18 @@ function order(overrides: Partial<HLOpenOrder> = {}): HLOpenOrder {
 }
 
 describe('position TP/SL helpers', () => {
-  test('calculates long TP/SL prices from percent distance', () => {
-    expect(__test.priceFromPercent(100, true, 'tp', 5)).toBe(105);
-    expect(__test.priceFromPercent(100, true, 'sl', 5)).toBe(95);
-    expect(__test.percentFromPrice(100, true, 'tp', 112.5)).toBe(12.5);
-    expect(__test.percentFromPrice(100, true, 'sl', 87.5)).toBe(12.5);
+  test('calculates long TP/SL prices from leveraged position return', () => {
+    expect(__test.priceFromPercent(100, true, 'tp', 5, 10)).toBeCloseTo(100.5);
+    expect(__test.priceFromPercent(100, true, 'sl', 5, 10)).toBeCloseTo(99.5);
+    expect(__test.percentFromPrice(100, true, 'tp', 101.25, 10)).toBeCloseTo(12.5);
+    expect(__test.percentFromPrice(100, true, 'sl', 98.75, 10)).toBeCloseTo(12.5);
   });
 
-  test('calculates short TP/SL prices from percent distance', () => {
-    expect(__test.priceFromPercent(100, false, 'tp', 5)).toBe(95);
-    expect(__test.priceFromPercent(100, false, 'sl', 5)).toBe(105);
-    expect(__test.percentFromPrice(100, false, 'tp', 87.5)).toBe(12.5);
-    expect(__test.percentFromPrice(100, false, 'sl', 112.5)).toBe(12.5);
+  test('calculates short TP/SL prices from leveraged position return', () => {
+    expect(__test.priceFromPercent(100, false, 'tp', 5, 10)).toBeCloseTo(99.5);
+    expect(__test.priceFromPercent(100, false, 'sl', 5, 10)).toBeCloseTo(100.5);
+    expect(__test.percentFromPrice(100, false, 'tp', 98.75, 10)).toBeCloseTo(12.5);
+    expect(__test.percentFromPrice(100, false, 'sl', 101.25, 10)).toBeCloseTo(12.5);
   });
 
   test('finds existing reduce-only TP and SL orders for a long position', () => {

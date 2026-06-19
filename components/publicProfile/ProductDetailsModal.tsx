@@ -29,6 +29,7 @@ import {
   getSmartsiteMarketplaceImage,
   getSmartsiteMarketplaceName,
   getSmartsiteMarketplacePrice,
+  normalizeSmartsiteMarketplaceVariants,
   type SmartsiteMarketplaceDisplayItem,
 } from "@/lib/smartsite-marketplace-display";
 import isUrl from "@/lib/isUrl";
@@ -67,10 +68,7 @@ const ProductDetailsModal = ({
   }, [item]);
 
   const variants = useMemo(
-    () =>
-      (item.variants || []).filter(
-        (variant) => variant?.name && variant?.options?.length,
-      ),
+    () => normalizeSmartsiteMarketplaceVariants(item.variants || []),
     [item.variants],
   );
 

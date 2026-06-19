@@ -95,6 +95,10 @@ export interface PredictionContent {
   status?: string;
   result?: string;
   resultStatus?: string;
+  claimStatus?: string;
+  redeemStatus?: string;
+  claimed?: boolean;
+  redeemed?: boolean;
   pnl?: number | string;
   realizedPnl?: number | string;
   cashPnl?: number | string;
@@ -105,6 +109,10 @@ export interface PredictionContent {
   lossAmount?: number | string;
   currentPrice?: number | string;
   currentValue?: number | string;
+  claimAmount?: number | string;
+  redeemAmount?: number | string;
+  payout?: number | string;
+  payoutAmount?: number | string;
   saleAmount?: number | string;
 }
 
@@ -578,7 +586,7 @@ type FeedTradeState =
   | 'sold'
   | 'open';
 
-interface TradeStateMeta {
+export interface TradeStateMeta {
   state: FeedTradeState;
   label: string;
   detail: string;
@@ -586,7 +594,7 @@ interface TradeStateMeta {
   amount?: number;
 }
 
-interface ResolvedMarketState {
+export interface ResolvedMarketState {
   closed: boolean;
   yesPrice?: number;
   noPrice?: number;
@@ -604,15 +612,23 @@ const OPEN_SCORE_POLL_MS = 30_000;
 const LIVE_PRICE_POLL_MS = 10_000;
 const RETRY_POLL_MS = 30_000;
 
-function resolveTradeState(
+export function resolveTradeState(
   content: PredictionContent,
   isLive: boolean,
   marketState: ResolvedMarketState,
 ): TradeStateMeta {
   const side = content.side;
-  const statusText = String(
-    content.resultStatus ?? content.result ?? content.status ?? '',
-  ).toLowerCase();
+  const statusText = [
+    content.resultStatus,
+    content.result,
+    content.status,
+    content.claimStatus,
+    content.redeemStatus,
+  ]
+    .filter((value) => value !== undefined && value !== null)
+    .map(String)
+    .join(' ')
+    .toLowerCase();
 
   const realizedPnl = firstNumber(
     content.realizedPnl,
@@ -636,14 +652,36 @@ function resolveTradeState(
     (explicitLoss !== undefined
       ? -Math.abs(explicitLoss)
       : undefined);
+  const payoutAmount = firstNumber(
+    content.redeemAmount,
+    content.claimAmount,
+    content.payoutAmount,
+    content.payout,
+    content.currentValue,
+  );
+  const potentialPayout = firstNumber(content.potentialWin);
+  const winPnl =
+    pnl ??
+    (payoutAmount !== undefined
+      ? payoutAmount - content.cost
+      : potentialPayout !== undefined
+        ? potentialPayout - content.cost
+        : undefined);
 
-  if (statusText.includes('won') || statusText.includes('win')) {
+  if (
+    statusText.includes('won') ||
+    statusText.includes('win') ||
+    statusText.includes('redeem') ||
+    statusText.includes('claim') ||
+    content.redeemed === true ||
+    content.claimed === true
+  ) {
     return {
       state: 'won',
       label: 'Won',
       detail: 'The pick settled in profit',
       tone: 'green',
-      amount: pnl ?? content.potentialWin,
+      amount: winPnl,
     };
   }
 
@@ -711,7 +749,7 @@ function resolveTradeState(
         label: 'Won',
         detail: 'The market is closed',
         tone: 'green',
-        amount: pnl ?? content.potentialWin,
+        amount: winPnl,
       };
     }
     if (marketState.pickedWon === false) {
@@ -731,7 +769,7 @@ function resolveTradeState(
           label: 'Won',
           detail: 'The market is closed',
           tone: 'green',
-          amount: pnl ?? content.potentialWin,
+          amount: winPnl,
         };
       }
       if (marketState.pickedPrice <= 0.01) {
@@ -1073,6 +1111,44 @@ function formatPercent(price: number): string {
 function formatSignedUsd(value: number | undefined): string {
   if (value === undefined) return '—';
   return `${value >= 0 ? '+' : ''}${formatUsd(value)}`;
+}
+
+export function resolvePredictionDisplayPnl({
+  entryIsEstimate,
+  isOpen,
+  tradeState,
+  liveDelta,
+}: {
+  entryIsEstimate?: boolean;
+  isOpen: boolean;
+  tradeState: { amount?: number };
+  liveDelta?: number;
+}): number | undefined {
+  if (entryIsEstimate) return undefined;
+  return isOpen
+    ? (liveDelta ?? tradeState.amount)
+    : (tradeState.amount ?? liveDelta);
+}
+
+function resolvePredictionSummaryValue({
+  entryIsEstimate,
+  isOpen,
+  cost,
+  currentValue,
+  selectedPnl,
+}: {
+  entryIsEstimate?: boolean;
+  isOpen: boolean;
+  cost: number;
+  currentValue?: number;
+  selectedPnl?: number;
+}) {
+  if (entryIsEstimate) return undefined;
+  if (!isOpen && selectedPnl !== undefined) return cost + selectedPnl;
+  return (
+    currentValue ??
+    (selectedPnl !== undefined ? cost + selectedPnl : undefined)
+  );
 }
 
 function formatShares(value: number | undefined): string {
@@ -1562,26 +1638,27 @@ function SportsMiniPanel({
     currentValue !== undefined && Number.isFinite(currentValue)
       ? currentValue - cost
       : undefined;
-  const selectedPnl =
-    entryIsEstimate
-      ? undefined
-      : tradeState.state === 'open' ||
-          tradeState.state === 'live' ||
-          tradeState.state === 'won' ||
-          tradeState.state === 'lost'
-        ? (currentDelta ?? tradeState.amount)
-        : (tradeState.amount ?? currentDelta);
-  const summaryValue =
-    currentValue ??
-    (selectedPnl !== undefined ? cost + selectedPnl : undefined);
+  const open =
+    tradeState.state === 'open' || tradeState.state === 'live';
+  const selectedPnl = resolvePredictionDisplayPnl({
+    entryIsEstimate,
+    isOpen: open,
+    tradeState,
+    liveDelta: currentDelta,
+  });
+  const summaryValue = resolvePredictionSummaryValue({
+    entryIsEstimate,
+    isOpen: open,
+    cost,
+    currentValue,
+    selectedPnl,
+  });
   const filterId = `feed-shadow-${String(yesTokenId || yesOutcome)
     .replace(/[^a-zA-Z0-9_-]/g, '')
     .slice(0, 48)}`;
   const gradientId = `${filterId}-trend`;
   const split = splitProbabilities(yP, nP);
   const pill = statusPill(tradeState, liveScore, gameStartTime);
-  const open =
-    tradeState.state === 'open' || tradeState.state === 'live';
   const chartColor =
     tradeState.tone === 'red'
       ? '#E85D5D'
@@ -1995,14 +2072,19 @@ function PredictionPositionPanel({
       : undefined;
   const open =
     tradeState.state === 'open' || tradeState.state === 'live';
-  const selectedPnl = entryIsEstimate
-    ? undefined
-    : open || tradeState.state === 'won' || tradeState.state === 'lost'
-      ? (delta ?? tradeState.amount)
-      : (tradeState.amount ?? delta);
-  const summaryValue =
-    currentValue ??
-    (selectedPnl !== undefined ? cost + selectedPnl : undefined);
+  const selectedPnl = resolvePredictionDisplayPnl({
+    entryIsEstimate,
+    isOpen: open,
+    tradeState,
+    liveDelta: delta,
+  });
+  const summaryValue = resolvePredictionSummaryValue({
+    entryIsEstimate,
+    isOpen: open,
+    cost,
+    currentValue,
+    selectedPnl,
+  });
   const status = predictionStatusPill(tradeState);
   const yesLabel = yesOutcome || 'Yes';
   const noLabel = noOutcome || 'No';

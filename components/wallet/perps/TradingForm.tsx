@@ -616,13 +616,16 @@ export function TradingForm({
   );
 
   const handleLeverageCommit = useCallback(
-    (newLev: number) => {
+    async (newLev: number) => {
       if (!Number.isFinite(newLev)) return;
       const nextLeverage = Math.min(Math.max(1, newLev), maxLev);
       setLeverage(nextLeverage);
       onLeverageChange?.(nextLeverage, isCross);
+      if (market && isAgentReady) {
+        await onUpdateLeverage(market.index, nextLeverage, isCross).catch(() => {});
+      }
     },
-    [isCross, maxLev, onLeverageChange],
+    [isAgentReady, isCross, market, maxLev, onLeverageChange, onUpdateLeverage],
   );
 
   const commitLeverageFromInput = useCallback(
