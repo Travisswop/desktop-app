@@ -156,6 +156,15 @@ describe('feed card contracts', () => {
         noTeam: { name: 'Korea Republic', abbreviation: 'KR' },
       }),
     ).toBe('fifwc-mex-kr-2026-06-18');
+
+    expect(
+      resolvePredictionLiveEventSlug({
+        ...mexicoClaimedOverrideFeedPost,
+        eventSlug: 'fifwc-mex-kr-2026-06-18-mex',
+        yesTeam: undefined,
+        noTeam: undefined,
+      }),
+    ).toBe('fifwc-mex-kr-2026-06-18');
   });
 
   it('uses embedded final score data when fetched sports teams lack scores', () => {

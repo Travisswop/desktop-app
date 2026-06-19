@@ -216,6 +216,26 @@ function slugifySportsToken(value: unknown): string {
     .replace(/^-+|-+$/g, '');
 }
 
+function inferredSportsSlugSuffixes(value: unknown): string[] {
+  const slug = slugifySportsToken(value);
+  if (!slug) return [];
+
+  const parts = slug.split('-').filter(Boolean);
+  const suffixes = new Set<string>([slug]);
+  if (parts.length === 1 && parts[0].length >= 3) {
+    suffixes.add(parts[0].slice(0, 3));
+  }
+  if (parts.length > 1) {
+    const initials = parts
+      .map((part) => part[0])
+      .filter(Boolean)
+      .join('');
+    if (initials.length >= 2) suffixes.add(initials);
+  }
+
+  return [...suffixes].filter((suffix) => suffix.length >= 2);
+}
+
 function stripKnownSportsMarketSuffix(
   slug: string,
   content: PredictionContent,
@@ -224,17 +244,18 @@ function stripKnownSportsMarketSuffix(
     .replace(/-(moneyline|spread|total|totals|o-u|over-under).*$/i, '')
     .replace(/-(draw|tie)$/i, '');
   const suffixes = [
-    content.yesTeam?.abbreviation,
-    content.noTeam?.abbreviation,
-    content.yesOutcome,
-    content.noOutcome,
-  ]
-    .map(slugifySportsToken)
-    .filter((value): value is string => value.length >= 2);
+    ...inferredSportsSlugSuffixes(content.yesTeam?.abbreviation),
+    ...inferredSportsSlugSuffixes(content.noTeam?.abbreviation),
+    ...inferredSportsSlugSuffixes(content.yesOutcome),
+    ...inferredSportsSlugSuffixes(content.noOutcome),
+  ];
 
   if (suffixes.length) {
+    const uniqueSuffixes = Array.from(new Set(suffixes)).sort(
+      (a, b) => b.length - a.length,
+    );
     const suffixPattern = new RegExp(
-      `-(${suffixes.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`,
+      `-(${uniqueSuffixes.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`,
       'i',
     );
     base = base.replace(suffixPattern, '');
