@@ -407,6 +407,7 @@ function PositionTpSlModal({
   const size = parseFloat(position.szi);
   const isLong = size > 0;
   const entry = parseFloat(position.entryPx) || 0;
+  const leverage = Math.max(1, Number(position.leverage.value) || 1);
   const mark =
     resolveHyperliquidPositionMarkPrice(
       position,
@@ -422,12 +423,24 @@ function PositionTpSlModal({
     useState(DEFAULT_TPSL_PERCENT);
   const [takeProfitPrice, setTakeProfitPrice] = useState(() =>
     formatTriggerInput(
-      priceFromPercent(referencePrice, isLong, 'tp', DEFAULT_TPSL_PERCENT),
+      priceFromPercent(
+        referencePrice,
+        isLong,
+        'tp',
+        DEFAULT_TPSL_PERCENT,
+        leverage,
+      ),
     ),
   );
   const [stopLossPrice, setStopLossPrice] = useState(() =>
     formatTriggerInput(
-      priceFromPercent(referencePrice, isLong, 'sl', DEFAULT_TPSL_PERCENT),
+      priceFromPercent(
+        referencePrice,
+        isLong,
+        'sl',
+        DEFAULT_TPSL_PERCENT,
+        leverage,
+      ),
     ),
   );
   const [replaceExisting, setReplaceExisting] = useState(true);
@@ -452,7 +465,7 @@ function PositionTpSlModal({
   const handlePercentChange = (kind: TpSlKind, nextPercent: number) => {
     const percent = normalizeTpSlPercent(nextPercent);
     const nextPrice = formatTriggerInput(
-      priceFromPercent(referencePrice, isLong, kind, percent),
+      priceFromPercent(referencePrice, isLong, kind, percent, leverage),
     );
 
     if (kind === 'tp') {
@@ -477,6 +490,7 @@ function PositionTpSlModal({
       isLong,
       kind,
       Number(nextPrice),
+      leverage,
     );
     if (
       impliedPercent != null &&
@@ -606,10 +620,10 @@ function PositionTpSlModal({
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-[0.12em] text-gray-500">
                 <Percent className="h-3.5 w-3.5" />
-                Distance
+                Position return
               </div>
               <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">
-                From mark
+                {leverage}x adjusted
               </span>
             </div>
             <div className="space-y-3">
@@ -821,9 +835,13 @@ function priceFromPercent(
   isLong: boolean,
   kind: TpSlKind,
   percent: number,
+  leverage = 1,
 ) {
   if (!Number.isFinite(reference) || reference <= 0) return 0;
-  const normalizedPercent = normalizeTpSlPercent(percent) / 100;
+  const effectiveLeverage =
+    Number.isFinite(leverage) && leverage > 0 ? leverage : 1;
+  const normalizedPercent =
+    normalizeTpSlPercent(percent) / effectiveLeverage / 100;
   const direction =
     kind === 'tp'
       ? isLong
@@ -840,6 +858,7 @@ function percentFromPrice(
   isLong: boolean,
   kind: TpSlKind,
   price: number,
+  leverage = 1,
 ) {
   if (
     !Number.isFinite(reference) ||
@@ -850,8 +869,11 @@ function percentFromPrice(
     return null;
   }
 
+  const effectiveLeverage =
+    Number.isFinite(leverage) && leverage > 0 ? leverage : 1;
+
   const ratio = price / reference;
-  const percent =
+  const priceMovePercent =
     kind === 'tp'
       ? isLong
         ? (ratio - 1) * 100
@@ -859,6 +881,7 @@ function percentFromPrice(
       : isLong
         ? (1 - ratio) * 100
         : (ratio - 1) * 100;
+  const percent = priceMovePercent * effectiveLeverage;
 
   return Number.isFinite(percent) ? percent : null;
 }
