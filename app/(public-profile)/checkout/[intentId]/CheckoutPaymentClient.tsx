@@ -375,7 +375,7 @@ export default function CheckoutPaymentClient({
   const router = useRouter();
   const { login, ready, authenticated } = usePrivy();
   const { connectWallet } = useConnectWallet();
-  const { accessToken, user } = useUser();
+  const { accessToken } = useUser();
   const { wallets: evmWallets } = useEvmWallets();
   const { sendTransaction } = useSendTransaction();
   const { wallets: solanaWallets } = useSolanaWallets();
@@ -416,8 +416,7 @@ export default function CheckoutPaymentClient({
     return solanaWallets.find((wallet) => wallet.address) || null;
   }, [solanaWallets]);
 
-  const activeSolanaWalletAddress =
-    solanaWallet?.address || user?.solanaWallet || user?.solanaAddress || '';
+  const activeSolanaWalletAddress = solanaWallet?.address || '';
 
   const evmSignerWalletAddresses = useMemo(
     () =>
@@ -429,15 +428,7 @@ export default function CheckoutPaymentClient({
     [evmWallets]
   );
 
-  const evmWalletAddresses = useMemo(
-    () =>
-      uniqueWalletAddresses(
-        ...evmSignerWalletAddresses,
-        user?.ethereumWallet,
-        user?.ethAddress
-      ),
-    [evmSignerWalletAddresses, user?.ethAddress, user?.ethereumWallet]
-  );
+  const evmWalletAddresses = evmSignerWalletAddresses;
 
   const { tokens, loading: tokensLoading, refetch } = useMultiChainTokenData(
     activeSolanaWalletAddress,
@@ -1035,9 +1026,7 @@ export default function CheckoutPaymentClient({
     }
     if (!accessToken) return 'Sign in again to authorize payment.';
     if (needsSolanaSigner) {
-      return selectedToken?.walletAddress
-        ? 'Sign in with the Swop wallet that holds this Solana token.'
-        : 'Create or connect a Solana wallet to pay with this token.';
+      return 'Create or connect a Solana wallet to pay with this token.';
     }
     if (selectedRail === 'lifi' && !selectedPaymentWalletAddress) {
       return 'Connect an EVM wallet to pay with this token.';
@@ -1252,7 +1241,7 @@ export default function CheckoutPaymentClient({
                       </div>
                     ) : payableTokens.length === 0 ? (
                       <p className="px-3 py-5 text-sm font-semibold text-[#6d7480]">
-                        No funded supported tokens found.
+                        No funded supported tokens found in connected wallets.
                       </p>
                     ) : (
                       payableTokens.map((token) => {
