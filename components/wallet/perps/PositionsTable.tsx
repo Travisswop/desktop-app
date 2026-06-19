@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Loader2, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, Loader2, Percent, ShieldCheck, X } from 'lucide-react';
 import type { HLPosition, HLOpenOrder } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
 import { MarketIcon } from './MarketIcon';
@@ -24,6 +24,12 @@ export interface PerpsFill {
 }
 
 type Tab = 'positions' | 'orders' | 'history';
+type TpSlKind = 'tp' | 'sl';
+
+const DEFAULT_TPSL_PERCENT = 5;
+const MIN_TPSL_PERCENT = 0.1;
+const MAX_TPSL_PERCENT = 50;
+const TPSL_PERCENT_STEP = 0.1;
 
 export interface PositionTpSlRequest {
   takeProfitPrice?: string;
@@ -332,12 +338,6 @@ function PositionTpSlModal({
   onClose: () => void;
   onSubmit: (request: PositionTpSlRequest) => Promise<void>;
 }) {
-  const [takeProfitPrice, setTakeProfitPrice] = useState('');
-  const [stopLossPrice, setStopLossPrice] = useState('');
-  const [replaceExisting, setReplaceExisting] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const size = parseFloat(position.szi);
   const isLong = size > 0;
   const entry = parseFloat(position.entryPx) || 0;
@@ -347,6 +347,27 @@ function PositionTpSlModal({
       lookupHyperliquidPositionPrice(position, mids) ??
         lookupHyperliquidPositionPrice(position, marketMarks),
     ) ?? entry;
+  const referencePrice = mark || entry;
+  const hasReferencePrice =
+    Number.isFinite(referencePrice) && referencePrice > 0;
+  const [takeProfitPercent, setTakeProfitPercent] =
+    useState(DEFAULT_TPSL_PERCENT);
+  const [stopLossPercent, setStopLossPercent] =
+    useState(DEFAULT_TPSL_PERCENT);
+  const [takeProfitPrice, setTakeProfitPrice] = useState(() =>
+    formatTriggerInput(
+      priceFromPercent(referencePrice, isLong, 'tp', DEFAULT_TPSL_PERCENT),
+    ),
+  );
+  const [stopLossPrice, setStopLossPrice] = useState(() =>
+    formatTriggerInput(
+      priceFromPercent(referencePrice, isLong, 'sl', DEFAULT_TPSL_PERCENT),
+    ),
+  );
+  const [replaceExisting, setReplaceExisting] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const triggerOrders = getPositionTriggerOrders(position, openOrders, mark);
   const existingTakeProfit = triggerOrders.find((item) => item.kind === 'tp');
   const existingStopLoss = triggerOrders.find((item) => item.kind === 'sl');
@@ -361,6 +382,50 @@ function PositionTpSlModal({
     mark > 0 ? `$${formatPrice(mark * (isLong ? 1.05 : 0.95))}` : 'Price';
   const slPlaceholder =
     mark > 0 ? `$${formatPrice(mark * (isLong ? 0.95 : 1.05))}` : 'Price';
+
+  const handlePercentChange = (kind: TpSlKind, nextPercent: number) => {
+    const percent = normalizeTpSlPercent(nextPercent);
+    const nextPrice = formatTriggerInput(
+      priceFromPercent(referencePrice, isLong, kind, percent),
+    );
+
+    if (kind === 'tp') {
+      setTakeProfitPercent(percent);
+      setTakeProfitPrice(nextPrice);
+    } else {
+      setStopLossPercent(percent);
+      setStopLossPrice(nextPrice);
+    }
+    setError(null);
+  };
+
+  const handlePriceChange = (kind: TpSlKind, nextPrice: string) => {
+    if (kind === 'tp') {
+      setTakeProfitPrice(nextPrice);
+    } else {
+      setStopLossPrice(nextPrice);
+    }
+
+    const impliedPercent = percentFromPrice(
+      referencePrice,
+      isLong,
+      kind,
+      Number(nextPrice),
+    );
+    if (
+      impliedPercent != null &&
+      impliedPercent >= MIN_TPSL_PERCENT &&
+      impliedPercent <= MAX_TPSL_PERCENT
+    ) {
+      const normalized = normalizeTpSlPercent(impliedPercent);
+      if (kind === 'tp') {
+        setTakeProfitPercent(normalized);
+      } else {
+        setStopLossPercent(normalized);
+      }
+    }
+    setError(null);
+  };
 
   const validate = () => {
     const tp = takeProfitPrice.trim();
@@ -426,7 +491,7 @@ function PositionTpSlModal({
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 px-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-[420px] rounded-[18px] border border-black/[0.08] bg-white shadow-[0_24px_80px_rgba(10,10,12,0.24)]"
+        className="max-h-[calc(100vh-32px)] w-full max-w-[480px] overflow-y-auto rounded-[18px] border border-black/[0.08] bg-white shadow-[0_24px_80px_rgba(10,10,12,0.24)]"
       >
         <div className="flex items-center justify-between border-b border-black/[0.06] px-4 py-3">
           <div>
@@ -471,6 +536,36 @@ function PositionTpSlModal({
             </div>
           )}
 
+          <div className="rounded-xl border border-black/[0.06] bg-[#fafafa] px-3 py-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-[0.12em] text-gray-500">
+                <Percent className="h-3.5 w-3.5" />
+                Distance
+              </div>
+              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">
+                From mark
+              </span>
+            </div>
+            <div className="space-y-3">
+              <PercentDial
+                kind="tp"
+                label="TP"
+                percent={takeProfitPercent}
+                price={takeProfitPrice}
+                disabled={!hasReferencePrice}
+                onChange={(value) => handlePercentChange('tp', value)}
+              />
+              <PercentDial
+                kind="sl"
+                label="SL"
+                percent={stopLossPercent}
+                price={stopLossPrice}
+                disabled={!hasReferencePrice}
+                onChange={(value) => handlePercentChange('sl', value)}
+              />
+            </div>
+          </div>
+
           <div className="space-y-3">
             <div>
               <label className="text-[11px] font-semibold text-gray-500">
@@ -481,7 +576,7 @@ function PositionTpSlModal({
                 min="0"
                 step="any"
                 value={takeProfitPrice}
-                onChange={(event) => setTakeProfitPrice(event.target.value)}
+                onChange={(event) => handlePriceChange('tp', event.target.value)}
                 placeholder={tpPlaceholder}
                 className="mt-1.5 w-full rounded-xl border border-emerald-200 bg-white px-3.5 py-3 font-mono text-[15px] font-semibold tabular-nums outline-none focus:ring-2 focus:ring-emerald-500/30"
               />
@@ -496,7 +591,7 @@ function PositionTpSlModal({
                 min="0"
                 step="any"
                 value={stopLossPrice}
-                onChange={(event) => setStopLossPrice(event.target.value)}
+                onChange={(event) => handlePriceChange('sl', event.target.value)}
                 placeholder={slPlaceholder}
                 className="mt-1.5 w-full rounded-xl border border-red-200 bg-white px-3.5 py-3 font-mono text-[15px] font-semibold tabular-nums outline-none focus:ring-2 focus:ring-red-500/30"
               />
@@ -549,6 +644,78 @@ function PositionTpSlModal({
   );
 }
 
+function PercentDial({
+  kind,
+  label,
+  percent,
+  price,
+  disabled,
+  onChange,
+}: {
+  kind: TpSlKind;
+  label: string;
+  percent: number;
+  price: string;
+  disabled?: boolean;
+  onChange: (percent: number) => void;
+}) {
+  const tone =
+    kind === 'tp'
+      ? {
+          label: 'text-emerald-600',
+          badge: 'bg-emerald-500/10 text-emerald-600',
+          accent: 'accent-emerald-500',
+          focus: 'focus:ring-emerald-500/25',
+        }
+      : {
+          label: 'text-red-500',
+          badge: 'bg-red-500/10 text-red-500',
+          accent: 'accent-red-500',
+          focus: 'focus:ring-red-500/25',
+        };
+  const displayPrice = Number(price);
+
+  return (
+    <div className="grid grid-cols-[44px_1fr_74px] items-center gap-2">
+      <div className={`font-mono text-[12px] font-bold ${tone.label}`}>
+        {label}
+      </div>
+      <div className="min-w-0">
+        <input
+          type="range"
+          min={MIN_TPSL_PERCENT}
+          max={MAX_TPSL_PERCENT}
+          step={TPSL_PERCENT_STEP}
+          value={percent}
+          disabled={disabled}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className={`h-2 w-full cursor-pointer ${tone.accent} disabled:cursor-not-allowed disabled:opacity-50`}
+          aria-label={`${label} percent distance`}
+        />
+        <div className="mt-1 font-mono text-[10px] font-semibold text-gray-400">
+          {Number.isFinite(displayPrice) && displayPrice > 0
+            ? `$${formatPrice(displayPrice)}`
+            : '--'}
+        </div>
+      </div>
+      <label className={`flex h-9 items-center rounded-lg px-2 ${tone.badge}`}>
+        <input
+          type="number"
+          min={MIN_TPSL_PERCENT}
+          max={MAX_TPSL_PERCENT}
+          step={TPSL_PERCENT_STEP}
+          value={formatPercent(percent)}
+          disabled={disabled}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className={`min-w-0 flex-1 bg-transparent text-right font-mono text-[12px] font-bold tabular-nums outline-none ${tone.focus} disabled:cursor-not-allowed`}
+          aria-label={`${label} percent value`}
+        />
+        <span className="ml-0.5 font-mono text-[12px] font-bold">%</span>
+      </label>
+    </div>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -560,6 +727,74 @@ function Metric({ label, value }: { label: string; value: string }) {
       </div>
     </div>
   );
+}
+
+function normalizeTpSlPercent(percent: number) {
+  if (!Number.isFinite(percent)) return DEFAULT_TPSL_PERCENT;
+  const clamped = Math.min(
+    MAX_TPSL_PERCENT,
+    Math.max(MIN_TPSL_PERCENT, percent),
+  );
+  return Math.round(clamped * 10) / 10;
+}
+
+function formatPercent(percent: number) {
+  const normalized = normalizeTpSlPercent(percent);
+  return Number.isInteger(normalized)
+    ? normalized.toFixed(0)
+    : normalized.toFixed(1);
+}
+
+function formatTriggerInput(price: number) {
+  if (!Number.isFinite(price) || price <= 0) return '';
+  return (Math.round(price * 100) / 100).toFixed(2);
+}
+
+function priceFromPercent(
+  reference: number,
+  isLong: boolean,
+  kind: TpSlKind,
+  percent: number,
+) {
+  if (!Number.isFinite(reference) || reference <= 0) return 0;
+  const normalizedPercent = normalizeTpSlPercent(percent) / 100;
+  const direction =
+    kind === 'tp'
+      ? isLong
+        ? 1
+        : -1
+      : isLong
+        ? -1
+        : 1;
+  return reference * (1 + direction * normalizedPercent);
+}
+
+function percentFromPrice(
+  reference: number,
+  isLong: boolean,
+  kind: TpSlKind,
+  price: number,
+) {
+  if (
+    !Number.isFinite(reference) ||
+    reference <= 0 ||
+    !Number.isFinite(price) ||
+    price <= 0
+  ) {
+    return null;
+  }
+
+  const ratio = price / reference;
+  const percent =
+    kind === 'tp'
+      ? isLong
+        ? (ratio - 1) * 100
+        : (1 - ratio) * 100
+      : isLong
+        ? (1 - ratio) * 100
+        : (ratio - 1) * 100;
+
+  return Number.isFinite(percent) ? percent : null;
 }
 
 function getPositionTriggerOrders(
@@ -635,8 +870,12 @@ function classifyTriggerOrder(
 
 export const __test = {
   classifyTriggerOrder,
+  formatTriggerInput,
   getPositionTriggerOrders,
+  normalizeTpSlPercent,
   orderBelongsToPosition,
+  percentFromPrice,
+  priceFromPercent,
 };
 
 // ─── Open orders ────────────────────────────────────────────────────────────
