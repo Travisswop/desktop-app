@@ -1,15 +1,22 @@
 'use client';
 
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useState,
 } from 'react';
+import { useRouter } from 'next/navigation';
 import { useBtcUpDownMarket } from '@/hooks/polymarket/useBtcUpDownMarket';
+import type { PolymarketMarket } from '@/hooks/polymarket';
 import {
   fetchChunkedPrices,
   type PriceEntry,
 } from '@/lib/polymarket/clob-prices';
+import {
+  marketRouteKey,
+  useMarketDetailStore,
+} from '@/zustandStore/marketDetailStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -161,6 +168,178 @@ function parseList(value: unknown): string[] {
 function sameId(a: unknown, b: unknown): boolean {
   if (!a || !b) return false;
   return String(a).toLowerCase() === String(b).toLowerCase();
+}
+
+function firstText(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
+function teamMetaToEventTeam(team: TeamMeta | undefined, fallbackName: string) {
+  return {
+    name: firstText(team?.name) || fallbackName,
+    logo: firstText(team?.logo),
+    abbreviation: firstText(team?.abbreviation),
+    color: firstText(team?.color),
+  };
+}
+
+function quoteForPrice(price: number | undefined) {
+  if (price === undefined) return undefined;
+  const value = clampProbability(price);
+  return {
+    bidPrice: value,
+    askPrice: value,
+    midPrice: value,
+  };
+}
+
+function buildPredictionDetailMarket(
+  content: PredictionContent,
+  options: {
+    marketTitle?: string;
+    yesOutcome?: string;
+    noOutcome?: string;
+    yesTokenId?: string;
+    noTokenId?: string;
+    yesPrice?: number;
+    noPrice?: number;
+    closed?: boolean;
+  },
+): PolymarketMarket | null {
+  const marketTitle = firstText(options.marketTitle, content.marketTitle);
+  if (!marketTitle) return null;
+
+  const yesOutcome = firstText(options.yesOutcome, content.yesOutcome) || 'Yes';
+  const noOutcome = firstText(options.noOutcome, content.noOutcome) || 'No';
+  const yesTokenId = firstText(options.yesTokenId, content.yesTokenId) || '';
+  const noTokenId = firstText(options.noTokenId, content.noTokenId) || '';
+  const yesPrice = clampProbability(
+    options.yesPrice ??
+      finiteNumber(content.yesPrice) ??
+      finiteNumber(content.price) ??
+      0.5,
+  );
+  const noPrice = clampProbability(
+    options.noPrice ?? finiteNumber(content.noPrice) ?? 1 - yesPrice,
+  );
+  const marketId = firstText(content.marketId);
+  const slug = firstText(content.marketSlug, content.eventSlug, marketId);
+  const id = firstText(marketId, slug, marketTitle);
+  if (!id) return null;
+
+  const realtimePrices: PolymarketMarket['realtimePrices'] = {};
+  const yesQuote = quoteForPrice(yesPrice);
+  const noQuote = quoteForPrice(noPrice);
+  if (yesTokenId && yesQuote) realtimePrices[yesTokenId] = yesQuote;
+  if (noTokenId && noQuote) realtimePrices[noTokenId] = noQuote;
+
+  const closed = Boolean(options.closed);
+  const eventTeams =
+    content.yesTeam || content.noTeam
+      ? [
+          teamMetaToEventTeam(content.yesTeam, yesOutcome),
+          teamMetaToEventTeam(content.noTeam, noOutcome),
+        ]
+      : undefined;
+
+  return {
+    id,
+    conditionId: marketId || id,
+    question: marketTitle,
+    slug: slug || id,
+    active: !closed,
+    closed,
+    outcomes: JSON.stringify([yesOutcome, noOutcome]),
+    outcomePrices: JSON.stringify([yesPrice, noPrice]),
+    clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
+    eventSlug: firstText(content.eventSlug),
+    gameStartTime: firstText(content.gameStartTime),
+    volume: firstText(content.volume),
+    eventTeams,
+    realtimePrices,
+  };
+}
+
+function resolveInitialOutcome(
+  content: PredictionContent,
+  yesOutcome: string,
+  noOutcome: string,
+): 'yes' | 'no' | undefined {
+  const outcome = content.outcome.toLowerCase();
+  if (outcome === 'yes' || outcome === yesOutcome.toLowerCase()) return 'yes';
+  if (outcome === 'no' || outcome === noOutcome.toLowerCase()) return 'no';
+  return undefined;
+}
+
+function usePredictionMarketNavigation(
+  content: PredictionContent,
+  options: Parameters<typeof buildPredictionDetailMarket>[1],
+) {
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((state) => state.set);
+  const market = useMemo(
+    () => buildPredictionDetailMarket(content, options),
+    [
+      content,
+      options.closed,
+      options.marketTitle,
+      options.noOutcome,
+      options.noPrice,
+      options.noTokenId,
+      options.yesOutcome,
+      options.yesPrice,
+      options.yesTokenId,
+    ],
+  );
+  const marketKey = market ? marketRouteKey(market) : '';
+  const marketHref = marketKey
+    ? `/prediction/market/${encodeURIComponent(marketKey)}`
+    : undefined;
+  const yesOutcome = firstText(options.yesOutcome, content.yesOutcome) || 'Yes';
+  const noOutcome = firstText(options.noOutcome, content.noOutcome) || 'No';
+  const defaultInitialOutcome = resolveInitialOutcome(
+    content,
+    yesOutcome,
+    noOutcome,
+  );
+
+  const onMarketClick = useCallback(
+    (
+      event: React.MouseEvent<HTMLAnchorElement>,
+      initialOutcome?: 'yes' | 'no',
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!market || !marketKey || !marketHref) return;
+
+      stashMarketDetail(marketKey, {
+        market,
+        initialOutcome: initialOutcome ?? defaultInitialOutcome,
+        outcomeLabels: [yesOutcome, noOutcome],
+      });
+      router.push(marketHref);
+    },
+    [
+      defaultInitialOutcome,
+      market,
+      marketHref,
+      marketKey,
+      noOutcome,
+      router,
+      stashMarketDetail,
+      yesOutcome,
+    ],
+  );
+
+  return {
+    marketHref,
+    onMarketClick,
+  };
 }
 
 function isBtcFiveMinutePrediction(content: PredictionContent): boolean {
@@ -1186,7 +1365,8 @@ function SportsMiniPanel({
   positionShares,
   entryIsEstimate,
   tradeState,
-  marketUrl,
+  marketHref,
+  onMarketClick,
 }: {
   marketTitle: string;
   eventSlug?: string;
@@ -1208,7 +1388,11 @@ function SportsMiniPanel({
   positionShares?: number;
   entryIsEstimate?: boolean;
   tradeState: TradeStateMeta;
-  marketUrl?: string;
+  marketHref?: string;
+  onMarketClick?: (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    initialOutcome?: 'yes' | 'no',
+  ) => void;
 }) {
   const { yesHistory, noHistory, loading } = usePriceHistory(
     yesTokenId,
@@ -1423,6 +1607,7 @@ function SportsMiniPanel({
     label: string,
     price: number,
     selected: boolean,
+    initialOutcome: 'yes' | 'no',
   ) => {
     const odds = toAmericanOdds(price);
     const classes = `flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 text-[13px] font-extrabold transition-colors ${
@@ -1431,13 +1616,11 @@ function SportsMiniPanel({
         : 'border-gray-100 bg-white text-gray-900 hover:border-gray-200 hover:bg-gray-50'
     }`;
 
-    if (marketUrl) {
+    if (marketHref) {
       return (
         <a
-          href={marketUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
+          href={marketHref}
+          onClick={(event) => onMarketClick?.(event, initialOutcome)}
           className={classes}
           title={`Open ${label} market`}
         >
@@ -1692,17 +1875,15 @@ function SportsMiniPanel({
       <div className="mt-4 grid grid-cols-2 gap-3">
         {open ? (
           <>
-            {buttonForOutcome(yesOutcome, yP, pickedIsYes)}
-            {buttonForOutcome(noOutcome, nP, !pickedIsYes)}
+            {buttonForOutcome(yesOutcome, yP, pickedIsYes, 'yes')}
+            {buttonForOutcome(noOutcome, nP, !pickedIsYes, 'no')}
           </>
         ) : (
           <>
-            {marketUrl ? (
+            {marketHref ? (
               <a
-                href={marketUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+                href={marketHref}
+                onClick={(event) => onMarketClick?.(event)}
                 className="flex h-11 items-center justify-center rounded-xl border border-gray-100 bg-white px-3 text-[13px] font-extrabold text-gray-900 transition-colors hover:border-gray-200 hover:bg-gray-50"
               >
                 Market →
@@ -1744,7 +1925,8 @@ function PredictionPositionPanel({
   yesPrice,
   noPrice,
   tradeState,
-  marketUrl,
+  marketHref,
+  onMarketClick,
   userName,
 }: {
   marketTitle: string;
@@ -1760,7 +1942,11 @@ function PredictionPositionPanel({
   yesPrice?: number;
   noPrice?: number;
   tradeState: TradeStateMeta;
-  marketUrl?: string;
+  marketHref?: string;
+  onMarketClick?: (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    initialOutcome?: 'yes' | 'no',
+  ) => void;
   userName?: string;
 }) {
   const shares =
@@ -1918,6 +2104,7 @@ function PredictionPositionPanel({
     label: string,
     price: number,
     selected: boolean,
+    initialOutcome: 'yes' | 'no',
   ) => {
     const classes = `flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 text-[13px] font-extrabold transition-colors ${
       selected
@@ -1925,13 +2112,11 @@ function PredictionPositionPanel({
         : 'border-gray-100 bg-white text-gray-900 hover:border-gray-200 hover:bg-gray-50'
     }`;
 
-    if (marketUrl) {
+    if (marketHref) {
       return (
         <a
-          href={marketUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
+          href={marketHref}
+          onClick={(event) => onMarketClick?.(event, initialOutcome)}
           className={classes}
           title={`Open ${label} market`}
         >
@@ -2163,17 +2348,15 @@ function PredictionPositionPanel({
       <div className="mt-4 grid grid-cols-2 gap-3">
         {open ? (
           <>
-            {buttonForOutcome(yesLabel, resolvedYesPrice, pickedIsYes)}
-            {buttonForOutcome(noLabel, resolvedNoPrice, !pickedIsYes)}
+            {buttonForOutcome(yesLabel, resolvedYesPrice, pickedIsYes, 'yes')}
+            {buttonForOutcome(noLabel, resolvedNoPrice, !pickedIsYes, 'no')}
           </>
         ) : (
           <>
-            {marketUrl ? (
+            {marketHref ? (
               <a
-                href={marketUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+                href={marketHref}
+                onClick={(event) => onMarketClick?.(event)}
                 className="flex h-11 items-center justify-center rounded-xl border border-gray-100 bg-white px-3 text-[13px] font-extrabold text-gray-900 transition-colors hover:border-gray-200 hover:bg-gray-50"
               >
                 Market →
@@ -2237,11 +2420,6 @@ function RegularPredictionFeedCard({
   );
 
   const liveScore = useLiveScore(eventSlug);
-  const marketUrl = eventSlug
-    ? `https://polymarket.com/event/${encodeURIComponent(eventSlug)}`
-    : content.marketSlug
-      ? `https://polymarket.com/market/${encodeURIComponent(content.marketSlug)}`
-    : undefined;
 
   // Show sports panel when at least yesOutcome + noOutcome + some sports signal present
   const isYesNoBinary =
@@ -2291,6 +2469,19 @@ function RegularPredictionFeedCard({
     currentPrice <= 1
       ? currentPrice
       : entryPrice;
+  const { marketHref, onMarketClick } = usePredictionMarketNavigation(
+    displayContent,
+    {
+      marketTitle: content.marketTitle,
+      yesOutcome,
+      noOutcome,
+      yesTokenId,
+      noTokenId,
+      yesPrice: resolvedYesPrice,
+      noPrice: resolvedNoPrice,
+      closed: resolvedMarketState.closed,
+    },
+  );
 
   return (
     <div className="mt-2">
@@ -2317,7 +2508,8 @@ function RegularPredictionFeedCard({
           positionShares={executedPosition.shares}
           entryIsEstimate={entryIsEstimate}
           tradeState={tradeState}
-          marketUrl={marketUrl}
+          marketHref={marketHref}
+          onMarketClick={onMarketClick}
         />
       )}
 
@@ -2336,7 +2528,8 @@ function RegularPredictionFeedCard({
           yesPrice={resolvedYesPrice}
           noPrice={resolvedNoPrice}
           tradeState={tradeState}
-          marketUrl={marketUrl}
+          marketHref={marketHref}
+          onMarketClick={onMarketClick}
           userName={userName}
         />
       )}
@@ -2440,9 +2633,19 @@ function LiveBtcFiveMinutePredictionFeedCard({
     currentPrice,
   };
   const tradeState = resolveTradeState(liveContent, false, marketState);
-  const marketUrl = content.marketSlug
-    ? `https://polymarket.com/market/${encodeURIComponent(content.marketSlug)}`
-    : undefined;
+  const { marketHref, onMarketClick } = usePredictionMarketNavigation(
+    liveContent,
+    {
+      marketTitle: liveContent.marketTitle,
+      yesOutcome: 'Up',
+      noOutcome: 'Down',
+      yesTokenId: liveContent.yesTokenId,
+      noTokenId: liveContent.noTokenId,
+      yesPrice,
+      noPrice,
+      closed: false,
+    },
+  );
 
   return (
     <div className="mt-2">
@@ -2460,7 +2663,8 @@ function LiveBtcFiveMinutePredictionFeedCard({
         yesPrice={yesPrice}
         noPrice={noPrice}
         tradeState={tradeState}
-        marketUrl={marketUrl}
+        marketHref={marketHref}
+        onMarketClick={onMarketClick}
         userName={userName}
       />
     </div>
@@ -2556,11 +2760,19 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
     false,
     marketState,
   );
-  const marketUrl = historicalContent.marketSlug
-    ? `https://polymarket.com/market/${encodeURIComponent(
-        historicalContent.marketSlug,
-      )}`
-    : undefined;
+  const { marketHref, onMarketClick } = usePredictionMarketNavigation(
+    historicalContent,
+    {
+      marketTitle: resolvedTitle,
+      yesOutcome: 'Up',
+      noOutcome: 'Down',
+      yesTokenId: historicalContent.yesTokenId,
+      noTokenId: historicalContent.noTokenId,
+      yesPrice,
+      noPrice,
+      closed: marketState.closed,
+    },
+  );
 
   return (
     <div className="mt-2">
@@ -2578,7 +2790,8 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
         yesPrice={yesPrice}
         noPrice={noPrice}
         tradeState={tradeState}
-        marketUrl={marketUrl}
+        marketHref={marketHref}
+        onMarketClick={onMarketClick}
         userName={userName}
       />
     </div>
