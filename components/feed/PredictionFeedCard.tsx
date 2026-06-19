@@ -443,6 +443,32 @@ function inferBtcWinnerFromPrices(
   return yesPrice > noPrice ? 'Up' : 'Down';
 }
 
+function inferBtcWinnerFromSettledPrices(
+  yesPrice: number | undefined,
+  noPrice: number | undefined,
+): 'Up' | 'Down' | null {
+  if (yesPrice === undefined || noPrice === undefined) return null;
+  if (yesPrice >= 0.99 && noPrice <= 0.01) return 'Up';
+  if (noPrice >= 0.99 && yesPrice <= 0.01) return 'Down';
+  return null;
+}
+
+export function resolveBtcSettledWinner({
+  yesPrice,
+  noPrice,
+  candleWinner,
+}: {
+  yesPrice: number | undefined;
+  noPrice: number | undefined;
+  candleWinner: 'Up' | 'Down' | null;
+}): 'Up' | 'Down' | null {
+  return (
+    inferBtcWinnerFromSettledPrices(yesPrice, noPrice) ??
+    candleWinner ??
+    inferBtcWinnerFromPrices(yesPrice, noPrice)
+  );
+}
+
 function resolveMarketState(
   content: PredictionContent,
   liveScore: LiveScore | null,
@@ -2693,8 +2719,11 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
   const finalNoPrice = clampProbability(
     market?.noPrice ?? entryPrices.noPrice,
   );
-  const resolvedWinner =
-    candleWinner ?? inferBtcWinnerFromPrices(finalYesPrice, finalNoPrice);
+  const resolvedWinner = resolveBtcSettledWinner({
+    yesPrice: finalYesPrice,
+    noPrice: finalNoPrice,
+    candleWinner,
+  });
   const yesPrice =
     isExpired && resolvedWinner
       ? resolvedWinner === 'Up'
