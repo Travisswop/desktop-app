@@ -220,6 +220,15 @@ function formatPointTime(time?: number) {
   return dayjs(milliseconds).format('MMM D, h:mm A');
 }
 
+function timestampMs(value?: string | null) {
+  const milliseconds = Date.parse(value || '');
+  return Number.isFinite(milliseconds) ? milliseconds : null;
+}
+
+function firstTimestamp(values: Array<string | null | undefined>) {
+  return values.find((value) => timestampMs(value) !== null);
+}
+
 function fallbackPoints(
   content: Partial<PerpsPositionFeedContent>,
   selectedPeriod: Period,
@@ -269,6 +278,84 @@ function profileImageSrc(profilePic?: string | null) {
   return isUrl(profilePic)
     ? profilePic
     : `/images/user_avator/${profilePic}@3x.png`;
+}
+
+function normalizePerpsEntryMarkers(
+  rawEntries: PerpsEntryMarker[],
+  content: Partial<PerpsPositionFeedContent>,
+  fallbackCreatedAt?: string,
+) {
+  const earliestOpenTimestamp = rawEntries
+    .filter((entry) => entry.event !== 'add')
+    .map((entry) => entry.timestamp)
+    .filter((value): value is string => timestampMs(value) !== null)
+    .sort((a, b) => (timestampMs(a) || 0) - (timestampMs(b) || 0))[0];
+  const openTimestamp =
+    firstTimestamp([
+      content.openedAt,
+      earliestOpenTimestamp,
+      content.updatedAt,
+      fallbackCreatedAt,
+    ]) ||
+    new Date().toISOString();
+  const sourceEntries =
+    rawEntries.length > 0
+      ? rawEntries
+      : [
+          {
+            event: 'open' as const,
+            price: finiteNumber(content.entryPrice || content.markPrice),
+            timestamp: openTimestamp,
+          },
+        ];
+  const byKey = new Map<string, PerpsEntryMarker>();
+
+  sourceEntries.forEach((entry) => {
+    const event = entry.event === 'add' ? 'add' : 'open';
+    const timestamp =
+      event === 'open'
+        ? openTimestamp
+        : firstTimestamp([entry.timestamp, content.updatedAt]) || openTimestamp;
+    const price = firstFiniteNumber([
+      entry.price,
+      event === 'open' ? content.entryPrice : null,
+      content.entryPrice,
+      content.markPrice,
+    ]);
+    const orderId =
+      entry.orderId === undefined || entry.orderId === null
+        ? undefined
+        : String(entry.orderId);
+    const key =
+      event === 'open'
+        ? 'open'
+        : orderId
+        ? `add:${orderId}`
+        : [
+            'add',
+            timestamp,
+            price,
+            finiteNumber(entry.sizeCoins),
+            finiteNumber(entry.notionalUsd),
+          ].join(':');
+
+    if (byKey.has(key)) return;
+
+    byKey.set(key, {
+      event,
+      ...(orderId ? { orderId } : {}),
+      price,
+      sizeCoins: finiteNumber(entry.sizeCoins),
+      notionalUsd: finiteNumber(entry.notionalUsd),
+      timestamp,
+    });
+  });
+
+  return Array.from(byKey.values()).sort((a, b) => {
+    const aTime = timestampMs(a.timestamp) || 0;
+    const bTime = timestampMs(b.timestamp) || 0;
+    return aTime - bTime;
+  });
 }
 
 export default function PerpsPositionFeedCard({
@@ -393,16 +480,7 @@ export default function PerpsPositionFeedCard({
 
   const entries = useMemo(() => {
     const rawEntries = Array.isArray(content.entries) ? content.entries : [];
-    if (rawEntries.length > 0) return rawEntries;
-    const timestamp =
-      content.openedAt || content.updatedAt || feed.createdAt || new Date().toISOString();
-    return [
-      {
-        event: 'open' as const,
-        price: finiteNumber(content.entryPrice || content.markPrice),
-        timestamp,
-      },
-    ];
+    return normalizePerpsEntryMarkers(rawEntries, content, feed.createdAt);
   }, [content, feed.createdAt]);
 
   const priceDomain = useMemo(() => {
@@ -781,7 +859,12 @@ export default function PerpsPositionFeedCard({
             {markerPositions.map((marker, index) => (
               <button
                 type="button"
-                key={`${marker.entry.orderId || marker.entry.timestamp || index}`}
+                key={[
+                  marker.entry.orderId || 'order',
+                  marker.entry.timestamp || 'time',
+                  marker.entry.event || 'entry',
+                  index,
+                ].join('-')}
                 className="absolute flex items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white shadow"
                 style={{
                   width: AVATAR_RADIUS * 2,
