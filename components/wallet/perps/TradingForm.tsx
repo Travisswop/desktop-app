@@ -114,6 +114,7 @@ export function TradingForm({
   const [stopLoss, setStopLoss] = useState('');
   const [leverage, setLeverage] = useState(10);
   const [isCross, setIsCross] = useState(true);
+  const marginMode = isCross ? 'cross' : 'isolated';
   const appliedInitialOrderKeyRef = useRef('');
 
   // Pending order details snapshot — populated when the user clicks the
@@ -125,7 +126,7 @@ export function TradingForm({
 
   const isBuy = side === 'long';
   const markNum = parseFloat(markPrice) || 0;
-  const accountNum = parseFloat(accountValue) || 0;
+  const accountValueNum = parseFloat(accountValue) || 0;
   const availableMarginNum =
     parseFloat(availableMargin ?? accountValue) || 0;
   const maxLev = Math.max(1, market?.maxLeverage ?? 50);
@@ -229,6 +230,8 @@ export function TradingForm({
   const effectiveAvailableMargin = isBuilderMarket
     ? availableMarginNum + mainAvailNum
     : availableMarginNum;
+  const sizingAvailableMargin =
+    effectiveAvailableMargin > 0 ? effectiveAvailableMargin : accountValueNum;
   const hasInsufficientMargin =
     sizeUsdNum > 0 && marginRequired > effectiveAvailableMargin;
   const marginShortfall = Math.max(
@@ -298,15 +301,16 @@ export function TradingForm({
 
   const setPercent = useCallback(
     (pct: number) => {
+      onClearError();
       // Builder markets size off the combined main + DEX balance — the DEX is
       // funded automatically at order time, so the selected DEX starting at $0
       // must not zero out the quick-% buttons.
-      const base = effectiveAvailableMargin;
+      const base = sizingAvailableMargin;
       const usd = (base * pct * safeLeverage) / 100;
       setSize(usd.toFixed(2));
       setActivePercent(pct);
     },
-    [effectiveAvailableMargin, safeLeverage],
+    [onClearError, safeLeverage, sizingAvailableMargin],
   );
 
   const estLiqPrice = useMemo(() => {
@@ -395,6 +399,8 @@ export function TradingForm({
       }
 
       let orderResult: unknown = null;
+      await onUpdateLeverage(market.index, safeLeverage, isCross);
+
       if (mode === 'market') {
         orderResult = await onPlaceMarket(market.index, isBuy, sizeInCoins, markPrice);
       } else if (mode === 'limit') {
@@ -586,6 +592,7 @@ export function TradingForm({
     agentOrderPrefill?.proposalId, isCross, safeLeverage, market, mode, isBuy,
     sizeInCoins, limitPrice, markPrice, takeProfit, stopLoss, markNum,
     onAgentActionComplete, onPlaceMarket, onPlaceLimit, onPlaceTpSl,
+    onUpdateLeverage,
     pendingOrder?.entryPrice, pendingOrder?.marginRequired, pendingOrder?.sizeUsd,
     side, accessToken, user?._id, feedSmartsiteId,
     masterAddress, existingPosition, estLiqPrice,
@@ -600,22 +607,22 @@ export function TradingForm({
 
   const handleLeverageChange = useCallback(
     (newLev: number) => {
+      onClearError();
       const nextLeverage = Math.min(Math.max(1, newLev), maxLev);
       setLeverage(nextLeverage);
       onLeverageChange?.(nextLeverage, isCross);
     },
-    [maxLev, onLeverageChange, isCross],
+    [isCross, maxLev, onClearError, onLeverageChange],
   );
 
   const handleLeverageCommit = useCallback(
-    async (newLev: number) => {
+    (newLev: number) => {
       if (!Number.isFinite(newLev)) return;
       const nextLeverage = Math.min(Math.max(1, newLev), maxLev);
-      if (market && isAgentReady) {
-        await onUpdateLeverage(market.index, nextLeverage, isCross).catch(() => {});
-      }
+      setLeverage(nextLeverage);
+      onLeverageChange?.(nextLeverage, isCross);
     },
-    [market, isAgentReady, isCross, maxLev, onUpdateLeverage],
+    [isCross, maxLev, onLeverageChange],
   );
 
   const commitLeverageFromInput = useCallback(
@@ -625,11 +632,14 @@ export function TradingForm({
     [handleLeverageCommit],
   );
 
-  const toggleMargin = useCallback(() => {
-    const next = !isCross;
+  const handleMarginModeSelect = useCallback((nextMode: 'cross' | 'isolated') => {
+    const next = nextMode === 'cross';
+    if (next === isCross) return;
+
     setIsCross(next);
     onLeverageChange?.(safeLeverage, next);
-  }, [isCross, safeLeverage, onLeverageChange]);
+    onClearError();
+  }, [isCross, onClearError, onLeverageChange, safeLeverage]);
 
   if (!market) {
     return (
@@ -665,6 +675,33 @@ export function TradingForm({
           Agent proposal loaded. Review every field before confirming.
         </div>
       )}
+
+      {/* Margin mode selector */}
+      <div className="mb-3.5">
+        <Label>MARGIN MODE</Label>
+        <div className="mt-1.5 grid grid-cols-2 gap-1 p-[3px] bg-[#f2f2f0] rounded-xl">
+          {(['cross', 'isolated'] as const).map((modeOption) => {
+            const active = marginMode === modeOption;
+            return (
+              <button
+                key={modeOption}
+                type="button"
+                aria-pressed={active}
+                onClick={() => handleMarginModeSelect(modeOption)}
+                className={`py-2.5 rounded-[9px] text-[13px] font-semibold transition-all ${
+                  active
+                    ? modeOption === 'cross'
+                      ? 'bg-blue-500 text-white shadow-sm'
+                      : 'bg-orange-500 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {modeOption === 'cross' ? 'Cross' : 'Isolated'}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Long / Short toggle */}
       <div className="grid grid-cols-2 gap-1 p-[3px] bg-[#f2f2f0] rounded-xl mb-3.5">
@@ -800,21 +837,9 @@ export function TradingForm({
       <div className="mt-4">
         <div className="flex justify-between items-baseline mb-2">
           <span className="text-[11px] text-gray-500 font-medium">Leverage</span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleMargin}
-              className={`text-[10px] px-2 py-0.5 rounded-full font-semibold transition-colors ${
-                isCross
-                  ? 'bg-blue-100 text-blue-600'
-                  : 'bg-orange-100 text-orange-600'
-              }`}
-            >
-              {isCross ? 'Cross' : 'Isolated'}
-            </button>
-            <span className="font-mono text-[18px] font-semibold tabular-nums text-amber-600">
-              {safeLeverage}×
-            </span>
-          </div>
+          <span className="font-mono text-[18px] font-semibold tabular-nums text-amber-600">
+            {safeLeverage}×
+          </span>
         </div>
         <input
           type="range"

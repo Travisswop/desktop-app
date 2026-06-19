@@ -280,6 +280,8 @@ function PositionsBody({
           const isClosing = closingCoin === p.coin;
           const rowKey = positionRowKey(p);
           const isSharing = sharingPositionKey === rowKey;
+          const marginModeLabel =
+            p.leverage.type === 'isolated' ? 'ISOLATED' : 'CROSS';
 
           return (
             <tr
@@ -297,11 +299,12 @@ function PositionsBody({
                       {p.coin}-PERP
                     </span>
                     <span
-                      className={`text-[10px] font-bold font-mono tracking-wide ${
+                      className={`whitespace-nowrap text-[10px] font-bold font-mono tracking-wide ${
                         isLong ? 'text-emerald-600' : 'text-red-500'
                       }`}
                     >
-                      {isLong ? 'LONG' : 'SHORT'} · {p.leverage.value}×
+                      {isLong ? 'LONG' : 'SHORT'} · {p.leverage.value}× ·{' '}
+                      {marginModeLabel}
                     </span>
                   </span>
                 </button>
