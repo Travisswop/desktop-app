@@ -20,6 +20,7 @@ interface MicrositeData {
   theme: boolean;
   ens: string;
   showFeed?: boolean;
+  templateOrder?: string[];
   redirect?: string;
   username?: string;
 }

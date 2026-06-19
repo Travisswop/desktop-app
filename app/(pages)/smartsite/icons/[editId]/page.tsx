@@ -21,7 +21,7 @@ const SmartsiteUpdatePage = async ({
     return (
       <div>
         <Suspense fallback={<SmartSiteIconLoading />}>
-          <MicrositeEditMainContentPage data={data} />
+          <MicrositeEditMainContentPage data={data} token={accessToken} />
         </Suspense>
       </div>
     );

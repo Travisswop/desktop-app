@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { motion, useDragControls } from "framer-motion";
 import swop from "@/public/images/live-preview/swop.svg";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
 import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
@@ -19,6 +20,7 @@ import AnimateButton from "../ui/Button/AnimateButton";
 import { fontMap } from "@/lib/fonts";
 import { MdDelete, MdDeleteForever } from "react-icons/md";
 import { handleDeleteMarketPlace } from "@/actions/handleMarketPlace";
+import { handleV5SmartSiteUpdate } from "@/actions/update";
 import { RiDeleteBinFill } from "react-icons/ri";
 import LivePreviewTimeline from "../feed/LivePreviewTimeline";
 import UpdateModalComponents from "./EditMicrosite/UpdateModalComponents";
@@ -53,12 +55,157 @@ import {
   groupSmartsiteMarketplaceItems,
   normalizeSmartsiteMarketplaceItems,
 } from "@/lib/smartsite-marketplace-display";
+import {
+  SMARTSITE_TEMPLATE_SECTION_META,
+  getSmartsiteTemplateItemKey,
+  getSmartsiteTemplateSectionKeyFromOrderKey,
+  normalizeSmartsiteTemplateBlockOrder,
+  SmartsiteTemplateSectionKey,
+} from "@/lib/smartsite-template-order";
+import { GripVertical, Loader2 } from "lucide-react";
+
+type SaveState = "idle" | "saving" | "saved" | "error";
+
+const smartsitePreviewItemKey = (
+  section: string,
+  item: any,
+  index: number,
+  extra?: string,
+) =>
+  [
+    section,
+    extra,
+    item?._id,
+    item?.id,
+    item?.marketplaceEntryId,
+    item?.marketplaceProductId,
+    item?.name,
+    item?.title,
+    index,
+  ]
+    .filter(Boolean)
+    .join("-");
+
+const COMPACT_SORTABLE_ROW_SECTIONS = new Set<SmartsiteTemplateSectionKey>([
+  "message",
+  "redeemLink",
+  "contact",
+  "ens",
+  "infoBar",
+  "product",
+  "audio",
+]);
+
+const SortablePreviewSection = ({
+  orderKey,
+  sectionKey,
+  order,
+  isDragging,
+  isDragOver,
+  isSaving,
+  className = "w-full",
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  children,
+}: {
+  orderKey: string;
+  sectionKey: SmartsiteTemplateSectionKey;
+  order: number;
+  isDragging: boolean;
+  isDragOver: boolean;
+  isSaving: boolean;
+  className?: string;
+  onDragStart: (orderKey: string) => void;
+  onDragMove: (orderKey: string, pointerY: number) => void;
+  onDragEnd: () => void;
+  children: React.ReactNode;
+}) => {
+  const dragControls = useDragControls();
+  const resolvedSectionKey =
+    getSmartsiteTemplateSectionKeyFromOrderKey(orderKey) || sectionKey;
+  const label = SMARTSITE_TEMPLATE_SECTION_META[resolvedSectionKey].label;
+  const isCompactRow = COMPACT_SORTABLE_ROW_SECTIONS.has(resolvedSectionKey);
+  const isFeedRow = resolvedSectionKey === "feed";
+
+  return (
+    <motion.div
+      layout="position"
+      data-smartsite-order-key={orderKey}
+      drag="y"
+      dragControls={dragControls}
+      dragElastic={0.035}
+      dragListener={false}
+      dragMomentum={false}
+      dragSnapToOrigin
+      onDrag={(_, info) => onDragMove(orderKey, info.point.y)}
+      onDragEnd={onDragEnd}
+      whileDrag={{ scale: isFeedRow ? 1.005 : 1.015, zIndex: 50 }}
+      transition={{ layout: { duration: 0.18, ease: "easeOut" } }}
+      className={`group/preview-sort grid w-[calc(100%+3rem)] -ml-12 grid-cols-[2.5rem_minmax(0,1fr)] gap-2 transition ${
+        isDragging ? "relative z-50 cursor-grabbing" : ""
+      } ${
+        isDragOver && !isDragging ? "rounded-xl ring-2 ring-black/10" : ""
+      }`}
+      style={{
+        order,
+        contain: isFeedRow ? "layout paint" : undefined,
+      }}
+    >
+      <div
+        className={`relative z-20 flex justify-center ${
+          isCompactRow ? "h-full items-center" : "min-h-[72px] pt-4"
+        }`}
+      >
+        <button
+          type="button"
+          aria-label={`Drag ${label}`}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onDragStart(orderKey);
+            dragControls.start(event);
+          }}
+          className="flex h-10 w-8 cursor-grab touch-none items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 shadow-[0_4px_14px_rgba(15,23,42,0.10)] transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-950 active:cursor-grabbing"
+        >
+          {isSaving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <GripVertical className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+      <div className={`${className} ${isCompactRow ? "[&_.my-2]:my-0" : ""}`}>
+        {isFeedRow && isDragging ? (
+          <div className="flex h-28 w-full items-center rounded-lg bg-white p-4 shadow-small">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
+              <GripVertical className="h-5 w-5" />
+            </div>
+            <div className="ml-3">
+              <p className="text-base font-semibold text-gray-950">Feed</p>
+              <p className="text-sm font-medium text-gray-400">
+                Latest posts
+              </p>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
+      </div>
+    </motion.div>
+  );
+};
 
 const SmartsiteIconLivePreview = ({
   data,
+  token,
+  onTemplateOrderChange,
 }: {
   isEditDetailsLivePreview?: boolean;
   data?: any;
+  token?: string;
+  onTemplateOrderChange?: (order: string[]) => void;
 }) => {
   const setSmartSiteData = useUpdateSmartIcon((state: any) => state.setState);
 
@@ -66,6 +213,11 @@ const SmartsiteIconLivePreview = ({
   const iconData: any = useUpdateSmartIcon();
 
   const [socialRows, setSocialRows] = useState<any>([]);
+  const [draggingOrderKey, setDraggingOrderKey] = useState<string | null>(null);
+  const [dragOverOrderKey, setDragOverOrderKey] = useState<string | null>(null);
+  const [orderSaveState, setOrderSaveState] = useState<SaveState>("idle");
+  const templateOrderRef = useRef<string[]>([]);
+  const dragStartOrderRef = useRef<string[] | null>(null);
 
   // console.log("state iconData", iconData);
   // const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
@@ -227,11 +379,222 @@ const SmartsiteIconLivePreview = ({
   const groupedMarketplaceItems = groupSmartsiteMarketplaceItems(
     marketplaceItems,
   );
+  const getMarketplaceItemKey = (
+    item: any,
+    sectionTitle: string,
+    index: number,
+  ) =>
+    [
+      item.marketplaceEntryId,
+      item.marketplaceProductId,
+      item._id,
+      sectionTitle,
+      index,
+    ]
+      .filter(Boolean)
+      .join("-");
   const previewName = formData.name || data.name;
   const previewBio = formData.bio || data.bio;
   const previewFontColor = formData.fontColor || data.fontColor || "black";
   const previewSecondaryFontColor =
     formData.secondaryFontColor || data.secondaryFontColor || "#D3D3D3";
+  const templateOrder = normalizeSmartsiteTemplateBlockOrder(
+    data,
+    data.templateOrder,
+  );
+
+  useEffect(() => {
+    templateOrderRef.current = templateOrder;
+  }, [templateOrder]);
+
+  const getTemplateBlockOrder = (orderKey: string) =>
+    templateOrder.indexOf(orderKey) + 10;
+
+  const areTemplateOrdersEqual = (left: string[], right: string[]) =>
+    left.length === right.length &&
+    left.every((orderKey, index) => orderKey === right[index]);
+
+  const moveTemplateOrderKey = (
+    order: string[],
+    sourceKey: string,
+    targetKey: string,
+  ) => {
+    if (sourceKey === targetKey) {
+      return order;
+    }
+
+    const sourceIndex = order.indexOf(sourceKey);
+    const targetIndex = order.indexOf(targetKey);
+
+    if (sourceIndex === -1 || targetIndex === -1) {
+      return order;
+    }
+
+    const nextOrder = [...order];
+    const [movedTemplate] = nextOrder.splice(sourceIndex, 1);
+    nextOrder.splice(targetIndex, 0, movedTemplate);
+
+    return nextOrder;
+  };
+
+  const saveTemplateOrder = async (
+    nextOrder: string[],
+    previousOrder: string[],
+  ) => {
+    onTemplateOrderChange?.(nextOrder);
+
+    if (!token || !data?._id) {
+      return;
+    }
+
+    setOrderSaveState("saving");
+
+    try {
+      const result = await handleV5SmartSiteUpdate(
+        {
+          _id: data._id,
+          templateOrder: nextOrder,
+        },
+        token,
+      );
+
+      if (!result || result.state !== "success") {
+        throw new Error("Template order update failed");
+      }
+
+      setOrderSaveState("saved");
+      window.setTimeout(() => setOrderSaveState("idle"), 1200);
+    } catch (error) {
+      console.error(error);
+      onTemplateOrderChange?.(previousOrder);
+      setOrderSaveState("error");
+    }
+  };
+
+  const findTemplateDragTarget = (sourceKey: string, pointerY: number) => {
+    const currentOrder = templateOrderRef.current;
+    const sourceIndex = currentOrder.indexOf(sourceKey);
+
+    if (sourceIndex === -1) {
+      return null;
+    }
+
+    const rows = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-smartsite-order-key]"),
+    )
+      .map((element) => {
+        const key = element.dataset.smartsiteOrderKey || "";
+        const rect = element.getBoundingClientRect();
+
+        return {
+          key,
+          top: rect.top,
+          bottom: rect.bottom,
+          centerY: rect.top + rect.height / 2,
+        };
+      })
+      .filter((row) => row.key && row.key !== sourceKey);
+
+    if (!rows.length) {
+      return null;
+    }
+
+    const target = rows.reduce((closest, row) => {
+      const distance = Math.abs(row.centerY - pointerY);
+      const closestDistance = Math.abs(closest.centerY - pointerY);
+      return distance < closestDistance ? row : closest;
+    }, rows[0]);
+
+    const targetIndex = currentOrder.indexOf(target.key);
+
+    if (targetIndex === -1) {
+      return null;
+    }
+
+    if (sourceIndex < targetIndex && pointerY < target.centerY) {
+      return null;
+    }
+
+    if (sourceIndex > targetIndex && pointerY > target.centerY) {
+      return null;
+    }
+
+    return target.key;
+  };
+
+  const maybeScrollPreviewWhileDragging = (pointerY: number) => {
+    const scrollContainer = document.querySelector<HTMLElement>(
+      "[data-smartsite-preview-scroll]",
+    );
+    if (!scrollContainer) {
+      return;
+    }
+
+    const bounds = scrollContainer.getBoundingClientRect();
+    const edgeSize = 92;
+    const maxScrollStep = 16;
+
+    if (pointerY < bounds.top + edgeSize) {
+      scrollContainer.scrollTop -= maxScrollStep;
+    } else if (pointerY > bounds.bottom - edgeSize) {
+      scrollContainer.scrollTop += maxScrollStep;
+    }
+  };
+
+  const previewTemplateReorder = (sourceKey: string, targetKey: string) => {
+    const previousOrder = templateOrderRef.current;
+    const nextOrder = moveTemplateOrderKey(previousOrder, sourceKey, targetKey);
+
+    if (nextOrder === previousOrder || areTemplateOrdersEqual(nextOrder, previousOrder)) {
+      return;
+    }
+
+    templateOrderRef.current = nextOrder;
+    onTemplateOrderChange?.(nextOrder);
+  };
+
+  const handleTemplateDragStart = (orderKey: string) => {
+    dragStartOrderRef.current = templateOrderRef.current;
+    setDraggingOrderKey(orderKey);
+    setDragOverOrderKey(null);
+  };
+
+  const handleTemplateDragMove = (sourceKey: string, pointerY: number) => {
+    maybeScrollPreviewWhileDragging(pointerY);
+
+    const targetKey = findTemplateDragTarget(sourceKey, pointerY);
+    if (!targetKey) {
+      return;
+    }
+
+    setDragOverOrderKey(targetKey);
+    previewTemplateReorder(sourceKey, targetKey);
+  };
+
+  const handleTemplateDragEnd = () => {
+    const previousOrder = dragStartOrderRef.current;
+    const nextOrder = templateOrderRef.current;
+
+    dragStartOrderRef.current = null;
+    setDraggingOrderKey(null);
+    setDragOverOrderKey(null);
+
+    if (!previousOrder || areTemplateOrdersEqual(previousOrder, nextOrder)) {
+      return;
+    }
+
+    void saveTemplateOrder(nextOrder, previousOrder);
+  };
+
+  const getSortablePreviewProps = (orderKey: string) => ({
+    order: getTemplateBlockOrder(orderKey),
+    isDragging: draggingOrderKey === orderKey,
+    isDragOver: dragOverOrderKey === orderKey,
+    isSaving: orderSaveState === "saving" && draggingOrderKey === orderKey,
+    onDragStart: handleTemplateDragStart,
+    onDragMove: handleTemplateDragMove,
+    onDragEnd: handleTemplateDragEnd,
+  });
 
   return (
     <div
@@ -242,6 +605,7 @@ const SmartsiteIconLivePreview = ({
             : "none",
         backgroundColor: formData.backgroundColor && formData.backgroundColor,
       }}
+      data-smartsite-preview-scroll
       className="max-w-screen h-[calc(100vh-96px)] overflow-x-hidden -m-6 bg-cover bg-no-repeat overflow-y-auto"
     >
       <div className="relative max-w-md mx-auto h-full ">
@@ -252,7 +616,7 @@ const SmartsiteIconLivePreview = ({
         >
           <div className={`flex flex-col justify-between pb-24`}>
             <div>
-              <div className={`space-y-5 h-full justify-start mt-10`}>
+              <div className={`flex h-full flex-col gap-3 justify-start mt-10`}>
                 <Header
                   isFromPublicProfile={false}
                   avatar={data.profilePic}
@@ -271,7 +635,12 @@ const SmartsiteIconLivePreview = ({
                 />
 
                 {/* small icon display here start */}
-                <div className="space-y-4">
+                <SortablePreviewSection
+                  orderKey="socialTop"
+                  sectionKey="socialTop"
+                  {...getSortablePreviewProps("socialTop")}
+                  className="space-y-4"
+                >
                   {socialRows.map((row: any[], rowIndex: number) => (
                     <div
                       key={rowIndex}
@@ -279,7 +648,12 @@ const SmartsiteIconLivePreview = ({
                     >
                       {row.map((item: any, index: number) => (
                         <SocialSmall
-                          key={item.name}
+                          key={smartsitePreviewItemKey(
+                            "socialTop",
+                            item,
+                            index,
+                            String(rowIndex),
+                          )}
                           number={index}
                           data={item}
                           socialType="socialTop"
@@ -294,12 +668,17 @@ const SmartsiteIconLivePreview = ({
                       ))}
                     </div>
                   ))}
-                </div>
+                </SortablePreviewSection>
                 {/* small icon display here end */}
 
                 {/* marketPlace display here start */}
                 {marketplaceItems.length > 0 && (
-                  <div className="flex flex-col gap-y-5 px-3 overflow-x-hidden">
+                  <SortablePreviewSection
+                    orderKey="marketPlace"
+                    sectionKey="marketPlace"
+                    {...getSortablePreviewProps("marketPlace")}
+                    className="flex flex-col gap-y-5 px-3 overflow-x-hidden"
+                  >
                     {Object.entries(groupedMarketplaceItems).map(
                       ([sectionTitle, items]) => (
                       <div key={sectionTitle} className="flex flex-col gap-y-1">
@@ -324,7 +703,11 @@ const SmartsiteIconLivePreview = ({
                             <CarouselContent className="-ml-2 pb-4 px-1">
                               {items.map((item: any, index: number) => (
                                 <CarouselItem
-                                  key={item._id}
+                                  key={getMarketplaceItemKey(
+                                    item,
+                                    sectionTitle,
+                                    index,
+                                  )}
                                   className={`${index === 0 ? "pl-2" : "pl-3"} basis-[45%]`}
                                 >
                                   <div className="bg-white rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group">
@@ -377,9 +760,13 @@ const SmartsiteIconLivePreview = ({
                           </Carousel>
                         ) : (
                           <div className="grid grid-cols-2 gap-3 mr-[11%] sm:mr-12 ml-1 pb-4">
-                            {items.map((item: any) => (
+                            {items.map((item: any, index: number) => (
                               <div
-                                key={item._id}
+                                key={getMarketplaceItemKey(
+                                  item,
+                                  sectionTitle,
+                                  index,
+                                )}
                                 className="bg-white rounded-xl shadow-small hover:shadow-medium transition-all duration-200 relative overflow-hidden group"
                               >
                                 <button
@@ -430,16 +817,28 @@ const SmartsiteIconLivePreview = ({
                         )}
                       </div>
                     ))}
-                  </div>
+                  </SortablePreviewSection>
                 )}
                 {/* marketPlace display here end */}
 
                 {/* blog display here start */}
                 {data.info.blog.length > 0 && (
-                  <div className="flex flex-col gap-y-3 px-3">
+                  <>
                     {data.info.blog.map((item: any, index: number) => (
+                    <SortablePreviewSection
+                      key={smartsitePreviewItemKey("blog", item, index)}
+                      orderKey={getSmartsiteTemplateItemKey(
+                        "blog",
+                        item,
+                        index,
+                      )}
+                      sectionKey="blog"
+                      {...getSortablePreviewProps(
+                        getSmartsiteTemplateItemKey("blog", item, index),
+                      )}
+                      className="px-3"
+                    >
                       <div
-                        key={index}
                         onClick={() =>
                           handleTriggerUpdate({
                             data: item,
@@ -488,18 +887,28 @@ const SmartsiteIconLivePreview = ({
                           </button>
                         </div>
                       </div>
+                    </SortablePreviewSection>
                     ))}
-                  </div>
+                  </>
                 )}
                 {/* blog display here end */}
 
                 {/* app icon display here start */}
                 {data.info.socialLarge.length > 0 && (
-                  <div className="w-full flex flex-wrap items-center justify-center gap-y-6 my-4">
+                  <SortablePreviewSection
+                    orderKey="socialLarge"
+                    sectionKey="socialLarge"
+                    {...getSortablePreviewProps("socialLarge")}
+                    className="w-full flex flex-wrap items-center justify-center gap-y-6 my-4"
+                  >
                     {data.info.socialLarge.map((social: any, index: number) => (
                       <SocialLarge
                         number={index}
-                        key={index}
+                        key={smartsitePreviewItemKey(
+                          "socialLarge",
+                          social,
+                          index,
+                        )}
                         data={social}
                         socialType="socialLarge"
                         fontColor={previewFontColor}
@@ -512,39 +921,63 @@ const SmartsiteIconLivePreview = ({
                         }
                       />
                     ))}
-                  </div>
+                  </SortablePreviewSection>
                 )}
                 {/* app icon display here end */}
 
                 {/* referral display here start */}
                 {data.info.referral.length > 0 && (
-                  <div className="w-full">
+                  <>
                     {data.info.referral.map((social: any, index: number) => (
-                      <Referral
-                        number={index}
-                        key={social._id}
-                        onClick={() =>
-                          handleTriggerUpdate({
-                            data,
-                            categoryForTrigger: "referral",
-                          })
-                        }
-                        data={social}
-                        socialType="referral"
-                        accessToken={accessToken || ""}
-                        fontColor={previewFontColor}
-                        secondaryFontColor={previewSecondaryFontColor}
-                      />
+                      <SortablePreviewSection
+                        key={smartsitePreviewItemKey(
+                          "referral",
+                          social,
+                          index,
+                        )}
+                        orderKey={getSmartsiteTemplateItemKey(
+                          "referral",
+                          social,
+                          index,
+                        )}
+                        sectionKey="referral"
+                        {...getSortablePreviewProps(
+                          getSmartsiteTemplateItemKey(
+                            "referral",
+                            social,
+                            index,
+                          ),
+                        )}
+                      >
+                        <Referral
+                          number={index}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data,
+                              categoryForTrigger: "referral",
+                            })
+                          }
+                          data={social}
+                          socialType="referral"
+                          accessToken={accessToken || ""}
+                          fontColor={previewFontColor}
+                          secondaryFontColor={previewSecondaryFontColor}
+                        />
+                      </SortablePreviewSection>
                     ))}
-                  </div>
+                  </>
                 )}
                 {/* referral display here end */}
 
                 {/* card here  */}
-                <div className="flex flex-col">
+                <div className="contents">
                   {/* message me display here start */}
                   {data.info.ensDomain.length > 0 && (
-                    <div className="w-full">
+                    <SortablePreviewSection
+                      orderKey="message"
+                      sectionKey="message"
+                      {...getSortablePreviewProps("message")}
+                    >
                       <Message
                         number={0}
                         onClick={() =>
@@ -556,68 +989,120 @@ const SmartsiteIconLivePreview = ({
                             categoryForTrigger: "ens",
                           })
                         }
-                        key={data.info.ensDomain[0]._id}
+                        key={smartsitePreviewItemKey(
+                          "message",
+                          data.info.ensDomain[0],
+                          0,
+                        )}
                         data={data.info.ensDomain[0]}
                         socialType="ens"
                         fontColor={previewFontColor}
                         secondaryFontColor={previewSecondaryFontColor}
-                      />
-                    </div>
+                        />
+                    </SortablePreviewSection>
                   )}
 
                   {/* redeemable link display here start */}
                   {data.info.redeemLink.length > 0 && (
-                    <div className="w-full">
+                    <>
                       {data.info.redeemLink.map((item: any, index: number) => (
-                        <Redeem
-                          number={index}
-                          key={item._id}
-                          onClick={() =>
-                            handleTriggerUpdate({
-                              data: item,
-                              categoryForTrigger: "redeemLink",
-                            })
-                          }
-                          data={item}
-                          socialType="redeemLink"
-                          accessToken={accessToken || ""}
-                          fontColor={previewFontColor}
-                          secondaryFontColor={previewSecondaryFontColor}
-                        />
+                        <SortablePreviewSection
+                          key={smartsitePreviewItemKey(
+                            "redeemLink",
+                            item,
+                            index,
+                          )}
+                          orderKey={getSmartsiteTemplateItemKey(
+                            "redeemLink",
+                            item,
+                            index,
+                          )}
+                          sectionKey="redeemLink"
+                          {...getSortablePreviewProps(
+                            getSmartsiteTemplateItemKey(
+                              "redeemLink",
+                              item,
+                              index,
+                            ),
+                          )}
+                        >
+                          <Redeem
+                            number={index}
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data: item,
+                                categoryForTrigger: "redeemLink",
+                              })
+                            }
+                            data={item}
+                            socialType="redeemLink"
+                            accessToken={accessToken || ""}
+                            fontColor={previewFontColor}
+                            secondaryFontColor={previewSecondaryFontColor}
+                          />
+                        </SortablePreviewSection>
                       ))}
-                    </div>
+                    </>
                   )}
                   {/* redeemable link display here start */}
                   {/* contact card display here start */}
                   {data.info.contact.length > 0 && (
-                    <div className="w-full">
+                    <>
                       {data.info.contact.map((item: any, index: number) => (
-                        <Contact
-                          number={index}
-                          key={item._id}
-                          data={item}
-                          socialType="contact"
-                          accessToken={accessToken || ""}
-                          fontColor={previewFontColor}
-                          secondaryFontColor={previewSecondaryFontColor}
-                          onClick={() =>
-                            handleTriggerUpdate({
-                              data: item,
-                              categoryForTrigger: "contactCard",
-                            })
-                          }
-                        />
+                        <SortablePreviewSection
+                          key={smartsitePreviewItemKey(
+                            "contact",
+                            item,
+                            index,
+                          )}
+                          orderKey={getSmartsiteTemplateItemKey(
+                            "contact",
+                            item,
+                            index,
+                          )}
+                          sectionKey="contact"
+                          {...getSortablePreviewProps(
+                            getSmartsiteTemplateItemKey(
+                              "contact",
+                              item,
+                              index,
+                            ),
+                          )}
+                        >
+                          <Contact
+                            number={index}
+                            data={item}
+                            socialType="contact"
+                            accessToken={accessToken || ""}
+                            fontColor={previewFontColor}
+                            secondaryFontColor={previewSecondaryFontColor}
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data: item,
+                                categoryForTrigger: "contactCard",
+                              })
+                            }
+                          />
+                        </SortablePreviewSection>
                       ))}
-                    </div>
+                    </>
                   )}
                   {/* contact card display here end */}
 
                   {/* ENS display here start */}
                   {data.info.ensDomain.length > 0 && (
-                    <div className="w-full">
+                    <SortablePreviewSection
+                      orderKey="ens"
+                      sectionKey="ens"
+                      {...getSortablePreviewProps("ens")}
+                    >
                       <Ens
                         number={0}
-                        key={data.info.ensDomain[0]._id}
+                        key={smartsitePreviewItemKey(
+                          "ens",
+                          data.info.ensDomain[0],
+                          0,
+                        )}
                         data={data.info.ensDomain[0]}
                         socialType="ens"
                         // parentId={parentId}
@@ -631,129 +1116,223 @@ const SmartsiteIconLivePreview = ({
                             categoryForTrigger: "ens",
                           })
                         }
-                      />
-                    </div>
+                        />
+                    </SortablePreviewSection>
                   )}
                   {/* ENS display here end */}
 
                   {/* info bar display here start */}
                   {data.info.infoBar.length > 0 && (
-                    <div className="w-full">
+                    <>
                       {data.info.infoBar.map((item: any, index: number) => (
-                        <InfoBar
-                          number={index}
-                          key={item._id}
-                          data={item}
-                          socialType="infoBar"
-                          accessToken={accessToken || ""}
-                          fontColor={previewFontColor}
-                          secondaryFontColor={previewSecondaryFontColor}
-                          onClick={() =>
-                            handleTriggerUpdate({
-                              data: item,
-                              categoryForTrigger: "infoBar",
-                            })
-                          }
-                        />
+                        <SortablePreviewSection
+                          key={smartsitePreviewItemKey(
+                            "infoBar",
+                            item,
+                            index,
+                          )}
+                          orderKey={getSmartsiteTemplateItemKey(
+                            "infoBar",
+                            item,
+                            index,
+                          )}
+                          sectionKey="infoBar"
+                          {...getSortablePreviewProps(
+                            getSmartsiteTemplateItemKey(
+                              "infoBar",
+                              item,
+                              index,
+                            ),
+                          )}
+                        >
+                          <InfoBar
+                            number={index}
+                            data={item}
+                            socialType="infoBar"
+                            accessToken={accessToken || ""}
+                            fontColor={previewFontColor}
+                            secondaryFontColor={previewSecondaryFontColor}
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data: item,
+                                categoryForTrigger:
+                                  item.group === "reviewReward"
+                                    ? "reviewReward"
+                                    : "infoBar",
+                              })
+                            }
+                          />
+                        </SortablePreviewSection>
                       ))}
-                    </div>
+                    </>
                   )}
                   {/* info bar display here end */}
 
                   {/* swop pay display here start */}
                   {data.info.product.length > 0 && (
-                    <div className="w-full">
+                    <>
                       {data.info.product.map((item: any, index: number) => (
-                        <PaymentBar
-                          number={index}
-                          key={item._id}
-                          data={item}
-                          socialType="product"
-                          // parentId={parentId}
-                          accessToken={accessToken || ""}
-                          fontColor={previewFontColor}
-                          secondaryFontColor={previewSecondaryFontColor}
-                          onClick={() =>
-                            handleTriggerUpdate({
-                              data: item,
-                              categoryForTrigger: "swopPay",
-                            })
-                          }
-                        />
+                        <SortablePreviewSection
+                          key={smartsitePreviewItemKey(
+                            "product",
+                            item,
+                            index,
+                          )}
+                          orderKey={getSmartsiteTemplateItemKey(
+                            "product",
+                            item,
+                            index,
+                          )}
+                          sectionKey="product"
+                          {...getSortablePreviewProps(
+                            getSmartsiteTemplateItemKey(
+                              "product",
+                              item,
+                              index,
+                            ),
+                          )}
+                        >
+                          <PaymentBar
+                            number={index}
+                            data={item}
+                            socialType="product"
+                            // parentId={parentId}
+                            accessToken={accessToken || ""}
+                            fontColor={previewFontColor}
+                            secondaryFontColor={previewSecondaryFontColor}
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data: item,
+                                categoryForTrigger: "swopPay",
+                              })
+                            }
+                          />
+                        </SortablePreviewSection>
                       ))}
-                    </div>
+                    </>
                   )}
                   {/* swop pay display here end */}
 
                   {/* audio||music display here start */}
                   {data.info.audio.length > 0 && (
-                    <div className="w-full">
+                    <>
                       {data.info.audio.map((audioData: any, index: number) => (
-                        <MP3
-                          number={index}
-                          key={audioData._id}
-                          onClick={() =>
-                            handleTriggerUpdate({
-                              data: audioData,
-                              categoryForTrigger: "audio",
-                            })
-                          }
-                          data={audioData}
-                          socialType="audio"
-                          length={data.info.audio.length}
-                          fontColor={previewFontColor}
-                          secondaryFontColor={previewSecondaryFontColor}
-                        />
+                        <SortablePreviewSection
+                          key={smartsitePreviewItemKey(
+                            "audio",
+                            audioData,
+                            index,
+                          )}
+                          orderKey={getSmartsiteTemplateItemKey(
+                            "audio",
+                            audioData,
+                            index,
+                          )}
+                          sectionKey="audio"
+                          {...getSortablePreviewProps(
+                            getSmartsiteTemplateItemKey(
+                              "audio",
+                              audioData,
+                              index,
+                            ),
+                          )}
+                        >
+                          <MP3
+                            number={index}
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data: audioData,
+                                categoryForTrigger: "audio",
+                              })
+                            }
+                            data={audioData}
+                            socialType="audio"
+                            length={data.info.audio.length}
+                            fontColor={previewFontColor}
+                            secondaryFontColor={previewSecondaryFontColor}
+                          />
+                        </SortablePreviewSection>
                       ))}
-                    </div>
+                    </>
                   )}
                   {/* audio||music display here end */}
                 </div>
 
                 {/* Image / Video Section */}
                 {data.info.video.length > 0 && (
-                  <MediaList
-                    items={data.info.video}
-                    getMediaType={getMediaType}
-                    fontColor={previewFontColor}
-                    onClick={(item) =>
-                      handleTriggerUpdate({
-                        data: item,
-                        categoryForTrigger: "video",
-                      })
-                    }
-                  />
+                  <SortablePreviewSection
+                    orderKey="video"
+                    sectionKey="video"
+                    {...getSortablePreviewProps("video")}
+                  >
+                    <MediaList
+                      items={data.info.video}
+                      getMediaType={getMediaType}
+                      fontColor={previewFontColor}
+                      onClick={(item) =>
+                        handleTriggerUpdate({
+                          data: item,
+                          categoryForTrigger: "video",
+                        })
+                      }
+                    />
+                  </SortablePreviewSection>
                 )}
 
                 {/* Embeded Link */}
                 {data.info?.videoUrl && data.info.videoUrl.length > 0 && (
-                  <div className="w-full space-y-3">
-                    {data.info.videoUrl.map((social: any) => (
-                      <EmbedVideo
-                        key={social._id}
-                        data={social}
-                        onClick={() =>
-                          handleTriggerUpdate({
-                            data: social,
-                            categoryForTrigger: "embed",
-                          })
-                        }
-                      />
+                  <>
+                    {data.info.videoUrl.map((social: any, index: number) => (
+                      <SortablePreviewSection
+                        key={smartsitePreviewItemKey(
+                          "videoUrl",
+                          social,
+                          index,
+                        )}
+                        orderKey={getSmartsiteTemplateItemKey(
+                          "videoUrl",
+                          social,
+                          index,
+                        )}
+                        sectionKey="videoUrl"
+                        {...getSortablePreviewProps(
+                          getSmartsiteTemplateItemKey(
+                            "videoUrl",
+                            social,
+                            index,
+                          ),
+                        )}
+                      >
+                        <EmbedVideo
+                          data={social}
+                          onClick={() =>
+                            handleTriggerUpdate({
+                              data: social,
+                              categoryForTrigger: "embed",
+                            })
+                          }
+                        />
+                      </SortablePreviewSection>
                     ))}
-                  </div>
+                  </>
                 )}
                 {/* embed link display here end */}
+                {data?.showFeed && accessToken && user && (
+                  <SortablePreviewSection
+                    orderKey="feed"
+                    sectionKey="feed"
+                    {...getSortablePreviewProps("feed")}
+                    className="mt-1"
+                  >
+                    <EmbeddedFeed
+                      accessToken={accessToken || ""}
+                      userId={user?._id || ""}
+                      micrositeId={user?.primaryMicrosite || ""}
+                      isOrderPreview
+                    />
+                  </SortablePreviewSection>
+                )}
               </div>
-
-              {data?.showFeed && accessToken && user && (
-                <div className="mt-6">
-                  <EmbeddedFeed
-                    accessToken={accessToken || ""}
-                    userId={user?._id || ""}
-                    micrositeId={user?.primaryMicrosite || ""}
-                  />
-                </div>
-              )}
             </div>
 
             <div className="flex items-center justify-center gap-2 h-12 2xl:-translate-y-3 pt-3">

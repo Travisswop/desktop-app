@@ -39,6 +39,10 @@ import {
   groupSmartsiteMarketplaceItems,
   normalizeSmartsiteMarketplaceItems,
 } from "@/lib/smartsite-marketplace-display";
+import {
+  getSmartsiteTemplateItemKey,
+  normalizeSmartsiteTemplateBlockOrder,
+} from "@/lib/smartsite-template-order";
 
 interface ClientProfileProps {
   userName: string;
@@ -85,6 +89,12 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
   } = micrositeData;
 
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
+  const templateOrder = normalizeSmartsiteTemplateBlockOrder(
+    micrositeData,
+    micrositeData.templateOrder,
+  );
+  const getTemplateBlockOrder = (orderKey: string) =>
+    templateOrder.indexOf(orderKey) + 10;
 
   return (
     <>
@@ -106,7 +116,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
         }`}
       >
         <main
-          className={`flex max-w-md mx-auto min-h-screen flex-col items-center z-50 space-y-5 overflow-x-hidden`}
+          className={`flex max-w-md mx-auto min-h-screen flex-col items-center z-50 gap-2 overflow-x-hidden`}
         >
           <CartProvider>
             <Header
@@ -126,7 +136,10 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
             {/* Social Media Small */}
             {info?.socialTop && info.socialTop.length > 0 && (
-              <div className="space-y-4">
+              <div
+                className="space-y-4"
+                style={{ order: getTemplateBlockOrder("socialTop") }}
+              >
                 {distributeSmallIcons(info.socialTop).map((row, rowIndex) => (
                   <div
                     key={rowIndex}
@@ -150,7 +163,10 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
             {/* market place */}
             {marketplaceItems.length > 0 && (
-              <div className="w-full space-y-1 mb-4">
+              <div
+                className="w-full space-y-1 mb-4"
+                style={{ order: getTemplateBlockOrder("marketPlace") }}
+              >
                 {Object.entries(groupedMarketplaceItems).map(
                   ([sectionTitle, items]) => (
                     <div key={sectionTitle} className="w-full">
@@ -217,23 +233,35 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
             {/* Blog */}
             {info?.blog && info.blog.length > 0 && (
-              <div className="w-full space-y-4 -pt-4">
+              <>
                 {info.blog.map((social: any, index: number) => (
-                  <Blog
-                    number={index}
+                  <div
                     key={social._id}
-                    data={social}
-                    socialType="blog"
-                    parentId={parentId}
-                    fontColor={fontColor}
-                    secondaryFontColor={secondaryFontColor}
-                  />
+                    className="w-full"
+                    style={{
+                      order: getTemplateBlockOrder(
+                        getSmartsiteTemplateItemKey("blog", social, index),
+                      ),
+                    }}
+                  >
+                    <Blog
+                      number={index}
+                      data={social}
+                      socialType="blog"
+                      parentId={parentId}
+                      fontColor={fontColor}
+                      secondaryFontColor={secondaryFontColor}
+                    />
+                  </div>
                 ))}
-              </div>
+              </>
             )}
             {/* Social Media Big */}
             {info?.socialLarge && info.socialLarge.length > 0 && (
-              <div className="w-full flex flex-wrap items-center justify-center gap-y-6 my-4">
+              <div
+                className="w-full flex flex-wrap items-center justify-center gap-y-6 my-4"
+                style={{ order: getTemplateBlockOrder("socialLarge") }}
+              >
                 {info.socialLarge.map((social: any, index: number) => (
                   <SocialLarge
                     number={index}
@@ -252,11 +280,14 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               style={{
                 color: secondaryFontColor && secondaryFontColor,
               }}
-              className="w-full"
+              className="contents"
             >
               {/* Message */}
               {info?.ensDomain && info.ensDomain.length > 0 && (
-                <div className="w-full">
+                <div
+                  className="w-full"
+                  style={{ order: getTemplateBlockOrder("message") }}
+                >
                   <Message
                     number={0}
                     key={ensDomain._id}
@@ -270,43 +301,68 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               )}
               {/* Redeem Link */}
               {info?.redeemLink && info.redeemLink.length > 0 && (
-                <div className="w-full">
+                <>
                   {info.redeemLink.map((social: any, index: number) => (
-                    <Redeem
-                      number={index}
+                    <div
                       key={social._id}
-                      data={social}
-                      socialType="redeemLink"
-                      parentId={parentId}
-                      accessToken={accessToken || ""}
-                      fontColor={fontColor}
-                      secondaryFontColor={secondaryFontColor}
-                    />
+                      className="w-full"
+                      style={{
+                        order: getTemplateBlockOrder(
+                          getSmartsiteTemplateItemKey(
+                            "redeemLink",
+                            social,
+                            index,
+                          ),
+                        ),
+                      }}
+                    >
+                      <Redeem
+                        number={index}
+                        data={social}
+                        socialType="redeemLink"
+                        parentId={parentId}
+                        accessToken={accessToken || ""}
+                        fontColor={fontColor}
+                        secondaryFontColor={secondaryFontColor}
+                      />
+                    </div>
                   ))}
-                </div>
+                </>
               )}
 
               {/* Referral Code */}
               {info.referral && info.referral.length > 0 && (
-                <div className="w-full">
+                <>
                   {info.referral.map((social: any, index: number) => (
-                    <Referral
-                      number={index}
+                    <div
                       key={social._id}
-                      data={social}
-                      socialType="referral"
-                      parentId={parentId}
-                      accessToken={accessToken || ""}
-                      fontColor={fontColor}
-                      secondaryFontColor={secondaryFontColor}
-                    />
+                      className="w-full"
+                      style={{
+                        order: getTemplateBlockOrder(
+                          getSmartsiteTemplateItemKey("referral", social, index),
+                        ),
+                      }}
+                    >
+                      <Referral
+                        number={index}
+                        data={social}
+                        socialType="referral"
+                        parentId={parentId}
+                        accessToken={accessToken || ""}
+                        fontColor={fontColor}
+                        secondaryFontColor={secondaryFontColor}
+                      />
+                    </div>
                   ))}
-                </div>
+                </>
               )}
 
               {/* ENS */}
               {info?.ensDomain && info.ensDomain.length > 0 && (
-                <div className="w-full">
+                <div
+                  className="w-full"
+                  style={{ order: getTemplateBlockOrder("ens") }}
+                >
                   <Ens
                     number={0}
                     key={ensDomain._id}
@@ -322,93 +378,144 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
 
               {/* Contact card */}
               {info?.contact && info.contact.length > 0 && (
-                <div className="w-full">
+                <>
                   {info.contact.map((social: any, index: number) => (
-                    <Contact
-                      number={index}
+                    <div
                       key={social._id}
-                      data={social}
-                      socialType="contact"
-                      parentId={parentId}
-                      accessToken={accessToken || ""}
-                      fontColor={fontColor}
-                      secondaryFontColor={secondaryFontColor}
-                    />
+                      className="w-full"
+                      style={{
+                        order: getTemplateBlockOrder(
+                          getSmartsiteTemplateItemKey("contact", social, index),
+                        ),
+                      }}
+                    >
+                      <Contact
+                        number={index}
+                        data={social}
+                        socialType="contact"
+                        parentId={parentId}
+                        accessToken={accessToken || ""}
+                        fontColor={fontColor}
+                        secondaryFontColor={secondaryFontColor}
+                      />
+                    </div>
                   ))}
-                </div>
+                </>
               )}
 
               {/* InfoBar */}
               {info?.infoBar && info.infoBar.length > 0 && (
-                <div className="w-full">
+                <>
                   {info.infoBar.map((social: any, index: number) => (
-                    <InfoBar
-                      number={index}
+                    <div
                       key={social._id}
-                      data={social}
-                      socialType="infoBar"
-                      parentId={parentId}
-                      accessToken={accessToken || ""}
-                      fontColor={fontColor}
-                      secondaryFontColor={secondaryFontColor}
-                    />
+                      className="w-full"
+                      style={{
+                        order: getTemplateBlockOrder(
+                          getSmartsiteTemplateItemKey("infoBar", social, index),
+                        ),
+                      }}
+                    >
+                      <InfoBar
+                        number={index}
+                        data={social}
+                        socialType="infoBar"
+                        parentId={parentId}
+                        accessToken={accessToken || ""}
+                        fontColor={fontColor}
+                        secondaryFontColor={secondaryFontColor}
+                      />
+                    </div>
                   ))}
-                </div>
+                </>
               )}
 
               {/* Product Payment */}
               {info?.product && info.product.length > 0 && (
-                <div className="w-full">
+                <>
                   {info.product.map((social: any, index: number) => (
-                    <PaymentBar
-                      number={index}
+                    <div
                       key={social._id}
-                      data={social}
-                      socialType="product"
-                      parentId={parentId}
-                      accessToken={accessToken || ""}
-                      fontColor={fontColor}
-                      secondaryFontColor={secondaryFontColor}
-                    />
+                      className="w-full"
+                      style={{
+                        order: getTemplateBlockOrder(
+                          getSmartsiteTemplateItemKey("product", social, index),
+                        ),
+                      }}
+                    >
+                      <PaymentBar
+                        number={index}
+                        data={social}
+                        socialType="product"
+                        parentId={parentId}
+                        accessToken={accessToken || ""}
+                        fontColor={fontColor}
+                        secondaryFontColor={secondaryFontColor}
+                      />
+                    </div>
                   ))}
-                </div>
+                </>
               )}
 
               {/* Audio */}
               {info?.audio && info.audio.length > 0 && (
-                <div className="w-full mt-1">
+                <>
                   {info.audio.map((social: any, index: number) => (
-                    <MP3
-                      number={index}
+                    <div
                       key={social._id}
-                      data={social}
-                      socialType="audio"
-                      parentId={parentId}
-                      length={info.audio.length}
-                      fontColor={fontColor}
-                      secondaryFontColor={secondaryFontColor}
-                    />
+                      className="w-full mt-1"
+                      style={{
+                        order: getTemplateBlockOrder(
+                          getSmartsiteTemplateItemKey("audio", social, index),
+                        ),
+                      }}
+                    >
+                      <MP3
+                        number={index}
+                        data={social}
+                        socialType="audio"
+                        parentId={parentId}
+                        length={info.audio.length}
+                        fontColor={fontColor}
+                        secondaryFontColor={secondaryFontColor}
+                      />
+                    </div>
                   ))}
-                </div>
+                </>
               )}
             </div>
 
             {/* Image / Video Section */}
             {info?.video && info.video.length > 0 && (
-              <MediaList
-                items={info.video}
-                getMediaType={getMediaType}
-                fontColor={fontColor}
-              />
+              <div
+                className="w-full"
+                style={{ order: getTemplateBlockOrder("video") }}
+              >
+                <MediaList
+                  items={info.video}
+                  getMediaType={getMediaType}
+                  fontColor={fontColor}
+                />
+              </div>
             )}
 
             {/* Embeded Link */}
             {info?.videoUrl && info.videoUrl.length > 0 && (
-              <div className="w-full space-y-3">
+              <>
                 {info.videoUrl.map((social: any, index: number) => (
-                  <EmbedVideo key={social._id} data={social} />
+                  <div
+                    key={social._id}
+                    className="w-full"
+                    style={{
+                      order: getTemplateBlockOrder(
+                        getSmartsiteTemplateItemKey("videoUrl", social, index),
+                      ),
+                    }}
+                  >
+                    <EmbedVideo data={social} />
+                  </div>
                 ))}
-              </div>
+              </>
             )}
 
             {micrositeData?.showFeed && (
@@ -422,15 +529,20 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               //   setIsPosting={() => {}}
               //   isFromPublicProfile={true}
               // />
-              <EmbeddedFeed
-                accessToken={accessToken || ""}
-                userId={user?._id || accessUserIdFromCookie || ""}
-                micrositeId={micrositeData._id}
-              />
+              <div
+                className="w-full"
+                style={{ order: getTemplateBlockOrder("feed") }}
+              >
+                <EmbeddedFeed
+                  accessToken={accessToken || ""}
+                  userId={user?._id || accessUserIdFromCookie || ""}
+                  micrositeId={micrositeData._id}
+                />
+              </div>
             )}
 
             {/* Message */}
-            <div>
+            <div style={{ order: 1000 }}>
               <Footer brandIcon="/brand-icon.svg" />
             </div>
           </CartProvider>

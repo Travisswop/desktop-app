@@ -20,6 +20,7 @@ type FeedHasMoreInput = {
 
 export function getFeedItemKey(item: FeedItemLike) {
   const key = item?._id ?? item?.id;
+  if (typeof key === "number" && Number.isFinite(key)) return String(key);
   return typeof key === "string" && key.trim() ? key : null;
 }
 

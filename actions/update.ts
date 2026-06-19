@@ -70,7 +70,12 @@ export async function handleV5SmartSiteUpdate(
     const data = await response.json().catch(() => null);
     if (!response.ok) return null;
 
-    revalidatePath(`/smartsites/icons/${data?.data?.micrositeId}`);
+    const micrositeId = data?.data?.micrositeId || smartSiteInfo?._id;
+    if (micrositeId) {
+      revalidatePath(`/smartsite/icons/${micrositeId}`);
+      revalidatePath(`/smartsite/profile/${micrositeId}`);
+      revalidatePath(`/smartsites/icons/${micrositeId}`);
+    }
     return data;
   } catch (error) {
     console.error("Error from action:", error);
