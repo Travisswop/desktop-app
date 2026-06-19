@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
@@ -34,7 +35,7 @@ interface LiveTeam {
   score: number | null;
 }
 
-interface LiveScore {
+export interface LiveScore {
   live: boolean;
   ended?: boolean;
   closed?: boolean;
@@ -53,6 +54,25 @@ interface LiveMarket {
   outcomePrices: string | string[] | number[] | null;
   outcomes: string | string[] | null;
   clobTokenIds: string | string[] | null;
+}
+
+export interface VerifiedFinalScoreSnapshot {
+  source: 'polymarket-event-live';
+  eventSlug: string;
+  eventScore: string;
+  yesScore: number;
+  noScore: number;
+  yesTeam: {
+    name?: string | null;
+    abbreviation?: string | null;
+  };
+  noTeam: {
+    name?: string | null;
+    abbreviation?: string | null;
+  };
+  period?: string | null;
+  elapsed?: string | null;
+  verifiedAt?: string | Date;
 }
 
 export interface PredictionContent {
@@ -80,6 +100,9 @@ export interface PredictionContent {
   marketType?: string;
   marketSlug?: string;
   eventScore?: string | null;
+  verifiedFinalScore?: VerifiedFinalScoreSnapshot | null;
+  scoreSettlementStatus?: 'verified' | 'conflict' | 'unknown';
+  scoreSettlementPickedWon?: boolean;
   btcWindowStart?: number | string;
   btcWindowLabel?: string;
   eventSlug?: string;
@@ -122,6 +145,10 @@ interface PredictionFeedCardProps {
   content: PredictionContent;
   userName?: string;
   createdAt?: string | Date;
+  feedPostId?: string;
+  feedUserId?: string;
+  accessToken?: string;
+  onVerifiedFinalScore?: (content: PredictionContent) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -365,6 +392,89 @@ export function mergePredictionLiveScores(
         ? fetched.teams
         : embedded.teams,
     markets: fetched.markets,
+  };
+}
+
+function matchLiveScoreTeam(
+  teams: LiveTeam[],
+  outcome: string | undefined,
+  teamMeta: TeamMeta | undefined,
+  fallbackIdx: number,
+): {
+  score: number;
+  team: { name?: string | null; abbreviation?: string | null };
+} | null {
+  const outcomeLower = String(outcome || '').toLowerCase();
+  const metaNameLower = String(teamMeta?.name || '').toLowerCase();
+  const metaAbbrLower = String(teamMeta?.abbreviation || '').toLowerCase();
+  const matched = teams.find((team) => {
+    const name = String(team.name || '').toLowerCase();
+    const abbr = String(team.abbreviation || '').toLowerCase();
+    return (
+      (name &&
+        ((outcomeLower &&
+          (name.includes(outcomeLower) || outcomeLower.includes(name))) ||
+          (metaNameLower &&
+            (name.includes(metaNameLower) ||
+              metaNameLower.includes(name))))) ||
+      (abbr && metaAbbrLower && abbr === metaAbbrLower)
+    );
+  });
+
+  const team = matched ?? teams[fallbackIdx];
+  const score = toLiveScoreNumber(team?.score);
+  if (score == null) return null;
+
+  return {
+    score,
+    team: {
+      name: firstText(team?.name, teamMeta?.name, outcome) ?? null,
+      abbreviation:
+        firstText(team?.abbreviation, teamMeta?.abbreviation) ?? null,
+    },
+  };
+}
+
+export function resolveVerifiedFinalScoreSnapshot({
+  content,
+  liveScore,
+  eventSlug,
+}: {
+  content: PredictionContent;
+  liveScore: LiveScore | null;
+  eventSlug?: string;
+}): VerifiedFinalScoreSnapshot | null {
+  if (!eventSlug || !liveScore || (!liveScore.ended && !liveScore.closed)) {
+    return null;
+  }
+  if (!Array.isArray(liveScore.teams) || liveScore.teams.length < 2) {
+    return null;
+  }
+
+  const yes = matchLiveScoreTeam(
+    liveScore.teams,
+    content.yesOutcome,
+    content.yesTeam,
+    0,
+  );
+  const no = matchLiveScoreTeam(
+    liveScore.teams,
+    content.noOutcome,
+    content.noTeam,
+    1,
+  );
+  if (!yes || !no) return null;
+
+  return {
+    source: 'polymarket-event-live',
+    eventSlug,
+    eventScore: `${yes.score}-${no.score}`,
+    yesScore: yes.score,
+    noScore: no.score,
+    yesTeam: yes.team,
+    noTeam: no.team,
+    period: liveScore.period,
+    elapsed: liveScore.elapsed,
   };
 }
 
@@ -1210,6 +1320,96 @@ function useLiveScore(eventSlug: string | undefined): LiveScore | null {
   }, [eventSlug]);
 
   return score;
+}
+
+function useVerifiedFinalScorePersistence({
+  content,
+  liveScore,
+  eventSlug,
+  feedPostId,
+  feedUserId,
+  accessToken,
+  onVerifiedFinalScore,
+}: {
+  content: PredictionContent;
+  liveScore: LiveScore | null;
+  eventSlug?: string;
+  feedPostId?: string;
+  feedUserId?: string;
+  accessToken?: string;
+  onVerifiedFinalScore?: (content: PredictionContent) => void;
+}) {
+  const attemptedKeyRef = useRef<string | null>(null);
+  const snapshot = useMemo(
+    () =>
+      resolveVerifiedFinalScoreSnapshot({
+        content,
+        liveScore,
+        eventSlug,
+      }),
+    [content, eventSlug, liveScore],
+  );
+
+  useEffect(() => {
+    if (!snapshot || !feedPostId || !feedUserId) return;
+
+    const existing = content.verifiedFinalScore;
+    if (
+      existing?.eventSlug === snapshot.eventSlug &&
+      existing?.eventScore === snapshot.eventScore
+    ) {
+      return;
+    }
+
+    const key = `${feedPostId}:${snapshot.eventSlug}:${snapshot.eventScore}`;
+    if (attemptedKeyRef.current === key) return;
+    attemptedKeyRef.current = key;
+
+    const controller = new AbortController();
+    const persist = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/prediction/${encodeURIComponent(
+            feedPostId,
+          )}/verified-score`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(accessToken
+                ? { authorization: `Bearer ${accessToken}` }
+                : {}),
+            },
+            body: JSON.stringify({
+              userId: feedUserId,
+              eventSlug: snapshot.eventSlug,
+            }),
+            signal: controller.signal,
+          },
+        );
+        const data = await response.json().catch(() => null);
+        if (!response.ok) return;
+        const updatedContent = data?.data?.content;
+        if (updatedContent) {
+          onVerifiedFinalScore?.(updatedContent);
+        }
+      } catch (error) {
+        if ((error as DOMException)?.name !== 'AbortError') {
+          console.warn('Failed to persist verified prediction score:', error);
+        }
+      }
+    };
+
+    persist();
+    return () => controller.abort();
+  }, [
+    accessToken,
+    content.verifiedFinalScore,
+    feedPostId,
+    feedUserId,
+    onVerifiedFinalScore,
+    snapshot,
+  ]);
 }
 
 function priceFromEntry(entry: PriceEntry | undefined): number | undefined {
@@ -2861,6 +3061,10 @@ function PredictionPositionPanel({
 function RegularPredictionFeedCard({
   content,
   userName,
+  feedPostId,
+  feedUserId,
+  accessToken,
+  onVerifiedFinalScore,
 }: PredictionFeedCardProps) {
   const {
     outcome,
@@ -2904,6 +3108,15 @@ function RegularPredictionFeedCard({
     () => mergePredictionLiveScores(fetchedLiveScore, embeddedLiveScore),
     [embeddedLiveScore, fetchedLiveScore],
   );
+  useVerifiedFinalScorePersistence({
+    content,
+    liveScore,
+    eventSlug: liveEventSlug,
+    feedPostId,
+    feedUserId,
+    accessToken,
+    onVerifiedFinalScore,
+  });
 
   // Show sports panel when at least yesOutcome + noOutcome + some sports signal present
   const isYesNoBinary =

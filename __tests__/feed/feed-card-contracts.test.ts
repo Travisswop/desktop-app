@@ -28,6 +28,7 @@ import {
   mergePredictionLiveScores,
   resolvePredictionLiveEventSlug,
   resolveSportsScorePickedWon,
+  resolveVerifiedFinalScoreSnapshot,
   resolveBtcSettledWinner,
   resolvePredictionDisplayPnl,
   resolveTradeState,
@@ -202,6 +203,54 @@ describe('feed card contracts', () => {
         liveScore: merged,
       }),
     ).toBe('1-0');
+  });
+
+  it('creates a verified final score snapshot only from terminal scored events', () => {
+    const snapshot = resolveVerifiedFinalScoreSnapshot({
+      content: {
+        ...mexicoClaimedOverrideFeedPost,
+        yesOutcome: 'Mexico',
+        noOutcome: 'Korea Republic',
+      },
+      eventSlug: 'fifwc-mex-kr-2026-06-18',
+      liveScore: {
+        live: false,
+        ended: true,
+        closed: true,
+        period: 'VFT',
+        elapsed: '',
+        teams: [
+          { name: 'Mexico', abbreviation: 'mex', score: 1 },
+          { name: 'Korea Republic', abbreviation: 'kr', score: 0 },
+        ],
+      },
+    });
+
+    expect(snapshot).toMatchObject({
+      source: 'polymarket-event-live',
+      eventSlug: 'fifwc-mex-kr-2026-06-18',
+      eventScore: '1-0',
+      yesScore: 1,
+      noScore: 0,
+    });
+
+    expect(
+      resolveVerifiedFinalScoreSnapshot({
+        content: mexicoClaimedOverrideFeedPost,
+        eventSlug: 'fifwc-mex-kr-2026-06-18',
+        liveScore: {
+          live: false,
+          ended: true,
+          closed: true,
+          period: 'VFT',
+          elapsed: '',
+          teams: [
+            { name: 'Mexico', abbreviation: 'mex', score: null },
+            { name: 'Korea Republic', abbreviation: 'kr', score: null },
+          ],
+        },
+      }),
+    ).toBeNull();
   });
 
   it('fails neutral for closed prediction cards without enough settlement evidence', () => {

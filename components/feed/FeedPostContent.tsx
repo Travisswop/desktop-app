@@ -60,6 +60,19 @@ const FeedPostContent = ({
 
   const postContent =
     feed?.content?.post_content || feed?.post_content || [];
+  const feedOwnerId =
+    typeof feed?.userId === 'string'
+      ? feed.userId
+      : feed?.userId?._id
+        ? String(feed.userId._id)
+        : undefined;
+  const handlePredictionVerifiedFinalScore = useCallback(
+    (content: any) => {
+      if (!feed?._id) return;
+      onPostInteraction?.(feed._id, { content });
+    },
+    [feed?._id, onPostInteraction],
+  );
 
   return (
     <>
@@ -250,6 +263,10 @@ const FeedPostContent = ({
         <PredictionFeedCard
           content={feed.content}
           createdAt={feed.createdAt}
+          feedPostId={feed._id}
+          feedUserId={feedOwnerId}
+          accessToken={accessToken}
+          onVerifiedFinalScore={handlePredictionVerifiedFinalScore}
           userName={
             feed.smartsiteDetails?.name ||
             feed.smartsiteUserName ||
