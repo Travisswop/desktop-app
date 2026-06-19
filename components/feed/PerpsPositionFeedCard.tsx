@@ -35,7 +35,7 @@ interface PerpsPositionFeedCardProps {
   };
 }
 
-interface PerpsEntryMarker {
+export interface PerpsEntryMarker {
   event?: 'open' | 'add';
   orderId?: string;
   price?: number;
@@ -358,6 +358,14 @@ function normalizePerpsEntryMarkers(
   });
 }
 
+export function selectPerpsChartMarkerEntries(
+  entries: PerpsEntryMarker[],
+): PerpsEntryMarker[] {
+  if (entries.length === 0) return [];
+  const primaryOpen = entries.find((entry) => entry.event !== 'add');
+  return [primaryOpen ?? entries[0]];
+}
+
 export default function PerpsPositionFeedCard({
   feed,
 }: PerpsPositionFeedCardProps) {
@@ -482,6 +490,10 @@ export default function PerpsPositionFeedCard({
     const rawEntries = Array.isArray(content.entries) ? content.entries : [];
     return normalizePerpsEntryMarkers(rawEntries, content, feed.createdAt);
   }, [content, feed.createdAt]);
+  const chartMarkerEntries = useMemo(
+    () => selectPerpsChartMarkerEntries(entries),
+    [entries],
+  );
 
   const priceDomain = useMemo(() => {
     const prices = [
@@ -537,37 +549,37 @@ export default function PerpsPositionFeedCard({
     const firstTime = points.find((point) => point.time)?.time;
     const lastTime = [...points].reverse().find((point) => point.time)?.time;
 
-    return entries.reduce<ChartMarkerPosition[]>((markers, entry, index) => {
-      const price = finiteNumber(entry.price || content.entryPrice);
-      const timestamp = entry.timestamp ? dayjs(entry.timestamp).unix() : null;
-      let x = getXForIndex(Math.min(index + 4, points.length - 1));
+    return chartMarkerEntries.reduce<ChartMarkerPosition[]>(
+      (markers, entry) => {
+        const price = finiteNumber(entry.price || content.entryPrice);
+        const timestamp = entry.timestamp ? dayjs(entry.timestamp).unix() : null;
+        let x = width * 0.34;
 
-      if (timestamp && firstTime && lastTime && lastTime > firstTime) {
-        const ratio = (timestamp - firstTime) / (lastTime - firstTime);
-        if (ratio < 0 || ratio > 1) return markers;
-        x = Math.max(0, Math.min(width, ratio * width));
-      } else if (entries.length > 1) {
-        x = width * (0.3 + (index / Math.max(1, entries.length - 1)) * 0.45);
-      } else {
-        x = width * 0.34;
-      }
+        if (timestamp && firstTime && lastTime && lastTime > firstTime) {
+          const ratio = (timestamp - firstTime) / (lastTime - firstTime);
+          if (ratio >= 0 && ratio <= 1) {
+            x = Math.max(0, Math.min(width, ratio * width));
+          }
+        }
 
-      const marker = {
-        x: Math.max(AVATAR_BORDER, Math.min(width - AVATAR_BORDER, x)),
-        y: Math.max(
-          AVATAR_BORDER,
-          Math.min(CHART_HEIGHT - AVATAR_BORDER, getY(price)),
-        ),
-        entry,
-      };
+        const marker = {
+          x: Math.max(AVATAR_BORDER, Math.min(width - AVATAR_BORDER, x)),
+          y: Math.max(
+            AVATAR_BORDER,
+            Math.min(CHART_HEIGHT - AVATAR_BORDER, getY(price)),
+          ),
+          entry,
+        };
 
-      if (Number.isFinite(marker.x) && Number.isFinite(marker.y)) {
-        markers.push(marker);
-      }
+        if (Number.isFinite(marker.x) && Number.isFinite(marker.y)) {
+          markers.push(marker);
+        }
 
-      return markers;
-    }, []);
-  }, [content.entryPrice, entries, getXForIndex, getY, points, width]);
+        return markers;
+      },
+      [],
+    );
+  }, [chartMarkerEntries, content.entryPrice, getY, points, width]);
 
   const selectedChartPoint = useMemo(() => {
     if (selectedIndex === null || width <= 0 || points.length < 2) return null;
