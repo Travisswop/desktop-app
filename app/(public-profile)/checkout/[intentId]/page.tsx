@@ -4,6 +4,8 @@ import CheckoutPaymentClient from './CheckoutPaymentClient';
 
 const DEFAULT_CHECKOUT_ORIGIN = 'https://app.swopme.co';
 const DEFAULT_SWOP_IOS_APP_ID = '1593201322';
+type CheckoutScanMethod = 'swop' | 'phantom';
+type CheckoutSearchParams = Record<string, string | string[] | undefined>;
 
 function checkoutUrlForIntent(intentId: string) {
   const origin = (
@@ -17,6 +19,14 @@ function checkoutUrlForIntent(intentId: string) {
   } catch {
     return `${DEFAULT_CHECKOUT_ORIGIN}/checkout/${encodeURIComponent(intentId)}`;
   }
+}
+
+function checkoutScanMethodFromSearchParams(
+  searchParams: CheckoutSearchParams
+): CheckoutScanMethod {
+  const rawMethod = searchParams.method;
+  const method = Array.isArray(rawMethod) ? rawMethod[0] : rawMethod;
+  return method === 'phantom' ? 'phantom' : 'swop';
 }
 
 export async function generateMetadata({
@@ -42,14 +52,22 @@ export async function generateMetadata({
 
 export default async function CheckoutPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ intentId: string }>;
+  searchParams?: Promise<CheckoutSearchParams>;
 }) {
   const { intentId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const initialScanMethod =
+    checkoutScanMethodFromSearchParams(resolvedSearchParams);
 
   return (
     <QueryProvider>
-      <CheckoutPaymentClient intentId={intentId} />
+      <CheckoutPaymentClient
+        intentId={intentId}
+        initialScanMethod={initialScanMethod}
+      />
     </QueryProvider>
   );
 }

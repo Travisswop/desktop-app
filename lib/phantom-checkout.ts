@@ -39,6 +39,34 @@ export function normalizeCheckoutUrl(
   return '';
 }
 
+export function checkoutUrlWithPaymentMethod({
+  checkoutUrl,
+  intentId,
+  method,
+  origin = browserOrigin(),
+}: {
+  checkoutUrl?: string | null;
+  intentId?: string;
+  method: 'swop' | 'phantom';
+  origin?: string;
+}) {
+  const normalizedUrl = normalizeCheckoutUrl(checkoutUrl, intentId, origin);
+  if (!normalizedUrl) return '';
+
+  try {
+    const url = new URL(normalizedUrl, origin || undefined);
+    url.searchParams.set('method', method);
+    return url.toString();
+  } catch {
+    const [urlWithoutHash, hash = ''] = normalizedUrl.split('#');
+    const separator = urlWithoutHash.includes('?') ? '&' : '?';
+    const nextUrl = `${urlWithoutHash}${separator}method=${encodeURIComponent(
+      method
+    )}`;
+    return hash ? `${nextUrl}#${hash}` : nextUrl;
+  }
+}
+
 export function buildPhantomBrowseUrl(targetUrl: string, refUrl?: string) {
   const normalizedTarget = targetUrl.trim();
   if (!normalizedTarget) return '';

@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -23,6 +24,7 @@ import { arbitrum, base, mainnet, polygon } from 'viem/chains';
 import {
   AlertCircle,
   ArrowRight,
+  ChevronDown,
   CheckCircle2,
   Copy,
   Download,
@@ -35,6 +37,7 @@ import {
   ShieldCheck,
   Smartphone,
   Wallet,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -187,6 +190,48 @@ function formatCurrency(value?: number, currency = 'USDC') {
   })} ${currency}`;
 }
 
+function formatCheckoutTotal(value?: number, currency = 'USDC') {
+  const amount = Number(value || 0);
+  const normalizedCurrency = currency.toUpperCase();
+  if (['USD', 'USDC', 'USDT'].includes(normalizedCurrency)) {
+    return `$${amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
+  return formatCurrency(value, currency);
+}
+
+function formatTokenQuantity(value?: string | number | null) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) return value ? String(value) : '--';
+
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: amount >= 1 ? 4 : 6,
+  });
+}
+
+function checkoutItemLabel(intent?: CheckoutIntent | null) {
+  const lineItems = intent?.lineItems || [];
+  if (lineItems.length === 1) return lineItems[0].name;
+  if (lineItems.length > 1) return `${lineItems.length} items`;
+  return intent?.description || 'Checkout payment';
+}
+
+function tokenUnitPriceLabel(token: TokenData | null) {
+  if (!token) return '';
+  const price = Number(token.marketData?.price || 0);
+  if (price <= 0) return `${CHAIN_CONFIG[token.chain]?.name || token.chain} quote`;
+
+  const formattedPrice = price.toLocaleString(undefined, {
+    minimumFractionDigits: price >= 1 ? 2 : 4,
+    maximumFractionDigits: price >= 1 ? 2 : 6,
+  });
+  return `1 ${token.symbol} = $${formattedPrice}`;
+}
+
 function tokenMintForCheckout(token: TokenData) {
   if (token.isNative || token.symbol?.toUpperCase() === 'SOL') return null;
   return token.address || null;
@@ -298,9 +343,12 @@ function PhantomMark({ className = '' }: { className?: string }) {
 
 export default function CheckoutPaymentClient({
   intentId,
+  initialScanMethod = 'swop',
 }: {
   intentId: string;
+  initialScanMethod?: ScanMethod;
 }) {
+  const router = useRouter();
   const { login, ready, authenticated } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { accessToken } = useUser();
@@ -313,13 +361,15 @@ export default function CheckoutPaymentClient({
   const [search, setSearch] = useState('');
   const [railFilter, setRailFilter] = useState<RailFilter>('all');
   const [stage, setStage] = useState<Stage>('loading');
-  const [scanMethod, setScanMethod] = useState<ScanMethod>('swop');
+  const [scanMethod, setScanMethod] =
+    useState<ScanMethod>(initialScanMethod);
   const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
   const [creatingWallet, setCreatingWallet] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState(false);
   const [copiedPayUri, setCopiedPayUri] = useState(false);
   const [mobilePlatform, setMobilePlatform] = useState<MobilePlatform>('other');
+  const [tokenMenuOpen, setTokenMenuOpen] = useState(false);
   const [copyFallback, setCopyFallback] = useState('');
   const copyFallbackInputRef = useRef<HTMLInputElement | null>(null);
   const [quotedTokenAmount, setQuotedTokenAmount] = useState('');
@@ -490,6 +540,10 @@ export default function CheckoutPaymentClient({
       setSelectedToken(preferred);
     }
   }, [payableTokens, selectedToken]);
+
+  useEffect(() => {
+    setTokenMenuOpen(false);
+  }, [selectedToken?.address, selectedToken?.chain, selectedToken?.symbol]);
 
   useEffect(() => {
     if (!copyFallback) return;
@@ -896,6 +950,406 @@ export default function CheckoutPaymentClient({
 
   const loading = stage === 'loading';
   const busy = ['preparing', 'signing', 'confirming'].includes(stage);
+  const paymentDisabled =
+    busy ||
+    tokenAmountLoading ||
+    Boolean(tokenAmountQuoteError) ||
+    !selectedToken ||
+    !tokenAmount ||
+    !hasSufficientBalance ||
+    !accessToken ||
+    (selectedRail === 'solana' && !solanaWallet?.address) ||
+    (selectedRail === 'lifi' && !selectedToken.walletAddress);
+  const amountDueValue =
+    checkoutAmounts?.totalDueAmount ?? intent?.amount.value ?? 0;
+  const amountDueCurrency =
+    intent?.amount.currency || intent?.merchantCurrency.symbol || 'USDC';
+  const itemLabel = checkoutItemLabel(intent);
+  const merchantName = intent?.merchant.name || 'Swop Pay';
+  const merchantInitial = merchantName.trim().charAt(0).toUpperCase() || 'S';
+  const tokenPaymentText =
+    tokenAmountLoading
+      ? 'quoting...'
+      : selectedToken && tokenAmount
+      ? `${formatTokenQuantity(tokenAmount)} ${selectedToken.symbol}`
+      : '--';
+  const tokenBalanceText = selectedToken
+    ? formatTokenQuantity(selectedToken.balance)
+    : '--';
+  const selectedTokenChainName =
+    selectedToken && (CHAIN_CONFIG[selectedToken.chain]?.name || selectedToken.chain);
+
+  if (scanMethod === 'swop') {
+    return (
+      <main className="relative min-h-screen overflow-hidden bg-[#e9e6df] text-[#090a0d]">
+        <div
+          className="absolute inset-0 opacity-70 blur-[2px]"
+          aria-hidden="true"
+        >
+          <div className="mx-auto mt-12 w-full max-w-5xl px-6">
+            <div className="h-8 w-32 rounded bg-white/70" />
+            <div className="mt-16 h-20 rounded-lg bg-white/65 shadow-sm" />
+            <div className="mt-5 h-64 rounded-lg bg-white/55 shadow-sm" />
+          </div>
+        </div>
+        <div className="absolute inset-0 bg-black/55 backdrop-blur-[3px]" />
+
+        <section className="fixed inset-x-0 bottom-0 z-10 mx-auto max-h-[94vh] w-full overflow-y-auto rounded-t-[30px] bg-white shadow-2xl sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[min(92vw,520px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[30px]">
+          <div className="mx-auto mt-3 h-1 w-14 rounded-full bg-[#d9d9d9] sm:hidden" />
+          <header className="flex items-center justify-between gap-4 border-b border-[#ececec] px-6 py-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-[#06140d] text-lg font-black text-[#21c765]">
+                {merchantInitial}
+              </div>
+              <div className="min-w-0">
+                <h1 className="truncate text-lg font-semibold tracking-normal">
+                  {merchantName}
+                </h1>
+                <p className="mt-1 flex items-center gap-2 truncate font-mono text-xs font-semibold lowercase text-[#9aa0aa]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#18b85b]" />
+                  secure checkout · swop pay
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-[#e3e3e3] bg-[#f7f7f7] text-[#8a8f99] transition hover:border-[#d3d3d3] hover:text-[#101114]"
+              aria-label="Close checkout"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </header>
+
+          {loading ? (
+            <div className="flex min-h-[360px] items-center justify-center gap-3 px-8 text-sm font-semibold text-[#6d7480]">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading checkout...
+            </div>
+          ) : !intent ? (
+            <div className="px-8 py-12 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fff5f5] text-[#b42318]">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <h2 className="mt-4 text-xl font-semibold">
+                Checkout unavailable
+              </h2>
+              <p className="mt-2 text-sm text-[#6d7480]">
+                This payment request could not be loaded.
+              </p>
+            </div>
+          ) : SUCCESS_STATUSES.has(intent.status) || stage === 'completed' ? (
+            <div className="px-8 py-12 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#e7f8ee] text-[#16a34a]">
+                <CheckCircle2 className="h-7 w-7" />
+              </div>
+              <h2 className="mt-5 text-2xl font-semibold">Payment complete</h2>
+              <p className="mt-2 text-sm text-[#6d7480]">
+                {statusCopy(intent)}
+              </p>
+              {(transactionHash || intent.payment?.txHash) && (
+                <a
+                  href={explorerUrlForToken(
+                    selectedToken,
+                    transactionHash || intent.payment?.txHash || ''
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#101114] px-5 text-sm font-semibold text-white"
+                >
+                  View transaction
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              )}
+            </div>
+          ) : !payable ? (
+            <div className="px-8 py-12 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#f1f3f5] text-[#737b8c]">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <h2 className="mt-4 text-xl font-semibold">
+                Checkout {statusCopy(intent).toLowerCase()}
+              </h2>
+              <p className="mt-2 text-sm text-[#6d7480]">
+                This checkout cannot accept another payment.
+              </p>
+            </div>
+          ) : (
+            <div className="px-6 py-8 sm:px-8">
+              <div className="text-center">
+                <p className="font-mono text-xs font-semibold uppercase text-[#a0a7b2]">
+                  Amount due
+                </p>
+                <p className="mt-3 text-[56px] font-semibold leading-none tracking-normal sm:text-[72px]">
+                  {formatCheckoutTotal(amountDueValue, amountDueCurrency)}
+                </p>
+                <p className="mt-4 font-mono text-sm font-semibold text-[#7b8491]">
+                  ≈ {tokenPaymentText}
+                  {selectedToken ? ` · ${tokenUnitPriceLabel(selectedToken)}` : ''}
+                </p>
+              </div>
+
+              <div className="relative mt-8">
+                <button
+                  type="button"
+                  onClick={() => setTokenMenuOpen((open) => !open)}
+                  disabled={tokensLoading}
+                  className="flex min-h-[84px] w-full items-center justify-between gap-4 rounded-2xl border border-[#dedede] bg-[#f6f6f5] px-5 py-4 text-left shadow-sm transition hover:border-[#cfcfcf] disabled:cursor-wait disabled:opacity-70"
+                >
+                  <span className="flex min-w-0 items-center gap-4">
+                    {selectedToken?.logoURI ? (
+                      <Image
+                        src={sanitizeNextImageSrc(selectedToken.logoURI)}
+                        alt={selectedToken.symbol || 'Token'}
+                        width={52}
+                        height={52}
+                        className="h-[52px] w-[52px] flex-shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-full bg-[#36c98b] text-xl font-black text-white">
+                        {(selectedToken?.symbol || 'S').charAt(0)}
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="block font-mono text-xs font-semibold uppercase text-[#a0a7b2]">
+                        Pay with
+                      </span>
+                      <span className="mt-1 block truncate text-xl font-semibold">
+                        {tokensLoading
+                          ? 'Loading...'
+                          : selectedToken?.symbol || 'Select token'}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="flex flex-shrink-0 items-center gap-3">
+                    <span className="text-right font-mono">
+                      <span className="block text-xs font-semibold text-[#7b8491]">
+                        balance
+                      </span>
+                      <span className="mt-1 block text-sm font-bold text-[#17191d]">
+                        {tokenBalanceText}
+                      </span>
+                    </span>
+                    <ChevronDown className="h-5 w-5 text-[#9aa0aa]" />
+                  </span>
+                </button>
+
+                {tokenMenuOpen && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-72 overflow-y-auto rounded-2xl border border-[#e1e1e1] bg-white p-2 shadow-2xl">
+                    {tokensLoading ? (
+                      <div className="flex items-center gap-3 px-3 py-5 text-sm font-semibold text-[#6d7480]">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading balances...
+                      </div>
+                    ) : payableTokens.length === 0 ? (
+                      <p className="px-3 py-5 text-sm font-semibold text-[#6d7480]">
+                        No funded supported tokens found.
+                      </p>
+                    ) : (
+                      payableTokens.map((token) => {
+                        const isSelected =
+                          selectedToken?.address === token.address &&
+                          selectedToken?.symbol === token.symbol &&
+                          selectedToken?.chain === token.chain &&
+                          selectedToken?.walletAddress === token.walletAddress;
+                        return (
+                          <button
+                            key={`${token.chain}-${token.walletAddress || ''}-${
+                              token.symbol
+                            }-${token.address || 'native'}`}
+                            type="button"
+                            onClick={() => {
+                              setSelectedToken(token);
+                              setTokenMenuOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left transition ${
+                              isSelected ? 'bg-[#eefbf3]' : 'hover:bg-[#f6f6f5]'
+                            }`}
+                          >
+                            <span className="flex min-w-0 items-center gap-3">
+                              {token.logoURI ? (
+                                <Image
+                                  src={sanitizeNextImageSrc(token.logoURI)}
+                                  alt={token.symbol || ''}
+                                  width={36}
+                                  height={36}
+                                  className="h-9 w-9 rounded-full object-cover"
+                                />
+                              ) : (
+                                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#36c98b] text-sm font-black text-white">
+                                  {(token.symbol || '?').charAt(0)}
+                                </span>
+                              )}
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-semibold">
+                                  {token.symbol}
+                                </span>
+                                <span className="block truncate text-xs font-medium text-[#7b8491]">
+                                  {CHAIN_CONFIG[token.chain]?.name || token.chain}
+                                </span>
+                              </span>
+                            </span>
+                            <span className="text-right font-mono text-sm font-bold">
+                              {formatTokenQuantity(token.balance)}
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <dl className="mt-6 space-y-4 font-mono text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-[#7b8491]">Item</dt>
+                  <dd className="min-w-0 truncate text-right font-bold">
+                    {itemLabel}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-[#7b8491]">Pay amount</dt>
+                  <dd className="text-right font-bold">{tokenPaymentText}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-[#7b8491]">Network fee</dt>
+                  <dd className="flex items-center justify-end gap-2 text-right">
+                    <span className="text-[#a4aab4] line-through">$0.02</span>
+                    <span className="rounded-lg bg-[#e6f7ec] px-2 py-1 text-[10px] font-black uppercase text-[#18a957]">
+                      Sponsored
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+
+              {selectedToken && tokenAmount && !hasSufficientBalance ? (
+                <div className="mt-5 rounded-2xl border border-[#ffd0d0] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+                  Insufficient {selectedToken.symbol} balance.
+                </div>
+              ) : null}
+
+              {tokenAmountQuoteError ? (
+                <div className="mt-5 rounded-2xl border border-[#ffd0d0] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+                  {tokenAmountQuoteError}
+                </div>
+              ) : null}
+
+              {error ? (
+                <div className="mt-5 rounded-2xl border border-[#ffd0d0] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
+                  {error}
+                </div>
+              ) : null}
+
+              {!ready || !authenticated ? (
+                <button
+                  type="button"
+                  onClick={login}
+                  disabled={!ready}
+                  className="mt-6 inline-flex h-16 w-full items-center justify-center rounded-2xl bg-[#18a957] px-5 text-base font-bold text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Pay with passkey or SMS
+                </button>
+              ) : !solanaWallet && evmWalletAddresses.length === 0 ? (
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={handleConnectWallet}
+                    disabled={connectingWallet}
+                    className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-[#101114] px-4 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {connectingWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Link2 className="h-4 w-4" />
+                    )}
+                    Connect wallet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCreateWallet}
+                    disabled={creatingWallet}
+                    className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-[#dfe4eb] bg-white px-4 text-sm font-bold text-[#101114] transition hover:border-[#c8d0dc] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {creatingWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wallet className="h-4 w-4" />
+                    )}
+                    Create Swop wallet
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePay}
+                  disabled={paymentDisabled}
+                  className="mt-6 inline-flex h-16 w-full items-center justify-center gap-2 rounded-2xl bg-[#18a957] px-5 text-base font-bold text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {busy ? 'Confirming...' : 'Confirm payment'}
+                </button>
+              )}
+
+              {stage !== 'idle' && stage !== 'failed' ? (
+                <p className="mt-4 text-center text-xs font-semibold text-[#7b8491]">
+                  {stage === 'preparing' && 'Preparing Swop Pay...'}
+                  {stage === 'signing' && 'Waiting for wallet signature...'}
+                  {stage === 'confirming' && 'Confirming payment...'}
+                </p>
+              ) : null}
+
+              <p className="mt-5 text-center font-mono text-xs font-semibold lowercase text-[#a0a7b2]">
+                swop covers gas · settles in ~2s on{' '}
+                {selectedTokenChainName || 'solana'}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {copyFallback ? (
+          <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-2xl rounded-lg border border-[#dfe4eb] bg-white p-4 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#101114]">
+                  Copy manually
+                </p>
+                <p className="mt-1 text-xs text-[#737b8c]">
+                  Browser clipboard access was blocked, so the value is
+                  selected.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCopyFallback('')}
+                className="inline-flex h-8 items-center justify-center rounded-md border border-[#dfe4eb] px-3 text-xs font-semibold"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <input
+                ref={copyFallbackInputRef}
+                readOnly
+                value={copyFallback}
+                onFocus={(event) => event.currentTarget.select()}
+                className="h-10 min-w-0 flex-1 rounded-md border border-[#dfe4eb] px-3 font-mono text-xs font-semibold outline-none focus:border-[#101114]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  copyFallbackInputRef.current?.focus();
+                  copyFallbackInputRef.current?.select();
+                }}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-[#101114] px-4 text-sm font-semibold text-white"
+              >
+                Select
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#f7f7f9] px-4 py-6 text-[#101114] sm:px-6">
@@ -998,7 +1452,7 @@ export default function CheckoutPaymentClient({
           </section>
         )}
 
-        {!loading && intent?.paymentRequest?.url && payable && (
+        {!loading && intent?.paymentRequest?.url && payable && scanMethod === 'phantom' && (
           <section className="rounded-lg border border-[#e7e8ec] bg-white p-5 shadow-sm">
             <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-center">
               <div className="mx-auto rounded-lg border border-[#dfe4eb] bg-white p-3 shadow-sm">
@@ -1017,22 +1471,16 @@ export default function CheckoutPaymentClient({
                       Scan to pay
                     </p>
                     <h2 className="mt-2 text-xl font-semibold">
-                      {scanMethod === 'phantom'
-                        ? 'Pay with Phantom'
-                        : 'Pay with Swop wallet'}
+                      Pay with Phantom
                     </h2>
                   </div>
                   <div className="inline-flex rounded-md border border-[#dde1e6] bg-[#fafafa] p-1">
                     <button
                       type="button"
                       onClick={() => setScanMethod('swop')}
-                      className={`h-8 rounded px-3 text-xs font-semibold transition ${
-                        scanMethod === 'swop'
-                          ? 'bg-white text-[#101114] shadow-sm'
-                          : 'text-[#737b8c]'
-                      }`}
+                      className="h-8 rounded px-3 text-xs font-semibold text-[#737b8c] transition"
                     >
-                      Swop wallet
+                      Swop Pay
                     </button>
                     <button
                       type="button"
@@ -1048,9 +1496,8 @@ export default function CheckoutPaymentClient({
                   </div>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-[#646b78]">
-                  {scanMethod === 'phantom'
-                    ? 'Scan or open the link to launch the Phantom browser, connect the wallet, and approve the requested amount.'
-                    : 'Scan the QR to open this pay request, then pay with your Swop wallet. The unique checkout reference lets Swop reconcile the exact payment.'}
+                  Scan or open the link to launch the Phantom browser, connect the wallet,
+                  and approve the requested amount.
                 </p>
                 <div className="mt-4 rounded-md border border-[#edf0f3] bg-[#fbfcfd] p-3 text-xs">
                   <div className="flex items-center justify-between gap-3">
@@ -1066,26 +1513,15 @@ export default function CheckoutPaymentClient({
                   </p>
                 </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {scanMethod === 'phantom' ? (
-                    <button
-                      type="button"
-                      onClick={handleOpenPhantom}
-                      disabled={!phantomCheckoutUrl}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#5f4acb] px-3 text-sm font-semibold text-white transition hover:bg-[#523db8] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <PhantomMark className="h-5 w-5" />
-                      Open Phantom
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleOpenSwopApp}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#101114] px-3 text-sm font-semibold text-white transition hover:bg-[#24262b]"
-                    >
-                      <Smartphone className="h-4 w-4" />
-                      Open Swop app
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleOpenPhantom}
+                    disabled={!phantomCheckoutUrl}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#5f4acb] px-3 text-sm font-semibold text-white transition hover:bg-[#523db8] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <PhantomMark className="h-5 w-5" />
+                    Open Phantom
+                  </button>
                   <button
                     type="button"
                     onClick={copyScanLink}
@@ -1101,22 +1537,6 @@ export default function CheckoutPaymentClient({
                   >
                     <Copy className="h-4 w-4" />
                     {copiedPayUri ? 'Copied' : 'Copy Solana Pay URI'}
-                  </button>
-                </div>
-                <div className="mt-3 flex flex-col gap-3 rounded-md border border-[#dfe4eb] bg-[#fbfcfd] p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs font-medium leading-5 text-[#646b78]">
-                    <span className="font-semibold text-[#303642]">
-                      No Swop app?
-                    </span>{' '}
-                    Install it, then reopen this checkout link.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleInstallSwopApp}
-                    className="inline-flex h-9 flex-shrink-0 items-center justify-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 text-xs font-semibold text-[#303642] transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa]"
-                  >
-                    <Download className="h-4 w-4" />
-                    Get Swop app
                   </button>
                 </div>
               </div>
@@ -1593,17 +2013,7 @@ export default function CheckoutPaymentClient({
               <button
                 type="button"
                 onClick={handlePay}
-                disabled={
-                  busy ||
-                  tokenAmountLoading ||
-                  Boolean(tokenAmountQuoteError) ||
-                  !selectedToken ||
-                  !tokenAmount ||
-                  !hasSufficientBalance ||
-                  !accessToken ||
-                  (selectedRail === 'solana' && !solanaWallet?.address) ||
-                  (selectedRail === 'lifi' && !selectedToken.walletAddress)
-                }
+                disabled={paymentDisabled}
                 className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#101114] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-55"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

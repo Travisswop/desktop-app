@@ -608,7 +608,7 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
               {isWalletLoading ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  Processing…
+                  Sending request…
                 </>
               ) : (
                 <>
