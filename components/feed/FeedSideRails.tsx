@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Activity,
@@ -22,6 +23,11 @@ import {
   type SportsGameGroup,
 } from "@/lib/polymarket/sports-grouping";
 import { cn } from "@/lib/utils";
+import {
+  marketDetailHref,
+  marketRouteKey,
+  useMarketDetailStore,
+} from "@/zustandStore/marketDetailStore";
 
 type RailSide = "left" | "right";
 type RailVisibilityKey = "leaderboard" | "boxScore";
@@ -73,6 +79,7 @@ type BoxScoreGame = {
   id: string;
   league: string;
   href: string;
+  sourceMarket?: PolymarketMarket;
   teamA: string;
   teamB: string;
   scoreA: number | null;
@@ -411,7 +418,8 @@ async function toBoxScoreGame(game: SportsGameGroup): Promise<BoxScoreGame> {
   return {
     id: game.eventId,
     league,
-    href: primaryMarket ? `/prediction/market/${primaryMarket.id}` : "/prediction",
+    href: marketDetailHref(primaryMarket),
+    sourceMarket: primaryMarket ?? undefined,
     teamA: game.teamAMeta?.abbrev || shortTeamName(game.teamA),
     teamB: game.teamBMeta?.abbrev || shortTeamName(game.teamB),
     scoreA,
@@ -1221,11 +1229,35 @@ function BoxScoreBox({
 }
 
 function BoxScoreRow({ game }: { game: BoxScoreGame }) {
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((state) => state.set);
+
+  const handleOpenMarket = useCallback(
+    (event: React.MouseEvent<HTMLAnchorElement>) => {
+      const market = game.sourceMarket;
+      if (!market) return;
+
+      const routeKey = marketRouteKey(market);
+      if (!routeKey) return;
+
+      event.preventDefault();
+      stashMarketDetail(routeKey, {
+        market,
+        yesShares: 0,
+        noShares: 0,
+      });
+      router.push(`/prediction/market/${encodeURIComponent(routeKey)}`);
+    },
+    [game.sourceMarket, router, stashMarketDetail],
+  );
+
   return (
     <Link
       href={game.href}
       className="block px-4 py-3 transition-colors hover:bg-gray-50"
       aria-label={`Open ${game.teamA} vs ${game.teamB}`}
+      prefetch={false}
+      onClick={handleOpenMarket}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">
