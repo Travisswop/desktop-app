@@ -54,7 +54,11 @@ export default function EmbeddedFeed({
     async (reset = false) => {
       // console.log("reset", reset);
 
-      if (!accessToken || !micrositeId || !userId) return;
+      if (!micrositeId) {
+        setFeedData([]);
+        setHasMore(false);
+        return;
+      }
       if (!reset && !hasMoreRef.current) return;
       if (isFetchingRef.current) return;
 
@@ -62,16 +66,24 @@ export default function EmbeddedFeed({
 
       try {
         const currentPage = reset ? 1 : pageRef.current;
+        const query = new URLSearchParams({
+          page: String(currentPage),
+          limit: "10",
+        });
+        if (userId) query.set("userId", userId);
 
-        const url = `${API_URL}/api/v2/feed/smartsite-feed/${micrositeId}?userId=${userId}&page=${currentPage}&limit=10`;
+        const url = `${API_URL}/api/v2/feed/smartsite-feed/${micrositeId}?${query.toString()}`;
         logger.info("Fetching feed data from URL:", url);
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (accessToken) {
+          headers.authorization = `Bearer ${accessToken}`;
+        }
 
         const response = await apiFetch(url, {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            authorization: `Bearer ${accessToken}`,
-          },
+          headers,
           cache: "no-store",
         });
         const data = await response.json();
