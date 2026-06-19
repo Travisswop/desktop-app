@@ -26,6 +26,7 @@ import { TradingForm } from './TradingForm';
 import { PerpsHeader } from './PerpsHeader';
 import { ChartPanel } from './ChartPanel';
 import {
+  getOpenOrderRowKey,
   PositionsTable,
   type PerpsFill,
   type PositionTpSlRequest,
@@ -37,6 +38,7 @@ import { PerpsActionsModal } from './PerpsActionsModal';
 
 import type {
   HLMarket,
+  HLOpenOrder,
   HLPosition,
 } from '@/services/hyperliquid/types';
 import type {
@@ -186,6 +188,9 @@ export function PerpsPanel({
     initialCoin ?? 'BTC',
   );
   const [closingCoin, setClosingCoin] = useState<string | null>(null);
+  const [cancellingOrderKey, setCancellingOrderKey] = useState<string | null>(
+    null,
+  );
   const [withdrawActionsOpen, setWithdrawActionsOpen] = useState(false);
   const [activeTimeframe, setActiveTimeframe] = useState<string>('15m');
   const [tradeLeverage, setTradeLeverage] = useState({
@@ -829,6 +834,46 @@ export function PerpsPanel({
     ],
   );
 
+  const handleCancelOrder = useCallback(
+    async (order: HLOpenOrder) => {
+      const orderKey = getOpenOrderRowKey(order);
+      setCancellingOrderKey(orderKey);
+
+      try {
+        const orderMarket =
+          hyperliquidMarketForPosition(markets, order) ||
+          markets.find((m) => m.coin === order.coin);
+        if (!orderMarket) {
+          throw new Error(
+            `No market found for ${order.coin} - cannot cancel order.`,
+          );
+        }
+
+        const orderId = Number(order.oid);
+        if (!Number.isFinite(orderId)) {
+          throw new Error('Missing order id - cannot cancel order.');
+        }
+
+        await cancelOrder(orderMarket.index, orderId);
+        await Promise.all([refetchPositions(), refetchPortfolio()]);
+        toast({
+          title: 'Order cancelled',
+          description: `${order.coin}-PERP ${order.side === 'B' ? 'buy' : 'sell'} order was removed.`,
+        });
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: 'Cancel failed',
+          description:
+            err instanceof Error ? err.message : 'Failed to cancel order.',
+        });
+      } finally {
+        setCancellingOrderKey(null);
+      }
+    },
+    [cancelOrder, markets, refetchPortfolio, refetchPositions, toast],
+  );
+
   const handleSetPositionTpSl = useCallback(
     async (position: HLPosition, request: PositionTpSlRequest) => {
       const takeProfitPrice = request.takeProfitPrice?.trim() || undefined;
@@ -1016,6 +1061,8 @@ export function PerpsPanel({
                   closingCoin={closingCoin}
                   onClosePosition={handleClosePosition}
                   onSetPositionTpSl={handleSetPositionTpSl}
+                  onCancelOrder={handleCancelOrder}
+                  cancellingOrderKey={cancellingOrderKey}
                   onSelectCoin={handleSelectCoin}
                 />
               </div>

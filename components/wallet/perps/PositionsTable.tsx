@@ -65,6 +65,8 @@ interface PositionsTableProps {
     position: HLPosition,
     request: PositionTpSlRequest,
   ) => Promise<void>;
+  onCancelOrder: (order: HLOpenOrder) => Promise<void>;
+  cancellingOrderKey?: string | null;
   onSelectCoin?: (coin: string) => void;
 }
 
@@ -83,6 +85,8 @@ export function PositionsTable({
   closingCoin,
   onClosePosition,
   onSetPositionTpSl,
+  onCancelOrder,
+  cancellingOrderKey,
   onSelectCoin,
 }: PositionsTableProps) {
   const [tab, setTab] = useState<Tab>('positions');
@@ -153,7 +157,12 @@ export function PositionsTable({
           />
         )}
         {tab === 'orders' && (
-          <OrdersBody orders={openOrders} onSelectCoin={onSelectCoin} />
+          <OrdersBody
+            orders={openOrders}
+            cancellingOrderKey={cancellingOrderKey}
+            onCancelOrder={onCancelOrder}
+            onSelectCoin={onSelectCoin}
+          />
         )}
         {tab === 'history' && (
           <HistoryBody fills={fills} onSelectCoin={onSelectCoin} />
@@ -969,31 +978,46 @@ export const __test = {
 
 // ─── Open orders ────────────────────────────────────────────────────────────
 
+export function getOpenOrderRowKey(
+  order: Pick<HLOpenOrder, 'coin' | 'dex' | 'oid'>,
+) {
+  return [order.dex || 'main', order.coin, order.oid].join(':');
+}
+
 function OrdersBody({
   orders,
+  cancellingOrderKey,
+  onCancelOrder,
   onSelectCoin,
 }: {
   orders: HLOpenOrder[];
+  cancellingOrderKey?: string | null;
+  onCancelOrder: (order: HLOpenOrder) => Promise<void>;
   onSelectCoin?: (coin: string) => void;
 }) {
   if (orders.length === 0) {
     return <EmptyState label="No open orders" />;
   }
 
+  const isCancelInFlight = Boolean(cancellingOrderKey);
+
   return (
     <table className="w-full text-left">
       <thead>
         <HeaderRow
-          cols={['Market', 'Side', 'Type', 'Size', 'Price', 'Placed']}
+          cols={['Market', 'Side', 'Type', 'Size', 'Price', 'Placed', '']}
+          stickyLast
         />
       </thead>
       <tbody>
         {orders.map((o) => {
           const isBuy = o.side === 'B';
+          const rowKey = getOpenOrderRowKey(o);
+          const isCancelling = cancellingOrderKey === rowKey;
           return (
             <tr
-              key={o.oid}
-              className="border-t border-black/[0.04] hover:bg-gray-50/60 transition-colors"
+              key={rowKey}
+              className="group border-t border-black/[0.04] hover:bg-gray-50/60 transition-colors"
             >
               <Td>
                 <button
@@ -1031,6 +1055,22 @@ function OrdersBody({
               </Td>
               <Td>
                 <Mono className="text-gray-500">{timeAgo(o.timestamp)}</Mono>
+              </Td>
+              <Td className="sticky right-0 bg-white text-right shadow-[-12px_0_16px_-16px_rgba(10,10,12,0.45)] transition-colors group-hover:bg-gray-50">
+                <button
+                  type="button"
+                  onClick={() => void onCancelOrder(o)}
+                  disabled={isCancelInFlight}
+                  aria-label={`Cancel ${o.coin}-PERP order ${o.oid}`}
+                  title="Cancel order"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isCancelling ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <X className="h-3.5 w-3.5" />
+                  )}
+                </button>
               </Td>
             </tr>
           );
@@ -1118,7 +1158,13 @@ function HistoryBody({
 
 // ─── Shared bits ────────────────────────────────────────────────────────────
 
-function HeaderRow({ cols }: { cols: string[] }) {
+function HeaderRow({
+  cols,
+  stickyLast = false,
+}: {
+  cols: string[];
+  stickyLast?: boolean;
+}) {
   return (
     <tr>
       {cols.map((c, i) => (
@@ -1126,6 +1172,10 @@ function HeaderRow({ cols }: { cols: string[] }) {
           key={i}
           className={`px-3 py-2 text-[9.5px] font-bold tracking-[0.12em] text-gray-400 font-mono uppercase ${
             i === cols.length - 1 ? 'text-right' : 'text-left'
+          } ${
+            stickyLast && i === cols.length - 1
+              ? 'sticky right-0 z-10 bg-white shadow-[-12px_0_16px_-16px_rgba(10,10,12,0.45)]'
+              : ''
           }`}
         >
           {c}
