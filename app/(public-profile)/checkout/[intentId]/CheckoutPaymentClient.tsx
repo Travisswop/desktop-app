@@ -64,10 +64,15 @@ import {
   getPhantomCheckoutUrl,
   normalizeCheckoutUrl,
 } from '@/lib/phantom-checkout';
+import {
+  selectPreferredWallet,
+  tradingWalletSelectionOptions,
+} from '@/components/wallet/hooks/useWalletData';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
 import { useUser } from '@/lib/UserContext';
+import { PrivyLinkedAccount, isSolanaWalletAccount } from '@/types/privy';
 import { TokenData } from '@/types/token';
 
 const SUCCESS_STATUSES = new Set(['paid', 'settled']);
@@ -287,28 +292,35 @@ function emptyTimeSeriesData() {
   };
 }
 
-type LinkedWalletAccount = {
-  type?: string;
+type LinkedWalletAccount = PrivyLinkedAccount & {
   address?: string;
   chainType?: string;
   chain_type?: string;
+  walletClientType?: string;
+  connectorType?: string;
 };
 
-function linkedSolanaWalletAddress(privyUser: unknown) {
+function linkedSolanaWalletAddress(
+  privyUser: unknown,
+  storedSolanaWalletAddress?: string
+) {
   const linkedAccounts = (
     (privyUser as { linkedAccounts?: LinkedWalletAccount[] } | null)
       ?.linkedAccounts || []
-  ) as LinkedWalletAccount[];
+  ).map((account) => ({
+    ...account,
+    chainType: account.chainType || account.chain_type,
+  })) as PrivyLinkedAccount[];
 
   return (
-    linkedAccounts.find((account) => {
-      const chainType = account.chainType || account.chain_type;
-      return (
-        account.type === 'wallet' &&
-        chainType === 'solana' &&
-        Boolean(account.address)
-      );
-    })?.address || ''
+    selectPreferredWallet(
+      linkedAccounts.filter(isSolanaWalletAccount),
+      undefined,
+      {
+        ...tradingWalletSelectionOptions(),
+        preferredAddresses: [storedSolanaWalletAddress],
+      }
+    )?.address || ''
   );
 }
 
@@ -538,20 +550,34 @@ export default function CheckoutPaymentClient({
     approvalAddress?: string | null;
   } | null>(null);
 
-  const solanaWallet = useMemo(() => {
-    return solanaWallets.find((wallet) => wallet.address) || null;
-  }, [solanaWallets]);
+  const storedSolanaWalletAddress =
+    user?.solanaWallet || user?.solanaAddress || '';
 
   const privySolanaWalletAddress = useMemo(
-    () => linkedSolanaWalletAddress(privyUser),
-    [privyUser]
+    () => linkedSolanaWalletAddress(privyUser, storedSolanaWalletAddress),
+    [privyUser, storedSolanaWalletAddress]
+  );
+
+  const solanaWallet = useMemo(
+    () =>
+      selectPreferredWallet(
+        solanaWallets,
+        storedSolanaWalletAddress || privySolanaWalletAddress,
+        {
+          ...tradingWalletSelectionOptions(),
+          preferredAddresses: [
+            storedSolanaWalletAddress,
+            privySolanaWalletAddress,
+          ],
+        }
+      ) || null,
+    [privySolanaWalletAddress, solanaWallets, storedSolanaWalletAddress]
   );
 
   const activeSolanaWalletAddress =
     solanaWallet?.address ||
     privySolanaWalletAddress ||
-    user?.solanaWallet ||
-    user?.solanaAddress ||
+    storedSolanaWalletAddress ||
     '';
 
   const evmSignerWalletAddresses = useMemo(
