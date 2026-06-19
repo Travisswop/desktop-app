@@ -25,6 +25,7 @@ interface TeamMeta {
   abbreviation?: string | null;
   color?: string | null;
   logo?: string | null;
+  score?: number | string | null;
 }
 
 interface LiveTeam {
@@ -78,6 +79,7 @@ export interface PredictionContent {
   marketId?: string;
   marketType?: string;
   marketSlug?: string;
+  eventScore?: string | null;
   btcWindowStart?: number | string;
   btcWindowLabel?: string;
   eventSlug?: string;
@@ -185,6 +187,334 @@ function firstText(...values: unknown[]): string | undefined {
     if (trimmed) return trimmed;
   }
   return undefined;
+}
+
+function parseScorePair(raw: unknown): [number | null, number | null] {
+  if (raw == null) return [null, null];
+  const match = String(raw).match(/(\d+)\D+(\d+)/);
+  if (!match) return [null, null];
+  const first = Number(match[1]);
+  const second = Number(match[2]);
+  return [
+    Number.isFinite(first) ? first : null,
+    Number.isFinite(second) ? second : null,
+  ];
+}
+
+function toLiveScoreNumber(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function slugifySportsToken(value: unknown): string {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function stripKnownSportsMarketSuffix(
+  slug: string,
+  content: PredictionContent,
+): string {
+  let base = slug
+    .replace(/-(moneyline|spread|total|totals|o-u|over-under).*$/i, '')
+    .replace(/-(draw|tie)$/i, '');
+  const suffixes = [
+    content.yesTeam?.abbreviation,
+    content.noTeam?.abbreviation,
+    content.yesOutcome,
+    content.noOutcome,
+  ]
+    .map(slugifySportsToken)
+    .filter((value): value is string => value.length >= 2);
+
+  if (suffixes.length) {
+    const suffixPattern = new RegExp(
+      `-(${suffixes.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`,
+      'i',
+    );
+    base = base.replace(suffixPattern, '');
+  }
+
+  return base;
+}
+
+export function resolvePredictionLiveEventSlug(
+  content: PredictionContent,
+): string | undefined {
+  const explicit = firstText(content.eventSlug);
+  const slug = firstText(explicit, content.marketSlug);
+  if (!slug) return undefined;
+  const normalized = stripKnownSportsMarketSuffix(slug, content);
+  return normalized || slug;
+}
+
+export function embeddedPredictionLiveScore(
+  content: PredictionContent,
+): LiveScore | null {
+  const [score0, score1] = parseScorePair(
+    content.eventScore ?? (content as { score?: unknown }).score,
+  );
+  const rawTeams = [
+    content.yesTeam
+      ? {
+          name: content.yesTeam.name ?? content.yesOutcome ?? null,
+          abbreviation: content.yesTeam.abbreviation ?? null,
+          score:
+            toLiveScoreNumber(content.yesTeam.score) ??
+            score0,
+        }
+      : content.yesOutcome
+        ? {
+            name: content.yesOutcome,
+            abbreviation: null,
+            score: score0,
+          }
+        : null,
+    content.noTeam
+      ? {
+          name: content.noTeam.name ?? content.noOutcome ?? null,
+          abbreviation: content.noTeam.abbreviation ?? null,
+          score:
+            toLiveScoreNumber(content.noTeam.score) ??
+            score1,
+        }
+      : content.noOutcome
+        ? {
+            name: content.noOutcome,
+            abbreviation: null,
+            score: score1,
+          }
+        : null,
+  ].filter((team): team is LiveTeam => Boolean(team));
+  const hasState =
+    Boolean(content.status) ||
+    Boolean(content.result) ||
+    Boolean(content.resultStatus) ||
+    Boolean(content.claimStatus) ||
+    Boolean(content.redeemStatus) ||
+    Boolean(content.claimed) ||
+    Boolean(content.redeemed) ||
+    rawTeams.some((team) => team.score != null);
+
+  if (!hasState && !rawTeams.length) return null;
+
+  const terminal = Boolean(
+    content.claimed ||
+      content.redeemed ||
+      content.claimStatus ||
+      content.redeemStatus ||
+    /^(won|lost|claimed|redeemed|closed|settled)$/i.test(
+      String(content.result || content.resultStatus || content.status || ''),
+    ),
+  );
+
+  return {
+    live: false,
+    ended: terminal,
+    closed: terminal,
+    period: null,
+    elapsed: null,
+    teams: rawTeams,
+  };
+}
+
+export function mergePredictionLiveScores(
+  fetched: LiveScore | null,
+  embedded: LiveScore | null,
+): LiveScore | null {
+  if (!fetched) return embedded;
+  if (!embedded) return fetched;
+
+  const fetchedHasScores = fetched.teams.some((team) => team.score != null);
+  const embeddedHasScores = embedded.teams.some((team) => team.score != null);
+
+  return {
+    live: fetched.live,
+    ended: Boolean(fetched.ended || embedded.ended),
+    closed: Boolean(fetched.closed || embedded.closed),
+    period: fetched.period ?? embedded.period,
+    elapsed: fetched.elapsed ?? embedded.elapsed,
+    teams:
+      fetched.teams.length && (fetchedHasScores || !embeddedHasScores)
+        ? fetched.teams
+        : embedded.teams,
+    markets: fetched.markets,
+  };
+}
+
+export function formatSpreadOutcomeLabel({
+  marketTitle,
+  pickedOutcome,
+  yesOutcome,
+  noOutcome,
+}: {
+  marketTitle: string;
+  pickedOutcome: string;
+  yesOutcome: string;
+  noOutcome: string;
+}): string {
+  const picked = pickedOutcome.trim();
+  if (!picked || /(?:^|\s)[+-]\d+(?:\.\d+)?$/u.test(picked)) {
+    return pickedOutcome;
+  }
+
+  const match = marketTitle.match(
+    /\bspread\s*:\s*(.+?)\s*\(([+-]?\d+(?:\.\d+)?)\)/i,
+  );
+  if (!match) return pickedOutcome;
+
+  const subject = match[1].trim();
+  const line = Number(match[2]);
+  if (!Number.isFinite(line)) return pickedOutcome;
+
+  const same = (a: string, b: string) =>
+    a.trim().toLowerCase() === b.trim().toLowerCase();
+  const normalizedPicked = picked.toLowerCase();
+  const effectivePicked =
+    normalizedPicked === 'yes'
+      ? yesOutcome
+      : normalizedPicked === 'no'
+        ? noOutcome
+        : picked;
+  let selectedLine: number | null = null;
+  if (same(effectivePicked, subject)) {
+    selectedLine = line;
+  } else if (same(effectivePicked, yesOutcome) && same(yesOutcome, subject)) {
+    selectedLine = line;
+  } else if (same(effectivePicked, noOutcome) && same(yesOutcome, subject)) {
+    selectedLine = -line;
+  } else if (same(effectivePicked, yesOutcome) && same(noOutcome, subject)) {
+    selectedLine = -line;
+  } else if (same(effectivePicked, noOutcome) && same(noOutcome, subject)) {
+    selectedLine = line;
+  }
+
+  if (selectedLine == null) return pickedOutcome;
+  const formattedLine =
+    selectedLine > 0 ? `+${selectedLine}` : String(selectedLine);
+  return `${effectivePicked} ${formattedLine}`;
+}
+
+function spreadLineForOutcome({
+  marketTitle,
+  pickedOutcome,
+  yesOutcome,
+  noOutcome,
+}: {
+  marketTitle: string;
+  pickedOutcome: string;
+  yesOutcome: string;
+  noOutcome: string;
+}): number | null {
+  const match = marketTitle.match(
+    /\bspread\s*:\s*(.+?)\s*\(([+-]?\d+(?:\.\d+)?)\)/i,
+  );
+  if (!match) return null;
+
+  const subject = match[1].trim();
+  const line = Number(match[2]);
+  if (!Number.isFinite(line)) return null;
+
+  const same = (a: string, b: string) =>
+    a.trim().toLowerCase() === b.trim().toLowerCase();
+  const normalizedPicked = pickedOutcome.trim().toLowerCase();
+  const effectivePicked =
+    normalizedPicked === 'yes'
+      ? yesOutcome
+      : normalizedPicked === 'no'
+        ? noOutcome
+        : pickedOutcome;
+
+  if (same(effectivePicked, subject)) return line;
+  if (same(effectivePicked, yesOutcome) && same(yesOutcome, subject)) {
+    return line;
+  }
+  if (same(effectivePicked, noOutcome) && same(yesOutcome, subject)) {
+    return -line;
+  }
+  if (same(effectivePicked, yesOutcome) && same(noOutcome, subject)) {
+    return -line;
+  }
+  if (same(effectivePicked, noOutcome) && same(noOutcome, subject)) {
+    return line;
+  }
+  return null;
+}
+
+export function resolveSportsScorePickedWon({
+  marketTitle,
+  pickedOutcome,
+  yesOutcome,
+  noOutcome,
+  yesScore,
+  noScore,
+}: {
+  marketTitle: string;
+  pickedOutcome: string;
+  yesOutcome?: string;
+  noOutcome?: string;
+  yesScore: number | undefined;
+  noScore: number | undefined;
+}): boolean | undefined {
+  if (
+    yesScore === undefined ||
+    noScore === undefined ||
+    yesScore === noScore ||
+    !yesOutcome ||
+    !noOutcome
+  ) {
+    return undefined;
+  }
+
+  const pickedLower = pickedOutcome.trim().toLowerCase();
+  const pickedIsYes =
+    pickedLower === 'yes' || pickedLower === yesOutcome.toLowerCase();
+  const pickedIsNo =
+    pickedLower === 'no' || pickedLower === noOutcome.toLowerCase();
+  if (!pickedIsYes && !pickedIsNo) return undefined;
+
+  const spreadLine = spreadLineForOutcome({
+    marketTitle,
+    pickedOutcome,
+    yesOutcome,
+    noOutcome,
+  });
+  if (spreadLine != null) {
+    const pickedScore = pickedIsYes ? yesScore : noScore;
+    const opponentScore = pickedIsYes ? noScore : yesScore;
+    return pickedScore + spreadLine > opponentScore;
+  }
+
+  return pickedIsYes ? yesScore > noScore : noScore > yesScore;
+}
+
+export function formatSportsGameClockLabel({
+  hasScores,
+  yesScore,
+  noScore,
+  liveScore,
+  gameStartTime,
+}: {
+  hasScores: boolean;
+  yesScore: number | null;
+  noScore: number | null;
+  liveScore: LiveScore | null;
+  gameStartTime?: string;
+}): string {
+  if (hasScores && (liveScore?.ended || liveScore?.closed)) {
+    return `${yesScore}-${noScore}`;
+  }
+  if (hasScores) {
+    return [liveScore?.period, liveScore?.elapsed]
+      .filter(Boolean)
+      .join(' · ') || 'GAME';
+  }
+  return formatGameCenter(gameStartTime);
 }
 
 function teamMetaToEventTeam(team: TeamMeta | undefined, fallbackName: string) {
@@ -550,18 +880,14 @@ function resolveMarketState(
   };
   const yesScore = scoreForOutcome(content.yesOutcome, 0);
   const noScore = scoreForOutcome(content.noOutcome, 1);
-  const pickedWon =
-    yesScore !== undefined &&
-    noScore !== undefined &&
-    yesScore !== noScore
-      ? content.outcome.toLowerCase() ===
-        content.yesOutcome?.toLowerCase()
-        ? yesScore > noScore
-        : content.outcome.toLowerCase() ===
-            content.noOutcome?.toLowerCase()
-          ? noScore > yesScore
-          : undefined
-      : undefined;
+  const pickedWon = resolveSportsScorePickedWon({
+    marketTitle: content.marketTitle,
+    pickedOutcome: content.outcome,
+    yesOutcome: content.yesOutcome,
+    noOutcome: content.noOutcome,
+    yesScore,
+    noScore,
+  });
 
   return {
     closed: Boolean(
@@ -1614,14 +1940,31 @@ function SportsMiniPanel({
   const yesScore = matchScore(yesOutcome, yesAbbr, 0);
   const noScore = matchScore(noOutcome, noAbbr, 1);
   const hasScores = yesScore != null && noScore != null;
-  const gameClockLabel =
-    hasScores && (liveScore?.ended || liveScore?.closed)
-      ? 'FINAL'
-      : hasScores
-        ? [liveScore?.period, liveScore?.elapsed]
-            .filter(Boolean)
-            .join(' · ') || 'GAME'
-        : formatGameCenter(gameStartTime);
+  const gameClockLabel = formatSportsGameClockLabel({
+    hasScores,
+    yesScore,
+    noScore,
+    liveScore,
+    gameStartTime,
+  });
+  const displayPickedOutcome = formatSpreadOutcomeLabel({
+    marketTitle,
+    pickedOutcome,
+    yesOutcome,
+    noOutcome,
+  });
+  const displayYesOutcome = formatSpreadOutcomeLabel({
+    marketTitle,
+    pickedOutcome: yesOutcome,
+    yesOutcome,
+    noOutcome,
+  });
+  const displayNoOutcome = formatSpreadOutcomeLabel({
+    marketTitle,
+    pickedOutcome: noOutcome,
+    yesOutcome,
+    noOutcome,
+  });
   const pickedCurrentPrice =
     pickedIsYes ? yP : nP;
   const impliedShares =
@@ -1877,14 +2220,14 @@ function SportsMiniPanel({
             Win Prob · Timeline
           </p>
           <p className="truncate text-right font-mono text-[10px] font-black text-gray-400">
-            {entryIsEstimate ? 'quoted' : 'backing'} {pickedOutcome}
+            {entryIsEstimate ? 'quoted' : 'backing'} {displayPickedOutcome}
           </p>
         </div>
         <svg
           viewBox={`0 0 ${VB_W} ${VB_H}`}
           className="mt-1 block h-[72px] w-full"
           role="img"
-          aria-label={`${pickedOutcome} probability timeline`}
+          aria-label={`${displayPickedOutcome} probability timeline`}
         >
           <defs>
             <linearGradient
@@ -1948,7 +2291,7 @@ function SportsMiniPanel({
           <div className="min-w-0">
             <p className="truncate text-[13px] font-extrabold text-gray-950">
               {positionVerb}{' '}
-              <span className="text-[#2F7ED8]">{pickedOutcome}</span>
+              <span className="text-[#2F7ED8]">{displayPickedOutcome}</span>
             </p>
             <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-gray-400">
               {formatEntrySummary({
@@ -1978,8 +2321,8 @@ function SportsMiniPanel({
       <div className="mt-4 grid grid-cols-2 gap-3">
         {open ? (
           <>
-            {buttonForOutcome(yesOutcome, yP, pickedIsYes, 'yes')}
-            {buttonForOutcome(noOutcome, nP, !pickedIsYes, 'no')}
+            {buttonForOutcome(displayYesOutcome, yP, pickedIsYes, 'yes')}
+            {buttonForOutcome(displayNoOutcome, nP, !pickedIsYes, 'no')}
           </>
         ) : (
           <>
@@ -2527,7 +2870,19 @@ function RegularPredictionFeedCard({
     executedPosition,
   );
 
-  const liveScore = useLiveScore(eventSlug);
+  const liveEventSlug = useMemo(
+    () => resolvePredictionLiveEventSlug(content),
+    [content],
+  );
+  const fetchedLiveScore = useLiveScore(liveEventSlug);
+  const embeddedLiveScore = useMemo(
+    () => embeddedPredictionLiveScore(content),
+    [content],
+  );
+  const liveScore = useMemo(
+    () => mergePredictionLiveScores(fetchedLiveScore, embeddedLiveScore),
+    [embeddedLiveScore, fetchedLiveScore],
+  );
 
   // Show sports panel when at least yesOutcome + noOutcome + some sports signal present
   const isYesNoBinary =
@@ -2597,7 +2952,7 @@ function RegularPredictionFeedCard({
       {isSports && (
         <SportsMiniPanel
           marketTitle={content.marketTitle}
-          eventSlug={eventSlug}
+          eventSlug={liveEventSlug ?? eventSlug}
           yesOutcome={yesOutcome!}
           noOutcome={noOutcome!}
           yesPrice={resolvedYesPrice}

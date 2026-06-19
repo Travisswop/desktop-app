@@ -22,6 +22,12 @@ jest.mock('@/components/feed/useLivePerpsMarkPrice', () => ({
 }));
 
 import {
+  embeddedPredictionLiveScore,
+  formatSportsGameClockLabel,
+  formatSpreadOutcomeLabel,
+  mergePredictionLiveScores,
+  resolvePredictionLiveEventSlug,
+  resolveSportsScorePickedWon,
   resolveBtcSettledWinner,
   resolvePredictionDisplayPnl,
   resolveTradeState,
@@ -86,6 +92,107 @@ describe('feed card contracts', () => {
     expect(tradeState.state).toBe('won');
     expect(displayPnl).toBeCloseTo(3.347826);
     expect(displayPnl).toBeGreaterThan(0);
+  });
+
+  it('keeps the spread line in sports feed pick labels', () => {
+    expect(
+      formatSpreadOutcomeLabel({
+        marketTitle: 'Spread: Mexico (-1.5)',
+        pickedOutcome: 'Mexico',
+        yesOutcome: 'Mexico',
+        noOutcome: 'Korea Republic',
+      }),
+    ).toBe('Mexico -1.5');
+
+    expect(
+      formatSpreadOutcomeLabel({
+        marketTitle: 'Spread: Mexico (-1.5)',
+        pickedOutcome: 'Korea Republic',
+        yesOutcome: 'Mexico',
+        noOutcome: 'Korea Republic',
+      }),
+    ).toBe('Korea Republic +1.5');
+
+    expect(
+      formatSpreadOutcomeLabel({
+        marketTitle: 'Spread: Mexico (-1.5)',
+        pickedOutcome: 'Yes',
+        yesOutcome: 'Mexico',
+        noOutcome: 'Korea Republic',
+      }),
+    ).toBe('Mexico -1.5');
+  });
+
+  it('settles spread score fallbacks against the line, not moneyline', () => {
+    expect(
+      resolveSportsScorePickedWon({
+        marketTitle: 'Spread: Mexico (-1.5)',
+        pickedOutcome: 'Mexico',
+        yesOutcome: 'Mexico',
+        noOutcome: 'Korea Republic',
+        yesScore: 1,
+        noScore: 0,
+      }),
+    ).toBe(false);
+
+    expect(
+      resolveSportsScorePickedWon({
+        marketTitle: 'Spread: Mexico (-1.5)',
+        pickedOutcome: 'Korea Republic',
+        yesOutcome: 'Mexico',
+        noOutcome: 'Korea Republic',
+        yesScore: 1,
+        noScore: 0,
+      }),
+    ).toBe(true);
+  });
+
+  it('normalizes sports market slugs before fetching final scores', () => {
+    expect(
+      resolvePredictionLiveEventSlug({
+        ...mexicoClaimedOverrideFeedPost,
+        eventSlug: 'fifwc-mex-kr-2026-06-18-mex',
+        yesTeam: { name: 'Mexico', abbreviation: 'MEX' },
+        noTeam: { name: 'Korea Republic', abbreviation: 'KR' },
+      }),
+    ).toBe('fifwc-mex-kr-2026-06-18');
+  });
+
+  it('uses embedded final score data when fetched sports teams lack scores', () => {
+    const embedded = embeddedPredictionLiveScore({
+      ...mexicoClaimedOverrideFeedPost,
+      eventScore: '1-0',
+      yesTeam: { name: 'Mexico', abbreviation: 'MEX' },
+      noTeam: { name: 'Korea Republic', abbreviation: 'KR' },
+      status: 'claimed',
+    });
+
+    expect(embedded?.teams.map((team) => team.score)).toEqual([1, 0]);
+
+    const merged = mergePredictionLiveScores(
+      {
+        live: false,
+        ended: true,
+        closed: true,
+        period: 'VFT',
+        elapsed: '',
+        teams: [
+          { name: 'Mexico', abbreviation: 'MEX', score: null },
+          { name: 'Korea Republic', abbreviation: 'KR', score: null },
+        ],
+      },
+      embedded,
+    );
+
+    expect(merged?.teams.map((team) => team.score)).toEqual([1, 0]);
+    expect(
+      formatSportsGameClockLabel({
+        hasScores: true,
+        yesScore: 1,
+        noScore: 0,
+        liveScore: merged,
+      }),
+    ).toBe('1-0');
   });
 
   it('fails neutral for closed prediction cards without enough settlement evidence', () => {
