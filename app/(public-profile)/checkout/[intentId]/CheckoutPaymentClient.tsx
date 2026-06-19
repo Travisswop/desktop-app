@@ -253,6 +253,29 @@ function tokenRail(token: TokenData | null) {
   return token.chain === 'SOLANA' ? 'solana' : 'lifi';
 }
 
+function paymentWalletAddressForToken(
+  token: TokenData | null,
+  evmWalletAddresses: string[]
+) {
+  if (!token || token.chain === 'SOLANA') return '';
+  if (token.walletAddress) return token.walletAddress;
+  return evmWalletAddresses.length === 1 ? evmWalletAddresses[0] : '';
+}
+
+function uniqueWalletAddresses(...values: Array<string | undefined | null>) {
+  const seen = new Set<string>();
+  const addresses: string[] = [];
+  values.forEach((value) => {
+    const address = value?.trim();
+    if (!address) return;
+    const key = address.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    addresses.push(address);
+  });
+  return addresses;
+}
+
 function explorerUrlForToken(token: TokenData | null, txHash: string) {
   const chain = token?.chain || 'SOLANA';
   return `${CHAIN_CONFIG[chain]?.explorer || CHAIN_CONFIG.SOLANA.explorer}${txHash}`;
@@ -351,7 +374,7 @@ export default function CheckoutPaymentClient({
   const router = useRouter();
   const { login, ready, authenticated } = usePrivy();
   const { connectWallet } = useConnectWallet();
-  const { accessToken } = useUser();
+  const { accessToken, user } = useUser();
   const { wallets: evmWallets } = useEvmWallets();
   const { sendTransaction } = useSendTransaction();
   const { wallets: solanaWallets } = useSolanaWallets();
@@ -392,20 +415,23 @@ export default function CheckoutPaymentClient({
     return solanaWallets.find((wallet) => wallet.address) || null;
   }, [solanaWallets]);
 
+  const activeSolanaWalletAddress =
+    solanaWallet?.address || user?.solanaWallet || user?.solanaAddress || '';
+
   const evmWalletAddresses = useMemo(
     () =>
-      Array.from(
-        new Set(
-          evmWallets
-            .filter((wallet) => wallet.address && wallet.chainId?.includes('eip155:'))
-            .map((wallet) => wallet.address)
-        )
+      uniqueWalletAddresses(
+        ...evmWallets
+          .filter((wallet) => wallet.address && wallet.chainId?.includes('eip155:'))
+          .map((wallet) => wallet.address),
+        user?.ethereumWallet,
+        user?.ethAddress
       ),
-    [evmWallets]
+    [evmWallets, user?.ethAddress, user?.ethereumWallet]
   );
 
   const { tokens, loading: tokensLoading, refetch } = useMultiChainTokenData(
-    solanaWallet?.address,
+    activeSolanaWalletAddress,
     evmWalletAddresses,
     ['SOLANA', 'ETHEREUM', 'POLYGON', 'BASE', 'ARBITRUM']
   );
@@ -461,6 +487,10 @@ export default function CheckoutPaymentClient({
   );
 
   const selectedRail = tokenRail(selectedToken);
+  const selectedPaymentWalletAddress = useMemo(
+    () => paymentWalletAddressForToken(selectedToken, evmWalletAddresses),
+    [evmWalletAddresses, selectedToken]
+  );
   const appCheckoutUrls = useMemo(
     () => swopAppCheckoutUrls(intentId),
     [intentId]
@@ -745,7 +775,7 @@ export default function CheckoutPaymentClient({
     if (!chainConfig) throw new Error('Unsupported payment network');
 
     const sourceChainId = Number(chainConfig.id);
-    const sourceWalletAddress = selectedToken.walletAddress;
+    const sourceWalletAddress = selectedPaymentWalletAddress;
     const evmWallet = evmWallets.find(
       (wallet) =>
         wallet.address?.toLowerCase() ===
@@ -868,7 +898,7 @@ export default function CheckoutPaymentClient({
       setStage('preparing');
       if (selectedRail === 'lifi') {
         const chainConfig = CHAIN_CONFIG[selectedToken.chain];
-        const fromAddress = selectedToken.walletAddress;
+        const fromAddress = selectedPaymentWalletAddress;
         if (!chainConfig || !fromAddress) {
           throw new Error('Wallet not ready');
         }
@@ -950,6 +980,32 @@ export default function CheckoutPaymentClient({
 
   const loading = stage === 'loading';
   const busy = ['preparing', 'signing', 'confirming'].includes(stage);
+  const paymentDisabledReason = (() => {
+    if (busy) return '';
+    if (tokenAmountLoading) return 'Getting a live quote...';
+    if (tokenAmountQuoteError) return tokenAmountQuoteError;
+    if (!selectedToken) return 'Select a token to continue.';
+    if (!tokenAmount) return 'Payment amount is still loading.';
+    if (!hasSufficientBalance) {
+      return `Insufficient ${selectedToken.symbol} balance.`;
+    }
+    if (!accessToken) return 'Sign in again to authorize payment.';
+    if (selectedRail === 'solana' && !solanaWallet?.address) {
+      return 'Create or connect a Solana wallet to pay with this token.';
+    }
+    if (selectedRail === 'lifi' && !selectedPaymentWalletAddress) {
+      return evmWalletAddresses.length > 1
+        ? 'Select a token tied to one connected EVM wallet.'
+        : 'Connect an EVM wallet to pay with this token.';
+    }
+    return '';
+  })();
+  const supplementalPaymentIssue =
+    paymentDisabledReason &&
+    !tokenAmountQuoteError &&
+    !(selectedToken && tokenAmount && !hasSufficientBalance)
+      ? paymentDisabledReason
+      : '';
   const paymentDisabled =
     busy ||
     tokenAmountLoading ||
@@ -959,7 +1015,7 @@ export default function CheckoutPaymentClient({
     !hasSufficientBalance ||
     !accessToken ||
     (selectedRail === 'solana' && !solanaWallet?.address) ||
-    (selectedRail === 'lifi' && !selectedToken.walletAddress);
+    (selectedRail === 'lifi' && !selectedPaymentWalletAddress);
   const amountDueValue =
     checkoutAmounts?.totalDueAmount ?? intent?.amount.value ?? 0;
   const amountDueCurrency =
@@ -1237,6 +1293,12 @@ export default function CheckoutPaymentClient({
               {error ? (
                 <div className="mt-5 rounded-2xl border border-[#ffd0d0] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
                   {error}
+                </div>
+              ) : null}
+
+              {supplementalPaymentIssue ? (
+                <div className="mt-5 rounded-2xl border border-[#dce5f5] bg-[#f5f8ff] px-4 py-3 text-sm font-semibold text-[#4b5870]">
+                  {supplementalPaymentIssue}
                 </div>
               ) : null}
 
