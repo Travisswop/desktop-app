@@ -675,12 +675,19 @@ body {
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
 }
 
-/* Pay-amount dial used by the swap Market + Limit forms */
+/* Shared range dial used by swap amount and perps leverage controls */
 .swop-dial {
+  --swop-dial-track: #f2f2f0;
   -webkit-appearance: none;
   appearance: none;
+  background: transparent;
   border-radius: 9999px;
   outline: none;
+}
+.swop-dial::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--swop-dial-track);
 }
 .swop-dial::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -693,6 +700,12 @@ body {
   box-shadow: 0 1px 2px rgba(10, 10, 12, 0.12),
     0 4px 12px -4px rgba(10, 10, 12, 0.2);
   cursor: pointer;
+  margin-top: -6px;
+}
+.swop-dial::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--swop-dial-track);
 }
 .swop-dial::-moz-range-thumb {
   width: 18px;

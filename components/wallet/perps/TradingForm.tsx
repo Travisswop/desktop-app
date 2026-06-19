@@ -1,6 +1,13 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+  type CSSProperties,
+} from 'react';
 import { AlertTriangle, Loader2, Plus } from 'lucide-react';
 import type { HLMarket, HLPosition, OrderSide, OrderMode } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
@@ -126,9 +133,9 @@ export function TradingForm({
   const safeLeverage = Math.min(Math.max(1, leverage), maxLev);
   const leveragePct =
     maxLev > 1 ? ((safeLeverage - 1) / (maxLev - 1)) * 100 : 100;
-  const leverageThumbLeft = `calc(${leveragePct}% - ${
-    (leveragePct / 100) * 16
-  }px + 8px)`;
+  const leverageTrackStyle = {
+    '--swop-dial-track': `linear-gradient(to right, #d97706 0%, #d97706 ${leveragePct}%, #f2f2f0 ${leveragePct}%, #f2f2f0 100%)`,
+  } as CSSProperties;
 
   const initialOrderKey = useMemo(
     () =>
@@ -609,12 +616,23 @@ export function TradingForm({
   );
 
   const handleLeverageCommit = useCallback(
-    (newLev: number) => {
+    async (newLev: number) => {
+      if (!Number.isFinite(newLev)) return;
       const nextLeverage = Math.min(Math.max(1, newLev), maxLev);
       setLeverage(nextLeverage);
       onLeverageChange?.(nextLeverage, isCross);
+      if (market && isAgentReady) {
+        await onUpdateLeverage(market.index, nextLeverage, isCross).catch(() => {});
+      }
     },
-    [isCross, maxLev, onLeverageChange],
+    [isAgentReady, isCross, market, maxLev, onLeverageChange, onUpdateLeverage],
+  );
+
+  const commitLeverageFromInput = useCallback(
+    (input: HTMLInputElement) => {
+      handleLeverageCommit(Number(input.value));
+    },
+    [handleLeverageCommit],
   );
 
   const handleMarginModeSelect = useCallback((nextMode: 'cross' | 'isolated') => {
@@ -826,29 +844,33 @@ export function TradingForm({
             {safeLeverage}×
           </span>
         </div>
-        <div className="relative h-1.5 overflow-hidden rounded-full bg-[#f2f2f0]">
-          <div
-            className="absolute left-0 top-0 h-full rounded-full bg-amber-600"
-            style={{ width: `${leveragePct}%` }}
-          />
-          <input
-            type="range"
-            min={1}
-            max={maxLev}
-            step={1}
-            value={safeLeverage}
-            onChange={(e) => handleLeverageChange(parseInt(e.target.value))}
-            onMouseUp={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
-            onTouchEnd={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
-            className="absolute inset-0 w-full opacity-0 cursor-pointer"
-          />
-        </div>
-        <div className="relative h-4">
-          <div
-            className="absolute -top-[13px] h-4 w-4 rounded-full border-2 border-amber-600 bg-white shadow"
-            style={{ left: leverageThumbLeft }}
-          />
-        </div>
+        <input
+          type="range"
+          min={1}
+          max={maxLev}
+          step={1}
+          aria-label="Perps leverage"
+          aria-valuetext={`${safeLeverage}x leverage`}
+          value={safeLeverage}
+          onChange={(e) => handleLeverageChange(parseInt(e.target.value))}
+          onMouseUp={(e) => commitLeverageFromInput(e.currentTarget)}
+          onTouchEnd={(e) => commitLeverageFromInput(e.currentTarget)}
+          onBlur={(e) => commitLeverageFromInput(e.currentTarget)}
+          onKeyUp={(e) => {
+            if (
+              e.key === 'ArrowLeft' ||
+              e.key === 'ArrowRight' ||
+              e.key === 'ArrowUp' ||
+              e.key === 'ArrowDown' ||
+              e.key === 'Home' ||
+              e.key === 'End'
+            ) {
+              commitLeverageFromInput(e.currentTarget);
+            }
+          }}
+          className="swop-dial h-7 w-full cursor-pointer"
+          style={leverageTrackStyle}
+        />
         <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 font-mono">
           <span>1×</span>
           <span>{Math.round(maxLev / 5)}×</span>
