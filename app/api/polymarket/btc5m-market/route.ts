@@ -29,6 +29,7 @@ function isBtc5mMarket(m: Record<string, unknown>): boolean {
     slug.includes('5m') ||
     question.includes('5 minute') ||
     question.includes('5-minute') ||
+    question.includes('up or down') ||
     slug.includes('updown') ||
     slug.includes('up-down');
   return hasBtc && has5m;
