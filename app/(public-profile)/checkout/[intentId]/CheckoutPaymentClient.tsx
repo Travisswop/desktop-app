@@ -54,8 +54,10 @@ import {
   calculateCheckoutTokenAmount,
   formatRawTokenAmount,
   getCheckoutAmounts,
+  getLifiTokenAddressForCheckout,
   getProtectedCheckoutOutputRawAmount,
   isSolanaSettlementUsdc,
+  NATIVE_EVM_TOKEN_ADDRESS,
   SOL_MINT,
   SOLANA_USDC_MINT,
 } from '@/lib/checkout-payment-amounts';
@@ -107,7 +109,6 @@ type LifiTransactionRequest = {
   chainId?: number;
 };
 
-const NATIVE_EVM_TOKEN = '0x0000000000000000000000000000000000000000';
 const DEFAULT_SWOP_IOS_STORE_URL =
   'https://apps.apple.com/us/app/swopnew/id1593201322';
 const DEFAULT_SWOP_ANDROID_STORE_URL =
@@ -240,17 +241,6 @@ function tokenUnitPriceLabel(token: TokenData | null) {
 function tokenMintForCheckout(token: TokenData) {
   if (token.isNative || token.symbol?.toUpperCase() === 'SOL') return null;
   return token.address || null;
-}
-
-function tokenAddressForLifi(token: TokenData) {
-  if (
-    token.isNative ||
-    ['ETH', 'POL', 'MATIC'].includes(token.symbol?.toUpperCase() || '')
-  ) {
-    return NATIVE_EVM_TOKEN;
-  }
-
-  return token.address || NATIVE_EVM_TOKEN;
 }
 
 function tokenRail(token: TokenData | null) {
@@ -575,9 +565,9 @@ export default function CheckoutPaymentClient({
   );
 
   const activeSolanaWalletAddress =
-    solanaWallet?.address ||
-    privySolanaWalletAddress ||
     storedSolanaWalletAddress ||
+    privySolanaWalletAddress ||
+    solanaWallet?.address ||
     '';
 
   const evmSignerWalletAddresses = useMemo(
@@ -686,9 +676,10 @@ export default function CheckoutPaymentClient({
   const selectedSolanaSignerWallet = useMemo(() => {
     if (selectedToken?.chain !== 'SOLANA') return solanaWallet;
     const sourceWallet = selectedToken.walletAddress || activeSolanaWalletAddress;
+    if (!sourceWallet) return solanaWallet;
     return (
       solanaWallets.find((wallet) => wallet.address === sourceWallet) ||
-      solanaWallet
+      (solanaWallet?.address === sourceWallet ? solanaWallet : null)
     );
   }, [activeSolanaWalletAddress, selectedToken, solanaWallet, solanaWallets]);
   const selectedTokenWalletLabel = selectedToken?.walletAddress
@@ -1066,8 +1057,8 @@ export default function CheckoutPaymentClient({
       throw new Error(`Unsupported source chain: ${selectedToken.chain}`);
     }
 
-    const fromTokenAddress = tokenAddressForLifi(selectedToken);
-    const isNativeToken = fromTokenAddress === NATIVE_EVM_TOKEN;
+    const fromTokenAddress = getLifiTokenAddressForCheckout(selectedToken);
+    const isNativeToken = fromTokenAddress === NATIVE_EVM_TOKEN_ADDRESS;
 
     if (!isNativeToken) {
       const approvalAddress =
@@ -1182,7 +1173,7 @@ export default function CheckoutPaymentClient({
           {
             fromAddress,
             fromChain: chainConfig.id,
-            fromToken: tokenAddressForLifi(selectedToken),
+            fromToken: getLifiTokenAddressForCheckout(selectedToken),
             tokenDecimals: selectedToken.decimals ?? 18,
             tokenAmount,
           },

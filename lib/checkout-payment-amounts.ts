@@ -4,6 +4,14 @@ import type { TokenData } from '@/types/token';
 export const SOLANA_USDC_MINT =
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
+export const NATIVE_EVM_TOKEN_ADDRESS =
+  '0x0000000000000000000000000000000000000000';
+export const EVM_USDC_BY_CHAIN: Partial<Record<TokenData['chain'], string>> = {
+  ETHEREUM: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  POLYGON: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',
+  BASE: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  ARBITRUM: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+};
 const DEFAULT_USDC_DECIMALS = 6;
 const DEFAULT_TOKEN_DISPLAY_DECIMALS = 8;
 const MAX_SLIPPAGE_BPS = 9999;
@@ -43,6 +51,37 @@ export function isSolanaSettlementUsdc(token: TokenData) {
 
   const address = token.address?.trim();
   return !address || address === SOLANA_USDC_MINT;
+}
+
+export function getEvmTokenAddressForCheckout(token: TokenData) {
+  if (token.chain === 'SOLANA') return token.address || null;
+
+  const address = token.address?.trim() || '';
+  const walletAddress = token.walletAddress?.trim() || '';
+  const addressLooksLikeWallet =
+    address &&
+    walletAddress &&
+    address.toLowerCase() === walletAddress.toLowerCase();
+
+  if (token.symbol?.toUpperCase() === 'USDC') {
+    return (
+      EVM_USDC_BY_CHAIN[token.chain] ||
+      (addressLooksLikeWallet ? null : address)
+    );
+  }
+
+  return addressLooksLikeWallet ? null : address || null;
+}
+
+export function getLifiTokenAddressForCheckout(token: TokenData) {
+  if (
+    token.isNative ||
+    ['ETH', 'POL', 'MATIC'].includes(token.symbol?.toUpperCase() || '')
+  ) {
+    return NATIVE_EVM_TOKEN_ADDRESS;
+  }
+
+  return getEvmTokenAddressForCheckout(token) || NATIVE_EVM_TOKEN_ADDRESS;
 }
 
 function getTokenPaymentDecimals(token: TokenData) {

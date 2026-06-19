@@ -1,8 +1,11 @@
 import {
   calculateCheckoutTokenAmount,
   formatRawTokenAmount,
+  getEvmTokenAddressForCheckout,
+  getLifiTokenAddressForCheckout,
   getProtectedCheckoutOutputRawAmount,
   getSlippageProtectedMultiplier,
+  NATIVE_EVM_TOKEN_ADDRESS,
 } from '@/lib/checkout-payment-amounts';
 import type { CheckoutIntent } from '@/lib/checkout-api';
 import type { TokenData } from '@/types/token';
@@ -142,5 +145,53 @@ describe('checkout payment amounts', () => {
 
   it('formats Jupiter raw input amounts without losing token precision', () => {
     expect(formatRawTokenAmount('16627501978', 9)).toBe('16.627501978');
+  });
+
+  it('resolves known EVM USDC contracts even when portfolio data omits the token address', () => {
+    expect(
+      getLifiTokenAddressForCheckout(
+        token({
+          name: 'USD Coin',
+          symbol: 'USDC',
+          chain: 'POLYGON',
+          decimals: 6,
+          address: null,
+          walletAddress: '0xf76ec7cf74bd7a3c53cb2bf8c8c625ed59bf6168',
+          marketData: {
+            price: '0.999618',
+          },
+        })
+      )
+    ).toBe('0x3c499c542cef5e3811e1192ce70d8cc03d5c3359');
+  });
+
+  it('does not mistake a wallet address for an EVM token contract', () => {
+    const walletAddress = '0xf76ec7cf74bd7a3c53cb2bf8c8c625ed59bf6168';
+
+    expect(
+      getEvmTokenAddressForCheckout(
+        token({
+          name: 'Mystery Token',
+          symbol: 'MYST',
+          chain: 'BASE',
+          decimals: 18,
+          address: walletAddress,
+          walletAddress,
+        })
+      )
+    ).toBeNull();
+
+    expect(
+      getLifiTokenAddressForCheckout(
+        token({
+          name: 'Mystery Token',
+          symbol: 'MYST',
+          chain: 'BASE',
+          decimals: 18,
+          address: walletAddress,
+          walletAddress,
+        })
+      )
+    ).toBe(NATIVE_EVM_TOKEN_ADDRESS);
   });
 });
