@@ -1,14 +1,26 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertTriangle, Loader2, Percent, ShieldCheck, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import {
+  AlertTriangle,
+  Loader2,
+  Percent,
+  Share2,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 import type { HLPosition, HLOpenOrder } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
+import { useToast } from '@/hooks/use-toast';
 import { MarketIcon } from './MarketIcon';
 import {
   lookupHyperliquidPositionPrice,
   resolveHyperliquidPositionMarkPrice,
 } from '@/lib/perps/hyperliquidPositionPricing';
+import {
+  buildPositionShareDetails,
+  sharePerpsPositionImage,
+} from './perpsPositionShare';
 
 export interface PerpsFill {
   coin: string;
@@ -168,6 +180,15 @@ export function PositionsTable({
 
 // ─── Positions ──────────────────────────────────────────────────────────────
 
+function positionRowKey(position: HLPosition) {
+  return [
+    position.dex || 'main',
+    position.coin,
+    position.szi,
+    position.entryPx,
+  ].join(':');
+}
+
 function PositionsBody({
   positions,
   mids,
@@ -185,9 +206,35 @@ function PositionsBody({
   onOpenTpSl: (position: HLPosition) => void;
   onSelectCoin?: (coin: string) => void;
 }) {
+  const shareInFlightRef = useRef(false);
+  const [sharingPositionKey, setSharingPositionKey] = useState<string | null>(
+    null,
+  );
+  const { toast } = useToast();
+
   if (positions.length === 0) {
     return <EmptyState label="No open positions" />;
   }
+
+  const handleSharePosition = async (
+    position: HLPosition,
+    markPx: number | null,
+    rowKey: string,
+  ) => {
+    if (shareInFlightRef.current) return;
+
+    shareInFlightRef.current = true;
+    setSharingPositionKey(rowKey);
+    try {
+      await sharePerpsPositionImage(
+        buildPositionShareDetails(position, markPx),
+        toast,
+      );
+    } finally {
+      shareInFlightRef.current = false;
+      setSharingPositionKey(null);
+    }
+  };
 
   return (
     <table className="w-full text-left">
@@ -231,10 +278,12 @@ function PositionsBody({
                 )
               : null;
           const isClosing = closingCoin === p.coin;
+          const rowKey = positionRowKey(p);
+          const isSharing = sharingPositionKey === rowKey;
 
           return (
             <tr
-              key={p.coin}
+              key={rowKey}
               className="border-t border-black/[0.04] hover:bg-gray-50/60 transition-colors"
             >
               <Td>
@@ -298,6 +347,20 @@ function PositionsBody({
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
                     TP/SL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSharePosition(p, mark, rowKey)}
+                    disabled={isSharing}
+                    aria-label={`Share ${p.coin} position`}
+                    title="Share position"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f4f4f1] text-gray-900 hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSharing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Share2 className="w-3.5 h-3.5" />
+                    )}
                   </button>
                   <button
                     type="button"
