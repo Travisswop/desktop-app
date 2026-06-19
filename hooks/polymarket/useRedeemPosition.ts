@@ -38,6 +38,11 @@ type DelegatedSignerConfig = {
   policyIds: string[];
 };
 
+type FeedClaimUser = {
+  _id?: string;
+  primaryMicrosite?: string;
+};
+
 const swopApiBase = () => (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 const delegatedSignerId =
   process.env.NEXT_PUBLIC_PRIVY_DELEGATED_SIGNER_ID ||
@@ -65,6 +70,47 @@ function serializeForJson(value: unknown): unknown {
   return value;
 }
 
+async function markPredictionFeedRedeemed({
+  accessToken,
+  params,
+  result,
+  user,
+}: {
+  accessToken: string | null | undefined;
+  params: RedeemParams;
+  result: { txId?: string; redeemedAmount?: number };
+  user: FeedClaimUser | null | undefined;
+}) {
+  const apiBase = swopApiBase();
+  if (!apiBase || !accessToken || !user?._id) return;
+
+  const response = await fetch(`${apiBase}/api/v2/feed/prediction/redeem`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      userId: user._id,
+      smartsiteId: user.primaryMicrosite,
+      conditionId: params.conditionId,
+      marketId: params.conditionId,
+      asset: params.asset,
+      outcomeIndex: params.outcomeIndex,
+      redeemedAmount: result.redeemedAmount ?? params.size,
+      txId: result.txId,
+      claimedAt: new Date().toISOString(),
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(
+      body?.message || body?.error || "Failed to mark prediction feed claimed"
+    );
+  }
+}
+
 export function useRedeemPosition() {
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [isNormalizingCollateral, setIsNormalizingCollateral] =
@@ -75,7 +121,7 @@ export function useRedeemPosition() {
 
   const { eoaAddress, walletClient } = usePolymarketWallet();
   const { walletType, depositWalletAddress } = useTrading();
-  const { accessToken } = useUser();
+  const { accessToken, user } = useUser();
   const { user: privyUser } = usePrivy();
   const { signTypedData: signTypedDataWithPrivy } = useSignTypedData();
   const queryClient = useQueryClient();
@@ -507,6 +553,25 @@ export function useRedeemPosition() {
         );
         console.debug("[Polymarket Redeem] submit response", result);
 
+        try {
+          await markPredictionFeedRedeemed({
+            accessToken,
+            params,
+            result,
+            user,
+          });
+        } catch (feedError) {
+          console.warn("[Polymarket Redeem] feed claim stamp failed", {
+            message:
+              feedError instanceof Error
+                ? feedError.message
+                : "Could not mark prediction feed claimed.",
+            conditionId: params.conditionId,
+            asset: params.asset,
+            txId: result.txId,
+          });
+        }
+
         let normalizedCollateral = false;
         let normalizationError: string | undefined;
         const wrapAmount = Number(
@@ -570,6 +635,7 @@ export function useRedeemPosition() {
       accessToken,
       walletType,
       depositWalletAddress,
+      user,
       queryClient,
       signSafeTxHash,
       signRedeemTypedData,
