@@ -63,7 +63,7 @@ const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
 const SHARE_POSTER_WIDTH = 420;
 const SHARE_POSTER_HEIGHT = 640;
-const SHARE_LOGO_SRC = '/images/swop-white-logo.png';
+const SHARE_CANVAS_SCALE = 2;
 
 interface PositionShareDetails {
   coin: string;
@@ -152,51 +152,350 @@ function liqMetrics(
   return { liqPx, markPx, pct, isLong };
 }
 
-async function capturePositionShareImage(
-  el: HTMLElement,
-): Promise<Blob> {
-  await waitForShareImages(el);
+function capturePositionShareImage(details: PositionShareDetails): Blob {
+  const canvas = document.createElement('canvas');
+  canvas.width = SHARE_POSTER_WIDTH * SHARE_CANVAS_SCALE;
+  canvas.height = SHARE_POSTER_HEIGHT * SHARE_CANVAS_SCALE;
 
-  const html2canvas = (await import('html2canvas')).default;
-  const canvas = await html2canvas(el, {
-    backgroundColor: null,
-    scale: 3,
-    useCORS: true,
-    logging: false,
-    width: SHARE_POSTER_WIDTH,
-    height: SHARE_POSTER_HEIGHT,
-    windowWidth: SHARE_POSTER_WIDTH,
-    windowHeight: SHARE_POSTER_HEIGHT,
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas is not available');
+
+  ctx.scale(SHARE_CANVAS_SCALE, SHARE_CANVAS_SCALE);
+  drawPositionSharePoster(ctx, details);
+
+  return dataUrlToBlob(canvas.toDataURL('image/png'));
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [meta, encoded] = dataUrl.split(',');
+  const mime = meta.match(/data:([^;]+)/)?.[1] || 'image/png';
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mime });
+}
+
+function drawPositionSharePoster(
+  ctx: CanvasRenderingContext2D,
+  details: PositionShareDetails,
+) {
+  const accent = details.pnlPositive ? '#3fe08f' : '#ff5d63';
+  const sideTone =
+    details.side === 'LONG'
+      ? {
+          color: '#9ef7c8',
+          border: 'rgba(63,224,143,0.42)',
+          background: 'rgba(63,224,143,0.11)',
+        }
+      : {
+          color: '#ffb2b6',
+          border: 'rgba(255,93,99,0.42)',
+          background: 'rgba(255,93,99,0.11)',
+        };
+  const panelX = 24;
+  const panelY = 86;
+  const liqWidth =
+    details.liqPercent === null
+      ? 0
+      : Math.max(3, Math.min(100, details.liqPercent));
+
+  const bg = ctx.createLinearGradient(0, 0, SHARE_POSTER_WIDTH, SHARE_POSTER_HEIGHT);
+  bg.addColorStop(0, '#040605');
+  bg.addColorStop(0.54, '#07120e');
+  bg.addColorStop(1, '#010302');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, SHARE_POSTER_WIDTH, SHARE_POSTER_HEIGHT);
+
+  const topGlow = ctx.createRadialGradient(294, 26, 0, 294, 26, 210);
+  topGlow.addColorStop(0, 'rgba(63,224,143,0.18)');
+  topGlow.addColorStop(1, 'rgba(63,224,143,0)');
+  ctx.fillStyle = topGlow;
+  ctx.fillRect(0, 0, SHARE_POSTER_WIDTH, SHARE_POSTER_HEIGHT);
+
+  const lowGlow = ctx.createRadialGradient(28, 550, 0, 28, 550, 170);
+  lowGlow.addColorStop(0, 'rgba(63,224,143,0.08)');
+  lowGlow.addColorStop(1, 'rgba(63,224,143,0)');
+  ctx.fillStyle = lowGlow;
+  ctx.fillRect(0, 0, SHARE_POSTER_WIDTH, SHARE_POSTER_HEIGHT);
+
+  ctx.strokeStyle = 'rgba(63,224,143,0.026)';
+  ctx.lineWidth = 1;
+  for (let y = 0; y <= SHARE_POSTER_HEIGHT; y += 28) {
+    line(ctx, 0, y, SHARE_POSTER_WIDTH, y);
+  }
+  ctx.strokeStyle = 'rgba(63,224,143,0.018)';
+  for (let x = 0; x <= SHARE_POSTER_WIDTH; x += 36) {
+    line(ctx, x, 0, x, SHARE_POSTER_HEIGHT);
+  }
+
+  [
+    { left: 42, top: -36, height: 188, opacity: 0.26 },
+    { left: 112, top: 24, height: 138, opacity: 0.18 },
+    { left: 188, top: -18, height: 166, opacity: 0.23 },
+    { left: 270, top: 42, height: 128, opacity: 0.16 },
+    { left: 352, top: -48, height: 198, opacity: 0.24 },
+  ].forEach((rain) => {
+    const gradient = ctx.createLinearGradient(0, rain.top, 0, rain.top + rain.height);
+    gradient.addColorStop(0, 'rgba(63,224,143,0)');
+    gradient.addColorStop(0.5, `rgba(63,224,143,${rain.opacity})`);
+    gradient.addColorStop(1, 'rgba(63,224,143,0)');
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 1;
+    line(ctx, rain.left, rain.top, rain.left, rain.top + rain.height);
   });
 
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error('Failed to capture position image'));
-    }, 'image/png');
+  fillRoundRect(ctx, 96, 22, 228, 52, 14, 'rgba(0,0,0,0.48)');
+  strokeRoundRect(ctx, 96, 22, 228, 52, 14, 'rgba(63,224,143,0.25)', 1);
+  drawFittedText(ctx, 'SWOP', 210, 37, 190, 25, 18, '900', '#f3f7f5', 'center');
+  drawFittedText(ctx, 'PERPS', 210, 57, 190, 8.5, 7, '900', '#3fe08f', 'center');
+
+  const panelGradient = ctx.createLinearGradient(0, panelY, 0, panelY + 552);
+  panelGradient.addColorStop(0, 'rgba(20,23,30,0.98)');
+  panelGradient.addColorStop(1, 'rgba(11,13,18,0.98)');
+  fillRoundRect(ctx, panelX, panelY, 372, 552, 22, panelGradient);
+  strokeRoundRect(ctx, panelX, panelY, 372, 552, 22, 'rgba(63,224,143,0.16)', 1);
+
+  ctx.fillStyle = '#3fe08f';
+  ctx.shadowColor = 'rgba(63,224,143,0.58)';
+  ctx.shadowBlur = 18;
+  ctx.fillRect(panelX + 22, panelY + 24, 2, 190);
+  ctx.shadowBlur = 0;
+
+  drawFittedText(ctx, 'OPEN POSITION', panelX + 38, panelY + 26, 160, 10, 8, '900', '#3fe08f');
+  drawFittedText(
+    ctx,
+    details.coin,
+    panelX + 38,
+    panelY + 56,
+    292,
+    details.coin.length > 14 ? 18 : details.coin.length > 10 ? 21 : 25,
+    16,
+    '900',
+    '#f3f7f5',
+  );
+  fillRoundRect(ctx, panelX + 38, panelY + 98, 108, 26, 7, sideTone.background);
+  strokeRoundRect(ctx, panelX + 38, panelY + 98, 108, 26, 7, sideTone.border, 1);
+  drawFittedText(
+    ctx,
+    `${details.side} · ${details.leverage}x`,
+    panelX + 92,
+    panelY + 105,
+    94,
+    10,
+    8,
+    '900',
+    sideTone.color,
+    'center',
+  );
+
+  fillRoundRect(ctx, panelX + 38, panelY + 146, 292, 88, 14, 'rgba(0,0,0,0.28)');
+  strokeRoundRect(ctx, panelX + 38, panelY + 146, 292, 88, 14, 'rgba(63,224,143,0.18)', 1);
+  drawFittedText(ctx, 'UNREALIZED PNL', panelX + 54, panelY + 157, 160, 9, 7, '900', '#6b7280');
+  drawFittedText(
+    ctx,
+    details.pnlLabel,
+    panelX + 54,
+    panelY + 175,
+    260,
+    details.pnlLabel.length > 9 ? 25 : details.pnlLabel.length > 7 ? 28 : 32,
+    21,
+    '900',
+    accent,
+  );
+  drawFittedText(
+    ctx,
+    `${details.roeLabel} ROE`,
+    panelX + 314,
+    panelY + 214,
+    150,
+    10.5,
+    8,
+    '800',
+    '#9ca3af',
+    'right',
+  );
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth = 1;
+  line(ctx, panelX + 24, panelY + 246, panelX + 348, panelY + 246);
+
+  drawStatsFrame(ctx, panelX + 24, panelY + 260, details);
+  drawLiquidationRail(ctx, panelX + 24, panelY + 478, details, liqWidth);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  line(ctx, panelX + 24, panelY + 530, panelX + 348, panelY + 530);
+  drawFittedText(ctx, 'FOLLOW MY TRADES', panelX + 24, panelY + 538, 210, 9.5, 8, '900', '#6b7280');
+  drawFittedText(ctx, 'swopme.app', panelX + 348, panelY + 538, 120, 10.5, 8, '900', '#3fe08f', 'right');
+}
+
+function drawStatsFrame(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  details: PositionShareDetails,
+) {
+  const stats = [
+    { label: 'Size', value: details.sizeLabel },
+    { label: 'Entry', value: details.entryLabel },
+    { label: 'Mark', value: details.markLabel },
+    { label: 'Margin', value: details.marginLabel },
+    { label: 'Liq distance', value: details.liqDistanceLabel },
+    { label: 'Liq price', value: details.liqPriceLabel },
+  ];
+
+  fillRoundRect(ctx, x, y, 324, 198, 14, 'rgba(0,0,0,0.44)');
+  strokeRoundRect(ctx, x, y, 324, 198, 14, 'rgba(63,224,143,0.30)', 1);
+  ctx.strokeStyle = 'rgba(63,224,143,0.14)';
+  line(ctx, x + 162, y, x + 162, y + 198);
+  line(ctx, x, y + 66, x + 324, y + 66);
+  line(ctx, x, y + 132, x + 324, y + 132);
+
+  stats.forEach((stat, index) => {
+    const col = index % 2;
+    const row = Math.floor(index / 2);
+    const cellX = x + col * 162;
+    const cellY = y + row * 66;
+    drawFittedText(ctx, stat.label.toUpperCase(), cellX + 14, cellY + 9, 132, 8.8, 7, '800', '#6b7280');
+    drawFittedText(
+      ctx,
+      stat.value,
+      cellX + 14,
+      cellY + 34,
+      132,
+      stat.value.length > 17 ? 11.5 : 12.5,
+      9,
+      '900',
+      '#f3f7f5',
+    );
   });
 }
 
-async function waitForShareImages(el: HTMLElement) {
-  const images = Array.from(el.querySelectorAll('img'));
-  await Promise.all(
-    images.map(async (img) => {
-      if (!img.complete) {
-        await new Promise<void>((resolve) => {
-          img.addEventListener('load', () => resolve(), {
-            once: true,
-          });
-          img.addEventListener('error', () => resolve(), {
-            once: true,
-          });
-        });
-      }
-
-      if (typeof img.decode === 'function') {
-        await img.decode().catch(() => undefined);
-      }
-    }),
+function drawLiquidationRail(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  details: PositionShareDetails,
+  liqWidth: number,
+) {
+  drawFittedText(ctx, 'LIQUIDATION RAIL', x, y, 128, 10, 8, '900', '#6b7280');
+  drawFittedText(
+    ctx,
+    `${details.liqDistanceLabel} · ${details.liqPriceLabel}`,
+    x + 324,
+    y,
+    190,
+    11,
+    8,
+    '900',
+    '#f3f7f5',
+    'right',
   );
+  fillRoundRect(ctx, x, y + 24, 324, 8, 999, '#070809');
+  strokeRoundRect(ctx, x, y + 24, 324, 8, 999, 'rgba(255,255,255,0.08)', 1);
+
+  if (liqWidth > 0) {
+    const gradient = ctx.createLinearGradient(x, 0, x + 324, 0);
+    gradient.addColorStop(0, '#3fe08f');
+    gradient.addColorStop(0.52, '#d8d438');
+    gradient.addColorStop(1, '#e8920f');
+    fillRoundRect(ctx, x, y + 24, (324 * liqWidth) / 100, 8, 999, gradient);
+  }
+
+  drawFittedText(ctx, `${details.liqPriceLabel} liq`, x, y + 40, 140, 9.5, 7, '800', '#6b7280');
+  drawFittedText(ctx, `${details.markPriceLabel} mark`, x + 324, y + 40, 140, 9.5, 7, '800', '#6b7280', 'right');
+}
+
+function drawFittedText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  fontSize: number,
+  minFontSize: number,
+  weight: string,
+  color: string,
+  align: CanvasTextAlign = 'left',
+) {
+  let size = fontSize;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = align;
+  ctx.fillStyle = color;
+  do {
+    ctx.font = `${weight} ${size}px ${MONO}`;
+    if (ctx.measureText(text).width <= maxWidth || size <= minFontSize) break;
+    size -= 1;
+  } while (size > minFontSize);
+  ctx.fillText(text, x, y);
+}
+
+function fillRoundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  fillStyle: string | CanvasGradient,
+) {
+  roundedRectPath(ctx, x, y, width, height, radius);
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+}
+
+function strokeRoundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  strokeStyle: string,
+  lineWidth: number,
+) {
+  roundedRectPath(ctx, x, y, width, height, radius);
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}
+
+function roundedRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function line(
+  ctx: CanvasRenderingContext2D,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+) {
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -204,8 +503,10 @@ function downloadBlob(blob: Blob, filename: string) {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function shareFilename(coin: string) {
@@ -481,7 +782,7 @@ function OpenPositionDetails({
   hasDanger: boolean;
   onOpenTrading: (coin?: string) => void;
 }) {
-  const shareCardRef = useRef<HTMLDivElement>(null);
+  const shareInFlightRef = useRef(false);
   const [isSharing, setIsSharing] = useState(false);
   const { toast } = useToast();
 
@@ -518,15 +819,14 @@ function OpenPositionDetails({
   };
 
   const handleSharePosition = async () => {
-    if (!shareCardRef.current || isSharing) return;
+    if (shareInFlightRef.current) return;
 
+    shareInFlightRef.current = true;
     setIsSharing(true);
     const filename = shareFilename(position.coin);
     let capturedBlob: Blob | null = null;
     try {
-      capturedBlob = await capturePositionShareImage(
-        shareCardRef.current,
-      );
+      capturedBlob = capturePositionShareImage(shareDetails);
       const file = new File([capturedBlob], filename, {
         type: 'image/png',
       });
@@ -537,6 +837,7 @@ function OpenPositionDetails({
         typeof navigator.share === 'function' &&
         navigator.canShare?.({ files: [file] })
       ) {
+        setIsSharing(false);
         await navigator.share({
           title: shareTitle,
           text: shareText,
@@ -569,6 +870,7 @@ function OpenPositionDetails({
         }
       }
     } finally {
+      shareInFlightRef.current = false;
       setIsSharing(false);
     }
   };
@@ -759,185 +1061,8 @@ function OpenPositionDetails({
         </button>
       </div>
 
-      <div
-        aria-hidden="true"
-        className="fixed left-[-9999px] top-0 pointer-events-none"
-      >
-        <div
-          ref={shareCardRef}
-          style={{
-            width: SHARE_POSTER_WIDTH,
-            height: SHARE_POSTER_HEIGHT,
-          }}
-        >
-          <PositionSharePoster details={shareDetails} />
-        </div>
-      </div>
     </div>
   );
-}
-
-function PositionSharePoster({
-  details,
-}: {
-  details: PositionShareDetails;
-}) {
-  return (
-    <div
-      style={{
-        width: SHARE_POSTER_WIDTH,
-        height: SHARE_POSTER_HEIGHT,
-      }}
-      dangerouslySetInnerHTML={{
-        __html: buildPositionSharePosterHtml(details),
-      }}
-    />
-  );
-}
-
-function escapeShareHtml(value: string | number) {
-  return String(value).replace(/[&<>"']/g, (char) => {
-    switch (char) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '"':
-        return '&quot;';
-      case "'":
-        return '&#39;';
-      default:
-        return char;
-    }
-  });
-}
-
-function buildPositionSharePosterHtml(details: PositionShareDetails) {
-  const accent = details.pnlPositive ? '#3fe08f' : '#ff5d63';
-  const coinFontSize =
-    details.coin.length > 14 ? 18 : details.coin.length > 10 ? 21 : 25;
-  const pnlFontSize =
-    details.pnlLabel.length > 9 ? 25 : details.pnlLabel.length > 7 ? 28 : 32;
-  const sideTone =
-    details.side === 'LONG'
-      ? {
-          color: '#9ef7c8',
-          border: 'rgba(63,224,143,0.42)',
-          background: 'rgba(63,224,143,0.11)',
-        }
-      : {
-          color: '#ffb2b6',
-          border: 'rgba(255,93,99,0.42)',
-          background: 'rgba(255,93,99,0.11)',
-        };
-  const liqWidth =
-    details.liqPercent === null
-      ? 0
-      : Math.max(3, Math.min(100, details.liqPercent));
-  const stats = [
-    { label: 'Size', value: details.sizeLabel },
-    { label: 'Entry', value: details.entryLabel },
-    { label: 'Mark', value: details.markLabel },
-    { label: 'Margin', value: details.marginLabel },
-    { label: 'Liq distance', value: details.liqDistanceLabel },
-    { label: 'Liq price', value: details.liqPriceLabel },
-  ];
-  const rainLines = [
-    { left: 42, top: -36, height: 188, opacity: 0.26 },
-    { left: 112, top: 24, height: 138, opacity: 0.18 },
-    { left: 188, top: -18, height: 166, opacity: 0.23 },
-    { left: 270, top: 42, height: 128, opacity: 0.16 },
-    { left: 352, top: -48, height: 198, opacity: 0.24 },
-  ];
-  const rainHtml = rainLines
-    .map(
-      (line) => `
-        <span style='position:absolute;left:${line.left}px;top:${line.top}px;width:1px;height:${line.height}px;border-radius:999px;background:linear-gradient(180deg, transparent 0%, #3fe08f 50%, transparent 100%);opacity:${line.opacity};box-shadow:0 0 18px rgba(63,224,143,0.58);'></span>
-      `,
-    )
-    .join('');
-  const statsHtml = stats
-    .map((stat, index) => {
-      const col = index % 2;
-      const row = Math.floor(index / 2);
-      const cellLeft = col * 162;
-      const cellTop = row * 66;
-      const borderRight =
-        col === 0 ? 'border-right:1px solid rgba(63,224,143,0.16);' : '';
-      const borderBottom =
-        row < 2
-          ? 'border-bottom:1px solid rgba(63,224,143,0.14);'
-          : '';
-      const valueFontSize = stat.value.length > 17 ? 11.5 : 12.5;
-
-      return `
-        <div style='position:absolute;left:${cellLeft}px;top:${cellTop}px;width:162px;height:66px;box-sizing:border-box;${borderRight}${borderBottom}'>
-          <div style='position:absolute;left:14px;top:9px;width:132px;height:14px;font-size:8.8px;line-height:14px;font-weight:800;letter-spacing:0;text-transform:uppercase;color:#6b7280;white-space:nowrap;'>${escapeShareHtml(stat.label)}</div>
-          <div data-testid='perps-share-stat-value' style='position:absolute;left:14px;top:34px;width:132px;height:20px;font-size:${valueFontSize}px;line-height:18px;font-weight:900;letter-spacing:0;color:#f3f7f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${escapeShareHtml(stat.value)}</div>
-        </div>
-      `;
-    })
-    .join('');
-
-  return `
-    <div data-testid='perps-position-share-poster' style='position:relative;width:${SHARE_POSTER_WIDTH}px;height:${SHARE_POSTER_HEIGHT}px;box-sizing:border-box;overflow:hidden;border-radius:34px;background:radial-gradient(circle at 70% 4%, rgba(63,224,143,0.18) 0%, transparent 43%),radial-gradient(circle at 5% 86%, rgba(63,224,143,0.08) 0%, transparent 36%),linear-gradient(160deg, #040605 0%, #07120e 54%, #010302 100%);color:#eceef2;font-family:${MONO};font-variant-numeric:tabular-nums;'>
-      <div style='position:absolute;left:0;top:0;width:420px;height:640px;background-image:radial-gradient(circle at 50% 0%, rgba(63,224,143,0.08), transparent 48%),repeating-linear-gradient(0deg, rgba(63,224,143,0.026) 0px, rgba(63,224,143,0.026) 1px, transparent 1px, transparent 28px),repeating-linear-gradient(90deg, rgba(63,224,143,0.018) 0px, rgba(63,224,143,0.018) 1px, transparent 1px, transparent 36px);opacity:0.72;'></div>
-      ${rainHtml}
-      <div style='position:absolute;left:0;top:0;width:420px;height:102px;background:linear-gradient(180deg, rgba(63,224,143,0.10) 0%, transparent 100%);'></div>
-      <div style='position:absolute;left:0;bottom:0;width:420px;height:190px;background:linear-gradient(0deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.18) 70%, transparent 100%);'></div>
-
-      <div data-testid='perps-share-logo-wrap' style='position:absolute;left:96px;top:22px;width:228px;height:52px;box-sizing:border-box;border:1px solid rgba(63,224,143,0.25);border-radius:14px;background:rgba(0,0,0,0.48);box-shadow:inset 0 0 18px rgba(63,224,143,0.08),0 0 34px rgba(63,224,143,0.15);'>
-        <img data-testid='perps-share-logo' src='${SHARE_LOGO_SRC}' alt='Swop' style='position:absolute;left:50%;top:50%;display:block;height:30px;width:auto;max-width:none;transform:translate(-50%,-50%);' />
-      </div>
-
-      <div style='position:absolute;left:24px;top:86px;width:372px;height:552px;box-sizing:border-box;overflow:hidden;border-radius:22px;border:1px solid rgba(63,224,143,0.16);background:linear-gradient(180deg, rgba(20,23,30,0.98) 0%, rgba(11,13,18,0.98) 100%);box-shadow:0 26px 80px rgba(0,0,0,0.60),0 0 40px rgba(63,224,143,0.12);'>
-        <div style='position:absolute;left:22px;top:24px;width:2px;height:190px;background:#3fe08f;box-shadow:0 0 18px rgba(63,224,143,0.58);'></div>
-        <div style='position:absolute;left:38px;top:26px;width:160px;height:14px;font-size:10px;line-height:14px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#3fe08f;'>Open position</div>
-
-        <div data-testid='perps-share-open-position-block' style='position:absolute;left:38px;top:56px;width:292px;height:74px;box-sizing:border-box;'>
-          <div data-testid='perps-share-market-label' style='position:absolute;left:0;top:0;width:292px;height:32px;font-size:${coinFontSize}px;line-height:30px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#f3f7f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${escapeShareHtml(details.coin)}</div>
-          <div data-testid='perps-share-side-pill' style='position:absolute;left:0;top:42px;width:108px;height:26px;box-sizing:border-box;border:1px solid ${sideTone.border};border-radius:7px;background:${sideTone.background};color:${sideTone.color};text-align:center;overflow:hidden;'>
-            <span style='position:absolute;left:0;top:0;width:100%;height:24px;font-size:10px;line-height:24px;font-weight:900;letter-spacing:0;text-transform:uppercase;text-align:center;color:${sideTone.color};white-space:nowrap;'>${escapeShareHtml(details.side)} · ${escapeShareHtml(details.leverage)}x</span>
-          </div>
-        </div>
-
-        <div data-testid='perps-share-pnl-panel' style='position:absolute;left:38px;top:146px;width:292px;height:88px;box-sizing:border-box;border:1px solid rgba(63,224,143,0.18);border-radius:14px;background:rgba(0,0,0,0.28);box-shadow:inset 0 0 20px rgba(63,224,143,0.06);'>
-          <div style='position:absolute;left:16px;top:11px;width:160px;height:14px;font-size:9px;line-height:14px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#6b7280;'>Unrealized PnL</div>
-          <div data-testid='perps-share-pnl' style='position:absolute;left:16px;top:29px;width:260px;height:42px;text-align:left;font-size:${pnlFontSize}px;line-height:38px;font-weight:900;letter-spacing:0;color:${accent};white-space:nowrap;overflow:hidden;'>${escapeShareHtml(details.pnlLabel)}</div>
-          <div data-testid='perps-share-roe' style='position:absolute;right:16px;top:66px;width:150px;height:14px;text-align:right;font-size:10.5px;line-height:14px;font-weight:800;letter-spacing:0;color:#9ca3af;white-space:nowrap;'>${escapeShareHtml(details.roeLabel)} ROE</div>
-        </div>
-
-        <div style='position:absolute;left:24px;top:246px;width:324px;height:1px;background:rgba(255,255,255,0.07);'></div>
-
-        <div data-testid='perps-share-stats-frame' style='position:absolute;left:24px;top:260px;width:324px;height:198px;box-sizing:border-box;overflow:hidden;border-radius:14px;border:1px solid rgba(63,224,143,0.30);background:rgba(0,0,0,0.44);box-shadow:inset 0 0 26px rgba(63,224,143,0.08),0 0 22px rgba(63,224,143,0.10);'>
-          <div style='position:absolute;left:0;top:0;width:324px;height:198px;background-image:repeating-linear-gradient(0deg, rgba(63,224,143,0.036) 0px, rgba(63,224,143,0.036) 1px, transparent 1px, transparent 18px);'></div>
-          <div style='position:absolute;left:0;top:0;width:324px;height:1px;background:rgba(63,224,143,0.55);box-shadow:0 0 14px rgba(63,224,143,0.70);'></div>
-          <div style='position:absolute;left:0;top:0;width:28px;height:28px;border-left:2px solid rgba(63,224,143,0.70);border-top:2px solid rgba(63,224,143,0.70);'></div>
-          <div style='position:absolute;right:0;top:0;width:28px;height:28px;border-right:2px solid rgba(63,224,143,0.70);border-top:2px solid rgba(63,224,143,0.70);'></div>
-          <div style='position:absolute;left:0;bottom:0;width:28px;height:28px;border-left:2px solid rgba(63,224,143,0.70);border-bottom:2px solid rgba(63,224,143,0.70);'></div>
-          <div style='position:absolute;right:0;bottom:0;width:28px;height:28px;border-right:2px solid rgba(63,224,143,0.70);border-bottom:2px solid rgba(63,224,143,0.70);'></div>
-          ${statsHtml}
-        </div>
-
-        <div style='position:absolute;left:24px;top:478px;width:324px;height:48px;box-sizing:border-box;'>
-          <div style='position:absolute;left:0;top:0;width:128px;height:14px;font-size:10px;line-height:14px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#6b7280;'>Liquidation rail</div>
-          <div style='position:absolute;right:0;top:0;width:190px;height:14px;text-align:right;font-size:11px;line-height:14px;font-weight:900;letter-spacing:0;color:#f3f7f5;white-space:nowrap;'>${escapeShareHtml(details.liqDistanceLabel)} · ${escapeShareHtml(details.liqPriceLabel)}</div>
-          <div style='position:absolute;left:0;top:24px;width:324px;height:8px;box-sizing:border-box;overflow:hidden;border:1px solid rgba(255,255,255,0.08);border-radius:999px;background:#070809;'>
-            <div style='height:100%;width:${liqWidth}%;border-radius:999px;background:linear-gradient(90deg, #3fe08f 0%, #d8d438 52%, #e8920f 100%);'></div>
-          </div>
-          <div style='position:absolute;left:0;top:40px;width:140px;height:12px;font-size:9.5px;line-height:12px;font-weight:800;letter-spacing:0;color:#6b7280;white-space:nowrap;'>${escapeShareHtml(details.liqPriceLabel)} liq</div>
-          <div style='position:absolute;right:0;top:40px;width:140px;height:12px;text-align:right;font-size:9.5px;line-height:12px;font-weight:800;letter-spacing:0;color:#6b7280;white-space:nowrap;'>${escapeShareHtml(details.markPriceLabel)} mark</div>
-        </div>
-
-        <div style='position:absolute;left:24px;top:530px;width:324px;height:20px;box-sizing:border-box;border-top:1px solid rgba(255,255,255,0.07);'>
-          <div style='position:absolute;left:0;top:8px;width:210px;height:12px;font-size:9.5px;line-height:12px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#6b7280;'>Follow my trades</div>
-          <div style='position:absolute;right:0;top:8px;width:120px;height:12px;text-align:right;font-size:10.5px;line-height:12px;font-weight:900;letter-spacing:0;color:#3fe08f;'>swopme.app</div>
-        </div>
-      </div>
-    </div>
-  `;
 }
 
 // ─── Account Card ────────────────────────────────────────────────────────────
