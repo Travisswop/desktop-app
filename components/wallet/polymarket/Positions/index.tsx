@@ -40,6 +40,7 @@ import {
   isVisiblePortfolioPosition,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
+import { resolveRedeemWallet } from '@/lib/polymarket/redeem-wallet';
 import {
   DUST_THRESHOLD,
   POLLING_DURATION,
@@ -125,8 +126,9 @@ export default function UserPositions() {
   const {
     clobClient,
     safeAddress,
+    depositWalletAddress,
     portfolioAddresses,
-    isTradingSessionComplete,
+    walletType,
   } = useTrading();
   const { eoaAddress } = usePolymarketWallet();
 
@@ -170,7 +172,7 @@ export default function UserPositions() {
   const router = useRouter();
   const stashMarketDetail = useMarketDetailStore((s) => s.set);
 
-  const { redeemPosition } = useRedeemPosition();
+  const { redeemPosition, canRedeem } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
     clobClient,
     eoaAddress,
@@ -333,8 +335,15 @@ export default function UserPositions() {
   };
 
   const handleRedeem = useCallback(async (position: PolymarketPosition) => {
-    if (!isTradingSessionComplete) return;
+    if (!canRedeem) return;
     if (!hasRedeemablePayout(position)) return;
+    const redeemWallet = resolveRedeemWallet(position, {
+      safeAddress,
+      depositWalletAddress,
+      walletType,
+    });
+    if (!redeemWallet) return;
+
     setRedeemingAsset(position.asset);
     try {
       const result = await redeemPosition({
@@ -343,7 +352,9 @@ export default function UserPositions() {
         outcomeIndex: position.outcomeIndex,
         negativeRisk: position.negativeRisk,
         size: position.size,
-        safeAddress: safeAddress!,
+        safeAddress: redeemWallet.positionWallet,
+        depositWalletAddress: redeemWallet.depositWalletAddress,
+        walletType: redeemWallet.walletType,
       });
       rememberPendingRedemption(position, result);
       queryClient.invalidateQueries({
@@ -377,8 +388,10 @@ export default function UserPositions() {
       setRedeemingAsset(null);
     }
   }, [
-    isTradingSessionComplete,
+    canRedeem,
     safeAddress,
+    depositWalletAddress,
+    walletType,
     redeemPosition,
     queryClient,
     rememberPendingRedemption,
@@ -520,7 +533,7 @@ export default function UserPositions() {
             walletAddress={safeAddress ?? undefined}
             onRedeem={handleRedeem}
             redeemingAsset={redeemingAsset}
-            canRedeem={!!clobClient}
+            canRedeem={canRedeem}
           />
         </div>
       );
@@ -659,7 +672,7 @@ export default function UserPositions() {
               )}
               isSubmitting={isSubmitting}
               canSell={!!clobClient}
-              canRedeem={!!clobClient}
+              canRedeem={canRedeem}
               onTitleClick={() => navigateToPosition(position)}
             />
           );
@@ -677,7 +690,7 @@ export default function UserPositions() {
             walletAddress={safeAddress ?? undefined}
             onRedeem={handleRedeem}
             redeemingAsset={redeemingAsset}
-            canRedeem={!!clobClient}
+            canRedeem={canRedeem}
           />
         </div>
       )}

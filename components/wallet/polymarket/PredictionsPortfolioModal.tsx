@@ -39,6 +39,7 @@ import {
   isVisiblePortfolioPosition,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
+import { resolveRedeemWallet } from '@/lib/polymarket/redeem-wallet';
 
 type TabId = 'active' | 'orders' | 'history';
 
@@ -146,7 +147,13 @@ export default function PredictionsPortfolioModal({
     Map<string, number>
   >(new Map());
 
-  const { clobClient, safeAddress, portfolioAddresses } = useTrading();
+  const {
+    clobClient,
+    safeAddress,
+    depositWalletAddress,
+    portfolioAddresses,
+    walletType,
+  } = useTrading();
 
   const { eoaAddress } = usePolymarketWallet();
   const queryClient = useQueryClient();
@@ -185,7 +192,7 @@ export default function PredictionsPortfolioModal({
     clobClient,
     safeAddress,
   );
-  const { redeemPosition } = useRedeemPosition();
+  const { redeemPosition, canRedeem } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
     clobClient,
     eoaAddress,
@@ -303,9 +310,16 @@ export default function PredictionsPortfolioModal({
 
   const handleRedeem = useCallback(
     async (position: PolymarketPosition) => {
-      if (!clobClient) return;
+      if (!canRedeem) return;
       const redeemValue = getRedeemablePayout(position);
       if (redeemValue <= 0) return;
+      const redeemWallet = resolveRedeemWallet(position, {
+        safeAddress,
+        depositWalletAddress,
+        walletType,
+      });
+      if (!redeemWallet) return;
+
       setRedeemingAsset(position.asset);
       try {
         await redeemPosition({
@@ -314,7 +328,9 @@ export default function PredictionsPortfolioModal({
           outcomeIndex: position.outcomeIndex,
           negativeRisk: position.negativeRisk,
           size: position.size,
-          safeAddress: safeAddress!,
+          safeAddress: redeemWallet.positionWallet,
+          depositWalletAddress: redeemWallet.depositWalletAddress,
+          walletType: redeemWallet.walletType,
         });
 
         // Optimistically add the redeemed USDC to the displayed balance immediately.
@@ -351,7 +367,14 @@ export default function PredictionsPortfolioModal({
         setRedeemingAsset(null);
       }
     },
-    [clobClient, safeAddress, redeemPosition, queryClient],
+    [
+      canRedeem,
+      safeAddress,
+      depositWalletAddress,
+      walletType,
+      redeemPosition,
+      queryClient,
+    ],
   );
 
   const handleCancelOrder = async (orderId: string) => {
@@ -523,7 +546,7 @@ export default function PredictionsPortfolioModal({
                       )}
                       isSubmitting={isSubmitting}
                       canSell={!!clobClient}
-                      canRedeem={!!clobClient}
+                      canRedeem={canRedeem}
                       onTitleClick={() => navigateToPosition(position)}
                     />
                   ))
@@ -570,7 +593,7 @@ export default function PredictionsPortfolioModal({
                   walletAddress={safeAddress ?? undefined}
                   onRedeem={handleRedeem}
                   redeemingAsset={redeemingAsset}
-                  canRedeem={!!clobClient}
+                  canRedeem={canRedeem}
                 />
               </div>
             )}

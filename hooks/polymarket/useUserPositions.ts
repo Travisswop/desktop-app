@@ -2,7 +2,8 @@ import {
   QUERY_REFETCH_INTERVALS,
   QUERY_STALE_TIMES,
 } from "@/constants/polymarket";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { mergeSettledArrays } from "@/lib/polymarket/stable-results";
 
 export type PolymarketPosition = {
   proxyWallet: string;
@@ -64,9 +65,11 @@ export function useUserPositions(
   return useQuery({
     queryKey: ["polymarket-positions", walletAddresses],
     queryFn: async (): Promise<PolymarketPosition[]> => {
-      if (!walletAddresses.length) return [];
+      if (!walletAddresses.length) {
+        throw new Error("Prediction wallet is not ready");
+      }
 
-      const positionSets = await Promise.all(
+      const positionSets = await Promise.allSettled(
         walletAddresses.map(async (address) => {
           const response = await fetch(
             `/api/polymarket/positions?user=${address}`,
@@ -80,9 +83,11 @@ export function useUserPositions(
         }),
       );
 
-      return positionSets.flat();
+      return mergeSettledArrays(positionSets, "Failed to fetch positions");
     },
     enabled: walletAddresses.length > 0,
+    placeholderData: keepPreviousData,
+    retry: 1,
     staleTime: QUERY_STALE_TIMES.POSITIONS,
     refetchInterval: QUERY_REFETCH_INTERVALS.POSITIONS,
     refetchIntervalInBackground: false,
