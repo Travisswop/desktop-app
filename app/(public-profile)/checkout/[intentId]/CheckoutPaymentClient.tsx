@@ -375,7 +375,7 @@ export default function CheckoutPaymentClient({
   const router = useRouter();
   const { login, ready, authenticated } = usePrivy();
   const { connectWallet } = useConnectWallet();
-  const { accessToken } = useUser();
+  const { accessToken, user } = useUser();
   const { wallets: evmWallets } = useEvmWallets();
   const { sendTransaction } = useSendTransaction();
   const { wallets: solanaWallets } = useSolanaWallets();
@@ -416,19 +416,28 @@ export default function CheckoutPaymentClient({
     return solanaWallets.find((wallet) => wallet.address) || null;
   }, [solanaWallets]);
 
-  const activeSolanaWalletAddress = solanaWallet?.address || '';
+  const activeSolanaWalletAddress =
+    solanaWallet?.address || user?.solanaWallet || user?.solanaAddress || '';
 
   const evmSignerWalletAddresses = useMemo(
     () =>
       uniqueWalletAddresses(
         ...evmWallets
-          .filter((wallet) => wallet.address && wallet.chainId?.includes('eip155:'))
+          .filter((wallet) => wallet.address)
           .map((wallet) => wallet.address)
       ),
     [evmWallets]
   );
 
-  const evmWalletAddresses = evmSignerWalletAddresses;
+  const evmWalletAddresses = useMemo(
+    () =>
+      uniqueWalletAddresses(
+        ...evmSignerWalletAddresses,
+        user?.ethereumWallet,
+        user?.ethAddress
+      ),
+    [evmSignerWalletAddresses, user?.ethAddress, user?.ethereumWallet]
+  );
 
   const { tokens, loading: tokensLoading, refetch } = useMultiChainTokenData(
     activeSolanaWalletAddress,
@@ -522,12 +531,8 @@ export default function CheckoutPaymentClient({
     selectedRail === 'solana'
       ? Boolean(selectedSolanaSignerWallet?.address)
       : selectedRail === 'lifi'
-      ? Boolean(selectedEvmSignerWallet)
+      ? Boolean(selectedPaymentWalletAddress)
       : false;
-  const needsDifferentSigner =
-    selectedRail === 'lifi' &&
-    Boolean(selectedPaymentWalletAddress) &&
-    !selectedEvmSignerWallet;
   const needsSolanaSigner =
     selectedRail === 'solana' && !selectedSolanaSignerWallet?.address;
   const appCheckoutUrls = useMemo(
@@ -815,12 +820,15 @@ export default function CheckoutPaymentClient({
 
     const sourceChainId = Number(chainConfig.id);
     const sourceWalletAddress = selectedPaymentWalletAddress;
-    const evmWallet = selectedEvmSignerWallet;
-    if (!evmWallet || !sourceWalletAddress) {
+    if (!sourceWalletAddress) {
       throw new Error('Wallet not found');
     }
 
-    if (evmWallet.chainId !== `eip155:${sourceChainId}`) {
+    if (
+      selectedEvmSignerWallet &&
+      selectedEvmSignerWallet.chainId !== `eip155:${sourceChainId}`
+    ) {
+      const evmWallet = selectedEvmSignerWallet;
       await evmWallet.switchChain(sourceChainId);
     }
 
@@ -865,11 +873,12 @@ export default function CheckoutPaymentClient({
           });
           const approval = await sendTransaction(
             {
+              from: sourceWalletAddress as `0x${string}`,
               to: fromTokenAddress as `0x${string}`,
               data: approveData,
               chainId: sourceChainId,
             },
-            { sponsor: false }
+            { sponsor: false, address: sourceWalletAddress }
           );
           await publicClient.waitForTransactionReceipt({
             hash: approval.hash as `0x${string}`,
@@ -884,12 +893,13 @@ export default function CheckoutPaymentClient({
       : undefined;
     const result = await sendTransaction(
       {
+        from: sourceWalletAddress as `0x${string}`,
         to: transactionRequest.to as `0x${string}`,
         data: transactionRequest.data as `0x${string}`,
         ...(txValue ? { value: txValue } : {}),
         chainId: transactionRequest.chainId || sourceChainId,
       },
-      { sponsor: false }
+      { sponsor: false, address: sourceWalletAddress }
     );
 
     return result.hash;
@@ -1026,15 +1036,12 @@ export default function CheckoutPaymentClient({
     }
     if (!accessToken) return 'Sign in again to authorize payment.';
     if (needsSolanaSigner) {
-      return 'Create or connect a Solana wallet to pay with this token.';
+      return selectedToken?.walletAddress
+        ? 'Sign in with the Swop wallet that holds this Solana token.'
+        : 'Create or connect a Solana wallet to pay with this token.';
     }
     if (selectedRail === 'lifi' && !selectedPaymentWalletAddress) {
       return 'Connect an EVM wallet to pay with this token.';
-    }
-    if (needsDifferentSigner) {
-      return `Connect ${truncateWalletAddress(
-        selectedPaymentWalletAddress
-      )} to pay with this token.`;
     }
     return '';
   })();
