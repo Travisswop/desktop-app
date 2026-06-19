@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { mergeSettledArrays } from '@/lib/polymarket/stable-results';
 
 export type ActivityType =
   | 'TRADE'
@@ -75,9 +76,11 @@ export function useTradeActivity({
       sort,
     ],
     queryFn: async (): Promise<TradeActivity[]> => {
-      if (!users.length) return [];
+      if (!users.length) {
+        throw new Error('Prediction activity wallet is not ready');
+      }
 
-      const activitySets = await Promise.all(
+      const activitySets = await Promise.allSettled(
         users.map(async (walletAddress) => {
           const params = new URLSearchParams({
             user: walletAddress,
@@ -93,15 +96,21 @@ export function useTradeActivity({
           const response = await fetch(
             `/api/polymarket/activity?${params}`,
           );
-          if (!response.ok) return [];
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to refresh prediction activity');
+          }
 
-          const data = await response.json();
           return Array.isArray(data) ? (data as TradeActivity[]) : [];
         }),
       );
 
-      return activitySets
-        .flat()
+      const combined = mergeSettledArrays(
+        activitySets,
+        'Failed to refresh prediction activity',
+      );
+
+      return combined
         .sort((a, b) =>
           sort === 'ASC'
             ? a.timestamp - b.timestamp
@@ -110,6 +119,8 @@ export function useTradeActivity({
         .slice(offset, offset + limit);
     },
     enabled: users.length > 0,
+    placeholderData: keepPreviousData,
+    retry: 1,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
