@@ -76,11 +76,39 @@ export const useMultiChainTokenData = (
         return { tokens: [], totalValue: '0', tokenCount: 0 };
       }
 
-      // Use access token from UserContext for authentication
-      return await WalletService.getWalletTokens(
-        wallets,
-        accessToken || undefined
+      // Fetch per wallet so each returned token keeps the signer/source
+      // address. The backend currently returns merged token rows without
+      // walletAddress, which makes payment flows ambiguous with multiple
+      // wallets connected.
+      const walletResults = await Promise.all(
+        wallets.map(async (wallet) => {
+          const result = await WalletService.getWalletTokens(
+            [wallet],
+            accessToken || undefined
+          );
+          return (result.tokens || []).map((token) => ({
+            ...token,
+            walletAddress: token.walletAddress || wallet.address,
+          }));
+        })
       );
+
+      const tokens = walletResults.flat();
+      const totalValue = tokens.reduce((sum, token) => {
+        const explicitValue = Number(token.value || 0);
+        if (Number.isFinite(explicitValue) && explicitValue > 0) {
+          return sum + explicitValue;
+        }
+        const price = Number(token.marketData?.price || 0);
+        const balance = Number(token.balance || 0);
+        return sum + price * balance;
+      }, 0);
+
+      return {
+        tokens,
+        totalValue: totalValue.toFixed(2),
+        tokenCount: tokens.length,
+      };
     },
     enabled: wallets.length > 0 && !!accessToken,
     staleTime: 60000, // 60 seconds - match refetchInterval to prevent excessive calls

@@ -255,11 +255,12 @@ function tokenRail(token: TokenData | null) {
 
 function paymentWalletAddressForToken(
   token: TokenData | null,
-  evmWalletAddresses: string[]
+  evmSignerWalletAddresses: string[],
+  evmPortfolioWalletAddresses: string[]
 ) {
   if (!token || token.chain === 'SOLANA') return '';
   if (token.walletAddress) return token.walletAddress;
-  return evmWalletAddresses.length === 1 ? evmWalletAddresses[0] : '';
+  return evmSignerWalletAddresses[0] || evmPortfolioWalletAddresses[0] || '';
 }
 
 function uniqueWalletAddresses(...values: Array<string | undefined | null>) {
@@ -418,16 +419,24 @@ export default function CheckoutPaymentClient({
   const activeSolanaWalletAddress =
     solanaWallet?.address || user?.solanaWallet || user?.solanaAddress || '';
 
-  const evmWalletAddresses = useMemo(
+  const evmSignerWalletAddresses = useMemo(
     () =>
       uniqueWalletAddresses(
         ...evmWallets
           .filter((wallet) => wallet.address && wallet.chainId?.includes('eip155:'))
-          .map((wallet) => wallet.address),
+          .map((wallet) => wallet.address)
+      ),
+    [evmWallets]
+  );
+
+  const evmWalletAddresses = useMemo(
+    () =>
+      uniqueWalletAddresses(
+        ...evmSignerWalletAddresses,
         user?.ethereumWallet,
         user?.ethAddress
       ),
-    [evmWallets, user?.ethAddress, user?.ethereumWallet]
+    [evmSignerWalletAddresses, user?.ethAddress, user?.ethereumWallet]
   );
 
   const { tokens, loading: tokensLoading, refetch } = useMultiChainTokenData(
@@ -488,9 +497,48 @@ export default function CheckoutPaymentClient({
 
   const selectedRail = tokenRail(selectedToken);
   const selectedPaymentWalletAddress = useMemo(
-    () => paymentWalletAddressForToken(selectedToken, evmWalletAddresses),
-    [evmWalletAddresses, selectedToken]
+    () =>
+      paymentWalletAddressForToken(
+        selectedToken,
+        evmSignerWalletAddresses,
+        evmWalletAddresses
+      ),
+    [evmSignerWalletAddresses, evmWalletAddresses, selectedToken]
   );
+  const selectedEvmSignerWallet = useMemo(
+    () =>
+      selectedPaymentWalletAddress
+        ? evmWallets.find(
+            (wallet) =>
+              wallet.address?.toLowerCase() ===
+              selectedPaymentWalletAddress.toLowerCase()
+          ) || null
+        : null,
+    [evmWallets, selectedPaymentWalletAddress]
+  );
+  const selectedSolanaSignerWallet = useMemo(() => {
+    if (selectedToken?.chain !== 'SOLANA') return solanaWallet;
+    const sourceWallet = selectedToken.walletAddress || activeSolanaWalletAddress;
+    return (
+      solanaWallets.find((wallet) => wallet.address === sourceWallet) ||
+      solanaWallet
+    );
+  }, [activeSolanaWalletAddress, selectedToken, solanaWallet, solanaWallets]);
+  const selectedTokenWalletLabel = selectedToken?.walletAddress
+    ? truncateWalletAddress(selectedToken.walletAddress)
+    : '';
+  const selectedSignerReady =
+    selectedRail === 'solana'
+      ? Boolean(selectedSolanaSignerWallet?.address)
+      : selectedRail === 'lifi'
+      ? Boolean(selectedEvmSignerWallet)
+      : false;
+  const needsDifferentSigner =
+    selectedRail === 'lifi' &&
+    Boolean(selectedPaymentWalletAddress) &&
+    !selectedEvmSignerWallet;
+  const needsSolanaSigner =
+    selectedRail === 'solana' && !selectedSolanaSignerWallet?.address;
   const appCheckoutUrls = useMemo(
     () => swopAppCheckoutUrls(intentId),
     [intentId]
@@ -776,11 +824,7 @@ export default function CheckoutPaymentClient({
 
     const sourceChainId = Number(chainConfig.id);
     const sourceWalletAddress = selectedPaymentWalletAddress;
-    const evmWallet = evmWallets.find(
-      (wallet) =>
-        wallet.address?.toLowerCase() ===
-        sourceWalletAddress?.toLowerCase()
-    );
+    const evmWallet = selectedEvmSignerWallet;
     if (!evmWallet || !sourceWalletAddress) {
       throw new Error('Wallet not found');
     }
@@ -933,14 +977,14 @@ export default function CheckoutPaymentClient({
         return;
       }
 
-      if (!solanaWallet?.address) {
+      if (!selectedSolanaSignerWallet?.address) {
         throw new Error('Solana wallet not ready');
       }
 
       const prepared = await prepareCheckoutTransaction(
         intent.intentId,
         {
-          fromAddress: solanaWallet.address,
+          fromAddress: selectedSolanaSignerWallet.address,
           tokenMint: tokenMintForCheckout(selectedToken),
           tokenDecimals: selectedToken.decimals ?? 9,
           tokenAmount,
@@ -950,7 +994,7 @@ export default function CheckoutPaymentClient({
       setQuoteSummary(prepared.quote || null);
 
       setStage('signing');
-      const signed = await solanaWallet.signTransaction({
+      const signed = await selectedSolanaSignerWallet.signTransaction({
         transaction: base64ToUint8Array(prepared.serializedTransaction),
       });
 
@@ -990,13 +1034,18 @@ export default function CheckoutPaymentClient({
       return `Insufficient ${selectedToken.symbol} balance.`;
     }
     if (!accessToken) return 'Sign in again to authorize payment.';
-    if (selectedRail === 'solana' && !solanaWallet?.address) {
-      return 'Create or connect a Solana wallet to pay with this token.';
+    if (needsSolanaSigner) {
+      return selectedToken?.walletAddress
+        ? 'Sign in with the Swop wallet that holds this Solana token.'
+        : 'Create or connect a Solana wallet to pay with this token.';
     }
     if (selectedRail === 'lifi' && !selectedPaymentWalletAddress) {
-      return evmWalletAddresses.length > 1
-        ? 'Select a token tied to one connected EVM wallet.'
-        : 'Connect an EVM wallet to pay with this token.';
+      return 'Connect an EVM wallet to pay with this token.';
+    }
+    if (needsDifferentSigner) {
+      return `Connect ${truncateWalletAddress(
+        selectedPaymentWalletAddress
+      )} to pay with this token.`;
     }
     return '';
   })();
@@ -1014,8 +1063,7 @@ export default function CheckoutPaymentClient({
     !tokenAmount ||
     !hasSufficientBalance ||
     !accessToken ||
-    (selectedRail === 'solana' && !solanaWallet?.address) ||
-    (selectedRail === 'lifi' && !selectedPaymentWalletAddress);
+    !selectedSignerReady;
   const amountDueValue =
     checkoutAmounts?.totalDueAmount ?? intent?.amount.value ?? 0;
   const amountDueCurrency =
@@ -1175,6 +1223,11 @@ export default function CheckoutPaymentClient({
                           ? 'Loading...'
                           : selectedToken?.symbol || 'Select token'}
                       </span>
+                      {selectedTokenWalletLabel ? (
+                        <span className="mt-1 block truncate font-mono text-[11px] font-semibold text-[#7b8491]">
+                          {selectedTokenWalletLabel}
+                        </span>
+                      ) : null}
                     </span>
                   </span>
                   <span className="flex flex-shrink-0 items-center gap-3">
@@ -1242,6 +1295,11 @@ export default function CheckoutPaymentClient({
                                 </span>
                                 <span className="block truncate text-xs font-medium text-[#7b8491]">
                                   {CHAIN_CONFIG[token.chain]?.name || token.chain}
+                                  {token.walletAddress
+                                    ? ` · ${truncateWalletAddress(
+                                        token.walletAddress
+                                      )}`
+                                    : ''}
                                 </span>
                               </span>
                             </span>
