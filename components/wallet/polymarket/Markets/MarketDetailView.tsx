@@ -4306,7 +4306,7 @@ export default function MarketDetailView({
                   price: feedExecution.price,
                   orderId: result.orderId,
                   orderType,
-                  eventSlug: market.eventSlug,
+                  eventSlug: liveEventSlug || market.eventSlug,
                   ...feedExecution.fields,
                   // Sports panel data
                   yesOutcome: yesOutcomeName,
