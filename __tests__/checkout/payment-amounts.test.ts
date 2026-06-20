@@ -129,6 +129,25 @@ describe('checkout payment amounts', () => {
     expect(amount).toBe('0.100500');
   });
 
+  it('leaves EVM USDC checkout payments exact even when price feeds drift', () => {
+    const amount = calculateCheckoutTokenAmount(
+      baseIntent,
+      token({
+        name: 'USD Coin',
+        symbol: 'USDC',
+        chain: 'POLYGON',
+        decimals: 6,
+        address: null,
+        walletAddress: '0xf76ec7cf74bd7a3c53cb2bf8c8c625ed59bf6168',
+        marketData: {
+          price: '0.999704',
+        },
+      })
+    );
+
+    expect(amount).toBe('0.100500');
+  });
+
   it('returns no price-based estimate for unpriced non-USDC tokens', () => {
     // These tokens are sized by a live Jupiter ExactOut quote instead.
     const amount = calculateCheckoutTokenAmount(

@@ -538,6 +538,7 @@ export default function CheckoutPaymentClient({
     platformFeeCollection?: string;
     lifiTool?: string | null;
     approvalAddress?: string | null;
+    directTransfer?: boolean;
   } | null>(null);
 
   const storedSolanaWalletAddress =

@@ -53,6 +53,20 @@ export function isSolanaSettlementUsdc(token: TokenData) {
   return !address || address === SOLANA_USDC_MINT;
 }
 
+export function isEvmSettlementUsdc(token: TokenData) {
+  if (token.chain === 'SOLANA') return false;
+  if (token.symbol?.toUpperCase() !== 'USDC') return false;
+
+  const expectedAddress = EVM_USDC_BY_CHAIN[token.chain];
+  if (!expectedAddress) return false;
+
+  const tokenAddress = getEvmTokenAddressForCheckout(token);
+  return Boolean(
+    tokenAddress &&
+      tokenAddress.toLowerCase() === expectedAddress.toLowerCase()
+  );
+}
+
 export function getEvmTokenAddressForCheckout(token: TokenData) {
   if (token.chain === 'SOLANA') return token.address || null;
 
@@ -137,7 +151,7 @@ export function calculateCheckoutTokenAmount(
   // exactly the total due, regardless of what a market price feed says
   // USDC is worth (feeds often report 0.9998-1.0002 and would skew the
   // amount).
-  if (isSolanaSettlementUsdc(token)) {
+  if (isSolanaSettlementUsdc(token) || isEvmSettlementUsdc(token)) {
     return formatRoundedUpTokenAmount(
       totalDueAmount,
       getTokenPaymentDecimals(token)
