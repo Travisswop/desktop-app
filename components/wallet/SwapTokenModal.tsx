@@ -81,6 +81,13 @@ import {
   normalizeTokenDecimals,
 } from '@/lib/wallet/swapAmounts';
 import {
+  enrichTokenCategoryListsWithMarketQuotes,
+  enrichTokenListWithMarketQuotes,
+  readTokenChange24h,
+  readTokenPrice,
+  type TokenMarketQuote,
+} from '@/lib/wallet/tokenMarketQuoteEnrichment';
+import {
   ensureSponsoredSolanaTokenAccount,
   isNativeSolMint,
 } from '@/lib/solana/sponsoredTokenAccounts';
@@ -97,13 +104,6 @@ const _lifiTokenCache = new Map<
 >();
 const LIFI_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MARKET_QUOTE_CACHE_TTL_MS = 60 * 1000; // 1 minute
-
-type TokenMarketQuote = {
-  price?: number | null;
-  priceChange24h?: number | null;
-  volume24h?: number | null;
-  marketCap?: number | null;
-};
 
 const _tokenMarketQuoteCache = new Map<
   string,
@@ -408,55 +408,6 @@ async function fetchTokenMarketQuotes(
   }
 
   return resolved;
-}
-
-function applyTokenMarketQuote(token: any, quote?: TokenMarketQuote) {
-  if (!quote) return token;
-  const nextPrice =
-    typeof quote.price === 'number' && Number.isFinite(quote.price)
-      ? quote.price
-      : undefined;
-  const nextChange =
-    typeof quote.priceChange24h === 'number' &&
-    Number.isFinite(quote.priceChange24h)
-      ? quote.priceChange24h
-      : undefined;
-
-  if (nextPrice === undefined && nextChange === undefined) {
-    return token;
-  }
-
-  return {
-    ...token,
-    priceUSD:
-      nextPrice !== undefined ? String(nextPrice) : token?.priceUSD,
-    usdPrice:
-      nextPrice !== undefined ? String(nextPrice) : token?.usdPrice,
-    price: nextPrice !== undefined ? nextPrice : token?.price,
-    priceChange24h:
-      nextChange !== undefined ? nextChange : token?.priceChange24h,
-    marketData: {
-      ...(token?.marketData || {}),
-      price:
-        nextPrice !== undefined
-          ? String(nextPrice)
-          : token?.marketData?.price,
-      currentPrice:
-        nextPrice !== undefined
-          ? nextPrice
-          : token?.marketData?.currentPrice,
-      priceChange24h:
-        nextChange !== undefined
-          ? nextChange
-          : token?.marketData?.priceChange24h,
-      change:
-        nextChange !== undefined
-          ? String(nextChange)
-          : token?.marketData?.change,
-      volume24h: quote.volume24h ?? token?.marketData?.volume24h,
-      marketCap: quote.marketCap ?? token?.marketData?.marketCap,
-    },
-  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1344,51 +1295,6 @@ type TokenListResult = FlatResult | GroupedResult;
 // ─────────────────────────────────────────────────────────────────────────────
 // TokenRow sub-component
 // ─────────────────────────────────────────────────────────────────────────────
-
-const STABLE_SYMBOLS = new Set([
-  'USDC',
-  'USDC.E',
-  'USDT',
-  'DAI',
-  'PUSD',
-  'USDCE',
-]);
-
-function readTokenPrice(token: any): number | null {
-  const raw =
-    token?.priceUSD ??
-    token?.usdPrice ??
-    token?.marketData?.price ??
-    token?.marketData?.currentPrice ??
-    token?.currentPrice ??
-    token?.price;
-  const parsed = Number(raw);
-  if (Number.isFinite(parsed) && parsed > 0) return parsed;
-
-  const symbol = String(token?.symbol || '').toUpperCase();
-  if (STABLE_SYMBOLS.has(symbol)) return 1;
-  return null;
-}
-
-function readTokenChange24h(token: any): number | null {
-  const raw =
-    token?.priceChange24h ??
-    token?.priceChangePercent24h ??
-    token?.priceChangePercentage24h ??
-    token?.change24h ??
-    token?.changePercent24h ??
-    token?.marketData?.priceChange24h ??
-    token?.marketData?.priceChangePercent24h ??
-    token?.marketData?.priceChangePercentage24h ??
-    token?.marketData?.change24h ??
-    token?.marketData?.change;
-  const parsed = Number(raw);
-  if (Number.isFinite(parsed)) return parsed;
-
-  const symbol = String(token?.symbol || '').toUpperCase();
-  if (STABLE_SYMBOLS.has(symbol)) return 0;
-  return null;
-}
 
 function formatTokenPrice(price: number | null): string {
   if (price === null) return '--';
@@ -2553,20 +2459,12 @@ export default function SwapTokenModal({
         if (cancelled || Object.keys(quotes).length === 0) return;
 
         const enrichList = (list: any[]) =>
-          list.map((token) =>
-            applyTokenMarketQuote(
-              token,
-              quotes[getTokenMarketKey(token)],
-            ),
-          );
+          enrichTokenListWithMarketQuotes(list, quotes);
 
         setTempTokens((prev) => enrichList(prev));
-        setTargetList((prev) => ({
-          stock: enrichList(prev.stock),
-          crypto: enrichList(prev.crypto),
-          metal: enrichList(prev.metal),
-          stable: enrichList(prev.stable),
-        }));
+        setTargetList((prev) =>
+          enrichTokenCategoryListsWithMarketQuotes(prev, quotes),
+        );
         setFilteredList((prev) =>
           prev.length > 0 ? enrichList(prev) : prev,
         );
