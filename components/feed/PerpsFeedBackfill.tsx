@@ -5,6 +5,7 @@ import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
+  inferPerpsCloseFillsByCoin,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
   type PerpsLiquidationFillSnapshot,
@@ -212,6 +213,7 @@ export default function PerpsFeedBackfill() {
             observedDexes,
             markPricesByCoin,
             liquidationsByCoin: liquidationFillsByCoin(recentFills),
+            closedFillsByCoin: inferPerpsCloseFillsByCoin(recentFills),
           }).catch((error) => {
             reconciledSnapshotsRef.current.delete(reconcileSnapshotKey);
             console.warn('Failed to reconcile perps feed cards:', error);

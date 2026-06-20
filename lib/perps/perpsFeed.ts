@@ -49,6 +49,15 @@ export interface PerpsLiquidationFillSnapshot {
   timestamp?: string;
 }
 
+export interface PerpsCloseFillSnapshot {
+  coin: string;
+  px?: number;
+  closedPnl?: number;
+  feeUsd?: number;
+  orderId?: string;
+  timestamp?: string;
+}
+
 export interface PerpsFillLike {
   coin?: string | null;
   side?: string | null;
@@ -56,8 +65,11 @@ export interface PerpsFillLike {
   px?: string | number | null;
   time?: string | number | null;
   startPosition?: string | number | null;
+  closedPnl?: string | number | null;
+  fee?: string | number | null;
   oid?: string | number | null;
   orderId?: string | number | null;
+  liquidation?: unknown;
 }
 
 export interface PerpsPositionLike {
@@ -90,6 +102,10 @@ interface ReconcilePerpsPositionFeedParams {
   liquidationsByCoin?: Record<
     string,
     PerpsLiquidationFillSnapshot | null | undefined
+  >;
+  closedFillsByCoin?: Record<
+    string,
+    PerpsCloseFillSnapshot | null | undefined
   >;
 }
 
@@ -216,6 +232,67 @@ function fillOrderId(fill: PerpsFillLike) {
   return orderId === undefined || orderId === null ? undefined : String(orderId);
 }
 
+function isTerminalCloseFill(fill: PerpsFillLike) {
+  const startPosition = maybePerpsFeedNumber(fill.startPosition);
+  const signedSize = fillSignedSize(fill);
+
+  if (
+    startPosition === undefined ||
+    signedSize === undefined ||
+    Math.abs(startPosition) <= 0
+  ) {
+    return false;
+  }
+
+  if (Math.sign(startPosition) === Math.sign(signedSize)) return false;
+
+  const endPosition = startPosition + signedSize;
+  const tolerance = Math.max(Math.abs(startPosition) * 0.000001, 0.000000001);
+  return (
+    Math.abs(endPosition) <= tolerance ||
+    Math.sign(endPosition) !== Math.sign(startPosition)
+  );
+}
+
+export function inferPerpsCloseFillsByCoin(
+  fills: PerpsFillLike[] = [],
+): Record<string, PerpsCloseFillSnapshot> {
+  return fills.reduce<Record<string, PerpsCloseFillSnapshot>>(
+    (closedFills, fill) => {
+      if (fill?.liquidation || !isTerminalCloseFill(fill)) return closedFills;
+
+      const coin = normalizePerpsCoin(fill.coin);
+      const timeMs = fillTimeMs(fill);
+      if (!coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
+        return closedFills;
+      }
+
+      const timestamp = new Date(timeMs).toISOString();
+      const existingTime = Date.parse(closedFills[coin]?.timestamp || '');
+      if (Number.isFinite(existingTime) && existingTime >= timeMs) {
+        return closedFills;
+      }
+
+      const price = maybePerpsFeedNumber(fill.px);
+      const closedPnl = maybePerpsFeedNumber(fill.closedPnl);
+      const feeUsd = maybePerpsFeedNumber(fill.fee);
+      const orderId = fillOrderId(fill);
+
+      closedFills[coin] = {
+        coin,
+        ...(price !== undefined ? { px: price } : {}),
+        ...(closedPnl !== undefined ? { closedPnl } : {}),
+        ...(feeUsd !== undefined ? { feeUsd } : {}),
+        ...(orderId ? { orderId } : {}),
+        timestamp,
+      };
+
+      return closedFills;
+    },
+    {},
+  );
+}
+
 export function inferPerpsPositionOpenedFill(
   position: PerpsPositionLike,
   fills: PerpsFillLike[] = [],
@@ -335,6 +412,7 @@ export async function reconcilePerpsPositionFeed({
   observedDexes,
   markPricesByCoin,
   liquidationsByCoin,
+  closedFillsByCoin,
 }: ReconcilePerpsPositionFeedParams) {
   if (!token || !userId || !smartsiteId || !masterAddress) {
     const missingFields = [
@@ -366,6 +444,7 @@ export async function reconcilePerpsPositionFeed({
         observedDexes,
         markPricesByCoin,
         liquidationsByCoin,
+        closedFillsByCoin,
         updatedAt: new Date().toISOString(),
       }),
     },

@@ -1,5 +1,6 @@
 import {
   buildPerpsPositionKey,
+  inferPerpsCloseFillsByCoin,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
 } from '@/lib/perps/perpsFeed';
@@ -132,5 +133,54 @@ describe('perps feed timestamps', () => {
       orderId: '444',
       price: 198.99,
     });
+  });
+
+  it('captures terminal take-profit close fills by coin', () => {
+    const closeFills = inferPerpsCloseFillsByCoin([
+      {
+        coin: 'ETH',
+        side: 'A',
+        sz: '0.3171',
+        startPosition: '0.3171',
+        px: '1735',
+        closedPnl: '9.19',
+        fee: '0.38',
+        time: Date.parse('2026-06-15T11:45:00Z'),
+        oid: 555,
+      },
+      {
+        coin: 'ETH',
+        side: 'A',
+        sz: '0.1',
+        startPosition: '0.3171',
+        px: '1724',
+        time: Date.parse('2026-06-15T11:30:00Z'),
+        oid: 444,
+      },
+    ]);
+
+    expect(closeFills.ETH).toEqual({
+      coin: 'ETH',
+      px: 1735,
+      closedPnl: 9.19,
+      feeUsd: 0.38,
+      orderId: '555',
+      timestamp: '2026-06-15T11:45:00.000Z',
+    });
+  });
+
+  it('captures terminal short closes from buy fills', () => {
+    const closeFills = inferPerpsCloseFillsByCoin([
+      {
+        coin: 'BTC',
+        side: 'B',
+        sz: '0.2',
+        startPosition: '-0.2',
+        px: '104500',
+        time: Date.parse('2026-06-15T10:15:00Z'),
+      },
+    ]);
+
+    expect(closeFills.BTC?.px).toBe(104500);
   });
 });
