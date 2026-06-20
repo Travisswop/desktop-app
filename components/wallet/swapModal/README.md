@@ -79,6 +79,25 @@ Swaps are executed directly against the Uniswap V3 Router contract, requiring:
 
 5. **Testing**: Always test thoroughly on testnets before deploying to production.
 
+## Swap Failure Bugs And Kanban
+
+When a swap failure is found from logs, telemetry, screenshots, or support
+reports, do not leave it only in local logs. Follow the repo workflow in
+[`LOG_DERIVED_BUG_KANBAN.md`](../../../LOG_DERIVED_BUG_KANBAN.md).
+
+For desktop swap failures:
+
+1. Check the sanitized failure log at
+   `/Users/travis/Documents/Swop Desktop Live.nosync/logs/desktop-swap-failures.ndjson`
+   and any relevant runtime logs.
+2. Create or update a GitHub issue with labels `bug` and `codex` when it is
+   agent-fixable.
+3. Add the issue to `https://github.com/users/Travisswop/projects/1`.
+4. Set the Project `Status` field to `10. Swapping Module`.
+5. Include provider, stage, pair, route context, and sanitized error/log excerpts
+   only. Never paste secrets, auth headers, cookies, private keys, or
+   unredacted private user data into GitHub.
+
 ## Customization
 
 You can customize the fees, slippage defaults, and supported tokens in the `ethSwapUtils.ts` file.

@@ -185,6 +185,29 @@ Do not point launchd/cron at a dirty feature checkout for production card QA.
 If the QA harness changes, push those changes to `main` before expecting the
 scheduled task to pick them up.
 
+### Log-Derived Bugs And Kanban
+
+When a runtime log, local telemetry file, screenshot, or support report reveals
+a real product bug, capture it in the GitHub Kanban instead of leaving it only in
+local logs. Follow
+[Log-Derived Bug Kanban Workflow](LOG_DERIVED_BUG_KANBAN.md).
+
+Key rules:
+
+- GitHub Project board: `https://github.com/users/Travisswop/projects/1`.
+- Create/update a GitHub issue with labels `bug` and, when agent-fixable,
+  `codex`.
+- Add the issue to Project `1` and set `Status` to the most specific product
+  area, such as `Metro`, `Perps`, `Swapping`, `Predictions`,
+  `Checkout/Payments`, `Chat/Astro`, `Rewards`, or `Notifications`.
+- For swap failures from `/api/wallet/swap-failure` or
+  `logs/desktop-swap-failures.ndjson`, set `Status` to
+  `10. Swapping Module`.
+- Include only sanitized log excerpts. Never paste secrets, auth headers,
+  cookies, private keys, or unredacted private user data into GitHub.
+- The `github-bug-board-scanner` automation scans this board every 6 hours. If
+  the board is empty, it should not invent work from unrelated repo issues.
+
 ## Contribution Guidelines
 
 - Make changes in feature-specific files/directories

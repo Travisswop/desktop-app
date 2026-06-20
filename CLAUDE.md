@@ -130,6 +130,7 @@ zustandStore/         # Client state management
 - Payment orders must be created before payment UI is shown
 - Swap quotes need their provider API keys set, or they intermittently time out (see "Swap Quote Reliability" below)
 - `.env` is loaded only at process start — restart `npm run dev` (or redeploy) after changing any key, or the running app keeps the old value
+- Bugs discovered from logs should be turned into GitHub issues and added to the Kanban board, not left only in local log files; see `LOG_DERIVED_BUG_KANBAN.md`.
 
 ## Key Integration Points
 
@@ -147,6 +148,21 @@ zustandStore/         # Client state management
 - Blockchain RPC endpoints and API keys required
 - Webhook endpoints for Stripe integration
 - Socket server configuration for real-time features
+
+### Log-Derived Bug Kanban
+
+When a desktop/runtime log reveals a real bug, follow
+`LOG_DERIVED_BUG_KANBAN.md`:
+
+- Create or update a GitHub issue with `bug` and, when appropriate, `codex`.
+- Add it to `https://github.com/users/Travisswop/projects/1`.
+- Set the Project `Status` field to the matching product section, such as
+  `Metro`, `Perps`, `Swapping`, `Predictions`, `Checkout/Payments`,
+  `Chat/Astro`, `Rewards`, or `Notifications`.
+- For swap errors from `/api/wallet/swap-failure` or
+  `logs/desktop-swap-failures.ndjson`, use `10. Swapping Module`.
+- Include sanitized excerpts only; never paste secrets, auth headers, cookies,
+  private keys, or unredacted private user data into GitHub.
 
 ### Swap Quote Reliability (Jupiter / LiFi)
 Swap quotes are fetched server-side and **degrade silently to slow/free public endpoints when their API keys are missing**, which is the usual cause of "quote is taking too long" timeouts.
