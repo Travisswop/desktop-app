@@ -57,6 +57,7 @@ import {
   ComputeBudgetProgram,
 } from '@solana/web3.js';
 import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   getAccount,
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
@@ -80,6 +81,7 @@ import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { MarketService } from '@/services/market-service';
 import {
   decimalAmountToRawUnits,
+  formatRawUnitsToDecimal,
   getSafeSwapInputAmount,
   SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS,
   normalizeTokenDecimals,
@@ -213,6 +215,13 @@ type JupiterBuildResponse = {
   };
 };
 
+const maskJupiterLogIdentifier = (value?: string | null) => {
+  if (!value) return value;
+  return value.length <= 10
+    ? value
+    : `${value.slice(0, 4)}...${value.slice(-4)}`;
+};
+
 function decodeJupiterInstruction(ix?: JupiterApiInstruction | null) {
   if (!ix) return null;
 
@@ -225,6 +234,83 @@ function decodeJupiterInstruction(ix?: JupiterApiInstruction | null) {
     })),
     data: Buffer.from(ix.data, 'base64'),
   });
+}
+
+function isAssociatedTokenCreateIdempotentInstruction(
+  ix?: JupiterApiInstruction | null,
+) {
+  if (!ix || ix.programId !== ASSOCIATED_TOKEN_PROGRAM_ID.toString()) {
+    return false;
+  }
+
+  const data = Buffer.from(ix.data || '', 'base64');
+  return data.length === 1 && data[0] === 1;
+}
+
+async function pruneExistingJupiterAtaSetupInstructions({
+  build,
+  connection,
+}: {
+  build: JupiterBuildResponse;
+  connection: Connection;
+}) {
+  const setupInstructions = build.setupInstructions || [];
+  if (!setupInstructions.length) return build;
+
+  const filtered: JupiterApiInstruction[] = [];
+  const pruned: string[] = [];
+
+  for (const ix of setupInstructions) {
+    const accounts = ix.accounts || [];
+    const ata = accounts[1]?.pubkey;
+    const owner = accounts[2]?.pubkey;
+    const mint = accounts[3]?.pubkey;
+    const tokenProgram = accounts[5]?.pubkey;
+
+    if (
+      !isAssociatedTokenCreateIdempotentInstruction(ix) ||
+      !ata ||
+      !owner ||
+      !mint ||
+      !tokenProgram
+    ) {
+      filtered.push(ix);
+      continue;
+    }
+
+    try {
+      const account = await getAccount(
+        connection,
+        new PublicKey(ata),
+        undefined,
+        new PublicKey(tokenProgram),
+      );
+      if (
+        account.owner.equals(new PublicKey(owner)) &&
+        account.mint.equals(new PublicKey(mint))
+      ) {
+        pruned.push(ata);
+        continue;
+      }
+    } catch {
+      // Keep the setup instruction when the ATA cannot be verified.
+    }
+
+    filtered.push(ix);
+  }
+
+  if (!pruned.length) return build;
+
+  console.log('[Jupiter swap] Pruned existing ATA setup instructions', {
+    prunedCount: pruned.length,
+    setupInstructionCount: setupInstructions.length,
+    prunedAtas: pruned.map(maskJupiterLogIdentifier),
+  });
+
+  return {
+    ...build,
+    setupInstructions: filtered,
+  };
 }
 
 function buildLookupTableAccounts(
@@ -384,14 +470,31 @@ async function detectSolanaTokenProgram(
   } catch {
     // Fall through to the standard SPL Token program.
   }
+  if (isKnownToken2022Mint(mint)) {
+    return TOKEN_2022_PROGRAM_ID;
+  }
   return TOKEN_PROGRAM_ID;
 }
 
-function shouldSkipJupiterPlatformFeeForPrograms(
-  inputTokenProgram: PublicKey,
-  outputTokenProgram: PublicKey,
-) {
+function isKnownToken2022Mint(mint?: string | null) {
+  const normalized = mint?.trim().toLowerCase();
+  return Boolean(normalized?.startsWith('xs'));
+}
+
+function shouldUseToken2022JupiterRoute({
+  inputMint,
+  outputMint,
+  inputTokenProgram,
+  outputTokenProgram,
+}: {
+  inputMint: string;
+  outputMint: string;
+  inputTokenProgram: PublicKey;
+  outputTokenProgram: PublicKey;
+}) {
   return (
+    isKnownToken2022Mint(inputMint) ||
+    isKnownToken2022Mint(outputMint) ||
     inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
     outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID)
   );
@@ -3103,10 +3206,12 @@ export default function SwapTokenModal({
         detectSolanaTokenProgram(quoteConnection, outputMint),
       ]);
     const shouldSkipPlatformFee =
-      shouldSkipJupiterPlatformFeeForPrograms(
+      shouldUseToken2022JupiterRoute({
+        inputMint,
+        outputMint,
         inputTokenProgram,
         outputTokenProgram,
-      );
+      });
 
     const quoteParams = new URLSearchParams({
       inputMint,
@@ -4057,6 +4162,7 @@ export default function SwapTokenModal({
       const walletPubkey = new PublicKey(
         selectedSolanaWallet.address,
       );
+      const inputMintPubkey = new PublicKey(inputMint);
       const outputMintPubkey = new PublicKey(outputMint);
       const isSOLInput = isNativeSolMint(inputMint);
       const isSOLOutput = isNativeSolMint(outputMint);
@@ -4121,6 +4227,47 @@ export default function SwapTokenModal({
               `Could not prepare your ${receiveToken?.symbol ?? 'output token'} account. Please try again.`,
             );
           }
+        }
+      }
+
+      if (!isSOLInput) {
+        const inputTokenProgram = await detectSolanaTokenProgram(
+          connection,
+          inputMint,
+        );
+        const inputAtaAddr = await getAssociatedTokenAddress(
+          inputMintPubkey,
+          walletPubkey,
+          false,
+          inputTokenProgram,
+        );
+        const inputAccount = await getAccount(
+          connection,
+          inputAtaAddr,
+          undefined,
+          inputTokenProgram,
+        ).catch(() => null);
+        const availableInputRaw = inputAccount?.amount ?? 0n;
+        const requestedInputRaw = BigInt(amountInSmallestUnit);
+
+        if (requestedInputRaw > availableInputRaw) {
+          const decimals = normalizeTokenDecimals(
+            payToken?.decimals,
+            6,
+          );
+          const availableInput = formatRawUnitsToDecimal(
+            availableInputRaw,
+            decimals,
+          );
+          setPayAmount(availableInput);
+          setReceiveAmount('');
+          setJupiterQuote(null);
+          setQuote(null);
+          setLastQuoteTime(null);
+
+          throw new Error(
+            `Your ${payToken?.symbol ?? 'token'} balance changed. Available now: ${availableInput} ${payToken?.symbol ?? ''}. Try the swap again with the updated amount.`,
+          );
         }
       }
 
@@ -4210,10 +4357,12 @@ export default function SwapTokenModal({
           ]);
 
         const shouldSkipPlatformFee =
-          shouldSkipJupiterPlatformFeeForPrograms(
+          shouldUseToken2022JupiterRoute({
+            inputMint,
+            outputMint,
             inputTokenProgram,
             outputTokenProgram,
-          );
+          });
         setSwapStatus(
           shouldSkipPlatformFee
             ? 'Preparing Jupiter swap...'
@@ -4236,6 +4385,8 @@ export default function SwapTokenModal({
             });
         const requiresInstructionV2 =
           isSOLOutput ||
+          isKnownToken2022Mint(inputMint) ||
+          isKnownToken2022Mint(outputMint) ||
           inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           feeInfo.tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
@@ -4317,7 +4468,10 @@ export default function SwapTokenModal({
           );
         }
 
-        let build = buildResult.data as JupiterBuildResponse;
+        let build = await pruneExistingJupiterAtaSetupInstructions({
+          build: buildResult.data as JupiterBuildResponse,
+          connection,
+        });
         if (build.outAmount && receiveToken?.decimals) {
           const readable =
             Number(build.outAmount) /
@@ -4413,7 +4567,10 @@ export default function SwapTokenModal({
                 );
               }
 
-              build = buildResult.data as JupiterBuildResponse;
+              build = await pruneExistingJupiterAtaSetupInstructions({
+                build: buildResult.data as JupiterBuildResponse,
+                connection,
+              });
               if (build.outAmount && receiveToken?.decimals) {
                 const readable =
                   Number(build.outAmount) /
@@ -4523,7 +4680,16 @@ export default function SwapTokenModal({
 
         void (async () => {
           try {
-            await saveSwapToDatabase(txId, { inputMint, outputMint });
+            await saveSwapToDatabase(txId, {
+              inputMint,
+              outputMint,
+              swopPlatformFeeBps: shouldSkipPlatformFee
+                ? 0
+                : PLATFORM_FEE_BPS,
+              swopPlatformFeeSkippedReason: shouldSkipPlatformFee
+                ? 'token-2022-route'
+                : undefined,
+            });
           } catch (postSwapError) {
             console.warn(
               'Post-swap persistence failed:',
