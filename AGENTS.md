@@ -185,6 +185,16 @@ Do not point launchd/cron at a dirty feature checkout for production card QA.
 If the QA harness changes, push those changes to `main` before expecting the
 scheduled task to pick them up.
 
+### Log-Derived Bug Kanban
+
+See `LOG_DERIVED_BUG_KANBAN.md` for the log-to-GitHub Project workflow. Swap
+failures write `wallet_swap_failure` events to
+`logs/desktop-swap-failures.ndjson`; feed/card lifecycle failures write
+`feed_card_health_issue` events to `logs/desktop-feed-card-health.ndjson`.
+Reporter automations dedupe those logs by fingerprint, create/update GitHub
+issues, add them to Travisswop Project 1, and route cards to the relevant module
+section such as Swapping or Perps.
+
 ## Contribution Guidelines
 
 - Make changes in feature-specific files/directories

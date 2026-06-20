@@ -57,6 +57,9 @@ import {
 } from '@/lib/perps/perpsFeed';
 import { buildHyperliquidMarketPriceMap } from '@/lib/perps/hyperliquidPositionPricing';
 import { hyperliquidMarketForPosition } from '@/lib/perps/hyperliquidMarketIdentity';
+import { reportFeedHealthIssue } from '@/lib/feed/feedHealth';
+import { buildPerpsTerminalFillsByPositionKey } from '@/lib/feed/perpsFeedHealth';
+import { publishPerpsFeedSourceSnapshot } from '@/lib/feed/perpsFeedHealthStore';
 
 export type PerpsInitialOrder = {
   side?: 'long' | 'short';
@@ -312,6 +315,21 @@ export function PerpsPanel({
   // fallback so the Mark column never silently shows the entry price.
   const marketMarks = useMemo(() => {
     return buildHyperliquidMarketPriceMap(markets);
+  }, [markets]);
+  const dexByCoin = useMemo(() => {
+    return markets.reduce<Record<string, string | null | undefined>>(
+      (mapping, market) => {
+        const dex = market.dex || null;
+        const coin = String(market.coin || '').trim().toUpperCase();
+        const displayCoin = String(market.displayCoin || '').trim().toUpperCase();
+
+        if (coin) mapping[coin] = dex;
+        if (displayCoin) mapping[displayCoin] = dex;
+
+        return mapping;
+      },
+      {},
+    );
   }, [markets]);
 
   const { connected: fillsConnected } = useUserFills(
@@ -599,6 +617,23 @@ export function PerpsPanel({
         dex: position.dex,
       }),
     );
+    const terminalFillsByPositionKey = buildPerpsTerminalFillsByPositionKey({
+      fills,
+      userId: user._id,
+      masterAddress,
+      dexByCoin,
+    });
+    const terminalPositionKeys = Object.keys(terminalFillsByPositionKey);
+
+    publishPerpsFeedSourceSnapshot({
+      provider: 'hyperliquid',
+      masterAddress,
+      activePositionKeys,
+      terminalPositionKeys,
+      terminalFillsByPositionKey,
+      receivedAt: new Date().toISOString(),
+    });
+
     const reconcileSnapshotKey = [
       masterAddress,
       Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
@@ -619,6 +654,45 @@ export function PerpsPanel({
       }).catch((feedError) => {
         reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
         console.warn('Failed to reconcile perps feed cards:', feedError);
+        void reportFeedHealthIssue({
+          surface: 'perps',
+          cardType: 'perpsPosition',
+          issueType: 'perps_feed_reconcile_failed',
+          severity: 'high',
+          title: 'Perps feed reconcile failed in Wallet',
+          description:
+            'The wallet perps panel could not reconcile perps feed cards against the latest Hyperliquid source-of-truth snapshot.',
+          userId: user._id,
+          smartsiteId,
+          sourceOfTruth: {
+            provider: 'hyperliquid',
+            masterAddressSuffix: masterAddress.slice(-8),
+            activePositionKeyCount: activePositionKeys.length,
+            terminalPositionKeys,
+          },
+          observedState: {
+            error:
+              feedError instanceof Error
+                ? feedError.message
+                : String(feedError),
+          },
+          expectedState: {
+            reconcileEndpoint: 'success',
+          },
+          acceptanceCriteria: [
+            'Perps feed reconciliation succeeds from the wallet perps panel.',
+            'When source-of-truth positions close, matching feed cards move to a terminal state.',
+          ],
+          fingerprintComponents: {
+            provider: 'hyperliquid',
+            issueType: 'perps_feed_reconcile_failed',
+            surface: 'wallet',
+            error:
+              feedError instanceof Error
+                ? feedError.message
+                : String(feedError),
+          },
+        });
       });
     }
 
@@ -692,6 +766,7 @@ export function PerpsPanel({
     accountData,
     allPositions,
     accessToken,
+    dexByCoin,
     feedSmartsiteId,
     fills,
     historicalFillsLoaded,

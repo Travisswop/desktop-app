@@ -156,3 +156,13 @@ Swap quotes are fetched server-side and **degrade silently to slow/free public e
 - The swap modal **auto-refreshes the quote every 10s** while open (`components/wallet/SwapTokenModal.tsx`), so each open modal repeatedly hits the provider — keyless endpoints throttle fast.
 - These keys are **environment-specific**: the local stack's `.env` and each hosted deployment (Vercel/server) have separate env vars. A working production swap does not mean local is configured, and vice-versa.
 - To diagnose a timeout, curl the provider directly (e.g. `https://lite-api.jup.ag/swap/v1/quote?...`). A fast 200 means the provider is healthy and the issue is the missing/wrong key or rate-limiting, not an outage.
+
+### Log-Derived Bug Kanban
+
+`LOG_DERIVED_BUG_KANBAN.md` documents how runtime failures become GitHub Project
+cards. Swap failures log to `logs/desktop-swap-failures.ndjson`; feed/card
+health issues log to `logs/desktop-feed-card-health.ndjson`. The feed health
+pipeline currently monitors perps lifecycle mismatches, including stale OPEN
+feed cards after Hyperliquid positions close through TP/SL, liquidation, or
+manual close. Reporter automations create/update sanitized GitHub issues with
+stable fingerprints and route them to the appropriate Project 1 module section.

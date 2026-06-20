@@ -22,6 +22,9 @@ import {
 import { useHyperliquidMarkets } from '@/components/wallet/perps/hooks/useHyperliquidMarkets';
 import { useHyperliquidPortfolio } from '@/components/wallet/perps/hooks/useHyperliquidPortfolio';
 import type { HLPosition } from '@/services/hyperliquid/types';
+import { reportFeedHealthIssue } from '@/lib/feed/feedHealth';
+import { buildPerpsTerminalFillsByPositionKey } from '@/lib/feed/perpsFeedHealth';
+import { publishPerpsFeedSourceSnapshot } from '@/lib/feed/perpsFeedHealthStore';
 
 interface HyperliquidUserFill extends PerpsFillLike {
   coin?: string;
@@ -160,6 +163,21 @@ export default function PerpsFeedBackfill() {
       return prices;
     }, {});
   }, [markets]);
+  const dexByCoin = useMemo(() => {
+    return markets.reduce<Record<string, string | null | undefined>>(
+      (mapping, market) => {
+        const dex = market.dex || null;
+        const coin = String(market.coin || '').trim().toUpperCase();
+        const displayCoin = String(market.displayCoin || '').trim().toUpperCase();
+
+        if (coin) mapping[coin] = dex;
+        if (displayCoin) mapping[displayCoin] = dex;
+
+        return mapping;
+      },
+      {},
+    );
+  }, [markets]);
 
   useEffect(() => {
     const smartsiteId = feedSmartsiteId;
@@ -201,6 +219,24 @@ export default function PerpsFeedBackfill() {
       .then((recentFills) => {
         if (cancelled) return;
 
+        const terminalFillsByPositionKey =
+          buildPerpsTerminalFillsByPositionKey({
+            fills: recentFills,
+            userId: user._id,
+            masterAddress,
+            dexByCoin,
+          });
+        const terminalPositionKeys = Object.keys(terminalFillsByPositionKey);
+
+        publishPerpsFeedSourceSnapshot({
+          provider: 'hyperliquid',
+          masterAddress,
+          activePositionKeys,
+          terminalPositionKeys,
+          terminalFillsByPositionKey,
+          receivedAt: new Date().toISOString(),
+        });
+
         if (!reconciledSnapshotsRef.current.has(reconcileSnapshotKey)) {
           reconciledSnapshotsRef.current.add(reconcileSnapshotKey);
           reconcilePerpsPositionFeed({
@@ -215,6 +251,41 @@ export default function PerpsFeedBackfill() {
           }).catch((error) => {
             reconciledSnapshotsRef.current.delete(reconcileSnapshotKey);
             console.warn('Failed to reconcile perps feed cards:', error);
+            void reportFeedHealthIssue({
+              surface: 'perps',
+              cardType: 'perpsPosition',
+              issueType: 'perps_feed_reconcile_failed',
+              severity: 'high',
+              title: 'Perps feed reconcile failed on Feed page',
+              description:
+                'The feed page could not reconcile perps feed cards against the latest Hyperliquid source-of-truth snapshot.',
+              userId: user._id,
+              smartsiteId,
+              sourceOfTruth: {
+                provider: 'hyperliquid',
+                masterAddressSuffix: masterAddress.slice(-8),
+                activePositionKeyCount: activePositionKeys.length,
+                terminalPositionKeys,
+              },
+              observedState: {
+                error:
+                  error instanceof Error ? error.message : String(error),
+              },
+              expectedState: {
+                reconcileEndpoint: 'success',
+              },
+              acceptanceCriteria: [
+                'Perps feed reconciliation succeeds for the current user and wallet.',
+                'When source-of-truth positions close, matching feed cards move to a terminal state.',
+              ],
+              fingerprintComponents: {
+                provider: 'hyperliquid',
+                issueType: 'perps_feed_reconcile_failed',
+                surface: 'feed',
+                error:
+                  error instanceof Error ? error.message : String(error),
+              },
+            });
           });
         }
 
@@ -294,6 +365,7 @@ export default function PerpsFeedBackfill() {
     };
   }, [
     accessToken,
+    dexByCoin,
     user?._id,
     feedSmartsiteId,
     masterAddress,
