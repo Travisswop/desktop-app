@@ -48,6 +48,7 @@ import type {
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
+  inferPerpsCloseFillsByCoin,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
   reconcilePerpsPositionFeed,
@@ -616,6 +617,7 @@ export function PerpsPanel({
         activePositionKeys,
         observedDexes,
         markPricesByCoin: mids,
+        closedFillsByCoin: inferPerpsCloseFillsByCoin(fills),
       }).catch((feedError) => {
         reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
         console.warn('Failed to reconcile perps feed cards:', feedError);
