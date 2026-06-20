@@ -205,8 +205,16 @@ Key rules:
   `10. Swapping Module`.
 - Include only sanitized log excerpts. Never paste secrets, auth headers,
   cookies, private keys, or unredacted private user data into GitHub.
-- The `github-bug-board-scanner` automation scans this board every 6 hours. If
-  the board is empty, it should not invent work from unrelated repo issues.
+- The `github-bug-board-scanner` (`GitHub bug board fixer`) automation scans
+  this board every 6 hours. If the board is empty, it should not invent work
+  from unrelated repo issues.
+- For board-driven bug patches, the fixer agent moves the card to `In review`
+  after a branch/PR is ready. The `github-bug-expert-reviewer` automation then
+  runs an area-specialist expert-agent review and records
+  `Review depth: expert-agent reviewed (<surface>)` when it passes.
+- Expert-agent review counts as useful review depth, but high-risk wallet,
+  trading, auth, payment, production database, or deploy changes still need any
+  required human/CODEOWNER review called out explicitly.
 
 ## Contribution Guidelines
 

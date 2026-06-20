@@ -97,6 +97,9 @@ For desktop swap failures:
 5. Include provider, stage, pair, route context, and sanitized error/log excerpts
    only. Never paste secrets, auth headers, cookies, private keys, or
    unredacted private user data into GitHub.
+6. When a cron/agent prepares a swapping bug fix, move the Project item to
+   `In review` and request a swapping expert-agent review. Passing reviews
+   should record `Review depth: expert-agent reviewed (Swapping)`.
 
 ## Customization
 
