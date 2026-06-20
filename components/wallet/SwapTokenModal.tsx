@@ -25,6 +25,7 @@ import {
   getLifiQuote as fetchLifiQuote,
 } from '@/actions/lifiForTokenSwap';
 import { getJupiterBuild as fetchJupiterBuild } from '@/actions/jupiterSwap';
+import { sponsorSolanaTransaction } from '@/actions/sponsorSolanaTransaction';
 import { notifySwapFee } from '@/actions/notifySwapFee';
 import {
   useConnectWallet,
@@ -1065,6 +1066,17 @@ const formatSolanaSignature = (signature: unknown) =>
     ? signature
     : bs58.encode(signature as Uint8Array);
 
+const uint8ArrayToBase64 = (bytes: Uint8Array) => {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(
+      ...bytes.subarray(i, i + chunkSize),
+    );
+  }
+  return btoa(binary);
+};
+
 const summarizeSolanaError = (error: unknown) => {
   const anyError = error as any;
   return {
@@ -1170,6 +1182,8 @@ const formatUserFriendlyError = (error: string): string => {
     lowerError.includes('no wallet')
   )
     return 'Please connect your wallet to continue.';
+  if (lowerError.includes('wallet is not a privy wallet'))
+    return 'This wallet cannot use Swop gas sponsorship. Switch to your Swop embedded wallet, or add a small amount of SOL for the network fee and try again.';
   if (isRouteUnavailableErrorMessage(lowerError))
     return 'No swap route available for this token pair right now. Try a different token, route, or amount.';
   if (
@@ -2330,12 +2344,14 @@ export default function SwapTokenModal({
           5000,
         ),
       );
-      await Promise.race([getAccessToken(), timeout]);
+      const token = await Promise.race([getAccessToken(), timeout]);
+      return typeof token === 'string' ? token : null;
     } catch (e) {
       console.warn(
         'Session refresh failed, proceeding with existing session:',
         e,
       );
+      return null;
     }
   }, [getAccessToken]);
 
@@ -3954,6 +3970,8 @@ export default function SwapTokenModal({
     userFundedStatus,
     context,
     walletSupportsSponsorshipOverride,
+    privyWalletId,
+    privyAccessToken,
   }: {
     serializedTransaction: Uint8Array;
     wallet: any;
@@ -3963,6 +3981,8 @@ export default function SwapTokenModal({
     userFundedStatus: string;
     context: string;
     walletSupportsSponsorshipOverride?: boolean;
+    privyWalletId?: string | null;
+    privyAccessToken?: string | null;
   }) => {
     const walletSupportsSponsorship =
       walletSupportsSponsorshipOverride ??
@@ -3976,10 +3996,60 @@ export default function SwapTokenModal({
       walletClientType: wallet?.walletClientType,
       connectorType: wallet?.connectorType,
       standardWalletName: wallet?.standardWallet?.name,
+      hasPrivyWalletId: Boolean(privyWalletId),
+      hasPrivyAccessToken: Boolean(privyAccessToken),
       transaction: summarizeSolanaTransaction(serializedTransaction),
     });
 
-    if (walletSupportsSponsorship) {
+    if (privyWalletId) {
+      try {
+        setSwapStatus(sponsoredStatus);
+        const sponsoredResult = await sponsorSolanaTransaction(
+          uint8ArrayToBase64(serializedTransaction),
+          privyWalletId,
+          privyAccessToken,
+        );
+
+        if (!sponsoredResult.success) {
+          throw new Error(sponsoredResult.error);
+        }
+
+        const signature = formatSolanaSignature(
+          sponsoredResult.signature,
+        );
+        console.log(
+          '[Solana sponsorship] Server-sponsored submit succeeded',
+          {
+            context,
+            signature: maskIdentifier(signature),
+            walletAddress: maskIdentifier(wallet?.address),
+            walletId: maskIdentifier(privyWalletId),
+          },
+        );
+        return signature;
+      } catch (sponsoredError) {
+        if (isUserCancellationError(sponsoredError)) {
+          throw sponsoredError;
+        }
+        if (isMfaRequiredError(sponsoredError)) {
+          throw new Error(MFA_REQUIRED_ERROR_MESSAGE);
+        }
+
+        console.warn(`${context} server gas sponsorship failed`, {
+          error: summarizeSolanaError(sponsoredError),
+          canUseUserFundedFallback,
+          walletAddress: maskIdentifier(wallet?.address),
+          walletId: maskIdentifier(privyWalletId),
+          transaction: summarizeSolanaTransaction(
+            serializedTransaction,
+          ),
+        });
+
+        if (!canUseUserFundedFallback) {
+          throw new Error(getSolanaFeeFallbackError(true));
+        }
+      }
+    } else if (walletSupportsSponsorship) {
       try {
         setSwapStatus(sponsoredStatus);
         const sponsoredResult = await signAndSendTransaction({
@@ -4628,15 +4698,16 @@ export default function SwapTokenModal({
           computeUnitLimit,
         });
 
-        await safeRefreshSession();
+        const privyAccessToken = await safeRefreshSession();
 
         const serializedTransaction = new Uint8Array(tx.serialize());
         if (userPrivySolanaWalletId) {
           console.log(
-            '[Solana sponsorship] Using client Privy wallet path',
+            '[Solana sponsorship] Using server Privy wallet path',
             {
               walletId: maskIdentifier(userPrivySolanaWalletId),
               feePayer: maskIdentifier(selectedSolanaWallet.address),
+              hasPrivyAccessToken: Boolean(privyAccessToken),
             },
           );
         } else {
@@ -4666,6 +4737,8 @@ export default function SwapTokenModal({
           walletSupportsSponsorshipOverride: walletSupportsSponsorship
             ? true
             : undefined,
+          privyWalletId: userPrivySolanaWalletId,
+          privyAccessToken,
         });
 
         if (!txId) {
@@ -4816,7 +4889,7 @@ export default function SwapTokenModal({
       }
 
       setSwapStatus('Signing and sending transaction...');
-      await safeRefreshSession();
+      const privyAccessToken = await safeRefreshSession();
       const serializedTransaction = new Uint8Array(
         transaction.serialize(),
       );
@@ -4846,6 +4919,8 @@ export default function SwapTokenModal({
         walletSupportsSponsorshipOverride: walletSupportsSponsorship
           ? true
           : undefined,
+        privyWalletId: userPrivySolanaWalletId,
+        privyAccessToken,
       });
 
       // setTxHash(signature);
