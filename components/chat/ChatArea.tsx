@@ -1226,6 +1226,7 @@ function buildPolymarketResearchMarketParams(
   if (isGameLineRequest) {
     params.set('tag_id', '100639');
     params.set('kind', 'gamelines');
+    params.set('market_set', 'moneyline');
   }
 
   const dateWindow = resolvePolymarketResearchDateWindow(combined);
