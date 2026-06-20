@@ -250,12 +250,21 @@ function tokenRail(token: TokenData | null) {
 
 function paymentWalletAddressForToken(
   token: TokenData | null,
-  evmSignerWalletAddresses: string[],
-  evmPortfolioWalletAddresses: string[]
+  evmSignerWalletAddresses: string[]
 ) {
   if (!token || token.chain === 'SOLANA') return '';
-  if (token.walletAddress) return token.walletAddress;
-  return evmSignerWalletAddresses[0] || evmPortfolioWalletAddresses[0] || '';
+  const tokenWalletAddress = token.walletAddress?.trim();
+  if (
+    tokenWalletAddress &&
+    evmSignerWalletAddresses.some(
+      (address) => address.toLowerCase() === tokenWalletAddress.toLowerCase()
+    )
+  ) {
+    return tokenWalletAddress;
+  }
+  if (tokenWalletAddress) return '';
+
+  return evmSignerWalletAddresses[0] || '';
 }
 
 function uniqueWalletAddresses(...values: Array<string | undefined | null>) {
@@ -658,10 +667,9 @@ export default function CheckoutPaymentClient({
     () =>
       paymentWalletAddressForToken(
         selectedToken,
-        evmSignerWalletAddresses,
-        evmWalletAddresses
+        evmSignerWalletAddresses
       ),
-    [evmSignerWalletAddresses, evmWalletAddresses, selectedToken]
+    [evmSignerWalletAddresses, selectedToken]
   );
   const selectedEvmSignerWallet = useMemo(
     () =>
@@ -690,10 +698,12 @@ export default function CheckoutPaymentClient({
     selectedRail === 'solana'
       ? Boolean(selectedSolanaSignerWallet?.address)
       : selectedRail === 'lifi'
-      ? Boolean(selectedPaymentWalletAddress)
+      ? Boolean(selectedEvmSignerWallet?.address)
       : false;
   const needsSolanaSigner =
     selectedRail === 'solana' && !selectedSolanaSignerWallet?.address;
+  const needsEvmSigner =
+    selectedRail === 'lifi' && !selectedEvmSignerWallet?.address;
   const appCheckoutUrls = useMemo(
     () => swopAppCheckoutUrls(intentId),
     [intentId]
@@ -1041,7 +1051,7 @@ export default function CheckoutPaymentClient({
 
     const sourceChainId = Number(chainConfig.id);
     const sourceWalletAddress = selectedPaymentWalletAddress;
-    if (!sourceWalletAddress) {
+    if (!sourceWalletAddress || !selectedEvmSignerWallet?.address) {
       throw new Error('Wallet not found');
     }
 
@@ -1165,7 +1175,7 @@ export default function CheckoutPaymentClient({
       if (selectedRail === 'lifi') {
         const chainConfig = CHAIN_CONFIG[selectedToken.chain];
         const fromAddress = selectedPaymentWalletAddress;
-        if (!chainConfig || !fromAddress) {
+        if (!chainConfig || !fromAddress || !selectedEvmSignerWallet?.address) {
           throw new Error('Wallet not ready');
         }
 
@@ -1261,8 +1271,12 @@ export default function CheckoutPaymentClient({
         ? 'Sign in with the Swop wallet that holds this Solana token.'
         : 'Create or connect a Solana wallet to pay with this token.';
     }
-    if (selectedRail === 'lifi' && !selectedPaymentWalletAddress) {
-      return 'Connect an EVM wallet to pay with this token.';
+    if (needsEvmSigner) {
+      return selectedToken?.walletAddress
+        ? `Connect ${truncateWalletAddress(
+            selectedToken.walletAddress
+          )} to pay with this token.`
+        : 'Connect an EVM wallet to pay with this token.';
     }
     return '';
   })();
@@ -1587,7 +1601,40 @@ export default function CheckoutPaymentClient({
                 >
                   Pay with passkey or SMS
                 </button>
-              ) : !solanaWallet && evmWalletAddresses.length === 0 ? (
+              ) : needsEvmSigner ? (
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={handleConnectWallet}
+                    disabled={connectingWallet}
+                    className={`inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-[#101114] px-4 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                      selectedToken?.walletAddress ? 'sm:col-span-2' : ''
+                    }`}
+                  >
+                    {connectingWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Link2 className="h-4 w-4" />
+                    )}
+                    Connect wallet
+                  </button>
+                  {!selectedToken?.walletAddress ? (
+                    <button
+                      type="button"
+                      onClick={handleCreateWallet}
+                      disabled={creatingWallet}
+                      className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-[#dfe4eb] bg-white px-4 text-sm font-bold text-[#101114] transition hover:border-[#c8d0dc] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {creatingWallet ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Wallet className="h-4 w-4" />
+                      )}
+                      Create Swop wallet
+                    </button>
+                  ) : null}
+                </div>
+              ) : !solanaWallet && evmSignerWalletAddresses.length === 0 ? (
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
@@ -2032,7 +2079,77 @@ export default function CheckoutPaymentClient({
               </div>
             </div>
           </section>
-        ) : !solanaWallet && evmWalletAddresses.length === 0 ? (
+        ) : needsEvmSigner ? (
+          <section className="rounded-lg border border-[#e7e8ec] bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+                  Wallet selection
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Connect the paying wallet
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[#646b78]">
+                  This token balance belongs to{' '}
+                  {selectedToken?.walletAddress
+                    ? truncateWalletAddress(selectedToken.walletAddress)
+                    : 'an EVM wallet'}
+                  . Connect that wallet before confirming payment.
+                </p>
+              </div>
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-[440px]">
+                <button
+                  type="button"
+                  onClick={handleConnectWallet}
+                  disabled={connectingWallet}
+                  className={`flex min-h-[76px] items-center gap-3 rounded-md border border-[#101114] bg-[#101114] p-3 text-left text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                    selectedToken?.walletAddress ? 'sm:col-span-2' : ''
+                  }`}
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
+                    {connectingWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Link2 className="h-4 w-4" />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">
+                      Connect wallet
+                    </span>
+                    <span className="mt-1 block text-xs font-medium text-white/70">
+                      Select the funded wallet
+                    </span>
+                  </span>
+                </button>
+                {!selectedToken?.walletAddress ? (
+                  <button
+                    type="button"
+                    onClick={handleCreateWallet}
+                    disabled={creatingWallet}
+                    className="flex min-h-[76px] items-center gap-3 rounded-md border border-[#dde1e6] bg-white p-3 text-left transition hover:border-[#101114] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-[#f0f2f5] text-[#101114]">
+                      {creatingWallet ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Wallet className="h-4 w-4" />
+                      )}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-[#101114]">
+                        Create Swop wallet
+                      </span>
+                      <span className="mt-1 block text-xs font-medium text-[#737b8c]">
+                        Use a new Swop wallet
+                      </span>
+                    </span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        ) : !solanaWallet && evmSignerWalletAddresses.length === 0 ? (
           <section className="rounded-lg border border-[#e7e8ec] bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
