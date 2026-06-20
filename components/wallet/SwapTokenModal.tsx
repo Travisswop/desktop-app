@@ -34,9 +34,11 @@ import {
 } from '@privy-io/react-auth';
 import {
   useWallets as useSolanaWallets,
+  useStandardWallets as useSolanaStandardWallets,
   useSignAndSendTransaction,
   useSignTransaction,
 } from '@privy-io/react-auth/solana';
+import { ConnectedStandardSolanaWallet } from '@privy-io/js-sdk-core';
 import {
   createPublicClient,
   custom,
@@ -95,6 +97,7 @@ import {
   reconcileSelectedSwapToken,
 } from '@/lib/wallet/swapTokenSelection';
 import { shouldDisableSwapActionButton } from '@/lib/wallet/swapActionButtonState';
+import { resolveSolanaSigningWallet } from '@/lib/wallet/solanaSigningWallet';
 import {
   ensureSponsoredSolanaTokenAccount,
   isNativeSolMint,
@@ -588,6 +591,24 @@ const hasPrivyEmbeddedSolanaLinkedAccount = (
   (privyUser?.linkedAccounts || []).some((linkedAccount: any) =>
     isPrivyEmbeddedSolanaLinkedAccount(linkedAccount, walletAddress),
   );
+
+const isPrivyStandardSolanaWallet = (wallet: any) =>
+  Boolean(
+    wallet?.isPrivyWallet ||
+      wallet?.features?.['privy:'] ||
+      String(wallet?.name || '').toLowerCase() === 'privy',
+  );
+
+const createSolanaWalletAccount = (walletAddress: string) => ({
+  address: walletAddress,
+  publicKey: new PublicKey(walletAddress).toBytes(),
+  chains: ['solana:mainnet', 'solana:devnet', 'solana:testnet'],
+  features: [
+    'solana:signAndSendTransaction',
+    'solana:signTransaction',
+    'solana:signMessage',
+  ],
+});
 
 const getPrivyEmbeddedSolanaWalletId = (
   privyUser: any,
@@ -1761,32 +1782,85 @@ export default function SwapTokenModal({
     useSendTransaction();
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
+  const {
+    ready: solanaStandardWalletsReady,
+    wallets: solanaStandardWallets,
+  } = useSolanaStandardWallets();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { signTransaction } = useSignTransaction();
   const { socket: chatSocket } = useNewSocketChat();
   const socket = chatSocket;
+  const {
+    user: PrivyUser,
+    getAccessToken,
+    ready: privyReady,
+    authenticated,
+    login,
+  } = usePrivy();
   const ethWallet = wallets[0]?.address;
   const normalizedPreferredSolanaWalletAddress =
     normalizeWalletAddress(preferredSolanaWalletAddress);
 
   const selectedSolanaWallet = useMemo(() => {
-    if (!solanaReady || !directSolanaWallets.length) return undefined;
-    if (normalizedPreferredSolanaWalletAddress) {
-      return directSolanaWallets.find(
-        (w) =>
-          normalizeWalletAddress(w.address) ===
-          normalizedPreferredSolanaWalletAddress,
-      );
+    if (!solanaReady || !solanaStandardWalletsReady) {
+      return undefined;
     }
-    return (
-      directSolanaWallets.find(
-        (w) => w.address && w.address.length > 0,
-      ) ?? directSolanaWallets[0]
+
+    const resolvedWallet = resolveSolanaSigningWallet({
+      connectedWallets: directSolanaWallets,
+      standardWallets: solanaStandardWallets,
+      preferredAddress: normalizedPreferredSolanaWalletAddress,
+      makeConnectedStandardWallet: (wallet, account) =>
+        new ConnectedStandardSolanaWallet({
+          wallet,
+          account: account as any,
+        }),
+    }) as ConnectedStandardSolanaWallet | undefined;
+
+    if (resolvedWallet) {
+      return resolvedWallet;
+    }
+
+    const preferredAddress = preferredSolanaWalletAddress?.trim();
+    if (
+      !preferredAddress ||
+      !hasPrivyEmbeddedSolanaLinkedAccount(
+        PrivyUser,
+        preferredAddress,
+      )
+    ) {
+      return undefined;
+    }
+
+    const privyStandardWallet = solanaStandardWallets.find(
+      isPrivyStandardSolanaWallet,
     );
+    if (!privyStandardWallet) return undefined;
+
+    try {
+      return new ConnectedStandardSolanaWallet({
+        wallet: privyStandardWallet,
+        account: createSolanaWalletAccount(preferredAddress) as any,
+      });
+    } catch (error) {
+      console.warn(
+        '[Swap] Unable to prepare embedded Solana signing wallet',
+        {
+          walletAddress: maskIdentifier(preferredAddress),
+          error:
+            error instanceof Error ? error.message : String(error),
+        },
+      );
+      return undefined;
+    }
   }, [
+    PrivyUser,
     solanaReady,
+    solanaStandardWalletsReady,
     directSolanaWallets,
+    solanaStandardWallets,
     normalizedPreferredSolanaWalletAddress,
+    preferredSolanaWalletAddress,
   ]);
 
   const solanaWalletMismatchError = useMemo(() => {
@@ -1794,7 +1868,7 @@ export default function SwapTokenModal({
       !normalizedPreferredSolanaWalletAddress ||
       !preferredSolanaWalletAddress ||
       !solanaReady ||
-      !directSolanaWallets.length ||
+      !solanaStandardWalletsReady ||
       selectedSolanaWallet
     ) {
       return null;
@@ -1802,11 +1876,11 @@ export default function SwapTokenModal({
 
     return `The Solana wallet with these balances (${formatShortWalletAddress(preferredSolanaWalletAddress)}) is not connected for signing. Connect that wallet or switch accounts, then try again.`;
   }, [
-    directSolanaWallets.length,
     normalizedPreferredSolanaWalletAddress,
     preferredSolanaWalletAddress,
     selectedSolanaWallet,
     solanaReady,
+    solanaStandardWalletsReady,
   ]);
 
   const [fromWalletAddress, setFromWalletAddress] = useState(
@@ -1833,13 +1907,6 @@ export default function SwapTokenModal({
     );
   }, [chainId, fromWalletAddress, payToken, wallets]);
 
-  const {
-    user: PrivyUser,
-    getAccessToken,
-    ready: privyReady,
-    authenticated,
-    login,
-  } = usePrivy();
   const { user: userData } = useUser();
   const searchParams = useSearchParams();
   const router = useRouter();
