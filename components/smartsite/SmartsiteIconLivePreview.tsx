@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useDragControls } from "framer-motion";
 import swop from "@/public/images/live-preview/swop.svg";
 import useSmartsiteFormStore from "@/zustandStore/EditSmartsiteInfo";
@@ -66,6 +66,11 @@ import { GripVertical, Loader2 } from "lucide-react";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
+type PendingDragMove = {
+  sourceKey: string;
+  pointerY: number;
+};
+
 const smartsitePreviewItemKey = (
   section: string,
   item: any,
@@ -95,6 +100,10 @@ const COMPACT_SORTABLE_ROW_SECTIONS = new Set<SmartsiteTemplateSectionKey>([
   "product",
   "audio",
 ]);
+
+const areTemplateOrdersEqual = (left: string[], right: string[]) =>
+  left.length === right.length &&
+  left.every((orderKey, index) => orderKey === right[index]);
 
 const SortablePreviewSection = ({
   orderKey,
@@ -213,11 +222,21 @@ const SmartsiteIconLivePreview = ({
   const iconData: any = useUpdateSmartIcon();
 
   const [socialRows, setSocialRows] = useState<any>([]);
+  const normalizedTemplateOrder = useMemo(
+    () => normalizeSmartsiteTemplateBlockOrder(data, data?.templateOrder),
+    [data],
+  );
+  const [templateOrder, setTemplateOrder] = useState<string[]>(
+    () => normalizedTemplateOrder,
+  );
   const [draggingOrderKey, setDraggingOrderKey] = useState<string | null>(null);
   const [dragOverOrderKey, setDragOverOrderKey] = useState<string | null>(null);
   const [orderSaveState, setOrderSaveState] = useState<SaveState>("idle");
   const templateOrderRef = useRef<string[]>([]);
   const dragStartOrderRef = useRef<string[] | null>(null);
+  const pendingDragMoveRef = useRef<PendingDragMove | null>(null);
+  const dragMoveFrameRef = useRef<number | null>(null);
+  const lastDragOverOrderKeyRef = useRef<string | null>(null);
 
   // console.log("state iconData", iconData);
   // const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
@@ -237,9 +256,6 @@ const SmartsiteIconLivePreview = ({
   );
 
   const { user, accessToken } = useUser();
-
-  console.log("hola data", data);
-  console.log("formDatagg data", formData);
 
   useEffect(() => {
     if (data) {
@@ -398,21 +414,35 @@ const SmartsiteIconLivePreview = ({
   const previewFontColor = formData.fontColor || data.fontColor || "black";
   const previewSecondaryFontColor =
     formData.secondaryFontColor || data.secondaryFontColor || "#D3D3D3";
-  const templateOrder = normalizeSmartsiteTemplateBlockOrder(
-    data,
-    data.templateOrder,
-  );
 
   useEffect(() => {
     templateOrderRef.current = templateOrder;
   }, [templateOrder]);
 
+  useEffect(() => {
+    if (dragStartOrderRef.current) {
+      return;
+    }
+
+    if (areTemplateOrdersEqual(templateOrderRef.current, normalizedTemplateOrder)) {
+      return;
+    }
+
+    templateOrderRef.current = normalizedTemplateOrder;
+    setTemplateOrder(normalizedTemplateOrder);
+  }, [normalizedTemplateOrder]);
+
+  useEffect(
+    () => () => {
+      if (dragMoveFrameRef.current !== null) {
+        window.cancelAnimationFrame(dragMoveFrameRef.current);
+      }
+    },
+    [],
+  );
+
   const getTemplateBlockOrder = (orderKey: string) =>
     templateOrder.indexOf(orderKey) + 10;
-
-  const areTemplateOrdersEqual = (left: string[], right: string[]) =>
-    left.length === right.length &&
-    left.every((orderKey, index) => orderKey === right[index]);
 
   const moveTemplateOrderKey = (
     order: string[],
@@ -441,6 +471,8 @@ const SmartsiteIconLivePreview = ({
     nextOrder: string[],
     previousOrder: string[],
   ) => {
+    templateOrderRef.current = nextOrder;
+    setTemplateOrder(nextOrder);
     onTemplateOrderChange?.(nextOrder);
 
     if (!token || !data?._id) {
@@ -466,6 +498,8 @@ const SmartsiteIconLivePreview = ({
       window.setTimeout(() => setOrderSaveState("idle"), 1200);
     } catch (error) {
       console.error(error);
+      templateOrderRef.current = previousOrder;
+      setTemplateOrder(previousOrder);
       onTemplateOrderChange?.(previousOrder);
       setOrderSaveState("error");
     }
@@ -550,16 +584,23 @@ const SmartsiteIconLivePreview = ({
     }
 
     templateOrderRef.current = nextOrder;
-    onTemplateOrderChange?.(nextOrder);
+    setTemplateOrder(nextOrder);
   };
 
   const handleTemplateDragStart = (orderKey: string) => {
-    dragStartOrderRef.current = templateOrderRef.current;
+    if (dragMoveFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragMoveFrameRef.current);
+      dragMoveFrameRef.current = null;
+    }
+
+    pendingDragMoveRef.current = null;
+    lastDragOverOrderKeyRef.current = null;
+    dragStartOrderRef.current = [...templateOrderRef.current];
     setDraggingOrderKey(orderKey);
     setDragOverOrderKey(null);
   };
 
-  const handleTemplateDragMove = (sourceKey: string, pointerY: number) => {
+  const processTemplateDragMove = (sourceKey: string, pointerY: number) => {
     maybeScrollPreviewWhileDragging(pointerY);
 
     const targetKey = findTemplateDragTarget(sourceKey, pointerY);
@@ -567,15 +608,56 @@ const SmartsiteIconLivePreview = ({
       return;
     }
 
-    setDragOverOrderKey(targetKey);
+    if (lastDragOverOrderKeyRef.current !== targetKey) {
+      lastDragOverOrderKeyRef.current = targetKey;
+      setDragOverOrderKey(targetKey);
+    }
+
     previewTemplateReorder(sourceKey, targetKey);
   };
 
+  const flushPendingTemplateDragMove = () => {
+    const pendingMove = pendingDragMoveRef.current;
+    dragMoveFrameRef.current = null;
+    pendingDragMoveRef.current = null;
+
+    if (!pendingMove) {
+      return;
+    }
+
+    processTemplateDragMove(pendingMove.sourceKey, pendingMove.pointerY);
+  };
+
+  const handleTemplateDragMove = (sourceKey: string, pointerY: number) => {
+    pendingDragMoveRef.current = { sourceKey, pointerY };
+
+    if (dragMoveFrameRef.current !== null) {
+      return;
+    }
+
+    dragMoveFrameRef.current = window.requestAnimationFrame(
+      flushPendingTemplateDragMove,
+    );
+  };
+
   const handleTemplateDragEnd = () => {
+    if (dragMoveFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragMoveFrameRef.current);
+      dragMoveFrameRef.current = null;
+    }
+
+    const pendingMove = pendingDragMoveRef.current;
+    pendingDragMoveRef.current = null;
+
+    if (pendingMove) {
+      processTemplateDragMove(pendingMove.sourceKey, pendingMove.pointerY);
+    }
+
     const previousOrder = dragStartOrderRef.current;
     const nextOrder = templateOrderRef.current;
 
     dragStartOrderRef.current = null;
+    lastDragOverOrderKeyRef.current = null;
     setDraggingOrderKey(null);
     setDragOverOrderKey(null);
 
