@@ -134,6 +134,7 @@ const SWOP_REWARD_TOKEN = {
 };
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const LIFI_NATIVE_SOL_ADDRESS = '11111111111111111111111111111111';
+const SWAP_FAILURE_REPORTED_FLAG = '__swopSwapFailureReported';
 const DEFAULT_SOLANA_RPC_URL =
   'https://dacey-pp61jd-fast-mainnet.helius-rpc.com/';
 const SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS_NUM = Number(
@@ -1080,6 +1081,45 @@ const summarizeSolanaError = (error: unknown) => {
       typeof anyError?.stack === 'string'
         ? anyError.stack.split('\n').slice(0, 4).join('\n')
         : undefined,
+  };
+};
+
+const summarizeLiFiQuote = (quote: any) => {
+  if (!quote) return undefined;
+
+  const action = quote.action || {};
+  const estimate = quote.estimate || {};
+  const txRequest = quote.transactionRequest || {};
+
+  return {
+    id: quote.id,
+    type: quote.type,
+    tool: quote.tool,
+    fromChainId: action.fromChainId ?? quote.fromChainId,
+    toChainId: action.toChainId ?? quote.toChainId,
+    fromAddress: maskIdentifier(
+      action.fromAddress || quote.fromAddress || txRequest.from,
+    ),
+    toAddress: maskIdentifier(action.toAddress || quote.toAddress),
+    fromAmount: estimate.fromAmount ?? quote.fromAmount,
+    toAmount: estimate.toAmount ?? quote.toAmount,
+    approvalAddress: maskIdentifier(
+      estimate.approvalAddress || quote.approvalAddress,
+    ),
+    transactionRequest: txRequest
+      ? {
+          to: maskIdentifier(txRequest.to),
+          from: maskIdentifier(txRequest.from),
+          chainId: txRequest.chainId,
+          value: txRequest.value,
+          gas: txRequest.gas ?? txRequest.gasLimit,
+          hasData: Boolean(txRequest.data),
+          dataLength:
+            typeof txRequest.data === 'string'
+              ? txRequest.data.length
+              : undefined,
+        }
+      : undefined,
   };
 };
 
@@ -3945,6 +3985,75 @@ export default function SwapTokenModal({
     }
   };
 
+  const buildSwapFailureContext = (
+    provider: string,
+    activeQuote?: any,
+  ) => {
+    const inputChainId = getTokenChainId(payToken);
+    const quoteFromAddress =
+      activeQuote?.action?.fromAddress ||
+      activeQuote?.fromAddress ||
+      activeQuote?.transactionRequest?.from;
+    const primaryWalletAddress =
+      inputChainId === SOLANA_CHAIN_ID
+        ? selectedSolanaWallet?.address ||
+          quoteFromAddress ||
+          fromWalletAddress
+        : quoteFromAddress ||
+          fromWalletAddress ||
+          ethWallet ||
+          selectedSolanaWallet?.address;
+
+    return {
+      provider,
+      walletAddress: maskIdentifier(primaryWalletAddress),
+      fromWalletAddress: maskIdentifier(fromWalletAddress),
+      toWalletAddress: maskIdentifier(toWalletAddress),
+      inputToken: {
+        symbol: payToken?.symbol,
+        chainId: inputChainId,
+        address: payToken?.address || payToken?.id,
+        amount: payAmount,
+        decimals: payToken?.decimals,
+      },
+      outputToken: {
+        symbol: receiveToken?.symbol,
+        chainId: getTokenChainId(receiveToken),
+        address: receiveToken?.address || receiveToken?.id,
+        amount: receiveAmount,
+        decimals: receiveToken?.decimals,
+      },
+      slippage,
+      isCopyTrade,
+      copyTradePostId: copyTradePostId || null,
+      quote: summarizeLiFiQuote(activeQuote),
+    };
+  };
+
+  const reportSwapSubmitFailure = async ({
+    provider,
+    stage,
+    reason,
+    error,
+    activeQuote,
+    extra,
+  }: {
+    provider: string;
+    stage: string;
+    reason: string;
+    error?: unknown;
+    activeQuote?: any;
+    extra?: Record<string, unknown>;
+  }) => {
+    await reportWalletSwapFailure({
+      ...buildSwapFailureContext(provider, activeQuote),
+      stage,
+      reason,
+      error: error ? summarizeSolanaError(error) : undefined,
+      ...extra,
+    });
+  };
+
   const submitSolanaTransactionWithFallback = async ({
     serializedTransaction,
     wallet,
@@ -4746,14 +4855,27 @@ export default function SwapTokenModal({
 
   // ── Solana LiFi swap ──────────────────────────────────────────────────────────
   const executeSolanaSwap = async (quoteOverride?: any) => {
+    const activeQuoteForTelemetry = quoteOverride || quote;
     try {
-      const activeQuote = quoteOverride || quote;
+      const activeQuote = activeQuoteForTelemetry;
       if (!solanaReady) {
+        await reportSwapSubmitFailure({
+          provider: 'Li.Fi',
+          stage: 'solana_lifi_wallet_not_ready',
+          reason: 'Solana wallet is not ready.',
+          activeQuote,
+        });
         setSwapError('Solana wallet is not ready.');
         setIsSwapping(false);
         return;
       }
       if (!selectedSolanaWallet?.address) {
+        await reportSwapSubmitFailure({
+          provider: 'Li.Fi',
+          stage: 'solana_lifi_wallet_missing',
+          reason: solanaWalletMismatchError || 'No Solana wallet connected',
+          activeQuote,
+        });
         setSwapError(
           solanaWalletMismatchError || 'No Solana wallet connected',
         );
@@ -4762,6 +4884,11 @@ export default function SwapTokenModal({
       }
 
       if (!activeQuote) {
+        await reportSwapSubmitFailure({
+          provider: 'Li.Fi',
+          stage: 'solana_lifi_quote_missing',
+          reason: 'No Li.Fi quote available',
+        });
         setSwapError('No Li.Fi quote available');
         setIsSwapping(false);
         return;
@@ -4873,7 +5000,15 @@ export default function SwapTokenModal({
       //   }
       // })();
     } catch (error: any) {
-      console.error('[Jupiter execute] error:', error);
+      console.error('[Solana Li.Fi execute] error:', error);
+      await reportSwapSubmitFailure({
+        provider: 'Li.Fi',
+        stage: 'solana_lifi_swap_error',
+        reason:
+          error?.message || error?.toString() || 'Transaction failed',
+        error,
+        activeQuote: activeQuoteForTelemetry,
+      });
       setSwapError(
         formatUserFriendlyError(
           error?.message || error?.toString() || 'Transaction failed',
@@ -4886,9 +5021,15 @@ export default function SwapTokenModal({
 
   // ── EVM LiFi swap ─────────────────────────────────────────────────────────────
   const executeLiFiSwap = async (quoteOverride?: any) => {
+    const activeQuoteForTelemetry = quoteOverride || quote;
     try {
-      const activeQuote = quoteOverride || quote;
+      const activeQuote = activeQuoteForTelemetry;
       if (!activeQuote) {
+        await reportSwapSubmitFailure({
+          provider: 'Li.Fi',
+          stage: 'lifi_quote_missing',
+          reason: 'No Li.Fi quote available',
+        });
         setSwapError('No Li.Fi quote available');
         setIsSwapping(false);
         return;
@@ -4916,6 +5057,12 @@ export default function SwapTokenModal({
           (fallbackEthereumAccount as any)?.address ||
           '';
         if (!sourceWalletAddress) {
+          await reportSwapSubmitFailure({
+            provider: 'Li.Fi',
+            stage: 'lifi_source_wallet_missing',
+            reason: 'No Ethereum wallet connected',
+            activeQuote,
+          });
           setSwapError('No Ethereum wallet connected');
           setIsSwapping(false);
           return;
@@ -4926,12 +5073,31 @@ export default function SwapTokenModal({
             normalizeEvmAddress(sourceWalletAddress),
         );
         if (!wallet) {
+          await reportSwapSubmitFailure({
+            provider: 'Li.Fi',
+            stage: 'lifi_selected_wallet_missing',
+            reason: 'Selected wallet not found',
+            activeQuote,
+            extra: {
+              sourceWalletAddress: maskIdentifier(sourceWalletAddress),
+            },
+          });
           setSwapError('Selected wallet not found');
           setIsSwapping(false);
           return;
         }
         const provider = await wallet.getEthereumProvider();
         if (!provider) {
+          await reportSwapSubmitFailure({
+            provider: 'Li.Fi',
+            stage: 'lifi_wallet_provider_missing',
+            reason: 'Failed to get wallet provider',
+            activeQuote,
+            extra: {
+              sourceWalletAddress: maskIdentifier(sourceWalletAddress),
+              walletClientType: wallet.walletClientType,
+            },
+          });
           setSwapError('Failed to get wallet provider');
           setIsSwapping(false);
           return;
@@ -4977,6 +5143,20 @@ export default function SwapTokenModal({
               sendPrivyTransaction,
             });
           } catch (allowErr: any) {
+            await reportSwapSubmitFailure({
+              provider: 'Li.Fi',
+              stage: 'lifi_approval_error',
+              reason: allowErr?.message || 'Token approval failed',
+              error: allowErr,
+              activeQuote,
+              extra: {
+                sourceWalletAddress: maskIdentifier(sourceWalletAddress),
+                walletClientType: wallet.walletClientType,
+                tokenAddress: tokenAddr,
+                spender: maskIdentifier(spender),
+                chainId: fromChainId,
+              },
+            });
             setSwapError(
               formatUserFriendlyError(
                 allowErr?.message || 'Token approval failed',
@@ -5113,6 +5293,16 @@ export default function SwapTokenModal({
           error.toString() ||
           'Cross-chain swap failed',
       );
+      await reportSwapSubmitFailure({
+        provider: 'Li.Fi',
+        stage: 'lifi_swap_error',
+        reason:
+          error?.message ||
+          error?.toString() ||
+          'Cross-chain swap failed',
+        error,
+        activeQuote: activeQuoteForTelemetry,
+      });
       setSwapError(friendlyError);
       if (socket?.connected) {
         try {
@@ -5136,7 +5326,9 @@ export default function SwapTokenModal({
           });
         } catch {}
       }
-      throw new Error(friendlyError);
+      const reportedError = new Error(friendlyError);
+      (reportedError as any)[SWAP_FAILURE_REPORTED_FLAG] = true;
+      throw reportedError;
     } finally {
       setIsSwapping(false);
     }
@@ -5224,9 +5416,18 @@ export default function SwapTokenModal({
         await executeLiFiSwap(freshQuote);
       }
     } catch (error: any) {
+      if (!error?.[SWAP_FAILURE_REPORTED_FLAG]) {
+        await reportSwapSubmitFailure({
+          provider: isSolanaToSolanaSwap() ? 'Jupiter' : 'Li.Fi',
+          stage: 'swap_submit_error',
+          reason: error?.message || error?.toString() || 'Swap failed',
+          error,
+          activeQuote: quote,
+        });
+      }
       setSwapError(
         formatUserFriendlyError(
-          error.message || error.toString() || 'Swap failed',
+          error?.message || error?.toString?.() || 'Swap failed',
         ),
       );
       setSwapStatus(null);

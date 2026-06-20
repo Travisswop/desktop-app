@@ -1,47 +1,13 @@
 import { mkdir, appendFile } from 'fs/promises';
 import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  sanitizeForLog,
+  sendSwapFailureAlertEmail,
+  type SwapFailureEvent,
+} from '@/lib/wallet/swapFailureAlert';
 
 export const runtime = 'nodejs';
-
-const MAX_STRING_LENGTH = 1_200;
-const MAX_ARRAY_LENGTH = 30;
-
-function sanitizeForLog(value: unknown, depth = 0): unknown {
-  if (depth > 5) return '[truncated]';
-  if (typeof value === 'string') {
-    return value.length > MAX_STRING_LENGTH
-      ? `${value.slice(0, MAX_STRING_LENGTH)}...`
-      : value;
-  }
-  if (
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    value === null
-  ) {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return value
-      .slice(0, MAX_ARRAY_LENGTH)
-      .map((item) => sanitizeForLog(item, depth + 1));
-  }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(
-        ([key, item]) => [
-          key,
-          /^(accessToken|refreshToken|idToken|secret|password|authorization)$/i.test(
-            key,
-          )
-            ? '[redacted]'
-            : sanitizeForLog(item, depth + 1),
-        ],
-      ),
-    );
-  }
-  return undefined;
-}
 
 function getLocalFailureLogPath() {
   if (process.env.SWOP_SWAP_FAILURE_LOG_PATH) {
@@ -69,7 +35,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const event = {
+  const event: SwapFailureEvent = {
     type: 'wallet_swap_failure',
     receivedAt: new Date().toISOString(),
     source: 'desktop',
@@ -85,6 +51,18 @@ export async function POST(request: NextRequest) {
     await appendFile(logPath, `${line}\n`, 'utf8');
   } catch (error) {
     console.warn('[wallet-swap-failure] local append failed', error);
+  }
+
+  try {
+    const result = await sendSwapFailureAlertEmail(event);
+    if (!result.sent) {
+      console.warn(
+        '[wallet-swap-failure] email alert skipped',
+        result.skippedReason,
+      );
+    }
+  } catch (error) {
+    console.warn('[wallet-swap-failure] email alert failed', error);
   }
 
   return NextResponse.json({ success: true });
