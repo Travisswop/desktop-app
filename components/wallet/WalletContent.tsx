@@ -97,6 +97,7 @@ import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilitySt
 
 // Utilities
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
+import { resolveSwapBalanceSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';
 import {
   ArrowRight,
   Coins,
@@ -855,16 +856,13 @@ const WalletContentInner = () => {
       ) ?? directSolanaWallets[0]
     );
   }, [solanaReady, directSolanaWallets, solWalletAddress]);
-  // Market swaps need balances for the wallet Privy can sign with, even when
-  // the portfolio is showing a stored/read-only Solana address.
-  const swapSolWalletAddress =
-    selectedSolanaWallet?.address || solWalletAddress;
-  const swapSolWalletDiffersFromPortfolio = Boolean(
-    selectedSolanaWallet?.address &&
-      solWalletAddress &&
-      selectedSolanaWallet.address.toLowerCase() !==
-        solWalletAddress.toLowerCase(),
-  );
+  // Market swap balances must follow the selected wallet shown in the wallet
+  // portfolio. If that wallet is not currently signable, SwapTokenModal already
+  // surfaces the mismatch before submitting a Solana swap.
+  const swapSolWalletAddress = resolveSwapBalanceSolanaWalletAddress({
+    selectedWalletAddress: solWalletAddress,
+    signableWalletAddress: selectedSolanaWallet?.address,
+  });
   // Perps account data is keyed by the user's canonical EVM wallet. In local
   // dev, the signable Privy wallet can be a test embedded wallet, so prefer the
   // wallet address resolved from the Swop user record for reads.
@@ -1067,27 +1065,10 @@ const WalletContentInner = () => {
     portfolioEvmWalletInput,
     SUPPORTED_CHAINS,
   );
-  const {
-    tokens: swapTokens,
-    refetch: refetchSwapTokens,
-  } = useMultiChainTokenData(
-    swapSolWalletAddress,
-    portfolioEvmWalletInput,
-    SUPPORTED_CHAINS,
-  );
-  const marketSwapTokens = swapSolWalletDiffersFromPortfolio
-    ? swapTokens
-    : tokens;
+  const marketSwapTokens = tokens;
   const refetchMarketSwapTokens = useCallback(() => {
     void refetchTokens();
-    if (swapSolWalletDiffersFromPortfolio) {
-      void refetchSwapTokens();
-    }
-  }, [
-    refetchSwapTokens,
-    refetchTokens,
-    swapSolWalletDiffersFromPortfolio,
-  ]);
+  }, [refetchTokens]);
 
   const {
     nfts,
