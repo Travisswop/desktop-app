@@ -377,6 +377,8 @@ export function UserProvider({
   // tree and a `/onboard?step=swop-id` RSC prefetch storm.
   const userRef = useRef(user);
   userRef.current = user;
+  const accessTokenRef = useRef(accessToken);
+  accessTokenRef.current = accessToken;
   // One-shot guard so the SwopID redirect pushes at most once per session even
   // if `user` changes again afterwards.
   const swopIdRedirectedRef = useRef(false);
@@ -458,7 +460,8 @@ export function UserProvider({
       if (
         lastFetchedEmailRef.current === normalizedEmail &&
         currentUser &&
-        normalizeEmail(currentUser.email) === normalizedEmail
+        normalizeEmail(currentUser.email) === normalizedEmail &&
+        (accessTokenRef.current || Cookies.get('access-token'))
       ) {
         return true;
       }
@@ -469,9 +472,13 @@ export function UserProvider({
       // Only abort early when we have cached data for this email to fall back
       // to. On initial login (no usable cache) we must give the slow backend
       // enough time to respond, otherwise the user is stranded as null.
-      const hasCachedFallback = Boolean(
-        currentUser && normalizeEmail(currentUser.email) === normalizedEmail,
-      );
+      const hasCachedFallback =
+        process.env.NODE_ENV !== 'development' &&
+        Boolean(
+          currentUser &&
+            normalizeEmail(currentUser.email) === normalizedEmail &&
+            (accessTokenRef.current || Cookies.get('access-token')),
+        );
       const fetchTimeoutMs = hasCachedFallback
         ? USER_FETCH_TIMEOUT_MS
         : USER_FETCH_INITIAL_TIMEOUT_MS;
@@ -758,6 +765,12 @@ export function UserProvider({
     }
 
     if (user.privyId && privyUser.id && user.privyId !== privyUser.id) {
+      return;
+    }
+
+    // Local dev reads production user records through a test Privy app. Do not
+    // persist or cache those test wallet addresses as identity wallets.
+    if (process.env.NODE_ENV === 'development') {
       return;
     }
 

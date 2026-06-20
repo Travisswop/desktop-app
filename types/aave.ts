@@ -25,6 +25,8 @@ export interface AaveMarketsData {
   poolAddress: string;
   reserves: AaveReserve[];
   updatedAt: string;
+  degraded?: boolean;
+  reason?: string;
 }
 
 export interface AavePosition {
@@ -57,6 +59,8 @@ export interface AavePositionsData {
   supplies: AavePosition[];
   borrows: AavePosition[];
   updatedAt: string;
+  degraded?: boolean;
+  reason?: string;
 }
 
 export type AaveActionMode = 'supply' | 'borrow' | 'withdraw' | 'repay';

@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import Cookies from 'js-cookie';
 import { ChainType } from '@/types/token';
 import {
   WalletService,
@@ -6,9 +8,59 @@ import {
   WalletInput,
 } from '@/services/wallet-service';
 import { useUser } from '@/lib/UserContext';
+import { apiFetch } from '@/lib/api/apiFetch';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 
 const normalizeChain = (chain: string): ChainType =>
   chain.toUpperCase() as ChainType;
+
+const backendTokenCache = new Map<string, string>();
+const backendTokenRequests = new Map<string, Promise<string | null>>();
+
+async function fetchBackendAccessToken(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
+  const cachedToken = backendTokenCache.get(normalizedEmail);
+  if (cachedToken) return cachedToken;
+
+  const existingRequest = backendTokenRequests.get(normalizedEmail);
+  if (existingRequest) return existingRequest;
+
+  const request = (async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+    try {
+      const response = await apiFetch(
+        buildSwopApiUrl(
+          `/api/v2/desktop/user/${encodeURIComponent(normalizedEmail)}`
+        ),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) return null;
+
+      const data = await response.json().catch(() => null);
+      const token = typeof data?.token === 'string' ? data.token : null;
+
+      if (token) {
+        backendTokenCache.set(normalizedEmail, token);
+      }
+
+      return token;
+    } finally {
+      clearTimeout(timeoutId);
+      backendTokenRequests.delete(normalizedEmail);
+    }
+  })();
+
+  backendTokenRequests.set(normalizedEmail, request);
+  return request;
+}
 
 /**
  * Simplified useMultiChainTokenData Hook
@@ -21,7 +73,50 @@ export const useMultiChainTokenData = (
   evmWalletAddress?: string | string[],
   chains: ChainType[] = ['ETHEREUM']
 ) => {
-  const { accessToken } = useUser();
+  const { user, accessToken } = useUser();
+  const [cookieAccessToken, setCookieAccessToken] = useState<string | null>(
+    null
+  );
+  const [fallbackAccessToken, setFallbackAccessToken] = useState<
+    string | null
+  >(null);
+  const authToken =
+    accessToken || cookieAccessToken || fallbackAccessToken || '';
+  const userEmail = user?.email || '';
+
+  useEffect(() => {
+    setCookieAccessToken(Cookies.get('access-token') || null);
+  }, [accessToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (accessToken || cookieAccessToken) {
+      setFallbackAccessToken(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!userEmail) {
+      setFallbackAccessToken(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    fetchBackendAccessToken(userEmail)
+      .then((token) => {
+        if (!cancelled) setFallbackAccessToken(token);
+      })
+      .catch(() => {
+        if (!cancelled) setFallbackAccessToken(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, cookieAccessToken, userEmail]);
 
   // Build wallet list based on provided addresses and chains
   const wallets: WalletInput[] = [];
@@ -69,22 +164,68 @@ export const useMultiChainTokenData = (
       solWalletAddress,
       evmWalletAddresses,
       chains,
-      accessToken,
+      authToken,
     ],
     queryFn: async () => {
       if (wallets.length === 0) {
         return { tokens: [], totalValue: '0', tokenCount: 0 };
       }
 
-      // Fetch per wallet so each returned token keeps the signer/source
-      // address. The backend currently returns merged token rows without
-      // walletAddress, which makes payment flows ambiguous with multiple
-      // wallets connected.
-      const walletResults = await Promise.all(
+      const walletAddressByChain = new Map<string, string>();
+      let hasMultipleAddressesForChain = false;
+
+      wallets.forEach((wallet) => {
+        const chainKey = wallet.chain.toLowerCase();
+        const existingAddress = walletAddressByChain.get(chainKey);
+        if (
+          existingAddress &&
+          existingAddress.toLowerCase() !== wallet.address.toLowerCase()
+        ) {
+          hasMultipleAddressesForChain = true;
+          return;
+        }
+        walletAddressByChain.set(chainKey, wallet.address);
+      });
+
+      if (!hasMultipleAddressesForChain) {
+        try {
+          const result = await WalletService.getWalletTokens(
+            wallets,
+            authToken || undefined
+          );
+          const tokens = (result.tokens || []).map((token) => ({
+            ...token,
+            walletAddress:
+              token.walletAddress ||
+              walletAddressByChain.get((token.chain || '').toLowerCase()),
+          }));
+          const totalValue = tokens.reduce((sum, token) => {
+            const explicitValue = Number(token.value || 0);
+            if (Number.isFinite(explicitValue) && explicitValue > 0) {
+              return sum + explicitValue;
+            }
+            const price = Number(token.marketData?.price || 0);
+            const balance = Number(token.balance || 0);
+            return sum + price * balance;
+          }, 0);
+
+          return {
+            tokens,
+            totalValue: totalValue.toFixed(2),
+            tokenCount: tokens.length,
+          };
+        } catch (error) {
+          console.warn('Batched wallet token request unavailable:', error);
+        }
+      }
+
+      // Fall back to per-wallet fetches so returned tokens keep the signer/source
+      // address when multiple wallets exist on the same chain.
+      const walletResults = await Promise.allSettled(
         wallets.map(async (wallet) => {
           const result = await WalletService.getWalletTokens(
             [wallet],
-            accessToken || undefined
+            authToken || undefined
           );
           return (result.tokens || []).map((token) => ({
             ...token,
@@ -93,7 +234,30 @@ export const useMultiChainTokenData = (
         })
       );
 
-      const tokens = walletResults.flat();
+      const successfulResultCount = walletResults.filter(
+        (result) => result.status === 'fulfilled'
+      ).length;
+      const failedResults = walletResults.filter(
+        (result) => result.status === 'rejected'
+      );
+
+      if (failedResults.length) {
+        console.warn('Some wallet token requests unavailable:', {
+          failedWallets: failedResults.length,
+          totalWallets: wallets.length,
+        });
+      }
+
+      if (!successfulResultCount && failedResults.length) {
+        const firstFailure = failedResults[0].reason;
+        throw firstFailure instanceof Error
+          ? firstFailure
+          : new Error('Failed to fetch wallet tokens');
+      }
+
+      const tokens = walletResults.flatMap((result) =>
+        result.status === 'fulfilled' ? result.value : []
+      );
       const totalValue = tokens.reduce((sum, token) => {
         const explicitValue = Number(token.value || 0);
         if (Number.isFinite(explicitValue) && explicitValue > 0) {
@@ -110,7 +274,7 @@ export const useMultiChainTokenData = (
         tokenCount: tokens.length,
       };
     },
-    enabled: wallets.length > 0 && !!accessToken,
+    enabled: wallets.length > 0 && !!authToken,
     staleTime: 60000, // 60 seconds - match refetchInterval to prevent excessive calls
     refetchInterval: 60000, // Refetch every minute
   });

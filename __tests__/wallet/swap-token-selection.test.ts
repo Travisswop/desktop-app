@@ -60,6 +60,73 @@ describe('swap token selection reconciliation', () => {
     expect(reconciled.balance).toBe('42');
   });
 
+  it('keeps a selected SWOP balance tied to its owner wallet', () => {
+    const selected = {
+      symbol: 'SWOP',
+      name: 'Swop',
+      address: SWOP_TOKEN_MINT,
+      chain: 'SOLANA',
+      chainId: SOLANA_CHAIN_ID,
+      decimals: 9,
+      balance: '0',
+      walletAddress: 'sol-wallet-b',
+    };
+
+    const reconciled: any = reconcileSelectedSwapToken(selected, [
+      {
+        symbol: 'SWOP',
+        name: 'Swop',
+        address: SWOP_TOKEN_MINT,
+        chain: 'SOLANA',
+        chainId: SOLANA_CHAIN_ID,
+        decimals: 9,
+        balance: '5',
+        walletAddress: 'sol-wallet-a',
+      },
+      {
+        symbol: 'SWOP',
+        name: 'Swop',
+        address: SWOP_TOKEN_MINT,
+        chain: 'SOLANA',
+        chainId: SOLANA_CHAIN_ID,
+        decimals: 9,
+        balance: '42',
+        walletAddress: 'sol-wallet-b',
+      },
+    ]);
+
+    expect(reconciled.balance).toBe('42');
+    expect(reconciled.walletAddress).toBe('sol-wallet-b');
+  });
+
+  it('does not borrow a same-token balance from a different owner wallet', () => {
+    const selected = {
+      symbol: 'USDC',
+      name: 'USD Coin',
+      address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      chain: 'SOLANA',
+      chainId: SOLANA_CHAIN_ID,
+      decimals: 6,
+      balance: '0',
+      walletAddress: 'sol-wallet-b',
+    };
+
+    const reconciled = reconcileSelectedSwapToken(selected, [
+      {
+        symbol: 'USDC',
+        name: 'USD Coin',
+        address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        chain: 'SOLANA',
+        chainId: SOLANA_CHAIN_ID,
+        decimals: 6,
+        balance: '999',
+        walletAddress: 'sol-wallet-a',
+      },
+    ]);
+
+    expect(reconciled).toBe(selected);
+  });
+
   it('does not borrow a same-symbol balance from a different chain', () => {
     const selected = {
       symbol: 'USDC',

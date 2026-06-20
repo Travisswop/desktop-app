@@ -911,6 +911,17 @@ const getTokenAddressKey = (token: any) =>
     .trim()
     .toLowerCase();
 
+const getTokenWalletAddress = (token: any) => {
+  const walletAddress =
+    token?.walletAddress ||
+    token?.ownerAddress ||
+    token?.accountAddress ||
+    token?.owner ||
+    token?.wallet?.address;
+
+  return typeof walletAddress === 'string' ? walletAddress.trim() : '';
+};
+
 const getTokenIdentityKey = (token: any) => {
   if (!token) return '';
   const addressKey = getTokenAddressKey(token);
@@ -1930,8 +1941,13 @@ export default function SwapTokenModal({
     login,
   } = usePrivy();
   const ethWallet = wallets[0]?.address;
-  const normalizedPreferredSolanaWalletAddress =
-    normalizeWalletAddress(preferredSolanaWalletAddress);
+  const payTokenWalletAddress = isSolanaToken(payToken, chainId)
+    ? getTokenWalletAddress(payToken)
+    : '';
+  const selectedSolanaSigningWalletAddress =
+    payTokenWalletAddress || preferredSolanaWalletAddress || '';
+  const normalizedSelectedSolanaSigningWalletAddress =
+    normalizeWalletAddress(selectedSolanaSigningWalletAddress);
 
   const selectedSolanaWallet = useMemo(() => {
     if (!solanaReady || !solanaStandardWalletsReady) {
@@ -1941,7 +1957,7 @@ export default function SwapTokenModal({
     const resolvedWallet = resolveSolanaSigningWallet({
       connectedWallets: directSolanaWallets,
       standardWallets: solanaStandardWallets,
-      preferredAddress: normalizedPreferredSolanaWalletAddress,
+      preferredAddress: normalizedSelectedSolanaSigningWalletAddress,
       makeConnectedStandardWallet: (wallet, account) =>
         new ConnectedStandardSolanaWallet({
           wallet,
@@ -1953,7 +1969,7 @@ export default function SwapTokenModal({
       return resolvedWallet;
     }
 
-    const preferredAddress = preferredSolanaWalletAddress?.trim();
+    const preferredAddress = selectedSolanaSigningWalletAddress.trim();
     if (!preferredAddress) return undefined;
 
     const privyStandardWallet = solanaStandardWallets.find(
@@ -1982,14 +1998,14 @@ export default function SwapTokenModal({
     solanaStandardWalletsReady,
     directSolanaWallets,
     solanaStandardWallets,
-    normalizedPreferredSolanaWalletAddress,
-    preferredSolanaWalletAddress,
+    normalizedSelectedSolanaSigningWalletAddress,
+    selectedSolanaSigningWalletAddress,
   ]);
 
   const solanaWalletMismatchError = useMemo(() => {
     if (
-      !normalizedPreferredSolanaWalletAddress ||
-      !preferredSolanaWalletAddress ||
+      !normalizedSelectedSolanaSigningWalletAddress ||
+      !selectedSolanaSigningWalletAddress ||
       !solanaReady ||
       !solanaStandardWalletsReady ||
       selectedSolanaWallet
@@ -1997,10 +2013,10 @@ export default function SwapTokenModal({
       return null;
     }
 
-    return `The Solana wallet with these balances (${formatShortWalletAddress(preferredSolanaWalletAddress)}) is not connected for signing. Connect that wallet or switch accounts, then try again.`;
+    return `The Solana wallet with these balances (${formatShortWalletAddress(selectedSolanaSigningWalletAddress)}) is not connected for signing. Connect that wallet or switch accounts, then try again.`;
   }, [
-    normalizedPreferredSolanaWalletAddress,
-    preferredSolanaWalletAddress,
+    normalizedSelectedSolanaSigningWalletAddress,
+    selectedSolanaSigningWalletAddress,
     selectedSolanaWallet,
     solanaReady,
     solanaStandardWalletsReady,
@@ -2483,6 +2499,34 @@ export default function SwapTokenModal({
 
   const toHex = (value: bigint) => `0x${value.toString(16)}`;
 
+  const sendPrivyEvmTransactionWithVerificationRetry = useCallback(
+    async (
+      sendTransaction: (
+        input: any,
+        options?: any,
+      ) => Promise<{ hash: `0x${string}` | string }>,
+      input: any,
+      options: any,
+      verificationStatus: string,
+    ) => {
+      try {
+        return await sendTransaction(input, options);
+      } catch (error) {
+        if (!isMfaRequiredError(error)) throw error;
+
+        setSwapStatus(verificationStatus);
+        return sendTransaction(input, {
+          ...options,
+          uiOptions: {
+            ...(options?.uiOptions || {}),
+            showWalletUIs: true,
+          },
+        });
+      }
+    },
+    [],
+  );
+
   const ensureEvmAllowance = useCallback(
     async (params: {
       tokenAddress: string;
@@ -2555,7 +2599,8 @@ export default function SwapTokenModal({
         sendPrivyTransaction &&
         isPrivyEmbeddedWalletType(walletClientType)
       ) {
-        await sendPrivyTransaction(
+        await sendPrivyEvmTransactionWithVerificationRetry(
+          sendPrivyTransaction,
           {
             to: tokenAddress as `0x${string}`,
             data: approveData,
@@ -2566,6 +2611,7 @@ export default function SwapTokenModal({
             address: owner,
             uiOptions: { showWalletUIs: false },
           },
+          'Complete Privy verification to approve this token...',
         );
         return;
       }
@@ -2584,7 +2630,7 @@ export default function SwapTokenModal({
         ],
       });
     },
-    [],
+    [sendPrivyEvmTransactionWithVerificationRetry],
   );
 
   // ── Load & bucket all receive tokens on mount ─────────────────────────────────
@@ -2930,6 +2976,9 @@ export default function SwapTokenModal({
               ? decodeURIComponent(inputImgParam)
               : found.logoURI,
             balance: userToken?.balance ?? found.balance ?? '0',
+            walletAddress:
+              getTokenWalletAddress(userToken) ||
+              getTokenWalletAddress(found),
           }
         : {
             symbol: inputTokenParam.toUpperCase(),
@@ -2944,6 +2993,7 @@ export default function SwapTokenModal({
               ? decodeURIComponent(inputImgParam)
               : '',
             balance: userToken?.balance ?? '0',
+            walletAddress: getTokenWalletAddress(userToken),
           };
 
       setPayToken((current: any) =>
@@ -3688,7 +3738,9 @@ export default function SwapTokenModal({
   useEffect(() => {
     setFromWalletAddress(
       isSolanaToken(payToken, chainId)
-        ? selectedSolanaWallet?.address || ''
+        ? getTokenWalletAddress(payToken) ||
+            selectedSolanaWallet?.address ||
+            ''
         : ethWallet || '',
     );
     if (!receiveToken) {
@@ -4055,6 +4107,64 @@ export default function SwapTokenModal({
       walletSupportsSponsorshipOverride ??
       isPrivyEmbeddedSolanaWallet(wallet);
 
+    const submitWithPrivyHook = async ({
+      sponsor,
+      showWalletUIs,
+      status,
+    }: {
+      sponsor: boolean;
+      showWalletUIs: boolean;
+      status: string;
+    }) => {
+      setSwapStatus(status);
+      const result = await signAndSendTransaction({
+        transaction: serializedTransaction,
+        wallet,
+        options: {
+          sponsor,
+          uiOptions: { showWalletUIs },
+        },
+      });
+
+      return formatSolanaSignature(result.signature);
+    };
+
+    const retryPrivyVerificationSubmit = async ({
+      error,
+      sponsor,
+      status,
+    }: {
+      error: unknown;
+      sponsor: boolean;
+      status: string;
+    }) => {
+      if (!isMfaRequiredError(error)) return null;
+
+      try {
+        return await submitWithPrivyHook({
+          sponsor,
+          showWalletUIs: true,
+          status,
+        });
+      } catch (verificationError) {
+        if (isUserCancellationError(verificationError)) {
+          throw verificationError;
+        }
+        if (isMfaRequiredError(verificationError)) {
+          throw new Error(MFA_REQUIRED_ERROR_MESSAGE);
+        }
+
+        console.warn(`${context} Privy verification submit failed`, {
+          error: summarizeSolanaError(verificationError),
+          walletAddress: maskIdentifier(wallet?.address),
+          walletClientType: wallet?.walletClientType,
+          connectorType: wallet?.connectorType,
+          transaction: summarizeSolanaTransaction(serializedTransaction),
+        });
+        return null;
+      }
+    };
+
     console.log('[Solana sponsorship] Fallback submit decision', {
       context,
       walletAddress: maskIdentifier(wallet?.address),
@@ -4099,7 +4209,12 @@ export default function SwapTokenModal({
           throw sponsoredError;
         }
         if (isMfaRequiredError(sponsoredError)) {
-          throw new Error(MFA_REQUIRED_ERROR_MESSAGE);
+          const verifiedSignature = await retryPrivyVerificationSubmit({
+            error: sponsoredError,
+            sponsor: true,
+            status: 'Complete Privy verification to submit swap...',
+          });
+          if (verifiedSignature) return verifiedSignature;
         }
 
         console.warn(`${context} server gas sponsorship failed`, {
@@ -4118,18 +4233,11 @@ export default function SwapTokenModal({
       }
     } else if (walletSupportsSponsorship) {
       try {
-        setSwapStatus(sponsoredStatus);
-        const sponsoredResult = await signAndSendTransaction({
-          transaction: serializedTransaction,
-          wallet,
-          options: {
-            sponsor: true,
-            uiOptions: { showWalletUIs: false },
-          },
+        const signature = await submitWithPrivyHook({
+          sponsor: true,
+          showWalletUIs: false,
+          status: sponsoredStatus,
         });
-        const signature = formatSolanaSignature(
-          sponsoredResult.signature,
-        );
         console.log(
           '[Solana sponsorship] Sponsored submit succeeded',
           {
@@ -4144,7 +4252,12 @@ export default function SwapTokenModal({
           throw sponsoredError;
         }
         if (isMfaRequiredError(sponsoredError)) {
-          throw new Error(MFA_REQUIRED_ERROR_MESSAGE);
+          const verifiedSignature = await retryPrivyVerificationSubmit({
+            error: sponsoredError,
+            sponsor: true,
+            status: 'Complete Privy verification to submit swap...',
+          });
+          if (verifiedSignature) return verifiedSignature;
         }
 
         console.warn(`${context} gas sponsorship failed`, {
@@ -4191,13 +4304,29 @@ export default function SwapTokenModal({
       signedTransaction = result.signedTransaction;
     } catch (signError) {
       if (isMfaRequiredError(signError)) {
-        throw new Error(MFA_REQUIRED_ERROR_MESSAGE);
+        try {
+          setSwapStatus('Complete Privy verification to sign swap...');
+          const result = await signTransaction({
+            transaction: serializedTransaction,
+            wallet,
+            options: {
+              uiOptions: { showWalletUIs: true },
+            },
+          });
+          signedTransaction = result.signedTransaction;
+        } catch (verificationError) {
+          if (isMfaRequiredError(verificationError)) {
+            throw new Error(MFA_REQUIRED_ERROR_MESSAGE);
+          }
+          throw verificationError;
+        }
+      } else {
+        console.warn(`${context} user-funded signing failed`, {
+          error: summarizeSolanaError(signError),
+          walletAddress: maskIdentifier(wallet?.address),
+        });
+        throw signError;
       }
-      console.warn(`${context} user-funded signing failed`, {
-        error: summarizeSolanaError(signError),
-        walletAddress: maskIdentifier(wallet?.address),
-      });
-      throw signError;
     }
 
     try {
@@ -5199,11 +5328,16 @@ export default function SwapTokenModal({
             privyTxRequest.maxPriorityFeePerGas =
               maxPriorityFeePerGas;
 
-          const result = await sendPrivyTransaction(privyTxRequest, {
-            sponsor: true,
-            address: wallet.address,
-            uiOptions: { showWalletUIs: false },
-          });
+          const result = await sendPrivyEvmTransactionWithVerificationRetry(
+            sendPrivyTransaction,
+            privyTxRequest,
+            {
+              sponsor: true,
+              address: wallet.address,
+              uiOptions: { showWalletUIs: false },
+            },
+            'Complete Privy verification to submit swap...',
+          );
           txHashResult = result.hash;
         } else {
           try {

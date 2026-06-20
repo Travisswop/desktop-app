@@ -42,6 +42,16 @@ export function getSwapTokenAddressKey(token: SwapTokenLike) {
   return normalize(token?.address || token?.id || token?.mint);
 }
 
+function getSwapTokenOwnerKey(token: SwapTokenLike) {
+  return normalize(
+    token?.walletAddress ||
+      token?.ownerAddress ||
+      token?.accountAddress ||
+      token?.owner ||
+      token?.wallet?.address,
+  );
+}
+
 function getSwapTokenIdentityKey(token: SwapTokenLike) {
   if (!token) return '';
   const addressKey = getSwapTokenAddressKey(token);
@@ -70,13 +80,30 @@ function isSolanaSwopSelection(token: SwapTokenLike) {
   return normalize(token?.symbol) === 'swop' && isSolanaToken(token);
 }
 
-function findCanonicalSwopWalletToken(walletTokens: SwapTokenLike[]) {
+function findCanonicalSwopWalletToken(
+  selectedToken: SwapTokenLike,
+  walletTokens: SwapTokenLike[],
+) {
   const solanaSwopTokens = walletTokens.filter(isSolanaSwopSelection);
+  const selectedOwnerKey = getSwapTokenOwnerKey(selectedToken);
+  const ownerMatchedTokens = selectedOwnerKey
+    ? solanaSwopTokens.filter(
+        (token) => getSwapTokenOwnerKey(token) === selectedOwnerKey,
+      )
+    : solanaSwopTokens;
+  if (selectedOwnerKey && ownerMatchedTokens.length === 0) {
+    return undefined;
+  }
 
   return (
+    ownerMatchedTokens.find((token) =>
+      isCanonicalSwopMint(getSwapTokenAddressKey(token)),
+    ) ||
+    ownerMatchedTokens[0] ||
     solanaSwopTokens.find((token) =>
       isCanonicalSwopMint(getSwapTokenAddressKey(token)),
-    ) || solanaSwopTokens[0]
+    ) ||
+    solanaSwopTokens[0]
   );
 }
 
@@ -85,12 +112,25 @@ function findWalletTokenMatch(
   walletTokens: SwapTokenLike[],
 ) {
   if (isSolanaSwopSelection(selectedToken)) {
-    const swopWalletToken = findCanonicalSwopWalletToken(walletTokens);
+    const swopWalletToken = findCanonicalSwopWalletToken(
+      selectedToken,
+      walletTokens,
+    );
     if (swopWalletToken) return swopWalletToken;
   }
 
   const selectedKey = getSwapTokenIdentityKey(selectedToken);
   if (!selectedKey) return undefined;
+  const selectedOwnerKey = getSwapTokenOwnerKey(selectedToken);
+  if (selectedOwnerKey) {
+    const ownerMatchedToken = walletTokens.find(
+      (walletToken) =>
+        getSwapTokenIdentityKey(walletToken) === selectedKey &&
+        getSwapTokenOwnerKey(walletToken) === selectedOwnerKey,
+    );
+    if (ownerMatchedToken) return ownerMatchedToken;
+    return undefined;
+  }
 
   return walletTokens.find(
     (walletToken) =>
