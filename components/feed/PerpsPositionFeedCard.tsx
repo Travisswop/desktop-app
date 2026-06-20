@@ -143,12 +143,10 @@ function liveMidPriceForCoin(
 function normalizePositionStatus(
   status: Partial<PerpsPositionFeedContent>['status'],
   event?: Partial<PerpsPositionFeedContent>['event'],
+  content?: Partial<PerpsPositionFeedContent>,
 ) {
   const normalizedStatus = String(status || '').toLowerCase();
   const normalizedEvent = String(event || '').toLowerCase();
-  if (normalizedStatus === 'limit' || normalizedEvent === 'limit') {
-    return 'limit';
-  }
   if (
     normalizedStatus === 'liquidated' ||
     normalizedStatus === 'liquidate' ||
@@ -158,6 +156,13 @@ function normalizePositionStatus(
   }
   if (normalizedStatus === 'closed' || normalizedEvent === 'close') {
     return 'closed';
+  }
+  if (
+    normalizedStatus === 'limit' ||
+    normalizedEvent === 'limit' ||
+    maybeFiniteNumber(content?.limitPrice) !== null
+  ) {
+    return 'limit';
   }
   return 'open';
 }
@@ -312,7 +317,11 @@ export default function PerpsPositionFeedCard({
   const rawCoin = String(content.coin || 'BTC');
   const coin = rawCoin.toUpperCase();
   const side = content.side === 'short' ? 'short' : 'long';
-  const rawStoredStatus = normalizePositionStatus(content.status, content.event);
+  const rawStoredStatus = normalizePositionStatus(
+    content.status,
+    content.event,
+    content,
+  );
   const storedStatus = terminalTimestampPredatesOpen(content, rawStoredStatus)
     ? 'open'
     : rawStoredStatus;
