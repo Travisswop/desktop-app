@@ -399,6 +399,20 @@ export function TradingForm({
       }
 
       let orderResult: unknown = null;
+      const submittedStopLossPrice =
+        mode === 'tpsl'
+          ? stopLoss ||
+            (isBuy
+              ? String((markNum * 0.95).toFixed(2))
+              : String((markNum * 1.05).toFixed(2)))
+          : stopLoss;
+      const submittedTakeProfitPrice =
+        mode === 'tpsl'
+          ? takeProfit ||
+            (isBuy
+              ? String((markNum * 1.05).toFixed(2))
+              : String((markNum * 0.95).toFixed(2)))
+          : takeProfit;
       await onUpdateLeverage(market.index, safeLeverage, isCross);
 
       if (mode === 'market') {
@@ -419,12 +433,8 @@ export function TradingForm({
           isBuy,
           size: sizeInCoins,
           entryPrice: entryPx,
-          stopLossPrice: stopLoss || (isBuy
-            ? String((markNum * 0.95).toFixed(2))
-            : String((markNum * 1.05).toFixed(2))),
-          takeProfitPrice: takeProfit || (isBuy
-            ? String((markNum * 1.05).toFixed(2))
-            : String((markNum * 0.95).toFixed(2))),
+          stopLossPrice: submittedStopLossPrice,
+          takeProfitPrice: submittedTakeProfitPrice,
         });
       }
 
@@ -452,7 +462,9 @@ export function TradingForm({
             ? Math.max(0, existingSizeCoins - sizeNum)
             : sizeNum;
       const event: PerpsPositionFeedEvent =
-        existingSide && existingSide === side
+        mode === 'limit' || mode === 'tpsl'
+          ? 'limit'
+          : existingSide && existingSide === side
           ? 'add'
           : isReducingExistingPosition && nextSizeCoins <= 0
             ? 'close'
@@ -460,7 +472,7 @@ export function TradingForm({
               ? 'reduce'
               : 'open';
       const status: PerpsPositionFeedStatus =
-        event === 'close' ? 'closed' : 'open';
+        event === 'limit' ? 'limit' : event === 'close' ? 'closed' : 'open';
       const feedSide = existingSide || side;
       const weightedEntry =
         event === 'add' && existingSizeCoins > 0
@@ -519,6 +531,7 @@ export function TradingForm({
           leverage: safeLeverage,
           marginMode: isCross ? 'cross' : 'isolated',
           entryPrice: weightedEntry,
+          limitPrice: status === 'limit' ? entryPxNum : undefined,
           markPrice: entryPxNum,
           exitPrice: status === 'closed' ? entryPxNum : undefined,
           liquidationPrice: estLiqPrice ? parseFloat(estLiqPrice) : null,
@@ -529,10 +542,18 @@ export function TradingForm({
             toPerpsFeedNumber(existingPosition?.returnOnEquity) * 100,
           unrealizedPnl: toPerpsFeedNumber(existingPosition?.unrealizedPnl),
           feeUsd: notionalUsd * 0.0007,
+          takeProfitPrice: submittedTakeProfitPrice
+            ? parseFloat(submittedTakeProfitPrice)
+            : undefined,
+          stopLossPrice: submittedStopLossPrice
+            ? parseFloat(submittedStopLossPrice)
+            : undefined,
           orderId,
           masterAddress,
+          limitPlacedAt: status === 'limit' ? timestamp : undefined,
           updatedAt: timestamp,
-          openedAt: existingPosition ? undefined : timestamp,
+          openedAt:
+            existingPosition || status === 'limit' ? undefined : timestamp,
           closedAt: status === 'closed' ? timestamp : undefined,
         },
       }).catch((feedError) => {

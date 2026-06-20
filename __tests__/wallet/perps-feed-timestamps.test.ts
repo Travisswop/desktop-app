@@ -1,6 +1,7 @@
 import {
   buildPerpsPositionKey,
   inferPerpsCloseFillsByCoin,
+  inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
 } from '@/lib/perps/perpsFeed';
@@ -182,5 +183,45 @@ describe('perps feed timestamps', () => {
     ]);
 
     expect(closeFills.BTC?.px).toBe(104500);
+  });
+
+  it('maps long reduce-only triggers to take-profit and stop-loss prices', () => {
+    expect(
+      inferPerpsPositionRiskPrices(
+        { coin: 'ETH', szi: '0.3171', entryPx: '1706' },
+        [
+          {
+            coin: 'ETH',
+            reduceOnly: true,
+            triggerPx: '1735',
+            orderType: 'Take Profit Market',
+          },
+          {
+            coin: 'ETH',
+            reduceOnly: true,
+            triggerPx: '1680',
+            orderType: 'Stop Market',
+          },
+        ],
+      ),
+    ).toEqual({
+      takeProfitPrice: 1735,
+      stopLossPrice: 1680,
+    });
+  });
+
+  it('maps short reduce-only triggers by price direction when labels are generic', () => {
+    expect(
+      inferPerpsPositionRiskPrices(
+        { coin: 'BTC', szi: '-0.2', entryPx: '105000' },
+        [
+          { coin: 'BTC', reduceOnly: true, triggerPx: '103000' },
+          { coin: 'BTC', reduceOnly: true, triggerPx: '106000' },
+        ],
+      ),
+    ).toEqual({
+      takeProfitPrice: 103000,
+      stopLossPrice: 106000,
+    });
   });
 });

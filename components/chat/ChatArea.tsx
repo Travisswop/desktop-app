@@ -17760,6 +17760,8 @@ function HyperliquidProposalFlowTicket({
         toFiniteNumber(existingPosition?.szi)
       );
       const openedSizeCoins = toFiniteNumber(opened.sizeCoins);
+      const isPendingLimitFeed =
+        !isPositionTpsl && (orderMode === 'limit' || orderMode === 'tpsl');
       const isReducingExistingPosition = Boolean(
         existingSide && existingSide !== side
       );
@@ -17770,7 +17772,11 @@ function HyperliquidProposalFlowTicket({
           ? Math.max(0, existingSizeCoins - openedSizeCoins)
           : openedSizeCoins;
       const feedEvent: PerpsPositionFeedEvent =
-        existingSide && existingSide === side
+        isPositionTpsl
+          ? 'open'
+          : isPendingLimitFeed
+          ? 'limit'
+          : existingSide && existingSide === side
           ? 'add'
           : isReducingExistingPosition && nextSizeCoins <= 0
           ? 'close'
@@ -17778,7 +17784,11 @@ function HyperliquidProposalFlowTicket({
           ? 'reduce'
           : 'open';
       const feedStatus: PerpsPositionFeedStatus =
-        feedEvent === 'close' ? 'closed' : 'open';
+        feedEvent === 'limit'
+          ? 'limit'
+          : feedEvent === 'close'
+          ? 'closed'
+          : 'open';
       const feedSide = existingSide || side;
       const feedEntryPrice =
         feedEvent === 'add' && existingSizeCoins > 0
@@ -17795,9 +17805,15 @@ function HyperliquidProposalFlowTicket({
       const remainingRatio =
         existingSizeCoins > 0 ? nextSizeCoins / existingSizeCoins : 0;
       const feedSizeCoins =
-        feedStatus === 'closed' ? existingSizeCoins : nextSizeCoins;
+        isPositionTpsl
+          ? existingSizeCoins
+          : feedStatus === 'closed'
+          ? existingSizeCoins
+          : nextSizeCoins;
       const feedCollateralUsd =
-        feedStatus === 'closed'
+        isPositionTpsl
+          ? existingMarginUsd
+          : feedStatus === 'closed'
           ? existingMarginUsd
           : feedEvent === 'add'
           ? existingMarginUsd + opened.collateralUsd
@@ -17805,7 +17821,9 @@ function HyperliquidProposalFlowTicket({
           ? existingMarginUsd * remainingRatio
           : opened.collateralUsd;
       const feedNotionalUsd =
-        feedStatus === 'closed'
+        isPositionTpsl
+          ? existingNotionalUsd
+          : feedStatus === 'closed'
           ? existingNotionalUsd
           : feedEvent === 'add'
           ? existingNotionalUsd + opened.notionalUsd
@@ -17813,7 +17831,7 @@ function HyperliquidProposalFlowTicket({
           ? nextSizeCoins * opened.entryPrice
           : opened.notionalUsd;
 
-      if (!isPositionTpsl) {
+      if (!isPositionTpsl || existingPosition) {
         const feedDex = getHyperliquidMarketDex(selectedMarket);
         const feedCoin = qualifyPerpsPositionCoin({ coin, dex: feedDex });
         await upsertPerpsPositionFeed({
@@ -17836,6 +17854,7 @@ function HyperliquidProposalFlowTicket({
             leverage: leverageValue,
             marginMode: isCross ? 'cross' : 'isolated',
             entryPrice: feedEntryPrice,
+            limitPrice: feedStatus === 'limit' ? opened.entryPrice : undefined,
             markPrice: opened.entryPrice,
             exitPrice: feedStatus === 'closed' ? opened.entryPrice : undefined,
             liquidationPrice,
@@ -17845,10 +17864,20 @@ function HyperliquidProposalFlowTicket({
             returnPct: toFiniteNumber(existingPosition?.returnOnEquity) * 100,
             unrealizedPnl: toFiniteNumber(existingPosition?.unrealizedPnl),
             feeUsd: opened.feeUsd,
+            takeProfitPrice:
+              showTriggerControls && hasTakeProfit
+                ? takeProfitValue
+                : undefined,
+            stopLossPrice:
+              showTriggerControls && hasStopLoss ? stopLossValue : undefined,
             orderId: orderId ? String(orderId) : undefined,
             masterAddress: astroConsoleData.perpsMasterAddress,
+            limitPlacedAt: feedStatus === 'limit' ? opened.placedAt : undefined,
             updatedAt: opened.placedAt,
-            openedAt: existingPosition ? undefined : opened.placedAt,
+            openedAt:
+              existingPosition || feedStatus === 'limit'
+                ? undefined
+                : opened.placedAt,
             closedAt: feedStatus === 'closed' ? opened.placedAt : undefined,
           },
         }).catch((feedError) => {

@@ -49,6 +49,7 @@ import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
   inferPerpsCloseFillsByCoin,
+  inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
   reconcilePerpsPositionFeed,
@@ -625,6 +626,10 @@ export function PerpsPanel({
     }
 
     positions.forEach((position) => {
+      const riskPrices = inferPerpsPositionRiskPrices(
+        position,
+        allOpenOrders,
+      );
       const positionKey = buildPerpsPositionKey({
         userId: user._id,
         masterAddress,
@@ -681,6 +686,8 @@ export function PerpsPanel({
           sizeCoins: Math.abs(toPerpsFeedNumber(position.szi)),
           returnPct: toPerpsFeedNumber(position.returnOnEquity) * 100,
           unrealizedPnl: toPerpsFeedNumber(position.unrealizedPnl),
+          takeProfitPrice: riskPrices.takeProfitPrice,
+          stopLossPrice: riskPrices.stopLossPrice,
           orderId: openedFill?.orderId,
           masterAddress,
           openedAt: eventTimestamp,
@@ -692,6 +699,7 @@ export function PerpsPanel({
     });
   }, [
     accountData,
+    allOpenOrders,
     allPositions,
     accessToken,
     feedSmartsiteId,
@@ -940,12 +948,62 @@ export function PerpsPanel({
         }
       }
 
-      await placePositionTpSlOrder({
+      const orderResult = await placePositionTpSlOrder({
         assetIndex: positionMarket.index,
         isLong,
         size: Math.abs(parseFloat(position.szi)).toString(),
         takeProfitPrice,
         stopLossPrice,
+      });
+      const timestamp = new Date().toISOString();
+      const feedDex = positionMarket.dex || position.dex;
+      const feedCoin = qualifyPerpsPositionCoin({
+        coin: position.coin,
+        dex: feedDex,
+      });
+
+      upsertPerpsPositionFeed({
+        token: accessToken,
+        userId: user?._id,
+        smartsiteId: feedSmartsiteId,
+        content: {
+          provider: 'hyperliquid',
+          positionKey: buildPerpsPositionKey({
+            userId: user?._id,
+            masterAddress,
+            coin: position.coin,
+            dex: feedDex,
+          }),
+          coin: feedCoin,
+          dex: feedDex || null,
+          side: isLong ? 'long' : 'short',
+          status: 'open',
+          event: 'open',
+          leverage: position.leverage.value,
+          marginMode:
+            position.leverage.type === 'isolated' ? 'isolated' : 'cross',
+          entryPrice: toPerpsFeedNumber(position.entryPx),
+          markPrice: toPerpsFeedNumber(livePrice || position.entryPx),
+          liquidationPrice: position.liquidationPx
+            ? toPerpsFeedNumber(position.liquidationPx)
+            : null,
+          collateralUsd: toPerpsFeedNumber(position.marginUsed),
+          notionalUsd: toPerpsFeedNumber(position.positionValue),
+          sizeCoins: Math.abs(toPerpsFeedNumber(position.szi)),
+          returnPct: toPerpsFeedNumber(position.returnOnEquity) * 100,
+          unrealizedPnl: toPerpsFeedNumber(position.unrealizedPnl),
+          takeProfitPrice: takeProfitPrice
+            ? toPerpsFeedNumber(takeProfitPrice)
+            : undefined,
+          stopLossPrice: stopLossPrice
+            ? toPerpsFeedNumber(stopLossPrice)
+            : undefined,
+          orderId: extractPerpsOrderId(orderResult),
+          masterAddress,
+          updatedAt: timestamp,
+        },
+      }).catch((feedError) => {
+        console.warn('Failed to update perps feed card TP/SL:', feedError);
       });
 
       await Promise.all([refetchPositions(), refetchPortfolio()]);
@@ -959,6 +1017,10 @@ export function PerpsPanel({
       markets,
       mids,
       placePositionTpSlOrder,
+      accessToken,
+      feedSmartsiteId,
+      user?._id,
+      masterAddress,
       refetchPortfolio,
       refetchPositions,
       toast,

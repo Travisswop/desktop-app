@@ -3,12 +3,17 @@
 import { useModalStore } from '@/zustandStore/modalstore';
 
 export type PerpsPositionFeedEvent =
+  | 'limit'
   | 'open'
   | 'add'
   | 'reduce'
   | 'close'
   | 'liquidate';
-export type PerpsPositionFeedStatus = 'open' | 'closed' | 'liquidated';
+export type PerpsPositionFeedStatus =
+  | 'limit'
+  | 'open'
+  | 'closed'
+  | 'liquidated';
 
 export interface PerpsPositionFeedContent {
   provider: 'hyperliquid';
@@ -21,6 +26,7 @@ export interface PerpsPositionFeedContent {
   leverage: number;
   marginMode: 'cross' | 'isolated';
   entryPrice: number;
+  limitPrice?: number | null;
   markPrice: number;
   exitPrice?: number | null;
   liquidationPrice?: number | null;
@@ -31,8 +37,11 @@ export interface PerpsPositionFeedContent {
   unrealizedPnl: number;
   realizedPnl?: number;
   feeUsd?: number;
+  takeProfitPrice?: number | null;
+  stopLossPrice?: number | null;
   orderId?: string;
   masterAddress?: string | null;
+  limitPlacedAt?: string;
   openedAt?: string;
   updatedAt: string;
   closedAt?: string;
@@ -76,12 +85,27 @@ export interface PerpsPositionLike {
   coin?: string | null;
   dex?: string | null;
   szi?: string | number | null;
+  entryPx?: string | number | null;
 }
 
 export interface PerpsOpenFillSnapshot {
   timestamp: string;
   orderId?: string;
   price?: number;
+}
+
+export interface PerpsOpenOrderLike {
+  coin?: string | null;
+  dex?: string | null;
+  reduceOnly?: boolean | null;
+  triggerPx?: string | number | null;
+  limitPx?: string | number | null;
+  orderType?: string | null;
+}
+
+export interface PerpsRiskPrices {
+  takeProfitPrice?: number;
+  stopLossPrice?: number;
 }
 
 interface UpsertPerpsPositionFeedParams {
@@ -291,6 +315,56 @@ export function inferPerpsCloseFillsByCoin(
     },
     {},
   );
+}
+
+export function inferPerpsPositionRiskPrices(
+  position: PerpsPositionLike,
+  openOrders: PerpsOpenOrderLike[] = [],
+): PerpsRiskPrices {
+  const rawCoin = normalizePerpsCoin(position.coin);
+  const qualifiedCoin = qualifyPerpsPositionCoin({
+    coin: rawCoin,
+    dex: position.dex,
+  });
+  const positionDex = normalizePerpsDex(position.dex).toLowerCase();
+  const signedSize = maybePerpsFeedNumber(position.szi);
+  const entryPrice = maybePerpsFeedNumber(position.entryPx);
+  if (!rawCoin || signedSize === undefined || signedSize === 0) return {};
+
+  const isLong = signedSize > 0;
+  return openOrders.reduce<PerpsRiskPrices>((prices, order) => {
+    if (!order?.reduceOnly) return prices;
+
+    const orderCoin = normalizePerpsCoin(order.coin);
+    if (orderCoin !== rawCoin && orderCoin !== qualifiedCoin) return prices;
+
+    const orderDex = normalizePerpsDex(order.dex).toLowerCase();
+    if (positionDex && orderDex && orderDex !== positionDex) return prices;
+
+    const orderType = String(order.orderType || '').toLowerCase();
+    const triggerPrice = maybePerpsFeedNumber(order.triggerPx);
+    const limitPrice = maybePerpsFeedNumber(order.limitPx);
+    const price = triggerPrice || limitPrice;
+    if (!price || price <= 0) return prices;
+
+    const explicitTakeProfit =
+      orderType.includes('take') || orderType.includes('profit');
+    const explicitStopLoss = orderType.includes('stop') || orderType.includes('loss');
+    const isTakeProfit =
+      explicitTakeProfit ||
+      (!explicitStopLoss &&
+        entryPrice !== undefined &&
+        (isLong ? price > entryPrice : price < entryPrice));
+    const isStopLoss =
+      explicitStopLoss ||
+      (!explicitTakeProfit &&
+        entryPrice !== undefined &&
+        (isLong ? price < entryPrice : price > entryPrice));
+
+    if (isTakeProfit) prices.takeProfitPrice = price;
+    if (isStopLoss) prices.stopLossPrice = price;
+    return prices;
+  }, {});
 }
 
 export function inferPerpsPositionOpenedFill(

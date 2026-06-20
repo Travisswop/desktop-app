@@ -146,6 +146,9 @@ function normalizePositionStatus(
 ) {
   const normalizedStatus = String(status || '').toLowerCase();
   const normalizedEvent = String(event || '').toLowerCase();
+  if (normalizedStatus === 'limit' || normalizedEvent === 'limit') {
+    return 'limit';
+  }
   if (
     normalizedStatus === 'liquidated' ||
     normalizedStatus === 'liquidate' ||
@@ -166,9 +169,9 @@ function dateMs(value: unknown) {
 
 function terminalTimestampPredatesOpen(
   content: Partial<PerpsPositionFeedContent>,
-  status: 'open' | 'closed' | 'liquidated',
+  status: 'limit' | 'open' | 'closed' | 'liquidated',
 ) {
-  if (status === 'open') return false;
+  if (status === 'limit' || status === 'open') return false;
 
   const openedAt = dateMs(content.openedAt);
   const terminalAt =
@@ -313,7 +316,9 @@ export default function PerpsPositionFeedCard({
   const storedStatus = terminalTimestampPredatesOpen(content, rawStoredStatus)
     ? 'open'
     : rawStoredStatus;
-  const hasStoredTerminalStatus = storedStatus !== 'open';
+  const isLimitStatus = storedStatus === 'limit';
+  const hasStoredTerminalStatus =
+    storedStatus === 'closed' || storedStatus === 'liquidated';
   const leverage = Math.max(1, Math.round(finiteNumber(content.leverage, 1)));
   const storedMarkPrice = firstFiniteNumber([
     hasStoredTerminalStatus ? content.exitPrice : null,
@@ -430,8 +435,8 @@ export default function PerpsPositionFeedCard({
     return normalizePerpsEntryMarkers(rawEntries, content, feed.createdAt);
   }, [content, feed.createdAt]);
   const chartMarkerEntries = useMemo(
-    () => selectPerpsChartMarkerEntries(entries),
-    [entries],
+    () => (isLimitStatus ? [] : selectPerpsChartMarkerEntries(entries)),
+    [entries, isLimitStatus],
   );
 
   const priceDomain = useMemo(() => {
@@ -590,7 +595,7 @@ export default function PerpsPositionFeedCard({
 
   const entryPrice = firstFiniteNumber([content.entryPrice, displayMarkPrice]);
   const calculatedReturnPct =
-    entryPrice > 0
+    !isLimitStatus && entryPrice > 0
       ? ((side === 'long'
           ? displayMarkPrice - entryPrice
           : entryPrice - displayMarkPrice) /
@@ -600,15 +605,20 @@ export default function PerpsPositionFeedCard({
       : finiteNumber(content.returnPct);
   const storedReturnPct = maybeFiniteNumber(content.returnPct);
   const returnPct =
-    hasStoredTerminalStatus && storedReturnPct !== null
+    isLimitStatus
+      ? null
+      : hasStoredTerminalStatus && storedReturnPct !== null
       ? storedReturnPct
       : calculatedReturnPct;
-  const isPositive = returnPct >= 0;
+  const isPositive = returnPct === null || returnPct >= 0;
+  const returnText = returnPct === null ? '-' : formatPercent(returnPct);
   const badgeClasses =
     status === 'liquidated'
       ? 'border-red-200 bg-red-100 text-red-500'
       : status === 'closed'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
+      : status === 'limit'
+      ? 'border-amber-200 bg-amber-50 text-amber-600'
       : side === 'long'
       ? 'border-emerald-200 bg-emerald-100 text-emerald-600'
       : 'border-red-200 bg-red-100 text-red-500';
@@ -617,24 +627,32 @@ export default function PerpsPositionFeedCard({
       ? 'Liquidated'
       : status === 'closed'
       ? 'Closed'
+      : status === 'limit'
+      ? `Limit ${side}`
       : side;
   const statusLabel =
     status === 'liquidated'
       ? 'Liquidated'
       : status === 'closed'
       ? 'Closed'
+      : status === 'limit'
+      ? 'Limit'
       : 'Open';
   const statusVerb =
     status === 'liquidated'
       ? 'Liquidated'
       : status === 'closed'
       ? 'Closed'
+      : status === 'limit'
+      ? 'Limit set'
       : 'Opened';
   const statusPillClasses =
     status === 'liquidated'
       ? 'border-red-200 bg-red-50 text-red-500'
       : status === 'closed'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
+      : status === 'limit'
+      ? 'border-amber-200 bg-amber-50 text-amber-600'
       : 'border-emerald-200 bg-emerald-50 text-emerald-600';
   const statusTimestamp =
     status === 'liquidated'
@@ -644,7 +662,23 @@ export default function PerpsPositionFeedCard({
         feed.createdAt
       : status === 'closed'
       ? content.closedAt || content.updatedAt || feed.createdAt
+      : status === 'limit'
+      ? content.limitPlacedAt || content.updatedAt || feed.createdAt
       : content.openedAt || content.updatedAt || feed.createdAt;
+  const takeProfitPrice = maybeFiniteNumber(content.takeProfitPrice);
+  const stopLossPrice = maybeFiniteNumber(content.stopLossPrice);
+  const riskPrices = [
+    takeProfitPrice !== null
+      ? { label: 'TP', value: takeProfitPrice, className: 'text-emerald-500' }
+      : null,
+    stopLossPrice !== null
+      ? { label: 'SL', value: stopLossPrice, className: 'text-red-500' }
+      : null,
+  ].filter(Boolean) as Array<{
+    label: string;
+    value: number;
+    className: string;
+  }>;
   const href = `/wallet?perps=1&coin=${encodeURIComponent(coin)}&side=${side}&leverage=${leverage}`;
   const periodBar = (
     <div
@@ -868,10 +902,14 @@ export default function PerpsPositionFeedCard({
             <div className="mb-4 flex items-start justify-around">
               <div className="flex flex-col items-center">
                 <span className="mb-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                  Entry price
+                  {status === 'limit' ? 'Limit price' : 'Entry price'}
                 </span>
                 <div className="font-mono text-[16px] font-black tabular-nums text-gray-950">
-                  {formatUsd(content.entryPrice)}
+                  {formatUsd(
+                    status === 'limit'
+                      ? content.limitPrice || content.entryPrice
+                      : content.entryPrice,
+                  )}
                 </div>
               </div>
 
@@ -886,10 +924,30 @@ export default function PerpsPositionFeedCard({
                     isPositive ? 'text-emerald-500' : 'text-red-500'
                   }`}
                 >
-                  {formatPercent(returnPct)}
+                  {returnText}
                 </div>
               </div>
             </div>
+
+            {riskPrices.length > 0 && (
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                {riskPrices.map((price) => (
+                  <div
+                    key={price.label}
+                    className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
+                  >
+                    <div className="font-mono text-[9px] font-black uppercase tracking-[0.18em] text-gray-400">
+                      {price.label}
+                    </div>
+                    <div
+                      className={`mt-0.5 font-mono text-[13px] font-black tabular-nums ${price.className}`}
+                    >
+                      {formatUsd(price.value)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex items-center justify-between border-t border-gray-100 pt-3">
               <div className="flex min-w-0 items-center gap-2">

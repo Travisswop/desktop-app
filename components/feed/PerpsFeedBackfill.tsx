@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
   inferPerpsCloseFillsByCoin,
+  inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
   type PerpsLiquidationFillSnapshot,
@@ -221,6 +222,10 @@ export default function PerpsFeedBackfill() {
         }
 
         positions.forEach((position) => {
+          const riskPrices = inferPerpsPositionRiskPrices(
+            position,
+            portfolio.openOrders,
+          );
           const positionKey = buildPerpsPositionKey({
             userId: user._id,
             masterAddress,
@@ -277,6 +282,8 @@ export default function PerpsFeedBackfill() {
               sizeCoins,
               returnPct: toPerpsFeedNumber(position.returnOnEquity) * 100,
               unrealizedPnl: toPerpsFeedNumber(position.unrealizedPnl),
+              takeProfitPrice: riskPrices.takeProfitPrice,
+              stopLossPrice: riskPrices.stopLossPrice,
               orderId: openedFill?.orderId,
               masterAddress,
               openedAt: eventTimestamp,
