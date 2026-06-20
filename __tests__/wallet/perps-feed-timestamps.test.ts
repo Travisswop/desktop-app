@@ -1,8 +1,10 @@
 import {
+  buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
   inferPerpsCloseFillsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
+  isPerpsEntryLimitOrder,
   qualifyPerpsPositionCoin,
 } from '@/lib/perps/perpsFeed';
 
@@ -222,6 +224,89 @@ describe('perps feed timestamps', () => {
     ).toEqual({
       takeProfitPrice: 103000,
       stopLossPrice: 106000,
+    });
+  });
+
+  it('identifies resting entry limits separately from TP/SL reduce-only orders', () => {
+    expect(
+      isPerpsEntryLimitOrder({
+        coin: 'ETH',
+        side: 'B',
+        sz: '0.3171',
+        limitPx: '1715',
+        orderType: 'Limit',
+        reduceOnly: false,
+        timestamp: Date.parse('2026-06-15T11:40:00Z'),
+      }),
+    ).toBe(true);
+
+    expect(
+      isPerpsEntryLimitOrder({
+        coin: 'ETH',
+        side: 'A',
+        sz: '0.3171',
+        limitPx: '1735',
+        triggerPx: '1735',
+        orderType: 'Take Profit Market',
+        reduceOnly: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('builds an active pending-limit feed snapshot with inferred TP/SL', () => {
+    const snapshot = buildPerpsActiveLimitOrderSnapshot({
+      order: {
+        coin: 'ETH',
+        side: 'B',
+        sz: '0.3171',
+        limitPx: '1715',
+        oid: 777,
+        orderType: 'Limit',
+        reduceOnly: false,
+        timestamp: Date.parse('2026-06-15T11:40:00Z'),
+      },
+      userId: 'user-1',
+      masterAddress: '0xabc',
+      markPricesByCoin: { ETH: 1720 },
+      openOrders: [
+        {
+          coin: 'ETH',
+          side: 'B',
+          sz: '0.3171',
+          limitPx: '1715',
+          oid: 777,
+          orderType: 'Limit',
+          reduceOnly: false,
+        },
+        {
+          coin: 'ETH',
+          reduceOnly: true,
+          triggerPx: '1735',
+          orderType: 'Take Profit Market',
+        },
+        {
+          coin: 'ETH',
+          reduceOnly: true,
+          triggerPx: '1680',
+          orderType: 'Stop Market',
+        },
+      ],
+    });
+
+    expect(snapshot).toEqual({
+      positionKey: 'hyperliquid:0xabc:ETH',
+      coin: 'ETH',
+      dex: null,
+      side: 'long',
+      orderId: '777',
+      limitPrice: 1715,
+      markPrice: 1720,
+      sizeCoins: 0.3171,
+      notionalUsd: 543.8265,
+      takeProfitPrice: 1735,
+      stopLossPrice: 1680,
+      limitPlacedAt: '2026-06-15T11:40:00.000Z',
+      updatedAt: '2026-06-15T11:40:00.000Z',
     });
   });
 });

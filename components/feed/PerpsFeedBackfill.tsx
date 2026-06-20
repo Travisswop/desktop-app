@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import {
+  buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
   inferPerpsCloseFillsByCoin,
   inferPerpsPositionRiskPrices,
@@ -11,6 +12,7 @@ import {
   qualifyPerpsPositionCoin,
   type PerpsLiquidationFillSnapshot,
   type PerpsFillLike,
+  type PerpsActiveLimitOrderSnapshot,
   reconcilePerpsPositionFeed,
   resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
@@ -38,6 +40,12 @@ interface HyperliquidUserFill extends PerpsFillLike {
   liquidation?: {
     markPx?: string;
   };
+}
+
+function isActiveLimitOrderSnapshot(
+  order: PerpsActiveLimitOrderSnapshot | null,
+): order is PerpsActiveLimitOrderSnapshot {
+  return order !== null;
 }
 
 function markPriceFromPosition(position: HLPosition) {
@@ -166,6 +174,7 @@ export default function PerpsFeedBackfill() {
   useEffect(() => {
     const smartsiteId = feedSmartsiteId;
     const positions = portfolio?.positions || [];
+    const openOrders = portfolio?.openOrders || [];
     const observedDexes = Object.keys(portfolio?.perDex || {});
 
     if (
@@ -186,11 +195,39 @@ export default function PerpsFeedBackfill() {
         dex: position.dex,
       }),
     );
+    const activePositionKeySet = new Set(
+      activePositionKeys.map((key) => key.toLowerCase()),
+    );
+    const activeLimitOrders = openOrders
+      .map((order) =>
+        buildPerpsActiveLimitOrderSnapshot({
+          order,
+          userId: user._id,
+          masterAddress,
+          markPricesByCoin,
+          openOrders,
+        }),
+      )
+      .filter(
+        (order): order is PerpsActiveLimitOrderSnapshot =>
+          isActiveLimitOrderSnapshot(order) &&
+          !activePositionKeySet.has(order.positionKey.toLowerCase()),
+      );
     const reconcileSnapshotKey = [
       masterAddress,
       Object.keys(markPricesByCoin).length > 0 ? 'marks-ready' : 'marks-pending',
       `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
       ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
+      ...activeLimitOrders
+        .map((order) =>
+          [
+            'limit',
+            order.positionKey.toLowerCase(),
+            order.orderId || '',
+            order.limitPrice,
+          ].join('='),
+        )
+        .sort(),
     ].join(':');
 
     let cancelled = false;
@@ -211,6 +248,7 @@ export default function PerpsFeedBackfill() {
             smartsiteId,
             masterAddress,
             activePositionKeys,
+            activeLimitOrders,
             observedDexes,
             markPricesByCoin,
             liquidationsByCoin: liquidationFillsByCoin(recentFills),
@@ -291,6 +329,53 @@ export default function PerpsFeedBackfill() {
             },
           }).catch((error) => {
             console.warn('Failed to backfill perps feed card:', error);
+          });
+        });
+
+        activeLimitOrders.forEach((order) => {
+          const snapshotKey = [
+            order.positionKey,
+            order.orderId || '',
+            order.limitPrice,
+            order.limitPlacedAt || '',
+          ].join(':');
+          if (syncedSnapshotsRef.current.has(snapshotKey)) return;
+          syncedSnapshotsRef.current.add(snapshotKey);
+
+          const timestamp =
+            order.limitPlacedAt || order.updatedAt || new Date().toISOString();
+          upsertPerpsPositionFeed({
+            token: accessToken,
+            userId: user._id,
+            smartsiteId,
+            content: {
+              provider: 'hyperliquid',
+              positionKey: order.positionKey,
+              coin: order.coin,
+              dex: order.dex || null,
+              side: order.side,
+              status: 'limit',
+              event: 'limit',
+              leverage: 1,
+              marginMode: 'cross',
+              entryPrice: order.limitPrice,
+              limitPrice: order.limitPrice,
+              markPrice: order.markPrice,
+              liquidationPrice: null,
+              collateralUsd: 0,
+              notionalUsd: order.notionalUsd,
+              sizeCoins: order.sizeCoins,
+              returnPct: 0,
+              unrealizedPnl: 0,
+              takeProfitPrice: order.takeProfitPrice,
+              stopLossPrice: order.stopLossPrice,
+              orderId: order.orderId,
+              masterAddress,
+              limitPlacedAt: timestamp,
+              updatedAt: timestamp,
+            },
+          }).catch((error) => {
+            console.warn('Failed to backfill perps limit card:', error);
           });
         });
       })

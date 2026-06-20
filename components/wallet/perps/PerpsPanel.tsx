@@ -47,6 +47,7 @@ import type {
 } from '@/lib/chat/agentActionHandoff';
 import { useUser } from '@/lib/UserContext';
 import {
+  buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
   inferPerpsCloseFillsByCoin,
   inferPerpsPositionRiskPrices,
@@ -54,6 +55,7 @@ import {
   qualifyPerpsPositionCoin,
   reconcilePerpsPositionFeed,
   resolvePerpsFeedSmartsiteId,
+  type PerpsActiveLimitOrderSnapshot,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
 } from '@/lib/perps/perpsFeed';
@@ -130,6 +132,12 @@ function getFillTimestamp(fill: HyperliquidUserFill) {
   return Number.isFinite(milliseconds)
     ? new Date(milliseconds).toISOString()
     : new Date().toISOString();
+}
+
+function isActiveLimitOrderSnapshot(
+  order: PerpsActiveLimitOrderSnapshot | null,
+): order is PerpsActiveLimitOrderSnapshot {
+  return order !== null;
 }
 
 function fillKeyFor(f: PerpsFill) {
@@ -601,11 +609,39 @@ export function PerpsPanel({
         dex: position.dex,
       }),
     );
+    const activePositionKeySet = new Set(
+      activePositionKeys.map((key) => key.toLowerCase()),
+    );
+    const activeLimitOrders = allOpenOrders
+      .map((order) =>
+        buildPerpsActiveLimitOrderSnapshot({
+          order,
+          userId: user._id,
+          masterAddress,
+          markPricesByCoin: mids,
+          openOrders: allOpenOrders,
+        }),
+      )
+      .filter(
+        (order): order is PerpsActiveLimitOrderSnapshot =>
+          isActiveLimitOrderSnapshot(order) &&
+          !activePositionKeySet.has(order.positionKey.toLowerCase()),
+      );
     const reconcileSnapshotKey = [
       masterAddress,
       Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
       `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
       ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
+      ...activeLimitOrders
+        .map((order) =>
+          [
+            'limit',
+            order.positionKey.toLowerCase(),
+            order.orderId || '',
+            order.limitPrice,
+          ].join('='),
+        )
+        .sort(),
     ].join(':');
 
     if (!reconciledPositionSnapshotsRef.current.has(reconcileSnapshotKey)) {
@@ -616,6 +652,7 @@ export function PerpsPanel({
         smartsiteId,
         masterAddress,
         activePositionKeys,
+        activeLimitOrders,
         observedDexes,
         markPricesByCoin: mids,
         closedFillsByCoin: inferPerpsCloseFillsByCoin(fills),
@@ -695,6 +732,53 @@ export function PerpsPanel({
         },
       }).catch((feedError) => {
         console.warn('Failed to backfill perps feed card:', feedError);
+      });
+    });
+
+    activeLimitOrders.forEach((order) => {
+      const snapshotKey = [
+        order.positionKey,
+        order.orderId || '',
+        order.limitPrice,
+        order.limitPlacedAt || '',
+      ].join(':');
+      if (syncedPositionSnapshotsRef.current.has(snapshotKey)) return;
+      syncedPositionSnapshotsRef.current.add(snapshotKey);
+
+      const timestamp =
+        order.limitPlacedAt || order.updatedAt || new Date().toISOString();
+      upsertPerpsPositionFeed({
+        token: accessToken,
+        userId: user._id,
+        smartsiteId,
+        content: {
+          provider: 'hyperliquid',
+          positionKey: order.positionKey,
+          coin: order.coin,
+          dex: order.dex || null,
+          side: order.side,
+          status: 'limit',
+          event: 'limit',
+          leverage: 1,
+          marginMode: 'cross',
+          entryPrice: order.limitPrice,
+          limitPrice: order.limitPrice,
+          markPrice: order.markPrice,
+          liquidationPrice: null,
+          collateralUsd: 0,
+          notionalUsd: order.notionalUsd,
+          sizeCoins: order.sizeCoins,
+          returnPct: 0,
+          unrealizedPnl: 0,
+          takeProfitPrice: order.takeProfitPrice,
+          stopLossPrice: order.stopLossPrice,
+          orderId: order.orderId,
+          masterAddress,
+          limitPlacedAt: timestamp,
+          updatedAt: timestamp,
+        },
+      }).catch((feedError) => {
+        console.warn('Failed to backfill perps limit card:', feedError);
       });
     });
   }, [
