@@ -25,16 +25,30 @@ import {
   type PerpsEntryMarker,
 } from './perpsEntryMarkers';
 import type { PerpsPositionFeedContent } from '@/lib/perps/perpsFeed';
+import {
+  createFeedHealthFingerprint,
+  reportFeedHealthIssue,
+} from '@/lib/feed/feedHealth';
+import { buildPerpsCardHealthIssue } from '@/lib/feed/perpsFeedHealth';
+import { usePerpsFeedSourceSnapshot } from '@/lib/feed/perpsFeedHealthStore';
 
 export type { PerpsEntryMarker } from './perpsEntryMarkers';
 
 interface PerpsPositionFeedCardProps {
   feed: {
+    _id?: string | null;
+    id?: string | null;
+    userId?: string | null;
     content?: Partial<PerpsPositionFeedContent> & {
       entries?: PerpsEntryMarker[];
     };
     smartsiteDetails?: { profilePic?: string | null; name?: string | null };
-    smartsiteId?: { profilePic?: string | null; name?: string | null };
+    smartsiteId?: {
+      _id?: string | null;
+      id?: string | null;
+      profilePic?: string | null;
+      name?: string | null;
+    } | null;
     smartsiteProfilePic?: string | null;
     smartsiteUserName?: string | null;
     createdAt?: string;
@@ -294,6 +308,17 @@ function profileImageSrc(profilePic?: string | null) {
     : `/images/user_avator/${profilePic}@3x.png`;
 }
 
+function idLike(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value);
+  }
+  if (typeof value !== 'object') return null;
+
+  const record = value as { _id?: unknown; id?: unknown };
+  return idLike(record._id) || idLike(record.id);
+}
+
 export function selectPerpsChartMarkerEntries(
   entries: PerpsEntryMarker[],
 ): PerpsEntryMarker[] {
@@ -306,6 +331,8 @@ export default function PerpsPositionFeedCard({
   feed,
 }: PerpsPositionFeedCardProps) {
   const content = useMemo(() => feed.content || {}, [feed.content]);
+  const feedId = idLike(feed._id) || idLike(feed.id);
+  const smartsiteId = idLike(feed.smartsiteId);
   const rawCoin = String(content.coin || 'BTC');
   const coin = rawCoin.toUpperCase();
   const side = content.side === 'short' ? 'short' : 'long';
@@ -375,9 +402,11 @@ export default function PerpsPositionFeedCard({
     ],
   );
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const reportedHealthIssuesRef = useRef<Set<string>>(new Set());
   const [width, setWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const gradientId = useId().replace(/:/g, '');
+  const sourceSnapshot = usePerpsFeedSourceSnapshot(content.masterAddress);
 
   useEffect(() => {
     if (!cardRef.current) return;
@@ -424,6 +453,25 @@ export default function PerpsPositionFeedCard({
     })
       ? 'liquidated'
       : storedStatus;
+
+  useEffect(() => {
+    const issue = buildPerpsCardHealthIssue({
+      feedId,
+      userId: idLike(feed.userId),
+      smartsiteId,
+      content,
+      sourceSnapshot,
+      renderedStatus: status,
+    });
+
+    if (!issue) return;
+
+    const fingerprint = createFeedHealthFingerprint(issue);
+    if (reportedHealthIssuesRef.current.has(fingerprint)) return;
+    reportedHealthIssuesRef.current.add(fingerprint);
+
+    void reportFeedHealthIssue(issue);
+  }, [content, feed.userId, feedId, smartsiteId, sourceSnapshot, status]);
 
   const entries = useMemo(() => {
     const rawEntries = Array.isArray(content.entries) ? content.entries : [];
