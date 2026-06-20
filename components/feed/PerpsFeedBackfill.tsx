@@ -164,6 +164,7 @@ export default function PerpsFeedBackfill() {
   useEffect(() => {
     const smartsiteId = feedSmartsiteId;
     const positions = portfolio?.positions || [];
+    const observedDexes = Object.keys(portfolio?.perDex || {});
 
     if (
       !portfolio ||
@@ -186,6 +187,7 @@ export default function PerpsFeedBackfill() {
     const reconcileSnapshotKey = [
       masterAddress,
       Object.keys(markPricesByCoin).length > 0 ? 'marks-ready' : 'marks-pending',
+      `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
       ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
     ].join(':');
 
@@ -207,6 +209,7 @@ export default function PerpsFeedBackfill() {
             smartsiteId,
             masterAddress,
             activePositionKeys,
+            observedDexes,
             markPricesByCoin,
             liquidationsByCoin: liquidationFillsByCoin(recentFills),
           }).catch((error) => {
