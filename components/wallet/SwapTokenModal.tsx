@@ -303,6 +303,70 @@ function buildJupiterVersionedTransaction({
   return new VersionedTransaction(message);
 }
 
+function summarizeJupiterBuild(build?: JupiterBuildResponse | null) {
+  if (!build) return null;
+
+  return {
+    outAmount: build.outAmount,
+    computeBudgetInstructionCount:
+      build.computeBudgetInstructions?.length || 0,
+    setupInstructionCount: build.setupInstructions?.length || 0,
+    otherInstructionCount: build.otherInstructions?.length || 0,
+    hasCleanupInstruction: Boolean(build.cleanupInstruction),
+    hasTipInstruction: Boolean(build.tipInstruction),
+    swapProgramId: build.swapInstruction?.programId,
+    lookupTableCount: build.addressesByLookupTableAddress
+      ? Object.keys(build.addressesByLookupTableAddress).length
+      : 0,
+  };
+}
+
+async function simulateJupiterBuild({
+  build,
+  feePayer,
+  connection,
+}: {
+  build: JupiterBuildResponse;
+  feePayer: string;
+  connection: Connection;
+}) {
+  const simulationTx = buildJupiterVersionedTransaction({
+    build,
+    feePayer,
+    computeUnitLimit: JUPITER_MAX_COMPUTE_UNITS,
+  });
+  const simulation = await connection.simulateTransaction(simulationTx, {
+    sigVerify: false,
+    replaceRecentBlockhash: true,
+    commitment: 'confirmed',
+  });
+
+  if (simulation.value.err) {
+    const logs = simulation.value.logs || [];
+    return {
+      success: false as const,
+      error: simulation.value.err,
+      logs,
+      message: `Jupiter swap simulation failed. ${logs
+        .slice(-8)
+        .join(' ')}`.trim(),
+    };
+  }
+
+  const unitsConsumed = simulation.value.unitsConsumed;
+  return {
+    success: true as const,
+    computeUnitLimit: unitsConsumed
+      ? Math.min(
+          Math.ceil(unitsConsumed * 1.2),
+          JUPITER_MAX_COMPUTE_UNITS,
+        )
+      : JUPITER_MAX_COMPUTE_UNITS,
+    unitsConsumed,
+    logs: simulation.value.logs || [],
+  };
+}
+
 async function detectSolanaTokenProgram(
   connection: Connection,
   mint: string,
@@ -2842,6 +2906,40 @@ export default function SwapTokenModal({
     };
   };
 
+  const getJupiterPlatformFeePlan = async ({
+    inputMint,
+    outputMint,
+    inputTokenProgram,
+    outputTokenProgram,
+    isSOLOutput,
+    connection,
+  }: {
+    inputMint: string;
+    outputMint: string;
+    inputTokenProgram: PublicKey;
+    outputTokenProgram: PublicKey;
+    isSOLOutput: boolean;
+    connection: Connection;
+  }) => {
+    const shouldUseOutputFee =
+      !isSOLOutput &&
+      (isNativeSolMint(inputMint) ||
+        (inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) &&
+          !outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID)));
+    const feeMint = shouldUseOutputFee ? outputMint : inputMint;
+    const feeMintRole = shouldUseOutputFee ? 'output' : 'input';
+    const feeInfo = await getJupiterPlatformFeeAccount({
+      mint: feeMint,
+      connection,
+    });
+
+    return {
+      ...feeInfo,
+      feeMint,
+      feeMintRole,
+    };
+  };
+
   const handlePayChainSelect = (cId: string) => {
     setSelectedPayChain(cId);
     setSearchQuery('');
@@ -3621,6 +3719,26 @@ export default function SwapTokenModal({
     }
   };
 
+  const reportWalletSwapFailure = async (payload: Record<string, unknown>) => {
+    try {
+      await fetch('/api/wallet/swap-failure', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...payload,
+          userId: userData?._id || null,
+          smartsiteId: userData?.primaryMicrosite || null,
+          createdAt: new Date().toISOString(),
+        }),
+        cache: 'no-store',
+      });
+    } catch (telemetryError) {
+      console.warn('Failed to report wallet swap failure:', telemetryError);
+    }
+  };
+
   const submitSolanaTransactionWithFallback = async ({
     serializedTransaction,
     wallet,
@@ -3767,6 +3885,11 @@ export default function SwapTokenModal({
 
   // ── Jupiter swap (/order + /execute) ─────────────────────────────────────────
   const executeJupiterSwap = async () => {
+    let failureAlreadyReported = false;
+    let failureContext: Record<string, unknown> = {
+      provider: 'Jupiter',
+    };
+
     try {
       let canRunUserFundedSimulation = true;
 
@@ -3802,6 +3925,23 @@ export default function SwapTokenModal({
         payAmount,
         payToken.decimals || 6,
       );
+      failureContext = {
+        ...failureContext,
+        walletAddress: maskIdentifier(selectedSolanaWallet.address),
+        inputToken: {
+          symbol: payToken?.symbol,
+          mint: inputMint,
+          amount: payAmount,
+          rawAmount: amountInSmallestUnit,
+          decimals: payToken?.decimals,
+        },
+        outputToken: {
+          symbol: receiveToken?.symbol,
+          mint: outputMint,
+          amount: receiveAmount,
+          decimals: receiveToken?.decimals,
+        },
+      };
       const rpcUrl = getSolanaRpcUrl();
 
       const connection = new Connection(rpcUrl, {
@@ -3911,6 +4051,15 @@ export default function SwapTokenModal({
         isSOLInput,
         isSOLOutput,
       });
+      failureContext = {
+        ...failureContext,
+        balanceContext: {
+          solLamports,
+          swapLamports,
+          nativeSolInputReserveLamports,
+          canRunUserFundedSimulation,
+        },
+      };
 
       if (solLamports < requiredSolInputLamports) {
         throw new Error(
@@ -3960,8 +4109,12 @@ export default function SwapTokenModal({
           ]);
 
         setSwapStatus('Preparing Jupiter fee...');
-        const feeInfo = await getJupiterPlatformFeeAccount({
-          mint: inputMint,
+        const feeInfo = await getJupiterPlatformFeePlan({
+          inputMint,
+          outputMint,
+          inputTokenProgram,
+          outputTokenProgram,
+          isSOLOutput,
           connection,
         });
         const requiresInstructionV2 =
@@ -3969,26 +4122,42 @@ export default function SwapTokenModal({
           inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           feeInfo.tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
-
-        setSwapStatus('Fetching Jupiter route...');
-        const buildResult = await fetchJupiterBuild({
+        const slippageBps = Math.floor(slippage * 100);
+        const buildParams = {
           inputMint,
           outputMint,
           amount: amountInSmallestUnit,
           taker: selectedSolanaWallet.address,
           payer: selectedSolanaWallet.address,
-          slippageBps: Math.floor(slippage * 100),
-          mode: 'fast',
+          slippageBps,
+          mode: 'fast' as const,
           platformFeeBps: PLATFORM_FEE_BPS,
           feeAccount: feeInfo.feeAccount,
           instructionVersion: requiresInstructionV2
-            ? 'V2'
+            ? ('V2' as const)
             : undefined,
           wrapAndUnwrapSol: isSOLInput || isSOLOutput,
           nativeDestinationAccount: isSOLOutput
             ? selectedSolanaWallet.address
             : undefined,
-        });
+        };
+        failureContext = {
+          ...failureContext,
+          route: {
+            slippageBps,
+            platformFeeBps: PLATFORM_FEE_BPS,
+            feeAccount: feeInfo.feeAccount,
+            feeMint: feeInfo.feeMint,
+            feeMintRole: feeInfo.feeMintRole,
+            feeTokenProgram: feeInfo.tokenProgramId.toString(),
+            instructionVersion: requiresInstructionV2
+              ? 'V2'
+              : undefined,
+          },
+        };
+
+        setSwapStatus('Fetching Jupiter route...');
+        let buildResult = await fetchJupiterBuild(buildParams);
 
         console.log('[Solana sponsorship] Jupiter build result', {
           success: buildResult.success,
@@ -3999,6 +4168,8 @@ export default function SwapTokenModal({
           outputMint: maskIdentifier(outputMint),
           amount: amountInSmallestUnit,
           feeAccount: maskIdentifier(feeInfo.feeAccount),
+          feeMint: maskIdentifier(feeInfo.feeMint),
+          feeMintRole: feeInfo.feeMintRole,
           feeTokenProgram: feeInfo.tokenProgramId.toString(),
           instructionVersion: requiresInstructionV2
             ? 'V2'
@@ -4016,7 +4187,7 @@ export default function SwapTokenModal({
           );
         }
 
-        const build = buildResult.data as JupiterBuildResponse;
+        let build = buildResult.data as JupiterBuildResponse;
         if (build.outAmount && receiveToken?.decimals) {
           const readable =
             Number(build.outAmount) /
@@ -4024,39 +4195,119 @@ export default function SwapTokenModal({
           setReceiveAmount(readable.toFixed(8).replace(/\.?0+$/, ''));
         }
 
+        const logJupiterSimulationFailure = async ({
+          stage,
+          result,
+          failedBuild,
+        }: {
+          stage: string;
+          result: {
+            message: string;
+            error: unknown;
+            logs: string[];
+          };
+          failedBuild: JupiterBuildResponse;
+        }) => {
+          await reportWalletSwapFailure({
+            provider: 'Jupiter',
+            stage,
+            reason: result.message,
+            simulationError: result.error,
+            simulationLogs: result.logs.slice(-25),
+            walletAddress: maskIdentifier(selectedSolanaWallet.address),
+            inputToken: {
+              symbol: payToken?.symbol,
+              mint: inputMint,
+              amount: payAmount,
+              rawAmount: amountInSmallestUnit,
+              tokenProgram: inputTokenProgram.toString(),
+            },
+            outputToken: {
+              symbol: receiveToken?.symbol,
+              mint: outputMint,
+              amount: receiveAmount,
+              tokenProgram: outputTokenProgram.toString(),
+            },
+            route: {
+              slippageBps,
+              platformFeeBps: PLATFORM_FEE_BPS,
+              feeAccount: feeInfo.feeAccount,
+              feeMint: feeInfo.feeMint,
+              feeMintRole: feeInfo.feeMintRole,
+              feeTokenProgram: feeInfo.tokenProgramId.toString(),
+              instructionVersion: requiresInstructionV2
+                ? 'V2'
+                : undefined,
+              build: summarizeJupiterBuild(failedBuild),
+            },
+            balanceContext: {
+              solLamports,
+              swapLamports,
+              nativeSolInputReserveLamports,
+              canRunUserFundedSimulation,
+            },
+          });
+          failureAlreadyReported = true;
+        };
+
         setSwapStatus('Simulating Jupiter swap...');
         let computeUnitLimit = JUPITER_MAX_COMPUTE_UNITS;
         if (canRunUserFundedSimulation) {
           try {
-            const simulationTx = buildJupiterVersionedTransaction({
+            let simulationResult = await simulateJupiterBuild({
               build,
               feePayer: selectedSolanaWallet.address,
-              computeUnitLimit: JUPITER_MAX_COMPUTE_UNITS,
+              connection,
             });
-            const simulation = await connection.simulateTransaction(
-              simulationTx,
-              {
-                sigVerify: false,
-                replaceRecentBlockhash: true,
-                commitment: 'confirmed',
-              },
-            );
 
-            if (simulation.value.err) {
-              const logs =
-                simulation.value.logs?.slice(-4).join(' ') || '';
-              throw new Error(
-                `Jupiter swap simulation failed. ${logs}`.trim(),
+            if (!simulationResult.success) {
+              await logJupiterSimulationFailure({
+                stage: 'jupiter_simulation',
+                result: simulationResult,
+                failedBuild: build,
+              });
+              console.warn(
+                'Jupiter simulation failed before signing; retrying with a fresh route:',
+                simulationResult.message,
               );
+
+              setSwapStatus('Refreshing Jupiter route...');
+              buildResult = await fetchJupiterBuild(buildParams);
+              if (!buildResult.success || !buildResult.data) {
+                throw new Error(
+                  buildResult.error ||
+                    'Failed to refresh Jupiter swap route.',
+                );
+              }
+
+              build = buildResult.data as JupiterBuildResponse;
+              if (build.outAmount && receiveToken?.decimals) {
+                const readable =
+                  Number(build.outAmount) /
+                  Math.pow(10, receiveToken.decimals);
+                setReceiveAmount(
+                  readable.toFixed(8).replace(/\.?0+$/, ''),
+                );
+              }
+
+              setSwapStatus('Simulating refreshed Jupiter swap...');
+              simulationResult = await simulateJupiterBuild({
+                build,
+                feePayer: selectedSolanaWallet.address,
+                connection,
+              });
+
+              if (!simulationResult.success) {
+                await logJupiterSimulationFailure({
+                  stage: 'jupiter_simulation_retry',
+                  result: simulationResult,
+                  failedBuild: build,
+                });
+                throw new Error(simulationResult.message);
+              }
             }
 
-            const unitsConsumed = simulation.value.unitsConsumed;
-            if (unitsConsumed) {
-              computeUnitLimit = Math.min(
-                Math.ceil(unitsConsumed * 1.2),
-                JUPITER_MAX_COMPUTE_UNITS,
-              );
-            }
+            computeUnitLimit = simulationResult.computeUnitLimit;
           } catch (simulationError) {
             console.warn(
               'Jupiter simulation failed before signing:',
@@ -4179,6 +4430,14 @@ export default function SwapTokenModal({
         rawMsg,
         error,
       );
+      if (!failureAlreadyReported) {
+        await reportWalletSwapFailure({
+          ...failureContext,
+          stage: 'jupiter_swap_error',
+          reason: rawMsg,
+          error: summarizeSolanaError(error),
+        });
+      }
       setSwapError(formatUserFriendlyError(rawMsg));
       setSwapStatus(null);
     } finally {
