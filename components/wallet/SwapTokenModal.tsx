@@ -1832,15 +1832,7 @@ export default function SwapTokenModal({
     }
 
     const preferredAddress = preferredSolanaWalletAddress?.trim();
-    if (
-      !preferredAddress ||
-      !hasPrivyEmbeddedSolanaLinkedAccount(
-        PrivyUser,
-        preferredAddress,
-      )
-    ) {
-      return undefined;
-    }
+    if (!preferredAddress) return undefined;
 
     const privyStandardWallet = solanaStandardWallets.find(
       isPrivyStandardSolanaWallet,
@@ -1864,7 +1856,6 @@ export default function SwapTokenModal({
       return undefined;
     }
   }, [
-    PrivyUser,
     solanaReady,
     solanaStandardWalletsReady,
     directSolanaWallets,
