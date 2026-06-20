@@ -651,6 +651,14 @@ const isPrivyEmbeddedSolanaWallet = (wallet?: any) =>
 const normalizeEvmAddress = (address?: string | null) =>
   typeof address === 'string' ? address.trim().toLowerCase() : '';
 
+const getEvmTokenWalletAddress = (token?: any) => {
+  const walletAddress =
+    typeof token?.walletAddress === 'string'
+      ? token.walletAddress.trim()
+      : '';
+  return walletAddress.startsWith('0x') ? walletAddress : '';
+};
+
 const normalizeWalletAddress = (address?: string | null) =>
   address?.trim().toLowerCase() ?? '';
 
@@ -2047,6 +2055,43 @@ export default function SwapTokenModal({
   }, [chainId, fromWalletAddress, payToken, wallets]);
 
   const { user: userData } = useUser();
+  const fallbackEthereumWalletAddress = useMemo(() => {
+    const linkedAccounts =
+      (PrivyUser as any)?.linkedAccounts ||
+      (PrivyUser as any)?.linked_accounts ||
+      [];
+    const linkedEthereumAccount = linkedAccounts.find(
+      (account: any) =>
+        getAccountField(account, 'chainType', 'chain_type') ===
+          'ethereum' &&
+        account?.type === 'wallet' &&
+        account?.address,
+    );
+
+    return (
+      ethWallet ||
+      userData?.ethereumWallet ||
+      linkedEthereumAccount?.address ||
+      ''
+    );
+  }, [PrivyUser, ethWallet, userData?.ethereumWallet]);
+  const selectedPayEvmWalletAddress = useMemo(
+    () =>
+      getEvmTokenWalletAddress(payToken) ||
+      fallbackEthereumWalletAddress,
+    [fallbackEthereumWalletAddress, payToken],
+  );
+  const selectedReceiveEvmWalletAddress = useMemo(
+    () =>
+      getEvmTokenWalletAddress(receiveToken) ||
+      selectedPayEvmWalletAddress ||
+      fallbackEthereumWalletAddress,
+    [
+      fallbackEthereumWalletAddress,
+      receiveToken,
+      selectedPayEvmWalletAddress,
+    ],
+  );
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -3741,21 +3786,22 @@ export default function SwapTokenModal({
         ? getTokenWalletAddress(payToken) ||
             selectedSolanaWallet?.address ||
             ''
-        : ethWallet || '',
+        : selectedPayEvmWalletAddress || '',
     );
     if (!receiveToken) {
       setToWalletAddress('');
     } else if (isSolanaToken(receiveToken, receiverChainId)) {
       setToWalletAddress(selectedSolanaWallet?.address || '');
     } else {
-      setToWalletAddress(ethWallet || '');
+      setToWalletAddress(selectedReceiveEvmWalletAddress || '');
     }
   }, [
-    ethWallet,
     chainId,
     payToken,
     receiveToken,
     receiverChainId,
+    selectedPayEvmWalletAddress,
+    selectedReceiveEvmWalletAddress,
     selectedSolanaWallet?.address,
   ]);
 
@@ -5186,12 +5232,29 @@ export default function SwapTokenModal({
           (activeQuote as any)?.action?.fromAddress ||
           (activeQuote as any)?.fromAddress ||
           (activeQuote as any)?.transactionRequest?.from;
-        const sourceWalletAddress =
-          quoteFromAddress ||
+        const intendedSourceWalletAddress =
+          selectedPayEvmWalletAddress ||
           fromWalletAddress ||
           ethWallet ||
           (fallbackEthereumAccount as any)?.address ||
           '';
+        if (
+          quoteFromAddress &&
+          intendedSourceWalletAddress &&
+          normalizeEvmAddress(quoteFromAddress) !==
+            normalizeEvmAddress(intendedSourceWalletAddress)
+        ) {
+          setSwapError(
+            'This quote was created for a different EVM wallet. Refreshing the quote fixed the wallet address; please try the swap again.',
+          );
+          setQuote(null);
+          setLastQuoteTime(null);
+          setIsSwapping(false);
+          return;
+        }
+
+        const sourceWalletAddress =
+          intendedSourceWalletAddress || quoteFromAddress || '';
         if (!sourceWalletAddress) {
           setSwapError('No Ethereum wallet connected');
           setIsSwapping(false);
@@ -5282,6 +5345,7 @@ export default function SwapTokenModal({
           { ...activeQuote.transactionRequest },
           wallet.address,
         );
+        rawTxReq.from = wallet.address;
         const gasField = rawTxReq.gasLimit ?? rawTxReq.gas;
         if (gasField !== undefined) {
           const gasNum =
