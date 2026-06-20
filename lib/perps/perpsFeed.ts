@@ -85,6 +85,7 @@ interface ReconcilePerpsPositionFeedParams {
   smartsiteId: string | null | undefined;
   masterAddress: string | null | undefined;
   activePositionKeys: string[];
+  observedDexes?: Array<string | null | undefined>;
   markPricesByCoin?: Record<string, string | number | null | undefined>;
   liquidationsByCoin?: Record<
     string,
@@ -331,6 +332,7 @@ export async function reconcilePerpsPositionFeed({
   smartsiteId,
   masterAddress,
   activePositionKeys,
+  observedDexes,
   markPricesByCoin,
   liquidationsByCoin,
 }: ReconcilePerpsPositionFeedParams) {
@@ -361,6 +363,7 @@ export async function reconcilePerpsPositionFeed({
         userId,
         masterAddress,
         activePositionKeys,
+        observedDexes,
         markPricesByCoin,
         liquidationsByCoin,
         updatedAt: new Date().toISOString(),

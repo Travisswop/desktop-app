@@ -577,6 +577,7 @@ export function PerpsPanel({
   useEffect(() => {
     const positions = allPositions;
     const smartsiteId = feedSmartsiteId;
+    const observedDexes = Object.keys(portfolio?.perDex || {});
 
     if (
       !portfolio ||
@@ -601,6 +602,7 @@ export function PerpsPanel({
     const reconcileSnapshotKey = [
       masterAddress,
       Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
+      `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
       ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
     ].join(':');
 
@@ -612,6 +614,7 @@ export function PerpsPanel({
         smartsiteId,
         masterAddress,
         activePositionKeys,
+        observedDexes,
         markPricesByCoin: mids,
       }).catch((feedError) => {
         reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
