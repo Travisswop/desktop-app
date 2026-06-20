@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   useConnectWallet,
+  useCreateWallet as useEvmCreateWallet,
   usePrivy,
   useSendTransaction,
   useWallets as useEvmWallets,
@@ -281,6 +282,25 @@ function uniqueWalletAddresses(...values: Array<string | undefined | null>) {
   return addresses;
 }
 
+function isEmbeddedWalletAlreadyExistsError(error: unknown) {
+  const code =
+    typeof error === 'object' && error && 'code' in error
+      ? String((error as { code?: unknown }).code || '')
+      : '';
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+      ? error
+      : '';
+
+  return (
+    code === 'embedded_wallet_already_exists' ||
+    message.includes('embedded_wallet_already_exists') ||
+    message.includes('already has an embedded wallet')
+  );
+}
+
 function emptyTimeSeriesData() {
   return {
     '1H': [],
@@ -511,7 +531,8 @@ export default function CheckoutPaymentClient({
   const { wallets: evmWallets } = useEvmWallets();
   const { sendTransaction } = useSendTransaction();
   const { wallets: solanaWallets } = useSolanaWallets();
-  const { createWallet } = useSolanaCreateWallet();
+  const { createWallet: createEvmWallet } = useEvmCreateWallet();
+  const { createWallet: createSolanaWallet } = useSolanaCreateWallet();
   const [intent, setIntent] = useState<CheckoutIntent | null>(null);
   const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const [tokenSelectionTouched, setTokenSelectionTouched] = useState(false);
@@ -524,6 +545,7 @@ export default function CheckoutPaymentClient({
   const [transactionHash, setTransactionHash] = useState('');
   const [creatingWallet, setCreatingWallet] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState(false);
+  const [restoringWallet, setRestoringWallet] = useState(false);
   const [copiedPayUri, setCopiedPayUri] = useState(false);
   const [mobilePlatform, setMobilePlatform] = useState<MobilePlatform>('other');
   const [tokenMenuOpen, setTokenMenuOpen] = useState(false);
@@ -933,11 +955,42 @@ export default function CheckoutPaymentClient({
     };
   }, [intent, needsSolanaSettlementQuote, selectedToken]);
 
+  const ensureEvmEmbeddedWallet = async () => {
+    await createEvmWallet().catch((walletError) => {
+      if (isEmbeddedWalletAlreadyExistsError(walletError)) return null;
+      throw walletError;
+    });
+  };
+
+  const ensureSolanaEmbeddedWallet = async () => {
+    await createSolanaWallet().catch((walletError) => {
+      if (isEmbeddedWalletAlreadyExistsError(walletError)) return null;
+      throw walletError;
+    });
+  };
+
+  const ensureEmbeddedWalletForSelectedRail = async () => {
+    if (selectedRail === 'lifi') {
+      await ensureEvmEmbeddedWallet();
+      return;
+    }
+    if (selectedRail === 'solana') {
+      await ensureSolanaEmbeddedWallet();
+      return;
+    }
+
+    await Promise.all([ensureEvmEmbeddedWallet(), ensureSolanaEmbeddedWallet()]);
+  };
+
   const handleCreateWallet = async () => {
     setCreatingWallet(true);
     setError(null);
     try {
-      await createWallet();
+      if (!authenticated) {
+        await login();
+        return;
+      }
+      await ensureEmbeddedWalletForSelectedRail();
       toast.success('Wallet created');
       await refetch();
     } catch (walletError) {
@@ -948,6 +1001,31 @@ export default function CheckoutPaymentClient({
       );
     } finally {
       setCreatingWallet(false);
+    }
+  };
+
+  const handleUsePasskeyWallet = async () => {
+    if (!ready) return;
+    setRestoringWallet(true);
+    setError(null);
+    try {
+      if (!authenticated) {
+        await login();
+        return;
+      }
+
+      await ensureEmbeddedWalletForSelectedRail();
+
+      toast.success('Swop wallet ready');
+      await refetch();
+    } catch (walletError) {
+      setError(
+        walletError instanceof Error
+          ? walletError.message
+          : 'Unable to prepare Swop wallet'
+      );
+    } finally {
+      setRestoringWallet(false);
     }
   };
 
@@ -1273,10 +1351,10 @@ export default function CheckoutPaymentClient({
     }
     if (needsEvmSigner) {
       return selectedToken?.walletAddress
-        ? `Connect ${truncateWalletAddress(
+        ? `Sign in with passkey/SMS or connect ${truncateWalletAddress(
             selectedToken.walletAddress
           )} to pay with this token.`
-        : 'Connect an EVM wallet to pay with this token.';
+        : 'Sign in with passkey/SMS or connect an EVM wallet to pay with this token.';
     }
     return '';
   })();
@@ -1595,52 +1673,64 @@ export default function CheckoutPaymentClient({
               {!ready || !authenticated ? (
                 <button
                   type="button"
-                  onClick={login}
-                  disabled={!ready}
+                  onClick={handleUsePasskeyWallet}
+                  disabled={!ready || restoringWallet}
                   className="mt-6 inline-flex h-16 w-full items-center justify-center rounded-2xl bg-[#18a957] px-5 text-base font-bold text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Pay with passkey or SMS
+                  {restoringWallet ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  {restoringWallet ? 'Opening sign-in...' : 'Pay with passkey or SMS'}
                 </button>
               ) : needsEvmSigner ? (
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
+                    onClick={handleUsePasskeyWallet}
+                    disabled={restoringWallet}
+                    className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-[#18a957] px-4 text-sm font-bold text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
+                  >
+                    {restoringWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wallet className="h-4 w-4" />
+                    )}
+                    Pay with passkey or SMS
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleConnectWallet}
                     disabled={connectingWallet}
-                    className={`inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-[#101114] px-4 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                      selectedToken?.walletAddress ? 'sm:col-span-2' : ''
-                    }`}
+                    className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-[#dfe4eb] bg-white px-4 text-sm font-bold text-[#101114] transition hover:border-[#c8d0dc] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
                   >
                     {connectingWallet ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Link2 className="h-4 w-4" />
                     )}
-                    Connect wallet
+                    Connect external wallet
                   </button>
-                  {!selectedToken?.walletAddress ? (
-                    <button
-                      type="button"
-                      onClick={handleCreateWallet}
-                      disabled={creatingWallet}
-                      className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-[#dfe4eb] bg-white px-4 text-sm font-bold text-[#101114] transition hover:border-[#c8d0dc] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {creatingWallet ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Wallet className="h-4 w-4" />
-                      )}
-                      Create Swop wallet
-                    </button>
-                  ) : null}
                 </div>
               ) : !solanaWallet && evmSignerWalletAddresses.length === 0 ? (
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
+                    onClick={handleUsePasskeyWallet}
+                    disabled={restoringWallet}
+                    className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-[#18a957] px-4 text-sm font-bold text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {restoringWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wallet className="h-4 w-4" />
+                    )}
+                    Pay with passkey
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleConnectWallet}
                     disabled={connectingWallet}
-                    className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-[#101114] px-4 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-[#dfe4eb] bg-white px-4 text-sm font-bold text-[#101114] transition hover:border-[#c8d0dc] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {connectingWallet ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1648,19 +1738,6 @@ export default function CheckoutPaymentClient({
                       <Link2 className="h-4 w-4" />
                     )}
                     Connect wallet
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCreateWallet}
-                    disabled={creatingWallet}
-                    className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-[#dfe4eb] bg-white px-4 text-sm font-bold text-[#101114] transition hover:border-[#c8d0dc] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {creatingWallet ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Wallet className="h-4 w-4" />
-                    )}
-                    Create Swop wallet
                   </button>
                 </div>
               ) : (
@@ -2059,19 +2136,23 @@ export default function CheckoutPaymentClient({
                 </button>
                 <button
                   type="button"
-                  onClick={login}
-                  disabled={!ready}
+                  onClick={handleUsePasskeyWallet}
+                  disabled={!ready || restoringWallet}
                   className="flex min-h-[84px] items-center gap-3 rounded-md border border-[#101114] bg-[#101114] p-3 text-left text-white transition disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
-                    <Wallet className="h-4 w-4" />
+                    {restoringWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wallet className="h-4 w-4" />
+                    )}
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">
-                      Sign in or connect
+                      Pay with passkey or SMS
                     </span>
                     <span className="mt-1 block text-xs font-medium text-white/70">
-                      Choose wallet on this link
+                      Restore Swop wallet
                     </span>
                   </span>
                   <ArrowRight className="ml-auto h-4 w-4 flex-shrink-0 text-white/70" />
@@ -2087,26 +2168,46 @@ export default function CheckoutPaymentClient({
                   Wallet selection
                 </p>
                 <h2 className="mt-2 text-xl font-semibold">
-                  Connect the paying wallet
+                  Sign in to your Swop wallet
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#646b78]">
-                  This token balance belongs to{' '}
+                  Use passkey or SMS to restore your Swop wallet for{' '}
                   {selectedToken?.walletAddress
                     ? truncateWalletAddress(selectedToken.walletAddress)
                     : 'an EVM wallet'}
-                  . Connect that wallet before confirming payment.
+                  , or connect that exact wallet externally.
                 </p>
               </div>
               <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-[440px]">
                 <button
                   type="button"
-                  onClick={handleConnectWallet}
-                  disabled={connectingWallet}
-                  className={`flex min-h-[76px] items-center gap-3 rounded-md border border-[#101114] bg-[#101114] p-3 text-left text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                    selectedToken?.walletAddress ? 'sm:col-span-2' : ''
-                  }`}
+                  onClick={handleUsePasskeyWallet}
+                  disabled={restoringWallet}
+                  className="flex min-h-[76px] items-center gap-3 rounded-md border border-[#18a957] bg-[#18a957] p-3 text-left text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
                 >
                   <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
+                    {restoringWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wallet className="h-4 w-4" />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">
+                      Pay with passkey or SMS
+                    </span>
+                    <span className="mt-1 block text-xs font-medium text-white/70">
+                      Restore Swop wallet
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConnectWallet}
+                  disabled={connectingWallet}
+                  className="flex min-h-[76px] items-center gap-3 rounded-md border border-[#dde1e6] bg-white p-3 text-left transition hover:border-[#101114] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-[#f0f2f5] text-[#101114]">
                     {connectingWallet ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
@@ -2114,38 +2215,14 @@ export default function CheckoutPaymentClient({
                     )}
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold">
-                      Connect wallet
+                    <span className="block text-sm font-semibold text-[#101114]">
+                      Connect external wallet
                     </span>
-                    <span className="mt-1 block text-xs font-medium text-white/70">
+                    <span className="mt-1 block text-xs font-medium text-[#737b8c]">
                       Select the funded wallet
                     </span>
                   </span>
                 </button>
-                {!selectedToken?.walletAddress ? (
-                  <button
-                    type="button"
-                    onClick={handleCreateWallet}
-                    disabled={creatingWallet}
-                    className="flex min-h-[76px] items-center gap-3 rounded-md border border-[#dde1e6] bg-white p-3 text-left transition hover:border-[#101114] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-[#f0f2f5] text-[#101114]">
-                      {creatingWallet ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Wallet className="h-4 w-4" />
-                      )}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-[#101114]">
-                        Create Swop wallet
-                      </span>
-                      <span className="mt-1 block text-xs font-medium text-[#737b8c]">
-                        Use a new Swop wallet
-                      </span>
-                    </span>
-                  </button>
-                ) : null}
               </div>
             </div>
           </section>
@@ -2160,11 +2237,33 @@ export default function CheckoutPaymentClient({
                   Choose a wallet to pay
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#646b78]">
-                  Connect an existing wallet or create a Swop wallet, then
-                  Swop Pay will show the balances you can use.
+                  Sign in with passkey or SMS to restore your Swop wallet, or
+                  connect an external wallet as a fallback.
                 </p>
               </div>
               <div className="grid w-full gap-2 sm:grid-cols-3 lg:max-w-[640px]">
+                <button
+                  type="button"
+                  onClick={handleUsePasskeyWallet}
+                  disabled={!ready || restoringWallet}
+                  className="flex min-h-[76px] items-center gap-3 rounded-md border border-[#18a957] bg-[#18a957] p-3 text-left text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-3"
+                >
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
+                    {restoringWallet ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wallet className="h-4 w-4" />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">
+                      Pay with passkey or SMS
+                    </span>
+                    <span className="mt-1 block text-xs font-medium text-white/70">
+                      Restore Swop wallet
+                    </span>
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={handleOpenPhantom}
@@ -2175,9 +2274,7 @@ export default function CheckoutPaymentClient({
                     <PhantomMark className="h-5 w-5" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold">
-                      Phantom
-                    </span>
+                    <span className="block text-sm font-semibold">Phantom</span>
                     <span className="mt-1 block text-xs font-medium text-white/70">
                       Open provider
                     </span>
@@ -2220,10 +2317,10 @@ export default function CheckoutPaymentClient({
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-[#101114]">
-                      Create Swop wallet
+                      Create embedded wallet
                     </span>
                     <span className="mt-1 block text-xs font-medium text-[#737b8c]">
-                      Use a new Swop wallet
+                      Backup wallet setup
                     </span>
                   </span>
                 </button>
