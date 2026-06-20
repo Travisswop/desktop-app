@@ -4008,6 +4008,7 @@ export default function SwapTokenModal({
           uint8ArrayToBase64(serializedTransaction),
           privyWalletId,
           privyAccessToken,
+          { sponsor: true },
         );
 
         if (!sponsoredResult.success) {
@@ -4047,6 +4048,50 @@ export default function SwapTokenModal({
 
         if (!canUseUserFundedFallback) {
           throw new Error(getSolanaFeeFallbackError(true));
+        }
+
+        try {
+          setSwapStatus(userFundedStatus);
+          const userFundedResult = await sponsorSolanaTransaction(
+            uint8ArrayToBase64(serializedTransaction),
+            privyWalletId,
+            privyAccessToken,
+            { sponsor: false },
+          );
+
+          if (!userFundedResult.success) {
+            throw new Error(userFundedResult.error);
+          }
+
+          const signature = formatSolanaSignature(
+            userFundedResult.signature,
+          );
+          console.log(
+            '[Solana sponsorship] Server user-funded submit succeeded',
+            {
+              context,
+              signature: maskIdentifier(signature),
+              walletAddress: maskIdentifier(wallet?.address),
+              walletId: maskIdentifier(privyWalletId),
+            },
+          );
+          return signature;
+        } catch (userFundedError) {
+          if (isUserCancellationError(userFundedError)) {
+            throw userFundedError;
+          }
+          if (isMfaRequiredError(userFundedError)) {
+            throw new Error(MFA_REQUIRED_ERROR_MESSAGE);
+          }
+
+          console.warn(`${context} server user-funded submit failed`, {
+            error: summarizeSolanaError(userFundedError),
+            walletAddress: maskIdentifier(wallet?.address),
+            walletId: maskIdentifier(privyWalletId),
+            transaction: summarizeSolanaTransaction(
+              serializedTransaction,
+            ),
+          });
         }
       }
     } else if (walletSupportsSponsorship) {

@@ -19,6 +19,7 @@ export async function sponsorSolanaTransaction(
   takerSignedTransactionBase64: string,
   walletId: string,
   privyAccessToken?: string | null,
+  options: { sponsor?: boolean } = {},
 ): Promise<
   | { success: true; signature: string }
   | { success: false; error: string }
@@ -46,13 +47,14 @@ export async function sponsorSolanaTransaction(
   });
 
   try {
+    const sponsor = options.sponsor ?? true;
     const response = await privy
       .wallets()
       .solana()
       .signAndSendTransaction(walletId, {
         caip2: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
         transaction: takerSignedTransactionBase64,
-        sponsor: true,
+        sponsor,
         ...(privyAccessToken
           ? {
               authorization_context: {
