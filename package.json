@@ -11,6 +11,7 @@
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
+    "review:guard": "bash scripts/qa/agent-review-guard.sh",
     "qa:astro-cards": "node scripts/qa/astro-card-smoke.mjs",
     "qa:astro-cards:login": "node scripts/qa/astro-card-smoke.mjs --setup-login --launch"
   },

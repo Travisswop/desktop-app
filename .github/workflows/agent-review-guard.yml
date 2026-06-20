@@ -1,0 +1,62 @@
+name: Agent Review Guard
+
+on:
+  schedule:
+    - cron: "23 10 * * *"
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-review-guard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Security, Bugs, Build, and Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: true
+      NEXT_TELEMETRY_DISABLED: "1"
+      REVIEW_OUTPUT_DIR: review-artifacts
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run automated review guard
+        run: npm run review:guard
+
+      - name: Publish review summary
+        if: always()
+        run: |
+          if [[ -f review-artifacts/agent-review-summary.md ]]; then
+            cat review-artifacts/agent-review-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No review summary was produced." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload review artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-review-${{ github.run_id }}
+          path: review-artifacts
+          if-no-files-found: warn
