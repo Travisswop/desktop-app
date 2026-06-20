@@ -78,6 +78,7 @@ import { MarketService } from '@/services/market-service';
 import {
   decimalAmountToRawUnits,
   getSafeSwapInputAmount,
+  SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS,
   normalizeTokenDecimals,
 } from '@/lib/wallet/swapAmounts';
 import {
@@ -128,6 +129,9 @@ const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const LIFI_NATIVE_SOL_ADDRESS = '11111111111111111111111111111111';
 const DEFAULT_SOLANA_RPC_URL =
   'https://dacey-pp61jd-fast-mainnet.helius-rpc.com/';
+const SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS_NUM = Number(
+  SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS,
+);
 
 const getSolanaRpcUrl = () =>
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() ||
@@ -450,7 +454,10 @@ const isPrivyEmbeddedSolanaWallet = (wallet?: any) =>
   Boolean(
     wallet &&
     (isPrivyEmbeddedWalletType(wallet.walletClientType) ||
-      wallet.connectorType === 'embedded'),
+      wallet.connectorType === 'embedded' ||
+      String(wallet.standardWallet?.name || '')
+        .toLowerCase()
+        .includes('privy')),
   );
 
 const normalizeEvmAddress = (address?: string | null) =>
@@ -471,6 +478,51 @@ const maskIdentifier = (value?: string | null) => {
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 };
 
+const isPrivyEmbeddedSolanaLinkedAccount = (
+  linkedAccount: any,
+  walletAddress?: string | null,
+) => {
+  if (linkedAccount?.type !== 'wallet') return false;
+  if (
+    getAccountField(linkedAccount, 'chainType', 'chain_type') !==
+    'solana'
+  ) {
+    return false;
+  }
+
+  const normalizedAddress = normalizeWalletAddress(walletAddress);
+  if (
+    normalizedAddress &&
+    normalizeWalletAddress(linkedAccount?.address) !== normalizedAddress
+  ) {
+    return false;
+  }
+
+  const connectorType = getAccountField(
+    linkedAccount,
+    'connectorType',
+    'connector_type',
+  );
+  const walletClientType = getAccountField(
+    linkedAccount,
+    'walletClientType',
+    'wallet_client_type',
+  );
+
+  return (
+    connectorType === 'embedded' ||
+    isPrivyEmbeddedWalletType(walletClientType)
+  );
+};
+
+const hasPrivyEmbeddedSolanaLinkedAccount = (
+  privyUser: any,
+  walletAddress?: string | null,
+) =>
+  (privyUser?.linkedAccounts || []).some((linkedAccount: any) =>
+    isPrivyEmbeddedSolanaLinkedAccount(linkedAccount, walletAddress),
+  );
+
 const getPrivyEmbeddedSolanaWalletId = (
   privyUser: any,
   walletAddress?: string | null,
@@ -485,25 +537,12 @@ const getPrivyEmbeddedSolanaWalletId = (
       getAccountField(linkedAccount, 'chainType', 'chain_type') ===
         'solana',
   );
-  const account = solanaWalletAccounts.find((linkedAccount: any) => {
-    const connectorType = getAccountField(
+  const account = solanaWalletAccounts.find((linkedAccount: any) =>
+    isPrivyEmbeddedSolanaLinkedAccount(
       linkedAccount,
-      'connectorType',
-      'connector_type',
-    );
-    const walletClientType = getAccountField(
-      linkedAccount,
-      'walletClientType',
-      'wallet_client_type',
-    );
-
-    return (
-      connectorType === 'embedded' &&
-      isPrivyEmbeddedWalletType(walletClientType) &&
-      normalizeWalletAddress(linkedAccount?.address) ===
-        normalizedAddress
-    );
-  });
+      normalizedAddress,
+    ),
+  );
 
   console.log('[Solana sponsorship] User wallet ID resolution', {
     selectedWallet: maskIdentifier(walletAddress),
@@ -879,9 +918,17 @@ const getSolanaFeeFallbackError = (
     ? 'Gas sponsorship is unavailable and this wallet does not have enough SOL to pay the network fee. Add a small amount of SOL, then try again.'
     : 'This Solana wallet cannot use gas sponsorship. Add a small amount of SOL for the network fee, or switch to your Swop embedded wallet.';
 
+const formatNativeSolSwapShortfallError = (shortfallLamports: number) => {
+  const shortfallSol = Math.max(shortfallLamports, 0) / 1e9;
+  return `Insufficient SOL: you need ${shortfallSol.toFixed(5)} more SOL to cover the swap amount plus the temporary wrapped-SOL buffer. Privy gas sponsorship covers network fees, but native SOL swaps still need this small refundable buffer.`;
+};
+
 const formatUserFriendlyError = (error: string): string => {
   const lowerError = error.toLowerCase();
   if (isMfaRequiredError(error)) return MFA_REQUIRED_ERROR_MESSAGE;
+  if (lowerError.includes('temporary wrapped-sol buffer')) {
+    return error;
+  }
   if (
     lowerError.includes('gas sponsorship failed') ||
     lowerError.includes('sponsored transaction failed')
@@ -3809,28 +3856,33 @@ export default function SwapTokenModal({
             formatTokenAmount(payAmount, payToken?.decimals ?? 9),
           )
         : 0;
+      const nativeSolInputReserveLamports = isSOLInput
+        ? SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS_NUM
+        : 0;
+      const requiredSolInputLamports =
+        swapLamports + nativeSolInputReserveLamports;
 
       canRunUserFundedSimulation =
         solLamports >=
-        USER_FEE_PAYER_SIMULATION_BUFFER + swapLamports;
+        USER_FEE_PAYER_SIMULATION_BUFFER + requiredSolInputLamports;
 
       console.log('[Solana sponsorship] Jupiter balance check', {
         selectedWallet: maskIdentifier(selectedSolanaWallet.address),
         solLamports,
         swapLamports,
+        nativeSolInputReserveLamports,
+        requiredSolInputLamports,
         simulationBufferLamports: USER_FEE_PAYER_SIMULATION_BUFFER,
         canRunUserFundedSimulation,
         isSOLInput,
         isSOLOutput,
       });
 
-      if (solLamports < swapLamports) {
-        const shortfall = (
-          (swapLamports - solLamports) /
-          1e9
-        ).toFixed(5);
+      if (solLamports < requiredSolInputLamports) {
         throw new Error(
-          `Insufficient SOL: you need ${shortfall} more SOL to cover the swap amount.`,
+          formatNativeSolSwapShortfallError(
+            requiredSolInputLamports - solLamports,
+          ),
         );
       }
 
@@ -3838,6 +3890,15 @@ export default function SwapTokenModal({
         PrivyUser,
         selectedSolanaWallet.address,
       );
+      const linkedAccountSupportsSponsorship =
+        hasPrivyEmbeddedSolanaLinkedAccount(
+          PrivyUser,
+          selectedSolanaWallet.address,
+        );
+      const walletSupportsSponsorship =
+        Boolean(userPrivySolanaWalletId) ||
+        linkedAccountSupportsSponsorship ||
+        isPrivyEmbeddedSolanaWallet(selectedSolanaWallet);
       console.log(
         '[Solana sponsorship] Jupiter sponsorship context',
         {
@@ -3848,9 +3909,12 @@ export default function SwapTokenModal({
             userPrivySolanaWalletId,
           ),
           hasPrivyUser: Boolean(PrivyUser),
+          walletSupportsSponsorship,
+          linkedAccountSupportsSponsorship,
           canRunUserFundedSimulation,
           solLamports,
           swapLamports,
+          nativeSolInputReserveLamports,
         },
       );
 
@@ -3975,8 +4039,10 @@ export default function SwapTokenModal({
               ),
               solLamports,
               swapLamports,
+              nativeSolInputReserveLamports,
               requiredLamports:
-                USER_FEE_PAYER_SIMULATION_BUFFER + swapLamports,
+                USER_FEE_PAYER_SIMULATION_BUFFER +
+                requiredSolInputLamports,
             },
           );
         }
@@ -4000,12 +4066,14 @@ export default function SwapTokenModal({
           );
         } else {
           console.log(
-            '[Solana sponsorship] User Privy wallet ID missing; using fallback path',
+            '[Solana sponsorship] User Privy wallet ID missing; using hook wallet sponsorship detection',
             {
               selectedWallet: maskIdentifier(
                 selectedSolanaWallet.address,
               ),
               hasPrivyUser: Boolean(PrivyUser),
+              walletSupportsSponsorship,
+              linkedAccountSupportsSponsorship,
               linkedAccountCount:
                 PrivyUser?.linkedAccounts?.length ?? 0,
             },
@@ -4020,9 +4088,9 @@ export default function SwapTokenModal({
           userFundedStatus:
             'Gas sponsorship unavailable; signing Jupiter swap...',
           context: 'Jupiter swap',
-          walletSupportsSponsorshipOverride: Boolean(
-            userPrivySolanaWalletId,
-          ),
+          walletSupportsSponsorshipOverride: walletSupportsSponsorship
+            ? true
+            : undefined,
         });
 
         if (!txId) {
@@ -4139,16 +4207,19 @@ export default function SwapTokenModal({
             formatTokenAmount(payAmount, payToken?.decimals ?? 9),
           )
         : 0;
+      const nativeSolInputReserveLamports = isSOLInput
+        ? SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS_NUM
+        : 0;
+      const requiredSolInputLamports =
+        swapLamports + nativeSolInputReserveLamports;
       const canUseUserFundedFallback =
-        solLamports >= 15_000 + swapLamports;
+        solLamports >= 15_000 + requiredSolInputLamports;
 
-      if (solLamports < swapLamports) {
-        const shortfall = (
-          (swapLamports - solLamports) /
-          1e9
-        ).toFixed(5);
+      if (solLamports < requiredSolInputLamports) {
         throw new Error(
-          `Insufficient SOL: you need ${shortfall} more SOL to cover the swap amount.`,
+          formatNativeSolSwapShortfallError(
+            requiredSolInputLamports - solLamports,
+          ),
         );
       }
 
@@ -4157,6 +4228,19 @@ export default function SwapTokenModal({
       const serializedTransaction = new Uint8Array(
         transaction.serialize(),
       );
+      const userPrivySolanaWalletId = getPrivyEmbeddedSolanaWalletId(
+        PrivyUser,
+        selectedSolanaWallet.address,
+      );
+      const linkedAccountSupportsSponsorship =
+        hasPrivyEmbeddedSolanaLinkedAccount(
+          PrivyUser,
+          selectedSolanaWallet.address,
+        );
+      const walletSupportsSponsorship =
+        Boolean(userPrivySolanaWalletId) ||
+        linkedAccountSupportsSponsorship ||
+        isPrivyEmbeddedSolanaWallet(selectedSolanaWallet);
 
       const signature = await submitSolanaTransactionWithFallback({
         serializedTransaction,
@@ -4167,6 +4251,9 @@ export default function SwapTokenModal({
         userFundedStatus:
           'Gas sponsorship unavailable; signing Solana swap...',
         context: 'Solana swap',
+        walletSupportsSponsorshipOverride: walletSupportsSponsorship
+          ? true
+          : undefined,
       });
 
       // setTxHash(signature);
@@ -4624,8 +4711,11 @@ export default function SwapTokenModal({
       isSOLInput ? 9 : 6,
     );
 
-    // Gas sponsorship covers swap fees, and the backend sponsor prepares ATAs.
-    const reserveRawUnits = 0n;
+    // Sponsorship covers network fees, but native SOL inputs still need a
+    // temporary wrapped-SOL rent buffer during Jupiter/LiFi execution.
+    const reserveRawUnits = isSOLInput
+      ? SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS
+      : 0n;
 
     setPayAmount(
       getSafeSwapInputAmount({

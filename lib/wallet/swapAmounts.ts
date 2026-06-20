@@ -1,5 +1,9 @@
 const DEFAULT_DISPLAY_DECIMALS = 8;
 const PERCENTAGE_SCALE = 10_000n;
+export const SOLANA_WRAPPED_SOL_RENT_LAMPORTS = 2_039_280n;
+export const SOLANA_SWAP_LAMPORT_BUFFER = 15_000n;
+export const SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS =
+  SOLANA_WRAPPED_SOL_RENT_LAMPORTS + SOLANA_SWAP_LAMPORT_BUFFER;
 
 export function normalizeTokenDecimals(decimals: number | bigint | undefined, fallback = 6) {
   const value = typeof decimals === 'bigint' ? Number(decimals) : decimals;

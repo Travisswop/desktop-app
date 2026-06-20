@@ -1,6 +1,7 @@
 import {
   decimalAmountToRawUnits,
   getSafeSwapInputAmount,
+  SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS,
 } from '@/lib/wallet/swapAmounts';
 
 describe('wallet swap amount formatting', () => {
@@ -36,9 +37,20 @@ describe('wallet swap amount formatting', () => {
         balance: '1',
         decimals: 9,
         percent: 1,
-        reserveRawUnits: 2_039_280n + 15_000n,
+        reserveRawUnits: SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS,
       }),
     ).toBe('0.99794572');
+  });
+
+  it('leaves the native SOL buffer when maxing a sponsored SOL swap', () => {
+    expect(
+      getSafeSwapInputAmount({
+        balance: '0.92',
+        decimals: 9,
+        percent: 1,
+        reserveRawUnits: SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS,
+      }),
+    ).toBe('0.91794572');
   });
 
   it('preserves token-native decimal precision for 6-decimal tokens', () => {
