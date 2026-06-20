@@ -88,6 +88,11 @@ import {
   type TokenMarketQuote,
 } from '@/lib/wallet/tokenMarketQuoteEnrichment';
 import {
+  LEGACY_SWOP_STOCK_MINT,
+  SWOP_TOKEN_MINT,
+  reconcileSelectedSwapToken,
+} from '@/lib/wallet/swapTokenSelection';
+import {
   ensureSponsoredSolanaTokenAccount,
   isNativeSolMint,
 } from '@/lib/solana/sponsoredTokenAccounts';
@@ -115,7 +120,7 @@ const COPY_TRADE_REWARD_BPS = 25;
 const COPY_TRADE_REWARD_MODE = 'swop_reward_wallet';
 const SWOP_REWARD_TOKEN = {
   symbol: 'SWOP',
-  mint: 'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1',
+  mint: SWOP_TOKEN_MINT,
   chain: 'solana',
   decimals: 9,
 };
@@ -990,7 +995,7 @@ const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
     'PreC1KtJ1sBPPqaeeqL6Qb15GTLCYVvyYEwxhdfTwfx',
     'PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB',
     '2CgwU3D1cPvCPs3u64JzU4mz2w6u8bk7R3BfJNvfzTK6',
-    'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB',
+    LEGACY_SWOP_STOCK_MINT,
     'Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ',
     'XsueG8BtpquVJX9LVLLEGuViXUungE6WmK5YZ3p3bd1',
     'XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W',
@@ -1018,7 +1023,7 @@ const tokenCategoryAddresses: Record<TokenCategory, Set<string>> = {
   ]),
   crypto: new Set([
     'So11111111111111111111111111111111111111112',
-    'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1',
+    SWOP_TOKEN_MINT,
     'cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij',
     '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs',
     'A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS',
@@ -1962,12 +1967,9 @@ export default function SwapTokenModal({
     }
 
     if (!receiveToken) {
-      const swopAddress =
-        'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB';
-      // Look up by symbol first, then by address — the token in the user's
-      // wallet may carry the same contract address under a different symbol
-      // (e.g. TSLAX). Using the wallet entry ensures the correct decimals
-      // (8 for TSLAX) are used instead of the hardcoded fallback (6).
+      const swopAddress = SWOP_TOKEN_MINT;
+      // Look up by symbol first, then by the canonical mint. Using the wallet
+      // row keeps the selected token aligned with the account's live balance.
       const defaultReceive = tokens.find(
         (t) =>
           t.symbol?.toUpperCase() === 'SWOP' &&
@@ -1977,9 +1979,10 @@ export default function SwapTokenModal({
           symbol: 'SWOP',
           name: 'SWOP',
           address: swopAddress,
+          id: swopAddress,
           chain: 'SOLANA',
           chainId: '1151111081099710',
-          decimals: 8,
+          decimals: 9,
           logoURI:
             'https://coin-images.coingecko.com/coins/images/66773/large/Group_1000007182_copy.png?1750487480',
           balance: null,
@@ -1988,6 +1991,17 @@ export default function SwapTokenModal({
       setReceiverChainId('1151111081099710');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokens]);
+
+  useEffect(() => {
+    if (!tokens?.length) return;
+
+    setPayToken((current: any) =>
+      reconcileSelectedSwapToken(current, tokens),
+    );
+    setReceiveToken((current: any) =>
+      reconcileSelectedSwapToken(current, tokens),
+    );
   }, [tokens]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -4545,8 +4559,9 @@ export default function SwapTokenModal({
 
   // ── Token selection ───────────────────────────────────────────────────────────
   const handleTokenSelect = (t: any, type: 'pay' | 'receive') => {
-    const tKey = getTokenIdentityKey(t);
-    const tokenChainId = getTokenChainId(t);
+    const selectedToken = reconcileSelectedSwapToken(t, tokens);
+    const tKey = getTokenIdentityKey(selectedToken);
+    const tokenChainId = getTokenChainId(selectedToken);
 
     if (type === 'pay') {
       const receiveKey = getTokenIdentityKey(receiveToken);
@@ -4558,7 +4573,7 @@ export default function SwapTokenModal({
         setReceiveToken(payToken ?? null);
         setReceiverChainId(prevPayChainId);
       }
-      setPayToken(t);
+      setPayToken(selectedToken);
       if (tokenChainId) setChainId(tokenChainId);
     } else {
       const payKey = getTokenIdentityKey(payToken);
@@ -4569,7 +4584,7 @@ export default function SwapTokenModal({
         if (previousReceiveChainId)
           setChainId(previousReceiveChainId);
       }
-      setReceiveToken(t);
+      setReceiveToken(selectedToken);
       if (tokenChainId) setReceiverChainId(tokenChainId);
     }
     setOpenDrawer(false);
