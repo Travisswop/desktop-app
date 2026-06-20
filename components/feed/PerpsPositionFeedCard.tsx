@@ -159,6 +159,32 @@ function normalizePositionStatus(
   return 'open';
 }
 
+function dateMs(value: unknown) {
+  const milliseconds = Date.parse(String(value || ''));
+  return Number.isFinite(milliseconds) ? milliseconds : null;
+}
+
+function terminalTimestampPredatesOpen(
+  content: Partial<PerpsPositionFeedContent>,
+  status: 'open' | 'closed' | 'liquidated',
+) {
+  if (status === 'open') return false;
+
+  const openedAt = dateMs(content.openedAt);
+  const terminalAt =
+    status === 'liquidated'
+      ? dateMs(content.liquidatedAt) ||
+        dateMs(content.closedAt) ||
+        dateMs(content.updatedAt)
+      : dateMs(content.closedAt) || dateMs(content.updatedAt);
+
+  return (
+    openedAt !== null &&
+    terminalAt !== null &&
+    terminalAt < openedAt - 5 * 60 * 1000
+  );
+}
+
 function hasCrossedLiquidationPrice({
   side,
   markPrice,
@@ -283,7 +309,10 @@ export default function PerpsPositionFeedCard({
   const rawCoin = String(content.coin || 'BTC');
   const coin = rawCoin.toUpperCase();
   const side = content.side === 'short' ? 'short' : 'long';
-  const storedStatus = normalizePositionStatus(content.status, content.event);
+  const rawStoredStatus = normalizePositionStatus(content.status, content.event);
+  const storedStatus = terminalTimestampPredatesOpen(content, rawStoredStatus)
+    ? 'open'
+    : rawStoredStatus;
   const hasStoredTerminalStatus = storedStatus !== 'open';
   const leverage = Math.max(1, Math.round(finiteNumber(content.leverage, 1)));
   const storedMarkPrice = firstFiniteNumber([
