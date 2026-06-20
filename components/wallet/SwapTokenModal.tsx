@@ -27,6 +27,7 @@ import {
 import { getJupiterBuild as fetchJupiterBuild } from '@/actions/jupiterSwap';
 import { notifySwapFee } from '@/actions/notifySwapFee';
 import {
+  useConnectWallet,
   usePrivy,
   useSendTransaction,
   useWallets,
@@ -93,6 +94,7 @@ import {
   SWOP_TOKEN_MINT,
   reconcileSelectedSwapToken,
 } from '@/lib/wallet/swapTokenSelection';
+import { shouldDisableSwapActionButton } from '@/lib/wallet/swapActionButtonState';
 import {
   ensureSponsoredSolanaTokenAccount,
   isNativeSolMint,
@@ -1601,6 +1603,8 @@ export default function SwapTokenModal({
   const [swapError, setSwapError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [isSwapping, setIsSwapping] = useState(false);
+  const [isConnectingSigningWallet, setIsConnectingSigningWallet] =
+    useState(false);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
   const [gasBalanceError, setGasBalanceError] = useState<
     string | null
@@ -1688,6 +1692,7 @@ export default function SwapTokenModal({
 
   // ── Wallet hooks ─────────────────────────────────────────────────────────────
   const { wallets } = useWallets();
+  const { connectWallet } = useConnectWallet();
   const { sendTransaction: sendPrivyTransaction } =
     useSendTransaction();
   const { ready: solanaReady, wallets: directSolanaWallets } =
@@ -1764,7 +1769,13 @@ export default function SwapTokenModal({
     );
   }, [chainId, fromWalletAddress, payToken, wallets]);
 
-  const { user: PrivyUser, getAccessToken } = usePrivy();
+  const {
+    user: PrivyUser,
+    getAccessToken,
+    ready: privyReady,
+    authenticated,
+    login,
+  } = usePrivy();
   const { user: userData } = useUser();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1791,6 +1802,29 @@ export default function SwapTokenModal({
     useRef<CopyTradeRewardPreview | null>(null);
   const isCopyTrade = copyTradeContext.isCopyTrade;
   const copyTradePostId = copyTradeContext.sourcePostId;
+
+  const handleConnectSigningWallet = useCallback(async () => {
+    if (!privyReady) return;
+
+    setIsConnectingSigningWallet(true);
+    setSwapError(null);
+    try {
+      if (!authenticated) {
+        login();
+        return;
+      }
+
+      await connectWallet();
+    } catch (connectError) {
+      setSwapError(
+        connectError instanceof Error
+          ? connectError.message
+          : 'Unable to connect wallet',
+      );
+    } finally {
+      setIsConnectingSigningWallet(false);
+    }
+  }, [authenticated, connectWallet, login, privyReady]);
 
   useEffect(() => {
     if (
@@ -4822,9 +4856,25 @@ export default function SwapTokenModal({
     );
 
   const balanceValidation = validateBalance();
-  const isSwapDone =
+  const isSwapDone = Boolean(
     swapStatus?.includes('confirmed') ||
-    swapStatus?.includes('completed');
+      swapStatus?.includes('completed'),
+  );
+  const swapButtonLoading = isSwapButtonLoading();
+  const swapActionButtonDisabled = shouldDisableSwapActionButton({
+    isSwapDone,
+    isSwapping,
+    isConnectingSigningWallet,
+    balanceIsValid: balanceValidation.isValid,
+    hasGasBalanceError: !!gasBalanceError,
+    hasSolanaWalletMismatch: !!solanaSwapWalletError,
+    isSwapButtonLoading: swapButtonLoading,
+    hasPayToken: !!payToken,
+    hasReceiveToken: !!receiveToken,
+    hasPayAmount: !!payAmount,
+    hasReceiveAmount: !!receiveAmount,
+    privyReady,
+  });
   const routeProviderLabel = isSolanaToSolanaSwap()
     ? 'Jupiter'
     : 'Li.Fi';
@@ -5486,36 +5536,33 @@ export default function SwapTokenModal({
               type="button"
               onClick={(event) => {
                 event.preventDefault();
-                if (isSwapDone) {
+                if (solanaSwapWalletError) {
+                  void handleConnectSigningWallet();
+                } else if (isSwapDone) {
                   resetSwapForm();
                 } else {
                   void executeCrossChainSwap();
                 }
               }}
               className={`py-3.5 rounded-xl ${isSwapDone ? 'bg-green-600 hover:bg-green-700' : 'bg-[#0a0a0c] hover:bg-black/90'} text-white text-sm font-bold -tracking-[0.1px] disabled:opacity-50 transition-colors`}
-              disabled={
-                isSwapping ||
-                (!balanceValidation.isValid && !isSwapDone) ||
-                (!!gasBalanceError && !isSwapDone) ||
-                (!!solanaSwapWalletError && !isSwapDone) ||
-                (isSwapButtonLoading() && !isSwapDone) ||
-                !payToken ||
-                !receiveToken ||
-                !payAmount ||
-                !receiveAmount
-              }
+              disabled={swapActionButtonDisabled}
             >
               {isSwapDone ? (
                 'New swap'
               ) : isSwapping ? (
                 'Swapping…'
+              ) : isConnectingSigningWallet ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  Connecting wallet…
+                </span>
+              ) : solanaSwapWalletError ? (
+                'Connect wallet'
               ) : !balanceValidation.isValid ? (
                 'Insufficient balance'
               ) : gasBalanceError ? (
                 'Insufficient gas'
-              ) : solanaSwapWalletError ? (
-                'Connect wallet'
-              ) : isSwapButtonLoading() ? (
+              ) : swapButtonLoading ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
                   Getting quote…
