@@ -559,10 +559,13 @@ export default function CheckoutPaymentClient({
   const [creatingWallet, setCreatingWallet] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState(false);
   const [restoringWallet, setRestoringWallet] = useState(false);
+  const [pendingSignerRestore, setPendingSignerRestore] = useState(false);
   const [copiedPayUri, setCopiedPayUri] = useState(false);
   const [mobilePlatform, setMobilePlatform] = useState<MobilePlatform>('other');
   const [tokenMenuOpen, setTokenMenuOpen] = useState(false);
   const [copyFallback, setCopyFallback] = useState('');
+  const selectedSignerReadyRef = useRef(false);
+  const signerRestoreMissingMessageRef = useRef('');
   const copyFallbackInputRef = useRef<HTMLInputElement | null>(null);
   const [quotedTokenAmount, setQuotedTokenAmount] = useState('');
   const [tokenAmountLoading, setTokenAmountLoading] = useState(false);
@@ -609,11 +612,10 @@ export default function CheckoutPaymentClient({
     [privySolanaWalletAddress, solanaWallets, storedSolanaWalletAddress]
   );
 
+  const signableSolanaWalletAddress =
+    solanaWallet?.address || privySolanaWalletAddress || '';
   const activeSolanaWalletAddress =
-    storedSolanaWalletAddress ||
-    privySolanaWalletAddress ||
-    solanaWallet?.address ||
-    '';
+    signableSolanaWalletAddress || storedSolanaWalletAddress || '';
 
   const evmSignerWalletAddresses = useMemo(
     () =>
@@ -625,15 +627,12 @@ export default function CheckoutPaymentClient({
     [evmWallets]
   );
 
-  const evmWalletAddresses = useMemo(
-    () =>
-      uniqueWalletAddresses(
-        ...evmSignerWalletAddresses,
-        user?.ethereumWallet,
-        user?.ethAddress
-      ),
-    [evmSignerWalletAddresses, user?.ethAddress, user?.ethereumWallet]
-  );
+  const evmWalletAddresses = useMemo(() => {
+    if (evmSignerWalletAddresses.length > 0) {
+      return evmSignerWalletAddresses;
+    }
+    return uniqueWalletAddresses(user?.ethereumWallet, user?.ethAddress);
+  }, [evmSignerWalletAddresses, user?.ethAddress, user?.ethereumWallet]);
 
   const { tokens, loading: tokensLoading, refetch } = useMultiChainTokenData(
     activeSolanaWalletAddress,
@@ -745,11 +744,26 @@ export default function CheckoutPaymentClient({
   const confirmPaymentLabel = selectedSignerIsEmbedded
     ? 'Confirm with passkey'
     : 'Confirm payment';
+  const walletRestoreBusy = restoringWallet || pendingSignerRestore;
+  const walletRestoreLabel = pendingSignerRestore
+    ? 'Checking wallet...'
+    : restoringWallet
+    ? 'Opening sign-in...'
+    : 'Pay with passkey or email';
   const needsSolanaSigner =
     selectedRail === 'solana' && !selectedSolanaSignerWallet?.address;
   const needsEvmSigner =
     selectedRail === 'lifi' && !selectedEvmSignerWallet?.address;
   const needsSignerRestore = needsSolanaSigner || needsEvmSigner;
+  const signerRestoreTargetAddress =
+    selectedRail === 'solana'
+      ? selectedToken?.walletAddress || activeSolanaWalletAddress
+      : selectedToken?.walletAddress || selectedPaymentWalletAddress;
+  const signerRestoreMissingMessage = signerRestoreTargetAddress
+    ? `Signed in, but ${truncateWalletAddress(
+        signerRestoreTargetAddress
+      )} is not available to sign yet. Use the Swop wallet for that address or connect it externally.`
+    : 'Signed in, but the paying wallet is not available to sign yet. Restore your Swop wallet or connect the paying wallet.';
   const appCheckoutUrls = useMemo(
     () => swopAppCheckoutUrls(intentId),
     [intentId]
@@ -878,6 +892,14 @@ export default function CheckoutPaymentClient({
       return;
     }
 
+    const selectedTokenStillPayable = payableTokens.some(
+      (token) => tokenIdentity(token) === tokenIdentity(selectedToken)
+    );
+    if (!selectedTokenStillPayable) {
+      setSelectedToken(preferred);
+      return;
+    }
+
     if (
       !tokenSelectionTouched &&
       preferred.chain === 'SOLANA' &&
@@ -895,6 +917,21 @@ export default function CheckoutPaymentClient({
     selectedToken?.symbol,
     selectedToken?.walletAddress,
   ]);
+
+  useEffect(() => {
+    selectedSignerReadyRef.current = selectedSignerReady;
+  }, [selectedSignerReady]);
+
+  useEffect(() => {
+    signerRestoreMissingMessageRef.current = signerRestoreMissingMessage;
+  }, [signerRestoreMissingMessage]);
+
+  useEffect(() => {
+    if (!pendingSignerRestore || !selectedSignerReady) return;
+    setPendingSignerRestore(false);
+    setError(null);
+    toast.success('Swop wallet ready');
+  }, [pendingSignerRestore, selectedSignerReady]);
 
   useEffect(() => {
     if (!copyFallback) return;
@@ -1040,8 +1077,13 @@ export default function CheckoutPaymentClient({
 
       await ensureEmbeddedWalletForSelectedRail();
 
-      toast.success('Swop wallet ready');
       await refetch();
+      setPendingSignerRestore(true);
+      window.setTimeout(() => {
+        if (selectedSignerReadyRef.current) return;
+        setPendingSignerRestore(false);
+        setError(signerRestoreMissingMessageRef.current);
+      }, 3000);
     } catch (walletError) {
       setError(
         walletError instanceof Error
@@ -1700,28 +1742,28 @@ export default function CheckoutPaymentClient({
                 <button
                   type="button"
                   onClick={handleUsePasskeyWallet}
-                  disabled={!ready || restoringWallet}
+                  disabled={!ready || walletRestoreBusy}
                   className="mt-6 inline-flex h-16 w-full items-center justify-center rounded-2xl bg-[#18a957] px-5 text-base font-bold text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {restoringWallet ? (
+                  {walletRestoreBusy ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  {restoringWallet ? 'Opening sign-in...' : 'Pay with passkey or email'}
+                  {walletRestoreLabel}
                 </button>
               ) : needsSignerRestore ? (
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={handleUsePasskeyWallet}
-                    disabled={restoringWallet}
+                    disabled={walletRestoreBusy}
                     className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-[#18a957] px-4 text-sm font-bold text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
                   >
-                    {restoringWallet ? (
+                    {walletRestoreBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Wallet className="h-4 w-4" />
                     )}
-                    Pay with passkey or email
+                    {walletRestoreLabel}
                   </button>
                   <button
                     type="button"
@@ -1742,15 +1784,15 @@ export default function CheckoutPaymentClient({
                   <button
                     type="button"
                     onClick={handleUsePasskeyWallet}
-                    disabled={restoringWallet}
+                    disabled={walletRestoreBusy}
                     className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-[#18a957] px-4 text-sm font-bold text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {restoringWallet ? (
+                    {walletRestoreBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Wallet className="h-4 w-4" />
                     )}
-                    Pay with passkey or email
+                    {walletRestoreLabel}
                   </button>
                   <button
                     type="button"
@@ -2163,11 +2205,11 @@ export default function CheckoutPaymentClient({
                 <button
                   type="button"
                   onClick={handleUsePasskeyWallet}
-                  disabled={!ready || restoringWallet}
+                  disabled={!ready || walletRestoreBusy}
                   className="flex min-h-[84px] items-center gap-3 rounded-md border border-[#101114] bg-[#101114] p-3 text-left text-white transition disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
-                    {restoringWallet ? (
+                    {walletRestoreBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Wallet className="h-4 w-4" />
@@ -2175,7 +2217,7 @@ export default function CheckoutPaymentClient({
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">
-                      Pay with passkey or email
+                      {walletRestoreLabel}
                     </span>
                     <span className="mt-1 block text-xs font-medium text-white/70">
                       Restore Swop wallet
@@ -2210,11 +2252,11 @@ export default function CheckoutPaymentClient({
                 <button
                   type="button"
                   onClick={handleUsePasskeyWallet}
-                  disabled={restoringWallet}
+                  disabled={walletRestoreBusy}
                   className="flex min-h-[76px] items-center gap-3 rounded-md border border-[#18a957] bg-[#18a957] p-3 text-left text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
                 >
                   <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
-                    {restoringWallet ? (
+                    {walletRestoreBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Wallet className="h-4 w-4" />
@@ -2222,7 +2264,7 @@ export default function CheckoutPaymentClient({
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">
-                      Pay with passkey or email
+                      {walletRestoreLabel}
                     </span>
                     <span className="mt-1 block text-xs font-medium text-white/70">
                       Restore Swop wallet
@@ -2273,11 +2315,11 @@ export default function CheckoutPaymentClient({
                 <button
                   type="button"
                   onClick={handleUsePasskeyWallet}
-                  disabled={!ready || restoringWallet}
+                  disabled={!ready || walletRestoreBusy}
                   className="flex min-h-[76px] items-center gap-3 rounded-md border border-[#18a957] bg-[#18a957] p-3 text-left text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-3"
                 >
                   <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-white/10">
-                    {restoringWallet ? (
+                    {walletRestoreBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Wallet className="h-4 w-4" />
@@ -2285,7 +2327,7 @@ export default function CheckoutPaymentClient({
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">
-                      Pay with passkey or email
+                      {walletRestoreLabel}
                     </span>
                     <span className="mt-1 block text-xs font-medium text-white/70">
                       Restore Swop wallet
