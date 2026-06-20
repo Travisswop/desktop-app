@@ -35,11 +35,15 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci --no-audit --no-fund || {
+            echo "::warning::npm ci failed because package-lock.json is not synced; falling back to npm install for the review guard."
+            npm install --no-audit --no-fund
+          }
 
       - name: Run automated review guard
         run: npm run review:guard
