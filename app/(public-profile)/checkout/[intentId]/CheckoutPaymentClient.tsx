@@ -301,6 +301,19 @@ function isEmbeddedWalletAlreadyExistsError(error: unknown) {
   );
 }
 
+function isPrivyEmbeddedWallet(wallet: unknown) {
+  if (!wallet || typeof wallet !== 'object') return false;
+  const walletRecord = wallet as {
+    connectorType?: unknown;
+    walletClientType?: unknown;
+  };
+
+  return (
+    walletRecord.walletClientType === 'privy' ||
+    walletRecord.connectorType === 'embedded'
+  );
+}
+
 function emptyTimeSeriesData() {
   return {
     '1H': [],
@@ -722,10 +735,21 @@ export default function CheckoutPaymentClient({
       : selectedRail === 'lifi'
       ? Boolean(selectedEvmSignerWallet?.address)
       : false;
+  const selectedSignerIsEmbedded = isPrivyEmbeddedWallet(
+    selectedRail === 'solana'
+      ? selectedSolanaSignerWallet
+      : selectedRail === 'lifi'
+      ? selectedEvmSignerWallet
+      : null
+  );
+  const confirmPaymentLabel = selectedSignerIsEmbedded
+    ? 'Confirm with passkey'
+    : 'Confirm payment';
   const needsSolanaSigner =
     selectedRail === 'solana' && !selectedSolanaSignerWallet?.address;
   const needsEvmSigner =
     selectedRail === 'lifi' && !selectedEvmSignerWallet?.address;
+  const needsSignerRestore = needsSolanaSigner || needsEvmSigner;
   const appCheckoutUrls = useMemo(
     () => swopAppCheckoutUrls(intentId),
     [intentId]
@@ -1346,15 +1370,17 @@ export default function CheckoutPaymentClient({
     if (!accessToken) return 'Sign in again to authorize payment.';
     if (needsSolanaSigner) {
       return selectedToken?.walletAddress
-        ? 'Sign in with the Swop wallet that holds this Solana token.'
-        : 'Create or connect a Solana wallet to pay with this token.';
+        ? `Sign in with passkey, email, or SMS to restore ${truncateWalletAddress(
+            selectedToken.walletAddress
+          )} and pay with this Solana token.`
+        : 'Sign in with passkey, email, or SMS to restore your Solana Swop wallet.';
     }
     if (needsEvmSigner) {
       return selectedToken?.walletAddress
-        ? `Sign in with passkey/SMS or connect ${truncateWalletAddress(
+        ? `Sign in with passkey, email, or SMS, or connect ${truncateWalletAddress(
             selectedToken.walletAddress
           )} to pay with this token.`
-        : 'Sign in with passkey/SMS or connect an EVM wallet to pay with this token.';
+        : 'Sign in with passkey, email, or SMS, or connect an EVM wallet to pay with this token.';
     }
     return '';
   })();
@@ -1680,9 +1706,9 @@ export default function CheckoutPaymentClient({
                   {restoringWallet ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  {restoringWallet ? 'Opening sign-in...' : 'Pay with passkey or SMS'}
+                  {restoringWallet ? 'Opening sign-in...' : 'Pay with passkey or email'}
                 </button>
-              ) : needsEvmSigner ? (
+              ) : needsSignerRestore ? (
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
@@ -1695,7 +1721,7 @@ export default function CheckoutPaymentClient({
                     ) : (
                       <Wallet className="h-4 w-4" />
                     )}
-                    Pay with passkey or SMS
+                    Pay with passkey or email
                   </button>
                   <button
                     type="button"
@@ -1724,7 +1750,7 @@ export default function CheckoutPaymentClient({
                     ) : (
                       <Wallet className="h-4 w-4" />
                     )}
-                    Pay with passkey
+                    Pay with passkey or email
                   </button>
                   <button
                     type="button"
@@ -1748,7 +1774,7 @@ export default function CheckoutPaymentClient({
                   className="mt-6 inline-flex h-16 w-full items-center justify-center gap-2 rounded-2xl bg-[#18a957] px-5 text-base font-bold text-white transition hover:bg-[#13964c] disabled:cursor-not-allowed disabled:opacity-55"
                 >
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {busy ? 'Confirming...' : 'Confirm payment'}
+                  {busy ? 'Confirming...' : confirmPaymentLabel}
                 </button>
               )}
 
@@ -2149,7 +2175,7 @@ export default function CheckoutPaymentClient({
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">
-                      Pay with passkey or SMS
+                      Pay with passkey or email
                     </span>
                     <span className="mt-1 block text-xs font-medium text-white/70">
                       Restore Swop wallet
@@ -2160,7 +2186,7 @@ export default function CheckoutPaymentClient({
               </div>
             </div>
           </section>
-        ) : needsEvmSigner ? (
+        ) : needsSignerRestore ? (
           <section className="rounded-lg border border-[#e7e8ec] bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
@@ -2171,9 +2197,11 @@ export default function CheckoutPaymentClient({
                   Sign in to your Swop wallet
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#646b78]">
-                  Use passkey or SMS to restore your Swop wallet for{' '}
+                  Use passkey, email, or SMS to restore your Swop wallet for{' '}
                   {selectedToken?.walletAddress
                     ? truncateWalletAddress(selectedToken.walletAddress)
+                    : selectedRail === 'solana'
+                    ? 'your Solana wallet'
                     : 'an EVM wallet'}
                   , or connect that exact wallet externally.
                 </p>
@@ -2194,7 +2222,7 @@ export default function CheckoutPaymentClient({
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">
-                      Pay with passkey or SMS
+                      Pay with passkey or email
                     </span>
                     <span className="mt-1 block text-xs font-medium text-white/70">
                       Restore Swop wallet
@@ -2237,8 +2265,8 @@ export default function CheckoutPaymentClient({
                   Choose a wallet to pay
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#646b78]">
-                  Sign in with passkey or SMS to restore your Swop wallet, or
-                  connect an external wallet as a fallback.
+                  Sign in with passkey, email, or SMS to restore your Swop
+                  wallet, or connect an external wallet as a fallback.
                 </p>
               </div>
               <div className="grid w-full gap-2 sm:grid-cols-3 lg:max-w-[640px]">
@@ -2257,7 +2285,7 @@ export default function CheckoutPaymentClient({
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">
-                      Pay with passkey or SMS
+                      Pay with passkey or email
                     </span>
                     <span className="mt-1 block text-xs font-medium text-white/70">
                       Restore Swop wallet
@@ -2573,7 +2601,7 @@ export default function CheckoutPaymentClient({
                 className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#101114] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-55"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Pay with Swop Pay
+                {busy ? 'Confirming...' : confirmPaymentLabel}
               </button>
             </aside>
           </section>
