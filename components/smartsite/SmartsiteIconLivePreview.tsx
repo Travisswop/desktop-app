@@ -71,6 +71,14 @@ type PendingDragMove = {
   pointerY: number;
 };
 
+type TemplateDragTargetRow = {
+  key: string;
+  top: number;
+  bottom: number;
+  centerY: number;
+  height: number;
+};
+
 const smartsitePreviewItemKey = (
   section: string,
   item: any,
@@ -105,6 +113,37 @@ const areTemplateOrdersEqual = (left: string[], right: string[]) =>
   left.length === right.length &&
   left.every((orderKey, index) => orderKey === right[index]);
 
+const COMPACT_ROW_DRAG_CLICK_SUPPRESSION_MS = 180;
+
+const getTemplateOrderSectionKey = (orderKey: string) =>
+  getSmartsiteTemplateSectionKeyFromOrderKey(orderKey);
+
+const isCompactTemplateOrderKey = (orderKey: string) => {
+  const sectionKey = getTemplateOrderSectionKey(orderKey);
+  return Boolean(sectionKey && COMPACT_SORTABLE_ROW_SECTIONS.has(sectionKey));
+};
+
+const getTemplateDragActivationInset = (
+  sourceKey: string,
+  targetKey: string,
+  targetHeight: number,
+) => {
+  const sourceSectionKey = getTemplateOrderSectionKey(sourceKey);
+  const targetSectionKey = getTemplateOrderSectionKey(targetKey);
+  const isInfoBarDrag =
+    sourceSectionKey === "infoBar" || targetSectionKey === "infoBar";
+
+  if (isInfoBarDrag) {
+    return Math.min(18, Math.max(8, targetHeight * 0.24));
+  }
+
+  if (isCompactTemplateOrderKey(sourceKey) || isCompactTemplateOrderKey(targetKey)) {
+    return Math.min(20, Math.max(10, targetHeight * 0.35));
+  }
+
+  return targetHeight / 2;
+};
+
 const SortablePreviewSection = ({
   orderKey,
   sectionKey,
@@ -131,6 +170,7 @@ const SortablePreviewSection = ({
   children: React.ReactNode;
 }) => {
   const dragControls = useDragControls();
+  const suppressClickAfterDragRef = useRef(false);
   const resolvedSectionKey =
     getSmartsiteTemplateSectionKeyFromOrderKey(orderKey) || sectionKey;
   const label = SMARTSITE_TEMPLATE_SECTION_META[resolvedSectionKey].label;
@@ -144,15 +184,36 @@ const SortablePreviewSection = ({
       drag="y"
       dragControls={dragControls}
       dragElastic={0.035}
-      dragListener={false}
+      dragListener={isCompactRow}
       dragMomentum={false}
       dragSnapToOrigin
+      onClickCapture={(event) => {
+        if (!suppressClickAfterDragRef.current) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onDragStart={() => {
+        suppressClickAfterDragRef.current = true;
+        onDragStart(orderKey);
+      }}
       onDrag={(_, info) => onDragMove(orderKey, info.point.y)}
-      onDragEnd={onDragEnd}
+      onDragEnd={() => {
+        onDragEnd();
+        window.setTimeout(() => {
+          suppressClickAfterDragRef.current = false;
+        }, COMPACT_ROW_DRAG_CLICK_SUPPRESSION_MS);
+      }}
       whileDrag={{ scale: isFeedRow ? 1.005 : 1.015, zIndex: 50 }}
       transition={{ layout: { duration: 0.18, ease: "easeOut" } }}
       className={`group/preview-sort grid w-[calc(100%+3rem)] -ml-12 grid-cols-[2.5rem_minmax(0,1fr)] gap-2 transition ${
         isDragging ? "relative z-50 cursor-grabbing" : ""
+      } ${
+        isCompactRow ? "touch-none select-none" : ""
+      } ${
+        isCompactRow && !isDragging ? "cursor-grab active:cursor-grabbing" : ""
       } ${
         isDragOver && !isDragging ? "rounded-xl ring-2 ring-black/10" : ""
       }`}
@@ -176,7 +237,9 @@ const SortablePreviewSection = ({
             onDragStart(orderKey);
             dragControls.start(event);
           }}
-          className="flex h-10 w-8 cursor-grab touch-none items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 shadow-[0_4px_14px_rgba(15,23,42,0.10)] transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-950 active:cursor-grabbing"
+          className={`flex ${
+            isCompactRow ? "h-12 w-10" : "h-10 w-8"
+          } cursor-grab touch-none items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 shadow-[0_4px_14px_rgba(15,23,42,0.10)] transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-950 active:cursor-grabbing`}
         >
           {isSaving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -513,7 +576,7 @@ const SmartsiteIconLivePreview = ({
       return null;
     }
 
-    const rows = Array.from(
+    const rows: TemplateDragTargetRow[] = Array.from(
       document.querySelectorAll<HTMLElement>("[data-smartsite-order-key]"),
     )
       .map((element) => {
@@ -525,6 +588,7 @@ const SmartsiteIconLivePreview = ({
           top: rect.top,
           bottom: rect.bottom,
           centerY: rect.top + rect.height / 2,
+          height: rect.height,
         };
       })
       .filter((row) => row.key && row.key !== sourceKey);
@@ -545,11 +609,17 @@ const SmartsiteIconLivePreview = ({
       return null;
     }
 
-    if (sourceIndex < targetIndex && pointerY < target.centerY) {
+    const activationInset = getTemplateDragActivationInset(
+      sourceKey,
+      target.key,
+      target.height,
+    );
+
+    if (sourceIndex < targetIndex && pointerY < target.top + activationInset) {
       return null;
     }
 
-    if (sourceIndex > targetIndex && pointerY > target.centerY) {
+    if (sourceIndex > targetIndex && pointerY > target.bottom - activationInset) {
       return null;
     }
 
@@ -588,6 +658,10 @@ const SmartsiteIconLivePreview = ({
   };
 
   const handleTemplateDragStart = (orderKey: string) => {
+    if (dragStartOrderRef.current) {
+      return;
+    }
+
     if (dragMoveFrameRef.current !== null) {
       window.cancelAnimationFrame(dragMoveFrameRef.current);
       dragMoveFrameRef.current = null;
