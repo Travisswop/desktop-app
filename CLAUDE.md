@@ -163,6 +163,9 @@ When a desktop/runtime log reveals a real bug, follow
   `logs/desktop-swap-failures.ndjson`, use `10. Swapping Module`.
 - Include sanitized excerpts only; never paste secrets, auth headers, cookies,
   private keys, or unredacted private user data into GitHub.
+- The `swap-log-kanban-reporter` automation scans
+  `logs/desktop-swap-failures.ndjson` hourly and automatically creates/updates
+  GitHub issues plus Project `1` cards for real, deduped swap failures.
 - Board-driven bug fixes use a two-stage agent path: the fixer moves the item to
   `In review` after a branch/PR is ready, then an area-specialist reviewer agent
   reviews the patch and records

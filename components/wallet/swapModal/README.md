@@ -87,17 +87,20 @@ reports, do not leave it only in local logs. Follow the repo workflow in
 
 For desktop swap failures:
 
-1. Check the sanitized failure log at
+1. The `swap-log-kanban-reporter` automation scans the sanitized failure log
+   hourly and creates/updates GitHub issues plus Project `1` cards for real,
+   deduped swap failures.
+2. Check the sanitized failure log at
    `/Users/travis/Documents/Swop Desktop Live.nosync/logs/desktop-swap-failures.ndjson`
    and any relevant runtime logs.
-2. Create or update a GitHub issue with labels `bug` and `codex` when it is
+3. Create or update a GitHub issue with labels `bug` and `codex` when it is
    agent-fixable.
-3. Add the issue to `https://github.com/users/Travisswop/projects/1`.
-4. Set the Project `Status` field to `10. Swapping Module`.
-5. Include provider, stage, pair, route context, and sanitized error/log excerpts
+4. Add the issue to `https://github.com/users/Travisswop/projects/1`.
+5. Set the Project `Status` field to `10. Swapping Module`.
+6. Include provider, stage, pair, route context, and sanitized error/log excerpts
    only. Never paste secrets, auth headers, cookies, private keys, or
    unredacted private user data into GitHub.
-6. When a cron/agent prepares a swapping bug fix, move the Project item to
+7. When a cron/agent prepares a swapping bug fix, move the Project item to
    `In review` and request a swapping expert-agent review. Passing reviews
    should record `Review depth: expert-agent reviewed (Swapping)`.
 

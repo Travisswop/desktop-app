@@ -8,6 +8,8 @@ terminal scrollback.
 
 - GitHub Project: https://github.com/users/Travisswop/projects/1
 - Owner/project number for `gh`: `Travisswop`, project `1`
+- Log reporter automation: `swap-log-kanban-reporter`
+  (`Swap log Kanban reporter`)
 - Fixer automation: `github-bug-board-scanner` (`GitHub bug board fixer`)
 - Reviewer automation: `github-bug-expert-reviewer`
   (`GitHub bug expert reviewer`)
@@ -34,7 +36,36 @@ or unredacted private user data into GitHub. Prefer short sanitized excerpts
 that include provider, stage, reason, route/pair, status code, and enough context
 to reproduce the bug.
 
-## Add A Bug From Logs
+## Automatic Swap Log Reporting
+
+The `swap-log-kanban-reporter` automation runs hourly and watches:
+
+`/Users/travis/Documents/Swop Desktop Live.nosync/logs/desktop-swap-failures.ndjson`
+
+It should:
+
+1. Read only `wallet_swap_failure` JSONL events.
+2. Skip smoke/test events such as `telemetry_smoke`, `smoke test`, and
+   `codex verification`.
+3. Compute a stable fingerprint from provider, stage, reason/error, token pair,
+   route details, and program/error codes, ignoring timestamps and balances.
+4. Search existing open GitHub issues for
+   `swap-failure-fingerprint: <hash>` before creating anything.
+5. Create or update a GitHub issue labeled `bug` and `codex`.
+6. Add the issue to Project `1`.
+7. Resolve Project field/option ids at runtime and set:
+   - `Status`: `10. Swapping Module`
+   - `Priority`: usually `P1`, or `P0` for broad outage/funds risk
+   - `Size`: usually `S` until the fix scope is known
+8. Store successful ingestion state in:
+   `/Users/travis/Documents/Swop Desktop Live.nosync/logs/kanban-ingest/desktop-swap-failures-state.json`
+
+The reporter must not edit repo files, push, merge, deploy, or close issues.
+
+## Manual Bug Intake From Logs
+
+Use this manual flow for non-swap logs, screenshots, support reports, or any
+case the reporter cannot classify automatically.
 
 1. Confirm it is a real product bug, not a smoke test, local-only setup issue, or
    duplicate of an existing board item.
@@ -173,6 +204,11 @@ database writes, private keys, or production deploys. In those cases, record the
 expert-agent review and explicitly call out that human review is still missing.
 
 ## Cron Scanners
+
+The Codex automation `swap-log-kanban-reporter` runs hourly. It ingests new
+desktop swap failures from `desktop-swap-failures.ndjson`, dedupes them by
+fingerprint, creates/updates GitHub issues, and adds Project `1` cards in
+`10. Swapping Module`.
 
 The Codex automation `github-bug-board-scanner` (`GitHub bug board fixer`) runs
 every 6 hours against this project. It should scan Project `1` only. If the

@@ -205,6 +205,10 @@ Key rules:
   `10. Swapping Module`.
 - Include only sanitized log excerpts. Never paste secrets, auth headers,
   cookies, private keys, or unredacted private user data into GitHub.
+- The `swap-log-kanban-reporter` automation scans
+  `logs/desktop-swap-failures.ndjson` hourly, dedupes real swap failures, and
+  creates/updates GitHub issues plus Project `1` cards in
+  `10. Swapping Module`.
 - The `github-bug-board-scanner` (`GitHub bug board fixer`) automation scans
   this board every 6 hours. If the board is empty, it should not invent work
   from unrelated repo issues.
