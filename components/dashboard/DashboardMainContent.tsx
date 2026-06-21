@@ -17,7 +17,18 @@ import {
   ModalContent,
   useDisclosure,
 } from "@nextui-org/react";
-import SmartSiteUrlShareModal from "../smartsite/socialShare/SmartsiteShareModal";
+import {
+  FacebookShareButton,
+  WhatsappShareButton,
+  LinkedinShareButton,
+  TwitterShareButton,
+  TelegramShareButton,
+  XIcon,
+  TelegramIcon,
+  LinkedinIcon,
+  FacebookIcon,
+  WhatsappIcon,
+} from "react-share";
 import { usePrivy } from "@privy-io/react-auth";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -567,10 +578,11 @@ function ProfileHero({
         </div>
       </div>
 
-      <SmartSiteUrlShareModal
+      <ProfileShareModal
         isOpen={shareModal.isOpen}
         onOpenChange={shareModal.onOpenChange}
-        smartSiteProfileUrl={profile.publicUrl}
+        value={profile.publicUrl}
+        label={profile.swopId}
       />
       <ProfileQrModal
         isOpen={qrModal.isOpen}
@@ -579,6 +591,89 @@ function ProfileHero({
         label={profile.swopId}
       />
     </Card>
+  );
+}
+
+function ProfileShareModal({
+  isOpen,
+  onOpenChange,
+  value,
+  label,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  value: string;
+  label: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="sm" backdrop="blur">
+      <ModalContent>
+        <ModalBody className="items-center gap-4 py-8 text-center">
+          <div className="space-y-1">
+            <p className="text-lg font-semibold" style={{ color: ink }}>
+              Share your SmartSite
+            </p>
+            <p className="text-[13px] font-medium" style={{ color: muted }}>
+              Send your profile link anywhere
+            </p>
+          </div>
+
+          <div
+            className="flex w-full items-center gap-2 rounded-full border bg-white px-4 py-2.5"
+            style={{ borderColor: hair }}
+          >
+            <input
+              type="text"
+              value={label}
+              readOnly
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-medium focus:outline-none"
+              style={{ color: ink }}
+            />
+            <button
+              type="button"
+              onClick={handleCopy}
+              aria-label="Copy link"
+              className="shrink-0 transition active:scale-95"
+              style={{ color: copied ? positive : muted }}
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          </div>
+          <p
+            className="text-[12px] font-medium"
+            style={{ color: copied ? positive : "transparent" }}
+          >
+            Copied to clipboard
+          </p>
+
+          <div className="flex items-center justify-center gap-3">
+            <FacebookShareButton url={value}>
+              <FacebookIcon size={40} round />
+            </FacebookShareButton>
+            <WhatsappShareButton url={value}>
+              <WhatsappIcon size={40} round />
+            </WhatsappShareButton>
+            <LinkedinShareButton url={value}>
+              <LinkedinIcon size={40} round />
+            </LinkedinShareButton>
+            <TwitterShareButton url={value}>
+              <XIcon size={40} round />
+            </TwitterShareButton>
+            <TelegramShareButton url={value}>
+              <TelegramIcon size={40} round />
+            </TelegramShareButton>
+          </div>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
   );
 }
 
@@ -605,17 +700,26 @@ function ProfileQrModal({
     <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="sm" backdrop="blur">
       <ModalContent>
         <ModalBody className="items-center gap-4 py-8 text-center">
-          <p className="text-lg font-semibold">Your SmartSite QR</p>
-          <div className="rounded-2xl border-2 border-gray-200 bg-white p-4">
+          <p className="text-lg font-semibold" style={{ color: ink }}>
+            Your SmartSite QR
+          </p>
+          <div
+            className="rounded-2xl border bg-white p-4"
+            style={{ borderColor: hair }}
+          >
             <QRCodeSVG value={value} size={200} level="H" includeMargin />
           </div>
-          <p className="break-all text-[13px] font-medium text-[#6e6e76]">
+          <p
+            className="break-all text-[13px] font-medium"
+            style={{ color: muted }}
+          >
             {label}
           </p>
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-2 rounded-full bg-[#0a0a0c] px-4 py-2 text-xs font-semibold text-white transition active:scale-95"
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white transition active:scale-95"
+            style={{ backgroundColor: ink }}
           >
             <Copy className="h-3.5 w-3.5" />
             {copied ? "Copied!" : "Copy link"}
