@@ -2,7 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ChevronDown, RefreshCcw, Search } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  RefreshCcw,
+  Search,
+} from 'lucide-react';
 import type {
   AaveActionMode,
   AaveChain,
@@ -13,6 +20,7 @@ import { AaveTokenIcon } from './AaveTokenIcon';
 import { AaveActionModal } from './AaveActionModal';
 import { useAaveMarkets, useAavePositions } from './hooks/useAaveData';
 import { sortAaveReservesBySupplyApy } from './aaveMarketSorting';
+import type { AaveSupplyApySortDirection } from './aaveMarketSorting';
 
 type DefiTab = 'markets' | 'supply' | 'borrow';
 
@@ -72,6 +80,8 @@ export function DefiSection({
   const [tab, setTab] = useState<DefiTab>('markets');
   const [chainMenuOpen, setChainMenuOpen] = useState(false);
   const [marketSearch, setMarketSearch] = useState('');
+  const [supplyApySortDirection, setSupplyApySortDirection] =
+    useState<AaveSupplyApySortDirection>('desc');
   const [modal, setModal] = useState<ModalState | null>(null);
 
   const markets = useAaveMarkets(chain);
@@ -79,8 +89,8 @@ export function DefiSection({
 
   const sortedReserves = useMemo(() => {
     const reserves = markets.data?.reserves ?? [];
-    return sortAaveReservesBySupplyApy(reserves);
-  }, [markets.data?.reserves]);
+    return sortAaveReservesBySupplyApy(reserves, supplyApySortDirection);
+  }, [markets.data?.reserves, supplyApySortDirection]);
 
   const marketReserves = useMemo(
     () =>
@@ -222,6 +232,12 @@ export function DefiSection({
           totalCount={marketReserves.length}
           search={marketSearch}
           onSearchChange={setMarketSearch}
+          supplyApySortDirection={supplyApySortDirection}
+          onSupplyApySortToggle={() =>
+            setSupplyApySortDirection((current) =>
+              current === 'desc' ? 'asc' : 'desc',
+            )
+          }
           walletConnected={Boolean(evmWalletAddress)}
           serviceUnavailable={marketsUnavailable}
           chainLabel={activeChain.label}
@@ -369,6 +385,8 @@ function MarketsTab({
   totalCount,
   search,
   onSearchChange,
+  supplyApySortDirection,
+  onSupplyApySortToggle,
   walletConnected,
   serviceUnavailable,
   chainLabel,
@@ -381,6 +399,8 @@ function MarketsTab({
   totalCount: number;
   search: string;
   onSearchChange: (value: string) => void;
+  supplyApySortDirection: AaveSupplyApySortDirection;
+  onSupplyApySortToggle: () => void;
   walletConnected: boolean;
   serviceUnavailable: boolean;
   chainLabel: string;
@@ -429,7 +449,23 @@ function MarketsTab({
 
       <div className="grid grid-cols-[1fr_120px_120px_170px] items-center px-5 py-2.5 font-mono text-[11px] uppercase tracking-wider text-gray-400">
         <span>Asset</span>
-        <span className="text-right">Supply APY</span>
+        <button
+          type="button"
+          onClick={onSupplyApySortToggle}
+          aria-label={
+            supplyApySortDirection === 'desc'
+              ? 'Sort Supply APY lowest first'
+              : 'Sort Supply APY highest first'
+          }
+          className="justify-self-end inline-flex items-center justify-end gap-1 rounded-md px-1 py-0.5 text-right transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
+        >
+          <span>Supply APY</span>
+          {supplyApySortDirection === 'desc' ? (
+            <ArrowDown className="h-3 w-3" aria-hidden="true" />
+          ) : (
+            <ArrowUp className="h-3 w-3" aria-hidden="true" />
+          )}
+        </button>
         <span className="text-right">Borrow APY</span>
         <span />
       </div>

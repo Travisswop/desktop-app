@@ -39,6 +39,25 @@ describe('Aave market sorting', () => {
     ]);
   });
 
+  it('can order market rows by supply APY from lowest to highest', () => {
+    const sorted = sortAaveReservesBySupplyApy(
+      [
+        reserve('USDC', 0.0316),
+        reserve('WETH', 0.0149),
+        reserve('PYUSD', 0.052),
+        reserve('WBTC', 0.0001),
+      ],
+      'asc',
+    );
+
+    expect(sorted.map((item) => item.symbol)).toEqual([
+      'WBTC',
+      'WETH',
+      'USDC',
+      'PYUSD',
+    ]);
+  });
+
   it('keeps blank supply rates after assets with supply yield', () => {
     const sorted = sortAaveReservesBySupplyApy([
       reserve('CBBTC', 0, 0.0029),
@@ -49,6 +68,23 @@ describe('Aave market sorting', () => {
     expect(sorted.map((item) => item.symbol)).toEqual([
       'USDT',
       'GHO',
+      'CBBTC',
+    ]);
+  });
+
+  it('keeps blank supply rates at the bottom when sorting lowest first', () => {
+    const sorted = sortAaveReservesBySupplyApy(
+      [
+        reserve('CBBTC', 0, 0.0029),
+        reserve('WETH', 0.0149),
+        reserve('WBTC', 0.0001),
+      ],
+      'asc',
+    );
+
+    expect(sorted.map((item) => item.symbol)).toEqual([
+      'WBTC',
+      'WETH',
       'CBBTC',
     ]);
   });
