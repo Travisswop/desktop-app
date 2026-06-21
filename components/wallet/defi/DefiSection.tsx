@@ -12,6 +12,7 @@ import type {
 import { AaveTokenIcon } from './AaveTokenIcon';
 import { AaveActionModal } from './AaveActionModal';
 import { useAaveMarkets, useAavePositions } from './hooks/useAaveData';
+import { sortAaveReservesBySupplyApy } from './aaveMarketSorting';
 
 type DefiTab = 'markets' | 'supply' | 'borrow';
 
@@ -20,20 +21,6 @@ const CHAINS: { id: AaveChain; label: string; dot: string }[] = [
   { id: 'polygon', label: 'Polygon', dot: '#8247E5' },
   { id: 'base', label: 'Base', dot: '#0052FF' },
   { id: 'arbitrum', label: 'Arbitrum', dot: '#28A0F0' },
-];
-
-// Major assets pinned to the top of the markets list, in this order
-const FEATURED_ORDER = [
-  'USDC',
-  'WETH',
-  'WBTC',
-  'CBBTC',
-  'DAI',
-  'LINK',
-  'USDT',
-  'WSTETH',
-  'WPOL',
-  'WMATIC',
 ];
 
 // Rows beyond this scroll inside the card instead of growing the page
@@ -92,13 +79,7 @@ export function DefiSection({
 
   const sortedReserves = useMemo(() => {
     const reserves = markets.data?.reserves ?? [];
-    const rank = (reserve: AaveReserve) => {
-      const index = FEATURED_ORDER.indexOf(reserve.symbol.toUpperCase());
-      return index === -1 ? FEATURED_ORDER.length : index;
-    };
-    return [...reserves].sort(
-      (a, b) => rank(a) - rank(b) || a.symbol.localeCompare(b.symbol),
-    );
+    return sortAaveReservesBySupplyApy(reserves);
   }, [markets.data?.reserves]);
 
   const marketReserves = useMemo(
