@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import dayjs from "dayjs";
@@ -9,6 +9,7 @@ import { useUser } from "@/lib/UserContext";
 import SwapTransactionShowGraph from "./SwapTransactionShowGraph";
 import { fetchTokenLivePrice } from "@/lib/utils/marketPriceClient";
 import { getTokenFallbackPrice } from "@/lib/utils/tokenMarketData";
+import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 dayjs.extend(relativeTime);
 
 // ---------------------------------------------------------------------------
@@ -34,39 +35,133 @@ function formatNumber(value: any): string {
   return str.replace(/\.?0+$/, "");
 }
 
+const TOKEN_IMAGE_SYMBOL_ALIASES: Record<string, string[]> = {
+  PUSD: ["PUSD"],
+};
+
+const unique = (values: string[]) =>
+  values.filter((value, index, array) => value && array.indexOf(value) === index);
+
+const cryptoIconPath = (symbolOrFile: string) => {
+  const clean = symbolOrFile.trim();
+  if (!clean) return "";
+  const fileName = /\.(png|jpe?g|gif|webp|svg)$/i.test(clean)
+    ? clean
+    : `${clean}.png`;
+  return `/assets/crypto-icons/${encodeURIComponent(fileName)}`;
+};
+
+const imageValueCandidates = (value: unknown): string[] => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return [];
+
+  if (/^(https?:|data:|blob:|ipfs:\/\/|\/\/)/i.test(raw) || raw.startsWith("/")) {
+    return [sanitizeNextImageSrc(raw)];
+  }
+
+  const sanitized = sanitizeNextImageSrc(raw);
+  const fileName = raw.split(/[?#]/)[0]?.split("/").pop() ?? raw;
+
+  return unique([
+    raw.includes("/") ? sanitized : "",
+    /\.(png|jpe?g|gif|webp|svg)$/i.test(fileName) ? cryptoIconPath(fileName) : "",
+    !/\.(png|jpe?g|gif|webp|svg)$/i.test(fileName) ? cryptoIconPath(fileName) : "",
+    sanitized,
+  ]);
+};
+
+const tokenSymbolCandidates = (symbol: unknown): string[] => {
+  const rawSymbol = String(symbol ?? "").trim();
+  if (!rawSymbol) return [];
+
+  const upperSymbol = rawSymbol.toUpperCase();
+  const aliases = TOKEN_IMAGE_SYMBOL_ALIASES[upperSymbol] ?? [];
+
+  const symbolValues = aliases.length
+    ? [...aliases, rawSymbol, upperSymbol]
+    : [rawSymbol, upperSymbol];
+
+  return unique(
+    symbolValues.map((symbolValue) =>
+      cryptoIconPath(symbolValue),
+    ),
+  );
+};
+
+const hasTokenImageAlias = (symbol: unknown) => {
+  const upperSymbol = String(symbol ?? "").trim().toUpperCase();
+  return Boolean(TOKEN_IMAGE_SYMBOL_ALIASES[upperSymbol]?.length);
+};
+
+const getTokenImageCandidates = (token: any): string[] => {
+  const symbolCandidates = tokenSymbolCandidates(token?.symbol);
+  const aliasedSymbol = hasTokenImageAlias(token?.symbol);
+  const dataCandidates = [
+    ...imageValueCandidates(token?.tokenImg),
+    ...imageValueCandidates(token?.logoURI),
+    ...imageValueCandidates(token?.icon),
+    ...imageValueCandidates(token?.logo),
+    ...imageValueCandidates(token?.image),
+  ];
+
+  return unique(
+    aliasedSymbol
+      ? [...symbolCandidates, ...dataCandidates]
+      : [...dataCandidates, ...symbolCandidates],
+  );
+};
+
 // ---------------------------------------------------------------------------
 // Token image helper — handles SVG + PNG/JPG (mirrors RN RenderTokenImage)
 // ---------------------------------------------------------------------------
-const TokenImage: React.FC<{ uri: string; size?: number }> = ({
-  uri,
-  size = 40,
-}) => {
-  const isSvg = uri?.toLowerCase().endsWith(".svg");
+const TokenImage: React.FC<{
+  sources: string[];
+  label?: string;
+  size?: number;
+}> = ({ sources, label = "token", size = 40 }) => {
+  const candidates = useMemo(() => unique(sources), [sources]);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const uri = candidates[candidateIndex];
+  const isSvg = uri?.toLowerCase().split("?")[0]?.endsWith(".svg");
+  const displayLabel = String(label ?? "token");
+  const fallbackLabel = displayLabel.trim().slice(0, 4).toUpperCase() || "?";
+
+  useEffect(() => {
+    setCandidateIndex(0);
+  }, [candidates]);
+
+  const handleImageError = () => {
+    setCandidateIndex((index) => index + 1);
+  };
+
   return (
     <div
-      className="rounded-full overflow-hidden border-2 border-white"
+      className="flex items-center justify-center rounded-full overflow-hidden border-2 border-white bg-gray-100"
       style={{ width: size, height: size, flexShrink: 0 }}
     >
-      {isSvg ? (
+      {!uri ? (
+        <span className="font-mono text-[9px] font-black leading-none text-gray-500">
+          {fallbackLabel}
+        </span>
+      ) : isSvg ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={uri}
-          alt="token"
+          alt={displayLabel}
           width={size}
           height={size}
+          onError={handleImageError}
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       ) : (
         <Image
-          src={
-            uri?.startsWith("https")
-              ? uri
-              : `/assets/crypto-icons/${uri?.split("/").pop()}`
-          }
-          alt="token"
+          key={uri}
+          src={uri}
+          alt={displayLabel}
           width={size}
           height={size}
           className="w-full h-full object-cover"
+          onError={handleImageError}
         />
       )}
     </div>
@@ -121,13 +216,18 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
     feed?.smartsiteProfilePic ||
     null;
 
-  // Resolve full image URL (same logic as RN)
-  const resolveTokenImg = (token: any): string => {
-    const img = token?.tokenImg ?? "";
-    return img.startsWith("https")
-      ? img
-      : `/assets/crypto-icons/${token?.symbol}.png`;
-  };
+  const inputTokenImageCandidates = useMemo(
+    () => getTokenImageCandidates(inputToken),
+    [inputToken],
+  );
+  const outputTokenImageCandidates = useMemo(
+    () => getTokenImageCandidates(outputToken),
+    [outputToken],
+  );
+
+  const resolveTokenImg = (token: any): string =>
+    getTokenImageCandidates(token)[0] ||
+    cryptoIconPath(String(token?.symbol ?? ""));
 
   // ---------------------------------------------------------------------------
   // Live price fetch
@@ -192,13 +292,21 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
               {/* Overlapping token pair */}
               <div className="flex items-center">
                 <div className="shadow rounded-full">
-                  <TokenImage uri={resolveTokenImg(inputToken)} size={40} />
+                  <TokenImage
+                    sources={inputTokenImageCandidates}
+                    label={inputToken?.symbol}
+                    size={40}
+                  />
                 </div>
                 <div
                   className="-ml-3 rounded-full bg-white"
                   style={{ boxShadow: "0 2px 10px rgba(0,0,0,0.12)" }}
                 >
-                  <TokenImage uri={resolveTokenImg(outputToken)} size={40} />
+                  <TokenImage
+                    sources={outputTokenImageCandidates}
+                    label={outputToken?.symbol}
+                    size={40}
+                  />
                 </div>
               </div>
 
