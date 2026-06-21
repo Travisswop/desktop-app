@@ -240,32 +240,40 @@ class SolanaNFTServiceClass {
 
     // Try multiple providers in order
     const providers = [
+      {
+        name: 'Solana NFT proxy',
+        fetch: () => this.getNFTsFromProxy(ownerAddress),
+      },
       ...(this.QUICKNODE_API_ENDPOINT
-        ? [() => this.getNFTsFromQuickNode(ownerAddress)]
+        ? [
+            {
+              name: 'QuickNode',
+              fetch: () => this.getNFTsFromQuickNode(ownerAddress),
+            },
+          ]
         : []),
-      () => this.getNFTsFromHelius(ownerAddress),
+      {
+        name: 'Helius',
+        fetch: () => this.getNFTsFromHelius(ownerAddress),
+      },
     ];
 
     for (const [index, provider] of providers.entries()) {
-      const providerName =
-        provider === providers[0] && this.QUICKNODE_API_ENDPOINT
-          ? 'QuickNode'
-          : 'Helius';
       logger.info(
-        `📡 Attempting to fetch NFTs from ${providerName} (provider ${
+        `📡 Attempting to fetch NFTs from ${provider.name} (provider ${
           index + 1
         })`,
       );
 
       try {
         const startTime = Date.now();
-        const nfts = await provider();
+        const nfts = await provider.fetch();
         const endTime = Date.now();
         const duration = endTime - startTime;
 
         if (nfts && nfts.length > 0) {
           logger.info(
-            `✅ Successfully fetched ${nfts.length} NFTs from ${providerName} in ${duration}ms`,
+            `✅ Successfully fetched ${nfts.length} NFTs from ${provider.name} in ${duration}ms`,
           );
 
           // Sort NFTs by creation date (most recent first)
@@ -276,16 +284,65 @@ class SolanaNFTServiceClass {
 
           return sortedNFTs;
         } else {
-          logger.warn(`⚠️ ${providerName} returned no NFTs`);
+          logger.warn(`⚠️ ${provider.name} returned no NFTs`);
         }
       } catch (error) {
-        logger.warn(`Solana NFT provider ${providerName} failed`, error);
+        logger.warn(`Solana NFT provider ${provider.name} failed`, error);
         continue;
       }
     }
 
     logger.warn('Solana NFT providers unavailable; showing empty collectibles');
     return [];
+  }
+
+  private static async getNFTsFromProxy(
+    ownerAddress: string,
+  ): Promise<NFT[]> {
+    const requestBody = {
+      jsonrpc: '2.0',
+      id: 'swop-get-assets-by-owner',
+      method: 'getAssetsByOwner',
+      params: {
+        ownerAddress,
+        page: 1,
+        limit: 1000,
+        displayOptions: {
+          showFungible: false,
+          showNativeBalance: false,
+          showUnverifiedCollections: true,
+          showCollectionMetadata: true,
+        },
+      },
+    };
+
+    const response = await fetch('/api/proxy/solana-nft', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ownerAddress,
+        requestBody,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Solana NFT proxy error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as MetaplexResponse;
+
+    if (data.error) {
+      throw new Error(
+        `Solana NFT proxy error: ${JSON.stringify(data.error)}`,
+      );
+    }
+
+    const assets = data.result?.items || [];
+    logger.info(`📥 Solana NFT proxy returned ${assets.length} assets`);
+
+    return this.transformMetaplexNFTs(assets);
   }
 
   private static sortNFTsByDate(nfts: NFT[]): NFT[] {
