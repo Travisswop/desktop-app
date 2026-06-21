@@ -119,7 +119,8 @@ export default function ProductsPage() {
         <div
           style={{
             background: '#f4f4f2',
-            minHeight: '100vh',
+            minHeight: 'calc(100vh - 3rem)',
+            margin: '-24px',
             padding: '28px 24px',
           }}
         >
@@ -138,7 +139,8 @@ export default function ProductsPage() {
       <div
         style={{
           background: '#f4f4f2',
-          minHeight: '100vh',
+          minHeight: 'calc(100vh - 3rem)',
+          margin: '-24px',
           padding: '28px 24px',
         }}
       >
@@ -249,7 +251,8 @@ const LoadingSkeleton = () => (
     <div
       style={{
         background: '#f4f4f2',
-        minHeight: '100vh',
+        minHeight: 'calc(100vh - 3rem)',
+        margin: '-24px',
         padding: '28px 24px',
       }}
     >

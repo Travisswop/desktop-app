@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser } from '@/lib/UserContext';
@@ -28,7 +28,9 @@ export default function MarketplaceOrdersClient() {
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [totals, setTotals] = useState<OrderTotals | undefined>();
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const load = useCallback(
     async (currentTab: OrderTab, token: string, currentUserId: string) => {
@@ -64,7 +66,13 @@ export default function MarketplaceOrdersClient() {
       };
     }
 
-    setLoading(true);
+    // First successful load shows the full-page skeleton; subsequent tab
+    // switches keep the screen mounted and show in-table skeleton rows.
+    if (hasLoadedRef.current) {
+      setIsFetching(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     load(tab, accessToken, user._id)
       .then(({ rows: nextRows, totals: nextTotals }) => {
@@ -72,6 +80,8 @@ export default function MarketplaceOrdersClient() {
           setRows(nextRows);
           setTotals(nextTotals);
           setLoading(false);
+          setIsFetching(false);
+          hasLoadedRef.current = true;
         }
       })
       .catch((err) => {
@@ -79,6 +89,7 @@ export default function MarketplaceOrdersClient() {
         if (!cancelled) {
           setError('Failed to load orders.');
           setLoading(false);
+          setIsFetching(false);
         }
       });
     return () => {
@@ -91,7 +102,8 @@ export default function MarketplaceOrdersClient() {
       <div
         style={{
           background: '#f4f4f2',
-          minHeight: '100vh',
+          minHeight: 'calc(100vh - 3rem)',
+          margin: '-24px',
           padding: '28px 24px',
         }}
       >
@@ -106,6 +118,8 @@ export default function MarketplaceOrdersClient() {
               onTabChange={setTab}
               rows={rows}
               totals={totals}
+              isFetching={isFetching}
+              backHref="/dashboard"
             />
           )}
         </div>

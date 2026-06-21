@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import {
   Avatar,
   Card,
@@ -338,13 +338,14 @@ export default function OrdersScreen({
         </div>
 
         {/* Rows */}
-        <div
-          style={{
-            opacity: isFetching ? 0.55 : 1,
-            pointerEvents: isFetching ? 'none' : 'auto',
-            transition: 'opacity .15s',
-          }}
-        >
+        {isFetching ? (
+          <div>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonRow key={i} last={i === 5} />
+            ))}
+          </div>
+        ) : (
+        <div>
         {rows.length === 0 ? (
           <div
             style={{
@@ -419,8 +420,47 @@ export default function OrdersScreen({
           ))
         )}
         </div>
+        )}
       </Card>
     </ScreenShell>
+  );
+}
+
+function SkeletonRow({ last }: { last?: boolean }) {
+  const shimmer: CSSProperties = {
+    background:
+      'linear-gradient(90deg, #ececec 25%, #f4f4f2 37%, #ececec 63%)',
+    backgroundSize: '400% 100%',
+    animation: 'orders-shimmer 1.4s ease infinite',
+  };
+  const bar = (width: number | string, height = 12) => (
+    <div style={{ width, height, borderRadius: 6, ...shimmer }} />
+  );
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '0.9fr 1.4fr 1.4fr 0.7fr 0.9fr 0.9fr',
+        alignItems: 'center',
+        gap: 10,
+        padding: '12px 20px',
+        borderBottom: last ? 'none' : `1px solid ${hair2}`,
+      }}
+    >
+      {bar(70)}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 24, height: 24, borderRadius: '50%', ...shimmer }} />
+        {bar('60%')}
+      </div>
+      {bar('80%')}
+      {bar(50)}
+      {bar(64)}
+      {bar(70, 20)}
+      <style>{`@keyframes orders-shimmer {
+        0%   { background-position: 100% 50%; }
+        100% { background-position: 0 50%; }
+      }`}</style>
+    </div>
   );
 }
 
