@@ -3520,7 +3520,8 @@ export default function SwapTokenModal({
       payAmount &&
       payToken &&
       receiveToken &&
-      !isSwapping
+      !isSwapping &&
+      !showSwapSuccess
     ) {
       quoteRefreshInterval.current = setInterval(
         () => fetchQuote(true),
@@ -3538,6 +3539,7 @@ export default function SwapTokenModal({
     receiveToken,
     fetchQuote,
     isSwapping,
+    showSwapSuccess,
   ]);
 
   // Countdown timer
@@ -5822,7 +5824,7 @@ export default function SwapTokenModal({
   const swapExplorerUrl = txHash
     ? getExplorerUrl(chainId, txHash)
     : '';
-  const resetSwapForm = () => {
+  const resetSwapForm = useCallback(() => {
     quoteRequestIdRef.current += 1;
     if (quoteRefreshInterval.current) {
       clearInterval(quoteRefreshInterval.current);
@@ -5847,12 +5849,15 @@ export default function SwapTokenModal({
     setQuoteCountdown(10);
     setGasBalanceError(null);
     setEstimatedGasFeeEth(null);
-  };
+  }, []);
 
   const dismissSwapReceipt = useCallback(() => {
-    setShowSwapSuccess(false);
+    // Reset the form on dismiss so the now-empty pay amount stops the 10s auto
+    // quote refresh. Previously closing the receipt via the X or backdrop left
+    // the old amount in place, so quotes kept fetching in the background.
+    resetSwapForm();
     onSwapReceiptDismiss?.();
-  }, [onSwapReceiptDismiss]);
+  }, [resetSwapForm, onSwapReceiptDismiss]);
 
   useEffect(() => {
     if (txHash && isSwapDone) {

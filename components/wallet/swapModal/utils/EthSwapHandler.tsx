@@ -24,13 +24,12 @@ import {
   getDefaultTokens,
 } from './ethSwapUtils';
 import EthPriceCard from './EthPriceCard';
+import { ALCHEMY_RPC_URLS } from '@/types/config';
 
-// Add your Alchemy/Infura API keys here
+// RPC endpoints derived from the single shared Alchemy API key (see types/config.ts).
 const RPC_URLS = {
-  mainnet:
-    'https://eth-mainnet.g.alchemy.com/v2/6WBsg7Xg8oFri6ovGrJeLeYwZjAEYol5',
-  sepolia:
-    'https://eth-sepolia.g.alchemy.com/v2/M-8Ek1BvsYpiE2T8Gch9U',
+  mainnet: ALCHEMY_RPC_URLS.ETHEREUM,
+  sepolia: ALCHEMY_RPC_URLS.SEPOLIA,
 };
 
 // Add a simple throttling mechanism for API requests

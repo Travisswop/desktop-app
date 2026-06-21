@@ -63,6 +63,7 @@ import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { HL_DEPOSIT_CONFIG, HL_IS_TESTNET } from '@/services/hyperliquid/config';
 import type { ChainType } from '@/types/token';
+import { ALCHEMY_RPC_URLS } from '@/types/config';
 import { useHyperliquidDeposit } from './hooks/useHyperliquidDeposit';
 import { useHyperliquidFaucet } from './hooks/useHyperliquidFaucet';
 import { useHyperliquidPositions } from './hooks/useHyperliquidPositions';
@@ -181,23 +182,23 @@ const VIEM_CHAINS: Record<
 
 const RPC_URLS_BY_CHAIN_ID: Record<string, Array<string | undefined>> = {
   '1': [
-    process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
+    ALCHEMY_RPC_URLS.ETHEREUM,
     'https://ethereum-rpc.publicnode.com',
     'https://rpc.flashbots.net',
     'https://eth.llamarpc.com',
   ],
   '137': [
-    process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
+    ALCHEMY_RPC_URLS.POLYGON,
     'https://polygon-bor-rpc.publicnode.com',
     'https://polygon-rpc.com',
   ],
   '8453': [
-    process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
+    ALCHEMY_RPC_URLS.BASE,
     'https://base-rpc.publicnode.com',
     'https://mainnet.base.org',
   ],
   [ARBITRUM_CHAIN_ID]: [
-    process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL,
+    ALCHEMY_RPC_URLS.ARBITRUM,
     'https://arbitrum-one-rpc.publicnode.com',
     'https://arb1.arbitrum.io/rpc',
   ],

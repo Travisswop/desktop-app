@@ -3489,13 +3489,16 @@ export default function ChatArea({
       queryClient,
     ]
   );
-  const goldmanAaveAddress = isGoldmanConsoleChat
+  const goldmanAaveAddress = shouldLoadAstroConsoleData && isGoldmanConsoleChat
     ? goldmanStrategyVault?.walletAddress || null
     : null;
   const {
     data: goldmanAavePositions,
     isLoading: isGoldmanAavePositionsLoading,
-  } = useAavePositions('polygon', goldmanAaveAddress, accessToken || '');
+  } = useAavePositions('polygon', goldmanAaveAddress, accessToken || '', {
+    enabled: shouldLoadAstroConsoleData && isGoldmanConsoleChat,
+    refetchInterval: false,
+  });
   const {
     tokens: walletPortfolioTokens,
     loading: isWalletPortfolioBalanceLoading,

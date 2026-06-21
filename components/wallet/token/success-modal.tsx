@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Check, ExternalLink } from "lucide-react";
-import { NFT } from "@/types/nft";
-import { TokenData } from "@/types/token";
-import Image from "next/image";
-import Link from "next/link";
+import { Check, ExternalLink } from 'lucide-react';
+import { NFT } from '@/types/nft';
+import { TokenData } from '@/types/token';
+import Image from 'next/image';
+import Link from 'next/link';
+import CustomModal from '@/components/modal/CustomModal';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 
 interface TransactionSuccessProps {
   open: boolean;
@@ -27,99 +27,114 @@ export default function TransactionSuccess({
   isUSD,
   hash,
 }: TransactionSuccessProps) {
-  // console.log('token', token);
   const getExplorerUrl = () => {
     switch (token?.chain) {
-      case "ETHEREUM":
+      case 'ETHEREUM':
         return `https://etherscan.io/tx/${hash}`;
-      case "SOLANA":
+      case 'SOLANA':
         return `https://solscan.io/tx/${hash}`;
-      case "POLYGON":
+      case 'POLYGON':
         return `https://polygonscan.com/tx/${hash}`;
-      case "BASE":
+      case 'BASE':
         return `https://basescan.org/tx/${hash}`;
       default:
-        return "";
+        return '';
     }
   };
 
+  const explorerUrl = hash ? getExplorerUrl() : '';
+
+  const price = token?.marketData?.price
+    ? parseFloat(token.marketData.price)
+    : 0;
+  const parsedAmount = parseFloat(amount || '0');
+  const tokenAmount = isUSD
+    ? price
+      ? (parsedAmount / price).toFixed(2)
+      : '0.00'
+    : parsedAmount.toFixed(2);
+  const usdAmount = price
+    ? isUSD
+      ? parsedAmount.toFixed(2)
+      : (parsedAmount * price).toFixed(2)
+    : null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTitle className="sr-only">Transaction Success</DialogTitle>
-      <DialogContent className="max-w-md p-8 rounded-3xl">
-        <div className="flex flex-col items-center justify-center space-y-6">
-          {/* Success Icon */}
-          <div className="w-24 h-24 rounded-full bg-black flex items-center justify-center mb-2 ">
-            <Check className="h-12 w-12 text-white" />
+    <CustomModal
+      isOpen={open}
+      onCloseModal={() => onOpenChange(false)}
+      ariaLabel="Transaction complete"
+      width="max-w-md"
+      removeCloseButton
+    >
+      <div className="flex flex-col items-center px-6 pb-6 pt-8 text-center">
+        {/* ── Success icon ─────────────────────────────────────── */}
+        <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-white shadow-[0_10px_28px_-8px_rgba(16,185,129,0.55)]">
+          <Check className="h-8 w-8" strokeWidth={2.5} />
+        </div>
+
+        {/* ── Message ──────────────────────────────────────────── */}
+        <h2 className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-gray-900">
+          Transaction complete
+        </h2>
+        <p className="mt-1 text-[13px] text-gray-500">
+          Your transfer has been submitted to the network.
+        </p>
+
+        {/* ── Asset ────────────────────────────────────────────── */}
+        {nft ? (
+          <div className="mt-5 flex flex-col items-center gap-3">
+            <Image
+              src={sanitizeNextImageSrc(nft.image) || nft.image}
+              alt={nft.name}
+              width={112}
+              height={112}
+              className="h-28 w-28 rounded-2xl object-cover shadow-sm"
+            />
+            <p className="text-[15px] font-semibold text-gray-900">
+              {nft.name}
+            </p>
           </div>
+        ) : (
+          token && (
+            <div className="mt-5">
+              <p className="text-[24px] font-semibold leading-tight text-gray-950">
+                {tokenAmount}{' '}
+                <span className="text-[16px] font-semibold text-gray-500">
+                  {token.symbol}
+                </span>
+              </p>
+              {usdAmount && (
+                <p className="mt-1 text-[13px] text-gray-500">
+                  ≈ ${usdAmount} USD
+                </p>
+              )}
+            </div>
+          )
+        )}
 
-          {/* Success Message */}
-          <div className="text-center space-y-3">
-            <h2 className="text-2xl font-bold text-gray-800">
-              Transaction Complete!
-            </h2>
-
-            {nft ? (
-              <div className="space-y-2">
-                <p className="text-xl font-semibold">{nft.name}</p>
-                <Image
-                  src={nft.image}
-                  alt={nft.name}
-                  width={128}
-                  height={128}
-                  className="mx-auto rounded-lg"
-                />
-              </div>
-            ) : (
-              token && (
-                <div className="space-y-2">
-                  <p className="text-3xl font-bold text-green-600">
-                    {isUSD
-                      ? token.marketData?.price
-                        ? (
-                            parseFloat(amount) /
-                            parseFloat(token.marketData.price)
-                          ).toFixed(2)
-                        : "0.00"
-                      : parseFloat(amount).toFixed(2)}{" "}
-                    {token.symbol}
-                  </p>
-                  {token.marketData?.price && (
-                    <p className="text-gray-500">
-                      ≈ $
-                      {isUSD
-                        ? parseFloat(amount).toFixed(2)
-                        : (
-                            parseFloat(amount) *
-                            parseFloat(token.marketData.price)
-                          ).toFixed(2)}
-                      USD
-                    </p>
-                  )}
-                </div>
-              )
-            )}
-          </div>
-
-          <div className="flex flex-col w-full gap-3">
+        {/* ── Actions ──────────────────────────────────────────── */}
+        <div className="mt-7 w-full space-y-2.5">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="inline-flex h-11 w-full items-center justify-center rounded-full bg-gray-950 text-[13px] font-semibold text-white transition hover:bg-gray-800"
+          >
+            Done
+          </button>
+          {explorerUrl && (
             <Link
-              href={getExplorerUrl()}
+              href={explorerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 text-gray-500 "
+              className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-full border border-black/[0.06] bg-white text-[13px] font-medium text-gray-700 transition hover:border-black/[0.15]"
             >
-              View on Explorer <ExternalLink className="h-4 w-4" />
+              View on Explorer
+              <ExternalLink className="h-3.5 w-3.5" />
             </Link>
-
-            <Button
-              onClick={() => onOpenChange(false)}
-              className="w-full bg-black text-white hover:bg-gray-800 rounded-xl py-6 text-lg font-semibold"
-            >
-              Done
-            </Button>
-          </div>
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </CustomModal>
   );
 }

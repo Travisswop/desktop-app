@@ -151,7 +151,7 @@ export function useHyperliquidDeposit() {
   // Calls a Next.js server-side API route instead of hitting the RPC
   // directly from the browser. This avoids CORS issues with public RPC
   // endpoints and ensures the Alchemy key is always used server-side,
-  // even if NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL is missing from the client
+  // even if NEXT_PUBLIC_ALCHEMY_API_KEY is missing from the client
   // bundle in a production build.
 
   const fetchArbitrumUsdcBalance = useCallback(

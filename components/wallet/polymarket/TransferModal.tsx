@@ -27,6 +27,7 @@ import {
   http,
 } from 'viem';
 import { polygon, mainnet, base, arbitrum } from 'viem/chains';
+import { ALCHEMY_RPC_URLS } from '@/types/config';
 import { encodeFunctionData } from 'viem';
 import { useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
@@ -205,23 +206,23 @@ const VIEM_CHAINS: Record<
 };
 const RPC_URLS_BY_CHAIN_ID: Record<string, Array<string | undefined>> = {
   '1': [
-    process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL,
+    ALCHEMY_RPC_URLS.ETHEREUM,
     'https://ethereum-rpc.publicnode.com',
     'https://rpc.flashbots.net',
     'https://eth.llamarpc.com',
   ],
   '137': [
-    process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
+    ALCHEMY_RPC_URLS.POLYGON,
     'https://polygon-bor-rpc.publicnode.com',
     'https://polygon.drpc.org',
   ],
   '8453': [
-    process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL,
+    ALCHEMY_RPC_URLS.BASE,
     'https://base-rpc.publicnode.com',
     'https://mainnet.base.org',
   ],
   '42161': [
-    process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL,
+    ALCHEMY_RPC_URLS.ARBITRUM,
     'https://arbitrum-one-rpc.publicnode.com',
     'https://arb1.arbitrum.io/rpc',
   ],

@@ -8,6 +8,7 @@ import {
 } from 'viem';
 import { normalize } from 'viem/ens';
 import { mainnet } from 'viem/chains';
+import { ALCHEMY_RPC_URLS } from '@/types/config';
 
 type PublicEnsResolution = {
   address: Address;
@@ -18,8 +19,7 @@ type PublicEnsResolution = {
 const CACHE_DURATION_MS = 5 * 60 * 1000;
 const CCIP_GATEWAYS = ['https://ccip.ens.xyz'];
 const MAINNET_ENS_RPC_URL =
-  process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL ||
-  'https://ethereum-rpc.publicnode.com';
+  ALCHEMY_RPC_URLS.ETHEREUM || 'https://ethereum-rpc.publicnode.com';
 
 const publicEnsClient = createPublicClient({
   chain: mainnet,

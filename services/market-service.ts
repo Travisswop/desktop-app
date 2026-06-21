@@ -9,6 +9,25 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const MARKET_API_URL = `${API_BASE_URL}/api/v5/market`;
 
+const TOP_MARKET_TOKEN_IDS = [
+  'bitcoin',
+  'ethereum',
+  'tether',
+  'ripple',
+  'binancecoin',
+  'solana',
+  'usd-coin',
+  'dogecoin',
+  'tron',
+  'cardano',
+  'chainlink',
+  'avalanche-2',
+  'stellar',
+  'sui',
+  'wrapped-bitcoin',
+  'bitcoin-cash',
+];
+
 interface TokenPrice {
   price: number;
   marketCap?: number;
@@ -137,14 +156,13 @@ export class MarketService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(
-        `${MARKET_API_URL}/top?limit=${encodeURIComponent(String(limit))}`,
-        {
-          method: 'GET',
-          headers,
-          signal: AbortSignal.timeout(10000),
-        }
-      );
+      const tokenIds = TOP_MARKET_TOKEN_IDS.slice(0, Math.max(1, limit));
+      const response = await fetch(`${MARKET_API_URL}/batch`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ tokenIds }),
+        signal: AbortSignal.timeout(20000),
+      });
 
       if (!response.ok) {
         throw new Error(
@@ -153,7 +171,7 @@ export class MarketService {
       }
 
       const result = await response.json();
-      return result.data?.markets ?? [];
+      return result.data?.successful ?? [];
     } catch (error) {
       console.error('Error fetching top market data:', error);
       throw error;

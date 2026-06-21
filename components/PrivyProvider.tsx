@@ -129,6 +129,15 @@ export default function PrivyProvider({
       appId={appId}
       config={{
         embeddedWallets: {
+          // Suppress Privy's own "Confirm transaction / Approve" popup for
+          // embedded-wallet signing. The app shows its own confirmation UI
+          // (e.g. SendConfirmation) before submitting, so the extra Privy
+          // prompt is redundant. Applies to all embedded-wallet actions
+          // (sends, swaps, perps approveAgent, NFT transfers).
+          // NOTE: if the popup still appears, disable "enforce wallet UIs"
+          // in the Privy dashboard (Wallets settings) — it can be enforced
+          // server-side.
+          showWalletUIs: false,
           ethereum: {
             createOnLogin: 'users-without-wallets',
           },

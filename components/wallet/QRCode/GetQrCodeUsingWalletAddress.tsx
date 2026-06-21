@@ -1,33 +1,48 @@
-"use client";
-import Image from "next/image";
-import ensImg from "@/public/images/ens.png";
-import { useUser } from "@/lib/UserContext";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
-import { Download, Share2 } from "lucide-react";
-import { selectPreferredWallet } from "../hooks/useWalletData";
+'use client';
+import Image from 'next/image';
+import ensImg from '@/public/images/ens.png';
+import { useUser } from '@/lib/UserContext';
+import { useMemo, useRef } from 'react';
+import { QRCodeCanvas } from 'qrcode.react';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
+import { Download, Share2 } from 'lucide-react';
+import { selectPreferredWallet } from '../hooks/useWalletData';
+import { BentoCard, Chip } from '@/components/ui/bento';
+import { useToast } from '@/hooks/use-toast';
+
+type ChainKey = 'sol' | 'eth' | 'pol' | 'base';
+
+const CHAIN_LABELS: Record<ChainKey, string> = {
+  sol: 'Solana',
+  eth: 'Ethereum',
+  pol: 'Polygon',
+  base: 'Base',
+};
+
+const CHAIN_ICONS: Record<ChainKey, string> = {
+  sol: '/assets/icons/solana.png',
+  eth: '/assets/icons/ETH.png',
+  pol: '/assets/icons/POL.png',
+  base: '/assets/icons/base.png',
+};
+
+// Native render resolution of the hidden QR used for the Save export — high
+// enough that the downloaded PNG is crisp instead of an upscaled 200px capture.
+const EXPORT_QR_SIZE = 1000;
 
 const GetQrCodeUsingWalletAddress = ({
   walletName,
 }: {
-  walletName: "sol" | "eth" | "pol" | "base";
+  walletName: ChainKey;
 }) => {
   const { user } = useUser();
   const { user: privyUser } = usePrivy();
-  const qrRef = useRef<HTMLDivElement>(null);
-  const [qrOpenStatus, setQrOpenStatus] = useState<
-    boolean | "sol" | "eth" | "pol" | "base"
-  >(false);
+  const { toast } = useToast();
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  console.log("qrOpenStatus", qrOpenStatus);
-
-  useEffect(() => {
-    if (walletName) {
-      setQrOpenStatus(walletName);
-    }
-  }, [walletName]);
+  // The active chain is derived directly from the prop — no mirrored state.
+  const chainKey = walletName;
 
   const { wallets: solWallets } = useSolanaWallets();
   const { wallets: ethWallets } = useWallets();
@@ -43,166 +58,176 @@ const GetQrCodeUsingWalletAddress = ({
     )?.address;
   }, [ethWallets, privyUser?.wallet?.address]);
 
-  const chainAddresses = [
-    {
-      name: "Solana",
-      icon: "/assets/icons/solana.png",
-      address: solWalletAddress,
-    },
-    {
-      name: "Ethereum",
-      icon: "/assets/icons/ETH.png",
-      address: evmWalletAddress,
-    },
-    {
-      name: "Polygon",
-      icon: "/assets/icons/POL.png",
-      address: evmWalletAddress,
-    },
-    {
-      name: "Base",
-      icon: "/assets/icons/base.png",
-      address: evmWalletAddress,
-    },
-  ];
+  const chainLabel = CHAIN_LABELS[chainKey];
+  const activeAddress =
+    chainKey === 'sol' ? solWalletAddress : evmWalletAddress;
+  const chainIcon = CHAIN_ICONS[chainKey];
 
-  const handleSaveQR = async () => {
-    if (!qrRef.current) return;
+  const handleSaveQR = () => {
+    const source = qrCanvasRef.current;
+    if (!source || !activeAddress) return;
 
     try {
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(qrRef.current, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-      });
+      // Compose the download directly from the hidden high-res QR canvas.
+      // (html2canvas re-rasterized the on-screen 200px canvas, which produced a
+      // soft, low-res PNG.)
+      const QR_SIZE = EXPORT_QR_SIZE; // exported QR resolution in px
+      const PADDING = 80; // white quiet-zone around the QR (needed by scanners)
+      const CAPTION_HEIGHT = 130;
 
-      const link = document.createElement("a");
-      link.download = `swop-qr-${
-        privyUser?.email?.address?.split("@")[0] || "user"
-      }.png`;
-      link.href = canvas.toDataURL("image/png");
+      const output = document.createElement('canvas');
+      output.width = QR_SIZE + PADDING * 2;
+      output.height = QR_SIZE + PADDING * 2 + CAPTION_HEIGHT;
+      const ctx = output.getContext('2d');
+      if (!ctx) return;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, output.width, output.height);
+
+      // Source is rendered natively at high resolution, so a smoothed draw keeps
+      // the modules crisp and the center logo clean.
+      ctx.drawImage(source, PADDING, PADDING, QR_SIZE, QR_SIZE);
+
+      ctx.fillStyle = '#6b7280';
+      ctx.font =
+        '600 44px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(
+        'Powered By Swop',
+        output.width / 2,
+        QR_SIZE + PADDING * 2 + CAPTION_HEIGHT / 2,
+      );
+
+      const link = document.createElement('a');
+      link.download = `${activeAddress}.png`;
+      link.href = output.toDataURL('image/png');
       link.click();
     } catch (error) {
-      console.error("Error saving QR code:", error);
+      console.error('Error saving QR code:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Could not save QR code',
+        description: 'Please try again.',
+      });
     }
   };
 
-  //   const solanaWalletAddress = "wwererdddsdfdf";
-
   const handleShareQR = async () => {
-    if (!evmWalletAddress || !solWalletAddress) return;
+    if (!activeAddress) {
+      toast({
+        variant: 'destructive',
+        title: 'No wallet address',
+        description: `Your ${chainLabel} wallet is still loading. Please try again.`,
+      });
+      return;
+    }
 
     const shareData = {
-      title: `My Wallet Address`,
-      text: `My Wallet Address: ${
-        qrOpenStatus === "eth" ||
-        qrOpenStatus === "pol" ||
-        qrOpenStatus === "base"
-          ? evmWalletAddress
-          : solWalletAddress
-      }`,
+      title: `My ${chainLabel} wallet address`,
+      text: `Send tokens or NFTs to my ${chainLabel} wallet:\n${activeAddress}`,
     };
 
     try {
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
-        await navigator.clipboard.writeText(
-          qrOpenStatus === "eth" ||
-            qrOpenStatus === "pol" ||
-            qrOpenStatus === "base"
-            ? evmWalletAddress
-            : solWalletAddress,
-        );
-        alert("Address copied to clipboard!");
+        await navigator.clipboard.writeText(activeAddress);
+        toast({
+          title: 'Address copied',
+          description: 'Wallet address copied to clipboard.',
+        });
       }
     } catch (error) {
-      console.error("Error sharing:", error);
+      console.error('Error sharing:', error);
     }
   };
 
   return (
     <div className="relative bg-white mx-auto p-8">
-      <div className="">
-        <div className="flex items-center mb-5 justify-center">
-          <div className="w-12 h-12 flex items-center justify-center">
-            <Image src={ensImg} alt="ens image" />
+      <div className="flex items-center mb-5 justify-center gap-2">
+        <div className="w-12 h-12 flex items-center justify-center">
+          <Image src={ensImg} alt="ens image" />
+        </div>
+        <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
+          {user && (user.ens || user.ensName)}
+        </h2>
+      </div>
+
+      <div className="flex justify-center mb-4">
+        <Chip asLabel className="gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          {chainLabel}
+        </Chip>
+      </div>
+
+      <div className="flex flex-col items-center mb-6">
+        <BentoCard padding="p-2" className="inline-block">
+          <div className="bg-white p-4">
+            {activeAddress ? (
+              <>
+                <QRCodeCanvas
+                  value={activeAddress}
+                  size={200}
+                  level="H"
+                  marginSize={0}
+                  imageSettings={{
+                    src: chainIcon,
+                    height: 40,
+                    width: 40,
+                    excavate: true, // ensures clear background behind logo
+                  }}
+                />
+                {/* Hidden high-res copy rendered natively at EXPORT_QR_SIZE —
+                    used only as the source for the Save export. */}
+                <QRCodeCanvas
+                  ref={qrCanvasRef}
+                  value={activeAddress}
+                  size={EXPORT_QR_SIZE}
+                  level="H"
+                  marginSize={0}
+                  imageSettings={{
+                    src: chainIcon,
+                    height: EXPORT_QR_SIZE * 0.2,
+                    width: EXPORT_QR_SIZE * 0.2,
+                    excavate: true,
+                  }}
+                  style={{ display: 'none' }}
+                />
+              </>
+            ) : (
+              <div className="w-[200px] h-[200px] rounded-xl bg-gray-100 animate-pulse" />
+            )}
           </div>
-          <h2 className="text-lg font-semibold text-gray-900">
-            {user && (user.ens || user.ensName)}
-          </h2>
-        </div>
 
-        <div className="flex flex-col items-center mb-6">
-          <div
-            ref={qrRef}
-            className="border-2 border-gray-900 rounded-2xl p-2 bg-white inline-block"
-          >
-            <div className="bg-white p-4">
-              <QRCodeSVG
-                value={
-                  qrOpenStatus === "eth" ||
-                  qrOpenStatus === "pol" ||
-                  qrOpenStatus === "base"
-                    ? evmWalletAddress || ""
-                    : solWalletAddress || ""
-                }
-                size={200}
-                level="H"
-                includeMargin={false}
-                //need to use local image
-                imageSettings={{
-                  src:
-                    qrOpenStatus === "sol"
-                      ? chainAddresses[0].icon
-                      : qrOpenStatus === "eth"
-                        ? chainAddresses[1].icon
-                        : qrOpenStatus === "base"
-                          ? chainAddresses[3].icon
-                          : chainAddresses[2].icon,
-                  height: 40,
-                  width: 40,
-                  excavate: true, // ensures clear background behind logo
-                }}
-              />
-            </div>
-
-            <div className="text-center">
-              <p className="text-sm font-medium text-gray-900">
-                Powered By Swop
-              </p>
-            </div>
+          <div className="text-center">
+            <p className="text-[12px] font-medium text-gray-500">
+              Powered By Swop
+            </p>
           </div>
-        </div>
+        </BentoCard>
+      </div>
 
-        <p className="text-center text-gray-500 text-sm max-w-md mx-auto mb-6 leading-relaxed">
-          {`Use This Only To Receive Tokens hh or NFTs on the ${
-            qrOpenStatus === "sol"
-              ? "Solana"
-              : qrOpenStatus === "eth"
-                ? "Etherium"
-                : qrOpenStatus === "pol"
-                  ? "Polygon"
-                  : "Base"
-          } Blockchain`}
-        </p>
+      <p className="text-center text-[13px] text-gray-500 max-w-md mx-auto mb-6 leading-relaxed">
+        {`Use this only to receive tokens or NFTs on the ${chainLabel} blockchain`}
+      </p>
 
-        <div className="flex justify-center gap-4">
-          <button
-            onClick={handleSaveQR}
-            className="bg-gray-900 text-white px-8 py-3 rounded-xl font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2"
-          >
-            <Download size={20} />
-            Save
-          </button>
-          <button
-            onClick={handleShareQR}
-            className="bg-gray-100 text-gray-900 px-8 py-3 rounded-xl font-semibold hover:bg-gray-200 transition-colors flex items-center gap-2"
-          >
-            <Share2 size={20} />
-            Share
-          </button>
-        </div>
+      <div className="flex justify-center gap-3">
+        <button
+          onClick={handleSaveQR}
+          disabled={!activeAddress}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-gray-950 px-5 text-[13px] font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
+        >
+          <Download size={16} />
+          Save
+        </button>
+        <button
+          onClick={handleShareQR}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-black/[0.06] bg-white px-5 text-[13px] font-semibold text-gray-900 transition hover:border-black/[0.15]"
+        >
+          <Share2 size={16} />
+          Share
+        </button>
       </div>
     </div>
   );

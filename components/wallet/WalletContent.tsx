@@ -66,6 +66,7 @@ import NFTDetailView from './nft/nft-details-view';
 import ManageNFTModal from './nft/ManageNFTModal';
 import WalletModals from './WalletModals';
 import { Toaster } from '../ui/toaster';
+import { BentoCard, Chip, SectionHead } from '../ui/bento';
 import BalanceChart from '../dashboard/BalanceChart';
 import { PortfolioAsset } from '../dashboard/PortfolioChart';
 
@@ -432,83 +433,6 @@ function shortenWallet(address?: string | null) {
   if (!address) return '';
   if (address.length <= 12) return address;
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
-}
-
-// Section header — matches the wallet design's title + caption + action layout.
-function SectionHead({
-  title,
-  caption,
-  action,
-}: {
-  title: string;
-  caption?: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="flex items-end justify-between gap-3 mb-3">
-      <div className="min-w-0">
-        <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
-          {title}
-        </h2>
-        {caption && (
-          <p className="text-[13px] text-gray-500 mt-0.5 tracking-tight">
-            {caption}
-          </p>
-        )}
-      </div>
-      {action && (
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {action}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Pill-shaped chip used for filters and section actions.
-function Chip({
-  children,
-  active = false,
-  onClick,
-  className = '',
-}: {
-  children: ReactNode;
-  active?: boolean;
-  onClick?: () => void;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium whitespace-nowrap border transition ${
-        active
-          ? 'bg-gray-900 text-white border-gray-900'
-          : 'bg-white text-gray-900 border-black/[0.06] hover:border-black/[0.15]'
-      } ${className}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-// Hairline-bordered card matching the design's bento aesthetic.
-function BentoCard({
-  children,
-  className = '',
-  padding = '',
-}: {
-  children: ReactNode;
-  className?: string;
-  padding?: string;
-}) {
-  return (
-    <div
-      className={`bg-white rounded-2xl border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] ${padding} ${className}`}
-    >
-      {children}
-    </div>
-  );
 }
 
 function RewardsBox({

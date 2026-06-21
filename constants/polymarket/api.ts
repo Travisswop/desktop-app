@@ -1,3 +1,5 @@
+import { ALCHEMY_RPC_URLS } from '@/types/config';
+
 // Polymarket API URLs
 export const RELAYER_URL = 'https://relayer-v2.polymarket.com/';
 export const CLOB_API_URL = 'https://clob.polymarket.com';
@@ -17,7 +19,7 @@ export const POLYMARKET_PROFILE_URL = (address: string) =>
 // re-prompting fully-approved users to "Enable trading". Keep multiple healthy
 // public nodes so a single dead endpoint never breaks reads.
 export const POLYGON_RPC_URLS = [
-  process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL,
+  ALCHEMY_RPC_URLS.POLYGON,
   'https://polygon-bor-rpc.publicnode.com',
   'https://polygon.drpc.org',
 ].filter((url): url is string => !!url);

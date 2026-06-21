@@ -10,6 +10,7 @@ import { mainnet, polygon, base, arbitrum } from 'viem/chains';
 import { SolanaProvider } from './SolanaProvider';
 import { createConfig } from '@privy-io/wagmi';
 import { http } from 'viem';
+import { ALCHEMY_RPC_URLS } from '@/types/config';
 
 // Create a wagmi config with all supported EVM chains.
 // This config is used by @lifi/wallet-management to sign transactions
@@ -19,10 +20,10 @@ import { http } from 'viem';
 const wagmiConfig = createConfig({
   chains: [mainnet, polygon, base, arbitrum],
   transports: {
-    [mainnet.id]:  http(process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL),
-    [polygon.id]:  http(process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL),
-    [base.id]:     http(process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL),
-    [arbitrum.id]: http(process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL),
+    [mainnet.id]:  http(ALCHEMY_RPC_URLS.ETHEREUM),
+    [polygon.id]:  http(ALCHEMY_RPC_URLS.POLYGON),
+    [base.id]:     http(ALCHEMY_RPC_URLS.BASE),
+    [arbitrum.id]: http(ALCHEMY_RPC_URLS.ARBITRUM),
   },
 });
 

@@ -5,6 +5,7 @@ import { WidgetEvent, useWidgetEvents } from '@lifi/widget';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChainId } from '@lifi/widget';
 import { EVM } from '@lifi/sdk';
+import { ALCHEMY_RPC_URLS } from '@/types/config';
 import { useWallets } from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -321,10 +322,10 @@ export default function LiFiModal({
         // Without these, the LiFi SDK falls back to public RPCs which are
         // rate-limited and can return stale nonces, causing permit failures.
         rpcUrls: {
-          [ChainId.ETH]: [process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL!].filter(Boolean),
-          [ChainId.POL]: [process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL!].filter(Boolean),
-          [ChainId.BAS]: [process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL!].filter(Boolean),
-          [ChainId.ARB]: [process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL!].filter(Boolean),
+          [ChainId.ETH]: [ALCHEMY_RPC_URLS.ETHEREUM!].filter(Boolean),
+          [ChainId.POL]: [ALCHEMY_RPC_URLS.POLYGON!].filter(Boolean),
+          [ChainId.BAS]: [ALCHEMY_RPC_URLS.BASE!].filter(Boolean),
+          [ChainId.ARB]: [ALCHEMY_RPC_URLS.ARBITRUM!].filter(Boolean),
           [ChainId.SOL]: [process.env.NEXT_PUBLIC_SOLANA_RPC_URL!].filter(Boolean),
         },
       },

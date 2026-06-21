@@ -15,7 +15,7 @@ console.log('🚀 Testing NFT Service...\n');
 const testAlchemyAPI = async (network, address) => {
   console.log(`📡 Testing Alchemy API for ${network}...`);
 
-  const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_ETH_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
   console.log('🚀 ~ testAlchemyAPI ~ apiKey:', apiKey);
   if (!apiKey) {
     console.log(`❌ No Alchemy API key found for ${network}`);
@@ -183,8 +183,8 @@ const testShyftAPI = async (address) => {
 const runTests = async () => {
   console.log('Environment variables check:');
   console.log(
-    `ALCHEMY_ETH_API_KEY: ${
-      process.env.NEXT_PUBLIC_ALCHEMY_ETH_API_KEY
+    `ALCHEMY_API_KEY: ${
+      process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
         ? '✅ Set'
         : '❌ Missing'
     }`

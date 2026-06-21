@@ -5,17 +5,14 @@ import { useSendTransaction } from '@privy-io/react-auth';
 import { ethers } from 'ethers';
 import { CHAIN_ID } from '@/types/wallet-types';
 import type { AaveActionMode, AaveChain, AaveReserve } from '@/types/aave';
+import { ALCHEMY_RPC_URLS } from '@/types/config';
 
 // Read-only RPC endpoints for allowance / balance checks (writes go through Privy)
 const RPC_URLS: Record<AaveChain, string> = {
-  ethereum:
-    process.env.NEXT_PUBLIC_ALCHEMY_ETH_URL || 'https://eth.llamarpc.com',
-  polygon:
-    process.env.NEXT_PUBLIC_ALCHEMY_POLYGON_URL || 'https://polygon-rpc.com',
-  base: process.env.NEXT_PUBLIC_ALCHEMY_BASE_URL || 'https://mainnet.base.org',
-  arbitrum:
-    process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL ||
-    'https://arb1.arbitrum.io/rpc',
+  ethereum: ALCHEMY_RPC_URLS.ETHEREUM || 'https://eth.llamarpc.com',
+  polygon: ALCHEMY_RPC_URLS.POLYGON || 'https://polygon-rpc.com',
+  base: ALCHEMY_RPC_URLS.BASE || 'https://mainnet.base.org',
+  arbitrum: ALCHEMY_RPC_URLS.ARBITRUM || 'https://arb1.arbitrum.io/rpc',
 };
 
 export const getAaveReadProvider = (chain: AaveChain) =>

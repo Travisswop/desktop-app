@@ -82,18 +82,23 @@ export default function SendConfirmation({
   gasSponsored = true,
 }: SendConfirmationProps) {
   const [gasFeeUSD, setGasFeeUSD] = useState(0);
-  const [dynamicNetworkFee, setDynamicNetworkFee] = useState(networkFee);
+  const [dynamicNetworkFee, setDynamicNetworkFee] =
+    useState(networkFee);
 
   useEffect(() => {
     const fetchGasFee = async () => {
       if (token.chain.toUpperCase() === 'SOLANA') {
         const fee = await calculateSolanaGasFee();
         setDynamicNetworkFee(fee);
-        setGasFeeUSD(Number((Number(fee) * nativeTokenPrice).toFixed(5)));
+        setGasFeeUSD(
+          Number((Number(fee) * nativeTokenPrice).toFixed(5)),
+        );
       } else {
         const fee = await calculateEVMGasFee(network);
         setDynamicNetworkFee(fee);
-        setGasFeeUSD(Number((Number(fee) * nativeTokenPrice).toFixed(5)));
+        setGasFeeUSD(
+          Number((Number(fee) * nativeTokenPrice).toFixed(5)),
+        );
       }
     };
 
@@ -119,7 +124,9 @@ export default function SendConfirmation({
 
     if (isUSD) {
       return {
-        tokenAmount: price ? (parsedAmount / price).toFixed(6) : '0.000000',
+        tokenAmount: price
+          ? (parsedAmount / price).toFixed(6)
+          : '0.000000',
         usdAmount: parsedAmount.toFixed(2),
       };
     }
@@ -130,8 +137,9 @@ export default function SendConfirmation({
   }, [amount, isUSD, token.marketData?.price]);
 
   const tokenImage =
-    sanitizeNextImageSrc(token.logoURI || token.marketData?.iconUrl) ||
-    getInitialAvatar(token.symbol);
+    sanitizeNextImageSrc(
+      token.logoURI || token.marketData?.iconUrl,
+    ) || getInitialAvatar(token.symbol);
 
   const recipientLabel = recipientName || 'Recipient';
   const recipientAvatar = getInitialAvatar(recipientLabel);
@@ -140,7 +148,7 @@ export default function SendConfirmation({
     <CustomModal
       isOpen={open}
       onCloseModal={() => onOpenChange(false)}
-      title="Review transaction"
+      title=""
       width="max-w-md"
     >
       <div className="px-5 pb-5 pt-1">
@@ -243,7 +251,9 @@ export default function SendConfirmation({
         {/* ── Transaction details ────────────────────────────── */}
         <div className="mt-3 rounded-[14px] border border-black/[0.06] bg-white px-4 py-3">
           <div className="flex items-center justify-between py-1">
-            <span className="text-[11.5px] text-[#6e6e76]">Network</span>
+            <span className="text-[11.5px] text-[#6e6e76]">
+              Network
+            </span>
             <span className="flex items-center gap-1.5 font-mono text-[11.5px] font-medium text-[#0a0a0c]">
               {chainIcon && (
                 <Image
@@ -254,12 +264,15 @@ export default function SendConfirmation({
                   className="h-3.5 w-3.5 rounded-full"
                 />
               )}
-              {chainUpper.charAt(0) + chainUpper.slice(1).toLowerCase()}
+              {chainUpper.charAt(0) +
+                chainUpper.slice(1).toLowerCase()}
             </span>
           </div>
 
           <div className="flex items-center justify-between py-1">
-            <span className="text-[11.5px] text-[#6e6e76]">Network fee</span>
+            <span className="text-[11.5px] text-[#6e6e76]">
+              Network fee
+            </span>
             {gasSponsored ? (
               <span className="flex items-center gap-2">
                 <span className="font-mono text-[11.5px] text-[#6e6e76] line-through">
@@ -287,7 +300,9 @@ export default function SendConfirmation({
           <div className="mt-3 flex items-start gap-2.5 rounded-[12px] border border-[#19a974]/20 bg-[#19a974]/[0.07] p-3">
             <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#19a974]" />
             <p className="text-[12px] leading-relaxed text-[#0a0a0c]">
-              <span className="font-semibold">Gas sponsored by Privy.</span>{' '}
+              <span className="font-semibold">
+                Gas sponsored by SWOP.
+              </span>{' '}
               <span className="text-[#6e6e76]">
                 You won&apos;t pay any network fee for this transfer.
               </span>
@@ -297,8 +312,8 @@ export default function SendConfirmation({
           <div className="mt-3 flex items-start gap-2.5 rounded-[12px] border border-amber-200 bg-amber-50 p-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
             <p className="text-[12px] leading-relaxed text-amber-700">
-              Transactions can&apos;t be reversed. Make sure the recipient
-              address is correct before confirming.
+              Transactions can&apos;t be reversed. Make sure the
+              recipient address is correct before confirming.
             </p>
           </div>
         )}

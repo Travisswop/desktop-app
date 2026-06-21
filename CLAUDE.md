@@ -116,6 +116,14 @@ zustandStore/         # Client state management
 - Maintain type safety with proper TypeScript usage
 - Server-side functionality goes in `actions/` directory
 
+### Design System (IMPORTANT for any UI work)
+When building or updating components, follow the **"bento" design system** documented in
+[`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md). Import the shared primitives from `@/components/ui/bento`
+(`BentoCard`, `Chip`, `SectionHead`) — reference usage in `components/wallet/WalletContent.tsx`.
+- Fonts (Inter / Figtree / JetBrains Mono) are configured globally in `app/layout.tsx` — never import or declare new font families in a component.
+- Use the bento tokens: `rounded-2xl` white cards with `border-black/[0.06]` hairlines and the standard layered shadow; `rounded-full` pill chips/buttons; bracketed pixel type sizes (`text-[22px]`, `text-[13px]`, etc.) with tight tracking; emerald accent; `gray-950`/`gray-500`/`gray-400` text ramp.
+- Reuse existing primitives instead of restyling cards/chips/headers from scratch.
+
 ### Testing & Validation
 1. Run `npm run lint` for code style validation
 2. Test wallet connections across multiple networks

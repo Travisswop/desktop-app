@@ -9,6 +9,11 @@ import type {
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { apiFetch } from '@/lib/api/apiFetch';
 
+type UseAavePositionsOptions = {
+  enabled?: boolean;
+  refetchInterval?: number | false;
+};
+
 type AaveApiResponse<T> = {
   success?: boolean;
   data?: T;
@@ -53,6 +58,7 @@ export function useAavePositions(
   chain: AaveChain,
   address: string | null,
   accessToken: string,
+  options: UseAavePositionsOptions = {},
 ) {
   return useQuery({
     queryKey: ['aave-positions', chain, address],
@@ -61,8 +67,8 @@ export function useAavePositions(
         `positions?chain=${chain}&address=${address}`,
         accessToken,
       ),
-    enabled: Boolean(address && accessToken),
-    refetchInterval: 30_000,
+    enabled: Boolean(address && accessToken) && options.enabled !== false,
+    refetchInterval: options.refetchInterval ?? 30_000,
     staleTime: 10_000,
     retry: 2,
   });

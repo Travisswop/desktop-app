@@ -85,7 +85,11 @@ export function DefiSection({
   const [modal, setModal] = useState<ModalState | null>(null);
 
   const markets = useAaveMarkets(chain);
-  const positions = useAavePositions(chain, evmWalletAddress, accessToken);
+  const shouldLoadPositions = tab === 'supply' || tab === 'borrow';
+  const positions = useAavePositions(chain, evmWalletAddress, accessToken, {
+    enabled: shouldLoadPositions,
+    refetchInterval: shouldLoadPositions ? 30_000 : false,
+  });
 
   const sortedReserves = useMemo(() => {
     const reserves = markets.data?.reserves ?? [];

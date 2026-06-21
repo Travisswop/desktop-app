@@ -3,13 +3,14 @@
  *
  * Runs on the Next.js server so there is no CORS restriction and the
  * Alchemy RPC is always available, regardless of whether the client has
- * the NEXT_PUBLIC_ variable in its bundle.
+ * the NEXT_PUBLIC_ALCHEMY_API_KEY in its bundle.
  *
  * GET /api/arbitrum-usdc-balance?address=0x...&testnet=true
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http, erc20Abi, formatUnits } from 'viem';
 import { arbitrum, arbitrumSepolia } from 'viem/chains';
+import { ALCHEMY_RPC_URLS } from '@/types/config';
 
 const MAINNET_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' as const;
 const TESTNET_USDC  = '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d' as const;
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
     const chain      = isTestnet ? arbitrumSepolia : arbitrum;
     const rpcUrl     = isTestnet
       ? undefined  // use chain default for Sepolia
-      : process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_URL;
+      : ALCHEMY_RPC_URLS.ARBITRUM;
     const usdcAddress = isTestnet ? TESTNET_USDC : MAINNET_USDC;
 
     const client = createPublicClient({ chain, transport: http(rpcUrl) });
