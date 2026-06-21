@@ -20,7 +20,13 @@ import {
   normalizePerpsCoin,
   useLivePerpsMarkPrice,
 } from './useLivePerpsMarkPrice';
+import {
+  normalizePerpsEntryMarkers,
+  type PerpsEntryMarker,
+} from './perpsEntryMarkers';
 import type { PerpsPositionFeedContent } from '@/lib/perps/perpsFeed';
+
+export type { PerpsEntryMarker } from './perpsEntryMarkers';
 
 interface PerpsPositionFeedCardProps {
   feed: {
@@ -33,15 +39,6 @@ interface PerpsPositionFeedCardProps {
     smartsiteUserName?: string | null;
     createdAt?: string;
   };
-}
-
-interface PerpsEntryMarker {
-  event?: 'open' | 'add';
-  orderId?: string;
-  price?: number;
-  sizeCoins?: number;
-  notionalUsd?: number;
-  timestamp?: string;
 }
 
 interface ChartPoint {
@@ -146,9 +143,17 @@ function liveMidPriceForCoin(
 function normalizePositionStatus(
   status: Partial<PerpsPositionFeedContent>['status'],
   event?: Partial<PerpsPositionFeedContent>['event'],
+  content?: Partial<PerpsPositionFeedContent>,
 ) {
   const normalizedStatus = String(status || '').toLowerCase();
   const normalizedEvent = String(event || '').toLowerCase();
+  if (
+    normalizedStatus === 'cancelled' ||
+    normalizedStatus === 'canceled' ||
+    normalizedEvent === 'cancel'
+  ) {
+    return 'cancelled';
+  }
   if (
     normalizedStatus === 'liquidated' ||
     normalizedStatus === 'liquidate' ||
@@ -159,7 +164,50 @@ function normalizePositionStatus(
   if (normalizedStatus === 'closed' || normalizedEvent === 'close') {
     return 'closed';
   }
+  if (
+    normalizedStatus === 'open' ||
+    normalizedEvent === 'open' ||
+    normalizedEvent === 'add' ||
+    normalizedEvent === 'reduce'
+  ) {
+    return 'open';
+  }
+  if (
+    normalizedStatus === 'limit' ||
+    normalizedEvent === 'limit' ||
+    maybeFiniteNumber(content?.limitPrice) !== null
+  ) {
+    return 'limit';
+  }
   return 'open';
+}
+
+function dateMs(value: unknown) {
+  const milliseconds = Date.parse(String(value || ''));
+  return Number.isFinite(milliseconds) ? milliseconds : null;
+}
+
+function terminalTimestampPredatesOpen(
+  content: Partial<PerpsPositionFeedContent>,
+  status: 'limit' | 'open' | 'closed' | 'liquidated' | 'cancelled',
+) {
+  if (status === 'limit' || status === 'open') return false;
+
+  const openedAt = dateMs(content.openedAt || content.limitPlacedAt);
+  const terminalAt =
+    status === 'liquidated'
+      ? dateMs(content.liquidatedAt) ||
+        dateMs(content.closedAt) ||
+        dateMs(content.updatedAt)
+      : status === 'cancelled'
+      ? dateMs(content.cancelledAt) || dateMs(content.updatedAt)
+      : dateMs(content.closedAt) || dateMs(content.updatedAt);
+
+  return (
+    openedAt !== null &&
+    terminalAt !== null &&
+    terminalAt < openedAt - 5 * 60 * 1000
+  );
 }
 
 function hasCrossedLiquidationPrice({
@@ -271,6 +319,14 @@ function profileImageSrc(profilePic?: string | null) {
     : `/images/user_avator/${profilePic}@3x.png`;
 }
 
+export function selectPerpsChartMarkerEntries(
+  entries: PerpsEntryMarker[],
+): PerpsEntryMarker[] {
+  if (entries.length === 0) return [];
+  const primaryOpen = entries.find((entry) => entry.event !== 'add');
+  return [primaryOpen ?? entries[0]];
+}
+
 export default function PerpsPositionFeedCard({
   feed,
 }: PerpsPositionFeedCardProps) {
@@ -278,8 +334,21 @@ export default function PerpsPositionFeedCard({
   const rawCoin = String(content.coin || 'BTC');
   const coin = rawCoin.toUpperCase();
   const side = content.side === 'short' ? 'short' : 'long';
-  const storedStatus = normalizePositionStatus(content.status, content.event);
-  const hasStoredTerminalStatus = storedStatus !== 'open';
+  const rawStoredStatus = normalizePositionStatus(
+    content.status,
+    content.event,
+    content,
+  );
+  const storedStatus = terminalTimestampPredatesOpen(content, rawStoredStatus)
+    ? 'open'
+    : rawStoredStatus;
+  const isLimitStatus = storedStatus === 'limit';
+  const isLimitLifecycleStatus =
+    storedStatus === 'limit' || storedStatus === 'cancelled';
+  const hasStoredTerminalStatus =
+    storedStatus === 'closed' ||
+    storedStatus === 'liquidated' ||
+    storedStatus === 'cancelled';
   const leverage = Math.max(1, Math.round(finiteNumber(content.leverage, 1)));
   const storedMarkPrice = firstFiniteNumber([
     hasStoredTerminalStatus ? content.exitPrice : null,
@@ -393,17 +462,13 @@ export default function PerpsPositionFeedCard({
 
   const entries = useMemo(() => {
     const rawEntries = Array.isArray(content.entries) ? content.entries : [];
-    if (rawEntries.length > 0) return rawEntries;
-    const timestamp =
-      content.openedAt || content.updatedAt || feed.createdAt || new Date().toISOString();
-    return [
-      {
-        event: 'open' as const,
-        price: finiteNumber(content.entryPrice || content.markPrice),
-        timestamp,
-      },
-    ];
+    return normalizePerpsEntryMarkers(rawEntries, content, feed.createdAt);
   }, [content, feed.createdAt]);
+  const chartMarkerEntries = useMemo(
+    () =>
+      isLimitLifecycleStatus ? [] : selectPerpsChartMarkerEntries(entries),
+    [entries, isLimitLifecycleStatus],
+  );
 
   const priceDomain = useMemo(() => {
     const prices = [
@@ -459,37 +524,37 @@ export default function PerpsPositionFeedCard({
     const firstTime = points.find((point) => point.time)?.time;
     const lastTime = [...points].reverse().find((point) => point.time)?.time;
 
-    return entries.reduce<ChartMarkerPosition[]>((markers, entry, index) => {
-      const price = finiteNumber(entry.price || content.entryPrice);
-      const timestamp = entry.timestamp ? dayjs(entry.timestamp).unix() : null;
-      let x = getXForIndex(Math.min(index + 4, points.length - 1));
+    return chartMarkerEntries.reduce<ChartMarkerPosition[]>(
+      (markers, entry) => {
+        const price = finiteNumber(entry.price || content.entryPrice);
+        const timestamp = entry.timestamp ? dayjs(entry.timestamp).unix() : null;
+        let x = width * 0.34;
 
-      if (timestamp && firstTime && lastTime && lastTime > firstTime) {
-        const ratio = (timestamp - firstTime) / (lastTime - firstTime);
-        if (ratio < 0 || ratio > 1) return markers;
-        x = Math.max(0, Math.min(width, ratio * width));
-      } else if (entries.length > 1) {
-        x = width * (0.3 + (index / Math.max(1, entries.length - 1)) * 0.45);
-      } else {
-        x = width * 0.34;
-      }
+        if (timestamp && firstTime && lastTime && lastTime > firstTime) {
+          const ratio = (timestamp - firstTime) / (lastTime - firstTime);
+          if (ratio >= 0 && ratio <= 1) {
+            x = Math.max(0, Math.min(width, ratio * width));
+          }
+        }
 
-      const marker = {
-        x: Math.max(AVATAR_BORDER, Math.min(width - AVATAR_BORDER, x)),
-        y: Math.max(
-          AVATAR_BORDER,
-          Math.min(CHART_HEIGHT - AVATAR_BORDER, getY(price)),
-        ),
-        entry,
-      };
+        const marker = {
+          x: Math.max(AVATAR_BORDER, Math.min(width - AVATAR_BORDER, x)),
+          y: Math.max(
+            AVATAR_BORDER,
+            Math.min(CHART_HEIGHT - AVATAR_BORDER, getY(price)),
+          ),
+          entry,
+        };
 
-      if (Number.isFinite(marker.x) && Number.isFinite(marker.y)) {
-        markers.push(marker);
-      }
+        if (Number.isFinite(marker.x) && Number.isFinite(marker.y)) {
+          markers.push(marker);
+        }
 
-      return markers;
-    }, []);
-  }, [content.entryPrice, entries, getXForIndex, getY, points, width]);
+        return markers;
+      },
+      [],
+    );
+  }, [chartMarkerEntries, content.entryPrice, getY, points, width]);
 
   const selectedChartPoint = useMemo(() => {
     if (selectedIndex === null || width <= 0 || points.length < 2) return null;
@@ -561,7 +626,7 @@ export default function PerpsPositionFeedCard({
 
   const entryPrice = firstFiniteNumber([content.entryPrice, displayMarkPrice]);
   const calculatedReturnPct =
-    entryPrice > 0
+    !isLimitLifecycleStatus && entryPrice > 0
       ? ((side === 'long'
           ? displayMarkPrice - entryPrice
           : entryPrice - displayMarkPrice) /
@@ -571,41 +636,64 @@ export default function PerpsPositionFeedCard({
       : finiteNumber(content.returnPct);
   const storedReturnPct = maybeFiniteNumber(content.returnPct);
   const returnPct =
-    hasStoredTerminalStatus && storedReturnPct !== null
+    isLimitLifecycleStatus
+      ? null
+      : hasStoredTerminalStatus && storedReturnPct !== null
       ? storedReturnPct
       : calculatedReturnPct;
-  const isPositive = returnPct >= 0;
+  const isPositive = returnPct === null || returnPct >= 0;
+  const returnText = returnPct === null ? '-' : formatPercent(returnPct);
   const badgeClasses =
     status === 'liquidated'
       ? 'border-red-200 bg-red-100 text-red-500'
+      : status === 'cancelled'
+      ? 'border-gray-200 bg-gray-100 text-gray-500'
       : status === 'closed'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
+      : status === 'limit'
+      ? 'border-amber-200 bg-amber-50 text-amber-600'
       : side === 'long'
       ? 'border-emerald-200 bg-emerald-100 text-emerald-600'
       : 'border-red-200 bg-red-100 text-red-500';
   const badgeLabel =
     status === 'liquidated'
       ? 'Liquidated'
+      : status === 'cancelled'
+      ? 'Cancelled'
       : status === 'closed'
       ? 'Closed'
+      : status === 'limit'
+      ? `Limit ${side}`
       : side;
   const statusLabel =
     status === 'liquidated'
       ? 'Liquidated'
+      : status === 'cancelled'
+      ? 'Cancelled'
       : status === 'closed'
       ? 'Closed'
+      : status === 'limit'
+      ? 'Limit'
       : 'Open';
   const statusVerb =
     status === 'liquidated'
       ? 'Liquidated'
+      : status === 'cancelled'
+      ? 'Cancelled'
       : status === 'closed'
       ? 'Closed'
+      : status === 'limit'
+      ? 'Limit set'
       : 'Opened';
   const statusPillClasses =
     status === 'liquidated'
       ? 'border-red-200 bg-red-50 text-red-500'
+      : status === 'cancelled'
+      ? 'border-gray-200 bg-gray-100 text-gray-500'
       : status === 'closed'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
+      : status === 'limit'
+      ? 'border-amber-200 bg-amber-50 text-amber-600'
       : 'border-emerald-200 bg-emerald-50 text-emerald-600';
   const statusTimestamp =
     status === 'liquidated'
@@ -613,9 +701,27 @@ export default function PerpsPositionFeedCard({
         content.closedAt ||
         content.updatedAt ||
         feed.createdAt
+      : status === 'cancelled'
+      ? content.cancelledAt || content.updatedAt || feed.createdAt
       : status === 'closed'
       ? content.closedAt || content.updatedAt || feed.createdAt
+      : status === 'limit'
+      ? content.limitPlacedAt || content.updatedAt || feed.createdAt
       : content.openedAt || content.updatedAt || feed.createdAt;
+  const takeProfitPrice = maybeFiniteNumber(content.takeProfitPrice);
+  const stopLossPrice = maybeFiniteNumber(content.stopLossPrice);
+  const riskPrices = [
+    takeProfitPrice !== null
+      ? { label: 'TP', value: takeProfitPrice, className: 'text-emerald-500' }
+      : null,
+    stopLossPrice !== null
+      ? { label: 'SL', value: stopLossPrice, className: 'text-red-500' }
+      : null,
+  ].filter(Boolean) as Array<{
+    label: string;
+    value: number;
+    className: string;
+  }>;
   const href = `/wallet?perps=1&coin=${encodeURIComponent(coin)}&side=${side}&leverage=${leverage}`;
   const periodBar = (
     <div
@@ -781,7 +887,12 @@ export default function PerpsPositionFeedCard({
             {markerPositions.map((marker, index) => (
               <button
                 type="button"
-                key={`${marker.entry.orderId || marker.entry.timestamp || index}`}
+                key={[
+                  marker.entry.orderId || 'order',
+                  marker.entry.timestamp || 'time',
+                  marker.entry.event || 'entry',
+                  index,
+                ].join('-')}
                 className="absolute flex items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white shadow"
                 style={{
                   width: AVATAR_RADIUS * 2,
@@ -834,10 +945,16 @@ export default function PerpsPositionFeedCard({
             <div className="mb-4 flex items-start justify-around">
               <div className="flex flex-col items-center">
                 <span className="mb-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                  Entry price
+                  {status === 'limit' || status === 'cancelled'
+                    ? 'Limit price'
+                    : 'Entry price'}
                 </span>
                 <div className="font-mono text-[16px] font-black tabular-nums text-gray-950">
-                  {formatUsd(content.entryPrice)}
+                  {formatUsd(
+                    status === 'limit' || status === 'cancelled'
+                      ? content.limitPrice || content.entryPrice
+                      : content.entryPrice,
+                  )}
                 </div>
               </div>
 
@@ -852,10 +969,30 @@ export default function PerpsPositionFeedCard({
                     isPositive ? 'text-emerald-500' : 'text-red-500'
                   }`}
                 >
-                  {formatPercent(returnPct)}
+                  {returnText}
                 </div>
               </div>
             </div>
+
+            {riskPrices.length > 0 && (
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                {riskPrices.map((price) => (
+                  <div
+                    key={price.label}
+                    className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
+                  >
+                    <div className="font-mono text-[9px] font-black uppercase tracking-[0.18em] text-gray-400">
+                      {price.label}
+                    </div>
+                    <div
+                      className={`mt-0.5 font-mono text-[13px] font-black tabular-nums ${price.className}`}
+                    >
+                      {formatUsd(price.value)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex items-center justify-between border-t border-gray-100 pt-3">
               <div className="flex min-w-0 items-center gap-2">

@@ -41,7 +41,10 @@ import {
   type MarketplaceProduct,
 } from '@/lib/marketplace-api';
 import { copyTextToClipboard } from '@/lib/clipboard';
-import { getPhantomCheckoutUrl } from '@/lib/phantom-checkout';
+import {
+  checkoutUrlWithPaymentMethod,
+  getPhantomCheckoutUrl,
+} from '@/lib/phantom-checkout';
 import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { truncateWalletAddress } from '@/lib/tranacateWalletAddress';
 import { useUser } from '@/lib/UserContext';
@@ -262,6 +265,15 @@ export default function CheckoutCreateClient() {
       }) || intent.checkoutUrl,
     [checkoutBaseUrl]
   );
+  const swopLinkForIntent = useCallback(
+    (intent: CheckoutIntent) =>
+      checkoutUrlWithPaymentMethod({
+        checkoutUrl: intent.checkoutUrl,
+        intentId: intent.intentId,
+        method: 'swop',
+      }) || intent.checkoutUrl,
+    []
+  );
 
   const cartItems = useMemo(() => Object.values(cart), [cart]);
   const cartQuantity = useMemo(
@@ -302,8 +314,8 @@ export default function CheckoutCreateClient() {
     (intent: CheckoutIntent) =>
       paymentType === 'phantom'
         ? phantomLinkForIntent(intent)
-        : intent.checkoutUrl,
-    [paymentType, phantomLinkForIntent]
+        : swopLinkForIntent(intent),
+    [paymentType, phantomLinkForIntent, swopLinkForIntent]
   );
   const createdQrValue = useMemo(() => {
     if (!createdIntent) return '';
@@ -314,8 +326,8 @@ export default function CheckoutCreateClient() {
         createdIntent.checkoutUrl
       );
     }
-    return createdIntent.checkoutUrl || createdIntent.paymentRequest?.url || '';
-  }, [createdIntent, createdPhantomCheckoutUrl, paymentType]);
+    return swopLinkForIntent(createdIntent) || createdIntent.paymentRequest?.url || '';
+  }, [createdIntent, createdPhantomCheckoutUrl, paymentType, swopLinkForIntent]);
 
   const salesSummary = useMemo(() => {
     const todayKey = new Date().toDateString();

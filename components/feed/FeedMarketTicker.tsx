@@ -12,8 +12,10 @@ import { useRouter } from "next/navigation";
 import type { PolymarketMarket } from "@/hooks/polymarket";
 import MarketService from "@/services/market-service";
 import {
+  marketDetailHref,
   useMarketDetailStore,
   marketRouteKey,
+  normalizeMarketDetailHref,
 } from "@/zustandStore/marketDetailStore";
 import styles from "./FeedMarketTicker.module.css";
 
@@ -343,7 +345,7 @@ function toTickerGame(market: PolymarketMarket): TickerGameMarket | null {
 
   return {
     id: market.id,
-    href: `/prediction/market/${market.id}`,
+    href: marketDetailHref(market),
     league: getLeague(market, teams),
     title: market.eventTitle || market.question || market.id,
     subtitle: buildGameSubtitle(market),
@@ -408,7 +410,7 @@ function toTickerPrediction(
   return {
     id: market.id,
     title: trimQuestion(market.question || market.eventTitle || market.slug || market.id),
-    href: `/prediction/market/${market.id}`,
+    href: marketDetailHref(market),
     status,
     outcomeA: outcomeA.slice(0, 20),
     outcomeB: outcomeB.slice(0, 20),
@@ -605,8 +607,10 @@ export default function FeedMarketTicker({
 
   const handlePredictionMarketNavigation = useCallback(
     (market: TickerPredictionMarket | TickerGameMarket) => {
-      const fallbackHref = market.href || "/prediction";
       const routeMarket = market.sourceMarket;
+      const fallbackHref = routeMarket
+        ? marketDetailHref(routeMarket)
+        : normalizeMarketDetailHref(market.href);
 
       if (!routeMarket) {
         router.push(fallbackHref);

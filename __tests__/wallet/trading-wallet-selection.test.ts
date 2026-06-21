@@ -6,6 +6,7 @@ import {
   tradingWalletSelectionOptions,
 } from '@/components/wallet/hooks/useWalletData';
 import { selectHyperliquidMasterWallet } from '@/components/wallet/perps/hyperliquidAgentSelection';
+import { resolveHyperliquidAccountAddress } from '@/components/wallet/perps/hyperliquidAccountAddress';
 
 const wallets = [
   {
@@ -188,5 +189,33 @@ describe('trading wallet selection', () => {
         hasSavedAgentKey: () => false,
       })?.address,
     ).toBe('0xEmbedded');
+  });
+
+  it('uses the wallet-data EVM address for Hyperliquid account reads before the local agent candidate', () => {
+    expect(
+      resolveHyperliquidAccountAddress({
+        walletAddress: '0xStoredProdWallet',
+        initializedMasterAddress: null,
+        candidateMasterAddress: '0xLocalEmbeddedWallet',
+      }),
+    ).toBe('0xStoredProdWallet');
+  });
+
+  it('falls back to the initialized or candidate Hyperliquid wallet when no wallet-data EVM address exists', () => {
+    expect(
+      resolveHyperliquidAccountAddress({
+        walletAddress: '',
+        initializedMasterAddress: '0xInitializedAgentWallet',
+        candidateMasterAddress: '0xLocalEmbeddedWallet',
+      }),
+    ).toBe('0xInitializedAgentWallet');
+
+    expect(
+      resolveHyperliquidAccountAddress({
+        walletAddress: '   ',
+        initializedMasterAddress: null,
+        candidateMasterAddress: '0xLocalEmbeddedWallet',
+      }),
+    ).toBe('0xLocalEmbeddedWallet');
   });
 });

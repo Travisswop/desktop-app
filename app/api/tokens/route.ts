@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+
+const DEFAULT_SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
 interface TokenMetadata {
   address: string;
@@ -9,6 +12,65 @@ interface TokenMetadata {
   decimals: number;
   logoURI?: string;
   tags?: string[];
+}
+
+type AggregatedTokenAccount = {
+  mint: string;
+  amount: number;
+  decimals: number;
+};
+
+function getSolanaRpcUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() ||
+    process.env.SOLANA_MAINNET_URL?.trim() ||
+    DEFAULT_SOLANA_RPC_URL
+  );
+}
+
+function aggregateTokenAccounts(
+  tokenAccounts: Array<{
+    account: {
+      data: {
+        parsed?: {
+          info?: {
+            mint?: string;
+            tokenAmount?: {
+              decimals?: number;
+              uiAmount?: number | null;
+              uiAmountString?: string;
+            };
+          };
+        };
+      };
+    };
+  }>
+) {
+  const tokensByMint = new Map<string, AggregatedTokenAccount>();
+
+  tokenAccounts.forEach((tokenAccount) => {
+    const accountData = tokenAccount.account.data.parsed?.info;
+    const mintAddress = accountData?.mint;
+    const tokenAmount = accountData?.tokenAmount;
+    if (!mintAddress || !tokenAmount) return;
+
+    const amount = Number(tokenAmount.uiAmountString ?? tokenAmount.uiAmount ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+
+    const existing = tokensByMint.get(mintAddress);
+    if (existing) {
+      existing.amount += amount;
+      return;
+    }
+
+    tokensByMint.set(mintAddress, {
+      mint: mintAddress,
+      amount,
+      decimals: tokenAmount.decimals ?? 0,
+    });
+  });
+
+  return Array.from(tokensByMint.values());
 }
 
 async function fetchTokenMetadata(
@@ -60,9 +122,7 @@ async function fetchPrice(tokenAddress: PublicKey): Promise<string> {
 export async function GET(request: NextRequest) {
   try {
     // Connect to Solana network
-    const connection = new Connection(
-      process.env.NEXT_PUBLIC_SOLANA_RPC_URL!
-    );
+    const connection = new Connection(getSolanaRpcUrl());
 
     // Get wallet address from URL params
     const { searchParams } = new URL(request.url);
@@ -81,18 +141,22 @@ export async function GET(request: NextRequest) {
     // Fetch native SOL balance
     const solBalance = await connection.getBalance(walletAddress);
     const solPrice = await fetchPrice(
-      new PublicKey('So11111111111111111111111111111111111111112')
+      new PublicKey(SOL_MINT)
     );
 
     // Fetch all token accounts owned by this wallet
-    const tokenAccounts =
-      await connection.getParsedTokenAccountsByOwner(walletAddress, {
+    const [classicTokenAccounts, token2022Accounts] = await Promise.all([
+      connection.getParsedTokenAccountsByOwner(walletAddress, {
         programId: TOKEN_PROGRAM_ID,
-      });
+      }),
+      connection.getParsedTokenAccountsByOwner(walletAddress, {
+        programId: TOKEN_2022_PROGRAM_ID,
+      }),
+    ]);
 
     // Add native SOL as the first token
     const nativeSol = {
-      mint: 'So11111111111111111111111111111111111111112',
+      mint: SOL_MINT,
       amount: solBalance / 1e9, // Convert lamports to SOL
       decimals: 9,
       price: solPrice,
@@ -103,11 +167,15 @@ export async function GET(request: NextRequest) {
       tags: ['native'],
     };
 
+    const tokenAccounts = aggregateTokenAccounts([
+      ...classicTokenAccounts.value,
+      ...token2022Accounts.value,
+    ]);
+
     // Map token accounts to a more usable format and fetch prices and metadata
     const tokenList = await Promise.all(
-      tokenAccounts.value.map(async (tokenAccount) => {
-        const accountData = tokenAccount.account.data.parsed.info;
-        const mintAddress = accountData.mint;
+      tokenAccounts.map(async (tokenAccount) => {
+        const mintAddress = tokenAccount.mint;
         const [price, metadata] = await Promise.all([
           fetchPrice(new PublicKey(mintAddress)),
           fetchTokenMetadata(mintAddress),
@@ -115,8 +183,8 @@ export async function GET(request: NextRequest) {
 
         return {
           mint: mintAddress,
-          amount: accountData.tokenAmount.uiAmount,
-          decimals: accountData.tokenAmount.decimals,
+          amount: tokenAccount.amount,
+          decimals: metadata?.decimals ?? tokenAccount.decimals,
           price,
           name: metadata?.name || mintAddress.slice(0, 8),
           symbol: metadata?.symbol || 'Unknown',

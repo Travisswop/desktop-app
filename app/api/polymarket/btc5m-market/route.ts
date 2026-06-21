@@ -29,6 +29,7 @@ function isBtc5mMarket(m: Record<string, unknown>): boolean {
     slug.includes('5m') ||
     question.includes('5 minute') ||
     question.includes('5-minute') ||
+    question.includes('up or down') ||
     slug.includes('updown') ||
     slug.includes('up-down');
   return hasBtc && has5m;
@@ -43,6 +44,36 @@ async function fetchGamma(url: string): Promise<unknown[] | null> {
     if (!res.ok) return null;
     const data = await res.json();
     return Array.isArray(data) ? data : (data?.results ?? data?.markets ?? null);
+  } catch {
+    return null;
+  }
+}
+
+function marketsFromEventPayload(data: unknown): Record<string, unknown>[] {
+  const events = Array.isArray(data)
+    ? data
+    : ((data as { results?: unknown[]; events?: unknown[] } | null)?.results ??
+      (data as { events?: unknown[] } | null)?.events ??
+      []);
+
+  if (!Array.isArray(events)) return [];
+
+  return events.flatMap((event) => {
+    const markets = (event as { markets?: unknown[] } | null)?.markets;
+    return Array.isArray(markets) ? markets : [];
+  }) as Record<string, unknown>[];
+}
+
+async function fetchGammaEventMarkets(slug: string): Promise<Record<string, unknown>[] | null> {
+  try {
+    const res = await fetch(`${GAMMA_API}/events?slug=${encodeURIComponent(slug)}`, {
+      headers: { 'Accept': 'application/json' },
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const markets = marketsFromEventPayload(data).filter(isBtc5mMarket);
+    return markets.length ? markets : null;
   } catch {
     return null;
   }
@@ -67,6 +98,11 @@ export async function GET(request: NextRequest) {
     if (markets && markets.length > 0) {
       return NextResponse.json(markets[0]);
     }
+
+    const eventMarkets = await fetchGammaEventMarkets(slug);
+    if (eventMarkets && eventMarkets.length > 0) {
+      return NextResponse.json(eventMarkets[0]);
+    }
   }
 
   // ── 2. Fallback: search markets ending within this 5-min window ───────────
@@ -76,7 +112,7 @@ export async function GET(request: NextRequest) {
   const endDateMax = new Date((windowEnd + 60) * 1000).toISOString();
 
   const searched = await fetchGamma(
-    `${GAMMA_API}/markets?active=true&end_date_min=${endDateMin}&end_date_max=${endDateMax}&limit=20`,
+    `${GAMMA_API}/markets?end_date_min=${endDateMin}&end_date_max=${endDateMax}&limit=20`,
   );
 
   if (searched) {
@@ -86,7 +122,7 @@ export async function GET(request: NextRequest) {
 
   // ── 3. Fallback: search by tag and title ──────────────────────────────────
   const tagged = await fetchGamma(
-    `${GAMMA_API}/markets?active=true&tag_slug=bitcoin&limit=30`,
+    `${GAMMA_API}/markets?tag_slug=bitcoin&limit=30`,
   );
 
   if (tagged) {

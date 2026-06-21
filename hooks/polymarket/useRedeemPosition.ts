@@ -20,6 +20,7 @@ export interface RedeemParams {
   safeAddress: string;
   depositWalletAddress?: string;
   walletType?: "safe" | "deposit";
+  silentOnly?: boolean;
 }
 
 export interface RedeemResult {
@@ -35,6 +36,11 @@ export interface RedeemResult {
 type DelegatedSignerConfig = {
   signerId: string;
   policyIds: string[];
+};
+
+type FeedClaimUser = {
+  _id?: string;
+  primaryMicrosite?: string;
 };
 
 const swopApiBase = () => (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
@@ -64,6 +70,47 @@ function serializeForJson(value: unknown): unknown {
   return value;
 }
 
+async function markPredictionFeedRedeemed({
+  accessToken,
+  params,
+  result,
+  user,
+}: {
+  accessToken: string | null | undefined;
+  params: RedeemParams;
+  result: { txId?: string; redeemedAmount?: number };
+  user: FeedClaimUser | null | undefined;
+}) {
+  const apiBase = swopApiBase();
+  if (!apiBase || !accessToken || !user?._id) return;
+
+  const response = await fetch(`${apiBase}/api/v2/feed/prediction/redeem`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      userId: user._id,
+      smartsiteId: user.primaryMicrosite,
+      conditionId: params.conditionId,
+      marketId: params.conditionId,
+      asset: params.asset,
+      outcomeIndex: params.outcomeIndex,
+      redeemedAmount: result.redeemedAmount ?? params.size,
+      txId: result.txId,
+      claimedAt: new Date().toISOString(),
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(
+      body?.message || body?.error || "Failed to mark prediction feed claimed"
+    );
+  }
+}
+
 export function useRedeemPosition() {
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [isNormalizingCollateral, setIsNormalizingCollateral] =
@@ -74,7 +121,7 @@ export function useRedeemPosition() {
 
   const { eoaAddress, walletClient } = usePolymarketWallet();
   const { walletType, depositWalletAddress } = useTrading();
-  const { accessToken } = useUser();
+  const { accessToken, user } = useUser();
   const { user: privyUser } = usePrivy();
   const { signTypedData: signTypedDataWithPrivy } = useSignTypedData();
   const queryClient = useQueryClient();
@@ -216,7 +263,7 @@ export function useRedeemPosition() {
   );
 
   const signSafeTxHash = useCallback(
-    async (txHash: string) => {
+    async (txHash: string, silentOnly = false) => {
       if (!eoaAddress || !walletClient) {
         throw new Error("Wallet not connected.");
       }
@@ -227,11 +274,20 @@ export function useRedeemPosition() {
             message: txHash,
           });
         } catch (delegatedError) {
+          if (silentOnly) {
+            throw delegatedError instanceof Error
+              ? delegatedError
+              : new Error("Silent redeem signing is not ready for this wallet.");
+          }
           console.warn(
             "Silent delegated redeem signing unavailable; falling back to wallet signing:",
             delegatedError
           );
         }
+      }
+
+      if (silentOnly) {
+        throw new Error("Silent redeem signing is not ready for this wallet.");
       }
 
       return walletClient.signMessage({
@@ -255,11 +311,13 @@ export function useRedeemPosition() {
       types,
       primaryType,
       message,
+      silentOnly = false,
     }: {
       domain: Record<string, unknown>;
       types: Record<string, unknown[]>;
       primaryType: string;
       message: Record<string, unknown>;
+      silentOnly?: boolean;
     }) => {
       if (!eoaAddress || !walletClient) {
         throw new Error("Wallet not connected.");
@@ -274,11 +332,20 @@ export function useRedeemPosition() {
             message: serializeForJson(message),
           });
         } catch (silentError) {
+          if (silentOnly) {
+            throw silentError instanceof Error
+              ? silentError
+              : new Error("Silent redeem signing is not ready for this wallet.");
+          }
           console.warn(
             "Silent delegated redeem typed-data signing unavailable; falling back to wallet signing:",
             silentError
           );
         }
+      }
+
+      if (silentOnly) {
+        throw new Error("Silent redeem signing is not ready for this wallet.");
       }
 
       return walletClient.signTypedData({
@@ -341,19 +408,13 @@ export function useRedeemPosition() {
           })),
         };
 
-        const wrapSignature = silentOnly
-          ? await signTypedDataWithoutPopup({
-              domain: wrapData.typedData.domain,
-              types: wrapData.typedData.types,
-              primaryType: wrapData.typedData.primaryType ?? "Batch",
-              message: serializeForJson(wrapTypedDataMessage),
-            })
-          : await signRedeemTypedData({
-              domain: wrapData.typedData.domain,
-              types: wrapData.typedData.types,
-              primaryType: wrapData.typedData.primaryType ?? "Batch",
-              message: wrapTypedDataMessage,
-            });
+        const wrapSignature = await signRedeemTypedData({
+          domain: wrapData.typedData.domain,
+          types: wrapData.typedData.types,
+          primaryType: wrapData.typedData.primaryType ?? "Batch",
+          message: wrapTypedDataMessage,
+          silentOnly,
+        });
 
         const result = await submitDepositWalletWrap(
           {
@@ -382,7 +443,6 @@ export function useRedeemPosition() {
       eoaAddress,
       queryClient,
       signRedeemTypedData,
-      signTypedDataWithoutPopup,
       walletClient,
     ]
   );
@@ -462,13 +522,17 @@ export function useRedeemPosition() {
             types: typedData.typedData.types,
             primaryType: typedData.typedData.primaryType ?? "Batch",
             message: depositTypedDataMessage,
+            silentOnly: params.silentOnly,
           });
         } else {
           if (!typedData.txHash) {
             throw new Error("Redeem signing hash is missing.");
           }
 
-          signature = await signSafeTxHash(typedData.txHash);
+          signature = await signSafeTxHash(
+            typedData.txHash,
+            params.silentOnly,
+          );
         }
 
         // Step 3: Submit
@@ -489,6 +553,25 @@ export function useRedeemPosition() {
         );
         console.debug("[Polymarket Redeem] submit response", result);
 
+        try {
+          await markPredictionFeedRedeemed({
+            accessToken,
+            params,
+            result,
+            user,
+          });
+        } catch (feedError) {
+          console.warn("[Polymarket Redeem] feed claim stamp failed", {
+            message:
+              feedError instanceof Error
+                ? feedError.message
+                : "Could not mark prediction feed claimed.",
+            conditionId: params.conditionId,
+            asset: params.asset,
+            txId: result.txId,
+          });
+        }
+
         let normalizedCollateral = false;
         let normalizationError: string | undefined;
         const wrapAmount = Number(
@@ -505,7 +588,7 @@ export function useRedeemPosition() {
               depositWalletAddress: redeemDepositWalletAddress,
               destinationAddress: redeemDepositWalletAddress,
               amount: wrapAmount,
-              silentOnly: false,
+              silentOnly: params.silentOnly,
             });
             normalizedCollateral = true;
           } catch (wrapError) {
@@ -552,6 +635,7 @@ export function useRedeemPosition() {
       accessToken,
       walletType,
       depositWalletAddress,
+      user,
       queryClient,
       signSafeTxHash,
       signRedeemTypedData,
@@ -562,6 +646,7 @@ export function useRedeemPosition() {
   return {
     isRedeeming,
     isNormalizingCollateral,
+    canRedeem: Boolean(eoaAddress && walletClient && accessToken),
     canSilentlyNormalizeCollateral: eoaAddress
       ? isEmbeddedPrivyWallet(eoaAddress)
       : false,

@@ -101,7 +101,7 @@ export type CheckoutIntent = {
     expiresAt?: string | null;
   } | null;
   preparedPayment?: {
-    rail?: 'solana' | 'lifi';
+    rail?: 'solana' | 'lifi' | 'evm_direct';
     sourceChain?: string | null;
     destinationChain?: string | null;
     tokenMint?: string | null;
@@ -133,7 +133,7 @@ export type CheckoutIntent = {
     preparedAt?: string | null;
   } | null;
   payment?: {
-    rail?: 'solana' | 'lifi';
+    rail?: 'solana' | 'lifi' | 'evm_direct';
     txHash?: string | null;
     destinationTxHash?: string | null;
     status?: 'pending' | 'completed' | 'failed';
@@ -298,6 +298,7 @@ type ApiResponse<T> = {
     platformFeeCollection?: string;
     lifiTool?: string | null;
     approvalAddress?: string | null;
+    directTransfer?: boolean;
   };
 };
 

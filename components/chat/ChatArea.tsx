@@ -896,6 +896,7 @@ interface SocketResponse {
   success: boolean;
   messages?: Message[];
   message?: Message;
+  clientGeneratedAgentMessages?: Message[];
   error?: string;
 }
 
@@ -1225,6 +1226,7 @@ function buildPolymarketResearchMarketParams(
   if (isGameLineRequest) {
     params.set('tag_id', '100639');
     params.set('kind', 'gamelines');
+    params.set('market_set', 'moneyline');
   }
 
   const dateWindow = resolvePolymarketResearchDateWindow(combined);
@@ -2849,6 +2851,34 @@ function hasMatchingWalletSwapProposal(
     if (!sourceTime || !currentTime) return true;
     return Math.abs(currentTime - sourceTime) <= 10 * 60 * 1000;
   });
+}
+
+function hasFollowingAgentActionMessage(
+  messages: Message[],
+  sourceIndex: number,
+  action: string
+) {
+  for (let index = sourceIndex + 1; index < messages.length; index += 1) {
+    const candidate = messages[index];
+    if (!candidate) continue;
+
+    if (
+      !isAgentLikeMessage(candidate) &&
+      candidate.messageType === 'text' &&
+      candidate.message?.trim()
+    ) {
+      return false;
+    }
+
+    if (
+      candidate.agentData?.action === action ||
+      candidate.agentData?.metadata?.toolExecution?.action === action
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function hasLaterMeaningfulChatMessage(messages: Message[], currentIndex: number) {
@@ -4690,7 +4720,7 @@ export default function ChatArea({
               : undefined,
           },
         }
-      : {
+        : {
             receiverId,
             message: messageForTransport,
             messageType: 'text' as const,
@@ -4734,20 +4764,14 @@ export default function ChatArea({
           })
         : null;
 
-    if (localPnlResponseMessage || localPortfolioResponseMessage) {
-      forceScrollToBottomRef.current = true;
-      isPinnedToBottomRef.current = true;
-      setMessages((prev) =>
-        dedupeMessages([
-          ...prev,
-          { ...optimisticMessage, status: 'sent' as const },
-          (localPnlResponseMessage || localPortfolioResponseMessage)!,
-        ])
-      );
-      if (typeof messageOverride !== 'string') {
-        setNewMessage('');
-      }
-      return;
+    const localAgentResponseMessages = [
+      localPnlResponseMessage,
+      localPortfolioResponseMessage,
+    ].filter((message): message is Message => Boolean(message));
+
+    if (isGroup && localAgentResponseMessages.length > 0) {
+      (messageData as any).clientGeneratedAgentMessages =
+        localAgentResponseMessages.map(toClientGeneratedAgentMessagePayload);
     }
 
     const localPolymarketOrderIntent =
@@ -4771,6 +4795,7 @@ export default function ChatArea({
       dedupeMessages([
         ...prev,
         optimisticMessage,
+        ...localAgentResponseMessages,
         ...(syntheticPolymarketOrderMessage
           ? [syntheticPolymarketOrderMessage]
           : []),
@@ -4792,6 +4817,15 @@ export default function ChatArea({
           setMessages((prev) =>
             reconcileIncomingMessage(prev, acknowledgedMessage)
           );
+          if (response.clientGeneratedAgentMessages?.length) {
+            setMessages((prev) =>
+              response.clientGeneratedAgentMessages!.reduce(
+                (next, agentMessage) =>
+                  reconcileIncomingMessage(next, agentMessage),
+                prev
+              )
+            );
+          }
         } else {
           setMessages((prev) =>
             prev.map((msg) =>
@@ -6380,6 +6414,39 @@ export default function ChatArea({
                 !isChartCommand(renderedMessageText)
                   ? parseCoinGeckoChartIntent(renderedMessageText)
                   : null;
+              const canRenderLocalConsoleReadCard =
+                shouldLoadAstroConsoleData &&
+                isOwn &&
+                !isAgentMessage &&
+                message.messageType === 'text' &&
+                renderedMessageText.trim().length > 0 &&
+                (!isGroup || hasAstroMention || isSecureAstroDesk);
+              const localConsoleReadMessage =
+                canRenderLocalConsoleReadCard &&
+                isPnlCommand(renderedMessageText) &&
+                !hasFollowingAgentActionMessage(
+                  messages,
+                  index,
+                  'portfolio.pnl'
+                )
+                  ? buildLocalPnlResponseMessage({
+                      consoleData: astroConsoleData,
+                      groupId: isGroup ? selectedChat?._id : null,
+                      sourceMessageId: message._id || `message-${index}`,
+                    })
+                  : canRenderLocalConsoleReadCard &&
+                    isPortfolioCommand(renderedMessageText) &&
+                    !hasFollowingAgentActionMessage(
+                      messages,
+                      index,
+                      'wallet.portfolio'
+                    )
+                  ? buildLocalPortfolioResponseMessage({
+                      consoleData: astroConsoleData,
+                      groupId: isGroup ? selectedChat?._id : null,
+                      sourceMessageId: message._id || `message-${index}`,
+                    })
+                  : null;
 
               return (
                 <Fragment key={message._id || index}>
@@ -6413,6 +6480,37 @@ export default function ChatArea({
                     renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
                     autoFetchSwapQuote={autoFetchSwapQuote}
                   />
+                  {localConsoleReadMessage && (
+                    <Message
+                      message={localConsoleReadMessage}
+                      isOwn={false}
+                      isGroup={isGroup}
+                      currentUser={currentUser}
+                      proposal={null}
+                      actionResult={undefined}
+                      isProposalPending={false}
+                      onApproveProposal={handleApproveProposal}
+                      onApproveInlineProposal={handleApproveInlineProposal}
+                      onInlineActionComplete={handleInlineActionComplete}
+                      onRejectProposal={handleRejectProposal}
+                      onPreparePolymarketBet={handlePreparePolymarketBet}
+                      onAddPredictionFunds={handleAddPredictionFunds}
+                      onAddPerpsFunds={handleAddPerpsFunds}
+                      onDismissReceipt={handleDismissReceipt}
+                      onRegisterPolymarketMarkets={
+                        registerRenderedPolymarketMarkets
+                      }
+                      pendingPolymarketBetKey={pendingPolymarketBetKey}
+                      inlinePolymarketProposalsByBetKey={
+                        inlinePolymarketProposalsByBetKey
+                      }
+                      actionResultsByProposalId={actionResultsByProposalId}
+                      pendingProposalId={pendingProposalId}
+                      astroConsoleData={astroConsoleData}
+                      renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
+                      autoFetchSwapQuote={autoFetchSwapQuote}
+                    />
+                  )}
                   {localChartIntent && (
                     <ChatChartCommandCard
                       intent={localChartIntent}
@@ -7230,7 +7328,7 @@ function buildLocalPnlResponseMessage({
   );
 
   return {
-    _id: `local-pnl-${sourceMessageId}`,
+    _id: `temp-local-pnl-${sourceMessageId}`,
     message: `PnL snapshot ready: ${formatSignedUsd(tradingPnl)} across trading positions.`,
     groupId: groupId || null,
     messageType: 'agent_response',
@@ -7275,7 +7373,7 @@ function buildLocalPortfolioResponseMessage({
   const checkedAt = new Date().toISOString();
 
   return {
-    _id: `local-portfolio-${sourceMessageId}`,
+    _id: `temp-local-portfolio-${sourceMessageId}`,
     message: `Portfolio allocation ready: ${formatCompactUsd(
       consoleData.walletPortfolioBalance
     )} across ${consoleData.walletPortfolioTokens.length} tokens.`,
@@ -7329,7 +7427,7 @@ function buildLocalPositionResponseMessage({
     : selection.position.title || selection.position.slug || 'Prediction market';
 
   return {
-    _id: `local-position-card-${sourceMessageId}`,
+    _id: `temp-local-position-card-${sourceMessageId}`,
     message: `Position snapshot ready for ${title}.`,
     groupId: groupId || null,
     messageType: 'agent_response',
@@ -7369,6 +7467,16 @@ function buildLocalPositionResponseMessage({
         },
       },
     },
+  };
+}
+
+function toClientGeneratedAgentMessagePayload(message: Message) {
+  return {
+    clientMessageId: message._id,
+    message: message.message,
+    messageType: message.messageType,
+    createdAt: message.createdAt,
+    agentData: message.agentData,
   };
 }
 
@@ -17652,6 +17760,8 @@ function HyperliquidProposalFlowTicket({
         toFiniteNumber(existingPosition?.szi)
       );
       const openedSizeCoins = toFiniteNumber(opened.sizeCoins);
+      const isPendingLimitFeed =
+        !isPositionTpsl && (orderMode === 'limit' || orderMode === 'tpsl');
       const isReducingExistingPosition = Boolean(
         existingSide && existingSide !== side
       );
@@ -17662,7 +17772,11 @@ function HyperliquidProposalFlowTicket({
           ? Math.max(0, existingSizeCoins - openedSizeCoins)
           : openedSizeCoins;
       const feedEvent: PerpsPositionFeedEvent =
-        existingSide && existingSide === side
+        isPositionTpsl
+          ? 'open'
+          : isPendingLimitFeed
+          ? 'limit'
+          : existingSide && existingSide === side
           ? 'add'
           : isReducingExistingPosition && nextSizeCoins <= 0
           ? 'close'
@@ -17670,7 +17784,11 @@ function HyperliquidProposalFlowTicket({
           ? 'reduce'
           : 'open';
       const feedStatus: PerpsPositionFeedStatus =
-        feedEvent === 'close' ? 'closed' : 'open';
+        feedEvent === 'limit'
+          ? 'limit'
+          : feedEvent === 'close'
+          ? 'closed'
+          : 'open';
       const feedSide = existingSide || side;
       const feedEntryPrice =
         feedEvent === 'add' && existingSizeCoins > 0
@@ -17687,9 +17805,15 @@ function HyperliquidProposalFlowTicket({
       const remainingRatio =
         existingSizeCoins > 0 ? nextSizeCoins / existingSizeCoins : 0;
       const feedSizeCoins =
-        feedStatus === 'closed' ? existingSizeCoins : nextSizeCoins;
+        isPositionTpsl
+          ? existingSizeCoins
+          : feedStatus === 'closed'
+          ? existingSizeCoins
+          : nextSizeCoins;
       const feedCollateralUsd =
-        feedStatus === 'closed'
+        isPositionTpsl
+          ? existingMarginUsd
+          : feedStatus === 'closed'
           ? existingMarginUsd
           : feedEvent === 'add'
           ? existingMarginUsd + opened.collateralUsd
@@ -17697,7 +17821,9 @@ function HyperliquidProposalFlowTicket({
           ? existingMarginUsd * remainingRatio
           : opened.collateralUsd;
       const feedNotionalUsd =
-        feedStatus === 'closed'
+        isPositionTpsl
+          ? existingNotionalUsd
+          : feedStatus === 'closed'
           ? existingNotionalUsd
           : feedEvent === 'add'
           ? existingNotionalUsd + opened.notionalUsd
@@ -17705,7 +17831,7 @@ function HyperliquidProposalFlowTicket({
           ? nextSizeCoins * opened.entryPrice
           : opened.notionalUsd;
 
-      if (!isPositionTpsl) {
+      if (!isPositionTpsl || existingPosition) {
         const feedDex = getHyperliquidMarketDex(selectedMarket);
         const feedCoin = qualifyPerpsPositionCoin({ coin, dex: feedDex });
         await upsertPerpsPositionFeed({
@@ -17728,6 +17854,7 @@ function HyperliquidProposalFlowTicket({
             leverage: leverageValue,
             marginMode: isCross ? 'cross' : 'isolated',
             entryPrice: feedEntryPrice,
+            limitPrice: feedStatus === 'limit' ? opened.entryPrice : undefined,
             markPrice: opened.entryPrice,
             exitPrice: feedStatus === 'closed' ? opened.entryPrice : undefined,
             liquidationPrice,
@@ -17737,10 +17864,20 @@ function HyperliquidProposalFlowTicket({
             returnPct: toFiniteNumber(existingPosition?.returnOnEquity) * 100,
             unrealizedPnl: toFiniteNumber(existingPosition?.unrealizedPnl),
             feeUsd: opened.feeUsd,
+            takeProfitPrice:
+              showTriggerControls && hasTakeProfit
+                ? takeProfitValue
+                : undefined,
+            stopLossPrice:
+              showTriggerControls && hasStopLoss ? stopLossValue : undefined,
             orderId: orderId ? String(orderId) : undefined,
             masterAddress: astroConsoleData.perpsMasterAddress,
+            limitPlacedAt: feedStatus === 'limit' ? opened.placedAt : undefined,
             updatedAt: opened.placedAt,
-            openedAt: existingPosition ? undefined : opened.placedAt,
+            openedAt:
+              existingPosition || feedStatus === 'limit'
+                ? undefined
+                : opened.placedAt,
             closedAt: feedStatus === 'closed' ? opened.placedAt : undefined,
           },
         }).catch((feedError) => {

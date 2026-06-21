@@ -48,6 +48,54 @@ const PUBLIC_ROUTES = new Set([
   "/sp",
 ]);
 
+function safeOrigin(value?: string) {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function isLocalOrigin(origin?: string | null) {
+  return Boolean(
+    origin &&
+      (origin.includes("localhost") ||
+        origin.includes("127.0.0.1") ||
+        origin.includes("[::1]")),
+  );
+}
+
+function uniqueSources(sources: Array<string | null | undefined>) {
+  return Array.from(new Set(sources.filter(Boolean) as string[]));
+}
+
+const localApiOrigin = safeOrigin(process.env.NEXT_PUBLIC_API_URL);
+const localPolymarketOrigin = safeOrigin(
+  process.env.NEXT_PUBLIC_POLYMARKET_API_URL,
+);
+const allowLocalConnect = [localApiOrigin, localPolymarketOrigin].some(
+  isLocalOrigin,
+);
+const localConnectSrc = allowLocalConnect
+  ? uniqueSources([
+      localApiOrigin,
+      localPolymarketOrigin,
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:4000",
+      "http://127.0.0.1:4000",
+      "http://localhost:5055",
+      "http://127.0.0.1:5055",
+      "ws://localhost:3000",
+      "ws://127.0.0.1:3000",
+      "ws://localhost:4000",
+      "ws://127.0.0.1:4000",
+      "ws://localhost:5055",
+      "ws://127.0.0.1:5055",
+    ])
+  : [];
+
 // CSP Configuration
 const cspConfig = {
   defaultSrc: ["'self'"],
@@ -84,11 +132,14 @@ const cspConfig = {
   ],
   connectSrc: [
     "'self'",
+    ...localConnectSrc,
     "https://app.apiswop.co",
     "https://swopme.app",
     "https://privy.swopme.app",
     "https://auth.privy.io",
     "https://swop-id-ens-gateway.swop.workers.dev",
+    "wss://api.hyperliquid.xyz",
+    "wss://api.hyperliquid-testnet.xyz",
     "wss://relay.walletconnect.com",
     "wss://relay.walletconnect.org",
     "wss://www.walletlink.org",

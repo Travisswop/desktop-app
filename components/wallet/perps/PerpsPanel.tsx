@@ -25,7 +25,12 @@ import { AgentSetupModal } from './AgentSetupModal';
 import { TradingForm } from './TradingForm';
 import { PerpsHeader } from './PerpsHeader';
 import { ChartPanel } from './ChartPanel';
-import { PositionsTable, type PerpsFill } from './PositionsTable';
+import {
+  getOpenOrderRowKey,
+  PositionsTable,
+  type PerpsFill,
+  type PositionTpSlRequest,
+} from './PositionsTable';
 import { AccountCard } from './AccountCard';
 import { RecentFillsCard } from './RecentFillsCard';
 import { MarketSearchModal } from './MarketSearchModal';
@@ -33,6 +38,7 @@ import { PerpsActionsModal } from './PerpsActionsModal';
 
 import type {
   HLMarket,
+  HLOpenOrder,
   HLPosition,
 } from '@/services/hyperliquid/types';
 import type {
@@ -41,11 +47,15 @@ import type {
 } from '@/lib/chat/agentActionHandoff';
 import { useUser } from '@/lib/UserContext';
 import {
+  buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
+  inferPerpsCloseFillsByCoin,
+  inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
   reconcilePerpsPositionFeed,
   resolvePerpsFeedSmartsiteId,
+  type PerpsActiveLimitOrderSnapshot,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
 } from '@/lib/perps/perpsFeed';
@@ -124,6 +134,12 @@ function getFillTimestamp(fill: HyperliquidUserFill) {
     : new Date().toISOString();
 }
 
+function isActiveLimitOrderSnapshot(
+  order: PerpsActiveLimitOrderSnapshot | null,
+): order is PerpsActiveLimitOrderSnapshot {
+  return order !== null;
+}
+
 function fillKeyFor(f: PerpsFill) {
   return `${f.hash ?? ''}:${f.oid ?? ''}:${f.coin}:${f.time}:${f.px}:${f.sz}`;
 }
@@ -182,6 +198,9 @@ export function PerpsPanel({
     initialCoin ?? 'BTC',
   );
   const [closingCoin, setClosingCoin] = useState<string | null>(null);
+  const [cancellingOrderKey, setCancellingOrderKey] = useState<string | null>(
+    null,
+  );
   const [withdrawActionsOpen, setWithdrawActionsOpen] = useState(false);
   const [activeTimeframe, setActiveTimeframe] = useState<string>('15m');
   const [tradeLeverage, setTradeLeverage] = useState({
@@ -464,8 +483,10 @@ export function PerpsPanel({
     placeMarketOrder,
     placeLimitOrder,
     placeTpSlOrder,
+    placePositionTpSlOrder,
     updateLeverage,
     closePosition,
+    cancelOrder,
     isSubmitting,
     error: tradeError,
     clearError,
@@ -566,6 +587,7 @@ export function PerpsPanel({
   useEffect(() => {
     const positions = allPositions;
     const smartsiteId = feedSmartsiteId;
+    const observedDexes = Object.keys(portfolio?.perDex || {});
 
     if (
       !portfolio ||
@@ -587,10 +609,39 @@ export function PerpsPanel({
         dex: position.dex,
       }),
     );
+    const activePositionKeySet = new Set(
+      activePositionKeys.map((key) => key.toLowerCase()),
+    );
+    const activeLimitOrders = allOpenOrders
+      .map((order) =>
+        buildPerpsActiveLimitOrderSnapshot({
+          order,
+          userId: user._id,
+          masterAddress,
+          markPricesByCoin: mids,
+          openOrders: allOpenOrders,
+        }),
+      )
+      .filter(
+        (order): order is PerpsActiveLimitOrderSnapshot =>
+          isActiveLimitOrderSnapshot(order) &&
+          !activePositionKeySet.has(order.positionKey.toLowerCase()),
+      );
     const reconcileSnapshotKey = [
       masterAddress,
       Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
+      `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
       ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
+      ...activeLimitOrders
+        .map((order) =>
+          [
+            'limit',
+            order.positionKey.toLowerCase(),
+            order.orderId || '',
+            order.limitPrice,
+          ].join('='),
+        )
+        .sort(),
     ].join(':');
 
     if (!reconciledPositionSnapshotsRef.current.has(reconcileSnapshotKey)) {
@@ -601,7 +652,10 @@ export function PerpsPanel({
         smartsiteId,
         masterAddress,
         activePositionKeys,
+        activeLimitOrders,
+        observedDexes,
         markPricesByCoin: mids,
+        closedFillsByCoin: inferPerpsCloseFillsByCoin(fills),
       }).catch((feedError) => {
         reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
         console.warn('Failed to reconcile perps feed cards:', feedError);
@@ -609,6 +663,10 @@ export function PerpsPanel({
     }
 
     positions.forEach((position) => {
+      const riskPrices = inferPerpsPositionRiskPrices(
+        position,
+        allOpenOrders,
+      );
       const positionKey = buildPerpsPositionKey({
         userId: user._id,
         masterAddress,
@@ -665,6 +723,8 @@ export function PerpsPanel({
           sizeCoins: Math.abs(toPerpsFeedNumber(position.szi)),
           returnPct: toPerpsFeedNumber(position.returnOnEquity) * 100,
           unrealizedPnl: toPerpsFeedNumber(position.unrealizedPnl),
+          takeProfitPrice: riskPrices.takeProfitPrice,
+          stopLossPrice: riskPrices.stopLossPrice,
           orderId: openedFill?.orderId,
           masterAddress,
           openedAt: eventTimestamp,
@@ -674,8 +734,56 @@ export function PerpsPanel({
         console.warn('Failed to backfill perps feed card:', feedError);
       });
     });
+
+    activeLimitOrders.forEach((order) => {
+      const snapshotKey = [
+        order.positionKey,
+        order.orderId || '',
+        order.limitPrice,
+        order.limitPlacedAt || '',
+      ].join(':');
+      if (syncedPositionSnapshotsRef.current.has(snapshotKey)) return;
+      syncedPositionSnapshotsRef.current.add(snapshotKey);
+
+      const timestamp =
+        order.limitPlacedAt || order.updatedAt || new Date().toISOString();
+      upsertPerpsPositionFeed({
+        token: accessToken,
+        userId: user._id,
+        smartsiteId,
+        content: {
+          provider: 'hyperliquid',
+          positionKey: order.positionKey,
+          coin: order.coin,
+          dex: order.dex || null,
+          side: order.side,
+          status: 'limit',
+          event: 'limit',
+          leverage: 1,
+          marginMode: 'cross',
+          entryPrice: order.limitPrice,
+          limitPrice: order.limitPrice,
+          markPrice: order.markPrice,
+          liquidationPrice: null,
+          collateralUsd: 0,
+          notionalUsd: order.notionalUsd,
+          sizeCoins: order.sizeCoins,
+          returnPct: 0,
+          unrealizedPnl: 0,
+          takeProfitPrice: order.takeProfitPrice,
+          stopLossPrice: order.stopLossPrice,
+          orderId: order.orderId,
+          masterAddress,
+          limitPlacedAt: timestamp,
+          updatedAt: timestamp,
+        },
+      }).catch((feedError) => {
+        console.warn('Failed to backfill perps limit card:', feedError);
+      });
+    });
   }, [
     accountData,
+    allOpenOrders,
     allPositions,
     accessToken,
     feedSmartsiteId,
@@ -823,6 +931,246 @@ export function PerpsPanel({
     ],
   );
 
+  const handleCancelOrder = useCallback(
+    async (order: HLOpenOrder) => {
+      const orderKey = getOpenOrderRowKey(order);
+      setCancellingOrderKey(orderKey);
+
+      try {
+        const orderMarket =
+          hyperliquidMarketForPosition(markets, order) ||
+          markets.find((m) => m.coin === order.coin);
+        if (!orderMarket) {
+          throw new Error(
+            `No market found for ${order.coin} - cannot cancel order.`,
+          );
+        }
+
+        const orderId = Number(order.oid);
+        if (!Number.isFinite(orderId)) {
+          throw new Error('Missing order id - cannot cancel order.');
+        }
+
+        await cancelOrder(orderMarket.index, orderId);
+        const limitOrderSnapshot = buildPerpsActiveLimitOrderSnapshot({
+          order,
+          userId: user?._id,
+          masterAddress,
+          markPricesByCoin: mids,
+          openOrders: allOpenOrders,
+        });
+        if (limitOrderSnapshot) {
+          const timestamp = new Date().toISOString();
+          await upsertPerpsPositionFeed({
+            token: accessToken,
+            userId: user?._id,
+            smartsiteId: feedSmartsiteId,
+            content: {
+              provider: 'hyperliquid',
+              positionKey: limitOrderSnapshot.positionKey,
+              coin: limitOrderSnapshot.coin,
+              dex: limitOrderSnapshot.dex || null,
+              side: limitOrderSnapshot.side,
+              status: 'cancelled',
+              event: 'cancel',
+              leverage: 1,
+              marginMode: 'cross',
+              entryPrice: limitOrderSnapshot.limitPrice,
+              limitPrice: limitOrderSnapshot.limitPrice,
+              markPrice: limitOrderSnapshot.markPrice,
+              liquidationPrice: null,
+              collateralUsd: 0,
+              notionalUsd: limitOrderSnapshot.notionalUsd,
+              sizeCoins: limitOrderSnapshot.sizeCoins,
+              returnPct: 0,
+              unrealizedPnl: 0,
+              takeProfitPrice: limitOrderSnapshot.takeProfitPrice,
+              stopLossPrice: limitOrderSnapshot.stopLossPrice,
+              orderId: limitOrderSnapshot.orderId,
+              masterAddress,
+              limitPlacedAt: limitOrderSnapshot.limitPlacedAt,
+              updatedAt: timestamp,
+              cancelledAt: timestamp,
+            },
+          }).catch((feedError) => {
+            console.warn(
+              'Failed to update cancelled perps feed card:',
+              feedError,
+            );
+            return null;
+          });
+        }
+        await Promise.all([refetchPositions(), refetchPortfolio()]);
+        toast({
+          title: 'Order cancelled',
+          description: `${order.coin}-PERP ${order.side === 'B' ? 'buy' : 'sell'} order was removed.`,
+        });
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: 'Cancel failed',
+          description:
+            err instanceof Error ? err.message : 'Failed to cancel order.',
+        });
+      } finally {
+        setCancellingOrderKey(null);
+      }
+    },
+    [
+      accessToken,
+      allOpenOrders,
+      cancelOrder,
+      feedSmartsiteId,
+      markets,
+      masterAddress,
+      mids,
+      refetchPortfolio,
+      refetchPositions,
+      toast,
+      user?._id,
+    ],
+  );
+
+  const handleSetPositionTpSl = useCallback(
+    async (position: HLPosition, request: PositionTpSlRequest) => {
+      const takeProfitPrice = request.takeProfitPrice?.trim() || undefined;
+      const stopLossPrice = request.stopLossPrice?.trim() || undefined;
+      if (!takeProfitPrice && !stopLossPrice) {
+        throw new Error('Add a take-profit or stop-loss price.');
+      }
+
+      const isLong = parseFloat(position.szi) > 0;
+      const positionMarket =
+        hyperliquidMarketForPosition(markets, position) ||
+        markets.find((m) => m.coin === position.coin);
+      if (!positionMarket) {
+        throw new Error(
+          `No market found for ${position.coin} — cannot add TP/SL.`,
+        );
+      }
+
+      const livePrice =
+        mids[position.coin] ??
+        positionMarket.markPrice ??
+        position.entryPx;
+      const reference = Number(livePrice || position.entryPx);
+      const validateTrigger = (
+        label: 'Take profit' | 'Stop loss',
+        price: string | undefined,
+      ) => {
+        if (!price) return;
+        const value = Number(price);
+        if (!Number.isFinite(value) || value <= 0) {
+          throw new Error(`${label} must be a positive number.`);
+        }
+        if (reference > 0 && label === 'Take profit') {
+          if (isLong ? value <= reference : value >= reference) {
+            throw new Error(
+              isLong
+                ? 'Take profit must be above the current mark for a long.'
+                : 'Take profit must be below the current mark for a short.',
+            );
+          }
+        }
+        if (reference > 0 && label === 'Stop loss') {
+          if (isLong ? value >= reference : value <= reference) {
+            throw new Error(
+              isLong
+                ? 'Stop loss must be below the current mark for a long.'
+                : 'Stop loss must be above the current mark for a short.',
+            );
+          }
+        }
+      };
+
+      validateTrigger('Take profit', takeProfitPrice);
+      validateTrigger('Stop loss', stopLossPrice);
+
+      if (request.replaceExisting) {
+        for (const order of request.existingOrdersToCancel) {
+          await cancelOrder(positionMarket.index, Number(order.oid));
+        }
+      }
+
+      const orderResult = await placePositionTpSlOrder({
+        assetIndex: positionMarket.index,
+        isLong,
+        size: Math.abs(parseFloat(position.szi)).toString(),
+        takeProfitPrice,
+        stopLossPrice,
+      });
+      const timestamp = new Date().toISOString();
+      const feedDex = positionMarket.dex || position.dex;
+      const feedCoin = qualifyPerpsPositionCoin({
+        coin: position.coin,
+        dex: feedDex,
+      });
+
+      upsertPerpsPositionFeed({
+        token: accessToken,
+        userId: user?._id,
+        smartsiteId: feedSmartsiteId,
+        content: {
+          provider: 'hyperliquid',
+          positionKey: buildPerpsPositionKey({
+            userId: user?._id,
+            masterAddress,
+            coin: position.coin,
+            dex: feedDex,
+          }),
+          coin: feedCoin,
+          dex: feedDex || null,
+          side: isLong ? 'long' : 'short',
+          status: 'open',
+          event: 'open',
+          leverage: position.leverage.value,
+          marginMode:
+            position.leverage.type === 'isolated' ? 'isolated' : 'cross',
+          entryPrice: toPerpsFeedNumber(position.entryPx),
+          markPrice: toPerpsFeedNumber(livePrice || position.entryPx),
+          liquidationPrice: position.liquidationPx
+            ? toPerpsFeedNumber(position.liquidationPx)
+            : null,
+          collateralUsd: toPerpsFeedNumber(position.marginUsed),
+          notionalUsd: toPerpsFeedNumber(position.positionValue),
+          sizeCoins: Math.abs(toPerpsFeedNumber(position.szi)),
+          returnPct: toPerpsFeedNumber(position.returnOnEquity) * 100,
+          unrealizedPnl: toPerpsFeedNumber(position.unrealizedPnl),
+          takeProfitPrice: takeProfitPrice
+            ? toPerpsFeedNumber(takeProfitPrice)
+            : undefined,
+          stopLossPrice: stopLossPrice
+            ? toPerpsFeedNumber(stopLossPrice)
+            : undefined,
+          orderId: extractPerpsOrderId(orderResult),
+          masterAddress,
+          updatedAt: timestamp,
+        },
+      }).catch((feedError) => {
+        console.warn('Failed to update perps feed card TP/SL:', feedError);
+      });
+
+      await Promise.all([refetchPositions(), refetchPortfolio()]);
+      toast({
+        title: 'TP/SL submitted',
+        description: `${isLong ? 'Long' : 'Short'} ${position.coin} triggers are live.`,
+      });
+    },
+    [
+      cancelOrder,
+      markets,
+      mids,
+      placePositionTpSlOrder,
+      accessToken,
+      feedSmartsiteId,
+      user?._id,
+      masterAddress,
+      refetchPortfolio,
+      refetchPositions,
+      toast,
+    ],
+  );
+
   const handlePlaceMarketOrder = useCallback(
     async (
       assetIndex: number,
@@ -923,6 +1271,9 @@ export function PerpsPanel({
                   connected={fillsConnected}
                   closingCoin={closingCoin}
                   onClosePosition={handleClosePosition}
+                  onSetPositionTpSl={handleSetPositionTpSl}
+                  onCancelOrder={handleCancelOrder}
+                  cancellingOrderKey={cancellingOrderKey}
                   onSelectCoin={handleSelectCoin}
                 />
               </div>

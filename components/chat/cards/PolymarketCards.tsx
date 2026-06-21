@@ -124,6 +124,10 @@ const EMPTY_INLINE_POLYMARKET_QUOTE: InlinePolymarketQuoteState = {
   ask: null,
 };
 
+const DEFAULT_MARKET_GROUP_DISPLAY_LIMIT = 4;
+const SPORTS_GAME_GROUP_DISPLAY_LIMIT = 6;
+const SPORTS_GAME_MARKET_PREVIEW_LIMIT = 3;
+
 export function PolymarketMarketCards({
   markets,
   onPrepareBet,
@@ -164,14 +168,23 @@ export function PolymarketMarketCards({
   if (!markets.length) return null;
 
   const marketGroups = groupPolymarketMarkets(markets);
+  const isSportsGameList =
+    marketGroups.filter(isSportsMarketGroup).length >= 2;
+  const groupDisplayLimit = isSportsGameList
+    ? SPORTS_GAME_GROUP_DISPLAY_LIMIT
+    : DEFAULT_MARKET_GROUP_DISPLAY_LIMIT;
+  const eventMarketPreviewLimit = isSportsGameList
+    ? SPORTS_GAME_MARKET_PREVIEW_LIMIT
+    : undefined;
 
   return (
     <div className="mt-2 grid gap-3">
-      {marketGroups.slice(0, 4).map((group, index) =>
+      {marketGroups.slice(0, groupDisplayLimit).map((group, index) =>
         group.isEventGroup && group.markets.length > 1 ? (
           <PolymarketGameMarketCard
             key={group.key}
             group={group}
+            marketPreviewLimit={eventMarketPreviewLimit}
             onPrepareBet={onPrepareBet}
             pendingBetKey={pendingBetKey}
             inlineProposalsByBetKey={inlineProposalsByBetKey}
@@ -438,6 +451,7 @@ export function PolymarketPositionsCard({
 
 function PolymarketGameMarketCard({
   group,
+  marketPreviewLimit,
   onPrepareBet,
   pendingBetKey,
   inlineProposalsByBetKey,
@@ -453,6 +467,7 @@ function PolymarketGameMarketCard({
   renderedReceiptIdentityKeys,
 }: {
   group: PolymarketMarketGroup;
+  marketPreviewLimit?: number;
   onPrepareBet: (
     prompt: string,
     betKey: string
@@ -475,8 +490,10 @@ function PolymarketGameMarketCard({
 }) {
   const primaryMarket = group.markets[0];
   const title =
-    primaryMarket.eventTitle ||
-    humanizePolymarketEventSlug(primaryMarket.eventSlug) ||
+    normalizePolymarketEventTitle(primaryMarket.eventTitle) ||
+    humanizePolymarketEventSlug(
+      normalizePolymarketEventSlug(primaryMarket.eventSlug)
+    ) ||
     primaryMarket.question ||
     'Prediction markets';
   const timing = formatPolymarketMarketTiming(primaryMarket);
@@ -484,6 +501,14 @@ function PolymarketGameMarketCard({
   const liveLabel = primaryMarket.eventLive
     ? `Live${timing && timing !== 'Live' ? ` · ${timing}` : ''}`
     : timing;
+  const visibleMarkets =
+    marketPreviewLimit && marketPreviewLimit > 0
+      ? group.markets.slice(0, marketPreviewLimit)
+      : group.markets;
+  const hiddenMarketCount = Math.max(
+    group.markets.length - visibleMarkets.length,
+    0
+  );
 
   return (
     <AgentMarketBlock
@@ -517,7 +542,7 @@ function PolymarketGameMarketCard({
           </div>
 
           <div className="mt-4 grid min-w-0 gap-3">
-            {group.markets.map((market, index) => (
+            {visibleMarkets.map((market, index) => (
               <PolymarketMarketCard
                 key={market.conditionId || market.id || market.slug || index}
                 market={market}
@@ -539,6 +564,11 @@ function PolymarketGameMarketCard({
                 groupTitle={title}
               />
             ))}
+            {hiddenMarketCount > 0 && (
+              <div className="dm-mono rounded-md border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#737783]">
+                +{hiddenMarketCount} more markets for this game
+              </div>
+            )}
           </div>
         </div>
 
@@ -2067,14 +2097,32 @@ function groupPolymarketMarkets(
   return groups;
 }
 
-function getPolymarketEventGroupKey(market: PolymarketMarketPreview) {
-  const eventSlug = market.eventSlug?.trim();
-  if (eventSlug) return `event:${eventSlug.toLowerCase()}`;
+function isSportsMarketGroup(group: PolymarketMarketGroup) {
+  if (!group.isEventGroup) return false;
+  return group.markets.some((market) => {
+    const text = `${market.eventTitle || ''} ${market.question || ''}`;
+    return Boolean(market.gameStartTime) || /\b(vs\.?|versus)\b/i.test(text);
+  });
+}
 
-  const eventTitle = market.eventTitle?.trim();
+function getPolymarketEventGroupKey(market: PolymarketMarketPreview) {
+  const eventSlug = normalizePolymarketEventSlug(market.eventSlug);
+  if (eventSlug) return `event:${eventSlug}`;
+
+  const eventTitle = normalizePolymarketEventTitle(market.eventTitle);
   if (eventTitle) return `event:${eventTitle.toLowerCase()}`;
 
   return '';
+}
+
+function normalizePolymarketEventSlug(slug?: string | null) {
+  return (slug || '').trim().toLowerCase().replace(/-more-markets$/u, '');
+}
+
+function normalizePolymarketEventTitle(title?: string | null) {
+  return (title || '')
+    .trim()
+    .replace(/\s*(?:[:|-]\s*)?more\s+markets\s*$/iu, '');
 }
 
 function humanizePolymarketEventSlug(slug?: string | null) {

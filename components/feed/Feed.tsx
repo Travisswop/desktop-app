@@ -57,6 +57,7 @@ export default function Feed({
   const isFetchingRef = useRef(false);
   const requestIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const didHydrationRefreshRef = useRef(false);
 
   const setHasMoreValue = useCallback((value: boolean) => {
     hasMoreRef.current = value;
@@ -159,7 +160,12 @@ export default function Feed({
   useEffect(() => {
     if (initialArray.length === 0) {
       fetchFeedData();
+      return;
     }
+
+    if (didHydrationRefreshRef.current) return;
+    didHydrationRefreshRef.current = true;
+    fetchFeedData(true);
   }, [fetchFeedData, initialArray.length]);
 
   // refetch trigger

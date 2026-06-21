@@ -1,0 +1,9 @@
+{
+  "description": "Current production dependency audit ceiling. Lower these values as dependency fixes land.",
+  "command": "npm audit --omit=dev --audit-level=high --json",
+  "gatedSeverities": ["critical", "high"],
+  "maxVulnerabilities": {
+    "critical": 1,
+    "high": 8
+  }
+}

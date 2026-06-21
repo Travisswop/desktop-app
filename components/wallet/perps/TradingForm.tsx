@@ -1,6 +1,13 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+  type CSSProperties,
+} from 'react';
 import { AlertTriangle, Loader2, Plus } from 'lucide-react';
 import type { HLMarket, HLPosition, OrderSide, OrderMode } from '@/services/hyperliquid/types';
 import { formatPrice } from '@/services/hyperliquid/types';
@@ -107,6 +114,7 @@ export function TradingForm({
   const [stopLoss, setStopLoss] = useState('');
   const [leverage, setLeverage] = useState(10);
   const [isCross, setIsCross] = useState(true);
+  const marginMode = isCross ? 'cross' : 'isolated';
   const appliedInitialOrderKeyRef = useRef('');
 
   // Pending order details snapshot — populated when the user clicks the
@@ -118,16 +126,16 @@ export function TradingForm({
 
   const isBuy = side === 'long';
   const markNum = parseFloat(markPrice) || 0;
-  const accountNum = parseFloat(accountValue) || 0;
+  const accountValueNum = parseFloat(accountValue) || 0;
   const availableMarginNum =
     parseFloat(availableMargin ?? accountValue) || 0;
   const maxLev = Math.max(1, market?.maxLeverage ?? 50);
   const safeLeverage = Math.min(Math.max(1, leverage), maxLev);
   const leveragePct =
     maxLev > 1 ? ((safeLeverage - 1) / (maxLev - 1)) * 100 : 100;
-  const leverageThumbLeft = `calc(${leveragePct}% - ${
-    (leveragePct / 100) * 16
-  }px + 8px)`;
+  const leverageTrackStyle = {
+    '--swop-dial-track': `linear-gradient(to right, #d97706 0%, #d97706 ${leveragePct}%, #f2f2f0 ${leveragePct}%, #f2f2f0 100%)`,
+  } as CSSProperties;
 
   const initialOrderKey = useMemo(
     () =>
@@ -222,6 +230,8 @@ export function TradingForm({
   const effectiveAvailableMargin = isBuilderMarket
     ? availableMarginNum + mainAvailNum
     : availableMarginNum;
+  const sizingAvailableMargin =
+    effectiveAvailableMargin > 0 ? effectiveAvailableMargin : accountValueNum;
   const hasInsufficientMargin =
     sizeUsdNum > 0 && marginRequired > effectiveAvailableMargin;
   const marginShortfall = Math.max(
@@ -291,15 +301,16 @@ export function TradingForm({
 
   const setPercent = useCallback(
     (pct: number) => {
+      onClearError();
       // Builder markets size off the combined main + DEX balance — the DEX is
       // funded automatically at order time, so the selected DEX starting at $0
       // must not zero out the quick-% buttons.
-      const base = effectiveAvailableMargin;
+      const base = sizingAvailableMargin;
       const usd = (base * pct * safeLeverage) / 100;
       setSize(usd.toFixed(2));
       setActivePercent(pct);
     },
-    [effectiveAvailableMargin, safeLeverage],
+    [onClearError, safeLeverage, sizingAvailableMargin],
   );
 
   const estLiqPrice = useMemo(() => {
@@ -388,6 +399,22 @@ export function TradingForm({
       }
 
       let orderResult: unknown = null;
+      const submittedStopLossPrice =
+        mode === 'tpsl'
+          ? stopLoss ||
+            (isBuy
+              ? String((markNum * 0.95).toFixed(2))
+              : String((markNum * 1.05).toFixed(2)))
+          : stopLoss;
+      const submittedTakeProfitPrice =
+        mode === 'tpsl'
+          ? takeProfit ||
+            (isBuy
+              ? String((markNum * 1.05).toFixed(2))
+              : String((markNum * 0.95).toFixed(2)))
+          : takeProfit;
+      await onUpdateLeverage(market.index, safeLeverage, isCross);
+
       if (mode === 'market') {
         orderResult = await onPlaceMarket(market.index, isBuy, sizeInCoins, markPrice);
       } else if (mode === 'limit') {
@@ -406,12 +433,8 @@ export function TradingForm({
           isBuy,
           size: sizeInCoins,
           entryPrice: entryPx,
-          stopLossPrice: stopLoss || (isBuy
-            ? String((markNum * 0.95).toFixed(2))
-            : String((markNum * 1.05).toFixed(2))),
-          takeProfitPrice: takeProfit || (isBuy
-            ? String((markNum * 1.05).toFixed(2))
-            : String((markNum * 0.95).toFixed(2))),
+          stopLossPrice: submittedStopLossPrice,
+          takeProfitPrice: submittedTakeProfitPrice,
         });
       }
 
@@ -439,7 +462,9 @@ export function TradingForm({
             ? Math.max(0, existingSizeCoins - sizeNum)
             : sizeNum;
       const event: PerpsPositionFeedEvent =
-        existingSide && existingSide === side
+        mode === 'limit' || mode === 'tpsl'
+          ? 'limit'
+          : existingSide && existingSide === side
           ? 'add'
           : isReducingExistingPosition && nextSizeCoins <= 0
             ? 'close'
@@ -447,7 +472,7 @@ export function TradingForm({
               ? 'reduce'
               : 'open';
       const status: PerpsPositionFeedStatus =
-        event === 'close' ? 'closed' : 'open';
+        event === 'limit' ? 'limit' : event === 'close' ? 'closed' : 'open';
       const feedSide = existingSide || side;
       const weightedEntry =
         event === 'add' && existingSizeCoins > 0
@@ -506,6 +531,7 @@ export function TradingForm({
           leverage: safeLeverage,
           marginMode: isCross ? 'cross' : 'isolated',
           entryPrice: weightedEntry,
+          limitPrice: status === 'limit' ? entryPxNum : undefined,
           markPrice: entryPxNum,
           exitPrice: status === 'closed' ? entryPxNum : undefined,
           liquidationPrice: estLiqPrice ? parseFloat(estLiqPrice) : null,
@@ -516,10 +542,18 @@ export function TradingForm({
             toPerpsFeedNumber(existingPosition?.returnOnEquity) * 100,
           unrealizedPnl: toPerpsFeedNumber(existingPosition?.unrealizedPnl),
           feeUsd: notionalUsd * 0.0007,
+          takeProfitPrice: submittedTakeProfitPrice
+            ? parseFloat(submittedTakeProfitPrice)
+            : undefined,
+          stopLossPrice: submittedStopLossPrice
+            ? parseFloat(submittedStopLossPrice)
+            : undefined,
           orderId,
           masterAddress,
+          limitPlacedAt: status === 'limit' ? timestamp : undefined,
           updatedAt: timestamp,
-          openedAt: existingPosition ? undefined : timestamp,
+          openedAt:
+            existingPosition || status === 'limit' ? undefined : timestamp,
           closedAt: status === 'closed' ? timestamp : undefined,
         },
       }).catch((feedError) => {
@@ -579,6 +613,7 @@ export function TradingForm({
     agentOrderPrefill?.proposalId, isCross, safeLeverage, market, mode, isBuy,
     sizeInCoins, limitPrice, markPrice, takeProfit, stopLoss, markNum,
     onAgentActionComplete, onPlaceMarket, onPlaceLimit, onPlaceTpSl,
+    onUpdateLeverage,
     pendingOrder?.entryPrice, pendingOrder?.marginRequired, pendingOrder?.sizeUsd,
     side, accessToken, user?._id, feedSmartsiteId,
     masterAddress, existingPosition, estLiqPrice,
@@ -593,28 +628,42 @@ export function TradingForm({
 
   const handleLeverageChange = useCallback(
     (newLev: number) => {
+      onClearError();
       const nextLeverage = Math.min(Math.max(1, newLev), maxLev);
       setLeverage(nextLeverage);
       onLeverageChange?.(nextLeverage, isCross);
     },
-    [maxLev, onLeverageChange, isCross],
+    [isCross, maxLev, onClearError, onLeverageChange],
   );
 
   const handleLeverageCommit = useCallback(
     async (newLev: number) => {
+      if (!Number.isFinite(newLev)) return;
       const nextLeverage = Math.min(Math.max(1, newLev), maxLev);
+      setLeverage(nextLeverage);
+      onLeverageChange?.(nextLeverage, isCross);
       if (market && isAgentReady) {
         await onUpdateLeverage(market.index, nextLeverage, isCross).catch(() => {});
       }
     },
-    [market, isAgentReady, isCross, maxLev, onUpdateLeverage],
+    [isAgentReady, isCross, market, maxLev, onLeverageChange, onUpdateLeverage],
   );
 
-  const toggleMargin = useCallback(() => {
-    const next = !isCross;
+  const commitLeverageFromInput = useCallback(
+    (input: HTMLInputElement) => {
+      handleLeverageCommit(Number(input.value));
+    },
+    [handleLeverageCommit],
+  );
+
+  const handleMarginModeSelect = useCallback((nextMode: 'cross' | 'isolated') => {
+    const next = nextMode === 'cross';
+    if (next === isCross) return;
+
     setIsCross(next);
     onLeverageChange?.(safeLeverage, next);
-  }, [isCross, safeLeverage, onLeverageChange]);
+    onClearError();
+  }, [isCross, onClearError, onLeverageChange, safeLeverage]);
 
   if (!market) {
     return (
@@ -650,6 +699,33 @@ export function TradingForm({
           Agent proposal loaded. Review every field before confirming.
         </div>
       )}
+
+      {/* Margin mode selector */}
+      <div className="mb-3.5">
+        <Label>MARGIN MODE</Label>
+        <div className="mt-1.5 grid grid-cols-2 gap-1 p-[3px] bg-[#f2f2f0] rounded-xl">
+          {(['cross', 'isolated'] as const).map((modeOption) => {
+            const active = marginMode === modeOption;
+            return (
+              <button
+                key={modeOption}
+                type="button"
+                aria-pressed={active}
+                onClick={() => handleMarginModeSelect(modeOption)}
+                className={`py-2.5 rounded-[9px] text-[13px] font-semibold transition-all ${
+                  active
+                    ? modeOption === 'cross'
+                      ? 'bg-blue-500 text-white shadow-sm'
+                      : 'bg-orange-500 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {modeOption === 'cross' ? 'Cross' : 'Isolated'}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Long / Short toggle */}
       <div className="grid grid-cols-2 gap-1 p-[3px] bg-[#f2f2f0] rounded-xl mb-3.5">
@@ -785,45 +861,37 @@ export function TradingForm({
       <div className="mt-4">
         <div className="flex justify-between items-baseline mb-2">
           <span className="text-[11px] text-gray-500 font-medium">Leverage</span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleMargin}
-              className={`text-[10px] px-2 py-0.5 rounded-full font-semibold transition-colors ${
-                isCross
-                  ? 'bg-blue-100 text-blue-600'
-                  : 'bg-orange-100 text-orange-600'
-              }`}
-            >
-              {isCross ? 'Cross' : 'Isolated'}
-            </button>
-            <span className="font-mono text-[18px] font-semibold tabular-nums text-amber-600">
-              {safeLeverage}×
-            </span>
-          </div>
+          <span className="font-mono text-[18px] font-semibold tabular-nums text-amber-600">
+            {safeLeverage}×
+          </span>
         </div>
-        <div className="relative h-1.5 overflow-hidden rounded-full bg-[#f2f2f0]">
-          <div
-            className="absolute left-0 top-0 h-full rounded-full bg-amber-600"
-            style={{ width: `${leveragePct}%` }}
-          />
-          <input
-            type="range"
-            min={1}
-            max={maxLev}
-            step={1}
-            value={safeLeverage}
-            onChange={(e) => handleLeverageChange(parseInt(e.target.value))}
-            onMouseUp={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
-            onTouchEnd={(e) => handleLeverageCommit(parseInt((e.target as HTMLInputElement).value))}
-            className="absolute inset-0 w-full opacity-0 cursor-pointer"
-          />
-        </div>
-        <div className="relative h-4">
-          <div
-            className="absolute -top-[13px] h-4 w-4 rounded-full border-2 border-amber-600 bg-white shadow"
-            style={{ left: leverageThumbLeft }}
-          />
-        </div>
+        <input
+          type="range"
+          min={1}
+          max={maxLev}
+          step={1}
+          aria-label="Perps leverage"
+          aria-valuetext={`${safeLeverage}x leverage`}
+          value={safeLeverage}
+          onChange={(e) => handleLeverageChange(parseInt(e.target.value))}
+          onMouseUp={(e) => commitLeverageFromInput(e.currentTarget)}
+          onTouchEnd={(e) => commitLeverageFromInput(e.currentTarget)}
+          onBlur={(e) => commitLeverageFromInput(e.currentTarget)}
+          onKeyUp={(e) => {
+            if (
+              e.key === 'ArrowLeft' ||
+              e.key === 'ArrowRight' ||
+              e.key === 'ArrowUp' ||
+              e.key === 'ArrowDown' ||
+              e.key === 'Home' ||
+              e.key === 'End'
+            ) {
+              commitLeverageFromInput(e.currentTarget);
+            }
+          }}
+          className="swop-dial h-7 w-full cursor-pointer"
+          style={leverageTrackStyle}
+        />
         <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 font-mono">
           <span>1×</span>
           <span>{Math.round(maxLev / 5)}×</span>

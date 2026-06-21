@@ -2,7 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, RefreshCcw, Search } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  RefreshCcw,
+  Search,
+} from 'lucide-react';
 import type {
   AaveActionMode,
   AaveChain,
@@ -12,6 +19,8 @@ import type {
 import { AaveTokenIcon } from './AaveTokenIcon';
 import { AaveActionModal } from './AaveActionModal';
 import { useAaveMarkets, useAavePositions } from './hooks/useAaveData';
+import { sortAaveReservesBySupplyApy } from './aaveMarketSorting';
+import type { AaveSupplyApySortDirection } from './aaveMarketSorting';
 
 type DefiTab = 'markets' | 'supply' | 'borrow';
 
@@ -20,20 +29,6 @@ const CHAINS: { id: AaveChain; label: string; dot: string }[] = [
   { id: 'polygon', label: 'Polygon', dot: '#8247E5' },
   { id: 'base', label: 'Base', dot: '#0052FF' },
   { id: 'arbitrum', label: 'Arbitrum', dot: '#28A0F0' },
-];
-
-// Major assets pinned to the top of the markets list, in this order
-const FEATURED_ORDER = [
-  'USDC',
-  'WETH',
-  'WBTC',
-  'CBBTC',
-  'DAI',
-  'LINK',
-  'USDT',
-  'WSTETH',
-  'WPOL',
-  'WMATIC',
 ];
 
 // Rows beyond this scroll inside the card instead of growing the page
@@ -85,6 +80,8 @@ export function DefiSection({
   const [tab, setTab] = useState<DefiTab>('markets');
   const [chainMenuOpen, setChainMenuOpen] = useState(false);
   const [marketSearch, setMarketSearch] = useState('');
+  const [supplyApySortDirection, setSupplyApySortDirection] =
+    useState<AaveSupplyApySortDirection>('desc');
   const [modal, setModal] = useState<ModalState | null>(null);
 
   const markets = useAaveMarkets(chain);
@@ -92,14 +89,8 @@ export function DefiSection({
 
   const sortedReserves = useMemo(() => {
     const reserves = markets.data?.reserves ?? [];
-    const rank = (reserve: AaveReserve) => {
-      const index = FEATURED_ORDER.indexOf(reserve.symbol.toUpperCase());
-      return index === -1 ? FEATURED_ORDER.length : index;
-    };
-    return [...reserves].sort(
-      (a, b) => rank(a) - rank(b) || a.symbol.localeCompare(b.symbol),
-    );
-  }, [markets.data?.reserves]);
+    return sortAaveReservesBySupplyApy(reserves, supplyApySortDirection);
+  }, [markets.data?.reserves, supplyApySortDirection]);
 
   const marketReserves = useMemo(
     () =>
@@ -127,6 +118,8 @@ export function DefiSection({
 
   const activeChain = CHAINS.find((entry) => entry.id === chain)!;
   const account = positions.data?.account ?? null;
+  const marketsUnavailable = Boolean(markets.data?.degraded);
+  const positionsUnavailable = Boolean(positions.data?.degraded);
 
   const refreshPositions = () => {
     queryClient.invalidateQueries({ queryKey: ['aave-positions', chain] });
@@ -239,7 +232,15 @@ export function DefiSection({
           totalCount={marketReserves.length}
           search={marketSearch}
           onSearchChange={setMarketSearch}
+          supplyApySortDirection={supplyApySortDirection}
+          onSupplyApySortToggle={() =>
+            setSupplyApySortDirection((current) =>
+              current === 'desc' ? 'asc' : 'desc',
+            )
+          }
           walletConnected={Boolean(evmWalletAddress)}
+          serviceUnavailable={marketsUnavailable}
+          chainLabel={activeChain.label}
           onAction={openAction}
         />
       )}
@@ -248,6 +249,8 @@ export function DefiSection({
         <PositionsTab
           mode="supply"
           loading={positions.isLoading}
+          unavailable={positionsUnavailable}
+          chainLabel={activeChain.label}
           walletConnected={Boolean(evmWalletAddress)}
           positionsList={positions.data?.supplies ?? []}
           headline={
@@ -264,6 +267,7 @@ export function DefiSection({
             ) : null
           }
           emptyText="Nothing supplied yet. Supply an asset from Markets to start earning interest."
+          onRetry={() => positions.refetch()}
           onBrowseMarkets={() => setTab('markets')}
           actions={(position) => {
             const reserve = reserveBySymbol.get(position.asset);
@@ -298,6 +302,8 @@ export function DefiSection({
         <PositionsTab
           mode="borrow"
           loading={positions.isLoading}
+          unavailable={positionsUnavailable}
+          chainLabel={activeChain.label}
           walletConnected={Boolean(evmWalletAddress)}
           positionsList={positions.data?.borrows ?? []}
           headline={
@@ -318,6 +324,7 @@ export function DefiSection({
             ) : null
           }
           emptyText="No open borrows. Supply collateral first, then borrow against it from Markets."
+          onRetry={() => positions.refetch()}
           onBrowseMarkets={() => setTab('markets')}
           actions={(position) => {
             const reserve = reserveBySymbol.get(position.asset);
@@ -378,7 +385,11 @@ function MarketsTab({
   totalCount,
   search,
   onSearchChange,
+  supplyApySortDirection,
+  onSupplyApySortToggle,
   walletConnected,
+  serviceUnavailable,
+  chainLabel,
   onAction,
 }: {
   loading: boolean;
@@ -388,7 +399,11 @@ function MarketsTab({
   totalCount: number;
   search: string;
   onSearchChange: (value: string) => void;
+  supplyApySortDirection: AaveSupplyApySortDirection;
+  onSupplyApySortToggle: () => void;
   walletConnected: boolean;
+  serviceUnavailable: boolean;
+  chainLabel: string;
   onAction: (mode: AaveActionMode, reserve: AaveReserve) => void;
 }) {
   if (loading) return <RowsSkeleton />;
@@ -405,6 +420,15 @@ function MarketsTab({
           Retry
         </button>
       </div>
+    );
+  }
+
+  if (serviceUnavailable) {
+    return (
+      <AaveUnavailableState
+        chainLabel={chainLabel}
+        onRetry={onRetry}
+      />
     );
   }
 
@@ -425,7 +449,23 @@ function MarketsTab({
 
       <div className="grid grid-cols-[1fr_120px_120px_170px] items-center px-5 py-2.5 font-mono text-[11px] uppercase tracking-wider text-gray-400">
         <span>Asset</span>
-        <span className="text-right">Supply APY</span>
+        <button
+          type="button"
+          onClick={onSupplyApySortToggle}
+          aria-label={
+            supplyApySortDirection === 'desc'
+              ? 'Sort Supply APY lowest first'
+              : 'Sort Supply APY highest first'
+          }
+          className="justify-self-end inline-flex items-center justify-end gap-1 rounded-md px-1 py-0.5 text-right transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
+        >
+          <span>Supply APY</span>
+          {supplyApySortDirection === 'desc' ? (
+            <ArrowDown className="h-3 w-3" aria-hidden="true" />
+          ) : (
+            <ArrowUp className="h-3 w-3" aria-hidden="true" />
+          )}
+        </button>
         <span className="text-right">Borrow APY</span>
         <span />
       </div>
@@ -510,20 +550,26 @@ function MarketRow({
 function PositionsTab({
   mode,
   loading,
+  unavailable,
+  chainLabel,
   walletConnected,
   positionsList,
   headline,
   emptyText,
+  onRetry,
   onBrowseMarkets,
   actions,
   apyFor,
 }: {
   mode: 'supply' | 'borrow';
   loading: boolean;
+  unavailable: boolean;
+  chainLabel: string;
   walletConnected: boolean;
   positionsList: AavePosition[];
   headline: React.ReactNode;
   emptyText: string;
+  onRetry: () => void;
   onBrowseMarkets: () => void;
   actions: (position: AavePosition) => React.ReactNode;
   apyFor: (position: AavePosition) => {
@@ -541,6 +587,15 @@ function PositionsTab({
   }
 
   if (loading) return <RowsSkeleton rows={2} />;
+
+  if (unavailable) {
+    return (
+      <AaveUnavailableState
+        chainLabel={chainLabel}
+        onRetry={onRetry}
+      />
+    );
+  }
 
   return (
     <div>
@@ -602,6 +657,34 @@ function PositionsTab({
 }
 
 /* ─── Shared bits ─────────────────────────────────────────────────────────── */
+
+function AaveUnavailableState({
+  chainLabel,
+  onRetry,
+}: {
+  chainLabel: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="px-5 py-8 text-center">
+      <AlertCircle className="mx-auto mb-2 h-4 w-4 text-amber-500" />
+      <p className="text-sm font-medium text-gray-700">
+        Aave data is temporarily unavailable on {chainLabel}.
+      </p>
+      <p className="mx-auto mt-1 max-w-md text-xs text-gray-400">
+        The RPC provider is rate-limited right now. Your wallet is still
+        connected; retry after the provider recovers.
+      </p>
+      <button
+        onClick={onRetry}
+        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700 border border-black/[0.08] rounded-full px-3 py-1.5 hover:bg-gray-50 transition-colors"
+      >
+        <RefreshCcw className="w-3 h-3" />
+        Retry
+      </button>
+    </div>
+  );
+}
 
 function SummaryRow({
   items,

@@ -59,3 +59,16 @@ export function marketRouteKey(market: PolymarketMarket): string {
     ''
   );
 }
+
+export function marketDetailHref(market?: PolymarketMarket | null): string {
+  const routeKey = market ? marketRouteKey(market) : '';
+  return routeKey
+    ? `/prediction/market/${encodeURIComponent(routeKey)}`
+    : '/prediction';
+}
+
+export function normalizeMarketDetailHref(href?: string): string {
+  if (!href) return '/prediction';
+  if (href.startsWith('/prediction')) return href;
+  return '/prediction';
+}

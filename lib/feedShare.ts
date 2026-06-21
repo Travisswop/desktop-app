@@ -160,6 +160,10 @@ function perpsText(feed: FeedLike, author: string) {
       ? 'was liquidated on'
       : status === 'closed' || status === 'close'
         ? 'closed'
+        : status === 'cancelled' || status === 'canceled' || status === 'cancel'
+          ? 'cancelled a limit order for'
+        : status === 'limit'
+          ? 'set a limit order for'
         : 'opened';
   const entry = formatUsd(content.entryPrice);
   const exitOrMark = formatUsd(content.exitPrice ?? content.markPrice);

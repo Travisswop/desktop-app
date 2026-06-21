@@ -3,6 +3,7 @@ import { PrivyProvider as Privy } from '@privy-io/react-auth';
 import { toSolanaWalletConnectors } from '@privy-io/react-auth/solana';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { installClipboardWriteFallback } from '@/lib/clipboard';
+import { solanaWalletConnectorOptions } from '@/lib/privy/solanaWalletConnectors';
 
 interface SolanaConfig {
   rpcs: {
@@ -34,10 +35,7 @@ export default function PrivyProvider({
     'sms',
   ];
   const solanaWalletConnectors = useMemo(
-    () =>
-      toSolanaWalletConnectors({
-        shouldAutoConnect: false,
-      }),
+    () => toSolanaWalletConnectors(solanaWalletConnectorOptions),
     [],
   );
 

@@ -9,6 +9,7 @@ type FeedItemLike = {
   postType?: unknown;
   content?: Record<string, unknown> | null;
   createdAt?: unknown;
+  updatedAt?: unknown;
 };
 
 type FeedHasMoreInput = {
@@ -20,6 +21,7 @@ type FeedHasMoreInput = {
 
 export function getFeedItemKey(item: FeedItemLike) {
   const key = item?._id ?? item?.id;
+  if (typeof key === "number" && Number.isFinite(key)) return String(key);
   return typeof key === "string" && key.trim() ? key : null;
 }
 
@@ -110,6 +112,153 @@ function perpsCreatedAtMs(value: unknown) {
   return Number.isFinite(milliseconds) ? milliseconds : null;
 }
 
+function perpsLifecycleAtMs(item: FeedItemLike) {
+  const content = item.content || {};
+  return (
+    perpsCreatedAtMs(content.openedAt) ||
+    perpsCreatedAtMs(item.createdAt) ||
+    perpsCreatedAtMs(content.updatedAt)
+  );
+}
+
+function perpsPositionDedupeKey(item: FeedItemLike) {
+  if (item.postType !== "perpsPosition") return null;
+
+  const content = item.content || {};
+  const positionKey = String(content.positionKey || "").trim().toLowerCase();
+  if (positionKey) {
+    const lifecycleAt = perpsLifecycleAtMs(item);
+    return lifecycleAt === null
+      ? `perps-position:${positionKey}`
+      : `perps-position:${positionKey}:${lifecycleAt}`;
+  }
+
+  const parts = perpsMatchParts(item);
+  if (!parts) return null;
+  return [
+    "perps-position",
+    parts.userId,
+    parts.smartsiteId,
+    parts.coin,
+    parts.side,
+    parts.sizeCoins,
+    parts.createdAt,
+  ].join(":");
+}
+
+function terminalTimestampMs(item: FeedItemLike) {
+  const content = item.content || {};
+  const status = String(content.status || "").toLowerCase();
+  const event = String(content.event || "").toLowerCase();
+
+  if (
+    status === "liquidated" ||
+    status === "liquidate" ||
+    event === "liquidate"
+  ) {
+    return (
+      perpsCreatedAtMs(content.liquidatedAt) ||
+      perpsCreatedAtMs(content.closedAt) ||
+      perpsCreatedAtMs(content.updatedAt)
+    );
+  }
+
+  if (status === "closed" || event === "close") {
+    return (
+      perpsCreatedAtMs(content.closedAt) ||
+      perpsCreatedAtMs(content.updatedAt)
+    );
+  }
+
+  if (status === "cancelled" || status === "canceled" || event === "cancel") {
+    return (
+      perpsCreatedAtMs(content.cancelledAt) ||
+      perpsCreatedAtMs(content.updatedAt)
+    );
+  }
+
+  return null;
+}
+
+function perpsPositionRank(item: FeedItemLike) {
+  const content = item.content || {};
+  const status = String(content.status || "").toLowerCase();
+  const event = String(content.event || "").toLowerCase();
+  const lifecycleAt = perpsLifecycleAtMs(item);
+  const terminalAt = terminalTimestampMs(item);
+  const isTerminal =
+    status === "closed" ||
+    status === "liquidated" ||
+    status === "cancelled" ||
+    status === "canceled" ||
+    status === "liquidate" ||
+    event === "close" ||
+    event === "liquidate" ||
+    event === "cancel";
+  const invalidTerminal =
+    isTerminal &&
+    lifecycleAt !== null &&
+    terminalAt !== null &&
+    terminalAt < lifecycleAt - 5 * 60 * 1000;
+
+  if (invalidTerminal) return 1;
+  if (isTerminal) return 2;
+  return 3;
+}
+
+function newerPerpsPosition(a: FeedItemLike, b: FeedItemLike) {
+  const aRank = perpsPositionRank(a);
+  const bRank = perpsPositionRank(b);
+  if (aRank !== bRank) return aRank > bRank ? a : b;
+
+  const aUpdated =
+    perpsCreatedAtMs(a.content?.updatedAt) ||
+    perpsCreatedAtMs(a.updatedAt) ||
+    perpsCreatedAtMs(a.createdAt) ||
+    0;
+  const bUpdated =
+    perpsCreatedAtMs(b.content?.updatedAt) ||
+    perpsCreatedAtMs(b.updatedAt) ||
+    perpsCreatedAtMs(b.createdAt) ||
+    0;
+
+  return aUpdated >= bUpdated ? a : b;
+}
+
+export function filterDuplicatePerpsPositionItems<T extends FeedItemLike>(
+  items: T[],
+) {
+  const selectedByKey = new Map<string, T>();
+
+  items.forEach((item) => {
+    const dedupeKey = perpsPositionDedupeKey(item);
+    if (!dedupeKey) return;
+
+    const current = selectedByKey.get(dedupeKey);
+    if (!current) {
+      selectedByKey.set(dedupeKey, item);
+      return;
+    }
+
+    selectedByKey.set(dedupeKey, newerPerpsPosition(current, item) as T);
+  });
+
+  if (selectedByKey.size === 0) return items;
+
+  const emitted = new Set<string>();
+  return items.filter((item) => {
+    const dedupeKey = perpsPositionDedupeKey(item);
+    if (!dedupeKey) return true;
+    if (emitted.has(dedupeKey)) return false;
+
+    const selected = selectedByKey.get(dedupeKey);
+    if (selected !== item) return false;
+
+    emitted.add(dedupeKey);
+    return true;
+  });
+}
+
 function perpsSmartsitePart(item: FeedItemLike) {
   return (
     idPart(item.smartsiteDetails?._id) ||
@@ -171,12 +320,13 @@ function isDuplicateLegacyPerps(
 export function filterDuplicateLegacyPerpsItems<T extends FeedItemLike>(
   items: T[],
 ) {
-  const lifecyclePosts = items.filter(
+  const dedupedPositionItems = filterDuplicatePerpsPositionItems(items);
+  const lifecyclePosts = dedupedPositionItems.filter(
     (item) => item.postType === "perpsPosition",
   );
-  if (lifecyclePosts.length === 0) return items;
+  if (lifecyclePosts.length === 0) return dedupedPositionItems;
 
-  return items.filter(
+  return dedupedPositionItems.filter(
     (item) =>
       item.postType !== "perps" ||
       !isDuplicateLegacyPerps(item, lifecyclePosts),

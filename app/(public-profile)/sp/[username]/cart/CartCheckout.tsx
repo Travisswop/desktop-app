@@ -10,8 +10,8 @@ import { CartItemsList, CheckoutCard } from './components';
 import { CartItem, CustomerInfo } from './components/types';
 import { createMarketplaceCheckoutIntent } from '@/lib/checkout-api';
 import {
+  checkoutUrlWithPaymentMethod,
   getPhantomCheckoutUrl,
-  normalizeCheckoutUrl,
 } from '@/lib/phantom-checkout';
 import toast from 'react-hot-toast';
 // Sonner is mounted in layout.tsx with richColors. We use it for cart
@@ -431,8 +431,14 @@ const CartCheckout = () => {
     const intent = await createCartCheckoutIntent();
     if (!intent) return;
 
-    completeCartCheckout();
-    router.push(`/checkout/${intent.intentId}`);
+    completeCartCheckout('Payment request sent');
+    router.push(
+      checkoutUrlWithPaymentMethod({
+        checkoutUrl: intent.checkoutUrl,
+        intentId: intent.intentId,
+        method: 'swop',
+      }) || `/checkout/${encodeURIComponent(intent.intentId)}?method=swop`
+    );
   }, [completeCartCheckout, createCartCheckoutIntent, router]);
 
   const handleOpenPhantomPayment = useCallback(async () => {
@@ -441,12 +447,13 @@ const CartCheckout = () => {
 
     completeCartCheckout('Opening Phantom checkout');
 
-    const fallbackUrl = normalizeCheckoutUrl(
-      intent.checkoutUrl,
-      intent.intentId
-    );
-    const phantomUrl = getPhantomCheckoutUrl({
+    const fallbackUrl = checkoutUrlWithPaymentMethod({
       checkoutUrl: intent.checkoutUrl,
+      intentId: intent.intentId,
+      method: 'phantom',
+    });
+    const phantomUrl = getPhantomCheckoutUrl({
+      checkoutUrl: fallbackUrl,
       intentId: intent.intentId,
     });
 

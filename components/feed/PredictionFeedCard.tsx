@@ -1,15 +1,23 @@
 'use client';
 
 import React, {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
+import { useRouter } from 'next/navigation';
 import { useBtcUpDownMarket } from '@/hooks/polymarket/useBtcUpDownMarket';
+import type { PolymarketMarket } from '@/hooks/polymarket';
 import {
   fetchChunkedPrices,
   type PriceEntry,
 } from '@/lib/polymarket/clob-prices';
+import {
+  marketRouteKey,
+  useMarketDetailStore,
+} from '@/zustandStore/marketDetailStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +26,7 @@ interface TeamMeta {
   abbreviation?: string | null;
   color?: string | null;
   logo?: string | null;
+  score?: number | string | null;
 }
 
 interface LiveTeam {
@@ -26,7 +35,7 @@ interface LiveTeam {
   score: number | null;
 }
 
-interface LiveScore {
+export interface LiveScore {
   live: boolean;
   ended?: boolean;
   closed?: boolean;
@@ -45,6 +54,25 @@ interface LiveMarket {
   outcomePrices: string | string[] | number[] | null;
   outcomes: string | string[] | null;
   clobTokenIds: string | string[] | null;
+}
+
+export interface VerifiedFinalScoreSnapshot {
+  source: 'polymarket-event-live';
+  eventSlug: string;
+  eventScore: string;
+  yesScore: number;
+  noScore: number;
+  yesTeam: {
+    name?: string | null;
+    abbreviation?: string | null;
+  };
+  noTeam: {
+    name?: string | null;
+    abbreviation?: string | null;
+  };
+  period?: string | null;
+  elapsed?: string | null;
+  verifiedAt?: string | Date;
 }
 
 export interface PredictionContent {
@@ -71,6 +99,10 @@ export interface PredictionContent {
   marketId?: string;
   marketType?: string;
   marketSlug?: string;
+  eventScore?: string | null;
+  verifiedFinalScore?: VerifiedFinalScoreSnapshot | null;
+  scoreSettlementStatus?: 'verified' | 'conflict' | 'unknown';
+  scoreSettlementPickedWon?: boolean;
   btcWindowStart?: number | string;
   btcWindowLabel?: string;
   eventSlug?: string;
@@ -88,6 +120,10 @@ export interface PredictionContent {
   status?: string;
   result?: string;
   resultStatus?: string;
+  claimStatus?: string;
+  redeemStatus?: string;
+  claimed?: boolean;
+  redeemed?: boolean;
   pnl?: number | string;
   realizedPnl?: number | string;
   cashPnl?: number | string;
@@ -98,6 +134,10 @@ export interface PredictionContent {
   lossAmount?: number | string;
   currentPrice?: number | string;
   currentValue?: number | string;
+  claimAmount?: number | string;
+  redeemAmount?: number | string;
+  payout?: number | string;
+  payoutAmount?: number | string;
   saleAmount?: number | string;
 }
 
@@ -105,6 +145,10 @@ interface PredictionFeedCardProps {
   content: PredictionContent;
   userName?: string;
   createdAt?: string | Date;
+  feedPostId?: string;
+  feedUserId?: string;
+  accessToken?: string;
+  onVerifiedFinalScore?: (content: PredictionContent) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -161,6 +205,610 @@ function parseList(value: unknown): string[] {
 function sameId(a: unknown, b: unknown): boolean {
   if (!a || !b) return false;
   return String(a).toLowerCase() === String(b).toLowerCase();
+}
+
+function firstText(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
+function parseScorePair(raw: unknown): [number | null, number | null] {
+  if (raw == null) return [null, null];
+  const match = String(raw).match(/(\d+)\D+(\d+)/);
+  if (!match) return [null, null];
+  const first = Number(match[1]);
+  const second = Number(match[2]);
+  return [
+    Number.isFinite(first) ? first : null,
+    Number.isFinite(second) ? second : null,
+  ];
+}
+
+function toLiveScoreNumber(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function slugifySportsToken(value: unknown): string {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function inferredSportsSlugSuffixes(value: unknown): string[] {
+  const slug = slugifySportsToken(value);
+  if (!slug) return [];
+
+  const parts = slug.split('-').filter(Boolean);
+  const suffixes = new Set<string>([slug]);
+  if (parts.length === 1 && parts[0].length >= 3) {
+    suffixes.add(parts[0].slice(0, 3));
+  }
+  if (parts.length > 1) {
+    const initials = parts
+      .map((part) => part[0])
+      .filter(Boolean)
+      .join('');
+    if (initials.length >= 2) suffixes.add(initials);
+  }
+
+  return [...suffixes].filter((suffix) => suffix.length >= 2);
+}
+
+function stripKnownSportsMarketSuffix(
+  slug: string,
+  content: PredictionContent,
+): string {
+  let base = slug
+    .replace(/-(moneyline|spread|total|totals|o-u|over-under).*$/i, '')
+    .replace(/-(draw|tie)$/i, '');
+  const suffixes = [
+    ...inferredSportsSlugSuffixes(content.yesTeam?.abbreviation),
+    ...inferredSportsSlugSuffixes(content.noTeam?.abbreviation),
+    ...inferredSportsSlugSuffixes(content.yesOutcome),
+    ...inferredSportsSlugSuffixes(content.noOutcome),
+  ];
+
+  if (suffixes.length) {
+    const uniqueSuffixes = Array.from(new Set(suffixes)).sort(
+      (a, b) => b.length - a.length,
+    );
+    const suffixPattern = new RegExp(
+      `-(${uniqueSuffixes.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`,
+      'i',
+    );
+    base = base.replace(suffixPattern, '');
+  }
+
+  return base;
+}
+
+export function resolvePredictionLiveEventSlug(
+  content: PredictionContent,
+): string | undefined {
+  const explicit = firstText(content.eventSlug);
+  const slug = firstText(explicit, content.marketSlug);
+  if (!slug) return undefined;
+  const normalized = stripKnownSportsMarketSuffix(slug, content);
+  return normalized || slug;
+}
+
+export function embeddedPredictionLiveScore(
+  content: PredictionContent,
+): LiveScore | null {
+  const [score0, score1] = parseScorePair(
+    content.eventScore ?? (content as { score?: unknown }).score,
+  );
+  const rawTeams = [
+    content.yesTeam
+      ? {
+          name: content.yesTeam.name ?? content.yesOutcome ?? null,
+          abbreviation: content.yesTeam.abbreviation ?? null,
+          score:
+            toLiveScoreNumber(content.yesTeam.score) ??
+            score0,
+        }
+      : content.yesOutcome
+        ? {
+            name: content.yesOutcome,
+            abbreviation: null,
+            score: score0,
+          }
+        : null,
+    content.noTeam
+      ? {
+          name: content.noTeam.name ?? content.noOutcome ?? null,
+          abbreviation: content.noTeam.abbreviation ?? null,
+          score:
+            toLiveScoreNumber(content.noTeam.score) ??
+            score1,
+        }
+      : content.noOutcome
+        ? {
+            name: content.noOutcome,
+            abbreviation: null,
+            score: score1,
+          }
+        : null,
+  ].filter((team): team is LiveTeam => Boolean(team));
+  const hasState =
+    Boolean(content.status) ||
+    Boolean(content.result) ||
+    Boolean(content.resultStatus) ||
+    Boolean(content.claimStatus) ||
+    Boolean(content.redeemStatus) ||
+    Boolean(content.claimed) ||
+    Boolean(content.redeemed) ||
+    rawTeams.some((team) => team.score != null);
+
+  if (!hasState && !rawTeams.length) return null;
+
+  const terminal = Boolean(
+    content.claimed ||
+      content.redeemed ||
+      content.claimStatus ||
+      content.redeemStatus ||
+    /^(won|lost|claimed|redeemed|closed|settled)$/i.test(
+      String(content.result || content.resultStatus || content.status || ''),
+    ),
+  );
+
+  return {
+    live: false,
+    ended: terminal,
+    closed: terminal,
+    period: null,
+    elapsed: null,
+    teams: rawTeams,
+  };
+}
+
+export function mergePredictionLiveScores(
+  fetched: LiveScore | null,
+  embedded: LiveScore | null,
+): LiveScore | null {
+  if (!fetched) return embedded;
+  if (!embedded) return fetched;
+
+  const fetchedHasScores = fetched.teams.some((team) => team.score != null);
+  const embeddedHasScores = embedded.teams.some((team) => team.score != null);
+
+  return {
+    live: fetched.live,
+    ended: Boolean(fetched.ended || embedded.ended),
+    closed: Boolean(fetched.closed || embedded.closed),
+    period: fetched.period ?? embedded.period,
+    elapsed: fetched.elapsed ?? embedded.elapsed,
+    teams:
+      fetched.teams.length && (fetchedHasScores || !embeddedHasScores)
+        ? fetched.teams
+        : embedded.teams,
+    markets: fetched.markets,
+  };
+}
+
+function matchLiveScoreTeam(
+  teams: LiveTeam[],
+  outcome: string | undefined,
+  teamMeta: TeamMeta | undefined,
+  fallbackIdx: number,
+): {
+  score: number;
+  team: { name?: string | null; abbreviation?: string | null };
+} | null {
+  const outcomeLower = String(outcome || '').toLowerCase();
+  const metaNameLower = String(teamMeta?.name || '').toLowerCase();
+  const metaAbbrLower = String(teamMeta?.abbreviation || '').toLowerCase();
+  const matched = teams.find((team) => {
+    const name = String(team.name || '').toLowerCase();
+    const abbr = String(team.abbreviation || '').toLowerCase();
+    return (
+      (name &&
+        ((outcomeLower &&
+          (name.includes(outcomeLower) || outcomeLower.includes(name))) ||
+          (metaNameLower &&
+            (name.includes(metaNameLower) ||
+              metaNameLower.includes(name))))) ||
+      (abbr && metaAbbrLower && abbr === metaAbbrLower)
+    );
+  });
+
+  const team = matched ?? teams[fallbackIdx];
+  const score = toLiveScoreNumber(team?.score);
+  if (score == null) return null;
+
+  return {
+    score,
+    team: {
+      name: firstText(team?.name, teamMeta?.name, outcome) ?? null,
+      abbreviation:
+        firstText(team?.abbreviation, teamMeta?.abbreviation) ?? null,
+    },
+  };
+}
+
+export function resolveVerifiedFinalScoreSnapshot({
+  content,
+  liveScore,
+  eventSlug,
+}: {
+  content: PredictionContent;
+  liveScore: LiveScore | null;
+  eventSlug?: string;
+}): VerifiedFinalScoreSnapshot | null {
+  if (!eventSlug || !liveScore || (!liveScore.ended && !liveScore.closed)) {
+    return null;
+  }
+  if (!Array.isArray(liveScore.teams) || liveScore.teams.length < 2) {
+    return null;
+  }
+
+  const yes = matchLiveScoreTeam(
+    liveScore.teams,
+    content.yesOutcome,
+    content.yesTeam,
+    0,
+  );
+  const no = matchLiveScoreTeam(
+    liveScore.teams,
+    content.noOutcome,
+    content.noTeam,
+    1,
+  );
+  if (!yes || !no) return null;
+
+  return {
+    source: 'polymarket-event-live',
+    eventSlug,
+    eventScore: `${yes.score}-${no.score}`,
+    yesScore: yes.score,
+    noScore: no.score,
+    yesTeam: yes.team,
+    noTeam: no.team,
+    period: liveScore.period,
+    elapsed: liveScore.elapsed,
+  };
+}
+
+export function formatSpreadOutcomeLabel({
+  marketTitle,
+  pickedOutcome,
+  yesOutcome,
+  noOutcome,
+}: {
+  marketTitle: string;
+  pickedOutcome: string;
+  yesOutcome: string;
+  noOutcome: string;
+}): string {
+  const picked = pickedOutcome.trim();
+  if (!picked || /(?:^|\s)[+-]\d+(?:\.\d+)?$/u.test(picked)) {
+    return pickedOutcome;
+  }
+
+  const match = marketTitle.match(
+    /\bspread\s*:\s*(.+?)\s*\(([+-]?\d+(?:\.\d+)?)\)/i,
+  );
+  if (!match) return pickedOutcome;
+
+  const subject = match[1].trim();
+  const line = Number(match[2]);
+  if (!Number.isFinite(line)) return pickedOutcome;
+
+  const same = (a: string, b: string) =>
+    a.trim().toLowerCase() === b.trim().toLowerCase();
+  const normalizedPicked = picked.toLowerCase();
+  const effectivePicked =
+    normalizedPicked === 'yes'
+      ? yesOutcome
+      : normalizedPicked === 'no'
+        ? noOutcome
+        : picked;
+  let selectedLine: number | null = null;
+  if (same(effectivePicked, subject)) {
+    selectedLine = line;
+  } else if (same(effectivePicked, yesOutcome) && same(yesOutcome, subject)) {
+    selectedLine = line;
+  } else if (same(effectivePicked, noOutcome) && same(yesOutcome, subject)) {
+    selectedLine = -line;
+  } else if (same(effectivePicked, yesOutcome) && same(noOutcome, subject)) {
+    selectedLine = -line;
+  } else if (same(effectivePicked, noOutcome) && same(noOutcome, subject)) {
+    selectedLine = line;
+  }
+
+  if (selectedLine == null) return pickedOutcome;
+  const formattedLine =
+    selectedLine > 0 ? `+${selectedLine}` : String(selectedLine);
+  return `${effectivePicked} ${formattedLine}`;
+}
+
+function spreadLineForOutcome({
+  marketTitle,
+  pickedOutcome,
+  yesOutcome,
+  noOutcome,
+}: {
+  marketTitle: string;
+  pickedOutcome: string;
+  yesOutcome: string;
+  noOutcome: string;
+}): number | null {
+  const match = marketTitle.match(
+    /\bspread\s*:\s*(.+?)\s*\(([+-]?\d+(?:\.\d+)?)\)/i,
+  );
+  if (!match) return null;
+
+  const subject = match[1].trim();
+  const line = Number(match[2]);
+  if (!Number.isFinite(line)) return null;
+
+  const same = (a: string, b: string) =>
+    a.trim().toLowerCase() === b.trim().toLowerCase();
+  const normalizedPicked = pickedOutcome.trim().toLowerCase();
+  const effectivePicked =
+    normalizedPicked === 'yes'
+      ? yesOutcome
+      : normalizedPicked === 'no'
+        ? noOutcome
+        : pickedOutcome;
+
+  if (same(effectivePicked, subject)) return line;
+  if (same(effectivePicked, yesOutcome) && same(yesOutcome, subject)) {
+    return line;
+  }
+  if (same(effectivePicked, noOutcome) && same(yesOutcome, subject)) {
+    return -line;
+  }
+  if (same(effectivePicked, yesOutcome) && same(noOutcome, subject)) {
+    return -line;
+  }
+  if (same(effectivePicked, noOutcome) && same(noOutcome, subject)) {
+    return line;
+  }
+  return null;
+}
+
+export function resolveSportsScorePickedWon({
+  marketTitle,
+  pickedOutcome,
+  yesOutcome,
+  noOutcome,
+  yesScore,
+  noScore,
+}: {
+  marketTitle: string;
+  pickedOutcome: string;
+  yesOutcome?: string;
+  noOutcome?: string;
+  yesScore: number | undefined;
+  noScore: number | undefined;
+}): boolean | undefined {
+  if (
+    yesScore === undefined ||
+    noScore === undefined ||
+    yesScore === noScore ||
+    !yesOutcome ||
+    !noOutcome
+  ) {
+    return undefined;
+  }
+
+  const pickedLower = pickedOutcome.trim().toLowerCase();
+  const pickedIsYes =
+    pickedLower === 'yes' || pickedLower === yesOutcome.toLowerCase();
+  const pickedIsNo =
+    pickedLower === 'no' || pickedLower === noOutcome.toLowerCase();
+  if (!pickedIsYes && !pickedIsNo) return undefined;
+
+  const spreadLine = spreadLineForOutcome({
+    marketTitle,
+    pickedOutcome,
+    yesOutcome,
+    noOutcome,
+  });
+  if (spreadLine != null) {
+    const pickedScore = pickedIsYes ? yesScore : noScore;
+    const opponentScore = pickedIsYes ? noScore : yesScore;
+    return pickedScore + spreadLine > opponentScore;
+  }
+
+  return pickedIsYes ? yesScore > noScore : noScore > yesScore;
+}
+
+export function formatSportsGameClockLabel({
+  hasScores,
+  yesScore,
+  noScore,
+  liveScore,
+  gameStartTime,
+}: {
+  hasScores: boolean;
+  yesScore: number | null;
+  noScore: number | null;
+  liveScore: LiveScore | null;
+  gameStartTime?: string;
+}): string {
+  if (hasScores && (liveScore?.ended || liveScore?.closed)) {
+    return `${yesScore}-${noScore}`;
+  }
+  if (hasScores) {
+    return [liveScore?.period, liveScore?.elapsed]
+      .filter(Boolean)
+      .join(' · ') || 'GAME';
+  }
+  return formatGameCenter(gameStartTime);
+}
+
+function teamMetaToEventTeam(team: TeamMeta | undefined, fallbackName: string) {
+  return {
+    name: firstText(team?.name) || fallbackName,
+    logo: firstText(team?.logo),
+    abbreviation: firstText(team?.abbreviation),
+    color: firstText(team?.color),
+  };
+}
+
+function quoteForPrice(price: number | undefined) {
+  if (price === undefined) return undefined;
+  const value = clampProbability(price);
+  return {
+    bidPrice: value,
+    askPrice: value,
+    midPrice: value,
+  };
+}
+
+function buildPredictionDetailMarket(
+  content: PredictionContent,
+  options: {
+    marketTitle?: string;
+    yesOutcome?: string;
+    noOutcome?: string;
+    yesTokenId?: string;
+    noTokenId?: string;
+    yesPrice?: number;
+    noPrice?: number;
+    closed?: boolean;
+  },
+): PolymarketMarket | null {
+  const marketTitle = firstText(options.marketTitle, content.marketTitle);
+  if (!marketTitle) return null;
+
+  const yesOutcome = firstText(options.yesOutcome, content.yesOutcome) || 'Yes';
+  const noOutcome = firstText(options.noOutcome, content.noOutcome) || 'No';
+  const yesTokenId = firstText(options.yesTokenId, content.yesTokenId) || '';
+  const noTokenId = firstText(options.noTokenId, content.noTokenId) || '';
+  const yesPrice = clampProbability(
+    options.yesPrice ??
+      finiteNumber(content.yesPrice) ??
+      finiteNumber(content.price) ??
+      0.5,
+  );
+  const noPrice = clampProbability(
+    options.noPrice ?? finiteNumber(content.noPrice) ?? 1 - yesPrice,
+  );
+  const marketId = firstText(content.marketId);
+  const slug = firstText(content.marketSlug, content.eventSlug, marketId);
+  const id = firstText(marketId, slug, marketTitle);
+  if (!id) return null;
+
+  const realtimePrices: PolymarketMarket['realtimePrices'] = {};
+  const yesQuote = quoteForPrice(yesPrice);
+  const noQuote = quoteForPrice(noPrice);
+  if (yesTokenId && yesQuote) realtimePrices[yesTokenId] = yesQuote;
+  if (noTokenId && noQuote) realtimePrices[noTokenId] = noQuote;
+
+  const closed = Boolean(options.closed);
+  const eventTeams =
+    content.yesTeam || content.noTeam
+      ? [
+          teamMetaToEventTeam(content.yesTeam, yesOutcome),
+          teamMetaToEventTeam(content.noTeam, noOutcome),
+        ]
+      : undefined;
+
+  return {
+    id,
+    conditionId: marketId || id,
+    question: marketTitle,
+    slug: slug || id,
+    active: !closed,
+    closed,
+    outcomes: JSON.stringify([yesOutcome, noOutcome]),
+    outcomePrices: JSON.stringify([yesPrice, noPrice]),
+    clobTokenIds: JSON.stringify([yesTokenId, noTokenId]),
+    eventSlug: firstText(content.eventSlug),
+    gameStartTime: firstText(content.gameStartTime),
+    volume: firstText(content.volume),
+    eventTeams,
+    realtimePrices,
+  };
+}
+
+function resolveInitialOutcome(
+  content: PredictionContent,
+  yesOutcome: string,
+  noOutcome: string,
+): 'yes' | 'no' | undefined {
+  const outcome = content.outcome.toLowerCase();
+  if (outcome === 'yes' || outcome === yesOutcome.toLowerCase()) return 'yes';
+  if (outcome === 'no' || outcome === noOutcome.toLowerCase()) return 'no';
+  return undefined;
+}
+
+function usePredictionMarketNavigation(
+  content: PredictionContent,
+  options: Parameters<typeof buildPredictionDetailMarket>[1],
+) {
+  const router = useRouter();
+  const stashMarketDetail = useMarketDetailStore((state) => state.set);
+  const market = useMemo(
+    () => buildPredictionDetailMarket(content, options),
+    [
+      content,
+      options.closed,
+      options.marketTitle,
+      options.noOutcome,
+      options.noPrice,
+      options.noTokenId,
+      options.yesOutcome,
+      options.yesPrice,
+      options.yesTokenId,
+    ],
+  );
+  const marketKey = market ? marketRouteKey(market) : '';
+  const marketHref = marketKey
+    ? `/prediction/market/${encodeURIComponent(marketKey)}`
+    : undefined;
+  const yesOutcome = firstText(options.yesOutcome, content.yesOutcome) || 'Yes';
+  const noOutcome = firstText(options.noOutcome, content.noOutcome) || 'No';
+  const defaultInitialOutcome = resolveInitialOutcome(
+    content,
+    yesOutcome,
+    noOutcome,
+  );
+
+  const onMarketClick = useCallback(
+    (
+      event: React.MouseEvent<HTMLAnchorElement>,
+      initialOutcome?: 'yes' | 'no',
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!market || !marketKey || !marketHref) return;
+
+      stashMarketDetail(marketKey, {
+        market,
+        initialOutcome: initialOutcome ?? defaultInitialOutcome,
+        outcomeLabels: [yesOutcome, noOutcome],
+      });
+      router.push(marketHref);
+    },
+    [
+      defaultInitialOutcome,
+      market,
+      marketHref,
+      marketKey,
+      noOutcome,
+      router,
+      stashMarketDetail,
+      yesOutcome,
+    ],
+  );
+
+  return {
+    marketHref,
+    onMarketClick,
+  };
 }
 
 function isBtcFiveMinutePrediction(content: PredictionContent): boolean {
@@ -264,6 +912,32 @@ function inferBtcWinnerFromPrices(
   return yesPrice > noPrice ? 'Up' : 'Down';
 }
 
+function inferBtcWinnerFromSettledPrices(
+  yesPrice: number | undefined,
+  noPrice: number | undefined,
+): 'Up' | 'Down' | null {
+  if (yesPrice === undefined || noPrice === undefined) return null;
+  if (yesPrice >= 0.99 && noPrice <= 0.01) return 'Up';
+  if (noPrice >= 0.99 && yesPrice <= 0.01) return 'Down';
+  return null;
+}
+
+export function resolveBtcSettledWinner({
+  yesPrice,
+  noPrice,
+  candleWinner,
+}: {
+  yesPrice: number | undefined;
+  noPrice: number | undefined;
+  candleWinner: 'Up' | 'Down' | null;
+}): 'Up' | 'Down' | null {
+  return (
+    inferBtcWinnerFromSettledPrices(yesPrice, noPrice) ??
+    candleWinner ??
+    inferBtcWinnerFromPrices(yesPrice, noPrice)
+  );
+}
+
 function resolveMarketState(
   content: PredictionContent,
   liveScore: LiveScore | null,
@@ -337,18 +1011,14 @@ function resolveMarketState(
   };
   const yesScore = scoreForOutcome(content.yesOutcome, 0);
   const noScore = scoreForOutcome(content.noOutcome, 1);
-  const pickedWon =
-    yesScore !== undefined &&
-    noScore !== undefined &&
-    yesScore !== noScore
-      ? content.outcome.toLowerCase() ===
-        content.yesOutcome?.toLowerCase()
-        ? yesScore > noScore
-        : content.outcome.toLowerCase() ===
-            content.noOutcome?.toLowerCase()
-          ? noScore > yesScore
-          : undefined
-      : undefined;
+  const pickedWon = resolveSportsScorePickedWon({
+    marketTitle: content.marketTitle,
+    pickedOutcome: content.outcome,
+    yesOutcome: content.yesOutcome,
+    noOutcome: content.noOutcome,
+    yesScore,
+    noScore,
+  });
 
   return {
     closed: Boolean(
@@ -373,7 +1043,7 @@ type FeedTradeState =
   | 'sold'
   | 'open';
 
-interface TradeStateMeta {
+export interface TradeStateMeta {
   state: FeedTradeState;
   label: string;
   detail: string;
@@ -381,7 +1051,7 @@ interface TradeStateMeta {
   amount?: number;
 }
 
-interface ResolvedMarketState {
+export interface ResolvedMarketState {
   closed: boolean;
   yesPrice?: number;
   noPrice?: number;
@@ -399,15 +1069,23 @@ const OPEN_SCORE_POLL_MS = 30_000;
 const LIVE_PRICE_POLL_MS = 10_000;
 const RETRY_POLL_MS = 30_000;
 
-function resolveTradeState(
+export function resolveTradeState(
   content: PredictionContent,
   isLive: boolean,
   marketState: ResolvedMarketState,
 ): TradeStateMeta {
   const side = content.side;
-  const statusText = String(
-    content.resultStatus ?? content.result ?? content.status ?? '',
-  ).toLowerCase();
+  const statusText = [
+    content.resultStatus,
+    content.result,
+    content.status,
+    content.claimStatus,
+    content.redeemStatus,
+  ]
+    .filter((value) => value !== undefined && value !== null)
+    .map(String)
+    .join(' ')
+    .toLowerCase();
 
   const realizedPnl = firstNumber(
     content.realizedPnl,
@@ -431,14 +1109,36 @@ function resolveTradeState(
     (explicitLoss !== undefined
       ? -Math.abs(explicitLoss)
       : undefined);
+  const payoutAmount = firstNumber(
+    content.redeemAmount,
+    content.claimAmount,
+    content.payoutAmount,
+    content.payout,
+    content.currentValue,
+  );
+  const potentialPayout = firstNumber(content.potentialWin);
+  const winPnl =
+    pnl ??
+    (payoutAmount !== undefined
+      ? payoutAmount - content.cost
+      : potentialPayout !== undefined
+        ? potentialPayout - content.cost
+        : undefined);
 
-  if (statusText.includes('won') || statusText.includes('win')) {
+  if (
+    statusText.includes('won') ||
+    statusText.includes('win') ||
+    statusText.includes('redeem') ||
+    statusText.includes('claim') ||
+    content.redeemed === true ||
+    content.claimed === true
+  ) {
     return {
       state: 'won',
       label: 'Won',
       detail: 'The pick settled in profit',
       tone: 'green',
-      amount: pnl ?? content.potentialWin,
+      amount: winPnl,
     };
   }
 
@@ -506,7 +1206,7 @@ function resolveTradeState(
         label: 'Won',
         detail: 'The market is closed',
         tone: 'green',
-        amount: pnl ?? content.potentialWin,
+        amount: winPnl,
       };
     }
     if (marketState.pickedWon === false) {
@@ -526,7 +1226,7 @@ function resolveTradeState(
           label: 'Won',
           detail: 'The market is closed',
           tone: 'green',
-          amount: pnl ?? content.potentialWin,
+          amount: winPnl,
         };
       }
       if (marketState.pickedPrice <= 0.01) {
@@ -620,6 +1320,96 @@ function useLiveScore(eventSlug: string | undefined): LiveScore | null {
   }, [eventSlug]);
 
   return score;
+}
+
+function useVerifiedFinalScorePersistence({
+  content,
+  liveScore,
+  eventSlug,
+  feedPostId,
+  feedUserId,
+  accessToken,
+  onVerifiedFinalScore,
+}: {
+  content: PredictionContent;
+  liveScore: LiveScore | null;
+  eventSlug?: string;
+  feedPostId?: string;
+  feedUserId?: string;
+  accessToken?: string;
+  onVerifiedFinalScore?: (content: PredictionContent) => void;
+}) {
+  const attemptedKeyRef = useRef<string | null>(null);
+  const snapshot = useMemo(
+    () =>
+      resolveVerifiedFinalScoreSnapshot({
+        content,
+        liveScore,
+        eventSlug,
+      }),
+    [content, eventSlug, liveScore],
+  );
+
+  useEffect(() => {
+    if (!snapshot || !feedPostId || !feedUserId) return;
+
+    const existing = content.verifiedFinalScore;
+    if (
+      existing?.eventSlug === snapshot.eventSlug &&
+      existing?.eventScore === snapshot.eventScore
+    ) {
+      return;
+    }
+
+    const key = `${feedPostId}:${snapshot.eventSlug}:${snapshot.eventScore}`;
+    if (attemptedKeyRef.current === key) return;
+    attemptedKeyRef.current = key;
+
+    const controller = new AbortController();
+    const persist = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/prediction/${encodeURIComponent(
+            feedPostId,
+          )}/verified-score`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(accessToken
+                ? { authorization: `Bearer ${accessToken}` }
+                : {}),
+            },
+            body: JSON.stringify({
+              userId: feedUserId,
+              eventSlug: snapshot.eventSlug,
+            }),
+            signal: controller.signal,
+          },
+        );
+        const data = await response.json().catch(() => null);
+        if (!response.ok) return;
+        const updatedContent = data?.data?.content;
+        if (updatedContent) {
+          onVerifiedFinalScore?.(updatedContent);
+        }
+      } catch (error) {
+        if ((error as DOMException)?.name !== 'AbortError') {
+          console.warn('Failed to persist verified prediction score:', error);
+        }
+      }
+    };
+
+    persist();
+    return () => controller.abort();
+  }, [
+    accessToken,
+    content.verifiedFinalScore,
+    feedPostId,
+    feedUserId,
+    onVerifiedFinalScore,
+    snapshot,
+  ]);
 }
 
 function priceFromEntry(entry: PriceEntry | undefined): number | undefined {
@@ -868,6 +1658,44 @@ function formatPercent(price: number): string {
 function formatSignedUsd(value: number | undefined): string {
   if (value === undefined) return '—';
   return `${value >= 0 ? '+' : ''}${formatUsd(value)}`;
+}
+
+export function resolvePredictionDisplayPnl({
+  entryIsEstimate,
+  isOpen,
+  tradeState,
+  liveDelta,
+}: {
+  entryIsEstimate?: boolean;
+  isOpen: boolean;
+  tradeState: { amount?: number };
+  liveDelta?: number;
+}): number | undefined {
+  if (entryIsEstimate) return undefined;
+  return isOpen
+    ? (liveDelta ?? tradeState.amount)
+    : (tradeState.amount ?? liveDelta);
+}
+
+function resolvePredictionSummaryValue({
+  entryIsEstimate,
+  isOpen,
+  cost,
+  currentValue,
+  selectedPnl,
+}: {
+  entryIsEstimate?: boolean;
+  isOpen: boolean;
+  cost: number;
+  currentValue?: number;
+  selectedPnl?: number;
+}) {
+  if (entryIsEstimate) return undefined;
+  if (!isOpen && selectedPnl !== undefined) return cost + selectedPnl;
+  return (
+    currentValue ??
+    (selectedPnl !== undefined ? cost + selectedPnl : undefined)
+  );
 }
 
 function formatShares(value: number | undefined): string {
@@ -1186,7 +2014,8 @@ function SportsMiniPanel({
   positionShares,
   entryIsEstimate,
   tradeState,
-  marketUrl,
+  marketHref,
+  onMarketClick,
 }: {
   marketTitle: string;
   eventSlug?: string;
@@ -1208,7 +2037,11 @@ function SportsMiniPanel({
   positionShares?: number;
   entryIsEstimate?: boolean;
   tradeState: TradeStateMeta;
-  marketUrl?: string;
+  marketHref?: string;
+  onMarketClick?: (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    initialOutcome?: 'yes' | 'no',
+  ) => void;
 }) {
   const { yesHistory, noHistory, loading } = usePriceHistory(
     yesTokenId,
@@ -1328,14 +2161,31 @@ function SportsMiniPanel({
   const yesScore = matchScore(yesOutcome, yesAbbr, 0);
   const noScore = matchScore(noOutcome, noAbbr, 1);
   const hasScores = yesScore != null && noScore != null;
-  const gameClockLabel =
-    hasScores && (liveScore?.ended || liveScore?.closed)
-      ? 'FINAL'
-      : hasScores
-        ? [liveScore?.period, liveScore?.elapsed]
-            .filter(Boolean)
-            .join(' · ') || 'GAME'
-        : formatGameCenter(gameStartTime);
+  const gameClockLabel = formatSportsGameClockLabel({
+    hasScores,
+    yesScore,
+    noScore,
+    liveScore,
+    gameStartTime,
+  });
+  const displayPickedOutcome = formatSpreadOutcomeLabel({
+    marketTitle,
+    pickedOutcome,
+    yesOutcome,
+    noOutcome,
+  });
+  const displayYesOutcome = formatSpreadOutcomeLabel({
+    marketTitle,
+    pickedOutcome: yesOutcome,
+    yesOutcome,
+    noOutcome,
+  });
+  const displayNoOutcome = formatSpreadOutcomeLabel({
+    marketTitle,
+    pickedOutcome: noOutcome,
+    yesOutcome,
+    noOutcome,
+  });
   const pickedCurrentPrice =
     pickedIsYes ? yP : nP;
   const impliedShares =
@@ -1352,26 +2202,27 @@ function SportsMiniPanel({
     currentValue !== undefined && Number.isFinite(currentValue)
       ? currentValue - cost
       : undefined;
-  const selectedPnl =
-    entryIsEstimate
-      ? undefined
-      : tradeState.state === 'open' ||
-          tradeState.state === 'live' ||
-          tradeState.state === 'won' ||
-          tradeState.state === 'lost'
-        ? (currentDelta ?? tradeState.amount)
-        : (tradeState.amount ?? currentDelta);
-  const summaryValue =
-    currentValue ??
-    (selectedPnl !== undefined ? cost + selectedPnl : undefined);
+  const open =
+    tradeState.state === 'open' || tradeState.state === 'live';
+  const selectedPnl = resolvePredictionDisplayPnl({
+    entryIsEstimate,
+    isOpen: open,
+    tradeState,
+    liveDelta: currentDelta,
+  });
+  const summaryValue = resolvePredictionSummaryValue({
+    entryIsEstimate,
+    isOpen: open,
+    cost,
+    currentValue,
+    selectedPnl,
+  });
   const filterId = `feed-shadow-${String(yesTokenId || yesOutcome)
     .replace(/[^a-zA-Z0-9_-]/g, '')
     .slice(0, 48)}`;
   const gradientId = `${filterId}-trend`;
   const split = splitProbabilities(yP, nP);
   const pill = statusPill(tradeState, liveScore, gameStartTime);
-  const open =
-    tradeState.state === 'open' || tradeState.state === 'live';
   const chartColor =
     tradeState.tone === 'red'
       ? '#E85D5D'
@@ -1423,6 +2274,7 @@ function SportsMiniPanel({
     label: string,
     price: number,
     selected: boolean,
+    initialOutcome: 'yes' | 'no',
   ) => {
     const odds = toAmericanOdds(price);
     const classes = `flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 text-[13px] font-extrabold transition-colors ${
@@ -1431,13 +2283,11 @@ function SportsMiniPanel({
         : 'border-gray-100 bg-white text-gray-900 hover:border-gray-200 hover:bg-gray-50'
     }`;
 
-    if (marketUrl) {
+    if (marketHref) {
       return (
         <a
-          href={marketUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
+          href={marketHref}
+          onClick={(event) => onMarketClick?.(event, initialOutcome)}
           className={classes}
           title={`Open ${label} market`}
         >
@@ -1591,14 +2441,14 @@ function SportsMiniPanel({
             Win Prob · Timeline
           </p>
           <p className="truncate text-right font-mono text-[10px] font-black text-gray-400">
-            {entryIsEstimate ? 'quoted' : 'backing'} {pickedOutcome}
+            {entryIsEstimate ? 'quoted' : 'backing'} {displayPickedOutcome}
           </p>
         </div>
         <svg
           viewBox={`0 0 ${VB_W} ${VB_H}`}
           className="mt-1 block h-[72px] w-full"
           role="img"
-          aria-label={`${pickedOutcome} probability timeline`}
+          aria-label={`${displayPickedOutcome} probability timeline`}
         >
           <defs>
             <linearGradient
@@ -1662,7 +2512,7 @@ function SportsMiniPanel({
           <div className="min-w-0">
             <p className="truncate text-[13px] font-extrabold text-gray-950">
               {positionVerb}{' '}
-              <span className="text-[#2F7ED8]">{pickedOutcome}</span>
+              <span className="text-[#2F7ED8]">{displayPickedOutcome}</span>
             </p>
             <p className="mt-0.5 truncate font-mono text-[11px] font-bold text-gray-400">
               {formatEntrySummary({
@@ -1692,17 +2542,15 @@ function SportsMiniPanel({
       <div className="mt-4 grid grid-cols-2 gap-3">
         {open ? (
           <>
-            {buttonForOutcome(yesOutcome, yP, pickedIsYes)}
-            {buttonForOutcome(noOutcome, nP, !pickedIsYes)}
+            {buttonForOutcome(displayYesOutcome, yP, pickedIsYes, 'yes')}
+            {buttonForOutcome(displayNoOutcome, nP, !pickedIsYes, 'no')}
           </>
         ) : (
           <>
-            {marketUrl ? (
+            {marketHref ? (
               <a
-                href={marketUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+                href={marketHref}
+                onClick={(event) => onMarketClick?.(event)}
                 className="flex h-11 items-center justify-center rounded-xl border border-gray-100 bg-white px-3 text-[13px] font-extrabold text-gray-900 transition-colors hover:border-gray-200 hover:bg-gray-50"
               >
                 Market →
@@ -1744,7 +2592,8 @@ function PredictionPositionPanel({
   yesPrice,
   noPrice,
   tradeState,
-  marketUrl,
+  marketHref,
+  onMarketClick,
   userName,
 }: {
   marketTitle: string;
@@ -1760,7 +2609,11 @@ function PredictionPositionPanel({
   yesPrice?: number;
   noPrice?: number;
   tradeState: TradeStateMeta;
-  marketUrl?: string;
+  marketHref?: string;
+  onMarketClick?: (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    initialOutcome?: 'yes' | 'no',
+  ) => void;
   userName?: string;
 }) {
   const shares =
@@ -1783,14 +2636,19 @@ function PredictionPositionPanel({
       : undefined;
   const open =
     tradeState.state === 'open' || tradeState.state === 'live';
-  const selectedPnl = entryIsEstimate
-    ? undefined
-    : open || tradeState.state === 'won' || tradeState.state === 'lost'
-      ? (delta ?? tradeState.amount)
-      : (tradeState.amount ?? delta);
-  const summaryValue =
-    currentValue ??
-    (selectedPnl !== undefined ? cost + selectedPnl : undefined);
+  const selectedPnl = resolvePredictionDisplayPnl({
+    entryIsEstimate,
+    isOpen: open,
+    tradeState,
+    liveDelta: delta,
+  });
+  const summaryValue = resolvePredictionSummaryValue({
+    entryIsEstimate,
+    isOpen: open,
+    cost,
+    currentValue,
+    selectedPnl,
+  });
   const status = predictionStatusPill(tradeState);
   const yesLabel = yesOutcome || 'Yes';
   const noLabel = noOutcome || 'No';
@@ -1918,6 +2776,7 @@ function PredictionPositionPanel({
     label: string,
     price: number,
     selected: boolean,
+    initialOutcome: 'yes' | 'no',
   ) => {
     const classes = `flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 text-[13px] font-extrabold transition-colors ${
       selected
@@ -1925,13 +2784,11 @@ function PredictionPositionPanel({
         : 'border-gray-100 bg-white text-gray-900 hover:border-gray-200 hover:bg-gray-50'
     }`;
 
-    if (marketUrl) {
+    if (marketHref) {
       return (
         <a
-          href={marketUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
+          href={marketHref}
+          onClick={(event) => onMarketClick?.(event, initialOutcome)}
           className={classes}
           title={`Open ${label} market`}
         >
@@ -2163,17 +3020,15 @@ function PredictionPositionPanel({
       <div className="mt-4 grid grid-cols-2 gap-3">
         {open ? (
           <>
-            {buttonForOutcome(yesLabel, resolvedYesPrice, pickedIsYes)}
-            {buttonForOutcome(noLabel, resolvedNoPrice, !pickedIsYes)}
+            {buttonForOutcome(yesLabel, resolvedYesPrice, pickedIsYes, 'yes')}
+            {buttonForOutcome(noLabel, resolvedNoPrice, !pickedIsYes, 'no')}
           </>
         ) : (
           <>
-            {marketUrl ? (
+            {marketHref ? (
               <a
-                href={marketUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+                href={marketHref}
+                onClick={(event) => onMarketClick?.(event)}
                 className="flex h-11 items-center justify-center rounded-xl border border-gray-100 bg-white px-3 text-[13px] font-extrabold text-gray-900 transition-colors hover:border-gray-200 hover:bg-gray-50"
               >
                 Market →
@@ -2206,6 +3061,10 @@ function PredictionPositionPanel({
 function RegularPredictionFeedCard({
   content,
   userName,
+  feedPostId,
+  feedUserId,
+  accessToken,
+  onVerifiedFinalScore,
 }: PredictionFeedCardProps) {
   const {
     outcome,
@@ -2236,12 +3095,28 @@ function RegularPredictionFeedCard({
     executedPosition,
   );
 
-  const liveScore = useLiveScore(eventSlug);
-  const marketUrl = eventSlug
-    ? `https://polymarket.com/event/${encodeURIComponent(eventSlug)}`
-    : content.marketSlug
-      ? `https://polymarket.com/market/${encodeURIComponent(content.marketSlug)}`
-    : undefined;
+  const liveEventSlug = useMemo(
+    () => resolvePredictionLiveEventSlug(content),
+    [content],
+  );
+  const fetchedLiveScore = useLiveScore(liveEventSlug);
+  const embeddedLiveScore = useMemo(
+    () => embeddedPredictionLiveScore(content),
+    [content],
+  );
+  const liveScore = useMemo(
+    () => mergePredictionLiveScores(fetchedLiveScore, embeddedLiveScore),
+    [embeddedLiveScore, fetchedLiveScore],
+  );
+  useVerifiedFinalScorePersistence({
+    content,
+    liveScore,
+    eventSlug: liveEventSlug,
+    feedPostId,
+    feedUserId,
+    accessToken,
+    onVerifiedFinalScore,
+  });
 
   // Show sports panel when at least yesOutcome + noOutcome + some sports signal present
   const isYesNoBinary =
@@ -2291,6 +3166,19 @@ function RegularPredictionFeedCard({
     currentPrice <= 1
       ? currentPrice
       : entryPrice;
+  const { marketHref, onMarketClick } = usePredictionMarketNavigation(
+    displayContent,
+    {
+      marketTitle: content.marketTitle,
+      yesOutcome,
+      noOutcome,
+      yesTokenId,
+      noTokenId,
+      yesPrice: resolvedYesPrice,
+      noPrice: resolvedNoPrice,
+      closed: resolvedMarketState.closed,
+    },
+  );
 
   return (
     <div className="mt-2">
@@ -2298,7 +3186,7 @@ function RegularPredictionFeedCard({
       {isSports && (
         <SportsMiniPanel
           marketTitle={content.marketTitle}
-          eventSlug={eventSlug}
+          eventSlug={liveEventSlug ?? eventSlug}
           yesOutcome={yesOutcome!}
           noOutcome={noOutcome!}
           yesPrice={resolvedYesPrice}
@@ -2317,7 +3205,8 @@ function RegularPredictionFeedCard({
           positionShares={executedPosition.shares}
           entryIsEstimate={entryIsEstimate}
           tradeState={tradeState}
-          marketUrl={marketUrl}
+          marketHref={marketHref}
+          onMarketClick={onMarketClick}
         />
       )}
 
@@ -2336,7 +3225,8 @@ function RegularPredictionFeedCard({
           yesPrice={resolvedYesPrice}
           noPrice={resolvedNoPrice}
           tradeState={tradeState}
-          marketUrl={marketUrl}
+          marketHref={marketHref}
+          onMarketClick={onMarketClick}
           userName={userName}
         />
       )}
@@ -2440,9 +3330,19 @@ function LiveBtcFiveMinutePredictionFeedCard({
     currentPrice,
   };
   const tradeState = resolveTradeState(liveContent, false, marketState);
-  const marketUrl = content.marketSlug
-    ? `https://polymarket.com/market/${encodeURIComponent(content.marketSlug)}`
-    : undefined;
+  const { marketHref, onMarketClick } = usePredictionMarketNavigation(
+    liveContent,
+    {
+      marketTitle: liveContent.marketTitle,
+      yesOutcome: 'Up',
+      noOutcome: 'Down',
+      yesTokenId: liveContent.yesTokenId,
+      noTokenId: liveContent.noTokenId,
+      yesPrice,
+      noPrice,
+      closed: false,
+    },
+  );
 
   return (
     <div className="mt-2">
@@ -2460,7 +3360,8 @@ function LiveBtcFiveMinutePredictionFeedCard({
         yesPrice={yesPrice}
         noPrice={noPrice}
         tradeState={tradeState}
-        marketUrl={marketUrl}
+        marketHref={marketHref}
+        onMarketClick={onMarketClick}
         userName={userName}
       />
     </div>
@@ -2489,8 +3390,11 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
   const finalNoPrice = clampProbability(
     market?.noPrice ?? entryPrices.noPrice,
   );
-  const resolvedWinner =
-    candleWinner ?? inferBtcWinnerFromPrices(finalYesPrice, finalNoPrice);
+  const resolvedWinner = resolveBtcSettledWinner({
+    yesPrice: finalYesPrice,
+    noPrice: finalNoPrice,
+    candleWinner,
+  });
   const yesPrice =
     isExpired && resolvedWinner
       ? resolvedWinner === 'Up'
@@ -2556,11 +3460,19 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
     false,
     marketState,
   );
-  const marketUrl = historicalContent.marketSlug
-    ? `https://polymarket.com/market/${encodeURIComponent(
-        historicalContent.marketSlug,
-      )}`
-    : undefined;
+  const { marketHref, onMarketClick } = usePredictionMarketNavigation(
+    historicalContent,
+    {
+      marketTitle: resolvedTitle,
+      yesOutcome: 'Up',
+      noOutcome: 'Down',
+      yesTokenId: historicalContent.yesTokenId,
+      noTokenId: historicalContent.noTokenId,
+      yesPrice,
+      noPrice,
+      closed: marketState.closed,
+    },
+  );
 
   return (
     <div className="mt-2">
@@ -2578,7 +3490,8 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
         yesPrice={yesPrice}
         noPrice={noPrice}
         tradeState={tradeState}
-        marketUrl={marketUrl}
+        marketHref={marketHref}
+        onMarketClick={onMarketClick}
         userName={userName}
       />
     </div>

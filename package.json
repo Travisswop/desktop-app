@@ -11,6 +11,7 @@
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
+    "review:guard": "bash scripts/qa/agent-review-guard.sh",
     "qa:astro-cards": "node scripts/qa/astro-card-smoke.mjs",
     "qa:astro-cards:login": "node scripts/qa/astro-card-smoke.mjs --setup-login --launch"
   },
@@ -25,6 +26,7 @@
     "@mui/material": "^7.2.0",
     "@nextui-org/react": "^2.6.11",
     "@nktkas/hyperliquid": "^0.32.2",
+    "@privy-io/js-sdk-core": "^0.60.6",
     "@privy-io/node": "^0.11.0",
     "@privy-io/react-auth": "^3.18.0",
     "@privy-io/wagmi": "^2.1.3",

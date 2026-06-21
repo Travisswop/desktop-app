@@ -1,5 +1,6 @@
 import {
   filterDuplicateLegacyPerpsItems,
+  filterDuplicatePerpsPositionItems,
   mergeFreshFeedItems,
   mergeUniqueFeedItems,
   shouldFetchAnotherFeedPage,
@@ -85,6 +86,68 @@ describe("feed pagination", () => {
       { _id: "b", text: "older post" },
       { id: "c", text: "id fallback" },
     ]);
+  });
+
+  it("collapses duplicate perps position lifecycle rows and prefers the live row over stale terminal data", () => {
+    const items = [
+      {
+        _id: "stale-liquidated",
+        postType: "perpsPosition",
+        createdAt: "2026-06-19T00:18:57.503Z",
+        updatedAt: "2026-06-20T13:43:28.302Z",
+        content: {
+          positionKey: "hyperliquid:wallet:XYZ:CL",
+          coin: "XYZ:CL",
+          dex: "xyz",
+          status: "liquidated",
+          event: "liquidate",
+          openedAt: "2026-06-19T00:18:57.503Z",
+          updatedAt: "2026-06-18T06:10:21.512Z",
+          liquidatedAt: "2026-06-18T06:10:21.512Z",
+          side: "long",
+          sizeCoins: 7.487,
+        },
+      },
+      {
+        _id: "live",
+        postType: "perpsPosition",
+        createdAt: "2026-06-19T00:18:57.503Z",
+        updatedAt: "2026-06-20T13:49:00.000Z",
+        content: {
+          positionKey: "hyperliquid:wallet:XYZ:CL",
+          coin: "XYZ:CL",
+          dex: "xyz",
+          status: "open",
+          event: "open",
+          openedAt: "2026-06-19T00:18:57.503Z",
+          updatedAt: "2026-06-20T13:49:00.000Z",
+          side: "long",
+          sizeCoins: 7.487,
+        },
+      },
+      {
+        _id: "stale-closed",
+        postType: "perpsPosition",
+        createdAt: "2026-06-19T00:18:57.503Z",
+        updatedAt: "2026-06-20T13:50:00.000Z",
+        content: {
+          positionKey: "hyperliquid:wallet:XYZ:CL",
+          coin: "XYZ:CL",
+          dex: "xyz",
+          status: "closed",
+          event: "close",
+          openedAt: "2026-06-19T00:18:57.503Z",
+          updatedAt: "2026-06-20T01:34:52.581Z",
+          closedAt: "2026-06-20T01:34:52.581Z",
+          side: "long",
+          sizeCoins: 7.487,
+        },
+      },
+      { _id: "other", postType: "post", content: { title: "keep" } },
+    ];
+
+    expect(filterDuplicatePerpsPositionItems(items).map((item) => item._id))
+      .toEqual(["live", "other"]);
   });
 
   it("suppresses legacy perps cards when the lifecycle card exists", () => {

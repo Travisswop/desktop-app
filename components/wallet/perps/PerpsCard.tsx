@@ -29,6 +29,10 @@ import {
   lookupHyperliquidPositionPrice,
   resolveHyperliquidPositionMarkPrice,
 } from '@/lib/perps/hyperliquidPositionPricing';
+import {
+  buildPositionShareDetails,
+  sharePerpsPositionImage,
+} from './perpsPositionShare';
 
 interface PerpsCardProps {
   /** Selected EVM wallet address used as the Hyperliquid master account. */
@@ -61,26 +65,6 @@ const HAIR = 'rgba(0,0,0,0.06)';
 const SURFACE_2 = '#fafafa';
 const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
-const SHARE_POSTER_WIDTH = 420;
-const SHARE_POSTER_HEIGHT = 640;
-const SHARE_LOGO_SRC = '/images/swop-white-logo.png';
-
-interface PositionShareDetails {
-  coin: string;
-  side: 'LONG' | 'SHORT';
-  leverage: number;
-  pnlLabel: string;
-  roeLabel: string;
-  pnlPositive: boolean;
-  sizeLabel: string;
-  entryLabel: string;
-  markLabel: string;
-  marginLabel: string;
-  liqDistanceLabel: string;
-  liqPriceLabel: string;
-  markPriceLabel: string;
-  liqPercent: number | null;
-}
 
 const formatBalance = (n: number, frac = 2): string =>
   n.toLocaleString('en-US', {
@@ -150,75 +134,6 @@ function liqMetrics(
     : (liqPx - markPx) / markPx;
   const pct = Math.max(0, Math.min(100, distance * 100));
   return { liqPx, markPx, pct, isLong };
-}
-
-async function capturePositionShareImage(
-  el: HTMLElement,
-): Promise<Blob> {
-  await waitForShareImages(el);
-
-  const html2canvas = (await import('html2canvas')).default;
-  const canvas = await html2canvas(el, {
-    backgroundColor: null,
-    scale: 3,
-    useCORS: true,
-    logging: false,
-    width: SHARE_POSTER_WIDTH,
-    height: SHARE_POSTER_HEIGHT,
-    windowWidth: SHARE_POSTER_WIDTH,
-    windowHeight: SHARE_POSTER_HEIGHT,
-  });
-
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error('Failed to capture position image'));
-    }, 'image/png');
-  });
-}
-
-async function waitForShareImages(el: HTMLElement) {
-  const images = Array.from(el.querySelectorAll('img'));
-  await Promise.all(
-    images.map(async (img) => {
-      if (!img.complete) {
-        await new Promise<void>((resolve) => {
-          img.addEventListener('load', () => resolve(), {
-            once: true,
-          });
-          img.addEventListener('error', () => resolve(), {
-            once: true,
-          });
-        });
-      }
-
-      if (typeof img.decode === 'function') {
-        await img.decode().catch(() => undefined);
-      }
-    }),
-  );
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function shareFilename(coin: string) {
-  const slug =
-    coin
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '') || 'position';
-  return `swop-perps-${slug}.png`;
-}
-
-function isShareCancel(err: unknown) {
-  return err instanceof DOMException && err.name === 'AbortError';
 }
 
 /**
@@ -481,7 +396,7 @@ function OpenPositionDetails({
   hasDanger: boolean;
   onOpenTrading: (coin?: string) => void;
 }) {
-  const shareCardRef = useRef<HTMLDivElement>(null);
+  const shareInFlightRef = useRef(false);
   const [isSharing, setIsSharing] = useState(false);
   const { toast } = useToast();
 
@@ -496,79 +411,17 @@ function OpenPositionDetails({
     markPriceHint,
   );
   const liq = liqMetrics(position, markPx);
-  const shareDetails: PositionShareDetails = {
-    coin: position.coin,
-    side: isLong ? 'LONG' : 'SHORT',
-    leverage: position.leverage.value,
-    pnlLabel: formatSignedUsd(pnlNum),
-    roeLabel: Number.isFinite(roeNum)
-      ? `${roeNum >= 0 ? '+' : ''}${roeNum.toFixed(2)}%`
-      : '—',
-    pnlPositive: positive,
-    sizeLabel: `${formatTokenSize(String(sizeAbs))} ${position.coin}`,
-    entryLabel: `$${formatPrice(position.entryPx)}`,
-    markLabel: markPx !== null && Number.isFinite(markPx)
-      ? `$${formatPrice(String(markPx))}`
-      : '—',
-    marginLabel: `$${formatBalance(parseFloat(position.marginUsed), 2)}`,
-    liqDistanceLabel: liq ? `${liq.pct.toFixed(1)}% away` : 'No liq',
-    liqPriceLabel: liq ? `$${formatPrice(String(liq.liqPx))}` : '—',
-    markPriceLabel: liq ? `$${formatPrice(String(liq.markPx))}` : '—',
-    liqPercent: liq?.pct ?? null,
-  };
+  const shareDetails = buildPositionShareDetails(position, markPx);
 
   const handleSharePosition = async () => {
-    if (!shareCardRef.current || isSharing) return;
+    if (shareInFlightRef.current) return;
 
+    shareInFlightRef.current = true;
     setIsSharing(true);
-    const filename = shareFilename(position.coin);
-    let capturedBlob: Blob | null = null;
     try {
-      capturedBlob = await capturePositionShareImage(
-        shareCardRef.current,
-      );
-      const file = new File([capturedBlob], filename, {
-        type: 'image/png',
-      });
-      const shareTitle = 'Swop perps position';
-      const shareText = 'Follow my trades on https://swopme.app/';
-
-      if (
-        typeof navigator.share === 'function' &&
-        navigator.canShare?.({ files: [file] })
-      ) {
-        await navigator.share({
-          title: shareTitle,
-          text: shareText,
-          files: [file],
-        });
-      } else {
-        downloadBlob(capturedBlob, filename);
-        toast({
-          title: 'Position image downloaded',
-          description:
-            'Your Matrix terminal share card is ready. Link: swopme.app',
-        });
-      }
-    } catch (err) {
-      if (!isShareCancel(err)) {
-        if (capturedBlob) {
-          downloadBlob(capturedBlob, filename);
-          toast({
-            title: 'Position image downloaded',
-            description:
-              'Sharing was blocked, so Swop saved the PNG instead. Link: swopme.app',
-          });
-        } else {
-          console.error('Failed to share perps position:', err);
-          toast({
-            title: 'Could not share position',
-            description: 'Try again in a moment.',
-            variant: 'destructive',
-          });
-        }
-      }
+      await sharePerpsPositionImage(shareDetails, toast);
     } finally {
+      shareInFlightRef.current = false;
       setIsSharing(false);
     }
   };
@@ -759,185 +612,8 @@ function OpenPositionDetails({
         </button>
       </div>
 
-      <div
-        aria-hidden="true"
-        className="fixed left-[-9999px] top-0 pointer-events-none"
-      >
-        <div
-          ref={shareCardRef}
-          style={{
-            width: SHARE_POSTER_WIDTH,
-            height: SHARE_POSTER_HEIGHT,
-          }}
-        >
-          <PositionSharePoster details={shareDetails} />
-        </div>
-      </div>
     </div>
   );
-}
-
-function PositionSharePoster({
-  details,
-}: {
-  details: PositionShareDetails;
-}) {
-  return (
-    <div
-      style={{
-        width: SHARE_POSTER_WIDTH,
-        height: SHARE_POSTER_HEIGHT,
-      }}
-      dangerouslySetInnerHTML={{
-        __html: buildPositionSharePosterHtml(details),
-      }}
-    />
-  );
-}
-
-function escapeShareHtml(value: string | number) {
-  return String(value).replace(/[&<>"']/g, (char) => {
-    switch (char) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '"':
-        return '&quot;';
-      case "'":
-        return '&#39;';
-      default:
-        return char;
-    }
-  });
-}
-
-function buildPositionSharePosterHtml(details: PositionShareDetails) {
-  const accent = details.pnlPositive ? '#3fe08f' : '#ff5d63';
-  const coinFontSize =
-    details.coin.length > 14 ? 18 : details.coin.length > 10 ? 21 : 25;
-  const pnlFontSize =
-    details.pnlLabel.length > 9 ? 25 : details.pnlLabel.length > 7 ? 28 : 32;
-  const sideTone =
-    details.side === 'LONG'
-      ? {
-          color: '#9ef7c8',
-          border: 'rgba(63,224,143,0.42)',
-          background: 'rgba(63,224,143,0.11)',
-        }
-      : {
-          color: '#ffb2b6',
-          border: 'rgba(255,93,99,0.42)',
-          background: 'rgba(255,93,99,0.11)',
-        };
-  const liqWidth =
-    details.liqPercent === null
-      ? 0
-      : Math.max(3, Math.min(100, details.liqPercent));
-  const stats = [
-    { label: 'Size', value: details.sizeLabel },
-    { label: 'Entry', value: details.entryLabel },
-    { label: 'Mark', value: details.markLabel },
-    { label: 'Margin', value: details.marginLabel },
-    { label: 'Liq distance', value: details.liqDistanceLabel },
-    { label: 'Liq price', value: details.liqPriceLabel },
-  ];
-  const rainLines = [
-    { left: 42, top: -36, height: 188, opacity: 0.26 },
-    { left: 112, top: 24, height: 138, opacity: 0.18 },
-    { left: 188, top: -18, height: 166, opacity: 0.23 },
-    { left: 270, top: 42, height: 128, opacity: 0.16 },
-    { left: 352, top: -48, height: 198, opacity: 0.24 },
-  ];
-  const rainHtml = rainLines
-    .map(
-      (line) => `
-        <span style='position:absolute;left:${line.left}px;top:${line.top}px;width:1px;height:${line.height}px;border-radius:999px;background:linear-gradient(180deg, transparent 0%, #3fe08f 50%, transparent 100%);opacity:${line.opacity};box-shadow:0 0 18px rgba(63,224,143,0.58);'></span>
-      `,
-    )
-    .join('');
-  const statsHtml = stats
-    .map((stat, index) => {
-      const col = index % 2;
-      const row = Math.floor(index / 2);
-      const cellLeft = col * 162;
-      const cellTop = row * 66;
-      const borderRight =
-        col === 0 ? 'border-right:1px solid rgba(63,224,143,0.16);' : '';
-      const borderBottom =
-        row < 2
-          ? 'border-bottom:1px solid rgba(63,224,143,0.14);'
-          : '';
-      const valueFontSize = stat.value.length > 17 ? 11.5 : 12.5;
-
-      return `
-        <div style='position:absolute;left:${cellLeft}px;top:${cellTop}px;width:162px;height:66px;box-sizing:border-box;${borderRight}${borderBottom}'>
-          <div style='position:absolute;left:14px;top:9px;width:132px;height:14px;font-size:8.8px;line-height:14px;font-weight:800;letter-spacing:0;text-transform:uppercase;color:#6b7280;white-space:nowrap;'>${escapeShareHtml(stat.label)}</div>
-          <div data-testid='perps-share-stat-value' style='position:absolute;left:14px;top:34px;width:132px;height:20px;font-size:${valueFontSize}px;line-height:18px;font-weight:900;letter-spacing:0;color:#f3f7f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${escapeShareHtml(stat.value)}</div>
-        </div>
-      `;
-    })
-    .join('');
-
-  return `
-    <div data-testid='perps-position-share-poster' style='position:relative;width:${SHARE_POSTER_WIDTH}px;height:${SHARE_POSTER_HEIGHT}px;box-sizing:border-box;overflow:hidden;border-radius:34px;background:radial-gradient(circle at 70% 4%, rgba(63,224,143,0.18) 0%, transparent 43%),radial-gradient(circle at 5% 86%, rgba(63,224,143,0.08) 0%, transparent 36%),linear-gradient(160deg, #040605 0%, #07120e 54%, #010302 100%);color:#eceef2;font-family:${MONO};font-variant-numeric:tabular-nums;'>
-      <div style='position:absolute;left:0;top:0;width:420px;height:640px;background-image:radial-gradient(circle at 50% 0%, rgba(63,224,143,0.08), transparent 48%),repeating-linear-gradient(0deg, rgba(63,224,143,0.026) 0px, rgba(63,224,143,0.026) 1px, transparent 1px, transparent 28px),repeating-linear-gradient(90deg, rgba(63,224,143,0.018) 0px, rgba(63,224,143,0.018) 1px, transparent 1px, transparent 36px);opacity:0.72;'></div>
-      ${rainHtml}
-      <div style='position:absolute;left:0;top:0;width:420px;height:102px;background:linear-gradient(180deg, rgba(63,224,143,0.10) 0%, transparent 100%);'></div>
-      <div style='position:absolute;left:0;bottom:0;width:420px;height:190px;background:linear-gradient(0deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.18) 70%, transparent 100%);'></div>
-
-      <div data-testid='perps-share-logo-wrap' style='position:absolute;left:96px;top:22px;width:228px;height:52px;box-sizing:border-box;border:1px solid rgba(63,224,143,0.25);border-radius:14px;background:rgba(0,0,0,0.48);box-shadow:inset 0 0 18px rgba(63,224,143,0.08),0 0 34px rgba(63,224,143,0.15);'>
-        <img data-testid='perps-share-logo' src='${SHARE_LOGO_SRC}' alt='Swop' style='position:absolute;left:50%;top:50%;display:block;height:30px;width:auto;max-width:none;transform:translate(-50%,-50%);' />
-      </div>
-
-      <div style='position:absolute;left:24px;top:86px;width:372px;height:552px;box-sizing:border-box;overflow:hidden;border-radius:22px;border:1px solid rgba(63,224,143,0.16);background:linear-gradient(180deg, rgba(20,23,30,0.98) 0%, rgba(11,13,18,0.98) 100%);box-shadow:0 26px 80px rgba(0,0,0,0.60),0 0 40px rgba(63,224,143,0.12);'>
-        <div style='position:absolute;left:22px;top:24px;width:2px;height:190px;background:#3fe08f;box-shadow:0 0 18px rgba(63,224,143,0.58);'></div>
-        <div style='position:absolute;left:38px;top:26px;width:160px;height:14px;font-size:10px;line-height:14px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#3fe08f;'>Open position</div>
-
-        <div data-testid='perps-share-open-position-block' style='position:absolute;left:38px;top:56px;width:292px;height:74px;box-sizing:border-box;'>
-          <div data-testid='perps-share-market-label' style='position:absolute;left:0;top:0;width:292px;height:32px;font-size:${coinFontSize}px;line-height:30px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#f3f7f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>${escapeShareHtml(details.coin)}</div>
-          <div data-testid='perps-share-side-pill' style='position:absolute;left:0;top:42px;width:108px;height:26px;box-sizing:border-box;border:1px solid ${sideTone.border};border-radius:7px;background:${sideTone.background};color:${sideTone.color};text-align:center;overflow:hidden;'>
-            <span style='position:absolute;left:0;top:0;width:100%;height:24px;font-size:10px;line-height:24px;font-weight:900;letter-spacing:0;text-transform:uppercase;text-align:center;color:${sideTone.color};white-space:nowrap;'>${escapeShareHtml(details.side)} · ${escapeShareHtml(details.leverage)}x</span>
-          </div>
-        </div>
-
-        <div data-testid='perps-share-pnl-panel' style='position:absolute;left:38px;top:146px;width:292px;height:88px;box-sizing:border-box;border:1px solid rgba(63,224,143,0.18);border-radius:14px;background:rgba(0,0,0,0.28);box-shadow:inset 0 0 20px rgba(63,224,143,0.06);'>
-          <div style='position:absolute;left:16px;top:11px;width:160px;height:14px;font-size:9px;line-height:14px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#6b7280;'>Unrealized PnL</div>
-          <div data-testid='perps-share-pnl' style='position:absolute;left:16px;top:29px;width:260px;height:42px;text-align:left;font-size:${pnlFontSize}px;line-height:38px;font-weight:900;letter-spacing:0;color:${accent};white-space:nowrap;overflow:hidden;'>${escapeShareHtml(details.pnlLabel)}</div>
-          <div data-testid='perps-share-roe' style='position:absolute;right:16px;top:66px;width:150px;height:14px;text-align:right;font-size:10.5px;line-height:14px;font-weight:800;letter-spacing:0;color:#9ca3af;white-space:nowrap;'>${escapeShareHtml(details.roeLabel)} ROE</div>
-        </div>
-
-        <div style='position:absolute;left:24px;top:246px;width:324px;height:1px;background:rgba(255,255,255,0.07);'></div>
-
-        <div data-testid='perps-share-stats-frame' style='position:absolute;left:24px;top:260px;width:324px;height:198px;box-sizing:border-box;overflow:hidden;border-radius:14px;border:1px solid rgba(63,224,143,0.30);background:rgba(0,0,0,0.44);box-shadow:inset 0 0 26px rgba(63,224,143,0.08),0 0 22px rgba(63,224,143,0.10);'>
-          <div style='position:absolute;left:0;top:0;width:324px;height:198px;background-image:repeating-linear-gradient(0deg, rgba(63,224,143,0.036) 0px, rgba(63,224,143,0.036) 1px, transparent 1px, transparent 18px);'></div>
-          <div style='position:absolute;left:0;top:0;width:324px;height:1px;background:rgba(63,224,143,0.55);box-shadow:0 0 14px rgba(63,224,143,0.70);'></div>
-          <div style='position:absolute;left:0;top:0;width:28px;height:28px;border-left:2px solid rgba(63,224,143,0.70);border-top:2px solid rgba(63,224,143,0.70);'></div>
-          <div style='position:absolute;right:0;top:0;width:28px;height:28px;border-right:2px solid rgba(63,224,143,0.70);border-top:2px solid rgba(63,224,143,0.70);'></div>
-          <div style='position:absolute;left:0;bottom:0;width:28px;height:28px;border-left:2px solid rgba(63,224,143,0.70);border-bottom:2px solid rgba(63,224,143,0.70);'></div>
-          <div style='position:absolute;right:0;bottom:0;width:28px;height:28px;border-right:2px solid rgba(63,224,143,0.70);border-bottom:2px solid rgba(63,224,143,0.70);'></div>
-          ${statsHtml}
-        </div>
-
-        <div style='position:absolute;left:24px;top:478px;width:324px;height:48px;box-sizing:border-box;'>
-          <div style='position:absolute;left:0;top:0;width:128px;height:14px;font-size:10px;line-height:14px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#6b7280;'>Liquidation rail</div>
-          <div style='position:absolute;right:0;top:0;width:190px;height:14px;text-align:right;font-size:11px;line-height:14px;font-weight:900;letter-spacing:0;color:#f3f7f5;white-space:nowrap;'>${escapeShareHtml(details.liqDistanceLabel)} · ${escapeShareHtml(details.liqPriceLabel)}</div>
-          <div style='position:absolute;left:0;top:24px;width:324px;height:8px;box-sizing:border-box;overflow:hidden;border:1px solid rgba(255,255,255,0.08);border-radius:999px;background:#070809;'>
-            <div style='height:100%;width:${liqWidth}%;border-radius:999px;background:linear-gradient(90deg, #3fe08f 0%, #d8d438 52%, #e8920f 100%);'></div>
-          </div>
-          <div style='position:absolute;left:0;top:40px;width:140px;height:12px;font-size:9.5px;line-height:12px;font-weight:800;letter-spacing:0;color:#6b7280;white-space:nowrap;'>${escapeShareHtml(details.liqPriceLabel)} liq</div>
-          <div style='position:absolute;right:0;top:40px;width:140px;height:12px;text-align:right;font-size:9.5px;line-height:12px;font-weight:800;letter-spacing:0;color:#6b7280;white-space:nowrap;'>${escapeShareHtml(details.markPriceLabel)} mark</div>
-        </div>
-
-        <div style='position:absolute;left:24px;top:530px;width:324px;height:20px;box-sizing:border-box;border-top:1px solid rgba(255,255,255,0.07);'>
-          <div style='position:absolute;left:0;top:8px;width:210px;height:12px;font-size:9.5px;line-height:12px;font-weight:900;letter-spacing:0;text-transform:uppercase;color:#6b7280;'>Follow my trades</div>
-          <div style='position:absolute;right:0;top:8px;width:120px;height:12px;text-align:right;font-size:10.5px;line-height:12px;font-weight:900;letter-spacing:0;color:#3fe08f;'>swopme.app</div>
-        </div>
-      </div>
-    </div>
-  `;
 }
 
 // ─── Account Card ────────────────────────────────────────────────────────────

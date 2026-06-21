@@ -35,6 +35,7 @@ export interface Token {
   name: string;
   decimals: number;
   balance: string;
+  value?: number;
   isNative: boolean;
   marketData: TokenMarketData | null;
   logoURI?: string;

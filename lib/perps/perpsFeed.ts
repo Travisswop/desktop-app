@@ -3,12 +3,19 @@
 import { useModalStore } from '@/zustandStore/modalstore';
 
 export type PerpsPositionFeedEvent =
+  | 'limit'
   | 'open'
   | 'add'
   | 'reduce'
   | 'close'
-  | 'liquidate';
-export type PerpsPositionFeedStatus = 'open' | 'closed' | 'liquidated';
+  | 'liquidate'
+  | 'cancel';
+export type PerpsPositionFeedStatus =
+  | 'limit'
+  | 'open'
+  | 'closed'
+  | 'liquidated'
+  | 'cancelled';
 
 export interface PerpsPositionFeedContent {
   provider: 'hyperliquid';
@@ -21,6 +28,7 @@ export interface PerpsPositionFeedContent {
   leverage: number;
   marginMode: 'cross' | 'isolated';
   entryPrice: number;
+  limitPrice?: number | null;
   markPrice: number;
   exitPrice?: number | null;
   liquidationPrice?: number | null;
@@ -31,18 +39,31 @@ export interface PerpsPositionFeedContent {
   unrealizedPnl: number;
   realizedPnl?: number;
   feeUsd?: number;
+  takeProfitPrice?: number | null;
+  stopLossPrice?: number | null;
   orderId?: string;
   masterAddress?: string | null;
+  limitPlacedAt?: string;
   openedAt?: string;
   updatedAt: string;
   closedAt?: string;
   liquidatedAt?: string;
+  cancelledAt?: string;
 }
 
 export interface PerpsLiquidationFillSnapshot {
   coin: string;
   px?: number;
   markPx?: number;
+  closedPnl?: number;
+  feeUsd?: number;
+  orderId?: string;
+  timestamp?: string;
+}
+
+export interface PerpsCloseFillSnapshot {
+  coin: string;
+  px?: number;
   closedPnl?: number;
   feeUsd?: number;
   orderId?: string;
@@ -56,20 +77,42 @@ export interface PerpsFillLike {
   px?: string | number | null;
   time?: string | number | null;
   startPosition?: string | number | null;
+  closedPnl?: string | number | null;
+  fee?: string | number | null;
   oid?: string | number | null;
   orderId?: string | number | null;
+  liquidation?: unknown;
 }
 
 export interface PerpsPositionLike {
   coin?: string | null;
   dex?: string | null;
   szi?: string | number | null;
+  entryPx?: string | number | null;
 }
 
 export interface PerpsOpenFillSnapshot {
   timestamp: string;
   orderId?: string;
   price?: number;
+}
+
+export interface PerpsOpenOrderLike {
+  coin?: string | null;
+  dex?: string | null;
+  side?: string | null;
+  oid?: string | number | null;
+  sz?: string | number | null;
+  timestamp?: string | number | null;
+  reduceOnly?: boolean | null;
+  triggerPx?: string | number | null;
+  limitPx?: string | number | null;
+  orderType?: string | null;
+}
+
+export interface PerpsRiskPrices {
+  takeProfitPrice?: number;
+  stopLossPrice?: number;
 }
 
 interface UpsertPerpsPositionFeedParams {
@@ -85,11 +128,33 @@ interface ReconcilePerpsPositionFeedParams {
   smartsiteId: string | null | undefined;
   masterAddress: string | null | undefined;
   activePositionKeys: string[];
+  activeLimitOrders?: PerpsActiveLimitOrderSnapshot[];
+  observedDexes?: Array<string | null | undefined>;
   markPricesByCoin?: Record<string, string | number | null | undefined>;
   liquidationsByCoin?: Record<
     string,
     PerpsLiquidationFillSnapshot | null | undefined
   >;
+  closedFillsByCoin?: Record<
+    string,
+    PerpsCloseFillSnapshot | null | undefined
+  >;
+}
+
+export interface PerpsActiveLimitOrderSnapshot {
+  positionKey: string;
+  coin: string;
+  dex?: string | null;
+  side: 'long' | 'short';
+  orderId?: string;
+  limitPrice: number;
+  markPrice: number;
+  sizeCoins: number;
+  notionalUsd: number;
+  takeProfitPrice?: number;
+  stopLossPrice?: number;
+  limitPlacedAt?: string;
+  updatedAt?: string;
 }
 
 type IdLike = {
@@ -200,6 +265,12 @@ function fillTimeMs(fill: PerpsFillLike) {
   return rawTime < 1_000_000_000_000 ? rawTime * 1000 : rawTime;
 }
 
+function orderTimeMs(order: PerpsOpenOrderLike) {
+  const rawTime = maybePerpsFeedNumber(order.timestamp);
+  if (rawTime === undefined || rawTime <= 0) return undefined;
+  return rawTime < 1_000_000_000_000 ? rawTime * 1000 : rawTime;
+}
+
 function fillSignedSize(fill: PerpsFillLike) {
   const size = maybePerpsFeedNumber(fill.sz);
   if (size === undefined || size <= 0) return undefined;
@@ -213,6 +284,209 @@ function fillSignedSize(fill: PerpsFillLike) {
 function fillOrderId(fill: PerpsFillLike) {
   const orderId = fill.orderId ?? fill.oid;
   return orderId === undefined || orderId === null ? undefined : String(orderId);
+}
+
+function orderId(order: PerpsOpenOrderLike) {
+  const rawOrderId = order.oid;
+  return rawOrderId === undefined || rawOrderId === null
+    ? undefined
+    : String(rawOrderId);
+}
+
+export function isPerpsEntryLimitOrder(order: PerpsOpenOrderLike) {
+  if (!order || order.reduceOnly) return false;
+
+  const coin = normalizePerpsCoin(order.coin);
+  const size = maybePerpsFeedNumber(order.sz);
+  const limitPrice = maybePerpsFeedNumber(order.limitPx);
+  const triggerPrice = maybePerpsFeedNumber(order.triggerPx);
+  if (!coin || !size || size <= 0 || !limitPrice || limitPrice <= 0) {
+    return false;
+  }
+
+  const type = String(order.orderType || '').toLowerCase();
+  if (triggerPrice && triggerPrice > 0) return false;
+  return !type.includes('trigger');
+}
+
+export function buildPerpsActiveLimitOrderSnapshot({
+  order,
+  userId,
+  masterAddress,
+  markPricesByCoin = {},
+  openOrders = [],
+}: {
+  order: PerpsOpenOrderLike;
+  userId?: string | null;
+  masterAddress?: string | null;
+  markPricesByCoin?: Record<string, string | number | null | undefined>;
+  openOrders?: PerpsOpenOrderLike[];
+}): PerpsActiveLimitOrderSnapshot | null {
+  if (!isPerpsEntryLimitOrder(order)) return null;
+
+  const rawCoin = normalizePerpsCoin(order.coin);
+  const qualifiedCoin = qualifyPerpsPositionCoin({
+    coin: rawCoin,
+    dex: order.dex,
+  });
+  const limitPrice = maybePerpsFeedNumber(order.limitPx);
+  const sizeCoins = maybePerpsFeedNumber(order.sz);
+  if (!rawCoin || !qualifiedCoin || !limitPrice || !sizeCoins) return null;
+
+  const side = String(order.side || '').toUpperCase() === 'A' ? 'short' : 'long';
+  const markPrice =
+    maybePerpsFeedNumber(markPricesByCoin[qualifiedCoin]) ||
+    maybePerpsFeedNumber(markPricesByCoin[rawCoin]) ||
+    limitPrice;
+  const timeMs = orderTimeMs(order);
+  const timestamp =
+    timeMs && timeMs <= Date.now() + 5 * 60 * 1000
+      ? new Date(timeMs).toISOString()
+      : undefined;
+  const riskPrices = inferPerpsPositionRiskPrices(
+    {
+      coin: rawCoin,
+      dex: order.dex,
+      szi: side === 'long' ? sizeCoins : -sizeCoins,
+      entryPx: limitPrice,
+    },
+    openOrders,
+  );
+
+  return {
+    positionKey: buildPerpsPositionKey({
+      userId,
+      masterAddress,
+      coin: rawCoin,
+      dex: order.dex,
+    }),
+    coin: qualifiedCoin,
+    dex: order.dex || null,
+    side,
+    ...(orderId(order) ? { orderId: orderId(order) } : {}),
+    limitPrice,
+    markPrice,
+    sizeCoins,
+    notionalUsd: Math.abs(sizeCoins) * limitPrice,
+    ...(riskPrices.takeProfitPrice
+      ? { takeProfitPrice: riskPrices.takeProfitPrice }
+      : {}),
+    ...(riskPrices.stopLossPrice
+      ? { stopLossPrice: riskPrices.stopLossPrice }
+      : {}),
+    ...(timestamp ? { limitPlacedAt: timestamp, updatedAt: timestamp } : {}),
+  };
+}
+
+function isTerminalCloseFill(fill: PerpsFillLike) {
+  const startPosition = maybePerpsFeedNumber(fill.startPosition);
+  const signedSize = fillSignedSize(fill);
+
+  if (
+    startPosition === undefined ||
+    signedSize === undefined ||
+    Math.abs(startPosition) <= 0
+  ) {
+    return false;
+  }
+
+  if (Math.sign(startPosition) === Math.sign(signedSize)) return false;
+
+  const endPosition = startPosition + signedSize;
+  const tolerance = Math.max(Math.abs(startPosition) * 0.000001, 0.000000001);
+  return (
+    Math.abs(endPosition) <= tolerance ||
+    Math.sign(endPosition) !== Math.sign(startPosition)
+  );
+}
+
+export function inferPerpsCloseFillsByCoin(
+  fills: PerpsFillLike[] = [],
+): Record<string, PerpsCloseFillSnapshot> {
+  return fills.reduce<Record<string, PerpsCloseFillSnapshot>>(
+    (closedFills, fill) => {
+      if (fill?.liquidation || !isTerminalCloseFill(fill)) return closedFills;
+
+      const coin = normalizePerpsCoin(fill.coin);
+      const timeMs = fillTimeMs(fill);
+      if (!coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
+        return closedFills;
+      }
+
+      const timestamp = new Date(timeMs).toISOString();
+      const existingTime = Date.parse(closedFills[coin]?.timestamp || '');
+      if (Number.isFinite(existingTime) && existingTime >= timeMs) {
+        return closedFills;
+      }
+
+      const price = maybePerpsFeedNumber(fill.px);
+      const closedPnl = maybePerpsFeedNumber(fill.closedPnl);
+      const feeUsd = maybePerpsFeedNumber(fill.fee);
+      const orderId = fillOrderId(fill);
+
+      closedFills[coin] = {
+        coin,
+        ...(price !== undefined ? { px: price } : {}),
+        ...(closedPnl !== undefined ? { closedPnl } : {}),
+        ...(feeUsd !== undefined ? { feeUsd } : {}),
+        ...(orderId ? { orderId } : {}),
+        timestamp,
+      };
+
+      return closedFills;
+    },
+    {},
+  );
+}
+
+export function inferPerpsPositionRiskPrices(
+  position: PerpsPositionLike,
+  openOrders: PerpsOpenOrderLike[] = [],
+): PerpsRiskPrices {
+  const rawCoin = normalizePerpsCoin(position.coin);
+  const qualifiedCoin = qualifyPerpsPositionCoin({
+    coin: rawCoin,
+    dex: position.dex,
+  });
+  const positionDex = normalizePerpsDex(position.dex).toLowerCase();
+  const signedSize = maybePerpsFeedNumber(position.szi);
+  const entryPrice = maybePerpsFeedNumber(position.entryPx);
+  if (!rawCoin || signedSize === undefined || signedSize === 0) return {};
+
+  const isLong = signedSize > 0;
+  return openOrders.reduce<PerpsRiskPrices>((prices, order) => {
+    if (!order?.reduceOnly) return prices;
+
+    const orderCoin = normalizePerpsCoin(order.coin);
+    if (orderCoin !== rawCoin && orderCoin !== qualifiedCoin) return prices;
+
+    const orderDex = normalizePerpsDex(order.dex).toLowerCase();
+    if (positionDex && orderDex && orderDex !== positionDex) return prices;
+
+    const orderType = String(order.orderType || '').toLowerCase();
+    const triggerPrice = maybePerpsFeedNumber(order.triggerPx);
+    const limitPrice = maybePerpsFeedNumber(order.limitPx);
+    const price = triggerPrice || limitPrice;
+    if (!price || price <= 0) return prices;
+
+    const explicitTakeProfit =
+      orderType.includes('take') || orderType.includes('profit');
+    const explicitStopLoss = orderType.includes('stop') || orderType.includes('loss');
+    const isTakeProfit =
+      explicitTakeProfit ||
+      (!explicitStopLoss &&
+        entryPrice !== undefined &&
+        (isLong ? price > entryPrice : price < entryPrice));
+    const isStopLoss =
+      explicitStopLoss ||
+      (!explicitTakeProfit &&
+        entryPrice !== undefined &&
+        (isLong ? price < entryPrice : price > entryPrice));
+
+    if (isTakeProfit) prices.takeProfitPrice = price;
+    if (isStopLoss) prices.stopLossPrice = price;
+    return prices;
+  }, {});
 }
 
 export function inferPerpsPositionOpenedFill(
@@ -331,8 +605,11 @@ export async function reconcilePerpsPositionFeed({
   smartsiteId,
   masterAddress,
   activePositionKeys,
+  activeLimitOrders,
+  observedDexes,
   markPricesByCoin,
   liquidationsByCoin,
+  closedFillsByCoin,
 }: ReconcilePerpsPositionFeedParams) {
   if (!token || !userId || !smartsiteId || !masterAddress) {
     const missingFields = [
@@ -361,8 +638,11 @@ export async function reconcilePerpsPositionFeed({
         userId,
         masterAddress,
         activePositionKeys,
+        activeLimitOrders,
+        observedDexes,
         markPricesByCoin,
         liquidationsByCoin,
+        closedFillsByCoin,
         updatedAt: new Date().toISOString(),
       }),
     },

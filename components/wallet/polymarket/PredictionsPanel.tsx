@@ -62,6 +62,14 @@ import {
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
 import {
+  isSilentRedeemUnavailableError,
+  resolveRedeemWallet,
+} from '@/lib/polymarket/redeem-wallet';
+import {
+  pruneAssetSet,
+  selectNextAutoClaimPosition,
+} from '@/lib/polymarket/auto-claim';
+import {
   displaySideForMarket,
   type PredictionSideDisplay,
 } from '@/lib/polymarket/side-labels';
@@ -139,6 +147,22 @@ interface PredictionsPanelProps {
   embedded?: boolean;
 }
 
+type RedeemOptions = {
+  silentOnly?: boolean;
+};
+
+type RedeemOutcome =
+  | 'redeemed'
+  | 'already-redeemed'
+  | 'manual-required'
+  | 'failed'
+  | 'skipped';
+
+type RedeemHandler = (
+  position: PolymarketPosition,
+  options?: RedeemOptions,
+) => Promise<RedeemOutcome>;
+
 /**
  * PredictionsPanel — full-screen overlay covering the predictions
  * wireframe screens 1-6 (A · feed, A2 · sports, A3/A3L · ticket via the
@@ -169,17 +193,18 @@ export default function PredictionsPanel({
   } = useTrading();
   const queryClient = useQueryClient();
 
-  const { data: positions } = useUserPositions(portfolioAddresses);
+  const { data: positions, isError: positionsRefreshError } =
+    useUserPositions(portfolioAddresses);
   const { data: teamsData } = usePolymarketTeams();
-  const { data: activeOrders = [] } = useActiveOrders(
-    clobClient,
-    safeAddress,
-  );
+  const {
+    data: activeOrders = [],
+    isError: activeOrdersRefreshError,
+  } = useActiveOrders(clobClient, safeAddress);
   const { totalUsdcBalance } =
     usePolymarketCollateralBalance(portfolioAddresses);
   const { data: netDeposits } = useNetDeposits(portfolioAddresses);
 
-  const { redeemPosition } = useRedeemPosition();
+  const { redeemPosition, canRedeem } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
     clobClient,
     eoaAddress,
@@ -202,6 +227,8 @@ export default function PredictionsPanel({
   >([]);
   const [autoClaimEnabled, setAutoClaimEnabled] = useState(false);
   const [autoClaimAttemptedAssets, setAutoClaimAttemptedAssets] =
+    useState<Set<string>>(() => new Set());
+  const [autoClaimManualAssets, setAutoClaimManualAssets] =
     useState<Set<string>>(() => new Set());
   const [onchainPositionBalances, setOnchainPositionBalances] =
     useState<Map<string, number>>(new Map());
@@ -413,25 +440,23 @@ export default function PredictionsPanel({
     );
     if (enabled) {
       setAutoClaimAttemptedAssets(new Set());
+      setAutoClaimManualAssets(new Set());
     }
   }, []);
 
   useEffect(() => {
+    const currentAssets = new Set(
+      autoClaimablePositions.map((position) => position.asset),
+    );
     setAutoClaimAttemptedAssets((prev) => {
       if (prev.size === 0) return prev;
-      const currentAssets = new Set(
-        autoClaimablePositions.map((position) => position.asset),
-      );
-      let changed = false;
-      const next = new Set<string>();
-      prev.forEach((asset) => {
-        if (currentAssets.has(asset)) {
-          next.add(asset);
-        } else {
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
+      const next = pruneAssetSet(prev, currentAssets);
+      return next.size === prev.size ? prev : next;
+    });
+    setAutoClaimManualAssets((prev) => {
+      if (prev.size === 0) return prev;
+      const next = pruneAssetSet(prev, currentAssets);
+      return next.size === prev.size ? prev : next;
     });
   }, [autoClaimablePositions]);
 
@@ -469,6 +494,10 @@ export default function PredictionsPanel({
   }, [activePositions, activeOrders, netDeposits, totalUsdcBalance]);
   const { data: liveGames = [], isLoading: isLoadingLiveGames } =
     useLiveSportsGames();
+  const positionsRefreshFailedWithData =
+    positionsRefreshError && (positions?.length ?? 0) > 0;
+  const activeOrdersRefreshFailedWithData =
+    activeOrdersRefreshError && activeOrders.length > 0;
 
   const handleMarketSell = useCallback(
     async (position: PolymarketPosition) => {
@@ -541,46 +570,47 @@ export default function PredictionsPanel({
     [],
   );
 
-  const handleRedeem = useCallback(
-    async (position: PolymarketPosition) => {
-      if (!clobClient) {
-        toast.error(
-          'Trading session is still connecting. Try again in a moment.',
-        );
-        return;
+  const handleRedeem: RedeemHandler = useCallback(
+    async (position, options = {}) => {
+      const isAuto = options.silentOnly === true;
+      if (!canRedeem) {
+        if (!isAuto) {
+          toast.error(
+            'Redeem wallet is still connecting. Try again in a moment.',
+          );
+        }
+        return 'skipped';
       }
 
       const redeemValue = getRedeemablePayout(position);
       if (redeemValue <= 0) {
-        toast.error('No redeemable payout found for this position.');
-        return;
+        if (!isAuto) {
+          toast.error('No redeemable payout found for this position.');
+        }
+        return 'skipped';
       }
 
-      const positionWallet =
-        position.proxyWallet || safeAddress || depositWalletAddress;
-      if (!positionWallet) {
-        toast.error('Redeem wallet is still loading. Refresh and try again.');
-        return;
+      const redeemWallet = resolveRedeemWallet(position, {
+        safeAddress,
+        depositWalletAddress,
+        walletType,
+      });
+      if (!redeemWallet) {
+        if (!isAuto) {
+          toast.error(
+            'Redeem wallet is still loading. Refresh and try again.',
+          );
+        }
+        return 'skipped';
       }
 
-      const isCurrentDepositWallet =
-        walletType === 'deposit' &&
-        depositWalletAddress &&
-        positionWallet.toLowerCase() ===
-          depositWalletAddress.toLowerCase();
-      const redeemWalletType = isCurrentDepositWallet
-        ? 'deposit'
-        : 'safe';
-
-      if (redeemWalletType === 'deposit' && !depositWalletAddress) {
-        toast.error('Deposit wallet is still loading. Refresh and try again.');
-        return;
-      }
+      const { positionWallet, walletType: redeemWalletType } =
+        redeemWallet;
 
       setRedeemingAsset(position.asset);
-      const redeemToastId = toast.loading(
-        `Redeeming $${redeemValue.toFixed(2)}...`,
-      );
+      const redeemToastId = isAuto
+        ? undefined
+        : toast.loading(`Redeeming $${redeemValue.toFixed(2)}...`);
       try {
         const balanceAddressCandidates: Array<{
           label: string;
@@ -662,9 +692,8 @@ export default function PredictionsPanel({
           resolved: {
             positionWallet,
             redeemWalletType,
-            redeemDepositWalletAddress: isCurrentDepositWallet
-              ? depositWalletAddress
-              : undefined,
+            redeemDepositWalletAddress:
+              redeemWallet.depositWalletAddress,
           },
           position: {
             proxyWallet: position.proxyWallet,
@@ -705,16 +734,24 @@ export default function PredictionsPanel({
           negativeRisk: position.negativeRisk,
           size: position.size,
           safeAddress: positionWallet,
-          depositWalletAddress: isCurrentDepositWallet
-            ? depositWalletAddress
-            : undefined,
+          depositWalletAddress: redeemWallet.depositWalletAddress,
           walletType: redeemWalletType,
+          silentOnly: options.silentOnly,
         });
         rememberPendingRedemption(position, result);
+        setAutoClaimManualAssets((prev) => {
+          if (!prev.has(position.asset)) return prev;
+          const next = new Set(prev);
+          next.delete(position.asset);
+          return next;
+        });
         const redeemedAmount = result.redeemedAmount ?? redeemValue;
         const redeemedAmountLabel = redeemedAmount.toFixed(2);
 
-        if (result.normalizedCollateral) {
+        if (isAuto) {
+          // Auto-claim stays quiet; balances and pending notices update after
+          // the transaction confirms.
+        } else if (result.normalizedCollateral) {
           toast.success(
             `Redeemed $${redeemedAmountLabel} and converted to pUSD.`,
             { id: redeemToastId },
@@ -754,26 +791,41 @@ export default function PredictionsPanel({
           POLLING_INTERVAL,
           POLLING_DURATION,
         );
+        return 'redeemed';
       } catch (err) {
         if (isZeroPositionBalanceRedeemError(err)) {
           queryClient.invalidateQueries({
             queryKey: ['polymarket-positions'],
           });
-          toast.success(formatRedeemError(err), { id: redeemToastId });
+          if (!isAuto) {
+            toast.success(formatRedeemError(err), { id: redeemToastId });
+          }
           console.info(
             'Redeem skipped because the position balance is gone:',
             err,
           );
+          return 'already-redeemed';
+        }
+
+        if (isAuto && isSilentRedeemUnavailableError(err)) {
+          console.info(
+            'Auto-claim requires manual redeem confirmation:',
+            err,
+          );
+          return 'manual-required';
         } else {
-          toast.error(formatRedeemError(err), { id: redeemToastId });
+          if (!isAuto) {
+            toast.error(formatRedeemError(err), { id: redeemToastId });
+          }
           console.error('Failed to redeem position:', err);
+          return 'failed';
         }
       } finally {
         setRedeemingAsset(null);
       }
     },
     [
-      clobClient,
+      canRedeem,
       safeAddress,
       depositWalletAddress,
       portfolioAddresses,
@@ -786,18 +838,19 @@ export default function PredictionsPanel({
   );
 
   useEffect(() => {
-    if (!autoClaimEnabled || !clobClient || redeemingAsset || isSubmitting)
-      return;
-
     const pendingAssets = new Set([
       ...pendingRedemptions.map((item) => item.asset),
       ...Array.from(pendingVerification.keys()),
     ]);
-    const nextPosition = autoClaimablePositions.find(
-      (position) =>
-        !autoClaimAttemptedAssets.has(position.asset) &&
-        !pendingAssets.has(position.asset),
-    );
+    const nextPosition = selectNextAutoClaimPosition({
+      enabled: autoClaimEnabled,
+      canRedeem,
+      busy: Boolean(redeemingAsset || isSubmitting),
+      positions: autoClaimablePositions,
+      attemptedAssets: autoClaimAttemptedAssets,
+      pendingAssets,
+      manualRequiredAssets: autoClaimManualAssets,
+    });
 
     if (!nextPosition) return;
 
@@ -806,12 +859,31 @@ export default function PredictionsPanel({
       next.add(nextPosition.asset);
       return next;
     });
-    void handleRedeem(nextPosition);
+    void handleRedeem(nextPosition, { silentOnly: true }).then(
+      (outcome) => {
+        if (outcome === 'manual-required') {
+          setAutoClaimManualAssets((prev) => {
+            const next = new Set(prev);
+            next.add(nextPosition.asset);
+            return next;
+          });
+        }
+        if (outcome !== 'manual-required' && outcome !== 'skipped') {
+          return;
+        }
+        setAutoClaimAttemptedAssets((prev) => {
+          const next = new Set(prev);
+          next.delete(nextPosition.asset);
+          return next;
+        });
+      },
+    );
   }, [
     autoClaimAttemptedAssets,
     autoClaimEnabled,
+    autoClaimManualAssets,
     autoClaimablePositions,
-    clobClient,
+    canRedeem,
     handleRedeem,
     isSubmitting,
     pendingRedemptions,
@@ -936,6 +1008,7 @@ export default function PredictionsPanel({
                 cancellingOrderId={cancellingOrderId}
                 inOrdersValue={summary.inOrdersValue}
                 onSeeHistory={() => setView('history')}
+                refreshError={activeOrdersRefreshFailedWithData}
               />
             )}
 
@@ -952,6 +1025,9 @@ export default function PredictionsPanel({
                 pendingRedemptions={pendingRedemptions}
                 isSubmitting={isSubmitting}
                 canTrade={!!clobClient}
+                canRedeem={canRedeem}
+                manualClaimAssets={autoClaimManualAssets}
+                refreshError={positionsRefreshFailedWithData}
                 autoClaimEnabled={autoClaimEnabled}
                 onAutoClaimChange={handleAutoClaimChange}
                 portfolioAddresses={portfolioAddresses}
@@ -1267,6 +1343,17 @@ function FilterChip({
   );
 }
 
+function StaleRefreshNotice() {
+  return (
+    <div
+      className="rounded-2xl border bg-white px-4 py-3 text-[12px] font-medium text-amber-700"
+      style={{ borderColor: 'rgba(245,158,11,0.24)' }}
+    >
+      Couldn&apos;t refresh prediction data. Showing last update.
+    </div>
+  );
+}
+
 // ── A4 · Open orders ────────────────────────────────────────────────
 
 interface OpenOrdersViewProps {
@@ -1275,6 +1362,7 @@ interface OpenOrdersViewProps {
   cancellingOrderId: string | null;
   inOrdersValue: number;
   onSeeHistory: () => void;
+  refreshError?: boolean;
 }
 
 function OpenOrdersView({
@@ -1283,6 +1371,7 @@ function OpenOrdersView({
   cancellingOrderId,
   inOrdersValue,
   onSeeHistory,
+  refreshError = false,
 }: OpenOrdersViewProps) {
   const activeCount = orders.length;
   return (
@@ -1301,6 +1390,8 @@ function OpenOrdersView({
           </>
         }
       />
+
+      {refreshError && <StaleRefreshNotice />}
 
       {orders.length === 0 ? (
         <BentoEmpty
@@ -1632,11 +1723,7 @@ function formatRedeemError(error: unknown) {
     return 'This payout was already redeemed. Refreshing your bets.';
   }
 
-  if (
-    message.includes('Silent redeem signing') ||
-    message.includes('signing is not ready') ||
-    message.includes('signing failed')
-  ) {
+  if (isSilentRedeemUnavailableError(error)) {
     return 'Redeem signing is not ready. Refresh and try again.';
   }
 
@@ -1650,7 +1737,7 @@ function formatRedeemError(error: unknown) {
 interface MyBetsViewProps {
   actionable: PolymarketPosition[];
   redeemable: PolymarketPosition[];
-  onRedeem: (p: PolymarketPosition) => void;
+  onRedeem: RedeemHandler;
   onSell: (p: PolymarketPosition) => void;
   onTitleClick: (p: PolymarketPosition) => void;
   sellingAsset: string | null;
@@ -1659,6 +1746,9 @@ interface MyBetsViewProps {
   pendingRedemptions: PendingRedemptionSnapshot[];
   isSubmitting: boolean;
   canTrade: boolean;
+  canRedeem: boolean;
+  manualClaimAssets: Set<string>;
+  refreshError?: boolean;
   autoClaimEnabled: boolean;
   onAutoClaimChange: (enabled: boolean) => void;
   portfolioAddresses: string[];
@@ -1679,6 +1769,9 @@ function MyBetsView({
   pendingRedemptions,
   isSubmitting,
   canTrade,
+  canRedeem,
+  manualClaimAssets,
+  refreshError = false,
   autoClaimEnabled,
   onAutoClaimChange,
   portfolioAddresses,
@@ -1689,13 +1782,18 @@ function MyBetsView({
   const [statusFilter, setStatusFilter] =
     useState<BetStatusFilter>('all');
 
-  const { data: activityTrades = [], isLoading: isLoadingActivity } =
-    useTradeActivity({
+  const {
+    data: activityTrades = [],
+    isLoading: isLoadingActivity,
+    isError: activityRefreshError,
+  } = useTradeActivity({
       user: portfolioAddresses,
       limit: 500,
       offset: 0,
       sort: 'DESC',
     });
+  const showActivityRefreshError =
+    activityRefreshError && activityTrades.length > 0;
 
   const claimedTrades = useMemo(
     () => activityTrades.filter((trade) => trade.type === 'REDEEM'),
@@ -1799,6 +1897,10 @@ function MyBetsView({
       />
 
       <PendingRedemptionNotice redemptions={pendingRedemptions} />
+
+      {(refreshError || showActivityRefreshError) && (
+        <StaleRefreshNotice />
+      )}
 
       {/* Summary tiles — 4 across on sm+, 2 across on mobile. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -1947,6 +2049,10 @@ function MyBetsView({
               isPending={pendingVerification.has(row.position.asset)}
               isSubmitting={isSubmitting}
               canTrade={canTrade}
+              canRedeem={canRedeem}
+              needsManualClaim={manualClaimAssets.has(
+                row.position.asset,
+              )}
             />
           ))
         )}
@@ -2159,10 +2265,12 @@ function BetTableRow({
   isPending,
   isSubmitting,
   canTrade,
+  canRedeem,
+  needsManualClaim,
 }: {
   row: BetRow;
   isLast: boolean;
-  onRedeem: (p: PolymarketPosition) => void;
+  onRedeem: RedeemHandler;
   onSell: (p: PolymarketPosition) => void;
   onTitleClick: (p: PolymarketPosition) => void;
   isSelling: boolean;
@@ -2170,6 +2278,8 @@ function BetTableRow({
   isPending: boolean;
   isSubmitting: boolean;
   canTrade: boolean;
+  canRedeem: boolean;
+  needsManualClaim: boolean;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
   const {
@@ -2194,18 +2304,28 @@ function BetTableRow({
   const renderAction = () => {
     if (statusKey === 'redeemable') {
       return (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRedeem(p);
-          }}
-          disabled={isRedeeming || !canTrade || !isClaimable}
-          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold text-white bg-[#19a974] hover:bg-[#149363] disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-        >
-          {isRedeeming
-            ? 'Redeeming…'
-            : `Redeem $${redeemValue.toFixed(2)}`}
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              void onRedeem(p);
+            }}
+            disabled={isRedeeming || !canRedeem || !isClaimable}
+            className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold text-white bg-[#19a974] hover:bg-[#149363] disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+          >
+            {isRedeeming
+              ? 'Redeeming…'
+              : `Redeem $${redeemValue.toFixed(2)}`}
+          </button>
+          {needsManualClaim && (
+            <span
+              className="text-right text-[10px] font-semibold"
+              style={{ color: '#b45309', fontFamily: MONO }}
+            >
+              Manual confirmation needed
+            </span>
+          )}
+        </div>
       );
     }
     if (statusKey === 'live') {
@@ -2482,12 +2602,14 @@ function BetHistoryView({
     useState<HistoryStatusFilter>('all');
   const [offset, setOffset] = useState(0);
 
-  const { data: trades = [], isLoading } = useTradeActivity({
+  const { data: trades = [], isLoading, isError: refreshError } =
+    useTradeActivity({
     user: safeAddress,
     limit: PAGE_SIZE_HISTORY,
     offset,
     sort: 'DESC',
   });
+  const showRefreshError = refreshError && trades.length > 0;
 
   const rows = useMemo(
     () => trades.map((trade) => deriveHistoryRow(trade, teamsMap)),
@@ -2538,6 +2660,8 @@ function BetHistoryView({
           </FilterChip>
         }
       />
+
+      {showRefreshError && <StaleRefreshNotice />}
 
       {/* Summary tiles — 4 across on sm+, 2 across on mobile. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
