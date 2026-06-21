@@ -51,6 +51,7 @@ import {
   buildPerpsPositionKey,
   buildPerpsReconcileSnapshotKey,
   inferPerpsCloseFillsByCoin,
+  inferPerpsLiquidationsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
@@ -629,6 +630,7 @@ export function PerpsPanel({
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
     const closedFillsByCoin = inferPerpsCloseFillsByCoin(fills);
+    const liquidationsByCoin = inferPerpsLiquidationsByCoin(fills);
     const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
       masterAddress,
       priceMapState:
@@ -636,6 +638,7 @@ export function PerpsPanel({
       observedDexes,
       activePositionKeys,
       activeLimitOrders,
+      liquidationsByCoin,
       closedFillsByCoin,
     });
 
@@ -650,6 +653,7 @@ export function PerpsPanel({
         activeLimitOrders,
         observedDexes,
         markPricesByCoin: mids,
+        liquidationsByCoin,
         closedFillsByCoin,
       }).catch((feedError) => {
         reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);

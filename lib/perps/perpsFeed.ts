@@ -513,6 +513,49 @@ export function inferPerpsCloseFillsByCoin(
   );
 }
 
+export function inferPerpsLiquidationsByCoin(
+  fills: PerpsFillLike[] = [],
+): Record<string, PerpsLiquidationFillSnapshot> {
+  return fills.reduce<Record<string, PerpsLiquidationFillSnapshot>>(
+    (liquidations, fill) => {
+      if (!fill?.liquidation) return liquidations;
+
+      const coin = normalizePerpsCoin(fill.coin);
+      const timeMs = fillTimeMs(fill);
+      if (!coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
+        return liquidations;
+      }
+
+      const existingTime = Date.parse(liquidations[coin]?.timestamp || '');
+      if (Number.isFinite(existingTime) && existingTime >= timeMs) {
+        return liquidations;
+      }
+
+      const price = maybePerpsFeedNumber(fill.px);
+      const markPrice = maybePerpsFeedNumber(
+        (fill.liquidation as { markPx?: string | number | null } | null)
+          ?.markPx ?? fill.px,
+      );
+      const closedPnl = maybePerpsFeedNumber(fill.closedPnl);
+      const feeUsd = maybePerpsFeedNumber(fill.fee);
+      const orderId = fillOrderId(fill);
+
+      liquidations[coin] = {
+        coin,
+        ...(price !== undefined ? { px: price } : {}),
+        ...(markPrice !== undefined ? { markPx: markPrice } : {}),
+        ...(closedPnl !== undefined ? { closedPnl } : {}),
+        ...(feeUsd !== undefined ? { feeUsd } : {}),
+        ...(orderId ? { orderId } : {}),
+        timestamp: new Date(timeMs).toISOString(),
+      };
+
+      return liquidations;
+    },
+    {},
+  );
+}
+
 export function inferPerpsPositionRiskPrices(
   position: PerpsPositionLike,
   openOrders: PerpsOpenOrderLike[] = [],
