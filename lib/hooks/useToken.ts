@@ -14,6 +14,41 @@ import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 const normalizeChain = (chain: string): ChainType =>
   chain.toUpperCase() as ChainType;
 
+type TokenWithWallet = Token & { walletAddress?: string };
+
+type TokenSnapshot = {
+  fingerprint: string;
+  signature: string;
+  tokens: TokenWithWallet[];
+  totalValue: string;
+  tokenCount: number;
+};
+
+const emptyTokenSnapshot = (fingerprint = ''): TokenSnapshot => ({
+  fingerprint,
+  signature: '',
+  tokens: [],
+  totalValue: '0.00',
+  tokenCount: 0,
+});
+
+const tokenSnapshotSignature = (tokens: TokenWithWallet[]) =>
+  tokens
+    .map(
+      (token) =>
+        [
+          token.walletAddress || '',
+          token.chain || '',
+          token.address || '',
+          token.symbol || '',
+          token.balance || '',
+          token.value ?? '',
+          token.marketData?.price ?? '',
+        ].join(':')
+    )
+    .sort()
+    .join('|');
+
 const backendTokenCache = new Map<string, string>();
 const backendTokenRequests = new Map<string, Promise<string | null>>();
 
@@ -80,6 +115,9 @@ export const useMultiChainTokenData = (
   const [fallbackAccessToken, setFallbackAccessToken] = useState<
     string | null
   >(null);
+  const [publishedData, setPublishedData] = useState<TokenSnapshot>(
+    emptyTokenSnapshot()
+  );
   const authToken =
     accessToken || cookieAccessToken || fallbackAccessToken || '';
   const userEmail = user?.email || '';
@@ -155,6 +193,10 @@ export const useMultiChainTokenData = (
       chain: 'solana' as const,
     });
   }
+  const walletFingerprint = wallets
+    .map((wallet) => `${wallet.chain}:${wallet.address}`)
+    .sort()
+    .join('|');
 
   const canUseSessionCookieProxy =
     typeof window !== 'undefined' && (userLoading || Boolean(user));
@@ -188,7 +230,7 @@ export const useMultiChainTokenData = (
     })),
   });
 
-  const data = useMemo(() => {
+  const aggregatedData = useMemo<TokenSnapshot>(() => {
     const successfulTokens = tokenQueries.flatMap((query) =>
       query.status === 'success' ? query.data || [] : []
     );
@@ -203,14 +245,65 @@ export const useMultiChainTokenData = (
     }, 0);
 
     return {
+      fingerprint: walletFingerprint,
+      signature: tokenSnapshotSignature(successfulTokens),
       tokens: successfulTokens,
       totalValue: totalValue.toFixed(2),
       tokenCount: successfulTokens.length,
     };
-  }, [tokenQueries]);
+  }, [tokenQueries, walletFingerprint]);
+
+  const tokenQueriesSettled =
+    !tokenQueryEnabled ||
+    tokenQueries.length === 0 ||
+    tokenQueries.every(
+      (query) =>
+        !query.isFetching &&
+        (query.status === 'success' || query.status === 'error')
+    );
+
+  useEffect(() => {
+    if (publishedData.fingerprint !== walletFingerprint) {
+      setPublishedData(emptyTokenSnapshot(walletFingerprint));
+      return;
+    }
+
+    if (!tokenQueryEnabled || tokenQueries.length === 0) {
+      if (publishedData.signature !== '') {
+        setPublishedData(emptyTokenSnapshot(walletFingerprint));
+      }
+      return;
+    }
+
+    if (!tokenQueriesSettled) return;
+
+    if (publishedData.signature !== aggregatedData.signature) {
+      setPublishedData(aggregatedData);
+    }
+  }, [
+    aggregatedData,
+    publishedData.fingerprint,
+    publishedData.signature,
+    tokenQueries.length,
+    tokenQueriesSettled,
+    tokenQueryEnabled,
+    walletFingerprint,
+  ]);
+
+  const settledAggregatedData =
+    tokenQueryEnabled && tokenQueries.length > 0 && tokenQueriesSettled
+      ? aggregatedData
+      : null;
+  const data =
+    settledAggregatedData ||
+    (publishedData.fingerprint === walletFingerprint
+      ? publishedData
+      : emptyTokenSnapshot(walletFingerprint));
 
   const isLoading =
     tokenQueryEnabled &&
+    tokenQueries.length > 0 &&
+    !tokenQueriesSettled &&
     data.tokens.length === 0 &&
     tokenQueries.some((query) => query.isLoading || query.isFetching);
   const error =

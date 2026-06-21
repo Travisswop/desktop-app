@@ -49,6 +49,7 @@ interface BalanceChartProps {
   accessToken?: string;
   onTokenRefresh?: () => void;
   totalBalance?: number; // Optional: if provided, will use this instead of fetching
+  balanceLoading?: boolean;
   isButtonVisible?: boolean;
 }
 
@@ -112,6 +113,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   tokens = [],
   accessToken = '',
   onTokenRefresh,
+  balanceLoading = false,
 }) => {
   const { user } = useUser();
   const [selectedPeriod, setSelectedPeriod] =
@@ -426,7 +428,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     { value: 'all', label: 'All' },
   ];
 
-  if (loading) {
+  if (loading || balanceLoading) {
     return <SkeletonBalanceChart />;
   }
 

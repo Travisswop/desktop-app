@@ -1925,6 +1925,7 @@ const WalletContentInner = () => {
             userId={user?._id}
             currency="$"
             totalBalance={totalBalance}
+            balanceLoading={tokenLoading}
             onSelectAsset={handleAssetSelect}
             onQRClick={handleQRClick}
             walletData={walletData || []}
