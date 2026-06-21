@@ -73,7 +73,7 @@ export const useMultiChainTokenData = (
   evmWalletAddress?: string | string[],
   chains: ChainType[] = ['ETHEREUM']
 ) => {
-  const { user, accessToken } = useUser();
+  const { user, accessToken, loading: userLoading } = useUser();
   const [cookieAccessToken, setCookieAccessToken] = useState<string | null>(
     null
   );
@@ -155,6 +155,11 @@ export const useMultiChainTokenData = (
       chain: 'solana' as const,
     });
   }
+
+  const canUseSessionCookieProxy =
+    typeof window !== 'undefined' && (userLoading || Boolean(user));
+  const tokenQueryEnabled =
+    wallets.length > 0 && Boolean(authToken || canUseSessionCookieProxy);
 
   // Single query to fetch all tokens
   const { data, isLoading, error, refetch } = useQuery({
@@ -274,7 +279,8 @@ export const useMultiChainTokenData = (
         tokenCount: tokens.length,
       };
     },
-    enabled: wallets.length > 0 && !!authToken,
+    enabled: tokenQueryEnabled,
+    retry: false,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchInterval: false,

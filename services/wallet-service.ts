@@ -128,6 +128,9 @@ export class WalletService {
     accessToken?: string
   ): Promise<WalletTokensResponse> {
     try {
+      const url = accessToken
+        ? `${WALLET_API_URL}/tokens`
+        : '/api/wallet/tokens';
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -136,10 +139,11 @@ export class WalletService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await apiFetch(`${WALLET_API_URL}/tokens`, {
+      const response = await apiFetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify({ wallets }),
+        credentials: accessToken ? undefined : 'include',
         signal: AbortSignal.timeout(30000),
       });
 
