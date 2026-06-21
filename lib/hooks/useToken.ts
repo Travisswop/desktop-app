@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useQueries } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
 import { ChainType } from '@/types/token';
 import {
@@ -161,130 +161,64 @@ export const useMultiChainTokenData = (
   const tokenQueryEnabled =
     wallets.length > 0 && Boolean(authToken || canUseSessionCookieProxy);
 
-  // Single query to fetch all tokens
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: [
-      'walletTokens',
-      'owner-address-v3',
-      solWalletAddress,
-      evmWalletAddresses,
-      chains,
-      authToken,
-    ],
-    queryFn: async () => {
-      if (wallets.length === 0) {
-        return { tokens: [], totalValue: '0', tokenCount: 0 };
-      }
+  const tokenQueries = useQueries({
+    queries: wallets.map((wallet) => ({
+      queryKey: [
+        'walletTokens',
+        'owner-address-split-v1',
+        wallet.chain,
+        wallet.address,
+        authToken,
+      ],
+      queryFn: async () => {
+        const result = await WalletService.getWalletTokens(
+          [wallet],
+          authToken || undefined
+        );
 
-      const walletAddressByChain = new Map<string, string>();
-      let hasMultipleAddressesForChain = false;
-
-      wallets.forEach((wallet) => {
-        const chainKey = wallet.chain.toLowerCase();
-        const existingAddress = walletAddressByChain.get(chainKey);
-        if (
-          existingAddress &&
-          existingAddress.toLowerCase() !== wallet.address.toLowerCase()
-        ) {
-          hasMultipleAddressesForChain = true;
-          return;
-        }
-        walletAddressByChain.set(chainKey, wallet.address);
-      });
-
-      if (!hasMultipleAddressesForChain) {
-        try {
-          const result = await WalletService.getWalletTokens(
-            wallets,
-            authToken || undefined
-          );
-          const tokens = (result.tokens || []).map((token) => ({
-            ...token,
-            walletAddress:
-              token.walletAddress ||
-              walletAddressByChain.get((token.chain || '').toLowerCase()),
-          }));
-          const totalValue = tokens.reduce((sum, token) => {
-            const explicitValue = Number(token.value || 0);
-            if (Number.isFinite(explicitValue) && explicitValue > 0) {
-              return sum + explicitValue;
-            }
-            const price = Number(token.marketData?.price || 0);
-            const balance = Number(token.balance || 0);
-            return sum + price * balance;
-          }, 0);
-
-          return {
-            tokens,
-            totalValue: totalValue.toFixed(2),
-            tokenCount: tokens.length,
-          };
-        } catch (error) {
-          console.warn('Batched wallet token request unavailable:', error);
-        }
-      }
-
-      // Fall back to per-wallet fetches so returned tokens keep the signer/source
-      // address when multiple wallets exist on the same chain.
-      const walletResults = await Promise.allSettled(
-        wallets.map(async (wallet) => {
-          const result = await WalletService.getWalletTokens(
-            [wallet],
-            authToken || undefined
-          );
-          return (result.tokens || []).map((token) => ({
-            ...token,
-            walletAddress: token.walletAddress || wallet.address,
-          }));
-        })
-      );
-
-      const successfulResultCount = walletResults.filter(
-        (result) => result.status === 'fulfilled'
-      ).length;
-      const failedResults = walletResults.filter(
-        (result) => result.status === 'rejected'
-      );
-
-      if (failedResults.length) {
-        console.warn('Some wallet token requests unavailable:', {
-          failedWallets: failedResults.length,
-          totalWallets: wallets.length,
-        });
-      }
-
-      if (!successfulResultCount && failedResults.length) {
-        const firstFailure = failedResults[0].reason;
-        throw firstFailure instanceof Error
-          ? firstFailure
-          : new Error('Failed to fetch wallet tokens');
-      }
-
-      const tokens = walletResults.flatMap((result) =>
-        result.status === 'fulfilled' ? result.value : []
-      );
-      const totalValue = tokens.reduce((sum, token) => {
-        const explicitValue = Number(token.value || 0);
-        if (Number.isFinite(explicitValue) && explicitValue > 0) {
-          return sum + explicitValue;
-        }
-        const price = Number(token.marketData?.price || 0);
-        const balance = Number(token.balance || 0);
-        return sum + price * balance;
-      }, 0);
-
-      return {
-        tokens,
-        totalValue: totalValue.toFixed(2),
-        tokenCount: tokens.length,
-      };
-    },
-    enabled: tokenQueryEnabled,
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchInterval: false,
+        return (result.tokens || []).map((token) => ({
+          ...token,
+          walletAddress: token.walletAddress || wallet.address,
+        }));
+      },
+      enabled: tokenQueryEnabled,
+      retry: false,
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
   });
+
+  const data = useMemo(() => {
+    const successfulTokens = tokenQueries.flatMap((query) =>
+      query.status === 'success' ? query.data || [] : []
+    );
+    const totalValue = successfulTokens.reduce((sum, token) => {
+      const explicitValue = Number(token.value || 0);
+      if (Number.isFinite(explicitValue) && explicitValue > 0) {
+        return sum + explicitValue;
+      }
+      const price = Number(token.marketData?.price || 0);
+      const balance = Number(token.balance || 0);
+      return sum + price * balance;
+    }, 0);
+
+    return {
+      tokens: successfulTokens,
+      totalValue: totalValue.toFixed(2),
+      tokenCount: successfulTokens.length,
+    };
+  }, [tokenQueries]);
+
+  const isLoading =
+    tokenQueryEnabled &&
+    data.tokens.length === 0 &&
+    tokenQueries.some((query) => query.isLoading || query.isFetching);
+  const error =
+    tokenQueries.find((query) => query.error)?.error ?? null;
+  const refetch = useCallback(
+    () => Promise.all(tokenQueries.map((query) => query.refetch())),
+    [tokenQueries]
+  );
 
   // Transform tokens to include logoURI and timeSeriesData for backward compatibility
   // Note: Tokens are already sorted by value on the backend
