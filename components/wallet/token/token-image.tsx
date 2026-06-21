@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { TokenData } from '@/types/token';
 import NetworkBadge from './network-badge';
@@ -12,6 +12,84 @@ interface TokenImageProps {
   showNetworkBadge?: boolean;
 }
 
+type TokenImageData = TokenData & {
+  icon?: string | null;
+  image?: string | null;
+  logo?: string | null;
+  thumbnail?: string | null;
+  marketData?: (TokenData['marketData'] & {
+    icon?: string | null;
+    iconUrl?: string | null;
+    large?: string | null;
+    logo?: string | null;
+    logoURI?: string | null;
+    small?: string | null;
+    thumb?: string | null;
+  }) | null;
+};
+
+const TOKEN_IMAGE_ALIASES: Record<string, string[]> = {
+  PUSD: ['/assets/crypto-icons/PUSD.png'],
+  USDC_E: ['/assets/crypto-icons/USDC.png'],
+};
+
+const normalizeAliasKey = (symbol: string) =>
+  symbol.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+
+const localTokenImageCandidates = (symbol?: string | null) => {
+  const trimmed = symbol?.trim();
+  if (!trimmed) return [];
+
+  const candidates: string[] = [];
+  const aliasKey = normalizeAliasKey(trimmed);
+  candidates.push(...(TOKEN_IMAGE_ALIASES[aliasKey] || []));
+
+  const aaveUnderlying = trimmed.match(/^a(?:Eth|Pol|Arb|Bas)(.+)$/i)?.[1];
+  if (aaveUnderlying) {
+    candidates.push(`/assets/crypto-icons/${aaveUnderlying.toUpperCase()}.png`);
+  }
+
+  candidates.push(
+    `/assets/crypto-icons/${trimmed}.png`,
+    `/assets/crypto-icons/${trimmed.toUpperCase()}.png`,
+  );
+
+  return candidates;
+};
+
+const uniqueImageCandidates = (values: Array<string | null | undefined>) => {
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+
+  values.forEach((value) => {
+    const src = sanitizeNextImageSrc(value);
+    if (!src || seen.has(src)) return;
+
+    seen.add(src);
+    candidates.push(src);
+  });
+
+  return candidates;
+};
+
+const getTokenImageCandidates = (token: TokenImageData) =>
+  uniqueImageCandidates([
+    token.logoURI,
+    token.icon,
+    token.logo,
+    token.image,
+    token.thumbnail,
+    token.marketData?.image,
+    token.marketData?.iconUrl,
+    token.marketData?.logoURI,
+    token.marketData?.logo,
+    token.marketData?.icon,
+    token.marketData?.large,
+    token.marketData?.small,
+    token.marketData?.thumb,
+    ...localTokenImageCandidates(token.symbol),
+  ]);
+
 // Custom TokenImage component with fallback logic
 const TokenImage = ({
   token,
@@ -20,29 +98,39 @@ const TokenImage = ({
   className = 'rounded-full',
   showNetworkBadge = true,
 }: TokenImageProps) => {
-  const [imageError, setImageError] = useState(false);
-  const [fallbackError, setFallbackError] = useState(false);
+  const imageToken = token as TokenImageData;
+  const imageCandidates = useMemo(
+    () => getTokenImageCandidates(imageToken),
+    [
+      imageToken.logoURI,
+      imageToken.icon,
+      imageToken.logo,
+      imageToken.image,
+      imageToken.thumbnail,
+      imageToken.symbol,
+      imageToken.marketData?.image,
+      imageToken.marketData?.iconUrl,
+      imageToken.marketData?.logoURI,
+      imageToken.marketData?.logo,
+      imageToken.marketData?.icon,
+      imageToken.marketData?.large,
+      imageToken.marketData?.small,
+      imageToken.marketData?.thumb,
+    ],
+  );
+  const imageCandidateKey = imageCandidates.join('|');
+  const [imageIndex, setImageIndex] = useState(0);
 
-  // Determine the image source with fallback logic
-  const getImageSrc = () => {
-    if (!imageError && token.logoURI) {
-      return token.logoURI;
-    }
-    if (!fallbackError && token.marketData?.image) {
-      return token.marketData?.image;
-    }
-    return null; // No more fallbacks, will show placeholder
-  };
+  useEffect(() => {
+    setImageIndex(0);
+  }, [imageCandidateKey]);
 
-  const handleImageError = () => {
-    if (!imageError) {
-      setImageError(true);
-    } else if (!fallbackError) {
-      setFallbackError(true);
-    }
-  };
+  const handleImageError = () =>
+    setImageIndex((current) =>
+      current < imageCandidates.length ? current + 1 : current,
+    );
 
-  const imageSrc = sanitizeNextImageSrc(getImageSrc());
+  const imageSrc = imageCandidates[imageIndex] || '';
   const networkBadgeSize = Math.max(12, Math.floor(width * 0.4));
 
   // If we have a valid image source, render the Image component
@@ -55,6 +143,7 @@ const TokenImage = ({
           width={width}
           height={height}
           className={className}
+          style={{ width, height, objectFit: 'cover' }}
           onError={handleImageError}
         />
         {showNetworkBadge && (
