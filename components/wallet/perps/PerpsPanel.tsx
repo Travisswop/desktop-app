@@ -952,6 +952,54 @@ export function PerpsPanel({
         }
 
         await cancelOrder(orderMarket.index, orderId);
+        const limitOrderSnapshot = buildPerpsActiveLimitOrderSnapshot({
+          order,
+          userId: user?._id,
+          masterAddress,
+          markPricesByCoin: mids,
+          openOrders: allOpenOrders,
+        });
+        if (limitOrderSnapshot) {
+          const timestamp = new Date().toISOString();
+          await upsertPerpsPositionFeed({
+            token: accessToken,
+            userId: user?._id,
+            smartsiteId: feedSmartsiteId,
+            content: {
+              provider: 'hyperliquid',
+              positionKey: limitOrderSnapshot.positionKey,
+              coin: limitOrderSnapshot.coin,
+              dex: limitOrderSnapshot.dex || null,
+              side: limitOrderSnapshot.side,
+              status: 'cancelled',
+              event: 'cancel',
+              leverage: 1,
+              marginMode: 'cross',
+              entryPrice: limitOrderSnapshot.limitPrice,
+              limitPrice: limitOrderSnapshot.limitPrice,
+              markPrice: limitOrderSnapshot.markPrice,
+              liquidationPrice: null,
+              collateralUsd: 0,
+              notionalUsd: limitOrderSnapshot.notionalUsd,
+              sizeCoins: limitOrderSnapshot.sizeCoins,
+              returnPct: 0,
+              unrealizedPnl: 0,
+              takeProfitPrice: limitOrderSnapshot.takeProfitPrice,
+              stopLossPrice: limitOrderSnapshot.stopLossPrice,
+              orderId: limitOrderSnapshot.orderId,
+              masterAddress,
+              limitPlacedAt: limitOrderSnapshot.limitPlacedAt,
+              updatedAt: timestamp,
+              cancelledAt: timestamp,
+            },
+          }).catch((feedError) => {
+            console.warn(
+              'Failed to update cancelled perps feed card:',
+              feedError,
+            );
+            return null;
+          });
+        }
         await Promise.all([refetchPositions(), refetchPortfolio()]);
         toast({
           title: 'Order cancelled',
@@ -968,7 +1016,19 @@ export function PerpsPanel({
         setCancellingOrderKey(null);
       }
     },
-    [cancelOrder, markets, refetchPortfolio, refetchPositions, toast],
+    [
+      accessToken,
+      allOpenOrders,
+      cancelOrder,
+      feedSmartsiteId,
+      markets,
+      masterAddress,
+      mids,
+      refetchPortfolio,
+      refetchPositions,
+      toast,
+      user?._id,
+    ],
   );
 
   const handleSetPositionTpSl = useCallback(

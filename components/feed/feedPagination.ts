@@ -170,6 +170,13 @@ function terminalTimestampMs(item: FeedItemLike) {
     );
   }
 
+  if (status === "cancelled" || status === "canceled" || event === "cancel") {
+    return (
+      perpsCreatedAtMs(content.cancelledAt) ||
+      perpsCreatedAtMs(content.updatedAt)
+    );
+  }
+
   return null;
 }
 
@@ -182,9 +189,12 @@ function perpsPositionRank(item: FeedItemLike) {
   const isTerminal =
     status === "closed" ||
     status === "liquidated" ||
+    status === "cancelled" ||
+    status === "canceled" ||
     status === "liquidate" ||
     event === "close" ||
-    event === "liquidate";
+    event === "liquidate" ||
+    event === "cancel";
   const invalidTerminal =
     isTerminal &&
     lifecycleAt !== null &&

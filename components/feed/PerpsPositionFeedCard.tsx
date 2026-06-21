@@ -148,6 +148,13 @@ function normalizePositionStatus(
   const normalizedStatus = String(status || '').toLowerCase();
   const normalizedEvent = String(event || '').toLowerCase();
   if (
+    normalizedStatus === 'cancelled' ||
+    normalizedStatus === 'canceled' ||
+    normalizedEvent === 'cancel'
+  ) {
+    return 'cancelled';
+  }
+  if (
     normalizedStatus === 'liquidated' ||
     normalizedStatus === 'liquidate' ||
     normalizedEvent === 'liquidate'
@@ -156,6 +163,14 @@ function normalizePositionStatus(
   }
   if (normalizedStatus === 'closed' || normalizedEvent === 'close') {
     return 'closed';
+  }
+  if (
+    normalizedStatus === 'open' ||
+    normalizedEvent === 'open' ||
+    normalizedEvent === 'add' ||
+    normalizedEvent === 'reduce'
+  ) {
+    return 'open';
   }
   if (
     normalizedStatus === 'limit' ||
@@ -174,16 +189,18 @@ function dateMs(value: unknown) {
 
 function terminalTimestampPredatesOpen(
   content: Partial<PerpsPositionFeedContent>,
-  status: 'limit' | 'open' | 'closed' | 'liquidated',
+  status: 'limit' | 'open' | 'closed' | 'liquidated' | 'cancelled',
 ) {
   if (status === 'limit' || status === 'open') return false;
 
-  const openedAt = dateMs(content.openedAt);
+  const openedAt = dateMs(content.openedAt || content.limitPlacedAt);
   const terminalAt =
     status === 'liquidated'
       ? dateMs(content.liquidatedAt) ||
         dateMs(content.closedAt) ||
         dateMs(content.updatedAt)
+      : status === 'cancelled'
+      ? dateMs(content.cancelledAt) || dateMs(content.updatedAt)
       : dateMs(content.closedAt) || dateMs(content.updatedAt);
 
   return (
@@ -326,8 +343,12 @@ export default function PerpsPositionFeedCard({
     ? 'open'
     : rawStoredStatus;
   const isLimitStatus = storedStatus === 'limit';
+  const isLimitLifecycleStatus =
+    storedStatus === 'limit' || storedStatus === 'cancelled';
   const hasStoredTerminalStatus =
-    storedStatus === 'closed' || storedStatus === 'liquidated';
+    storedStatus === 'closed' ||
+    storedStatus === 'liquidated' ||
+    storedStatus === 'cancelled';
   const leverage = Math.max(1, Math.round(finiteNumber(content.leverage, 1)));
   const storedMarkPrice = firstFiniteNumber([
     hasStoredTerminalStatus ? content.exitPrice : null,
@@ -444,8 +465,9 @@ export default function PerpsPositionFeedCard({
     return normalizePerpsEntryMarkers(rawEntries, content, feed.createdAt);
   }, [content, feed.createdAt]);
   const chartMarkerEntries = useMemo(
-    () => (isLimitStatus ? [] : selectPerpsChartMarkerEntries(entries)),
-    [entries, isLimitStatus],
+    () =>
+      isLimitLifecycleStatus ? [] : selectPerpsChartMarkerEntries(entries),
+    [entries, isLimitLifecycleStatus],
   );
 
   const priceDomain = useMemo(() => {
@@ -604,7 +626,7 @@ export default function PerpsPositionFeedCard({
 
   const entryPrice = firstFiniteNumber([content.entryPrice, displayMarkPrice]);
   const calculatedReturnPct =
-    !isLimitStatus && entryPrice > 0
+    !isLimitLifecycleStatus && entryPrice > 0
       ? ((side === 'long'
           ? displayMarkPrice - entryPrice
           : entryPrice - displayMarkPrice) /
@@ -614,7 +636,7 @@ export default function PerpsPositionFeedCard({
       : finiteNumber(content.returnPct);
   const storedReturnPct = maybeFiniteNumber(content.returnPct);
   const returnPct =
-    isLimitStatus
+    isLimitLifecycleStatus
       ? null
       : hasStoredTerminalStatus && storedReturnPct !== null
       ? storedReturnPct
@@ -624,6 +646,8 @@ export default function PerpsPositionFeedCard({
   const badgeClasses =
     status === 'liquidated'
       ? 'border-red-200 bg-red-100 text-red-500'
+      : status === 'cancelled'
+      ? 'border-gray-200 bg-gray-100 text-gray-500'
       : status === 'closed'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
       : status === 'limit'
@@ -634,6 +658,8 @@ export default function PerpsPositionFeedCard({
   const badgeLabel =
     status === 'liquidated'
       ? 'Liquidated'
+      : status === 'cancelled'
+      ? 'Cancelled'
       : status === 'closed'
       ? 'Closed'
       : status === 'limit'
@@ -642,6 +668,8 @@ export default function PerpsPositionFeedCard({
   const statusLabel =
     status === 'liquidated'
       ? 'Liquidated'
+      : status === 'cancelled'
+      ? 'Cancelled'
       : status === 'closed'
       ? 'Closed'
       : status === 'limit'
@@ -650,6 +678,8 @@ export default function PerpsPositionFeedCard({
   const statusVerb =
     status === 'liquidated'
       ? 'Liquidated'
+      : status === 'cancelled'
+      ? 'Cancelled'
       : status === 'closed'
       ? 'Closed'
       : status === 'limit'
@@ -658,6 +688,8 @@ export default function PerpsPositionFeedCard({
   const statusPillClasses =
     status === 'liquidated'
       ? 'border-red-200 bg-red-50 text-red-500'
+      : status === 'cancelled'
+      ? 'border-gray-200 bg-gray-100 text-gray-500'
       : status === 'closed'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
       : status === 'limit'
@@ -669,6 +701,8 @@ export default function PerpsPositionFeedCard({
         content.closedAt ||
         content.updatedAt ||
         feed.createdAt
+      : status === 'cancelled'
+      ? content.cancelledAt || content.updatedAt || feed.createdAt
       : status === 'closed'
       ? content.closedAt || content.updatedAt || feed.createdAt
       : status === 'limit'
@@ -911,11 +945,13 @@ export default function PerpsPositionFeedCard({
             <div className="mb-4 flex items-start justify-around">
               <div className="flex flex-col items-center">
                 <span className="mb-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                  {status === 'limit' ? 'Limit price' : 'Entry price'}
+                  {status === 'limit' || status === 'cancelled'
+                    ? 'Limit price'
+                    : 'Entry price'}
                 </span>
                 <div className="font-mono text-[16px] font-black tabular-nums text-gray-950">
                   {formatUsd(
-                    status === 'limit'
+                    status === 'limit' || status === 'cancelled'
                       ? content.limitPrice || content.entryPrice
                       : content.entryPrice,
                   )}

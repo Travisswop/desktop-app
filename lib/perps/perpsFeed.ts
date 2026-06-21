@@ -8,12 +8,14 @@ export type PerpsPositionFeedEvent =
   | 'add'
   | 'reduce'
   | 'close'
-  | 'liquidate';
+  | 'liquidate'
+  | 'cancel';
 export type PerpsPositionFeedStatus =
   | 'limit'
   | 'open'
   | 'closed'
-  | 'liquidated';
+  | 'liquidated'
+  | 'cancelled';
 
 export interface PerpsPositionFeedContent {
   provider: 'hyperliquid';
@@ -46,6 +48,7 @@ export interface PerpsPositionFeedContent {
   updatedAt: string;
   closedAt?: string;
   liquidatedAt?: string;
+  cancelledAt?: string;
 }
 
 export interface PerpsLiquidationFillSnapshot {
