@@ -275,8 +275,9 @@ export const useMultiChainTokenData = (
       };
     },
     enabled: wallets.length > 0 && !!authToken,
-    staleTime: 60000, // 60 seconds - match refetchInterval to prevent excessive calls
-    refetchInterval: 60000, // Refetch every minute
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
   });
 
   // Transform tokens to include logoURI and timeSeriesData for backward compatibility
