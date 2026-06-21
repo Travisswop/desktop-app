@@ -3414,6 +3414,7 @@ export default function SwapTokenModal({
     if (!fromWalletAddress || !toWalletAddress)
       throw new Error('Wallet addresses not available');
 
+    const lifiPlatformFeeBps = 0;
     const result = await fetchLifiQuote({
       fromChain: chainId.toString(),
       toChain: receiverChainId.toString(),
@@ -3423,11 +3424,15 @@ export default function SwapTokenModal({
       toAddress: toWalletAddress,
       fromAmount,
       slippage: slippage / 100,
-      fee: (PLATFORM_FEE_BPS / 10000).toString(),
+      fee: (lifiPlatformFeeBps / 10000).toString(),
     });
     if (!result || !result.success)
       throw new Error(result?.error || 'Failed to get LiFi quote');
-    return result.data;
+    return {
+      ...result.data,
+      swopPlatformFeeBps: lifiPlatformFeeBps,
+      swopPlatformFeeSkippedReason: 'lifi-fee-disabled',
+    };
   };
 
   // ── Main fetchQuote ──────────────────────────────────────────────────────────
@@ -6267,7 +6272,8 @@ export default function SwapTokenModal({
                 copyTradeRewardPreview?.isSelf,
               );
               const quotedPlatformFeeBps = Number(
-                jupiterQuote?.swopPlatformFeeBps,
+                jupiterQuote?.swopPlatformFeeBps ??
+                  quote?.swopPlatformFeeBps,
               );
               const baseSwopFeeBps = Number.isFinite(
                 quotedPlatformFeeBps,
