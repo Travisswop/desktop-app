@@ -2,6 +2,7 @@
 
 const LIFI_API_URL = process.env.LIFI_API_URL || 'https://li.quest/v1';
 const LIFI_API_KEY = process.env.LIFI_API_KEY || '';
+const LIFI_INTEGRATOR = process.env.LIFI_INTEGRATOR || 'Swop-Desktop';
 const LIFI_QUOTE_TIMEOUT_MS = 12_000;
 
 async function fetchLiFiWithTimeout(
@@ -109,7 +110,7 @@ export const getLifiDepositQuote = async (params: LifiDepositQuoteParams) => {
       toAddress: params.toAddress,
       fromAmount: params.fromAmount,
       slippage: params.slippage,
-      integrator: 'SWOP',
+      integrator: LIFI_INTEGRATOR,
     });
 
     const response = await fetchLiFiWithTimeout(
@@ -173,8 +174,10 @@ export const getLifiQuote = async (params: LifiQuoteParams) => {
     queryParams.append('toAddress', params.toAddress);
     queryParams.append('fromAmount', params.fromAmount);
     queryParams.append('slippage', params.slippage.toString());
-    queryParams.append('integrator', 'SWOP');
-    queryParams.append('fee', params.fee || '0.005');
+    queryParams.append('integrator', LIFI_INTEGRATOR);
+    if (params.fee !== undefined) {
+      queryParams.append('fee', params.fee);
+    }
 
     const response = await fetchLiFiWithTimeout(
       `${LIFI_API_URL}/quote?${queryParams}`,

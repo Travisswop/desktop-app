@@ -3414,7 +3414,7 @@ export default function SwapTokenModal({
     if (!fromWalletAddress || !toWalletAddress)
       throw new Error('Wallet addresses not available');
 
-    const lifiPlatformFeeBps = 0;
+    const lifiPlatformFeeBps = PLATFORM_FEE_BPS;
     const result = await fetchLifiQuote({
       fromChain: chainId.toString(),
       toChain: receiverChainId.toString(),
@@ -3431,7 +3431,6 @@ export default function SwapTokenModal({
     return {
       ...result.data,
       swopPlatformFeeBps: lifiPlatformFeeBps,
-      swopPlatformFeeSkippedReason: 'lifi-fee-disabled',
     };
   };
 
@@ -3874,7 +3873,7 @@ export default function SwapTokenModal({
                 rewardStatus: 'pending_buyback',
                 feeRouting: 'swop_buyback',
                 rewardToken: SWOP_REWARD_TOKEN,
-                integrator: 'SWOP',
+                integrator: 'Swop-Desktop',
               }
             : undefined,
           inputToken: {
@@ -3972,7 +3971,11 @@ export default function SwapTokenModal({
         useModalStore.getState().triggerFeedRefetch();
       }
 
-      if (accessToken && actualPlatformFeeBps > 0) {
+      if (
+        accessToken &&
+        actualPlatformFeeBps > 0 &&
+        isSolanaToSolanaSwap()
+      ) {
         const inputUsdValue = formatUSDValue(
           params.content.inputToken.amount,
           params.content.inputToken.price,
@@ -3996,7 +3999,7 @@ export default function SwapTokenModal({
             outputAmount: String(params.content.outputToken.amount),
             outputUsdValue,
             priceImpactPct,
-            route: isSolanaToSolanaSwap() ? 'Jupiter' : 'Li.Fi',
+            route: 'Jupiter',
             network,
             skipSwopBuyback: isCopyTrade,
           },

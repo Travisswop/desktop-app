@@ -120,7 +120,7 @@ interface LiFiModalProps {
 export default function LiFiModal({
   config = defaultConfig,
   onSwapComplete,
-  integrator = 'SWOP',
+  integrator = 'Swop-Desktop',
 }: LiFiModalProps) {
   const { wallets } = useWallets();
   const { wallets: solWallets } = useSolanaWallets();
