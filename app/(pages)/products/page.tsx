@@ -32,6 +32,7 @@ interface SalesSummary {
 }
 
 const CREATE_HREF = '/products/create';
+const DASHBOARD_HREF = '/dashboard';
 
 export default function ProductsPage() {
   const { user, accessToken } = useUser();
@@ -144,7 +145,7 @@ export default function ProductsPage() {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <ProductsScreen
             rows={rows}
-            hideBack
+            backHref={DASHBOARD_HREF}
             createHref={CREATE_HREF}
             kicker={kickerFor(rows)}
             totals={summary?.totals}

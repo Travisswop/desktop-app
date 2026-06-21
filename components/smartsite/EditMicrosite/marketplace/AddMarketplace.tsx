@@ -179,7 +179,16 @@ const AddMarketplace = ({ onCloseModal }: any) => {
         multipleItems: selectedProducts.map((product) => ({
           source: "marketplaceProduct",
           marketplaceProductId: product._id,
+          templateId: product._id,
           carouselTitle: title,
+          // Snapshot the product so the carousel renders immediately and the
+          // entry survives even if the underlying template is later removed.
+          itemName: product.title,
+          itemImageUrl:
+            product.primaryImage || product.images?.[0]?.url || "",
+          itemDescription: product.description || "",
+          itemPrice: Number(product.price?.amount ?? 0),
+          mintLimit: product.inventory?.available ?? undefined,
         })),
         template: {},
       };
