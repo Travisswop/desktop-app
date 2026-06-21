@@ -378,6 +378,80 @@ export function buildPerpsActiveLimitOrderSnapshot({
   };
 }
 
+export function buildPerpsReconcileSnapshotKey({
+  masterAddress,
+  priceMapState,
+  observedDexes = [],
+  activePositionKeys,
+  activeLimitOrders = [],
+  liquidationsByCoin = {},
+  closedFillsByCoin = {},
+}: {
+  masterAddress: string;
+  priceMapState: string;
+  observedDexes?: Array<string | null | undefined>;
+  activePositionKeys: string[];
+  activeLimitOrders?: PerpsActiveLimitOrderSnapshot[];
+  liquidationsByCoin?: Record<
+    string,
+    PerpsLiquidationFillSnapshot | null | undefined
+  >;
+  closedFillsByCoin?: Record<string, PerpsCloseFillSnapshot | null | undefined>;
+}) {
+  const liquidations = Object.values(liquidationsByCoin)
+    .filter(
+      (fill): fill is PerpsLiquidationFillSnapshot =>
+        Boolean(fill?.coin || fill?.orderId || fill?.timestamp),
+    )
+    .map((fill) =>
+      [
+        'liquidation',
+        normalizePerpsCoin(fill.coin),
+        fill.orderId || '',
+        fill.timestamp || '',
+        fill.px ?? '',
+        fill.markPx ?? '',
+      ].join('='),
+    )
+    .sort();
+
+  const closes = Object.values(closedFillsByCoin)
+    .filter(
+      (fill): fill is PerpsCloseFillSnapshot =>
+        Boolean(fill?.coin || fill?.orderId || fill?.timestamp),
+    )
+    .map((fill) =>
+      [
+        'close',
+        normalizePerpsCoin(fill.coin),
+        fill.orderId || '',
+        fill.timestamp || '',
+        fill.px ?? '',
+        fill.closedPnl ?? '',
+      ].join('='),
+    )
+    .sort();
+
+  return [
+    masterAddress,
+    priceMapState,
+    `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
+    ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
+    ...activeLimitOrders
+      .map((order) =>
+        [
+          'limit',
+          order.positionKey.toLowerCase(),
+          order.orderId || '',
+          order.limitPrice,
+        ].join('='),
+      )
+      .sort(),
+    ...liquidations,
+    ...closes,
+  ].join(':');
+}
+
 function isTerminalCloseFill(fill: PerpsFillLike) {
   const startPosition = maybePerpsFeedNumber(fill.startPosition);
   const signedSize = fillSignedSize(fill);

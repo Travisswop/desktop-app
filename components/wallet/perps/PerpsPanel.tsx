@@ -49,6 +49,7 @@ import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
+  buildPerpsReconcileSnapshotKey,
   inferPerpsCloseFillsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
@@ -627,22 +628,16 @@ export function PerpsPanel({
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    const reconcileSnapshotKey = [
+    const closedFillsByCoin = inferPerpsCloseFillsByCoin(fills);
+    const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
       masterAddress,
-      Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
-      `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
-      ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
-      ...activeLimitOrders
-        .map((order) =>
-          [
-            'limit',
-            order.positionKey.toLowerCase(),
-            order.orderId || '',
-            order.limitPrice,
-          ].join('='),
-        )
-        .sort(),
-    ].join(':');
+      priceMapState:
+        Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
+      observedDexes,
+      activePositionKeys,
+      activeLimitOrders,
+      closedFillsByCoin,
+    });
 
     if (!reconciledPositionSnapshotsRef.current.has(reconcileSnapshotKey)) {
       reconciledPositionSnapshotsRef.current.add(reconcileSnapshotKey);
@@ -655,7 +650,7 @@ export function PerpsPanel({
         activeLimitOrders,
         observedDexes,
         markPricesByCoin: mids,
-        closedFillsByCoin: inferPerpsCloseFillsByCoin(fills),
+        closedFillsByCoin,
       }).catch((feedError) => {
         reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
         console.warn('Failed to reconcile perps feed cards:', feedError);

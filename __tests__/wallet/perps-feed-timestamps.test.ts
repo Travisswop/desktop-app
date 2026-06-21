@@ -1,6 +1,7 @@
 import {
   buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
+  buildPerpsReconcileSnapshotKey,
   inferPerpsCloseFillsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
@@ -185,6 +186,40 @@ describe('perps feed timestamps', () => {
     ]);
 
     expect(closeFills.BTC?.px).toBe(104500);
+  });
+
+  it('changes the reconcile snapshot when a terminal close fill arrives later', () => {
+    const beforeFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      priceMapState: 'mids-ready',
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      closedFillsByCoin: {},
+    });
+    const afterFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      priceMapState: 'mids-ready',
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      closedFillsByCoin: inferPerpsCloseFillsByCoin([
+        {
+          coin: 'ETH',
+          side: 'A',
+          sz: '0.3171',
+          startPosition: '0.3171',
+          px: '1735',
+          closedPnl: '9.19',
+          fee: '0.38',
+          time: Date.parse('2026-06-15T11:45:00Z'),
+          oid: 555,
+        },
+      ]),
+    });
+
+    expect(afterFill).not.toBe(beforeFill);
+    expect(afterFill).toContain('close=ETH=555=2026-06-15T11:45:00.000Z');
   });
 
   it('maps long reduce-only triggers to take-profit and stop-loss prices', () => {
