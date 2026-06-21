@@ -49,6 +49,7 @@ import {
   getSportSubcategoryById,
 } from '@/constants/polymarket';
 import { createPollingInterval } from '@/lib/polymarket/polling';
+import { formatPolymarketError } from '@/lib/polymarket';
 import {
   useMarketDetailStore,
   marketRouteKey,
@@ -1731,7 +1732,7 @@ function formatRedeemError(error: unknown) {
     return message.replace('PRECHECK_SKIPPED: redeem skipped: ', '');
   }
 
-  return message || 'Could not redeem this payout. Please try again.';
+  return formatPolymarketError(error);
 }
 
 interface MyBetsViewProps {

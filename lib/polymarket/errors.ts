@@ -5,6 +5,10 @@
 
 const ERROR_MAP: Array<[RegExp | string, string]> = [
   // ── viem / RPC internal errors ────────────────────────────────────────────
+  [/Polygon network is temporarily unavailable/i, 'Polygon network is temporarily unavailable. Please try again shortly.'],
+  [/App is inactive/i,                  'Trading payout service is temporarily unable to reach Polygon. Please try again shortly.'],
+  [/polygon-mainnet\.g\.alchemy\.com/i, 'Trading payout service is temporarily unable to reach Polygon. Please try again shortly.'],
+  [/SERVER_ERROR.*403/i,                'Trading payout service is temporarily unable to reach Polygon. Please try again shortly.'],
   [/internal error/i,                      'Something went wrong on the network. Please try again.'],
   [/request limit exceeded/i,              'Too many requests. Please wait a moment and try again.'],
   [/rate limit/i,                          'Rate limit reached. Please wait a moment and try again.'],
