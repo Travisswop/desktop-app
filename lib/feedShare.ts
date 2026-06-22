@@ -193,6 +193,24 @@ function swapText(feed: FeedLike, author: string) {
   return `${author} swapped ${inputAmount} ${inputSymbol} for ${outputAmount} ${outputSymbol} on Swop.`;
 }
 
+function defiText(feed: FeedLike, author: string) {
+  const content = feed.content || {};
+  const action = firstText(content.action).toLowerCase();
+  const verb = action === 'borrow' ? 'borrowed' : 'supplied';
+  const amount = formatAmount(content.amount);
+  const symbol = firstText(content.symbol) || 'USDC';
+  const protocol = firstText(content.protocol) || 'Aave v3';
+  const rate = formatSignedPercent(content.aaveRate ?? content.supplyApy);
+
+  return [
+    `${author} ${verb} ${amount} ${symbol} on ${protocol}`,
+    rate ? `at ${rate.replace(/^\+/, '')} APY` : '',
+    'on Swop.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 function genericText(feed: FeedLike | null | undefined, author: string) {
   const content = feed?.content || {};
   const title = firstText(
@@ -211,6 +229,9 @@ function feedShareText(feed?: FeedLike | null) {
   if (feed.postType === 'prediction') return predictionText(feed, author);
   if (feed.postType === 'perpsPosition') return perpsText(feed, author);
   if (feed.postType === 'swapTransaction') return swapText(feed, author);
+  if (feed.postType === 'defiPosition' || feed.postType === 'aavePosition') {
+    return defiText(feed, author);
+  }
   return genericText(feed, author);
 }
 

@@ -25,6 +25,13 @@ const MODE_COPY: Record<
 
 type Step = 'idle' | 'approving' | 'confirming' | 'success';
 
+export interface AaveActionSuccessDetails {
+  mode: AaveActionMode;
+  amount: number;
+  amountUsd: number;
+  reserve: AaveReserve;
+}
+
 interface AaveActionModalProps {
   mode: AaveActionMode;
   chain: AaveChain;
@@ -35,7 +42,7 @@ interface AaveActionModalProps {
   /** Existing position for withdraw / repay flows */
   position?: AavePosition | null;
   onClose: () => void;
-  onSuccess: (txHash: string) => void;
+  onSuccess: (txHash: string, details: AaveActionSuccessDetails) => void;
 }
 
 const formatUsd = (value: number) =>
@@ -156,7 +163,12 @@ export function AaveActionModal({
         (progress) => setStep(progress),
       );
       setStep('success');
-      onSuccess(hash);
+      onSuccess(hash, {
+        mode,
+        amount: Number(amount),
+        amountUsd: usdEstimate ?? 0,
+        reserve,
+      });
     } catch (err) {
       setStep('idle');
       setError(

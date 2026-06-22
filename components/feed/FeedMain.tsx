@@ -22,6 +22,7 @@ import PostFeed from "./PostFeed";
 import CustomModal from "../modal/CustomModal";
 import { useModalStore } from "@/zustandStore/modalstore";
 import FeedMarketTicker from "./FeedMarketTicker";
+import AaveFeedBackfill from "./AaveFeedBackfill";
 
 // Constants to avoid duplication
 const CONTAINER_HEIGHT = "calc(100vh - 150px)";
@@ -302,6 +303,8 @@ const MainContentInner = memo(
         className={`${CONTAINER_WIDTH} overflow-y-auto`}
       >
         {/* post new feed Modal */}
+        <AaveFeedBackfill />
+
         <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Posts">
           <PostFeed {...postFeedProps} />
         </CustomModal>

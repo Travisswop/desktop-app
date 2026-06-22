@@ -10,6 +10,7 @@ import CustomModal from "../modal/CustomModal";
 import { useModalStore } from "@/zustandStore/modalstore";
 import PerpsFeedBackfill from "./PerpsFeedBackfill";
 import FeedMarketTicker from "./FeedMarketTicker";
+import AaveFeedBackfill from "./AaveFeedBackfill";
 
 const CONTAINER_WIDTH = "w-full sm:w-[520px]";
 
@@ -73,6 +74,7 @@ export default function FeedMainV2({
           }
         >
           <PerpsFeedBackfill />
+          <AaveFeedBackfill />
 
           <CustomModal isOpen={isOpen} onClose={closeModal} title="Create Post">
             <PostFeed

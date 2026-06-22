@@ -15,6 +15,7 @@ import logger from '@/utils/logger';
 import PredictionFeedCard from './PredictionFeedCard';
 import PerpsPositionFeedCard from './PerpsPositionFeedCard';
 import PerpsFeedCard from './PerpsFeedCard';
+import DefiFeedCard from './DefiFeedCard';
 
 interface FeedItemType {
   _id: string;
@@ -297,6 +298,12 @@ const FeedPostContent = ({
           }
           createdAt={feed.createdAt}
         />
+      )}
+
+      {/* Aave DeFi supply / borrow */}
+      {(feed.postType === 'defiPosition' ||
+        feed.postType === 'aavePosition') && (
+        <DefiFeedCard content={feed.content} />
       )}
 
       {/* Transaction */}

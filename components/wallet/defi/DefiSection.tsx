@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -17,10 +17,17 @@ import type {
   AaveReserve,
 } from '@/types/aave';
 import { AaveTokenIcon } from './AaveTokenIcon';
-import { AaveActionModal } from './AaveActionModal';
+import {
+  AaveActionModal,
+  type AaveActionSuccessDetails,
+} from './AaveActionModal';
 import { useAaveMarkets, useAavePositions } from './hooks/useAaveData';
 import { sortAaveReservesBySupplyApy } from './aaveMarketSorting';
 import type { AaveSupplyApySortDirection } from './aaveMarketSorting';
+import { buildAaveFeedContent } from '@/lib/defi/defiFeed';
+import { upsertAavePositionFeed } from '@/lib/defi/defiFeedSync';
+import { resolvePerpsFeedSmartsiteId } from '@/lib/perps/perpsFeed';
+import { useUser } from '@/lib/UserContext';
 
 type DefiTab = 'markets' | 'supply' | 'borrow';
 
@@ -75,6 +82,7 @@ export function DefiSection({
   evmWalletAddress,
 }: DefiSectionProps) {
   const queryClient = useQueryClient();
+  const { user, primaryMicrosite } = useUser();
 
   const [chain, setChain] = useState<AaveChain>('ethereum');
   const [tab, setTab] = useState<DefiTab>('markets');
@@ -129,6 +137,33 @@ export function DefiSection({
     queryClient.invalidateQueries({ queryKey: ['aave-positions', chain] });
     queryClient.invalidateQueries({ queryKey: ['aave-markets', chain] });
   };
+
+  const publishAaveFeedPost = useCallback(
+    (txHash: string, details: AaveActionSuccessDetails) => {
+      const content = buildAaveFeedContent({
+        mode: details.mode,
+        chain,
+        txHash,
+        reserve: details.reserve,
+        amount: details.amount,
+        amountUsd: details.amountUsd,
+        walletAddress: evmWalletAddress,
+      });
+      const smartsiteId = resolvePerpsFeedSmartsiteId(user, primaryMicrosite);
+      if (!content || !accessToken || !smartsiteId || !user?._id) return;
+
+      upsertAavePositionFeed({
+        token: accessToken,
+        userId: user._id,
+        smartsiteId,
+        content,
+      })
+        .catch((error) => {
+          console.error('Failed to post Aave activity to feed:', error);
+        });
+    },
+    [accessToken, chain, evmWalletAddress, primaryMicrosite, user],
+  );
 
   const openAction = (
     mode: AaveActionMode,
@@ -369,7 +404,8 @@ export function DefiSection({
           account={account}
           position={modal.position}
           onClose={() => setModal(null)}
-          onSuccess={() => {
+          onSuccess={(txHash, details) => {
+            publishAaveFeedPost(txHash, details);
             // refetch after a short delay so the RPC view catches up
             setTimeout(refreshPositions, 2500);
           }}
