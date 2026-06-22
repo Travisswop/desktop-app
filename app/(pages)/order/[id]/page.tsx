@@ -7,12 +7,10 @@ import OrderDetailScreen, {
 } from '@/components/order/OrderDetailScreen';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  completeMarketplacePayment,
   confirmMarketplaceReceipt,
   downloadMarketplaceDigitalAsset,
   getMarketplaceOrder,
   getMarketplaceReceipt,
-  submitMarketplacePayment,
   updateMarketplaceShipping,
   type MarketplaceDigitalAsset,
   type MarketplaceOrder,
@@ -97,41 +95,6 @@ export default function OrderDetailPage({ params }: Props) {
       cancelled = true;
     };
   }, [id, user, accessToken, load]);
-
-  const handleCompletePayment = useCallback(
-    async (payload: {
-      method: 'wallet' | 'stripe';
-      txHash?: string;
-      paymentIntentId?: string;
-    }) => {
-      if (!accessToken || !order) return;
-      setActionLoading(true);
-      setActionError(null);
-      try {
-        const result =
-          payload.method === 'wallet'
-            ? await submitMarketplacePayment(
-                accessToken,
-                order._id || order.orderId,
-                payload
-              )
-            : await completeMarketplacePayment(
-                accessToken,
-                order._id || order.orderId,
-                payload
-              );
-        replaceOrder(result.order, result.order.receipt);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to complete payment.';
-        setActionError(message);
-        throw err;
-      } finally {
-        setActionLoading(false);
-      }
-    },
-    [accessToken, order, replaceOrder]
-  );
 
   const handleUpdateShipping = useCallback(
     async (payload: {
@@ -242,7 +205,6 @@ export default function OrderDetailPage({ params }: Props) {
               backHref="/order"
               actionLoading={actionLoading}
               actionError={actionError}
-              onCompletePayment={handleCompletePayment}
               onUpdateShipping={handleUpdateShipping}
               onConfirmReceipt={handleConfirmReceipt}
               onDownloadDigitalAsset={handleDownloadDigitalAsset}
