@@ -125,6 +125,43 @@ export type MarketplaceParty = {
   wallet?: { address?: string };
 };
 
+// True only for shippable orders that have nothing left to do: a delivery
+// flow exists (requiresShipping) and confirmations are pending.
+export function orderRequiresShippingFlow(order: MarketplaceOrder) {
+  return (
+    Boolean(order.fulfillment?.requiresShipping) ||
+    (order.fulfillment?.status !== undefined &&
+      order.fulfillment.status !== 'not_required')
+  );
+}
+
+// The seller has independently confirmed the shipment was delivered.
+export function sellerConfirmedDelivery(order: MarketplaceOrder) {
+  const fulfillment = order.fulfillment;
+  return Boolean(
+    fulfillment?.releaseConditions?.shippingConfirmed ||
+      fulfillment?.deliveredAt ||
+      fulfillment?.status === 'delivered'
+  );
+}
+
+// The buyer has independently confirmed they received the order.
+export function buyerConfirmedReceipt(order: MarketplaceOrder) {
+  const fulfillment = order.fulfillment;
+  return Boolean(
+    fulfillment?.releaseConditions?.customerReceiptConfirmed ||
+      fulfillment?.receiptConfirmedAt ||
+      fulfillment?.status === 'receipt_confirmed'
+  );
+}
+
+// A shippable order is only "delivered/complete" once BOTH parties confirm —
+// the seller confirms delivery AND the buyer confirms receipt. Until then it
+// stays pending, regardless of settlement release or auto-completion.
+export function deliveryFullyConfirmed(order: MarketplaceOrder) {
+  return sellerConfirmedDelivery(order) && buyerConfirmedReceipt(order);
+}
+
 export type MarketplaceOrderLine = {
   productId?: string;
   quantity: number;

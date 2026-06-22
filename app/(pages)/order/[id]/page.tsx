@@ -8,9 +8,11 @@ import OrderDetailScreen, {
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   confirmMarketplaceReceipt,
+  deliveryFullyConfirmed,
   downloadMarketplaceDigitalAsset,
   getMarketplaceOrder,
   getMarketplaceReceipt,
+  orderRequiresShippingFlow,
   updateMarketplaceShipping,
   type MarketplaceDigitalAsset,
   type MarketplaceOrder,
@@ -286,26 +288,31 @@ function deliveryLabel(order: MarketplaceOrder, role: 'buyer' | 'seller') {
     return 'Cancel';
   }
   if (order.payment?.status === 'refunded') return 'Refunded';
-  if (order.fulfillment?.status === 'receipt_confirmed') {
+
+  // Digital / no-shipping orders complete as soon as payment clears.
+  if (!orderRequiresShippingFlow(order)) {
+    return order.payment?.status === 'completed'
+      ? role === 'buyer'
+        ? 'Delivered'
+        : 'Complete'
+      : 'Pending';
+  }
+
+  // Shippable orders are only complete once BOTH the seller confirms delivery
+  // and the buyer confirms receipt. Until then they stay pending, regardless of
+  // settlement release or auto-completion.
+  if (deliveryFullyConfirmed(order)) {
     return role === 'buyer' ? 'Delivered' : 'Complete';
   }
-  if (order.settlement?.status === 'released' || order.status === 'completed') {
-    return role === 'buyer' ? 'Delivered' : 'Complete';
+
+  if (
+    order.fulfillment?.status === 'shipped' ||
+    order.fulfillment?.status === 'out_for_delivery'
+  ) {
+    return 'In transit';
   }
-  switch (order.fulfillment?.status) {
-    case 'delivered':
-      return 'Delivered';
-    case 'shipped':
-    case 'out_for_delivery':
-      return 'In transit';
-    case 'processing':
-    case 'pending':
-      return 'Processing';
-    case 'not_required':
-      return order.payment?.status === 'completed' ? 'Complete' : 'Pending';
-    default:
-      return order.payment?.status === 'completed' ? 'Processing' : 'Pending';
-  }
+
+  return 'Pending';
 }
 
 function partyName(party?: MarketplaceParty | null) {

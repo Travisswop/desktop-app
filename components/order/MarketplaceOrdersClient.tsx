@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser } from '@/lib/UserContext';
 import {
+  deliveryFullyConfirmed,
   listMarketplaceOrders,
+  orderRequiresShippingFlow,
   type MarketplaceOrder,
   type MarketplaceParty,
 } from '@/lib/marketplace-api';
@@ -227,31 +229,34 @@ function deliveryLabel(
 
   if (tab === 'Payments') {
     if (order.settlement?.status === 'released') return 'Settled';
-    if (order.payment?.status === 'completed') return 'Pending';
     return 'Pending';
   }
 
-  if (order.fulfillment?.status === 'receipt_confirmed') {
-    return role === 'buyer' ? 'Delivered' : 'Complete';
+  // Digital / no-shipping orders have no delivery or receipt to confirm — they
+  // complete as soon as payment clears.
+  if (!orderRequiresShippingFlow(order)) {
+    return order.payment?.status === 'completed'
+      ? role === 'buyer'
+        ? 'Delivered'
+        : 'Complete'
+      : 'Pending';
   }
-  if (order.settlement?.status === 'released' || order.status === 'completed') {
+
+  // Shippable orders are only complete once BOTH the seller confirms delivery
+  // and the buyer confirms receipt. Settlement release / auto-completion alone
+  // does not mark them delivered — they stay pending until both confirm.
+  if (deliveryFullyConfirmed(order)) {
     return role === 'buyer' ? 'Delivered' : 'Complete';
   }
 
-  switch (order.fulfillment?.status) {
-    case 'delivered':
-      return 'Delivered';
-    case 'shipped':
-    case 'out_for_delivery':
-      return 'In transit';
-    case 'processing':
-    case 'pending':
-      return 'Processing';
-    case 'not_required':
-      return order.payment?.status === 'completed' ? 'Complete' : 'Pending';
-    default:
-      return order.payment?.status === 'completed' ? 'Processing' : 'Pending';
+  if (
+    order.fulfillment?.status === 'shipped' ||
+    order.fulfillment?.status === 'out_for_delivery'
+  ) {
+    return 'In transit';
   }
+
+  return 'Pending';
 }
 
 function formatDate(value: string) {
