@@ -301,6 +301,80 @@ function isEmbeddedWalletAlreadyExistsError(error: unknown) {
   );
 }
 
+function checkoutErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message || '');
+  }
+  return '';
+}
+
+// Turns raw SDK/network errors (e.g. Privy's
+// `[POST] "/api/v1/wallets/authenticate": <no response> [TimeoutError]: The
+// operation was aborted due to timeout`) into copy a shopper can act on.
+function humanizeCheckoutError(error: unknown, fallback: string) {
+  const raw = checkoutErrorMessage(error).trim();
+  const message = raw.toLowerCase();
+
+  if (!message) return fallback;
+
+  if (
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('aborted due to timeout') ||
+    message.includes('<no response>') ||
+    message.includes('etimedout')
+  ) {
+    return 'The connection timed out before we could reach your wallet. Check your internet and try again.';
+  }
+
+  if (
+    message.includes('user rejected') ||
+    message.includes('user denied') ||
+    message.includes('request rejected') ||
+    message.includes('user cancelled') ||
+    message.includes('user canceled') ||
+    message.includes('rejected the request')
+  ) {
+    return 'You cancelled the request in your wallet. Try again when you’re ready to approve it.';
+  }
+
+  if (
+    message.includes('insufficient funds') ||
+    message.includes('insufficient balance')
+  ) {
+    return 'Your wallet doesn’t have enough balance to cover this payment plus network fees.';
+  }
+
+  if (
+    message.includes('network error') ||
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('err_network') ||
+    message.includes('econnreset') ||
+    message.includes('econnrefused')
+  ) {
+    return 'We couldn’t reach the network. Check your connection and try again.';
+  }
+
+  if (message.includes('429') || message.includes('rate limit')) {
+    return 'Too many requests right now. Wait a moment and try again.';
+  }
+
+  // Don't surface raw status-line/stack noise to shoppers.
+  if (
+    raw.startsWith('[POST]') ||
+    raw.startsWith('[GET]') ||
+    message.includes('xhr') ||
+    /\b[45]\d{2}\b/.test(raw)
+  ) {
+    return fallback;
+  }
+
+  return raw;
+}
+
 function isPrivyEmbeddedWallet(wallet: unknown) {
   if (!wallet || typeof wallet !== 'object') return false;
   const walletRecord = wallet as {
@@ -815,11 +889,7 @@ export default function CheckoutPaymentClient({
         setStage(SUCCESS_STATUSES.has(nextIntent.status) ? 'completed' : 'idle');
       } catch (loadError) {
         if (cancelled) return;
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Unable to load checkout'
-        );
+        setError(humanizeCheckoutError(loadError, 'Unable to load checkout'));
         setStage('failed');
       }
     }
@@ -1055,11 +1125,7 @@ export default function CheckoutPaymentClient({
       toast.success('Wallet created');
       await refetch();
     } catch (walletError) {
-      setError(
-        walletError instanceof Error
-          ? walletError.message
-          : 'Unable to create wallet'
-      );
+      setError(humanizeCheckoutError(walletError, 'Unable to create wallet'));
     } finally {
       setCreatingWallet(false);
     }
@@ -1086,9 +1152,7 @@ export default function CheckoutPaymentClient({
       }, 3000);
     } catch (walletError) {
       setError(
-        walletError instanceof Error
-          ? walletError.message
-          : 'Unable to prepare Swop wallet'
+        humanizeCheckoutError(walletError, 'Unable to prepare Swop wallet')
       );
     } finally {
       setRestoringWallet(false);
@@ -1103,9 +1167,7 @@ export default function CheckoutPaymentClient({
       await refetch();
     } catch (connectError) {
       setError(
-        connectError instanceof Error
-          ? connectError.message
-          : 'Unable to connect wallet'
+        humanizeCheckoutError(connectError, 'Unable to connect wallet')
       );
     } finally {
       setConnectingWallet(false);
@@ -1390,8 +1452,7 @@ export default function CheckoutPaymentClient({
       setStage('completed');
       toast.success('Payment sent');
     } catch (payError) {
-      const message =
-        payError instanceof Error ? payError.message : 'Payment failed';
+      const message = humanizeCheckoutError(payError, 'Payment failed');
       setError(message);
       setStage('failed');
       toast.error(message);
