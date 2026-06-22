@@ -6,6 +6,7 @@ import OrderDetailScreen, {
   type OrderDetail,
 } from '@/components/order/OrderDetailScreen';
 import { Skeleton } from '@/components/ui/skeleton';
+import { createOrderDispute } from '@/actions/disputeActions';
 import {
   confirmMarketplaceReceipt,
   deliveryFullyConfirmed,
@@ -152,6 +153,44 @@ export default function OrderDetailPage({ params }: Props) {
     [accessToken, order, replaceOrder]
   );
 
+  const handleDispute = useCallback(
+    async (payload: { reason: string }) => {
+      if (!accessToken || !order || !user?._id) return;
+      setActionLoading(true);
+      setActionError(null);
+      try {
+        const result = await createOrderDispute(
+          order._id || order.orderId,
+          {
+            reason: payload.reason,
+            category: 'other',
+            description: payload.reason,
+            priority: 'medium',
+          },
+          accessToken
+        );
+        if (!result?.success) {
+          throw new Error(result?.message || 'Failed to open dispute.');
+        }
+        // Re-fetch so the order reflects its new disputed state.
+        const refreshed = await load(
+          order._id || order.orderId,
+          accessToken,
+          user._id
+        );
+        setOrder(refreshed);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to open dispute.';
+        setActionError(message);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [accessToken, order, user?._id, load]
+  );
+
   const handleDownloadDigitalAsset = useCallback(
     async (line: { productId: string | null; digitalAsset?: MarketplaceDigitalAsset | null }) => {
       if (!accessToken || !order || !line.productId) return;
@@ -209,6 +248,7 @@ export default function OrderDetailPage({ params }: Props) {
               actionError={actionError}
               onUpdateShipping={handleUpdateShipping}
               onConfirmReceipt={handleConfirmReceipt}
+              onDispute={handleDispute}
               onDownloadDigitalAsset={handleDownloadDigitalAsset}
             />
           ) : (

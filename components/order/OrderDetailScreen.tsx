@@ -232,6 +232,7 @@ export default function OrderDetailScreen({
   onCompletePayment,
   onUpdateShipping,
   onConfirmReceipt,
+  onDispute,
   onDownloadDigitalAsset,
 }: {
   order: OrderDetail;
@@ -254,6 +255,7 @@ export default function OrderDetailScreen({
     rating?: number;
     feedback?: string;
   }) => Promise<void>;
+  onDispute?: (payload: { reason: string }) => Promise<void>;
   onDownloadDigitalAsset?: (line: OrderLine) => Promise<void>;
 }) {
   const router = useRouter();
@@ -293,6 +295,37 @@ export default function OrderDetailScreen({
     txHash: '',
     paymentIntentId: '',
   });
+  // Confirmation modal shared by the "Confirm order received" and "Dispute"
+  // buttons — neither action runs until the buyer confirms in the popup.
+  const [confirmKind, setConfirmKind] = useState<'receipt' | 'dispute' | null>(
+    null
+  );
+  const [disputeReason, setDisputeReason] = useState('');
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+
+  const closeConfirm = () => {
+    if (confirmSubmitting) return;
+    setConfirmKind(null);
+    setDisputeReason('');
+  };
+
+  const handleConfirmModalSubmit = async () => {
+    if (confirmSubmitting) return;
+    setConfirmSubmitting(true);
+    try {
+      if (confirmKind === 'receipt') {
+        if (onConfirmReceipt) await onConfirmReceipt({});
+      } else if (confirmKind === 'dispute') {
+        if (onDispute) await onDispute({ reason: disputeReason.trim() });
+      }
+      setConfirmKind(null);
+      setDisputeReason('');
+    } catch {
+      // Error surfaces via actionError; keep the modal open so the buyer can retry.
+    } finally {
+      setConfirmSubmitting(false);
+    }
+  };
 
   const lineSubtotal = useMemo(
     () => order.lines.reduce((acc, l) => acc + l.price * l.quantity, 0),
@@ -307,6 +340,8 @@ export default function OrderDetailScreen({
   );
   const canConfirmReceipt =
     isBuyerCtx && requiresShipping && paymentComplete && !receiptConfirmed;
+  const canDispute =
+    isBuyerCtx && paymentComplete && !receiptConfirmed && Boolean(onDispute);
   const canUpdateShipping =
     !isBuyerCtx && requiresShipping && paymentComplete && Boolean(onUpdateShipping);
   const canCompletePayment =
@@ -621,8 +656,8 @@ export default function OrderDetailScreen({
                   type="button"
                   disabled={!canConfirmReceipt || actionLoading}
                   onClick={() => {
-                    if (!onConfirmReceipt || !canConfirmReceipt) return;
-                    void onConfirmReceipt({}).catch(() => undefined);
+                    if (!canConfirmReceipt) return;
+                    setConfirmKind('receipt');
                   }}
                   style={buttonStyle(ghostBtn, !canConfirmReceipt || actionLoading)}
                 >
@@ -631,7 +666,15 @@ export default function OrderDetailScreen({
               ) : null}
               <button
                 type="button"
-                style={{ ...primaryBtn, padding: '12px 32px', borderRadius: 12 }}
+                disabled={!canDispute || actionLoading}
+                onClick={() => {
+                  if (!canDispute) return;
+                  setConfirmKind('dispute');
+                }}
+                style={buttonStyle(
+                  { ...primaryBtn, padding: '12px 32px', borderRadius: 12 },
+                  !canDispute || actionLoading
+                )}
               >
                 Dispute
               </button>
@@ -666,6 +709,16 @@ export default function OrderDetailScreen({
           ) : null}
         </div>
       </Card>
+
+      <ConfirmActionModal
+        kind={confirmKind}
+        reason={disputeReason}
+        setReason={setDisputeReason}
+        submitting={confirmSubmitting}
+        error={actionError}
+        onCancel={closeConfirm}
+        onConfirm={handleConfirmModalSubmit}
+      />
 
       <OrderStateCards order={order} />
 
@@ -725,6 +778,132 @@ export default function OrderDetailScreen({
         )}
       </div>
     </ScreenShell>
+  );
+}
+
+function ConfirmActionModal({
+  kind,
+  reason,
+  setReason,
+  submitting,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  kind: 'receipt' | 'dispute' | null;
+  reason: string;
+  setReason: Dispatch<SetStateAction<string>>;
+  submitting: boolean;
+  error?: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!kind) return null;
+
+  const isDispute = kind === 'dispute';
+  const title = isDispute ? 'Open a dispute' : 'Confirm order received';
+  const body = isDispute
+    ? 'Tell us what went wrong with this order. Opening a dispute pauses settlement while our team reviews it.'
+    : "Confirm that you've received this order. This releases the escrowed funds to the seller and can't be undone.";
+  const confirmLabel = isDispute ? 'Open dispute' : 'Yes, confirm receipt';
+  const confirmDisabled =
+    submitting || (isDispute && reason.trim().length === 0);
+  const confirmTone: CSSProperties = isDispute
+    ? { ...primaryBtn, background: '#b91c1c', borderColor: '#b91c1c' }
+    : primaryBtn;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        background: 'rgba(15,15,15,0.45)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: 440,
+          background: '#fff',
+          borderRadius: 16,
+          border: `1px solid ${hair}`,
+          boxShadow: '0 24px 60px rgba(0,0,0,0.22)',
+          padding: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}
+      >
+        <div style={{ fontSize: 17, fontWeight: 650, color: ink, letterSpacing: -0.2 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 13.5, lineHeight: 1.5, color: muted }}>{body}</div>
+
+        {isDispute ? (
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: ink }}>
+              Reason
+            </span>
+            <textarea
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Describe the issue with your order"
+              rows={3}
+              style={{
+                ...(inputStyle as CSSProperties),
+                resize: 'vertical',
+                minHeight: 72,
+              }}
+            />
+          </label>
+        ) : null}
+
+        {error ? (
+          <div
+            style={{
+              border: '1px solid rgba(185,28,28,0.18)',
+              background: 'rgba(185,28,28,0.06)',
+              color: '#b91c1c',
+              borderRadius: 8,
+              padding: '8px 10px',
+              fontSize: 12.5,
+              fontWeight: 500,
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            style={buttonStyle(ghostBtn, submitting)}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={confirmDisabled}
+            style={buttonStyle(confirmTone, confirmDisabled)}
+          >
+            {submitting ? 'Working…' : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
