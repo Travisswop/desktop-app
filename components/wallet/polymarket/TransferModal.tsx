@@ -2124,11 +2124,8 @@ function WithdrawTab({
           return await signWithDelegatedPrivy('sign-typed-data', {
             typedData: typedDataPayload,
           });
-        } catch (delegatedError) {
-          console.warn(
-            'Silent delegated withdrawal signing unavailable; using hidden Privy signing:',
-            delegatedError,
-          );
+        } catch {
+          // Expected when delegated signing is not configured; fall back silently.
         }
 
         const { signature } = await signTypedDataWithPrivy(
@@ -2175,11 +2172,8 @@ function WithdrawTab({
           return await signWithDelegatedPrivy('sign-message', {
             message: txHash,
           });
-        } catch (delegatedError) {
-          console.warn(
-            'Silent delegated withdrawal signing unavailable; falling back to wallet signing:',
-            delegatedError,
-          );
+        } catch {
+          // Expected when delegated signing is not configured; fall back silently.
         }
       }
 
