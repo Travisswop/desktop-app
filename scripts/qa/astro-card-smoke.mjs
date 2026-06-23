@@ -25,6 +25,150 @@ const FINAL_ACTION_PATTERNS = [
   /approve strategy/i,
 ];
 
+const CARD_COMMAND_CONTRACTS = [
+  {
+    step: 'page-auth',
+    command: 'open /dashboard/chat',
+    cardType: 'authenticated chat shell',
+    expectedMarkers: ['Messages', 'Astro'],
+    safeInteractions: ['select configured QA thread'],
+    forbiddenActions: [],
+    routeChecks: ['Chrome DevTools target must be /dashboard/chat'],
+    failureSignals: ['login screen instead of chat shell', 'blank page', 'framework error overlay'],
+    passCriteria: ['chat shell is authenticated', 'configured thread can be selected'],
+  },
+  {
+    step: 'portfolio-card',
+    command: 'show my portfolio',
+    cardType: 'portfolio allocation',
+    expectedMarkers: ['Portfolio allocation'],
+    safeInteractions: ['render-only'],
+    forbiddenActions: [],
+    routeChecks: ['wallet.read context available through Astro'],
+    failureSignals: ['plain-text-only answer', 'missing allocation card', 'stale wallet context'],
+    passCriteria: ['portfolio allocation card renders in chat'],
+  },
+  {
+    step: 'receive-qr-card',
+    command: 'show my receive QR for Solana',
+    cardType: 'receive QR',
+    expectedMarkers: ['RECEIVE QR', 'ADDRESS'],
+    safeInteractions: ['Copy address'],
+    forbiddenActions: [],
+    routeChecks: ['wallet.receive_qr payload includes Solana address data'],
+    failureSignals: ['missing QR/address card', 'copy button error', 'wrong network address'],
+    passCriteria: ['receive QR card renders', 'copy address control does not error'],
+  },
+  {
+    step: 'funding-onramp-card',
+    command: 'fund my wallet with 35 dollars',
+    cardType: 'Coinbase funding onramp',
+    expectedMarkers: ['Buy USDC in Swop', 'Coinbase'],
+    safeInteractions: ['Solana USDC destination selection'],
+    forbiddenActions: ['Buy USDC in Swop'],
+    routeChecks: ['funding/onramp card renders without opening final checkout'],
+    failureSignals: ['missing Coinbase card', 'destination selector disabled', 'final buy action clicked'],
+    passCriteria: ['funding card renders', 'Solana USDC destination can be selected'],
+  },
+  {
+    step: 'marketplace-card',
+    command: 'show marketplace products',
+    cardType: 'marketplace product results',
+    expectedMarkers: ['Found <n> marketplace item', 'or No marketplace items matched'],
+    safeInteractions: ['Open product tab, then close test tab'],
+    forbiddenActions: ['buy/checkout actions'],
+    routeChecks: ['marketplace.read returns product-card-compatible data'],
+    failureSignals: ['no routed marketplace result', 'Open button fails to launch /sp/ tab'],
+    passCriteria: ['marketplace read routes', 'product Open button works when data exists'],
+  },
+  {
+    step: 'pnl-card',
+    command: 'show my pnl',
+    cardType: 'PnL overview',
+    expectedMarkers: ['PNL SNAPSHOT'],
+    safeInteractions: ['render-only'],
+    forbiddenActions: [],
+    routeChecks: ['portfolio/perps position context available'],
+    failureSignals: ['missing PnL card', 'positions fail to embed'],
+    passCriteria: ['PnL snapshot card renders with embedded account context'],
+  },
+  {
+    step: 'chart-card',
+    command: '/chart ETH 1D',
+    cardType: 'market chart',
+    expectedMarkers: ['ETH-PERP', '1W', '1M', 'ALL'],
+    safeInteractions: ['1W range button'],
+    forbiddenActions: [],
+    routeChecks: ['chart market data loads for ETH-PERP'],
+    failureSignals: ['missing chart card', 'range buttons missing or disabled', 'chart data error'],
+    passCriteria: ['ETH chart card renders', 'range control updates without error'],
+  },
+  {
+    step: 'sports-research-card',
+    command: '/search Lakers injuries today',
+    cardType: 'sports research',
+    expectedMarkers: ['NBA injury report', 'ESPN', 'Lakers'],
+    safeInteractions: ['render-only'],
+    forbiddenActions: [],
+    routeChecks: ['/search routes to sports.research, not market order flow'],
+    failureSignals: ['research card missing', 'wrong route to betting markets', 'source/link content missing'],
+    passCriteria: ['ESPN-backed Lakers injury research card renders'],
+  },
+  {
+    step: 'wallet-send-card',
+    command: 'send 1 USDC to travis.swop.id',
+    cardType: 'wallet send proposal',
+    expectedMarkers: ['ARBITRUM', 'SOLANA', 'BASE', 'Confirm send'],
+    safeInteractions: ['S SOLANA network picker'],
+    forbiddenActions: ['Confirm send'],
+    routeChecks: ['wallet.write creates proposal only; no transaction is sent'],
+    failureSignals: ['missing network picker', 'recipient/token/amount not resolved', 'final send clicked'],
+    passCriteria: ['send card advances to review', 'Confirm send is visible but not clicked'],
+  },
+  {
+    step: 'perps-order-card',
+    command: 'long some oil with 5x',
+    cardType: 'perps order proposal',
+    expectedMarkers: ['PERPS NEW ORDER', 'BRENTOIL or PERP'],
+    safeInteractions: ['Short', 'Limit', 'TP/SL', '20x', '$500'],
+    forbiddenActions: ['Place order'],
+    routeChecks: ['oil/crude alias resolves to BRENTOIL proposal path'],
+    failureSignals: ['missing perps card', 'wrong oil alias', 'control disabled unexpectedly', 'final order clicked'],
+    passCriteria: ['perps ticket renders', 'safe controls can be toggled', 'final action remains unclicked'],
+  },
+  {
+    step: 'prediction-market-card',
+    command: 'what hockey games are tonight and the odds?',
+    cardType: 'prediction market odds',
+    expectedMarkers: ['Yes <price>', 'No <price>', 'Over <price>', 'Under <price>', 'moneyline', 'spread'],
+    safeInteractions: ['click one visible outcome to draft a ticket'],
+    forbiddenActions: ['Buy', 'Sell', 'Place order'],
+    routeChecks: ['sports prompt routes to Polymarket gamelines'],
+    failureSignals: ['no odds card', 'wrong league/window context', 'outcome click does not draft ticket'],
+    passCriteria: ['odds card renders', 'outcome click drafts ticket', 'final buy/sell is not clicked'],
+  },
+  {
+    step: 'swap-card',
+    command: 'swap 1 SWOP to USDC',
+    cardType: 'wallet swap quote',
+    expectedMarkers: ['SWOP', 'USDC', 'swap quote', 'BEST ROUTE', 'JUPITER or LIFI'],
+    safeInteractions: ['25% amount control when available'],
+    forbiddenActions: ['Sign & approve'],
+    routeChecks: [
+      'GET /api/jupiter/quote for configured SWOP/USDC mint pair',
+      'POST /api/jupiter/order when SWOP_QA_SWAP_TAKER or detected QA wallet is available',
+    ],
+    failureSignals: [
+      'Server Action "... " was not found',
+      'failed-to-find-server-action',
+      'Quote unavailable',
+      'Get a live quote before confirming this swap',
+      'missing Jupiter quote/order route',
+    ],
+    passCriteria: ['swap card renders a live quote', 'Jupiter quote route succeeds', 'final Sign & approve is not clicked'],
+  },
+];
+
 function parseArgs(argv) {
   const args = {
     launch: false,
@@ -77,6 +221,28 @@ function boolValue(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
 }
 
+function buildCardCommandContracts(args) {
+  const origin = appOrigin(args.url);
+  return CARD_COMMAND_CONTRACTS.map((contract) => {
+    if (contract.step !== 'swap-card') return { ...contract };
+    return {
+      ...contract,
+      routeChecks: [
+        `GET ${origin}/api/jupiter/quote inputMint=${args.swapInputMint} outputMint=${args.swapOutputMint} amount=${args.swapAmount}`,
+        args.swapTaker
+          ? `POST ${origin}/api/jupiter/order using configured SWOP_QA_SWAP_TAKER`
+          : `POST ${origin}/api/jupiter/order using detected QA wallet when available; otherwise warn and skip order build`,
+      ],
+      passCriteria: [
+        ...contract.passCriteria,
+        args.swapOrderRequired
+          ? 'configured QA taker must return transaction + requestId from Jupiter order build'
+          : 'order build is best-effort unless SWOP_QA_SWAP_ORDER_REQUIRED=true',
+      ],
+    };
+  });
+}
+
 function printHelp() {
   console.log(`Astro card smoke QA
 
@@ -110,14 +276,16 @@ function timestamp() {
   return new Date().toISOString();
 }
 
-function createStep(name) {
-  return {
+function createStep(name, contract = null) {
+  const step = {
     name,
     status: 'pending',
     startedAt: timestamp(),
     finishedAt: null,
     detail: '',
   };
+  if (contract) step.contract = contract;
+  return step;
 }
 
 function finishStep(step, status, detail = '') {
@@ -724,8 +892,11 @@ async function hasConfirmOnlyState(client) {
 }
 
 async function runCardChecks({ client, baseUrl, args, report }) {
+  const contractsByStep = new Map(
+    (report.cardContracts || []).map((contract) => [contract.step, contract])
+  );
   const add = (name) => {
-    const step = createStep(name);
+    const step = createStep(name, contractsByStep.get(name) || null);
     report.steps.push(step);
     return step;
   };
@@ -881,6 +1052,7 @@ async function tryPredictionOutcomeClick(client) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  const cardContracts = buildCardCommandContracts(args);
   const report = {
     name: 'astro-card-smoke',
     startedAt: timestamp(),
@@ -897,6 +1069,7 @@ async function main() {
       orderProbeConfigured: Boolean(args.swapTaker),
       orderRequired: args.swapOrderRequired,
     },
+    cardContracts,
     steps: [],
     warnings: [],
     alert: {
@@ -997,6 +1170,7 @@ async function main() {
     skipped: report.steps.filter((step) => step.status === 'skip').length,
     failed: report.steps.filter((step) => step.status === 'fail').length,
     warnings: report.warnings.length,
+    contracts: report.cardContracts.length,
     logDir: args.logDir,
   };
   if (args.json) console.log(JSON.stringify(summary, null, 2));
@@ -1015,6 +1189,31 @@ function writeReport(args, report) {
   const latestPath = path.join(args.logDir, 'latest.json');
   writeFileSync(latestPath, JSON.stringify(report, null, 2));
   return { reportPath, latestPath };
+}
+
+function renderEmailList(label, values) {
+  const list = Array.isArray(values) ? values.filter(Boolean) : [];
+  if (!list.length) return '';
+  return [`${label}:`, ...list.map((value) => `- ${value}`)].join('\n');
+}
+
+function formatStepContractForEmail(step) {
+  const contract = step?.contract;
+  if (!contract) return '';
+
+  return [
+    'Card/command contract:',
+    `- Command: ${contract.command || 'n/a'}`,
+    `- Card type: ${contract.cardType || 'n/a'}`,
+    renderEmailList('Expected markers', contract.expectedMarkers),
+    renderEmailList('Safe interactions', contract.safeInteractions),
+    renderEmailList('Forbidden actions', contract.forbiddenActions),
+    renderEmailList('Route/API checks', contract.routeChecks),
+    renderEmailList('Failure signals', contract.failureSignals),
+    renderEmailList('Pass criteria', contract.passCriteria),
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 async function sendFailureEmail(args, report, reportPath) {
@@ -1047,6 +1246,8 @@ async function sendFailureEmail(args, report, reportPath) {
     lastStep
       ? `Failing step: ${lastStep.name} (${lastStep.status})\n${lastStep.detail || ''}`
       : 'Failing step: unknown',
+    '',
+    lastStep ? formatStepContractForEmail(lastStep) : '',
     '',
     report.error ? `Error:\n${report.error}` : '',
     '',

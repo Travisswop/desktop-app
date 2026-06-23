@@ -56,6 +56,28 @@ It deliberately does not click final financial/signing actions:
 
 Those actions require manual confirmation or a staging/testnet wallet.
 
+## Card Command Contracts
+
+Every run writes a `cardContracts` catalog into `latest.json`, and each step
+copies its matching contract into `steps[].contract`. Failure emails include the
+failing step's contract so a recommendation or Kanban card has acceptance
+criteria without digging through logs.
+
+| Step | Command | Card type | Must prove | Safe interaction | Never clicks |
+| --- | --- | --- | --- | --- | --- |
+| `page-auth` | open `/dashboard/chat` | authenticated chat shell | `Messages`, `Astro`, configured QA thread | select QA thread | n/a |
+| `portfolio-card` | `show my portfolio` | portfolio allocation | `Portfolio allocation` card renders with wallet context | render only | n/a |
+| `receive-qr-card` | `show my receive QR for Solana` | receive QR | `RECEIVE QR`, `ADDRESS` | `Copy address` | n/a |
+| `funding-onramp-card` | `fund my wallet with 35 dollars` | Coinbase funding onramp | `Buy USDC in Swop`, `Coinbase` | select `Solana USDC` | `Buy USDC in Swop` |
+| `marketplace-card` | `show marketplace products` | marketplace products | product result or empty-state text | open and close product tab | checkout/buy |
+| `pnl-card` | `show my pnl` | PnL overview | `PNL SNAPSHOT` | render only | n/a |
+| `chart-card` | `/chart ETH 1D` | market chart | `ETH-PERP`, ranges | click `1W` | n/a |
+| `sports-research-card` | `/search Lakers injuries today` | sports research | `NBA injury report`, `ESPN`, `Lakers` | render only | n/a |
+| `wallet-send-card` | `send 1 USDC to travis.swop.id` | wallet send proposal | network picker then `Confirm send` review | select `S SOLANA` | `Confirm send` |
+| `perps-order-card` | `long some oil with 5x` | perps order proposal | oil routes to `BRENTOIL`/perps ticket | `Short`, `Limit`, `TP/SL`, `20x`, `$500` | `Place order` |
+| `prediction-market-card` | `what hockey games are tonight and the odds?` | prediction odds | hockey odds and draft ticket | click one outcome | buy/sell/place order |
+| `swap-card` | `swap 1 SWOP to USDC` | wallet swap quote | SWOP/USDC card, live quote, Jupiter route health | `25%` when available | `Sign & approve` |
+
 ## One-Time Login
 
 Open the dedicated QA Chrome profile and log in to Swop once:
@@ -117,7 +139,10 @@ For launchd, add an `EnvironmentVariables` block to the installed plist:
 ```
 
 The harness sends email only when the QA run fails. The email includes the
-target URL, `gitRef`, `gitSha`, report path, failing step, and error text.
+target URL, `gitRef`, `gitSha`, report path, failing step, error text, and the
+failing card/command contract: command, card type, expected markers, safe
+interactions, forbidden actions, route/API checks, failure signals, and pass
+criteria.
 
 This uses the local macOS `mail` command (`/usr/bin/mail` or `/bin/mail`), so
 outbound mail must be configured on the machine. If `mail` is unavailable or
