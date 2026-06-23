@@ -45,6 +45,17 @@ export interface WalletTokensResponse {
   tokens: Token[];
   totalValue: string;
   tokenCount: number;
+  degraded?: boolean;
+  errors?: WalletTokenFetchIssue[];
+  failedWalletCount?: number;
+  fetchedWalletCount?: number;
+}
+
+export interface WalletTokenFetchIssue {
+  address?: string;
+  chain?: string;
+  source?: string;
+  message?: string;
 }
 
 export interface WalletInput {

@@ -64,6 +64,14 @@ function titleCase(value: unknown) {
     .join(' ');
 }
 
+function normalizeDefiStatus(value: unknown, isBorrow: boolean) {
+  const status = String(value || '').trim().toLowerCase();
+  if (status === 'withdrawn' || status === 'withdraw') return 'withdrawn';
+  if (status === 'repaid' || status === 'repay') return 'repaid';
+  if (status === 'closed') return isBorrow ? 'repaid' : 'withdrawn';
+  return 'open';
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -147,6 +155,23 @@ export default function DefiFeedCard({ content }: DefiFeedCardProps) {
 
   const action = normalizeDefiAction(content.action);
   const isBorrow = action === 'borrow';
+  const status = normalizeDefiStatus(content.status, isBorrow);
+  const isClosed = status !== 'open';
+  const statusLabel = isBorrow
+    ? isClosed
+      ? 'Repaid'
+      : 'Borrowed'
+    : isClosed
+      ? 'Withdrawn'
+      : 'Supplied';
+  const positionNoun = isBorrow ? 'debt' : 'deposit';
+  const statusSubtitle = isBorrow
+    ? isClosed
+      ? 'Repaid to Aave'
+      : 'Borrowed from Aave'
+    : isClosed
+      ? 'Withdrawn from Aave'
+      : 'Supplied to Aave';
   const benchmark = getBenchmarkForDefiAction(action);
   const symbol = String(content.symbol || 'USDC').toUpperCase();
   const protocol = String(content.protocol || 'Aave v3');
@@ -282,12 +307,14 @@ export default function DefiFeedCard({ content }: DefiFeedCardProps) {
           <div className="flex items-start justify-between gap-3">
             <span
               className={`inline-flex rounded-[9px] border px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-[0.18em] ${
-                isBorrow
+                isClosed
+                  ? 'border-gray-200 bg-gray-100 text-gray-700'
+                  : isBorrow
                   ? 'border-rose-200 bg-rose-50 text-rose-600'
                   : 'border-emerald-200 bg-emerald-50 text-emerald-700'
               }`}
             >
-              {isBorrow ? 'Borrowed' : 'Supplied'}
+              {statusLabel}
             </span>
             <div className="min-w-0 text-right font-mono text-[11px] font-black text-gray-500">
               <span>on </span>
@@ -312,7 +339,7 @@ export default function DefiFeedCard({ content }: DefiFeedCardProps) {
                   {symbol}
                 </p>
                 <p className="truncate font-mono text-[10px] font-black text-gray-500">
-                  {isBorrow ? 'Borrowed from' : 'Supplied to'} Aave
+                  {statusSubtitle}
                 </p>
               </div>
             </div>
@@ -321,7 +348,7 @@ export default function DefiFeedCard({ content }: DefiFeedCardProps) {
                 {formatTokenAmount(amount)}
               </p>
               <p className="mt-1 font-mono text-[9px] font-black uppercase tracking-[0.16em] text-gray-500">
-                {symbol} {isBorrow ? 'debt' : 'deposited'}
+                {symbol} {isClosed ? statusLabel.toLowerCase() : positionNoun}
               </p>
             </div>
           </div>
@@ -339,7 +366,15 @@ export default function DefiFeedCard({ content }: DefiFeedCardProps) {
               ) : (
                 <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
               )}
-              <span>{isBorrow ? 'Variable borrow' : 'Earning interest'}</span>
+              <span>
+                {isClosed
+                  ? isBorrow
+                    ? 'Position repaid'
+                    : 'Position withdrawn'
+                  : isBorrow
+                    ? 'Variable borrow'
+                    : 'Earning interest'}
+              </span>
             </div>
             <div className="font-mono text-[15px] font-black">
               {formatPercent(aaveRate)}
@@ -595,7 +630,7 @@ export default function DefiFeedCard({ content }: DefiFeedCardProps) {
 
         <div className="grid grid-cols-3 gap-0 px-3 py-2.5 sm:px-3.5">
           <StatCell
-            label={isBorrow ? 'Borrowed' : 'Supplied'}
+            label={statusLabel}
             value={compactUsd.format(principalUsd)}
           />
           <StatCell

@@ -2,7 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
 import { ChainType } from '@/types/token';
-import { WalletService, Token, WalletInput } from '@/services/wallet-service';
+import {
+  WalletService,
+  Token,
+  WalletInput,
+  WalletTokenFetchIssue,
+  WalletTokensResponse,
+} from '@/services/wallet-service';
 import { useUser } from '@/lib/UserContext';
 import { apiFetch } from '@/lib/api/apiFetch';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
@@ -16,7 +22,39 @@ type TokenSnapshot = {
   tokens: TokenWithWallet[];
   totalValue: string;
   tokenCount: number;
+  degraded?: boolean;
+  errors?: WalletTokenFetchIssue[];
+  failedWalletCount?: number;
+  fetchedWalletCount?: number;
 };
+
+type RetryableWalletTokenError = Error & { retryable?: boolean };
+
+const createRetryableWalletTokenError = (): RetryableWalletTokenError => {
+  const error = new Error(
+    'Wallet token RPC providers temporarily unavailable'
+  ) as RetryableWalletTokenError;
+  error.retryable = true;
+  return error;
+};
+
+const shouldRetryEmptyWalletResult = (result: WalletTokensResponse) =>
+  Boolean(result.degraded && (result.tokens || []).length === 0);
+
+const throwIfEmptyDegraded = (result: WalletTokensResponse) => {
+  if (shouldRetryEmptyWalletResult(result)) {
+    throw createRetryableWalletTokenError();
+  }
+};
+
+const isAuthError = (error: unknown) =>
+  error instanceof Error && /\b(401|403)\b/.test(error.message);
+
+const isRetryableWalletTokenError = (
+  error: unknown
+): error is RetryableWalletTokenError =>
+  error instanceof Error &&
+  Boolean((error as RetryableWalletTokenError).retryable);
 
 const backendTokenCache = new Map<string, string>();
 const backendTokenRequests = new Map<string, Promise<string | null>>();
@@ -77,7 +115,7 @@ export const useMultiChainTokenData = (
   evmWalletAddress?: string | string[],
   chains: ChainType[] = ['ETHEREUM']
 ) => {
-  const { user, accessToken } = useUser();
+  const { user, accessToken, loading: userLoading } = useUser();
   const [cookieAccessToken, setCookieAccessToken] = useState<string | null>(
     null
   );
@@ -164,14 +202,17 @@ export const useMultiChainTokenData = (
     .sort()
     .join('|');
 
-  const tokenQueryEnabled = wallets.length > 0 && Boolean(authToken);
+  const canUseSessionCookieProxy =
+    typeof window !== 'undefined' && (userLoading || Boolean(user));
+  const tokenQueryEnabled =
+    wallets.length > 0 && Boolean(authToken || canUseSessionCookieProxy);
 
-  const tokenQuery = useQuery({
+  const tokenQuery = useQuery<TokenSnapshot>({
     queryKey: [
       'walletTokens',
-      'owner-address-batch-v1',
+      'owner-address-batch-v2',
       walletFingerprint,
-      authToken,
+      authToken || 'session-cookie',
     ],
     queryFn: async () => {
       const hasDuplicateChains =
@@ -179,19 +220,24 @@ export const useMultiChainTokenData = (
         wallets.length;
 
       if (hasDuplicateChains) {
-        const walletResults = await Promise.all(
+        const walletResponses = await Promise.all(
           wallets.map(async (wallet) => {
             const result = await WalletService.getWalletTokens(
               [wallet],
-              authToken
+              authToken || undefined
             );
-            return (result.tokens || []).map((token) => ({
-              ...token,
-              walletAddress: token.walletAddress || wallet.address,
-            }));
+            return { wallet, result };
           })
         );
-        const tokens = walletResults.flat();
+        const tokens = walletResponses.flatMap(({ wallet, result }) =>
+          (result.tokens || []).map((token) => ({
+            ...token,
+            walletAddress: token.walletAddress || wallet.address,
+          }))
+        );
+        const errors = walletResponses.flatMap(
+          ({ result }) => result.errors || []
+        );
         const totalValue = tokens.reduce((sum, token) => {
           const explicitValue = Number(token.value || 0);
           if (Number.isFinite(explicitValue) && explicitValue > 0) {
@@ -202,22 +248,39 @@ export const useMultiChainTokenData = (
           return sum + price * balance;
         }, 0);
 
-        return {
+        const combinedResult: WalletTokensResponse & {
+          tokens: TokenWithWallet[];
+        } = {
           tokens,
           totalValue: totalValue.toFixed(2),
           tokenCount: tokens.length,
+          degraded: walletResponses.some(({ result }) => result.degraded),
+          errors,
+          failedWalletCount: new Set(
+            errors.map(
+              (error) =>
+                `${error.chain || 'unknown'}:${String(
+                  error.address || ''
+                ).toLowerCase()}`
+            )
+          ).size,
+          fetchedWalletCount: walletResponses.length,
         };
+        throwIfEmptyDegraded(combinedResult);
+        return combinedResult;
       }
 
       const result = await WalletService.getWalletTokens(
         wallets,
-        authToken
+        authToken || undefined
       );
       const walletAddressByChain = new Map(
         wallets.map((wallet) => [wallet.chain, wallet.address])
       );
 
-      return {
+      const normalizedResult: WalletTokensResponse & {
+        tokens: TokenWithWallet[];
+      } = {
         tokens: (result.tokens || []).map((token) => ({
           ...token,
           walletAddress:
@@ -228,17 +291,29 @@ export const useMultiChainTokenData = (
         })),
         totalValue: result.totalValue,
         tokenCount: result.tokenCount,
+        degraded: result.degraded,
+        errors: result.errors,
+        failedWalletCount: result.failedWalletCount,
+        fetchedWalletCount: result.fetchedWalletCount,
       };
+      throwIfEmptyDegraded(normalizedResult);
+      return normalizedResult;
     },
     enabled: tokenQueryEnabled,
-    retry: false,
+    retry: (failureCount, error) => {
+      if (isAuthError(error)) return false;
+      if (isRetryableWalletTokenError(error)) return failureCount < 3;
+      return failureCount < 2;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
   });
 
   const data = useMemo<TokenSnapshot>(() => {
-    const tokens = tokenQuery.data?.tokens || [];
-    const totalValue = tokens.reduce((sum, token) => {
+    const tokens: TokenWithWallet[] = tokenQuery.data?.tokens || [];
+    const totalValue = tokens.reduce((sum: number, token: TokenWithWallet) => {
       const explicitValue = Number(token.value || 0);
       if (Number.isFinite(explicitValue) && explicitValue > 0) {
         return sum + explicitValue;
@@ -252,6 +327,10 @@ export const useMultiChainTokenData = (
       tokens,
       totalValue: tokenQuery.data?.totalValue || totalValue.toFixed(2),
       tokenCount: tokenQuery.data?.tokenCount ?? tokens.length,
+      degraded: tokenQuery.data?.degraded,
+      errors: tokenQuery.data?.errors,
+      failedWalletCount: tokenQuery.data?.failedWalletCount,
+      fetchedWalletCount: tokenQuery.data?.fetchedWalletCount,
     };
   }, [tokenQuery.data]);
 
@@ -296,5 +375,7 @@ export const useMultiChainTokenData = (
     refetch,
     totalValue: data?.totalValue || '0',
     tokenCount: data?.tokenCount || 0,
+    degraded: data?.degraded || false,
+    tokenErrors: data?.errors || [],
   };
 };

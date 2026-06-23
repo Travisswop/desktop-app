@@ -7,7 +7,10 @@ import {
   buildAavePositionFeedContent,
   type DefiFeedAction,
 } from '@/lib/defi/defiFeed';
-import { upsertAavePositionFeed } from '@/lib/defi/defiFeedSync';
+import {
+  reconcileAavePositionFeed,
+  upsertAavePositionFeed,
+} from '@/lib/defi/defiFeedSync';
 import { resolvePerpsFeedSmartsiteId } from '@/lib/perps/perpsFeed';
 import {
   getStoredEvmWalletAddress,
@@ -53,6 +56,7 @@ export default function AaveFeedBackfill() {
   const { ready: privyReady, user: privyUser } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
   const syncedSnapshotsRef = useRef<Set<string>>(new Set());
+  const reconciledSnapshotsRef = useRef<Set<string>>(new Set());
 
   const storedEvmAddress = getStoredEvmWalletAddress(user);
   const selectedWallet = selectPreferredWallet(
@@ -108,6 +112,40 @@ export default function AaveFeedBackfill() {
       polygonPositions.data,
     ],
   );
+  const positionQueryStates = useMemo(
+    () => [
+      {
+        chain: 'ethereum' as const,
+        data: ethereumPositions.data,
+        isSuccess: ethereumPositions.isSuccess,
+      },
+      {
+        chain: 'polygon' as const,
+        data: polygonPositions.data,
+        isSuccess: polygonPositions.isSuccess,
+      },
+      {
+        chain: 'base' as const,
+        data: basePositions.data,
+        isSuccess: basePositions.isSuccess,
+      },
+      {
+        chain: 'arbitrum' as const,
+        data: arbitrumPositions.data,
+        isSuccess: arbitrumPositions.isSuccess,
+      },
+    ],
+    [
+      arbitrumPositions.data,
+      arbitrumPositions.isSuccess,
+      basePositions.data,
+      basePositions.isSuccess,
+      ethereumPositions.data,
+      ethereumPositions.isSuccess,
+      polygonPositions.data,
+      polygonPositions.isSuccess,
+    ],
+  );
 
   useEffect(() => {
     if (!token || !user?._id || !smartsiteId || !walletAddress) return;
@@ -142,6 +180,48 @@ export default function AaveFeedBackfill() {
       });
     });
   }, [snapshots, smartsiteId, token, user?._id, walletAddress]);
+
+  useEffect(() => {
+    if (!token || !user?._id || !smartsiteId || !walletAddress) return;
+
+    positionQueryStates.forEach(({ chain, data, isSuccess }) => {
+      if (!isSuccess || !data || data.degraded) return;
+
+      const activePositionKeys = collectPositionSnapshots(data)
+        .map(({ action, chain: positionChain, position, updatedAt }) =>
+          buildAavePositionFeedContent({
+            action,
+            chain: positionChain,
+            walletAddress,
+            position,
+            updatedAt,
+          })?.positionKey,
+        )
+        .filter((key): key is string => Boolean(key))
+        .sort();
+      const reconcileKey = [
+        chain,
+        walletAddress.toLowerCase(),
+        activePositionKeys.join('|'),
+      ].join(':');
+
+      if (reconciledSnapshotsRef.current.has(reconcileKey)) return;
+      reconciledSnapshotsRef.current.add(reconcileKey);
+
+      reconcileAavePositionFeed({
+        token,
+        userId: user._id,
+        smartsiteId,
+        walletAddress,
+        chain,
+        activePositionKeys,
+        updatedAt: data.updatedAt,
+      }).catch((error) => {
+        reconciledSnapshotsRef.current.delete(reconcileKey);
+        console.warn('Failed to reconcile Aave feed cards:', error);
+      });
+    });
+  }, [positionQueryStates, smartsiteId, token, user?._id, walletAddress]);
 
   return null;
 }
