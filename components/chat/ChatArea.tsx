@@ -235,7 +235,7 @@ import {
   executeJupiterOrder as postJupiterExecute,
   getJupiterOrder,
   getJupiterQuote as fetchJupiterQuote,
-} from '@/actions/jupiterSwap';
+} from '@/lib/jupiterSwapClient';
 import { getLifiQuote as fetchLifiQuote } from '@/actions/lifiForTokenSwap';
 import type { TokenData } from '@/types/token';
 import type { Network, SendFlowState } from '@/types/wallet-types';
