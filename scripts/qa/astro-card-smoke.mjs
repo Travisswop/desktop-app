@@ -284,6 +284,10 @@ async function pageText(client) {
   return evaluate(client, () => document.body?.innerText || '');
 }
 
+async function pageUrl(client) {
+  return evaluate(client, () => window.location.href || '');
+}
+
 async function waitFor(client, description, predicate, timeoutMs = 30000, intervalMs = 750) {
   const started = Date.now();
   let lastValue = null;
@@ -308,6 +312,34 @@ async function waitForText(client, description, patterns, timeoutMs = 30000) {
     },
     timeoutMs
   );
+}
+
+async function navigateTo(client, url, timeoutMs = 30000) {
+  await client.send('Page.navigate', { url });
+  await waitFor(
+    client,
+    `navigation to ${url}`,
+    async () => {
+      const current = await pageUrl(client);
+      return current.startsWith(url);
+    },
+    timeoutMs
+  );
+  await sleep(1000);
+}
+
+async function reloadPage(client, timeoutMs = 30000) {
+  await client.send('Page.reload', { ignoreCache: false });
+  await waitFor(
+    client,
+    'page reload',
+    async () => {
+      const text = await pageText(client);
+      return text && text.length > 0;
+    },
+    timeoutMs
+  );
+  await sleep(1000);
 }
 
 function escapeRegex(value) {
@@ -491,6 +523,23 @@ async function runCardChecks({ client, baseUrl, args, report }) {
   await sendPrompt(client, 'show my portfolio');
   await waitForText(client, 'portfolio allocation card', ['Portfolio allocation'], 30000);
   finishStep(step, 'pass', 'Rendered wallet portfolio allocation card.');
+
+  step = add('portfolio-card-persistence');
+  const dashboardUrl = new URL('/dashboard', args.url).toString();
+  await navigateTo(client, dashboardUrl, 45000);
+  await navigateTo(client, args.url, 45000);
+  await assertLoggedIn(client);
+  await selectThread(client, args.threadText);
+  await waitForText(client, 'portfolio allocation after navigation', ['Portfolio allocation'], 45000);
+  await reloadPage(client, 45000);
+  await assertLoggedIn(client);
+  await selectThread(client, args.threadText);
+  await waitForText(client, 'portfolio allocation after reload', ['Portfolio allocation'], 45000);
+  finishStep(
+    step,
+    'pass',
+    'Portfolio allocation card stayed visible after leaving chat, returning, and reloading.',
+  );
 
   step = add('receive-qr-card');
   await sendPrompt(client, 'show my receive QR for Solana');
