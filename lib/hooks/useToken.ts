@@ -1,12 +1,8 @@
-import { useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
 import { ChainType } from '@/types/token';
-import {
-  WalletService,
-  Token,
-  WalletInput,
-} from '@/services/wallet-service';
+import { WalletService, Token, WalletInput } from '@/services/wallet-service';
 import { useUser } from '@/lib/UserContext';
 import { apiFetch } from '@/lib/api/apiFetch';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
@@ -17,37 +13,10 @@ const normalizeChain = (chain: string): ChainType =>
 type TokenWithWallet = Token & { walletAddress?: string };
 
 type TokenSnapshot = {
-  fingerprint: string;
-  signature: string;
   tokens: TokenWithWallet[];
   totalValue: string;
   tokenCount: number;
 };
-
-const emptyTokenSnapshot = (fingerprint = ''): TokenSnapshot => ({
-  fingerprint,
-  signature: '',
-  tokens: [],
-  totalValue: '0.00',
-  tokenCount: 0,
-});
-
-const tokenSnapshotSignature = (tokens: TokenWithWallet[]) =>
-  tokens
-    .map(
-      (token) =>
-        [
-          token.walletAddress || '',
-          token.chain || '',
-          token.address || '',
-          token.symbol || '',
-          token.balance || '',
-          token.value ?? '',
-          token.marketData?.price ?? '',
-        ].join(':')
-    )
-    .sort()
-    .join('|');
 
 const backendTokenCache = new Map<string, string>();
 const backendTokenRequests = new Map<string, Promise<string | null>>();
@@ -108,16 +77,13 @@ export const useMultiChainTokenData = (
   evmWalletAddress?: string | string[],
   chains: ChainType[] = ['ETHEREUM']
 ) => {
-  const { user, accessToken, loading: userLoading } = useUser();
+  const { user, accessToken } = useUser();
   const [cookieAccessToken, setCookieAccessToken] = useState<string | null>(
     null
   );
   const [fallbackAccessToken, setFallbackAccessToken] = useState<
     string | null
   >(null);
-  const [publishedData, setPublishedData] = useState<TokenSnapshot>(
-    emptyTokenSnapshot()
-  );
   const authToken =
     accessToken || cookieAccessToken || fallbackAccessToken || '';
   const userEmail = user?.email || '';
@@ -198,43 +164,81 @@ export const useMultiChainTokenData = (
     .sort()
     .join('|');
 
-  const canUseSessionCookieProxy =
-    typeof window !== 'undefined' && (userLoading || Boolean(user));
-  const tokenQueryEnabled =
-    wallets.length > 0 && Boolean(authToken || canUseSessionCookieProxy);
+  const tokenQueryEnabled = wallets.length > 0 && Boolean(authToken);
 
-  const tokenQueries = useQueries({
-    queries: wallets.map((wallet) => ({
-      queryKey: [
-        'walletTokens',
-        'owner-address-split-v1',
-        wallet.chain,
-        wallet.address,
-        authToken,
-      ],
-      queryFn: async () => {
-        const result = await WalletService.getWalletTokens(
-          [wallet],
-          authToken || undefined
+  const tokenQuery = useQuery({
+    queryKey: [
+      'walletTokens',
+      'owner-address-batch-v1',
+      walletFingerprint,
+      authToken,
+    ],
+    queryFn: async () => {
+      const hasDuplicateChains =
+        new Set(wallets.map((wallet) => wallet.chain)).size !==
+        wallets.length;
+
+      if (hasDuplicateChains) {
+        const walletResults = await Promise.all(
+          wallets.map(async (wallet) => {
+            const result = await WalletService.getWalletTokens(
+              [wallet],
+              authToken
+            );
+            return (result.tokens || []).map((token) => ({
+              ...token,
+              walletAddress: token.walletAddress || wallet.address,
+            }));
+          })
         );
+        const tokens = walletResults.flat();
+        const totalValue = tokens.reduce((sum, token) => {
+          const explicitValue = Number(token.value || 0);
+          if (Number.isFinite(explicitValue) && explicitValue > 0) {
+            return sum + explicitValue;
+          }
+          const price = Number(token.marketData?.price || 0);
+          const balance = Number(token.balance || 0);
+          return sum + price * balance;
+        }, 0);
 
-        return (result.tokens || []).map((token) => ({
+        return {
+          tokens,
+          totalValue: totalValue.toFixed(2),
+          tokenCount: tokens.length,
+        };
+      }
+
+      const result = await WalletService.getWalletTokens(
+        wallets,
+        authToken
+      );
+      const walletAddressByChain = new Map(
+        wallets.map((wallet) => [wallet.chain, wallet.address])
+      );
+
+      return {
+        tokens: (result.tokens || []).map((token) => ({
           ...token,
-          walletAddress: token.walletAddress || wallet.address,
-        }));
-      },
-      enabled: tokenQueryEnabled,
-      retry: false,
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-    })),
+          walletAddress:
+            token.walletAddress ||
+            walletAddressByChain.get(
+              token.chain as WalletInput['chain']
+            ),
+        })),
+        totalValue: result.totalValue,
+        tokenCount: result.tokenCount,
+      };
+    },
+    enabled: tokenQueryEnabled,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
-  const aggregatedData = useMemo<TokenSnapshot>(() => {
-    const successfulTokens = tokenQueries.flatMap((query) =>
-      query.status === 'success' ? query.data || [] : []
-    );
-    const totalValue = successfulTokens.reduce((sum, token) => {
+  const data = useMemo<TokenSnapshot>(() => {
+    const tokens = tokenQuery.data?.tokens || [];
+    const totalValue = tokens.reduce((sum, token) => {
       const explicitValue = Number(token.value || 0);
       if (Number.isFinite(explicitValue) && explicitValue > 0) {
         return sum + explicitValue;
@@ -245,72 +249,20 @@ export const useMultiChainTokenData = (
     }, 0);
 
     return {
-      fingerprint: walletFingerprint,
-      signature: tokenSnapshotSignature(successfulTokens),
-      tokens: successfulTokens,
-      totalValue: totalValue.toFixed(2),
-      tokenCount: successfulTokens.length,
+      tokens,
+      totalValue: tokenQuery.data?.totalValue || totalValue.toFixed(2),
+      tokenCount: tokenQuery.data?.tokenCount ?? tokens.length,
     };
-  }, [tokenQueries, walletFingerprint]);
-
-  const tokenQueriesSettled =
-    !tokenQueryEnabled ||
-    tokenQueries.length === 0 ||
-    tokenQueries.every(
-      (query) =>
-        !query.isFetching &&
-        (query.status === 'success' || query.status === 'error')
-    );
-
-  useEffect(() => {
-    if (publishedData.fingerprint !== walletFingerprint) {
-      setPublishedData(emptyTokenSnapshot(walletFingerprint));
-      return;
-    }
-
-    if (!tokenQueryEnabled || tokenQueries.length === 0) {
-      if (publishedData.signature !== '') {
-        setPublishedData(emptyTokenSnapshot(walletFingerprint));
-      }
-      return;
-    }
-
-    if (!tokenQueriesSettled) return;
-
-    if (publishedData.signature !== aggregatedData.signature) {
-      setPublishedData(aggregatedData);
-    }
-  }, [
-    aggregatedData,
-    publishedData.fingerprint,
-    publishedData.signature,
-    tokenQueries.length,
-    tokenQueriesSettled,
-    tokenQueryEnabled,
-    walletFingerprint,
-  ]);
-
-  const settledAggregatedData =
-    tokenQueryEnabled && tokenQueries.length > 0 && tokenQueriesSettled
-      ? aggregatedData
-      : null;
-  const data =
-    settledAggregatedData ||
-    (publishedData.fingerprint === walletFingerprint
-      ? publishedData
-      : emptyTokenSnapshot(walletFingerprint));
+  }, [tokenQuery.data]);
 
   const isLoading =
     tokenQueryEnabled &&
-    tokenQueries.length > 0 &&
-    !tokenQueriesSettled &&
     data.tokens.length === 0 &&
-    tokenQueries.some((query) => query.isLoading || query.isFetching);
-  const error =
-    tokenQueries.find((query) => query.error)?.error ?? null;
+    (tokenQuery.isLoading || tokenQuery.isFetching);
+  const error = tokenQuery.error ?? null;
   const refetch = useCallback(
-    () => Promise.all(tokenQueries.map((query) => query.refetch())),
-    [tokenQueries]
+    () => tokenQuery.refetch(),
+    [tokenQuery]
   );
 
   // Transform tokens to include logoURI and timeSeriesData for backward compatibility
