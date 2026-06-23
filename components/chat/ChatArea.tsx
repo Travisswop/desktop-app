@@ -182,6 +182,7 @@ import {
   clearAgentActionHandoff,
   completeAgentActionFromHandoff,
   persistAgentActionHandoff,
+  readAgentActionHandoff,
   type AgentActionCompletion,
 } from '@/lib/chat/agentActionHandoff';
 import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
@@ -2671,6 +2672,26 @@ function buildLocalWalletSendApprovalHandoff(
       provider: 'swop',
       route: '/dashboard/chat',
       panel: 'send',
+      normalizedParams: params || {},
+      prefill: params || {},
+    },
+  };
+}
+
+function buildLocalWalletSwapApprovalHandoff(
+  proposalId: string,
+  params?: Record<string, unknown>
+): AgentApprovalHandoff {
+  return {
+    status: 'approved',
+    nextStep: 'wallet_swap_inline_signing_required',
+    payload: {
+      proposalId,
+      action: 'wallet.swap',
+      toolType: 'wallet.write',
+      provider: 'swop',
+      route: '/dashboard/chat',
+      panel: 'swap',
       normalizedParams: params || {},
       prefill: params || {},
     },
@@ -5505,6 +5526,22 @@ export default function ChatArea({
             }));
             return localApprovalResult;
           }
+        }
+
+        if (isLocalSwapProposalId(proposalId) && !isGroup) {
+          const localApprovalResult = buildLocalWalletSwapApprovalHandoff(
+            proposalId,
+            approvalParams
+          );
+          setActionResultsByProposalId((prev) => ({
+            ...prev,
+            [proposalId]: {
+              proposalId,
+              status: 'approved',
+              result: localApprovalResult,
+            },
+          }));
+          return localApprovalResult;
         }
 
         let response: any;
@@ -15720,6 +15757,31 @@ function SwapProposalTicket({
         toSmallestSwapUnit(executionPayAmount, selectedFromOption.decimals);
       if (!amountInSmallestUnit || amountInSmallestUnit === '0') {
         throw new Error('Enter a valid swap amount.');
+      }
+
+      const existingHandoff = readAgentActionHandoff();
+      if (existingHandoff?.payload?.proposalId !== proposalId) {
+        persistAgentActionHandoff(
+          buildLocalWalletSwapApprovalHandoff(proposalId, {
+            ...(params || {}),
+            fromTokenSymbol: selectedFromOption.symbol,
+            inputTokenSymbol: selectedFromOption.symbol,
+            fromToken: selectedFromOption.symbol,
+            inputToken: selectedFromOption.symbol,
+            toTokenSymbol: selectedToOption.symbol,
+            outputTokenSymbol: selectedToOption.symbol,
+            toToken: selectedToOption.symbol,
+            outputToken: selectedToOption.symbol,
+            amount: executionPayAmount,
+            fromAmount: executionPayAmount,
+            inputAmount: executionPayAmount,
+            amountType,
+            fromChainId: selectedFromOption.chainId,
+            inputChainId: selectedFromOption.chainId,
+            toChainId: selectedToOption.chainId,
+            outputChainId: selectedToOption.chainId,
+          })
+        );
       }
 
       await getAccessToken().catch(() => null);
