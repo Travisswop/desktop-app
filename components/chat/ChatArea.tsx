@@ -17100,8 +17100,7 @@ function HyperliquidProposalFlowTicket({
     isAuthorizingSigner ||
     isPerpsSignerRestoring ||
     astroConsoleData.isPerpsSubmitting ||
-    isTicketActionBusy ||
-    isPending;
+    isTicketActionBusy;
   const closePositionUnavailable =
     isClosePosition &&
     !astroConsoleData.isPerpsLoading &&
@@ -18661,7 +18660,7 @@ function HyperliquidProposalFlowTicket({
           <button
             type="button"
             onClick={() => onReject(proposalId)}
-            disabled={!canAct || isAgentBusy || status !== 'pending'}
+            disabled={!canAct || isAgentBusy || isPending || status !== 'pending'}
             className={TICKET_REJECT_BUTTON_CLASS}
           >
             <Ban className="h-3.5 w-3.5" />
