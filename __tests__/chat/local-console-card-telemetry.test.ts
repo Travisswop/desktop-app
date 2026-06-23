@@ -1,0 +1,83 @@
+import {
+  emitLocalConsoleCardTelemetry,
+  LOCAL_CONSOLE_CARD_TELEMETRY_PREFIX,
+  resetLocalConsoleCardTelemetryForTests,
+} from '@/lib/chat/localConsoleCardTelemetry';
+
+describe('local console card telemetry', () => {
+  const originalWindow = global.window;
+  const infoSpy = jest.spyOn(console, 'info').mockImplementation(() => {});
+
+  beforeEach(() => {
+    resetLocalConsoleCardTelemetryForTests();
+    infoSpy.mockClear();
+    Object.defineProperty(global, 'window', {
+      configurable: true,
+      value: {
+        dispatchEvent: jest.fn(),
+      },
+    });
+  });
+
+  afterAll(() => {
+    Object.defineProperty(global, 'window', {
+      configurable: true,
+      value: originalWindow,
+    });
+    infoSpy.mockRestore();
+  });
+
+  test('logs a sanitized generated event once per source message and card type', () => {
+    expect(
+      emitLocalConsoleCardTelemetry({
+        eventType: 'generated',
+        cardType: 'portfolio',
+        sourceMessageId: 'temp-portfolio-1',
+        threadType: 'group',
+      })
+    ).toBe(true);
+
+    expect(
+      emitLocalConsoleCardTelemetry({
+        eventType: 'generated',
+        cardType: 'portfolio',
+        sourceMessageId: 'temp-portfolio-1',
+        threadType: 'group',
+      })
+    ).toBe(false);
+
+    expect(infoSpy).toHaveBeenCalledTimes(1);
+    expect(infoSpy).toHaveBeenCalledWith(
+      LOCAL_CONSOLE_CARD_TELEMETRY_PREFIX,
+      expect.any(String)
+    );
+
+    const payload = JSON.parse(infoSpy.mock.calls[0][1] as string);
+    expect(payload).toMatchObject({
+      surface: 'desktop.dashboard.chat',
+      eventType: 'generated',
+      cardType: 'portfolio',
+      sourceMessageId: 'temp-portfolio-1',
+      threadType: 'group',
+    });
+    expect(payload).not.toHaveProperty('walletAddress');
+  });
+
+  test('skips emission outside the browser runtime', () => {
+    Object.defineProperty(global, 'window', {
+      configurable: true,
+      value: undefined,
+    });
+
+    expect(
+      emitLocalConsoleCardTelemetry({
+        eventType: 'rehydrated',
+        cardType: 'pnl',
+        sourceMessageId: 'history-message-1',
+        threadType: 'direct',
+      })
+    ).toBe(false);
+
+    expect(infoSpy).not.toHaveBeenCalled();
+  });
+});

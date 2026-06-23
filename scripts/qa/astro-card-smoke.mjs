@@ -462,6 +462,22 @@ async function selectThread(client, threadText) {
   if (clicked) await sleep(1000);
 }
 
+async function reopenChatThread(client, args) {
+  await waitForText(client, 'authenticated chat shell', [/Messages/i, /Astro/i], 45000);
+  await selectThread(client, args.threadText);
+  await scrollAllToBottom(client);
+}
+
+async function navigatePage(client, url) {
+  await client.send('Page.navigate', { url });
+  await sleep(3000);
+}
+
+async function reloadPage(client) {
+  await client.send('Page.reload', { ignoreCache: false });
+  await sleep(3000);
+}
+
 async function hasConfirmOnlyState(client) {
   return evaluate(client, () => {
     const text = document.body?.innerText || '';
@@ -491,6 +507,32 @@ async function runCardChecks({ client, baseUrl, args, report }) {
   await sendPrompt(client, 'show my portfolio');
   await waitForText(client, 'portfolio allocation card', ['Portfolio allocation'], 30000);
   finishStep(step, 'pass', 'Rendered wallet portfolio allocation card.');
+
+  step = add('portfolio-card-reload-persistence');
+  await reloadPage(client);
+  await reopenChatThread(client, args);
+  await waitForText(
+    client,
+    'portfolio allocation card after reload',
+    ['Portfolio allocation'],
+    30000
+  );
+  const walletUrl = new URL('/wallet', args.url).toString();
+  await navigatePage(client, walletUrl);
+  await waitForText(client, 'wallet page shell', ['Wallet', 'Assets'], 45000);
+  await navigatePage(client, args.url);
+  await reopenChatThread(client, args);
+  await waitForText(
+    client,
+    'portfolio allocation card after navigation return',
+    ['Portfolio allocation'],
+    30000
+  );
+  finishStep(
+    step,
+    'pass',
+    'Portfolio allocation card stayed visible after reload and after navigating away to /wallet and back.'
+  );
 
   step = add('receive-qr-card');
   await sendPrompt(client, 'show my receive QR for Solana');

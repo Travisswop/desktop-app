@@ -185,6 +185,10 @@ import {
   type AgentActionCompletion,
 } from '@/lib/chat/agentActionHandoff';
 import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
+import {
+  emitLocalConsoleCardTelemetry,
+  type LocalConsoleCardType,
+} from '@/lib/chat/localConsoleCardTelemetry';
 import { postFeed } from '@/actions/postFeed';
 import {
   usePolymarketWallet,
@@ -4804,6 +4808,21 @@ export default function ChatArea({
           : []),
       ])
     );
+    localAgentResponseMessages.forEach((message) => {
+      const cardType =
+        message.agentData?.action === 'portfolio.pnl'
+          ? 'pnl'
+          : message.agentData?.action === 'wallet.portfolio'
+          ? 'portfolio'
+          : null;
+      if (!cardType) return;
+      emitLocalConsoleCardTelemetry({
+        eventType: 'generated',
+        cardType,
+        sourceMessageId: optimisticMessage._id,
+        threadType: isGroup ? 'group' : 'direct',
+      });
+    });
     if (typeof messageOverride !== 'string') {
       setNewMessage('');
     }
@@ -6484,35 +6503,47 @@ export default function ChatArea({
                     autoFetchSwapQuote={autoFetchSwapQuote}
                   />
                   {localConsoleReadMessage && (
-                    <Message
-                      message={localConsoleReadMessage}
-                      isOwn={false}
-                      isGroup={isGroup}
-                      currentUser={currentUser}
-                      proposal={null}
-                      actionResult={undefined}
-                      isProposalPending={false}
-                      onApproveProposal={handleApproveProposal}
-                      onApproveInlineProposal={handleApproveInlineProposal}
-                      onInlineActionComplete={handleInlineActionComplete}
-                      onRejectProposal={handleRejectProposal}
-                      onPreparePolymarketBet={handlePreparePolymarketBet}
-                      onAddPredictionFunds={handleAddPredictionFunds}
-                      onAddPerpsFunds={handleAddPerpsFunds}
-                      onDismissReceipt={handleDismissReceipt}
-                      onRegisterPolymarketMarkets={
-                        registerRenderedPolymarketMarkets
-                      }
-                      pendingPolymarketBetKey={pendingPolymarketBetKey}
-                      inlinePolymarketProposalsByBetKey={
-                        inlinePolymarketProposalsByBetKey
-                      }
-                      actionResultsByProposalId={actionResultsByProposalId}
-                      pendingProposalId={pendingProposalId}
-                      astroConsoleData={astroConsoleData}
-                      renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
-                      autoFetchSwapQuote={autoFetchSwapQuote}
-                    />
+                    <>
+                      <LocalConsoleCardTelemetryBeacon
+                        cardType={
+                          localConsoleReadMessage.agentData?.action ===
+                          'portfolio.pnl'
+                            ? 'pnl'
+                            : 'portfolio'
+                        }
+                        sourceMessageId={message._id || `message-${index}`}
+                        isGroup={isGroup}
+                      />
+                      <Message
+                        message={localConsoleReadMessage}
+                        isOwn={false}
+                        isGroup={isGroup}
+                        currentUser={currentUser}
+                        proposal={null}
+                        actionResult={undefined}
+                        isProposalPending={false}
+                        onApproveProposal={handleApproveProposal}
+                        onApproveInlineProposal={handleApproveInlineProposal}
+                        onInlineActionComplete={handleInlineActionComplete}
+                        onRejectProposal={handleRejectProposal}
+                        onPreparePolymarketBet={handlePreparePolymarketBet}
+                        onAddPredictionFunds={handleAddPredictionFunds}
+                        onAddPerpsFunds={handleAddPerpsFunds}
+                        onDismissReceipt={handleDismissReceipt}
+                        onRegisterPolymarketMarkets={
+                          registerRenderedPolymarketMarkets
+                        }
+                        pendingPolymarketBetKey={pendingPolymarketBetKey}
+                        inlinePolymarketProposalsByBetKey={
+                          inlinePolymarketProposalsByBetKey
+                        }
+                        actionResultsByProposalId={actionResultsByProposalId}
+                        pendingProposalId={pendingProposalId}
+                        astroConsoleData={astroConsoleData}
+                        renderedReceiptIdentityKeys={renderedReceiptIdentityKeys}
+                        autoFetchSwapQuote={autoFetchSwapQuote}
+                      />
+                    </>
                   )}
                   {localChartIntent && (
                     <ChatChartCommandCard
@@ -10783,6 +10814,28 @@ function Message({
       </div>
     </div>
   );
+}
+
+function LocalConsoleCardTelemetryBeacon({
+  cardType,
+  sourceMessageId,
+  isGroup,
+}: {
+  cardType: LocalConsoleCardType;
+  sourceMessageId: string;
+  isGroup: boolean;
+}) {
+  useEffect(() => {
+    if (!sourceMessageId) return;
+    emitLocalConsoleCardTelemetry({
+      eventType: 'rehydrated',
+      cardType,
+      sourceMessageId,
+      threadType: isGroup ? 'group' : 'direct',
+    });
+  }, [cardType, isGroup, sourceMessageId]);
+
+  return null;
 }
 
 function isSyntheticPolymarketPrepareMessage(message: Message) {
