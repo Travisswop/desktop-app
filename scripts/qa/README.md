@@ -42,7 +42,8 @@ click-tests:
 - wallet-send network picker and review card
 - perps order card controls
 - prediction outcome draft ticket
-- swap card controls
+- swap card controls, stale Server Action errors, quote health, and Jupiter
+  quote/order API reachability
 
 It deliberately does not click final financial/signing actions:
 
@@ -121,6 +122,38 @@ target URL, `gitRef`, `gitSha`, report path, failing step, and error text.
 This uses the local macOS `mail` command (`/usr/bin/mail` or `/bin/mail`), so
 outbound mail must be configured on the machine. If `mail` is unavailable or
 misconfigured, the JSON report records the alert failure.
+
+## Swap Card Regression Lane
+
+The `swap-card` step is specifically meant to catch bugs where Astro creates a
+card but the rendered swap flow is not usable. It fails the run if the latest
+SWOP -> USDC card shows:
+
+- `Server Action "... " was not found`
+- `failed-to-find-server-action`
+- `Quote unavailable`
+- `Get a live quote before confirming this swap`
+
+It also probes the live app origin directly:
+
+- `GET /api/jupiter/quote`
+- `POST /api/jupiter/order` when a QA taker wallet is available
+
+The order probe only builds a Jupiter order. It never signs, submits, or
+executes a swap.
+
+For strict order-build coverage, configure the dedicated QA account with a tiny
+SWOP balance and set:
+
+```bash
+SWOP_QA_SWAP_TAKER="<qa-solana-wallet>" \
+SWOP_QA_SWAP_ORDER_REQUIRED=true \
+npm run qa:astro-cards -- --launch
+```
+
+Without `SWOP_QA_SWAP_TAKER`, the lane still catches rendered card failures and
+quote-route failures, and it will attempt to detect a Solana wallet from the
+logged-in QA profile for a best-effort order probe.
 
 ## Existing Browser Option
 

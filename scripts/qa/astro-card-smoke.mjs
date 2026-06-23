@@ -11,6 +11,9 @@ const DEFAULT_CHROME_PORT = 9223;
 const DEFAULT_CHROME_PROFILE = path.join(os.homedir(), '.swop-card-qa-chrome');
 const DEFAULT_CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const DEFAULT_ALERT_SUBJECT_PREFIX = '[Swop QA]';
+const DEFAULT_SWAP_INPUT_MINT = 'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1';
+const DEFAULT_SWAP_OUTPUT_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const DEFAULT_SWAP_AMOUNT = '1000000000';
 
 const FINAL_ACTION_PATTERNS = [
   /sign\s*&\s*approve/i,
@@ -39,6 +42,11 @@ function parseArgs(argv) {
     alertEmail: process.env.SWOP_QA_ALERT_EMAIL || '',
     alertSubjectPrefix:
       process.env.SWOP_QA_ALERT_SUBJECT_PREFIX || DEFAULT_ALERT_SUBJECT_PREFIX,
+    swapInputMint: process.env.SWOP_QA_SWAP_INPUT_MINT || DEFAULT_SWAP_INPUT_MINT,
+    swapOutputMint: process.env.SWOP_QA_SWAP_OUTPUT_MINT || DEFAULT_SWAP_OUTPUT_MINT,
+    swapAmount: process.env.SWOP_QA_SWAP_AMOUNT || DEFAULT_SWAP_AMOUNT,
+    swapTaker: process.env.SWOP_QA_SWAP_TAKER || '',
+    swapOrderRequired: boolValue(process.env.SWOP_QA_SWAP_ORDER_REQUIRED),
     json: false,
   };
 
@@ -53,6 +61,8 @@ function parseArgs(argv) {
     else if (arg.startsWith('--thread=')) args.threadText = arg.slice('--thread='.length);
     else if (arg.startsWith('--log-dir=')) args.logDir = arg.slice('--log-dir='.length);
     else if (arg.startsWith('--alert-email=')) args.alertEmail = arg.slice('--alert-email='.length);
+    else if (arg.startsWith('--swap-taker=')) args.swapTaker = arg.slice('--swap-taker='.length);
+    else if (arg === '--swap-order-required') args.swapOrderRequired = true;
     else if (arg === '--help' || arg === '-h') {
       printHelp();
       process.exit(0);
@@ -63,6 +73,10 @@ function parseArgs(argv) {
   return args;
 }
 
+function boolValue(value) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
+}
+
 function printHelp() {
   console.log(`Astro card smoke QA
 
@@ -71,6 +85,7 @@ Usage:
   node scripts/qa/astro-card-smoke.mjs --setup-login --launch
   node scripts/qa/astro-card-smoke.mjs --chrome-url=http://127.0.0.1:9222
   node scripts/qa/astro-card-smoke.mjs --launch --alert-email=you@example.com
+  node scripts/qa/astro-card-smoke.mjs --launch --swap-taker=<funded-solana-wallet>
 
 Modes:
   --setup-login  Opens the QA Chrome profile to Swop and exits so you can log in once.
@@ -78,6 +93,12 @@ Modes:
 
 Alerts:
   Set SWOP_QA_ALERT_EMAIL or pass --alert-email to email a failure report.
+
+Swap QA:
+  The swap-card lane checks the rendered card plus /api/jupiter/quote.
+  Set SWOP_QA_SWAP_TAKER or --swap-taker to require a non-signing
+  /api/jupiter/order build. Add --swap-order-required to fail when the
+  configured taker cannot build an order.
 
 Safety:
   This script never clicks final financial/signing actions. It tests card render,
@@ -308,6 +329,233 @@ async function waitForText(client, description, patterns, timeoutMs = 30000) {
     },
     timeoutMs
   );
+}
+
+function appOrigin(url) {
+  return new URL(url).origin;
+}
+
+function shortText(value, maxLength = 700) {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 3)}...`;
+}
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  let rawBody = '';
+  let data = null;
+
+  try {
+    response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    rawBody = await response.text();
+    if (rawBody) {
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        data = null;
+      }
+    }
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    data,
+    rawBody,
+  };
+}
+
+async function textAfterLatestMarker(client, marker) {
+  const text = await pageText(client);
+  const index = text.toLowerCase().lastIndexOf(String(marker).toLowerCase());
+  if (index < 0) return text;
+  return text.slice(index);
+}
+
+function detectSwapUiFailure(text) {
+  const checks = [
+    {
+      pattern: /Server Action\s+"[^"]+"\s+was not found/i,
+      message: 'Swap card showed stale Next Server Action ID.',
+    },
+    {
+      pattern: /failed-to-find-server-action/i,
+      message: 'Swap card linked to Next failed-to-find-server-action.',
+    },
+    {
+      pattern: /Quote unavail/i,
+      message: 'Swap card rendered Quote unavailable.',
+    },
+    {
+      pattern: /Get a live quote before confirming this swap/i,
+      message: 'Swap card reached confirm flow without a live quote.',
+    },
+  ];
+  const failure = checks.find((check) => check.pattern.test(text));
+  return failure?.message || null;
+}
+
+async function waitForSwapCardUiHealth(client, prompt, timeoutMs = 90000) {
+  return waitFor(
+    client,
+    'healthy SWOP to USDC swap card',
+    async () => {
+      const scopedText = await textAfterLatestMarker(client, prompt);
+      const failure = detectSwapUiFailure(scopedText);
+      if (failure) {
+        throw new Error(`${failure} Latest swap card text: ${shortText(scopedText)}`);
+      }
+
+      const hasSwapPair = /SWOP/i.test(scopedText) && /USDC/i.test(scopedText);
+      const hasSwapCard = /swap quote|BEST ROUTE|JUPITER|LIFI|YOU PAY|YOU GET/i.test(scopedText);
+      if (!hasSwapPair || !hasSwapCard) return false;
+      return {
+        hasSwapPair,
+        hasSwapCard,
+        excerpt: shortText(scopedText),
+      };
+    },
+    timeoutMs
+  );
+}
+
+async function findSolanaTakerFromPage(client) {
+  return evaluate(client, () => {
+    const base58Pattern = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g;
+    const excluded = new Set([
+      '11111111111111111111111111111111',
+      'So11111111111111111111111111111111111111112',
+      'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1',
+      'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    ]);
+    const candidates = [];
+    const pushCandidate = (value, source, priority = 10) => {
+      const matches = String(value || '').match(base58Pattern) || [];
+      for (const match of matches) {
+        if (!excluded.has(match)) candidates.push({ value: match, source, priority });
+      }
+    };
+    const visit = (value, source, priority = 10, depth = 0) => {
+      if (depth > 5 || value == null) return;
+      if (typeof value === 'string') {
+        pushCandidate(value, source, priority);
+        try {
+          visit(JSON.parse(value), source, priority, depth + 1);
+        } catch {
+          // Plain string, not JSON.
+        }
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => visit(item, `${source}[${index}]`, priority, depth + 1));
+        return;
+      }
+      if (typeof value !== 'object') return;
+
+      const chainType = String(value.chain_type || value.chainType || '').toLowerCase();
+      const walletClient = String(value.wallet_client_type || value.walletClientType || '').toLowerCase();
+      const objectPriority = chainType === 'solana' || walletClient.includes('phantom') ? 0 : priority;
+      for (const [key, child] of Object.entries(value)) {
+        const keyPriority = /solana|solWallet|wallet|linked_accounts|linkedAccounts/i.test(key)
+          ? Math.min(objectPriority, 2)
+          : objectPriority + 1;
+        if (typeof child === 'string' && /address|wallet|publicKey|solana/i.test(key)) {
+          pushCandidate(child, `${source}.${key}`, keyPriority);
+        }
+        visit(child, `${source}.${key}`, keyPriority, depth + 1);
+      }
+    };
+
+    for (const storage of [localStorage, sessionStorage]) {
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (!key) continue;
+        visit(storage.getItem(key), `${storage === localStorage ? 'localStorage' : 'sessionStorage'}.${key}`, 4);
+      }
+    }
+
+    pushCandidate(document.body?.innerText || '', 'body', 20);
+    candidates.sort((left, right) => left.priority - right.priority);
+    return candidates[0] || null;
+  });
+}
+
+async function probeJupiterSwapApis({ client, args, report }) {
+  const origin = appOrigin(args.url);
+  const searchParams = new URLSearchParams({
+    inputMint: args.swapInputMint,
+    outputMint: args.swapOutputMint,
+    amount: args.swapAmount,
+    swapMode: 'ExactIn',
+    slippageBps: '100',
+  });
+  const quoteUrl = `${origin}/api/jupiter/quote?${searchParams.toString()}`;
+  const quote = await fetchJsonWithTimeout(quoteUrl, { method: 'GET' }, 30000);
+  if (!quote.ok || !quote.data?.success || !quote.data?.data?.outAmount) {
+    throw new Error(
+      `Jupiter quote probe failed: HTTP ${quote.status}; body ${shortText(quote.rawBody)}`
+    );
+  }
+
+  const detectedTaker = args.swapTaker || (await findSolanaTakerFromPage(client))?.value || '';
+  const result = {
+    quoteOutAmount: quote.data.data.outAmount,
+    quoteRoutePlanLength: Array.isArray(quote.data.data.routePlan)
+      ? quote.data.data.routePlan.length
+      : null,
+    order: 'skipped',
+    orderOutAmount: null,
+    takerSource: args.swapTaker ? 'SWOP_QA_SWAP_TAKER' : 'detected-page-wallet',
+  };
+
+  if (!detectedTaker) {
+    report.warnings.push(
+      'Swap order probe skipped: set SWOP_QA_SWAP_TAKER to a funded QA Solana wallet to require non-signing Jupiter order builds.'
+    );
+    return result;
+  }
+
+  const order = await fetchJsonWithTimeout(
+    `${origin}/api/jupiter/order`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inputMint: args.swapInputMint,
+        outputMint: args.swapOutputMint,
+        amount: args.swapAmount,
+        taker: detectedTaker,
+      }),
+    },
+    30000
+  );
+
+  const hasOrder =
+    order.ok &&
+    order.data?.success &&
+    order.data?.data?.outAmount &&
+    order.data?.data?.transaction &&
+    order.data?.data?.requestId;
+  if (!hasOrder) {
+    const routeMissing = order.status === 404 || order.status === 405 || !order.data;
+    const detail = `Jupiter order probe did not return a signable order: HTTP ${order.status}; body ${shortText(order.rawBody)}`;
+    if (args.swapOrderRequired || routeMissing) throw new Error(detail);
+    report.warnings.push(`${detail}. Configure a funded SWOP QA taker or set SWOP_QA_SWAP_ORDER_REQUIRED=true to make this strict.`);
+    result.order = 'reachable-no-order';
+    return result;
+  }
+
+  result.order = 'pass';
+  result.orderOutAmount = order.data.data.outAmount;
+  return result;
 }
 
 function escapeRegex(value) {
@@ -588,14 +836,35 @@ async function runCardChecks({ client, baseUrl, args, report }) {
   finishStep(step, 'pass', `Clicked a prediction outcome (${clickedPrediction}); final buy/sell action was not clicked.`);
 
   step = add('swap-card');
-  await sendPrompt(client, 'swap 1 SWOP to USDC');
-  await waitForText(client, 'swap card', [/swap quote|Sign\s*&\s*approve|SWOP|USDC/i], 60000);
+  const swapPrompt = 'swap 1 SWOP to USDC';
+  await sendPrompt(client, swapPrompt);
+  const uiHealth = await waitForSwapCardUiHealth(client, swapPrompt, 90000);
+  const apiHealth = await probeJupiterSwapApis({ client, args, report });
+  await sleep(1500);
+  const settledSwapText = await textAfterLatestMarker(client, swapPrompt);
+  const settledFailure = detectSwapUiFailure(settledSwapText);
+  if (settledFailure) {
+    throw new Error(`${settledFailure} after quote settle. Latest swap card text: ${shortText(settledSwapText)}`);
+  }
+  let clickedSwapPercent = false;
   try {
     await clickButton(client, '25%', { exact: true, avoidFinal: true });
+    clickedSwapPercent = true;
   } catch (error) {
     report.warnings.push(`Swap 25% control was not clicked: ${error.message}`);
   }
-  finishStep(step, 'pass', 'Rendered swap card and exercised a safe control when available.');
+  if (clickedSwapPercent) {
+    const scopedText = await textAfterLatestMarker(client, swapPrompt);
+    const failure = detectSwapUiFailure(scopedText);
+    if (failure) {
+      throw new Error(`${failure} after clicking 25%. Latest swap card text: ${shortText(scopedText)}`);
+    }
+  }
+  finishStep(
+    step,
+    'pass',
+    `Rendered healthy SWOP to USDC swap card; quote out=${apiHealth.quoteOutAmount}, routePlan=${apiHealth.quoteRoutePlanLength}, order=${apiHealth.order}, orderOut=${apiHealth.orderOutAmount || 'n/a'}. UI excerpt: ${uiHealth.excerpt}`
+  );
 }
 
 async function tryPredictionOutcomeClick(client) {
@@ -621,6 +890,13 @@ async function main() {
     profileDir: args.profileDir,
     gitRef: process.env.SWOP_QA_GIT_REF || null,
     gitSha: process.env.SWOP_QA_GIT_SHA || null,
+    swapQa: {
+      inputMint: args.swapInputMint,
+      outputMint: args.swapOutputMint,
+      amount: args.swapAmount,
+      orderProbeConfigured: Boolean(args.swapTaker),
+      orderRequired: args.swapOrderRequired,
+    },
     steps: [],
     warnings: [],
     alert: {
