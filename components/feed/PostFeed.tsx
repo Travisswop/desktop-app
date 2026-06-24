@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Loader } from "lucide-react";
+import { Check, Loader } from "lucide-react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
@@ -39,6 +39,48 @@ interface MintItem {
   itemName: string;
   itemImageUrl: string;
   itemPrice: string;
+  itemDescription?: string;
+  marketplaceProductId?:
+    | string
+    | {
+        _id?: string;
+        id?: string;
+        productType?: string;
+        nftType?: string;
+        type?: string;
+        shippingRequired?: boolean;
+        fulfillment?: { requiresShipping?: boolean };
+      };
+  productId?: string;
+  productType?: string;
+  nftType?: string;
+  category?: string;
+  templateId?: string | { _id?: string; id?: string };
+  price?: {
+    amount?: number;
+    currency?: string;
+  };
+  currency?: string;
+  shippingRequired?: boolean;
+  fulfillment?: { requiresShipping?: boolean };
+}
+
+interface FeedProductPayload {
+  id: string;
+  title: string;
+  itemName: string;
+  image: string;
+  itemImageUrl: string;
+  price: string;
+  itemPrice: string;
+  description?: string;
+  marketplaceProductId: string;
+  productId: string;
+  productType?: string;
+  currency?: string;
+  link: string;
+  smartsiteEns: string;
+  smartsiteProfileUrl: string;
 }
 
 interface MentionUser {
@@ -56,6 +98,115 @@ const MAX_POST_LENGTH = 2000;
 const MENTION_MIN_CHARS = 2;
 const MENTION_DEBOUNCE_MS = 250;
 const MENTION_PAGE_LIMIT = 8;
+
+const getValueId = (value: unknown) => {
+  if (!value) return "";
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value).trim();
+  }
+  if (typeof value === "object") {
+    const record = value as { _id?: string; id?: string };
+    return String(record._id || record.id || "").trim();
+  }
+  return "";
+};
+
+const getProductId = (item: MintItem) =>
+  getValueId(item.marketplaceProductId) ||
+  getValueId(item.productId) ||
+  getValueId(item.templateId) ||
+  getValueId(item._id);
+
+const getMicrositeEns = (microsite: any) =>
+  String(
+    microsite?.ens ||
+      microsite?.ensData?.name ||
+      microsite?.ensData?.ens ||
+      microsite?.ensData?.ensData?.name ||
+      "",
+  ).trim();
+
+const buildProductLink = (
+  smartsiteProfileUrl: string,
+  marketplaceProductId: string,
+) =>
+  smartsiteProfileUrl && marketplaceProductId
+    ? `${smartsiteProfileUrl}?product=${encodeURIComponent(
+        marketplaceProductId,
+      )}`
+    : smartsiteProfileUrl;
+
+const getProductImage = (item: MintItem) =>
+  String(item.itemImageUrl || "/images/placeholder-photo.png").trim();
+
+const getObjectRecord = (value: unknown) =>
+  value && typeof value === "object" ? (value as Record<string, any>) : null;
+
+const normalizeProductType = (item: MintItem): "digital" | "physical" => {
+  const marketplaceProduct = getObjectRecord(item.marketplaceProductId);
+  const template = getObjectRecord(item.templateId);
+  const normalized = [
+    marketplaceProduct?.productType,
+    marketplaceProduct?.nftType,
+    marketplaceProduct?.type,
+    template?.productType,
+    template?.nftType,
+    template?.type,
+    item.productType,
+    item.nftType,
+    item.category,
+  ]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .find(Boolean);
+  const requiresShipping = Boolean(
+    item.fulfillment?.requiresShipping ||
+      marketplaceProduct?.fulfillment?.requiresShipping ||
+      template?.fulfillment?.requiresShipping ||
+      item.shippingRequired ||
+      marketplaceProduct?.shippingRequired ||
+      template?.shippingRequired,
+  );
+
+  if (
+    requiresShipping ||
+    normalized === "physical" ||
+    normalized === "phygital" ||
+    normalized === "phygitals" ||
+    normalized === "menu"
+  ) {
+    return "physical";
+  }
+
+  return "digital";
+};
+
+const normalizeFeedProduct = (
+  item: MintItem,
+  smartsiteEns: string,
+  smartsiteProfileUrl: string,
+): FeedProductPayload => {
+  const marketplaceProductId = getProductId(item);
+  const link = buildProductLink(smartsiteProfileUrl, marketplaceProductId);
+  const price = String(item.itemPrice || item.price?.amount || "");
+
+  return {
+    id: marketplaceProductId,
+    title: item.itemName,
+    itemName: item.itemName,
+    image: getProductImage(item),
+    itemImageUrl: getProductImage(item),
+    price,
+    itemPrice: price,
+    description: item.itemDescription,
+    marketplaceProductId,
+    productId: marketplaceProductId,
+    productType: normalizeProductType(item),
+    currency: item.currency || item.price?.currency,
+    link,
+    smartsiteEns,
+    smartsiteProfileUrl,
+  };
+};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -80,7 +231,7 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
   const [showMintModal, setShowMintModal] = useState(false);
   const [mintDataLoading, setMintDataLoading] = useState(false);
   const [mintData, setMintData] = useState<MintItem[]>([]);
-  const [selectedMint, setSelectedMint] = useState<MintItem | null>(null);
+  const [selectedMints, setSelectedMints] = useState<MintItem[]>([]);
 
   // ── Poll state ──────────────────────────────────────────────────────────────
   const [showPollModal, setShowPollModal] = useState(false);
@@ -253,10 +404,21 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
 
   // ── Submit handlers ─────────────────────────────────────────────────────────
 
+  const restoreBodyScrollAfterModalsClose = () => {
+    if (typeof window === "undefined") return;
+
+    window.setTimeout(() => {
+      if (!document.querySelector('[role="dialog"]')) {
+        document.body.style.overflow = "";
+      }
+    }, 0);
+  };
+
   const completeFeedCreate = (createdFeedItem?: any | null) => {
     publishCreatedFeedItem(createdFeedItem);
     router.refresh();
     closeModal();
+    restoreBodyScrollAfterModalsClose();
   };
 
   const handleFeedPosting = async () => {
@@ -299,7 +461,14 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
   };
 
   const handleMintFeedPosting = async () => {
-    if (!selectedMint) return;
+    if (selectedMints.length === 0) return;
+    const smartsiteEns = getMicrositeEns(primaryMicrositeDetails);
+    const smartsiteProfileUrl = smartsiteEns ? `/sp/${smartsiteEns}` : "";
+    const products = selectedMints.map((item) =>
+      normalizeFeedProduct(item, smartsiteEns, smartsiteProfileUrl),
+    );
+    const primaryProduct = products[0];
+
     setPostLoading(true);
     try {
       const data = await postFeed(
@@ -308,10 +477,24 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
           userId,
           postType: "minting",
           content: {
-            title: selectedMint.itemName,
+            title:
+              products.length === 1
+                ? primaryProduct.title
+                : `${products.length} products`,
             type: "product",
-            image: selectedMint.itemImageUrl,
-            price: selectedMint.itemPrice,
+            image: primaryProduct.image,
+            price: primaryProduct.price,
+            itemPrice: primaryProduct.itemPrice,
+            description: primaryProduct.description,
+            marketplaceProductId: primaryProduct.marketplaceProductId,
+            productId: primaryProduct.productId,
+            productType: primaryProduct.productType,
+            currency: primaryProduct.currency,
+            link: primaryProduct.link,
+            smartsiteEns,
+            smartsiteProfileUrl,
+            productCount: products.length,
+            products,
           },
         },
         token,
@@ -321,6 +504,8 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
         toast.success("You posted successfully!");
         setMediaFiles([]);
         setPostContent("");
+        setSelectedMints([]);
+        setShowMintModal(false);
         completeFeedCreate(data.data);
       } else if (data?.state === "not-allowed") {
         toast.error("You are not allowed to create a feed post.");
@@ -340,10 +525,32 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
   const isSubmitDisabled = postLoading || isEmpty || isOverLimit;
   const showMentionDropdown =
     mentionQuery !== null && (mentionLoading || mentionResults.length > 0);
+  const availableMintProducts = useMemo(
+    () => mintData.filter((item) => Boolean(getProductId(item))),
+    [mintData],
+  );
+  const selectedMintIds = useMemo(
+    () => new Set(selectedMints.map((item) => getProductId(item))),
+    [selectedMints],
+  );
 
   const avatarSrc = isUrl(primaryMicrositeImg)
     ? primaryMicrositeImg
     : `/images/user_avator/${primaryMicrositeImg}.png`;
+
+  const toggleMintSelection = (item: MintItem) => {
+    const itemId = getProductId(item);
+    if (!itemId) return;
+
+    setSelectedMints((current) => {
+      const isSelected = current.some(
+        (selected) => getProductId(selected) === itemId,
+      );
+      return isSelected
+        ? current.filter((selected) => getProductId(selected) !== itemId)
+        : [...current, item];
+    });
+  };
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -507,9 +714,34 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
         <CustomModal
           isOpen={showMintModal}
           onCloseModal={setShowMintModal}
-          title="Mint as NFT"
+          title="Select products"
         >
           <div className="p-4">
+            {mintData.length > 0 && (
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-gray-600">
+                  {selectedMints.length} selected
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMints(availableMintProducts)}
+                    className="rounded-full px-3 py-1 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100"
+                  >
+                    Select all
+                  </button>
+                  {selectedMints.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMints([])}
+                      className="rounded-full px-3 py-1 text-sm font-semibold text-gray-500 transition-colors hover:bg-gray-100"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             {mintDataLoading ? (
               <p className="flex items-center justify-center gap-2 py-20">
                 Loading data <Loader className="animate-spin" size={26} />
@@ -519,14 +751,16 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
             ) : (
               <div className="mb-6 space-y-3">
                 {mintData.map((item) => {
-                  const isSelected = item._id === selectedMint?._id;
+                  const itemId = getProductId(item);
+                  const isSelected = selectedMintIds.has(itemId);
                   return (
-                    <div
-                      key={item._id}
-                      onClick={() => setSelectedMint(item)}
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl p-4 transition-all duration-200 ${
+                    <button
+                      key={itemId || item._id}
+                      type="button"
+                      onClick={() => toggleMintSelection(item)}
+                      className={`flex w-full cursor-pointer items-center gap-3 rounded-xl p-4 text-left transition-all duration-200 ${
                         isSelected
-                          ? "-translate-y-2 mx-1 border border-gray-200 bg-white shadow-lg"
+                          ? "border border-gray-950 bg-white shadow-lg"
                           : "bg-gray-50 hover:bg-gray-100"
                       }`}
                     >
@@ -551,12 +785,12 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
                         className={`flex size-6 flex-shrink-0 items-center justify-center rounded-full transition-all duration-200 ${
                           isSelected
                             ? "scale-100 bg-black opacity-100"
-                            : "scale-75 bg-gray-200 opacity-0"
+                            : "scale-100 border border-gray-300 bg-white opacity-100"
                         }`}
                       >
-                        <span className="text-xs text-white">✓</span>
+                        {isSelected && <Check className="size-3.5 text-white" />}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -564,10 +798,10 @@ const PostFeed = ({ primaryMicrositeImg, userId, token }: PostFeedProps) => {
 
             <PrimaryButton
               className="w-full py-3"
-              disabled={!selectedMint || postLoading}
+              disabled={selectedMints.length === 0 || postLoading}
               onClick={handleMintFeedPosting}
             >
-              Create{" "}
+              Create product post{" "}
               {postLoading && <Loader className="animate-spin" size={26} />}
             </PrimaryButton>
           </div>

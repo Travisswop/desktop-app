@@ -11,7 +11,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
 import relativeTime from "dayjs/plugin/relativeTime";
 import Reaction from "./view/Reaction";
 import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
 import FeedLoading from "../loading/FeedLoading";
 import DeleteFeedModal from "./DeleteFeedModal";
 import isUrl from "@/lib/isUrl";
@@ -21,6 +20,8 @@ import IndividualFeedContent from "./IndividualFeedContent";
 import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
 import SwapTransactionCard from "./SwapTransactionCard";
 import TokenTransferFeedCard from "./TokenTransferFeedCard";
+import ProductFeedCard from "./ProductFeedCard";
+import { isProductFeedPost } from "./productFeedUtils";
 
 dayjs.extend(relativeTime);
 
@@ -290,7 +291,8 @@ const Timeline = ({
                     </button>
                   )}
                   {/* Post Content */}
-                  {(feed.postType === "post" || feed.postType === "repost") &&
+                  {!isProductFeedPost(feed) &&
+                    (feed.postType === "post" || feed.postType === "repost") &&
                     feed.content.title && (
                       <button onClick={() => router.push(`/feed/${feed._id}`)}>
                         {feed.content.title
@@ -396,32 +398,12 @@ const Timeline = ({
               <div>
                 {/* Post Media */}
                 {feed.postType === "post" &&
+                  !isProductFeedPost(feed) &&
                   feed.content.post_content.length > 0 && (
                     <PostTypeMedia mediaFiles={feed.content.post_content} />
                   )}
-                {feed.postType === "minting" && (
-                  <div className="w-max">
-                    <p>{feed.content.title}</p>
-                    <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                      <Link href={feed?.content?.link || ""} className="w-max">
-                        <Image
-                          src={feed.content.image}
-                          alt="nft image"
-                          width={200}
-                          height={200}
-                        />
-                        {feed?.content?.price && (
-                          <p className="text-center text-sm text-gray-500 font-medium">
-                            {feed.content.price}
-                          </p>
-                        )}
-                        <FiPlusCircle
-                          className="absolute top-2 right-2"
-                          size={24}
-                        />
-                      </Link>
-                    </div>
-                  </div>
+                {isProductFeedPost(feed) && (
+                  <ProductFeedCard feed={feed} />
                 )}
               </div>
               <Reaction

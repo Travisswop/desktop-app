@@ -14,7 +14,6 @@ import { useState } from "react";
 import { GoDotFill } from "react-icons/go";
 import PostTypeMedia from "./view/PostTypeMedia";
 import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
 import SwapTransactionCard from "./SwapTransactionCard";
 import { formatEns } from "@/lib/formatEnsName";
 import PollCard from "./PollCard";
@@ -22,9 +21,10 @@ import PredictionFeedCard from "./PredictionFeedCard";
 import PerpsPositionFeedCard from "./PerpsPositionFeedCard";
 import PerpsFeedCard from "./PerpsFeedCard";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
-import { IoMdArrowDropright } from "react-icons/io";
 import { MdArrowRight } from "react-icons/md";
 import TokenTransferFeedCard from "./TokenTransferFeedCard";
+import ProductFeedCard from "./ProductFeedCard";
+import { isProductFeedPost } from "./productFeedUtils";
 
 const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -182,7 +182,7 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
               )}
 
               {/* Render Post Caption */}
-              {caption && (
+              {caption && !isProductFeedPost(feed.repostedPostDetails) && (
                 <div className="w-full text-start">
                   {caption.split("\n").map((line: string, index: number) => (
                     <p className="break-text" key={index}>
@@ -192,8 +192,9 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
                 </div>
               )}
 
-              {feed?.repostedPostDetails?.content?.quote?.post_content?.length >
-                0 && (
+              {!isProductFeedPost(feed.repostedPostDetails) &&
+                feed?.repostedPostDetails?.content?.quote?.post_content
+                  ?.length > 0 && (
                 <PostTypeMedia
                   mediaFiles={
                     feed?.repostedPostDetails?.content?.quote?.post_content
@@ -201,7 +202,8 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
                   isFromRepost={true}
                 />
               )}
-              {feed?.repostedPostDetails?.post_content?.length > 0 && (
+              {!isProductFeedPost(feed.repostedPostDetails) &&
+                feed?.repostedPostDetails?.post_content?.length > 0 && (
                 <PostTypeMedia
                   mediaFiles={feed?.repostedPostDetails?.post_content}
                   isFromRepost={true}
@@ -329,34 +331,15 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
         </div>
         <div>
           {feed.repostedPostDetails.postType === "post" &&
+            !isProductFeedPost(feed.repostedPostDetails) &&
             feed.repostedPostDetails.content.post_content && (
               <PostTypeMedia
                 mediaFiles={feed.repostedPostDetails.content.post_content}
                 isFromRepost={true}
               />
             )}
-          {feed.repostedPostDetails.postType === "minting" && (
-            <div className="w-max">
-              <p>{feed.repostedPostDetails.content.title}</p>
-              <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                <Link
-                  onClick={(e) => e.stopPropagation()}
-                  href={feed?.repostedPostDetails?.content?.link || "#"}
-                  className="w-max"
-                >
-                  <Image
-                    src={feed.repostedPostDetails.content.image}
-                    alt="nft image"
-                    width={200}
-                    height={200}
-                  />
-                  <p className="text-center text-sm text-gray-500 font-medium">
-                    {feed.repostedPostDetails.content.price}
-                  </p>
-                  <FiPlusCircle className="absolute top-2 right-2" size={24} />
-                </Link>
-              </div>
-            </div>
+          {isProductFeedPost(feed.repostedPostDetails) && (
+            <ProductFeedCard feed={feed.repostedPostDetails} compact />
           )}
         </div>
       </div>

@@ -7,8 +7,6 @@ import Image from "next/image";
 import isUrl from "@/lib/isUrl";
 import { GoDotFill } from "react-icons/go";
 import PostTypeMedia from "./view/PostTypeMedia";
-import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
 import Reaction from "./view/Reaction";
 import IndividualFeedContentForFeedDetails from "./IndividualFeedContentForFeedDetails";
 import { useRouter } from "next/navigation";
@@ -16,6 +14,8 @@ import { formatEns } from "@/lib/formatEnsName";
 import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
 import { IoArrowBack } from "react-icons/io5";
 import PerpsFeedCard from "./PerpsFeedCard";
+import ProductFeedCard from "./ProductFeedCard";
+import { isProductFeedPost } from "./productFeedUtils";
 
 dayjs.extend(relativeTime);
 
@@ -81,7 +81,8 @@ const FeedDetails = ({ feedData, feedDetails }: any) => {
                   )}
                 </p>
                 {/* Render Post Content */}
-                {(feedData.postType === "post" ||
+                {!isProductFeedPost(feedData) &&
+                  (feedData.postType === "post" ||
                   feedData.postType === "repost") &&
                   feedData.content.title && (
                     <div>
@@ -361,31 +362,13 @@ const FeedDetails = ({ feedData, feedDetails }: any) => {
             </div>
             <div>
               {feedData.postType === "post" &&
+                !isProductFeedPost(feedData) &&
                 feedData.content.post_content.length > 0 && (
                   <PostTypeMedia mediaFiles={feedData.content.post_content} />
                 )}
 
-              {feedData.postType === "minting" && (
-                <div className="w-max">
-                  <p>{feedData.content.title}</p>
-                  <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                    <Link href={feedData.content.link} className="w-max">
-                      <Image
-                        src={feedData.content.image}
-                        alt="nft image"
-                        width={200}
-                        height={200}
-                      />
-                      <p className="text-center text-sm text-gray-500 font-medium">
-                        {feedData.content.price}
-                      </p>
-                      <FiPlusCircle
-                        className="absolute top-2 right-2"
-                        size={24}
-                      />
-                    </Link>
-                  </div>
-                </div>
+              {isProductFeedPost(feedData) && (
+                <ProductFeedCard feed={feedData} />
               )}
             </div>
             <Reaction
