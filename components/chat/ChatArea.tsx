@@ -97,6 +97,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { AgentActionReceiptCard } from '@/components/chat/tickets/AgentActionReceiptCard';
+import { SwapBalanceRecoveryPanel } from '@/components/chat/tickets/SwapBalanceRecoveryPanel';
 import {
   AgentLoadingCard,
   MarketplaceItemCards,
@@ -137,6 +138,7 @@ import {
   formatPolymarketPrice,
   formatSignedUsd,
   formatSwapAmount,
+  buildSwapBalanceRecoveryTelemetryContext,
   formatWalletAddress,
   getAgentFeedIdentity,
   getPerpsMarkPrice,
@@ -15322,13 +15324,13 @@ function SwapProposalTicket({
     const clampedTokenAmount = Math.max(0, tokenAmount);
     setSwapRecovery(null);
     setSwapError(null);
-    if (amountType === 'usd' && selectedFromPriceUsd > 0) {
-      setAmountInput(
-        formatSwapAmountInputValue(clampedTokenAmount * selectedFromPriceUsd, 2)
-      );
-      return;
-    }
-    setAmountInput(formatSwapAmountInputValue(clampedTokenAmount));
+    setAmountInput(
+      getSwapBalanceRecoveryInputValue({
+        availableAmount: clampedTokenAmount,
+        amountType,
+        tokenPriceUsd: selectedFromPriceUsd,
+      })
+    );
   };
   const setAmountFromPercent = (percent: number) => {
     if (!hasSpendableBalance) return;
@@ -16191,6 +16193,7 @@ function SwapProposalTicket({
           availableAmount: balanceRecovery.availableAmount,
           tokenSymbol: balanceRecovery.tokenSymbol,
         });
+        void queryClient.invalidateQueries({ queryKey: ['walletTokens'] });
         queueAgentActionClientEvent(
           {
             proposalId,
@@ -16203,14 +16206,13 @@ function SwapProposalTicket({
             reason:
               'Balance changed before swap execution. Quote refresh required.',
             error: message,
-            context: {
+            context: buildSwapBalanceRecoveryTelemetryContext({
               fromToken,
               toToken,
-              requestedAmount: sellTokenDisplay,
-              availableAmount: balanceRecovery.availableAmount,
+              amountType,
               availableToken: balanceRecovery.tokenSymbol,
               routeLabel: displayRouteLabel,
-            },
+            }),
           },
           accessToken || undefined
         );
@@ -16587,66 +16589,17 @@ function SwapProposalTicket({
       )}
 
       {swapRecovery && (
-        <div className="mt-3 rounded-[12px] border border-[#ffb14a]/25 bg-[#ffb14a]/10 px-3 py-3 text-[#ffe1ad]">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="dm-mono text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#ffd08a]">
-                swap recovery
-              </div>
-              <div className="mt-1 text-[12.5px] font-bold text-[#fff2d6]">
-                Balance changed before signing
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSwapRecovery(null)}
-              className="dm-btn rounded-[8px] border border-[#ffb14a]/25 px-2 py-1 text-[10px] font-semibold text-[#ffd08a] hover:bg-[#ffb14a]/10"
-            >
-              Keep editing
-            </button>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-[10px] border border-[#ffb14a]/15 bg-black/20 px-3 py-2">
-              <div className={TICKET_LABEL_CLASS}>requested</div>
-              <div className="dm-mono mt-1 text-[12px] font-bold text-[#fff2d6]">
-                {swapRecovery.previousAmountLabel}
-              </div>
-            </div>
-            <div className="rounded-[10px] border border-[#ffb14a]/15 bg-black/20 px-3 py-2">
-              <div className={TICKET_LABEL_CLASS}>available now</div>
-              <div className="dm-mono mt-1 text-[12px] font-bold text-[#ffd08a]">
-                {formatSwapAmount(swapRecovery.availableAmount)}{' '}
-                {swapRecovery.tokenSymbol}
-              </div>
-            </div>
-          </div>
-          <p className="mt-3 text-[11px] font-semibold text-[#ffe1ad]">
-            Astro kept this ticket open, reset the sell amount to your spendable
-            balance, and invalidated the stale quote. Refresh the quote before
-            signing again.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                void handleConfirmSwap();
-              }}
-              disabled={!canAct || isSwapBusy}
-              className={TICKET_PRIMARY_BUTTON_CLASS}
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Refresh quote
-            </button>
-            <button
-              type="button"
-              onClick={() => setSwapRecovery(null)}
-              className={TICKET_REJECT_BUTTON_CLASS}
-            >
-              <X className="h-3.5 w-3.5" />
-              Keep editing
-            </button>
-          </div>
-        </div>
+        <SwapBalanceRecoveryPanel
+          availableAmount={swapRecovery.availableAmount}
+          canAct={canAct}
+          isBusy={isSwapBusy}
+          onKeepEditing={() => setSwapRecovery(null)}
+          onRefreshQuote={() => {
+            void handleConfirmSwap();
+          }}
+          previousAmountLabel={swapRecovery.previousAmountLabel}
+          tokenSymbol={swapRecovery.tokenSymbol}
+        />
       )}
 
       {swapError && (

@@ -94,6 +94,32 @@ export function getSwapRecoveryAmountInput(
   return formatSwapEditableAmount(availableNumber);
 }
 
+export function buildSwapBalanceRecoveryTelemetryContext({
+  fromToken,
+  toToken,
+  amountType,
+  availableToken,
+  routeLabel,
+}: {
+  fromToken: string;
+  toToken: string;
+  amountType?: string | null;
+  availableToken: string;
+  routeLabel: string;
+}) {
+  return {
+    fromToken,
+    toToken,
+    amountType: String(amountType || 'token').toLowerCase() === 'usd'
+      ? 'usd'
+      : 'token',
+    availableToken,
+    routeLabel,
+    reasonCode: 'balance_changed',
+    recoveryState: 'quote_refresh_required',
+  };
+}
+
 export function normalizeIntentText(value: unknown) {
   return String(value || '')
     .toLowerCase()
