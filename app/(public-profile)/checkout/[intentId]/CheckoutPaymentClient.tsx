@@ -341,6 +341,19 @@ function humanizeCheckoutError(error: unknown, fallback: string) {
   }
 
   if (
+    (message.includes('insufficient') &&
+      (message.includes('rent') ||
+        message.includes('fee payer') ||
+        message.includes('network fee') ||
+        message.includes('sponsor') ||
+        message.includes('transaction simulation failed'))) ||
+    message.includes('insufficient funds for rent') ||
+    message.includes('rent-exempt')
+  ) {
+    return 'Swop could not complete the sponsored Solana network setup for this payment. Your token balance is not the problem, so try again or choose another token.';
+  }
+
+  if (
     message.includes('insufficient funds') ||
     message.includes('insufficient balance')
   ) {
