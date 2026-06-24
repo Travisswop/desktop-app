@@ -53,6 +53,7 @@ export interface PerpsPositionFeedContent {
 
 export interface PerpsLiquidationFillSnapshot {
   coin: string;
+  dex?: string | null;
   px?: number;
   markPx?: number;
   closedPnl?: number;
@@ -63,12 +64,15 @@ export interface PerpsLiquidationFillSnapshot {
 
 export interface PerpsCloseFillSnapshot {
   coin: string;
+  dex?: string | null;
   px?: number;
   closedPnl?: number;
   feeUsd?: number;
   orderId?: string;
   timestamp?: string;
 }
+
+export type PerpsCoinDexMap = Record<string, string | null | undefined>;
 
 export interface PerpsFillLike {
   coin?: string | null;
@@ -242,6 +246,12 @@ function normalizePerpsDex(value: unknown) {
   return String(value || '').trim();
 }
 
+function perpsDisplayCoin(value: unknown) {
+  const coin = normalizePerpsCoin(value);
+  if (!coin) return '';
+  return coin.includes(':') ? coin.split(':').pop() || coin : coin;
+}
+
 export function qualifyPerpsPositionCoin({
   coin,
   dex,
@@ -257,6 +267,29 @@ export function qualifyPerpsPositionCoin({
   }
 
   return `${normalizedDex}:${normalizedCoin}`.toUpperCase();
+}
+
+export function updatePerpsDexByCoinMap(
+  current: PerpsCoinDexMap = {},
+  entries: Array<{ coin?: unknown; dex?: unknown } | null | undefined> = [],
+) {
+  const next: PerpsCoinDexMap = { ...current };
+
+  entries.forEach((entry) => {
+    const displayCoin = perpsDisplayCoin(entry?.coin);
+    const normalizedCoin = normalizePerpsCoin(entry?.coin);
+    const explicitDex = normalizePerpsDex(entry?.dex);
+    const qualifiedDex =
+      explicitDex ||
+      (normalizedCoin.includes(':')
+        ? normalizePerpsDex(normalizedCoin.split(':')[0])
+        : '');
+
+    if (!displayCoin || !qualifiedDex) return;
+    next[displayCoin] = qualifiedDex;
+  });
+
+  return next;
 }
 
 function fillTimeMs(fill: PerpsFillLike) {
@@ -378,6 +411,107 @@ export function buildPerpsActiveLimitOrderSnapshot({
   };
 }
 
+function resolvePerpsTerminalSnapshotIdentity(
+  coin: unknown,
+  dexByCoin: PerpsCoinDexMap = {},
+) {
+  const normalizedCoin = normalizePerpsCoin(coin);
+  const displayCoin = perpsDisplayCoin(normalizedCoin);
+  const explicitDex = normalizedCoin.includes(':')
+    ? normalizePerpsDex(normalizedCoin.split(':')[0])
+    : '';
+  const rememberedDex = displayCoin
+    ? normalizePerpsDex(dexByCoin[displayCoin])
+    : '';
+  const dex = explicitDex || rememberedDex;
+  const qualifiedCoin = normalizedCoin.includes(':')
+    ? normalizedCoin
+    : qualifyPerpsPositionCoin({
+        coin: displayCoin || normalizedCoin,
+        dex,
+      });
+
+  return {
+    coin: qualifiedCoin || normalizedCoin,
+    displayCoin,
+    dex: dex || null,
+  };
+}
+
+export function buildPerpsReconcileSnapshotKey({
+  masterAddress,
+  priceMapState,
+  observedDexes = [],
+  activePositionKeys,
+  activeLimitOrders = [],
+  liquidationsByCoin = {},
+  closedFillsByCoin = {},
+}: {
+  masterAddress: string;
+  priceMapState: string;
+  observedDexes?: Array<string | null | undefined>;
+  activePositionKeys: string[];
+  activeLimitOrders?: PerpsActiveLimitOrderSnapshot[];
+  liquidationsByCoin?: Record<
+    string,
+    PerpsLiquidationFillSnapshot | null | undefined
+  >;
+  closedFillsByCoin?: Record<string, PerpsCloseFillSnapshot | null | undefined>;
+}) {
+  const liquidations = Object.values(liquidationsByCoin)
+    .filter(
+      (fill): fill is PerpsLiquidationFillSnapshot =>
+        Boolean(fill?.coin || fill?.orderId || fill?.timestamp),
+    )
+    .map((fill) =>
+      [
+        'liquidation',
+        normalizePerpsCoin(fill.coin),
+        fill.orderId || '',
+        fill.timestamp || '',
+        fill.px ?? '',
+        fill.markPx ?? '',
+      ].join('='),
+    )
+    .sort();
+
+  const closes = Object.values(closedFillsByCoin)
+    .filter(
+      (fill): fill is PerpsCloseFillSnapshot =>
+        Boolean(fill?.coin || fill?.orderId || fill?.timestamp),
+    )
+    .map((fill) =>
+      [
+        'close',
+        normalizePerpsCoin(fill.coin),
+        fill.orderId || '',
+        fill.timestamp || '',
+        fill.px ?? '',
+        fill.closedPnl ?? '',
+      ].join('='),
+    )
+    .sort();
+
+  return [
+    masterAddress,
+    priceMapState,
+    `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
+    ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
+    ...activeLimitOrders
+      .map((order) =>
+        [
+          'limit',
+          order.positionKey.toLowerCase(),
+          order.orderId || '',
+          order.limitPrice,
+        ].join('='),
+      )
+      .sort(),
+    ...liquidations,
+    ...closes,
+  ].join(':');
+}
+
 function isTerminalCloseFill(fill: PerpsFillLike) {
   const startPosition = maybePerpsFeedNumber(fill.startPosition);
   const signedSize = fillSignedSize(fill);
@@ -402,19 +536,25 @@ function isTerminalCloseFill(fill: PerpsFillLike) {
 
 export function inferPerpsCloseFillsByCoin(
   fills: PerpsFillLike[] = [],
+  dexByCoin: PerpsCoinDexMap = {},
 ): Record<string, PerpsCloseFillSnapshot> {
   return fills.reduce<Record<string, PerpsCloseFillSnapshot>>(
     (closedFills, fill) => {
       if (fill?.liquidation || !isTerminalCloseFill(fill)) return closedFills;
 
-      const coin = normalizePerpsCoin(fill.coin);
+      const identity = resolvePerpsTerminalSnapshotIdentity(
+        fill.coin,
+        dexByCoin,
+      );
       const timeMs = fillTimeMs(fill);
-      if (!coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
+      if (!identity.coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
         return closedFills;
       }
 
       const timestamp = new Date(timeMs).toISOString();
-      const existingTime = Date.parse(closedFills[coin]?.timestamp || '');
+      const existingTime = Date.parse(
+        closedFills[identity.coin]?.timestamp || '',
+      );
       if (Number.isFinite(existingTime) && existingTime >= timeMs) {
         return closedFills;
       }
@@ -424,8 +564,9 @@ export function inferPerpsCloseFillsByCoin(
       const feeUsd = maybePerpsFeedNumber(fill.fee);
       const orderId = fillOrderId(fill);
 
-      closedFills[coin] = {
-        coin,
+      closedFills[identity.coin] = {
+        coin: identity.coin,
+        ...(identity.dex ? { dex: identity.dex } : {}),
         ...(price !== undefined ? { px: price } : {}),
         ...(closedPnl !== undefined ? { closedPnl } : {}),
         ...(feeUsd !== undefined ? { feeUsd } : {}),
@@ -437,6 +578,181 @@ export function inferPerpsCloseFillsByCoin(
     },
     {},
   );
+}
+
+export function inferPerpsLiquidationsByCoin(
+  fills: PerpsFillLike[] = [],
+  dexByCoin: PerpsCoinDexMap = {},
+): Record<string, PerpsLiquidationFillSnapshot> {
+  return fills.reduce<Record<string, PerpsLiquidationFillSnapshot>>(
+    (liquidations, fill) => {
+      if (!fill?.liquidation) return liquidations;
+
+      const identity = resolvePerpsTerminalSnapshotIdentity(
+        fill.coin,
+        dexByCoin,
+      );
+      const timeMs = fillTimeMs(fill);
+      if (!identity.coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
+        return liquidations;
+      }
+
+      const existingTime = Date.parse(liquidations[identity.coin]?.timestamp || '');
+      if (Number.isFinite(existingTime) && existingTime >= timeMs) {
+        return liquidations;
+      }
+
+      const price = maybePerpsFeedNumber(fill.px);
+      const markPrice = maybePerpsFeedNumber(
+        (fill.liquidation as { markPx?: string | number | null } | null)
+          ?.markPx ?? fill.px,
+      );
+      const closedPnl = maybePerpsFeedNumber(fill.closedPnl);
+      const feeUsd = maybePerpsFeedNumber(fill.fee);
+      const orderId = fillOrderId(fill);
+
+      liquidations[identity.coin] = {
+        coin: identity.coin,
+        ...(identity.dex ? { dex: identity.dex } : {}),
+        ...(price !== undefined ? { px: price } : {}),
+        ...(markPrice !== undefined ? { markPx: markPrice } : {}),
+        ...(closedPnl !== undefined ? { closedPnl } : {}),
+        ...(feeUsd !== undefined ? { feeUsd } : {}),
+        ...(orderId ? { orderId } : {}),
+        timestamp: new Date(timeMs).toISOString(),
+      };
+
+      return liquidations;
+    },
+    {},
+  );
+}
+
+export interface PerpsFeedHealthEvent {
+  type: 'feed_card_accuracy_perps_terminal_candidate';
+  provider: 'hyperliquid';
+  terminalEvent: 'close' | 'liquidate';
+  fingerprint: string;
+  masterAddress: string;
+  userId?: string | null;
+  smartsiteId?: string | null;
+  positionKey: string;
+  coin: string;
+  displayCoin: string;
+  dex?: string | null;
+  orderId?: string;
+  fillTimestamp?: string;
+  updatedAt: string;
+  observedDexes: string[];
+}
+
+export function buildPerpsTerminalFeedHealthEvents({
+  userId,
+  smartsiteId,
+  masterAddress,
+  activePositionKeys,
+  observedDexes = [],
+  liquidationsByCoin = {},
+  closedFillsByCoin = {},
+  updatedAt,
+}: {
+  userId?: string | null;
+  smartsiteId?: string | null;
+  masterAddress: string;
+  activePositionKeys: string[];
+  observedDexes?: Array<string | null | undefined>;
+  liquidationsByCoin?: Record<
+    string,
+    PerpsLiquidationFillSnapshot | null | undefined
+  >;
+  closedFillsByCoin?: Record<string, PerpsCloseFillSnapshot | null | undefined>;
+  updatedAt: string;
+}) {
+  const activeKeys = new Set(
+    activePositionKeys.map((positionKey) => positionKey.toLowerCase()),
+  );
+  const seenFingerprints = new Set<string>();
+  const normalizedDexes = observedDexes
+    .map((dex) => normalizePerpsDex(dex) || 'main')
+    .filter(Boolean);
+  const events: PerpsFeedHealthEvent[] = [];
+
+  const appendEvents = (
+    terminalEvent: 'close' | 'liquidate',
+    snapshots: Array<
+      PerpsCloseFillSnapshot | PerpsLiquidationFillSnapshot | null | undefined
+    >,
+  ) => {
+    snapshots.forEach((snapshot) => {
+      const qualifiedCoin = normalizePerpsCoin(snapshot?.coin);
+      const displayCoin = perpsDisplayCoin(qualifiedCoin);
+      if (!qualifiedCoin || !displayCoin) return;
+
+      const dex =
+        normalizePerpsDex(snapshot?.dex) ||
+        (qualifiedCoin.includes(':')
+          ? normalizePerpsDex(qualifiedCoin.split(':')[0])
+          : '');
+      const positionKey = buildPerpsPositionKey({
+        userId,
+        masterAddress,
+        coin: displayCoin,
+        dex,
+      });
+      const fingerprint = [
+        terminalEvent,
+        positionKey.toLowerCase(),
+        snapshot?.orderId || '',
+        snapshot?.timestamp || '',
+      ].join(':');
+
+      if (
+        !positionKey ||
+        activeKeys.has(positionKey.toLowerCase()) ||
+        seenFingerprints.has(fingerprint)
+      ) {
+        return;
+      }
+
+      seenFingerprints.add(fingerprint);
+      events.push({
+        type: 'feed_card_accuracy_perps_terminal_candidate',
+        provider: 'hyperliquid',
+        terminalEvent,
+        fingerprint,
+        masterAddress,
+        userId: userId || null,
+        smartsiteId: smartsiteId || null,
+        positionKey,
+        coin: qualifiedCoin,
+        displayCoin,
+        dex: dex || null,
+        ...(snapshot?.orderId ? { orderId: snapshot.orderId } : {}),
+        ...(snapshot?.timestamp ? { fillTimestamp: snapshot.timestamp } : {}),
+        updatedAt,
+        observedDexes: normalizedDexes,
+      });
+    });
+  };
+
+  appendEvents('liquidate', Object.values(liquidationsByCoin));
+  appendEvents('close', Object.values(closedFillsByCoin));
+
+  return events;
+}
+
+async function logPerpsFeedCardHealthEvents(events: PerpsFeedHealthEvent[]) {
+  if (events.length === 0) return;
+
+  const response = await fetch('/api/feed/card-health', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ events }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to log perps feed health (${response.status})`);
+  }
 }
 
 export function inferPerpsPositionRiskPrices(
@@ -625,6 +941,23 @@ export async function reconcilePerpsPositionFeed({
     return null;
   }
 
+  const updatedAt = new Date().toISOString();
+  const healthEvents = buildPerpsTerminalFeedHealthEvents({
+    userId,
+    smartsiteId,
+    masterAddress,
+    activePositionKeys,
+    observedDexes,
+    liquidationsByCoin,
+    closedFillsByCoin,
+    updatedAt,
+  });
+  if (healthEvents.length > 0) {
+    void logPerpsFeedCardHealthEvents(healthEvents).catch((error) => {
+      console.warn('Failed to log perps feed health events:', error);
+    });
+  }
+
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/perps-position/reconcile`,
     {
@@ -643,7 +976,7 @@ export async function reconcilePerpsPositionFeed({
         markPricesByCoin,
         liquidationsByCoin,
         closedFillsByCoin,
-        updatedAt: new Date().toISOString(),
+        updatedAt,
       }),
     },
   );
