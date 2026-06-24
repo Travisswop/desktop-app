@@ -191,6 +191,37 @@ export function readAgentActionHandoff():
   }
 }
 
+export function readMatchingAgentActionHandoff(
+  expected: Partial<
+    Pick<
+      AgentApprovalHandoffPayload,
+      'proposalId' | 'action' | 'toolType' | 'provider' | 'route' | 'panel'
+    >
+  >,
+):
+  | {
+      approvalResult?: AgentApprovalHandoff;
+      payload?: AgentApprovalHandoffPayload;
+      receivedAt?: string;
+    }
+  | null {
+  const handoff = readAgentActionHandoff();
+  const payload = handoff?.payload;
+  if (!handoff || !payload) return null;
+
+  const entries = Object.entries(expected) as Array<
+    [keyof typeof expected, string | undefined]
+  >;
+  for (const [key, value] of entries) {
+    if (!value) continue;
+    if (String(payload[key] || '') !== value) {
+      return null;
+    }
+  }
+
+  return handoff;
+}
+
 function readCookie(name: string) {
   if (typeof document === 'undefined') return '';
   return document.cookie

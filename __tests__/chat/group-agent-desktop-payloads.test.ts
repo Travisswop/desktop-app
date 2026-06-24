@@ -5,6 +5,7 @@ import {
   getPolymarketOrderPrefill,
   persistAgentActionHandoff,
   readAgentActionHandoff,
+  readMatchingAgentActionHandoff,
 } from '@/lib/chat/agentActionHandoff';
 import {
   getMessageProposalId,
@@ -173,6 +174,39 @@ describe('desktop group agent payloads', () => {
         panel: 'perps',
       },
     });
+  });
+
+  test('matches only the expected wallet swap handoff payload', () => {
+    persistAgentActionHandoff({
+      status: 'approved',
+      nextStep: 'wallet_frontend_signing_required',
+      payload: {
+        proposalId: 'prop_swap',
+        action: 'wallet.swap',
+        toolType: 'wallet.write',
+        provider: 'swop',
+        route: '/wallet',
+      },
+    });
+
+    expect(
+      readMatchingAgentActionHandoff({
+        action: 'wallet.swap',
+        provider: 'swop',
+        route: '/wallet',
+      }),
+    ).toMatchObject({
+      payload: {
+        proposalId: 'prop_swap',
+      },
+    });
+    expect(
+      readMatchingAgentActionHandoff({
+        action: 'wallet.send',
+        provider: 'swop',
+        route: '/wallet',
+      }),
+    ).toBeNull();
   });
 
   test('extracts Hyperliquid perps ticket defaults from approval handoff', () => {

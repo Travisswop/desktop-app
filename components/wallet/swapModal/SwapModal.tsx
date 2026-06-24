@@ -38,7 +38,10 @@ import PriorityFeeSelector, {
   PriorityLevel,
 } from './utils/PriorityFeeSelector';
 import TokenImage from './TokenImage';
-import { completeAgentActionFromHandoff } from '@/lib/chat/agentActionHandoff';
+import {
+  completeAgentActionFromHandoff,
+  readMatchingAgentActionHandoff,
+} from '@/lib/chat/agentActionHandoff';
 import { useUser } from '@/lib/UserContext';
 
 function toPublicKeyOrNull(value?: PublicKey | string | null) {
@@ -597,48 +600,56 @@ export default function SwapModal({
         setTxStatus(status);
       },
       onSuccess: (signature, feedData) => {
+        const swapActionHandoff = readMatchingAgentActionHandoff({
+          action: 'wallet.swap',
+          provider: 'swop',
+          route: '/wallet',
+        });
         setTxSignature(signature);
         setTxStatus('Transaction completed successfully!');
         setTxSuccess(true);
         setError(null);
 
-        completeAgentActionFromHandoff(
-          {
-            status: 'executed',
-            provider: 'swop',
-            title: 'Swap confirmed',
-            subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
-            subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
-            stake: amount,
-            payout: quote?.outAmount,
-            txHash: signature,
-            txUrl: signature
-              ? `https://solscan.io/tx/${signature}`
-              : undefined,
-            explorerLabel: 'View tx',
-            executionResult: {
-              signature,
-              inputToken: selectedInputSymbol,
-              outputToken: selectedOutputSymbol,
-              amount,
+        if (swapActionHandoff) {
+          void completeAgentActionFromHandoff(
+            {
+              proposalId: swapActionHandoff.payload?.proposalId,
+              status: 'executed',
+              provider: 'swop',
+              title: 'Swap confirmed',
+              subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
+              subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
+              stake: amount,
+              payout: quote?.outAmount,
+              txHash: signature,
+              txUrl: signature
+                ? `https://solscan.io/tx/${signature}`
+                : undefined,
+              explorerLabel: 'View tx',
+              executionResult: {
+                signature,
+                inputToken: selectedInputSymbol,
+                outputToken: selectedOutputSymbol,
+                amount,
+              },
             },
-          },
-          accessToken,
-        )
-          .then((completion) => {
-            if (!completion?.groupId) return;
-            window.location.assign(
-              `/dashboard/chat?groupId=${encodeURIComponent(
-                completion.groupId,
-              )}`,
-            );
-          })
-          .catch((completionError) => {
-            console.error(
-              'Failed to report swap agent completion:',
-              completionError,
-            );
-          });
+            accessToken,
+          )
+            .then((completion) => {
+              if (!completion?.groupId) return;
+              window.location.assign(
+                `/dashboard/chat?groupId=${encodeURIComponent(
+                  completion.groupId,
+                )}`,
+              );
+            })
+            .catch((completionError) => {
+              console.error(
+                'Failed to report swap agent completion:',
+                completionError,
+              );
+            });
+        }
 
         // Show a success notification for the feed
         if (feedData) {

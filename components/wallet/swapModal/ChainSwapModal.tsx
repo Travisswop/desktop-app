@@ -19,7 +19,10 @@ import { Input } from '@/components/ui/input';
 import { ArrowUpDown, ChevronRight, AlertCircle, RefreshCw } from 'lucide-react';
 import TokenImage from './TokenImage';
 import SlippageControl from './utils/SlippageControl';
-import { completeAgentActionFromHandoff } from '@/lib/chat/agentActionHandoff';
+import {
+    completeAgentActionFromHandoff,
+    readMatchingAgentActionHandoff,
+} from '@/lib/chat/agentActionHandoff';
 
 interface ChainSwapModalProps extends SwapModalProps {
     chain: 'solana' | 'ethereum';
@@ -378,47 +381,55 @@ function EthereumSwapModal({
                         amount={amount}
                         slippageBps={slippageBps}
                         onSwapComplete={(txHash) => {
+                            const swapActionHandoff = readMatchingAgentActionHandoff({
+                                action: 'wallet.swap',
+                                provider: 'swop',
+                                route: '/wallet',
+                            });
                             console.log('[DEBUG] Swap complete callback with hash:', txHash);
                             setTxSignature(txHash);
                             setTxSuccess(true);
                             setTxStatus('Transaction completed successfully!');
                             setError(null);
-                            completeAgentActionFromHandoff(
-                                {
-                                    status: 'executed',
-                                    provider: 'swop',
-                                    title: 'Swap confirmed',
-                                    subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
-                                    subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
-                                    stake: amount,
-                                    txHash,
-                                    txUrl: txHash
-                                        ? `https://etherscan.io/tx/${txHash}`
-                                        : undefined,
-                                    explorerLabel: 'View tx',
-                                    executionResult: {
+                            if (swapActionHandoff) {
+                                void completeAgentActionFromHandoff(
+                                    {
+                                        proposalId: swapActionHandoff.payload?.proposalId,
+                                        status: 'executed',
+                                        provider: 'swop',
+                                        title: 'Swap confirmed',
+                                        subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
+                                        subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
+                                        stake: amount,
                                         txHash,
-                                        inputToken: selectedInputSymbol,
-                                        outputToken: selectedOutputSymbol,
-                                        amount,
+                                        txUrl: txHash
+                                            ? `https://etherscan.io/tx/${txHash}`
+                                            : undefined,
+                                        explorerLabel: 'View tx',
+                                        executionResult: {
+                                            txHash,
+                                            inputToken: selectedInputSymbol,
+                                            outputToken: selectedOutputSymbol,
+                                            amount,
+                                        },
                                     },
-                                },
-                                accessToken,
-                            )
-                                .then((completion) => {
-                                    if (!completion?.groupId) return;
-                                    window.location.assign(
-                                        `/dashboard/chat?groupId=${encodeURIComponent(
-                                            completion.groupId,
-                                        )}`,
-                                    );
-                                })
-                                .catch((completionError) => {
-                                    console.error(
-                                        'Failed to report EVM swap agent completion:',
-                                        completionError,
-                                    );
-                                });
+                                    accessToken,
+                                )
+                                    .then((completion) => {
+                                        if (!completion?.groupId) return;
+                                        window.location.assign(
+                                            `/dashboard/chat?groupId=${encodeURIComponent(
+                                                completion.groupId,
+                                            )}`,
+                                        );
+                                    })
+                                    .catch((completionError) => {
+                                        console.error(
+                                            'Failed to report EVM swap agent completion:',
+                                            completionError,
+                                        );
+                                    });
+                            }
                             refreshBalances();
                         }}
                         onSwapError={(errorMsg) => {
