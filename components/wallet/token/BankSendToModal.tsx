@@ -15,6 +15,7 @@ import { useDebounce } from 'use-debounce';
 import { useQuery } from '@tanstack/react-query';
 import { Transaction } from '@solana/web3.js';
 import { Connection } from '@solana/web3.js';
+import bs58 from 'bs58';
 import { ReceiverData } from '@/types/wallet';
 import { truncateAddress } from '@/lib/utils';
 import RedeemModal, { RedeemConfig } from './redeem-modal';
@@ -22,6 +23,7 @@ import { TokenData } from '@/types/token';
 
 import { TransactionService } from '@/services/transaction-service';
 import { usePrivy } from '@privy-io/react-auth';
+import { useSignAndSendTransaction } from '@privy-io/react-auth/solana';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { BentoCard } from '@/components/ui/bento';
 type ProcessingStep = {
@@ -109,6 +111,7 @@ export default function BankSendToModal({
   const [addressError, setAddressError] = useState(false);
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
   const { solanaWallets } = useSolanaWalletContext();
+  const { signAndSendTransaction } = useSignAndSendTransaction();
 
   const network = selectedToken?.chain || 'ETHEREUM';
 
@@ -280,12 +283,19 @@ export default function BankSendToModal({
       const setupTx = Transaction.from(
         Buffer.from(data.serializedTransaction, 'base64')
       );
-      const signedSetupTx = await solanaWallet.signTransaction(
-        setupTx
-      );
-      const setupSignature = await connection.sendRawTransaction(
-        signedSetupTx.serialize()
-      );
+      const serializedSetupTx = setupTx.serialize({
+        requireAllSignatures: false,
+        verifySignatures: false,
+      });
+      const setupResult = await signAndSendTransaction({
+        transaction: new Uint8Array(serializedSetupTx),
+        wallet: solanaWallet,
+        options: { sponsor: true },
+      });
+      const setupSignature =
+        typeof setupResult.signature === 'string'
+          ? setupResult.signature
+          : bs58.encode(setupResult.signature);
       await connection.confirmTransaction(setupSignature);
       await new Promise((resolve) => setTimeout(resolve, 2000));
     } catch (error) {
@@ -311,7 +321,9 @@ export default function BankSendToModal({
             tokenAddress: selectedToken.address,
             tokenDecimals: selectedToken.decimals,
             tempAddress: data.tempAddress,
-          }
+          },
+          undefined,
+          signAndSendTransaction,
         );
 
       await connection.confirmTransaction(txSignature);
