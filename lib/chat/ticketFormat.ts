@@ -38,6 +38,32 @@ export function formatSwapAmount(value: unknown) {
   }).format(number);
 }
 
+export function parseSwapBalanceChangeError(
+  message: unknown,
+  fallbackTokenSymbol = 'TOKEN'
+) {
+  const text = String(message || '').trim();
+  const match = text.match(
+    /^Your\s+(?<token>[A-Za-z0-9._-]+|token)\s+balance changed\.\s+Available now:\s+(?<amount>[0-9][0-9,]*(?:\.[0-9]+)?)\s*(?<availableToken>[A-Za-z0-9._-]+)?\.\s+Try the swap again with the updated amount\.?$/i
+  );
+  if (!match?.groups?.amount) return null;
+
+  const rawToken = (
+    match.groups.availableToken ||
+    match.groups.token ||
+    fallbackTokenSymbol
+  ).trim();
+  const tokenSymbol =
+    !rawToken || rawToken.toLowerCase() === 'token'
+      ? fallbackTokenSymbol
+      : rawToken;
+
+  return {
+    availableAmount: match.groups.amount.replace(/,/g, '').trim(),
+    tokenSymbol,
+  };
+}
+
 export function normalizeIntentText(value: unknown) {
   return String(value || '')
     .toLowerCase()

@@ -143,6 +143,7 @@ import {
   getPolymarketOutcomeLabels,
   getReceiptIdentityKeys,
   isOpenPredictionConsolePosition,
+  parseSwapBalanceChangeError,
   isProposalNoLongerPendingError,
   normalizePredictionConsolePositions,
   normalizeIntentText,
@@ -15039,6 +15040,12 @@ function SwapProposalTicket({
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const [localReceipt, setLocalReceipt] =
     useState<AgentActionCompletion | null>(null);
+  const [swapRecovery, setSwapRecovery] = useState<{
+    kind: 'balance_changed';
+    previousAmountLabel: string;
+    availableAmount: string;
+    tokenSymbol: string;
+  } | null>(null);
   const [swapError, setSwapError] = useState<string | null>(null);
   const [inlineSwapStatus, setInlineSwapStatus] = useState<string | null>(null);
   const [isConfirmingSwap, setIsConfirmingSwap] = useState(false);
@@ -15237,6 +15244,8 @@ function SwapProposalTicket({
     setSelectedFromKey(initialFromOption?.key || '');
     setSelectedToKey(initialToOption?.key || '');
     setAmountInput(paramPayAmount || promptIntent.amount || '');
+    setSwapRecovery(null);
+    setSwapError(null);
   }, [
     initialFromOption?.key,
     initialToOption?.key,
@@ -15310,6 +15319,8 @@ function SwapProposalTicket({
     sellUsdAmount > 0 ? formatCompactUsd(sellUsdAmount) : '--';
   const setAmountFromTokenAmount = (tokenAmount: number) => {
     const clampedTokenAmount = Math.max(0, tokenAmount);
+    setSwapRecovery(null);
+    setSwapError(null);
     if (amountType === 'usd' && selectedFromPriceUsd > 0) {
       setAmountInput(
         formatSwapAmountInputValue(clampedTokenAmount * selectedFromPriceUsd, 2)
@@ -15354,6 +15365,7 @@ function SwapProposalTicket({
     if (!selectedFromOption || !selectedToOption) {
       const missingSide = !selectedFromOption ? 'from' : 'to';
       setOpenTokenSelector(missingSide);
+      setSwapRecovery(null);
       setSwapError(
         !selectedFromOption && !selectedToOption
           ? 'Pick the tokens for both sides before reversing this swap.'
@@ -15365,6 +15377,7 @@ function SwapProposalTicket({
     }
 
     if (!reverseFromOption || !reverseToOption) {
+      setSwapRecovery(null);
       setSwapError(
         `You need a spendable ${selectedToOption.symbol} balance to swap from ${selectedToOption.symbol}.`
       );
@@ -15373,6 +15386,7 @@ function SwapProposalTicket({
 
     quoteRequestIdRef.current += 1;
     setOpenTokenSelector(null);
+    setSwapRecovery(null);
     setSwapError(null);
     setQuoteState({ status: 'idle' });
     setSelectedFromKey(reverseFromOption.key);
@@ -15703,20 +15717,27 @@ function SwapProposalTicket({
         )}`
       : `${formatSwapAmount(payAmount)} ${fromToken}`
     : `0.00 ${fromToken}`;
-  const quotedReceiveAmount = quoteState.receiveAmount || receiveAmount;
+  const quoteNeedsRefresh = Boolean(swapRecovery);
+  const quotedReceiveAmount = quoteNeedsRefresh
+    ? ''
+    : quoteState.receiveAmount || receiveAmount;
   const receiveLabel = quotedReceiveAmount
     ? `${formatSwapAmount(quotedReceiveAmount)} ${toToken}`
+    : quoteNeedsRefresh
+    ? `Refresh ${toToken} quote`
     : quoteState.status === 'loading'
     ? `Quoting ${toToken}`
     : quoteState.status === 'error'
     ? 'Quote unavailable'
     : `0.00 ${toToken}`;
-  const displayPrice = quoteState.price || price || '--';
+  const displayPrice = quoteNeedsRefresh ? '--' : quoteState.price || price || '--';
   const displayPriceImpact =
-    quoteState.priceImpact !== undefined
+    quoteNeedsRefresh
+      ? '--'
+      : quoteState.priceImpact !== undefined
       ? formatSwapPercent(quoteState.priceImpact)
       : formatSwapPercent(priceImpact);
-  const displayFee = quoteState.fee || fee || '--';
+  const displayFee = quoteNeedsRefresh ? '--' : quoteState.fee || fee || '--';
   const displayProvider = quoteState.provider || dynamicProvider;
   const displayRouteLabel = quoteState.routeLabel || routeLabel;
   const swapHeaderMeta = `${fromToken} to ${toToken} · ${displayRouteLabel}`;
@@ -15730,6 +15751,8 @@ function SwapProposalTicket({
   const isSwapBusy = isPending || isConfirmingSwap;
   const headerStatusText = isQuoteLoading
     ? 'quoting'
+    : swapRecovery
+    ? 'needs refresh'
     : inlineSwapStatus
     ? 'signing'
     : isQuoteError
@@ -15751,6 +15774,8 @@ function SwapProposalTicket({
       : quoteState.status === 'success'
       ? 'Refresh quote'
       : 'Get quote'
+    : swapRecovery
+    ? 'Refresh quote'
     : inlineSwapStatus || isSwapBusy
     ? inlineSwapStatus || 'Signing...'
     : status === 'approved'
@@ -15759,6 +15784,17 @@ function SwapProposalTicket({
     ? 'Confirmed'
     : 'Sign & approve';
   const handleConfirmSwap = async () => {
+    if (swapRecovery) {
+      setInlineSwapStatus('Refreshing quote...');
+      try {
+        setSwapRecovery(null);
+        await fetchSwapQuote();
+      } finally {
+        setInlineSwapStatus(null);
+      }
+      return;
+    }
+
     if (quoteOnly) {
       setInlineSwapStatus('Refreshing quote...');
       try {
@@ -16137,6 +16173,47 @@ function SwapProposalTicket({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to approve swap.';
+      const balanceRecovery = parseSwapBalanceChangeError(message, fromToken);
+      if (balanceRecovery) {
+        setAmountInput(balanceRecovery.availableAmount);
+        setQuoteState({ status: 'idle' });
+        setSwapError(null);
+        setSwapRecovery({
+          kind: 'balance_changed',
+          previousAmountLabel: sellTokenDisplay,
+          availableAmount: balanceRecovery.availableAmount,
+          tokenSymbol: balanceRecovery.tokenSymbol,
+        });
+        queueAgentActionClientEvent(
+          {
+            proposalId,
+            stage: 'execution_failed',
+            action: 'wallet.swap',
+            toolType: 'wallet.write',
+            provider: displayProvider,
+            uiSurface: 'chat_swap_ticket',
+            status: 'recoverable',
+            reason:
+              'Balance changed before swap execution. Quote refresh required.',
+            error: message,
+            context: {
+              fromToken,
+              toToken,
+              requestedAmount: sellTokenDisplay,
+              availableAmount: balanceRecovery.availableAmount,
+              availableToken: balanceRecovery.tokenSymbol,
+              routeLabel: displayRouteLabel,
+            },
+          },
+          accessToken || undefined
+        );
+        toast.error(
+          `Balance changed. Review ${formatSwapAmount(
+            balanceRecovery.availableAmount
+          )} ${balanceRecovery.tokenSymbol} and refresh the quote.`
+        );
+        return;
+      }
       try {
         const failedCompletion = await completeAgentActionFromHandoff(
           {
@@ -16181,6 +16258,7 @@ function SwapProposalTicket({
         <button
           type="button"
           onClick={() => {
+            setSwapRecovery(null);
             setSwapError(null);
             setOpenTokenSelector(isOpenSelector ? null : kind);
           }}
@@ -16215,9 +16293,10 @@ function SwapProposalTicket({
                 const subLabel = getSwapTokenSubLabel(option);
                 return (
                   <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => {
+                  key={option.key}
+                  type="button"
+                  onClick={() => {
+                      setSwapRecovery(null);
                       onSelect(option.key);
                       setOpenTokenSelector(null);
                     }}
@@ -16278,7 +16357,10 @@ function SwapProposalTicket({
         </div>
         <span
           className={`dm-mono inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] ${
-            isQuoteError || status === 'failed' || status === 'rejected'
+            swapRecovery ||
+            isQuoteError ||
+            status === 'failed' ||
+            status === 'rejected'
               ? 'bg-[#ff5d63]/15 text-[#ffb2b6]'
               : 'bg-[#3fe08f]/10 text-[#9ef7c8]'
           }`}
@@ -16307,7 +16389,11 @@ function SwapProposalTicket({
           <div className="mt-2 flex items-center gap-3">
             <input
               value={amountInput}
-              onChange={(event) => setAmountInput(event.target.value)}
+              onChange={(event) => {
+                setSwapRecovery(null);
+                setSwapError(null);
+                setAmountInput(event.target.value);
+              }}
               inputMode="decimal"
               placeholder="0.00"
               className="min-w-0 flex-1 bg-transparent dm-mono text-[28px] font-bold leading-none text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
@@ -16493,6 +16579,69 @@ function SwapProposalTicket({
         </div>
       )}
 
+      {swapRecovery && (
+        <div className="mt-3 rounded-[12px] border border-[#ffb14a]/25 bg-[#ffb14a]/10 px-3 py-3 text-[#ffe1ad]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="dm-mono text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#ffd08a]">
+                swap recovery
+              </div>
+              <div className="mt-1 text-[12.5px] font-bold text-[#fff2d6]">
+                Balance changed before signing
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSwapRecovery(null)}
+              className="dm-btn rounded-[8px] border border-[#ffb14a]/25 px-2 py-1 text-[10px] font-semibold text-[#ffd08a] hover:bg-[#ffb14a]/10"
+            >
+              Keep editing
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-[10px] border border-[#ffb14a]/15 bg-black/20 px-3 py-2">
+              <div className={TICKET_LABEL_CLASS}>requested</div>
+              <div className="dm-mono mt-1 text-[12px] font-bold text-[#fff2d6]">
+                {swapRecovery.previousAmountLabel}
+              </div>
+            </div>
+            <div className="rounded-[10px] border border-[#ffb14a]/15 bg-black/20 px-3 py-2">
+              <div className={TICKET_LABEL_CLASS}>available now</div>
+              <div className="dm-mono mt-1 text-[12px] font-bold text-[#ffd08a]">
+                {formatSwapAmount(swapRecovery.availableAmount)}{' '}
+                {swapRecovery.tokenSymbol}
+              </div>
+            </div>
+          </div>
+          <p className="mt-3 text-[11px] font-semibold text-[#ffe1ad]">
+            Astro kept this ticket open, reset the sell amount to your spendable
+            balance, and invalidated the stale quote. Refresh the quote before
+            signing again.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void handleConfirmSwap();
+              }}
+              disabled={!canAct || isSwapBusy}
+              className={TICKET_PRIMARY_BUTTON_CLASS}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh quote
+            </button>
+            <button
+              type="button"
+              onClick={() => setSwapRecovery(null)}
+              className={TICKET_REJECT_BUTTON_CLASS}
+            >
+              <X className="h-3.5 w-3.5" />
+              Keep editing
+            </button>
+          </div>
+        </div>
+      )}
+
       {swapError && (
         <div className="mt-3 rounded-[10px] border border-[#ff5d63]/25 bg-[#ff5d63]/10 px-3 py-2 text-[11px] font-semibold text-[#ffb2b6]">
           {swapError}
@@ -16514,12 +16663,17 @@ function SwapProposalTicket({
               void handleConfirmSwap();
             }}
             disabled={
-              !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection
+              !canAct ||
+              isSwapBusy ||
+              isQuoteLoading ||
+              (!hasUsableSwapSelection && !swapRecovery)
             }
             className={TICKET_PRIMARY_BUTTON_CLASS}
           >
             {isQuoteLoading || isConfirmingSwap ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : swapRecovery ? (
+              <RefreshCw className="h-3.5 w-3.5" />
             ) : status === 'approved' || status === 'executed' ? (
               <Check className="h-3.5 w-3.5" />
             ) : quoteOnly ? (
