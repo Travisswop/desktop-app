@@ -34,6 +34,7 @@ describe('swap ticket blocker copy', () => {
       getSwapActionBlockerNotice({
         ...baseState,
         hasSpendableBalance: false,
+        hasSelectedFromOption: false,
         hasUsableSwapSelection: false,
       })
     ).toMatchObject({

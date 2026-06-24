@@ -111,6 +111,7 @@ import {
   PolymarketMarketCards,
   PolymarketPositionsCard,
 } from '@/components/chat/cards/PolymarketCards';
+import { SwapProposalActionFooter } from '@/components/chat/tickets/SwapProposalActionFooter';
 import type {
   AstroConsoleData,
   ChartCommandIntent,
@@ -16526,52 +16527,24 @@ function SwapProposalTicket({
         </div>
       )}
 
-      {isOpen && (
-        <div className="mt-3 flex gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              void handleConfirmSwap();
-            }}
-            disabled={
-              !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection
-            }
-            className={TICKET_PRIMARY_BUTTON_CLASS}
-          >
-            {isQuoteLoading || isConfirmingSwap ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : status === 'approved' || status === 'executed' ? (
-              <Check className="h-3.5 w-3.5" />
-            ) : quoteOnly ? (
-              <RefreshCw className="h-3.5 w-3.5" />
-            ) : (
-              <ArrowRightLeft className="h-3.5 w-3.5" />
-            )}
-            {actionLabel}
-          </button>
-          <button
-            type="button"
-            onClick={() => onReject(proposalId)}
-            disabled={!canAct || isPending}
-            className={TICKET_REJECT_BUTTON_CLASS}
-          >
-            <Ban className="h-3.5 w-3.5" />
-            Reject
-          </button>
-        </div>
-      )}
-
-      {swapActionBlocker && (
-        <p
-          className={`mt-2 rounded-[10px] border px-3 py-2 text-[11px] font-semibold ${
-            swapActionBlocker.tone === 'warning'
-              ? 'border-[#ffb14a]/25 bg-[#ffb14a]/10 text-[#ffd08a]'
-              : 'border-[#3fe08f]/20 bg-[#3fe08f]/10 text-[#9ef7c8]'
-          }`}
-        >
-          {swapActionBlocker.message}
-        </p>
-      )}
+      <SwapProposalActionFooter
+        actionLabel={actionLabel}
+        canAct={canAct}
+        isConfirmingSwap={isConfirmingSwap}
+        isOpen={isOpen}
+        isPending={isPending}
+        isPrimaryActionDisabled={
+          !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection
+        }
+        isQuoteLoading={isQuoteLoading}
+        onConfirm={() => {
+          void handleConfirmSwap();
+        }}
+        onReject={() => onReject(proposalId)}
+        quoteOnly={quoteOnly}
+        status={status}
+        swapActionBlocker={swapActionBlocker}
+      />
       </div>
     </div>
   );
