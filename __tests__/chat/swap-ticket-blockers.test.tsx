@@ -1,7 +1,125 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { SwapProposalTicket } from '@/components/chat/ChatArea';
 import { SwapActionBlockerNotice } from '@/components/chat/tickets/SwapActionBlockerNotice';
 import { getSwapActionBlocker } from '@/lib/chat/ticketFormat';
+
+jest.mock('@tanstack/react-query', () => ({
+  useQuery: jest.fn(() => ({ data: undefined, isLoading: false })),
+  useQueryClient: jest.fn(() => ({
+    invalidateQueries: jest.fn(),
+  })),
+}));
+
+jest.mock('@privy-io/react-auth', () => ({
+  useConnectWallet: jest.fn(() => ({ connectWallet: jest.fn() })),
+  usePrivy: jest.fn(() => ({ getAccessToken: jest.fn() })),
+  useSendTransaction: jest.fn(() => ({ sendTransaction: jest.fn() })),
+  useWallets: jest.fn(() => ({ wallets: [] })),
+}));
+
+jest.mock('@privy-io/react-auth/solana', () => ({
+  useSignAndSendTransaction: jest.fn(() => ({
+    signAndSendTransaction: jest.fn(),
+  })),
+  useSignTransaction: jest.fn(() => ({
+    signTransaction: jest.fn(),
+  })),
+  useWallets: jest.fn(() => ({ wallets: [], ready: true })),
+}));
+
+jest.mock('@/lib/UserContext', () => ({
+  useUser: jest.fn(() => ({
+    accessToken: null,
+    user: null,
+  })),
+}));
+
+jest.mock('lightweight-charts', () => ({}), { virtual: true });
+
+jest.mock('@/components/chat/cards/ChatChartCommandCard', () => ({
+  ChatChartCommandCard: () => null,
+}));
+
+jest.mock('@/components/wallet/perps/hooks/useHyperliquidPortfolio', () => ({
+  useHyperliquidPortfolio: jest.fn(() => ({})),
+}));
+
+jest.mock('@/components/wallet/perps/hooks/useHyperliquidAgent', () => ({
+  useHyperliquidAgent: jest.fn(() => ({})),
+}));
+
+jest.mock('@/components/wallet/perps/hooks/useHyperliquidMarkets', () => ({
+  useHyperliquidMarkets: jest.fn(() => ({})),
+}));
+
+jest.mock('@/components/wallet/perps/hooks/useHyperliquidTrading', () => ({
+  useHyperliquidTrading: jest.fn(() => ({})),
+}));
+
+function createWalletToken(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    name: 'Solana',
+    symbol: 'SOL',
+    balance: '2',
+    decimals: 9,
+    chainId: 1151111081099710,
+    walletAddress: '',
+    address: 'So11111111111111111111111111111111111111112',
+    logoURI: '',
+    chain: 'SOLANA',
+    marketData: {
+      price: 150,
+    },
+    timeSeriesData: {
+      '1H': [],
+      '1D': [],
+      '1W': [],
+      '1M': [],
+      '1Y': [],
+    },
+    ...overrides,
+  };
+}
+
+function renderSwapProposalTicket({
+  canAct = true,
+  proposalParams,
+  sourceText,
+  walletPortfolioTokens,
+}: {
+  canAct?: boolean;
+  proposalParams: Record<string, unknown>;
+  sourceText: string;
+  walletPortfolioTokens: Array<Record<string, unknown>>;
+}) {
+  return renderToStaticMarkup(
+    <SwapProposalTicket
+      proposal={{
+        normalizedParams: proposalParams,
+      } as any}
+      proposalId="local-wallet-swap-1"
+      status="pending"
+      canAct={canAct}
+      isOpen
+      isPending={false}
+      onInlineActionComplete={jest.fn()}
+      onReject={jest.fn()}
+      astroConsoleData={
+        {
+          walletPortfolioTokens,
+          isWalletPortfolioBalanceLoading: false,
+          evmWalletAddress: '',
+          evmWalletAddresses: [],
+          eoaAddress: '',
+          solWalletAddress: 'So11111111111111111111111111111111111111112',
+        } as any
+      }
+      sourceText={sourceText}
+      autoFetchQuote={false}
+    />
+  );
+}
 
 describe('getSwapActionBlocker', () => {
   const baseParams = {
@@ -108,7 +226,64 @@ describe('getSwapActionBlocker', () => {
   });
 });
 
-describe('SwapActionBlockerNotice', () => {
+describe('SwapProposalTicket blocker banner', () => {
+  it('renders the empty-wallet blocker through the swap ticket', () => {
+    const markup = renderSwapProposalTicket({
+      proposalParams: {
+        fromToken: 'MCDX',
+        toToken: 'USDC',
+        amount: '10',
+        fromChain: 'solana',
+        toChain: 'solana',
+      },
+      sourceText: 'swap 10 MCDX to USDC',
+      walletPortfolioTokens: [],
+    });
+
+    expect(markup).toContain(
+      'No spendable MCDX balance is available. Fund the wallet or pick another token before swapping.'
+    );
+  });
+
+  it('renders the wrong-user blocker through the swap ticket', () => {
+    const markup = renderSwapProposalTicket({
+      canAct: false,
+      proposalParams: {
+        fromToken: 'SOL',
+        toToken: 'USDC',
+        amount: '1',
+        fromChain: 'solana',
+        toChain: 'solana',
+      },
+      sourceText: 'swap 1 SOL to USDC',
+      walletPortfolioTokens: [createWalletToken()],
+    });
+
+    expect(markup).toContain(
+      'Only the user who asked Astro to prepare this swap can approve it.'
+    );
+  });
+
+  it('renders the same-token blocker through the swap ticket', () => {
+    const markup = renderSwapProposalTicket({
+      proposalParams: {
+        fromToken: 'SOL',
+        toToken: 'SOL',
+        amount: '1',
+        fromChain: 'solana',
+        toChain: 'solana',
+      },
+      sourceText: 'swap 1 SOL to SOL',
+      walletPortfolioTokens: [createWalletToken()],
+    });
+
+    expect(markup).toContain(
+      'Pick a different output token before swapping.'
+    );
+  });
+});
+
+describe('SwapActionBlockerNotice visibility', () => {
   const baseProps = {
     isVisible: true,
     canAct: true,
@@ -122,31 +297,6 @@ describe('SwapActionBlockerNotice', () => {
     selectedFromKey: 'mcdx-sol',
     selectedToKey: 'usdc-sol',
   };
-
-  it('renders the empty-wallet blocker on the visible ticket surface', () => {
-    const markup = renderToStaticMarkup(
-      <SwapActionBlockerNotice
-        {...baseProps}
-        hasSpendableBalance={false}
-        selectedFromKey=""
-      />
-    );
-
-    expect(markup).toContain(
-      'No spendable MCDX balance is available. Fund the wallet or pick another token before swapping.'
-    );
-    expect(markup).toContain('text-[#ffd08a]');
-  });
-
-  it('renders the wrong-user blocker on the visible ticket surface', () => {
-    const markup = renderToStaticMarkup(
-      <SwapActionBlockerNotice {...baseProps} canAct={false} />
-    );
-
-    expect(markup).toContain(
-      'Only the user who asked Astro to prepare this swap can approve it.'
-    );
-  });
 
   it('renders route-error guidance on the visible ticket surface', () => {
     const markup = renderToStaticMarkup(

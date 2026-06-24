@@ -15005,7 +15005,7 @@ async function ensureChatEvmSwapAllowance({
   });
 }
 
-function SwapProposalTicket({
+export function SwapProposalTicket({
   proposal,
   proposalId,
   status,
