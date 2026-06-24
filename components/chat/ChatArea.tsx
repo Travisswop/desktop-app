@@ -185,6 +185,11 @@ import {
   type AgentActionCompletion,
 } from '@/lib/chat/agentActionHandoff';
 import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
+import {
+  buildLocalConsoleCardTelemetryProposalId,
+  queueLocalConsoleCardClientEvent,
+  type LocalConsoleCardAction,
+} from '@/lib/chat/localConsoleCardTelemetry';
 import { postFeed } from '@/actions/postFeed';
 import {
   usePolymarketWallet,
@@ -2881,6 +2886,29 @@ function hasFollowingAgentActionMessage(
   return false;
 }
 
+function getTrackedLocalConsoleCardAction(
+  message: Message
+): LocalConsoleCardAction | null {
+  const action =
+    message.agentData?.action ||
+    message.agentData?.metadata?.toolExecution?.action;
+  if (action === 'portfolio.pnl' || action === 'wallet.portfolio') {
+    return action;
+  }
+  return null;
+}
+
+function getLocalConsoleCardSourceMessageId(message: Message) {
+  const invocationId = String(message.agentData?.invocationId || '');
+  if (invocationId.startsWith('local-pnl-')) {
+    return invocationId.slice('local-pnl-'.length);
+  }
+  if (invocationId.startsWith('local-portfolio-')) {
+    return invocationId.slice('local-portfolio-'.length);
+  }
+  return '';
+}
+
 function hasLaterMeaningfulChatMessage(messages: Message[], currentIndex: number) {
   for (let index = currentIndex + 1; index < messages.length; index += 1) {
     const candidate = messages[index];
@@ -3203,6 +3231,7 @@ export default function ChatArea({
     key: string;
     at: number;
   } | null>(null);
+  const reportedLocalConsoleCardTelemetryRef = useRef<Set<string>>(new Set());
   const localPolymarketIntentSuppressUntilRef = useRef<number>(0);
   const renderedPolymarketMarketsRef = useRef<
     Map<string, PolymarketMarketPreview>
@@ -4255,6 +4284,102 @@ export default function ChatArea({
       });
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!shouldLoadAstroConsoleData || !accessToken) return;
+
+    const isSecureAstroDesk = isAstroTradingDeskChat(activeChatData, isGroup);
+    const threadType = isGroup ? 'group' : 'direct';
+    const activeGroupId = isGroup ? selectedChat?._id || null : null;
+
+    messages.forEach((message, index) => {
+      const localAction = getTrackedLocalConsoleCardAction(message);
+      if (
+        localAction &&
+        isAgentLikeMessage(message) &&
+        message.agentSender?.provider === 'local'
+      ) {
+        const sourceMessageId = getLocalConsoleCardSourceMessageId(message);
+        if (!sourceMessageId) return;
+
+        const proposalId = buildLocalConsoleCardTelemetryProposalId({
+          action: localAction,
+          eventKind: 'generated',
+          sourceMessageId,
+        });
+        if (reportedLocalConsoleCardTelemetryRef.current.has(proposalId)) return;
+        reportedLocalConsoleCardTelemetryRef.current.add(proposalId);
+
+        queueLocalConsoleCardClientEvent({
+          accessToken,
+          action: localAction,
+          eventKind: 'generated',
+          groupId: activeGroupId,
+          invocationId: message.agentData?.invocationId,
+          sourceMessageId,
+          threadType,
+        });
+        return;
+      }
+
+      const senderId =
+        message.sender?._id?.toString() || String(message.sender?._id || '');
+      const isOwn = !isAgentLikeMessage(message) && senderId === currentUser;
+      if (!isOwn || message.messageType !== 'text') return;
+
+      const renderedMessage = toAstroDeskDisplayMessage(
+        message,
+        currentUser,
+        isSecureAstroDesk
+      );
+      const renderedMessageText = renderedMessage.message || '';
+      const hasAstroMention = /(?:^|\s)@?astro\b/i.test(message.message || '');
+      const canRenderLocalConsoleReadCard =
+        renderedMessageText.trim().length > 0 &&
+        (!isGroup || hasAstroMention || isSecureAstroDesk);
+      if (!canRenderLocalConsoleReadCard) return;
+
+      let action: LocalConsoleCardAction | null = null;
+      if (
+        isPnlCommand(renderedMessageText) &&
+        !hasFollowingAgentActionMessage(messages, index, 'portfolio.pnl')
+      ) {
+        action = 'portfolio.pnl';
+      } else if (
+        isPortfolioCommand(renderedMessageText) &&
+        !hasFollowingAgentActionMessage(messages, index, 'wallet.portfolio')
+      ) {
+        action = 'wallet.portfolio';
+      }
+      if (!action) return;
+
+      const sourceMessageId = message._id || `message-${index}`;
+      const proposalId = buildLocalConsoleCardTelemetryProposalId({
+        action,
+        eventKind: 'rehydrated',
+        sourceMessageId,
+      });
+      if (reportedLocalConsoleCardTelemetryRef.current.has(proposalId)) return;
+      reportedLocalConsoleCardTelemetryRef.current.add(proposalId);
+
+      queueLocalConsoleCardClientEvent({
+        accessToken,
+        action,
+        eventKind: 'rehydrated',
+        groupId: activeGroupId,
+        sourceMessageId,
+        threadType,
+      });
+    });
+  }, [
+    accessToken,
+    activeChatData,
+    currentUser,
+    isGroup,
+    messages,
+    selectedChat,
+    shouldLoadAstroConsoleData,
+  ]);
 
   // console.log("selectedChat._id", selectedChat._id);
 
