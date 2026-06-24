@@ -15325,7 +15325,7 @@ function SwapProposalTicket({
     setSwapRecovery(null);
     setSwapError(null);
     setAmountInput(
-      getSwapBalanceRecoveryInputValue({
+      getSwapRecoveryAmountInput({
         availableAmount: clampedTokenAmount,
         amountType,
         tokenPriceUsd: selectedFromPriceUsd,
