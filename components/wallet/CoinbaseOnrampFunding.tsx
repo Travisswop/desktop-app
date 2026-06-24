@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  ExternalLink,
   Loader2,
   Phone,
   ShieldCheck,
@@ -25,17 +26,19 @@ type FundingOption = {
   walletType: "evm" | "solana";
 };
 
+type OnrampMode = "embedded" | "hosted";
+
 const FUNDING_OPTIONS: FundingOption[] = [
+  {
+    network: "ethereum",
+    label: "Ethereum USDC",
+    description: "Ethereum mainnet USDC",
+    walletType: "evm",
+  },
   {
     network: "polygon",
     label: "Predictions USDC",
     description: "Polygon USDC for Polymarket funding",
-    walletType: "evm",
-  },
-  {
-    network: "arbitrum",
-    label: "Perps USDC",
-    description: "Arbitrum USDC for Hyperliquid deposits",
     walletType: "evm",
   },
   {
@@ -45,16 +48,16 @@ const FUNDING_OPTIONS: FundingOption[] = [
     walletType: "evm",
   },
   {
-    network: "ethereum",
-    label: "Ethereum USDC",
-    description: "Ethereum mainnet USDC",
-    walletType: "evm",
-  },
-  {
     network: "solana",
     label: "Solana USDC",
     description: "Solana wallet funding",
     walletType: "solana",
+  },
+  {
+    network: "arbitrum",
+    label: "Perps USDC",
+    description: "Arbitrum USDC for Hyperliquid deposits",
+    walletType: "evm",
   },
 ];
 
@@ -72,6 +75,17 @@ function normalizePhoneInput(value: string) {
   return value.replace(/[^\d+()\-\s.]/g, "");
 }
 
+// Mirror of the backend's normalizeUsPhoneNumber: Coinbase guest checkout only
+// accepts strict US E.164 (+1XXXXXXXXXX). Gate the button on the same rule the
+// server enforces so users don't get a 400 round-trip after clicking.
+function toUsE164(value: string): string | null {
+  let digits = value.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
+  if (digits.length !== 10) return null;
+  if (digits[0] === "0" || digits[0] === "1") return null;
+  return `+1${digits}`;
+}
+
 function normalizeNetwork(value?: CoinbaseOnrampNetwork): CoinbaseOnrampNetwork {
   return value && FUNDING_OPTIONS.some((option) => option.network === value)
     ? value
@@ -80,6 +94,10 @@ function normalizeNetwork(value?: CoinbaseOnrampNetwork): CoinbaseOnrampNetwork 
 
 function isDomainAllowlistError(message: string) {
   return /domain.+allow[- ]?list/i.test(message);
+}
+
+function isOrdersApiAuthorizationError(message: string) {
+  return /not authorized to create onramp orders/i.test(message);
 }
 
 function withCoinbaseSandboxParam(
@@ -128,6 +146,7 @@ export default function CoinbaseOnrampFunding({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [onrampUrl, setOnrampUrl] = useState<string | null>(null);
+  const [onrampMode, setOnrampMode] = useState<OnrampMode>("embedded");
   const [sessionDestinationAddress, setSessionDestinationAddress] =
     useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -163,13 +182,14 @@ export default function CoinbaseOnrampFunding({
 
   const numericAmount = Number(paymentAmount);
   const amountValid = Number.isFinite(numericAmount) && numericAmount > 0;
-  // Guest checkout requires a valid US phone; a 10+ digit number is the floor.
-  const phoneValid = phoneNumber.replace(/\D/g, "").length >= 10;
+  // Guest checkout requires a valid US phone in strict E.164 — match the server.
+  const phoneValid = toUsE164(phoneNumber) !== null;
   const canStart = Boolean(accessToken && amountValid && phoneValid);
 
   const handleSelectNetwork = (network: CoinbaseOnrampNetwork) => {
     setSelectedNetwork(network);
     setOnrampUrl(null);
+    setOnrampMode("embedded");
     setSessionDestinationAddress(null);
     setOnrampEvent(null);
     setError(null);
@@ -181,6 +201,7 @@ export default function CoinbaseOnrampFunding({
     setIsLoading(true);
     setError(null);
     setOnrampUrl(null);
+    setOnrampMode("embedded");
     setSessionDestinationAddress(null);
     setOnrampEvent(null);
 
@@ -212,6 +233,7 @@ export default function CoinbaseOnrampFunding({
           ? withCoinbaseSandboxParam(paymentLinkUrl, order.paymentMethod)
           : paymentLinkUrl
       );
+      setOnrampMode("embedded");
       setSessionDestinationAddress(order.destinationAddress);
     } catch (err: any) {
       const message =
@@ -222,6 +244,38 @@ export default function CoinbaseOnrampFunding({
           "Coinbase blocked embedded checkout for this domain. Swop only uses embedded Headless Onramp here; enable Headless sandbox for localhost or allow-list this app domain in Coinbase Developer Platform."
         );
         return;
+      }
+
+      if (isOrdersApiAuthorizationError(message)) {
+        try {
+          const session = await WalletService.createCoinbaseOnrampSession(
+            {
+              network: selectedNetwork,
+              purchaseCurrency: "USDC",
+              paymentCurrency: "USD",
+              paymentAmount,
+              redirectUrl:
+                typeof window !== "undefined"
+                  ? window.location.href
+                  : undefined,
+            },
+            accessToken
+          );
+
+          setOnrampUrl(session.onrampUrl);
+          setOnrampMode("hosted");
+          setSessionDestinationAddress(session.destinationAddress);
+          setError(
+            "Embedded Coinbase checkout is not enabled for this CDP app yet, so use the hosted Coinbase checkout to continue."
+          );
+          return;
+        } catch (sessionErr: any) {
+          setError(
+            sessionErr?.message ||
+              "Coinbase checkout is not enabled for this CDP app yet."
+          );
+          return;
+        }
       }
 
       setError(message);
@@ -268,6 +322,8 @@ export default function CoinbaseOnrampFunding({
   }, [onrampUrl]);
 
   if (onrampUrl) {
+    const isHostedOnramp = onrampMode === "hosted";
+
     return (
       <div className="space-y-4">
         <div
@@ -294,14 +350,19 @@ export default function CoinbaseOnrampFunding({
                 isDark ? "text-[#eceef2]" : "text-gray-950"
               }`}
             >
-              Coinbase payment is ready in Swop
+              {isHostedOnramp
+                ? "Coinbase hosted checkout is ready"
+                : "Coinbase payment is ready in Swop"}
             </h3>
             <p
               className={`text-sm ${
                 isDark ? "text-[#9ca0aa]" : "text-gray-600"
               }`}
             >
-              Press the Coinbase pay button below. USDC will be sent to{" "}
+              {isHostedOnramp
+                ? "Continue to Coinbase to finish the purchase. "
+                : "Press the Coinbase pay button below. "}
+              USDC will be sent to{" "}
               {selectedOption.label} at{" "}
               {truncateAddress(destinationAddress)} when the purchase settles.
             </p>
@@ -315,43 +376,61 @@ export default function CoinbaseOnrampFunding({
               : "border-gray-200 bg-white"
           }`}
         >
-          <div
-            className={`overflow-hidden rounded-2xl border ${
-              isDark
-                ? "border-white/[0.08] bg-[#0b0c0f]"
-                : "border-gray-200 bg-white"
-            }`}
-          >
-            <iframe
-              title="Coinbase embedded onramp"
-              src={onrampUrl}
-              allow="payment"
-              // Apple/Google Pay open a payment sheet and submit forms, so the
-              // sandbox must permit popups and forms in addition to scripts.
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
-              referrerPolicy="no-referrer"
-              className="h-[260px] w-full border-0 bg-transparent"
-            />
-          </div>
-          <div
-            className={`mt-3 flex items-center gap-2 rounded-xl p-3 text-sm ${
-              isDark
-                ? "border border-white/[0.08] bg-black/20 text-[#9ca0aa]"
-                : "bg-gray-50 text-gray-600"
-            }`}
-          >
-            {onrampEvent === "onramp_api.commit_success" ||
-            onrampEvent === "onramp_api.polling_success" ? (
-              <CheckCircle2 className="h-4 w-4 text-[#3fe08f]" />
-            ) : (
-              <ShieldCheck className="h-4 w-4" />
-            )}
-            <span>
-              {onrampEvent
-                ? onrampEvent.replace("onramp_api.", "Coinbase: ")
-                : "Waiting for Coinbase payment button"}
-            </span>
-          </div>
+          {isHostedOnramp ? (
+            <a
+              href={onrampUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition ${
+                isDark
+                  ? "bg-[#3fe08f] text-[#031008] hover:bg-[#64f2aa]"
+                  : "bg-black text-white hover:bg-gray-900"
+              }`}
+            >
+              Continue at Coinbase
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          ) : (
+            <>
+              <div
+                className={`overflow-hidden rounded-2xl border ${
+                  isDark
+                    ? "border-white/[0.08] bg-[#0b0c0f]"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                <iframe
+                  title="Coinbase embedded onramp"
+                  src={onrampUrl}
+                  allow="payment"
+                  // Apple/Google Pay open a payment sheet and submit forms, so the
+                  // sandbox must permit popups and forms in addition to scripts.
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
+                  referrerPolicy="no-referrer"
+                  className="h-[260px] w-full border-0 bg-transparent"
+                />
+              </div>
+              <div
+                className={`mt-3 flex items-center gap-2 rounded-xl p-3 text-sm ${
+                  isDark
+                    ? "border border-white/[0.08] bg-black/20 text-[#9ca0aa]"
+                    : "bg-gray-50 text-gray-600"
+                }`}
+              >
+                {onrampEvent === "onramp_api.commit_success" ||
+                onrampEvent === "onramp_api.polling_success" ? (
+                  <CheckCircle2 className="h-4 w-4 text-[#3fe08f]" />
+                ) : (
+                  <ShieldCheck className="h-4 w-4" />
+                )}
+                <span>
+                  {onrampEvent
+                    ? onrampEvent.replace("onramp_api.", "Coinbase: ")
+                    : "Waiting for Coinbase payment button"}
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         {error && (
@@ -370,6 +449,7 @@ export default function CoinbaseOnrampFunding({
           <button
             onClick={() => {
               setOnrampUrl(null);
+              setOnrampMode("embedded");
               setOnrampEvent(null);
             }}
             className={`flex-1 rounded-xl border px-4 py-3 font-semibold transition ${
@@ -441,7 +521,8 @@ export default function CoinbaseOnrampFunding({
               <button
                 key={option.network}
                 onClick={() => handleSelectNetwork(option.network)}
-                className={`rounded-xl border p-3 text-left transition ${
+                disabled={isLoading}
+                className={`rounded-xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
                   isDark
                     ? isSelected
                       ? "border-[#3fe08f]/55 bg-[#3fe08f]/10"
@@ -500,8 +581,9 @@ export default function CoinbaseOnrampFunding({
               onChange={(event) =>
                 setPaymentAmount(normalizeAmount(event.target.value))
               }
+              disabled={isLoading}
               inputMode="decimal"
-              className="w-full bg-transparent px-2 py-3 text-lg font-semibold outline-none"
+              className="w-full bg-transparent px-2 py-3 text-lg font-semibold outline-none disabled:opacity-60"
               placeholder="20"
             />
             <span
@@ -537,8 +619,9 @@ export default function CoinbaseOnrampFunding({
               onChange={(event) =>
                 setPhoneNumber(normalizePhoneInput(event.target.value))
               }
+              disabled={isLoading}
               inputMode="tel"
-              className="w-full bg-transparent px-2 py-3 text-lg font-semibold outline-none"
+              className="w-full bg-transparent px-2 py-3 text-lg font-semibold outline-none disabled:opacity-60"
               placeholder="+1 555 123 4567"
             />
           </div>
