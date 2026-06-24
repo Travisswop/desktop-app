@@ -23,6 +23,7 @@ import { useUser } from '@/lib/UserContext';
 import CustomModal from '@/components/modal/CustomModal';
 import { getConnectionsUserData } from '@/actions/getEnsData';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { BentoCard } from '@/components/ui/bento';
 import {
   looksLikePublicEnsName,
   resolvePublicEnsName,
@@ -456,16 +457,18 @@ export default function SendToModal({
     <>
       <CustomModal isOpen={open} onCloseModal={onOpenChange}>
         <div className="p-5 space-y-3">
-          <p className="text-center text-xl font-semibold">Send To</p>
+          <p className="text-center text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
+            Send To
+          </p>
 
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search Network"
               value={searchQuery}
               onChange={handleSearchChange}
-              className="pl-10 pr-4 rounded-xl shadow-medium w-full py-2.5 border-0 outline-0 focus:outline-none"
+              className="pl-10 pr-4 rounded-xl border border-black/[0.06] hover:border-black/[0.15] transition w-full py-2.5 text-[13px] outline-0 focus:outline-none"
             />
           </div>
 
@@ -478,35 +481,37 @@ export default function SendToModal({
               )}
 
               {selectedToken.chain.toLowerCase() === 'solana' && (
-                <div
-                  className="w-full p-4 rounded-2xl cursor-pointer shadow-md bg-white mb-1"
+                <BentoCard
+                  padding="p-4"
+                  className="w-full cursor-pointer hover:border-black/[0.15] transition mb-1"
                   onClick={() => setIsRedeemModalOpen(true)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
                         <BsSendFill />
                       </div>
                       <div>
-                        <h3 className="font-medium text-black">
+                        <h3 className="text-[13px] font-medium text-gray-900">
                           Send to anyone using a link
                         </h3>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-[12px] text-gray-500">
                           Share via Whatsapp, Email, Twitter...
                         </p>
                       </div>
                     </div>
-                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                      <ChevronRight className="h-5 w-5 text-black" />
+                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      <ChevronRight className="h-4 w-4 text-gray-900" />
                     </div>
                   </div>
-                </div>
+                </BentoCard>
               )}
 
               {/* Show wallet address preview */}
               {isValidAddress && !addressError && (
-                <div
-                  className="w-full p-4 rounded-2xl bg-white shadow-medium cursor-pointer mt-4"
+                <BentoCard
+                  padding="p-4"
+                  className="w-full cursor-pointer hover:border-black/[0.15] transition mt-4"
                   onClick={() =>
                     handleSelectReceiver({
                       address: searchQuery,
@@ -518,50 +523,51 @@ export default function SendToModal({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                        <Wallet className="h-5 w-5 text-gray-500" />
+                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                        <Wallet className="h-4 w-4 text-gray-500" />
                       </div>
                       <div>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-[12px] text-gray-500">
                           Wallet Address
                         </span>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-[13px] font-mono text-gray-500">
                           {truncateAddress(searchQuery)}
                         </p>
                       </div>
                     </div>
                   </div>
-                </div>
+                </BentoCard>
               )}
 
               {externalEnsResult && !addressError && (
-                <div
-                  className="w-full p-4 rounded-2xl bg-white shadow-medium cursor-pointer mt-4"
+                <BentoCard
+                  padding="p-4"
+                  className="w-full cursor-pointer hover:border-black/[0.15] transition mt-4"
                   onClick={() => handleSelectReceiver(externalEnsResult)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                        <Wallet className="h-5 w-5 text-gray-500" />
+                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                        <Wallet className="h-4 w-4 text-gray-500" />
                       </div>
                       <div>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-[12px] text-gray-500">
                           ENS name
                         </span>
-                        <p className="text-sm font-medium text-black">
+                        <p className="text-[13px] font-medium text-gray-900">
                           {externalEnsResult.ensName}
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-[13px] font-mono text-gray-500">
                           {truncateAddress(externalEnsResult.address)}
                         </p>
                       </div>
                     </div>
                   </div>
-                </div>
+                </BentoCard>
               )}
 
               {externalEnsError && !externalEnsResolving && (
-                <div className="px-1 py-2 text-sm text-gray-500">
+                <div className="px-1 py-2 text-[13px] text-gray-500">
                   {externalEnsError}
                 </div>
               )}
@@ -574,7 +580,7 @@ export default function SendToModal({
               !externalEnsResolving &&
               !externalEnsError ? (
                 <div className="text-center py-8 text-gray-500">
-                  <p className="text-sm">No results found</p>
+                  <p className="text-[13px]">No results found</p>
                 </div>
               ) : (
                 (searchResults.length > 0
@@ -583,7 +589,7 @@ export default function SendToModal({
                 ).map((data: any) => (
                   <div
                     key={data._id}
-                    className="w-full p-4 border-b cursor-pointer bg-white hover:bg-gray-50 transition-colors"
+                    className="w-full p-4 border-b border-black/[0.06] cursor-pointer bg-white hover:bg-gray-50 transition-colors"
                     onClick={() =>
                       handleSelectReceiver({
                         address:
@@ -612,16 +618,16 @@ export default function SendToModal({
                           />
                         )}
                         <div>
-                          <span className="font-medium">
+                          <span className="text-[13px] font-medium text-gray-900">
                             {data.name}
                           </span>
-                          <p className="text-sm text-gray-500">
+                          <p className="text-[12px] text-gray-500">
                             {data.ens}
                           </p>
                         </div>
                       </div>
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                        <ChevronRight className="h-5 w-5 text-black" />
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                        <ChevronRight className="h-4 w-4 text-gray-900" />
                       </div>
                     </div>
                   </div>

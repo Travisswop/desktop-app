@@ -153,8 +153,8 @@ export default function SendConfirmation({
     >
       <div className="px-5 pb-5 pt-1">
         {/* ── Asset being sent ───────────────────────────────── */}
-        <div className="rounded-[14px] border border-black/[0.06] bg-[#fafafa] p-4">
-          <span className="text-[10.5px] font-mono font-bold uppercase tracking-[1.2px] text-[#6e6e76]">
+        <div className="rounded-2xl border border-black/[0.06] bg-[#fafafa] p-4">
+          <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.08em] text-gray-400">
             You send
           </span>
 
@@ -168,10 +168,10 @@ export default function SendConfirmation({
                 className="h-14 w-14 rounded-xl object-cover shadow-sm"
               />
               <div className="min-w-0">
-                <div className="truncate text-[15px] font-bold text-[#0a0a0c]">
+                <div className="truncate text-[15px] font-semibold text-gray-950">
                   {nft.name}
                 </div>
-                <div className="mt-0.5 inline-block rounded-full bg-black/[0.05] px-2 py-0.5 text-[11px] font-medium text-[#6e6e76]">
+                <div className="mt-0.5 inline-block rounded-full bg-black/[0.05] px-2 py-0.5 text-[11px] font-medium text-gray-500 font-mono tabular-nums">
                   Token ID: {nft.tokenId}
                 </div>
               </div>
@@ -180,15 +180,15 @@ export default function SendConfirmation({
             <div className="mt-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-[26px] font-bold leading-none tracking-tight text-[#0a0a0c]">
+                  <span className="text-[26px] font-semibold leading-none tracking-tight text-gray-950 font-mono tabular-nums">
                     {tokenAmount}
                   </span>
-                  <span className="text-[14px] font-semibold text-[#6e6e76]">
+                  <span className="text-[14px] font-semibold text-gray-500">
                     {token.symbol}
                   </span>
                 </div>
                 {usdAmount && (
-                  <div className="mt-1.5 text-[12.5px] font-medium text-[#6e6e76]">
+                  <div className="mt-1.5 text-[12px] font-medium text-gray-500 font-mono tabular-nums">
                     ≈ ${usdAmount}
                   </div>
                 )}
@@ -220,13 +220,13 @@ export default function SendConfirmation({
         {/* ── Direction arrow ────────────────────────────────── */}
         <div className="relative flex justify-center">
           <div className="-my-2.5 flex h-8 w-8 items-center justify-center rounded-full border border-black/[0.06] bg-white shadow-sm">
-            <ArrowDown className="h-4 w-4 text-[#6e6e76]" />
+            <ArrowDown className="h-4 w-4 text-gray-500" />
           </div>
         </div>
 
         {/* ── Recipient ──────────────────────────────────────── */}
-        <div className="rounded-[14px] border border-black/[0.06] bg-white p-4">
-          <span className="text-[10.5px] font-mono font-bold uppercase tracking-[1.2px] text-[#6e6e76]">
+        <div className="rounded-2xl border border-black/[0.06] bg-white p-4">
+          <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.08em] text-gray-400">
             To
           </span>
           <div className="mt-3 flex items-center gap-3">
@@ -238,10 +238,10 @@ export default function SendConfirmation({
               className="h-10 w-10 rounded-full"
             />
             <div className="min-w-0">
-              <div className="truncate text-[14px] font-semibold text-[#0a0a0c]">
+              <div className="truncate text-[14px] font-semibold text-gray-950">
                 {recipientLabel}
               </div>
-              <div className="mt-0.5 font-mono text-[12px] text-[#6e6e76]">
+              <div className="mt-0.5 font-mono tabular-nums text-[12px] text-gray-500">
                 {shortenAddress(recipient)}
               </div>
             </div>
@@ -249,12 +249,12 @@ export default function SendConfirmation({
         </div>
 
         {/* ── Transaction details ────────────────────────────── */}
-        <div className="mt-3 rounded-[14px] border border-black/[0.06] bg-white px-4 py-3">
+        <div className="mt-3 rounded-2xl border border-black/[0.06] bg-white px-4 py-3">
           <div className="flex items-center justify-between py-1">
-            <span className="text-[11.5px] text-[#6e6e76]">
+            <span className="text-[12px] text-gray-500">
               Network
             </span>
-            <span className="flex items-center gap-1.5 font-mono text-[11.5px] font-medium text-[#0a0a0c]">
+            <span className="flex items-center gap-1.5 font-mono tabular-nums text-[12px] font-medium text-gray-950">
               {chainIcon && (
                 <Image
                   src={sanitizeNextImageSrc(chainIcon)}
@@ -270,24 +270,24 @@ export default function SendConfirmation({
           </div>
 
           <div className="flex items-center justify-between py-1">
-            <span className="text-[11.5px] text-[#6e6e76]">
+            <span className="text-[12px] text-gray-500">
               Network fee
             </span>
             {gasSponsored ? (
               <span className="flex items-center gap-2">
-                <span className="font-mono text-[11.5px] text-[#6e6e76] line-through">
+                <span className="font-mono tabular-nums text-[12px] text-gray-500 line-through">
                   {dynamicNetworkFee} {nativeFeeSymbol}
                 </span>
-                <span className="rounded-full bg-[#19a974]/10 px-[7px] py-[3px] font-mono text-[10.5px] font-semibold uppercase tracking-wide text-[#19a974]">
+                <span className="rounded-full bg-emerald-50 px-[7px] py-[3px] font-mono text-[11px] font-semibold uppercase tracking-wide text-emerald-600">
                   Free
                 </span>
               </span>
             ) : (
               <span className="text-right">
-                <span className="block font-mono text-[11.5px] font-medium text-[#0a0a0c]">
+                <span className="block font-mono tabular-nums text-[12px] font-medium text-gray-950">
                   {dynamicNetworkFee} {nativeFeeSymbol}
                 </span>
-                <span className="block font-mono text-[10.5px] text-[#6e6e76]">
+                <span className="block font-mono tabular-nums text-[11px] text-gray-500">
                   ${gasFeeUSD}
                 </span>
               </span>
@@ -297,19 +297,19 @@ export default function SendConfirmation({
 
         {/* ── Sponsorship / warning banner ───────────────────── */}
         {gasSponsored ? (
-          <div className="mt-3 flex items-start gap-2.5 rounded-[12px] border border-[#19a974]/20 bg-[#19a974]/[0.07] p-3">
-            <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#19a974]" />
-            <p className="text-[12px] leading-relaxed text-[#0a0a0c]">
+          <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-emerald-600/20 bg-emerald-50 p-3">
+            <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
+            <p className="text-[12px] leading-relaxed text-gray-950">
               <span className="font-semibold">
                 Gas sponsored by SWOP.
               </span>{' '}
-              <span className="text-[#6e6e76]">
+              <span className="text-gray-500">
                 You won&apos;t pay any network fee for this transfer.
               </span>
             </p>
           </div>
         ) : (
-          <div className="mt-3 flex items-start gap-2.5 rounded-[12px] border border-amber-200 bg-amber-50 p-3">
+          <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
             <p className="text-[12px] leading-relaxed text-amber-700">
               Transactions can&apos;t be reversed. Make sure the
@@ -324,7 +324,7 @@ export default function SendConfirmation({
             type="button"
             onClick={() => onOpenChange(false)}
             disabled={loading}
-            className="rounded-xl border border-black/[0.06] bg-[#fafafa] py-3.5 text-sm font-semibold text-[#0a0a0c] transition-colors hover:bg-gray-100 disabled:opacity-50"
+            className="rounded-full border border-black/[0.06] bg-[#fafafa] py-3.5 text-[13px] font-semibold text-gray-950 transition hover:bg-gray-100 disabled:opacity-50"
           >
             Cancel
           </button>
@@ -332,7 +332,7 @@ export default function SendConfirmation({
             type="button"
             onClick={onConfirm}
             disabled={loading}
-            className="rounded-xl bg-[#0a0a0c] py-3.5 text-sm font-bold -tracking-[0.1px] text-white transition-colors hover:bg-black/90 disabled:opacity-50"
+            className="rounded-full bg-gray-950 py-3.5 text-[13px] font-semibold -tracking-[0.1px] text-white transition hover:bg-gray-800 disabled:opacity-50"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">

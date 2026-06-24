@@ -1,11 +1,5 @@
 "use client";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { HelpCircle, Wallet, ArrowDown, AlertCircle } from "lucide-react";
 import {
@@ -22,6 +16,7 @@ import { useEffect, useState } from "react";
 import { calculateEVMGasFee } from "../tools/gas_fee_evm";
 import { useTokenSendStore } from "@/zustandStore/TokenSendInfo";
 import CustomModal from "@/components/modal/CustomModal";
+import { BentoCard } from "@/components/ui/bento";
 
 interface SendConfirmationProps {
   open: boolean;
@@ -84,10 +79,10 @@ export default function SendBankConfirmation({
     <CustomModal isOpen={open} onCloseModal={onOpenChange} title="Create Poll">
       <div className="p-4">
         <div>
-          <h3 className="text-xl font-semibold text-center">
+          <h3 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900 text-center">
             Confirm Transaction
           </h3>
-          <p className="text-center text-sm text-gray-500 mt-1">
+          <p className="text-center text-[13px] text-gray-500 mt-1">
             Please review the transaction details carefully
           </p>
         </div>
@@ -109,14 +104,14 @@ export default function SendBankConfirmation({
                       height={150}
                       className="rounded-xl shadow-md"
                     />
-                    <div className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full inline-block">
+                    <div className="text-[13px] text-gray-600 bg-gray-100 px-3 py-1 rounded-full inline-block">
                       Token ID: {nft.tokenId}
                     </div>
                   </div>
                 ) : (
                   token && (
                     <div className="text-center space-y-2">
-                      <div className="text-3xl font-bold text-gray-700">
+                      <div className="text-[24px] font-semibold leading-tight text-gray-950 font-mono tabular-nums">
                         {isUSD
                           ? token.marketData?.price
                             ? (
@@ -128,7 +123,7 @@ export default function SendBankConfirmation({
                         {token.symbol}
                       </div>
                       {token.marketData?.price && (
-                        <p className="text-gray-500">
+                        <p className="text-gray-500 font-mono tabular-nums">
                           ≈ $
                           {isUSD
                             ? parseFloat(amount).toFixed(2)
@@ -148,34 +143,34 @@ export default function SendBankConfirmation({
               </div>
 
               {/* Recipient */}
-              <div className="bg-white p-4 rounded-xl border border-gray-100">
+              <BentoCard padding="p-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                    <Wallet className="w-5 h-5 text-gray-600" />
+                    <Wallet className="w-4 h-4 text-gray-600" />
                   </div>
                   <div>
                     <div className="font-medium">
                       {recipientName || "Recipient"}
                     </div>
-                    <div className="text-sm text-gray-500 break-all">
+                    <div className="text-[13px] text-gray-500 break-all font-mono tabular-nums">
                       {recipient}
                     </div>
                   </div>
                 </div>
-              </div>
+              </BentoCard>
             </div>
           </div>
 
           {/* Transaction Details */}
           <div className="space-y-4">
-            <div className="text-sm font-semibold text-gray-700">
+            <div className="text-[13px] font-semibold text-gray-700">
               Transaction Details
             </div>
 
-            <div className="bg-white p-4 rounded-xl border border-gray-100">
+            <BentoCard padding="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Network Fee</span>
+                  <span className="text-[13px] text-gray-600">Network Fee</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
@@ -192,7 +187,7 @@ export default function SendBankConfirmation({
                   </TooltipProvider>
                 </div>
                 <div className="text-right">
-                  <div className="font-medium">
+                  <div className="font-medium font-mono tabular-nums">
                     {networkFee}{" "}
                     {token.chain === "SOLANA"
                       ? "SOL"
@@ -202,15 +197,15 @@ export default function SendBankConfirmation({
                       ? "MATIC"
                       : "BASE"}
                   </div>
-                  <div className="text-sm text-gray-500">$ {gasFeeUSD}</div>
+                  <div className="text-[13px] text-gray-500 font-mono tabular-nums">$ {gasFeeUSD}</div>
                 </div>
               </div>
-            </div>
+            </BentoCard>
 
             {/* Warning/Info Box */}
             <div className="bg-yellow-50 p-4 rounded-xl flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-yellow-700">
+              <AlertCircle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="text-[13px] text-yellow-700">
                 Transactions cannot be reversed after confirmation. Please
                 ensure the recipient address is correct.
               </div>
@@ -220,7 +215,7 @@ export default function SendBankConfirmation({
           {/* Confirm Button */}
           <Button
             onClick={onConfirm}
-            className="w-full bg-black text-white hover:bg-gray-800 rounded-xl py-6 text-lg font-medium transition-colors"
+            className="w-full bg-gray-950 text-white hover:bg-gray-800 rounded-full py-6 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
             disabled={loading}
           >
             {loading ? "Processing Transaction..." : "Confirm Transaction"}

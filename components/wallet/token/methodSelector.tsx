@@ -212,7 +212,7 @@ export default function MethodSelector({
       onCloseModal={onOpenChange}
     >
       <div
-        className={`p-6 pt-0 rounded-3xl ${
+        className={`p-6 pt-0 rounded-2xl ${
           stepper === 'external-not-available'
             ? 'max-w-xl'
             : 'max-w-sm'
@@ -220,7 +220,7 @@ export default function MethodSelector({
       >
         {stepper === 'external-not-available' ? (
           <div className="flex flex-col items-center gap-6">
-            <h2 className="text-center text-lg font-semibold">
+            <h2 className="text-center text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
               Enter Your Bank Account Details
             </h2>
 
@@ -238,7 +238,7 @@ export default function MethodSelector({
                       id="bankName"
                       name="bankName"
                       placeholder="Enter Bank Name"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -249,7 +249,7 @@ export default function MethodSelector({
                       id="firstName"
                       name="firstName"
                       placeholder="Enter Last Name"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -260,7 +260,7 @@ export default function MethodSelector({
                       id="lastName"
                       name="lastName"
                       placeholder="Enter Last Name"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -273,7 +273,7 @@ export default function MethodSelector({
                       id="accountNumber"
                       name="accountNumber"
                       placeholder="Enter Account Number"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -286,7 +286,7 @@ export default function MethodSelector({
                       id="routingNumber"
                       name="routingNumber"
                       placeholder="Enter Routing Number"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -297,7 +297,7 @@ export default function MethodSelector({
                       required
                       id="checkingOrSavings"
                       name="checkingOrSavings"
-                      className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl py-2.5 px-3 bg-gray-100"
+                      className="w-full border border-black/[0.06] focus:border-black/[0.15] rounded-xl py-2.5 px-3 text-[13px] bg-gray-100 transition"
                     >
                       <option value="" disabled>
                         Select Checking or Savings
@@ -312,7 +312,7 @@ export default function MethodSelector({
                       required
                       id="accountType"
                       name="accountType"
-                      className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl py-2.5 px-3 bg-gray-100"
+                      className="w-full border border-black/[0.06] focus:border-black/[0.15] rounded-xl py-2.5 px-3 text-[13px] bg-gray-100 transition"
                     >
                       <option value="" disabled>
                         Select Account Type
@@ -331,7 +331,7 @@ export default function MethodSelector({
                       id="streetLine1"
                       name="streetLine1"
                       placeholder="Enter Street Line 1"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -342,7 +342,7 @@ export default function MethodSelector({
                       id="streetLine2"
                       name="streetLine2"
                       placeholder="Enter Street Line 2"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -353,7 +353,7 @@ export default function MethodSelector({
                       id="city"
                       name="city"
                       placeholder="Enter City"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -364,7 +364,7 @@ export default function MethodSelector({
                       id="state"
                       name="state"
                       placeholder="Enter State"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -375,7 +375,7 @@ export default function MethodSelector({
                       id="postalCode"
                       name="postalCode"
                       placeholder="Enter Postal Code"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                   <div className="flex flex-col items-start gap-1">
@@ -386,7 +386,7 @@ export default function MethodSelector({
                       id="countryCode"
                       name="countryCode"
                       placeholder="Enter Country Code"
-                      className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-4 py-2 text-gray-700 bg-gray-100"
+                      className="w-full border appearance-none pr-2 border-black/[0.06] focus:border-black/[0.15] rounded-xl focus:outline-none pl-4 py-2 text-[13px] text-gray-700 bg-gray-100 transition"
                     />
                   </div>
                 </div>
@@ -406,7 +406,7 @@ export default function MethodSelector({
           </div>
         ) : (
           <div>
-            <h3 className="text-xl font-semibold mb-2">Send</h3>
+            <h3 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900 mb-2">Send</h3>
             <div className="flex flex-col gap-3">
               <button
                 onClick={() =>
@@ -415,14 +415,14 @@ export default function MethodSelector({
                     step: 'assets',
                   }))
                 }
-                className="p-2 rounded-xl shadow-medium flex items-center gap-3 text-start"
+                className="p-2 rounded-xl border border-black/[0.06] hover:border-black/[0.15] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] flex items-center gap-3 text-start transition"
               >
-                <span className="p-3 bg-gray-200 rounded-lg">
+                <span className="p-3 bg-gray-200 rounded-full">
                   <PiWalletBold />
                 </span>
                 <div>
                   <h2 className="font-medium">To Wallet</h2>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-[13px] text-gray-400">
                     Send assets to crypto wallet
                   </p>
                 </div>

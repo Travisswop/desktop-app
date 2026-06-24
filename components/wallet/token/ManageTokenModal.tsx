@@ -56,7 +56,7 @@ export default function ManageTokenModal({
     <CustomModal isOpen={isOpen} onCloseModal={onClose}>
       <section className="p-4 w-full">
         {/* Header */}
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-900">
+        <h1 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900 text-center mb-6">
           Manage token list
         </h1>
 
@@ -68,21 +68,21 @@ export default function ManageTokenModal({
             placeholder="Search by symbol..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-12 pr-4 py-6 w-full bg-white border border-gray-200 rounded-2xl text-base placeholder:text-gray-400"
+            className="pl-12 pr-4 py-6 w-full bg-white border border-black/[0.06] hover:border-black/[0.15] transition rounded-2xl text-base placeholder:text-gray-400"
           />
         </div>
 
         {/* Token List */}
         <div className="space-y-1 max-h-[55vh] overflow-y-auto pr-1">
           {filteredTokens.length === 0 ? (
-            <p className="text-center text-gray-400 py-8 text-sm">
+            <p className="text-center text-gray-400 py-8 text-[13px]">
               No tokens found
             </p>
           ) : (
             filteredTokens.map((token, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between py-3 px-2 border-b"
+                className="flex items-center justify-between py-3 px-2 border-b border-black/[0.06]"
               >
                 <div className="flex items-center gap-4">
                   {/* Token Icon */}
@@ -108,10 +108,10 @@ export default function ManageTokenModal({
 
                   {/* Token Info */}
                   <div>
-                    <div className="font-semibold text-gray-900 text-base">
+                    <div className="font-semibold text-gray-900 text-[13px]">
                       {token.symbol}
                     </div>
-                    <div className="text-gray-400 text-sm">
+                    <div className="text-gray-400 text-[12px] font-mono">
                       {token.balance}
                     </div>
                   </div>

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { TokenData, ChainType } from '@/types/token';
 import { Transaction } from '@/types/transaction';
+import { BentoCard, Chip } from '@/components/ui/bento';
 import TokenImage from './token-image';
 import { useUser } from '@/lib/UserContext';
 import CustomModal from '@/components/modal/CustomModal';
@@ -283,30 +284,6 @@ function Tag({ children }: { children: React.ReactNode }) {
     <span className="font-mono uppercase font-bold text-gray-500 tracking-[1.4px] text-[10.5px]">
       {children}
     </span>
-  );
-}
-
-function FilterChip({
-  active,
-  onClick,
-  children,
-}: {
-  active?: boolean;
-  onClick?: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[12px] font-medium whitespace-nowrap border transition ${
-        active
-          ? 'bg-gray-900 text-white border-gray-900'
-          : 'bg-white text-gray-900 border-black/[0.06] hover:border-black/[0.15]'
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -688,14 +665,14 @@ export default function TokenDetails({
             <button
               type="button"
               aria-label="Watchlist"
-              className="w-9 h-9 rounded-[11px] border border-black/[0.06] bg-white flex items-center justify-center text-gray-700 hover:bg-gray-50 transition"
+              className="w-9 h-9 rounded-xl border border-black/[0.06] bg-white flex items-center justify-center text-gray-700 hover:border-black/[0.15] transition"
             >
               <Star className="w-[15px] h-[15px]" strokeWidth={1.75} />
             </button>
             <button
               type="button"
               aria-label="Price alert"
-              className="w-9 h-9 rounded-[11px] border border-black/[0.06] bg-white flex items-center justify-center text-gray-700 hover:bg-gray-50 transition"
+              className="w-9 h-9 rounded-xl border border-black/[0.06] bg-white flex items-center justify-center text-gray-700 hover:border-black/[0.15] transition"
             >
               <Bell className="w-[15px] h-[15px]" strokeWidth={1.75} />
             </button>
@@ -706,7 +683,7 @@ export default function TokenDetails({
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-[820px] mx-auto px-5 py-5 space-y-3">
             {/* ───────── Token hero ───────── */}
-            <div className="bg-white rounded-[22px] border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_20px_48px_-20px_rgba(10,10,12,0.18)] p-6">
+            <BentoCard padding="p-6">
               <div className="mb-4">
                 <button
                   type="button"
@@ -777,7 +754,7 @@ export default function TokenDetails({
                   <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-[1px] rounded-lg">
                     <div className="flex flex-col items-center gap-2">
                       <div className="animate-spin h-7 w-7 border-[3px] border-gray-300 border-t-gray-900 rounded-full" />
-                      <p className="text-xs text-gray-500">
+                      <p className="text-[11px] text-gray-500">
                         Loading chart…
                       </p>
                     </div>
@@ -863,7 +840,7 @@ export default function TokenDetails({
               {/* Period selector + High/Low */}
               <div className="mt-3.5 flex items-center justify-between gap-3 flex-wrap">
                 <div
-                  className="flex gap-1 p-1 rounded-[10px] border"
+                  className="flex gap-1 p-1 rounded-xl border"
                   style={{ background: SURFACE_2, borderColor: HAIR }}
                 >
                   {PERIODS.map((p) => (
@@ -871,7 +848,7 @@ export default function TokenDetails({
                       key={p}
                       type="button"
                       onClick={() => setSelectedPeriod(p)}
-                      className={`px-3.5 py-1.5 text-[11.5px] font-semibold rounded-[7px] transition ${
+                      className={`px-3.5 py-1.5 text-[11.5px] font-semibold rounded-lg transition ${
                         selectedPeriod === p
                           ? 'bg-white text-gray-900 shadow-[0_1px_2px_rgba(10,10,12,0.06)]'
                           : 'text-gray-500 hover:text-gray-900'
@@ -905,10 +882,10 @@ export default function TokenDetails({
                   </div>
                 )}
               </div>
-            </div>
+            </BentoCard>
 
             {/* ───────── Holdings + actions ───────── */}
-            <div className="bg-white rounded-[22px] border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-5">
+            <BentoCard padding="p-5">
               <div className="flex justify-between items-start gap-4 flex-wrap">
                 <div>
                   <Tag>Your holdings</Tag>
@@ -973,17 +950,17 @@ export default function TokenDetails({
                     type="button"
                     onClick={a.onClick}
                     disabled={a.disabled}
-                    className="flex flex-col items-center gap-1.5 py-3 rounded-xl border border-black/[0.06] bg-white text-gray-900 text-[12px] font-semibold transition hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex flex-col items-center gap-1.5 py-3 rounded-xl border border-black/[0.06] bg-white text-gray-900 text-[12px] font-semibold transition hover:border-black/[0.15] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {a.icon}
                     {a.label}
                   </button>
                 ))}
               </div>
-            </div>
+            </BentoCard>
 
             {/* ───────── Market stats ───────── */}
-            <div className="bg-white rounded-[20px] border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-5">
+            <BentoCard padding="p-5">
               <Tag>Market stats</Tag>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 mt-3">
                 {[
@@ -1060,10 +1037,10 @@ export default function TokenDetails({
                   </div>
                 ))}
               </div>
-            </div>
+            </BentoCard>
 
             {/* ───────── About ───────── */}
-            <div className="bg-white rounded-[20px] border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-5">
+            <BentoCard padding="p-5">
               <Tag>About {token.symbol}</Tag>
               <p
                 className="mt-2.5 text-[13px] leading-[1.55] text-gray-800"
@@ -1122,10 +1099,10 @@ export default function TokenDetails({
                   </a>
                 )}
               </div>
-            </div>
+            </BentoCard>
 
             {/* ───────── Transactions ───────── */}
-            <div className="bg-white rounded-[20px] border border-black/[0.06] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] overflow-hidden">
+            <BentoCard className="overflow-hidden">
               <div
                 className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap"
                 style={{ borderBottom: `1px solid ${HAIR}` }}
@@ -1144,19 +1121,19 @@ export default function TokenDetails({
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
                   {TX_FILTERS.map((f) => (
-                    <FilterChip
+                    <Chip
                       key={f}
                       active={txFilter === f}
                       onClick={() => setTxFilter(f)}
                     >
                       {f}
-                    </FilterChip>
+                    </Chip>
                   ))}
                 </div>
               </div>
 
               {txError && (
-                <div className="px-5 py-4 text-[12px] text-red-600">
+                <div className="px-5 py-4 text-[12px] text-red-500">
                   Couldn&apos;t load transactions.
                 </div>
               )}
@@ -1173,7 +1150,7 @@ export default function TokenDetails({
                   {Array.from({ length: 3 }).map((_, i) => (
                     <div
                       key={i}
-                      className="h-12 bg-gray-100 animate-pulse rounded-md"
+                      className="h-12 bg-gray-100 animate-pulse rounded-xl"
                     />
                   ))}
                 </div>
@@ -1273,7 +1250,7 @@ export default function TokenDetails({
                     }}
                   >
                     <div
-                      className="w-9 h-9 rounded-[10px] inline-flex items-center justify-center"
+                      className="w-9 h-9 rounded-xl inline-flex items-center justify-center"
                       style={{
                         background: isIn ? POS_GREEN_SOFT : SURFACE_2,
                         border: `1px solid ${HAIR}`,
@@ -1332,7 +1309,7 @@ export default function TokenDetails({
                   </div>
                 );
               })}
-            </div>
+            </BentoCard>
           </div>
         </div>
       </div>

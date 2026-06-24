@@ -23,6 +23,7 @@ import { TokenData } from '@/types/token';
 import { TransactionService } from '@/services/transaction-service';
 import { usePrivy } from '@privy-io/react-auth';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
+import { BentoCard } from '@/components/ui/bento';
 type ProcessingStep = {
   status: 'pending' | 'processing' | 'completed' | 'error';
   message: string;
@@ -332,9 +333,9 @@ export default function BankSendToModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md p-6 rounded-3xl">
+        <DialogContent className="max-w-md p-6 rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-center text-xl font-semibold">
+            <DialogTitle className="text-center text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
               Send To
             </DialogTitle>
           </DialogHeader>
@@ -346,7 +347,7 @@ export default function BankSendToModal({
                 placeholder="Enter wallet address or ENS name"
                 value={searchQuery}
                 onChange={handleSearchChange}
-                className="pr-10 rounded-3xl border-gray-200"
+                className="pr-10 rounded-full border-black/[0.06] text-[13px]"
               />
               <Button
                 type="submit"
@@ -378,64 +379,68 @@ export default function BankSendToModal({
             {(error || addressError || !isValidAddress) &&
               searchQuery &&
               !userData && (
-                <div className="text-center text-sm text-red-500">
+                <div className="text-center text-[13px] text-red-500">
                   {addressError
                     ? 'Cannot send to your own address'
                     : 'Invalid address or ENS name. Please try again.'}
                 </div>
               )}
             {!searchQuery && (
-              <div className="text-center text-sm text-gray-500">
+              <div className="text-center text-[13px] text-gray-500">
                 Enter a valid wallet address or ENS name to send to.
               </div>
             )}
 
             {selectedToken && selectedToken.chain === 'SOLANA' && (
-              <div
-                className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+              <BentoCard
+                padding="p-4"
+                className="w-full cursor-pointer hover:border-black/[0.15] transition"
                 onClick={() => setIsRedeemModalOpen(true)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div>
-                      <Upload />
+                      <Upload className="h-4 w-4" />
                     </div>
                     <div>
-                      <span className="font-medium">Redeem Link</span>
-                      <p className="text-sm text-gray-500">
+                      <span className="text-[13px] font-medium text-gray-900">
+                        Redeem Link
+                      </span>
+                      <p className="text-[12px] text-gray-500">
                         Create a redeem link to share on any platform
                       </p>
                     </div>
                   </div>
                 </div>
-              </div>
+              </BentoCard>
             )}
 
             {/* Show wallet address preview */}
             {isValidAddress && !addressError && (
-              <div className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50">
+              <BentoCard padding="p-4" className="w-full">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                      <Wallet className="h-5 w-5 text-gray-500" />
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                      <Wallet className="h-4 w-4 text-gray-500" />
                     </div>
                     <div>
-                      <span className="text-sm text-gray-500">
+                      <span className="text-[12px] text-gray-500">
                         Wallet Address
                       </span>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-[13px] font-mono text-gray-500">
                         {truncateAddress(searchQuery)}
                       </p>
                     </div>
                   </div>
                 </div>
-              </div>
+              </BentoCard>
             )}
 
             {/* Show ENS preview */}
             {userData && userData.isEns && (
-              <div
-                className="w-full p-4 rounded-2xl border border-gray-100 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+              <BentoCard
+                padding="p-4"
+                className="w-full cursor-pointer hover:border-black/[0.15] transition"
                 onClick={() => onSelectReceiver(userData)}
               >
                 <div className="flex items-center justify-between">
@@ -448,16 +453,16 @@ export default function BankSendToModal({
                       className="rounded-full"
                     />
                     <div>
-                      <span className="font-medium">
+                      <span className="text-[13px] font-medium text-gray-900">
                         {userData.ensName}
                       </span>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-[13px] font-mono text-gray-500">
                         {truncateAddress(userData.address)}
                       </p>
                     </div>
                   </div>
                 </div>
-              </div>
+              </BentoCard>
             )}
           </div>
         </DialogContent>

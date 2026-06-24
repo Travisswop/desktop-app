@@ -162,7 +162,7 @@ const TokenImage = ({
   return (
     <div className="relative inline-block">
       <div
-        className={`bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-600 ${className}`}
+        className={`bg-gray-200 flex items-center justify-center text-[13px] font-medium text-gray-500 ${className}`}
         style={{ width: width, height: height }}
       >
         {token.symbol?.slice(0, 2).toUpperCase() || '??'}

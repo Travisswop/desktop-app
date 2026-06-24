@@ -19,6 +19,7 @@ import { PiWalletBold } from 'react-icons/pi';
 import { useUser } from '@/lib/UserContext';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import logger from '@/utils/logger';
+import { BentoCard } from '@/components/ui/bento';
 
 interface SendTokenModalProps {
   open: boolean;
@@ -241,7 +242,7 @@ export default function SendBankToken({
         <span className="sr-only">Token send</span>
       </DialogTitle>
 
-      <DialogContent className="max-w-xl p-6 rounded-3xl bg-gray-50">
+      <DialogContent className="max-w-xl p-6 rounded-2xl bg-gray-50">
         {externalBanks.length > 0 &&
         selectedBank &&
         !reviewDetails ? (
@@ -255,7 +256,7 @@ export default function SendBankToken({
 
             <div className="flex justify-center mt-10">
               <div>
-                <span className="text-3xl font-medium">
+                <span className="text-3xl font-medium font-mono tabular-nums">
                   {isUSD && hasPrice ? 'USDC' : token.symbol}
                 </span>
               </div>
@@ -275,7 +276,7 @@ export default function SendBankToken({
                   variant="outline"
                   size="icon"
                 >
-                  <span className="font-semibold text-xs text-muted-foreground">
+                  <span className="font-semibold text-[11px] text-gray-500">
                     MAX
                   </span>
                 </Button>
@@ -283,13 +284,13 @@ export default function SendBankToken({
               {/* Amount Input */}
               <div className="relative inline-flex items-center">
                 {isUSD && hasPrice && (
-                  <span className="text-4xl font-medium mr-1">$</span>
+                  <span className="text-4xl font-medium mr-1 font-mono tabular-nums">$</span>
                 )}
                 <input
                   type="text"
                   value={amount}
                   onChange={(e) => handleInput(e.target.value)}
-                  className="text-4xl font-medium bg-transparent w-40 text-center focus:outline-none"
+                  className="text-4xl font-medium font-mono tabular-nums bg-transparent w-40 text-center focus:outline-none"
                   placeholder="0.00"
                 />
               </div>
@@ -302,7 +303,7 @@ export default function SendBankToken({
                     className="rounded-full bg-slate-200 p-6"
                     onClick={toggleCurrency}
                   >
-                    <ArrowUpDown className="text-muted-foreground" />
+                    <ArrowUpDown className="text-gray-500" />
                   </Button>
                 </div>
               )}
@@ -310,7 +311,7 @@ export default function SendBankToken({
 
             {hasPrice && (
               <div className="text-center mb-6">
-                <span className="text-sm text-gray-500">
+                <span className="text-[13px] text-gray-500 font-mono tabular-nums">
                   {isUSD
                     ? `${getOppositeAmount()} ${token.symbol}`
                     : `$${getOppositeAmount()}`}
@@ -319,7 +320,7 @@ export default function SendBankToken({
             )}
 
             {/* Token Selection */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl mb-6 shadow-medium">
+            <BentoCard padding="p-4" className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full">
                   <Image
@@ -332,7 +333,7 @@ export default function SendBankToken({
                 </div>
                 <div>
                   <div className="font-medium">{token.name}</div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-[13px] text-gray-500">
                     Your balance
                   </div>
                 </div>
@@ -340,47 +341,47 @@ export default function SendBankToken({
               <div className="text-right">
                 {hasPrice ? (
                   <>
-                    <div className="font-medium">${maxUSDAmount}</div>
-                    <div className="text-sm text-gray-500">
+                    <div className="font-medium font-mono tabular-nums">${maxUSDAmount}</div>
+                    <div className="text-[13px] text-gray-500 font-mono tabular-nums">
                       {parseFloat(token.balance).toFixed(4)}{' '}
                       {token.symbol}
                     </div>
                   </>
                 ) : (
-                  <div className="font-medium">
+                  <div className="font-medium font-mono tabular-nums">
                     {parseFloat(token.balance).toFixed(4)}{' '}
                     {token.symbol}
                   </div>
                 )}
               </div>
-            </div>
+            </BentoCard>
 
-            <div className="flex items-center gap-3 shadow-medium p-2 rounded-lg w-full mb-6">
-              <span className="p-3 bg-gray-200 rounded-lg">
+            <BentoCard padding="p-2" className="flex items-center gap-3 w-full mb-6">
+              <span className="p-3 bg-gray-200 rounded-full">
                 <BsBank2 size={20} />
               </span>
               <div>
                 <h3 className="font-medium">
                   {selectedBank.account_owner_name}
                 </h3>
-                <p className="text-gray-400">
+                <p className="text-gray-400 font-mono tabular-nums">
                   {selectedBank.bank_name} ...
                   {selectedBank.account.last_4}
                 </p>
               </div>
-            </div>
+            </BentoCard>
 
             {/* Action Buttons */}
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                className="flex-1 rounded-xl py-6"
+                className="flex-1 rounded-full py-6 border-black/[0.06] hover:border-black/[0.15] text-[13px] font-semibold transition"
                 onClick={() => onOpenChange(false)}
               >
                 Back
               </Button>
               <Button
-                className="flex-1 rounded-xl py-6 bg-black text-white hover:bg-gray-800"
+                className="flex-1 rounded-full py-6 bg-gray-950 text-white hover:bg-gray-800 text-[13px] font-semibold transition"
                 onClick={() => handleNext(amount, isUSD)}
                 // onClick={() => onNext(amount, isUSD)}
               >
@@ -390,23 +391,23 @@ export default function SendBankToken({
           </div>
         ) : !selectedBank && !reviewDetails ? (
           <div>
-            <h2 className="text-lg font-semibold mb-3">
+            <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900 mb-3">
               Select Bank
             </h2>
             {externalBanks.map((bank: any, index) => (
               <button
                 onClick={() => setSelectedBank(bank)}
                 key={index}
-                className="flex items-center gap-3 shadow-medium p-2 rounded-lg w-full"
+                className="flex items-center gap-3 border border-black/[0.06] hover:border-black/[0.15] shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] p-2 rounded-xl w-full transition"
               >
-                <span className="p-3 bg-gray-200 rounded-lg">
+                <span className="p-3 bg-gray-200 rounded-full">
                   <BsBank2 size={20} />
                 </span>
                 <div>
                   <h3 className="font-medium">
                     {bank.account_owner_name}
                   </h3>
-                  <p className="text-gray-400">
+                  <p className="text-gray-400 font-mono tabular-nums">
                     {bank.bank_name} ...{bank.account.last_4}
                   </p>
                 </div>
@@ -415,7 +416,7 @@ export default function SendBankToken({
           </div>
         ) : (
           <div>
-            <h3 className="text-lg font-semibold mb-3">
+            <h3 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900 mb-3">
               Review Details
             </h3>
             <div className="flex flex-col gap-2">
@@ -431,19 +432,19 @@ export default function SendBankToken({
                 </div>
                 <div>
                   <p className="text-gray-400">You Send</p>
-                  <p>
+                  <p className="font-mono tabular-nums">
                     {parseFloat(token.balance).toFixed(4)}{' '}
                     {token.symbol}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
                   <PiWalletBold size={20} />
                 </div>
                 <div>
                   <p className="text-gray-400">To</p>
-                  <p>
+                  <p className="font-mono tabular-nums">
                     {selectedBank.bank_name} ...
                     {selectedBank.account.last_4}
                   </p>
@@ -463,7 +464,7 @@ export default function SendBankToken({
                 </div>
                 <div className="flex items-center justify-between w-full">
                   <p className="text-gray-500">Bank Account Number</p>
-                  <p>...{selectedBank.account.last_4}</p>
+                  <p className="font-mono tabular-nums">...{selectedBank.account.last_4}</p>
                 </div>
               </div>
             </div>
@@ -472,22 +473,22 @@ export default function SendBankToken({
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between w-full">
                   <p className="text-gray-500">Network Fee</p>
-                  <p>{networkFee}</p>
+                  <p className="font-mono tabular-nums">{networkFee}</p>
                 </div>
                 <div className="flex items-center justify-between w-full">
                   <p className="text-gray-500">Transfer Fee</p>
-                  <p>{(Number(amount) * 0.005).toFixed(2)}</p>
+                  <p className="font-mono tabular-nums">{(Number(amount) * 0.005).toFixed(2)}</p>
                 </div>
                 <div className="flex items-center justify-between w-full">
                   <p className="text-gray-500">Bank Received</p>
-                  <p>
+                  <p className="font-mono tabular-nums">
                     {parseFloat(amount) - parseFloat(amount) * 0.005}
                   </p>
                 </div>
               </div>
             </div>
             <Button
-              className="rounded-xl py-6 bg-black text-white hover:bg-gray-800 mt-3 px-10 w-full"
+              className="rounded-full py-6 bg-gray-950 text-white hover:bg-gray-800 mt-3 px-10 w-full text-[13px] font-semibold transition"
               onClick={() => handleSend(amount, isUSD)}
               //   onClick={() => onNext(amount, isUSD)}
             >

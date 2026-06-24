@@ -1,9 +1,9 @@
 import React from "react";
 
-import { Card } from "@/components/ui/card";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { TokenData } from "@/types/token";
 import TokenImage from "./token-image";
+import { BentoCard } from "@/components/ui/bento";
 
 interface TokenCardProps {
   token: TokenData;
@@ -14,8 +14,9 @@ export default function TokenCardView({ token, onClick }: TokenCardProps) {
   const chartColor = token.marketData?.color || "#111827";
 
   return (
-    <Card
-      className="p-4 rounded-3xl shadow-2xl hover:shadow-3xl border-none transition-all duration-300 group cursor-pointer hover:translate-x-0.5"
+    <BentoCard
+      padding="p-4"
+      className="hover:border-black/[0.15] transition-all duration-300 group cursor-pointer hover:translate-x-0.5"
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">
@@ -27,8 +28,8 @@ export default function TokenCardView({ token, onClick }: TokenCardProps) {
             className="rounded-full w-5 h-5"
           />
           <div>
-            <h3 className="font-medium">{token.name}</h3>
-            <p className="text-sm text-muted-foreground">{token.symbol}</p>
+            <h3 className="text-[13px] font-medium text-gray-900">{token.name}</h3>
+            <p className="text-[12px] text-gray-500">{token.symbol}</p>
           </div>
         </div>
       </div>
@@ -70,21 +71,21 @@ export default function TokenCardView({ token, onClick }: TokenCardProps) {
 
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-lg font-semibold">
+          <p className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900 font-mono">
             {token.marketData?.price ? (
               `$${parseFloat(token.marketData.price).toFixed(4)}`
             ) : (
               <span className="text-gray-500">Price unavailable</span>
             )}
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-[13px] text-gray-500 font-mono">
             {parseFloat(token.balance).toFixed(4)} {token.symbol}
           </p>
         </div>
         <div
-          className={`text-sm ${
+          className={`text-[13px] font-mono ${
             token.marketData?.change && parseFloat(token.marketData.change) > 0
-              ? "text-green-500"
+              ? "text-emerald-600"
               : "text-red-500"
           }`}
         >
@@ -98,6 +99,6 @@ export default function TokenCardView({ token, onClick }: TokenCardProps) {
           )}
         </div>
       </div>
-    </Card>
+    </BentoCard>
   );
 }

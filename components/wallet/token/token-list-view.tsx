@@ -69,8 +69,8 @@ export default function TokenListView({
           <TokenImage token={token} />
         </div>
         <div>
-          <h3 className="text-sm font-semibold">{token.name}</h3>
-          <p className="text-xs text-gray-600">
+          <h3 className="text-[13px] font-semibold text-gray-900">{token.name}</h3>
+          <p className="text-[12px] text-gray-500 font-mono">
             {!showBalance ? (
               <div className="flex items-center gap-0">
                 <BsThreeDots size={24} color="gray" />
@@ -89,9 +89,9 @@ export default function TokenListView({
       {/* <div className="h-[60px] w-full">
         <TokenSparkline />
       </div> */}
-      <div className="flex items-center gap-4 text-sm">
+      <div className="flex items-center gap-4 text-[13px]">
         <div className="text-right">
-          <p className="font-bold">
+          <p className="font-bold font-mono text-gray-900">
             {!showBalance ? (
               <div className="flex items-center gap-0">
                 <BsThreeDots size={24} color="gray" />
@@ -122,13 +122,13 @@ export default function TokenListView({
             )}
           </p>
           <div
-            className={`text-xs ${
+            className={`text-[11px] font-mono ${
               token.marketData?.priceChangePercentage24h &&
               parseFloat(
                 token.marketData?.priceChangePercentage24h,
               ) >= 0
-                ? ' text-green-700'
-                : ' text-red-700'
+                ? ' text-emerald-600'
+                : ' text-red-500'
             }`}
           >
             {token.marketData?.priceChangePercentage24h ? (
