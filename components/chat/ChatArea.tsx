@@ -37,6 +37,10 @@ import {
 } from 'viem';
 import { arbitrum, base, bsc, mainnet, polygon } from 'viem/chains';
 import GroupMenu from './GroupMenu';
+import {
+  buildGoldmanStrategyStatusViewModel,
+  GoldmanStrategyStatusPanel,
+} from './GoldmanStrategyStatusPanel';
 import ChatAttachmentMenu, {
   type ChatAttachmentGif,
 } from './ChatAttachmentMenu';
@@ -3335,9 +3339,6 @@ export default function ChatArea({
     () => getRunnableGoldmanStrategy(goldmanStrategyVault),
     [goldmanStrategyVault]
   );
-  const isGoldmanStrategyRunning =
-    activeGoldmanStrategy?.runtime?.state === 'running' ||
-    activeGoldmanStrategy?.status === 'active';
   const ensureGoldmanStrategyVault = useCallback(async () => {
     if (goldmanStrategyVault?.walletAddress) return goldmanStrategyVault;
     if (!goldmanGroupId || !accessToken) {
@@ -6942,7 +6943,6 @@ export default function ChatArea({
         onOpenGoldmanWalletTransfer={handleOpenGoldmanWalletTransfer}
         onSaveGoldmanStrategyFile={handleSaveGoldmanStrategyFile}
         activeGoldmanStrategy={activeGoldmanStrategy}
-        isGoldmanStrategyRunning={isGoldmanStrategyRunning}
         isTogglingGoldmanStrategy={isTogglingGoldmanStrategy}
         onRunGoldmanStrategy={handleRunGoldmanStrategy}
         onStopGoldmanStrategy={handleStopGoldmanStrategy}
@@ -8405,7 +8405,6 @@ function GoldmanAccessStation({
   isActivatingStrategyVault = false,
   strategyVaultError,
   activeStrategy,
-  isStrategyRunning = false,
   isTogglingStrategy = false,
   groupId,
   onQuickCommand,
@@ -8425,7 +8424,6 @@ function GoldmanAccessStation({
   isActivatingStrategyVault?: boolean;
   strategyVaultError?: string | null;
   activeStrategy?: GoldmanTradingStrategy | null;
-  isStrategyRunning?: boolean;
   isTogglingStrategy?: boolean;
   groupId?: string;
   onQuickCommand?: (command: string) => void;
@@ -8680,6 +8678,24 @@ function GoldmanAccessStation({
       .map((row) => row.shortLabel)
       .join(', ') || 'none';
   const goldmanMetrics = buildGoldmanConsoleMetrics(consoleData);
+  const strategyStatusViewModel = useMemo(
+    () =>
+      buildGoldmanStrategyStatusViewModel(activeStrategy, {
+        hasQuickCommand: Boolean(onQuickCommand),
+      }),
+    [activeStrategy, onQuickCommand]
+  );
+  const primaryStrategyAction = strategyStatusViewModel.primaryAction;
+  const isPrimaryStrategyActionDisabled =
+    isTogglingStrategy ||
+    isVaultBusy ||
+    primaryStrategyAction.disabled ||
+    (primaryStrategyAction.intent === 'ideas' && !onQuickCommand) ||
+    (primaryStrategyAction.intent === 'run' && !onRunStrategy) ||
+    (primaryStrategyAction.intent === 'stop' && !onStopStrategy) ||
+    (primaryStrategyAction.intent === 'fund' &&
+      !onOpenWalletTransfer &&
+      !onEnsureStrategyVault);
   const vaultAddressLabel = fundingAddress?.address
     ? formatWalletAddress(fundingAddress.address)
     : isVaultBusy
@@ -8761,49 +8777,61 @@ function GoldmanAccessStation({
                 {activeStrategy?.title || 'No approved strategy'}
               </div>
               <div className="dm-mono mt-0.5 truncate text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#a99761]">
-                {activeStrategy
-                  ? `${activeStrategy.runtime?.state || activeStrategy.status || 'idle'} · ${
-                      activeStrategy.runtime?.executionMode || 'proposal'
-                    }`
-                  : 'approve a strategy to run'}
+                {`${strategyStatusViewModel.state.label} · ${
+                  activeStrategy?.runtime?.executionMode || 'proposal'
+                }`}
               </div>
             </div>
             <button
               type="button"
               data-testid="goldman-run-stop-button"
-              disabled={
-                isTogglingStrategy ||
-                isVaultBusy ||
-                (!activeStrategy && !onQuickCommand) ||
-                (!isStrategyRunning && Boolean(activeStrategy) && !onRunStrategy) ||
-                (isStrategyRunning && !onStopStrategy)
-              }
+              title={primaryStrategyAction.disabledReason || undefined}
+              disabled={isPrimaryStrategyActionDisabled}
               onClick={() => {
-                if (!activeStrategy) {
-                  toast.error('Ask Goldman for ideas or approve a strategy before running.');
-                  handleAskStrategyIdeas();
-                  return;
-                }
-                if (isStrategyRunning) {
-                  onStopStrategy?.();
-                } else {
-                  onRunStrategy?.();
+                switch (primaryStrategyAction.intent) {
+                  case 'ideas':
+                    handleAskStrategyIdeas();
+                    return;
+                  case 'fund':
+                    void handleOpenWalletTransfer();
+                    return;
+                  case 'stop':
+                    onStopStrategy?.();
+                    return;
+                  case 'run':
+                    onRunStrategy?.();
+                    return;
+                  default:
+                    toast.error(
+                      primaryStrategyAction.disabledReason ||
+                        'Resolve the Goldman runtime issue before running again.'
+                    );
                 }
               }}
               className={`dm-btn dm-mono flex h-9 min-w-[82px] items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[10px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-50 ${
-                isStrategyRunning
+                primaryStrategyAction.intent === 'stop'
                   ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]'
+                  : primaryStrategyAction.intent === 'fund'
+                  ? 'border-[#f4c95d]/35 bg-[#f4c95d]/10 text-[#f4c95d]'
+                  : primaryStrategyAction.intent === 'blocked'
+                  ? 'border-[#ff5d63]/20 bg-[#ff5d63]/8 text-[#ff8585]'
                   : 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
               }`}
             >
               {isTogglingStrategy ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : isStrategyRunning ? (
+              ) : primaryStrategyAction.intent === 'stop' ? (
                 <Square className="h-3.5 w-3.5" />
+              ) : primaryStrategyAction.intent === 'fund' ? (
+                <Wallet className="h-3.5 w-3.5" />
+              ) : primaryStrategyAction.intent === 'blocked' ? (
+                <Ban className="h-3.5 w-3.5" />
+              ) : primaryStrategyAction.intent === 'ideas' ? (
+                <Zap className="h-3.5 w-3.5" />
               ) : (
                 <Play className="h-3.5 w-3.5" />
               )}
-              {isStrategyRunning ? 'Stop' : 'Run'}
+              {primaryStrategyAction.label}
             </button>
           </div>
           {activeStrategy?.runtime?.lastActivity && (
@@ -8811,6 +8839,7 @@ function GoldmanAccessStation({
               {activeStrategy.runtime.lastActivity}
             </div>
           )}
+          <GoldmanStrategyStatusPanel viewModel={strategyStatusViewModel} />
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -9424,7 +9453,6 @@ function DmContextPanel({
   onOpenGoldmanWalletTransfer,
   onSaveGoldmanStrategyFile,
   activeGoldmanStrategy,
-  isGoldmanStrategyRunning,
   isTogglingGoldmanStrategy,
   onRunGoldmanStrategy,
   onStopGoldmanStrategy,
@@ -9452,7 +9480,6 @@ function DmContextPanel({
     content: string
   ) => Promise<GoldmanStrategyFile | null>;
   activeGoldmanStrategy?: GoldmanTradingStrategy | null;
-  isGoldmanStrategyRunning?: boolean;
   isTogglingGoldmanStrategy?: boolean;
   onRunGoldmanStrategy?: () => void;
   onStopGoldmanStrategy?: () => void;
@@ -9482,7 +9509,6 @@ function DmContextPanel({
         isActivatingStrategyVault={isActivatingGoldmanVault}
         strategyVaultError={goldmanStrategyVaultError}
         activeStrategy={activeGoldmanStrategy}
-        isStrategyRunning={Boolean(isGoldmanStrategyRunning)}
         isTogglingStrategy={Boolean(isTogglingGoldmanStrategy)}
         groupId={displayChat?._id}
         onQuickCommand={onQuickCommand}
