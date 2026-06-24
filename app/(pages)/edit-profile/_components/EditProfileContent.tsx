@@ -1,23 +1,15 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
-// import Image from "next/image";
-import { FiUser } from "react-icons/fi";
-import { FaRegUserCircle } from "react-icons/fa";
-import { MdOutlineEmail } from "react-icons/md";
-import { SlCalender } from "react-icons/sl";
-// import SelectAvatorModal from "@/components/modal/SelectAvatorModal";
-// import { useDisclosure } from "@nextui-org/react";
+import React, { useEffect, useState } from "react";
 import { PhoneInput } from "react-international-phone";
 import "react-international-phone/style.css";
 import ProfileLoading from "@/components/loading/ProfileLoading";
 import GooglePlacesAutocomplete from "react-google-places-autocomplete";
+import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { updateUserProfile } from "@/actions/updateUserProfile";
 import { useRouter } from "next/navigation";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import toast from "react-hot-toast";
-// import isUrl from "@/lib/isUrl";
-// import UploadImageButton from "@/components/Button/UploadImageButton";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -30,19 +22,55 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
-import { Loader, MapPin } from "lucide-react";
+import {
+  AlertTriangle,
+  Calendar,
+  ChevronDown,
+  FileText,
+  Loader,
+  Mail,
+  MapPin,
+  User,
+} from "lucide-react";
 import { useWallets } from "@privy-io/react-auth";
 import { useUser } from "@/lib/UserContext";
+import { BentoCard, SectionHead } from "@/components/ui/bento";
+import isUrl from "@/lib/isUrl";
 
 const SWOP_ID_GATEWAY = "https://swop-id-ens-gateway.swop.workers.dev";
 
+const labelCls =
+  "mb-1.5 flex items-center gap-1 text-[12px] font-medium text-gray-700";
+const fieldCls =
+  "w-full h-11 rounded-xl border border-black/[0.06] bg-white pl-10 pr-3 text-[13px] text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-black/[0.15]";
+const iconCls =
+  "pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400";
+
+// Bento-styled trigger for the birth-date picker.
+const DateField = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(({ value, onClick, placeholder }, ref) => (
+  <div className="relative">
+    <Calendar className={iconCls} />
+    <input
+      ref={ref}
+      type="text"
+      readOnly
+      value={value}
+      onClick={onClick}
+      placeholder={placeholder}
+      className={`${fieldCls} cursor-pointer`}
+    />
+    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+  </div>
+));
+DateField.displayName = "DateField";
+
 const EditProfileContent = ({ data, token }: any) => {
-  console.log("data", data);
   const [selectedImage, setSelectedImage] = useState(null);
   const [galleryImage] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState("");
-  // const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -51,8 +79,6 @@ const EditProfileContent = ({ data, token }: any) => {
   const [phone, setPhone] = useState("");
   const [selectedCountryCode, setSelectedCountryCode] = useState("");
   const [dobDate, setDobDate] = useState<any>(new Date().getTime());
-
-  // const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   const router = useRouter();
   const { wallets } = useWallets();
@@ -130,11 +156,6 @@ const EditProfileContent = ({ data, token }: any) => {
         (microsite: any) => microsite.primary,
       );
 
-      console.log(
-        "primaryMicrosite?.ens?.toLowerCase()",
-        primaryMicrosite?.ens?.toLowerCase(),
-      );
-
       // Delete ENS name if exists
       if (primaryMicrosite?.ens?.includes(".swop.id")) {
         await deleteEnsName(primaryMicrosite?.ens?.toLowerCase());
@@ -149,49 +170,6 @@ const EditProfileContent = ({ data, token }: any) => {
       setIsDeleting(false);
     }
   };
-
-  // const images = [
-  //   "1",
-  //   "2",
-  //   "3",
-  //   "4",
-  //   "5",
-  //   "6",
-  //   "7",
-  //   "8",
-  //   "9",
-  //   "10",
-  //   "11",
-  //   "12",
-  //   "13",
-  //   "14",
-  //   "15",
-  //   "16",
-  //   "17",
-  //   "18",
-  //   "19",
-  //   "20",
-  //   "21",
-  //   "22",
-  //   "23",
-  //   "24",
-  //   "25",
-  //   "26",
-  //   "27",
-  //   "28",
-  //   "29",
-  //   "30",
-  //   "31",
-  //   "32",
-  //   "33",
-  //   "34",
-  //   "35",
-  //   "36",
-  //   "37",
-  //   "38",
-  //   "39",
-  //   "40",
-  // ];
 
   useEffect(() => {
     if (galleryImage) {
@@ -240,35 +218,6 @@ const EditProfileContent = ({ data, token }: any) => {
     }
   };
 
-  // const handleSelectImage = (image: any) => {
-  //   setSelectedImage(image);
-  //   setGalleryImage(null);
-  // };
-
-  // const handleModal = () => {
-  //   onOpen();
-  //   setIsModalOpen(true);
-  // };
-
-  // const handleFileChange = (event: any) => {
-  //   const file = event.target.files[0];
-  //   if (file) {
-  //     setIsModalOpen(false);
-  //     const reader = new FileReader();
-  //     reader.onloadend = () => {
-  //       setSelectedImage(null);
-  //       setGalleryImage(reader.result as any);
-  //     };
-  //     reader.readAsDataURL(file);
-  //   }
-  // };
-
-  const dateInputRef = useRef<any>(null);
-
-  const handleDateIconClick = () => {
-    dateInputRef?.current?.showPicker();
-  };
-
   useEffect(() => {
     if (data.data) {
       setDobDate(data.data.dob);
@@ -287,92 +236,73 @@ const EditProfileContent = ({ data, token }: any) => {
   }, [data.data]);
 
   if (data.data) {
+    const profilePic = data.data.profilePic;
+    const avatarSrc = profilePic
+      ? isUrl(profilePic)
+        ? profilePic
+        : `/images/user_avator/${profilePic}@3x.png`
+      : "";
+    const initials = (data.data.name || "")
+      .split(" ")
+      .map((part: string) => part[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+
     return (
-      <section className="bg-white max-w-full h-full flex items-center justify-center p-5 lg:p-20 lg:mx-20 rounded-xl">
-        <div className="w-full">
-          <form
-            onSubmit={handleSubmit}
-            className="flex flex-col gap-8 w-full h-full mb-4 sm:mb-10"
-          >
-            <div className="flex flex-col gap-y-4 items-center">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold mb-1 text-center">
-                  Edit Your Profile Information
-                </h1>
-                <p className="text-sm text-gray-600 text-center w-60 sm:w-72 mx-auto">
-                  This is your parent profile used for shopping and wallet
-                  features.
-                </p>
+      <section className="-m-6 min-h-[calc(100%+3rem)] bg-[#fafafa] px-4 py-8 sm:px-6 lg:py-10">
+        <div className="mx-auto w-full max-w-[855px]">
+          <SectionHead
+            title="Edit profile"
+            caption="This is your parent profile used for shopping and wallet features."
+          />
+
+          <form onSubmit={handleSubmit} className="bento-form">
+            <BentoCard padding="p-5 sm:p-7" className="mb-5">
+              {/* Profile header */}
+              <div className="mb-7 flex items-center gap-4 border-b border-black/[0.06] pb-6">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/[0.06] bg-gray-50">
+                  {avatarSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={avatarSrc}
+                      alt={data.data.name || "Profile"}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display =
+                          "none";
+                      }}
+                    />
+                  ) : initials ? (
+                    <span className="text-[18px] font-semibold text-gray-500">
+                      {initials}
+                    </span>
+                  ) : (
+                    <User className="h-6 w-6 text-gray-400" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="truncate text-[16px] font-semibold tracking-[-0.01em] text-gray-900">
+                    {data.data.name || "Your profile"}
+                  </h3>
+                  <p className="truncate text-[13px] text-gray-500">
+                    {data.data.email}
+                  </p>
+                </div>
               </div>
-              {/* <div className="w-40 h-40 overflow-hidden rounded-full border-2 border-black border-opacity-20 relative">
-                <div className="bg-white">
-                  {galleryImage && (
-                    <Image
-                      src={galleryImage}
-                      fill
-                      alt="image"
-                      quality={100}
-                      className="rounded-full bg-white"
-                    />
-                  )}
 
-                  {selectedImage && (
-                    <Image
-                      src={`/images/user_avator/${selectedImage}@3x.png`}
-                      width={260}
-                      height={260}
-                      alt="avator"
-                      quality={100}
-                      className="rounded-full w-full h-full bg-white"
-                    />
-                  )}
-
-                  {!galleryImage && !selectedImage && (
-                    <Image
-                      src={
-                        isUrl(data.data.profilePic)
-                          ? data.data.profilePic
-                          : `/images/user_avator/${data.data.profilePic}@3x.png`
-                      }
-                      fill
-                      alt="avator"
-                      quality={100}
-                      className="rounded-full bg-white"
-                    />
-                  )}
-                </div>
-                <div className="bg-[#3f3f3f50] absolute top-1/2 w-full h-full">
-                  <button type="button" onClick={handleModal}>
-                    <Image
-                      src={uploadImgIcon}
-                      alt="upload image icon"
-                      width={28}
-                      className="absolute left-1/2 top-8 -translate-x-[50%]"
-                    />
-                  </button>
-                </div>
-              </div> */}
-              {/* <UploadImageButton handleModal={handleModal} /> */}
-            </div>
-            {loading ? (
-              <div className="flex-1 lg:flex-[1.5] xl:flex-[2]">
+              {loading ? (
                 <ProfileLoading />
-              </div>
-            ) : (
-              <div className="flex-1 lg:flex-[1.5] xl:flex-[2]">
-                {/* <h6 className="font-semibold mb-4 text-lg">Parent Profile</h6> */}
-                {/* <p>country code: {countryCode}</p> */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 sm:gap-y-6 gap-x-10">
-                  <div className="">
-                    <label htmlFor="fullName" className="mb-2 block">
-                      Name
-                      <span className="text-red-500 font-bold">*</span>
+              ) : (
+                <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                  {/* Name */}
+                  <div>
+                    <label htmlFor="fullName" className={labelCls}>
+                      Name <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
-                      <FiUser
-                        className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
-                        size={19}
-                      />
+                      <User className={iconCls} />
                       <input
                         type="text"
                         id="fullName"
@@ -380,59 +310,54 @@ const EditProfileContent = ({ data, token }: any) => {
                         defaultValue={data.data.name}
                         required
                         placeholder="Enter name"
-                        className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-gray-100"
+                        className={fieldCls}
                       />
                     </div>
                   </div>
-                  <div className="">
-                    <label htmlFor="bio" className="mb-2 block">
+
+                  {/* Bio */}
+                  <div>
+                    <label htmlFor="bio" className={labelCls}>
                       Bio
                     </label>
                     <div className="relative">
-                      <FaRegUserCircle
-                        className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
-                        size={18}
-                      />
+                      <FileText className={iconCls} />
                       <input
                         type="text"
                         id="bio"
                         name="bio"
                         defaultValue={data.data.bio}
                         placeholder="Enter bio"
-                        className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-gray-100"
+                        className={fieldCls}
                       />
                     </div>
                   </div>
-                  <div className="">
-                    <label htmlFor="phone" className="mb-2 block">
-                      Phone Number
+
+                  {/* Phone */}
+                  <div>
+                    <label htmlFor="phone" className={labelCls}>
+                      Phone number
                     </label>
-                    {loading ? (
-                      "loading..."
-                    ) : (
-                      <PhoneInput
-                        defaultCountry={data.data.countryFlag.toLowerCase()}
-                        forceDialCode={true}
-                        value={phone}
-                        name="mobileNo"
-                        onChange={(phone, country) => {
-                          setPhone(phone);
-                          setSelectedCountryCode(country.country.iso2); // Update the selected country code
-                        }}
-                        className="w-full"
-                      />
-                    )}
+                    <PhoneInput
+                      defaultCountry={data.data.countryFlag.toLowerCase()}
+                      forceDialCode={true}
+                      value={phone}
+                      name="mobileNo"
+                      onChange={(phone, country) => {
+                        setPhone(phone);
+                        setSelectedCountryCode(country.country.iso2);
+                      }}
+                      className="w-full"
+                    />
                   </div>
-                  <div className="">
-                    <label htmlFor="email" className="mb-2 block">
-                      Email
-                      <span className="text-red-500 font-bold">*</span>
+
+                  {/* Email */}
+                  <div>
+                    <label htmlFor="email" className={labelCls}>
+                      Email <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
-                      <MdOutlineEmail
-                        className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
-                        size={19}
-                      />
+                      <Mail className={iconCls} />
                       <input
                         type="text"
                         id="email"
@@ -440,65 +365,49 @@ const EditProfileContent = ({ data, token }: any) => {
                         required
                         readOnly
                         placeholder="Enter email"
-                        className="w-full cursor-not-allowed border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-gray-100"
+                        className={`${fieldCls} cursor-not-allowed bg-gray-50 text-gray-500`}
                       />
                     </div>
                   </div>
-                  <div className="">
-                    <label htmlFor="birthDate" className="mb-2 block">
-                      Birth Date
-                      <span className="text-red-500 font-bold">*</span>
-                    </label>
-                    <div className="relative" onClick={handleDateIconClick}>
-                      <button type="button">
-                        <SlCalender
-                          className="absolute left-4 top-1/2 -translate-y-[50%] font-bold text-gray-600"
-                          size={16}
-                        />
-                      </button>
-                      <input
-                        type="date"
-                        id="birthDate"
-                        ref={dateInputRef}
-                        required
-                        value={
-                          dobDate
-                            ? new Date(dobDate).toISOString().split("T")[0]
-                            : ""
-                        }
-                        onChange={(e) =>
-                          setDobDate(new Date(e.target.value).getTime())
-                        }
-                        placeholder="Enter birth date"
-                        className="w-full border appearance-none pr-2 border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-10 py-2 text-gray-700 bg-gray-100"
-                      />
-                    </div>
-                  </div>
-                  {/* <div className="">
-                    <label htmlFor="address" className="mb-2 block">
-                      Address (Shopping Delivery Address)
-                    </label>
 
-                    <GooglePlacesAutocomplete
-                      apiKey={
-                        process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY || ""
+                  {/* Birth date */}
+                  <div>
+                    <label htmlFor="birthDate" className={labelCls}>
+                      Birth date <span className="text-red-500">*</span>
+                    </label>
+                    <DatePicker
+                      id="birthDate"
+                      selected={dobDate ? new Date(dobDate) : null}
+                      onChange={(date) =>
+                        setDobDate(date ? date.getTime() : null)
                       }
-                      selectProps={{
-                        value,
-                        onChange: setValue as any,
-                        placeholder: "Enter address",
-                      }}
+                      maxDate={new Date()}
+                      showMonthDropdown
+                      showYearDropdown
+                      dropdownMode="select"
+                      yearDropdownItemNumber={100}
+                      scrollableYearDropdown
+                      dateFormat="MMM d, yyyy"
+                      placeholderText="Select birth date"
+                      wrapperClassName="w-full"
+                      popperClassName="bento-datepicker-popper"
+                      popperPlacement="bottom-start"
+                      customInput={<DateField />}
                     />
-                  </div> */}
-                  <div className="w-full">
-                    <label htmlFor="address" className="mb-2 block">
-                      Address (Shopping Delivery Address)
+                  </div>
+
+                  {/* Address */}
+                  <div className="sm:col-span-2">
+                    <label htmlFor="address" className={labelCls}>
+                      Address{" "}
+                      <span className="font-normal text-gray-400">
+                        (shopping delivery address)
+                      </span>
                     </label>
                     <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground">
+                      <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-gray-400">
                         <MapPin className="h-4 w-4" />
                       </span>
-
                       <GooglePlacesAutocomplete
                         apiKey={
                           process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY || ""
@@ -508,27 +417,24 @@ const EditProfileContent = ({ data, token }: any) => {
                           onChange: setValue as any,
                           placeholder: "Enter address",
                           styles: {
-                            control: (base, state) => ({
+                            control: (base) => ({
                               ...base,
-                              paddingLeft: "1.35rem", // space for icon
-                              // minHeight: "42px",
-                              borderRadius: "0.5rem",
-                              border: state.isFocused
-                                ? "1px solid #edebeb" // focus (blue-600)
-                                : "1px solid #edebeb",
-                              boxShadow: state.isFocused
-                                ? "1px solid #edebeb"
-                                : "none",
-                              "&:hover": {
-                                border: state.isFocused
-                                  ? "1px solid #edebeb"
-                                  : "1px solid #edebeb", // hover (gray-300)
-                              },
+                              minHeight: "2.75rem",
+                              paddingLeft: "1.6rem",
+                              borderRadius: "0.75rem",
+                              borderColor: "rgba(0,0,0,0.06)",
+                              backgroundColor: "#fff",
+                              boxShadow: "none",
+                              fontSize: "13px",
                             }),
                             input: (base) => ({
                               ...base,
                               margin: 0,
                               padding: 0,
+                            }),
+                            placeholder: (base) => ({
+                              ...base,
+                              color: "#9ca3af",
                             }),
                           },
                         }}
@@ -536,81 +442,47 @@ const EditProfileContent = ({ data, token }: any) => {
                     </div>
                   </div>
                 </div>
-                <div className="mt-10 flex items-center gap-3 justify-center">
-                  <PrimaryButton
-                    type="submit"
-                    disabled={submitLoading}
-                    className="py-2 rounded-xl px-32"
-                  >
-                    {submitLoading ? (
-                      <Loader className="animate-spin" size={24} />
-                    ) : (
-                      "Save"
-                    )}
-                  </PrimaryButton>
-                </div>
-              </div>
-            )}
-          </form>
-          {/* <hr />
-          <div className="border-none mt-6">
-            <div className="">
-              <h3 className="text-lg font-semibold mb-2">Delete my account</h3>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" disabled={isDeleting}>
-                    {isDeleting ? (
-                      <Spinner size="sm" color="white" />
-                    ) : (
-                      "Delete my account"
-                    )}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Are you absolutely sure?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete
-                      your account and remove your data from our servers.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDeleteAccount}>
-                      Continue
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </div> */}
+              )}
+            </BentoCard>
 
-          {/* Delete Account Section - Danger Zone */}
-          <div className="mt-12 pt-8 border-t border-gray-200">
-            <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-2xl mx-auto">
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => router.push("/")}
+                className="inline-flex h-10 items-center justify-center rounded-full border border-black/[0.06] bg-white px-5 text-[13px] font-semibold text-gray-700 transition hover:border-black/[0.15]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitLoading}
+                className="inline-flex h-10 min-w-[120px] items-center justify-center gap-2 rounded-full bg-gray-950 px-6 text-[13px] font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
+              >
+                {submitLoading ? (
+                  <Loader className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Save changes"
+                )}
+              </button>
+            </div>
+          </form>
+
+          {/* Danger zone */}
+          <div className="mt-10">
+            <BentoCard
+              padding="p-5 sm:p-6"
+              className="border-red-200 bg-red-50/60 shadow-none"
+            >
               <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                    <svg
-                      className="w-6 h-6 text-red-600"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                  </div>
-                </div>
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                  <AlertTriangle className="h-5 w-5" />
+                </span>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-red-900 mb-2">
-                    Danger Zone
+                  <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-red-900">
+                    Danger zone
                   </h3>
-                  <p className="text-sm text-red-700 mb-4">
+                  <p className="mt-1 text-[13px] leading-relaxed text-red-700">
                     Once you delete your account, there is no going back. This
                     will permanently delete your profile, purchase history, and
                     all associated data.
@@ -620,15 +492,15 @@ const EditProfileContent = ({ data, token }: any) => {
                       <Button
                         variant="destructive"
                         disabled={isDeleting}
-                        className="bg-red-600 hover:bg-red-700"
+                        className="mt-4 h-10 rounded-full bg-red-600 px-5 text-[13px] font-semibold hover:bg-red-700"
                       >
                         {isDeleting ? (
                           <div className="flex items-center gap-2">
-                            <Loader className="animate-spin" size={16} />
+                            <Loader className="h-4 w-4 animate-spin" />
                             <span>Processing...</span>
                           </div>
                         ) : (
-                          "Delete Account"
+                          "Delete account"
                         )}
                       </Button>
                     </AlertDialogTrigger>
@@ -641,7 +513,7 @@ const EditProfileContent = ({ data, token }: any) => {
                           This action cannot be undone. This will permanently
                           delete your account and remove your data from our
                           servers including:
-                          <ul className="list-disc list-inside mt-2 space-y-1">
+                          <ul className="mt-2 list-inside list-disc space-y-1">
                             <li>Your profile information</li>
                             <li>Purchase history and orders</li>
                             <li>Saved addresses and preferences</li>
@@ -655,28 +527,16 @@ const EditProfileContent = ({ data, token }: any) => {
                           onClick={handleDeleteAccount}
                           className="bg-red-600 hover:bg-red-700"
                         >
-                          Yes, Delete My Account
+                          Yes, delete my account
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
                 </div>
               </div>
-            </div>
+            </BentoCard>
           </div>
         </div>
-
-        {/* modal here  */}
-        {/* {isModalOpen && (
-          <SelectAvatorModal
-            isOpen={isOpen}
-            onOpenChange={onOpenChange}
-            images={images}
-            onSelectImage={handleSelectImage}
-            setIsModalOpen={setIsModalOpen}
-            handleFileChange={handleFileChange}
-          />
-        )} */}
       </section>
     );
   }

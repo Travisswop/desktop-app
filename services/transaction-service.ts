@@ -724,7 +724,7 @@ export class TransactionService {
       transaction: Uint8Array;
       wallet: any;
       options?: { sponsor?: boolean };
-    }) => Promise<{ signature: Uint8Array }>,
+    }) => Promise<{ signature: Uint8Array | string }>,
   ) {
     if (!solanaWallet) throw new Error('No Solana wallet found');
 
@@ -757,8 +757,11 @@ export class TransactionService {
         const result = await signAndSendTransactionFn({
           transaction: serializedTx,
           wallet: solanaWallet,
+          options: { sponsor: true },
         });
-        return bs58.encode(result.signature);
+        return typeof result.signature === 'string'
+          ? result.signature
+          : bs58.encode(result.signature);
       } else if (signTransactionFn) {
         const { signedTransaction } = await signTransactionFn({
           transaction: serializedTx,
@@ -874,8 +877,11 @@ export class TransactionService {
         const result = await signAndSendTransactionFn({
           transaction: serializedTx,
           wallet: solanaWallet,
+          options: { sponsor: true },
         });
-        return bs58.encode(result.signature);
+        return typeof result.signature === 'string'
+          ? result.signature
+          : bs58.encode(result.signature);
       } else if (signTransactionFn) {
         const { signedTransaction } = await signTransactionFn({
           transaction: serializedTx,

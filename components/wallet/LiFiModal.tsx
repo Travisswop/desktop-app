@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChainId } from '@lifi/widget';
 import { EVM } from '@lifi/sdk';
 import { ALCHEMY_RPC_URLS } from '@/types/config';
-import { useWallets } from '@privy-io/react-auth';
+import { useSendTransaction, useWallets } from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { createWalletClient, custom } from 'viem';
@@ -26,6 +26,33 @@ const VIEM_CHAIN_MAP: Record<number, Parameters<typeof createWalletClient>[0]['c
   [arbitrum.id]:  arbitrum,
   [optimism.id]:  optimism,
   [bsc.id]:       bsc,
+};
+
+const isPrivyEmbeddedWalletType = (walletClientType?: string | null) =>
+  walletClientType === 'privy' || walletClientType === 'privy-v2';
+
+const parseOptionalBigInt = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? BigInt(Math.floor(value)) : undefined;
+  }
+  try {
+    return BigInt(String(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const parseChainId = (value: unknown, fallback: number) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value) {
+    const parsed = value.startsWith('0x')
+      ? parseInt(value, 16)
+      : Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
 };
 
 const defaultConfig = {
@@ -123,6 +150,7 @@ export default function LiFiModal({
   integrator = 'Swop-Desktop',
 }: LiFiModalProps) {
   const { wallets } = useWallets();
+  const { sendTransaction: sendPrivyTransaction } = useSendTransaction();
   const { wallets: solWallets } = useSolanaWallets();
   const { connected: solanaConnected, publicKey: solanaPublicKey } =
     useWallet();
@@ -138,6 +166,63 @@ export default function LiFiModal({
   const activeEvmChainIdRef = useRef<number>(ChainId.ETH);
 
   const widgetEvents = useWidgetEvents();
+
+  const getEvmProviderForLiFi = useCallback(
+    (provider: any, evmWallet: any, fallbackChainId: number) => {
+      if (!isPrivyEmbeddedWalletType(evmWallet.walletClientType)) {
+        return provider;
+      }
+
+      return {
+        request: async (args: { method: string; params?: unknown[] }) => {
+          if (args.method !== 'eth_sendTransaction') {
+            return provider.request(args);
+          }
+
+          const tx = Array.isArray(args.params)
+            ? (args.params[0] as Record<string, unknown> | undefined)
+            : undefined;
+          if (!tx?.to) {
+            throw new Error('LiFi did not provide an EVM transaction target.');
+          }
+
+          const chainId = parseChainId(tx.chainId, fallbackChainId);
+          const sponsoredTx: Record<string, unknown> = {
+            to: tx.to as `0x${string}`,
+            chainId,
+          };
+          if (tx.data) sponsoredTx.data = tx.data as `0x${string}`;
+          const value = parseOptionalBigInt(tx.value);
+          if (value !== undefined) sponsoredTx.value = value;
+          const gas = parseOptionalBigInt(tx.gas ?? tx.gasLimit);
+          if (gas !== undefined) sponsoredTx.gas = gas;
+          const gasPrice = parseOptionalBigInt(tx.gasPrice);
+          if (gasPrice !== undefined) sponsoredTx.gasPrice = gasPrice;
+          const maxFeePerGas = parseOptionalBigInt(tx.maxFeePerGas);
+          if (maxFeePerGas !== undefined) {
+            sponsoredTx.maxFeePerGas = maxFeePerGas;
+          }
+          const maxPriorityFeePerGas = parseOptionalBigInt(
+            tx.maxPriorityFeePerGas,
+          );
+          if (maxPriorityFeePerGas !== undefined) {
+            sponsoredTx.maxPriorityFeePerGas = maxPriorityFeePerGas;
+          }
+
+          const result = await sendPrivyTransaction(sponsoredTx, {
+            sponsor: true,
+            address: String(tx.from || evmWallet.address),
+            uiOptions: { showWalletUIs: false },
+          });
+          if (!result.hash) {
+            throw new Error('Privy did not return a sponsored transaction hash.');
+          }
+          return result.hash;
+        },
+      };
+    },
+    [sendPrivyTransaction],
+  );
 
   // Find Ethereum and Solana wallets
   const ethWallet = wallets.find(
@@ -167,9 +252,15 @@ export default function LiFiModal({
     return createWalletClient({
       account: evmWallet.address as `0x${string}`,
       chain,
-      transport: custom(provider),
+      transport: custom(
+        getEvmProviderForLiFi(
+          provider,
+          evmWallet,
+          activeEvmChainIdRef.current,
+        ),
+      ),
     });
-  }, [wallets]);
+  }, [getEvmProviderForLiFi, wallets]);
 
   const switchEvmChain = useCallback(async (chainId: number) => {
     const evmWallet =
@@ -187,9 +278,9 @@ export default function LiFiModal({
     return createWalletClient({
       account: evmWallet.address as `0x${string}`,
       chain: VIEM_CHAIN_MAP[chainId],
-      transport: custom(provider),
+      transport: custom(getEvmProviderForLiFi(provider, evmWallet, chainId)),
     });
-  }, [wallets]);
+  }, [getEvmProviderForLiFi, wallets]);
 
   const solWallet =
     solWallets && solWallets.length > 0 ? solWallets[0] : null;

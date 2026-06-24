@@ -12,8 +12,8 @@ import {
 } from "../wallet/hooks/useWalletData";
 import {
   usePrivy,
+  useSendTransaction,
   useWallets,
-  useAuthorizationSignature,
 } from "@privy-io/react-auth";
 import {
   useSignAndSendTransaction,
@@ -50,6 +50,7 @@ import { useTransactionPayload } from "../wallet/hooks/useTransactionPayload";
 import { toFixedTruncate } from "@/lib/fixedTruncateNumber";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import bs58 from "bs58";
+import { ethers } from "ethers";
 import logger from "@/utils/logger";
 import {
   resolveTipRecipient,
@@ -76,8 +77,8 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
   logger.info("TipContentModal rendered with feedItem:", feedItem);
 
-  const { authenticated, ready, user: PrivyUser, sendTransaction } = usePrivy();
-  const { generateAuthorizationSignature } = useAuthorizationSignature();
+  const { authenticated, ready, user: PrivyUser } = usePrivy();
+  const { sendTransaction: sendPrivyTransaction } = useSendTransaction();
   const { wallets: ethWallets } = useWallets();
   const { wallets: directSolanaWallets } = useSolanaWallets();
   const { toast } = useToast();
@@ -369,67 +370,66 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
                 },
               });
 
-              hash = bs58.encode(result.signature);
+              hash =
+                typeof result.signature === "string"
+                  ? result.signature
+                  : bs58.encode(result.signature);
             } catch (privyError) {
-              // Fallback: Use backend relay for sponsored transactions
               console.warn(
-                "Privy signAndSendTransaction failed, falling back to backend relay:",
+                "Privy sponsored signAndSendTransaction failed:",
                 privyError,
               );
-
-              hash =
-                await TransactionService.submitPrivyNativeSponsoredTransaction(
-                  transaction,
-                  solanaWallet,
-                  connection,
-                );
+              throw privyError;
             }
           } catch (sponsoredError: any) {
-            console.log(
-              "Sponsored transaction failed, falling back to regular transaction",
-            );
-
-            // ✅ Check if it's a sponsored transaction error
-            if (
-              sponsoredError?.message?.includes("sponsored") ||
-              sponsoredError?.message?.includes("Sponsored") ||
-              sponsoredError?.message?.includes("400")
-            ) {
-              // ✅ Fallback: Execute regular transaction (user pays gas)
-              try {
-                toast({
-                  title: "Processing Transaction",
-                  description: "Gas fees will be deducted from your wallet.",
-                });
-
-                const fallbackResult =
-                  await TransactionService.handleSolanaSendWithoutSponsorship(
-                    solanaWallet,
-                    tipFlow,
-                    connection,
-                  );
-
-                hash = fallbackResult;
-                if (hash) await connection.confirmTransaction(hash);
-              } catch (fallbackError: any) {
-                // If fallback also fails, throw the error
-                throw fallbackError;
-              }
-            } else {
-              // If it's not a sponsorship error, throw it
-              throw sponsoredError;
-            }
+            throw sponsoredError;
           }
         } else {
-          await evmWallet?.switchChain(
-            CHAIN_ID[selectedToken.chain as keyof typeof CHAIN_ID] as number,
-          );
-          const result = await TransactionService.handleEVMSend(
-            evmWallet,
-            tipFlow,
-            selectedToken.chain,
-          );
-          hash = result.hash;
+          const chainId =
+            CHAIN_ID[selectedToken.chain as keyof typeof CHAIN_ID] as number;
+          if (!evmWallet?.address) {
+            throw new Error("No EVM wallet found for this tip.");
+          }
+          await evmWallet.switchChain(chainId);
+          let result: { hash?: string };
+          if (!selectedToken.address) {
+            result = await sendPrivyTransaction(
+              {
+                to: recipientWalletAddress as `0x${string}`,
+                value: ethers.parseEther(tipAmount),
+                chainId,
+              },
+              {
+                sponsor: true,
+                address: evmWallet.address,
+                uiOptions: { showWalletUIs: false },
+              },
+            );
+          } else {
+            const erc20Interface = new ethers.Interface([
+              "function transfer(address to, uint256 amount) returns (bool)",
+            ]);
+            const tokenData = erc20Interface.encodeFunctionData("transfer", [
+              recipientWalletAddress,
+              ethers.parseUnits(tipAmount, selectedToken.decimals),
+            ]);
+            result = await sendPrivyTransaction(
+              {
+                to: selectedToken.address as `0x${string}`,
+                data: tokenData as `0x${string}`,
+                chainId,
+              },
+              {
+                sponsor: true,
+                address: evmWallet.address,
+                uiOptions: { showWalletUIs: false },
+              },
+            );
+          }
+          hash = result.hash || "";
+          if (!hash) {
+            throw new Error("Privy did not return a transaction hash.");
+          }
         }
 
         return { success: true, hash };
@@ -451,8 +451,8 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
       directSolanaWallets,
       ethWallets,
       PrivyUser,
-      generateAuthorizationSignature,
-      toast,
+      sendPrivyTransaction,
+      signAndSendTransaction,
       tipRecipient,
     ],
   );
