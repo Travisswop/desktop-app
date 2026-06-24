@@ -84,7 +84,7 @@ describe('DeFi feed card projections', () => {
     expect(projection.difference).toBeGreaterThan(1_000);
   });
 
-  it('builds feed payloads only for supply and borrow actions', () => {
+  it('builds feed payloads for Aave open and terminal actions', () => {
     const supplied = buildAaveFeedContent({
       mode: 'supply',
       chain: 'ethereum',
@@ -103,6 +103,24 @@ describe('DeFi feed card projections', () => {
       amountUsd: 250,
       walletAddress: '0xabc0000000000000000000000000000000000000',
     });
+    const withdrawn = buildAaveFeedContent({
+      mode: 'withdraw',
+      chain: 'ethereum',
+      txHash: '0xcafe',
+      reserve: usdcReserve,
+      amount: 25,
+      amountUsd: 25,
+      walletAddress: '0xabc0000000000000000000000000000000000000',
+    });
+    const repaid = buildAaveFeedContent({
+      mode: 'repay',
+      chain: 'ethereum',
+      txHash: '0xfade',
+      reserve: usdcReserve,
+      amount: 50,
+      amountUsd: 50,
+      walletAddress: '0xabc0000000000000000000000000000000000000',
+    });
 
     expect(supplied).toMatchObject({
       positionKey:
@@ -115,19 +133,30 @@ describe('DeFi feed card projections', () => {
     });
     expect(borrowed).toMatchObject({
       action: 'borrow',
+      status: 'open',
       aaveRate: usdcReserve.variableBorrowApy,
       benchmarkRate: AVERAGE_CREDIT_CARD_APR.rate,
     });
-    expect(
-      buildAaveFeedContent({
-        mode: 'withdraw',
-        chain: 'ethereum',
-        txHash: '0xnope',
-        reserve: usdcReserve,
-        amount: 1,
-        amountUsd: 1,
-      }),
-    ).toBeNull();
+    expect(withdrawn).toMatchObject({
+      positionKey:
+        'aave-v3:ethereum:supply:0xabc0000000000000000000000000000000000000:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+      action: 'supply',
+      event: 'withdraw',
+      status: 'withdrawn',
+      symbol: 'USDC',
+      amount: 25,
+      closedAt: expect.any(String),
+      withdrawnAt: expect.any(String),
+    });
+    expect(repaid).toMatchObject({
+      action: 'borrow',
+      event: 'repay',
+      status: 'repaid',
+      symbol: 'USDC',
+      amount: 50,
+      closedAt: expect.any(String),
+      repaidAt: expect.any(String),
+    });
   });
 
   it('builds feed payloads from current Aave positions for backfill', () => {

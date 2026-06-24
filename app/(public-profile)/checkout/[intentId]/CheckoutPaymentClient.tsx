@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   useConnectWallet,
@@ -341,6 +341,19 @@ function humanizeCheckoutError(error: unknown, fallback: string) {
   }
 
   if (
+    (message.includes('insufficient') &&
+      (message.includes('rent') ||
+        message.includes('fee payer') ||
+        message.includes('network fee') ||
+        message.includes('sponsor') ||
+        message.includes('transaction simulation failed'))) ||
+    message.includes('insufficient funds for rent') ||
+    message.includes('rent-exempt')
+  ) {
+    return 'Swop could not complete the sponsored Solana network setup for this payment. Your token balance is not the problem, so try again or choose another token.';
+  }
+
+  if (
     message.includes('insufficient funds') ||
     message.includes('insufficient balance')
   ) {
@@ -604,13 +617,19 @@ function PhantomMark({ className = '' }: { className?: string }) {
   );
 }
 
+type CheckoutPaymentClientProps = {
+  intentId: string;
+  initialScanMethod?: ScanMethod;
+  fallbackHref?: string;
+  fallbackLabel?: string;
+  onClose?: () => void;
+};
+
 export default function CheckoutPaymentClient({
   intentId,
   initialScanMethod = 'swop',
-}: {
-  intentId: string;
-  initialScanMethod?: ScanMethod;
-}) {
+  onClose,
+}: CheckoutPaymentClientProps) {
   const router = useRouter();
   const { login, ready, authenticated, user: privyUser } = usePrivy();
   const { connectWallet } = useConnectWallet();
@@ -641,6 +660,13 @@ export default function CheckoutPaymentClient({
   const selectedSignerReadyRef = useRef(false);
   const signerRestoreMissingMessageRef = useRef('');
   const copyFallbackInputRef = useRef<HTMLInputElement | null>(null);
+  const handleClose = useCallback(() => {
+    if (onClose) {
+      onClose();
+      return;
+    }
+    router.back();
+  }, [onClose, router]);
   const [quotedTokenAmount, setQuotedTokenAmount] = useState('');
   const [tokenAmountLoading, setTokenAmountLoading] = useState(false);
   const [tokenAmountQuoteError, setTokenAmountQuoteError] = useState<
@@ -1555,7 +1581,7 @@ export default function CheckoutPaymentClient({
             </div>
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={handleClose}
               className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-[#e3e3e3] bg-[#f7f7f7] text-[#8a8f99] transition hover:border-[#d3d3d3] hover:text-[#101114]"
               aria-label="Close checkout"
             >

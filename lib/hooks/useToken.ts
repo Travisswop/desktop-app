@@ -1,4 +1,4 @@
-import { useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
 import { ChainType } from '@/types/token';
@@ -6,6 +6,8 @@ import {
   WalletService,
   Token,
   WalletInput,
+  WalletTokenFetchIssue,
+  WalletTokensResponse,
 } from '@/services/wallet-service';
 import { useUser } from '@/lib/UserContext';
 import { apiFetch } from '@/lib/api/apiFetch';
@@ -17,37 +19,42 @@ const normalizeChain = (chain: string): ChainType =>
 type TokenWithWallet = Token & { walletAddress?: string };
 
 type TokenSnapshot = {
-  fingerprint: string;
-  signature: string;
   tokens: TokenWithWallet[];
   totalValue: string;
   tokenCount: number;
+  degraded?: boolean;
+  errors?: WalletTokenFetchIssue[];
+  failedWalletCount?: number;
+  fetchedWalletCount?: number;
 };
 
-const emptyTokenSnapshot = (fingerprint = ''): TokenSnapshot => ({
-  fingerprint,
-  signature: '',
-  tokens: [],
-  totalValue: '0.00',
-  tokenCount: 0,
-});
+type RetryableWalletTokenError = Error & { retryable?: boolean };
 
-const tokenSnapshotSignature = (tokens: TokenWithWallet[]) =>
-  tokens
-    .map(
-      (token) =>
-        [
-          token.walletAddress || '',
-          token.chain || '',
-          token.address || '',
-          token.symbol || '',
-          token.balance || '',
-          token.value ?? '',
-          token.marketData?.price ?? '',
-        ].join(':')
-    )
-    .sort()
-    .join('|');
+const createRetryableWalletTokenError = (): RetryableWalletTokenError => {
+  const error = new Error(
+    'Wallet token RPC providers temporarily unavailable'
+  ) as RetryableWalletTokenError;
+  error.retryable = true;
+  return error;
+};
+
+const shouldRetryEmptyWalletResult = (result: WalletTokensResponse) =>
+  Boolean(result.degraded && (result.tokens || []).length === 0);
+
+const throwIfEmptyDegraded = (result: WalletTokensResponse) => {
+  if (shouldRetryEmptyWalletResult(result)) {
+    throw createRetryableWalletTokenError();
+  }
+};
+
+const isAuthError = (error: unknown) =>
+  error instanceof Error && /\b(401|403)\b/.test(error.message);
+
+const isRetryableWalletTokenError = (
+  error: unknown
+): error is RetryableWalletTokenError =>
+  error instanceof Error &&
+  Boolean((error as RetryableWalletTokenError).retryable);
 
 const backendTokenCache = new Map<string, string>();
 const backendTokenRequests = new Map<string, Promise<string | null>>();
@@ -115,9 +122,6 @@ export const useMultiChainTokenData = (
   const [fallbackAccessToken, setFallbackAccessToken] = useState<
     string | null
   >(null);
-  const [publishedData, setPublishedData] = useState<TokenSnapshot>(
-    emptyTokenSnapshot()
-  );
   const authToken =
     accessToken || cookieAccessToken || fallbackAccessToken || '';
   const userEmail = user?.email || '';
@@ -203,38 +207,113 @@ export const useMultiChainTokenData = (
   const tokenQueryEnabled =
     wallets.length > 0 && Boolean(authToken || canUseSessionCookieProxy);
 
-  const tokenQueries = useQueries({
-    queries: wallets.map((wallet) => ({
-      queryKey: [
-        'walletTokens',
-        'owner-address-split-v1',
-        wallet.chain,
-        wallet.address,
-        authToken,
-      ],
-      queryFn: async () => {
-        const result = await WalletService.getWalletTokens(
-          [wallet],
-          authToken || undefined
-        );
+  const tokenQuery = useQuery<TokenSnapshot>({
+    queryKey: [
+      'walletTokens',
+      'owner-address-batch-v2',
+      walletFingerprint,
+      authToken || 'session-cookie',
+    ],
+    queryFn: async () => {
+      const hasDuplicateChains =
+        new Set(wallets.map((wallet) => wallet.chain)).size !==
+        wallets.length;
 
-        return (result.tokens || []).map((token) => ({
+      if (hasDuplicateChains) {
+        const walletResponses = await Promise.all(
+          wallets.map(async (wallet) => {
+            const result = await WalletService.getWalletTokens(
+              [wallet],
+              authToken || undefined
+            );
+            return { wallet, result };
+          })
+        );
+        const tokens = walletResponses.flatMap(({ wallet, result }) =>
+          (result.tokens || []).map((token) => ({
+            ...token,
+            walletAddress: token.walletAddress || wallet.address,
+          }))
+        );
+        const errors = walletResponses.flatMap(
+          ({ result }) => result.errors || []
+        );
+        const totalValue = tokens.reduce((sum, token) => {
+          const explicitValue = Number(token.value || 0);
+          if (Number.isFinite(explicitValue) && explicitValue > 0) {
+            return sum + explicitValue;
+          }
+          const price = Number(token.marketData?.price || 0);
+          const balance = Number(token.balance || 0);
+          return sum + price * balance;
+        }, 0);
+
+        const combinedResult: WalletTokensResponse & {
+          tokens: TokenWithWallet[];
+        } = {
+          tokens,
+          totalValue: totalValue.toFixed(2),
+          tokenCount: tokens.length,
+          degraded: walletResponses.some(({ result }) => result.degraded),
+          errors,
+          failedWalletCount: new Set(
+            errors.map(
+              (error) =>
+                `${error.chain || 'unknown'}:${String(
+                  error.address || ''
+                ).toLowerCase()}`
+            )
+          ).size,
+          fetchedWalletCount: walletResponses.length,
+        };
+        throwIfEmptyDegraded(combinedResult);
+        return combinedResult;
+      }
+
+      const result = await WalletService.getWalletTokens(
+        wallets,
+        authToken || undefined
+      );
+      const walletAddressByChain = new Map(
+        wallets.map((wallet) => [wallet.chain, wallet.address])
+      );
+
+      const normalizedResult: WalletTokensResponse & {
+        tokens: TokenWithWallet[];
+      } = {
+        tokens: (result.tokens || []).map((token) => ({
           ...token,
-          walletAddress: token.walletAddress || wallet.address,
-        }));
-      },
-      enabled: tokenQueryEnabled,
-      retry: false,
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-    })),
+          walletAddress:
+            token.walletAddress ||
+            walletAddressByChain.get(
+              token.chain as WalletInput['chain']
+            ),
+        })),
+        totalValue: result.totalValue,
+        tokenCount: result.tokenCount,
+        degraded: result.degraded,
+        errors: result.errors,
+        failedWalletCount: result.failedWalletCount,
+        fetchedWalletCount: result.fetchedWalletCount,
+      };
+      throwIfEmptyDegraded(normalizedResult);
+      return normalizedResult;
+    },
+    enabled: tokenQueryEnabled,
+    retry: (failureCount, error) => {
+      if (isAuthError(error)) return false;
+      if (isRetryableWalletTokenError(error)) return failureCount < 3;
+      return failureCount < 2;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
   });
 
-  const aggregatedData = useMemo<TokenSnapshot>(() => {
-    const successfulTokens = tokenQueries.flatMap((query) =>
-      query.status === 'success' ? query.data || [] : []
-    );
-    const totalValue = successfulTokens.reduce((sum, token) => {
+  const data = useMemo<TokenSnapshot>(() => {
+    const tokens: TokenWithWallet[] = tokenQuery.data?.tokens || [];
+    const totalValue = tokens.reduce((sum: number, token: TokenWithWallet) => {
       const explicitValue = Number(token.value || 0);
       if (Number.isFinite(explicitValue) && explicitValue > 0) {
         return sum + explicitValue;
@@ -245,72 +324,24 @@ export const useMultiChainTokenData = (
     }, 0);
 
     return {
-      fingerprint: walletFingerprint,
-      signature: tokenSnapshotSignature(successfulTokens),
-      tokens: successfulTokens,
-      totalValue: totalValue.toFixed(2),
-      tokenCount: successfulTokens.length,
+      tokens,
+      totalValue: tokenQuery.data?.totalValue || totalValue.toFixed(2),
+      tokenCount: tokenQuery.data?.tokenCount ?? tokens.length,
+      degraded: tokenQuery.data?.degraded,
+      errors: tokenQuery.data?.errors,
+      failedWalletCount: tokenQuery.data?.failedWalletCount,
+      fetchedWalletCount: tokenQuery.data?.fetchedWalletCount,
     };
-  }, [tokenQueries, walletFingerprint]);
-
-  const tokenQueriesSettled =
-    !tokenQueryEnabled ||
-    tokenQueries.length === 0 ||
-    tokenQueries.every(
-      (query) =>
-        !query.isFetching &&
-        (query.status === 'success' || query.status === 'error')
-    );
-
-  useEffect(() => {
-    if (publishedData.fingerprint !== walletFingerprint) {
-      setPublishedData(emptyTokenSnapshot(walletFingerprint));
-      return;
-    }
-
-    if (!tokenQueryEnabled || tokenQueries.length === 0) {
-      if (publishedData.signature !== '') {
-        setPublishedData(emptyTokenSnapshot(walletFingerprint));
-      }
-      return;
-    }
-
-    if (!tokenQueriesSettled) return;
-
-    if (publishedData.signature !== aggregatedData.signature) {
-      setPublishedData(aggregatedData);
-    }
-  }, [
-    aggregatedData,
-    publishedData.fingerprint,
-    publishedData.signature,
-    tokenQueries.length,
-    tokenQueriesSettled,
-    tokenQueryEnabled,
-    walletFingerprint,
-  ]);
-
-  const settledAggregatedData =
-    tokenQueryEnabled && tokenQueries.length > 0 && tokenQueriesSettled
-      ? aggregatedData
-      : null;
-  const data =
-    settledAggregatedData ||
-    (publishedData.fingerprint === walletFingerprint
-      ? publishedData
-      : emptyTokenSnapshot(walletFingerprint));
+  }, [tokenQuery.data]);
 
   const isLoading =
     tokenQueryEnabled &&
-    tokenQueries.length > 0 &&
-    !tokenQueriesSettled &&
     data.tokens.length === 0 &&
-    tokenQueries.some((query) => query.isLoading || query.isFetching);
-  const error =
-    tokenQueries.find((query) => query.error)?.error ?? null;
+    (tokenQuery.isLoading || tokenQuery.isFetching);
+  const error = tokenQuery.error ?? null;
   const refetch = useCallback(
-    () => Promise.all(tokenQueries.map((query) => query.refetch())),
-    [tokenQueries]
+    () => tokenQuery.refetch(),
+    [tokenQuery]
   );
 
   // Transform tokens to include logoURI and timeSeriesData for backward compatibility
@@ -344,5 +375,7 @@ export const useMultiChainTokenData = (
     refetch,
     totalValue: data?.totalValue || '0',
     tokenCount: data?.tokenCount || 0,
+    degraded: data?.degraded || false,
+    tokenErrors: data?.errors || [],
   };
 };

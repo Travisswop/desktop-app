@@ -13,6 +13,7 @@ import {
   filterDuplicateLegacyPerpsItems,
   getFeedItemKey,
   mergeFreshFeedItems,
+  mergeRefreshedFeedItemsPreservingOrder,
   mergeUniqueFeedItems,
   shouldFetchAnotherFeedPage,
 } from "./feedPagination";
@@ -67,7 +68,10 @@ export default function Feed({
   const fetchFeedData = useCallback(
     async (
       reset = false,
-      options: { preserveLoadedItems?: boolean } = {},
+      options: {
+        preserveLoadedItems?: boolean;
+        preserveVisibleOrder?: boolean;
+      } = {},
     ) => {
       if (!userId || !accessToken) return;
       if (!reset && !hasMoreRef.current) return;
@@ -115,7 +119,15 @@ export default function Feed({
         });
 
         if (reset) {
-          if (options.preserveLoadedItems) {
+          if (options.preserveVisibleOrder) {
+            setFeedData((prev: any[]) =>
+              filterDuplicateLegacyPerpsItems(
+                mergeRefreshedFeedItemsPreservingOrder(prev, feedItems),
+              ),
+            );
+            pageRef.current = Math.max(pageRef.current, 2);
+            setHasMoreValue(nextHasMore || hasMoreRef.current);
+          } else if (options.preserveLoadedItems) {
             setFeedData((prev: any[]) =>
               filterDuplicateLegacyPerpsItems(
                 mergeFreshFeedItems(feedItems, prev),
@@ -165,7 +177,7 @@ export default function Feed({
 
     if (didHydrationRefreshRef.current) return;
     didHydrationRefreshRef.current = true;
-    fetchFeedData(true);
+    fetchFeedData(true, { preserveVisibleOrder: true });
   }, [fetchFeedData, initialArray.length]);
 
   // refetch trigger

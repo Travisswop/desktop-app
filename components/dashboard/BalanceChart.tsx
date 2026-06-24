@@ -117,7 +117,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
 }) => {
   const { user } = useUser();
   const [selectedPeriod, setSelectedPeriod] =
-    useState<TimePeriod>('1day');
+    useState<TimePeriod>('7days');
   // const [showBalance, setShowBalance] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
   const [fundandSettings, setFundandSettings] = useState(false);

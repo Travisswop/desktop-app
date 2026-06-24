@@ -7,7 +7,6 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import updateLocale from "dayjs/plugin/updateLocale";
 import { GoDotFill } from "react-icons/go";
 import { HiDotsHorizontal } from "react-icons/hi";
-import { FiPlusCircle } from "react-icons/fi";
 import {
   Popover,
   PopoverContent,
@@ -34,6 +33,8 @@ import FeedTradeAlertMenuItem, {
   isFeedAuthorSelf,
   shouldShowTradeAlertMenuItem,
 } from "./FeedTradeAlertMenuItem";
+import ProductFeedCard from "./ProductFeedCard";
+import { isProductFeedPost } from "./productFeedUtils";
 // Assuming FeedItemType is (or will be) available globally or can be imported.
 // For now, using 'any' as a placeholder if FeedItemType is not directly accessible here.
 // Ideally, import FeedItemType from where it's defined (e.g., Feed.tsx or a types file).
@@ -404,36 +405,13 @@ const FeedReplyItem = memo(
 
           {/* Post Media */}
           <div>
-            {feed.post_content && feed.post_content.length > 0 && (
+            {feed.post_content &&
+              !isProductFeedPost(feed) &&
+              feed.post_content.length > 0 && (
               <PostTypeMedia mediaFiles={feed.post_content} />
             )}
-            {feed.postType === "minting" && (
-              <div className="w-max">
-                <p>{feed.content.title}</p>
-                <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                  <Link
-                    onClick={(e) => e.stopPropagation()}
-                    href={feed?.content?.link || ""}
-                    className="w-max"
-                  >
-                    <Image
-                      src={feed.content.image}
-                      alt="nft image"
-                      width={200}
-                      height={200}
-                    />
-                    {feed?.content?.price && (
-                      <p className="text-center text-sm text-gray-500 font-medium">
-                        {feed.content.price}
-                      </p>
-                    )}
-                    <FiPlusCircle
-                      className="absolute top-2 right-2"
-                      size={24}
-                    />
-                  </Link>
-                </div>
-              </div>
+            {isProductFeedPost(feed) && (
+              <ProductFeedCard feed={feed} />
             )}
           </div>
 

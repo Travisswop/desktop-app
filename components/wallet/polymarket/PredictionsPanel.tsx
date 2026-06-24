@@ -1100,7 +1100,45 @@ function SportsGameOddsSheet({
   ].filter((row): row is { label: string; kind: string; grouped: GroupedMarket } =>
     Boolean(row.grouped),
   );
+  const primaryMarket = getGamePrimaryMarket(game);
+  const eventSlug = getMarketLiveEventSlug(primaryMarket);
+  const fetchedScore = useLiveEventScore(eventSlug, Boolean(eventSlug));
+  const embeddedScore = useMemo(
+    () => getEmbeddedLiveScore(primaryMarket),
+    [primaryMarket],
+  );
+  const scoreState = useMemo(
+    () => mergeLiveScoreStates(fetchedScore, embeddedScore),
+    [fetchedScore, embeddedScore],
+  );
+  const scoreA = pickLiveTeamScore(
+    game.teamA,
+    game.teamAMeta?.abbrev,
+    scoreState.teams,
+    0,
+  );
+  const scoreB = pickLiveTeamScore(
+    game.teamB,
+    game.teamBMeta?.abbrev,
+    scoreState.teams,
+    1,
+  );
+  const hasScore = scoreA != null && scoreB != null;
+  const scoreClock =
+    scoreState.period || scoreState.elapsed
+      ? formatLiveGameClock(scoreState, primaryMarket)
+      : scoreState.live
+        ? 'Live'
+        : scoreState.ended || scoreState.closed
+          ? 'Final'
+          : null;
   const gameTime = formatGameOddsStart(game.startDate);
+  const metadataParts = [
+    gameTime || 'TBD',
+    scoreClock,
+    hasScore ? `${scoreA}-${scoreB}` : null,
+    `${marketRows.length} markets`,
+  ].filter(Boolean);
 
   return (
     <div
@@ -1134,7 +1172,7 @@ function SportsGameOddsSheet({
               className="mt-1 text-[11px] font-semibold uppercase tracking-[0.8px] text-gray-500"
               style={{ fontFamily: MONO }}
             >
-              {gameTime || 'TBD'} · {marketRows.length} markets
+              {metadataParts.join(' · ')}
             </div>
           </div>
           <button
@@ -3126,6 +3164,131 @@ const EMPTY_LIVE_SCORE: LiveScoreState = {
   teams: [],
 };
 
+function normalizeLiveEventSlug(slug: string | undefined): string | undefined {
+  if (!slug) return undefined;
+  return slug.replace(/-more-markets$/i, '');
+}
+
+function getMarketLiveEventSlug(
+  market: PolymarketMarket | null | undefined,
+): string | undefined {
+  if (!market) return undefined;
+  const explicit =
+    market.eventSlug ||
+    market.event?.slug ||
+    market.events?.find?.((event: { slug?: string }) => event?.slug)?.slug;
+  if (explicit) return normalizeLiveEventSlug(String(explicit));
+
+  if (!market.slug || !market.gameStartTime || !market.eventTeams?.length) {
+    return undefined;
+  }
+
+  return normalizeLiveEventSlug(
+    String(market.slug)
+      .replace(/-(moneyline|spread|total|totals|o-u|over-under).*$/i, '')
+      .replace(/-(home|away|yes|no)-?[a-z0-9.]*$/i, ''),
+  );
+}
+
+function parseLiveScorePair(raw: unknown): [number | null, number | null] {
+  if (typeof raw !== 'string') return [null, null];
+  const match = raw.match(/(\d+)\D+(\d+)/);
+  if (!match) return [null, null];
+  const first = Number(match[1]);
+  const second = Number(match[2]);
+  return [
+    Number.isFinite(first) ? first : null,
+    Number.isFinite(second) ? second : null,
+  ];
+}
+
+function toLiveScoreNumber(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function getEmbeddedLiveScore(
+  market: PolymarketMarket | null | undefined,
+): LiveScoreState {
+  if (!market) return EMPTY_LIVE_SCORE;
+  const event = Array.isArray(market.events) ? market.events[0] : market.event;
+  const [score0, score1] = parseLiveScorePair(
+    event?.score ?? market.score ?? market.eventScore,
+  );
+  const rawTeams = Array.isArray(event?.teams)
+    ? event.teams
+    : Array.isArray(market.eventTeams)
+      ? market.eventTeams
+      : [];
+
+  return {
+    live: Boolean(market.eventLive || event?.live),
+    ended: Boolean(
+      market.eventEnded || event?.ended || event?.closed || market.closed,
+    ),
+    closed: Boolean(
+      market.eventClosed || event?.closed || event?.ended || market.closed,
+    ),
+    period: market.eventPeriod ?? event?.period ?? null,
+    elapsed: market.eventElapsed ?? event?.elapsed ?? null,
+    startTime:
+      market.eventStartDate ||
+      event?.startDate ||
+      event?.startTime ||
+      market.gameStartTime ||
+      null,
+    teams: rawTeams.map(
+      (
+        team: LiveScoreTeam & { logo?: string | null; color?: string | null },
+        index: number,
+      ) => ({
+        name: team?.name ?? null,
+        abbreviation: team?.abbreviation ?? null,
+        logo: team?.logo ?? null,
+        color: team?.color ?? null,
+        score:
+          team?.score != null
+            ? toLiveScoreNumber(team.score)
+            : index === 0
+              ? score0
+              : index === 1
+                ? score1
+                : null,
+      }),
+    ),
+  };
+}
+
+function mergeLiveScoreStates(
+  fetched: LiveScoreState,
+  embedded: LiveScoreState,
+): LiveScoreState {
+  const fetchedHasEventState =
+    fetched.live ||
+    fetched.ended ||
+    fetched.closed ||
+    fetched.period != null ||
+    fetched.elapsed != null ||
+    fetched.startTime != null ||
+    fetched.teams.length > 0;
+  const fetchedHasScores = fetched.teams.some((team) => team.score != null);
+  const embeddedHasScores = embedded.teams.some((team) => team.score != null);
+  const teams =
+    fetched.teams.length && (fetchedHasScores || !embeddedHasScores)
+      ? fetched.teams
+      : embedded.teams;
+
+  return {
+    live: fetchedHasEventState ? fetched.live : embedded.live,
+    ended: Boolean(fetched.ended || embedded.ended),
+    closed: Boolean(fetched.closed || embedded.closed),
+    period: fetched.period ?? embedded.period,
+    elapsed: fetched.elapsed ?? embedded.elapsed,
+    startTime: fetched.startTime ?? embedded.startTime,
+    teams,
+  };
+}
+
 function useLiveSportsGames() {
   return useQuery({
     queryKey: ['prediction-overview-live-games'],
@@ -3257,7 +3420,7 @@ async function enrichLiveSportsGames(
 ): Promise<SportsGameGroup[]> {
   return Promise.all(
     games.map(async (game) => {
-      const eventSlug = getGamePrimaryMarket(game)?.eventSlug;
+      const eventSlug = getMarketLiveEventSlug(getGamePrimaryMarket(game));
       if (!eventSlug) return game;
 
       const liveScore = await fetchLiveScoreForEvent(eventSlug);
@@ -3415,42 +3578,16 @@ function LiveGameRow({
   onClick: (market: PolymarketMarket) => void;
 }) {
   const primaryMarket = getGamePrimaryMarket(game);
-  const eventSlug = primaryMarket?.eventSlug;
+  const eventSlug = getMarketLiveEventSlug(primaryMarket);
   const liveScore = useLiveEventScore(eventSlug, Boolean(eventSlug));
-  const embeddedScore: LiveScoreState = {
-    live: Boolean(primaryMarket?.eventLive),
-    period: primaryMarket?.eventPeriod ?? null,
-    elapsed: primaryMarket?.eventElapsed ?? null,
-    startTime:
-      primaryMarket?.eventStartDate ||
-      primaryMarket?.gameStartTime ||
-      null,
-    teams: Array.isArray(primaryMarket?.eventTeams)
-      ? primaryMarket.eventTeams.map((team) => ({
-          name: team.name ?? null,
-          abbreviation: team.abbreviation ?? null,
-          logo: team.logo ?? null,
-          color: team.color ?? null,
-          score:
-            typeof team.score === 'number'
-              ? team.score
-              : team.score == null
-                ? null
-                : Number(team.score),
-        }))
-      : [],
-  };
-  const liveScoreHasScores = liveScore.teams.some(
-    (team) => team.score != null,
+  const embeddedScore = useMemo(
+    () => getEmbeddedLiveScore(primaryMarket),
+    [primaryMarket],
   );
-  const embeddedScoreHasScores = embeddedScore.teams.some(
-    (team) => team.score != null,
+  const scoreState = useMemo(
+    () => mergeLiveScoreStates(liveScore, embeddedScore),
+    [liveScore, embeddedScore],
   );
-  const scoreState =
-    liveScoreHasScores ||
-    (!embeddedScoreHasScores && (liveScore.period || liveScore.elapsed))
-      ? liveScore
-      : embeddedScore;
   const scoreA = pickLiveTeamScore(
     game.teamA,
     game.teamAMeta?.abbrev,

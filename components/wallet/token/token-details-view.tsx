@@ -325,13 +325,13 @@ export default function TokenDetails({
     throw new Error('No access token found');
   }
 
-  const [selectedPeriod, setSelectedPeriod] = useState<Period>('1D');
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>('1W');
   const fallbackChartData = useMemo(
     () => fallbackChartDataForToken(token, selectedPeriod),
     [token, selectedPeriod],
   );
   const [chartData, setChartData] = useState<ChartPoint[]>(
-    () => fallbackChartDataForToken(token, '1D'),
+    () => fallbackChartDataForToken(token, '1W'),
   );
   const [changePercentage, setChangePercentage] = useState(
     token.marketData?.priceChangePercentage24h || '0',
