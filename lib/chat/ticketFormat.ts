@@ -38,6 +38,17 @@ export function formatSwapAmount(value: unknown) {
   }).format(number);
 }
 
+export function formatSwapEditableAmount(
+  value: number,
+  maximumFractionDigits = 8
+) {
+  if (!Number.isFinite(value) || value <= 0) return '';
+  return value.toLocaleString('en-US', {
+    maximumFractionDigits,
+    useGrouping: false,
+  });
+}
+
 export function parseSwapBalanceChangeError(
   message: unknown,
   fallbackTokenSymbol = 'TOKEN'
@@ -62,6 +73,25 @@ export function parseSwapBalanceChangeError(
     availableAmount: match.groups.amount.replace(/,/g, '').trim(),
     tokenSymbol,
   };
+}
+
+export function getSwapRecoveryAmountInput(
+  availableAmount: string,
+  amountType: 'token' | 'usd' | string,
+  tokenPriceUsd: number
+) {
+  const normalizedAmount = String(availableAmount || '').replace(/,/g, '').trim();
+  const availableNumber = Number(normalizedAmount);
+
+  if (!Number.isFinite(availableNumber) || availableNumber <= 0) {
+    return normalizedAmount;
+  }
+
+  if (amountType === 'usd' && Number.isFinite(tokenPriceUsd) && tokenPriceUsd > 0) {
+    return formatSwapEditableAmount(availableNumber * tokenPriceUsd, 2);
+  }
+
+  return formatSwapEditableAmount(availableNumber);
 }
 
 export function normalizeIntentText(value: unknown) {

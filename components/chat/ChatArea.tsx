@@ -143,6 +143,7 @@ import {
   getPolymarketOutcomeLabels,
   getReceiptIdentityKeys,
   isOpenPredictionConsolePosition,
+  getSwapRecoveryAmountInput,
   parseSwapBalanceChangeError,
   isProposalNoLongerPendingError,
   normalizePredictionConsolePositions,
@@ -16175,7 +16176,13 @@ function SwapProposalTicket({
         error instanceof Error ? error.message : 'Failed to approve swap.';
       const balanceRecovery = parseSwapBalanceChangeError(message, fromToken);
       if (balanceRecovery) {
-        setAmountInput(balanceRecovery.availableAmount);
+        setAmountInput(
+          getSwapRecoveryAmountInput(
+            balanceRecovery.availableAmount,
+            amountType,
+            selectedFromPriceUsd
+          )
+        );
         setQuoteState({ status: 'idle' });
         setSwapError(null);
         setSwapRecovery({
