@@ -186,6 +186,7 @@ import {
   type AgentActionCompletion,
 } from '@/lib/chat/agentActionHandoff';
 import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
+import { buildGoldmanStrategyProposalSummary } from '@/lib/chat/goldmanStrategyProposal';
 import { postFeed } from '@/actions/postFeed';
 import {
   usePolymarketWallet,
@@ -12008,6 +12009,11 @@ function StrategyProposalTicket({
   const idleAsset = strategyString(idleDeployment.asset, assets[0] || 'USDC');
   const idleChain = strategyString(idleDeployment.chain, 'polygon');
   const canSubmit = isOpen && canAct && !isPending;
+  const proposalSummary = buildGoldmanStrategyProposalSummary(params, {
+    defaultFundingAsset: assets[0] || 'USDC',
+    venues,
+    expiryLabel: expiry ? `Expires ${expiry}` : null,
+  });
 
   return (
     <div className={`mt-2 w-full max-w-[500px] overflow-hidden text-xs ${AGENT_PANEL_CLASS}`}>
@@ -12093,6 +12099,34 @@ function StrategyProposalTicket({
             </span>
           )}
         </div>
+
+        <div className="rounded-[10px] border border-[#3fe08f]/15 bg-[#3fe08f]/10 px-3 py-2.5">
+          <div className={TICKET_LABEL_CLASS}>approval boundary</div>
+          <p className="mt-1 text-[12px] leading-relaxed text-[#dfffee]">
+            {proposalSummary.approvalBoundary}
+          </p>
+        </div>
+
+        {proposalSummary.metrics.length > 0 && (
+          <div className="grid gap-2 sm:grid-cols-3">
+            {proposalSummary.metrics.map((metric) => (
+              <div
+                key={metric.label}
+                className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2"
+              >
+                <div className={TICKET_LABEL_CLASS}>{metric.label}</div>
+                <div className="dm-mono mt-1 text-[12px] font-bold text-[#eceef2]">
+                  {metric.value}
+                </div>
+                {metric.detail ? (
+                  <div className="mt-0.5 text-[10px] text-[#5a5e69]">
+                    {metric.detail}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="grid gap-2">
           <div className="rounded-[10px] border border-white/[0.07] bg-[#101217] px-3 py-2.5">
