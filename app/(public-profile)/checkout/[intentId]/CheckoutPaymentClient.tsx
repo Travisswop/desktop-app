@@ -197,6 +197,26 @@ function formatCurrency(value?: number, currency = 'USDC') {
   })} ${currency}`;
 }
 
+type CheckoutAmountBreakdown = ReturnType<typeof getCheckoutAmounts>;
+
+function roundCheckoutAmount(value: number) {
+  return Number(value.toFixed(6));
+}
+
+function isMinimumCheckoutFee(amounts: CheckoutAmountBreakdown | null) {
+  if (!amounts) return false;
+  const percentageFeeAmount = roundCheckoutAmount(
+    amounts.merchantReceivesAmount * (amounts.platformFeeBps / 10000)
+  );
+  return amounts.platformFeeAmount > percentageFeeAmount + 0.000001;
+}
+
+function checkoutFeeLabel(amounts: CheckoutAmountBreakdown | null) {
+  if (!amounts) return 'Swop fee';
+  if (isMinimumCheckoutFee(amounts)) return 'Swop fee (minimum)';
+  return `Swop fee (${(amounts.platformFeeBps / 100).toFixed(2)}%)`;
+}
+
 function formatCheckoutTotal(value?: number, currency = 'USDC') {
   const amount = Number(value || 0);
   const normalizedCurrency = currency.toUpperCase();
@@ -1541,6 +1561,7 @@ export default function CheckoutPaymentClient({
       : selectedToken && tokenAmount
       ? `${formatTokenQuantity(tokenAmount)} ${selectedToken.symbol}`
       : '--';
+  const checkoutFeeText = checkoutFeeLabel(checkoutAmounts);
   const tokenBalanceText = selectedToken
     ? formatTokenQuantity(selectedToken.balance)
     : '--';
@@ -1790,6 +1811,17 @@ export default function CheckoutPaymentClient({
                   <dt className="text-[#7b8491]">Pay amount</dt>
                   <dd className="text-right font-bold">{tokenPaymentText}</dd>
                 </div>
+                {checkoutAmounts ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-[#7b8491]">{checkoutFeeText}</dt>
+                    <dd className="text-right font-bold">
+                      {formatCurrency(
+                        checkoutAmounts.platformFeeAmount,
+                        amountDueCurrency
+                      )}
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-[#7b8491]">Network fee</dt>
                   <dd className="flex items-center justify-end gap-2 text-right">
@@ -2636,12 +2668,7 @@ export default function CheckoutPaymentClient({
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <dt className="text-[#737b8c]">
-                    Checkout fee{' '}
-                    {checkoutAmounts
-                      ? `(${(checkoutAmounts.platformFeeBps / 100).toFixed(2)}%)`
-                      : ''}
-                  </dt>
+                  <dt className="text-[#737b8c]">{checkoutFeeText}</dt>
                   <dd className="font-semibold">
                     {formatCurrency(
                       checkoutAmounts?.platformFeeAmount,

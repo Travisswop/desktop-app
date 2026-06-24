@@ -91,10 +91,18 @@ export type MarketplaceOrder = {
     platformFeeAmount?: number;
     merchantReceivesAmount?: number;
     recipientAddress?: string;
+    payoutRail?: 'solana' | 'evm' | 'external' | '';
+    destinationChain?: string | null;
+    tokenAddress?: string | null;
+    escrowAddress?: string;
+    merchantEvmAddress?: string;
     txHash?: string | null;
     releasedAt?: string | null;
     releaseReason?: string;
     mode?: string;
+    disputeHold?: boolean;
+    autoReleaseAt?: string | null;
+    autoReleaseDays?: number;
     error?: string | null;
   };
   receipt?: MarketplaceReceiptState;

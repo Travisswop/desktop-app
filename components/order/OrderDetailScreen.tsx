@@ -102,10 +102,18 @@ export interface OrderDetail {
     platformFeeAmount?: number;
     merchantReceivesAmount?: number;
     recipientAddress?: string;
+    payoutRail?: string;
+    destinationChain?: string | null;
+    tokenAddress?: string | null;
+    escrowAddress?: string;
+    merchantEvmAddress?: string;
     txHash?: string | null;
     releasedAt?: string | null;
     releaseReason?: string;
     mode?: string;
+    disputeHold?: boolean;
+    autoReleaseAt?: string | null;
+    autoReleaseDays?: number;
     error?: string | null;
   };
   fulfillment?: {
@@ -192,6 +200,15 @@ const isMockReceipt = (receipt?: OrderDetail['receipt']) => {
     provider.includes('mock') ||
     mintAddress.startsWith('mock_') ||
     txHash.startsWith('mock_')
+  );
+};
+
+const sellerConfirmedDelivery = (order: OrderDetail) => {
+  const fulfillment = order.fulfillment;
+  return Boolean(
+    fulfillment?.releaseConditions?.shippingConfirmed ||
+      fulfillment?.deliveredAt ||
+      fulfillment?.status === 'delivered'
   );
 };
 
@@ -334,14 +351,27 @@ export default function OrderDetailScreen({
   const total = order.financial?.totalCost ?? lineSubtotal;
   const paymentComplete = order.payment === 'completed';
   const requiresShipping = Boolean(order.fulfillment?.requiresShipping);
+  const deliveryConfirmed = sellerConfirmedDelivery(order);
+  const escrowReleased = order.settlement?.status === 'released';
+  const disputeHold = Boolean(order.settlement?.disputeHold);
   const receiptConfirmed = Boolean(
     order.fulfillment?.receiptConfirmedAt ||
       order.fulfillment?.status === 'receipt_confirmed'
   );
   const canConfirmReceipt =
-    isBuyerCtx && requiresShipping && paymentComplete && !receiptConfirmed;
+    isBuyerCtx &&
+    requiresShipping &&
+    paymentComplete &&
+    deliveryConfirmed &&
+    !receiptConfirmed &&
+    !escrowReleased &&
+    !disputeHold;
   const canDispute =
-    isBuyerCtx && paymentComplete && !receiptConfirmed && Boolean(onDispute);
+    isBuyerCtx &&
+    paymentComplete &&
+    !receiptConfirmed &&
+    !escrowReleased &&
+    Boolean(onDispute);
   const canUpdateShipping =
     !isBuyerCtx && requiresShipping && paymentComplete && Boolean(onUpdateShipping);
   const canCompletePayment =
@@ -359,6 +389,21 @@ export default function OrderDetailScreen({
     : order.receipt?.status !== 'minted'
     ? 'Download unlocks after the receipt NFT is minted.'
     : '';
+  const escrowStatusMessage = (() => {
+    if (!isBuyerCtx || !requiresShipping || !paymentComplete || receiptConfirmed) {
+      return null;
+    }
+    if (disputeHold) return 'Dispute open. Escrow release is paused.';
+    if (escrowReleased) return 'Funds have already been released to the seller.';
+    if (!deliveryConfirmed) {
+      return 'Awaiting seller delivery confirmation before funds can release.';
+    }
+    if (order.settlement?.autoReleaseAt) {
+      const autoReleaseAt = formatTime(order.settlement.autoReleaseAt);
+      return `Delivered. Confirm receipt to release funds now, or escrow auto-releases ${autoReleaseAt}.`;
+    }
+    return 'Delivered. Confirm receipt to release funds.';
+  })();
 
   const submitShipping = async () => {
     if (!onUpdateShipping) return;
@@ -689,6 +734,10 @@ export default function OrderDetailScreen({
               Update Shipping
             </button>
           )}
+
+          {escrowStatusMessage ? (
+            <div style={escrowNoticeStyle}>{escrowStatusMessage}</div>
+          ) : null}
 
           {paymentOpen ? (
             <InlinePaymentForm
@@ -1121,7 +1170,26 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
             )}
             mono
           />
+          <StateRow label="Escrow rail" value={humanize(settlement?.payoutRail)} />
+          <StateRow
+            label="Escrow wallet"
+            value={shortHash(settlement?.escrowAddress)}
+            mono
+          />
+          <StateRow
+            label="Payout chain"
+            value={settlement?.destinationChain || '—'}
+            mono
+          />
           <StateRow label="Release tx" value={shortHash(settlement?.txHash)} mono />
+          <StateRow
+            label="Auto release"
+            value={formatTime(settlement?.autoReleaseAt || '') || '—'}
+          />
+          <StateRow
+            label="Dispute hold"
+            value={settlement?.disputeHold ? 'Paused' : 'No'}
+          />
           <StateRow label="Fulfillment" value={humanize(fulfillment?.status)} />
           <StateRow label="Tracking" value={shortHash(fulfillment?.trackingNumber)} mono />
           <StateRow label="Carrier" value={fulfillment?.carrier || '—'} />
@@ -1173,6 +1241,18 @@ const inlinePanelStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 12,
+};
+
+const escrowNoticeStyle: CSSProperties = {
+  width: '100%',
+  border: `1px solid ${hair2}`,
+  background: '#fafafa',
+  color: muted,
+  borderRadius: 8,
+  padding: '10px 12px',
+  fontSize: 12.5,
+  fontWeight: 600,
+  textAlign: 'center',
 };
 
 const fieldGridStyle: CSSProperties = {

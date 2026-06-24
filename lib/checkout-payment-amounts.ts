@@ -15,6 +15,10 @@ export const EVM_USDC_BY_CHAIN: Partial<Record<TokenData['chain'], string>> = {
 const DEFAULT_USDC_DECIMALS = 6;
 const DEFAULT_TOKEN_DISPLAY_DECIMALS = 8;
 const MAX_SLIPPAGE_BPS = 9999;
+const LIFI_SERVICE_FEE_BPS = 25;
+const EVM_LIFI_OUTPUT_BUFFER_RAW_UNITS = 50;
+const EVM_LIFI_OUTPUT_DUST_BUFFER =
+  EVM_LIFI_OUTPUT_BUFFER_RAW_UNITS / 10 ** DEFAULT_USDC_DECIMALS;
 
 export function getCheckoutAmounts(intent: CheckoutIntent) {
   const merchantReceivesAmount =
@@ -113,6 +117,39 @@ function formatRoundedUpTokenAmount(amount: number, decimals: number) {
   return roundedUp.toFixed(decimals);
 }
 
+function getGrossAmountBeforeFeeRate(amount: number, feeRate: number) {
+  const safeFeeRate = Math.max(0, Math.min(Number(feeRate) || 0, 0.9999));
+  if (safeFeeRate <= 0) return amount;
+  return amount / (1 - safeFeeRate);
+}
+
+function getCheckoutLifiIntegratorFeeRate(
+  platformFeeAmount: number,
+  platformFeeBps: number,
+  totalDueAmount: number
+) {
+  const percentageFeeRate =
+    Math.max(0, Math.min(Number(platformFeeBps) || 0, 9999)) / 10000;
+  const minimumFeeRate =
+    totalDueAmount > 0 ? platformFeeAmount / totalDueAmount : 0;
+  return Math.min(0.9999, Math.max(percentageFeeRate, minimumFeeRate));
+}
+
+function getCheckoutLifiEffectiveFeeRate(
+  platformFeeAmount: number,
+  platformFeeBps: number,
+  totalDueAmount: number
+) {
+  const integratorFeeRate = getCheckoutLifiIntegratorFeeRate(
+    platformFeeAmount,
+    platformFeeBps,
+    totalDueAmount
+  );
+  const serviceFeeRate = LIFI_SERVICE_FEE_BPS / 10000;
+  const feeRate = integratorFeeRate + serviceFeeRate;
+  return Math.min(feeRate, 0.9999);
+}
+
 export function getProtectedCheckoutOutputRawAmount(
   intent: CheckoutIntent,
   outputDecimals = DEFAULT_USDC_DECIMALS
@@ -145,7 +182,13 @@ export function calculateCheckoutTokenAmount(
 ) {
   if (!token) return '';
 
-  const { totalDueAmount, slippageBps } = getCheckoutAmounts(intent);
+  const {
+    merchantReceivesAmount,
+    platformFeeAmount,
+    platformFeeBps,
+    totalDueAmount,
+    slippageBps,
+  } = getCheckoutAmounts(intent);
 
   // The settlement currency itself needs no conversion: the buyer owes
   // exactly the total due, regardless of what a market price feed says
@@ -161,7 +204,21 @@ export function calculateCheckoutTokenAmount(
   const price = Number(token.marketData?.price);
   if (!Number.isFinite(price) || price <= 0) return '';
 
+  const targetOutputAmount =
+    token.chain === 'SOLANA'
+      ? totalDueAmount
+      : Math.max(
+          totalDueAmount,
+          getGrossAmountBeforeFeeRate(
+            merchantReceivesAmount,
+            getCheckoutLifiEffectiveFeeRate(
+              platformFeeAmount,
+              platformFeeBps,
+              totalDueAmount
+            )
+          )
+        ) + EVM_LIFI_OUTPUT_DUST_BUFFER;
   const amount =
-    (totalDueAmount / price) * getSlippageProtectedMultiplier(slippageBps);
+    (targetOutputAmount / price) * getSlippageProtectedMultiplier(slippageBps);
   return formatRoundedUpTokenAmount(amount, getTokenPaymentDecimals(token));
 }
