@@ -2,6 +2,7 @@ import {
   filterDuplicateLegacyPerpsItems,
   filterDuplicatePerpsPositionItems,
   mergeFreshFeedItems,
+  mergeRefreshedFeedItemsPreservingOrder,
   mergeUniqueFeedItems,
   shouldFetchAnotherFeedPage,
 } from "@/components/feed/feedPagination";
@@ -85,6 +86,26 @@ describe("feed pagination", () => {
       { _id: "a", text: "fresh copy" },
       { _id: "b", text: "older post" },
       { id: "c", text: "id fallback" },
+    ]);
+  });
+
+  it("updates refreshed items without reordering the visible feed", () => {
+    expect(
+      mergeRefreshedFeedItemsPreservingOrder(
+        [
+          { _id: "perps", text: "visible first", returnPct: "-4%" },
+          { _id: "aave", text: "visible second", amount: "10 DAI" },
+        ],
+        [
+          { _id: "aave", text: "fresh second", amount: "12 DAI" },
+          { _id: "perps", text: "fresh first", returnPct: "-3%" },
+          { _id: "new", text: "fresh unseen" },
+        ],
+      ),
+    ).toEqual([
+      { _id: "perps", text: "fresh first", returnPct: "-3%" },
+      { _id: "aave", text: "fresh second", amount: "12 DAI" },
+      { _id: "new", text: "fresh unseen" },
     ]);
   });
 
