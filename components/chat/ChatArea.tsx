@@ -128,6 +128,12 @@ import type {
 } from '@/lib/chat/agentCardTypes';
 import { getReceiptId } from '@/lib/chat/receiptShare';
 import {
+  buildGoldmanApprovalBoundarySummary,
+  formatGoldmanCooldownLabel,
+  formatGoldmanFundingSummary,
+  formatGoldmanOpenPositionsLabel,
+} from '@/lib/chat/goldmanStrategyApproval';
+import {
   buildPolymarketBetKey,
   compactPerpsMarketKey,
   displayPerpsCoin,
@@ -12007,6 +12013,15 @@ function StrategyProposalTicket({
   const idleVenue = strategyString(idleDeployment.venue, '');
   const idleAsset = strategyString(idleDeployment.asset, assets[0] || 'USDC');
   const idleChain = strategyString(idleDeployment.chain, 'polygon');
+  const fundingSummary = formatGoldmanFundingSummary(params);
+  const openPositionsLabel = formatGoldmanOpenPositionsLabel(
+    params.maxOpenPositions
+  );
+  const cooldownLabel = formatGoldmanCooldownLabel(params.cooldownSeconds);
+  const approvalBoundarySummary = buildGoldmanApprovalBoundarySummary(
+    params,
+    expiry ? `the ${expiry} expiry` : null
+  );
   const canSubmit = isOpen && canAct && !isPending;
 
   return (
@@ -12070,6 +12085,44 @@ function StrategyProposalTicket({
           </div>
         </div>
 
+        {(openPositionsLabel || cooldownLabel || fundingSummary) && (
+          <div className="grid gap-2 sm:grid-cols-3">
+            {openPositionsLabel && (
+              <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+                <div className={TICKET_LABEL_CLASS}>position cap</div>
+                <div className="dm-mono mt-1 text-[12px] font-bold text-[#eceef2]">
+                  {openPositionsLabel.replace(/^Max\s+/, '')}
+                </div>
+                <div className="mt-0.5 text-[10px] text-[#5a5e69]">
+                  simultaneous live trades
+                </div>
+              </div>
+            )}
+            {cooldownLabel && (
+              <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+                <div className={TICKET_LABEL_CLASS}>re-entry cooldown</div>
+                <div className="dm-mono mt-1 text-[12px] font-bold text-[#eceef2]">
+                  {cooldownLabel.replace(/\scooldown$/, '')}
+                </div>
+                <div className="mt-0.5 text-[10px] text-[#5a5e69]">
+                  minimum wait between new entries
+                </div>
+              </div>
+            )}
+            {fundingSummary && (
+              <div className="rounded-[9px] border border-white/[0.07] bg-black/25 p-2">
+                <div className={TICKET_LABEL_CLASS}>capital source</div>
+                <div className="dm-mono mt-1 text-[12px] font-bold text-[#eceef2]">
+                  {fundingSummary.assetLabel}
+                </div>
+                <div className="mt-0.5 text-[10px] text-[#5a5e69]">
+                  {fundingSummary.detailLabel || 'Approved strategy funding source'}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-1.5">
           {venues.map((venue) => (
             <span
@@ -12123,6 +12176,13 @@ function StrategyProposalTicket({
             </p>
           </div>
         )}
+
+        <div className="rounded-[10px] border border-[#3fe08f]/15 bg-[#3fe08f]/10 px-3 py-2.5">
+          <div className={TICKET_LABEL_CLASS}>approval boundary</div>
+          <p className="mt-1 text-[11.5px] leading-relaxed text-[#dfffee]">
+            {approvalBoundarySummary}
+          </p>
+        </div>
 
         {(executionPlan.length > 0 || riskControls.length > 0) && (
           <div className="grid gap-2 sm:grid-cols-2">
