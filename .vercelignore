@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+.vercel
+.next
+.next-dev
+node_modules
