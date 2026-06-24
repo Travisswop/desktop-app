@@ -82,6 +82,28 @@ function isDomainAllowlistError(message: string) {
   return /domain.+allow[- ]?list/i.test(message);
 }
 
+function withCoinbaseSandboxParam(
+  paymentLinkUrl: string,
+  paymentMethod: string
+) {
+  try {
+    const url = new URL(paymentLinkUrl);
+    if (paymentMethod === "GUEST_CHECKOUT_GOOGLE_PAY") {
+      url.searchParams.set("useGooglePaySandbox", "true");
+    } else {
+      url.searchParams.set("useApplePaySandbox", "true");
+    }
+    return url.toString();
+  } catch {
+    const separator = paymentLinkUrl.includes("?") ? "&" : "?";
+    const param =
+      paymentMethod === "GUEST_CHECKOUT_GOOGLE_PAY"
+        ? "useGooglePaySandbox=true"
+        : "useApplePaySandbox=true";
+    return `${paymentLinkUrl}${separator}${param}`;
+  }
+}
+
 type CoinbaseOnrampFundingProps = {
   initialNetwork?: CoinbaseOnrampNetwork;
   initialAmount?: string;
@@ -185,7 +207,11 @@ export default function CoinbaseOnrampFunding({
       if (!paymentLinkUrl) {
         throw new Error("Coinbase did not return an embedded payment button.");
       }
-      setOnrampUrl(paymentLinkUrl);
+      setOnrampUrl(
+        order.sandbox
+          ? withCoinbaseSandboxParam(paymentLinkUrl, order.paymentMethod)
+          : paymentLinkUrl
+      );
       setSessionDestinationAddress(order.destinationAddress);
     } catch (err: any) {
       const message =
