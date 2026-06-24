@@ -38,6 +38,111 @@ export function formatSwapAmount(value: unknown) {
   }).format(number);
 }
 
+export type SwapActionBlocker = {
+  tone: 'info' | 'warning';
+  message: string;
+};
+
+export function getSwapActionBlocker(params: {
+  canAct: boolean;
+  fromToken: string;
+  hasQuoteTokenOptions: boolean;
+  hasSpendableBalance: boolean;
+  hasValidSellAmount: boolean;
+  amountExceedsBalance: boolean;
+  payAmount: string;
+  quoteStateStatus: 'idle' | 'loading' | 'success' | 'error';
+  selectedFromKey: string;
+  selectedToKey: string;
+}) {
+  const {
+    canAct,
+    fromToken,
+    hasQuoteTokenOptions,
+    hasSpendableBalance,
+    hasValidSellAmount,
+    amountExceedsBalance,
+    payAmount,
+    quoteStateStatus,
+    selectedFromKey,
+    selectedToKey,
+  } = params;
+
+  if (!canAct) {
+    return {
+      tone: 'warning',
+      message: 'Only the user who asked Astro to prepare this swap can approve it.',
+    } satisfies SwapActionBlocker;
+  }
+
+  if (!hasSpendableBalance) {
+    return {
+      tone: 'warning',
+      message: `No spendable ${fromToken} balance is available. Fund the wallet or pick another token before swapping.`,
+    } satisfies SwapActionBlocker;
+  }
+
+  if (!selectedFromKey) {
+    return {
+      tone: 'warning',
+      message: 'Pick a wallet token to pay with before swapping.',
+    } satisfies SwapActionBlocker;
+  }
+
+  if (!selectedToKey) {
+    return {
+      tone: 'warning',
+      message: hasQuoteTokenOptions
+        ? 'Pick the token you want to receive before swapping.'
+        : 'No quote route is available right now. Refresh token options or pick a different pay token.',
+    } satisfies SwapActionBlocker;
+  }
+
+  if (selectedFromKey === selectedToKey) {
+    return {
+      tone: 'warning',
+      message: 'Pick a different output token before swapping.',
+    } satisfies SwapActionBlocker;
+  }
+
+  if (!payAmount.trim()) {
+    return {
+      tone: 'warning',
+      message: `Enter how much ${fromToken} you want to swap to get a live quote.`,
+    } satisfies SwapActionBlocker;
+  }
+
+  if (!hasValidSellAmount) {
+    return {
+      tone: 'warning',
+      message: `Enter a valid ${fromToken} amount greater than zero.`,
+    } satisfies SwapActionBlocker;
+  }
+
+  if (amountExceedsBalance) {
+    return {
+      tone: 'warning',
+      message: 'Lower the amount or fund the wallet before trying this swap again.',
+    } satisfies SwapActionBlocker;
+  }
+
+  if (quoteStateStatus === 'loading') {
+    return {
+      tone: 'info',
+      message: 'Astro is getting a live quote for this route.',
+    } satisfies SwapActionBlocker;
+  }
+
+  if (quoteStateStatus === 'error') {
+    return {
+      tone: 'warning',
+      message: 'This route is unavailable right now. Refresh the quote or change the amount or token pair.',
+    } satisfies SwapActionBlocker;
+  }
+
+  return null;
+}
+
 export function normalizeIntentText(value: unknown) {
   return String(value || '')
     .toLowerCase()

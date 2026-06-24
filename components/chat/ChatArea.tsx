@@ -97,6 +97,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { AgentActionReceiptCard } from '@/components/chat/tickets/AgentActionReceiptCard';
+import { SwapActionBlockerNotice } from '@/components/chat/tickets/SwapActionBlockerNotice';
 import {
   AgentLoadingCard,
   MarketplaceItemCards,
@@ -138,6 +139,7 @@ import {
   formatSignedUsd,
   formatSwapAmount,
   formatWalletAddress,
+  getSwapActionBlocker,
   getAgentFeedIdentity,
   getPerpsMarkPrice,
   getPolymarketOutcomeLabels,
@@ -15758,6 +15760,20 @@ function SwapProposalTicket({
     : status === 'executed'
     ? 'Confirmed'
     : 'Sign & approve';
+  const isPrimaryActionDisabled =
+    !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection;
+  const swapActionBlocker = getSwapActionBlocker({
+    canAct,
+    fromToken,
+    hasQuoteTokenOptions: quoteTokenOptions.length > 0,
+    hasSpendableBalance,
+    hasValidSellAmount,
+    amountExceedsBalance,
+    payAmount,
+    quoteStateStatus: quoteState.status,
+    selectedFromKey,
+    selectedToKey,
+  });
   const handleConfirmSwap = async () => {
     if (quoteOnly) {
       setInlineSwapStatus('Refreshing quote...');
@@ -16513,9 +16529,7 @@ function SwapProposalTicket({
             onClick={() => {
               void handleConfirmSwap();
             }}
-            disabled={
-              !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection
-            }
+            disabled={isPrimaryActionDisabled}
             className={TICKET_PRIMARY_BUTTON_CLASS}
           >
             {isQuoteLoading || isConfirmingSwap ? (
@@ -16541,11 +16555,19 @@ function SwapProposalTicket({
         </div>
       )}
 
-      {!canAct && isOpen && (
-        <p className="mt-2 text-[11px] text-[#ffd08a]">
-          Only the user who asked Astro to prepare this swap can approve it.
-        </p>
-      )}
+      <SwapActionBlockerNotice
+        isVisible={isOpen && Boolean(swapActionBlocker)}
+        canAct={canAct}
+        fromToken={fromToken}
+        hasQuoteTokenOptions={quoteTokenOptions.length > 0}
+        hasSpendableBalance={hasSpendableBalance}
+        hasValidSellAmount={hasValidSellAmount}
+        amountExceedsBalance={amountExceedsBalance}
+        payAmount={payAmount}
+        quoteStateStatus={quoteState.status}
+        selectedFromKey={selectedFromKey}
+        selectedToKey={selectedToKey}
+      />
       </div>
     </div>
   );
