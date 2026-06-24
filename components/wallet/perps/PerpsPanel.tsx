@@ -49,12 +49,15 @@ import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
+  buildPerpsReconcileSnapshotKey,
   inferPerpsCloseFillsByCoin,
+  inferPerpsLiquidationsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
   reconcilePerpsPositionFeed,
   resolvePerpsFeedSmartsiteId,
+  updatePerpsDexByCoinMap,
   type PerpsActiveLimitOrderSnapshot,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
@@ -191,6 +194,9 @@ export function PerpsPanel({
   const syncedPositionSnapshotsRef = useRef<Set<string>>(new Set());
   const syncedLiquidationFillsRef = useRef<Set<string>>(new Set());
   const reconciledPositionSnapshotsRef = useRef<Set<string>>(new Set());
+  const knownDexByCoinRef = useRef<Record<string, string | null | undefined>>(
+    {},
+  );
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showMarketSearch, setShowMarketSearch] = useState(false);
@@ -374,6 +380,16 @@ export function PerpsPanel({
           const position = accountData?.positions.find(
             (item) => item.coin === fill.coin,
           );
+          const liquidationSnapshot = Object.values(
+            inferPerpsLiquidationsByCoin([fill], knownDexByCoinRef.current),
+          )[0];
+          const feedCoin =
+            liquidationSnapshot?.coin ||
+            qualifyPerpsPositionCoin({
+              coin: fill.coin,
+              dex: position?.dex,
+            });
+          const feedDex = liquidationSnapshot?.dex ?? position?.dex ?? null;
           const startSize = toPerpsFeedNumber(fill.startPosition);
           const isLong =
             position
@@ -402,10 +418,6 @@ export function PerpsPanel({
               ? toPerpsFeedNumber(position.returnOnEquity) * 100
               : fallbackReturnPct;
           const timestamp = getFillTimestamp(fill);
-          const feedCoin = qualifyPerpsPositionCoin({
-            coin: fill.coin,
-            dex: position?.dex,
-          });
 
           upsertPerpsPositionFeed({
             token: accessToken,
@@ -417,10 +429,10 @@ export function PerpsPanel({
                 userId: user._id,
                 masterAddress,
                 coin: fill.coin,
-                dex: position?.dex,
+                dex: feedDex,
               }),
               coin: feedCoin,
-              dex: position?.dex || null,
+              dex: feedDex,
               side: isLong ? 'long' : 'short',
               status: 'liquidated',
               event: 'liquidate',
@@ -627,22 +639,28 @@ export function PerpsPanel({
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    const reconcileSnapshotKey = [
+    knownDexByCoinRef.current = updatePerpsDexByCoinMap(
+      knownDexByCoinRef.current,
+      [...positions, ...allOpenOrders, ...activeLimitOrders],
+    );
+    const closedFillsByCoin = inferPerpsCloseFillsByCoin(
+      fills,
+      knownDexByCoinRef.current,
+    );
+    const liquidationsByCoin = inferPerpsLiquidationsByCoin(
+      fills,
+      knownDexByCoinRef.current,
+    );
+    const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
       masterAddress,
-      Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
-      `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
-      ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
-      ...activeLimitOrders
-        .map((order) =>
-          [
-            'limit',
-            order.positionKey.toLowerCase(),
-            order.orderId || '',
-            order.limitPrice,
-          ].join('='),
-        )
-        .sort(),
-    ].join(':');
+      priceMapState:
+        Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
+      observedDexes,
+      activePositionKeys,
+      activeLimitOrders,
+      liquidationsByCoin,
+      closedFillsByCoin,
+    });
 
     if (!reconciledPositionSnapshotsRef.current.has(reconcileSnapshotKey)) {
       reconciledPositionSnapshotsRef.current.add(reconcileSnapshotKey);
@@ -655,7 +673,8 @@ export function PerpsPanel({
         activeLimitOrders,
         observedDexes,
         markPricesByCoin: mids,
-        closedFillsByCoin: inferPerpsCloseFillsByCoin(fills),
+        liquidationsByCoin,
+        closedFillsByCoin,
       }).catch((feedError) => {
         reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
         console.warn('Failed to reconcile perps feed cards:', feedError);
