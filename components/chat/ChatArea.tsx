@@ -156,6 +156,7 @@ import {
   toFiniteNumber,
   triggerAgentFeedRefresh,
 } from '@/lib/chat/ticketFormat';
+import { getSwapActionBlockerNotice } from '@/lib/chat/swapTicketBlockers';
 import {
   AGENT_PANEL_CLASS,
   TICKET_FIELD_CLASS,
@@ -15728,6 +15729,25 @@ function SwapProposalTicket({
   const isQuoteLoading = quoteState.status === 'loading';
   const isQuoteError = quoteState.status === 'error';
   const isSwapBusy = isPending || isConfirmingSwap;
+  const swapActionBlocker = getSwapActionBlockerNotice({
+    canAct,
+    isOpen,
+    hasSpendableBalance,
+    hasSelectedFromOption: Boolean(selectedFromOption),
+    hasSelectedToOption: Boolean(selectedToOption),
+    hasEnteredAmount: Boolean(payAmount),
+    hasValidSellAmount,
+    amountExceedsBalance,
+    isSameAssetSwap: Boolean(
+      selectedFromOption &&
+        selectedToOption &&
+        selectedFromOption.key === selectedToOption.key
+    ),
+    isQuoteLoading,
+    isQuoteError,
+    isSwapBusy,
+    hasUsableSwapSelection,
+  });
   const headerStatusText = isQuoteLoading
     ? 'quoting'
     : inlineSwapStatus
@@ -16541,9 +16561,15 @@ function SwapProposalTicket({
         </div>
       )}
 
-      {!canAct && isOpen && (
-        <p className="mt-2 text-[11px] text-[#ffd08a]">
-          Only the user who asked Astro to prepare this swap can approve it.
+      {swapActionBlocker && (
+        <p
+          className={`mt-2 rounded-[10px] border px-3 py-2 text-[11px] font-semibold ${
+            swapActionBlocker.tone === 'warning'
+              ? 'border-[#ffb14a]/25 bg-[#ffb14a]/10 text-[#ffd08a]'
+              : 'border-[#3fe08f]/20 bg-[#3fe08f]/10 text-[#9ef7c8]'
+          }`}
+        >
+          {swapActionBlocker.message}
         </p>
       )}
       </div>
