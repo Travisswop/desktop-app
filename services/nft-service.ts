@@ -8,6 +8,9 @@ interface MetaplexAsset {
       name?: string;
       description?: string;
       symbol?: string;
+      external_url?: string;
+      externalUrl?: string;
+      attributes?: NFT['attributes'];
     };
     files?: {
       uri?: string;
@@ -66,6 +69,8 @@ interface MoralisNFT {
     name?: string;
     description?: string;
     image?: string;
+    external_url?: string;
+    externalUrl?: string;
     attributes?: any[];
   };
 }
@@ -149,6 +154,12 @@ class AlchemyServiceClass {
       tokenType: originalNFT.tokenType,
       image: imageUrl,
       network,
+      externalUrl:
+        originalNFT.externalUrl ||
+        originalNFT.raw?.metadata?.external_url ||
+        originalNFT.raw?.metadata?.externalUrl ||
+        '',
+      metadataUri: originalNFT.tokenUri || '',
       collection: {
         collectionName:
           originalNFT.contract.openSeaMetadata?.collectionName,
@@ -217,6 +228,8 @@ export class MoralisService {
       tokenType: nft.contract_type,
       image: metadata?.image || '',
       network,
+      externalUrl: metadata?.external_url || metadata?.externalUrl || '',
+      metadataUri: nft.token_uri || '',
       collection: {
         collectionName: nft.name || nft.symbol,
       },
@@ -535,6 +548,11 @@ class SolanaNFTServiceClass {
             tokenType: asset.interface || 'DAS Asset',
             balance: '1',
             createdAt: createdAt,
+            externalUrl:
+              asset.content?.metadata?.external_url ||
+              asset.content?.metadata?.externalUrl ||
+              '',
+            metadataUri: asset.content?.json_uri || '',
             collection: collectionInfo
               ? {
                   collectionName:
@@ -630,6 +648,12 @@ class SolanaNFTServiceClass {
         tokenType: 'Metaplex NFT',
         balance: '1',
         createdAt: createdAt,
+        externalUrl:
+          asset.content?.metadata?.external_url ||
+          asset.content?.metadata?.externalUrl ||
+          '',
+        metadataUri: asset.content?.json_uri || '',
+        attributes: asset.content?.metadata?.attributes || [],
         isSpam: false,
       };
     });
