@@ -98,8 +98,12 @@ import {
   SWOP_TOKEN_MINT,
   reconcileSelectedSwapToken,
 } from '@/lib/wallet/swapTokenSelection';
-import { shouldDisableSwapActionButton } from '@/lib/wallet/swapActionButtonState';
 import { getJupiterSwapPreflight } from '@/lib/wallet/jupiterSwapPreflight';
+import {
+  resolveSwapActionButtonMode,
+  shouldBlockSolanaSwapExecution,
+  shouldDisableSwapActionButton,
+} from '@/lib/wallet/swapActionButtonState';
 import { resolveSwapSelectedSolanaWallet } from '@/lib/wallet/swapSelectedSolanaWallet';
 import { normalizeSolanaSigningWalletAddress } from '@/lib/wallet/solanaSigningWallet';
 import {
@@ -660,8 +664,6 @@ const getEvmTokenWalletAddress = (token?: any) => {
   return walletAddress.startsWith('0x') ? walletAddress : '';
 };
 
-const normalizeWalletAddress = (address?: string | null) =>
-  address?.trim().toLowerCase() ?? '';
 const getAccountField = (
   account: any,
   camelKey: string,
@@ -1962,24 +1964,29 @@ export default function SwapTokenModal({
     normalizedSelectedSolanaSigningWalletAddress,
   ]);
 
+  const buildSolanaWalletMismatchError = useCallback(() => {
+    return `The Solana wallet with these balances (${formatShortWalletAddress(selectedSolanaSigningWalletAddress)}) is not connected for signing. Connect that wallet or switch accounts, then try again.`;
+  }, [selectedSolanaSigningWalletAddress]);
+
+  const shouldBlockSelectedSolanaWalletExecution =
+    shouldBlockSolanaSwapExecution({
+      isJupiterRoute: isSolanaToSolanaSwap(),
+      selectedSolanaSigningWalletAddress:
+        normalizedSelectedSolanaSigningWalletAddress,
+      hasSelectedSolanaWallet: Boolean(selectedSolanaWallet),
+      solanaReady,
+      solanaStandardWalletsReady,
+    });
+
   const solanaWalletMismatchError = useMemo(() => {
-    if (
-      !normalizedSelectedSolanaSigningWalletAddress ||
-      !selectedSolanaSigningWalletAddress ||
-      !solanaReady ||
-      !solanaStandardWalletsReady ||
-      selectedSolanaWallet
-    ) {
+    if (!shouldBlockSelectedSolanaWalletExecution) {
       return null;
     }
 
-    return `The Solana wallet with these balances (${formatShortWalletAddress(selectedSolanaSigningWalletAddress)}) is not connected for signing. Connect that wallet or switch accounts, then try again.`;
+    return buildSolanaWalletMismatchError();
   }, [
-    normalizedSelectedSolanaSigningWalletAddress,
-    selectedSolanaSigningWalletAddress,
-    selectedSolanaWallet,
-    solanaReady,
-    solanaStandardWalletsReady,
+    buildSolanaWalletMismatchError,
+    shouldBlockSelectedSolanaWalletExecution,
   ]);
 
   const [fromWalletAddress, setFromWalletAddress] = useState(
@@ -5492,6 +5499,21 @@ export default function SwapTokenModal({
         setIsSwapping(false);
         return;
       }
+      if (
+        shouldBlockSolanaSwapExecution({
+          isJupiterRoute: isSolanaToSolanaSwap(),
+          selectedSolanaSigningWalletAddress:
+            normalizedSelectedSolanaSigningWalletAddress,
+          hasSelectedSolanaWallet: Boolean(selectedSolanaWallet),
+          solanaReady,
+          solanaStandardWalletsReady,
+        })
+      ) {
+        setSwapError(buildSolanaWalletMismatchError());
+        setSwapStatus(null);
+        setIsSwapping(false);
+        return;
+      }
       if (isCopyTrade && copyTradePostId) {
         setSwapStatus('Checking copy trade reward...');
         await fetchCopyTradeRewardPreview();
@@ -5759,6 +5781,10 @@ export default function SwapTokenModal({
     hasPayAmount: !!payAmount,
     hasReceiveAmount: !!receiveAmount,
     privyReady,
+  });
+  const swapActionButtonMode = resolveSwapActionButtonMode({
+    isSwapDone,
+    hasSolanaWalletMismatch: !!solanaSwapWalletError,
   });
   const routeProviderLabel = isSolanaToSolanaSwap()
     ? 'Jupiter'
@@ -6437,9 +6463,9 @@ export default function SwapTokenModal({
               type="button"
               onClick={(event) => {
                 event.preventDefault();
-                if (solanaSwapWalletError) {
+                if (swapActionButtonMode === 'connect_wallet') {
                   void handleConnectSigningWallet();
-                } else if (isSwapDone) {
+                } else if (swapActionButtonMode === 'reset') {
                   resetSwapForm();
                 } else {
                   void executeCrossChainSwap();
@@ -6448,7 +6474,7 @@ export default function SwapTokenModal({
               className={`py-3.5 rounded-xl ${isSwapDone ? 'bg-green-600 hover:bg-green-700' : 'bg-[#0a0a0c] hover:bg-black/90'} text-white text-sm font-bold -tracking-[0.1px] disabled:opacity-50 transition-colors`}
               disabled={swapActionButtonDisabled}
             >
-              {isSwapDone ? (
+              {swapActionButtonMode === 'reset' ? (
                 'New swap'
               ) : isSwapping ? (
                 'Swapping…'
@@ -6457,7 +6483,7 @@ export default function SwapTokenModal({
                   <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
                   Connecting wallet…
                 </span>
-              ) : solanaSwapWalletError ? (
+              ) : swapActionButtonMode === 'connect_wallet' ? (
                 'Connect wallet'
               ) : !balanceValidation.isValid ? (
                 'Insufficient balance'

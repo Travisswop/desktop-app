@@ -42,3 +42,38 @@ export function shouldDisableSwapActionButton({
     !hasReceiveAmount
   );
 }
+
+export function resolveSwapActionButtonMode({
+  isSwapDone,
+  hasSolanaWalletMismatch,
+}: {
+  isSwapDone: boolean;
+  hasSolanaWalletMismatch: boolean;
+}) {
+  if (hasSolanaWalletMismatch) return 'connect_wallet';
+  if (isSwapDone) return 'reset';
+  return 'execute';
+}
+
+export function shouldBlockSolanaSwapExecution({
+  isJupiterRoute,
+  selectedSolanaSigningWalletAddress,
+  hasSelectedSolanaWallet,
+  solanaReady,
+  solanaStandardWalletsReady,
+}: {
+  isJupiterRoute: boolean;
+  selectedSolanaSigningWalletAddress?: string | null;
+  hasSelectedSolanaWallet: boolean;
+  solanaReady: boolean;
+  solanaStandardWalletsReady: boolean;
+}) {
+  if (!isJupiterRoute) return false;
+
+  return Boolean(
+    selectedSolanaSigningWalletAddress &&
+      solanaReady &&
+      solanaStandardWalletsReady &&
+      !hasSelectedSolanaWallet,
+  );
+}
