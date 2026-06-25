@@ -14,6 +14,46 @@ export interface LocalConsoleCardTelemetryEvent {
 
 const emittedEventKeys = new Set<string>();
 
+function hashLocalConsoleCardKey(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+export function normalizeLocalConsoleCardCommand(value: string) {
+  return String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .replace(/^@?astro\b[\s,:-]*/i, '')
+    .trim();
+}
+
+export function buildLocalConsoleCardLifecycleId({
+  cardType,
+  threadScope,
+  commandText,
+  ordinal,
+}: {
+  cardType: LocalConsoleCardType;
+  threadScope: string;
+  commandText: string;
+  ordinal: number;
+}) {
+  const normalizedThreadScope =
+    String(threadScope || '').trim().toLowerCase() || 'unknown-thread';
+  const normalizedCommand =
+    normalizeLocalConsoleCardCommand(commandText) || 'unknown-command';
+  const normalizedOrdinal =
+    Number.isFinite(ordinal) && ordinal > 0 ? Math.trunc(ordinal) : 1;
+
+  return `local-console-${cardType}-${hashLocalConsoleCardKey(
+    `${normalizedThreadScope}:${cardType}:${normalizedCommand}`
+  )}-${normalizedOrdinal}`;
+}
+
 function buildEventKey(event: LocalConsoleCardTelemetryEvent) {
   return [
     event.eventType,

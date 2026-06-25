@@ -1,6 +1,8 @@
 import {
+  buildLocalConsoleCardLifecycleId,
   emitLocalConsoleCardTelemetry,
   LOCAL_CONSOLE_CARD_TELEMETRY_PREFIX,
+  normalizeLocalConsoleCardCommand,
   resetLocalConsoleCardTelemetryForTests,
 } from '@/lib/chat/localConsoleCardTelemetry';
 
@@ -79,5 +81,43 @@ describe('local console card telemetry', () => {
     ).toBe(false);
 
     expect(infoSpy).not.toHaveBeenCalled();
+  });
+
+  test('builds a stable lifecycle id from thread scope, normalized command, and ordinal', () => {
+    expect(
+      buildLocalConsoleCardLifecycleId({
+        cardType: 'portfolio',
+        threadScope: 'group:trading-cabal',
+        commandText: '@Astro   show   my   portfolio',
+        ordinal: 2,
+      })
+    ).toBe(
+      buildLocalConsoleCardLifecycleId({
+        cardType: 'portfolio',
+        threadScope: 'group:trading-cabal',
+        commandText: 'show my portfolio',
+        ordinal: 2,
+      })
+    );
+
+    expect(
+      buildLocalConsoleCardLifecycleId({
+        cardType: 'portfolio',
+        threadScope: 'group:trading-cabal',
+        commandText: 'show my portfolio',
+        ordinal: 3,
+      })
+    ).not.toBe(
+      buildLocalConsoleCardLifecycleId({
+        cardType: 'portfolio',
+        threadScope: 'group:trading-cabal',
+        commandText: 'show my portfolio',
+        ordinal: 2,
+      })
+    );
+
+    expect(normalizeLocalConsoleCardCommand('@astro /portfolio  ')).toBe(
+      '/portfolio'
+    );
   });
 });

@@ -186,6 +186,7 @@ import {
 } from '@/lib/chat/agentActionHandoff';
 import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
 import {
+  buildLocalConsoleCardLifecycleId,
   emitLocalConsoleCardTelemetry,
   type LocalConsoleCardType,
 } from '@/lib/chat/localConsoleCardTelemetry';
@@ -286,6 +287,7 @@ interface GroupSettings {
 
 interface Message {
   _id: string;
+  clientMessageId?: string;
   message: string;
   sender?: User;
   receiver?: User | null;
@@ -724,6 +726,119 @@ function reconcileIncomingMessage(messages: Message[], message: Message) {
   }
 
   return dedupeMessages([...messages, message]);
+}
+
+function getLocalConsoleCardTypeForAction(
+  action?: string | null
+): LocalConsoleCardType | null {
+  if (action === 'portfolio.pnl') return 'pnl';
+  if (action === 'wallet.portfolio') return 'portfolio';
+  return null;
+}
+
+function getLocalConsoleCardThreadScope({
+  isGroup,
+  selectedChat,
+  receiverId,
+}: {
+  isGroup: boolean;
+  selectedChat: SelectedChat | null;
+  receiverId: string;
+}) {
+  if (isGroup) {
+    return `group:${selectedChat?._id || 'unknown'}`;
+  }
+  return `direct:${selectedChat?._id || receiverId || 'unknown'}`;
+}
+
+function isLocalConsoleCardRequestMessage({
+  message,
+  currentUser,
+  cardType,
+  isGroup,
+  isSecureAstroDesk,
+}: {
+  message: Message;
+  currentUser: string;
+  cardType: LocalConsoleCardType;
+  isGroup: boolean;
+  isSecureAstroDesk: boolean;
+}) {
+  if (message.messageType !== 'text') return false;
+  if (message.senderKind === 'agent') return false;
+  if (message.sender?._id !== currentUser) return false;
+
+  const text = String(message.message || '').trim();
+  if (!text) return false;
+  if (isGroup && !isSecureAstroDesk && !hasAstroMention(text)) return false;
+
+  return cardType === 'pnl' ? isPnlCommand(text) : isPortfolioCommand(text);
+}
+
+function getLocalConsoleCardOrdinal({
+  messages,
+  upToIndex,
+  currentUser,
+  cardType,
+  isGroup,
+  isSecureAstroDesk,
+}: {
+  messages: Message[];
+  upToIndex: number;
+  currentUser: string;
+  cardType: LocalConsoleCardType;
+  isGroup: boolean;
+  isSecureAstroDesk: boolean;
+}) {
+  let ordinal = 0;
+  for (let index = 0; index <= upToIndex; index += 1) {
+    if (
+      isLocalConsoleCardRequestMessage({
+        message: messages[index],
+        currentUser,
+        cardType,
+        isGroup,
+        isSecureAstroDesk,
+      })
+    ) {
+      ordinal += 1;
+    }
+  }
+  return Math.max(ordinal, 1);
+}
+
+function buildLocalConsoleCardSourceId({
+  cardType,
+  commandText,
+  messages,
+  upToIndex,
+  currentUser,
+  isGroup,
+  isSecureAstroDesk,
+  threadScope,
+}: {
+  cardType: LocalConsoleCardType;
+  commandText: string;
+  messages: Message[];
+  upToIndex: number;
+  currentUser: string;
+  isGroup: boolean;
+  isSecureAstroDesk: boolean;
+  threadScope: string;
+}) {
+  return buildLocalConsoleCardLifecycleId({
+    cardType,
+    threadScope,
+    commandText,
+    ordinal: getLocalConsoleCardOrdinal({
+      messages,
+      upToIndex,
+      currentUser,
+      cardType,
+      isGroup,
+      isSecureAstroDesk,
+    }),
+  });
 }
 
 interface WalletSendNetworkOption {
@@ -4749,6 +4864,42 @@ export default function ChatArea({
       createdAt: new Date().toISOString(),
       status: 'sending',
     };
+    const localConsoleThreadScope = getLocalConsoleCardThreadScope({
+      isGroup,
+      selectedChat,
+      receiverId,
+    });
+    const optimisticMessagesForLifecycle = [...messages, optimisticMessage];
+    const localPnlSourceId =
+      shouldLoadAstroConsoleData &&
+      canUseAstroLocalActions &&
+      isPnlCommand(outgoingMessage)
+        ? buildLocalConsoleCardSourceId({
+            cardType: 'pnl',
+            commandText: outgoingMessage,
+            messages: optimisticMessagesForLifecycle,
+            upToIndex: optimisticMessagesForLifecycle.length - 1,
+            currentUser,
+            isGroup,
+            isSecureAstroDesk,
+            threadScope: localConsoleThreadScope,
+          })
+        : null;
+    const localPortfolioSourceId =
+      shouldLoadAstroConsoleData &&
+      canUseAstroLocalActions &&
+      isPortfolioCommand(outgoingMessage)
+        ? buildLocalConsoleCardSourceId({
+            cardType: 'portfolio',
+            commandText: outgoingMessage,
+            messages: optimisticMessagesForLifecycle,
+            upToIndex: optimisticMessagesForLifecycle.length - 1,
+            currentUser,
+            isGroup,
+            isSecureAstroDesk,
+            threadScope: localConsoleThreadScope,
+          })
+        : null;
 
     const localPnlResponseMessage =
       shouldLoadAstroConsoleData &&
@@ -4757,7 +4908,7 @@ export default function ChatArea({
         ? buildLocalPnlResponseMessage({
             consoleData: astroConsoleData,
             groupId: isGroup ? selectedChat._id : null,
-            sourceMessageId: optimisticMessage._id,
+            sourceMessageId: localPnlSourceId || optimisticMessage._id,
           })
         : null;
     const localPortfolioResponseMessage =
@@ -4767,7 +4918,7 @@ export default function ChatArea({
         ? buildLocalPortfolioResponseMessage({
             consoleData: astroConsoleData,
             groupId: isGroup ? selectedChat._id : null,
-            sourceMessageId: optimisticMessage._id,
+            sourceMessageId: localPortfolioSourceId || optimisticMessage._id,
           })
         : null;
 
@@ -4819,7 +4970,7 @@ export default function ChatArea({
       emitLocalConsoleCardTelemetry({
         eventType: 'generated',
         cardType,
-        sourceMessageId: optimisticMessage._id,
+        sourceMessageId: message.clientMessageId || message._id,
         threadType: isGroup ? 'group' : 'direct',
       });
     });
@@ -4868,6 +5019,7 @@ export default function ChatArea({
     goldmanVaultWalletAddress,
     isGoldmanConsoleChat,
     isGroup,
+    isSecureAstroDesk,
     messages,
     newMessage,
     predictionActiveWalletAddress,
@@ -6443,6 +6595,11 @@ export default function ChatArea({
                 message.messageType === 'text' &&
                 renderedMessageText.trim().length > 0 &&
                 (!isGroup || hasAstroMention || isSecureAstroDesk);
+              const localConsoleThreadScope = getLocalConsoleCardThreadScope({
+                isGroup,
+                selectedChat,
+                receiverId,
+              });
               const localConsoleReadMessage =
                 canRenderLocalConsoleReadCard &&
                 isPnlCommand(renderedMessageText) &&
@@ -6454,7 +6611,16 @@ export default function ChatArea({
                   ? buildLocalPnlResponseMessage({
                       consoleData: astroConsoleData,
                       groupId: isGroup ? selectedChat?._id : null,
-                      sourceMessageId: message._id || `message-${index}`,
+                      sourceMessageId: buildLocalConsoleCardSourceId({
+                        cardType: 'pnl',
+                        commandText: renderedMessageText,
+                        messages,
+                        upToIndex: index,
+                        currentUser,
+                        isGroup,
+                        isSecureAstroDesk,
+                        threadScope: localConsoleThreadScope,
+                      }),
                     })
                   : canRenderLocalConsoleReadCard &&
                     isPortfolioCommand(renderedMessageText) &&
@@ -6466,12 +6632,33 @@ export default function ChatArea({
                   ? buildLocalPortfolioResponseMessage({
                       consoleData: astroConsoleData,
                       groupId: isGroup ? selectedChat?._id : null,
-                      sourceMessageId: message._id || `message-${index}`,
+                      sourceMessageId: buildLocalConsoleCardSourceId({
+                        cardType: 'portfolio',
+                        commandText: renderedMessageText,
+                        messages,
+                        upToIndex: index,
+                        currentUser,
+                        isGroup,
+                        isSecureAstroDesk,
+                        threadScope: localConsoleThreadScope,
+                      }),
                     })
                   : null;
+              const persistedLocalConsoleCardType =
+                getLocalConsoleCardTypeForAction(message.agentData?.action);
+              const persistedLocalConsoleSourceId =
+                message.clientMessageId || message._id;
 
               return (
                 <Fragment key={message._id || index}>
+                  {persistedLocalConsoleCardType &&
+                    persistedLocalConsoleSourceId && (
+                      <LocalConsoleCardTelemetryBeacon
+                        cardType={persistedLocalConsoleCardType}
+                        sourceMessageId={persistedLocalConsoleSourceId}
+                        isGroup={isGroup}
+                      />
+                    )}
                   <Message
                     message={renderedMessage}
                     isOwn={isOwn}
@@ -6511,7 +6698,10 @@ export default function ChatArea({
                             ? 'pnl'
                             : 'portfolio'
                         }
-                        sourceMessageId={message._id || `message-${index}`}
+                        sourceMessageId={
+                          localConsoleReadMessage.clientMessageId ||
+                          localConsoleReadMessage._id
+                        }
                         isGroup={isGroup}
                       />
                       <Message

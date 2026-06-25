@@ -478,6 +478,69 @@ async function reloadPage(client) {
   await sleep(3000);
 }
 
+async function installAstroConsoleTelemetryObserver(client) {
+  const source = `
+    (() => {
+      const state = (window.__swopAstroConsoleCardTelemetry =
+        window.__swopAstroConsoleCardTelemetry || []);
+      if (!window.__swopAstroConsoleCardTelemetryListenerInstalled) {
+        window.addEventListener('swop:astro-console-card-telemetry', (event) => {
+          if (event?.detail) {
+            state.push(event.detail);
+          }
+        });
+        window.__swopAstroConsoleCardTelemetryListenerInstalled = true;
+      }
+    })();
+  `;
+
+  await client.send('Page.addScriptToEvaluateOnNewDocument', { source });
+  await evaluate(client, () => {
+    const state = (window.__swopAstroConsoleCardTelemetry =
+      window.__swopAstroConsoleCardTelemetry || []);
+    if (!window.__swopAstroConsoleCardTelemetryListenerInstalled) {
+      window.addEventListener('swop:astro-console-card-telemetry', (event) => {
+        if (event?.detail) {
+          state.push(event.detail);
+        }
+      });
+      window.__swopAstroConsoleCardTelemetryListenerInstalled = true;
+    }
+    return true;
+  });
+}
+
+async function clearAstroConsoleTelemetryEvents(client) {
+  await evaluate(client, () => {
+    window.__swopAstroConsoleCardTelemetry = [];
+    return true;
+  });
+}
+
+async function getAstroConsoleTelemetryEvents(client) {
+  return evaluate(
+    client,
+    () => window.__swopAstroConsoleCardTelemetry || []
+  );
+}
+
+async function waitForAstroConsoleTelemetryEvent(
+  client,
+  description,
+  predicate,
+  timeoutMs = 30000
+) {
+  return waitFor(
+    client,
+    description,
+    async () => {
+      const events = await getAstroConsoleTelemetryEvents(client);
+      return events.find(predicate) || null;
+    },
+    timeoutMs
+  );
+}
+
 async function hasConfirmOnlyState(client) {
   return evaluate(client, () => {
     const text = document.body?.innerText || '';
@@ -501,14 +564,27 @@ async function runCardChecks({ client, baseUrl, args, report }) {
   let step = add('page-auth');
   await assertLoggedIn(client);
   await selectThread(client, args.threadText);
+  await installAstroConsoleTelemetryObserver(client);
   finishStep(step, 'pass', `Authenticated chat loaded; selected thread containing "${args.threadText}".`);
 
   step = add('portfolio-card');
+  await clearAstroConsoleTelemetryEvents(client);
   await sendPrompt(client, 'show my portfolio');
   await waitForText(client, 'portfolio allocation card', ['Portfolio allocation'], 30000);
-  finishStep(step, 'pass', 'Rendered wallet portfolio allocation card.');
+  const generatedPortfolioTelemetry = await waitForAstroConsoleTelemetryEvent(
+    client,
+    'generated portfolio telemetry',
+    (event) => event?.eventType === 'generated' && event?.cardType === 'portfolio',
+    30000
+  );
+  finishStep(
+    step,
+    'pass',
+    `Rendered wallet portfolio allocation card with telemetry id ${generatedPortfolioTelemetry.sourceMessageId}.`
+  );
 
   step = add('portfolio-card-reload-persistence');
+  await clearAstroConsoleTelemetryEvents(client);
   await reloadPage(client);
   await reopenChatThread(client, args);
   await waitForText(
@@ -528,10 +604,24 @@ async function runCardChecks({ client, baseUrl, args, report }) {
     ['Portfolio allocation'],
     30000
   );
+  const rehydratedPortfolioTelemetry = await waitForAstroConsoleTelemetryEvent(
+    client,
+    'rehydrated portfolio telemetry',
+    (event) => event?.eventType === 'rehydrated' && event?.cardType === 'portfolio',
+    30000
+  );
+  if (
+    rehydratedPortfolioTelemetry.sourceMessageId !==
+    generatedPortfolioTelemetry.sourceMessageId
+  ) {
+    throw new Error(
+      `Portfolio card telemetry id changed across reload. Generated=${generatedPortfolioTelemetry.sourceMessageId} Rehydrated=${rehydratedPortfolioTelemetry.sourceMessageId}`
+    );
+  }
   finishStep(
     step,
     'pass',
-    'Portfolio allocation card stayed visible after reload and after navigating away to /wallet and back.'
+    `Portfolio allocation card stayed visible after reload/navigation, and rehydrated telemetry reused ${rehydratedPortfolioTelemetry.sourceMessageId}.`
   );
 
   step = add('receive-qr-card');
