@@ -15754,6 +15754,7 @@ export function SwapProposalTicket({
       !payAmount.trim() ||
       !hasValidSellAmount ||
       amountExceedsBalance);
+  const hasEmptyAmountBlocker = canAct && !payAmount.trim();
   const hasRouteBlocker =
     canAct && !selectedToKey && quoteTokenOptions.length === 0;
   const primaryActionMode = getSwapPrimaryActionMode({
@@ -15781,7 +15782,9 @@ export function SwapProposalTicket({
     status === 'rejected' ||
     status === 'expired';
   const actionLabel =
-    primaryActionMode === 'confirm'
+    hasEmptyAmountBlocker && !isQuoteLoading && !inlineSwapStatus
+      ? 'Get quote'
+      : primaryActionMode === 'confirm'
       ? inlineSwapStatus || isSwapBusy
         ? inlineSwapStatus || 'Signing...'
         : status === 'approved'
