@@ -752,6 +752,10 @@ function getLocalConsoleCardThreadScope({
   return `direct:${selectedChat?._id || receiverId || 'unknown'}`;
 }
 
+function hasAstroMention(text: string) {
+  return /(?:^|\s)@?astro\b/i.test(text);
+}
+
 function isLocalConsoleCardRequestMessage({
   message,
   currentUser,
@@ -3336,6 +3340,12 @@ export default function ChatArea({
   const activeChatData = resolveActiveChatData(
     selectedChat,
     currentGroupData,
+    isGroup
+  );
+  const isSecureAstroDesk = isAstroTradingDeskChat(activeChatData, isGroup);
+  const isGoldmanSacksDesk = isGoldmanSacksChat(activeChatData, isGroup);
+  const currentAgentThreadId = getDedicatedAgentThreadId(
+    activeChatData,
     isGroup
   );
   selectedChatRef.current = selectedChat;
@@ -5936,10 +5946,6 @@ export default function ChatArea({
     (agent) => agent.agentId && agent.isActive !== false
   );
   const hasDisplayedAstroAgent = activeGroupAgents.some(isActiveAstroAgent);
-  const isSecureAstroDesk =
-    isAstroTradingDeskChat(displayChat, isGroup);
-  const isGoldmanSacksDesk = isGoldmanSacksChat(displayChat, isGroup);
-  const currentAgentThreadId = getDedicatedAgentThreadId(displayChat, isGroup);
   const contextPanelMode = isSecureAstroDesk || hasDisplayedAstroAgent
     ? 'astro'
     : isGoldmanSacksDesk
@@ -6596,10 +6602,13 @@ export default function ChatArea({
                 message.messageType === 'text' &&
                 renderedMessageText.trim().length > 0 &&
                 (!isGroup || hasAstroMention || isSecureAstroDesk);
+              const localConsoleReceiverId = isGroup
+                ? selectedChat?._id || ''
+                : getDirectReceiverId(selectedChat) || '';
               const localConsoleThreadScope = getLocalConsoleCardThreadScope({
                 isGroup,
                 selectedChat,
-                receiverId,
+                receiverId: localConsoleReceiverId,
               });
               const localConsoleReadMessage =
                 canRenderLocalConsoleReadCard &&
