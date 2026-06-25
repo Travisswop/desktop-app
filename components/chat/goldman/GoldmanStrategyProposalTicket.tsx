@@ -32,6 +32,10 @@ function strategyList(value: unknown, fallback: string[] = []) {
   return fallback;
 }
 
+function joinStrategyScope(parts: string[]) {
+  return parts.filter(Boolean).join(' ');
+}
+
 function strategyRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
@@ -121,8 +125,8 @@ export function GoldmanStrategyProposalTicket({
   onReject,
 }: GoldmanStrategyProposalTicketProps) {
   const params = proposal?.normalizedParams || {};
-  const venues = strategyList(params.venues, ['polymarket']);
-  const assets = strategyList(params.assets, ['USDC']);
+  const venues = strategyList(params.venues);
+  const assets = strategyList(params.assets);
   const executionPlan = strategyList(params.executionPlan).slice(0, 4);
   const riskControls = strategyList(params.riskControls).slice(0, 4);
   const idleDeployment = strategyRecord(params.idleDeployment);
@@ -134,10 +138,17 @@ export function GoldmanStrategyProposalTicket({
   );
   const expiry = strategyDate(params.expiry || proposal?.expiresAt);
   const idleVenue = strategyString(idleDeployment.venue, '');
-  const idleAsset = strategyString(idleDeployment.asset, assets[0] || 'USDC');
-  const idleChain = strategyString(idleDeployment.chain, 'polygon');
+  const idleAsset = strategyString(idleDeployment.asset, '');
+  const idleChain = strategyString(idleDeployment.chain, '');
+  const idleCondition = strategyString(idleDeployment.condition, '');
+  const idleDeploymentSummary = joinStrategyScope([
+    idleAsset,
+    idleVenue ? `to ${idleVenue}` : '',
+    idleChain ? `on ${idleChain}` : '',
+  ]);
   const canSubmit = isOpen && canAct && !isPending;
   const proposalSummary = buildGoldmanStrategyProposalSummary(params, {
+    assets,
     venues,
     expiryLabel: expiry ? `Expires ${expiry}` : null,
   });
@@ -276,15 +287,15 @@ export function GoldmanStrategyProposalTicket({
           </div>
         </div>
 
-        {idleVenue && (
+        {(idleDeploymentSummary || idleCondition) && (
           <div className="rounded-[10px] border border-[#6b9bff]/20 bg-[#6b9bff]/10 px-3 py-2.5">
             <div className={TICKET_LABEL_CLASS}>idle deployment</div>
             <div className="mt-1 text-[12px] font-semibold text-[#eceef2]">
-              {idleAsset} to {idleVenue} on {idleChain}
+              {idleDeploymentSummary || 'Declared idle deployment'}
             </div>
             <p className="mt-1 text-[11.5px] leading-relaxed text-[#b8c8ff]">
               {strategyString(
-                idleDeployment.condition,
+                idleCondition,
                 'Use idle funds only when no qualifying live market is available.'
               )}
             </p>
