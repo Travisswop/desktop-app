@@ -1,6 +1,7 @@
 import {
-  getSwapRecoveryAmountInput,
+  buildSwapBalanceRecoveryClientEvent,
   buildSwapBalanceRecoveryTelemetryContext,
+  getSwapRecoveryAmountInput,
   parseSwapBalanceChangeError,
 } from '@/lib/chat/ticketFormat';
 import { SwapProposalTicket } from '@/components/chat/ChatArea';
@@ -206,6 +207,45 @@ describe('parseSwapBalanceChangeError', () => {
       reasonCode: 'balance_changed',
       recoveryState: 'quote_refresh_required',
     });
+  });
+
+  it('builds a sanitized queued client-event payload for balance recovery', () => {
+    const event = buildSwapBalanceRecoveryClientEvent({
+      proposalId: 'local-swap-wallet-1',
+      provider: 'Jupiter',
+      fromToken: 'MCDX',
+      toToken: 'USDC',
+      amountType: 'token',
+      availableToken: 'MCDX',
+      routeLabel: 'Jupiter',
+    });
+
+    expect(event).toMatchObject({
+      proposalId: 'local-swap-wallet-1',
+      stage: 'execution_failed',
+      action: 'wallet.swap',
+      toolType: 'wallet.write',
+      provider: 'Jupiter',
+      uiSurface: 'chat_swap_ticket',
+      status: 'recoverable',
+      reason: 'Balance changed before swap execution. Quote refresh required.',
+      error: {
+        name: 'SwapBalanceChanged',
+        message: 'Balance changed before swap execution.',
+        code: 'balance_changed',
+      },
+      context: {
+        fromToken: 'MCDX',
+        toToken: 'USDC',
+        amountType: 'token',
+        availableToken: 'MCDX',
+        routeLabel: 'Jupiter',
+        reasonCode: 'balance_changed',
+        recoveryState: 'quote_refresh_required',
+      },
+    });
+    expect(JSON.stringify(event)).not.toContain('Available now');
+    expect(JSON.stringify(event)).not.toContain('0.12635657');
   });
 
   it('renders a structured swap recovery panel instead of plain text fallback', () => {

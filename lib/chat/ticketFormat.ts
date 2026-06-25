@@ -6,6 +6,7 @@ import { useModalStore } from '@/zustandStore/modalstore';
 import { isVisiblePortfolioPosition } from '@/lib/polymarket/position-payout';
 import { DUST_THRESHOLD } from '@/constants/polymarket';
 import type { AgentActionCompletion } from '@/lib/chat/agentActionHandoff';
+import type { AgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
 import type { HLMarket } from '@/services/hyperliquid/types';
 import type { PolymarketPosition } from '@/hooks/polymarket/useUserPositions';
 import type { PolymarketMarketPreview, User } from '@/lib/chat/agentCardTypes';
@@ -117,6 +118,47 @@ export function buildSwapBalanceRecoveryTelemetryContext({
     routeLabel,
     reasonCode: 'balance_changed',
     recoveryState: 'quote_refresh_required',
+  };
+}
+
+export function buildSwapBalanceRecoveryClientEvent({
+  proposalId,
+  provider,
+  fromToken,
+  toToken,
+  amountType,
+  availableToken,
+  routeLabel,
+}: {
+  proposalId?: string | null;
+  provider: string;
+  fromToken: string;
+  toToken: string;
+  amountType?: string | null;
+  availableToken: string;
+  routeLabel: string;
+}): AgentActionClientEvent {
+  return {
+    proposalId,
+    stage: 'execution_failed',
+    action: 'wallet.swap',
+    toolType: 'wallet.write',
+    provider,
+    uiSurface: 'chat_swap_ticket',
+    status: 'recoverable',
+    reason: 'Balance changed before swap execution. Quote refresh required.',
+    error: {
+      name: 'SwapBalanceChanged',
+      message: 'Balance changed before swap execution.',
+      code: 'balance_changed',
+    },
+    context: buildSwapBalanceRecoveryTelemetryContext({
+      fromToken,
+      toToken,
+      amountType,
+      availableToken,
+      routeLabel,
+    }),
   };
 }
 

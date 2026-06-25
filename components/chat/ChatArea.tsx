@@ -138,7 +138,7 @@ import {
   formatPolymarketPrice,
   formatSignedUsd,
   formatSwapAmount,
-  buildSwapBalanceRecoveryTelemetryContext,
+  buildSwapBalanceRecoveryClientEvent,
   formatWalletAddress,
   getAgentFeedIdentity,
   getPerpsMarkPrice,
@@ -16206,25 +16206,15 @@ export function SwapProposalTicket({
         });
         void queryClient.invalidateQueries({ queryKey: ['walletTokens'] });
         queueAgentActionClientEvent(
-          {
+          buildSwapBalanceRecoveryClientEvent({
             proposalId,
-            stage: 'execution_failed',
-            action: 'wallet.swap',
-            toolType: 'wallet.write',
             provider: displayProvider,
-            uiSurface: 'chat_swap_ticket',
-            status: 'recoverable',
-            reason:
-              'Balance changed before swap execution. Quote refresh required.',
-            error: message,
-            context: buildSwapBalanceRecoveryTelemetryContext({
-              fromToken,
-              toToken,
-              amountType,
-              availableToken: balanceRecovery.tokenSymbol,
-              routeLabel: displayRouteLabel,
-            }),
-          },
+            fromToken,
+            toToken,
+            amountType,
+            availableToken: balanceRecovery.tokenSymbol,
+            routeLabel: displayRouteLabel,
+          }),
           accessToken || undefined
         );
         toast.error(
