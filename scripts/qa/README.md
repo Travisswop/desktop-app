@@ -37,8 +37,8 @@ into a preview-auth failure instead of a real surface check.
 Use one of these allowed auth surfaces for signed-in runtime proof instead:
 
 - `https://www.swopme.app/dashboard/chat` for production/main QA
-- `http://localhost:3000/dashboard/chat` for branch-specific QA from a local
-  task worktree
+- `http://localhost:<clean-branch-port>/dashboard/chat` for branch-specific QA
+  from a clean local task worktree
 
 If you intentionally need to confirm the preview-host auth blocker itself, opt
 in explicitly:
@@ -117,11 +117,18 @@ After login, close nothing if you want to verify immediately, or just run:
 npm run qa:astro-cards -- --launch
 ```
 
-For a branch-specific local task worktree, point the harness at localhost:
+For a branch-specific local task worktree, point the harness at the clean
+localhost port for that worktree instead of a shared dirty server:
 
 ```bash
-SWOP_QA_URL="http://localhost:3000/dashboard/chat" \
+SWOP_QA_LOCAL_PORT=3001 \
 npm run qa:astro-cards -- --launch
+```
+
+Or pass the port directly:
+
+```bash
+npm run qa:astro-cards -- --launch --local-port=3001
 ```
 
 The profile is stored at:

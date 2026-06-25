@@ -7,6 +7,7 @@ import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const DEFAULT_SWOP_URL = 'https://www.swopme.app/dashboard/chat';
+const DEFAULT_LOCALHOST_QA_PORT = 3000;
 const DEFAULT_CHROME_PORT = 9223;
 const DEFAULT_CHROME_PROFILE = path.join(os.homedir(), '.swop-card-qa-chrome');
 const DEFAULT_CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -14,11 +15,6 @@ const DEFAULT_ALERT_SUBJECT_PREFIX = '[Swop QA]';
 const DEFAULT_SWAP_INPUT_MINT = 'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1';
 const DEFAULT_SWAP_OUTPUT_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const DEFAULT_SWAP_AMOUNT = '1000000000';
-const ALLOWED_AUTH_HOST_HINTS = [
-  'https://www.swopme.app/dashboard/chat',
-  'http://localhost:3000/dashboard/chat',
-];
-
 const FINAL_ACTION_PATTERNS = [
   /sign\s*&\s*approve/i,
   /confirm send/i,
@@ -174,10 +170,14 @@ const CARD_COMMAND_CONTRACTS = [
 ];
 
 function parseArgs(argv) {
+  const envLocalPort = parseOptionalPort(process.env.SWOP_QA_LOCAL_PORT || '');
   const args = {
     launch: false,
     setupLogin: false,
-    url: process.env.SWOP_QA_URL || DEFAULT_SWOP_URL,
+    url:
+      process.env.SWOP_QA_URL ||
+      (envLocalPort ? localhostQaUrl(envLocalPort) : DEFAULT_SWOP_URL),
+    localPort: envLocalPort,
     chromeUrl: process.env.SWOP_QA_CHROME_URL || '',
     chromePath: process.env.CHROME_PATH || DEFAULT_CHROME_PATH,
     chromePort: Number(process.env.SWOP_QA_CHROME_PORT || DEFAULT_CHROME_PORT),
@@ -204,6 +204,10 @@ function parseArgs(argv) {
     else if (arg === '--setup-login') args.setupLogin = true;
     else if (arg === '--json') args.json = true;
     else if (arg.startsWith('--url=')) args.url = arg.slice('--url='.length);
+    else if (arg.startsWith('--local-port=')) {
+      args.localPort = parseOptionalPort(arg.slice('--local-port='.length));
+      if (args.localPort) args.url = localhostQaUrl(args.localPort);
+    }
     else if (arg.startsWith('--chrome-url=')) args.chromeUrl = arg.slice('--chrome-url='.length);
     else if (arg.startsWith('--chrome-port=')) args.chromePort = Number(arg.slice('--chrome-port='.length));
     else if (arg.startsWith('--profile=')) args.profileDir = arg.slice('--profile='.length);
@@ -227,6 +231,26 @@ function boolValue(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
 }
 
+function parseOptionalPort(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function localhostQaUrl(port = DEFAULT_LOCALHOST_QA_PORT) {
+  return `http://localhost:${port}/dashboard/chat`;
+}
+
+function buildAllowedAuthHostHints(args = {}) {
+  return [
+    DEFAULT_SWOP_URL,
+    args.localPort
+      ? localhostQaUrl(args.localPort)
+      : 'http://localhost:<clean-branch-port>/dashboard/chat',
+  ];
+}
+
 function isPreviewHost(url) {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
@@ -236,11 +260,11 @@ function isPreviewHost(url) {
   }
 }
 
-function previewHostBlockerMessage(url) {
+function previewHostBlockerMessage(url, allowedAuthHostHints) {
   return [
     `Authenticated QA on ${url} is blocked by Privy allowed-origin/frame-ancestors policy for raw preview hosts.`,
     'Use an allowed auth surface for runtime proof instead, such as:',
-    ...ALLOWED_AUTH_HOST_HINTS.map((value) => `- ${value}`),
+    ...allowedAuthHostHints.map((value) => `- ${value}`),
     'If you intentionally need the blocked preview-auth diagnostic path, rerun with SWOP_QA_ALLOW_PREVIEW_HOST=true or --allow-preview-host.',
   ].join('\n');
 }
@@ -276,11 +300,12 @@ Usage:
   node scripts/qa/astro-card-smoke.mjs --chrome-url=http://127.0.0.1:9222
   node scripts/qa/astro-card-smoke.mjs --launch --alert-email=you@example.com
   node scripts/qa/astro-card-smoke.mjs --launch --swap-taker=<funded-solana-wallet>
-  node scripts/qa/astro-card-smoke.mjs --launch --url=http://localhost:3000/dashboard/chat
+  node scripts/qa/astro-card-smoke.mjs --launch --local-port=3001
 
 Modes:
   --setup-login  Opens the QA Chrome profile to Swop and exits so you can log in once.
   --launch       Starts a dedicated Chrome profile with remote debugging if needed.
+  --local-port   Uses http://localhost:<port>/dashboard/chat for clean branch-specific QA.
   --allow-preview-host  Allows raw .vercel.app preview URLs for auth-blocker diagnostics only.
 
 Alerts:
@@ -1078,6 +1103,7 @@ async function tryPredictionOutcomeClick(client) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  const allowedAuthHostHints = buildAllowedAuthHostHints(args);
   const cardContracts = buildCardCommandContracts(args);
   const report = {
     name: 'astro-card-smoke',
@@ -1114,7 +1140,7 @@ async function main() {
 
   if (isPreviewHost(args.url) && !args.allowPreviewHost) {
     report.status = 'fail';
-    report.error = previewHostBlockerMessage(args.url);
+    report.error = previewHostBlockerMessage(args.url, allowedAuthHostHints);
     report.finishedAt = timestamp();
     writeReport(args, report);
     process.exitCode = 1;
@@ -1126,7 +1152,7 @@ async function main() {
             failed: 1,
             warnings: 0,
             blockedBy: 'preview-auth-host',
-            recommendedUrls: ALLOWED_AUTH_HOST_HINTS,
+            recommendedUrls: allowedAuthHostHints,
           },
           null,
           2
