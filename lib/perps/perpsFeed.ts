@@ -74,6 +74,12 @@ export interface PerpsCloseFillSnapshot {
 
 export type PerpsCoinDexMap = Record<string, string | null | undefined>;
 
+type ResolvedPerpsTerminalSnapshotIdentity = {
+  coin: string;
+  displayCoin: string;
+  dex?: string | null;
+};
+
 export interface PerpsFillLike {
   coin?: string | null;
   side?: string | null;
@@ -243,7 +249,7 @@ function normalizePerpsCoin(value: unknown) {
 }
 
 function normalizePerpsDex(value: unknown) {
-  return String(value || '').trim();
+  return String(value || '').trim().toLowerCase();
 }
 
 function perpsDisplayCoin(value: unknown) {
@@ -414,7 +420,7 @@ export function buildPerpsActiveLimitOrderSnapshot({
 function resolvePerpsTerminalSnapshotIdentity(
   coin: unknown,
   dexByCoin: PerpsCoinDexMap = {},
-) {
+): ResolvedPerpsTerminalSnapshotIdentity {
   const normalizedCoin = normalizePerpsCoin(coin);
   const displayCoin = perpsDisplayCoin(normalizedCoin);
   const explicitDex = normalizedCoin.includes(':')
@@ -436,6 +442,115 @@ function resolvePerpsTerminalSnapshotIdentity(
     displayCoin,
     dex: dex || null,
   };
+}
+
+function samePerpsPositionSize(left: number, right: number) {
+  const tolerance = Math.max(
+    Math.abs(left) * 0.000001,
+    Math.abs(right) * 0.000001,
+    0.000000001,
+  );
+  return Math.abs(left - right) <= tolerance;
+}
+
+function resolvePerpsTerminalSnapshotIdentities(
+  fills: PerpsFillLike[] = [],
+  dexByCoin: PerpsCoinDexMap = {},
+) {
+  const trackedPositionSizes = new Map<
+    string,
+    { displayCoin: string; dex?: string | null; size: number }
+  >();
+
+  return fills
+    .map((fill, index) => ({
+      fill,
+      index,
+      timeMs: fillTimeMs(fill) || 0,
+    }))
+    .sort((left, right) => left.timeMs - right.timeMs || left.index - right.index)
+    .map(({ fill, timeMs }) => {
+      const fallbackIdentity = resolvePerpsTerminalSnapshotIdentity(
+        fill.coin,
+        dexByCoin,
+      );
+      const normalizedCoin = normalizePerpsCoin(fill.coin);
+      const explicitDex = normalizedCoin.includes(':')
+        ? normalizePerpsDex(normalizedCoin.split(':')[0])
+        : '';
+      const startPosition = maybePerpsFeedNumber(fill.startPosition);
+      const signedSize = fillSignedSize(fill);
+      const trackedCandidates = fallbackIdentity.displayCoin
+        ? [...trackedPositionSizes.entries()].filter(
+            ([, tracked]) => tracked.displayCoin === fallbackIdentity.displayCoin,
+          )
+        : [];
+      const startMatches =
+        startPosition === undefined
+          ? []
+          : trackedCandidates.filter(([, tracked]) =>
+              samePerpsPositionSize(tracked.size, startPosition),
+            );
+
+      let identity = fallbackIdentity;
+      if (!explicitDex && fallbackIdentity.displayCoin) {
+        if (startMatches.length === 1) {
+          const [trackedCoin, tracked] = startMatches[0];
+          identity = {
+            coin: trackedCoin,
+            displayCoin: tracked.displayCoin,
+            dex: tracked.dex || null,
+          };
+        } else if (trackedCandidates.length > 1) {
+          identity = {
+            coin: normalizedCoin,
+            displayCoin: fallbackIdentity.displayCoin,
+            dex: null,
+          };
+        } else if (trackedCandidates.length === 1) {
+          const [trackedCoin, tracked] = trackedCandidates[0];
+          identity = {
+            coin: trackedCoin,
+            displayCoin: tracked.displayCoin,
+            dex: tracked.dex || null,
+          };
+        }
+      }
+
+      const baselineSize =
+        startPosition !== undefined
+          ? startPosition
+          : trackedPositionSizes.get(identity.coin)?.size;
+      if (
+        identity.coin &&
+        signedSize !== undefined &&
+        baselineSize !== undefined &&
+        Number.isFinite(baselineSize)
+      ) {
+        const nextSize = baselineSize + signedSize;
+        if (samePerpsPositionSize(nextSize, 0)) {
+          trackedPositionSizes.delete(identity.coin);
+        } else {
+          trackedPositionSizes.set(identity.coin, {
+            displayCoin: identity.displayCoin,
+            dex: identity.dex || null,
+            size: nextSize,
+          });
+        }
+      } else if (
+        identity.coin &&
+        signedSize !== undefined &&
+        (explicitDex || trackedCandidates.length === 0)
+      ) {
+        trackedPositionSizes.set(identity.coin, {
+          displayCoin: identity.displayCoin,
+          dex: identity.dex || null,
+          size: signedSize,
+        });
+      }
+
+      return { fill, identity, timeMs };
+    });
 }
 
 export function buildPerpsReconcileSnapshotKey({
@@ -538,15 +653,12 @@ export function inferPerpsCloseFillsByCoin(
   fills: PerpsFillLike[] = [],
   dexByCoin: PerpsCoinDexMap = {},
 ): Record<string, PerpsCloseFillSnapshot> {
-  return fills.reduce<Record<string, PerpsCloseFillSnapshot>>(
-    (closedFills, fill) => {
+  return resolvePerpsTerminalSnapshotIdentities(
+    fills,
+    dexByCoin,
+  ).reduce<Record<string, PerpsCloseFillSnapshot>>((closedFills, entry) => {
+      const { fill, identity, timeMs } = entry;
       if (fill?.liquidation || !isTerminalCloseFill(fill)) return closedFills;
-
-      const identity = resolvePerpsTerminalSnapshotIdentity(
-        fill.coin,
-        dexByCoin,
-      );
-      const timeMs = fillTimeMs(fill);
       if (!identity.coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
         return closedFills;
       }
@@ -575,24 +687,20 @@ export function inferPerpsCloseFillsByCoin(
       };
 
       return closedFills;
-    },
-    {},
-  );
+    }, {});
 }
 
 export function inferPerpsLiquidationsByCoin(
   fills: PerpsFillLike[] = [],
   dexByCoin: PerpsCoinDexMap = {},
 ): Record<string, PerpsLiquidationFillSnapshot> {
-  return fills.reduce<Record<string, PerpsLiquidationFillSnapshot>>(
-    (liquidations, fill) => {
+  return resolvePerpsTerminalSnapshotIdentities(
+    fills,
+    dexByCoin,
+  ).reduce<Record<string, PerpsLiquidationFillSnapshot>>(
+    (liquidations, entry) => {
+      const { fill, identity, timeMs } = entry;
       if (!fill?.liquidation) return liquidations;
-
-      const identity = resolvePerpsTerminalSnapshotIdentity(
-        fill.coin,
-        dexByCoin,
-      );
-      const timeMs = fillTimeMs(fill);
       if (!identity.coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
         return liquidations;
       }
@@ -629,7 +737,7 @@ export function inferPerpsLiquidationsByCoin(
 }
 
 export interface PerpsFeedHealthEvent {
-  type: 'feed_card_accuracy_perps_terminal_candidate';
+  type: 'feed_card_accuracy_perps_terminal_mismatch';
   provider: 'hyperliquid';
   terminalEvent: 'close' | 'liquidate';
   fingerprint: string;
@@ -716,7 +824,7 @@ export function buildPerpsTerminalFeedHealthEvents({
 
       seenFingerprints.add(fingerprint);
       events.push({
-        type: 'feed_card_accuracy_perps_terminal_candidate',
+        type: 'feed_card_accuracy_perps_terminal_mismatch',
         provider: 'hyperliquid',
         terminalEvent,
         fingerprint,
@@ -739,6 +847,27 @@ export function buildPerpsTerminalFeedHealthEvents({
   appendEvents('close', Object.values(closedFillsByCoin));
 
   return events;
+}
+
+export function filterPerpsTerminalFeedHealthEvents({
+  events,
+  updatedPosts,
+}: {
+  events: PerpsFeedHealthEvent[];
+  updatedPosts?: Array<{ content?: { positionKey?: unknown } } | null | undefined>;
+}) {
+  const updatedPositionKeys = new Set(
+    (updatedPosts || [])
+      .map((post) =>
+        normalizePerpsCoin(post?.content?.positionKey || '').toLowerCase(),
+      )
+      .filter(Boolean),
+  );
+  if (updatedPositionKeys.size === 0) return [];
+
+  return events.filter((event) =>
+    updatedPositionKeys.has(event.positionKey.toLowerCase()),
+  );
 }
 
 async function logPerpsFeedCardHealthEvents(events: PerpsFeedHealthEvent[]) {
@@ -952,11 +1081,6 @@ export async function reconcilePerpsPositionFeed({
     closedFillsByCoin,
     updatedAt,
   });
-  if (healthEvents.length > 0) {
-    void logPerpsFeedCardHealthEvents(healthEvents).catch((error) => {
-      console.warn('Failed to log perps feed health events:', error);
-    });
-  }
 
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/perps-position/reconcile`,
@@ -987,6 +1111,18 @@ export async function reconcilePerpsPositionFeed({
       data?.message ||
         `Failed to reconcile perps feed cards (${response.status})`,
     );
+  }
+
+  const mismatchHealthEvents = filterPerpsTerminalFeedHealthEvents({
+    events: healthEvents,
+    updatedPosts: Array.isArray(data?.data?.updatedPosts)
+      ? data.data.updatedPosts
+      : [],
+  });
+  if (mismatchHealthEvents.length > 0) {
+    void logPerpsFeedCardHealthEvents(mismatchHealthEvents).catch((error) => {
+      console.warn('Failed to log perps feed health events:', error);
+    });
   }
 
   if (data?.data?.updatedCount > 0) {
