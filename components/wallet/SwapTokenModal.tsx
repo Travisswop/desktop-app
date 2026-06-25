@@ -99,6 +99,7 @@ import {
   reconcileSelectedSwapToken,
 } from '@/lib/wallet/swapTokenSelection';
 import { shouldDisableSwapActionButton } from '@/lib/wallet/swapActionButtonState';
+import { getJupiterSwapPreflight } from '@/lib/wallet/jupiterSwapPreflight';
 import { resolveSwapSelectedSolanaWallet } from '@/lib/wallet/swapSelectedSolanaWallet';
 import { normalizeSolanaSigningWalletAddress } from '@/lib/wallet/solanaSigningWallet';
 import {
@@ -4371,42 +4372,29 @@ export default function SwapTokenModal({
 
     try {
       let canRunUserFundedSimulation = true;
-
-      if (!solanaReady) {
-        setSwapError(
-          'Solana wallet is not ready. Please wait and try again.',
-        );
-        setIsSwapping(false);
-        return;
-      }
-      if (!selectedSolanaWallet?.address) {
-        setSwapError(
-          solanaWalletMismatchError || 'No Solana wallet connected',
-        );
-        setIsSwapping(false);
-        return;
-      }
-
-      const getTokenMint = (t: any) =>
-        t.symbol === 'SOL'
-          ? 'So11111111111111111111111111111111111111112'
-          : t.address || t.id;
-
-      const inputMint = getTokenMint(payToken);
-      const outputMint = getTokenMint(receiveToken);
-      if (!inputMint || !outputMint)
-        throw new Error('Invalid token addresses');
-      if (inputMint.toLowerCase() === outputMint.toLowerCase())
-        throw new Error(
-          'Pay token and receive token are the same. Please select different tokens.',
-        );
-      const amountInSmallestUnit = formatTokenAmount(
+      const preflight = getJupiterSwapPreflight({
+        solanaReady,
+        selectedSolanaWalletAddress: selectedSolanaWallet?.address,
+        solanaWalletMismatchError,
+        payToken,
+        receiveToken,
         payAmount,
-        payToken.decimals || 6,
-      );
+      });
+      if (!preflight.ok) {
+        setSwapError(preflight.error);
+        setIsSwapping(false);
+        return;
+      }
+      const {
+        inputMint,
+        outputMint,
+        amountInSmallestUnit,
+      } = preflight;
       failureContext = {
         ...failureContext,
-        walletAddress: maskIdentifier(selectedSolanaWallet.address),
+        walletAddress: maskIdentifier(
+          selectedSolanaWallet?.address,
+        ),
         inputToken: {
           symbol: payToken?.symbol,
           mint: inputMint,
