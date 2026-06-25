@@ -15745,6 +15745,17 @@ export function SwapProposalTicket({
   const isValidationQuoteError =
     isQuoteError && quoteState.errorKind === 'validation';
   const isSwapBusy = isPending || isConfirmingSwap;
+  const hasInputBlocker =
+    canAct &&
+    (!hasSpendableBalance ||
+      !selectedFromKey ||
+      (!selectedToKey && quoteTokenOptions.length > 0) ||
+      selectedFromKey === selectedToKey ||
+      !payAmount.trim() ||
+      !hasValidSellAmount ||
+      amountExceedsBalance);
+  const hasRouteBlocker =
+    canAct && !selectedToKey && quoteTokenOptions.length === 0;
   const primaryActionMode = getSwapPrimaryActionMode({
     quoteOnly,
     quoteStateStatus: quoteState.status,
@@ -15754,9 +15765,9 @@ export function SwapProposalTicket({
     ? 'quoting'
     : inlineSwapStatus
     ? 'signing'
-    : isValidationQuoteError
+    : isValidationQuoteError || hasInputBlocker
     ? 'needs input'
-    : isQuoteError
+    : isQuoteError || hasRouteBlocker
     ? 'needs route'
     : quoteState.status === 'success'
     ? 'quoted'

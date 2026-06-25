@@ -462,6 +462,31 @@ describe('SwapProposalTicket blocker banner', () => {
     expect(markup).toContain('Sign &amp; approve');
     expect(markup).not.toContain('Refresh quote');
   });
+
+  it('marks empty-amount tickets as needs input on the rendered ticket surface', () => {
+    const { markup, buttons } = renderSwapProposalTicketDocument({
+      proposalParams: {
+        fromToken: 'SOL',
+        toToken: 'USDC',
+        amount: '',
+        fromChain: 'solana',
+        toChain: 'solana',
+      },
+      sourceText: 'swap SOL to USDC',
+      walletPortfolioTokens: [createWalletToken()],
+    });
+
+    expect(markup).toContain('needs input');
+    expect(markup).toContain(
+      'Enter how much SOL you want to swap to get a live quote.'
+    );
+    expect(markup).toContain('Sign &amp; approve');
+    expect(markup).not.toContain('Refresh quote');
+    expect(
+      buttons.find((button) => button.textContent.includes('Sign & approve'))
+        ?.hasAttribute('disabled')
+    ).toBe(true);
+  });
 });
 
 describe('SwapActionBlockerNotice visibility', () => {
