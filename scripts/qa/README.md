@@ -27,6 +27,31 @@ https://www.swopme.app/dashboard/chat
 That means the daily task is aimed at the live `main` surface, not a dirty local
 feature branch.
 
+## Auth Host Rule
+
+Do not use raw `*.vercel.app` preview URLs for authenticated Astro/Goldman QA by
+default. Privy login on those hosts can be blocked by allowed-origin /
+`frame-ancestors` policy before `/dashboard/chat` renders, which turns card QA
+into a preview-auth failure instead of a real surface check.
+
+Use one of these allowed auth surfaces for signed-in runtime proof instead:
+
+- `https://www.swopme.app/dashboard/chat` for production/main QA
+- `http://localhost:3000/dashboard/chat` for branch-specific QA from a local
+  task worktree
+
+If you intentionally need to confirm the preview-host auth blocker itself, opt
+in explicitly:
+
+```bash
+SWOP_QA_ALLOW_PREVIEW_HOST=true \
+SWOP_QA_URL="https://your-preview.vercel.app/dashboard/chat" \
+npm run qa:astro-cards -- --launch --json
+```
+
+Without that override, the smoke harness now fails fast with a `preview-auth-host`
+error and points the run back to an allowed host.
+
 ## What It Tests
 
 The harness opens Swop chat in a dedicated Chrome profile, then generates and
@@ -89,6 +114,13 @@ npm run qa:astro-cards:login
 After login, close nothing if you want to verify immediately, or just run:
 
 ```bash
+npm run qa:astro-cards -- --launch
+```
+
+For a branch-specific local task worktree, point the harness at localhost:
+
+```bash
+SWOP_QA_URL="http://localhost:3000/dashboard/chat" \
 npm run qa:astro-cards -- --launch
 ```
 

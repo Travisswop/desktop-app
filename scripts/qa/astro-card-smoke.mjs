@@ -14,6 +14,10 @@ const DEFAULT_ALERT_SUBJECT_PREFIX = '[Swop QA]';
 const DEFAULT_SWAP_INPUT_MINT = 'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1';
 const DEFAULT_SWAP_OUTPUT_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const DEFAULT_SWAP_AMOUNT = '1000000000';
+const ALLOWED_AUTH_HOST_HINTS = [
+  'https://www.swopme.app/dashboard/chat',
+  'http://localhost:3000/dashboard/chat',
+];
 
 const FINAL_ACTION_PATTERNS = [
   /sign\s*&\s*approve/i,
@@ -191,6 +195,7 @@ function parseArgs(argv) {
     swapAmount: process.env.SWOP_QA_SWAP_AMOUNT || DEFAULT_SWAP_AMOUNT,
     swapTaker: process.env.SWOP_QA_SWAP_TAKER || '',
     swapOrderRequired: boolValue(process.env.SWOP_QA_SWAP_ORDER_REQUIRED),
+    allowPreviewHost: boolValue(process.env.SWOP_QA_ALLOW_PREVIEW_HOST),
     json: false,
   };
 
@@ -207,6 +212,7 @@ function parseArgs(argv) {
     else if (arg.startsWith('--alert-email=')) args.alertEmail = arg.slice('--alert-email='.length);
     else if (arg.startsWith('--swap-taker=')) args.swapTaker = arg.slice('--swap-taker='.length);
     else if (arg === '--swap-order-required') args.swapOrderRequired = true;
+    else if (arg === '--allow-preview-host') args.allowPreviewHost = true;
     else if (arg === '--help' || arg === '-h') {
       printHelp();
       process.exit(0);
@@ -219,6 +225,24 @@ function parseArgs(argv) {
 
 function boolValue(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
+}
+
+function isPreviewHost(url) {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
+
+function previewHostBlockerMessage(url) {
+  return [
+    `Authenticated QA on ${url} is blocked by Privy allowed-origin/frame-ancestors policy for raw preview hosts.`,
+    'Use an allowed auth surface for runtime proof instead, such as:',
+    ...ALLOWED_AUTH_HOST_HINTS.map((value) => `- ${value}`),
+    'If you intentionally need the blocked preview-auth diagnostic path, rerun with SWOP_QA_ALLOW_PREVIEW_HOST=true or --allow-preview-host.',
+  ].join('\n');
 }
 
 function buildCardCommandContracts(args) {
@@ -252,10 +276,12 @@ Usage:
   node scripts/qa/astro-card-smoke.mjs --chrome-url=http://127.0.0.1:9222
   node scripts/qa/astro-card-smoke.mjs --launch --alert-email=you@example.com
   node scripts/qa/astro-card-smoke.mjs --launch --swap-taker=<funded-solana-wallet>
+  node scripts/qa/astro-card-smoke.mjs --launch --url=http://localhost:3000/dashboard/chat
 
 Modes:
   --setup-login  Opens the QA Chrome profile to Swop and exits so you can log in once.
   --launch       Starts a dedicated Chrome profile with remote debugging if needed.
+  --allow-preview-host  Allows raw .vercel.app preview URLs for auth-blocker diagnostics only.
 
 Alerts:
   Set SWOP_QA_ALERT_EMAIL or pass --alert-email to email a failure report.
@@ -1085,6 +1111,32 @@ async function main() {
   };
 
   mkdirSync(args.logDir, { recursive: true });
+
+  if (isPreviewHost(args.url) && !args.allowPreviewHost) {
+    report.status = 'fail';
+    report.error = previewHostBlockerMessage(args.url);
+    report.finishedAt = timestamp();
+    writeReport(args, report);
+    process.exitCode = 1;
+    if (args.json) {
+      console.log(
+        JSON.stringify(
+          {
+            status: report.status,
+            failed: 1,
+            warnings: 0,
+            blockedBy: 'preview-auth-host',
+            recommendedUrls: ALLOWED_AUTH_HOST_HINTS,
+          },
+          null,
+          2
+        )
+      );
+    } else {
+      console.error(report.error);
+    }
+    return;
+  }
 
   if (args.launch || args.setupLogin) {
     try {
