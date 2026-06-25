@@ -751,6 +751,10 @@ function getLocalConsoleCardThreadScope({
   return `direct:${selectedChat?._id || receiverId || 'unknown'}`;
 }
 
+function containsAstroMention(value: string) {
+  return /(?:^|\s)@?astro\b/i.test(String(value || ''));
+}
+
 function isLocalConsoleCardRequestMessage({
   message,
   currentUser,
@@ -770,7 +774,7 @@ function isLocalConsoleCardRequestMessage({
 
   const text = String(message.message || '').trim();
   if (!text) return false;
-  if (isGroup && !isSecureAstroDesk && !hasAstroMention(text)) return false;
+  if (isGroup && !isSecureAstroDesk && !containsAstroMention(text)) return false;
 
   return cardType === 'pnl' ? isPnlCommand(text) : isPortfolioCommand(text);
 }
@@ -4779,8 +4783,9 @@ export default function ChatArea({
     const hasAstroMention = /(?:^|\s)@?astro\b/i.test(outgoingMessage);
     const isLocalChartCommand = isChartCommand(outgoingMessage);
     const activeChat = activeChatData;
+    const isSecureAstroDeskForSend = isAstroTradingDeskChat(activeChat, isGroup);
     const shouldAutoMentionAstro =
-      isAstroTradingDeskChat(activeChat, isGroup) &&
+      isSecureAstroDeskForSend &&
       !hasAstroMention &&
       !isLocalChartCommand;
     const canUseAstroLocalActions =
@@ -4881,7 +4886,7 @@ export default function ChatArea({
             upToIndex: optimisticMessagesForLifecycle.length - 1,
             currentUser,
             isGroup,
-            isSecureAstroDesk,
+            isSecureAstroDesk: isSecureAstroDeskForSend,
             threadScope: localConsoleThreadScope,
           })
         : null;
@@ -4896,7 +4901,7 @@ export default function ChatArea({
             upToIndex: optimisticMessagesForLifecycle.length - 1,
             currentUser,
             isGroup,
-            isSecureAstroDesk,
+            isSecureAstroDesk: isSecureAstroDeskForSend,
             threadScope: localConsoleThreadScope,
           })
         : null;
@@ -5019,7 +5024,6 @@ export default function ChatArea({
     goldmanVaultWalletAddress,
     isGoldmanConsoleChat,
     isGroup,
-    isSecureAstroDesk,
     messages,
     newMessage,
     predictionActiveWalletAddress,
@@ -6299,9 +6303,12 @@ export default function ChatArea({
                 normalizePolymarketOrderSourceText(renderedMessageText);
               const normalizedFundingSource =
                 normalizeFundingOnrampSourceText(renderedMessageText);
-              const hasAstroMention = /(?:^|\s)@?astro\b/i.test(
+              const hasAstroMention = containsAstroMention(
                 message.message || ''
               );
+              const localConsoleReceiverId = isGroup
+                ? selectedChat?._id || ''
+                : getDirectReceiverId(selectedChat);
               const walletNetworkReply = isOwnOrLocalText
                 ? parseWalletSendNetworkReply(renderedMessageText)
                 : '';
@@ -6598,7 +6605,7 @@ export default function ChatArea({
               const localConsoleThreadScope = getLocalConsoleCardThreadScope({
                 isGroup,
                 selectedChat,
-                receiverId,
+                receiverId: localConsoleReceiverId,
               });
               const localConsoleReadMessage =
                 canRenderLocalConsoleReadCard &&
