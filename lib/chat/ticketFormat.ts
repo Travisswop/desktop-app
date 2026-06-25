@@ -43,6 +43,19 @@ export type SwapActionBlocker = {
   message: string;
 };
 
+export type SwapPrimaryActionMode = 'quote' | 'refresh_quote' | 'confirm';
+
+export function getSwapPrimaryActionMode(params: {
+  quoteOnly: boolean;
+  quoteStateStatus: 'idle' | 'loading' | 'success' | 'error';
+}): SwapPrimaryActionMode {
+  const { quoteOnly, quoteStateStatus } = params;
+
+  if (quoteOnly) return 'quote';
+  if (quoteStateStatus === 'error') return 'refresh_quote';
+  return 'confirm';
+}
+
 export function getSwapActionBlocker(params: {
   canAct: boolean;
   fromToken: string;

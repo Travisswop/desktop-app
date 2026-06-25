@@ -2,7 +2,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { SwapProposalTicket } from '@/components/chat/ChatArea';
 import { SwapActionBlockerNotice } from '@/components/chat/tickets/SwapActionBlockerNotice';
-import { getSwapActionBlocker } from '@/lib/chat/ticketFormat';
+import {
+  getSwapActionBlocker,
+  getSwapPrimaryActionMode,
+} from '@/lib/chat/ticketFormat';
 
 jest.mock('@tanstack/react-query', () => ({
   useQuery: jest.fn(() => ({ data: undefined, isLoading: false })),
@@ -84,11 +87,13 @@ function createWalletToken(overrides: Partial<Record<string, unknown>> = {}) {
 
 function renderSwapProposalTicket({
   canAct = true,
+  initialQuoteState,
   proposalParams,
   sourceText,
   walletPortfolioTokens,
 }: {
   canAct?: boolean;
+  initialQuoteState?: Record<string, unknown>;
   proposalParams: Record<string, unknown>;
   sourceText: string;
   walletPortfolioTokens: Array<Record<string, unknown>>;
@@ -117,6 +122,7 @@ function renderSwapProposalTicket({
       }
       sourceText={sourceText}
       autoFetchQuote={false}
+      initialQuoteState={initialQuoteState as any}
     />
   );
 }
@@ -226,6 +232,26 @@ describe('getSwapActionBlocker', () => {
   });
 });
 
+describe('getSwapPrimaryActionMode', () => {
+  it('switches wallet-write tickets into a refresh path when the quote route fails', () => {
+    expect(
+      getSwapPrimaryActionMode({
+        quoteOnly: false,
+        quoteStateStatus: 'error',
+      })
+    ).toBe('refresh_quote');
+  });
+
+  it('keeps quote-only tickets on the quote path', () => {
+    expect(
+      getSwapPrimaryActionMode({
+        quoteOnly: true,
+        quoteStateStatus: 'success',
+      })
+    ).toBe('quote');
+  });
+});
+
 describe('SwapProposalTicket blocker banner', () => {
   it('renders the empty-wallet blocker through the swap ticket', () => {
     const markup = renderSwapProposalTicket({
@@ -280,6 +306,28 @@ describe('SwapProposalTicket blocker banner', () => {
     expect(markup).toContain(
       'Pick a different output token before swapping.'
     );
+  });
+
+  it('relabels the primary action to refresh quote when the route is unavailable', () => {
+    const markup = renderSwapProposalTicket({
+      initialQuoteState: {
+        status: 'error',
+        error:
+          'This route is unavailable right now. Refresh the quote or change the amount or token pair.',
+      },
+      proposalParams: {
+        fromToken: 'SOL',
+        toToken: 'USDC',
+        amount: '1',
+        fromChain: 'solana',
+        toChain: 'solana',
+      },
+      sourceText: 'swap 1 SOL to USDC',
+      walletPortfolioTokens: [createWalletToken()],
+    });
+
+    expect(markup).toContain('Refresh quote');
+    expect(markup).not.toContain('Sign &amp; approve');
   });
 });
 

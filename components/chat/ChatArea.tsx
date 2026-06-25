@@ -140,6 +140,7 @@ import {
   formatSwapAmount,
   formatWalletAddress,
   getSwapActionBlocker,
+  getSwapPrimaryActionMode,
   getAgentFeedIdentity,
   getPerpsMarkPrice,
   getPolymarketOutcomeLabels,
@@ -15017,6 +15018,7 @@ export function SwapProposalTicket({
   astroConsoleData,
   sourceText,
   autoFetchQuote = true,
+  initialQuoteState,
 }: {
   proposal?: AgentActionProposal | null;
   proposalId: string;
@@ -15029,6 +15031,7 @@ export function SwapProposalTicket({
   astroConsoleData: AstroConsoleData;
   sourceText?: string;
   autoFetchQuote?: boolean;
+  initialQuoteState?: ChatSwapQuoteState;
 }) {
   const { accessToken, user } = useUser();
   const { getAccessToken } = usePrivy();
@@ -15325,9 +15328,9 @@ export function SwapProposalTicket({
     const clampedPercent = Math.min(100, Math.max(0, percent));
     setAmountFromTokenAmount(maxSellAmount * (clampedPercent / 100));
   };
-  const [quoteState, setQuoteState] = useState<ChatSwapQuoteState>({
-    status: 'idle',
-  });
+  const [quoteState, setQuoteState] = useState<ChatSwapQuoteState>(
+    () => initialQuoteState || { status: 'idle' }
+  );
   const quoteRequestIdRef = useRef(0);
   const quoteCacheRef = useRef(
     new Map<string, { state: ChatSwapQuoteState; ts: number }>()
@@ -15730,6 +15733,10 @@ export function SwapProposalTicket({
   const isQuoteLoading = quoteState.status === 'loading';
   const isQuoteError = quoteState.status === 'error';
   const isSwapBusy = isPending || isConfirmingSwap;
+  const primaryActionMode = getSwapPrimaryActionMode({
+    quoteOnly,
+    quoteStateStatus: quoteState.status,
+  });
   const headerStatusText = isQuoteLoading
     ? 'quoting'
     : inlineSwapStatus
@@ -15747,19 +15754,21 @@ export function SwapProposalTicket({
     status === 'failed' ||
     status === 'rejected' ||
     status === 'expired';
-  const actionLabel = quoteOnly
-    ? inlineSwapStatus || isQuoteLoading
+  const actionLabel =
+    primaryActionMode === 'confirm'
+      ? inlineSwapStatus || isSwapBusy
+        ? inlineSwapStatus || 'Signing...'
+        : status === 'approved'
+        ? 'Approved'
+        : status === 'executed'
+        ? 'Confirmed'
+        : 'Sign & approve'
+      : inlineSwapStatus || isQuoteLoading
       ? 'Getting quote...'
-      : quoteState.status === 'success'
+      : primaryActionMode === 'refresh_quote' ||
+        quoteState.status === 'success'
       ? 'Refresh quote'
-      : 'Get quote'
-    : inlineSwapStatus || isSwapBusy
-    ? inlineSwapStatus || 'Signing...'
-    : status === 'approved'
-    ? 'Approved'
-    : status === 'executed'
-    ? 'Confirmed'
-    : 'Sign & approve';
+      : 'Get quote';
   const isPrimaryActionDisabled =
     !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection;
   const swapActionBlocker = getSwapActionBlocker({
@@ -15775,7 +15784,7 @@ export function SwapProposalTicket({
     selectedToKey,
   });
   const handleConfirmSwap = async () => {
-    if (quoteOnly) {
+    if (primaryActionMode !== 'confirm') {
       setInlineSwapStatus('Refreshing quote...');
       try {
         await fetchSwapQuote();
@@ -16536,7 +16545,7 @@ export function SwapProposalTicket({
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : status === 'approved' || status === 'executed' ? (
               <Check className="h-3.5 w-3.5" />
-            ) : quoteOnly ? (
+            ) : primaryActionMode !== 'confirm' ? (
               <RefreshCw className="h-3.5 w-3.5" />
             ) : (
               <ArrowRightLeft className="h-3.5 w-3.5" />
