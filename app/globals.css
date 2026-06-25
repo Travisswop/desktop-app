@@ -614,6 +614,131 @@ body {
 }
 /* places input custom css for profile page end  */
 
+/* edit-profile: bento design-system overrides (scoped to .bento-form) */
+.bento-form .react-international-phone-input {
+  height: 2.75rem !important; /* h-11 */
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-start-end-radius: 0.75rem !important;
+  border-end-end-radius: 0.75rem !important;
+  background-color: #ffffff !important;
+  color: #111827 !important; /* gray-900 */
+  font-size: 13px !important;
+}
+.bento-form .react-international-phone-input:focus {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  outline: none !important;
+}
+.bento-form .react-international-phone-country-selector-button {
+  height: 2.75rem !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-right: 0 !important;
+  border-start-start-radius: 0.75rem !important;
+  border-end-start-radius: 0.75rem !important;
+  background-color: #ffffff !important;
+}
+.bento-form .css-13cymwt-control,
+.bento-form .css-t3ipsp-control {
+  border-color: rgba(0, 0, 0, 0.06) !important;
+  background-color: #ffffff !important;
+  border-radius: 0.75rem !important;
+  min-height: 2.75rem !important;
+  box-shadow: none !important;
+}
+.bento-form .css-13cymwt-control:hover,
+.bento-form .css-t3ipsp-control:hover {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* edit-profile birth-date picker (react-datepicker) bento theme */
+.bento-datepicker-popper {
+  z-index: 50 !important;
+}
+.bento-datepicker-popper .react-datepicker {
+  font-family: inherit;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(10, 10, 12, 0.04),
+    0 8px 28px -12px rgba(10, 10, 12, 0.1);
+  overflow: hidden;
+  color: #111827;
+  padding: 0.25rem;
+}
+.bento-datepicker-popper .react-datepicker__header {
+  background-color: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 0.75rem;
+}
+.bento-datepicker-popper .react-datepicker__current-month {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.5rem;
+}
+.bento-datepicker-popper .react-datepicker__day-name {
+  color: #9ca3af;
+  font-size: 11px;
+  width: 2rem;
+  line-height: 2rem;
+}
+.bento-datepicker-popper .react-datepicker__day {
+  width: 2rem;
+  line-height: 2rem;
+  margin: 0.125rem;
+  border-radius: 9999px;
+  color: #374151;
+  font-size: 12.5px;
+  transition: background-color 0.12s ease;
+}
+.bento-datepicker-popper .react-datepicker__day:hover {
+  background-color: #f3f4f6;
+  border-radius: 9999px;
+}
+.bento-datepicker-popper .react-datepicker__day--selected,
+.bento-datepicker-popper .react-datepicker__day--keyboard-selected {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+  border-radius: 9999px;
+}
+.bento-datepicker-popper .react-datepicker__day--today {
+  font-weight: 700;
+  color: #059669;
+}
+.bento-datepicker-popper
+  .react-datepicker__day--selected.react-datepicker__day--today {
+  color: #ffffff;
+}
+.bento-datepicker-popper .react-datepicker__day--outside-month {
+  color: #d1d5db;
+}
+.bento-datepicker-popper .react-datepicker__day--disabled {
+  color: #e5e7eb;
+}
+.bento-datepicker-popper .react-datepicker__navigation {
+  top: 0.85rem;
+}
+.bento-datepicker-popper .react-datepicker__triangle {
+  display: none;
+}
+.bento-datepicker-popper .react-datepicker__header__dropdown {
+  padding-bottom: 0.5rem;
+  font-size: 12px;
+}
+.bento-datepicker-popper select.react-datepicker__month-select,
+.bento-datepicker-popper select.react-datepicker__year-select {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 0.5rem;
+  padding: 3px 6px;
+  font-size: 12px;
+  background-color: #fff;
+  color: #111827;
+  margin: 0 3px;
+  outline: none;
+}
+.bento-datepicker-popper select.react-datepicker__month-select:focus,
+.bento-datepicker-popper select.react-datepicker__year-select:focus {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
 /* custom loader  */
 .loader {
   border: 4px solid #f3f3f3;

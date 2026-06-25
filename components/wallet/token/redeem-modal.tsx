@@ -715,11 +715,11 @@ function TokenSelector({
 
       <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
         {loading ? (
-          <div className="text-sm text-gray-400 text-center py-8">
+          <div className="text-[13px] text-gray-400 text-center py-8">
             Loading tokens…
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-sm text-gray-400 text-center py-8">
+          <div className="text-[13px] text-gray-400 text-center py-8">
             No Solana tokens found
           </div>
         ) : (
@@ -728,12 +728,12 @@ function TokenSelector({
               key={token.address ?? token.mint ?? token.symbol}
               onClick={() => onSelect(token)}
               className={cn(
-                "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors hover:bg-gray-50",
+                "w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors hover:bg-gray-50",
                 selected?.symbol === token.symbol &&
-                  "bg-blue-50 ring-1 ring-blue-200",
+                  "bg-emerald-50 ring-1 ring-emerald-200",
               )}
             >
-              <div className="w-9 h-9 rounded-full bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center border border-gray-200">
+              <div className="w-9 h-9 rounded-full bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center border border-black/[0.06]">
                 {token.logo || token.logoURI ? (
                   <Image
                     src={sanitizeNextImageSrc((token.logo ?? token.logoURI)!)}
@@ -743,20 +743,20 @@ function TokenSelector({
                     className="object-cover"
                   />
                 ) : (
-                  <span className="text-xs font-bold text-gray-500">
+                  <span className="text-[11px] font-bold text-gray-500">
                     {token.symbol.slice(0, 2)}
                   </span>
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">
+                <div className="text-[13px] font-semibold truncate">
                   {token.symbol}
                 </div>
-                <div className="text-xs text-gray-500 truncate">
+                <div className="text-[12px] text-gray-500 truncate">
                   {token.name}
                 </div>
               </div>
-              <div className="text-sm font-medium text-right shrink-0 text-gray-700">
+              <div className="text-[13px] font-medium text-right shrink-0 text-gray-700 font-mono tabular-nums">
                 {Number(token.balance).toLocaleString(undefined, {
                   maximumFractionDigits: 4,
                 })}
@@ -1152,12 +1152,12 @@ export default function RedeemModal(props: RedeemModalProps) {
           </div>
 
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
               Your link is ready!
             </h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-[13px] text-gray-500 mt-1">
               Share it with anyone — they can claim{" "}
-              <span className="font-medium text-gray-700">
+              <span className="font-medium text-gray-700 font-mono tabular-nums">
                 {tokensPerWallet > 0 ? tokensPerWallet.toFixed(4) : "—"} {symbol}
               </span>{" "}
               each.
@@ -1165,9 +1165,9 @@ export default function RedeemModal(props: RedeemModalProps) {
           </div>
 
           {/* Link copy row */}
-          <div className="w-full flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+          <div className="w-full flex items-center gap-2 bg-gray-50 border border-black/[0.06] rounded-xl px-3 py-2">
             <Link2 className="w-4 h-4 text-gray-400 shrink-0" />
-            <span className="flex-1 text-sm text-gray-600 truncate">
+            <span className="flex-1 text-[13px] text-gray-600 truncate font-mono">
               {redeemLink}
             </span>
             <button
@@ -1177,7 +1177,7 @@ export default function RedeemModal(props: RedeemModalProps) {
                   title: didCopy ? "Link copied!" : "Could not copy link",
                 });
               }}
-              className="shrink-0 flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+              className="shrink-0 flex items-center gap-1 text-[11px] font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
             >
               <Copy className="w-3.5 h-3.5" />
               Copy
@@ -1190,7 +1190,7 @@ export default function RedeemModal(props: RedeemModalProps) {
               href={`https://wa.me/?text=${encodeURIComponent("Claim your tokens here: " + redeemLink)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-center gap-2 py-2.5 rounded-full border border-black/[0.06] text-[13px] font-medium text-gray-700 hover:border-black/[0.15] hover:bg-gray-50 transition"
             >
               <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#25D366]">
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
@@ -1202,7 +1202,7 @@ export default function RedeemModal(props: RedeemModalProps) {
               href={`https://twitter.com/intent/tweet?text=${encodeURIComponent("Claim your tokens: " + redeemLink)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-center gap-2 py-2.5 rounded-full border border-black/[0.06] text-[13px] font-medium text-gray-700 hover:border-black/[0.15] hover:bg-gray-50 transition"
             >
               <svg viewBox="0 0 24 24" className="w-4 h-4 fill-black">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.259 5.629 5.905-5.629zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -1213,7 +1213,7 @@ export default function RedeemModal(props: RedeemModalProps) {
 
           <Button
             onClick={handleClose}
-            className="w-full rounded-xl py-5 bg-black text-white hover:bg-gray-800 font-medium"
+            className="w-full rounded-full py-5 bg-gray-950 text-white hover:bg-gray-800 text-[13px] font-semibold"
           >
             Done
           </Button>
@@ -1237,10 +1237,10 @@ export default function RedeemModal(props: RedeemModalProps) {
           </div>
 
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
               Something went wrong
             </h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-[13px] text-gray-500 mt-1">
               {isLowSol
                 ? "You need a little more SOL in your wallet to cover the transaction fee. Add some SOL and try again."
                 : "We couldn't create your link. Please try again."}
@@ -1250,14 +1250,14 @@ export default function RedeemModal(props: RedeemModalProps) {
           <div className="w-full flex flex-col gap-2">
             <Button
               onClick={handleRetry}
-              className="w-full rounded-xl py-5 bg-black text-white hover:bg-gray-800 font-medium"
+              className="w-full rounded-full py-5 bg-gray-950 text-white hover:bg-gray-800 text-[13px] font-semibold"
             >
               Try Again
             </Button>
             <Button
               onClick={handleClose}
               variant="outline"
-              className="w-full rounded-xl py-5"
+              className="w-full rounded-full py-5 text-[13px]"
             >
               Cancel
             </Button>
@@ -1273,14 +1273,14 @@ export default function RedeemModal(props: RedeemModalProps) {
       <CustomModal isOpen={isOpen} onCloseModal={undefined}>
         <div className="p-6 flex flex-col items-center text-center gap-5 py-10">
           <div className="relative w-16 h-16">
-            <div className="absolute inset-0 rounded-full bg-indigo-50" />
-            <Loader2 className="absolute inset-0 m-auto w-8 h-8 text-indigo-500 animate-spin" />
+            <div className="absolute inset-0 rounded-full bg-emerald-50" />
+            <Loader2 className="absolute inset-0 m-auto w-8 h-8 text-emerald-600 animate-spin" />
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
               Creating your link…
             </h2>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-[13px] text-gray-400 mt-1">
               This only takes a moment
             </p>
           </div>
@@ -1294,11 +1294,11 @@ export default function RedeemModal(props: RedeemModalProps) {
     <CustomModal isOpen={isOpen} onCloseModal={onClose}>
       <div className="p-5">
         {/* ── Header ── */}
-        <div className="flex items-center gap-2 mb-5 font-semibold text-base">
+        <div className="flex items-center gap-2 mb-5 font-semibold text-[22px] leading-tight tracking-[-0.02em] text-gray-900">
           {showTokenPicker ? (
             <button
               onClick={() => setShowTokenPicker(false)}
-              className="p-1 rounded hover:bg-gray-100 transition-colors mr-1"
+              className="p-1 rounded-full hover:bg-gray-100 transition-colors mr-1"
             >
               <ArrowLeft className="w-4 h-4 text-gray-600" />
             </button>
@@ -1308,10 +1308,10 @@ export default function RedeemModal(props: RedeemModalProps) {
               alt={symbol ?? ""}
               width={32}
               height={32}
-              className="rounded-full border w-8 h-8"
+              className="rounded-full border border-black/[0.06] w-8 h-8"
             />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600 shrink-0">
+            <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-[11px] font-bold text-emerald-600 shrink-0">
               {symbol?.slice(0, 2) ?? "??"}
             </div>
           )}
@@ -1332,13 +1332,13 @@ export default function RedeemModal(props: RedeemModalProps) {
             {isWalletMode ? (
               <>
                 {/* Token row */}
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
-                  <span className="text-sm text-gray-500">Token</span>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-black/[0.06]">
+                  <span className="text-[13px] text-gray-500">Token</span>
                   <button
                     onClick={() => setShowTokenPicker(true)}
-                    className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 active:scale-95 transition-all"
+                    className="flex items-center gap-2 bg-white border border-black/[0.06] rounded-full px-3 py-1.5 hover:border-black/[0.15] active:scale-95 transition-all"
                   >
-                    <div className="w-5 h-5 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center shrink-0 border border-gray-300">
+                    <div className="w-5 h-5 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center shrink-0 border border-black/[0.06]">
                       {logo ? (
                         <Image
                           src={sanitizeNextImageSrc(logo)}
@@ -1353,7 +1353,7 @@ export default function RedeemModal(props: RedeemModalProps) {
                         </span>
                       )}
                     </div>
-                    <span className="text-sm font-semibold">
+                    <span className="text-[13px] font-semibold">
                       {symbol ?? "Select token"}
                     </span>
                     <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
@@ -1362,9 +1362,9 @@ export default function RedeemModal(props: RedeemModalProps) {
 
                 {/* Balance */}
                 {selectedToken && (
-                  <p className="text-xs text-gray-400 -mt-1 px-1">
+                  <p className="text-[12px] text-gray-400 -mt-1 px-1">
                     Available:{" "}
-                    <span className="font-medium text-gray-600">
+                    <span className="font-medium text-gray-600 font-mono tabular-nums">
                       {Number(selectedToken.balance).toLocaleString(undefined, {
                         maximumFractionDigits: 4,
                       })}{" "}
@@ -1375,7 +1375,7 @@ export default function RedeemModal(props: RedeemModalProps) {
 
                 {/* Amount input */}
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-gray-700">
+                  <Label className="text-[13px] font-medium text-gray-700">
                     Total tokens to share
                   </Label>
                   <div className="relative">
@@ -1386,7 +1386,7 @@ export default function RedeemModal(props: RedeemModalProps) {
                       onChange={handleDepositChange}
                       disabled={!selectedToken}
                       className={cn(
-                        "pr-24 rounded-xl",
+                        "pr-24 rounded-xl font-mono tabular-nums",
                         depositExceedsBalance &&
                           "border-red-400 focus-visible:ring-red-400",
                       )}
@@ -1398,15 +1398,15 @@ export default function RedeemModal(props: RedeemModalProps) {
                       <button
                         onClick={handleMaxDeposit}
                         disabled={!selectedToken}
-                        className="text-xs bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed px-2 py-1 rounded-md text-gray-600 font-medium transition-colors"
+                        className="text-[11px] bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed px-2 py-1 rounded-full text-gray-600 font-medium transition-colors"
                       >
                         MAX
                       </button>
-                      <span className="text-xs text-gray-400">{symbol ?? "—"}</span>
+                      <span className="text-[11px] text-gray-400">{symbol ?? "—"}</span>
                     </div>
                   </div>
                   {depositExceedsBalance && (
-                    <p className="text-xs text-red-500">
+                    <p className="text-[12px] text-red-500">
                       Amount exceeds your balance of{" "}
                       {Number(selectedToken?.balance ?? 0).toFixed(4)} {symbol}.
                     </p>
@@ -1415,9 +1415,9 @@ export default function RedeemModal(props: RedeemModalProps) {
               </>
             ) : (
               /* ════ TOKEN MODE: show fixed amount ════ */
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
-                <span className="text-sm text-gray-500">You&apos;re sharing</span>
-                <span className="text-base font-semibold text-gray-900">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-black/[0.06]">
+                <span className="text-[13px] text-gray-500">You&apos;re sharing</span>
+                <span className="text-[13px] font-semibold text-gray-900 font-mono tabular-nums">
                   {totalToken.toFixed(4)} {symbol}
                 </span>
               </div>
@@ -1425,7 +1425,7 @@ export default function RedeemModal(props: RedeemModalProps) {
 
             {/* ── How many people ── */}
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+              <Label className="text-[13px] font-medium text-gray-700 flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-gray-400" />
                 How many people can claim?
               </Label>
@@ -1437,15 +1437,15 @@ export default function RedeemModal(props: RedeemModalProps) {
                 min="1"
                 step="1"
                 disabled={isWalletMode && totalToken <= 0}
-                className="rounded-xl"
+                className="rounded-xl font-mono tabular-nums"
               />
             </div>
 
             {/* ── Per-person summary pill ── */}
             {tokensPerWallet > 0 && (
-              <div className="flex items-center justify-between px-4 py-3 bg-indigo-50 rounded-xl">
-                <span className="text-sm text-indigo-700">Each person gets</span>
-                <span className="text-sm font-semibold text-indigo-800">
+              <div className="flex items-center justify-between px-4 py-3 bg-emerald-50 rounded-xl">
+                <span className="text-[13px] text-emerald-700">Each person gets</span>
+                <span className="text-[13px] font-semibold text-emerald-800 font-mono tabular-nums">
                   {tokensPerWallet.toFixed(4)} {symbol}
                 </span>
               </div>
@@ -1455,10 +1455,10 @@ export default function RedeemModal(props: RedeemModalProps) {
             {hasInsufficientSol && (
               <div className="flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
                 <span className="text-amber-600 text-base leading-none mt-0.5">⚠️</span>
-                <p className="text-sm text-amber-700">
+                <p className="text-[13px] text-amber-700">
                   You need a bit more SOL to process this transaction. Add at
                   least{" "}
-                  <span className="font-medium">
+                  <span className="font-medium font-mono tabular-nums">
                     {(requiredSol - solBalance).toFixed(4)} SOL
                   </span>{" "}
                   to your wallet.

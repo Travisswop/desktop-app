@@ -62,9 +62,9 @@ const tokenValue = (t: TokenData): number => {
 };
 
 const ErrorAlert = ({ message }: { message: string }) => (
-  <div className="m-4 p-3 bg-red-50 rounded-lg flex items-center gap-2 border border-red-100">
+  <div className="m-4 p-3 bg-red-50 rounded-xl flex items-center gap-2 border border-red-100">
     <AlertCircle className="w-4 h-4 text-red-500" />
-    <p className="text-xs text-red-600">{message}</p>
+    <p className="text-[12px] text-red-600">{message}</p>
   </div>
 );
 
@@ -225,7 +225,7 @@ function TokenRow({
       <div className="flex justify-end">
         <span
           aria-hidden
-          className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg border border-black/[0.06] bg-[#fafafa] text-gray-700"
+          className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-full border border-black/[0.06] bg-[#fafafa] text-gray-700"
         >
           <svg
             width="13"
@@ -304,7 +304,7 @@ const TokenList = ({
         {error && (
           <ErrorAlert message="Some tokens couldn't be loaded." />
         )}
-        <div className="px-5 py-10 text-center text-sm text-gray-500">
+        <div className="px-5 py-10 text-center text-[13px] text-gray-500">
           No tokens found in your wallet
         </div>
       </div>

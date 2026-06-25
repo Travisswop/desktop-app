@@ -1,21 +1,21 @@
 {
-    "applinks": {
-        "apps": [],
-        "details": [
-            {
-                "appID": "4NLANVU2F2.co.swopme.mobile",
-                "paths": [ "/checkout/*" ]
-            },
-            {
-                "appID": "4NLANVU2F2.com.travisheron.swop",
-                "paths": [ "*" ]
-            }
-        ]
-    },
-    "webcredentials": {
-        "apps": [
-            "4NLANVU2F2.co.swopme.mobile",
-            "4NLANVU2F2.com.travisheron.swop"
-        ]
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "4NLANVU2F2.co.swopme.mobile",
+        "paths": ["/checkout/*"]
+      },
+      {
+        "appID": "4NLANVU2F2.com.travisheron.swop",
+        "paths": ["*"]
       }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "4NLANVU2F2.co.swopme.mobile",
+      "4NLANVU2F2.com.travisheron.swop"
+    ]
+  }
 }

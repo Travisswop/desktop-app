@@ -21,6 +21,24 @@ type AaveApiResponse<T> = {
   error?: string;
 };
 
+type RetryableAaveDataError = Error & { retryable?: boolean };
+
+const createRetryableAaveDataError = (): RetryableAaveDataError => {
+  const error = new Error(
+    'Aave RPC providers temporarily unavailable'
+  ) as RetryableAaveDataError;
+  error.retryable = true;
+  return error;
+};
+
+const isRetryableAaveDataError = (
+  error: unknown
+): error is RetryableAaveDataError =>
+  error instanceof Error && Boolean((error as RetryableAaveDataError).retryable);
+
+const hasNoAavePositions = (data: AavePositionsData) =>
+  (data.supplies || []).length === 0 && (data.borrows || []).length === 0;
+
 async function fetchAave<T>(path: string, accessToken?: string): Promise<T> {
   const response = await apiFetch(buildSwopApiUrl(`/api/v5/defi/aave/${path}`), {
     method: 'GET',
@@ -62,14 +80,21 @@ export function useAavePositions(
 ) {
   return useQuery({
     queryKey: ['aave-positions', chain, address],
-    queryFn: () =>
-      fetchAave<AavePositionsData>(
+    queryFn: async () => {
+      const data = await fetchAave<AavePositionsData>(
         `positions?chain=${chain}&address=${address}`,
         accessToken,
-      ),
+      );
+      if (data.degraded && hasNoAavePositions(data)) {
+        throw createRetryableAaveDataError();
+      }
+      return data;
+    },
     enabled: Boolean(address && accessToken) && options.enabled !== false,
     refetchInterval: options.refetchInterval ?? 30_000,
     staleTime: 10_000,
-    retry: 2,
+    retry: (failureCount, error) =>
+      isRetryableAaveDataError(error) ? failureCount < 3 : failureCount < 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
 }

@@ -148,6 +148,40 @@ describe('checkout payment amounts', () => {
     expect(amount).toBe('0.100500');
   });
 
+  it('adds a dust buffer for one-cent pUSD LiFi checkout payments', () => {
+    const oneCentIntent = {
+      ...baseIntent,
+      amount: {
+        value: 0.01,
+        currency: 'USDC',
+      },
+      fees: {
+        currency: 'USDC',
+        merchantReceivesAmount: 0.01,
+        platformFeeBps: 50,
+        platformFeeAmount: 0.015,
+        slippageBps: 50,
+        totalDueAmount: 0.025,
+      },
+    } as CheckoutIntent;
+    const amount = calculateCheckoutTokenAmount(
+      oneCentIntent,
+      token({
+        name: 'Polymarket USD',
+        symbol: 'pUSD',
+        chain: 'POLYGON',
+        decimals: 6,
+        address: '0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB',
+        walletAddress: '0xf76ec7cf74bd7a3c53cb2bf8c8c625ed59bf6168',
+        marketData: {
+          price: '0.999977',
+        },
+      })
+    );
+
+    expect(amount).toBe('0.025335');
+  });
+
   it('returns no price-based estimate for unpriced non-USDC tokens', () => {
     // These tokens are sized by a live Jupiter ExactOut quote instead.
     const amount = calculateCheckoutTokenAmount(

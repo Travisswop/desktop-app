@@ -17,6 +17,9 @@ interface CustomModalProps {
   ariaLabel?: string;
 }
 
+let bodyScrollLockCount = 0;
+let originalBodyOverflow = '';
+
 const CustomModal: React.FC<CustomModalProps> = ({
   isOpen,
   onClose,
@@ -38,19 +41,24 @@ const CustomModal: React.FC<CustomModalProps> = ({
     setMounted(true);
   }, []);
 
-  // Lock body scroll when modal is open
   useEffect(() => {
-    if (isOpen) {
-      // Save current overflow value
-      const originalOverflow = document.body.style.overflow;
-      // Prevent scrolling
-      document.body.style.overflow = 'hidden';
+    if (!isOpen) return;
 
-      // Restore original overflow when modal closes
-      return () => {
-        document.body.style.overflow = originalOverflow;
-      };
+    if (bodyScrollLockCount === 0) {
+      originalBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
     }
+
+    bodyScrollLockCount += 1;
+
+    return () => {
+      bodyScrollLockCount = Math.max(0, bodyScrollLockCount - 1);
+
+      if (bodyScrollLockCount === 0) {
+        document.body.style.overflow = originalBodyOverflow;
+        originalBodyOverflow = '';
+      }
+    };
   }, [isOpen]);
 
   const handleBackdropMouseDown = (

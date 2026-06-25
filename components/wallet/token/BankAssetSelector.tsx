@@ -71,7 +71,7 @@ export default function BankAssetSelector({
         key={asset.symbol}
         onClick={() => handleAssetSelect(asset)}
         // onClick={() => onNext(asset)}
-        className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors shadow-md"
+        className="w-full flex items-center justify-between p-3 rounded-xl border border-black/[0.06] hover:border-black/[0.15] transition"
       >
         <div className="flex items-center gap-3">
           {asset.logoURI && (
@@ -83,17 +83,21 @@ export default function BankAssetSelector({
               className="rounded-full"
             />
           )}
-          <span className="font-medium">{asset.name}</span>
+          <span className="text-[13px] font-medium text-gray-900">
+            {asset.name}
+          </span>
         </div>
         <div className="text-right">
-          <div className="font-medium">
+          <div className="text-[13px] font-medium font-mono tabular-nums text-gray-900">
             {asset.marketData?.price ? (
               <>${parseFloat(asset.marketData.price).toFixed(4)}</>
             ) : (
-              <span className="text-gray-500">Price unavailable</span>
+              <span className="font-sans text-gray-500">
+                Price unavailable
+              </span>
             )}
           </div>
-          <div className="text-sm text-gray-500">
+          <div className="text-[12px] text-gray-500 font-mono tabular-nums">
             {asset.balance && (
               <>
                 {parseFloat(asset.balance).toFixed(4)} {asset.symbol}
@@ -111,7 +115,7 @@ export default function BankAssetSelector({
       <button
         key={`${nft.name}-${nft.tokenId}`}
         onClick={() => onNFTNext(nft)}
-        className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors shadow-md"
+        className="w-full flex items-center justify-between p-3 rounded-xl border border-black/[0.06] hover:border-black/[0.15] transition"
       >
         <div className="flex items-center gap-3">
           {nft.image && (
@@ -124,7 +128,9 @@ export default function BankAssetSelector({
             />
           )}
           <div>
-            <div className="font-medium">{nft.name}</div>
+            <div className="text-[13px] font-medium text-gray-900">
+              {nft.name}
+            </div>
           </div>
         </div>
       </button>
@@ -133,10 +139,10 @@ export default function BankAssetSelector({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-6 rounded-3xl">
+      <DialogContent className="max-w-md p-6 rounded-2xl">
         <DialogHeader className="space-y-4">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-semibold">
+            <DialogTitle className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
               Choose asset
             </DialogTitle>
             <button
@@ -169,7 +175,7 @@ export default function BankAssetSelector({
           {tab === 'crypto' && filteredAssets.length > 0 ? (
             filteredAssets.map(renderAssetItem)
           ) : tab === 'crypto' ? (
-            <div className="text-center text-gray-500 py-4">
+            <div className="text-center text-[13px] text-gray-500 py-4">
               No crypto assets found
             </div>
           ) : null}
@@ -177,7 +183,7 @@ export default function BankAssetSelector({
           {tab === 'nft' && filteredNfts.length > 0 ? (
             filteredNfts.map(renderNFTItem)
           ) : tab === 'nft' ? (
-            <div className="text-center text-gray-500 py-4">
+            <div className="text-center text-[13px] text-gray-500 py-4">
               No NFTs found
             </div>
           ) : null}

@@ -6,6 +6,7 @@ import type {
 } from '@/types/aave';
 
 export type DefiFeedAction = 'supply' | 'borrow';
+export type DefiFeedStatus = 'open' | 'withdrawn' | 'repaid' | 'closed' | string;
 export type DefiProjectionYears = 1 | 3 | 5 | 10;
 
 export interface DefiBenchmarkRate {
@@ -21,7 +22,8 @@ export interface DefiFeedContent {
   protocol?: string;
   chain?: AaveChain | string;
   action?: DefiFeedAction | AaveActionMode | string;
-  status?: 'open' | 'closed' | string;
+  status?: DefiFeedStatus;
+  event?: AaveActionMode | string;
   txHash?: string;
   walletAddress?: string;
   asset?: string;
@@ -39,6 +41,9 @@ export interface DefiFeedContent {
   benchmarkAsOf?: string;
   createdAt?: string;
   updatedAt?: string;
+  closedAt?: string;
+  withdrawnAt?: string;
+  repaidAt?: string;
 }
 
 export interface DefiProjectionPoint {
@@ -225,10 +230,12 @@ export function buildAaveFeedContent({
   amountUsd: number;
   walletAddress?: string | null;
 }): DefiFeedContent | null {
-  if (mode !== 'supply' && mode !== 'borrow') return null;
-  const action = normalizeDefiAction(mode);
+  const action =
+    mode === 'borrow' || mode === 'repay' ? 'borrow' : 'supply';
   const benchmark = getBenchmarkForDefiAction(action);
   const now = new Date().toISOString();
+  const status =
+    mode === 'withdraw' ? 'withdrawn' : mode === 'repay' ? 'repaid' : 'open';
 
   return {
     positionKey: buildAavePositionKey({
@@ -240,7 +247,8 @@ export function buildAaveFeedContent({
     protocol: 'Aave v3',
     chain,
     action,
-    status: 'open',
+    status,
+    event: mode,
     txHash,
     walletAddress: walletAddress || undefined,
     asset: reserve.asset,
@@ -259,6 +267,8 @@ export function buildAaveFeedContent({
     benchmarkAsOf: benchmark.asOf,
     createdAt: now,
     updatedAt: now,
+    ...(status === 'withdrawn' ? { closedAt: now, withdrawnAt: now } : {}),
+    ...(status === 'repaid' ? { closedAt: now, repaidAt: now } : {}),
   };
 }
 

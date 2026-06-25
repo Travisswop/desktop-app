@@ -17,6 +17,7 @@ import Image from 'next/image';
 import { useDebounce } from 'use-debounce';
 
 import CustomModal from '@/components/modal/CustomModal';
+import { Chip } from '@/components/ui/bento';
 import TokenImage from './token-image';
 import { TokenData } from '@/types/token';
 import { ReceiverData } from '@/types/wallet';
@@ -69,10 +70,7 @@ const validateSolanaAddress = (a: string) =>
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className="text-[10.5px] font-bold uppercase tracking-[1.2px] text-gray-500 mb-2"
-      style={{ fontFamily: MONO }}
-    >
+    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400 mb-2">
       {children}
     </div>
   );
@@ -547,10 +545,10 @@ export default function SendTokenModal({
       >
         <div className="bg-white p-7 flex flex-col items-center text-center gap-5">
           <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center">
-            <CheckCircle className="w-9 h-9 text-emerald-500" />
+            <CheckCircle className="w-9 h-9 text-emerald-600" />
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em] text-gray-900">
               Your link is ready
             </h2>
             <p className="text-[13px] text-gray-500 mt-1">
@@ -582,7 +580,7 @@ export default function SendTokenModal({
             <button
               type="button"
               onClick={handleCopyLink}
-              className="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-semibold text-gray-900 px-2 py-1 rounded-md hover:bg-white transition"
+              className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-gray-900 px-2 py-1 rounded-full hover:bg-white transition"
             >
               <Copy className="w-3.5 h-3.5" />
               Copy
@@ -596,7 +594,7 @@ export default function SendTokenModal({
               )}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-black/[0.06] text-[13px] font-semibold text-gray-900 hover:bg-gray-50 transition"
+              className="flex items-center justify-center gap-2 py-2.5 rounded-full border border-black/[0.06] text-[13px] font-semibold text-gray-900 hover:border-black/[0.15] transition"
             >
               WhatsApp
             </a>
@@ -606,7 +604,7 @@ export default function SendTokenModal({
               )}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-black/[0.06] text-[13px] font-semibold text-gray-900 hover:bg-gray-50 transition"
+              className="flex items-center justify-center gap-2 py-2.5 rounded-full border border-black/[0.06] text-[13px] font-semibold text-gray-900 hover:border-black/[0.15] transition"
             >
               Share on X
             </a>
@@ -615,7 +613,7 @@ export default function SendTokenModal({
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="w-full py-3 rounded-xl bg-gray-900 text-white text-[14px] font-bold hover:bg-gray-800 transition"
+            className="w-full inline-flex h-10 items-center justify-center gap-2 rounded-full bg-gray-950 px-4 text-[13px] font-semibold text-white transition hover:bg-gray-800"
           >
             Done
           </button>
@@ -635,13 +633,10 @@ export default function SendTokenModal({
         {/* Header */}
         <div className="px-6 py-4 border-b border-black/[0.06] flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span
-              className="text-[10.5px] font-bold uppercase tracking-[1.4px] text-gray-500"
-              style={{ fontFamily: MONO }}
-            >
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400">
               SEND
             </span>
-            <span className="text-[11.5px] text-gray-500 truncate">
+            <span className="text-[12px] text-gray-500 truncate">
               {linkAvailable
                 ? 'Send via address or shareable link'
                 : 'Transfer crypto to a wallet, ENS, or Swop user'}
@@ -651,7 +646,7 @@ export default function SendTokenModal({
             type="button"
             onClick={() => onOpenChange(false)}
             aria-label="Close"
-            className="w-7 h-7 rounded-lg border border-black/[0.06] bg-[#fafafa] flex items-center justify-center hover:bg-gray-100 transition flex-shrink-0"
+            className="w-7 h-7 rounded-full border border-black/[0.06] bg-[#fafafa] flex items-center justify-center hover:bg-gray-100 transition flex-shrink-0"
           >
             <X size={13} />
           </button>
@@ -693,7 +688,7 @@ export default function SendTokenModal({
                         : 'bg-transparent hover:bg-white/60'
                     }`}
                   >
-                    <span className="w-7 h-7 rounded-lg border border-black/[0.06] bg-[#fafafa] inline-flex items-center justify-center flex-shrink-0">
+                    <span className="w-7 h-7 rounded-full border border-black/[0.06] bg-[#fafafa] inline-flex items-center justify-center flex-shrink-0">
                       <Icon className="w-3.5 h-3.5 text-gray-900" />
                     </span>
                     <span className="min-w-0">
@@ -754,14 +749,9 @@ export default function SendTokenModal({
             <SectionLabel>Amount</SectionLabel>
             <div className="flex gap-1.5">
               {[25, 50, 100].map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPercent(p)}
-                  className="inline-flex items-center h-7 px-2.5 rounded-full text-[12px] font-medium border border-black/[0.06] bg-white text-gray-900 hover:border-black/[0.15] transition"
-                >
+                <Chip key={p} onClick={() => setPercent(p)}>
                   {p === 100 ? 'Max' : `${p}%`}
-                </button>
+                </Chip>
               ))}
             </div>
           </div>
@@ -797,14 +787,14 @@ export default function SendTokenModal({
               onClick={toggleCurrency}
               type="button"
               disabled={!hasPrice}
-              className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-black/[0.06] bg-white text-[11.5px] font-semibold text-gray-900 hover:border-black/[0.15] transition disabled:opacity-50"
+              className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-black/[0.06] bg-white text-[12px] font-semibold text-gray-900 hover:border-black/[0.15] transition disabled:opacity-50"
             >
               {isUSD ? 'USD' : token.symbol}
               <ArrowUpDown size={11} className="text-gray-400" />
             </button>
           </div>
           {overBalance && (
-            <div className="text-[11.5px] text-red-600 mt-1.5">
+            <div className="text-[11.5px] text-red-500 mt-1.5">
               Exceeds your balance.
             </div>
           )}
@@ -816,7 +806,7 @@ export default function SendTokenModal({
             <div className="px-6 pt-3 pb-2">
               <SectionLabel>Claim link</SectionLabel>
               <div className="flex items-center gap-3 p-3.5 rounded-xl border border-dashed border-black/[0.15] bg-white">
-                <div className="w-9 h-9 rounded-xl bg-gray-900 inline-flex items-center justify-center flex-shrink-0">
+                <div className="w-9 h-9 rounded-full bg-gray-950 inline-flex items-center justify-center flex-shrink-0">
                   <Gift className="w-4 h-4 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -908,7 +898,7 @@ export default function SendTokenModal({
                   </div>
                 )}
                 {hasInsufficientSol && (
-                  <div className="text-[11.5px] text-red-600 mt-1.5">
+                  <div className="text-[11.5px] text-red-500 mt-1.5">
                     Need {requiredSol.toFixed(5)} SOL to cover rent
                     for {maxWalletsNum} claim accounts (you have{' '}
                     {solBalance.toFixed(5)}).
@@ -954,7 +944,7 @@ export default function SendTokenModal({
                   </div>
                 </div>
                 <span
-                  className="inline-flex items-center px-2 py-1 rounded-full text-[10.5px] font-semibold text-emerald-700 bg-emerald-50"
+                  className="inline-flex items-center px-2 py-1 rounded-full text-[10.5px] font-semibold text-emerald-600 bg-emerald-50"
                   style={{ fontFamily: MONO }}
                 >
                   <Check className="w-3 h-3 mr-1" />
@@ -964,7 +954,7 @@ export default function SendTokenModal({
                   type="button"
                   onClick={clearRecipient}
                   aria-label="Clear recipient"
-                  className="p-1 hover:bg-gray-200 rounded-md flex-shrink-0"
+                  className="p-1 hover:bg-gray-200 rounded-full flex-shrink-0"
                 >
                   <X size={14} className="text-gray-500" />
                 </button>
@@ -988,7 +978,7 @@ export default function SendTokenModal({
                     <button
                       type="button"
                       onClick={handlePickExternalEns}
-                      className="inline-flex items-center px-2 py-1 rounded-full text-[10.5px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition flex-shrink-0"
+                      className="inline-flex items-center px-2 py-1 rounded-full text-[10.5px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition flex-shrink-0"
                       style={{ fontFamily: MONO }}
                     >
                       use ENS
@@ -998,7 +988,7 @@ export default function SendTokenModal({
                   <button
                     type="button"
                     onClick={handlePickAddress}
-                    className="inline-flex items-center px-2 py-1 rounded-full text-[10.5px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition flex-shrink-0"
+                    className="inline-flex items-center px-2 py-1 rounded-full text-[10.5px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition flex-shrink-0"
                     style={{ fontFamily: MONO }}
                   >
                     use
@@ -1014,7 +1004,7 @@ export default function SendTokenModal({
 
             {/* Search results dropdown */}
             {!recipient && searchResults.length > 0 && (
-              <div className="absolute left-6 right-6 mt-2 bg-white border border-black/[0.06] rounded-xl shadow-lg z-10 max-h-60 overflow-y-auto">
+              <div className="absolute left-6 right-6 mt-2 bg-white border border-black/[0.06] rounded-xl shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] z-10 max-h-60 overflow-y-auto">
                 {searchResults.map((r) => (
                   <button
                     key={r._id}
@@ -1163,7 +1153,7 @@ export default function SendTokenModal({
         {/* Link error inline */}
         {method === 'link' && linkStatus === 'error' && linkError && (
           <div className="px-6 -mt-1 pb-2">
-            <div className="text-[11.5px] text-red-600 leading-snug">
+            <div className="text-[11.5px] text-red-500 leading-snug">
               {linkError}
             </div>
           </div>
@@ -1175,7 +1165,7 @@ export default function SendTokenModal({
             type="button"
             onClick={() => onOpenChange(false)}
             disabled={isCreatingLink}
-            className="py-3 rounded-xl bg-[#fafafa] border border-black/[0.06] text-[14px] font-semibold text-gray-900 hover:bg-gray-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex h-10 items-center justify-center rounded-full bg-[#fafafa] border border-black/[0.06] text-[13px] font-semibold text-gray-900 hover:border-black/[0.15] transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
@@ -1183,7 +1173,7 @@ export default function SendTokenModal({
             type="button"
             onClick={handleReview}
             disabled={!canReview}
-            className="py-3 rounded-xl bg-gray-900 text-white text-[14px] font-bold tracking-tight hover:bg-gray-800 transition disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-gray-950 px-4 text-[13px] font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
           >
             {isCreatingLink && (
               <Loader2 className="w-4 h-4 animate-spin" />

@@ -70,14 +70,6 @@ const PERIOD_INTERVAL: Record<Period, string> = {
   ALL: '1D',
 };
 
-const FALLBACK_POINT_COUNT: Record<Period, number> = {
-  '1D': 24,
-  '1W': 28,
-  '1M': 36,
-  '1Y': 52,
-  ALL: 60,
-};
-
 const CHART_HEIGHT = 160;
 const AVATAR_RADIUS = 18;
 const AVATAR_BORDER = AVATAR_RADIUS + 3;
@@ -278,20 +270,14 @@ function fallbackPoints(
     [liveMarkPrice, content.markPrice, content.entryPrice],
     entry,
   );
-  const direction = mark >= entry ? 1 : -1;
-  const count = FALLBACK_POINT_COUNT[selectedPeriod];
   const now = Date.now();
   const windowMs = PERIOD_MS[selectedPeriod] || PERIOD_MS['1Y'] || 0;
   const start = now - windowMs;
 
-  return Array.from({ length: count }, (_, index) => {
-    const progress = index / Math.max(1, count - 1);
-    const wave = Math.sin(index * 1.45) * entry * 0.012;
-    const drift = (mark - entry) * progress;
-    const bend = direction * Math.sin(progress * Math.PI) * entry * 0.018;
+  return [entry, mark].map((price, index) => {
     return {
-      price: Math.max(0.000001, entry + drift + wave + bend),
-      time: Math.floor((start + windowMs * progress) / 1000),
+      price: Math.max(0.000001, price),
+      time: Math.floor((index === 0 ? start : now) / 1000),
     };
   });
 }
@@ -370,7 +356,7 @@ export default function PerpsPositionFeedCard({
     feed.smartsiteUserName ||
     'SW';
 
-  const [selectedPeriod, setSelectedPeriod] = useState<Period>('1D');
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>('1W');
   const candleInterval = PERIOD_INTERVAL[selectedPeriod];
   const normalizedCoin = normalizePerpsCoin(rawCoin);
   const marketCoin = normalizedCoin?.requestCoin || coin;
@@ -435,10 +421,10 @@ export default function PerpsPositionFeedCard({
       .map((bar) => ({ time: bar.time, price: bar.close }))
       .filter((point) => Number.isFinite(point.price) && point.price > 0);
     const livePoints = pointsWithLiveMark(live, liveMarkPrice);
-    return livePoints.length >= 2
-      ? livePoints
-      : fallbackPoints(content, selectedPeriod, liveMarkPrice);
-  }, [bars, content, liveMarkPrice, selectedPeriod]);
+    if (livePoints.length >= 2) return livePoints;
+    if (isLoading) return [];
+    return fallbackPoints(content, selectedPeriod, liveMarkPrice);
+  }, [bars, content, isLoading, liveMarkPrice, selectedPeriod]);
 
   useEffect(() => {
     if (selectedIndex !== null && selectedIndex >= points.length) {

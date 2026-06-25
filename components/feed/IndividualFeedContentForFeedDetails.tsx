@@ -8,12 +8,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { GoDotFill } from "react-icons/go";
 import PostTypeMedia from "./view/PostTypeMedia";
-import Link from "next/link";
-import { FiPlusCircle } from "react-icons/fi";
 import { formatEns } from "@/lib/formatEnsName";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import TokenTransferFeedCard from "./TokenTransferFeedCard";
 import PerpsFeedCard from "./PerpsFeedCard";
+import ProductFeedCard from "./ProductFeedCard";
+import { isProductFeedPost } from "./productFeedUtils";
 
 const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -137,6 +137,7 @@ const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
             </p>
             {/* Render Post Content */}
             {feed.repostedPostDetails.postType === "post" &&
+              !isProductFeedPost(feed.repostedPostDetails) &&
               feed.repostedPostDetails.content.title && (
                 <div className="w-full text-start">
                   {feed.repostedPostDetails.content.title
@@ -225,34 +226,15 @@ const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
         </div>
         <div>
           {feed.repostedPostDetails.postType === "post" &&
+            !isProductFeedPost(feed.repostedPostDetails) &&
             feed.repostedPostDetails.content.post_content.length > 0 && (
               <PostTypeMedia
                 mediaFiles={feed.repostedPostDetails.content.post_content}
                 isFromRepost={true}
               />
             )}
-          {feed.repostedPostDetails.postType === "minting" && (
-            <div className="w-max">
-              <p>{feed.repostedPostDetails.content.title}</p>
-              <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-                <Link
-                  onClick={(e) => e.stopPropagation()}
-                  href={feed.repostedPostDetails.content.link}
-                  className="w-max"
-                >
-                  <Image
-                    src={feed.repostedPostDetails.content.image}
-                    alt="nft image"
-                    width={200}
-                    height={200}
-                  />
-                  <p className="text-center text-sm text-gray-500 font-medium">
-                    {feed.repostedPostDetails.content.price}
-                  </p>
-                  <FiPlusCircle className="absolute top-2 right-2" size={24} />
-                </Link>
-              </div>
-            </div>
+          {isProductFeedPost(feed.repostedPostDetails) && (
+            <ProductFeedCard feed={feed.repostedPostDetails} compact />
           )}
         </div>
       </div>

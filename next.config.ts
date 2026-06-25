@@ -147,6 +147,7 @@ const nextConfig: NextConfig = {
   },
 
   images: {
+    qualities: [75, 100],
     // Single wildcard allows any HTTPS host.
     // Token logos in the swap/bridge UI come from hundreds of arbitrary CDNs
     // (CoinGecko, TrustWallet, 1inch, backed.fi, prestocks.com, etc.) that

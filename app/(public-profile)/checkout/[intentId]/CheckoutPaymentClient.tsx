@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   useConnectWallet,
@@ -197,6 +197,26 @@ function formatCurrency(value?: number, currency = 'USDC') {
   })} ${currency}`;
 }
 
+type CheckoutAmountBreakdown = ReturnType<typeof getCheckoutAmounts>;
+
+function roundCheckoutAmount(value: number) {
+  return Number(value.toFixed(6));
+}
+
+function isMinimumCheckoutFee(amounts: CheckoutAmountBreakdown | null) {
+  if (!amounts) return false;
+  const percentageFeeAmount = roundCheckoutAmount(
+    amounts.merchantReceivesAmount * (amounts.platformFeeBps / 10000)
+  );
+  return amounts.platformFeeAmount > percentageFeeAmount + 0.000001;
+}
+
+function checkoutFeeLabel(amounts: CheckoutAmountBreakdown | null) {
+  if (!amounts) return 'Swop fee';
+  if (isMinimumCheckoutFee(amounts)) return 'Swop fee (minimum)';
+  return `Swop fee (${(amounts.platformFeeBps / 100).toFixed(2)}%)`;
+}
+
 function formatCheckoutTotal(value?: number, currency = 'USDC') {
   const amount = Number(value || 0);
   const normalizedCurrency = currency.toUpperCase();
@@ -338,6 +358,19 @@ function humanizeCheckoutError(error: unknown, fallback: string) {
     message.includes('rejected the request')
   ) {
     return 'You cancelled the request in your wallet. Try again when you’re ready to approve it.';
+  }
+
+  if (
+    (message.includes('insufficient') &&
+      (message.includes('rent') ||
+        message.includes('fee payer') ||
+        message.includes('network fee') ||
+        message.includes('sponsor') ||
+        message.includes('transaction simulation failed'))) ||
+    message.includes('insufficient funds for rent') ||
+    message.includes('rent-exempt')
+  ) {
+    return 'Swop could not complete the sponsored Solana network setup for this payment. Your token balance is not the problem, so try again or choose another token.';
   }
 
   if (
@@ -604,13 +637,19 @@ function PhantomMark({ className = '' }: { className?: string }) {
   );
 }
 
+type CheckoutPaymentClientProps = {
+  intentId: string;
+  initialScanMethod?: ScanMethod;
+  fallbackHref?: string;
+  fallbackLabel?: string;
+  onClose?: () => void;
+};
+
 export default function CheckoutPaymentClient({
   intentId,
   initialScanMethod = 'swop',
-}: {
-  intentId: string;
-  initialScanMethod?: ScanMethod;
-}) {
+  onClose,
+}: CheckoutPaymentClientProps) {
   const router = useRouter();
   const { login, ready, authenticated, user: privyUser } = usePrivy();
   const { connectWallet } = useConnectWallet();
@@ -641,6 +680,13 @@ export default function CheckoutPaymentClient({
   const selectedSignerReadyRef = useRef(false);
   const signerRestoreMissingMessageRef = useRef('');
   const copyFallbackInputRef = useRef<HTMLInputElement | null>(null);
+  const handleClose = useCallback(() => {
+    if (onClose) {
+      onClose();
+      return;
+    }
+    router.back();
+  }, [onClose, router]);
   const [quotedTokenAmount, setQuotedTokenAmount] = useState('');
   const [tokenAmountLoading, setTokenAmountLoading] = useState(false);
   const [tokenAmountQuoteError, setTokenAmountQuoteError] = useState<
@@ -1515,6 +1561,7 @@ export default function CheckoutPaymentClient({
       : selectedToken && tokenAmount
       ? `${formatTokenQuantity(tokenAmount)} ${selectedToken.symbol}`
       : '--';
+  const checkoutFeeText = checkoutFeeLabel(checkoutAmounts);
   const tokenBalanceText = selectedToken
     ? formatTokenQuantity(selectedToken.balance)
     : '--';
@@ -1555,7 +1602,7 @@ export default function CheckoutPaymentClient({
             </div>
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={handleClose}
               className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-[#e3e3e3] bg-[#f7f7f7] text-[#8a8f99] transition hover:border-[#d3d3d3] hover:text-[#101114]"
               aria-label="Close checkout"
             >
@@ -1764,6 +1811,17 @@ export default function CheckoutPaymentClient({
                   <dt className="text-[#7b8491]">Pay amount</dt>
                   <dd className="text-right font-bold">{tokenPaymentText}</dd>
                 </div>
+                {checkoutAmounts ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-[#7b8491]">{checkoutFeeText}</dt>
+                    <dd className="text-right font-bold">
+                      {formatCurrency(
+                        checkoutAmounts.platformFeeAmount,
+                        amountDueCurrency
+                      )}
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-[#7b8491]">Network fee</dt>
                   <dd className="flex items-center justify-end gap-2 text-right">
@@ -2610,12 +2668,7 @@ export default function CheckoutPaymentClient({
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <dt className="text-[#737b8c]">
-                    Checkout fee{' '}
-                    {checkoutAmounts
-                      ? `(${(checkoutAmounts.platformFeeBps / 100).toFixed(2)}%)`
-                      : ''}
-                  </dt>
+                  <dt className="text-[#737b8c]">{checkoutFeeText}</dt>
                   <dd className="font-semibold">
                     {formatCurrency(
                       checkoutAmounts?.platformFeeAmount,

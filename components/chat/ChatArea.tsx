@@ -17,6 +17,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useConnectWallet,
   usePrivy,
+  useSendTransaction,
   useWallets as useEvmWallets,
 } from '@privy-io/react-auth';
 import {
@@ -12628,6 +12629,10 @@ type ChatEvmWalletLike = {
   getEthereumProvider?: () => Promise<ChatEvmProvider | null>;
 };
 
+function isChatPrivyEmbeddedWalletType(walletClientType?: string | null) {
+  return walletClientType === 'privy' || walletClientType === 'privy-v2';
+}
+
 function normalizeChatEvmAddress(value?: string | null) {
   const trimmed = String(value || '').trim();
   return isChatEvmWalletAddress(trimmed) ? trimmed.toLowerCase() : '';
@@ -12686,10 +12691,16 @@ function getChatEvmWalletCandidates(
         if (bPreferred === -1) return -1;
         return aPreferred - bPreferred;
       }
-      if (a.walletClientType === 'privy' && b.walletClientType !== 'privy') {
+      if (
+        isChatPrivyEmbeddedWalletType(a.walletClientType) &&
+        !isChatPrivyEmbeddedWalletType(b.walletClientType)
+      ) {
         return -1;
       }
-      if (a.walletClientType !== 'privy' && b.walletClientType === 'privy') {
+      if (
+        !isChatPrivyEmbeddedWalletType(a.walletClientType) &&
+        isChatPrivyEmbeddedWalletType(b.walletClientType)
+      ) {
         return 1;
       }
       return 0;
@@ -12701,12 +12712,14 @@ async function resolveChatEvmWalletForTransaction({
   chainId,
   preferredAddresses,
   requiredNativeWei,
+  sponsoredRequiredNativeWei,
   networkLabel,
 }: {
   wallets: ChatEvmWalletLike[];
   chainId: number;
   preferredAddresses: Array<string | null | undefined>;
   requiredNativeWei: bigint;
+  sponsoredRequiredNativeWei?: bigint;
   networkLabel: string;
 }) {
   const chain = getChatSwapViemChain(chainId);
@@ -12747,7 +12760,12 @@ async function resolveChatEvmWalletForTransaction({
       bestBalance = balance;
       bestAddress = wallet.address || address;
     }
-    if (balance >= requiredNativeWei && provider) {
+    const walletRequiredNativeWei = isChatPrivyEmbeddedWalletType(
+      wallet.walletClientType
+    )
+      ? sponsoredRequiredNativeWei ?? requiredNativeWei
+      : requiredNativeWei;
+    if (balance >= walletRequiredNativeWei && provider) {
       return {
         wallet,
         provider,
@@ -12863,6 +12881,7 @@ function WalletSendProposalTicket({
   const { accessToken, user } = useUser();
   const queryClient = useQueryClient();
   const { wallets: evmWallets } = useEvmWallets();
+  const { sendTransaction: sendPrivyTransaction } = useSendTransaction();
   const { connectWallet } = useConnectWallet();
   const { wallets: solanaWallets, ready: solanaWalletsReady } =
     useSolanaWallets();
@@ -13085,7 +13104,7 @@ function WalletSendProposalTicket({
         const result = await signAndSendTransaction({
           transaction: new Uint8Array(serializedTransaction),
           wallet: selectedSolanaWallet,
-          options: { sponsor: false },
+          options: { sponsor: true, uiOptions: { showWalletUIs: false } },
         });
         hash =
           typeof result.signature === 'string'
@@ -13101,6 +13120,7 @@ function WalletSendProposalTicket({
         const requiredNativeWei =
           nativeValueWei + getChatEvmGasBufferWei(chainId);
         const {
+          wallet: evmWallet,
           provider,
           address: fromAddress,
         } = await resolveChatEvmWalletForTransaction({
@@ -13113,23 +13133,40 @@ function WalletSendProposalTicket({
             astroConsoleData.eoaAddress,
           ],
           requiredNativeWei,
+          sponsoredRequiredNativeWei: nativeValueWei,
           networkLabel: network,
         });
         senderAddress = fromAddress;
 
         if (!sendToken.address) {
-          const result = await provider.request({
-            method: 'eth_sendTransaction',
-            params: [
+          if (isChatPrivyEmbeddedWalletType(evmWallet.walletClientType)) {
+            const result = await sendPrivyTransaction(
               {
-                from: fromAddress,
-                to: recipientData.address,
-                value: ethers.toBeHex(nativeValueWei),
-                chainId: `0x${chainId.toString(16)}`,
+                to: recipientData.address as `0x${string}`,
+                value: nativeValueWei,
+                chainId,
               },
-            ],
-          });
-          hash = String(result || '');
+              {
+                sponsor: true,
+                address: fromAddress,
+                uiOptions: { showWalletUIs: false },
+              }
+            );
+            hash = String(result.hash || '');
+          } else {
+            const result = await provider.request({
+              method: 'eth_sendTransaction',
+              params: [
+                {
+                  from: fromAddress,
+                  to: recipientData.address,
+                  value: ethers.toBeHex(nativeValueWei),
+                  chainId: `0x${chainId.toString(16)}`,
+                },
+              ],
+            });
+            hash = String(result || '');
+          }
         } else {
           const erc20Interface = new ethers.Interface([
             'function transfer(address to, uint256 amount) returns (bool)',
@@ -13142,18 +13179,34 @@ function WalletSendProposalTicket({
             recipientData.address,
             amountInWei,
           ]);
-          const result = await provider.request({
-            method: 'eth_sendTransaction',
-            params: [
+          if (isChatPrivyEmbeddedWalletType(evmWallet.walletClientType)) {
+            const result = await sendPrivyTransaction(
               {
-                from: fromAddress,
-                to: sendToken.address,
-                data: tokenData,
-                chainId: `0x${chainId.toString(16)}`,
+                to: sendToken.address as `0x${string}`,
+                data: tokenData as `0x${string}`,
+                chainId,
               },
-            ],
-          });
-          hash = String(result || '');
+              {
+                sponsor: true,
+                address: fromAddress,
+                uiOptions: { showWalletUIs: false },
+              }
+            );
+            hash = String(result.hash || '');
+          } else {
+            const result = await provider.request({
+              method: 'eth_sendTransaction',
+              params: [
+                {
+                  from: fromAddress,
+                  to: sendToken.address,
+                  data: tokenData,
+                  chainId: `0x${chainId.toString(16)}`,
+                },
+              ],
+            });
+            hash = String(result || '');
+          }
         }
       }
 
@@ -15116,6 +15169,8 @@ async function ensureChatEvmSwapAllowance({
   chainId,
   provider,
   switchChain,
+  walletClientType,
+  sendPrivyTransaction,
 }: {
   tokenAddress: string;
   owner: string;
@@ -15124,6 +15179,11 @@ async function ensureChatEvmSwapAllowance({
   chainId: number;
   provider: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
   switchChain?: (chainId: number) => Promise<void>;
+  walletClientType?: string | null;
+  sendPrivyTransaction?: (
+    input: any,
+    options?: any
+  ) => Promise<{ hash?: `0x${string}` | string }>;
 }) {
   if (
     !tokenAddress ||
@@ -15153,6 +15213,25 @@ async function ensureChatEvmSwapAllowance({
     functionName: 'approve',
     args: [spender as `0x${string}`, BigInt(amountWei)],
   });
+
+  if (
+    sendPrivyTransaction &&
+    isChatPrivyEmbeddedWalletType(walletClientType)
+  ) {
+    await sendPrivyTransaction(
+      {
+        to: tokenAddress as `0x${string}`,
+        data: approveData,
+        chainId,
+      },
+      {
+        sponsor: true,
+        address: owner,
+        uiOptions: { showWalletUIs: false },
+      }
+    );
+    return;
+  }
 
   await provider.request({
     method: 'eth_sendTransaction',
@@ -15196,6 +15275,7 @@ function SwapProposalTicket({
   const { getAccessToken } = usePrivy();
   const queryClient = useQueryClient();
   const { wallets: evmWallets } = useEvmWallets();
+  const { sendTransaction: sendPrivyTransaction } = useSendTransaction();
   const { wallets: solanaWallets, ready: solanaWalletsReady } =
     useSolanaWallets();
   const { signTransaction } = useSignTransaction();
@@ -16071,6 +16151,7 @@ function SwapProposalTicket({
         const result = await signAndSendTransaction({
           transaction: new Uint8Array(transaction.serialize()),
           wallet: selectedSolanaWallet,
+          options: { sponsor: true, uiOptions: { showWalletUIs: false } },
         });
         txHash =
           typeof result.signature === 'string'
@@ -16127,6 +16208,7 @@ function SwapProposalTicket({
                 chainIdNumber,
                 estimatedTransactionCount
               ),
+            sponsoredRequiredNativeWei: transactionValueWei,
             networkLabel: selectedFromOption.chainName,
           });
         if (
@@ -16143,6 +16225,8 @@ function SwapProposalTicket({
             chainId: chainIdNumber,
             provider,
             switchChain: evmWallet.switchChain?.bind(evmWallet),
+            walletClientType: evmWallet.walletClientType,
+            sendPrivyTransaction,
           });
         }
 
@@ -16167,11 +16251,43 @@ function SwapProposalTicket({
         }
 
         setInlineSwapStatus('Sign swap...');
-        const hash = await provider.request({
-          method: 'eth_sendTransaction',
-          params: [rawTxRequest],
-        });
-        txHash = String(hash || '');
+        if (isChatPrivyEmbeddedWalletType(evmWallet.walletClientType)) {
+          const privyTxRequest: Record<string, unknown> = {
+            to: rawTxRequest.to as `0x${string}`,
+            data: rawTxRequest.data as `0x${string}`,
+            chainId: chainIdNumber,
+          };
+          const value = parseChatEvmQuantityToBigInt(rawTxRequest.value);
+          if (value > 0n) privyTxRequest.value = value;
+          const gas = parseChatEvmQuantityToBigInt(
+            rawTxRequest.gas ?? rawTxRequest.gasLimit
+          );
+          if (gas > 0n) privyTxRequest.gas = gas;
+          const gasPrice = parseChatEvmQuantityToBigInt(rawTxRequest.gasPrice);
+          if (gasPrice > 0n) privyTxRequest.gasPrice = gasPrice;
+          const maxFeePerGas = parseChatEvmQuantityToBigInt(
+            rawTxRequest.maxFeePerGas
+          );
+          if (maxFeePerGas > 0n) privyTxRequest.maxFeePerGas = maxFeePerGas;
+          const maxPriorityFeePerGas = parseChatEvmQuantityToBigInt(
+            rawTxRequest.maxPriorityFeePerGas
+          );
+          if (maxPriorityFeePerGas > 0n) {
+            privyTxRequest.maxPriorityFeePerGas = maxPriorityFeePerGas;
+          }
+          const result = await sendPrivyTransaction(privyTxRequest, {
+            sponsor: true,
+            address: fromAddress,
+            uiOptions: { showWalletUIs: false },
+          });
+          txHash = String(result.hash || '');
+        } else {
+          const hash = await provider.request({
+            method: 'eth_sendTransaction',
+            params: [rawTxRequest],
+          });
+          txHash = String(hash || '');
+        }
         txChainId = selectedFromOption.chainId;
       }
 

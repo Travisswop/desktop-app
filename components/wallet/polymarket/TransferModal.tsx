@@ -22,6 +22,7 @@ import {
   parseUnits,
   formatUnits,
   hexToBytes,
+  bytesToHex,
   createPublicClient,
   fallback,
   http,
@@ -58,7 +59,9 @@ import {
 } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
 import {
+  getLegacyWithdrawTypedData,
   getWithdrawTypedData,
+  relayWrapExecTransaction,
   submitWithdraw,
   type WithdrawTypedData,
 } from '@/lib/polymarket/backend-session';
@@ -104,6 +107,27 @@ type WithdrawStep =
   | 'error';
 
 type WithdrawToken = 'pUSD' | 'USDC.e';
+
+const GNOSIS_SAFE_EXEC_ABI = [
+  {
+    name: 'execTransaction',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'data', type: 'bytes' },
+      { name: 'operation', type: 'uint8' },
+      { name: 'safeTxGas', type: 'uint256' },
+      { name: 'baseGas', type: 'uint256' },
+      { name: 'gasPrice', type: 'uint256' },
+      { name: 'gasToken', type: 'address' },
+      { name: 'refundReceiver', type: 'address' },
+      { name: 'signatures', type: 'bytes' },
+    ],
+    outputs: [{ name: 'success', type: 'bool' }],
+  },
+] as const;
 
 interface DepositToken {
   name: string;
@@ -2100,11 +2124,8 @@ function WithdrawTab({
           return await signWithDelegatedPrivy('sign-typed-data', {
             typedData: typedDataPayload,
           });
-        } catch (delegatedError) {
-          console.warn(
-            'Silent delegated withdrawal signing unavailable; using hidden Privy signing:',
-            delegatedError,
-          );
+        } catch {
+          // Expected when delegated signing is not configured; fall back silently.
         }
 
         const { signature } = await signTypedDataWithPrivy(
@@ -2140,6 +2161,37 @@ function WithdrawTab({
     ],
   );
 
+  const signSafeWithdrawHash = useCallback(
+    async (txHash: string) => {
+      if (!eoaAddress || !walletClient) {
+        throw new Error('Wallet not connected.');
+      }
+
+      if (isEmbeddedPrivyWallet(eoaAddress)) {
+        try {
+          return await signWithDelegatedPrivy('sign-message', {
+            message: txHash,
+          });
+        } catch {
+          // Expected when delegated signing is not configured; fall back silently.
+        }
+      }
+
+      return walletClient.signMessage({
+        account: eoaAddress as `0x${string}`,
+        message: {
+          raw: hexToBytes(txHash as `0x${string}`),
+        },
+      });
+    },
+    [
+      eoaAddress,
+      isEmbeddedPrivyWallet,
+      signWithDelegatedPrivy,
+      walletClient,
+    ],
+  );
+
   const executeWithdraw = useCallback(async () => {
     if (
       !isTradingSessionComplete ||
@@ -2156,55 +2208,74 @@ function WithdrawTab({
     setStep('processing');
     setError(null);
     try {
-      const typedData = await getWithdrawTypedData(
-        {
-          safeAddress,
-          depositWalletAddress,
-          walletType,
-          eoaAddress,
-          toAddress: destination,
-          amount: parsedAmount,
-          tokenAddress: activeAddress,
-        },
-        accessToken,
-      );
-
-      let signature: `0x${string}`;
       if (walletType === 'deposit') {
-        signature = await signDepositWithdrawTypedData(typedData);
+        const typedData = await getWithdrawTypedData(
+          {
+            safeAddress,
+            depositWalletAddress,
+            walletType,
+            eoaAddress,
+            toAddress: destination,
+            amount: parsedAmount,
+            tokenAddress: activeAddress,
+          },
+          accessToken,
+        );
+        const signature = await signDepositWithdrawTypedData(typedData);
+        const result = await submitWithdraw(
+          {
+            safeAddress,
+            depositWalletAddress,
+            walletType,
+            eoaAddress,
+            toAddress: destination,
+            amount: parsedAmount,
+            signature,
+            nonce: typedData.nonce,
+            deadline: typedData.deadline,
+            tokenAddress: activeAddress,
+          },
+          accessToken,
+        );
+
+        setTxHash(result.txId ?? null);
       } else {
-        if (!typedData.txHash) {
-          throw new Error('Withdrawal signing hash is missing.');
-        }
-        signature = isEmbeddedPrivyWallet(eoaAddress)
-          ? await signWithDelegatedPrivy('sign-message', {
-              message: typedData.txHash,
-            })
-          : await walletClient!.signMessage({
-              account: eoaAddress as `0x${string}`,
-              message: {
-                raw: hexToBytes(typedData.txHash as `0x${string}`),
-              },
-            });
-      }
-
-      const result = await submitWithdraw(
-        {
+        const typedData = await getLegacyWithdrawTypedData(
+          {
+            safeAddress,
+            toAddress: destination,
+            amount: parsedAmount,
+            tokenAddress: activeAddress,
+          },
+          accessToken,
+        );
+        const signature = await signSafeWithdrawHash(typedData.txHash);
+        const sigBytes = hexToBytes(signature as `0x${string}`);
+        sigBytes[64] = sigBytes[64] + 4;
+        const packedSig = bytesToHex(sigBytes);
+        const execCalldata = encodeFunctionData({
+          abi: GNOSIS_SAFE_EXEC_ABI,
+          functionName: 'execTransaction',
+          args: [
+            typedData.to as `0x${string}`,
+            BigInt(typedData.value),
+            typedData.data as `0x${string}`,
+            typedData.operation,
+            BigInt(typedData.safeTxGas),
+            BigInt(typedData.baseGas),
+            BigInt(typedData.gasPrice),
+            typedData.gasToken as `0x${string}`,
+            typedData.refundReceiver as `0x${string}`,
+            packedSig,
+          ],
+        });
+        const result = await relayWrapExecTransaction(
           safeAddress,
-          depositWalletAddress,
-          walletType,
-          eoaAddress,
-          toAddress: destination,
-          amount: parsedAmount,
-          signature,
-          nonce: typedData.nonce,
-          deadline: typedData.deadline,
-          tokenAddress: activeAddress,
-        },
-        accessToken,
-      );
-
-      setTxHash(result.txId ?? null);
+          execCalldata,
+          accessToken,
+        );
+        setTxHash(result.txHash ?? null);
+      }
 
       setStep('success');
       setTimeout(() => {
@@ -2242,10 +2313,9 @@ function WithdrawTab({
     walletClient,
     walletType,
     depositWalletAddress,
-    isEmbeddedPrivyWallet,
     queryClient,
     signDepositWithdrawTypedData,
-    signWithDelegatedPrivy,
+    signSafeWithdrawHash,
   ]);
 
   if (step === 'processing')

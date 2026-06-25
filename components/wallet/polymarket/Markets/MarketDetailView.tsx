@@ -605,6 +605,19 @@ function matchTeamMeta(
   );
 }
 
+function getTeamVenueLabel(
+  team: EventTeam | undefined,
+  fallback: 'home' | 'away',
+): string {
+  const ordering = (team as { ordering?: unknown } | undefined)?.ordering;
+  if (typeof ordering === 'string') {
+    const normalized = ordering.toLowerCase();
+    if (normalized === 'home') return 'Home';
+    if (normalized === 'away') return 'Away';
+  }
+  return fallback === 'home' ? 'Home' : 'Away';
+}
+
 type HistoryPoint = { t: number; p: number };
 
 /** Fetch Polymarket CLOB prices-history for two outcome tokens in parallel. */
@@ -839,20 +852,27 @@ function toLiveScoreNumber(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+function normalizeLiveEventSlug(slug: string | undefined): string | undefined {
+  if (!slug) return undefined;
+  return slug.replace(/-more-markets$/i, '');
+}
+
 function getMarketLiveEventSlug(market: PolymarketMarket): string | undefined {
   const explicit =
     market.eventSlug ||
     market.event?.slug ||
     market.events?.find?.((event: { slug?: string }) => event?.slug)?.slug;
-  if (explicit) return String(explicit);
+  if (explicit) return normalizeLiveEventSlug(String(explicit));
 
   if (!market.slug || !market.gameStartTime || !market.eventTeams?.length) {
     return undefined;
   }
 
-  return String(market.slug)
-    .replace(/-(moneyline|spread|total|totals|o-u|over-under).*$/i, '')
-    .replace(/-(home|away|yes|no)-?[a-z0-9.]*$/i, '');
+  return normalizeLiveEventSlug(
+    String(market.slug)
+      .replace(/-(moneyline|spread|total|totals|o-u|over-under).*$/i, '')
+      .replace(/-(home|away|yes|no)-?[a-z0-9.]*$/i, ''),
+  );
 }
 
 function extractEmbeddedLiveState(market: PolymarketMarket): LiveScoreState {
@@ -2860,6 +2880,7 @@ function LiveScoreboardCard({
         : false;
     const color = team?.color || '#374151';
     const logo = team?.logo;
+    const venueLabel = getTeamVenueLabel(team, side);
     return (
       <div
         style={{
@@ -2930,7 +2951,7 @@ function LiveScoreboardCard({
               letterSpacing: 0.5,
             }}
           >
-            {side === 'away' ? 'Away' : 'Home'}
+            {venueLabel}
           </div>
         </div>
         <div

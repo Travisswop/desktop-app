@@ -1,5 +1,7 @@
 import { Transaction } from '@/types/transaction';
+import { sanitizeNextImageSrc } from '@/lib/sanitizeNextImageSrc';
 import { ArrowRight, ArrowLeftRight } from 'lucide-react';
+import Image from 'next/image';
 import { useMemo } from 'react';
 import TokenIcon from './token-icon';
 
@@ -9,15 +11,32 @@ interface TransactionItemProps {
   onSelect: (transaction: Transaction) => void;
 }
 
+const CHAIN_ICONS: Record<string, string> = {
+  SOLANA: '/assets/icons/solana.png',
+  ETHEREUM: '/images/IconShop/eTH@3x.png',
+  POLYGON: '/images/IconShop/polygon@3x.png',
+  ARBITRUM: '/assets/icons/arbitrum.png',
+  BASE: '/assets/icons/base.png',
+};
+
+const getChainIcon = (chainName?: string): string | null =>
+  chainName ? CHAIN_ICONS[chainName.toUpperCase()] ?? null : null;
+
 const truncate = (address: string) =>
   address ? `${address.slice(0, 6)}…${address.slice(-4)}` : '';
 
-const formatAmount = (value: string, decimals = 4): string => {
+const formatAmount = (value: string): string => {
   const n = parseFloat(value);
-  if (!Number.isFinite(n)) return '0';
-  if (n === 0) return '0';
-  if (Math.abs(n) >= 0.01) return n.toFixed(decimals).replace(/\.?0+$/, '');
-  return n.toPrecision(4);
+  if (!Number.isFinite(n) || n === 0) return '0';
+  const abs = Math.abs(n);
+  // Large/normal amounts: group thousands, cap at 4 decimals.
+  if (abs >= 1) {
+    return n.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  }
+  // Small amounts: pick enough decimals to show 4 significant digits, but
+  // render in plain decimal form (never scientific notation like 1e-7).
+  const decimals = Math.min(18, Math.max(4, 3 - Math.floor(Math.log10(abs))));
+  return n.toFixed(decimals).replace(/0+$/, '').replace(/\.$/, '');
 };
 
 const formatUsd = (value: number): string => {
@@ -40,14 +59,17 @@ const formatTime = (timeStamp: string): string => {
   const isYesterday =
     !isToday && d.getTime() >= today.getTime() - 86400000;
 
-  const hh = d.getHours().toString().padStart(2, '0');
-  const mm = d.getMinutes().toString().padStart(2, '0');
-  if (isToday) return `Today · ${hh}:${mm}`;
-  if (isYesterday) return `Yesterday · ${hh}:${mm}`;
+  const time = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  if (isToday) return `Today · ${time}`;
+  if (isYesterday) return `Yesterday · ${time}`;
   return `${d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
-  })} · ${hh}:${mm}`;
+  })} · ${time}`;
 };
 
 const TransactionItem = ({
@@ -91,6 +113,7 @@ const TransactionItem = ({
 
   const iconBg = sideIn ? 'bg-emerald-50' : 'bg-zinc-50';
   const amountColor = sideIn ? 'text-emerald-600' : 'text-[#0a0a0c]';
+  const chainIconSrc = getChainIcon(tx.network);
 
   return (
     <button
@@ -98,21 +121,34 @@ const TransactionItem = ({
       onClick={() => onSelect(tx)}
       className="w-full grid grid-cols-[36px_1fr_auto] gap-3.5 items-center px-6 py-3 border-t border-black/[0.04] hover:bg-zinc-50/60 transition-colors text-left"
     >
-      <div
-        className={`w-9 h-9 rounded-[10px] ${iconBg} border border-black/[0.06] inline-flex items-center justify-center shrink-0 overflow-hidden`}
-      >
-        {tx.isSwapped && tx.swapped ? (
-          <ArrowLeftRight className="w-3.5 h-3.5 text-[#0a0a0c]" />
-        ) : tx.tokenSymbol ? (
-          <TokenIcon symbol={tx.tokenSymbol} logo={tx.tokenLogo} />
-        ) : (
-          <ArrowRight
-            className={`w-3.5 h-3.5 ${
-              sideIn
-                ? 'text-emerald-600 rotate-180'
-                : 'text-[#0a0a0c] rotate-45'
-            }`}
-          />
+      <div className="relative w-9 h-9 shrink-0" title={tx.network}>
+        <div
+          className={`w-9 h-9 rounded-[10px] ${iconBg} border border-black/[0.06] inline-flex items-center justify-center overflow-hidden`}
+        >
+          {tx.isSwapped && tx.swapped ? (
+            <ArrowLeftRight className="w-3.5 h-3.5 text-[#0a0a0c]" />
+          ) : tx.tokenSymbol ? (
+            <TokenIcon symbol={tx.tokenSymbol} logo={tx.tokenLogo} />
+          ) : (
+            <ArrowRight
+              className={`w-3.5 h-3.5 ${
+                sideIn
+                  ? 'text-emerald-600 rotate-180'
+                  : 'text-[#0a0a0c] rotate-45'
+              }`}
+            />
+          )}
+        </div>
+        {chainIconSrc && (
+          <span className="absolute -bottom-1 -right-1 w-[15px] h-[15px] rounded-full bg-white border border-black/[0.08] inline-flex items-center justify-center overflow-hidden shadow-sm">
+            <Image
+              src={sanitizeNextImageSrc(chainIconSrc)}
+              alt={tx.network}
+              width={11}
+              height={11}
+              className="object-contain"
+            />
+          </span>
         )}
       </div>
 

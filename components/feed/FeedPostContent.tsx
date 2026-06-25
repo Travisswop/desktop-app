@@ -1,8 +1,6 @@
 'use client';
 import React, { useCallback, useState } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
-import { FiPlusCircle } from 'react-icons/fi';
 import { useDisclosure } from '@nextui-org/react';
 import PostTypeMedia from './view/PostTypeMedia';
 import IndividualFeedContent from './IndividualFeedContent';
@@ -11,11 +9,12 @@ import PollCard from './PollCard';
 import RenderTransactionContent from './view/feed-variants/RenderTransactions';
 import RedeemClaimModal from '../modal/RedeemClaim';
 import { makeLinksClickable } from '@/lib/makeLinksClickable';
-import logger from '@/utils/logger';
 import PredictionFeedCard from './PredictionFeedCard';
 import PerpsPositionFeedCard from './PerpsPositionFeedCard';
 import PerpsFeedCard from './PerpsFeedCard';
 import DefiFeedCard from './DefiFeedCard';
+import ProductFeedCard from './ProductFeedCard';
+import { isProductFeedPost } from './productFeedUtils';
 
 interface FeedItemType {
   _id: string;
@@ -78,7 +77,8 @@ const FeedPostContent = ({
   return (
     <>
       {/* Post / Repost title */}
-      {(feed.postType === 'post' || feed.postType === 'repost') &&
+      {!isProductFeedPost(feed) &&
+        (feed.postType === 'post' || feed.postType === 'repost') &&
         (feed.content.title || feed?.content?.quote?.title) && (
           <div className="w-full text-start">
             {(feed.content.title || feed?.content?.quote?.title)
@@ -110,6 +110,7 @@ const FeedPostContent = ({
 
       {/* Post media */}
       {feed.postType === 'post' &&
+        !isProductFeedPost(feed) &&
         postContent &&
         postContent.length > 0 && (
           <PostTypeMedia mediaFiles={postContent} />
@@ -167,33 +168,8 @@ const FeedPostContent = ({
       )}
 
       {/* Minting */}
-      {feed.postType === 'minting' && (
-        <div className="w-max">
-          <p>{feed.content.title}</p>
-          <div className="shadow-medium bg-white rounded-lg mt-2 p-2 relative">
-            <Link
-              onClick={(e) => e.stopPropagation()}
-              href={feed?.content?.link || ''}
-              className="w-max"
-            >
-              <Image
-                src={feed.content.image}
-                alt="nft image"
-                width={200}
-                height={200}
-              />
-              {feed?.content?.price && (
-                <p className="text-center text-sm text-gray-500 font-medium">
-                  {feed.content.price}
-                </p>
-              )}
-              <FiPlusCircle
-                className="absolute top-2 right-2"
-                size={24}
-              />
-            </Link>
-          </div>
-        </div>
+      {isProductFeedPost(feed) && (
+        <ProductFeedCard feed={feed} />
       )}
 
       {/* Redeem */}

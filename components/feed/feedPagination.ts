@@ -68,6 +68,40 @@ export function mergeFreshFeedItems<T extends FeedItemLike>(
   return mergedItems;
 }
 
+export function mergeRefreshedFeedItemsPreservingOrder<T extends FeedItemLike>(
+  currentItems: T[],
+  freshItems: T[],
+) {
+  const freshByKey = new Map<string, T>();
+
+  for (const item of freshItems) {
+    const key = getFeedItemKey(item);
+    if (key && !freshByKey.has(key)) {
+      freshByKey.set(key, item);
+    }
+  }
+
+  const seen = new Set<string>();
+  const mergedItems: T[] = currentItems.map((item) => {
+    const key = getFeedItemKey(item);
+    if (!key) return item;
+
+    seen.add(key);
+    return freshByKey.get(key) || item;
+  });
+
+  for (const item of freshItems) {
+    const key = getFeedItemKey(item);
+    if (key) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    mergedItems.push(item);
+  }
+
+  return mergedItems;
+}
+
 function idPart(value: unknown): string {
   if (typeof value === "string" || typeof value === "number") {
     return String(value);

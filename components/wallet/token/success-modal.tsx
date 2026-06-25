@@ -98,14 +98,14 @@ export default function TransactionSuccess({
         ) : (
           token && (
             <div className="mt-5">
-              <p className="text-[24px] font-semibold leading-tight text-gray-950">
+              <p className="text-[24px] font-semibold leading-tight text-gray-950 font-mono">
                 {tokenAmount}{' '}
                 <span className="text-[16px] font-semibold text-gray-500">
                   {token.symbol}
                 </span>
               </p>
               {usdAmount && (
-                <p className="mt-1 text-[13px] text-gray-500">
+                <p className="mt-1 text-[13px] text-gray-500 font-mono">
                   ≈ ${usdAmount} USD
                 </p>
               )}
