@@ -8,7 +8,6 @@ import {
   ExternalLink,
   FileText,
   ImageIcon,
-  LockKeyhole,
   Play,
   Send,
   Share2,
@@ -56,6 +55,7 @@ export default function NFTDetailView({
   const network = networkLabel(nft.network);
   const attributes = normalizeAttributes(nft.attributes);
   const vaultItems = useMemo(() => buildVaultItems(isReceiptUrl), [isReceiptUrl]);
+  const hasHolderContent = vaultItems.length > 0;
 
   const handleCopy = async (value: string, label = "Copied") => {
     if (!value) return;
@@ -100,18 +100,19 @@ export default function NFTDetailView({
     <Dialog open={isOpen} onOpenChange={(next) => !next && onClose()}>
       <DialogContent
         hideCloseButton
+        onEscapeKeyDown={(event) => {
+          event.preventDefault();
+          onClose();
+        }}
+        onPointerDownOutside={(event) => {
+          event.preventDefault();
+          onClose();
+        }}
         className="w-[96vw] max-w-[980px] max-h-[92vh] overflow-y-auto rounded-[26px] border-0 bg-white p-0 shadow-[0_40px_100px_-28px_rgba(0,0,0,0.55)] gap-0"
       >
         <DialogTitle className="sr-only">{nft.name}</DialogTitle>
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-black/[0.07] bg-white/80 text-gray-900 backdrop-blur transition hover:bg-[#efefee]"
-          aria-label="Close NFT details"
-        >
-          <X className="h-4 w-4" />
-        </button>
 
-        <div className="flex items-center gap-3 border-b border-black/[0.07] bg-[#fafafa] px-5 py-3 md:px-6">
+        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-black/[0.07] bg-[#fafafa]/95 px-5 py-3 backdrop-blur md:px-6">
           <span className="font-mono text-[10.5px] font-bold uppercase tracking-[0.14em] text-gray-400">
             NFT individual view
           </span>
@@ -120,6 +121,14 @@ export default function NFTDetailView({
               ? "Receipt NFT detected - holder content available"
               : "Wallet-owned collectible"}
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/[0.07] bg-white text-gray-900 transition hover:bg-[#efefee] sm:ml-0"
+            aria-label="Close NFT details"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         <div className="flex flex-col gap-6 p-5 md:p-6">
@@ -151,7 +160,10 @@ export default function NFTDetailView({
                 {[
                   { label: "Front", icon: <ImageIcon className="h-5 w-5" /> },
                   { label: "Meta", icon: <FileText className="h-5 w-5" /> },
-                  { label: "Perks", icon: <ShieldCheck className="h-5 w-5" /> },
+                  {
+                    label: hasHolderContent ? "Perks" : "Info",
+                    icon: <ShieldCheck className="h-5 w-5" />,
+                  },
                   { label: "Link", icon: <ExternalLink className="h-5 w-5" /> },
                 ].map((thumb, index) => (
                   <button
@@ -242,8 +254,8 @@ export default function NFTDetailView({
                 />
                 <Stat
                   label="Content"
-                  value={String(vaultItems.length)}
-                  sub={isReceiptUrl ? "unlocked" : "locked"}
+                  value={hasHolderContent ? String(vaultItems.length) : "0"}
+                  sub={hasHolderContent ? "unlocked" : "none"}
                 />
               </div>
 
@@ -277,13 +289,12 @@ export default function NFTDetailView({
             </div>
           </section>
 
-          <NftVault
-            items={vaultItems}
-            locked={!isReceiptUrl}
-            onOpen={handleVaultClick}
-            onUnlock={handleOpenExternal}
-            canUnlock={Boolean(externalUrl)}
-          />
+          {hasHolderContent ? (
+            <NftVault
+              items={vaultItems}
+              onOpen={handleVaultClick}
+            />
+          ) : null}
 
           {nft.description ? (
             <section className="border-t border-black/[0.07] pt-5">
@@ -434,52 +445,29 @@ function SectionHeader({ title, aside }: { title: string; aside?: string }) {
 
 function NftVault({
   items,
-  locked,
-  canUnlock,
   onOpen,
-  onUnlock,
 }: {
   items: VaultItem[];
-  locked: boolean;
-  canUnlock: boolean;
   onOpen: (item: VaultItem) => void;
-  onUnlock: () => void;
 }) {
   return (
     <section className="relative overflow-hidden rounded-[22px] border border-white/[0.06] bg-[radial-gradient(circle_at_100%_0%,#1c2a24_0%,#111113_48%,#0a0a0c_100%)] text-white">
       <div className="flex items-start gap-3 border-b border-white/[0.07] px-5 py-5 md:px-6">
-        <div
-          className={`flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border ${
-            locked
-              ? "border-white/15 bg-white/[0.06] text-gray-400"
-              : "border-[#19a974]/30 bg-[#19a974]/15 text-[#19a974]"
-          }`}
-        >
-          {locked ? (
-            <LockKeyhole className="h-5 w-5" />
-          ) : (
-            <ShieldCheck className="h-5 w-5" />
-          )}
+        <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-[#19a974]/30 bg-[#19a974]/15 text-[#19a974]">
+          <ShieldCheck className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-semibold">
               Holder content
             </h3>
-            <span
-              className={`rounded-full border px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.06em] ${
-                locked
-                  ? "border-white/15 bg-white/[0.06] text-gray-400"
-                  : "border-[#19a974]/30 bg-[#19a974]/15 text-[#5fe0aa]"
-              }`}
-            >
-              {locked ? "Locked" : "Unlocked"}
+            <span className="rounded-full border border-[#19a974]/30 bg-[#19a974]/15 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#5fe0aa]">
+              Unlocked
             </span>
           </div>
           <p className="mt-1 text-[13px] leading-[1.45] text-white/60">
-            {locked
-              ? "Marketplace perks unlock when this NFT is a Swop receipt or gated collectible."
-              : "Your wallet holds the receipt NFT - open it to access the attached marketplace files."}
+            Your wallet holds the receipt NFT - open it to access the attached
+            marketplace files.
           </p>
         </div>
         <div className="whitespace-nowrap font-mono text-[11px] text-white/45">
@@ -499,53 +487,21 @@ function NftVault({
               {vaultIcon(item.kind)}
             </div>
             <div className="min-w-0">
-              <div
-                className={`flex items-center gap-2 text-[14.5px] font-semibold ${
-                  locked ? "blur-[3px] select-none" : ""
-                }`}
-              >
+              <div className="flex items-center gap-2 text-[14.5px] font-semibold">
                 <span className="truncate">{item.title}</span>
                 <span className="rounded-md border border-white/15 px-2 py-0.5 font-mono text-[9.5px] font-bold uppercase tracking-[0.08em] text-white/40">
                   {item.kind === "receipt" ? "Download" : item.kind}
                 </span>
               </div>
-              <div
-                className={`mt-1 truncate font-mono text-[11px] text-white/50 ${
-                  locked ? "blur-[3px] select-none" : ""
-                }`}
-              >
+              <div className="mt-1 truncate font-mono text-[11px] text-white/50">
                 {item.meta}
               </div>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-[10px] border border-white/15 bg-white/[0.08] px-3.5 py-2 text-[12.5px] font-semibold text-white">
-              {locked ? <LockKeyhole className="h-3.5 w-3.5" /> : null}
-              {locked ? "Unlock" : item.cta}
+              {item.cta}
             </span>
           </button>
         ))}
-
-        {locked ? (
-          <div className="absolute inset-2 flex flex-col items-center justify-center rounded-2xl bg-gradient-to-b from-[#0c0c0e]/25 via-[#0c0c0e]/80 to-[#0c0c0e]/95 px-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/[0.08]">
-              <LockKeyhole className="h-5 w-5" />
-            </div>
-            <div className="mt-3 text-[17px] font-semibold">
-              Content locked
-            </div>
-            <p className="mt-1 max-w-[360px] text-[13px] leading-[1.5] text-white/60">
-              Receipt NFTs from Swop marketplace orders verify ownership before
-              downloads stream from the receipt page.
-            </p>
-            <button
-              type="button"
-              onClick={onUnlock}
-              disabled={!canUnlock}
-              className="mt-4 rounded-xl bg-white px-5 py-3 text-[13.5px] font-semibold text-[#0a0a0c] transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {canUnlock ? "Open source" : "No receipt link"}
-            </button>
-          </div>
-        ) : null}
       </div>
     </section>
   );
@@ -559,7 +515,7 @@ function vaultIcon(kind: VaultItem["kind"]) {
   return <FileText className="h-[18px] w-[18px]" />;
 }
 
-function buildVaultItems(isReceiptUrl: boolean): VaultItem[] {
+export function buildVaultItems(isReceiptUrl: boolean): VaultItem[] {
   if (isReceiptUrl) {
     return [
       {
@@ -586,29 +542,7 @@ function buildVaultItems(isReceiptUrl: boolean): VaultItem[] {
     ];
   }
 
-  return [
-    {
-      id: "marketplace-content",
-      title: "Marketplace exclusive content",
-      meta: "Unlocks with compatible Swop receipt NFTs",
-      kind: "receipt",
-      cta: "Open",
-    },
-    {
-      id: "holder-access",
-      title: "Holder access",
-      meta: "Community, downloads, promos, and passes",
-      kind: "community",
-      cta: "View",
-    },
-    {
-      id: "event-pass",
-      title: "IRL and digital perks",
-      meta: "Seller managed - gated by ownership",
-      kind: "ticket",
-      cta: "View",
-    },
-  ];
+  return [];
 }
 
 function normalizeAttributes(attributes?: NFTAttribute[]) {
