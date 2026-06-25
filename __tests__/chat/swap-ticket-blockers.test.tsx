@@ -223,12 +223,23 @@ describe('getSwapActionBlocker', () => {
       getSwapActionBlocker({
         ...baseParams,
         quoteStateStatus: 'error',
+        quoteStateErrorKind: 'route',
       })
     ).toEqual({
       tone: 'warning',
       message:
         'This route is unavailable right now. Refresh the quote or change the amount or token pair.',
     });
+  });
+
+  it('does not show route-retry guidance for validation errors', () => {
+    expect(
+      getSwapActionBlocker({
+        ...baseParams,
+        quoteStateStatus: 'error',
+        quoteStateErrorKind: 'validation',
+      })
+    ).toBeNull();
   });
 });
 
@@ -238,6 +249,7 @@ describe('getSwapPrimaryActionMode', () => {
       getSwapPrimaryActionMode({
         quoteOnly: false,
         quoteStateStatus: 'error',
+        quoteStateErrorKind: 'route',
       })
     ).toBe('refresh_quote');
   });
@@ -249,6 +261,16 @@ describe('getSwapPrimaryActionMode', () => {
         quoteStateStatus: 'success',
       })
     ).toBe('quote');
+  });
+
+  it('keeps validation blockers off the refresh path', () => {
+    expect(
+      getSwapPrimaryActionMode({
+        quoteOnly: false,
+        quoteStateStatus: 'error',
+        quoteStateErrorKind: 'validation',
+      })
+    ).toBe('confirm');
   });
 });
 
@@ -312,6 +334,7 @@ describe('SwapProposalTicket blocker banner', () => {
     const markup = renderSwapProposalTicket({
       initialQuoteState: {
         status: 'error',
+        errorKind: 'route',
         error:
           'This route is unavailable right now. Refresh the quote or change the amount or token pair.',
       },
@@ -329,6 +352,79 @@ describe('SwapProposalTicket blocker banner', () => {
     expect(markup).toContain('Refresh quote');
     expect(markup).not.toContain('Sign &amp; approve');
   });
+
+  it('keeps the primary action off refresh for same-token validation errors', () => {
+    const markup = renderSwapProposalTicket({
+      initialQuoteState: {
+        status: 'error',
+        errorKind: 'validation',
+        error: 'Pick a different quote token.',
+      },
+      proposalParams: {
+        fromToken: 'SOL',
+        toToken: 'SOL',
+        amount: '1',
+        fromChain: 'solana',
+        toChain: 'solana',
+      },
+      sourceText: 'swap 1 SOL to SOL',
+      walletPortfolioTokens: [createWalletToken()],
+    });
+
+    expect(markup).toContain('Pick a different output token before swapping.');
+    expect(markup).toContain('Sign &amp; approve');
+    expect(markup).not.toContain('Refresh quote');
+  });
+
+  it('keeps the primary action off refresh for empty-wallet validation errors', () => {
+    const markup = renderSwapProposalTicket({
+      initialQuoteState: {
+        status: 'error',
+        errorKind: 'validation',
+        error: 'Pick a SOL token with a wallet balance to quote this swap.',
+      },
+      proposalParams: {
+        fromToken: 'SOL',
+        toToken: 'USDC',
+        amount: '1',
+        fromChain: 'solana',
+        toChain: 'solana',
+      },
+      sourceText: 'swap 1 SOL to USDC',
+      walletPortfolioTokens: [],
+    });
+
+    expect(markup).toContain(
+      'No spendable SOL balance is available. Fund the wallet or pick another token before swapping.'
+    );
+    expect(markup).toContain('Sign &amp; approve');
+    expect(markup).not.toContain('Refresh quote');
+  });
+
+  it('keeps the primary action off refresh for over-balance validation errors', () => {
+    const markup = renderSwapProposalTicket({
+      initialQuoteState: {
+        status: 'error',
+        errorKind: 'validation',
+        error: 'Amount is above your 2 SOL balance.',
+      },
+      proposalParams: {
+        fromToken: 'SOL',
+        toToken: 'USDC',
+        amount: '3',
+        fromChain: 'solana',
+        toChain: 'solana',
+      },
+      sourceText: 'swap 3 SOL to USDC',
+      walletPortfolioTokens: [createWalletToken()],
+    });
+
+    expect(markup).toContain(
+      'Lower the amount or fund the wallet before trying this swap again.'
+    );
+    expect(markup).toContain('Sign &amp; approve');
+    expect(markup).not.toContain('Refresh quote');
+  });
 });
 
 describe('SwapActionBlockerNotice visibility', () => {
@@ -342,13 +438,18 @@ describe('SwapActionBlockerNotice visibility', () => {
     amountExceedsBalance: false,
     payAmount: '10',
     quoteStateStatus: 'idle' as const,
+    quoteStateErrorKind: undefined,
     selectedFromKey: 'mcdx-sol',
     selectedToKey: 'usdc-sol',
   };
 
   it('renders route-error guidance on the visible ticket surface', () => {
     const markup = renderToStaticMarkup(
-      <SwapActionBlockerNotice {...baseProps} quoteStateStatus="error" />
+      <SwapActionBlockerNotice
+        {...baseProps}
+        quoteStateStatus="error"
+        quoteStateErrorKind="route"
+      />
     );
 
     expect(markup).toContain(

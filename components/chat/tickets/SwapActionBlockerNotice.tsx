@@ -1,4 +1,7 @@
-import { getSwapActionBlocker } from '@/lib/chat/ticketFormat';
+import {
+  getSwapActionBlocker,
+  type SwapQuoteErrorKind,
+} from '@/lib/chat/ticketFormat';
 
 type SwapActionBlockerNoticeProps = {
   isVisible: boolean;
@@ -10,6 +13,7 @@ type SwapActionBlockerNoticeProps = {
   amountExceedsBalance: boolean;
   payAmount: string;
   quoteStateStatus: 'idle' | 'loading' | 'success' | 'error';
+  quoteStateErrorKind?: SwapQuoteErrorKind;
   selectedFromKey: string;
   selectedToKey: string;
 };

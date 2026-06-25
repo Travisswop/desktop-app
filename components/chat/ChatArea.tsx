@@ -155,6 +155,7 @@ import {
   perpsAliasTargets,
   perpsCoinMatches,
   perpsMarketForCoin,
+  type SwapQuoteErrorKind,
   toAgentFeedNumber,
   toFiniteNumber,
   triggerAgentFeedRefresh,
@@ -14169,6 +14170,7 @@ type ChatSwapPromptIntent = {
 
 type ChatSwapQuoteState = {
   status: 'idle' | 'loading' | 'success' | 'error';
+  errorKind?: SwapQuoteErrorKind;
   receiveAmount?: string;
   price?: string;
   priceImpact?: number | string;
@@ -15411,12 +15413,14 @@ export function SwapProposalTicket({
     if (!selectedFromOption || !selectedToOption) {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: 'Pick the token you want to swap and the token you want to buy.',
       });
     }
     if (selectedFromOption.key === selectedToOption.key) {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: 'Pick a different quote token.',
       });
     }
@@ -15436,6 +15440,7 @@ export function SwapProposalTicket({
       ) {
         return publishQuoteState({
           status: 'error',
+          errorKind: 'validation',
           error: `Enter a ${fromSymbol} amount or pick a token with a live USD price.`,
         });
       }
@@ -15446,6 +15451,7 @@ export function SwapProposalTicket({
     if (!inputToken || !outputToken) {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: `No ${dynamicProvider} token metadata for ${fromToken} to ${toToken}.`,
       });
     }
@@ -15454,6 +15460,7 @@ export function SwapProposalTicket({
     if (!hasSpendableBalance) {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: `Pick a ${fromSymbol} token with a wallet balance to quote this swap.`,
       });
     }
@@ -15463,6 +15470,7 @@ export function SwapProposalTicket({
     ) {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: `Amount is above your ${formatSwapAmount(maxSellAmount)} ${fromSymbol} balance.`,
       });
     }
@@ -15474,6 +15482,7 @@ export function SwapProposalTicket({
     if (!amountInSmallestUnit || amountInSmallestUnit === '0') {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: 'Enter a valid swap amount to quote.',
       });
     }
@@ -15638,6 +15647,7 @@ export function SwapProposalTicket({
       if (quoteRequestIdRef.current !== requestId) return null;
       return publishQuoteState({
         status: 'error',
+        errorKind: 'route',
         error:
           error instanceof Error
             ? error.message
@@ -15736,6 +15746,7 @@ export function SwapProposalTicket({
   const primaryActionMode = getSwapPrimaryActionMode({
     quoteOnly,
     quoteStateStatus: quoteState.status,
+    quoteStateErrorKind: quoteState.errorKind,
   });
   const headerStatusText = isQuoteLoading
     ? 'quoting'
@@ -15780,6 +15791,7 @@ export function SwapProposalTicket({
     amountExceedsBalance,
     payAmount,
     quoteStateStatus: quoteState.status,
+    quoteStateErrorKind: quoteState.errorKind,
     selectedFromKey,
     selectedToKey,
   });
@@ -16574,6 +16586,7 @@ export function SwapProposalTicket({
         amountExceedsBalance={amountExceedsBalance}
         payAmount={payAmount}
         quoteStateStatus={quoteState.status}
+        quoteStateErrorKind={quoteState.errorKind}
         selectedFromKey={selectedFromKey}
         selectedToKey={selectedToKey}
       />

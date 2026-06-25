@@ -43,16 +43,21 @@ export type SwapActionBlocker = {
   message: string;
 };
 
+export type SwapQuoteErrorKind = 'route' | 'validation';
+
 export type SwapPrimaryActionMode = 'quote' | 'refresh_quote' | 'confirm';
 
 export function getSwapPrimaryActionMode(params: {
   quoteOnly: boolean;
   quoteStateStatus: 'idle' | 'loading' | 'success' | 'error';
+  quoteStateErrorKind?: SwapQuoteErrorKind;
 }): SwapPrimaryActionMode {
-  const { quoteOnly, quoteStateStatus } = params;
+  const { quoteOnly, quoteStateStatus, quoteStateErrorKind } = params;
 
   if (quoteOnly) return 'quote';
-  if (quoteStateStatus === 'error') return 'refresh_quote';
+  if (quoteStateStatus === 'error' && quoteStateErrorKind === 'route') {
+    return 'refresh_quote';
+  }
   return 'confirm';
 }
 
@@ -65,6 +70,7 @@ export function getSwapActionBlocker(params: {
   amountExceedsBalance: boolean;
   payAmount: string;
   quoteStateStatus: 'idle' | 'loading' | 'success' | 'error';
+  quoteStateErrorKind?: SwapQuoteErrorKind;
   selectedFromKey: string;
   selectedToKey: string;
 }) {
@@ -77,6 +83,7 @@ export function getSwapActionBlocker(params: {
     amountExceedsBalance,
     payAmount,
     quoteStateStatus,
+    quoteStateErrorKind,
     selectedFromKey,
     selectedToKey,
   } = params;
@@ -146,7 +153,7 @@ export function getSwapActionBlocker(params: {
     } satisfies SwapActionBlocker;
   }
 
-  if (quoteStateStatus === 'error') {
+  if (quoteStateStatus === 'error' && quoteStateErrorKind === 'route') {
     return {
       tone: 'warning',
       message: 'This route is unavailable right now. Refresh the quote or change the amount or token pair.',
