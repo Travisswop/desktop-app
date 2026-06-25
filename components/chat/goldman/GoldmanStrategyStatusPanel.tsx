@@ -39,6 +39,7 @@ type GoldmanStrategyControlState = {
   runLabel: string;
   runToneClass: string;
   runDisabled: boolean;
+  primaryAction: 'run' | 'stop' | 'none';
   lastActivity: string | null;
 };
 
@@ -130,7 +131,7 @@ export function getGoldmanStrategyControlState(
   const pendingAuthorization = status === 'pending_authorization';
   const fundingBlocked =
     approvalState === 'approved_waiting_for_funding' ||
-    (pendingAuthorization && walletStatus !== 'active');
+    (pendingAuthorization && Boolean(walletStatus) && walletStatus !== 'active');
   const resumeBlocked =
     approvalState === 'resume_blocked' || Boolean(resumeBlockedReason);
   const hasRuntimeError = runtimeState === 'error' || Boolean(runtimeError);
@@ -151,6 +152,7 @@ export function getGoldmanStrategyControlState(
       runLabel: 'Need strategy',
       runToneClass: 'border-white/[0.08] bg-black/25 text-[#cfd3dd]',
       runDisabled: false,
+      primaryAction: 'none',
       lastActivity: null,
     };
   }
@@ -175,6 +177,7 @@ export function getGoldmanStrategyControlState(
       runLabel: 'Blocked',
       runToneClass: 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]',
       runDisabled: true,
+      primaryAction: 'none',
       lastActivity: runtime?.lastActivity || null,
     };
   }
@@ -199,6 +202,7 @@ export function getGoldmanStrategyControlState(
       runLabel: fundingBlocked ? 'Fund first' : 'Approve first',
       runToneClass: 'border-[#f4c95d]/30 bg-[#f4c95d]/10 text-[#f4c95d]',
       runDisabled: true,
+      primaryAction: 'none',
       lastActivity: runtime?.lastActivity || null,
     };
   }
@@ -219,6 +223,7 @@ export function getGoldmanStrategyControlState(
       runLabel: 'Blocked',
       runToneClass: 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]',
       runDisabled: true,
+      primaryAction: 'none',
       lastActivity: runtime?.lastActivity || null,
     };
   }
@@ -245,6 +250,7 @@ export function getGoldmanStrategyControlState(
       runLabel: 'Stop',
       runToneClass: 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]',
       runDisabled: false,
+      primaryAction: 'stop',
       lastActivity: runtime?.lastActivity || null,
     };
   }
@@ -267,6 +273,7 @@ export function getGoldmanStrategyControlState(
     runLabel: 'Run',
     runToneClass: 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]',
     runDisabled: false,
+    primaryAction: 'run',
     lastActivity: runtime?.lastActivity || null,
   };
 }

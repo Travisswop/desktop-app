@@ -8699,6 +8699,8 @@ function GoldmanAccessStation({
     isStrategyRunning,
     now: goldmanStrategyNow,
   });
+  const isGoldmanStopAction = goldmanStrategyControl.primaryAction === 'stop';
+  const isGoldmanRunAction = goldmanStrategyControl.primaryAction === 'run';
   const goldmanWalletCard = (
     <>
       <SectionLabel>strategy vault</SectionLabel>
@@ -8783,9 +8785,11 @@ function GoldmanAccessStation({
                 isTogglingStrategy ||
                 isVaultBusy ||
                 (!activeStrategy && !onQuickCommand) ||
-                (!isStrategyRunning && goldmanStrategyControl.runDisabled) ||
-                (!isStrategyRunning && Boolean(activeStrategy) && !onRunStrategy) ||
-                (isStrategyRunning && !onStopStrategy)
+                (Boolean(activeStrategy) &&
+                  !isGoldmanStopAction &&
+                  !isGoldmanRunAction) ||
+                (isGoldmanRunAction && !onRunStrategy) ||
+                (isGoldmanStopAction && !onStopStrategy)
               }
               onClick={() => {
                 if (!activeStrategy) {
@@ -8793,28 +8797,28 @@ function GoldmanAccessStation({
                   handleAskStrategyIdeas();
                   return;
                 }
-                if (isStrategyRunning) {
+                if (isGoldmanStopAction) {
                   onStopStrategy?.();
-                } else {
+                } else if (isGoldmanRunAction) {
                   onRunStrategy?.();
                 }
               }}
               className={`dm-btn dm-mono flex h-9 min-w-[92px] items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[10px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-50 ${
-                isStrategyRunning
+                isGoldmanStopAction
                   ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]'
                   : goldmanStrategyControl.runToneClass
               }`}
             >
               {isTogglingStrategy ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : isStrategyRunning ? (
+              ) : isGoldmanStopAction ? (
                 <Square className="h-3.5 w-3.5" />
-              ) : goldmanStrategyControl.runDisabled ? (
+              ) : activeStrategy && !isGoldmanRunAction ? (
                 <Ban className="h-3.5 w-3.5" />
               ) : (
                 <Play className="h-3.5 w-3.5" />
               )}
-              {isStrategyRunning ? 'Stop' : goldmanStrategyControl.runLabel}
+              {isGoldmanStopAction ? 'Stop' : goldmanStrategyControl.runLabel}
             </button>
           </div>
           <GoldmanStrategyStatusPanel

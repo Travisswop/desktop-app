@@ -15,7 +15,34 @@ describe('GoldmanStrategyStatusPanel', () => {
     jest.useRealTimers();
   });
 
-  test('renders pending authorization strategies as funding or approval blocked', () => {
+  test('treats missing wallet metadata as approval-pending instead of funding-blocked', () => {
+    const markup = renderToStaticMarkup(
+      <GoldmanStrategyStatusPanel
+        strategy={{
+          title: 'Live SOL carry',
+          status: 'pending_authorization',
+          runtime: {
+            executionMode: 'execute',
+          },
+          metadata: {
+            approvalState: 'pending_authorization',
+          },
+        }}
+        now={Date.parse('2026-06-24T16:00:00Z')}
+      />
+    );
+
+    expect(markup).toContain('Waiting for approval');
+    expect(markup).toContain('Approve first');
+    expect(markup).toContain(
+      'Approve this strategy before Goldman can run within the saved caps.'
+    );
+    expect(markup).toContain(
+      'This strategy is configured for live execution, but Goldman cannot trade until approval and funding are both complete.'
+    );
+  });
+
+  test('keeps explicit funding blockers distinct from plain approval-pending states', () => {
     const markup = renderToStaticMarkup(
       <GoldmanStrategyStatusPanel
         strategy={{
@@ -37,9 +64,6 @@ describe('GoldmanStrategyStatusPanel', () => {
     expect(markup).toContain('Fund first');
     expect(markup).toContain(
       'Fund the strategy vault, then approve the strategy before pressing Run.'
-    );
-    expect(markup).toContain(
-      'This strategy is configured for live execution, but Goldman cannot trade until approval and funding are both complete.'
     );
   });
 
@@ -112,6 +136,68 @@ describe('GoldmanStrategyStatusPanel', () => {
       heartbeatLabel: 'stale heartbeat',
       statusLabel: 'Running with stale monitor',
       summaryLine: 'running stale · live execute',
+    });
+  });
+
+  test('returns primary actions that match blocked, runnable, and running Goldman states', () => {
+    expect(
+      getGoldmanStrategyControlState(
+        {
+          title: 'Approval pending strategy',
+          status: 'pending_authorization',
+          runtime: {
+            executionMode: 'execute',
+          },
+          metadata: {
+            approvalState: 'pending_authorization',
+          },
+        },
+        {
+          now: Date.parse('2026-06-24T16:00:00Z'),
+        }
+      )
+    ).toMatchObject({
+      primaryAction: 'none',
+      runLabel: 'Approve first',
+    });
+
+    expect(
+      getGoldmanStrategyControlState(
+        {
+          title: 'Paused strategy',
+          status: 'paused',
+          runtime: {
+            state: 'stopped',
+            executionMode: 'execute',
+          },
+        },
+        {
+          now: Date.parse('2026-06-24T16:00:00Z'),
+        }
+      )
+    ).toMatchObject({
+      primaryAction: 'run',
+      runLabel: 'Run',
+    });
+
+    expect(
+      getGoldmanStrategyControlState(
+        {
+          title: 'Running strategy',
+          status: 'active',
+          runtime: {
+            state: 'running',
+            executionMode: 'execute',
+          },
+        },
+        {
+          isStrategyRunning: true,
+          now: Date.parse('2026-06-24T16:00:00Z'),
+        }
+      )
+    ).toMatchObject({
+      primaryAction: 'stop',
+      runLabel: 'Stop',
     });
   });
 });
