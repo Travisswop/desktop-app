@@ -14,7 +14,6 @@ type GoldmanProposalSummary = {
 };
 
 type GoldmanProposalSummaryOptions = {
-  defaultFundingAsset?: string;
   venues?: string[];
   expiryLabel?: string | null;
 };
@@ -82,10 +81,7 @@ export function buildGoldmanStrategyProposalSummary(
   options: GoldmanProposalSummaryOptions = {}
 ): GoldmanProposalSummary {
   const venues = (options.venues || []).filter(Boolean);
-  const fundingAsset = strategyString(
-    params.fundingAsset,
-    options.defaultFundingAsset || 'approved capital'
-  );
+  const fundingAsset = strategyString(params.fundingAsset, '');
   const maxOrderUsd = positiveUsdLabel(params.maxOrderUsd);
   const maxDailySpendUsd = positiveUsdLabel(params.maxDailySpendUsd);
   const maxDailyLossUsd = positiveUsdLabel(params.maxDailyLossUsd);
@@ -96,11 +92,21 @@ export function buildGoldmanStrategyProposalSummary(
   const expiryLabel = strategyString(options.expiryLabel, '');
 
   const metrics: GoldmanProposalMetric[] = [];
-  metrics.push({
-    label: 'funding asset',
-    value: fundingAsset,
-    detail: allocationLabel || (maxDailySpendUsd ? `Daily cap ${maxDailySpendUsd}` : undefined),
-  });
+  if (fundingAsset) {
+    metrics.push({
+      label: 'funding asset',
+      value: fundingAsset,
+      detail:
+        allocationLabel ||
+        (maxDailySpendUsd ? `Daily cap ${maxDailySpendUsd}` : undefined),
+    });
+  } else if (allocationLabel) {
+    metrics.push({
+      label: 'allocation',
+      value: allocationLabel,
+      detail: maxDailySpendUsd ? `Daily cap ${maxDailySpendUsd}` : undefined,
+    });
+  }
   if (maxOpenPositions > 0) {
     metrics.push({
       label: 'open positions',
@@ -124,7 +130,9 @@ export function buildGoldmanStrategyProposalSummary(
     cooldown ? `${cooldown} cooldown between entries` : '',
   ].filter(Boolean);
 
-  const approvalBoundaryBase = `Approval lets Goldman trade on ${venueLabel} using ${fundingAsset} only within the displayed caps.`;
+  const approvalBoundaryBase = fundingAsset
+    ? `Approval lets Goldman trade on ${venueLabel} using ${fundingAsset} only within the displayed caps.`
+    : `Approval lets Goldman trade on ${venueLabel} only within the displayed caps.`;
   const constraintsSentence =
     constraints.length > 0 ? ` It still cannot exceed ${constraints.join(', ')}.` : '';
   const expirySentence = expiryLabel ? ` ${expiryLabel} remains the outer stop unless you stop it sooner.` : '';
