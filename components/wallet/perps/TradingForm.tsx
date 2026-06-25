@@ -32,6 +32,9 @@ import {
   type PerpsPositionFeedStatus,
 } from '@/lib/perps/perpsFeed';
 
+const LEVERAGE_ACCENT_COLOR = '#008cff';
+const LEVERAGE_TRACK_COLOR = '#f2f2f0';
+
 interface TradingFormProps {
   market: HLMarket | null;
   markPrice: string;
@@ -134,8 +137,13 @@ export function TradingForm({
   const leveragePct =
     maxLev > 1 ? ((safeLeverage - 1) / (maxLev - 1)) * 100 : 100;
   const leverageTrackStyle = {
-    '--swop-dial-track': `linear-gradient(to right, #d97706 0%, #d97706 ${leveragePct}%, #f2f2f0 ${leveragePct}%, #f2f2f0 100%)`,
+    '--swop-dial-track': `linear-gradient(to right, ${LEVERAGE_ACCENT_COLOR} 0%, ${LEVERAGE_ACCENT_COLOR} ${leveragePct}%, ${LEVERAGE_TRACK_COLOR} ${leveragePct}%, ${LEVERAGE_TRACK_COLOR} 100%)`,
   } as CSSProperties;
+  const leverageMarkStyle = {
+    left: `${leveragePct}%`,
+  } as CSSProperties;
+  const showSelectedLeverageMark =
+    maxLev > 1 && safeLeverage > 1 && safeLeverage < maxLev;
 
   const initialOrderKey = useMemo(
     () =>
@@ -861,7 +869,7 @@ export function TradingForm({
       <div className="mt-4">
         <div className="flex justify-between items-baseline mb-2">
           <span className="text-[11px] text-gray-500 font-medium">Leverage</span>
-          <span className="font-mono text-[18px] font-semibold tabular-nums text-amber-600">
+          <span className="font-mono text-[18px] font-semibold tabular-nums text-[#008cff]">
             {safeLeverage}×
           </span>
         </div>
@@ -892,11 +900,17 @@ export function TradingForm({
           className="swop-dial h-7 w-full cursor-pointer"
           style={leverageTrackStyle}
         />
-        <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 font-mono">
-          <span>1×</span>
-          <span>{Math.round(maxLev / 5)}×</span>
-          <span>{Math.round(maxLev / 2)}×</span>
-          <span>{maxLev}×</span>
+        <div className="relative mt-1.5 h-5 text-[10px] text-gray-400 font-mono">
+          <span className="absolute left-0 top-0">1×</span>
+          {showSelectedLeverageMark && (
+            <span
+              className="absolute top-0 -translate-x-1/2 font-semibold text-[#008cff]"
+              style={leverageMarkStyle}
+            >
+              {safeLeverage}×
+            </span>
+          )}
+          <span className="absolute right-0 top-0">{maxLev}×</span>
         </div>
       </div>
 
