@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { NFT } from "@/types/nft";
@@ -20,6 +20,9 @@ export default function NFTDetailView({
   nft,
   onNext,
 }: NFTDetailProps) {
+  const externalUrl = getSafeExternalUrl(nft.externalUrl);
+  const isReceiptUrl = externalUrl.includes("/receipt/");
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogTitle></DialogTitle>
@@ -57,7 +60,20 @@ export default function NFTDetailView({
             </div>
           )}
 
-          <div className="flex justify-center">
+          <div className="flex flex-wrap justify-center gap-3">
+            {externalUrl && (
+              <Button
+                type="button"
+                variant="outline"
+                className="px-5 font-bold"
+                onClick={() =>
+                  window.open(externalUrl, "_blank", "noopener,noreferrer")
+                }
+              >
+                <ExternalLink className="h-4 w-4" />
+                {isReceiptUrl ? "Open receipt" : "View"}
+              </Button>
+            )}
             <PrimaryButton className="px-10 font-bold" onClick={onNext}>
               Send
             </PrimaryButton>
@@ -66,4 +82,29 @@ export default function NFTDetailView({
       </DialogContent>
     </Dialog>
   );
+}
+
+function getSafeExternalUrl(value?: string): string {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const url = new URL(value.trim());
+
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return "";
+    }
+
+    if (
+      (url.hostname === "swop.id" || url.hostname === "www.swop.id") &&
+      url.pathname.startsWith("/receipt/")
+    ) {
+      return `https://www.swopme.app${url.pathname}${url.search}`;
+    }
+
+    return url.toString();
+  } catch {
+    return "";
+  }
 }
