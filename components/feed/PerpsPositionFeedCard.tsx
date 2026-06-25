@@ -174,6 +174,65 @@ function normalizePositionStatus(
   return 'open';
 }
 
+export function resolvePerpsTerminalLabels({
+  status,
+  terminalReason,
+}: {
+  status: 'limit' | 'open' | 'closed' | 'liquidated' | 'cancelled';
+  terminalReason?: Partial<PerpsPositionFeedContent>['terminalReason'];
+}) {
+  if (status === 'liquidated') {
+    return {
+      badgeLabel: 'Liquidated',
+      statusLabel: 'Liquidated',
+      statusVerb: 'Liquidated',
+    };
+  }
+
+  if (status === 'cancelled') {
+    return {
+      badgeLabel: 'Cancelled',
+      statusLabel: 'Cancelled',
+      statusVerb: 'Cancelled',
+    };
+  }
+
+  if (status !== 'closed') {
+    return {
+      badgeLabel: '',
+      statusLabel: '',
+      statusVerb: '',
+    };
+  }
+
+  switch (terminalReason) {
+    case 'take_profit':
+      return {
+        badgeLabel: 'TP Hit',
+        statusLabel: 'Take-profit hit',
+        statusVerb: 'Take-profit hit',
+      };
+    case 'stop_loss':
+      return {
+        badgeLabel: 'SL Hit',
+        statusLabel: 'Stop-loss hit',
+        statusVerb: 'Stop-loss hit',
+      };
+    case 'manual':
+      return {
+        badgeLabel: 'Manual Close',
+        statusLabel: 'Manual close',
+        statusVerb: 'Manually closed',
+      };
+    default:
+      return {
+        badgeLabel: 'Closed',
+        statusLabel: 'Closed',
+        statusVerb: 'Closed',
+      };
+  }
+}
+
 function dateMs(value: unknown) {
   const milliseconds = Date.parse(String(value || ''));
   return Number.isFinite(milliseconds) ? milliseconds : null;
@@ -328,7 +387,6 @@ export default function PerpsPositionFeedCard({
   const storedStatus = terminalTimestampPredatesOpen(content, rawStoredStatus)
     ? 'open'
     : rawStoredStatus;
-  const isLimitStatus = storedStatus === 'limit';
   const isLimitLifecycleStatus =
     storedStatus === 'limit' || storedStatus === 'cancelled';
   const hasStoredTerminalStatus =
@@ -641,36 +699,28 @@ export default function PerpsPositionFeedCard({
       : side === 'long'
       ? 'border-emerald-200 bg-emerald-100 text-emerald-600'
       : 'border-red-200 bg-red-100 text-red-500';
+  const terminalLabels = resolvePerpsTerminalLabels({
+    status,
+    terminalReason: content.terminalReason,
+  });
   const badgeLabel =
-    status === 'liquidated'
-      ? 'Liquidated'
-      : status === 'cancelled'
-      ? 'Cancelled'
-      : status === 'closed'
-      ? 'Closed'
-      : status === 'limit'
+    status === 'limit'
       ? `Limit ${side}`
-      : side;
+      : status === 'open'
+      ? side
+      : terminalLabels.badgeLabel;
   const statusLabel =
-    status === 'liquidated'
-      ? 'Liquidated'
-      : status === 'cancelled'
-      ? 'Cancelled'
-      : status === 'closed'
-      ? 'Closed'
-      : status === 'limit'
+    status === 'limit'
       ? 'Limit'
-      : 'Open';
+      : status === 'open'
+      ? 'Open'
+      : terminalLabels.statusLabel;
   const statusVerb =
-    status === 'liquidated'
-      ? 'Liquidated'
-      : status === 'cancelled'
-      ? 'Cancelled'
-      : status === 'closed'
-      ? 'Closed'
-      : status === 'limit'
+    status === 'limit'
       ? 'Limit set'
-      : 'Opened';
+      : status === 'open'
+      ? 'Opened'
+      : terminalLabels.statusVerb;
   const statusPillClasses =
     status === 'liquidated'
       ? 'border-red-200 bg-red-50 text-red-500'

@@ -16,6 +16,11 @@ export type PerpsPositionFeedStatus =
   | 'closed'
   | 'liquidated'
   | 'cancelled';
+export type PerpsTerminalReason =
+  | 'take_profit'
+  | 'stop_loss'
+  | 'manual'
+  | 'liquidation';
 
 export interface PerpsPositionFeedContent {
   provider: 'hyperliquid';
@@ -46,6 +51,7 @@ export interface PerpsPositionFeedContent {
   limitPlacedAt?: string;
   openedAt?: string;
   updatedAt: string;
+  terminalReason?: PerpsTerminalReason;
   closedAt?: string;
   liquidatedAt?: string;
   cancelledAt?: string;
@@ -54,6 +60,7 @@ export interface PerpsPositionFeedContent {
 export interface PerpsLiquidationFillSnapshot {
   coin: string;
   dex?: string | null;
+  terminalReason?: PerpsTerminalReason;
   px?: number;
   markPx?: number;
   closedPnl?: number;
@@ -65,6 +72,7 @@ export interface PerpsLiquidationFillSnapshot {
 export interface PerpsCloseFillSnapshot {
   coin: string;
   dex?: string | null;
+  terminalReason?: PerpsTerminalReason;
   px?: number;
   closedPnl?: number;
   feeUsd?: number;
@@ -456,11 +464,36 @@ function samePerpsPositionSize(left: number, right: number) {
 function resolvePerpsTerminalSnapshotIdentities(
   fills: PerpsFillLike[] = [],
   dexByCoin: PerpsCoinDexMap = {},
+  trackedPositions: PerpsPositionLike[] = [],
 ) {
   const trackedPositionSizes = new Map<
     string,
     { displayCoin: string; dex?: string | null; size: number }
   >();
+
+  trackedPositions.forEach((position) => {
+    const qualifiedCoin = qualifyPerpsPositionCoin({
+      coin: normalizePerpsCoin(position.coin),
+      dex: position.dex,
+    });
+    const displayCoin = perpsDisplayCoin(qualifiedCoin);
+    const dex =
+      normalizePerpsDex(position.dex) ||
+      (qualifiedCoin.includes(':')
+        ? normalizePerpsDex(qualifiedCoin.split(':')[0])
+        : '');
+    const size = maybePerpsFeedNumber(position.szi);
+
+    if (!qualifiedCoin || !displayCoin || size === undefined || size === 0) {
+      return;
+    }
+
+    trackedPositionSizes.set(qualifiedCoin, {
+      displayCoin,
+      dex: dex || null,
+      size,
+    });
+  });
 
   return fills
     .map((fill, index) => ({
@@ -501,9 +534,9 @@ function resolvePerpsTerminalSnapshotIdentities(
             displayCoin: tracked.displayCoin,
             dex: tracked.dex || null,
           };
-        } else if (trackedCandidates.length > 1) {
+        } else if (startMatches.length > 1 || trackedCandidates.length > 1) {
           identity = {
-            coin: normalizedCoin,
+            coin: '',
             displayCoin: fallbackIdentity.displayCoin,
             dex: null,
           };
@@ -652,10 +685,12 @@ function isTerminalCloseFill(fill: PerpsFillLike) {
 export function inferPerpsCloseFillsByCoin(
   fills: PerpsFillLike[] = [],
   dexByCoin: PerpsCoinDexMap = {},
+  trackedPositions: PerpsPositionLike[] = [],
 ): Record<string, PerpsCloseFillSnapshot> {
   return resolvePerpsTerminalSnapshotIdentities(
     fills,
     dexByCoin,
+    trackedPositions,
   ).reduce<Record<string, PerpsCloseFillSnapshot>>((closedFills, entry) => {
       const { fill, identity, timeMs } = entry;
       if (fill?.liquidation || !isTerminalCloseFill(fill)) return closedFills;
@@ -693,10 +728,12 @@ export function inferPerpsCloseFillsByCoin(
 export function inferPerpsLiquidationsByCoin(
   fills: PerpsFillLike[] = [],
   dexByCoin: PerpsCoinDexMap = {},
+  trackedPositions: PerpsPositionLike[] = [],
 ): Record<string, PerpsLiquidationFillSnapshot> {
   return resolvePerpsTerminalSnapshotIdentities(
     fills,
     dexByCoin,
+    trackedPositions,
   ).reduce<Record<string, PerpsLiquidationFillSnapshot>>(
     (liquidations, entry) => {
       const { fill, identity, timeMs } = entry;
@@ -722,6 +759,7 @@ export function inferPerpsLiquidationsByCoin(
       liquidations[identity.coin] = {
         coin: identity.coin,
         ...(identity.dex ? { dex: identity.dex } : {}),
+        terminalReason: 'liquidation',
         ...(price !== undefined ? { px: price } : {}),
         ...(markPrice !== undefined ? { markPx: markPrice } : {}),
         ...(closedPnl !== undefined ? { closedPnl } : {}),

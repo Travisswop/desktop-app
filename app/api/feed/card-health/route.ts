@@ -101,6 +101,14 @@ export async function POST(request: NextRequest) {
     await appendFile(logPath, `${lines.join('\n')}\n`, 'utf8');
   } catch (error) {
     console.warn('[feed-card-health] local append failed', error);
+    return NextResponse.json(
+      {
+        success: false,
+        logged: 0,
+        error: 'local_append_failed',
+      },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ success: true, logged: lines.length });

@@ -381,15 +381,16 @@ export function PerpsPanel({
             (item) => item.coin === fill.coin,
           );
           const liquidationSnapshot = Object.values(
-            inferPerpsLiquidationsByCoin([fill], knownDexByCoinRef.current),
+            inferPerpsLiquidationsByCoin(
+              [fill],
+              knownDexByCoinRef.current,
+              accountData?.positions,
+            ),
           )[0];
-          const feedCoin =
-            liquidationSnapshot?.coin ||
-            qualifyPerpsPositionCoin({
-              coin: fill.coin,
-              dex: position?.dex,
-            });
-          const feedDex = liquidationSnapshot?.dex ?? position?.dex ?? null;
+          if (!liquidationSnapshot?.coin) return;
+
+          const feedCoin = liquidationSnapshot.coin;
+          const feedDex = liquidationSnapshot.dex ?? null;
           const startSize = toPerpsFeedNumber(fill.startPosition);
           const isLong =
             position
@@ -451,6 +452,7 @@ export function PerpsPanel({
               returnPct,
               unrealizedPnl: realizedPnl,
               realizedPnl,
+              terminalReason: 'liquidation',
               orderId:
                 fill.oid === undefined || fill.oid === null
                   ? undefined
@@ -646,10 +648,12 @@ export function PerpsPanel({
     const closedFillsByCoin = inferPerpsCloseFillsByCoin(
       fills,
       knownDexByCoinRef.current,
+      positions,
     );
     const liquidationsByCoin = inferPerpsLiquidationsByCoin(
       fills,
       knownDexByCoinRef.current,
+      positions,
     );
     const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
       masterAddress,
@@ -889,6 +893,7 @@ export function PerpsPanel({
             sizeCoins: Math.abs(toPerpsFeedNumber(position.szi)),
             returnPct: toPerpsFeedNumber(position.returnOnEquity) * 100,
             unrealizedPnl: toPerpsFeedNumber(position.unrealizedPnl),
+            terminalReason: 'manual',
             orderId: extractPerpsOrderId(orderResult),
             masterAddress,
             updatedAt: timestamp,

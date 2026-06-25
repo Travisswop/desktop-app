@@ -200,10 +200,12 @@ export default function PerpsFeedBackfill() {
         const closedFillsByCoin = inferPerpsCloseFillsByCoin(
           recentFills,
           knownDexByCoinRef.current,
+          positions,
         );
         const liquidationsByCoin = inferPerpsLiquidationsByCoin(
           recentFills,
           knownDexByCoinRef.current,
+          positions,
         );
         const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
           masterAddress,

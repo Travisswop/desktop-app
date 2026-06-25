@@ -34,7 +34,10 @@ import {
   resolveTradeState,
   type ResolvedMarketState,
 } from '@/components/feed/PredictionFeedCard';
-import { selectPerpsChartMarkerEntries } from '@/components/feed/PerpsPositionFeedCard';
+import {
+  resolvePerpsTerminalLabels,
+  selectPerpsChartMarkerEntries,
+} from '@/components/feed/PerpsPositionFeedCard';
 import {
   btcUpWonFeedPost,
   mexicoClaimedOverrideFeedPost,
@@ -203,6 +206,28 @@ describe('feed card contracts', () => {
         liveScore: merged,
       }),
     ).toBe('1-0');
+  });
+
+  it('labels take-profit and manual perps closes distinctly on the feed card', () => {
+    expect(
+      resolvePerpsTerminalLabels({
+        status: 'closed',
+        terminalReason: 'take_profit',
+      }),
+    ).toMatchObject({
+      badgeLabel: 'TP Hit',
+      statusLabel: 'Take-profit hit',
+    });
+
+    expect(
+      resolvePerpsTerminalLabels({
+        status: 'closed',
+        terminalReason: 'manual',
+      }),
+    ).toMatchObject({
+      badgeLabel: 'Manual Close',
+      statusLabel: 'Manual close',
+    });
   });
 
   it('creates a verified final score snapshot only from terminal scored events', () => {

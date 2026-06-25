@@ -288,6 +288,7 @@ describe('perps feed timestamps', () => {
     expect(liquidations['XYZ:SPCX']).toEqual({
       coin: 'XYZ:SPCX',
       dex: 'xyz',
+      terminalReason: 'liquidation',
       px: 167.5,
       markPx: 167.4,
       closedPnl: -12.5,
@@ -295,6 +296,60 @@ describe('perps feed timestamps', () => {
       orderId: '556',
       timestamp: '2026-06-15T11:46:00.000Z',
     });
+  });
+
+  it('uses tracked active positions to qualify a raw builder liquidation fill', () => {
+    const liquidations = inferPerpsLiquidationsByCoin(
+      [
+        {
+          coin: 'SPCX',
+          side: 'A',
+          sz: '3.42',
+          startPosition: '3.42',
+          px: '167.5',
+          time: Date.parse('2026-06-15T11:46:00Z'),
+          oid: 556,
+          liquidation: {
+            markPx: '167.4',
+          },
+        },
+      ],
+      { SPCX: 'abc' },
+      [
+        { coin: 'SPCX', dex: 'abc', szi: '1.11' },
+        { coin: 'SPCX', dex: 'xyz', szi: '3.42' },
+      ],
+    );
+
+    expect(liquidations['XYZ:SPCX']).toMatchObject({
+      coin: 'XYZ:SPCX',
+      dex: 'xyz',
+      terminalReason: 'liquidation',
+    });
+    expect(liquidations['ABC:SPCX']).toBeUndefined();
+  });
+
+  it('drops ambiguous raw builder close fills instead of guessing the dex', () => {
+    const closeFills = inferPerpsCloseFillsByCoin(
+      [
+        {
+          coin: 'SPCX',
+          side: 'A',
+          sz: '3.42',
+          startPosition: '3.42',
+          px: '188.4',
+          time: Date.parse('2026-06-15T11:47:00Z'),
+          oid: 777,
+        },
+      ],
+      { SPCX: 'abc' },
+      [
+        { coin: 'SPCX', dex: 'abc', szi: '3.42' },
+        { coin: 'SPCX', dex: 'xyz', szi: '3.42' },
+      ],
+    );
+
+    expect(closeFills).toEqual({});
   });
 
   it('changes the reconcile snapshot when a terminal close fill arrives later', () => {
