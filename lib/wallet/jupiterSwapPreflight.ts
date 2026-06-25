@@ -42,6 +42,17 @@ const getTokenMint = (token?: JupiterSwapTokenLike | null) =>
     ? SOL_MINT
     : token?.address || token?.id || '';
 
+const getTokenDecimals = (
+  decimals?: JupiterSwapTokenLike['decimals'],
+): number | bigint | undefined => {
+  if (typeof decimals === 'string') {
+    const parsed = Number(decimals);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return decimals ?? undefined;
+};
+
 export function getJupiterSwapPreflight({
   solanaReady,
   selectedSolanaWalletAddress,
@@ -86,7 +97,7 @@ export function getJupiterSwapPreflight({
   const amountInSmallestUnit =
     decimalAmountToRawUnits(
       payAmount,
-      normalizeTokenDecimals(payToken?.decimals, 6),
+      normalizeTokenDecimals(getTokenDecimals(payToken?.decimals), 6),
     )?.toString() ?? '0';
 
   return {

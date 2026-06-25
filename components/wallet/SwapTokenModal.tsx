@@ -1968,27 +1968,6 @@ export default function SwapTokenModal({
     return `The Solana wallet with these balances (${formatShortWalletAddress(selectedSolanaSigningWalletAddress)}) is not connected for signing. Connect that wallet or switch accounts, then try again.`;
   }, [selectedSolanaSigningWalletAddress]);
 
-  const shouldBlockSelectedSolanaWalletExecution =
-    shouldBlockSolanaSwapExecution({
-      isJupiterRoute: isSolanaToSolanaSwap(),
-      selectedSolanaSigningWalletAddress:
-        normalizedSelectedSolanaSigningWalletAddress,
-      hasSelectedSolanaWallet: Boolean(selectedSolanaWallet),
-      solanaReady,
-      solanaStandardWalletsReady,
-    });
-
-  const solanaWalletMismatchError = useMemo(() => {
-    if (!shouldBlockSelectedSolanaWalletExecution) {
-      return null;
-    }
-
-    return buildSolanaWalletMismatchError();
-  }, [
-    buildSolanaWalletMismatchError,
-    shouldBlockSelectedSolanaWalletExecution,
-  ]);
-
   const [fromWalletAddress, setFromWalletAddress] = useState(
     selectedSolanaWallet?.address || '',
   );
@@ -2422,6 +2401,27 @@ export default function SwapTokenModal({
       isSolanaToken(receiveToken, receiverChainId),
     [chainId, payToken, receiveToken, receiverChainId],
   );
+
+  const shouldBlockSelectedSolanaWalletExecution =
+    shouldBlockSolanaSwapExecution({
+      isJupiterRoute: isSolanaToSolanaSwap(),
+      selectedSolanaSigningWalletAddress:
+        normalizedSelectedSolanaSigningWalletAddress,
+      hasSelectedSolanaWallet: Boolean(selectedSolanaWallet),
+      solanaReady,
+      solanaStandardWalletsReady,
+    });
+
+  const solanaWalletMismatchError = useMemo(() => {
+    if (!shouldBlockSelectedSolanaWalletExecution) {
+      return null;
+    }
+
+    return buildSolanaWalletMismatchError();
+  }, [
+    buildSolanaWalletMismatchError,
+    shouldBlockSelectedSolanaWalletExecution,
+  ]);
 
   const applySubmittedSwapBalanceUpdate = useCallback(() => {
     const payKey = getTokenIdentityKey(payToken);
@@ -4379,16 +4379,22 @@ export default function SwapTokenModal({
 
     try {
       let canRunUserFundedSimulation = true;
+      const selectedSolanaWalletAddress =
+        selectedSolanaWallet?.address ?? null;
       const preflight = getJupiterSwapPreflight({
         solanaReady,
-        selectedSolanaWalletAddress: selectedSolanaWallet?.address,
+        selectedSolanaWalletAddress,
         solanaWalletMismatchError,
         payToken,
         receiveToken,
         payAmount,
       });
-      if (!preflight.ok) {
-        setSwapError(preflight.error);
+      if (!preflight.ok || !selectedSolanaWallet || !selectedSolanaWalletAddress) {
+        setSwapError(
+          preflight.ok
+            ? solanaWalletMismatchError || 'No Solana wallet connected'
+            : preflight.error,
+        );
         setIsSwapping(false);
         return;
       }
@@ -4399,9 +4405,7 @@ export default function SwapTokenModal({
       } = preflight;
       failureContext = {
         ...failureContext,
-        walletAddress: maskIdentifier(
-          selectedSolanaWallet?.address,
-        ),
+        walletAddress: maskIdentifier(selectedSolanaWalletAddress),
         inputToken: {
           symbol: payToken?.symbol,
           mint: inputMint,
@@ -4428,7 +4432,7 @@ export default function SwapTokenModal({
 
       const USER_FEE_PAYER_SIMULATION_BUFFER = 15_000;
       const walletPubkey = new PublicKey(
-        selectedSolanaWallet.address,
+        selectedSolanaWalletAddress,
       );
       const inputMintPubkey = new PublicKey(inputMint);
       const outputMintPubkey = new PublicKey(outputMint);
@@ -4669,8 +4673,8 @@ export default function SwapTokenModal({
           inputMint,
           outputMint,
           amount: amountInSmallestUnit,
-          taker: selectedSolanaWallet.address,
-          payer: selectedSolanaWallet.address,
+          taker: selectedSolanaWalletAddress,
+          payer: selectedSolanaWalletAddress,
           slippageBps,
           mode: 'fast' as const,
           platformFeeBps: effectivePlatformFeeBps,
@@ -4680,7 +4684,7 @@ export default function SwapTokenModal({
             : undefined,
           wrapAndUnwrapSol: isSOLInput || isSOLOutput,
           nativeDestinationAccount: isSOLOutput
-            ? selectedSolanaWallet.address
+            ? selectedSolanaWalletAddress
             : undefined,
         };
         failureContext = {
@@ -4725,7 +4729,7 @@ export default function SwapTokenModal({
             : undefined,
           wrapAndUnwrapSol: isSOLInput || isSOLOutput,
           nativeDestinationAccount: isSOLOutput
-            ? maskIdentifier(selectedSolanaWallet.address)
+            ? maskIdentifier(selectedSolanaWalletAddress)
             : undefined,
         });
 
@@ -4811,7 +4815,7 @@ export default function SwapTokenModal({
           try {
             let simulationResult = await simulateJupiterBuild({
               build,
-              feePayer: selectedSolanaWallet.address,
+              feePayer: selectedSolanaWalletAddress,
               connection,
             });
 
@@ -4851,7 +4855,7 @@ export default function SwapTokenModal({
               setSwapStatus('Simulating refreshed Jupiter swap...');
               simulationResult = await simulateJupiterBuild({
                 build,
-                feePayer: selectedSolanaWallet.address,
+                feePayer: selectedSolanaWalletAddress,
                 connection,
               });
 
@@ -4892,7 +4896,7 @@ export default function SwapTokenModal({
 
         const tx = buildJupiterVersionedTransaction({
           build,
-          feePayer: selectedSolanaWallet.address,
+          feePayer: selectedSolanaWalletAddress,
           computeUnitLimit,
         });
 
