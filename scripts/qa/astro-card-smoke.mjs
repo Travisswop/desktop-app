@@ -14,6 +14,7 @@ const DEFAULT_ALERT_SUBJECT_PREFIX = '[Swop QA]';
 const DEFAULT_SWAP_INPUT_MINT = 'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1';
 const DEFAULT_SWAP_OUTPUT_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const DEFAULT_SWAP_AMOUNT = '1000000000';
+const LOCAL_CONSOLE_CARD_TELEMETRY_PREFIX = '[astro-console-card-telemetry]';
 
 const FINAL_ACTION_PATTERNS = [
   /sign\s*&\s*approve/i,
@@ -46,7 +47,33 @@ const CARD_COMMAND_CONTRACTS = [
     forbiddenActions: [],
     routeChecks: ['wallet.read context available through Astro'],
     failureSignals: ['plain-text-only answer', 'missing allocation card', 'stale wallet context'],
-    passCriteria: ['portfolio allocation card renders in chat'],
+    passCriteria: [
+      'portfolio allocation card renders in chat',
+      'generated local console card telemetry is emitted',
+    ],
+  },
+  {
+    step: 'portfolio-card-reload-persistence',
+    command: 'reload / leave chat after show my portfolio',
+    cardType: 'portfolio allocation reload persistence',
+    expectedMarkers: ['Portfolio allocation', '[astro-console-card-telemetry]'],
+    safeInteractions: ['reload page', 'open /wallet', 'return to /dashboard/chat'],
+    forbiddenActions: [],
+    routeChecks: [
+      'portfolio card remains visible after reload',
+      'portfolio card remains visible after navigating away and back',
+      'reload path emits local console card rehydrated telemetry',
+    ],
+    failureSignals: [
+      'card disappears after reload',
+      'card disappears after navigation return',
+      'missing generated telemetry',
+      'missing rehydrated telemetry after reload',
+    ],
+    passCriteria: [
+      'portfolio allocation card remains visible after reload and navigation return',
+      'generated telemetry and reload-path rehydrated telemetry share the same sourceMessageId',
+    ],
   },
   {
     step: 'receive-qr-card',
@@ -509,6 +536,33 @@ function shortText(value, maxLength = 700) {
   return `${normalized.slice(0, maxLength - 3)}...`;
 }
 
+function getConsoleArgText(arg) {
+  if (!arg || typeof arg !== 'object') return '';
+  if (typeof arg.value === 'string') return arg.value;
+  if (typeof arg.description === 'string') return arg.description;
+  if (typeof arg.unserializableValue === 'string') {
+    return arg.unserializableValue;
+  }
+  return '';
+}
+
+function parseLocalConsoleTelemetryEvent(params) {
+  if (!params || params.type !== 'info' || !Array.isArray(params.args)) {
+    return null;
+  }
+  const [prefixArg, payloadArg] = params.args;
+  if (getConsoleArgText(prefixArg) !== LOCAL_CONSOLE_CARD_TELEMETRY_PREFIX) {
+    return null;
+  }
+  const rawPayload = getConsoleArgText(payloadArg);
+  if (!rawPayload) return null;
+  try {
+    return JSON.parse(rawPayload);
+  } catch {
+    return null;
+  }
+}
+
 async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 30000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -878,6 +932,22 @@ async function selectThread(client, threadText) {
   if (clicked) await sleep(1000);
 }
 
+async function reopenChatThread(client, args) {
+  await waitForText(client, 'authenticated chat shell', [/Messages/i, /Astro/i], 45000);
+  await selectThread(client, args.threadText);
+  await scrollAllToBottom(client);
+}
+
+async function navigatePage(client, url) {
+  await client.send('Page.navigate', { url });
+  await sleep(3000);
+}
+
+async function reloadPage(client) {
+  await client.send('Page.reload', { ignoreCache: false });
+  await sleep(3000);
+}
+
 async function hasConfirmOnlyState(client) {
   return evaluate(client, () => {
     const text = document.body?.innerText || '';
@@ -907,9 +977,68 @@ async function runCardChecks({ client, baseUrl, args, report }) {
   finishStep(step, 'pass', `Authenticated chat loaded; selected thread containing "${args.threadText}".`);
 
   step = add('portfolio-card');
+  const telemetryStartIndex = report.telemetry.length;
   await sendPrompt(client, 'show my portfolio');
   await waitForText(client, 'portfolio allocation card', ['Portfolio allocation'], 30000);
-  finishStep(step, 'pass', 'Rendered wallet portfolio allocation card.');
+  const generatedTelemetry = await waitFor(
+    client,
+    'generated portfolio telemetry',
+    async () =>
+      report.telemetry
+        .slice(telemetryStartIndex)
+        .find(
+          (event) =>
+            event.eventType === 'generated' &&
+            event.cardType === 'portfolio'
+        ) || false,
+    30000
+  );
+  finishStep(
+    step,
+    'pass',
+    `Rendered wallet portfolio allocation card and captured generated telemetry for source ${generatedTelemetry.sourceMessageId}.`
+  );
+
+  step = add('portfolio-card-reload-persistence');
+  const reloadTelemetryStartIndex = report.telemetry.length;
+  await reloadPage(client);
+  await reopenChatThread(client, args);
+  await waitForText(
+    client,
+    'portfolio allocation card after reload',
+    ['Portfolio allocation'],
+    30000
+  );
+  const rehydratedTelemetry = await waitFor(
+    client,
+    'rehydrated portfolio telemetry after reload',
+    async () =>
+      report.telemetry
+        .slice(reloadTelemetryStartIndex)
+        .find(
+          (event) =>
+            event.eventType === 'rehydrated' &&
+            event.cardType === 'portfolio' &&
+            event.sourceMessageId === generatedTelemetry.sourceMessageId
+        ) || false,
+    30000
+  );
+  const walletUrl = new URL('/wallet', args.url).toString();
+  await navigatePage(client, walletUrl);
+  await waitForText(client, 'wallet page shell', ['Wallet', 'Assets'], 45000);
+  await navigatePage(client, args.url);
+  await reopenChatThread(client, args);
+  await waitForText(
+    client,
+    'portfolio allocation card after navigation return',
+    ['Portfolio allocation'],
+    30000
+  );
+  finishStep(
+    step,
+    'pass',
+    `Portfolio allocation card stayed visible after reload and navigation return; reload telemetry rehydrated source ${rehydratedTelemetry.sourceMessageId}.`
+  );
 
   step = add('receive-qr-card');
   await sendPrompt(client, 'show my receive QR for Solana');
@@ -1081,6 +1210,7 @@ async function main() {
       errors: [],
       exceptions: [],
     },
+    telemetry: [],
     status: 'running',
   };
 
@@ -1114,6 +1244,12 @@ async function main() {
   });
   client.on('Runtime.exceptionThrown', (params) => {
     report.console.exceptions.push(params.exceptionDetails);
+  });
+  client.on('Runtime.consoleAPICalled', (params) => {
+    const telemetryEvent = parseLocalConsoleTelemetryEvent(params);
+    if (telemetryEvent) {
+      report.telemetry.push(telemetryEvent);
+    }
   });
 
   try {
