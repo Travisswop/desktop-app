@@ -15007,7 +15007,7 @@ async function ensureChatEvmSwapAllowance({
   });
 }
 
-function SwapProposalTicket({
+export function SwapProposalTicket({
   proposal,
   proposalId,
   status,
@@ -15019,6 +15019,8 @@ function SwapProposalTicket({
   astroConsoleData,
   sourceText,
   autoFetchQuote = true,
+  initialQuoteState,
+  initialSwapRecovery = null,
 }: {
   proposal?: AgentActionProposal | null;
   proposalId: string;
@@ -15031,6 +15033,13 @@ function SwapProposalTicket({
   astroConsoleData: AstroConsoleData;
   sourceText?: string;
   autoFetchQuote?: boolean;
+  initialQuoteState?: ChatSwapQuoteState;
+  initialSwapRecovery?: {
+    kind: 'balance_changed';
+    previousAmountLabel: string;
+    availableAmount: string;
+    tokenSymbol: string;
+  } | null;
 }) {
   const { accessToken, user } = useUser();
   const { getAccessToken } = usePrivy();
@@ -15048,7 +15057,7 @@ function SwapProposalTicket({
     previousAmountLabel: string;
     availableAmount: string;
     tokenSymbol: string;
-  } | null>(null);
+  } | null>(initialSwapRecovery);
   const [swapError, setSwapError] = useState<string | null>(null);
   const [inlineSwapStatus, setInlineSwapStatus] = useState<string | null>(null);
   const [isConfirmingSwap, setIsConfirmingSwap] = useState(false);
@@ -15337,9 +15346,11 @@ function SwapProposalTicket({
     const clampedPercent = Math.min(100, Math.max(0, percent));
     setAmountFromTokenAmount(maxSellAmount * (clampedPercent / 100));
   };
-  const [quoteState, setQuoteState] = useState<ChatSwapQuoteState>({
-    status: 'idle',
-  });
+  const [quoteState, setQuoteState] = useState<ChatSwapQuoteState>(
+    initialQuoteState || {
+      status: 'idle',
+    }
+  );
   const quoteRequestIdRef = useRef(0);
   const quoteCacheRef = useRef(
     new Map<string, { state: ChatSwapQuoteState; ts: number }>()

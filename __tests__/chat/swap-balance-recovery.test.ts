@@ -3,9 +3,152 @@ import {
   buildSwapBalanceRecoveryTelemetryContext,
   parseSwapBalanceChangeError,
 } from '@/lib/chat/ticketFormat';
+import { SwapProposalTicket } from '@/components/chat/ChatArea';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SwapBalanceRecoveryPanel } from '@/components/chat/tickets/SwapBalanceRecoveryPanel';
+
+jest.mock('@tanstack/react-query', () => ({
+  useQuery: jest.fn(() => ({ data: undefined, isLoading: false })),
+  useQueryClient: jest.fn(() => ({
+    invalidateQueries: jest.fn(),
+  })),
+}));
+
+jest.mock('@privy-io/react-auth', () => ({
+  useConnectWallet: jest.fn(() => ({ connectWallet: jest.fn() })),
+  usePrivy: jest.fn(() => ({ getAccessToken: jest.fn() })),
+  useSendTransaction: jest.fn(() => ({ sendTransaction: jest.fn() })),
+  useWallets: jest.fn(() => ({ wallets: [] })),
+}));
+
+jest.mock('@privy-io/react-auth/solana', () => ({
+  useSignAndSendTransaction: jest.fn(() => ({
+    signAndSendTransaction: jest.fn(),
+  })),
+  useSignTransaction: jest.fn(() => ({
+    signTransaction: jest.fn(),
+  })),
+  useWallets: jest.fn(() => ({ wallets: [], ready: true })),
+}));
+
+jest.mock('@/lib/UserContext', () => ({
+  useUser: jest.fn(() => ({
+    accessToken: null,
+    user: null,
+  })),
+}));
+
+jest.mock('lightweight-charts', () => ({}), { virtual: true });
+
+jest.mock('@/components/chat/cards/ChatChartCommandCard', () => ({
+  ChatChartCommandCard: () => null,
+}));
+
+jest.mock('@/components/wallet/perps/hooks/useHyperliquidPortfolio', () => ({
+  useHyperliquidPortfolio: jest.fn(() => ({})),
+}));
+
+jest.mock('@/components/wallet/perps/hooks/useHyperliquidAgent', () => ({
+  useHyperliquidAgent: jest.fn(() => ({})),
+}));
+
+jest.mock('@/components/wallet/perps/hooks/useHyperliquidMarkets', () => ({
+  useHyperliquidMarkets: jest.fn(() => ({})),
+}));
+
+jest.mock('@/components/wallet/perps/hooks/useHyperliquidTrading', () => ({
+  useHyperliquidTrading: jest.fn(() => ({})),
+}));
+
+function createWalletToken(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    name: 'MCDX',
+    symbol: 'MCDX',
+    balance: '40',
+    decimals: 9,
+    chainId: 1151111081099710,
+    walletAddress: 'So11111111111111111111111111111111111111112',
+    address: 'Mcdx111111111111111111111111111111111111111',
+    logoURI: '',
+    chain: 'SOLANA',
+    marketData: {
+      price: 1,
+    },
+    timeSeriesData: {
+      '1H': [],
+      '1D': [],
+      '1W': [],
+      '1M': [],
+      '1Y': [],
+    },
+    ...overrides,
+  };
+}
+
+function renderSwapProposalTicketDocument() {
+  const markup = renderToStaticMarkup(
+    React.createElement(SwapProposalTicket, {
+      proposal: {
+        normalizedParams: {
+          amount: '25',
+          amountType: 'token',
+          fromTokenSymbol: 'MCDX',
+          fromChainId: 'solana',
+          routeLabel: 'Jupiter',
+          toTokenSymbol: 'USDC',
+          toChainId: 'solana',
+        },
+      } as any,
+      proposalId: 'local-swap-wallet-1',
+      status: 'pending',
+      canAct: true,
+      isOpen: true,
+      isPending: false,
+      onInlineActionComplete: jest.fn(),
+      onReject: jest.fn(),
+      astroConsoleData: {
+        walletPortfolioTokens: [
+          createWalletToken(),
+          createWalletToken({
+            name: 'USD Coin',
+            symbol: 'USDC',
+            balance: '100',
+            address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+            marketData: {
+              price: 1,
+            },
+          }),
+        ],
+        isWalletPortfolioBalanceLoading: false,
+        evmWalletAddress: '',
+        evmWalletAddresses: [],
+        eoaAddress: '',
+        solWalletAddress: 'So11111111111111111111111111111111111111112',
+      } as any,
+      sourceText: 'Swap 25 MCDX to USDC',
+      autoFetchQuote: false,
+      initialSwapRecovery: {
+        kind: 'balance_changed',
+        previousAmountLabel: '25 MCDX',
+        availableAmount: '0.12635657',
+        tokenSymbol: 'MCDX',
+      },
+    })
+  );
+
+  const buttons = Array.from(markup.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g))
+    .map((match) => ({
+      disabled: Boolean(match[1].match(/\sdisabled(?:=|>|\s|$)/)),
+      textContent: match[2]
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    }));
+
+  return { markup, buttons };
+}
 
 describe('parseSwapBalanceChangeError', () => {
   it('extracts the updated available amount and token symbol', () => {
@@ -84,5 +227,22 @@ describe('parseSwapBalanceChangeError', () => {
     expect(html).toContain('available now');
     expect(html).toContain('Refresh quote');
     expect(html).toContain('Astro kept this ticket open');
+  });
+
+  it('renders the balance recovery state on the real swap ticket surface', () => {
+    const { markup, buttons } = renderSwapProposalTicketDocument();
+    const refreshQuoteButton = buttons.find((button) =>
+      button.textContent.includes('Refresh quote')
+    );
+
+    expect(markup).toContain('swap quote');
+    expect(markup).toContain('needs refresh');
+    expect(markup).toContain('Refresh USDC quote');
+    expect(markup).toContain('Balance changed before signing');
+    expect(markup).toContain('25 MCDX');
+    expect(markup).toContain('0.126357 MCDX');
+    expect(markup).toContain('Astro kept this ticket open');
+    expect(markup).not.toContain('Your MCDX balance changed');
+    expect(refreshQuoteButton?.disabled).toBe(false);
   });
 });
