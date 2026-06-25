@@ -127,6 +127,30 @@ function renderSwapProposalTicket({
   );
 }
 
+function renderSwapProposalTicketDocument(
+  args: Parameters<typeof renderSwapProposalTicket>[0]
+) {
+  const markup = renderSwapProposalTicket(args);
+  const buttons = Array.from(markup.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g))
+    .map((match) => ({
+      hasAttribute(name: string) {
+        return name === 'disabled'
+          ? Boolean(match[1].match(/\sdisabled(?:=|>|\s|$)/))
+          : false;
+      },
+      textContent: match[2]
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    }));
+
+  return {
+    markup,
+    buttons,
+  };
+}
+
 describe('getSwapActionBlocker', () => {
   const baseParams = {
     canAct: true,
@@ -331,7 +355,7 @@ describe('SwapProposalTicket blocker banner', () => {
   });
 
   it('relabels the primary action to refresh quote when the route is unavailable', () => {
-    const markup = renderSwapProposalTicket({
+    const { markup, buttons } = renderSwapProposalTicketDocument({
       initialQuoteState: {
         status: 'error',
         errorKind: 'route',
@@ -349,8 +373,13 @@ describe('SwapProposalTicket blocker banner', () => {
       walletPortfolioTokens: [createWalletToken()],
     });
 
+    expect(markup).toContain('needs route');
     expect(markup).toContain('Refresh quote');
     expect(markup).not.toContain('Sign &amp; approve');
+    expect(
+      buttons.find((button) => button.textContent.includes('Refresh quote'))
+        ?.hasAttribute('disabled')
+    ).toBe(false);
   });
 
   it('keeps the primary action off refresh for same-token validation errors', () => {
@@ -377,7 +406,7 @@ describe('SwapProposalTicket blocker banner', () => {
   });
 
   it('keeps the primary action off refresh for empty-wallet validation errors', () => {
-    const markup = renderSwapProposalTicket({
+    const { markup, buttons } = renderSwapProposalTicketDocument({
       initialQuoteState: {
         status: 'error',
         errorKind: 'validation',
@@ -394,11 +423,19 @@ describe('SwapProposalTicket blocker banner', () => {
       walletPortfolioTokens: [],
     });
 
+    expect(markup).toContain('needs input');
     expect(markup).toContain(
       'No spendable SOL balance is available. Fund the wallet or pick another token before swapping.'
     );
+    expect(markup).not.toContain(
+      'Pick a SOL token with a wallet balance to quote this swap.'
+    );
     expect(markup).toContain('Sign &amp; approve');
     expect(markup).not.toContain('Refresh quote');
+    expect(
+      buttons.find((button) => button.textContent.includes('Sign & approve'))
+        ?.hasAttribute('disabled')
+    ).toBe(true);
   });
 
   it('keeps the primary action off refresh for over-balance validation errors', () => {

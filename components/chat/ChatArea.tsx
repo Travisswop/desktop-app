@@ -15742,6 +15742,8 @@ export function SwapProposalTicket({
   const toSelectorEmptyMessage = 'No quote tokens available.';
   const isQuoteLoading = quoteState.status === 'loading';
   const isQuoteError = quoteState.status === 'error';
+  const isValidationQuoteError =
+    isQuoteError && quoteState.errorKind === 'validation';
   const isSwapBusy = isPending || isConfirmingSwap;
   const primaryActionMode = getSwapPrimaryActionMode({
     quoteOnly,
@@ -15752,6 +15754,8 @@ export function SwapProposalTicket({
     ? 'quoting'
     : inlineSwapStatus
     ? 'signing'
+    : isValidationQuoteError
+    ? 'needs input'
     : isQuoteError
     ? 'needs route'
     : quoteState.status === 'success'
@@ -15795,6 +15799,8 @@ export function SwapProposalTicket({
     selectedFromKey,
     selectedToKey,
   });
+  const shouldShowQuoteError =
+    Boolean(quoteState.error) && (!isValidationQuoteError || !swapActionBlocker);
   const handleConfirmSwap = async () => {
     if (primaryActionMode !== 'confirm') {
       setInlineSwapStatus('Refreshing quote...');
@@ -16524,7 +16530,7 @@ export function SwapProposalTicket({
         )}
       </div>
 
-      {quoteState.error && (
+      {shouldShowQuoteError && (
         <div className="mt-3 rounded-[10px] border border-[#ffb14a]/25 bg-[#ffb14a]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd08a]">
           {quoteState.error}
         </div>
