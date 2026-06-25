@@ -168,6 +168,7 @@ import {
 import {
   GoldmanStrategyStatusPanel,
   getGoldmanStrategyControlState,
+  useGoldmanStrategyHeartbeatNow,
 } from '@/components/chat/goldman/GoldmanStrategyStatusPanel';
 import {
   AgentActionProposal,
@@ -8691,8 +8692,12 @@ function GoldmanAccessStation({
     : strategyVaultError
     ? 'Vault unavailable'
     : 'Vault inactive';
+  const goldmanStrategyNow = useGoldmanStrategyHeartbeatNow(
+    activeStrategy?.runtime?.lastHeartbeatAt
+  );
   const goldmanStrategyControl = getGoldmanStrategyControlState(activeStrategy, {
     isStrategyRunning,
+    now: goldmanStrategyNow,
   });
   const goldmanWalletCard = (
     <>
@@ -8815,6 +8820,7 @@ function GoldmanAccessStation({
           <GoldmanStrategyStatusPanel
             strategy={activeStrategy}
             isStrategyRunning={isStrategyRunning}
+            now={goldmanStrategyNow}
           />
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button

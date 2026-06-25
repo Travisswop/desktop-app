@@ -1,8 +1,20 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { GoldmanStrategyStatusPanel } from '@/components/chat/goldman/GoldmanStrategyStatusPanel';
+import {
+  GoldmanStrategyStatusPanel,
+  getGoldmanStrategyControlState,
+} from '@/components/chat/goldman/GoldmanStrategyStatusPanel';
 
 describe('GoldmanStrategyStatusPanel', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-06-24T16:00:00Z'));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   test('renders pending authorization strategies as funding or approval blocked', () => {
     const markup = renderToStaticMarkup(
       <GoldmanStrategyStatusPanel
@@ -58,5 +70,48 @@ describe('GoldmanStrategyStatusPanel', () => {
     expect(markup).toContain(
       'Fix the runtime or vault blocker, then try Run again from this panel.'
     );
+  });
+
+  test('ages the same running strategy across live, delayed, and stale thresholds', () => {
+    const strategy = {
+      title: 'ETH carry monitor',
+      status: 'running',
+      runtime: {
+        state: 'running',
+        executionMode: 'execute',
+        lastHeartbeatAt: '2026-06-24T15:59:00Z',
+      },
+    } as const;
+
+    expect(
+      getGoldmanStrategyControlState(strategy, {
+        isStrategyRunning: true,
+        now: Date.parse('2026-06-24T16:00:00Z'),
+      })
+    ).toMatchObject({
+      heartbeatLabel: 'heartbeat live',
+      summaryLine: 'running · live execute',
+    });
+
+    expect(
+      getGoldmanStrategyControlState(strategy, {
+        isStrategyRunning: true,
+        now: Date.parse('2026-06-24T16:03:00Z'),
+      })
+    ).toMatchObject({
+      heartbeatLabel: 'heartbeat delayed',
+      statusLabel: 'Running',
+    });
+
+    expect(
+      getGoldmanStrategyControlState(strategy, {
+        isStrategyRunning: true,
+        now: Date.parse('2026-06-24T16:06:00Z'),
+      })
+    ).toMatchObject({
+      heartbeatLabel: 'stale heartbeat',
+      statusLabel: 'Running with stale monitor',
+      summaryLine: 'running stale · live execute',
+    });
   });
 });

@@ -1,6 +1,7 @@
 import React from 'react';
 
 const GOLDMAN_STRATEGY_LOOP_INTERVAL_MS = 180000;
+const GOLDMAN_STRATEGY_HEARTBEAT_TICK_MS = 30000;
 
 type GoldmanStrategyRuntimeState =
   | 'idle'
@@ -268,6 +269,23 @@ export function getGoldmanStrategyControlState(
     runDisabled: false,
     lastActivity: runtime?.lastActivity || null,
   };
+}
+
+export function useGoldmanStrategyHeartbeatNow(lastHeartbeatAt?: string | null) {
+  const [now, setNow] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    setNow(Date.now());
+    if (!lastHeartbeatAt) return;
+
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+    }, GOLDMAN_STRATEGY_HEARTBEAT_TICK_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [lastHeartbeatAt]);
+
+  return now;
 }
 
 export function GoldmanStrategyStatusPanel({
