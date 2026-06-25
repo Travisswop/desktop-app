@@ -18,6 +18,8 @@ export interface NFT {
   isSpam?: boolean;
   network?: string;
   createdAt?: string; // ISO string timestamp for creation date
+  externalUrl?: string;
+  metadataUri?: string;
   // DAS-specific properties
   isCompressed?: boolean;
   owner?: string;
@@ -31,6 +33,14 @@ export interface AlchemyNftData {
   tokenId: string;
   tokenType: string;
   balance: string;
+  tokenUri?: string;
+  externalUrl?: string;
+  raw?: {
+    metadata?: {
+      external_url?: string;
+      externalUrl?: string;
+    };
+  };
   contract: {
     address: string;
     openSeaMetadata: {
