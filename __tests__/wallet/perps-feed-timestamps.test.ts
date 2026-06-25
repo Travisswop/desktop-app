@@ -3,12 +3,14 @@ import {
   buildPerpsReconcileSnapshotKey,
   buildPerpsTerminalFeedHealthEvents,
   buildPerpsPositionKey,
+  confirmPerpsTerminalFeedHealthEvents,
   inferPerpsCloseFillsByCoin,
   inferPerpsLiquidationsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   isPerpsEntryLimitOrder,
   qualifyPerpsPositionCoin,
+  updatePerpsTerminalIdentityMemory,
 } from '@/lib/perps/perpsFeed';
 
 describe('perps feed timestamps', () => {
@@ -19,6 +21,21 @@ describe('perps feed timestamps', () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
+
+  function terminalIdentityMemory(
+    positions: Array<{
+      coin: string;
+      dex?: string | null;
+      szi?: string;
+      entryPx?: string;
+    }>,
+  ) {
+    return updatePerpsTerminalIdentityMemory({
+      current: {},
+      masterAddress: '0xwallet',
+      positions,
+    });
+  }
 
   it('uses the fill that crossed a long position open instead of discovery time', () => {
     const opened = inferPerpsPositionOpenedFill(
@@ -190,7 +207,14 @@ describe('perps feed timestamps', () => {
           oid: 777,
         },
       ],
-      { SPCX: 'xyz' },
+      terminalIdentityMemory([
+        {
+          coin: 'SPCX',
+          dex: 'xyz',
+          szi: '3.42',
+          entryPx: '181.94',
+        },
+      ]),
     );
 
     expect(closeFills['XYZ:SPCX']).toEqual({
@@ -202,6 +226,75 @@ describe('perps feed timestamps', () => {
       orderId: '777',
       timestamp: '2026-06-15T11:47:00.000Z',
     });
+  });
+
+  it('matches raw builder terminal fills to the right dex by position size and pnl', () => {
+    const closeFills = inferPerpsCloseFillsByCoin(
+      [
+        {
+          coin: 'SPCX',
+          side: 'A',
+          sz: '3.42',
+          startPosition: '3.42',
+          px: '188.4',
+          closedPnl: '22.1',
+          time: Date.parse('2026-06-15T11:47:00Z'),
+          oid: 778,
+        },
+      ],
+      terminalIdentityMemory([
+        {
+          coin: 'SPCX',
+          dex: 'xyz',
+          szi: '3.42',
+          entryPx: '181.94',
+        },
+        {
+          coin: 'SPCX',
+          dex: 'abc',
+          szi: '1.75',
+          entryPx: '206',
+        },
+      ]),
+    );
+
+    expect(closeFills).toMatchObject({
+      'XYZ:SPCX': expect.objectContaining({
+        coin: 'XYZ:SPCX',
+        dex: 'xyz',
+      }),
+    });
+    expect(closeFills['ABC:SPCX']).toBeUndefined();
+  });
+
+  it('drops ambiguous raw builder terminal fills instead of assigning the wrong dex', () => {
+    const closeFills = inferPerpsCloseFillsByCoin(
+      [
+        {
+          coin: 'SPCX',
+          side: 'A',
+          sz: '3.42',
+          startPosition: '3.42',
+          px: '188.4',
+          time: Date.parse('2026-06-15T11:47:00Z'),
+          oid: 779,
+        },
+      ],
+      terminalIdentityMemory([
+        {
+          coin: 'SPCX',
+          dex: 'xyz',
+          szi: '3.42',
+        },
+        {
+          coin: 'SPCX',
+          dex: 'abc',
+          szi: '3.42',
+        },
+      ]),
+    );
+
+    expect(closeFills).toEqual({});
   });
 
   it('captures terminal short closes from buy fills', () => {
@@ -237,7 +330,14 @@ describe('perps feed timestamps', () => {
           },
         },
       ],
-      { SPCX: 'xyz' },
+      terminalIdentityMemory([
+        {
+          coin: 'SPCX',
+          dex: 'xyz',
+          szi: '3.42',
+          entryPx: '171.2',
+        },
+      ]),
     );
 
     expect(liquidations['XYZ:SPCX']).toEqual({
@@ -325,7 +425,7 @@ describe('perps feed timestamps', () => {
     );
   });
 
-  it('emits a feed-health event for an inactive builder position with a terminal fill', () => {
+  it('only confirms feed-health events after reconcile updates the matching stale card', () => {
     const events = buildPerpsTerminalFeedHealthEvents({
       userId: 'user-1',
       smartsiteId: 'smartsite-1',
@@ -344,7 +444,14 @@ describe('perps feed timestamps', () => {
             oid: 777,
           },
         ],
-        { SPCX: 'xyz' },
+        terminalIdentityMemory([
+          {
+            coin: 'SPCX',
+            dex: 'xyz',
+            szi: '3.42',
+            entryPx: '181.94',
+          },
+        ]),
       ),
       updatedAt: '2026-06-15T11:48:00.000Z',
     });
@@ -356,6 +463,22 @@ describe('perps feed timestamps', () => {
         positionKey: 'hyperliquid:0xwallet:XYZ:SPCX',
         coin: 'XYZ:SPCX',
         dex: 'xyz',
+      }),
+    ]);
+
+    expect(confirmPerpsTerminalFeedHealthEvents(events, [])).toEqual([]);
+    expect(
+      confirmPerpsTerminalFeedHealthEvents(events, [
+        {
+          content: {
+            positionKey: 'hyperliquid:0xwallet:XYZ:SPCX',
+          },
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        type: 'feed_card_accuracy_perps_terminal_mismatch',
+        positionKey: 'hyperliquid:0xwallet:XYZ:SPCX',
       }),
     ]);
   });

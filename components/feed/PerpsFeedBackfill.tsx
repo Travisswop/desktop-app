@@ -17,7 +17,7 @@ import {
   reconcilePerpsPositionFeed,
   resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
-  updatePerpsDexByCoinMap,
+  updatePerpsTerminalIdentityMemory,
   upsertPerpsPositionFeed,
 } from '@/lib/perps/perpsFeed';
 import {
@@ -122,9 +122,7 @@ export default function PerpsFeedBackfill() {
   );
   const syncedSnapshotsRef = useRef<Set<string>>(new Set());
   const reconciledSnapshotsRef = useRef<Set<string>>(new Set());
-  const knownDexByCoinRef = useRef<Record<string, string | null | undefined>>(
-    {},
-  );
+  const terminalIdentityRef = useRef({});
   const markPricesByCoin = useMemo(() => {
     return markets.reduce<Record<string, number>>((prices, market) => {
       const price = toPerpsFeedNumber(market.markPrice);
@@ -182,10 +180,12 @@ export default function PerpsFeedBackfill() {
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    knownDexByCoinRef.current = updatePerpsDexByCoinMap(
-      knownDexByCoinRef.current,
-      [...positions, ...openOrders, ...activeLimitOrders],
-    );
+    terminalIdentityRef.current = updatePerpsTerminalIdentityMemory({
+      current: terminalIdentityRef.current,
+      userId: user._id,
+      masterAddress,
+      positions,
+    });
 
     let cancelled = false;
 
@@ -199,11 +199,11 @@ export default function PerpsFeedBackfill() {
 
         const closedFillsByCoin = inferPerpsCloseFillsByCoin(
           recentFills,
-          knownDexByCoinRef.current,
+          terminalIdentityRef.current,
         );
         const liquidationsByCoin = inferPerpsLiquidationsByCoin(
           recentFills,
-          knownDexByCoinRef.current,
+          terminalIdentityRef.current,
         );
         const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
           masterAddress,

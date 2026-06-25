@@ -57,7 +57,7 @@ import {
   qualifyPerpsPositionCoin,
   reconcilePerpsPositionFeed,
   resolvePerpsFeedSmartsiteId,
-  updatePerpsDexByCoinMap,
+  updatePerpsTerminalIdentityMemory,
   type PerpsActiveLimitOrderSnapshot,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
@@ -194,9 +194,7 @@ export function PerpsPanel({
   const syncedPositionSnapshotsRef = useRef<Set<string>>(new Set());
   const syncedLiquidationFillsRef = useRef<Set<string>>(new Set());
   const reconciledPositionSnapshotsRef = useRef<Set<string>>(new Set());
-  const knownDexByCoinRef = useRef<Record<string, string | null | undefined>>(
-    {},
-  );
+  const terminalIdentityRef = useRef({});
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showMarketSearch, setShowMarketSearch] = useState(false);
@@ -364,6 +362,12 @@ export function PerpsPanel({
       }
 
       if (accessToken && user?._id && smartsiteId && masterAddress) {
+        terminalIdentityRef.current = updatePerpsTerminalIdentityMemory({
+          current: terminalIdentityRef.current,
+          userId: user._id,
+          masterAddress,
+          positions: accountData?.positions || [],
+        });
         fillsList.forEach((fill) => {
           if (!fill.liquidation || !fill.coin) return;
 
@@ -377,12 +381,19 @@ export function PerpsPanel({
           if (syncedLiquidationFillsRef.current.has(fillKey)) return;
           syncedLiquidationFillsRef.current.add(fillKey);
 
-          const position = accountData?.positions.find(
-            (item) => item.coin === fill.coin,
-          );
           const liquidationSnapshot = Object.values(
-            inferPerpsLiquidationsByCoin([fill], knownDexByCoinRef.current),
+            inferPerpsLiquidationsByCoin([fill], terminalIdentityRef.current),
           )[0];
+          const position = accountData?.positions.find((item) => {
+            if (!liquidationSnapshot?.coin) {
+              return item.coin === fill.coin;
+            }
+            const itemCoin = qualifyPerpsPositionCoin({
+              coin: item.coin,
+              dex: item.dex,
+            });
+            return itemCoin === liquidationSnapshot?.coin;
+          });
           const feedCoin =
             liquidationSnapshot?.coin ||
             qualifyPerpsPositionCoin({
@@ -639,17 +650,19 @@ export function PerpsPanel({
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    knownDexByCoinRef.current = updatePerpsDexByCoinMap(
-      knownDexByCoinRef.current,
-      [...positions, ...allOpenOrders, ...activeLimitOrders],
-    );
+    terminalIdentityRef.current = updatePerpsTerminalIdentityMemory({
+      current: terminalIdentityRef.current,
+      userId: user._id,
+      masterAddress,
+      positions,
+    });
     const closedFillsByCoin = inferPerpsCloseFillsByCoin(
       fills,
-      knownDexByCoinRef.current,
+      terminalIdentityRef.current,
     );
     const liquidationsByCoin = inferPerpsLiquidationsByCoin(
       fills,
-      knownDexByCoinRef.current,
+      terminalIdentityRef.current,
     );
     const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
       masterAddress,
