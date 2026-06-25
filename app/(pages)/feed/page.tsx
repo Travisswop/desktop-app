@@ -2,6 +2,13 @@
 import React, { Suspense, memo } from 'react';
 // import TabSwitcher from "@/components/feed/TabSwitcher";
 import FeedMain from '@/components/feed/FeedMain';
+import { FeedMainComponentLoading } from '@/components/loading/TabSwitcherLoading';
+
+const FeedPageLoading = () => (
+  <div className="w-full sm:w-[520px] mx-auto">
+    <FeedMainComponentLoading />
+  </div>
+);
 
 const FeedPage = memo(() => {
   return (
@@ -14,7 +21,7 @@ const FeedPage = memo(() => {
             </Suspense>
           </div>
         </div> */}
-        <Suspense fallback={<p>Loading...</p>}>
+        <Suspense fallback={<FeedPageLoading />}>
           <FeedMain />
         </Suspense>
       </div>
