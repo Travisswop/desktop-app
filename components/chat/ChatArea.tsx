@@ -15325,11 +15325,11 @@ function SwapProposalTicket({
     setSwapRecovery(null);
     setSwapError(null);
     setAmountInput(
-      getSwapRecoveryAmountInput({
-        availableAmount: clampedTokenAmount,
+      getSwapRecoveryAmountInput(
+        String(clampedTokenAmount),
         amountType,
-        tokenPriceUsd: selectedFromPriceUsd,
-      })
+        selectedFromPriceUsd
+      )
     );
   };
   const setAmountFromPercent = (percent: number) => {
