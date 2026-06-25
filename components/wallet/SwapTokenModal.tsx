@@ -39,7 +39,6 @@ import {
   useSignAndSendTransaction,
   useSignTransaction,
 } from '@privy-io/react-auth/solana';
-import { ConnectedStandardSolanaWallet } from '@privy-io/js-sdk-core';
 import {
   createPublicClient,
   custom,
@@ -100,7 +99,8 @@ import {
   reconcileSelectedSwapToken,
 } from '@/lib/wallet/swapTokenSelection';
 import { shouldDisableSwapActionButton } from '@/lib/wallet/swapActionButtonState';
-import { resolveSolanaSigningWallet } from '@/lib/wallet/solanaSigningWallet';
+import { resolveSwapSelectedSolanaWallet } from '@/lib/wallet/swapSelectedSolanaWallet';
+import { normalizeSolanaSigningWalletAddress } from '@/lib/wallet/solanaSigningWallet';
 import {
   markWalletSwapFailureReported,
   queueWalletSwapFailureClientEvent,
@@ -661,7 +661,6 @@ const getEvmTokenWalletAddress = (token?: any) => {
 
 const normalizeWalletAddress = (address?: string | null) =>
   address?.trim().toLowerCase() ?? '';
-
 const getAccountField = (
   account: any,
   camelKey: string,
@@ -686,10 +685,12 @@ const isPrivyEmbeddedSolanaLinkedAccount = (
     return false;
   }
 
-  const normalizedAddress = normalizeWalletAddress(walletAddress);
+  const normalizedAddress =
+    normalizeSolanaSigningWalletAddress(walletAddress);
   if (
     normalizedAddress &&
-    normalizeWalletAddress(linkedAccount?.address) !== normalizedAddress
+    normalizeSolanaSigningWalletAddress(linkedAccount?.address) !==
+      normalizedAddress
   ) {
     return false;
   }
@@ -719,29 +720,12 @@ const hasPrivyEmbeddedSolanaLinkedAccount = (
     isPrivyEmbeddedSolanaLinkedAccount(linkedAccount, walletAddress),
   );
 
-const isPrivyStandardSolanaWallet = (wallet: any) =>
-  Boolean(
-    wallet?.isPrivyWallet ||
-      wallet?.features?.['privy:'] ||
-      String(wallet?.name || '').toLowerCase() === 'privy',
-  );
-
-const createSolanaWalletAccount = (walletAddress: string) => ({
-  address: walletAddress,
-  publicKey: new PublicKey(walletAddress).toBytes(),
-  chains: ['solana:mainnet', 'solana:devnet', 'solana:testnet'],
-  features: [
-    'solana:signAndSendTransaction',
-    'solana:signTransaction',
-    'solana:signMessage',
-  ],
-});
-
 const getPrivyEmbeddedSolanaWalletId = (
   privyUser: any,
   walletAddress?: string | null,
 ) => {
-  const normalizedAddress = normalizeWalletAddress(walletAddress);
+  const normalizedAddress =
+    normalizeSolanaSigningWalletAddress(walletAddress);
   if (!normalizedAddress) return null;
 
   const linkedAccounts = privyUser?.linkedAccounts || [];
@@ -1955,59 +1939,26 @@ export default function SwapTokenModal({
   const selectedSolanaSigningWalletAddress =
     payTokenWalletAddress || preferredSolanaWalletAddress || '';
   const normalizedSelectedSolanaSigningWalletAddress =
-    normalizeWalletAddress(selectedSolanaSigningWalletAddress);
+    normalizeSolanaSigningWalletAddress(
+      selectedSolanaSigningWalletAddress,
+    );
 
   const selectedSolanaWallet = useMemo(() => {
     if (!solanaReady || !solanaStandardWalletsReady) {
       return undefined;
     }
 
-    const resolvedWallet = resolveSolanaSigningWallet({
+    return resolveSwapSelectedSolanaWallet({
       connectedWallets: directSolanaWallets,
       standardWallets: solanaStandardWallets,
       preferredAddress: normalizedSelectedSolanaSigningWalletAddress,
-      makeConnectedStandardWallet: (wallet, account) =>
-        new ConnectedStandardSolanaWallet({
-          wallet,
-          account: account as any,
-        }),
-    }) as ConnectedStandardSolanaWallet | undefined;
-
-    if (resolvedWallet) {
-      return resolvedWallet;
-    }
-
-    const preferredAddress = selectedSolanaSigningWalletAddress.trim();
-    if (!preferredAddress) return undefined;
-
-    const privyStandardWallet = solanaStandardWallets.find(
-      isPrivyStandardSolanaWallet,
-    );
-    if (!privyStandardWallet) return undefined;
-
-    try {
-      return new ConnectedStandardSolanaWallet({
-        wallet: privyStandardWallet,
-        account: createSolanaWalletAccount(preferredAddress) as any,
-      });
-    } catch (error) {
-      console.warn(
-        '[Swap] Unable to prepare embedded Solana signing wallet',
-        {
-          walletAddress: maskIdentifier(preferredAddress),
-          error:
-            error instanceof Error ? error.message : String(error),
-        },
-      );
-      return undefined;
-    }
+    });
   }, [
     solanaReady,
     solanaStandardWalletsReady,
     directSolanaWallets,
     solanaStandardWallets,
     normalizedSelectedSolanaSigningWalletAddress,
-    selectedSolanaSigningWalletAddress,
   ]);
 
   const solanaWalletMismatchError = useMemo(() => {
@@ -2046,10 +1997,10 @@ export default function SwapTokenModal({
       return false;
     }
 
-    const normalizedFrom = normalizeWalletAddress(fromWalletAddress);
+    const normalizedFrom = normalizeEvmAddress(fromWalletAddress);
     return wallets.some(
       (wallet) =>
-        normalizeWalletAddress(wallet.address) === normalizedFrom &&
+        normalizeEvmAddress(wallet.address) === normalizedFrom &&
         isPrivyEmbeddedWalletType(wallet.walletClientType),
     );
   }, [chainId, fromWalletAddress, payToken, wallets]);

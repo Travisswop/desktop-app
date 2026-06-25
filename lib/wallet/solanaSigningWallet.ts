@@ -10,7 +10,7 @@ export type SolanaStandardWalletLike<
 
 export const normalizeSolanaSigningWalletAddress = (
   address?: string | null,
-) => address?.trim().toLowerCase() ?? '';
+) => address?.trim() ?? '';
 
 export function resolveSolanaSigningWallet<
   TConnected extends SolanaAddressLike,
