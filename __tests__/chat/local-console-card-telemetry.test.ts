@@ -1,3 +1,13 @@
+jest.mock('react', () => {
+  const actual = jest.requireActual('react');
+  return {
+    ...actual,
+    useEffect: (effect: () => void) => effect(),
+    useRef: <T,>(value: T) => ({ current: value }),
+  };
+});
+
+import { LocalConsoleCardTelemetryBeacon } from '@/components/chat/LocalConsoleCardTelemetryBeacon';
 import {
   buildLocalConsoleCardLifecycleId,
   emitLocalConsoleCardTelemetry,
@@ -134,5 +144,41 @@ describe('local console card telemetry', () => {
         historyBackedAtMount: true,
       })
     ).toBe(true);
+  });
+
+  test('emits rehydrated telemetry only from the rendered history-backed beacon path', () => {
+    expect(
+      LocalConsoleCardTelemetryBeacon({
+        cardType: 'portfolio',
+        sourceMessageId: 'local-card-1',
+        isGroup: false,
+        historyBackedAtMount: false,
+      })
+    ).toBeNull();
+    expect(infoSpy).not.toHaveBeenCalled();
+
+    expect(
+      LocalConsoleCardTelemetryBeacon({
+        cardType: 'portfolio',
+        sourceMessageId: 'history-card-1',
+        isGroup: true,
+        historyBackedAtMount: true,
+      })
+    ).toBeNull();
+
+    expect(infoSpy).toHaveBeenCalledTimes(1);
+    expect(infoSpy).toHaveBeenCalledWith(
+      LOCAL_CONSOLE_CARD_TELEMETRY_PREFIX,
+      expect.any(String)
+    );
+
+    const payload = JSON.parse(infoSpy.mock.calls[0][1] as string);
+    expect(payload).toMatchObject({
+      surface: 'desktop.dashboard.chat',
+      eventType: 'rehydrated',
+      cardType: 'portfolio',
+      sourceMessageId: 'history-card-1',
+      threadType: 'group',
+    });
   });
 });

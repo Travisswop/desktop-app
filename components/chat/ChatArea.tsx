@@ -190,8 +190,8 @@ import {
   buildLocalConsoleCardLifecycleId,
   emitLocalConsoleCardTelemetry,
   type LocalConsoleCardType,
-  shouldEmitLocalConsoleCardRehydratedOnMount,
 } from '@/lib/chat/localConsoleCardTelemetry';
+import { LocalConsoleCardTelemetryBeacon } from '@/components/chat/LocalConsoleCardTelemetryBeacon';
 import { postFeed } from '@/actions/postFeed';
 import {
   usePolymarketWallet,
@@ -11020,36 +11020,6 @@ function Message({
       </div>
     </div>
   );
-}
-
-function LocalConsoleCardTelemetryBeacon({
-  cardType,
-  sourceMessageId,
-  isGroup,
-  historyBackedAtMount = true,
-}: {
-  cardType: LocalConsoleCardType;
-  sourceMessageId: string;
-  isGroup: boolean;
-  historyBackedAtMount?: boolean;
-}) {
-  const shouldEmitOnMountRef = useRef(
-    shouldEmitLocalConsoleCardRehydratedOnMount({
-      historyBackedAtMount,
-    })
-  );
-
-  useEffect(() => {
-    if (!sourceMessageId || !shouldEmitOnMountRef.current) return;
-    emitLocalConsoleCardTelemetry({
-      eventType: 'rehydrated',
-      cardType,
-      sourceMessageId,
-      threadType: isGroup ? 'group' : 'direct',
-    });
-  }, [cardType, isGroup, sourceMessageId]);
-
-  return null;
 }
 
 function isSyntheticPolymarketPrepareMessage(message: Message) {
