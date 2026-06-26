@@ -62,7 +62,7 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(summary.approvalBoundary).toContain(
-      'Approval lets Goldman trade on polymarket, aave using USDC only within the displayed caps.'
+      'Approval lets Goldman trade on polymarket, aave using USDC as funding and within the displayed caps.'
     );
     expect(summary.approvalBoundary).toContain(
       'It still cannot exceed $250.00 per order, $1,000 daily spend, $300.00 daily loss, 2 open positions max, 1h cooldown between entries.'
@@ -88,7 +88,7 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(summary.approvalBoundary).toBe(
-      'Approval lets Goldman trade on polymarket only within the displayed caps. It still cannot exceed $250.00 per order, $1,000 daily spend, $300.00 daily loss, 2 open positions max, 1h cooldown between entries.'
+      'Approval lets Goldman trade on polymarket within the displayed caps. It still cannot exceed $250.00 per order, $1,000 daily spend, $300.00 daily loss, 2 open positions max, 1h cooldown between entries.'
     );
     expect(summary.metrics).toEqual([
       {
@@ -123,7 +123,40 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(summary.approvalBoundary).toBe(
-      'Approval lets Goldman trade on polymarket only within the displayed caps and the declared asset scope (USDC, WETH). It still cannot exceed $250.00 per order, $1,000 daily spend.'
+      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC, WETH) and within the displayed caps. It still cannot exceed $250.00 per order, $1,000 daily spend.'
+    );
+  });
+
+  test('keeps funding source and tradable asset scope distinct on mixed-scope proposals', () => {
+    const summary = buildGoldmanStrategyProposalSummary(
+      {
+        fundingAsset: 'USDC',
+        maxOrderUsd: 250,
+      },
+      {
+        venues: ['polymarket'],
+        assets: ['BTC', 'ETH'],
+      }
+    );
+
+    expect(summary.approvalBoundary).toBe(
+      'Approval lets Goldman trade on polymarket using USDC as funding and only for the declared asset scope (BTC, ETH) and within the displayed caps. It still cannot exceed $250.00 per order.'
+    );
+  });
+
+  test('does not mention displayed caps when the proposal has no cap metrics', () => {
+    const summary = buildGoldmanStrategyProposalSummary(
+      {
+        allocation: { percent: 20 },
+      },
+      {
+        venues: ['polymarket'],
+        assets: ['USDC'],
+      }
+    );
+
+    expect(summary.approvalBoundary).toBe(
+      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC).'
     );
   });
 
@@ -161,7 +194,7 @@ describe('goldman strategy proposal summary', () => {
 
     expect(html).toContain('approval boundary');
     expect(html).toContain(
-      'Approval lets Goldman trade on polymarket, aave using USDC only within the displayed caps.'
+      'Approval lets Goldman trade on polymarket, aave using USDC as funding and within the displayed caps.'
     );
     expect(html).toContain('funding asset');
     expect(html).toContain('open positions');
@@ -195,7 +228,7 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(html).toContain(
-      'Approval lets Goldman trade on polymarket only within the displayed caps and the declared asset scope (USDC).'
+      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC) and within the displayed caps.'
     );
     expect(html).toContain('allocation');
     expect(html).toContain('25% allocation');
@@ -229,7 +262,7 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(html).toContain(
-      'Approval lets Goldman trade on approved venues only within the displayed caps.'
+      'Approval lets Goldman trade on approved venues within the displayed caps.'
     );
     expect(html).toContain('Declared idle deployment');
     expect(html).not.toContain('>polymarket<');
@@ -260,9 +293,37 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(html).toContain(
-      'Approval lets Goldman trade on polymarket only within the displayed caps and the declared asset scope (USDC, WETH).'
+      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC, WETH) and within the displayed caps.'
     );
     expect(html).not.toContain('using USDC only within the displayed caps');
     expect(html).not.toContain('funding asset');
+  });
+
+  test('renders no-cap proposals without claiming displayed caps exist', () => {
+    const html = renderToStaticMarkup(
+      createElement(GoldmanStrategyProposalTicket, {
+        proposalId: 'proposal-5',
+        status: 'pending',
+        proposal: {
+          proposalId: 'proposal-5',
+          normalizedParams: {
+            title: 'No-cap scope-only strategy',
+            venues: ['polymarket'],
+            assets: ['USDC'],
+            allocation: { percent: 20 },
+          },
+        },
+        canAct: true,
+        isOpen: true,
+        isPending: false,
+        onApprove: () => {},
+        onReject: () => {},
+      })
+    );
+
+    expect(html).toContain(
+      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC).'
+    );
+    expect(html).not.toContain('within the displayed caps');
   });
 });

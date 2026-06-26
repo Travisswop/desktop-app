@@ -93,6 +93,13 @@ export function buildGoldmanStrategyProposalSummary(
   const assetLabel = assets.length > 0 ? assets.join(', ') : '';
   const venueLabel = venues.length > 0 ? venues.join(', ') : 'approved venues';
   const expiryLabel = strategyString(options.expiryLabel, '');
+  const normalizedFundingAsset = fundingAsset.trim().toLowerCase();
+  const normalizedAssets = assets.map((asset) => asset.trim().toLowerCase());
+  const shouldShowAssetScope =
+    Boolean(assetLabel) &&
+    (!normalizedFundingAsset ||
+      normalizedAssets.length !== 1 ||
+      normalizedAssets[0] !== normalizedFundingAsset);
 
   const metrics: GoldmanProposalMetric[] = [];
   if (fundingAsset) {
@@ -133,11 +140,14 @@ export function buildGoldmanStrategyProposalSummary(
     cooldown ? `${cooldown} cooldown between entries` : '',
   ].filter(Boolean);
 
-  const approvalBoundaryBase = fundingAsset
-    ? `Approval lets Goldman trade on ${venueLabel} using ${fundingAsset} only within the displayed caps.`
-    : assetLabel
-      ? `Approval lets Goldman trade on ${venueLabel} only within the displayed caps and the declared asset scope (${assetLabel}).`
-      : `Approval lets Goldman trade on ${venueLabel} only within the displayed caps.`;
+  const boundaryScope = [
+    fundingAsset ? `using ${fundingAsset} as funding` : '',
+    shouldShowAssetScope ? `only for the declared asset scope (${assetLabel})` : '',
+    constraints.length > 0 ? 'within the displayed caps' : '',
+  ].filter(Boolean);
+  const approvalBoundaryBase = boundaryScope.length
+    ? `Approval lets Goldman trade on ${venueLabel} ${boundaryScope.join(' and ')}.`
+    : `Approval lets Goldman trade on ${venueLabel}.`;
   const constraintsSentence =
     constraints.length > 0 ? ` It still cannot exceed ${constraints.join(', ')}.` : '';
   const expirySentence = expiryLabel ? ` ${expiryLabel} remains the outer stop unless you stop it sooner.` : '';
