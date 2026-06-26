@@ -43,11 +43,72 @@ type GoldmanStrategyControlState = {
   lastActivity: string | null;
 };
 
-function normalizeMode(mode?: string | null) {
+type GoldmanStrategyExecutionMode = 'proposal' | 'monitor' | 'execute';
+
+type GoldmanStrategyPendingCopy = Pick<
+  GoldmanStrategyControlState,
+  'boundaryDetail' | 'nextAction' | 'blockerReason' | 'runLabel'
+>;
+
+function normalizeModeKey(mode?: string | null): GoldmanStrategyExecutionMode {
   const normalized = String(mode || 'proposal').toLowerCase();
+  if (normalized === 'execute') return 'execute';
+  if (normalized === 'monitor') return 'monitor';
+  return 'proposal';
+}
+
+function normalizeMode(mode?: string | null) {
+  const normalized = normalizeModeKey(mode);
   if (normalized === 'execute') return 'live execute';
   if (normalized === 'monitor') return 'monitor only';
   return 'proposal only';
+}
+
+function getPendingAuthorizationCopy(
+  mode: GoldmanStrategyExecutionMode,
+  fundingBlocked: boolean
+): GoldmanStrategyPendingCopy {
+  if (mode === 'execute') {
+    return {
+      boundaryDetail:
+        'This strategy is configured for live execution, but Goldman cannot trade until approval and funding are both complete.',
+      nextAction: fundingBlocked
+        ? 'Fund the strategy vault, then approve the strategy before pressing Run.'
+        : 'Approve this strategy before Goldman can run within the saved caps.',
+      blockerReason: fundingBlocked
+        ? 'Vault funding or wallet readiness is still blocking live execution.'
+        : 'Goldman is still waiting on explicit user approval.',
+      runLabel: fundingBlocked ? 'Fund first' : 'Approve first',
+    };
+  }
+
+  if (mode === 'monitor') {
+    return {
+      boundaryDetail: fundingBlocked
+        ? 'This strategy is configured to monitor and report. Goldman stays read-only in this mode, but the remaining setup blocker still has to clear before monitoring can start.'
+        : 'This strategy is configured to monitor and report. Approval unlocks read-only monitoring, and Goldman will not place live trades in this mode.',
+      nextAction: fundingBlocked
+        ? 'Clear the remaining setup blocker, then approve the strategy before pressing Run.'
+        : 'Approve this strategy before Goldman starts monitoring from the saved rules.',
+      blockerReason: fundingBlocked
+        ? 'A wallet or vault setup blocker is still preventing Goldman from starting monitor-only runtime.'
+        : 'Goldman is still waiting on explicit user approval before it can start monitoring.',
+      runLabel: fundingBlocked ? 'Setup blocked' : 'Approve first',
+    };
+  }
+
+  return {
+    boundaryDetail: fundingBlocked
+      ? 'This strategy is still proposal-only. Goldman will not monitor or place live trades from this mode, and the remaining setup blocker still needs to clear before it can move forward.'
+      : 'This strategy is still proposal-only. Approval keeps the reviewed plan available, but Goldman will not monitor or place live trades until the mode changes.',
+    nextAction: fundingBlocked
+      ? 'Clear the remaining setup blocker, then switch this strategy to monitor or live execute before pressing Run.'
+      : 'Approve this proposal if you want to keep it, then switch to monitor or live execute before expecting Goldman to run.',
+    blockerReason: fundingBlocked
+      ? 'A setup blocker is still preventing this proposal from moving into an active Goldman runtime.'
+      : 'Goldman is still waiting on explicit user approval, and proposal mode does not authorize live automation.',
+    runLabel: fundingBlocked ? 'Setup blocked' : 'Proposal only',
+  };
 }
 
 function relativeAgeLabel(ageMs: number) {
@@ -116,6 +177,7 @@ export function getGoldmanStrategyControlState(
 ): GoldmanStrategyControlState {
   const runtime = strategy?.runtime || null;
   const metadata = strategy?.metadata || null;
+  const modeKey = normalizeModeKey(runtime?.executionMode);
   const modeLabel = normalizeMode(runtime?.executionMode);
   const isStrategyRunning = Boolean(options?.isStrategyRunning);
   const heartbeat = describeHeartbeat(runtime?.lastHeartbeatAt, options?.now);
@@ -183,6 +245,7 @@ export function getGoldmanStrategyControlState(
   }
 
   if (pendingAuthorization) {
+    const pendingCopy = getPendingAuthorizationCopy(modeKey, fundingBlocked);
     return {
       statusLabel: fundingBlocked ? 'Funding blocked' : 'Waiting for approval',
       statusToneClass: 'border-[#f4c95d]/30 bg-[#f4c95d]/10 text-[#f4c95d]',
@@ -191,15 +254,10 @@ export function getGoldmanStrategyControlState(
       heartbeatLabel: heartbeat.label,
       heartbeatToneClass: heartbeat.toneClass,
       heartbeatDetail: heartbeat.detail,
-      boundaryDetail:
-        'This strategy is configured for live execution, but Goldman cannot trade until approval and funding are both complete.',
-      nextAction: fundingBlocked
-        ? 'Fund the strategy vault, then approve the strategy before pressing Run.'
-        : 'Approve this strategy before Goldman can run within the saved caps.',
-      blockerReason: fundingBlocked
-        ? 'Vault funding or wallet readiness is still blocking live execution.'
-        : 'Goldman is still waiting on explicit user approval.',
-      runLabel: fundingBlocked ? 'Fund first' : 'Approve first',
+      boundaryDetail: pendingCopy.boundaryDetail,
+      nextAction: pendingCopy.nextAction,
+      blockerReason: pendingCopy.blockerReason,
+      runLabel: pendingCopy.runLabel,
       runToneClass: 'border-[#f4c95d]/30 bg-[#f4c95d]/10 text-[#f4c95d]',
       runDisabled: true,
       primaryAction: 'none',

@@ -67,6 +67,97 @@ describe('GoldmanStrategyStatusPanel', () => {
     );
   });
 
+  test('keeps pending monitor-only strategies read-only in the visible copy', () => {
+    const markup = renderToStaticMarkup(
+      <GoldmanStrategyStatusPanel
+        strategy={{
+          title: 'SOL social momentum watch',
+          status: 'pending_authorization',
+          runtime: {
+            executionMode: 'monitor',
+          },
+          metadata: {
+            approvalState: 'pending_authorization',
+          },
+        }}
+        now={Date.parse('2026-06-24T16:00:00Z')}
+      />
+    );
+
+    expect(markup).toContain('Waiting for approval');
+    expect(markup).toContain('Approve first');
+    expect(markup).toContain(
+      'Approval unlocks read-only monitoring, and Goldman will not place live trades in this mode.'
+    );
+    expect(markup).toContain(
+      'Approve this strategy before Goldman starts monitoring from the saved rules.'
+    );
+    expect(markup).not.toContain(
+      'This strategy is configured for live execution'
+    );
+  });
+
+  test('keeps pending proposal-only strategies out of live-trading language', () => {
+    const markup = renderToStaticMarkup(
+      <GoldmanStrategyStatusPanel
+        strategy={{
+          title: 'NBA catalyst draft',
+          status: 'pending_authorization',
+          runtime: {
+            executionMode: 'proposal',
+          },
+          metadata: {
+            approvalState: 'pending_authorization',
+          },
+        }}
+        now={Date.parse('2026-06-24T16:00:00Z')}
+      />
+    );
+
+    expect(markup).toContain('Waiting for approval');
+    expect(markup).toContain('Proposal only');
+    expect(markup).toContain(
+      'Approval keeps the reviewed plan available, but Goldman will not monitor or place live trades until the mode changes.'
+    );
+    expect(markup).toContain(
+      'Approve this proposal if you want to keep it, then switch to monitor or live execute before expecting Goldman to run.'
+    );
+    expect(markup).not.toContain(
+      'This strategy is configured for live execution'
+    );
+  });
+
+  test('keeps funding-blocked monitor strategies mode-aware instead of implying live trades', () => {
+    const markup = renderToStaticMarkup(
+      <GoldmanStrategyStatusPanel
+        strategy={{
+          title: 'Funding-gated read-only monitor',
+          status: 'pending_authorization',
+          runtime: {
+            executionMode: 'monitor',
+          },
+          metadata: {
+            approvalState: 'approved_waiting_for_funding',
+            walletStatus: 'draft',
+          },
+        }}
+        now={Date.parse('2026-06-24T16:00:00Z')}
+      />
+    );
+
+    expect(markup).toContain('Funding blocked');
+    expect(markup).toContain('Setup blocked');
+    expect(markup).toContain(
+      'Goldman stays read-only in this mode, but the remaining setup blocker still has to clear before monitoring can start.'
+    );
+    expect(markup).toContain(
+      'Clear the remaining setup blocker, then approve the strategy before pressing Run.'
+    );
+    expect(markup).not.toContain(
+      'This strategy is configured for live execution'
+    );
+  });
+
   test('renders paused resume-blocked strategies with the blocker reason and blocked run control', () => {
     const markup = renderToStaticMarkup(
       <GoldmanStrategyStatusPanel
