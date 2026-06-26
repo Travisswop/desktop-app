@@ -103,6 +103,72 @@ function firstMaybeFiniteNumber(values: unknown[]) {
   return null;
 }
 
+function riskKindForPrice(
+  side: 'long' | 'short',
+  entryPrice: number,
+  price: number,
+) {
+  if (!Number.isFinite(entryPrice) || entryPrice <= 0) return null;
+  if (!Number.isFinite(price) || price <= 0 || price === entryPrice) {
+    return null;
+  }
+
+  return side === 'long'
+    ? price > entryPrice
+      ? 'takeProfit'
+      : 'stopLoss'
+    : price < entryPrice
+      ? 'takeProfit'
+      : 'stopLoss';
+}
+
+export function normalizePerpsRiskPricesForDisplay({
+  side,
+  entryPrice,
+  takeProfitPrice,
+  stopLossPrice,
+}: {
+  side: 'long' | 'short';
+  entryPrice: unknown;
+  takeProfitPrice: unknown;
+  stopLossPrice: unknown;
+}) {
+  const entry = maybeFiniteNumber(entryPrice);
+  const takeProfit = maybeFiniteNumber(takeProfitPrice);
+  const stopLoss = maybeFiniteNumber(stopLossPrice);
+
+  if (entry === null || entry <= 0) {
+    return { takeProfitPrice: takeProfit, stopLossPrice: stopLoss };
+  }
+
+  const takeProfitKind =
+    takeProfit !== null ? riskKindForPrice(side, entry, takeProfit) : null;
+  const stopLossKind =
+    stopLoss !== null ? riskKindForPrice(side, entry, stopLoss) : null;
+
+  if (takeProfitKind === 'stopLoss' && stopLossKind === 'takeProfit') {
+    return { takeProfitPrice: stopLoss, stopLossPrice: takeProfit };
+  }
+
+  if (
+    takeProfit !== null &&
+    stopLoss === null &&
+    takeProfitKind === 'stopLoss'
+  ) {
+    return { takeProfitPrice: null, stopLossPrice: takeProfit };
+  }
+
+  if (
+    stopLoss !== null &&
+    takeProfit === null &&
+    stopLossKind === 'takeProfit'
+  ) {
+    return { takeProfitPrice: stopLoss, stopLossPrice: null };
+  }
+
+  return { takeProfitPrice: takeProfit, stopLossPrice: stopLoss };
+}
+
 function liveMidPriceForCoin(
   mids: Record<string, string | number | null | undefined>,
   ...coins: Array<string | null | undefined>
@@ -694,8 +760,13 @@ export default function PerpsPositionFeedCard({
       : status === 'limit'
       ? content.limitPlacedAt || content.updatedAt || feed.createdAt
       : content.openedAt || content.updatedAt || feed.createdAt;
-  const takeProfitPrice = maybeFiniteNumber(content.takeProfitPrice);
-  const stopLossPrice = maybeFiniteNumber(content.stopLossPrice);
+  const { takeProfitPrice, stopLossPrice } =
+    normalizePerpsRiskPricesForDisplay({
+      side,
+      entryPrice,
+      takeProfitPrice: content.takeProfitPrice,
+      stopLossPrice: content.stopLossPrice,
+    });
   const riskPrices = [
     takeProfitPrice !== null
       ? { label: 'TP', value: takeProfitPrice, className: 'text-emerald-500' }

@@ -22,6 +22,7 @@ jest.mock('@/components/feed/useLivePerpsMarkPrice', () => ({
 }));
 
 import {
+  normalizePerpsRiskPricesForDisplay,
   selectPerpsChartMarkerEntries,
   type PerpsEntryMarker,
 } from '@/components/feed/PerpsPositionFeedCard';
@@ -69,5 +70,49 @@ describe('perps feed chart markers', () => {
     ];
 
     expect(selectPerpsChartMarkerEntries(entries)).toEqual([entries[0]]);
+  });
+});
+
+describe('perps feed risk price display', () => {
+  it('keeps short TP below entry and SL above entry', () => {
+    expect(
+      normalizePerpsRiskPricesForDisplay({
+        side: 'short',
+        entryPrice: 59787,
+        takeProfitPrice: 59446,
+        stopLossPrice: 60298,
+      }),
+    ).toEqual({
+      takeProfitPrice: 59446,
+      stopLossPrice: 60298,
+    });
+  });
+
+  it('swaps inverted long TP/SL prices before rendering', () => {
+    expect(
+      normalizePerpsRiskPricesForDisplay({
+        side: 'long',
+        entryPrice: 72.48,
+        takeProfitPrice: 71.76,
+        stopLossPrice: 73.58,
+      }),
+    ).toEqual({
+      takeProfitPrice: 73.58,
+      stopLossPrice: 71.76,
+    });
+  });
+
+  it('swaps inverted short TP/SL prices before rendering', () => {
+    expect(
+      normalizePerpsRiskPricesForDisplay({
+        side: 'short',
+        entryPrice: 72.48,
+        takeProfitPrice: 73.58,
+        stopLossPrice: 71.76,
+      }),
+    ).toEqual({
+      takeProfitPrice: 71.76,
+      stopLossPrice: 73.58,
+    });
   });
 });
