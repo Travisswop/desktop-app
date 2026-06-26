@@ -48,8 +48,12 @@ import type {
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsActiveLimitOrderSnapshot,
+  buildPerpsDexByCoinMap,
   buildPerpsPositionKey,
+  buildPerpsReconcileSnapshotKey,
+  findPerpsTrackedPositionByIdentity,
   inferPerpsCloseFillsByCoin,
+  inferPerpsLiquidationsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
@@ -191,6 +195,9 @@ export function PerpsPanel({
   const syncedPositionSnapshotsRef = useRef<Set<string>>(new Set());
   const syncedLiquidationFillsRef = useRef<Set<string>>(new Set());
   const reconciledPositionSnapshotsRef = useRef<Set<string>>(new Set());
+  const knownDexByCoinRef = useRef<Record<string, string | null | undefined>>(
+    {},
+  );
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showMarketSearch, setShowMarketSearch] = useState(false);
@@ -315,6 +322,38 @@ export function PerpsPanel({
     useHyperliquidPositions(effectiveMaster);
 
   const { mids } = useAllMids(true);
+  // Builder-deployed (HIP-3) perps keep their collateral in a DEX-specific
+  // account, separate from the main USDC perp account. To present ONE perps
+  // wallet, aggregate positions + balances across the main DEX and every
+  // builder DEX. `perDex` exposes each DEX's own balance for the trade ticket.
+  const builderDexes = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of markets) {
+      const d = (m as { dex?: string }).dex?.trim();
+      if (d) set.add(d);
+    }
+    return Array.from(set);
+  }, [markets]);
+
+  const { data: portfolio, refetch: refetchPortfolio } =
+    useHyperliquidPortfolio(effectiveMaster, builderDexes, {
+      enabled: !!effectiveMaster,
+    });
+
+  const allPositions = useMemo(
+    () => portfolio?.positions ?? accountData?.positions ?? [],
+    [accountData?.positions, portfolio?.positions],
+  );
+  const allOpenOrders = useMemo(
+    () => portfolio?.openOrders ?? accountData?.openOrders ?? [],
+    [accountData?.openOrders, portfolio?.openOrders],
+  );
+
+  useEffect(() => {
+    syncedLiquidationFillsRef.current.clear();
+    reconciledPositionSnapshotsRef.current.clear();
+    knownDexByCoinRef.current = {};
+  }, [masterAddress]);
 
   // Coin → mark price from the polled markets feed. Used as a fallback for the
   // positions table when the live `allMids` map has no entry for a coin yet
@@ -361,6 +400,7 @@ export function PerpsPanel({
         fillsList.forEach((fill) => {
           if (!fill.liquidation || !fill.coin) return;
 
+          const currentPositions = allPositions;
           const fillKey = [
             fill.hash,
             fill.oid,
@@ -369,25 +409,44 @@ export function PerpsPanel({
             fill.liquidation.markPx,
           ].join(':');
           if (syncedLiquidationFillsRef.current.has(fillKey)) return;
-          syncedLiquidationFillsRef.current.add(fillKey);
 
-          const position = accountData?.positions.find(
+          const position = currentPositions.find(
             (item) => item.coin === fill.coin,
           );
+          const liquidationSnapshot = Object.values(
+            inferPerpsLiquidationsByCoin(
+              [fill],
+              knownDexByCoinRef.current,
+              currentPositions,
+            ),
+          )[0];
+          if (!liquidationSnapshot?.coin) return;
+          const qualifiedPosition =
+            findPerpsTrackedPositionByIdentity(
+              currentPositions,
+              liquidationSnapshot.coin,
+            ) || position;
+          syncedLiquidationFillsRef.current.add(fillKey);
+
+          const feedCoin = liquidationSnapshot.coin;
+          const feedDex = liquidationSnapshot.dex ?? null;
           const startSize = toPerpsFeedNumber(fill.startPosition);
           const isLong =
-            position
-              ? toPerpsFeedNumber(position.szi) > 0
+            qualifiedPosition
+              ? toPerpsFeedNumber(qualifiedPosition.szi) > 0
               : startSize >= 0;
           const exitPrice = toPerpsFeedNumber(
-            fill.liquidation.markPx || fill.px || position?.entryPx,
+            fill.liquidation.markPx || fill.px || qualifiedPosition?.entryPx,
           );
           const entryPrice = toPerpsFeedNumber(
-            position?.entryPx || fill.px || exitPrice,
+            qualifiedPosition?.entryPx || fill.px || exitPrice,
           );
-          const leverage = position?.leverage.value || tradeLeverage.value;
+          const leverage =
+            qualifiedPosition?.leverage.value || tradeLeverage.value;
           const sizeCoins = Math.abs(
-            toPerpsFeedNumber(position?.szi || fill.startPosition || fill.sz),
+            toPerpsFeedNumber(
+              qualifiedPosition?.szi || fill.startPosition || fill.sz,
+            ),
           );
           const realizedPnl = toPerpsFeedNumber(fill.closedPnl);
           const fallbackReturnPct =
@@ -398,14 +457,10 @@ export function PerpsPanel({
                 100
               : 0;
           const returnPct =
-            position?.returnOnEquity !== undefined
-              ? toPerpsFeedNumber(position.returnOnEquity) * 100
+            qualifiedPosition?.returnOnEquity !== undefined
+              ? toPerpsFeedNumber(qualifiedPosition.returnOnEquity) * 100
               : fallbackReturnPct;
           const timestamp = getFillTimestamp(fill);
-          const feedCoin = qualifyPerpsPositionCoin({
-            coin: fill.coin,
-            dex: position?.dex,
-          });
 
           upsertPerpsPositionFeed({
             token: accessToken,
@@ -417,28 +472,31 @@ export function PerpsPanel({
                 userId: user._id,
                 masterAddress,
                 coin: fill.coin,
-                dex: position?.dex,
+                dex: feedDex,
               }),
               coin: feedCoin,
-              dex: position?.dex || null,
+              dex: feedDex,
               side: isLong ? 'long' : 'short',
               status: 'liquidated',
               event: 'liquidate',
               leverage,
               marginMode:
-                position?.leverage.type === 'isolated' ? 'isolated' : 'cross',
+                qualifiedPosition?.leverage.type === 'isolated'
+                  ? 'isolated'
+                  : 'cross',
               entryPrice,
               markPrice: exitPrice,
               exitPrice,
               liquidationPrice: exitPrice,
-              collateralUsd: toPerpsFeedNumber(position?.marginUsed),
+              collateralUsd: toPerpsFeedNumber(qualifiedPosition?.marginUsed),
               notionalUsd:
-                toPerpsFeedNumber(position?.positionValue) ||
+                toPerpsFeedNumber(qualifiedPosition?.positionValue) ||
                 sizeCoins * exitPrice,
               sizeCoins,
               returnPct,
               unrealizedPnl: realizedPnl,
               realizedPnl,
+              terminalReason: 'liquidation',
               orderId:
                 fill.oid === undefined || fill.oid === null
                   ? undefined
@@ -449,6 +507,7 @@ export function PerpsPanel({
               liquidatedAt: timestamp,
             },
           }).catch((feedError) => {
+            syncedLiquidationFillsRef.current.delete(fillKey);
             console.warn(
               'Failed to update liquidated perps feed card:',
               feedError,
@@ -460,7 +519,7 @@ export function PerpsPanel({
       refetchPositions();
     }, [
       accessToken,
-      accountData?.positions,
+      allPositions,
       feedSmartsiteId,
       masterAddress,
       refetchPositions,
@@ -497,24 +556,7 @@ export function PerpsPanel({
     ? (mids[selectedCoin] ?? selectedMarket?.markPrice ?? '0')
     : '0';
 
-  // Builder-deployed (HIP-3) perps keep their collateral in a DEX-specific
-  // account, separate from the main USDC perp account. To present ONE perps
-  // wallet, aggregate positions + balances across the main DEX and every
-  // builder DEX. `perDex` exposes each DEX's own balance for the trade ticket.
   const selectedDex = selectedMarket?.dex?.trim() || '';
-  const builderDexes = useMemo(() => {
-    const set = new Set<string>();
-    for (const m of markets) {
-      const d = (m as { dex?: string }).dex?.trim();
-      if (d) set.add(d);
-    }
-    return Array.from(set);
-  }, [markets]);
-
-  const { data: portfolio, refetch: refetchPortfolio } =
-    useHyperliquidPortfolio(effectiveMaster, builderDexes, {
-      enabled: !!effectiveMaster,
-    });
 
   // The account that backs the *currently selected* market — used for the trade
   // ticket's balance display, margin check, and auto-funding math.
@@ -568,17 +610,6 @@ export function PerpsPanel({
     [selectedDex, transferToDex, refetchPortfolio, refetchPositions],
   );
 
-  // Aggregated positions/orders across all DEXs (so a builder-DEX position like
-  // SPCX shows up in the table, not just main-DEX positions).
-  const allPositions = useMemo(
-    () => portfolio?.positions ?? accountData?.positions ?? [],
-    [accountData?.positions, portfolio?.positions],
-  );
-  const allOpenOrders = useMemo(
-    () => portfolio?.openOrders ?? accountData?.openOrders ?? [],
-    [accountData?.openOrders, portfolio?.openOrders],
-  );
-
   const existingPosition = useMemo(
     () => allPositions.find((p) => p.coin === selectedCoin),
     [allPositions, selectedCoin],
@@ -627,22 +658,35 @@ export function PerpsPanel({
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    const reconcileSnapshotKey = [
+    const dexByCoin = buildPerpsDexByCoinMap({
+      activeEntries: [
+        ...positions,
+        ...allOpenOrders,
+        ...activeLimitOrders,
+      ],
+      explicitFillEntries: fills,
+    });
+    knownDexByCoinRef.current = dexByCoin;
+    const closedFillsByCoin = inferPerpsCloseFillsByCoin(
+      fills,
+      dexByCoin,
+      positions,
+    );
+    const liquidationsByCoin = inferPerpsLiquidationsByCoin(
+      fills,
+      dexByCoin,
+      positions,
+    );
+    const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
       masterAddress,
-      Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
-      `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
-      ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
-      ...activeLimitOrders
-        .map((order) =>
-          [
-            'limit',
-            order.positionKey.toLowerCase(),
-            order.orderId || '',
-            order.limitPrice,
-          ].join('='),
-        )
-        .sort(),
-    ].join(':');
+      priceMapState:
+        Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
+      observedDexes,
+      activePositionKeys,
+      activeLimitOrders,
+      liquidationsByCoin,
+      closedFillsByCoin,
+    });
 
     if (!reconciledPositionSnapshotsRef.current.has(reconcileSnapshotKey)) {
       reconciledPositionSnapshotsRef.current.add(reconcileSnapshotKey);
@@ -655,7 +699,8 @@ export function PerpsPanel({
         activeLimitOrders,
         observedDexes,
         markPricesByCoin: mids,
-        closedFillsByCoin: inferPerpsCloseFillsByCoin(fills),
+        liquidationsByCoin,
+        closedFillsByCoin,
       }).catch((feedError) => {
         reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
         console.warn('Failed to reconcile perps feed cards:', feedError);
@@ -870,6 +915,7 @@ export function PerpsPanel({
             sizeCoins: Math.abs(toPerpsFeedNumber(position.szi)),
             returnPct: toPerpsFeedNumber(position.returnOnEquity) * 100,
             unrealizedPnl: toPerpsFeedNumber(position.unrealizedPnl),
+            terminalReason: 'manual',
             orderId: extractPerpsOrderId(orderResult),
             masterAddress,
             updatedAt: timestamp,
