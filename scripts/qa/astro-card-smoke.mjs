@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
 
 const DEFAULT_SWOP_URL = 'https://www.swopme.app/dashboard/chat';
 const DEFAULT_LOCALHOST_QA_PORT = 3000;
@@ -169,33 +170,33 @@ const CARD_COMMAND_CONTRACTS = [
   },
 ];
 
-function parseArgs(argv) {
-  const envLocalPort = parseOptionalPort(process.env.SWOP_QA_LOCAL_PORT || '');
+export function parseArgs(argv, env = process.env) {
+  const envLocalPort = parseOptionalPort(env.SWOP_QA_LOCAL_PORT || '', 'SWOP_QA_LOCAL_PORT');
   const args = {
     launch: false,
     setupLogin: false,
     url:
-      process.env.SWOP_QA_URL ||
+      env.SWOP_QA_URL ||
       (envLocalPort ? localhostQaUrl(envLocalPort) : DEFAULT_SWOP_URL),
     localPort: envLocalPort,
-    chromeUrl: process.env.SWOP_QA_CHROME_URL || '',
-    chromePath: process.env.CHROME_PATH || DEFAULT_CHROME_PATH,
-    chromePort: Number(process.env.SWOP_QA_CHROME_PORT || DEFAULT_CHROME_PORT),
-    profileDir: process.env.SWOP_QA_CHROME_PROFILE || DEFAULT_CHROME_PROFILE,
+    chromeUrl: env.SWOP_QA_CHROME_URL || '',
+    chromePath: env.CHROME_PATH || DEFAULT_CHROME_PATH,
+    chromePort: Number(env.SWOP_QA_CHROME_PORT || DEFAULT_CHROME_PORT),
+    profileDir: env.SWOP_QA_CHROME_PROFILE || DEFAULT_CHROME_PROFILE,
     logDir:
-      process.env.SWOP_QA_LOG_DIR ||
+      env.SWOP_QA_LOG_DIR ||
       path.resolve(process.cwd(), '..', '..', 'logs', 'astro-card-qa'),
-    timeoutMs: Number(process.env.SWOP_QA_TIMEOUT_MS || 120000),
-    threadText: process.env.SWOP_QA_THREAD || 'Trading Cabal',
-    alertEmail: process.env.SWOP_QA_ALERT_EMAIL || '',
+    timeoutMs: Number(env.SWOP_QA_TIMEOUT_MS || 120000),
+    threadText: env.SWOP_QA_THREAD || 'Trading Cabal',
+    alertEmail: env.SWOP_QA_ALERT_EMAIL || '',
     alertSubjectPrefix:
-      process.env.SWOP_QA_ALERT_SUBJECT_PREFIX || DEFAULT_ALERT_SUBJECT_PREFIX,
-    swapInputMint: process.env.SWOP_QA_SWAP_INPUT_MINT || DEFAULT_SWAP_INPUT_MINT,
-    swapOutputMint: process.env.SWOP_QA_SWAP_OUTPUT_MINT || DEFAULT_SWAP_OUTPUT_MINT,
-    swapAmount: process.env.SWOP_QA_SWAP_AMOUNT || DEFAULT_SWAP_AMOUNT,
-    swapTaker: process.env.SWOP_QA_SWAP_TAKER || '',
-    swapOrderRequired: boolValue(process.env.SWOP_QA_SWAP_ORDER_REQUIRED),
-    allowPreviewHost: boolValue(process.env.SWOP_QA_ALLOW_PREVIEW_HOST),
+      env.SWOP_QA_ALERT_SUBJECT_PREFIX || DEFAULT_ALERT_SUBJECT_PREFIX,
+    swapInputMint: env.SWOP_QA_SWAP_INPUT_MINT || DEFAULT_SWAP_INPUT_MINT,
+    swapOutputMint: env.SWOP_QA_SWAP_OUTPUT_MINT || DEFAULT_SWAP_OUTPUT_MINT,
+    swapAmount: env.SWOP_QA_SWAP_AMOUNT || DEFAULT_SWAP_AMOUNT,
+    swapTaker: env.SWOP_QA_SWAP_TAKER || '',
+    swapOrderRequired: boolValue(env.SWOP_QA_SWAP_ORDER_REQUIRED),
+    allowPreviewHost: boolValue(env.SWOP_QA_ALLOW_PREVIEW_HOST),
     json: false,
   };
 
@@ -205,8 +206,8 @@ function parseArgs(argv) {
     else if (arg === '--json') args.json = true;
     else if (arg.startsWith('--url=')) args.url = arg.slice('--url='.length);
     else if (arg.startsWith('--local-port=')) {
-      args.localPort = parseOptionalPort(arg.slice('--local-port='.length));
-      if (args.localPort) args.url = localhostQaUrl(args.localPort);
+      args.localPort = parseOptionalPort(arg.slice('--local-port='.length), '--local-port');
+      args.url = localhostQaUrl(args.localPort);
     }
     else if (arg.startsWith('--chrome-url=')) args.chromeUrl = arg.slice('--chrome-url='.length);
     else if (arg.startsWith('--chrome-port=')) args.chromePort = Number(arg.slice('--chrome-port='.length));
@@ -231,11 +232,12 @@ function boolValue(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
 }
 
-function parseOptionalPort(value) {
+export function parseOptionalPort(value, label = 'port') {
   const normalized = String(value || '').trim();
   if (!normalized) return null;
   const parsed = Number(normalized);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  throw new Error(`${label} must be a positive integer port. Received: ${normalized}`);
 }
 
 function localhostQaUrl(port = DEFAULT_LOCALHOST_QA_PORT) {
@@ -413,25 +415,40 @@ async function closeTarget(baseUrl, targetId) {
   }
 }
 
+function normalizeSwopTargetUrl(url) {
+  try {
+    const parsed = new URL(String(url || ''));
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return null;
+  }
+}
+
+export function isMatchingSwopTargetUrl(targetUrl, swopUrl) {
+  const desired = normalizeSwopTargetUrl(swopUrl);
+  const current = normalizeSwopTargetUrl(targetUrl);
+  return Boolean(desired && current && desired === current);
+}
+
 async function getOrOpenSwopTarget(baseUrl, swopUrl) {
   const targets = await listTargets(baseUrl);
   const existing = targets.find(
     (target) =>
       target.type === 'page' &&
       target.webSocketDebuggerUrl &&
-      String(target.url || '').includes('/dashboard/chat')
+      isMatchingSwopTargetUrl(target.url, swopUrl)
   );
   if (existing) return existing;
 
   const opened = await openTarget(baseUrl, swopUrl);
-  if (opened.webSocketDebuggerUrl) return opened;
+  if (opened.webSocketDebuggerUrl && isMatchingSwopTargetUrl(opened.url, swopUrl)) return opened;
 
   const updated = await listTargets(baseUrl);
   const target = updated.find(
     (candidate) =>
       candidate.type === 'page' &&
       candidate.webSocketDebuggerUrl &&
-      String(candidate.url || '').includes('/dashboard/chat')
+      isMatchingSwopTargetUrl(candidate.url, swopUrl)
   );
   if (!target) throw new Error('Could not open a Swop chat tab through Chrome DevTools.');
   return target;
@@ -1208,7 +1225,7 @@ async function main() {
     await client.send('Page.bringToFront');
 
     const currentUrl = target.url || '';
-    if (!currentUrl.includes('/dashboard/chat')) {
+    if (!isMatchingSwopTargetUrl(currentUrl, args.url)) {
       await client.send('Page.navigate', { url: args.url });
       await sleep(3000);
     }
@@ -1357,7 +1374,9 @@ async function sendFailureEmail(args, report, reportPath) {
   };
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error.stack || error.message);
+    process.exit(1);
+  });
+}

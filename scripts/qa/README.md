@@ -131,6 +131,12 @@ Or pass the port directly:
 npm run qa:astro-cards -- --launch --local-port=3001
 ```
 
+Invalid `SWOP_QA_LOCAL_PORT` / `--local-port` values now fail fast instead of
+silently falling back to the default host. Local-port runs also reuse only a
+matching `localhost:<port>/dashboard/chat` tab, so an authenticated
+`www.swopme.app` tab or another localhost port does not masquerade as branch
+coverage.
+
 The profile is stored at:
 
 ```text
