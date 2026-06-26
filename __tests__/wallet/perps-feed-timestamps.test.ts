@@ -1,6 +1,7 @@
 import {
   buildPerpsActiveLimitOrderSnapshot,
   buildPerpsDexByCoinMap,
+  findPerpsTrackedPositionByIdentity,
   buildPerpsReconcileSnapshotKey,
   buildPerpsTerminalFeedHealthEvents,
   buildPerpsPositionKey,
@@ -347,6 +348,56 @@ describe('perps feed timestamps', () => {
       terminalReason: 'liquidation',
     });
     expect(liquidations['ABC:SPCX']).toBeUndefined();
+  });
+
+  it('resolves same-symbol builder liquidation economics from the qualified position', () => {
+    const positions = [
+      {
+        coin: 'SPCX',
+        dex: 'abc',
+        szi: '1.11',
+        entryPx: '155',
+        returnOnEquity: '0.18',
+      },
+      {
+        coin: 'SPCX',
+        dex: 'xyz',
+        szi: '3.42',
+        entryPx: '205',
+        returnOnEquity: '-0.44',
+      },
+    ];
+
+    const liquidations = inferPerpsLiquidationsByCoin(
+      [
+        {
+          coin: 'SPCX',
+          side: 'A',
+          sz: '3.42',
+          startPosition: '3.42',
+          px: '167.5',
+          time: Date.parse('2026-06-15T11:46:00Z'),
+          oid: 556,
+          liquidation: {
+            markPx: '167.4',
+          },
+        },
+      ],
+      { SPCX: 'abc' },
+      positions,
+    );
+
+    const position = findPerpsTrackedPositionByIdentity(
+      positions,
+      liquidations['XYZ:SPCX']?.coin,
+    );
+
+    expect(position).toMatchObject({
+      dex: 'xyz',
+      entryPx: '205',
+      szi: '3.42',
+      returnOnEquity: '-0.44',
+    });
   });
 
   it('drops ambiguous raw builder close fills instead of guessing the dex', () => {

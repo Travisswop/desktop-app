@@ -51,6 +51,7 @@ import {
   buildPerpsDexByCoinMap,
   buildPerpsPositionKey,
   buildPerpsReconcileSnapshotKey,
+  findPerpsTrackedPositionByIdentity,
   inferPerpsCloseFillsByCoin,
   inferPerpsLiquidationsByCoin,
   inferPerpsPositionRiskPrices,
@@ -420,24 +421,32 @@ export function PerpsPanel({
             ),
           )[0];
           if (!liquidationSnapshot?.coin) return;
+          const qualifiedPosition =
+            findPerpsTrackedPositionByIdentity(
+              currentPositions,
+              liquidationSnapshot.coin,
+            ) || position;
           syncedLiquidationFillsRef.current.add(fillKey);
 
           const feedCoin = liquidationSnapshot.coin;
           const feedDex = liquidationSnapshot.dex ?? null;
           const startSize = toPerpsFeedNumber(fill.startPosition);
           const isLong =
-            position
-              ? toPerpsFeedNumber(position.szi) > 0
+            qualifiedPosition
+              ? toPerpsFeedNumber(qualifiedPosition.szi) > 0
               : startSize >= 0;
           const exitPrice = toPerpsFeedNumber(
-            fill.liquidation.markPx || fill.px || position?.entryPx,
+            fill.liquidation.markPx || fill.px || qualifiedPosition?.entryPx,
           );
           const entryPrice = toPerpsFeedNumber(
-            position?.entryPx || fill.px || exitPrice,
+            qualifiedPosition?.entryPx || fill.px || exitPrice,
           );
-          const leverage = position?.leverage.value || tradeLeverage.value;
+          const leverage =
+            qualifiedPosition?.leverage.value || tradeLeverage.value;
           const sizeCoins = Math.abs(
-            toPerpsFeedNumber(position?.szi || fill.startPosition || fill.sz),
+            toPerpsFeedNumber(
+              qualifiedPosition?.szi || fill.startPosition || fill.sz,
+            ),
           );
           const realizedPnl = toPerpsFeedNumber(fill.closedPnl);
           const fallbackReturnPct =
@@ -448,8 +457,8 @@ export function PerpsPanel({
                 100
               : 0;
           const returnPct =
-            position?.returnOnEquity !== undefined
-              ? toPerpsFeedNumber(position.returnOnEquity) * 100
+            qualifiedPosition?.returnOnEquity !== undefined
+              ? toPerpsFeedNumber(qualifiedPosition.returnOnEquity) * 100
               : fallbackReturnPct;
           const timestamp = getFillTimestamp(fill);
 
@@ -472,14 +481,16 @@ export function PerpsPanel({
               event: 'liquidate',
               leverage,
               marginMode:
-                position?.leverage.type === 'isolated' ? 'isolated' : 'cross',
+                qualifiedPosition?.leverage.type === 'isolated'
+                  ? 'isolated'
+                  : 'cross',
               entryPrice,
               markPrice: exitPrice,
               exitPrice,
               liquidationPrice: exitPrice,
-              collateralUsd: toPerpsFeedNumber(position?.marginUsed),
+              collateralUsd: toPerpsFeedNumber(qualifiedPosition?.marginUsed),
               notionalUsd:
-                toPerpsFeedNumber(position?.positionValue) ||
+                toPerpsFeedNumber(qualifiedPosition?.positionValue) ||
                 sizeCoins * exitPrice,
               sizeCoins,
               returnPct,

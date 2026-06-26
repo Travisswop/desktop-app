@@ -283,6 +283,25 @@ export function qualifyPerpsPositionCoin({
   return `${normalizedDex}:${normalizedCoin}`.toUpperCase();
 }
 
+export function findPerpsTrackedPositionByIdentity<
+  T extends PerpsPositionLike,
+>(positions: T[] = [], qualifiedCoin?: string | null): T | undefined {
+  const normalizedQualifiedCoin = normalizePerpsCoin(qualifiedCoin);
+  if (!normalizedQualifiedCoin) return undefined;
+
+  return positions.find((position) => {
+    const coin = normalizePerpsCoin(position?.coin);
+    if (!coin) return false;
+
+    return (
+      qualifyPerpsPositionCoin({
+        coin,
+        dex: position?.dex,
+      }) === normalizedQualifiedCoin
+    );
+  });
+}
+
 export function updatePerpsDexByCoinMap(
   current: PerpsCoinDexMap = {},
   entries: Array<{ coin?: unknown; dex?: unknown } | null | undefined> = [],
