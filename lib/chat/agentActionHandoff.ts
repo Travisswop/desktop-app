@@ -274,16 +274,16 @@ export function buildApprovedWalletSwapQuery(
   const outputToken = cleanRouteValue(payload.prefill?.toToken);
   const amount = cleanRouteValue(payload.prefill?.amount);
 
-  if (!proposalId || !inputToken || !outputToken || !amount) {
+  if (!proposalId) {
     return null;
   }
 
   const query = new URLSearchParams();
   query.set('agentAction', 'approved');
   query.set('proposalId', proposalId);
-  query.set('inputToken', inputToken);
-  query.set('outputToken', outputToken);
-  query.set('amount', amount);
+  if (inputToken) query.set('inputToken', inputToken);
+  if (outputToken) query.set('outputToken', outputToken);
+  if (amount) query.set('amount', amount);
 
   const inputChain = cleanRouteValue(payload.prefill?.fromChain);
   const outputChain = cleanRouteValue(payload.prefill?.toChain);

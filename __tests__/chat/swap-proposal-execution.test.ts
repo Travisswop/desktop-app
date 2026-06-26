@@ -67,7 +67,12 @@ describe('swap proposal execution orchestration', () => {
     );
   });
 
-  test('keeps local swap proposals on the local proposal id', async () => {
+  test('rebinds local synthetic swaps through approval before execution', async () => {
+    const onApproveInline = jest.fn();
+    (ensureApprovedAgentActionHandoff as jest.Mock).mockResolvedValue({
+      executionProposalId: 'prop_swap_backend',
+    });
+
     await expect(
       resolveSwapExecutionContext({
         proposalId: 'local-wallet-swap-123',
@@ -75,15 +80,44 @@ describe('swap proposal execution orchestration', () => {
         approvalParams: {
           amount: '5',
         },
-        onApproveInline: jest.fn(),
+        onApproveInline,
+      }),
+    ).resolves.toEqual({
+      executionProposalId: 'prop_swap_backend',
+      shouldReportCompletion: true,
+    });
+
+    expect(isLocalSwapProposalId('local-wallet-swap-123')).toBe(true);
+    expect(ensureApprovedAgentActionHandoff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proposalId: 'local-wallet-swap-123',
+        approvalParams: expect.objectContaining({
+          amount: '5',
+        }),
+        onApproveInline,
+      }),
+    );
+  });
+
+  test('keeps direct local swap approvals on the local proposal id', async () => {
+    const onApproveInline = jest.fn();
+    (ensureApprovedAgentActionHandoff as jest.Mock).mockResolvedValue({
+      executionProposalId: 'local-wallet-swap-123',
+    });
+
+    await expect(
+      resolveSwapExecutionContext({
+        proposalId: 'local-wallet-swap-123',
+        proposal: null,
+        approvalParams: {
+          amount: '5',
+        },
+        onApproveInline,
       }),
     ).resolves.toEqual({
       executionProposalId: 'local-wallet-swap-123',
       shouldReportCompletion: false,
     });
-
-    expect(isLocalSwapProposalId('local-wallet-swap-123')).toBe(true);
-    expect(ensureApprovedAgentActionHandoff).not.toHaveBeenCalled();
   });
 
   test('reports successful completion against the approved proposal id', async () => {

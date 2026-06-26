@@ -35,15 +35,6 @@ export async function resolveSwapExecutionContext({
     approvalParams?: Record<string, unknown>,
   ) => Promise<AgentApprovalHandoff | null>;
 }) {
-  const shouldReportCompletion = !isLocalSwapProposalId(proposalId);
-
-  if (!shouldReportCompletion) {
-    return {
-      executionProposalId: proposalId,
-      shouldReportCompletion,
-    };
-  }
-
   const approval = await ensureApprovedAgentActionHandoff({
     proposalId,
     existingApprovalResult: proposal?.approvalResult,
@@ -53,7 +44,9 @@ export async function resolveSwapExecutionContext({
 
   return {
     executionProposalId: approval.executionProposalId,
-    shouldReportCompletion,
+    shouldReportCompletion: !isLocalSwapProposalId(
+      approval.executionProposalId,
+    ),
   };
 }
 

@@ -2659,6 +2659,48 @@ function buildWalletSendPromptFromApprovalParams(
   return parts.join(' ');
 }
 
+function buildWalletSwapPromptFromApprovalParams(
+  params?: Record<string, unknown>
+) {
+  const fromToken =
+    firstTicketValue(params, [
+      'fromToken',
+      'inputToken',
+      'fromTokenSymbol',
+      'inputTokenSymbol',
+    ]) || 'TOKEN';
+  const toToken =
+    firstTicketValue(params, [
+      'toToken',
+      'outputToken',
+      'toTokenSymbol',
+      'outputTokenSymbol',
+    ]) || 'TOKEN';
+  const amount =
+    firstTicketValue(params, ['amount', 'inputAmount', 'fromAmount']) || '0';
+  const amountType =
+    firstTicketValue(params, ['amountType']) ||
+    (initialTicketBool(params, ['isUSD'], false) ? 'usd' : 'token');
+  const fromChain = firstTicketValue(params, ['fromChain', 'inputChain']);
+  const toChain = firstTicketValue(params, ['toChain', 'outputChain']);
+  const parts = [
+    '@astro swap',
+    amountType === 'usd' ? `$${amount}` : amount,
+    fromToken,
+    'to',
+    toToken,
+  ];
+
+  if (fromChain) {
+    parts.push('from', normalizeWalletSendChainValue(fromChain));
+  }
+  if (toChain) {
+    parts.push('to', normalizeWalletSendChainValue(toChain));
+  }
+
+  return parts.join(' ');
+}
+
 function buildLocalWalletSendApprovalHandoff(
   proposalId: string,
   params?: Record<string, unknown>
@@ -2673,6 +2715,26 @@ function buildLocalWalletSendApprovalHandoff(
       provider: 'swop',
       route: '/dashboard/chat',
       panel: 'send',
+      normalizedParams: params || {},
+      prefill: params || {},
+    },
+  };
+}
+
+function buildLocalWalletSwapApprovalHandoff(
+  proposalId: string,
+  params?: Record<string, unknown>
+): AgentApprovalHandoff {
+  return {
+    status: 'approved',
+    nextStep: 'wallet_swap_inline_signing_required',
+    payload: {
+      proposalId,
+      action: 'wallet.swap',
+      toolType: 'wallet.write',
+      provider: 'swop',
+      route: '/dashboard/chat',
+      panel: 'swap',
       normalizedParams: params || {},
       prefill: params || {},
     },
@@ -5475,6 +5537,34 @@ export default function ChatArea({
           }
         };
 
+        const prepareFreshWalletSwapProposal = async () => {
+          if (!selectedChat || !isGroup) {
+            throw new Error('Open this swap action from the Astro group chat.');
+          }
+
+          setAgentStatusText('Preparing swap ticket');
+          const prepareResponse: any = await invokeGroupAgent({
+            groupId: selectedChat._id,
+            agentId: 'astro',
+            message: buildWalletSwapPromptFromApprovalParams(approvalParams),
+          });
+          const preparedProposal = prepareResponse?.data?.proposal;
+          const responseMessage = prepareResponse?.data?.responseMessage;
+
+          if (preparedProposal?.proposalId) {
+            setProposalsById((prev) => ({
+              ...prev,
+              [preparedProposal.proposalId]: preparedProposal,
+            }));
+            return preparedProposal.proposalId as string;
+          }
+
+          appendMessageIfNew(responseMessage);
+          throw new Error(
+            'Astro did not return a swap approval ticket. Try sending the swap again.'
+          );
+        };
+
         if (isLocalHyperliquidCloseProposalId(proposalId)) {
           const localApprovalResult =
             buildLocalHyperliquidCloseApprovalHandoff(
@@ -5501,6 +5591,26 @@ export default function ChatArea({
             approvalProposalId = await prepareFreshWalletSendProposal();
           } else {
             const localApprovalResult = buildLocalWalletSendApprovalHandoff(
+              proposalId,
+              approvalParams
+            );
+            setActionResultsByProposalId((prev) => ({
+              ...prev,
+              [proposalId]: {
+                proposalId,
+                status: 'approved',
+                result: localApprovalResult,
+              },
+            }));
+            return localApprovalResult;
+          }
+        }
+
+        if (isLocalSwapProposalId(proposalId)) {
+          if (isGroup) {
+            approvalProposalId = await prepareFreshWalletSwapProposal();
+          } else {
+            const localApprovalResult = buildLocalWalletSwapApprovalHandoff(
               proposalId,
               approvalParams
             );

@@ -262,7 +262,7 @@ describe('desktop group agent payloads', () => {
     );
   });
 
-  test('does not build a wallet swap route without exact swap prefill', () => {
+  test('keeps proposal identity on wallet swap routes without full prefill', () => {
     expect(
       buildApprovedWalletSwapQuery({
         proposalId: 'prop_swap_route',
@@ -272,7 +272,7 @@ describe('desktop group agent payloads', () => {
           fromToken: 'SWOP',
         },
       }),
-    ).toBeNull();
+    ).toBe('agentAction=approved&proposalId=prop_swap_route&inputToken=SWOP');
   });
 
   test('extracts Hyperliquid perps ticket defaults from approval handoff', () => {
