@@ -49,12 +49,19 @@ export type SwapPrimaryActionMode = 'quote' | 'refresh_quote' | 'confirm';
 
 export function getSwapPrimaryActionMode(params: {
   quoteOnly: boolean;
+  hasRouteBlocker?: boolean;
   quoteStateStatus: 'idle' | 'loading' | 'success' | 'error';
   quoteStateErrorKind?: SwapQuoteErrorKind;
 }): SwapPrimaryActionMode {
-  const { quoteOnly, quoteStateStatus, quoteStateErrorKind } = params;
+  const {
+    quoteOnly,
+    hasRouteBlocker,
+    quoteStateStatus,
+    quoteStateErrorKind,
+  } = params;
 
   if (quoteOnly) return 'quote';
+  if (hasRouteBlocker) return 'refresh_quote';
   if (quoteStateStatus === 'error' && quoteStateErrorKind === 'route') {
     return 'refresh_quote';
   }

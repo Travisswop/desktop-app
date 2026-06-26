@@ -15021,6 +15021,7 @@ export function SwapProposalTicket({
   sourceText,
   autoFetchQuote = true,
   initialQuoteState,
+  quoteTokenOptionsOverride,
 }: {
   proposal?: AgentActionProposal | null;
   proposalId: string;
@@ -15034,6 +15035,7 @@ export function SwapProposalTicket({
   sourceText?: string;
   autoFetchQuote?: boolean;
   initialQuoteState?: ChatSwapQuoteState;
+  quoteTokenOptionsOverride?: ChatSwapSelectableToken[];
 }) {
   const { accessToken, user } = useUser();
   const { getAccessToken } = usePrivy();
@@ -15096,10 +15098,12 @@ export function SwapProposalTicket({
       solanaSignerAddresses,
     ]
   );
-  const quoteTokenOptions = useMemo(
-    () => getSwapQuoteTokenOptions(astroConsoleData.walletPortfolioTokens),
-    [astroConsoleData.walletPortfolioTokens]
-  );
+  const quoteTokenOptions = useMemo(() => {
+    if (quoteTokenOptionsOverride) {
+      return quoteTokenOptionsOverride;
+    }
+    return getSwapQuoteTokenOptions(astroConsoleData.walletPortfolioTokens);
+  }, [astroConsoleData.walletPortfolioTokens, quoteTokenOptionsOverride]);
   const paramFromToken = firstNestedTicketValue(params, [
       'fromTokenSymbol',
       'inputTokenSymbol',
@@ -15759,6 +15763,7 @@ export function SwapProposalTicket({
     canAct && !selectedToKey && quoteTokenOptions.length === 0;
   const primaryActionMode = getSwapPrimaryActionMode({
     quoteOnly,
+    hasRouteBlocker,
     quoteStateStatus: quoteState.status,
     quoteStateErrorKind: quoteState.errorKind,
   });

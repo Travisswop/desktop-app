@@ -91,12 +91,14 @@ function renderSwapProposalTicket({
   proposalParams,
   sourceText,
   walletPortfolioTokens,
+  quoteTokenOptionsOverride,
 }: {
   canAct?: boolean;
   initialQuoteState?: Record<string, unknown>;
   proposalParams: Record<string, unknown>;
   sourceText: string;
   walletPortfolioTokens: Array<Record<string, unknown>>;
+  quoteTokenOptionsOverride?: Array<Record<string, unknown>>;
 }) {
   return renderToStaticMarkup(
     <SwapProposalTicket
@@ -123,6 +125,7 @@ function renderSwapProposalTicket({
       sourceText={sourceText}
       autoFetchQuote={false}
       initialQuoteState={initialQuoteState as any}
+      quoteTokenOptionsOverride={quoteTokenOptionsOverride as any}
     />
   );
 }
@@ -278,6 +281,16 @@ describe('getSwapPrimaryActionMode', () => {
     ).toBe('refresh_quote');
   });
 
+  it('switches wallet-write tickets into a refresh path when no route is available yet', () => {
+    expect(
+      getSwapPrimaryActionMode({
+        quoteOnly: false,
+        hasRouteBlocker: true,
+        quoteStateStatus: 'idle',
+      })
+    ).toBe('refresh_quote');
+  });
+
   it('keeps quote-only tickets on the quote path', () => {
     expect(
       getSwapPrimaryActionMode({
@@ -380,6 +393,32 @@ describe('SwapProposalTicket blocker banner', () => {
       buttons.find((button) => button.textContent.includes('Refresh quote'))
         ?.hasAttribute('disabled')
     ).toBe(false);
+  });
+
+  it('keeps the no-route prequote ticket blocked while matching the refresh-quote CTA label', () => {
+    const { markup, buttons } = renderSwapProposalTicketDocument({
+      proposalParams: {
+        fromToken: 'SOL',
+        toToken: 'USDC',
+        amount: '1',
+        fromChain: 'solana',
+        toChain: 'solana',
+      },
+      sourceText: 'swap 1 SOL to USDC',
+      walletPortfolioTokens: [createWalletToken()],
+      quoteTokenOptionsOverride: [],
+    });
+
+    expect(markup).toContain('needs route');
+    expect(markup).toContain(
+      'No quote route is available right now. Refresh token options or pick a different pay token.'
+    );
+    expect(markup).toContain('Refresh quote');
+    expect(markup).not.toContain('Sign &amp; approve');
+    expect(
+      buttons.find((button) => button.textContent.includes('Refresh quote'))
+        ?.hasAttribute('disabled')
+    ).toBe(true);
   });
 
   it('keeps the primary action off refresh for same-token validation errors', () => {
