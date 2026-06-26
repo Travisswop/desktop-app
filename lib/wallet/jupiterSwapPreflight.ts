@@ -12,7 +12,7 @@ type JupiterSwapTokenLike = {
   decimals?: number | string | bigint | null;
 };
 
-type JupiterSwapPreflightInput = {
+export type JupiterSwapPreflightInput = {
   solanaReady: boolean;
   selectedSolanaWalletAddress?: string | null;
   solanaWalletMismatchError?: string | null;
@@ -21,12 +21,12 @@ type JupiterSwapPreflightInput = {
   payAmount: string | number;
 };
 
-type JupiterSwapPreflightFailure = {
+export type JupiterSwapPreflightFailure = {
   ok: false;
   error: string;
 };
 
-type JupiterSwapPreflightSuccess = {
+export type JupiterSwapPreflightSuccess = {
   ok: true;
   inputMint: string;
   outputMint: string;

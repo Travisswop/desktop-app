@@ -98,12 +98,16 @@ import {
   SWOP_TOKEN_MINT,
   reconcileSelectedSwapToken,
 } from '@/lib/wallet/swapTokenSelection';
-import { getJupiterSwapPreflight } from '@/lib/wallet/jupiterSwapPreflight';
 import {
   resolveSwapActionButtonMode,
   shouldBlockSolanaSwapExecution,
   shouldDisableSwapActionButton,
 } from '@/lib/wallet/swapActionButtonState';
+import {
+  getJupiterSwapPreflight,
+  type JupiterSwapPreflightSuccess,
+} from '@/lib/wallet/jupiterSwapPreflight';
+import { resolveSwapModalJupiterSubmit } from '@/components/wallet/swapModalJupiterSubmit';
 import { resolveSwapSelectedSolanaWallet } from '@/lib/wallet/swapSelectedSolanaWallet';
 import { normalizeSolanaSigningWalletAddress } from '@/lib/wallet/solanaSigningWallet';
 import {
@@ -4371,7 +4375,9 @@ export default function SwapTokenModal({
   };
 
   // ── Jupiter swap (/order + /execute) ─────────────────────────────────────────
-  const executeJupiterSwap = async () => {
+  const executeJupiterSwap = async (
+    preflightOverride?: JupiterSwapPreflightSuccess,
+  ) => {
     let failureAlreadyReported = false;
     let failureContext: Record<string, unknown> = {
       provider: 'Jupiter',
@@ -4381,20 +4387,27 @@ export default function SwapTokenModal({
       let canRunUserFundedSimulation = true;
       const selectedSolanaWalletAddress =
         selectedSolanaWallet?.address ?? null;
-      const preflight = getJupiterSwapPreflight({
-        solanaReady,
-        selectedSolanaWalletAddress,
-        solanaWalletMismatchError,
-        payToken,
-        receiveToken,
-        payAmount,
-      });
-      if (!preflight.ok || !selectedSolanaWallet || !selectedSolanaWalletAddress) {
+      const preflight =
+        preflightOverride ||
+        getJupiterSwapPreflight({
+          solanaReady,
+          selectedSolanaWalletAddress,
+          solanaWalletMismatchError,
+          payToken,
+          receiveToken,
+          payAmount,
+        });
+      if (
+        !preflight.ok ||
+        !selectedSolanaWallet ||
+        !selectedSolanaWalletAddress
+      ) {
         setSwapError(
           preflight.ok
             ? solanaWalletMismatchError || 'No Solana wallet connected'
             : preflight.error,
         );
+        setSwapStatus(null);
         setIsSwapping(false);
         return;
       }
@@ -5523,7 +5536,23 @@ export default function SwapTokenModal({
         await fetchCopyTradeRewardPreview();
       }
       if (isSolanaToSolanaSwap()) {
-        await executeJupiterSwap();
+        const jupiterSubmit = resolveSwapModalJupiterSubmit({
+          solanaReady,
+          selectedSolanaWalletAddress: selectedSolanaWallet?.address,
+          solanaWalletMismatchError,
+          payToken,
+          receiveToken,
+          payAmount,
+        });
+        if (!jupiterSubmit.ok) {
+          setSwapError(jupiterSubmit.error);
+          if (jupiterSubmit.clearSwapStatus) {
+            setSwapStatus(null);
+          }
+          setIsSwapping(false);
+          return;
+        }
+        await executeJupiterSwap(jupiterSubmit.preflight);
       } else {
         const existingQuote = quote;
         if (hasExecutableLiFiQuote(existingQuote)) {
