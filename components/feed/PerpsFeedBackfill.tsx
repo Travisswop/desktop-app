@@ -5,6 +5,7 @@ import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsActiveLimitOrderSnapshot,
+  buildPerpsDexByCoinMap,
   buildPerpsPositionKey,
   buildPerpsReconcileSnapshotKey,
   inferPerpsCloseFillsByCoin,
@@ -17,7 +18,6 @@ import {
   reconcilePerpsPositionFeed,
   resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
-  updatePerpsDexByCoinMap,
   upsertPerpsPositionFeed,
 } from '@/lib/perps/perpsFeed';
 import {
@@ -125,6 +125,11 @@ export default function PerpsFeedBackfill() {
   const knownDexByCoinRef = useRef<Record<string, string | null | undefined>>(
     {},
   );
+
+  useEffect(() => {
+    reconciledSnapshotsRef.current.clear();
+    knownDexByCoinRef.current = {};
+  }, [masterAddress]);
   const markPricesByCoin = useMemo(() => {
     return markets.reduce<Record<string, number>>((prices, market) => {
       const price = toPerpsFeedNumber(market.markPrice);
@@ -182,10 +187,11 @@ export default function PerpsFeedBackfill() {
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    knownDexByCoinRef.current = updatePerpsDexByCoinMap(
-      knownDexByCoinRef.current,
-      [...positions, ...openOrders, ...activeLimitOrders],
-    );
+    const activeEntries = [
+      ...positions,
+      ...openOrders,
+      ...activeLimitOrders,
+    ];
 
     let cancelled = false;
 
@@ -197,14 +203,20 @@ export default function PerpsFeedBackfill() {
       .then((recentFills) => {
         if (cancelled) return;
 
+        const dexByCoin = buildPerpsDexByCoinMap({
+          activeEntries,
+          explicitFillEntries: recentFills,
+        });
+        knownDexByCoinRef.current = dexByCoin;
+
         const closedFillsByCoin = inferPerpsCloseFillsByCoin(
           recentFills,
-          knownDexByCoinRef.current,
+          dexByCoin,
           positions,
         );
         const liquidationsByCoin = inferPerpsLiquidationsByCoin(
           recentFills,
-          knownDexByCoinRef.current,
+          dexByCoin,
           positions,
         );
         const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({

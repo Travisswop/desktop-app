@@ -1,5 +1,6 @@
 import {
   buildPerpsActiveLimitOrderSnapshot,
+  buildPerpsDexByCoinMap,
   buildPerpsReconcileSnapshotKey,
   buildPerpsTerminalFeedHealthEvents,
   buildPerpsPositionKey,
@@ -117,6 +118,25 @@ describe('perps feed timestamps', () => {
         dex: 'xyz',
       }),
     ).toBe('hyperliquid:0xabc:XYZ:SPCX');
+  });
+
+  it('rebuilds builder dex memory from current state plus explicit fills only', () => {
+    expect(
+      buildPerpsDexByCoinMap({
+        activeEntries: [],
+        explicitFillEntries: [{ coin: 'SPCX' }],
+      }),
+    ).toEqual({});
+
+    expect(
+      buildPerpsDexByCoinMap({
+        activeEntries: [],
+        explicitFillEntries: [
+          { coin: 'XYZ:SPCX' },
+          { coin: 'SPCX' },
+        ],
+      }),
+    ).toEqual({ SPCX: 'xyz' });
   });
 
   it('matches builder fills whether Hyperliquid returns raw or qualified coin', () => {

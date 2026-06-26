@@ -48,6 +48,7 @@ import type {
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsActiveLimitOrderSnapshot,
+  buildPerpsDexByCoinMap,
   buildPerpsPositionKey,
   buildPerpsReconcileSnapshotKey,
   inferPerpsCloseFillsByCoin,
@@ -57,7 +58,6 @@ import {
   qualifyPerpsPositionCoin,
   reconcilePerpsPositionFeed,
   resolvePerpsFeedSmartsiteId,
-  updatePerpsDexByCoinMap,
   type PerpsActiveLimitOrderSnapshot,
   toPerpsFeedNumber,
   upsertPerpsPositionFeed,
@@ -321,6 +321,20 @@ export function PerpsPanel({
     useHyperliquidPositions(effectiveMaster);
 
   const { mids } = useAllMids(true);
+  const allPositions = useMemo(
+    () => portfolio?.positions ?? accountData?.positions ?? [],
+    [accountData?.positions, portfolio?.positions],
+  );
+  const allOpenOrders = useMemo(
+    () => portfolio?.openOrders ?? accountData?.openOrders ?? [],
+    [accountData?.openOrders, portfolio?.openOrders],
+  );
+
+  useEffect(() => {
+    syncedLiquidationFillsRef.current.clear();
+    reconciledPositionSnapshotsRef.current.clear();
+    knownDexByCoinRef.current = {};
+  }, [masterAddress]);
 
   // Coin → mark price from the polled markets feed. Used as a fallback for the
   // positions table when the live `allMids` map has no entry for a coin yet
@@ -367,6 +381,7 @@ export function PerpsPanel({
         fillsList.forEach((fill) => {
           if (!fill.liquidation || !fill.coin) return;
 
+          const currentPositions = allPositions;
           const fillKey = [
             fill.hash,
             fill.oid,
@@ -375,19 +390,19 @@ export function PerpsPanel({
             fill.liquidation.markPx,
           ].join(':');
           if (syncedLiquidationFillsRef.current.has(fillKey)) return;
-          syncedLiquidationFillsRef.current.add(fillKey);
 
-          const position = accountData?.positions.find(
+          const position = currentPositions.find(
             (item) => item.coin === fill.coin,
           );
           const liquidationSnapshot = Object.values(
             inferPerpsLiquidationsByCoin(
               [fill],
               knownDexByCoinRef.current,
-              accountData?.positions,
+              currentPositions,
             ),
           )[0];
           if (!liquidationSnapshot?.coin) return;
+          syncedLiquidationFillsRef.current.add(fillKey);
 
           const feedCoin = liquidationSnapshot.coin;
           const feedDex = liquidationSnapshot.dex ?? null;
@@ -463,6 +478,7 @@ export function PerpsPanel({
               liquidatedAt: timestamp,
             },
           }).catch((feedError) => {
+            syncedLiquidationFillsRef.current.delete(fillKey);
             console.warn(
               'Failed to update liquidated perps feed card:',
               feedError,
@@ -474,7 +490,7 @@ export function PerpsPanel({
       refetchPositions();
     }, [
       accessToken,
-      accountData?.positions,
+      allPositions,
       feedSmartsiteId,
       masterAddress,
       refetchPositions,
@@ -582,17 +598,6 @@ export function PerpsPanel({
     [selectedDex, transferToDex, refetchPortfolio, refetchPositions],
   );
 
-  // Aggregated positions/orders across all DEXs (so a builder-DEX position like
-  // SPCX shows up in the table, not just main-DEX positions).
-  const allPositions = useMemo(
-    () => portfolio?.positions ?? accountData?.positions ?? [],
-    [accountData?.positions, portfolio?.positions],
-  );
-  const allOpenOrders = useMemo(
-    () => portfolio?.openOrders ?? accountData?.openOrders ?? [],
-    [accountData?.openOrders, portfolio?.openOrders],
-  );
-
   const existingPosition = useMemo(
     () => allPositions.find((p) => p.coin === selectedCoin),
     [allPositions, selectedCoin],
@@ -641,18 +646,23 @@ export function PerpsPanel({
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    knownDexByCoinRef.current = updatePerpsDexByCoinMap(
-      knownDexByCoinRef.current,
-      [...positions, ...allOpenOrders, ...activeLimitOrders],
-    );
+    const dexByCoin = buildPerpsDexByCoinMap({
+      activeEntries: [
+        ...positions,
+        ...allOpenOrders,
+        ...activeLimitOrders,
+      ],
+      explicitFillEntries: fills,
+    });
+    knownDexByCoinRef.current = dexByCoin;
     const closedFillsByCoin = inferPerpsCloseFillsByCoin(
       fills,
-      knownDexByCoinRef.current,
+      dexByCoin,
       positions,
     );
     const liquidationsByCoin = inferPerpsLiquidationsByCoin(
       fills,
-      knownDexByCoinRef.current,
+      dexByCoin,
       positions,
     );
     const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({

@@ -306,6 +306,21 @@ export function updatePerpsDexByCoinMap(
   return next;
 }
 
+export function buildPerpsDexByCoinMap({
+  activeEntries = [],
+  explicitFillEntries = [],
+}: {
+  activeEntries?: Array<{ coin?: unknown; dex?: unknown } | null | undefined>;
+  explicitFillEntries?: Array<
+    { coin?: unknown; dex?: unknown } | null | undefined
+  >;
+}) {
+  return updatePerpsDexByCoinMap(
+    updatePerpsDexByCoinMap({}, activeEntries),
+    explicitFillEntries,
+  );
+}
+
 function fillTimeMs(fill: PerpsFillLike) {
   const rawTime = maybePerpsFeedNumber(fill.time);
   if (rawTime === undefined || rawTime <= 0) return undefined;
