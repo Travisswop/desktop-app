@@ -1,6 +1,7 @@
 import { GROUP_AGENT_SOCKET_EVENTS } from '@/hooks/useGroupAgents';
 import {
   AGENT_ACTION_HANDOFF_STORAGE_KEY,
+  buildApprovedWalletSwapQuery,
   ensureApprovedAgentActionHandoff,
   getHyperliquidOrderPrefill,
   getPolymarketOrderPrefill,
@@ -240,6 +241,38 @@ describe('desktop group agent payloads', () => {
         action: 'wallet.swap',
       },
     });
+  });
+
+  test('builds the approved wallet swap route with exact proposal identity', () => {
+    expect(
+      buildApprovedWalletSwapQuery({
+        proposalId: 'prop_swap_route',
+        action: 'wallet.swap',
+        provider: 'swop',
+        prefill: {
+          fromToken: 'SWOP',
+          toToken: 'USDC',
+          amount: '25',
+          fromChain: 'Solana',
+          toChain: 'Solana',
+        },
+      }),
+    ).toBe(
+      'agentAction=approved&proposalId=prop_swap_route&inputToken=SWOP&outputToken=USDC&amount=25&inputChain=Solana&outputChain=Solana',
+    );
+  });
+
+  test('does not build a wallet swap route without exact swap prefill', () => {
+    expect(
+      buildApprovedWalletSwapQuery({
+        proposalId: 'prop_swap_route',
+        action: 'wallet.swap',
+        provider: 'swop',
+        prefill: {
+          fromToken: 'SWOP',
+        },
+      }),
+    ).toBeNull();
   });
 
   test('extracts Hyperliquid perps ticket defaults from approval handoff', () => {

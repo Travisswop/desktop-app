@@ -253,6 +253,46 @@ export function readMatchingAgentActionHandoff(
   return handoff;
 }
 
+function cleanRouteValue(value: unknown) {
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+}
+
+export function buildApprovedWalletSwapQuery(
+  payload?: AgentApprovalHandoffPayload | null,
+) {
+  if (
+    !payload ||
+    payload.action !== 'wallet.swap' ||
+    payload.provider !== 'swop'
+  ) {
+    return null;
+  }
+
+  const proposalId = cleanRouteValue(payload.proposalId);
+  const inputToken = cleanRouteValue(payload.prefill?.fromToken);
+  const outputToken = cleanRouteValue(payload.prefill?.toToken);
+  const amount = cleanRouteValue(payload.prefill?.amount);
+
+  if (!proposalId || !inputToken || !outputToken || !amount) {
+    return null;
+  }
+
+  const query = new URLSearchParams();
+  query.set('agentAction', 'approved');
+  query.set('proposalId', proposalId);
+  query.set('inputToken', inputToken);
+  query.set('outputToken', outputToken);
+  query.set('amount', amount);
+
+  const inputChain = cleanRouteValue(payload.prefill?.fromChain);
+  const outputChain = cleanRouteValue(payload.prefill?.toChain);
+  if (inputChain) query.set('inputChain', inputChain);
+  if (outputChain) query.set('outputChain', outputChain);
+
+  return query.toString();
+}
+
 function readCookie(name: string) {
   if (typeof document === 'undefined') return '';
   return document.cookie

@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { Connection, PublicKey } from '@solana/web3.js';
+import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import {
@@ -38,10 +39,7 @@ import PriorityFeeSelector, {
   PriorityLevel,
 } from './utils/PriorityFeeSelector';
 import TokenImage from './TokenImage';
-import {
-  completeAgentActionFromHandoff,
-  readMatchingAgentActionHandoff,
-} from '@/lib/chat/agentActionHandoff';
+import { completeAgentActionFromHandoff } from '@/lib/chat/agentActionHandoff';
 import { useUser } from '@/lib/UserContext';
 
 function toPublicKeyOrNull(value?: PublicKey | string | null) {
@@ -76,6 +74,11 @@ export default function SwapModal({
   onTokenRefresh,
 }: SwapModalProps) {
   const { user, primaryMicrosite } = useUser();
+  const searchParams = useSearchParams();
+  const approvedSwapProposalId =
+    searchParams?.get('agentAction') === 'approved'
+      ? searchParams?.get('proposalId')?.trim() || ''
+      : '';
 
   // State management
   // Initialize state with initial values if provided
@@ -600,20 +603,15 @@ export default function SwapModal({
         setTxStatus(status);
       },
       onSuccess: (signature, feedData) => {
-        const swapActionHandoff = readMatchingAgentActionHandoff({
-          action: 'wallet.swap',
-          provider: 'swop',
-          route: '/wallet',
-        });
         setTxSignature(signature);
         setTxStatus('Transaction completed successfully!');
         setTxSuccess(true);
         setError(null);
 
-        if (swapActionHandoff) {
+        if (approvedSwapProposalId) {
           void completeAgentActionFromHandoff(
             {
-              proposalId: swapActionHandoff.payload?.proposalId,
+              proposalId: approvedSwapProposalId,
               status: 'executed',
               provider: 'swop',
               title: 'Swap confirmed',
@@ -645,10 +643,10 @@ export default function SwapModal({
             })
             .catch((completionError) => {
               console.error(
-                'Failed to report swap agent completion:',
-                completionError,
-              );
-            });
+              'Failed to report swap agent completion:',
+              completionError,
+            );
+          });
         }
 
         // Show a success notification for the feed
@@ -666,6 +664,30 @@ export default function SwapModal({
       onError: (errorMessage) => {
         setError(errorMessage);
         setTxStatus(null);
+        if (approvedSwapProposalId) {
+          void completeAgentActionFromHandoff(
+            {
+              proposalId: approvedSwapProposalId,
+              status: 'failed',
+              provider: 'swop',
+              title: 'Swap failed',
+              subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
+              subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
+              error: errorMessage,
+              executionResult: {
+                inputToken: selectedInputSymbol,
+                outputToken: selectedOutputSymbol,
+                amount,
+              },
+            },
+            accessToken,
+          ).catch((completionError) => {
+            console.error(
+              'Failed to report swap agent failure:',
+              completionError,
+            );
+          });
+        }
       },
       onBalanceRefresh: () => {
         // Implement balance refresh logic if available in your app
@@ -679,8 +701,11 @@ export default function SwapModal({
       },
     });
   }, [
+    amount,
+    approvedSwapProposalId,
     quote,
     selectedInputSymbol,
+    selectedOutputSymbol,
     solanaAddress,
     wallets,
     connection,
@@ -690,6 +715,9 @@ export default function SwapModal({
     outputToken,
     accessToken,
     onTokenRefresh,
+    primaryMicrosite,
+    user?._id,
+    user?.primaryMicrosite,
   ]);
 
   const openTokenList = useCallback((isInput: boolean) => {

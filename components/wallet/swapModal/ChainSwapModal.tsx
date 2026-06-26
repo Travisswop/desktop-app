@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useWallets } from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
+import { useSearchParams } from 'next/navigation';
 import SwapModal from './SwapModal';
 import {
     Dialog,
@@ -19,10 +20,7 @@ import { Input } from '@/components/ui/input';
 import { ArrowUpDown, ChevronRight, AlertCircle, RefreshCw } from 'lucide-react';
 import TokenImage from './TokenImage';
 import SlippageControl from './utils/SlippageControl';
-import {
-    completeAgentActionFromHandoff,
-    readMatchingAgentActionHandoff,
-} from '@/lib/chat/agentActionHandoff';
+import { completeAgentActionFromHandoff } from '@/lib/chat/agentActionHandoff';
 
 interface ChainSwapModalProps extends SwapModalProps {
     chain: 'solana' | 'ethereum';
@@ -41,6 +39,11 @@ function EthereumSwapModal({
     onTokenRefresh,
     ethAddress,
 }: Omit<ChainSwapModalProps, 'chain'>) {
+    const searchParams = useSearchParams();
+    const approvedSwapProposalId =
+        searchParams?.get('agentAction') === 'approved'
+            ? searchParams?.get('proposalId')?.trim() || ''
+            : '';
     const { wallets } = useWallets();
 
     // Track if component is mounted to prevent state updates after unmounting
@@ -381,20 +384,15 @@ function EthereumSwapModal({
                         amount={amount}
                         slippageBps={slippageBps}
                         onSwapComplete={(txHash) => {
-                            const swapActionHandoff = readMatchingAgentActionHandoff({
-                                action: 'wallet.swap',
-                                provider: 'swop',
-                                route: '/wallet',
-                            });
                             console.log('[DEBUG] Swap complete callback with hash:', txHash);
                             setTxSignature(txHash);
                             setTxSuccess(true);
                             setTxStatus('Transaction completed successfully!');
                             setError(null);
-                            if (swapActionHandoff) {
+                            if (approvedSwapProposalId) {
                                 void completeAgentActionFromHandoff(
                                     {
-                                        proposalId: swapActionHandoff.payload?.proposalId,
+                                        proposalId: approvedSwapProposalId,
                                         status: 'executed',
                                         provider: 'swop',
                                         title: 'Swap confirmed',
@@ -436,6 +434,30 @@ function EthereumSwapModal({
                             console.log('[DEBUG] Swap error callback:', errorMsg);
                             setError(errorMsg);
                             setTxStatus(null);
+                            if (approvedSwapProposalId) {
+                                void completeAgentActionFromHandoff(
+                                    {
+                                        proposalId: approvedSwapProposalId,
+                                        status: 'failed',
+                                        provider: 'swop',
+                                        title: 'Swap failed',
+                                        subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
+                                        subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
+                                        error: errorMsg,
+                                        executionResult: {
+                                            inputToken: selectedInputSymbol,
+                                            outputToken: selectedOutputSymbol,
+                                            amount,
+                                        },
+                                    },
+                                    accessToken,
+                                ).catch((completionError) => {
+                                    console.error(
+                                        'Failed to report EVM swap agent failure:',
+                                        completionError,
+                                    );
+                                });
+                            }
                         }}
                         onStatusUpdate={(status) => {
                             console.log('[DEBUG] Status update:', status);

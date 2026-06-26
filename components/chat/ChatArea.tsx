@@ -180,6 +180,7 @@ import {
 } from '@/lib/chat/groupAgentPayloads';
 import {
   AgentApprovalHandoff,
+  buildApprovedWalletSwapQuery,
   clearAgentActionHandoff,
   completeAgentActionFromHandoff,
   ensureApprovedAgentActionHandoff,
@@ -5335,8 +5336,15 @@ export default function ChatArea({
           toast.success('Send approved. Confirm it from the message card.');
           return;
         }
+        const approvedSwapQuery = buildApprovedWalletSwapQuery(
+          approvalResult.payload
+        );
         toast.success('Opening Swap to complete the approved action.');
-        router.push('/wallet?agentAction=approved');
+        router.push(
+          approvedSwapQuery
+            ? `/wallet?${approvedSwapQuery}`
+            : '/wallet?agentAction=approved'
+        );
         return;
       }
 
