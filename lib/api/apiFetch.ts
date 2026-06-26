@@ -1,3 +1,6 @@
+import { getSwopApiBaseUrl } from './apiBaseUrl';
+import { isNetworkFetchError } from './fetchErrors';
+
 const NGROK_BYPASS_HEADER = 'ngrok-skip-browser-warning';
 
 function getRequestUrl(url: string | URL | Request) {
@@ -24,5 +27,40 @@ export function apiFetch(
     merged.set(NGROK_BYPASS_HEADER, 'true');
   }
 
-  return fetch(url, { ...options, headers: merged });
+  return fetch(url, { ...options, headers: merged }).catch((error) => {
+    const fallbackUrl = getSwopBackendProxyUrl(url);
+    if (!fallbackUrl || !isNetworkFetchError(error)) {
+      throw error;
+    }
+
+    return fetch(fallbackUrl, {
+      ...options,
+      credentials: 'include',
+      headers: merged,
+    });
+  });
+}
+
+function getSwopBackendProxyUrl(url: string | URL | Request) {
+  if (typeof window === 'undefined' || url instanceof Request) {
+    return null;
+  }
+
+  let requestUrl: URL;
+  let swopApiBase: URL;
+  try {
+    requestUrl = new URL(getRequestUrl(url));
+    swopApiBase = new URL(getSwopApiBaseUrl());
+  } catch {
+    return null;
+  }
+
+  if (
+    requestUrl.origin !== swopApiBase.origin ||
+    !requestUrl.pathname.startsWith('/api/')
+  ) {
+    return null;
+  }
+
+  return `/api/backend${requestUrl.pathname}${requestUrl.search}`;
 }

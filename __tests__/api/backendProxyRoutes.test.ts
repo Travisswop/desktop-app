@@ -5,6 +5,10 @@ import {
   GET as getRewardWallet,
   POST as claimRewardWallet,
 } from '@/app/api/wallet/reward-wallet/route';
+import {
+  GET as proxyBackendGet,
+  PATCH as proxyBackendPatch,
+} from '@/app/api/backend/[...path]/route';
 
 describe('backend proxy routes', () => {
   const originalApiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -101,5 +105,60 @@ describe('backend proxy routes', () => {
 
     expect(response.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('generically proxies backend reads without requiring a token', async () => {
+    await proxyBackendGet(
+      new NextRequest(
+        'https://www.swopme.app/api/backend/api/v5/market/batch?limit=10',
+      ),
+      { params: { path: ['api', 'v5', 'market', 'batch'] } },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://app.apiswop.co/api/v5/market/batch?limit=10',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    const headers = fetchMock.mock.calls[0][1].headers as Headers;
+    expect(headers.get('authorization')).toBeNull();
+  });
+
+  test('generically proxies backend writes with cookie auth and JSON body', async () => {
+    await proxyBackendPatch(
+      new NextRequest(
+        'https://www.swopme.app/api/backend/api/v2/feed/prediction/post-123/verified-score',
+        {
+          body: JSON.stringify({ userId: 'user-123', eventSlug: 'event-123' }),
+          headers: {
+            'content-type': 'application/json',
+            cookie: 'access-token=cookie-token-123',
+          },
+          method: 'PATCH',
+        },
+      ),
+      {
+        params: {
+          path: [
+            'api',
+            'v2',
+            'feed',
+            'prediction',
+            'post-123',
+            'verified-score',
+          ],
+        },
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://app.apiswop.co/api/v2/feed/prediction/post-123/verified-score',
+      expect.objectContaining({
+        body: expect.any(ArrayBuffer),
+        method: 'PATCH',
+      }),
+    );
+    const headers = fetchMock.mock.calls[0][1].headers as Headers;
+    expect(headers.get('authorization')).toBe('Bearer cookie-token-123');
+    expect(headers.get('content-type')).toBe('application/json');
   });
 });

@@ -18,6 +18,8 @@ import {
   marketRouteKey,
   useMarketDetailStore,
 } from '@/zustandStore/marketDetailStore';
+import { apiFetch } from '@/lib/api/apiFetch';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1368,10 +1370,10 @@ function useVerifiedFinalScorePersistence({
     const controller = new AbortController();
     const persist = async () => {
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/prediction/${encodeURIComponent(
+        const response = await apiFetch(
+          buildSwopApiUrl(`/api/v2/feed/prediction/${encodeURIComponent(
             feedPostId,
-          )}/verified-score`,
+          )}/verified-score`),
           {
             method: 'PATCH',
             headers: {

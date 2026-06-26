@@ -1,3 +1,5 @@
+import { apiFetch } from '@/lib/api/apiFetch';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { useModalStore } from '@/zustandStore/modalstore';
 import type { DefiFeedContent } from './defiFeed';
 
@@ -38,8 +40,8 @@ export async function upsertAavePositionFeed({
     return null;
   }
 
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/defi-position`,
+  const response = await apiFetch(
+    buildSwopApiUrl('/api/v2/feed/defi-position'),
     {
       method: 'POST',
       headers: {
@@ -93,8 +95,8 @@ export async function reconcileAavePositionFeed({
     return null;
   }
 
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/defi-position/reconcile`,
+  const response = await apiFetch(
+    buildSwopApiUrl('/api/v2/feed/defi-position/reconcile'),
     {
       method: 'POST',
       headers: {
