@@ -321,6 +321,24 @@ export function PerpsPanel({
     useHyperliquidPositions(effectiveMaster);
 
   const { mids } = useAllMids(true);
+  // Builder-deployed (HIP-3) perps keep their collateral in a DEX-specific
+  // account, separate from the main USDC perp account. To present ONE perps
+  // wallet, aggregate positions + balances across the main DEX and every
+  // builder DEX. `perDex` exposes each DEX's own balance for the trade ticket.
+  const builderDexes = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of markets) {
+      const d = (m as { dex?: string }).dex?.trim();
+      if (d) set.add(d);
+    }
+    return Array.from(set);
+  }, [markets]);
+
+  const { data: portfolio, refetch: refetchPortfolio } =
+    useHyperliquidPortfolio(effectiveMaster, builderDexes, {
+      enabled: !!effectiveMaster,
+    });
+
   const allPositions = useMemo(
     () => portfolio?.positions ?? accountData?.positions ?? [],
     [accountData?.positions, portfolio?.positions],
@@ -527,24 +545,7 @@ export function PerpsPanel({
     ? (mids[selectedCoin] ?? selectedMarket?.markPrice ?? '0')
     : '0';
 
-  // Builder-deployed (HIP-3) perps keep their collateral in a DEX-specific
-  // account, separate from the main USDC perp account. To present ONE perps
-  // wallet, aggregate positions + balances across the main DEX and every
-  // builder DEX. `perDex` exposes each DEX's own balance for the trade ticket.
   const selectedDex = selectedMarket?.dex?.trim() || '';
-  const builderDexes = useMemo(() => {
-    const set = new Set<string>();
-    for (const m of markets) {
-      const d = (m as { dex?: string }).dex?.trim();
-      if (d) set.add(d);
-    }
-    return Array.from(set);
-  }, [markets]);
-
-  const { data: portfolio, refetch: refetchPortfolio } =
-    useHyperliquidPortfolio(effectiveMaster, builderDexes, {
-      enabled: !!effectiveMaster,
-    });
 
   // The account that backs the *currently selected* market — used for the trade
   // ticket's balance display, margin check, and auto-funding math.
