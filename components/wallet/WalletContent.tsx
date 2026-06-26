@@ -40,6 +40,8 @@ import { useSendFlow } from '@/lib/hooks/useSendFlow';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { useNFT } from '@/lib/hooks/useNFT';
 import { useUser } from '@/lib/UserContext';
+import { apiFetch } from '@/lib/api/apiFetch';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { safeLocalStorage } from '@/lib/browserStorage';
 import { ensureSponsoredSolanaTokenAccount } from '@/lib/solana/sponsoredTokenAccounts';
 import type { HyperliquidAgentOrderPrefill } from '@/lib/chat/agentActionHandoff';
@@ -1260,7 +1262,7 @@ const WalletContentInner = () => {
     setRewardWalletLoading(true);
     setRewardWalletError(null);
 
-    // The backend (localhost:4000 / API host) is restarted periodically by the
+    // The backend API host is restarted periodically by the
     // sync process, leaving a ~10s window where this client-side fetch throws a
     // native "Failed to fetch". Unlike the rest of the wallet (server actions /
     // React Query), this request runs once on mount, so a single blip used to
@@ -1278,8 +1280,8 @@ const WalletContentInner = () => {
         if (!isCurrentRequest()) return;
 
         try {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/reward-wallet`,
+          const response = await apiFetch(
+            buildSwopApiUrl('/api/v5/wallet/reward-wallet'),
             {
               method: 'GET',
               headers: {
@@ -1368,8 +1370,8 @@ const WalletContentInner = () => {
     setRewardClaimLoading(true);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/reward-wallet/claim`,
+      const response = await apiFetch(
+        buildSwopApiUrl('/api/v5/wallet/reward-wallet/claim'),
         {
           method: 'POST',
           headers: {
