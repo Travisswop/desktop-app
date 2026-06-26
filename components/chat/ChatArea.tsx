@@ -190,6 +190,7 @@ import {
   buildLocalConsoleCardLifecycleId,
   emitLocalConsoleCardTelemetry,
   type LocalConsoleCardType,
+  shouldEmitLocalConsoleCardRehydratedOnMount,
 } from '@/lib/chat/localConsoleCardTelemetry';
 import { postFeed } from '@/actions/postFeed';
 import {
@@ -6658,6 +6659,8 @@ export default function ChatArea({
                 getLocalConsoleCardTypeForAction(message.agentData?.action);
               const persistedLocalConsoleSourceId =
                 message.clientMessageId || message._id;
+              const localConsoleReadMessageHistoryBackedAtMount =
+                !isTempMessage(message);
 
               return (
                 <Fragment key={message._id || index}>
@@ -6713,6 +6716,9 @@ export default function ChatArea({
                           localConsoleReadMessage._id
                         }
                         isGroup={isGroup}
+                        historyBackedAtMount={
+                          localConsoleReadMessageHistoryBackedAtMount
+                        }
                       />
                       <Message
                         message={localConsoleReadMessage}
@@ -11020,13 +11026,21 @@ function LocalConsoleCardTelemetryBeacon({
   cardType,
   sourceMessageId,
   isGroup,
+  historyBackedAtMount = true,
 }: {
   cardType: LocalConsoleCardType;
   sourceMessageId: string;
   isGroup: boolean;
+  historyBackedAtMount?: boolean;
 }) {
+  const shouldEmitOnMountRef = useRef(
+    shouldEmitLocalConsoleCardRehydratedOnMount({
+      historyBackedAtMount,
+    })
+  );
+
   useEffect(() => {
-    if (!sourceMessageId) return;
+    if (!sourceMessageId || !shouldEmitOnMountRef.current) return;
     emitLocalConsoleCardTelemetry({
       eventType: 'rehydrated',
       cardType,

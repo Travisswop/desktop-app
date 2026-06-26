@@ -54,6 +54,14 @@ export function buildLocalConsoleCardLifecycleId({
   )}-${normalizedOrdinal}`;
 }
 
+export function shouldEmitLocalConsoleCardRehydratedOnMount({
+  historyBackedAtMount,
+}: {
+  historyBackedAtMount: boolean;
+}) {
+  return Boolean(historyBackedAtMount);
+}
+
 function buildEventKey(event: LocalConsoleCardTelemetryEvent) {
   return [
     event.eventType,

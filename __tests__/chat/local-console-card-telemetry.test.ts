@@ -4,6 +4,7 @@ import {
   LOCAL_CONSOLE_CARD_TELEMETRY_PREFIX,
   normalizeLocalConsoleCardCommand,
   resetLocalConsoleCardTelemetryForTests,
+  shouldEmitLocalConsoleCardRehydratedOnMount,
 } from '@/lib/chat/localConsoleCardTelemetry';
 
 describe('local console card telemetry', () => {
@@ -119,5 +120,19 @@ describe('local console card telemetry', () => {
     expect(normalizeLocalConsoleCardCommand('@astro /portfolio  ')).toBe(
       '/portfolio'
     );
+  });
+
+  test('keeps first local mounts generated-only and reserves rehydrated for history-backed mounts', () => {
+    expect(
+      shouldEmitLocalConsoleCardRehydratedOnMount({
+        historyBackedAtMount: false,
+      })
+    ).toBe(false);
+
+    expect(
+      shouldEmitLocalConsoleCardRehydratedOnMount({
+        historyBackedAtMount: true,
+      })
+    ).toBe(true);
   });
 });
