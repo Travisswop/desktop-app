@@ -18,6 +18,12 @@ Then it runs the QA harness from that worktree. Each JSON report records:
 - `gitRef`
 - `gitSha`
 
+For explicit localhost review runs, the harness now backfills those fields from
+the git worktree that is actually serving the chosen `localhost:<port>` target
+when `SWOP_QA_GIT_REF` / `SWOP_QA_GIT_SHA` are not provided explicitly. That
+keeps manual branch QA reports attributable even when multiple local review
+hosts exist.
+
 The default browser target is production:
 
 ```text
@@ -155,7 +161,8 @@ Invalid `SWOP_QA_LOCAL_PORT` / `--local-port` values now fail fast instead of
 silently falling back to the default host. Local-port runs also reuse only a
 matching `localhost:<port>/dashboard/chat` tab, so an authenticated
 `www.swopme.app` tab or another localhost port does not masquerade as branch
-coverage.
+coverage. Those runs also stamp the report with the git ref / sha of the server
+bound to that localhost port when the metadata is discoverable.
 
 The profile is stored at:
 

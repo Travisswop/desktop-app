@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -326,6 +326,111 @@ export function classifyQaBlocker(errorMessage, steps = [], targetUrl = '') {
   }
 
   return null;
+}
+
+function parseLocalhostPortFromUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' || parsed.hostname !== 'localhost' || !parsed.port) {
+      return null;
+    }
+    return parseOptionalPort(parsed.port, 'localhost port');
+  } catch {
+    return null;
+  }
+}
+
+function runCommandCapture(command, args) {
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) return '';
+  return String(result.stdout || '').trim();
+}
+
+function firstNonEmptyLine(value) {
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean) || '';
+}
+
+function parseLsofCwd(value) {
+  return String(value || '')
+    .split(/\r?\n/)
+    .find((line) => line.startsWith('n'))
+    ?.slice(1)
+    .trim() || '';
+}
+
+function resolveGitRefForWorktree(worktreePath, runCommand = runCommandCapture) {
+  const branch = String(
+    runCommand('git', ['-C', worktreePath, 'branch', '--show-current']) || ''
+  ).trim();
+  if (branch) return branch;
+
+  const described = String(
+    runCommand('git', ['-C', worktreePath, 'describe', '--all', '--always']) || ''
+  ).trim();
+  if (described) return described;
+
+  const shortSha = String(
+    runCommand('git', ['-C', worktreePath, 'rev-parse', '--short', 'HEAD']) || ''
+  ).trim();
+  return shortSha || null;
+}
+
+export function inferGitMetadata(args = {}, env = process.env, runCommand = runCommandCapture) {
+  const explicitRef = String(env.SWOP_QA_GIT_REF || '').trim();
+  const explicitSha = String(env.SWOP_QA_GIT_SHA || '').trim();
+  if (explicitRef || explicitSha) {
+    return {
+      gitRef: explicitRef || null,
+      gitSha: explicitSha || null,
+      gitMetadataSource: 'env',
+    };
+  }
+
+  const localhostPort = args.localPort || parseLocalhostPortFromUrl(args.url || '');
+  if (!localhostPort) {
+    return {
+      gitRef: null,
+      gitSha: null,
+      gitMetadataSource: null,
+    };
+  }
+
+  const listenerPid = firstNonEmptyLine(
+    runCommand('lsof', ['-ti', `tcp:${localhostPort}`, '-sTCP:LISTEN'])
+  );
+  if (!listenerPid) {
+    return {
+      gitRef: null,
+      gitSha: null,
+      gitMetadataSource: `localhost:${localhostPort}`,
+    };
+  }
+
+  const worktreePath = parseLsofCwd(
+    runCommand('lsof', ['-a', '-p', listenerPid, '-d', 'cwd', '-Fn'])
+  );
+  if (!worktreePath) {
+    return {
+      gitRef: null,
+      gitSha: null,
+      gitMetadataSource: `localhost:${localhostPort}`,
+    };
+  }
+
+  const gitSha =
+    String(runCommand('git', ['-C', worktreePath, 'rev-parse', 'HEAD']) || '').trim() || null;
+  const gitRef = resolveGitRefForWorktree(worktreePath, runCommand);
+
+  return {
+    gitRef,
+    gitSha,
+    gitMetadataSource: `localhost:${localhostPort}`,
+  };
 }
 
 function implicitDefaultHostBlockerMessage(env = process.env, allowedAuthHostHints) {
@@ -1244,6 +1349,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const allowedAuthHostHints = buildAllowedAuthHostHints(args);
   const cardContracts = buildCardCommandContracts(args);
+  const gitMetadata = inferGitMetadata(args, process.env);
   const report = {
     name: 'astro-card-smoke',
     startedAt: timestamp(),
@@ -1251,8 +1357,9 @@ async function main() {
     url: args.url,
     chromeUrl: args.chromeUrl,
     profileDir: args.profileDir,
-    gitRef: process.env.SWOP_QA_GIT_REF || null,
-    gitSha: process.env.SWOP_QA_GIT_SHA || null,
+    gitRef: gitMetadata.gitRef,
+    gitSha: gitMetadata.gitSha,
+    gitMetadataSource: gitMetadata.gitMetadataSource,
     swapQa: {
       inputMint: args.swapInputMint,
       outputMint: args.swapOutputMint,

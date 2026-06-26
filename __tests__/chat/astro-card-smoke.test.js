@@ -142,4 +142,62 @@ describe('astro-card-smoke helpers', () => {
         'The requested QA host was reachable but the chat shell was signed out before page-auth. Re-run SWOP_QA_URL="https://www.swopme.app/dashboard/chat" npm run qa:astro-cards:login and retry.',
     });
   });
+
+  test('inferGitMetadata prefers explicit env metadata', () => {
+    expect(
+      helpers.inferGitMetadata(
+        { url: 'http://localhost:3001/dashboard/chat', localPort: 3001 },
+        {
+          SWOP_QA_GIT_REF: 'feature/qa-proof',
+          SWOP_QA_GIT_SHA: 'abc123',
+        },
+        () => {
+          throw new Error('runner should not be called when env metadata is present');
+        }
+      )
+    ).toEqual({
+      gitRef: 'feature/qa-proof',
+      gitSha: 'abc123',
+      gitMetadataSource: 'env',
+    });
+  });
+
+  test('inferGitMetadata resolves localhost git metadata from the bound port worktree', () => {
+    const responses = new Map([
+      ['lsof -ti tcp:3001 -sTCP:LISTEN', '5012\n'],
+      ['lsof -a -p 5012 -d cwd -Fn', 'p5012\nfcwd\nn/Users/travis/worktrees/desktop-qa\n'],
+      ['git -C /Users/travis/worktrees/desktop-qa rev-parse HEAD', 'deadbeefcafebabe\n'],
+      ['git -C /Users/travis/worktrees/desktop-qa branch --show-current', 'codex-desktop-qa-auth-host-20260625\n'],
+    ]);
+
+    const runner = (command, args) => responses.get(`${command} ${args.join(' ')}`) || '';
+
+    expect(
+      helpers.inferGitMetadata(
+        { url: 'http://localhost:3001/dashboard/chat', localPort: 3001 },
+        {},
+        runner
+      )
+    ).toEqual({
+      gitRef: 'codex-desktop-qa-auth-host-20260625',
+      gitSha: 'deadbeefcafebabe',
+      gitMetadataSource: 'localhost:3001',
+    });
+  });
+
+  test('inferGitMetadata leaves non-localhost runs unannotated without env metadata', () => {
+    expect(
+      helpers.inferGitMetadata(
+        { url: 'https://www.swopme.app/dashboard/chat', localPort: null },
+        {},
+        () => {
+          throw new Error('runner should not be called for non-localhost targets');
+        }
+      )
+    ).toEqual({
+      gitRef: null,
+      gitSha: null,
+      gitMetadataSource: null,
+    });
+  });
 });
