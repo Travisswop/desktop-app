@@ -143,9 +143,28 @@ describe('astro-card-smoke helpers', () => {
     });
   });
 
-  test('detectSwopShellState distinguishes chat, login, and empty shells', () => {
+  test('classifyQaBlocker labels localhost config errors explicitly', () => {
+    expect(
+      helpers.classifyQaBlocker(
+        'Error: Swop loaded a configuration error. Required Privy environment variables are missing for this QA host.',
+        [],
+        'http://localhost:3001/dashboard/chat'
+      )
+    ).toEqual({
+      blockedBy: 'qa-env-misconfigured',
+      detail:
+        'The requested QA host rendered a configuration error before page-auth. Load the localhost:3001 worktree env (.env.local / launch env) with the required Privy variables and retry.',
+    });
+  });
+
+  test('detectSwopShellState distinguishes chat, login, config, and empty shells', () => {
     expect(helpers.detectSwopShellState('Messages\nAstro\nPortfolio allocation')).toBe('chat');
     expect(helpers.detectSwopShellState('Sign in to Swop')).toBe('login');
+    expect(
+      helpers.detectSwopShellState(
+        'Configuration Error\nNEXT_PUBLIC_PRIVY_APP_ID environment variable is not set.'
+      )
+    ).toBe('config-error');
     expect(helpers.detectSwopShellState('')).toBeNull();
   });
 

@@ -181,6 +181,12 @@ itself is reachable but the QA profile is signed out on that host. Re-run
 `npm run qa:astro-cards:login` against the same explicit `--local-port` or
 `--url` target before retrying the smoke.
 
+If a run fails with `blockedBy: "qa-env-misconfigured"`, the target host
+rendered a configuration shell before `page-auth` instead of the chat surface.
+Load the target worktree's required Privy env vars (for example
+`NEXT_PUBLIC_PRIVY_APP_ID`) into `.env.local` or the launch environment, then
+retry the same explicit host.
+
 ## Daily Launchd Task
 
 Install the LaunchAgent:

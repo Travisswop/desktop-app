@@ -288,6 +288,23 @@ function loginHintForTarget(targetUrl = '') {
   return `Re-run SWOP_QA_URL="${targetUrl}" npm run qa:astro-cards:login and retry.`;
 }
 
+function missingEnvHintForTarget(targetUrl = '') {
+  if (!targetUrl) {
+    return 'Load the target host env (.env.local / launch env) with the required Privy variables and retry.';
+  }
+
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.protocol === 'http:' && parsed.hostname === 'localhost' && parsed.port) {
+      return `Load the localhost:${parsed.port} worktree env (.env.local / launch env) with the required Privy variables and retry.`;
+    }
+  } catch {
+    // Fall through to the generic URL hint below.
+  }
+
+  return `Load the env for ${targetUrl} with the required Privy variables and retry.`;
+}
+
 export function classifyQaBlocker(errorMessage, steps = [], targetUrl = '') {
   const message = String(errorMessage || '');
   const activeStep =
@@ -307,6 +324,18 @@ export function classifyQaBlocker(errorMessage, steps = [], targetUrl = '') {
     return {
       blockedBy: 'qa-session-unauthenticated',
       detail: `The requested QA host was reachable but the chat shell was signed out ${activeLabel}. ${loginHintForTarget(targetUrl)}`,
+    };
+  }
+
+  if (
+    /Swop loaded a configuration error/i.test(message) ||
+    /Configuration Error/i.test(message) ||
+    /environment variable is not set/i.test(message) ||
+    /Missing required environment variables/i.test(message)
+  ) {
+    return {
+      blockedBy: 'qa-env-misconfigured',
+      detail: `The requested QA host rendered a configuration error ${activeLabel}. ${missingEnvHintForTarget(targetUrl)}`,
     };
   }
 
@@ -754,6 +783,13 @@ async function pageText(client) {
 export function detectSwopShellState(text) {
   const normalized = String(text || '');
   if (/Messages/i.test(normalized) && /Astro/i.test(normalized)) return 'chat';
+  if (
+    /Configuration Error/i.test(normalized) ||
+    /environment variable is not set/i.test(normalized) ||
+    /Missing required environment variables/i.test(normalized)
+  ) {
+    return 'config-error';
+  }
   if (/sign in|log in|login/i.test(normalized) && !/Messages/i.test(normalized)) return 'login';
   return null;
 }
@@ -1157,12 +1193,17 @@ async function sendPrompt(client, prompt) {
 async function assertLoggedIn(client) {
   const state = await waitFor(
     client,
-    'authenticated chat shell or login screen',
+    'authenticated chat shell, configuration error, or login screen',
     async () => {
       return detectSwopShellState(await pageText(client)) || false;
     },
     45000
   );
+  if (state === 'config-error') {
+    throw new Error(
+      'Swop loaded a configuration error. Required Privy environment variables are missing for this QA host.'
+    );
+  }
   if (state === 'login') {
     throw new Error('Swop appears to be on a login screen. Run --setup-login first and sign in.');
   }
@@ -1504,7 +1545,12 @@ async function main() {
       await assertChromeTargetResponsive(client, 'after navigation');
     }
 
-    await waitForText(client, 'Swop page content', ['Swop', 'Messages'], args.timeoutMs);
+    await waitForText(
+      client,
+      'Swop page content',
+      ['Swop', 'Messages', 'Configuration Error', 'environment variable is not set'],
+      args.timeoutMs
+    );
     await runCardChecks({ client, baseUrl: args.chromeUrl, args, report });
     report.status = report.steps.some((step) => step.status === 'fail') ? 'fail' : 'pass';
   } catch (error) {
