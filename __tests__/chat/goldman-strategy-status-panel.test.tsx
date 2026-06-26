@@ -183,6 +183,27 @@ describe('GoldmanStrategyStatusPanel', () => {
     expect(
       getGoldmanStrategyControlState(
         {
+          title: 'Approved but idle strategy',
+          status: 'active',
+          runtime: {
+            state: 'stopped',
+            executionMode: 'execute',
+          },
+        },
+        {
+          isStrategyRunning: false,
+          now: Date.parse('2026-06-24T16:00:00Z'),
+        }
+      )
+    ).toMatchObject({
+      statusLabel: 'Paused',
+      primaryAction: 'run',
+      runLabel: 'Run',
+    });
+
+    expect(
+      getGoldmanStrategyControlState(
+        {
           title: 'Running strategy',
           status: 'active',
           runtime: {

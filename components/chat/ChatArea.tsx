@@ -3341,8 +3341,7 @@ export default function ChatArea({
     [goldmanStrategyVault]
   );
   const isGoldmanStrategyRunning =
-    activeGoldmanStrategy?.runtime?.state === 'running' ||
-    activeGoldmanStrategy?.status === 'active';
+    activeGoldmanStrategy?.runtime?.state === 'running';
   const ensureGoldmanStrategyVault = useCallback(async () => {
     if (goldmanStrategyVault?.walletAddress) return goldmanStrategyVault;
     if (!goldmanGroupId || !accessToken) {
