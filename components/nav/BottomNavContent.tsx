@@ -110,6 +110,36 @@ const SMARTSITE_TEMPLATES = [
   },
 ];
 
+const FeedRouteLoadingOverlay = () => (
+  <div
+    aria-live="polite"
+    aria-label="Loading feed"
+    className="fixed inset-x-0 bottom-0 top-[97px] z-40 overflow-hidden bg-white px-6 pt-10"
+  >
+    <div className="mx-auto w-full max-w-[520px] space-y-3">
+      {[0, 1, 2, 3].map((item) => (
+        <div
+          key={item}
+          className="rounded-lg border border-black/[0.04] bg-white p-4"
+        >
+          <div className="flex items-start gap-3">
+            <div className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-gray-200" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
+              <div className="h-3 w-28 animate-pulse rounded bg-gray-100" />
+              <div className="space-y-2 pt-3">
+                <div className="h-3 w-full animate-pulse rounded bg-gray-100" />
+                <div className="h-3 w-4/5 animate-pulse rounded bg-gray-100" />
+                <div className="h-36 w-full animate-pulse rounded-lg bg-gray-100" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const BottomNavContent = () => {
   const params = useParams();
   const pathname = usePathname();
@@ -122,6 +152,7 @@ const BottomNavContent = () => {
   const [isActivateChipModalOpen, setIsActivateChipModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [pendingRoute, setPendingRoute] = useState<string | null>(null);
 
   const tab = useMemo(
     () => searchParams && searchParams.get("tab"),
@@ -133,10 +164,23 @@ const BottomNavContent = () => {
   const isSmartsite = pathname?.startsWith("/smartsite/");
   const isFeedSurface = pathname === "/" || pathname?.startsWith("/feed");
   const showFeedCompose = isFeedSurface && tab !== "map";
+  const isFeedTransitionPending = pendingRoute === "/feed" && !isFeedSurface;
 
   useEffect(() => {
+    router.prefetch("/feed");
     router.prefetch("/wallet");
   }, [router]);
+
+  useEffect(() => {
+    setPendingRoute(null);
+  }, [pathname]);
+
+  const handleFeedNavIntent = () => {
+    router.prefetch("/feed");
+    if (!isFeedSurface) {
+      setPendingRoute("/feed");
+    }
+  };
 
   // Get the dynamic ID from the route
   const pageId =
@@ -476,10 +520,15 @@ const BottomNavContent = () => {
       isActive: Boolean(pathname?.startsWith("/dashboard")),
     },
     {
-      href: "/",
+      href: "/feed",
       label: "Feed",
       Icon: Menu,
       isActive: pathname === "/" || pathname === "/feed",
+      prefetch: true,
+      onPointerEnter: () => router.prefetch("/feed"),
+      onPointerDown: handleFeedNavIntent,
+      onFocus: () => router.prefetch("/feed"),
+      onClick: handleFeedNavIntent,
     },
     {
       href: "/wallet",
@@ -500,6 +549,7 @@ const BottomNavContent = () => {
 
   return (
     <>
+      {isFeedTransitionPending ? <FeedRouteLoadingOverlay /> : null}
       <div
         className={`fixed bottom-5 left-1/2 z-50 w-[calc(100vw_-_32px)] -translate-x-1/2 ${
           isSmartsite || showFeedCompose ? "max-w-[340px]" : "max-w-[272px]"

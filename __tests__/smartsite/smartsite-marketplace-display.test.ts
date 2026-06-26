@@ -1,4 +1,5 @@
 import {
+  getMarketplaceExclusiveContentItems,
   normalizeSmartsiteMarketplaceItem,
   normalizeSmartsiteMarketplaceVariants,
 } from "@/lib/smartsite-marketplace-display";
@@ -92,6 +93,45 @@ describe("SmartSite marketplace display normalization", () => {
         name: "Finish",
         options: [{ name: "Matte" }, { name: "Gloss", quantity: 3 }],
       },
+    ]);
+  });
+
+  it("exposes receipt-gated digital assets as marketplace exclusive content", () => {
+    const normalized = normalizeSmartsiteMarketplaceItem({
+      _id: "entry-2",
+      marketplaceProductId: {
+        _id: "product-2",
+        title: "Black Swop Networking Card",
+        description: "Founder edition card",
+        productType: "digital",
+        price: { amount: 85, currency: "USDC" },
+        images: [{ url: "https://cdn.swop.id/card.png" }],
+        fulfillment: {
+          digitalDeliveryNote: "Includes the holder onboarding kit.",
+          digitalAsset: {
+            enabled: true,
+            fileName: "holder-kit.zip",
+            originalName: "Holder Kit.zip",
+            mimeType: "application/zip",
+            size: 2048,
+            accessPolicy: "receipt_nft",
+          },
+        },
+      },
+    });
+
+    expect(normalized).toBeTruthy();
+    expect(getMarketplaceExclusiveContentItems(normalized!)).toEqual([
+      expect.objectContaining({
+        title: "Holder Kit.zip",
+        description: "Includes the holder onboarding kit.",
+        kind: "download",
+        ctaLabel: "Download",
+        fileName: "holder-kit.zip",
+        originalName: "Holder Kit.zip",
+        accessPolicy: "receipt_nft",
+        lockedBy: "receipt_nft",
+      }),
     ]);
   });
 });
