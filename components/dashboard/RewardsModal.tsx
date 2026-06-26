@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import CustomModal from "@/components/modal/CustomModal";
 import { useToast } from "@/hooks/use-toast";
+import {
+  claimRewardWallet,
+  fetchCopyTradeRewards,
+} from "@/lib/wallet/rewardsApi";
 
 const muted = "#6e6e76";
 const hair = "rgba(0,0,0,0.06)";
@@ -149,16 +153,9 @@ export default function RewardsModal({
         if (!isCurrent()) return;
 
         try {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/copy-trade-rewards?status=all&limit=500`,
-            {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-              },
-              method: "GET",
-            },
-          );
+          const response = await fetchCopyTradeRewards(accessToken, {
+            limit: 500,
+          });
           const data = (await response.json().catch(() => ({}))) as
             | RewardsResponse
             | { message?: string; error?: string };
@@ -235,16 +232,9 @@ export default function RewardsModal({
     setError(null);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/reward-wallet/claim`,
-        {
-          body: JSON.stringify({ destinationWallet }),
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-        },
+      const response = await claimRewardWallet(
+        accessToken,
+        destinationWallet,
       );
       const data = await response.json().catch(() => ({}));
 

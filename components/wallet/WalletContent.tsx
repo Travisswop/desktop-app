@@ -43,6 +43,10 @@ import { useUser } from '@/lib/UserContext';
 import { apiFetch } from '@/lib/api/apiFetch';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { safeLocalStorage } from '@/lib/browserStorage';
+import {
+  claimRewardWallet,
+  fetchRewardWalletStatus,
+} from '@/lib/wallet/rewardsApi';
 import { ensureSponsoredSolanaTokenAccount } from '@/lib/solana/sponsoredTokenAccounts';
 import type { HyperliquidAgentOrderPrefill } from '@/lib/chat/agentActionHandoff';
 
@@ -1280,16 +1284,7 @@ const WalletContentInner = () => {
         if (!isCurrentRequest()) return;
 
         try {
-          const response = await apiFetch(
-            buildSwopApiUrl('/api/v5/wallet/reward-wallet'),
-            {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-              },
-            },
-          );
+          const response = await fetchRewardWalletStatus(accessToken);
           const data = await response.json().catch(() => ({}));
 
           if (!response.ok) {
@@ -1370,18 +1365,9 @@ const WalletContentInner = () => {
     setRewardClaimLoading(true);
 
     try {
-      const response = await apiFetch(
-        buildSwopApiUrl('/api/v5/wallet/reward-wallet/claim'),
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            destinationWallet: rewardDestinationWallet,
-          }),
-        },
+      const response = await claimRewardWallet(
+        accessToken,
+        rewardDestinationWallet,
       );
       const data = await response.json().catch(() => ({}));
 

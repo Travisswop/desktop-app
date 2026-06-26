@@ -7,6 +7,7 @@
 
 import { apiFetch } from '@/lib/api/apiFetch';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import { isNetworkFetchError } from '@/lib/api/fetchErrors';
 
 export interface TokenMarketData {
   id?: string;
@@ -123,6 +124,35 @@ export interface CoinbaseOnrampOrderResponse {
 }
 
 export class WalletService {
+  private static async requestWalletTokens(
+    url: string,
+    wallets: WalletInput[],
+    accessToken?: string
+  ): Promise<WalletTokensResponse> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await apiFetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ wallets }),
+      credentials: url.startsWith('/') ? 'include' : undefined,
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch wallet tokens: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
   /**
    * Fetch all tokens for multiple wallets
    * Backend handles everything: native tokens, ERC-20, SPL, prices, market data
@@ -136,33 +166,27 @@ export class WalletService {
     accessToken?: string
   ): Promise<WalletTokensResponse> {
     try {
-      const url = accessToken
-        ? buildSwopApiUrl('/api/v5/wallet/tokens')
-        : '/api/wallet/tokens';
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      if (accessToken) {
-        headers.Authorization = `Bearer ${accessToken}`;
+      if (!accessToken) {
+        return await this.requestWalletTokens('/api/wallet/tokens', wallets);
       }
 
-      const response = await apiFetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ wallets }),
-        credentials: accessToken ? undefined : 'include',
-        signal: AbortSignal.timeout(30000),
-      });
+      try {
+        return await this.requestWalletTokens(
+          buildSwopApiUrl('/api/v5/wallet/tokens'),
+          wallets,
+          accessToken
+        );
+      } catch (error) {
+        if (!isNetworkFetchError(error)) {
+          throw error;
+        }
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch wallet tokens: ${response.status}`
+        return await this.requestWalletTokens(
+          '/api/wallet/tokens',
+          wallets,
+          accessToken
         );
       }
-
-      const result = await response.json();
-      return result.data;
     } catch (error) {
       console.warn('Wallet tokens unavailable:', error);
       throw error;
