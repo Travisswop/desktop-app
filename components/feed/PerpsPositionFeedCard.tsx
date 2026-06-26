@@ -285,6 +285,67 @@ function hasCrossedLiquidationPrice({
   return side === 'long' ? mark <= liquidation : mark >= liquidation;
 }
 
+export function inferPerpsRiskPriceHit({
+  side,
+  markPrice,
+  takeProfitPrice,
+  stopLossPrice,
+}: {
+  side: 'long' | 'short';
+  markPrice: unknown;
+  takeProfitPrice: unknown;
+  stopLossPrice: unknown;
+}): 'takeProfit' | 'stopLoss' | null {
+  const mark = maybeFiniteNumber(markPrice);
+  const takeProfit = maybeFiniteNumber(takeProfitPrice);
+  const stopLoss = maybeFiniteNumber(stopLossPrice);
+
+  if (mark === null || mark <= 0) return null;
+
+  if (side === 'long') {
+    if (stopLoss !== null && stopLoss > 0 && mark <= stopLoss) {
+      return 'stopLoss';
+    }
+    if (takeProfit !== null && takeProfit > 0 && mark >= takeProfit) {
+      return 'takeProfit';
+    }
+    return null;
+  }
+
+  if (stopLoss !== null && stopLoss > 0 && mark >= stopLoss) {
+    return 'stopLoss';
+  }
+  if (takeProfit !== null && takeProfit > 0 && mark <= takeProfit) {
+    return 'takeProfit';
+  }
+
+  return null;
+}
+
+export function inferPerpsRiskPriceHitFromPrices({
+  side,
+  prices,
+  takeProfitPrice,
+  stopLossPrice,
+}: {
+  side: 'long' | 'short';
+  prices: unknown[];
+  takeProfitPrice: unknown;
+  stopLossPrice: unknown;
+}) {
+  for (const price of prices) {
+    const hit = inferPerpsRiskPriceHit({
+      side,
+      markPrice: price,
+      takeProfitPrice,
+      stopLossPrice,
+    });
+    if (hit) return hit;
+  }
+
+  return null;
+}
+
 function formatUsd(value: unknown, digits = 2) {
   const number = finiteNumber(value);
   if (Math.abs(number) >= 1000) {
@@ -498,18 +559,59 @@ export default function PerpsPositionFeedCard({
     }
   }, [points.length, selectedIndex]);
 
-  const displayMarkPrice =
+  const currentMarkPrice =
     !hasStoredTerminalStatus
       ? liveMarkPrice || points[points.length - 1]?.price || storedMarkPrice
       : storedMarkPrice;
-  const status =
+  const entryPrice = firstFiniteNumber([content.entryPrice, currentMarkPrice]);
+  const { takeProfitPrice, stopLossPrice } =
+    normalizePerpsRiskPricesForDisplay({
+      side,
+      entryPrice,
+      takeProfitPrice: content.takeProfitPrice,
+      stopLossPrice: content.stopLossPrice,
+    });
+  const hasInferredLiquidation =
     storedStatus === 'open' &&
     hasCrossedLiquidationPrice({
       side,
-      markPrice: displayMarkPrice,
+      markPrice: currentMarkPrice,
       liquidationPrice: content.liquidationPrice,
-    })
+    });
+  const riskDetectionPrices = useMemo(
+    () => [
+      ...bars.flatMap((bar) =>
+        side === 'long'
+          ? [bar.low, bar.high, bar.close]
+          : [bar.high, bar.low, bar.close],
+      ),
+      content.markPrice,
+      storedMarkPrice,
+      currentMarkPrice,
+    ],
+    [bars, content.markPrice, currentMarkPrice, side, storedMarkPrice],
+  );
+  const inferredRiskPriceHit =
+    storedStatus === 'open' && !hasInferredLiquidation
+      ? inferPerpsRiskPriceHitFromPrices({
+          side,
+          prices: riskDetectionPrices,
+          takeProfitPrice,
+          stopLossPrice,
+        })
+      : null;
+  const inferredRiskExitPrice =
+    inferredRiskPriceHit === 'takeProfit'
+      ? takeProfitPrice
+      : inferredRiskPriceHit === 'stopLoss'
+      ? stopLossPrice
+      : null;
+  const displayMarkPrice = inferredRiskExitPrice || currentMarkPrice;
+  const status =
+    hasInferredLiquidation
       ? 'liquidated'
+      : inferredRiskPriceHit
+      ? 'closed'
       : storedStatus;
 
   const entries = useMemo(() => {
@@ -676,7 +778,6 @@ export default function PerpsPositionFeedCard({
     [points.length],
   );
 
-  const entryPrice = firstFiniteNumber([content.entryPrice, displayMarkPrice]);
   const calculatedReturnPct =
     !isLimitLifecycleStatus && entryPrice > 0
       ? ((side === 'long'
@@ -700,6 +801,10 @@ export default function PerpsPositionFeedCard({
       ? 'border-red-200 bg-red-100 text-red-500'
       : status === 'cancelled'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
+      : status === 'closed' && inferredRiskPriceHit === 'stopLoss'
+      ? 'border-red-200 bg-red-100 text-red-500'
+      : status === 'closed' && inferredRiskPriceHit === 'takeProfit'
+      ? 'border-emerald-200 bg-emerald-100 text-emerald-600'
       : status === 'closed'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
       : status === 'limit'
@@ -712,6 +817,10 @@ export default function PerpsPositionFeedCard({
       ? 'Liquidated'
       : status === 'cancelled'
       ? 'Cancelled'
+      : status === 'closed' && inferredRiskPriceHit === 'stopLoss'
+      ? 'SL hit'
+      : status === 'closed' && inferredRiskPriceHit === 'takeProfit'
+      ? 'TP hit'
       : status === 'closed'
       ? 'Closed'
       : status === 'limit'
@@ -722,6 +831,10 @@ export default function PerpsPositionFeedCard({
       ? 'Liquidated'
       : status === 'cancelled'
       ? 'Cancelled'
+      : status === 'closed' && inferredRiskPriceHit === 'stopLoss'
+      ? 'SL hit'
+      : status === 'closed' && inferredRiskPriceHit === 'takeProfit'
+      ? 'TP hit'
       : status === 'closed'
       ? 'Closed'
       : status === 'limit'
@@ -732,6 +845,10 @@ export default function PerpsPositionFeedCard({
       ? 'Liquidated'
       : status === 'cancelled'
       ? 'Cancelled'
+      : status === 'closed' && inferredRiskPriceHit === 'stopLoss'
+      ? 'Stop hit'
+      : status === 'closed' && inferredRiskPriceHit === 'takeProfit'
+      ? 'Take profit hit'
       : status === 'closed'
       ? 'Closed'
       : status === 'limit'
@@ -742,6 +859,10 @@ export default function PerpsPositionFeedCard({
       ? 'border-red-200 bg-red-50 text-red-500'
       : status === 'cancelled'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
+      : status === 'closed' && inferredRiskPriceHit === 'stopLoss'
+      ? 'border-red-200 bg-red-50 text-red-500'
+      : status === 'closed' && inferredRiskPriceHit === 'takeProfit'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
       : status === 'closed'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
       : status === 'limit'
@@ -755,18 +876,13 @@ export default function PerpsPositionFeedCard({
         feed.createdAt
       : status === 'cancelled'
       ? content.cancelledAt || content.updatedAt || feed.createdAt
+      : inferredRiskPriceHit
+      ? content.closedAt || content.updatedAt || feed.createdAt
       : status === 'closed'
       ? content.closedAt || content.updatedAt || feed.createdAt
       : status === 'limit'
       ? content.limitPlacedAt || content.updatedAt || feed.createdAt
       : content.openedAt || content.updatedAt || feed.createdAt;
-  const { takeProfitPrice, stopLossPrice } =
-    normalizePerpsRiskPricesForDisplay({
-      side,
-      entryPrice,
-      takeProfitPrice: content.takeProfitPrice,
-      stopLossPrice: content.stopLossPrice,
-    });
   const riskPrices = [
     takeProfitPrice !== null
       ? { label: 'TP', value: takeProfitPrice, className: 'text-emerald-500' }

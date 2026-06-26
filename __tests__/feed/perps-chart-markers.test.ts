@@ -22,6 +22,8 @@ jest.mock('@/components/feed/useLivePerpsMarkPrice', () => ({
 }));
 
 import {
+  inferPerpsRiskPriceHit,
+  inferPerpsRiskPriceHitFromPrices,
   normalizePerpsRiskPricesForDisplay,
   selectPerpsChartMarkerEntries,
   type PerpsEntryMarker,
@@ -114,5 +116,71 @@ describe('perps feed risk price display', () => {
       takeProfitPrice: 71.76,
       stopLossPrice: 73.58,
     });
+  });
+});
+
+describe('perps feed TP/SL hit inference', () => {
+  it('detects a short stop loss hit when mark trades above the stop', () => {
+    expect(
+      inferPerpsRiskPriceHit({
+        side: 'short',
+        markPrice: 73.76,
+        takeProfitPrice: 71.76,
+        stopLossPrice: 73.58,
+      }),
+    ).toBe('stopLoss');
+  });
+
+  it('detects a long stop loss hit when mark trades below the stop', () => {
+    expect(
+      inferPerpsRiskPriceHit({
+        side: 'long',
+        markPrice: 68.9,
+        takeProfitPrice: 78,
+        stopLossPrice: 69,
+      }),
+    ).toBe('stopLoss');
+  });
+
+  it('detects take profit hits for long and short positions', () => {
+    expect(
+      inferPerpsRiskPriceHit({
+        side: 'long',
+        markPrice: 80,
+        takeProfitPrice: 79.5,
+        stopLossPrice: 70,
+      }),
+    ).toBe('takeProfit');
+
+    expect(
+      inferPerpsRiskPriceHit({
+        side: 'short',
+        markPrice: 69.5,
+        takeProfitPrice: 70,
+        stopLossPrice: 80,
+      }),
+    ).toBe('takeProfit');
+  });
+
+  it('leaves an open position alone when neither risk price was crossed', () => {
+    expect(
+      inferPerpsRiskPriceHit({
+        side: 'short',
+        markPrice: 72.9,
+        takeProfitPrice: 71.76,
+        stopLossPrice: 73.58,
+      }),
+    ).toBeNull();
+  });
+
+  it('keeps a stop loss hit after live mark retraces below the stop', () => {
+    expect(
+      inferPerpsRiskPriceHitFromPrices({
+        side: 'short',
+        prices: [73.18, 73.76],
+        takeProfitPrice: 71.76,
+        stopLossPrice: 73.58,
+      }),
+    ).toBe('stopLoss');
   });
 });
