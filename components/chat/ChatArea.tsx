@@ -15007,6 +15007,32 @@ async function ensureChatEvmSwapAllowance({
   });
 }
 
+type SwapRecoveryState = {
+  kind: 'balance_changed';
+  previousAmountLabel: string;
+  availableAmount: string;
+  tokenSymbol: string;
+};
+
+export function buildSwapProposalTicketResetState({
+  initialFromKey = '',
+  initialToKey = '',
+  initialAmountInput = '',
+  initialSwapRecovery = null,
+}: {
+  initialFromKey?: string;
+  initialToKey?: string;
+  initialAmountInput?: string;
+  initialSwapRecovery?: SwapRecoveryState | null;
+}) {
+  return {
+    selectedFromKey: initialFromKey,
+    selectedToKey: initialToKey,
+    amountInput: initialAmountInput,
+    swapRecovery: initialSwapRecovery,
+  };
+}
+
 export function SwapProposalTicket({
   proposal,
   proposalId,
@@ -15034,12 +15060,7 @@ export function SwapProposalTicket({
   sourceText?: string;
   autoFetchQuote?: boolean;
   initialQuoteState?: ChatSwapQuoteState;
-  initialSwapRecovery?: {
-    kind: 'balance_changed';
-    previousAmountLabel: string;
-    availableAmount: string;
-    tokenSymbol: string;
-  } | null;
+  initialSwapRecovery?: SwapRecoveryState | null;
 }) {
   const { accessToken, user } = useUser();
   const { getAccessToken } = usePrivy();
@@ -15052,12 +15073,9 @@ export function SwapProposalTicket({
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const [localReceipt, setLocalReceipt] =
     useState<AgentActionCompletion | null>(null);
-  const [swapRecovery, setSwapRecovery] = useState<{
-    kind: 'balance_changed';
-    previousAmountLabel: string;
-    availableAmount: string;
-    tokenSymbol: string;
-  } | null>(initialSwapRecovery);
+  const [swapRecovery, setSwapRecovery] = useState<SwapRecoveryState | null>(
+    initialSwapRecovery
+  );
   const [swapError, setSwapError] = useState<string | null>(null);
   const [inlineSwapStatus, setInlineSwapStatus] = useState<string | null>(null);
   const [isConfirmingSwap, setIsConfirmingSwap] = useState(false);
@@ -15222,15 +15240,20 @@ export function SwapProposalTicket({
       (option) => option.key !== initialFromOption?.key
     ) ||
     null;
+  const initialAmountInput = paramPayAmount || promptIntent.amount || '';
+  const initialTicketState = buildSwapProposalTicketResetState({
+    initialFromKey: initialFromOption?.key || '',
+    initialToKey: initialToOption?.key || '',
+    initialAmountInput,
+    initialSwapRecovery,
+  });
   const [selectedFromKey, setSelectedFromKey] = useState(
-    initialFromOption?.key || ''
+    initialTicketState.selectedFromKey
   );
   const [selectedToKey, setSelectedToKey] = useState(
-    initialToOption?.key || ''
+    initialTicketState.selectedToKey
   );
-  const [amountInput, setAmountInput] = useState(
-    paramPayAmount || promptIntent.amount || ''
-  );
+  const [amountInput, setAmountInput] = useState(initialTicketState.amountInput);
   const preferredEvmSignerAddress = useMemo(() => {
     return (
       getChatEvmWalletCandidates(evmWallets as ChatEvmWalletLike[], [
@@ -15246,23 +15269,23 @@ export function SwapProposalTicket({
     evmWallets,
   ]);
   const stateSeedRef = useRef('');
-  const stateSeed = `${proposalId}:${initialFromOption?.key || ''}:${
-    initialToOption?.key || ''
-  }:${paramPayAmount || promptIntent.amount || ''}`;
+  const stateSeed = `${proposalId}:${initialTicketState.selectedFromKey}:${
+    initialTicketState.selectedToKey
+  }:${initialTicketState.amountInput}`;
 
   useEffect(() => {
     if (stateSeedRef.current === stateSeed) return;
     stateSeedRef.current = stateSeed;
-    setSelectedFromKey(initialFromOption?.key || '');
-    setSelectedToKey(initialToOption?.key || '');
-    setAmountInput(paramPayAmount || promptIntent.amount || '');
-    setSwapRecovery(null);
+    setSelectedFromKey(initialTicketState.selectedFromKey);
+    setSelectedToKey(initialTicketState.selectedToKey);
+    setAmountInput(initialTicketState.amountInput);
+    setSwapRecovery(initialTicketState.swapRecovery);
     setSwapError(null);
   }, [
-    initialFromOption?.key,
-    initialToOption?.key,
-    paramPayAmount,
-    promptIntent.amount,
+    initialTicketState.amountInput,
+    initialTicketState.selectedFromKey,
+    initialTicketState.selectedToKey,
+    initialTicketState.swapRecovery,
     stateSeed,
   ]);
 

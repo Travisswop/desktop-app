@@ -4,7 +4,10 @@ import {
   getSwapRecoveryAmountInput,
   parseSwapBalanceChangeError,
 } from '@/lib/chat/ticketFormat';
-import { SwapProposalTicket } from '@/components/chat/ChatArea';
+import {
+  buildSwapProposalTicketResetState,
+  SwapProposalTicket,
+} from '@/components/chat/ChatArea';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SwapBalanceRecoveryPanel } from '@/components/chat/tickets/SwapBalanceRecoveryPanel';
@@ -284,5 +287,31 @@ describe('parseSwapBalanceChangeError', () => {
     expect(markup).toContain('Astro kept this ticket open');
     expect(markup).not.toContain('Your MCDX balance changed');
     expect(refreshQuoteButton?.disabled).toBe(false);
+  });
+
+  it('preserves the seeded recovery panel when the ticket rehydrates', () => {
+    expect(
+      buildSwapProposalTicketResetState({
+        initialFromKey: 'solana:MCDX',
+        initialToKey: 'solana:USDC',
+        initialAmountInput: '25',
+        initialSwapRecovery: {
+          kind: 'balance_changed',
+          previousAmountLabel: '25 MCDX',
+          availableAmount: '0.12635657',
+          tokenSymbol: 'MCDX',
+        },
+      })
+    ).toEqual({
+      selectedFromKey: 'solana:MCDX',
+      selectedToKey: 'solana:USDC',
+      amountInput: '25',
+      swapRecovery: {
+        kind: 'balance_changed',
+        previousAmountLabel: '25 MCDX',
+        availableAmount: '0.12635657',
+        tokenSymbol: 'MCDX',
+      },
+    });
   });
 });
