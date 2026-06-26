@@ -374,7 +374,7 @@ describe('SwapProposalTicket blocker banner', () => {
     );
   });
 
-  it('relabels the primary action to refresh quote when the route is unavailable', () => {
+  it('keeps the primary action blocked while relabeling to refresh quote when the route is unavailable', () => {
     const { markup, buttons } = renderSwapProposalTicketDocument({
       initialQuoteState: {
         status: 'error',
@@ -399,7 +399,7 @@ describe('SwapProposalTicket blocker banner', () => {
     expect(
       buttons.find((button) => button.textContent.includes('Refresh quote'))
         ?.hasAttribute('disabled')
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('keeps the no-route prequote ticket blocked while matching the refresh-quote CTA label', () => {
