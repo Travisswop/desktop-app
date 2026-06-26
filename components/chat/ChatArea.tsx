@@ -15771,6 +15771,8 @@ export function SwapProposalTicket({
     ? 'quoting'
     : inlineSwapStatus
     ? 'signing'
+    : !canAct
+    ? 'owner only'
     : isValidationQuoteError || hasInputBlocker
     ? 'needs input'
     : isQuoteError || hasRouteBlocker
@@ -15787,7 +15789,9 @@ export function SwapProposalTicket({
     status === 'rejected' ||
     status === 'expired';
   const actionLabel =
-    hasEmptyAmountBlocker && !isQuoteLoading && !inlineSwapStatus
+    !canAct
+      ? 'Owner can approve'
+      : hasEmptyAmountBlocker && !isQuoteLoading && !inlineSwapStatus
       ? 'Get quote'
       : primaryActionMode === 'confirm'
       ? inlineSwapStatus || isSwapBusy

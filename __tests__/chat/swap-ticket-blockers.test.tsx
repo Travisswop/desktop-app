@@ -331,7 +331,7 @@ describe('SwapProposalTicket blocker banner', () => {
   });
 
   it('renders the wrong-user blocker through the swap ticket', () => {
-    const markup = renderSwapProposalTicket({
+    const { markup, buttons } = renderSwapProposalTicketDocument({
       canAct: false,
       proposalParams: {
         fromToken: 'SOL',
@@ -347,6 +347,13 @@ describe('SwapProposalTicket blocker banner', () => {
     expect(markup).toContain(
       'Only the user who asked Astro to prepare this swap can approve it.'
     );
+    expect(markup).toContain('owner only');
+    expect(
+      buttons.find((button) => button.textContent.includes('Owner can approve'))
+    ).toBeTruthy();
+    expect(
+      buttons.find((button) => button.textContent.includes('Sign & approve'))
+    ).toBeFalsy();
   });
 
   it('renders the same-token blocker through the swap ticket', () => {
