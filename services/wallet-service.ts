@@ -6,10 +6,7 @@
  */
 
 import { apiFetch } from '@/lib/api/apiFetch';
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-const WALLET_API_URL = `${API_BASE_URL}/api/v5/wallet`;
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 
 export interface TokenMarketData {
   id?: string;
@@ -140,7 +137,7 @@ export class WalletService {
   ): Promise<WalletTokensResponse> {
     try {
       const url = accessToken
-        ? `${WALLET_API_URL}/tokens`
+        ? buildSwopApiUrl('/api/v5/wallet/tokens')
         : '/api/wallet/tokens';
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -185,7 +182,7 @@ export class WalletService {
     }
 
     const response = await apiFetch(
-      `${WALLET_API_URL}/onramp/coinbase/session`,
+      buildSwopApiUrl('/api/v5/wallet/onramp/coinbase/session'),
       {
         method: 'POST',
         headers,
@@ -217,7 +214,7 @@ export class WalletService {
     }
 
     const response = await apiFetch(
-      `${WALLET_API_URL}/onramp/coinbase/order`,
+      buildSwopApiUrl('/api/v5/wallet/onramp/coinbase/order'),
       {
         method: 'POST',
         headers,
