@@ -5,6 +5,7 @@ import {
   parseSwapBalanceChangeError,
 } from '@/lib/chat/ticketFormat';
 import {
+  AgentProposalCard,
   buildSwapProposalTicketResetState,
   SwapProposalTicket,
 } from '@/components/chat/ChatArea';
@@ -90,6 +91,28 @@ function createWalletToken(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+function createAstroConsoleData() {
+  return {
+    walletPortfolioTokens: [
+      createWalletToken(),
+      createWalletToken({
+        name: 'USD Coin',
+        symbol: 'USDC',
+        balance: '100',
+        address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        marketData: {
+          price: 1,
+        },
+      }),
+    ],
+    isWalletPortfolioBalanceLoading: false,
+    evmWalletAddress: '',
+    evmWalletAddresses: [],
+    eoaAddress: '',
+    solWalletAddress: 'So11111111111111111111111111111111111111112',
+  } as any;
+}
+
 function renderSwapProposalTicketDocument() {
   const markup = renderToStaticMarkup(
     React.createElement(SwapProposalTicket, {
@@ -111,25 +134,7 @@ function renderSwapProposalTicketDocument() {
       isPending: false,
       onInlineActionComplete: jest.fn(),
       onReject: jest.fn(),
-      astroConsoleData: {
-        walletPortfolioTokens: [
-          createWalletToken(),
-          createWalletToken({
-            name: 'USD Coin',
-            symbol: 'USDC',
-            balance: '100',
-            address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-            marketData: {
-              price: 1,
-            },
-          }),
-        ],
-        isWalletPortfolioBalanceLoading: false,
-        evmWalletAddress: '',
-        evmWalletAddresses: [],
-        eoaAddress: '',
-        solWalletAddress: 'So11111111111111111111111111111111111111112',
-      } as any,
+      astroConsoleData: createAstroConsoleData(),
       sourceText: 'Swap 25 MCDX to USDC',
       autoFetchQuote: false,
       initialSwapRecovery: {
@@ -152,6 +157,47 @@ function renderSwapProposalTicketDocument() {
     }));
 
   return { markup, buttons };
+}
+
+function renderAgentProposalCardDocument() {
+  return renderToStaticMarkup(
+    React.createElement(AgentProposalCard, {
+      proposal: {
+        proposalId: 'wallet-swap-proposal-1',
+        action: 'wallet.swap',
+        toolType: 'wallet.write',
+        normalizedParams: {
+          amount: '25',
+          amountType: 'token',
+          fromTokenSymbol: 'MCDX',
+          fromChainId: 'solana',
+          routeLabel: 'Jupiter',
+          toTokenSymbol: 'USDC',
+          toChainId: 'solana',
+          swapRecovery: {
+            kind: 'balance_changed',
+            previousAmountLabel: '25 MCDX',
+            availableAmount: '0.12635657',
+            tokenSymbol: 'MCDX',
+          },
+        },
+      } as any,
+      proposalId: 'wallet-swap-proposal-1',
+      status: 'pending',
+      canAct: true,
+      isPending: false,
+      actionResult: undefined,
+      onApprove: jest.fn(),
+      onApproveInline: jest.fn(async () => null),
+      onInlineActionComplete: jest.fn(),
+      onReject: jest.fn(),
+      onAddPredictionFunds: jest.fn(),
+      onAddPerpsFunds: jest.fn(),
+      astroConsoleData: createAstroConsoleData(),
+      sourceText: 'Swap 25 MCDX to USDC',
+      autoFetchSwapQuote: false,
+    })
+  );
 }
 
 describe('parseSwapBalanceChangeError', () => {
@@ -313,5 +359,15 @@ describe('parseSwapBalanceChangeError', () => {
         tokenSymbol: 'MCDX',
       },
     });
+  });
+
+  it('passes persisted recovery state through the agent proposal card path', () => {
+    const markup = renderAgentProposalCardDocument();
+
+    expect(markup).toContain('swap quote');
+    expect(markup).toContain('Balance changed before signing');
+    expect(markup).toContain('25 MCDX');
+    expect(markup).toContain('0.126357 MCDX');
+    expect(markup).toContain('Refresh USDC quote');
   });
 });

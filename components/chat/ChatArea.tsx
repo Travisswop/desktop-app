@@ -213,6 +213,7 @@ import { useActiveOrders } from '@/hooks/polymarket/useActiveOrders';
 
 const LOCAL_HYPERLIQUID_PROPOSAL_PREFIX = 'local-perps-order-';
 const LOCAL_SWAP_PROPOSAL_PREFIX = 'local-wallet-swap-';
+const CHAT_SWAP_RECOVERY_STORAGE_PREFIX = 'swop.chat.swapRecovery:';
 import {
   type PerpsAccountSummary,
 } from '@/components/wallet/perps/hooks/useHyperliquidPositions';
@@ -11628,7 +11629,7 @@ function PerpsPositionPromptCard({
   );
 }
 
-function AgentProposalCard({
+export function AgentProposalCard({
   proposal,
   proposalId,
   status,
@@ -11720,6 +11721,7 @@ function AgentProposalCard({
         astroConsoleData={astroConsoleData}
         sourceText={sourceText}
         autoFetchQuote={autoFetchSwapQuote}
+        initialSwapRecovery={readProposalSwapRecovery(proposal)}
       />
     );
   }
@@ -14183,6 +14185,78 @@ type ChatSwapQuoteState = {
   error?: string;
 };
 
+type SwapRecoveryState = {
+  kind: 'balance_changed';
+  previousAmountLabel: string;
+  availableAmount: string;
+  tokenSymbol: string;
+};
+
+function isChatSwapRecoveryState(value: unknown): value is SwapRecoveryState {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    candidate.kind === 'balance_changed' &&
+    typeof candidate.previousAmountLabel === 'string' &&
+    typeof candidate.availableAmount === 'string' &&
+    typeof candidate.tokenSymbol === 'string'
+  );
+}
+
+function getChatSwapRecoveryStorageKey(proposalId: string) {
+  return `${CHAT_SWAP_RECOVERY_STORAGE_PREFIX}${proposalId}`;
+}
+
+function readStoredChatSwapRecovery(
+  proposalId: string
+): SwapRecoveryState | null {
+  if (typeof window === 'undefined' || !proposalId) return null;
+  try {
+    const raw = window.sessionStorage.getItem(
+      getChatSwapRecoveryStorageKey(proposalId)
+    );
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return isChatSwapRecoveryState(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredChatSwapRecovery(
+  proposalId: string,
+  recovery: SwapRecoveryState | null
+) {
+  if (typeof window === 'undefined' || !proposalId) return;
+  const storageKey = getChatSwapRecoveryStorageKey(proposalId);
+  if (!recovery) {
+    window.sessionStorage.removeItem(storageKey);
+    return;
+  }
+  window.sessionStorage.setItem(storageKey, JSON.stringify(recovery));
+}
+
+function readProposalSwapRecovery(
+  proposal?: AgentActionProposal | null
+): SwapRecoveryState | null {
+  const candidate = proposal?.normalizedParams?.swapRecovery;
+  return isChatSwapRecoveryState(candidate) ? candidate : null;
+}
+
+function persistProposalSwapRecovery(
+  proposal: AgentActionProposal | null | undefined,
+  recovery: SwapRecoveryState | null
+) {
+  if (!proposal) return;
+  const normalizedParams = proposal.normalizedParams || {};
+  proposal.normalizedParams = normalizedParams;
+  if (recovery) {
+    normalizedParams.swapRecovery = recovery;
+  } else {
+    delete normalizedParams.swapRecovery;
+  }
+}
+
 const SOLANA_CHAIN_ID = '1151111081099710';
 const EVM_NATIVE_TOKEN_ADDRESS =
   '0x0000000000000000000000000000000000000000';
@@ -15007,13 +15081,6 @@ async function ensureChatEvmSwapAllowance({
   });
 }
 
-type SwapRecoveryState = {
-  kind: 'balance_changed';
-  previousAmountLabel: string;
-  availableAmount: string;
-  tokenSymbol: string;
-};
-
 export function buildSwapProposalTicketResetState({
   initialFromKey = '',
   initialToKey = '',
@@ -15073,8 +15140,12 @@ export function SwapProposalTicket({
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const [localReceipt, setLocalReceipt] =
     useState<AgentActionCompletion | null>(null);
-  const [swapRecovery, setSwapRecovery] = useState<SwapRecoveryState | null>(
-    initialSwapRecovery
+  const seededSwapRecovery = useMemo(
+    () =>
+      initialSwapRecovery ||
+      readProposalSwapRecovery(proposal) ||
+      readStoredChatSwapRecovery(proposalId),
+    [initialSwapRecovery, proposal, proposalId]
   );
   const [swapError, setSwapError] = useState<string | null>(null);
   const [inlineSwapStatus, setInlineSwapStatus] = useState<string | null>(null);
@@ -15245,8 +15316,11 @@ export function SwapProposalTicket({
     initialFromKey: initialFromOption?.key || '',
     initialToKey: initialToOption?.key || '',
     initialAmountInput,
-    initialSwapRecovery,
+    initialSwapRecovery: seededSwapRecovery,
   });
+  const [swapRecovery, setSwapRecovery] = useState<SwapRecoveryState | null>(
+    initialTicketState.swapRecovery
+  );
   const [selectedFromKey, setSelectedFromKey] = useState(
     initialTicketState.selectedFromKey
   );
@@ -15288,6 +15362,17 @@ export function SwapProposalTicket({
     initialTicketState.swapRecovery,
     stateSeed,
   ]);
+
+  useEffect(() => {
+    persistProposalSwapRecovery(proposal, swapRecovery);
+    writeStoredChatSwapRecovery(proposalId, swapRecovery);
+  }, [proposal, proposalId, swapRecovery]);
+
+  useEffect(() => {
+    if (isOpen && !localReceipt) return;
+    persistProposalSwapRecovery(proposal, null);
+    writeStoredChatSwapRecovery(proposalId, null);
+  }, [isOpen, localReceipt, proposal, proposalId]);
 
   const selectedFromOption =
     walletFromOptions.find((option) => option.key === selectedFromKey) ||
