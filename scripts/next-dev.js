@@ -16,8 +16,8 @@ function hasLocalEnvConfig(dir) {
   return fallbackEnvFiles.some((file) => fs.existsSync(path.join(dir, file)));
 }
 
-function resolveFallbackEnvDir() {
-  const explicit = process.env.SWOP_FALLBACK_ENV_DIR?.trim();
+function resolveFallbackEnvDir(processEnv = process.env) {
+  const explicit = processEnv.SWOP_FALLBACK_ENV_DIR?.trim();
   if (explicit && hasLocalEnvConfig(explicit)) {
     return explicit;
   }
@@ -50,9 +50,7 @@ function parseEnvValue(rawValue) {
   return value;
 }
 
-function loadFallbackEnv(dir, env) {
-  const loadedKeys = new Set();
-
+function loadFallbackEnv(dir, env, processEnv = process.env) {
   for (const file of fallbackEnvFiles) {
     const filePath = path.join(dir, file);
     if (!fs.existsSync(filePath)) {
@@ -72,59 +70,89 @@ function loadFallbackEnv(dir, env) {
       }
 
       const [, key, rawValue] = match;
-      if (Object.prototype.hasOwnProperty.call(process.env, key) && !loadedKeys.has(key)) {
+      if (Object.prototype.hasOwnProperty.call(processEnv, key)) {
         continue;
       }
 
       env[key] = parseEnvValue(rawValue);
-      loadedKeys.add(key);
     }
   }
 }
 
-const env = { ...process.env };
+function buildRuntimeEnv(currentDir = cwd, processEnv = process.env) {
+  const env = { ...processEnv };
+  let fallbackEnvDir = null;
 
-if (!hasLocalEnvConfig(cwd)) {
-  const fallbackEnvDir = resolveFallbackEnvDir();
-  if (fallbackEnvDir) {
-    loadFallbackEnv(fallbackEnvDir, env);
-    console.log(`[next-dev] Loaded fallback env from ${fallbackEnvDir}`);
-  } else {
-    console.warn(
-      '[next-dev] No local or fallback env file found; Next.js will use the current process environment only.',
-    );
-  }
-}
-
-const nextBin = require.resolve('next/dist/bin/next');
-const rawArgs = process.argv.slice(2);
-const useWebpack = rawArgs.includes('--webpack');
-const nextArgs = [
-  nextBin,
-  'dev',
-  ...(useWebpack ? [] : ['--turbopack']),
-  ...rawArgs.filter((arg) => arg !== '--webpack'),
-];
-env.NEXT_DIST_DIR = env.NEXT_DIST_DIR || '.next-dev';
-
-const webStorageFlag = '--no-experimental-webstorage';
-if (
-  process.allowedNodeEnvironmentFlags?.has(webStorageFlag) &&
-  !String(env.NODE_OPTIONS || '').includes(webStorageFlag)
-) {
-  env.NODE_OPTIONS = [env.NODE_OPTIONS, webStorageFlag].filter(Boolean).join(' ');
-}
-
-const child = spawn(process.execPath, nextArgs, {
-  stdio: 'inherit',
-  env,
-});
-
-child.on('exit', (code, signal) => {
-  if (signal) {
-    process.kill(process.pid, signal);
-    return;
+  if (!hasLocalEnvConfig(currentDir)) {
+    fallbackEnvDir = resolveFallbackEnvDir(processEnv);
+    if (fallbackEnvDir) {
+      loadFallbackEnv(fallbackEnvDir, env, processEnv);
+    }
   }
 
-  process.exit(code ?? 0);
-});
+  env.NEXT_DIST_DIR = env.NEXT_DIST_DIR || '.next-dev';
+
+  const webStorageFlag = '--no-experimental-webstorage';
+  if (
+    process.allowedNodeEnvironmentFlags?.has(webStorageFlag) &&
+    !String(env.NODE_OPTIONS || '').includes(webStorageFlag)
+  ) {
+    env.NODE_OPTIONS = [env.NODE_OPTIONS, webStorageFlag].filter(Boolean).join(' ');
+  }
+
+  return { env, fallbackEnvDir };
+}
+
+function buildNextArgs(rawArgs = process.argv.slice(2)) {
+  const nextBin = require.resolve('next/dist/bin/next');
+  const useWebpack = rawArgs.includes('--webpack');
+
+  return [
+    nextBin,
+    'dev',
+    ...(useWebpack ? [] : ['--turbopack']),
+    ...rawArgs.filter((arg) => arg !== '--webpack'),
+  ];
+}
+
+function main() {
+  const { env, fallbackEnvDir } = buildRuntimeEnv();
+
+  if (!hasLocalEnvConfig(cwd)) {
+    if (fallbackEnvDir) {
+      console.log(`[next-dev] Loaded fallback env from ${fallbackEnvDir}`);
+    } else {
+      console.warn(
+        '[next-dev] No local or fallback env file found; Next.js will use the current process environment only.',
+      );
+    }
+  }
+
+  const child = spawn(process.execPath, buildNextArgs(), {
+    stdio: 'inherit',
+    env,
+  });
+
+  child.on('exit', (code, signal) => {
+    if (signal) {
+      process.kill(process.pid, signal);
+      return;
+    }
+
+    process.exit(code ?? 0);
+  });
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  buildNextArgs,
+  buildRuntimeEnv,
+  fallbackEnvFiles,
+  hasLocalEnvConfig,
+  loadFallbackEnv,
+  parseEnvValue,
+  resolveFallbackEnvDir,
+};
