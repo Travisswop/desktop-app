@@ -114,4 +114,32 @@ describe('astro-card-smoke helpers', () => {
       )
     ).toBe(false);
   });
+
+  test('classifyQaBlocker labels signed-out localhost shells explicitly', () => {
+    expect(
+      helpers.classifyQaBlocker(
+        'Error: Swop appears to be on a login screen. Run --setup-login first and sign in.',
+        [{ name: 'page-auth', status: 'pending' }],
+        'http://localhost:3001/dashboard/chat'
+      )
+    ).toEqual({
+      blockedBy: 'qa-session-unauthenticated',
+      detail:
+        'The requested QA host was reachable but the chat shell was signed out during page-auth. Re-run SWOP_QA_LOCAL_PORT=3001 npm run qa:astro-cards:login and retry.',
+    });
+  });
+
+  test('classifyQaBlocker labels signed-out explicit URLs explicitly', () => {
+    expect(
+      helpers.classifyQaBlocker(
+        'Error: Swop appears to be on a login screen. Run --setup-login first and sign in.',
+        [],
+        'https://www.swopme.app/dashboard/chat'
+      )
+    ).toEqual({
+      blockedBy: 'qa-session-unauthenticated',
+      detail:
+        'The requested QA host was reachable but the chat shell was signed out before page-auth. Re-run SWOP_QA_URL="https://www.swopme.app/dashboard/chat" npm run qa:astro-cards:login and retry.',
+    });
+  });
 });

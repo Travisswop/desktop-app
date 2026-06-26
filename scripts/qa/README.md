@@ -169,6 +169,11 @@ QA browser-session problem, not an Astro/Goldman card regression. Relaunch the
 dedicated QA Chrome profile, re-run the one-time login if needed, and retry the
 same explicit host.
 
+If a run fails with `blockedBy: "qa-session-unauthenticated"`, the target host
+itself is reachable but the QA profile is signed out on that host. Re-run
+`npm run qa:astro-cards:login` against the same explicit `--local-port` or
+`--url` target before retrying the smoke.
+
 ## Daily Launchd Task
 
 Install the LaunchAgent:

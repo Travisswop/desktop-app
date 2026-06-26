@@ -271,7 +271,24 @@ export function shouldBlockImplicitDefaultHost(args = {}, env = process.env) {
   return String(env.SWOP_QA_GIT_REF || '').trim() !== 'origin/main';
 }
 
-export function classifyQaBlocker(errorMessage, steps = []) {
+function loginHintForTarget(targetUrl = '') {
+  if (!targetUrl) {
+    return 'Re-run npm run qa:astro-cards:login against the same explicit host and retry.';
+  }
+
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.protocol === 'http:' && parsed.hostname === 'localhost' && parsed.port) {
+      return `Re-run SWOP_QA_LOCAL_PORT=${parsed.port} npm run qa:astro-cards:login and retry.`;
+    }
+  } catch {
+    // Fall through to the generic URL hint below.
+  }
+
+  return `Re-run SWOP_QA_URL="${targetUrl}" npm run qa:astro-cards:login and retry.`;
+}
+
+export function classifyQaBlocker(errorMessage, steps = [], targetUrl = '') {
   const message = String(errorMessage || '');
   const activeStep =
     (Array.isArray(steps) &&
@@ -283,6 +300,13 @@ export function classifyQaBlocker(errorMessage, steps = []) {
     return {
       blockedBy: 'chrome-devtools-unavailable',
       detail: `Chrome DevTools was not reachable ${activeLabel}. Relaunch the dedicated QA Chrome session and retry.`,
+    };
+  }
+
+  if (/Swop appears to be on a login screen/i.test(message)) {
+    return {
+      blockedBy: 'qa-session-unauthenticated',
+      detail: `The requested QA host was reachable but the chat shell was signed out ${activeLabel}. ${loginHintForTarget(targetUrl)}`,
     };
   }
 
@@ -1367,7 +1391,7 @@ async function main() {
     report.status = 'fail';
     report.error = error.stack || error.message;
     const activeStep = report.steps.find((step) => step.status === 'pending');
-    const blocker = classifyQaBlocker(report.error, report.steps);
+    const blocker = classifyQaBlocker(report.error, report.steps, args.url);
     const failureDetail = blocker
       ? `${blocker.detail} Chrome endpoint: ${args.chromeUrl}.`
       : error.message;
