@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { FeedMainComponentLoading } from "@/components/loading/TabSwitcherLoading";
+import { FeedMainQuietLoading } from "@/components/loading/TabSwitcherLoading";
 import { cookies } from "next/headers";
 import { getUserFeed } from "@/actions/postFeed";
 import FeedMainV2 from "@/components/feed/FeedMainV2";
@@ -20,7 +20,7 @@ const FeedPage = async () => {
     <Suspense
       fallback={
         <div className="w-full sm:w-[520px] mx-auto">
-          <FeedMainComponentLoading />
+          <FeedMainQuietLoading />
         </div>
       }
     >

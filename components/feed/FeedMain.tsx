@@ -15,7 +15,7 @@ import { useUser } from "@/lib/UserContext";
 import { useSearchParams } from "next/navigation";
 import Connections from "./Connections";
 import Cookies from "js-cookie";
-import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
+import { FeedMainQuietLoading } from "../loading/TabSwitcherLoading";
 import SpotlightMap from "./SpotlightMap";
 import Ledger from "./Ledger";
 import PostFeed from "./PostFeed";
@@ -310,7 +310,7 @@ const MainContentInner = memo(
         </CustomModal>
         {/* <hr /> */}
 
-        <Suspense fallback={<div>Loading feed...</div>}>
+        <Suspense fallback={<FeedMainQuietLoading />}>
           {renderComponent}
         </Suspense>
       </div>
@@ -355,7 +355,7 @@ const FeedMain = memo(() => {
   if (!userId || !accessToken || userLoading) {
     return (
       <div className="w-full sm:w-[520px] mx-auto">
-        <FeedMainComponentLoading />
+        <FeedMainQuietLoading />
       </div>
     );
   }

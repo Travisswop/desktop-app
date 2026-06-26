@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
+import { FeedMainQuietLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
 import { useModalStore } from "@/zustandStore/modalstore";
@@ -212,7 +212,7 @@ export default function Feed({
   if (initialLoading) {
     return (
       <div className="w-full sm:w-[520px]">
-        <FeedMainComponentLoading />
+        <FeedMainQuietLoading />
       </div>
     );
   }

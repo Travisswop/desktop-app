@@ -6,6 +6,7 @@ export interface UpsertAavePositionFeedParams {
   userId: string;
   smartsiteId: string;
   content: DefiFeedContent;
+  publishToFeed?: boolean;
 }
 
 export interface ReconcileAavePositionFeedParams {
@@ -23,6 +24,7 @@ export async function upsertAavePositionFeed({
   userId,
   smartsiteId,
   content,
+  publishToFeed = true,
 }: UpsertAavePositionFeedParams) {
   if (!token || !userId || !smartsiteId || !content.positionKey) {
     const missingFields = [
@@ -60,7 +62,9 @@ export async function upsertAavePositionFeed({
     );
   }
 
-  useModalStore.getState().publishCreatedFeedItem(data?.data || null);
+  if (publishToFeed) {
+    useModalStore.getState().publishCreatedFeedItem(data?.data || null);
+  }
 
   return data;
 }

@@ -2,11 +2,11 @@
 import React, { Suspense, memo } from 'react';
 // import TabSwitcher from "@/components/feed/TabSwitcher";
 import FeedMain from '@/components/feed/FeedMain';
-import { FeedMainComponentLoading } from '@/components/loading/TabSwitcherLoading';
+import { FeedMainQuietLoading } from '@/components/loading/TabSwitcherLoading';
 
 const FeedPageLoading = () => (
   <div className="w-full sm:w-[520px] mx-auto">
-    <FeedMainComponentLoading />
+    <FeedMainQuietLoading />
   </div>
 );
 
