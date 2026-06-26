@@ -163,6 +163,12 @@ The profile is stored at:
 ~/.swop-card-qa-chrome
 ```
 
+If a run fails before `page-auth` with `blockedBy: "chrome-devtools-unresponsive"`
+or `blockedBy: "chrome-devtools-unavailable"` in `latest.json`, treat that as a
+QA browser-session problem, not an Astro/Goldman card regression. Relaunch the
+dedicated QA Chrome profile, re-run the one-time login if needed, and retry the
+same explicit host.
+
 ## Daily Launchd Task
 
 Install the LaunchAgent:

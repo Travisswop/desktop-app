@@ -54,6 +54,44 @@ describe('astro-card-smoke helpers', () => {
     ).toBe(false);
   });
 
+  test('classifies stepless Runtime.evaluate timeouts as a DevTools blocker', () => {
+    expect(
+      helpers.classifyQaBlocker(
+        'Error: Runtime.evaluate timed out.',
+        []
+      )
+    ).toEqual({
+      blockedBy: 'chrome-devtools-unresponsive',
+      detail:
+        'Chrome DevTools became unresponsive before page-auth. Reset the dedicated QA Chrome session and retry.',
+    });
+  });
+
+  test('classifies DevTools availability failures before page-auth', () => {
+    expect(
+      helpers.classifyQaBlocker(
+        'Chrome DevTools did not become available: http://127.0.0.1:9223/json/version timed out after 2000ms',
+        []
+      )
+    ).toEqual({
+      blockedBy: 'chrome-devtools-unavailable',
+      detail:
+        'Chrome DevTools was not reachable before page-auth. Relaunch the dedicated QA Chrome session and retry.',
+    });
+  });
+
+  test('classifies Runtime.evaluate timeouts during an active step', () => {
+    expect(
+      helpers.classifyQaBlocker('Runtime.evaluate timed out.', [
+        { name: 'page-auth', status: 'pending' },
+      ])
+    ).toEqual({
+      blockedBy: 'chrome-devtools-unresponsive',
+      detail:
+        'Chrome DevTools became unresponsive during page-auth. Reset the dedicated QA Chrome session and retry.',
+    });
+  });
+
   test('matches only the intended localhost review origin', () => {
     expect(
       helpers.isMatchingSwopTargetUrl(

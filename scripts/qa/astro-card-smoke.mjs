@@ -271,6 +271,39 @@ export function shouldBlockImplicitDefaultHost(args = {}, env = process.env) {
   return String(env.SWOP_QA_GIT_REF || '').trim() !== 'origin/main';
 }
 
+export function classifyQaBlocker(errorMessage, steps = []) {
+  const message = String(errorMessage || '');
+  const activeStep =
+    (Array.isArray(steps) &&
+      steps.find((step) => step && step.status === 'pending')?.name) ||
+    null;
+  const activeLabel = activeStep ? `during ${activeStep}` : 'before page-auth';
+
+  if (/Chrome DevTools did not become available/i.test(message)) {
+    return {
+      blockedBy: 'chrome-devtools-unavailable',
+      detail: `Chrome DevTools was not reachable ${activeLabel}. Relaunch the dedicated QA Chrome session and retry.`,
+    };
+  }
+
+  if (
+    /Chrome DevTools target became unresponsive/i.test(message) ||
+    /Runtime\.(evaluate|callFunctionOn) timed out/i.test(message) ||
+    /Timed out connecting to Chrome target/i.test(message) ||
+    /Chrome target WebSocket connection failed/i.test(message) ||
+    /Page\.[A-Za-z]+ timed out/i.test(message) ||
+    /DOM\.[A-Za-z]+ timed out/i.test(message) ||
+    /Input\.[A-Za-z]+ timed out/i.test(message)
+  ) {
+    return {
+      blockedBy: 'chrome-devtools-unresponsive',
+      detail: `Chrome DevTools became unresponsive ${activeLabel}. Reset the dedicated QA Chrome session and retry.`,
+    };
+  }
+
+  return null;
+}
+
 function implicitDefaultHostBlockerMessage(env = process.env, allowedAuthHostHints) {
   const gitRef = String(env.SWOP_QA_GIT_REF || '').trim();
   const refLabel = gitRef ? ` for ${gitRef}` : '';
@@ -382,12 +415,26 @@ function finishStep(step, status, detail = '') {
   return step;
 }
 
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(`${url} returned ${response.status}`);
+async function fetchJson(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`${url} returned ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`${url} timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return response.json();
 }
 
 async function waitForChrome(baseUrl, timeoutMs = 20000) {
@@ -395,7 +442,7 @@ async function waitForChrome(baseUrl, timeoutMs = 20000) {
   let lastError = null;
   while (Date.now() - started < timeoutMs) {
     try {
-      return await fetchJson(`${baseUrl}/json/version`);
+      return await fetchJson(`${baseUrl}/json/version`, {}, 2000);
     } catch (error) {
       lastError = error;
       await sleep(500);
@@ -429,15 +476,15 @@ function launchChrome(args) {
 }
 
 async function listTargets(baseUrl) {
-  return fetchJson(`${baseUrl}/json/list`);
+  return fetchJson(`${baseUrl}/json/list`, {}, 5000);
 }
 
 async function openTarget(baseUrl, url) {
   const endpoint = `${baseUrl}/json/new?${encodeURIComponent(url)}`;
   try {
-    return await fetchJson(endpoint, { method: 'PUT' });
+    return await fetchJson(endpoint, { method: 'PUT' }, 5000);
   } catch {
-    return fetchJson(endpoint);
+    return fetchJson(endpoint, {}, 5000);
   }
 }
 
@@ -599,6 +646,23 @@ async function waitForText(client, description, patterns, timeoutMs = 30000) {
     },
     timeoutMs
   );
+}
+
+async function assertChromeTargetResponsive(client, phase = 'before page-auth') {
+  try {
+    await client.send(
+      'Runtime.evaluate',
+      {
+        expression: 'document.readyState',
+        returnByValue: true,
+      },
+      5000
+    );
+  } catch (error) {
+    throw new Error(
+      `Chrome DevTools target became unresponsive ${phase}: ${error.message}`
+    );
+  }
 }
 
 function appOrigin(url) {
@@ -1184,6 +1248,7 @@ async function main() {
       errors: [],
       exceptions: [],
     },
+    blockedBy: null,
     status: 'running',
   };
 
@@ -1191,6 +1256,7 @@ async function main() {
 
   if (shouldBlockImplicitDefaultHost(args, process.env)) {
     report.status = 'fail';
+    report.blockedBy = 'implicit-default-host';
     report.error = implicitDefaultHostBlockerMessage(process.env, allowedAuthHostHints);
     report.finishedAt = timestamp();
     writeReport(args, report);
@@ -1217,6 +1283,7 @@ async function main() {
 
   if (isPreviewHost(args.url) && !args.allowPreviewHost) {
     report.status = 'fail';
+    report.blockedBy = 'preview-auth-host';
     report.error = previewHostBlockerMessage(args.url, allowedAuthHostHints);
     report.finishedAt = timestamp();
     writeReport(args, report);
@@ -1241,37 +1308,38 @@ async function main() {
     return;
   }
 
-  if (args.launch || args.setupLogin) {
-    try {
-      await waitForChrome(args.chromeUrl, 1200);
-    } catch {
-      const pid = launchChrome(args);
-      report.warnings.push(`Launched Chrome QA profile with pid ${pid}.`);
-    }
-  }
-
-  await waitForChrome(args.chromeUrl, 30000);
-
-  if (args.setupLogin) {
-    report.status = 'setup-login';
-    report.finishedAt = timestamp();
-    writeReport(args, report);
-    console.log(`Chrome QA profile is open at ${args.url}. Log in once, then run npm run qa:astro-cards -- --launch.`);
-    return;
-  }
-
-  const target = await getOrOpenSwopTarget(args.chromeUrl, args.url);
-  const client = new CdpClient(target.webSocketDebuggerUrl);
-  await client.connect();
-
-  client.on('Log.entryAdded', (params) => {
-    if (params.entry?.level === 'error') report.console.errors.push(params.entry);
-  });
-  client.on('Runtime.exceptionThrown', (params) => {
-    report.console.exceptions.push(params.exceptionDetails);
-  });
+  let client = null;
+  let setupLoginOnly = false;
 
   try {
+    if (args.launch || args.setupLogin) {
+      try {
+        await waitForChrome(args.chromeUrl, 1200);
+      } catch {
+        const pid = launchChrome(args);
+        report.warnings.push(`Launched Chrome QA profile with pid ${pid}.`);
+      }
+    }
+
+    await waitForChrome(args.chromeUrl, 30000);
+
+    if (args.setupLogin) {
+      report.status = 'setup-login';
+      setupLoginOnly = true;
+      return;
+    }
+
+    const target = await getOrOpenSwopTarget(args.chromeUrl, args.url);
+    client = new CdpClient(target.webSocketDebuggerUrl);
+    await client.connect();
+
+    client.on('Log.entryAdded', (params) => {
+      if (params.entry?.level === 'error') report.console.errors.push(params.entry);
+    });
+    client.on('Runtime.exceptionThrown', (params) => {
+      report.console.exceptions.push(params.exceptionDetails);
+    });
+
     await client.send('Page.enable');
     await client.send('Runtime.enable');
     await client.send('Log.enable');
@@ -1283,11 +1351,13 @@ async function main() {
       mobile: false,
     });
     await client.send('Page.bringToFront');
+    await assertChromeTargetResponsive(client, 'before page-auth');
 
     const currentUrl = target.url || '';
     if (!isMatchingSwopTargetUrl(currentUrl, args.url)) {
       await client.send('Page.navigate', { url: args.url });
       await sleep(3000);
+      await assertChromeTargetResponsive(client, 'after navigation');
     }
 
     await waitForText(client, 'Swop page content', ['Swop', 'Messages'], args.timeoutMs);
@@ -1297,7 +1367,25 @@ async function main() {
     report.status = 'fail';
     report.error = error.stack || error.message;
     const activeStep = report.steps.find((step) => step.status === 'pending');
-    if (activeStep) finishStep(activeStep, 'fail', error.message);
+    const blocker = classifyQaBlocker(report.error, report.steps);
+    const failureDetail = blocker
+      ? `${blocker.detail} Chrome endpoint: ${args.chromeUrl}.`
+      : error.message;
+    if (activeStep) finishStep(activeStep, 'fail', failureDetail);
+    else if (blocker) {
+      report.steps.push(
+        finishStep(
+          createStep('chrome-devtools-health'),
+          'fail',
+          failureDetail
+        )
+      );
+    }
+    if (blocker) {
+      report.blockedBy = blocker.blockedBy;
+      report.warnings.push(failureDetail);
+      report.error = `${failureDetail}\n\nOriginal error:\n${report.error}`;
+    }
     process.exitCode = 1;
   } finally {
     report.finishedAt = timestamp();
@@ -1316,7 +1404,14 @@ async function main() {
         writeReport(args, report);
       }
     }
-    await client.close();
+    await client?.close();
+  }
+
+  if (setupLoginOnly) {
+    console.log(
+      `Chrome QA profile is open at ${args.url}. Log in once, then run npm run qa:astro-cards -- --launch.`
+    );
+    return;
   }
 
   const summary = {
@@ -1325,6 +1420,7 @@ async function main() {
     skipped: report.steps.filter((step) => step.status === 'skip').length,
     failed: report.steps.filter((step) => step.status === 'fail').length,
     warnings: report.warnings.length,
+    blockedBy: report.blockedBy,
     contracts: report.cardContracts.length,
     logDir: args.logDir,
   };
