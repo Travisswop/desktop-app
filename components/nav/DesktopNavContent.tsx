@@ -24,7 +24,7 @@ const navItems = [
     match: (pathname: string) => pathname === "/dashboard",
   },
   {
-    href: "/",
+    href: "/feed",
     label: "Feed",
     icon: Newspaper,
     match: (pathname: string) => pathname === "/" || pathname.startsWith("/feed"),
