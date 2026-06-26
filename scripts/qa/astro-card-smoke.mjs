@@ -751,6 +751,13 @@ async function pageText(client) {
   return evaluate(client, () => document.body?.innerText || '');
 }
 
+export function detectSwopShellState(text) {
+  const normalized = String(text || '');
+  if (/Messages/i.test(normalized) && /Astro/i.test(normalized)) return 'chat';
+  if (/sign in|log in|login/i.test(normalized) && !/Messages/i.test(normalized)) return 'login';
+  return null;
+}
+
 async function waitFor(client, description, predicate, timeoutMs = 30000, intervalMs = 750) {
   const started = Date.now();
   let lastValue = null;
@@ -1148,9 +1155,15 @@ async function sendPrompt(client, prompt) {
 }
 
 async function assertLoggedIn(client) {
-  await waitForText(client, 'authenticated chat shell', [/Messages/i, /Astro/i], 45000);
-  const text = await pageText(client);
-  if (/sign in|log in|login/i.test(text) && !/Messages/i.test(text)) {
+  const state = await waitFor(
+    client,
+    'authenticated chat shell or login screen',
+    async () => {
+      return detectSwopShellState(await pageText(client)) || false;
+    },
+    45000
+  );
+  if (state === 'login') {
     throw new Error('Swop appears to be on a login screen. Run --setup-login first and sign in.');
   }
 }

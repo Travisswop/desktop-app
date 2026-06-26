@@ -143,6 +143,12 @@ describe('astro-card-smoke helpers', () => {
     });
   });
 
+  test('detectSwopShellState distinguishes chat, login, and empty shells', () => {
+    expect(helpers.detectSwopShellState('Messages\nAstro\nPortfolio allocation')).toBe('chat');
+    expect(helpers.detectSwopShellState('Sign in to Swop')).toBe('login');
+    expect(helpers.detectSwopShellState('')).toBeNull();
+  });
+
   test('inferGitMetadata prefers explicit env metadata', () => {
     expect(
       helpers.inferGitMetadata(
