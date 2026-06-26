@@ -1,13 +1,18 @@
-/**
- * Drop-in replacement for `fetch` that automatically injects default headers
- * for every request (e.g. ngrok tunnel bypass).
- *
- * To change default headers globally, edit only this file.
- */
+const NGROK_BYPASS_HEADER = 'ngrok-skip-browser-warning';
 
-const DEFAULT_HEADERS: Record<string, string> = {
-  'ngrok-skip-browser-warning': 'true',
-};
+function getRequestUrl(url: string | URL | Request) {
+  if (typeof url === 'string') return url;
+  if (url instanceof URL) return url.toString();
+  return url.url;
+}
+
+function shouldAddNgrokBypassHeader(url: string | URL | Request) {
+  try {
+    return new URL(getRequestUrl(url)).hostname.endsWith('.ngrok-free.app');
+  } catch {
+    return false;
+  }
+}
 
 export function apiFetch(
   url: string | URL | Request,
@@ -15,10 +20,8 @@ export function apiFetch(
 ): Promise<Response> {
   const merged = new Headers(options?.headers as HeadersInit | undefined);
 
-  for (const [key, value] of Object.entries(DEFAULT_HEADERS)) {
-    if (!merged.has(key)) {
-      merged.set(key, value);
-    }
+  if (shouldAddNgrokBypassHeader(url) && !merged.has(NGROK_BYPASS_HEADER)) {
+    merged.set(NGROK_BYPASS_HEADER, 'true');
   }
 
   return fetch(url, { ...options, headers: merged });

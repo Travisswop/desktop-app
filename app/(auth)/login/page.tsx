@@ -695,9 +695,7 @@ const Login: React.FC = () => {
           return;
         }
 
-        const response = await apiFetch(buildSwopApiUrl(apiPath), {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        const response = await apiFetch(buildSwopApiUrl(apiPath));
 
         if (!response.ok) {
           if (response.status === 404) {
