@@ -25,6 +25,7 @@ import {
   inferPerpsRiskPriceHit,
   inferPerpsRiskPriceHitFromPrices,
   normalizePerpsRiskPricesForDisplay,
+  resolvePerpsPositionDisplayState,
   selectPerpsChartMarkerEntries,
   type PerpsEntryMarker,
 } from '@/components/feed/PerpsPositionFeedCard';
@@ -182,5 +183,41 @@ describe('perps feed TP/SL hit inference', () => {
         stopLossPrice: 73.58,
       }),
     ).toBe('stopLoss');
+  });
+});
+
+describe('perps feed display state', () => {
+  it('keeps a live open position open even when market price crosses TP', () => {
+    const riskPriceHit = inferPerpsRiskPriceHit({
+      side: 'long',
+      markPrice: 70.34,
+      takeProfitPrice: 70.34,
+      stopLossPrice: 67.33,
+    });
+
+    expect(riskPriceHit).toBe('takeProfit');
+    expect(
+      resolvePerpsPositionDisplayState({
+        storedStatus: 'open',
+        hasInferredLiquidation: false,
+        riskPriceHit,
+      }),
+    ).toEqual({
+      status: 'open',
+      riskPriceHit: null,
+    });
+  });
+
+  it('uses TP/SL hit labels only for rows already closed by reconciliation', () => {
+    expect(
+      resolvePerpsPositionDisplayState({
+        storedStatus: 'closed',
+        hasInferredLiquidation: false,
+        riskPriceHit: 'takeProfit',
+      }),
+    ).toEqual({
+      status: 'closed',
+      riskPriceHit: 'takeProfit',
+    });
   });
 });

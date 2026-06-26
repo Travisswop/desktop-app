@@ -52,6 +52,15 @@ interface ChartMarkerPosition {
   entry: PerpsEntryMarker;
 }
 
+type PerpsDisplayStatus =
+  | 'limit'
+  | 'open'
+  | 'closed'
+  | 'liquidated'
+  | 'cancelled';
+
+type PerpsRiskPriceHit = 'takeProfit' | 'stopLoss' | null;
+
 const PERIODS = ['1D', '1W', '1M', '1Y', 'ALL'] as const;
 type Period = (typeof PERIODS)[number];
 
@@ -322,6 +331,26 @@ export function inferPerpsRiskPriceHit({
   return null;
 }
 
+export function resolvePerpsPositionDisplayState({
+  storedStatus,
+  hasInferredLiquidation,
+  riskPriceHit,
+}: {
+  storedStatus: PerpsDisplayStatus;
+  hasInferredLiquidation: boolean;
+  riskPriceHit: PerpsRiskPriceHit;
+}): {
+  status: PerpsDisplayStatus;
+  riskPriceHit: PerpsRiskPriceHit;
+} {
+  const status = hasInferredLiquidation ? 'liquidated' : storedStatus;
+
+  return {
+    status,
+    riskPriceHit: status === 'closed' ? riskPriceHit : null,
+  };
+}
+
 export function inferPerpsRiskPriceHitFromPrices({
   side,
   prices,
@@ -578,41 +607,29 @@ export default function PerpsPositionFeedCard({
       markPrice: currentMarkPrice,
       liquidationPrice: content.liquidationPrice,
     });
-  const riskDetectionPrices = useMemo(
+  const terminalRiskDetectionPrices = useMemo(
     () => [
-      ...bars.flatMap((bar) =>
-        side === 'long'
-          ? [bar.low, bar.high, bar.close]
-          : [bar.high, bar.low, bar.close],
-      ),
+      content.exitPrice,
       content.markPrice,
       storedMarkPrice,
-      currentMarkPrice,
     ],
-    [bars, content.markPrice, currentMarkPrice, side, storedMarkPrice],
+    [content.exitPrice, content.markPrice, storedMarkPrice],
   );
-  const inferredRiskPriceHit =
-    storedStatus === 'open' && !hasInferredLiquidation
+  const terminalRiskPriceHit =
+    storedStatus === 'closed'
       ? inferPerpsRiskPriceHitFromPrices({
           side,
-          prices: riskDetectionPrices,
+          prices: terminalRiskDetectionPrices,
           takeProfitPrice,
           stopLossPrice,
         })
       : null;
-  const inferredRiskExitPrice =
-    inferredRiskPriceHit === 'takeProfit'
-      ? takeProfitPrice
-      : inferredRiskPriceHit === 'stopLoss'
-      ? stopLossPrice
-      : null;
-  const displayMarkPrice = inferredRiskExitPrice || currentMarkPrice;
-  const status =
-    hasInferredLiquidation
-      ? 'liquidated'
-      : inferredRiskPriceHit
-      ? 'closed'
-      : storedStatus;
+  const { status, riskPriceHit } = resolvePerpsPositionDisplayState({
+    storedStatus,
+    hasInferredLiquidation,
+    riskPriceHit: terminalRiskPriceHit,
+  });
+  const displayMarkPrice = currentMarkPrice;
 
   const entries = useMemo(() => {
     const rawEntries = Array.isArray(content.entries) ? content.entries : [];
@@ -801,9 +818,9 @@ export default function PerpsPositionFeedCard({
       ? 'border-red-200 bg-red-100 text-red-500'
       : status === 'cancelled'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
-      : status === 'closed' && inferredRiskPriceHit === 'stopLoss'
+      : status === 'closed' && riskPriceHit === 'stopLoss'
       ? 'border-red-200 bg-red-100 text-red-500'
-      : status === 'closed' && inferredRiskPriceHit === 'takeProfit'
+      : status === 'closed' && riskPriceHit === 'takeProfit'
       ? 'border-emerald-200 bg-emerald-100 text-emerald-600'
       : status === 'closed'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
@@ -817,9 +834,9 @@ export default function PerpsPositionFeedCard({
       ? 'Liquidated'
       : status === 'cancelled'
       ? 'Cancelled'
-      : status === 'closed' && inferredRiskPriceHit === 'stopLoss'
+      : status === 'closed' && riskPriceHit === 'stopLoss'
       ? 'SL hit'
-      : status === 'closed' && inferredRiskPriceHit === 'takeProfit'
+      : status === 'closed' && riskPriceHit === 'takeProfit'
       ? 'TP hit'
       : status === 'closed'
       ? 'Closed'
@@ -831,9 +848,9 @@ export default function PerpsPositionFeedCard({
       ? 'Liquidated'
       : status === 'cancelled'
       ? 'Cancelled'
-      : status === 'closed' && inferredRiskPriceHit === 'stopLoss'
+      : status === 'closed' && riskPriceHit === 'stopLoss'
       ? 'SL hit'
-      : status === 'closed' && inferredRiskPriceHit === 'takeProfit'
+      : status === 'closed' && riskPriceHit === 'takeProfit'
       ? 'TP hit'
       : status === 'closed'
       ? 'Closed'
@@ -845,9 +862,9 @@ export default function PerpsPositionFeedCard({
       ? 'Liquidated'
       : status === 'cancelled'
       ? 'Cancelled'
-      : status === 'closed' && inferredRiskPriceHit === 'stopLoss'
+      : status === 'closed' && riskPriceHit === 'stopLoss'
       ? 'Stop hit'
-      : status === 'closed' && inferredRiskPriceHit === 'takeProfit'
+      : status === 'closed' && riskPriceHit === 'takeProfit'
       ? 'Take profit hit'
       : status === 'closed'
       ? 'Closed'
@@ -859,9 +876,9 @@ export default function PerpsPositionFeedCard({
       ? 'border-red-200 bg-red-50 text-red-500'
       : status === 'cancelled'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
-      : status === 'closed' && inferredRiskPriceHit === 'stopLoss'
+      : status === 'closed' && riskPriceHit === 'stopLoss'
       ? 'border-red-200 bg-red-50 text-red-500'
-      : status === 'closed' && inferredRiskPriceHit === 'takeProfit'
+      : status === 'closed' && riskPriceHit === 'takeProfit'
       ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
       : status === 'closed'
       ? 'border-gray-200 bg-gray-100 text-gray-500'
@@ -876,7 +893,7 @@ export default function PerpsPositionFeedCard({
         feed.createdAt
       : status === 'cancelled'
       ? content.cancelledAt || content.updatedAt || feed.createdAt
-      : inferredRiskPriceHit
+      : riskPriceHit
       ? content.closedAt || content.updatedAt || feed.createdAt
       : status === 'closed'
       ? content.closedAt || content.updatedAt || feed.createdAt
