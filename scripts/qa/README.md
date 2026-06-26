@@ -40,6 +40,19 @@ Use one of these allowed auth surfaces for signed-in runtime proof instead:
 - `http://localhost:<clean-branch-port>/dashboard/chat` for branch-specific QA
   from a clean local task worktree
 
+Outside the scheduled `origin/main` smoke, authenticated runs must now choose
+their host explicitly with `SWOP_QA_LOCAL_PORT`, `--local-port`, `SWOP_QA_URL`,
+or `--url`. That prevents a PR or review checkout from silently validating the
+production chat shell instead of the branch under review.
+
+If you intentionally want the default production host from a manual checkout,
+opt in explicitly:
+
+```bash
+SWOP_QA_ALLOW_DEFAULT_HOST=true \
+npm run qa:astro-cards -- --launch
+```
+
 If you intentionally need to confirm the preview-host auth blocker itself, opt
 in explicitly:
 
@@ -108,6 +121,13 @@ criteria without digging through logs.
 Open the dedicated QA Chrome profile and log in to Swop once:
 
 ```bash
+npm run qa:astro-cards:login
+```
+
+From a branch/review checkout, prefer an explicit target:
+
+```bash
+SWOP_QA_LOCAL_PORT=3001 \
 npm run qa:astro-cards:login
 ```
 

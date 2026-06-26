@@ -19,6 +19,41 @@ describe('astro-card-smoke helpers', () => {
     );
   });
 
+  test('manual runs must choose a QA host explicitly', () => {
+    const args = helpers.parseArgs([], {});
+    expect(args.url).toBe('https://www.swopme.app/dashboard/chat');
+    expect(args.explicitQaTarget).toBe(false);
+    expect(args.allowDefaultHost).toBe(false);
+  });
+
+  test('explicit production host counts as an intentional target', () => {
+    const args = helpers.parseArgs(
+      ['--url=https://www.swopme.app/dashboard/chat'],
+      {}
+    );
+    expect(args.url).toBe('https://www.swopme.app/dashboard/chat');
+    expect(args.explicitQaTarget).toBe(true);
+  });
+
+  test('allow-default-host opt-in is parsed', () => {
+    const args = helpers.parseArgs(['--allow-default-host'], {});
+    expect(args.allowDefaultHost).toBe(true);
+  });
+
+  test('implicit production default is blocked outside scheduled origin/main runs', () => {
+    const args = helpers.parseArgs([], {});
+    expect(helpers.shouldBlockImplicitDefaultHost(args, {})).toBe(true);
+    expect(helpers.shouldBlockImplicitDefaultHost(args, { SWOP_QA_GIT_REF: 'origin/main' })).toBe(
+      false
+    );
+    expect(
+      helpers.shouldBlockImplicitDefaultHost(
+        helpers.parseArgs(['--allow-default-host'], {}),
+        {}
+      )
+    ).toBe(false);
+  });
+
   test('matches only the intended localhost review origin', () => {
     expect(
       helpers.isMatchingSwopTargetUrl(

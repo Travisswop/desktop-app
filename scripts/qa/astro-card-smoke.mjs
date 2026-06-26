@@ -172,13 +172,15 @@ const CARD_COMMAND_CONTRACTS = [
 
 export function parseArgs(argv, env = process.env) {
   const envLocalPort = parseOptionalPort(env.SWOP_QA_LOCAL_PORT || '', 'SWOP_QA_LOCAL_PORT');
+  const envUrl = String(env.SWOP_QA_URL || '').trim();
   const args = {
     launch: false,
     setupLogin: false,
     url:
-      env.SWOP_QA_URL ||
+      envUrl ||
       (envLocalPort ? localhostQaUrl(envLocalPort) : DEFAULT_SWOP_URL),
     localPort: envLocalPort,
+    explicitQaTarget: Boolean(envUrl || envLocalPort),
     chromeUrl: env.SWOP_QA_CHROME_URL || '',
     chromePath: env.CHROME_PATH || DEFAULT_CHROME_PATH,
     chromePort: Number(env.SWOP_QA_CHROME_PORT || DEFAULT_CHROME_PORT),
@@ -196,6 +198,7 @@ export function parseArgs(argv, env = process.env) {
     swapAmount: env.SWOP_QA_SWAP_AMOUNT || DEFAULT_SWAP_AMOUNT,
     swapTaker: env.SWOP_QA_SWAP_TAKER || '',
     swapOrderRequired: boolValue(env.SWOP_QA_SWAP_ORDER_REQUIRED),
+    allowDefaultHost: boolValue(env.SWOP_QA_ALLOW_DEFAULT_HOST),
     allowPreviewHost: boolValue(env.SWOP_QA_ALLOW_PREVIEW_HOST),
     json: false,
   };
@@ -204,10 +207,14 @@ export function parseArgs(argv, env = process.env) {
     if (arg === '--launch') args.launch = true;
     else if (arg === '--setup-login') args.setupLogin = true;
     else if (arg === '--json') args.json = true;
-    else if (arg.startsWith('--url=')) args.url = arg.slice('--url='.length);
+    else if (arg.startsWith('--url=')) {
+      args.url = arg.slice('--url='.length);
+      args.explicitQaTarget = true;
+    }
     else if (arg.startsWith('--local-port=')) {
       args.localPort = parseOptionalPort(arg.slice('--local-port='.length), '--local-port');
       args.url = localhostQaUrl(args.localPort);
+      args.explicitQaTarget = true;
     }
     else if (arg.startsWith('--chrome-url=')) args.chromeUrl = arg.slice('--chrome-url='.length);
     else if (arg.startsWith('--chrome-port=')) args.chromePort = Number(arg.slice('--chrome-port='.length));
@@ -217,6 +224,7 @@ export function parseArgs(argv, env = process.env) {
     else if (arg.startsWith('--alert-email=')) args.alertEmail = arg.slice('--alert-email='.length);
     else if (arg.startsWith('--swap-taker=')) args.swapTaker = arg.slice('--swap-taker='.length);
     else if (arg === '--swap-order-required') args.swapOrderRequired = true;
+    else if (arg === '--allow-default-host') args.allowDefaultHost = true;
     else if (arg === '--allow-preview-host') args.allowPreviewHost = true;
     else if (arg === '--help' || arg === '-h') {
       printHelp();
@@ -251,6 +259,30 @@ function buildAllowedAuthHostHints(args = {}) {
       ? localhostQaUrl(args.localPort)
       : 'http://localhost:<clean-branch-port>/dashboard/chat',
   ];
+}
+
+function isDefaultAuthHost(url) {
+  return isMatchingSwopTargetUrl(url, DEFAULT_SWOP_URL);
+}
+
+export function shouldBlockImplicitDefaultHost(args = {}, env = process.env) {
+  if (!isDefaultAuthHost(args.url)) return false;
+  if (args.allowDefaultHost || args.explicitQaTarget) return false;
+  return String(env.SWOP_QA_GIT_REF || '').trim() !== 'origin/main';
+}
+
+function implicitDefaultHostBlockerMessage(env = process.env, allowedAuthHostHints) {
+  const gitRef = String(env.SWOP_QA_GIT_REF || '').trim();
+  const refLabel = gitRef ? ` for ${gitRef}` : '';
+  return [
+    `Authenticated QA cannot use the implicit production default host${refLabel} without an explicit opt-in.`,
+    'Choose the review surface explicitly so branch validation cannot silently run against production:',
+    '- pass --local-port=<clean-branch-port> or set SWOP_QA_LOCAL_PORT=<clean-branch-port>',
+    '- or pass --url=http://localhost:<clean-branch-port>/dashboard/chat',
+    '- or pass --url=https://www.swopme.app/dashboard/chat when you intentionally want production/main QA',
+    ...allowedAuthHostHints.map((value) => `Suggested host: ${value}`),
+    'If you intentionally want the implicit production default host from a manual checkout, rerun with SWOP_QA_ALLOW_DEFAULT_HOST=true or --allow-default-host.',
+  ].join('\n');
 }
 
 function isPreviewHost(url) {
@@ -303,11 +335,13 @@ Usage:
   node scripts/qa/astro-card-smoke.mjs --launch --alert-email=you@example.com
   node scripts/qa/astro-card-smoke.mjs --launch --swap-taker=<funded-solana-wallet>
   node scripts/qa/astro-card-smoke.mjs --launch --local-port=3001
+  node scripts/qa/astro-card-smoke.mjs --launch --allow-default-host
 
 Modes:
   --setup-login  Opens the QA Chrome profile to Swop and exits so you can log in once.
   --launch       Starts a dedicated Chrome profile with remote debugging if needed.
   --local-port   Uses http://localhost:<port>/dashboard/chat for clean branch-specific QA.
+  --allow-default-host  Allows the implicit production default host outside the scheduled origin/main smoke.
   --allow-preview-host  Allows raw .vercel.app preview URLs for auth-blocker diagnostics only.
 
 Alerts:
@@ -1154,6 +1188,32 @@ async function main() {
   };
 
   mkdirSync(args.logDir, { recursive: true });
+
+  if (shouldBlockImplicitDefaultHost(args, process.env)) {
+    report.status = 'fail';
+    report.error = implicitDefaultHostBlockerMessage(process.env, allowedAuthHostHints);
+    report.finishedAt = timestamp();
+    writeReport(args, report);
+    process.exitCode = 1;
+    if (args.json) {
+      console.log(
+        JSON.stringify(
+          {
+            status: report.status,
+            failed: 1,
+            warnings: 0,
+            blockedBy: 'implicit-default-host',
+            recommendedUrls: allowedAuthHostHints,
+          },
+          null,
+          2
+        )
+      );
+    } else {
+      console.error(report.error);
+    }
+    return;
+  }
 
   if (isPreviewHost(args.url) && !args.allowPreviewHost) {
     report.status = 'fail';
