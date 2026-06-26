@@ -68,6 +68,35 @@ describe('BrowseMarketsBento sports hero', () => {
     });
   });
 
+  it('uses the outcome source market for split binary sports moneylines', () => {
+    const norwayMarket = {
+      id: 'norway-win-market',
+      question: 'Will Norway win on 2026-06-26?',
+    } as PolymarketMarket;
+    const franceMarket = {
+      id: 'france-win-market',
+      question: 'Will France win on 2026-06-26?',
+    } as PolymarketMarket;
+
+    expect(
+      getCompactSportsOutcomeSelection(
+        norwayMarket,
+        {
+          label: 'France',
+          price: 0.7,
+          tokenId: 'france-yes-token',
+          market: franceMarket,
+        },
+        false,
+      ),
+    ).toEqual({
+      market: franceMarket,
+      outcome: 'France',
+      price: 0.7,
+      tokenId: 'france-yes-token',
+    });
+  });
+
   it('does not open compact sports odds for final games or missing outcomes', () => {
     const market = {
       id: 'finished-game',

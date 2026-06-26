@@ -240,6 +240,7 @@ interface CompactSportsOutcome {
   label: string;
   price: number;
   tokenId: string;
+  market?: PolymarketMarket;
 }
 
 export function getCompactSportsOutcomeSelection(
@@ -247,9 +248,10 @@ export function getCompactSportsOutcomeSelection(
   outcome: CompactSportsOutcome | undefined,
   eventFinal: boolean,
 ) {
-  if (!market || !outcome || eventFinal) return null;
+  const sourceMarket = outcome?.market ?? market;
+  if (!sourceMarket || !outcome || eventFinal) return null;
   return {
-    market,
+    market: sourceMarket,
     outcome: outcome.label,
     price: outcome.price,
     tokenId: outcome.tokenId,
@@ -297,7 +299,7 @@ function CompactGameCard({
     const matchOutcomeForTeam = (
       teamName: string,
       outcomes:
-        | { label: string; price: number; tokenId: string }[]
+        | CompactSportsOutcome[]
         | undefined,
     ) => {
       if (!outcomes) return undefined;

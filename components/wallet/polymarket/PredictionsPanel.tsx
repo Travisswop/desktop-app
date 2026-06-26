@@ -1260,7 +1260,7 @@ function SportsGameOddsMarketRow({
             outcome={outcome}
             onClick={() =>
               onOutcomeClick(
-                grouped.market,
+                outcome.market ?? grouped.market,
                 outcome.label,
                 outcome.price,
                 outcome.tokenId,
