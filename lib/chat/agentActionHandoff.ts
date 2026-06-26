@@ -494,24 +494,45 @@ export async function completeAgentActionFromHandoff(
     | 'toolType'
   > & {
     proposalId?: string;
+    proposalNonce?: string;
+    invocationId?: string;
+    agentId?: string;
+    groupId?: string;
+    action?: string;
+    toolType?: string;
   },
   accessToken?: string | null,
 ) {
   const handoff = readAgentActionHandoff();
   const payload = handoff?.payload;
   const proposalId = completion.proposalId || payload?.proposalId;
+  const action = completion.action || payload?.action;
+  const toolType = completion.toolType || payload?.toolType;
+  const groupId = completion.groupId || payload?.groupId;
+  const invocationId = completion.invocationId || payload?.invocationId;
+  const agentId = completion.agentId || payload?.agentId;
 
   if (!payload || !proposalId || payload.proposalId !== proposalId) {
     queueAgentActionClientEvent(
       {
         proposalId,
         stage: 'completion_skipped',
+        action,
+        toolType,
         provider: completion.provider,
+        groupId,
+        invocationId,
+        agentId,
         uiSurface: 'agent_action_completion',
         status: 'blocked',
         reason: !payload
           ? 'Missing approved action handoff'
           : 'Approved action handoff did not match proposal',
+        context: {
+          handoffState: payload ? 'mismatched' : 'missing',
+          completionProposalId: proposalId,
+          approvedProposalId: payload?.proposalId,
+        },
       },
       accessToken,
     );

@@ -613,6 +613,8 @@ export default function SwapModal({
             {
               proposalId: approvedSwapProposalId,
               status: 'executed',
+              action: 'wallet.swap',
+              toolType: 'wallet.write',
               provider: 'swop',
               title: 'Swap confirmed',
               subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
@@ -669,6 +671,8 @@ export default function SwapModal({
             {
               proposalId: approvedSwapProposalId,
               status: 'failed',
+              action: 'wallet.swap',
+              toolType: 'wallet.write',
               provider: 'swop',
               title: 'Swap failed',
               subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
