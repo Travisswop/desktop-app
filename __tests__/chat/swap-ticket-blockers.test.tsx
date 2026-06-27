@@ -241,7 +241,7 @@ describe('getSwapActionBlocker', () => {
     ).toEqual({
       tone: 'warning',
       message:
-        'No quote route is available right now. Refresh token options or pick a different pay token.',
+        'No quote route is available right now. Pick a different pay token or try again when quote tokens return.',
     });
   });
 
@@ -281,14 +281,14 @@ describe('getSwapPrimaryActionMode', () => {
     ).toBe('refresh_quote');
   });
 
-  it('switches wallet-write tickets into a refresh path when no route is available yet', () => {
+  it('keeps wallet-write tickets on the quote path when no route options are available yet', () => {
     expect(
       getSwapPrimaryActionMode({
         quoteOnly: false,
         hasRouteBlocker: true,
         quoteStateStatus: 'idle',
       })
-    ).toBe('refresh_quote');
+    ).toBe('quote');
   });
 
   it('keeps quote-only tickets on the quote path', () => {
@@ -374,7 +374,7 @@ describe('SwapProposalTicket blocker banner', () => {
     );
   });
 
-  it('keeps the primary action blocked while relabeling to refresh quote when the route is unavailable', () => {
+  it('keeps the route-error recovery action usable when the quote route is unavailable', () => {
     const { markup, buttons } = renderSwapProposalTicketDocument({
       initialQuoteState: {
         status: 'error',
@@ -399,10 +399,10 @@ describe('SwapProposalTicket blocker banner', () => {
     expect(
       buttons.find((button) => button.textContent.includes('Refresh quote'))
         ?.hasAttribute('disabled')
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it('keeps the no-route prequote ticket blocked while matching the refresh-quote CTA label', () => {
+  it('keeps the no-route prequote ticket blocked without advertising a refresh-quote action', () => {
     const { markup, buttons } = renderSwapProposalTicketDocument({
       proposalParams: {
         fromToken: 'SOL',
@@ -418,12 +418,12 @@ describe('SwapProposalTicket blocker banner', () => {
 
     expect(markup).toContain('needs route');
     expect(markup).toContain(
-      'No quote route is available right now. Refresh token options or pick a different pay token.'
+      'No quote route is available right now. Pick a different pay token or try again when quote tokens return.'
     );
-    expect(markup).toContain('Refresh quote');
+    expect(markup).toContain('Get quote');
     expect(markup).not.toContain('Sign &amp; approve');
     expect(
-      buttons.find((button) => button.textContent.includes('Refresh quote'))
+      buttons.find((button) => button.textContent.includes('Get quote'))
         ?.hasAttribute('disabled')
     ).toBe(true);
   });

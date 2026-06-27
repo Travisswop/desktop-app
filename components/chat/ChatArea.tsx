@@ -15807,15 +15807,11 @@ export function SwapProposalTicket({
         quoteState.status === 'success'
       ? 'Refresh quote'
       : 'Get quote';
-  const isRouteRefreshBlocked =
-    primaryActionMode === 'refresh_quote' &&
-    (hasRouteBlocker || (isQuoteError && !isValidationQuoteError));
   const isPrimaryActionDisabled =
     !canAct ||
     isSwapBusy ||
     isQuoteLoading ||
-    !hasUsableSwapSelection ||
-    isRouteRefreshBlocked;
+    !hasUsableSwapSelection;
   const swapActionBlocker = getSwapActionBlocker({
     canAct,
     fromToken,

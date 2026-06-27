@@ -61,7 +61,7 @@ export function getSwapPrimaryActionMode(params: {
   } = params;
 
   if (quoteOnly) return 'quote';
-  if (hasRouteBlocker) return 'refresh_quote';
+  if (hasRouteBlocker) return 'quote';
   if (quoteStateStatus === 'error' && quoteStateErrorKind === 'route') {
     return 'refresh_quote';
   }
@@ -121,7 +121,7 @@ export function getSwapActionBlocker(params: {
       tone: 'warning',
       message: hasQuoteTokenOptions
         ? 'Pick the token you want to receive before swapping.'
-        : 'No quote route is available right now. Refresh token options or pick a different pay token.',
+        : 'No quote route is available right now. Pick a different pay token or try again when quote tokens return.',
     } satisfies SwapActionBlocker;
   }
 
