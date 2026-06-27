@@ -11,6 +11,7 @@ import { LocalConsoleCardTelemetryBeacon } from '@/components/chat/LocalConsoleC
 import {
   buildLocalConsoleCardLifecycleId,
   emitLocalConsoleCardTelemetry,
+  isLocalConsoleCardHistoryBackedAtMount,
   LOCAL_CONSOLE_CARD_TELEMETRY_PREFIX,
   normalizeLocalConsoleCardCommand,
   resetLocalConsoleCardTelemetryForTests,
@@ -146,6 +147,22 @@ describe('local console card telemetry', () => {
     ).toBe(true);
   });
 
+  test('treats same-session live source ids as generated-only mounts', () => {
+    expect(
+      isLocalConsoleCardHistoryBackedAtMount({
+        sourceMessageId: 'local-console-portfolio-live-1',
+        liveSourceMessageIds: new Set(['local-console-portfolio-live-1']),
+      })
+    ).toBe(false);
+
+    expect(
+      isLocalConsoleCardHistoryBackedAtMount({
+        sourceMessageId: 'local-console-portfolio-history-1',
+        liveSourceMessageIds: new Set(['different-source-id']),
+      })
+    ).toBe(true);
+  });
+
   test('emits rehydrated telemetry only from the rendered history-backed beacon path', () => {
     expect(
       LocalConsoleCardTelemetryBeacon({
@@ -180,5 +197,21 @@ describe('local console card telemetry', () => {
       sourceMessageId: 'history-card-1',
       threadType: 'group',
     });
+  });
+
+  test('keeps rendered persisted-card mounts generated-only when their source id was already seen live', () => {
+    expect(
+      LocalConsoleCardTelemetryBeacon({
+        cardType: 'portfolio',
+        sourceMessageId: 'live-card-1',
+        isGroup: true,
+        historyBackedAtMount: isLocalConsoleCardHistoryBackedAtMount({
+          sourceMessageId: 'live-card-1',
+          liveSourceMessageIds: new Set(['live-card-1']),
+        }),
+      })
+    ).toBeNull();
+
+    expect(infoSpy).not.toHaveBeenCalled();
   });
 });

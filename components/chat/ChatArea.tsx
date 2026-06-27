@@ -189,6 +189,7 @@ import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
 import {
   buildLocalConsoleCardLifecycleId,
   emitLocalConsoleCardTelemetry,
+  isLocalConsoleCardHistoryBackedAtMount,
   type LocalConsoleCardType,
 } from '@/lib/chat/localConsoleCardTelemetry';
 import { LocalConsoleCardTelemetryBeacon } from '@/components/chat/LocalConsoleCardTelemetryBeacon';
@@ -3329,6 +3330,7 @@ export default function ChatArea({
     at: number;
   } | null>(null);
   const localPolymarketIntentSuppressUntilRef = useRef<number>(0);
+  const liveLocalConsoleSourceIdsRef = useRef<Set<string>>(new Set());
   const renderedPolymarketMarketsRef = useRef<
     Map<string, PolymarketMarketPreview>
   >(new Map());
@@ -3959,11 +3961,34 @@ export default function ChatArea({
     [messages]
   );
 
+  const markLocalConsoleSourceIdAsLive = useCallback(
+    (sourceMessageId?: string | null) => {
+      if (!sourceMessageId) return;
+      liveLocalConsoleSourceIdsRef.current.add(sourceMessageId);
+    },
+    []
+  );
+
+  const didLocalConsoleCardMountFromHistory = useCallback(
+    (sourceMessageId?: string | null) =>
+      isLocalConsoleCardHistoryBackedAtMount({
+        sourceMessageId,
+        liveSourceMessageIds: liveLocalConsoleSourceIdsRef.current,
+      }),
+    []
+  );
+
   const appendMessageIfNew = useCallback((message?: Message) => {
     if (!message?._id) return;
+    const localConsoleCardType = getLocalConsoleCardTypeForAction(
+      message.agentData?.action
+    );
+    if (localConsoleCardType) {
+      markLocalConsoleSourceIdAsLive(message.clientMessageId || message._id);
+    }
 
     setMessages((prev) => reconcileIncomingMessage(prev, message));
-  }, []);
+  }, [markLocalConsoleSourceIdAsLive]);
 
   const upsertGroupAgent = useCallback((agent: GroupAgent) => {
     setCurrentGroupData((prev) => {
@@ -4404,6 +4429,7 @@ export default function ChatArea({
     setAgentStatusText(null);
     pendingPolymarketBetKeyRef.current = null;
     setPendingPolymarketBetKey(null);
+    liveLocalConsoleSourceIdsRef.current.clear();
     isInitialLoadRef.current = true;
 
     // Load initial messages
@@ -4460,6 +4486,12 @@ export default function ChatArea({
           msg.receiver?._id === currentUser;
 
       if (isForCurrentChat) {
+        const localConsoleCardType = getLocalConsoleCardTypeForAction(
+          msg.agentData?.action
+        );
+        if (localConsoleCardType) {
+          markLocalConsoleSourceIdAsLive(msg.clientMessageId || msg._id);
+        }
         setMessages((prev) => reconcileIncomingMessage(prev, msg));
       }
     };
@@ -4660,6 +4692,7 @@ export default function ChatArea({
     currentUser,
     isGroup,
     loadMessages,
+    markLocalConsoleSourceIdAsLive,
     prepareBottomAnchoredLoad,
     router,
   ]);
@@ -4980,6 +5013,7 @@ export default function ChatArea({
           ? 'portfolio'
           : null;
       if (!cardType) return;
+      markLocalConsoleSourceIdAsLive(message.clientMessageId || message._id);
       emitLocalConsoleCardTelemetry({
         eventType: 'generated',
         cardType,
@@ -5000,10 +5034,22 @@ export default function ChatArea({
             shouldAutoMentionAstro && response.message.message === messageForTransport
               ? { ...response.message, message: outgoingMessage }
               : response.message;
+          if (
+            localPnlSourceId ||
+            localPortfolioSourceId
+          ) {
+            markLocalConsoleSourceIdAsLive(localPnlSourceId);
+            markLocalConsoleSourceIdAsLive(localPortfolioSourceId);
+          }
           setMessages((prev) =>
             reconcileIncomingMessage(prev, acknowledgedMessage)
           );
           if (response.clientGeneratedAgentMessages?.length) {
+            response.clientGeneratedAgentMessages.forEach((agentMessage) => {
+              markLocalConsoleSourceIdAsLive(
+                agentMessage.clientMessageId || agentMessage._id
+              );
+            });
             setMessages((prev) =>
               response.clientGeneratedAgentMessages!.reduce(
                 (next, agentMessage) =>
@@ -5043,6 +5089,7 @@ export default function ChatArea({
     solWalletAddress,
     socket,
     astroConsoleData,
+    markLocalConsoleSourceIdAsLive,
     trading.depositWalletAddress,
     trading.tradingWalletAddress,
   ]);
@@ -6660,7 +6707,10 @@ export default function ChatArea({
               const persistedLocalConsoleSourceId =
                 message.clientMessageId || message._id;
               const localConsoleReadMessageHistoryBackedAtMount =
-                !isTempMessage(message);
+                didLocalConsoleCardMountFromHistory(
+                  localConsoleReadMessage?.clientMessageId ||
+                    localConsoleReadMessage?._id
+                );
 
               return (
                 <Fragment key={message._id || index}>
@@ -6670,6 +6720,9 @@ export default function ChatArea({
                         cardType={persistedLocalConsoleCardType}
                         sourceMessageId={persistedLocalConsoleSourceId}
                         isGroup={isGroup}
+                        historyBackedAtMount={didLocalConsoleCardMountFromHistory(
+                          persistedLocalConsoleSourceId
+                        )}
                       />
                     )}
                   <Message

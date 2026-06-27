@@ -62,6 +62,17 @@ export function shouldEmitLocalConsoleCardRehydratedOnMount({
   return Boolean(historyBackedAtMount);
 }
 
+export function isLocalConsoleCardHistoryBackedAtMount({
+  sourceMessageId,
+  liveSourceMessageIds,
+}: {
+  sourceMessageId?: string | null;
+  liveSourceMessageIds: ReadonlySet<string>;
+}) {
+  if (!sourceMessageId) return false;
+  return !liveSourceMessageIds.has(sourceMessageId);
+}
+
 function buildEventKey(event: LocalConsoleCardTelemetryEvent) {
   return [
     event.eventType,
