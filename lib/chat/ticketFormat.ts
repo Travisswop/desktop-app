@@ -78,6 +78,7 @@ export function getSwapActionBlocker(params: {
   payAmount: string;
   quoteStateStatus: 'idle' | 'loading' | 'success' | 'error';
   quoteStateErrorKind?: SwapQuoteErrorKind;
+  quoteStateError?: string;
   selectedFromKey: string;
   selectedToKey: string;
 }) {
@@ -91,6 +92,7 @@ export function getSwapActionBlocker(params: {
     payAmount,
     quoteStateStatus,
     quoteStateErrorKind,
+    quoteStateError,
     selectedFromKey,
     selectedToKey,
   } = params;
@@ -136,6 +138,17 @@ export function getSwapActionBlocker(params: {
     return {
       tone: 'warning',
       message: `Enter how much ${fromToken} you want to swap to get a live quote.`,
+    } satisfies SwapActionBlocker;
+  }
+
+  if (
+    quoteStateStatus === 'error' &&
+    quoteStateErrorKind === 'validation' &&
+    quoteStateError?.includes('live USD price')
+  ) {
+    return {
+      tone: 'warning',
+      message: quoteStateError,
     } satisfies SwapActionBlocker;
   }
 

@@ -14,6 +14,7 @@ type SwapActionBlockerNoticeProps = {
   payAmount: string;
   quoteStateStatus: 'idle' | 'loading' | 'success' | 'error';
   quoteStateErrorKind?: SwapQuoteErrorKind;
+  quoteStateError?: string;
   selectedFromKey: string;
   selectedToKey: string;
 };
@@ -30,6 +31,9 @@ export function SwapActionBlockerNotice(
 
   return (
     <p
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       className={`mt-2 rounded-[10px] border px-3 py-2 text-[11px] font-semibold ${
         blocker.tone === 'info'
           ? 'border-[#3fe08f]/20 bg-[#3fe08f]/10 text-[#9ef7c8]'

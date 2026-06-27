@@ -15822,6 +15822,7 @@ export function SwapProposalTicket({
     payAmount,
     quoteStateStatus: quoteState.status,
     quoteStateErrorKind: quoteState.errorKind,
+    quoteStateError: quoteState.error,
     selectedFromKey,
     selectedToKey,
   });
@@ -16619,6 +16620,7 @@ export function SwapProposalTicket({
         payAmount={payAmount}
         quoteStateStatus={quoteState.status}
         quoteStateErrorKind={quoteState.errorKind}
+        quoteStateError={quoteState.error}
         selectedFromKey={selectedFromKey}
         selectedToKey={selectedToKey}
       />

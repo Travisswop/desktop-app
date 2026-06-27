@@ -484,6 +484,39 @@ describe('SwapProposalTicket blocker banner', () => {
     ).toBe(true);
   });
 
+  it('preserves the USD price-unavailable blocker message on the rendered ticket', () => {
+    const { markup, buttons } = renderSwapProposalTicketDocument({
+      initialQuoteState: {
+        status: 'error',
+        errorKind: 'validation',
+        error: 'Enter a SOL amount or pick a token with a live USD price.',
+      },
+      proposalParams: {
+        fromToken: 'SOL',
+        toToken: 'USDC',
+        amount: '25',
+        amountType: 'usd',
+        fromChain: 'solana',
+        toChain: 'solana',
+      },
+      sourceText: 'swap $25 SOL to USDC',
+      walletPortfolioTokens: [createWalletToken()],
+    });
+
+    expect(markup).toContain('needs input');
+    expect(markup).toContain(
+      'Enter a SOL amount or pick a token with a live USD price.'
+    );
+    expect(markup).not.toContain(
+      'Enter a valid SOL amount greater than zero.'
+    );
+    expect(markup).toContain('Sign &amp; approve');
+    expect(markup).not.toContain('Refresh quote');
+    expect(
+      buttons.find((button) => button.textContent.includes('Sign & approve'))
+    ).toBeTruthy();
+  });
+
   it('treats the empty-amount state as input-blocked on the rendered ticket', () => {
     const { markup, buttons } = renderSwapProposalTicketDocument({
       proposalParams: {
@@ -572,5 +605,19 @@ describe('SwapActionBlockerNotice visibility', () => {
     );
 
     expect(markup).toBe('');
+  });
+
+  it('marks blocker updates as a polite live status region', () => {
+    const markup = renderToStaticMarkup(
+      <SwapActionBlockerNotice
+        {...baseProps}
+        quoteStateStatus="error"
+        quoteStateErrorKind="route"
+      />
+    );
+
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('aria-live="polite"');
+    expect(markup).toContain('aria-atomic="true"');
   });
 });
