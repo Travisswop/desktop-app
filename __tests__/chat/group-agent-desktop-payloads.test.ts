@@ -176,7 +176,25 @@ describe('desktop group agent payloads', () => {
     });
   });
 
-  test('approves and persists a wallet swap handoff before execution', async () => {
+  test('keeps local synthetic wallet swap tickets on the client-only path', async () => {
+    const onApproveInline = jest.fn();
+
+    const result = await ensureApprovedAgentActionHandoff({
+      proposalId: 'local-wallet-swap-123',
+      approvalParams: {
+        amount: '25',
+        fromToken: 'SWOP',
+        toToken: 'USDC',
+      },
+      onApproveInline,
+    });
+
+    expect(onApproveInline).not.toHaveBeenCalled();
+    expect(result.executionProposalId).toBe('local-wallet-swap-123');
+    expect(readAgentActionHandoff()).toBeNull();
+  });
+
+  test('approves and persists a backend-backed wallet swap handoff before execution', async () => {
     const onApproveInline = jest.fn().mockResolvedValue({
       status: 'approved',
       nextStep: 'wallet_frontend_signing_required',
@@ -191,7 +209,7 @@ describe('desktop group agent payloads', () => {
     });
 
     const result = await ensureApprovedAgentActionHandoff({
-      proposalId: 'local-wallet-swap-123',
+      proposalId: 'prop_swap_pending',
       approvalParams: {
         amount: '25',
         fromToken: 'SWOP',
@@ -200,7 +218,7 @@ describe('desktop group agent payloads', () => {
       onApproveInline,
     });
 
-    expect(onApproveInline).toHaveBeenCalledWith('local-wallet-swap-123', {
+    expect(onApproveInline).toHaveBeenCalledWith('prop_swap_pending', {
       amount: '25',
       fromToken: 'SWOP',
       toToken: 'USDC',

@@ -4,6 +4,7 @@ export const AGENT_ACTION_HANDOFF_STORAGE_KEY =
   'swop:agent-approved-action';
 export const AGENT_ACTION_COMPLETION_STORAGE_KEY =
   'swop:agent-action-completions';
+const LOCAL_SWAP_PROPOSAL_PREFIX = 'local-wallet-swap-';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -183,6 +184,13 @@ export async function ensureApprovedAgentActionHandoff({
     approvalParams?: Record<string, unknown>,
   ) => Promise<AgentApprovalHandoff | null>;
 }) {
+  if (proposalId.startsWith(LOCAL_SWAP_PROPOSAL_PREFIX)) {
+    return {
+      approvalResult: existingApprovalResult || null,
+      executionProposalId: proposalId,
+    };
+  }
+
   const approvalResult =
     existingApprovalResult?.payload?.proposalId === proposalId
       ? existingApprovalResult
