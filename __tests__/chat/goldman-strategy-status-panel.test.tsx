@@ -63,8 +63,9 @@ describe('GoldmanStrategyStatusPanel', () => {
     expect(markup).toContain('Funding blocked');
     expect(markup).toContain('Fund first');
     expect(markup).toContain(
-      'Fund the strategy vault, then approve the strategy before pressing Run.'
+      'Fund the strategy vault, then press Run to start Goldman within the saved caps.'
     );
+    expect(markup).not.toContain('approve the strategy before pressing Run');
   });
 
   test('keeps pending monitor-only strategies read-only in the visible copy', () => {
@@ -151,8 +152,9 @@ describe('GoldmanStrategyStatusPanel', () => {
       'Goldman stays read-only in this mode, but the remaining setup blocker still has to clear before monitoring can start.'
     );
     expect(markup).toContain(
-      'Clear the remaining setup blocker, then approve the strategy before pressing Run.'
+      'Clear the remaining setup blocker, then press Run to start monitoring from the saved rules.'
     );
+    expect(markup).not.toContain('approve the strategy before pressing Run');
     expect(markup).not.toContain(
       'This strategy is configured for live execution'
     );
