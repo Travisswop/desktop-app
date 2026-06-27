@@ -53,7 +53,8 @@ export function formatGoldmanCooldownLabel(value: unknown) {
   if (seconds < 60) return `${seconds}s`;
   if (seconds % 86400 === 0) return `${seconds / 86400}d`;
   if (seconds % 3600 === 0) return `${seconds / 3600}h`;
-  return `${Math.round(seconds / 60)}m`;
+  if (seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
 }
 
 function readAllocationLabel(allocation: Record<string, unknown>) {

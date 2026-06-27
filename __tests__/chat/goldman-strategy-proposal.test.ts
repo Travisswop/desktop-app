@@ -9,6 +9,7 @@ import { GoldmanStrategyProposalTicket } from '@/components/chat/goldman/Goldman
 describe('goldman strategy proposal summary', () => {
   test('formats cooldown labels into user-readable units', () => {
     expect(formatGoldmanCooldownLabel('45')).toBe('45s');
+    expect(formatGoldmanCooldownLabel(61)).toBe('61s');
     expect(formatGoldmanCooldownLabel(1800)).toBe('30m');
     expect(formatGoldmanCooldownLabel(7200)).toBe('2h');
     expect(formatGoldmanCooldownLabel(0)).toBe('');
@@ -157,6 +158,28 @@ describe('goldman strategy proposal summary', () => {
 
     expect(summary.approvalBoundary).toBe(
       'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC).'
+    );
+  });
+
+  test('keeps odd-second cooldowns exact in approval-boundary copy', () => {
+    const summary = buildGoldmanStrategyProposalSummary(
+      {
+        fundingAsset: 'USDC',
+        maxOrderUsd: 250,
+        cooldownSeconds: 61,
+      },
+      {
+        venues: ['polymarket'],
+      }
+    );
+
+    expect(summary.metrics).toContainEqual({
+      label: 'cooldown',
+      value: '61s',
+      detail: 'minimum re-entry wait',
+    });
+    expect(summary.approvalBoundary).toContain(
+      'It still cannot exceed $250.00 per order, 61s cooldown between entries.'
     );
   });
 
@@ -325,5 +348,33 @@ describe('goldman strategy proposal summary', () => {
       'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC).'
     );
     expect(html).not.toContain('within the displayed caps');
+  });
+
+  test('renders odd-second cooldowns literally on the visible approval ticket', () => {
+    const html = renderToStaticMarkup(
+      createElement(GoldmanStrategyProposalTicket, {
+        proposalId: 'proposal-6',
+        status: 'pending',
+        proposal: {
+          proposalId: 'proposal-6',
+          normalizedParams: {
+            title: 'Exact cooldown strategy',
+            venues: ['polymarket'],
+            fundingAsset: 'USDC',
+            maxOrderUsd: 250,
+            cooldownSeconds: 61,
+          },
+        },
+        canAct: true,
+        isOpen: true,
+        isPending: false,
+        onApprove: () => {},
+        onReject: () => {},
+      })
+    );
+
+    expect(html).toContain('61s');
+    expect(html).toContain('61s cooldown between entries');
+    expect(html).not.toContain('1m cooldown between entries');
   });
 });
