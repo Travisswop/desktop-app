@@ -7,6 +7,8 @@ import {
   type PolymarketPositionLike,
 } from '@/lib/polymarket/positions-reconciliation';
 
+const PARTIAL_DATA_HEADER = 'x-polymarket-partial-data';
+
 async function fetchEventLive(
   eventSlug: string,
 ): Promise<EventLiveState | null> {
@@ -85,17 +87,41 @@ export async function GET(request: NextRequest) {
     const response = await fetch(
       `${POLYMARKET_BACKEND_URL}/api/prediction-markets/positions?user=${userAddress}`,
     );
+    const data = await response.json().catch(() => null);
+    const partialData = response.headers.get(PARTIAL_DATA_HEADER);
 
     if (!response.ok) {
-      throw new Error('Failed to fetch positions');
+      return NextResponse.json(
+        {
+          error:
+            typeof data === 'object' &&
+            data !== null &&
+            'error' in data &&
+            typeof data.error === 'string'
+              ? data.error
+              : 'Failed to fetch positions',
+          failedAddresses:
+            typeof data === 'object' &&
+            data !== null &&
+            'failedAddresses' in data &&
+            Array.isArray(data.failedAddresses)
+              ? data.failedAddresses
+              : undefined,
+          retryable: response.status >= 500,
+        },
+        { status: response.status },
+      );
     }
 
-    const data = await response.json();
     const positions = Array.isArray(data)
       ? await reconcilePositions(data)
       : data;
 
-    return NextResponse.json(positions);
+    const nextResponse = NextResponse.json(positions);
+    if (partialData) {
+      nextResponse.headers.set(PARTIAL_DATA_HEADER, partialData);
+    }
+    return nextResponse;
   } catch (error) {
     console.error('Error fetching positions:', error);
     return NextResponse.json(
