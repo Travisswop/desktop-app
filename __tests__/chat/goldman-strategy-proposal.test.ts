@@ -89,7 +89,7 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(summary.approvalBoundary).toBe(
-      'Approval lets Goldman trade on polymarket within the displayed caps. It still cannot exceed $250.00 per order, $1,000 daily spend, $300.00 daily loss, 2 open positions max, 1h cooldown between entries.'
+      'Approval lets Goldman trade on polymarket within the displayed caps. It still cannot exceed $250.00 per order, $1,000 daily spend, $300.00 daily loss, 2 open positions max, 1h cooldown between entries. Without an explicit expiry, it stays active until you stop it or the strategy hits its own exit or risk limit.'
     );
     expect(summary.metrics).toEqual([
       {
@@ -124,7 +124,7 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(summary.approvalBoundary).toBe(
-      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC, WETH) and within the displayed caps. It still cannot exceed $250.00 per order, $1,000 daily spend.'
+      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC, WETH) and within the displayed caps. It still cannot exceed $250.00 per order, $1,000 daily spend. Without an explicit expiry, it stays active until you stop it or the strategy hits its own exit or risk limit.'
     );
   });
 
@@ -141,7 +141,7 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(summary.approvalBoundary).toBe(
-      'Approval lets Goldman trade on polymarket using USDC as funding and only for the declared asset scope (BTC, ETH) and within the displayed caps. It still cannot exceed $250.00 per order.'
+      'Approval lets Goldman trade on polymarket using USDC as funding and only for the declared asset scope (BTC, ETH) and within the displayed caps. It still cannot exceed $250.00 per order. Without an explicit expiry, it stays active until you stop it or the strategy hits its own exit or risk limit.'
     );
   });
 
@@ -157,7 +157,7 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(summary.approvalBoundary).toBe(
-      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC).'
+      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC). Without an explicit expiry, it stays active until you stop it or the strategy hits its own exit or risk limit.'
     );
   });
 
@@ -180,6 +180,22 @@ describe('goldman strategy proposal summary', () => {
     });
     expect(summary.approvalBoundary).toContain(
       'It still cannot exceed $250.00 per order, 61s cooldown between entries.'
+    );
+  });
+
+  test('keeps no-expiry approval boundaries explicit about how approval ends', () => {
+    const summary = buildGoldmanStrategyProposalSummary(
+      {
+        fundingAsset: 'USDC',
+        maxOrderUsd: 250,
+      },
+      {
+        venues: ['polymarket'],
+      }
+    );
+
+    expect(summary.approvalBoundary).toContain(
+      'Without an explicit expiry, it stays active until you stop it or the strategy hits its own exit or risk limit.'
     );
   });
 
@@ -287,6 +303,9 @@ describe('goldman strategy proposal summary', () => {
     expect(html).toContain(
       'Approval lets Goldman trade on approved venues within the displayed caps.'
     );
+    expect(html).toContain(
+      'Without an explicit expiry, it stays active until you stop it or the strategy hits its own exit or risk limit.'
+    );
     expect(html).toContain('Declared idle deployment');
     expect(html).not.toContain('>polymarket<');
     expect(html).not.toContain('>USDC<');
@@ -318,6 +337,9 @@ describe('goldman strategy proposal summary', () => {
     expect(html).toContain(
       'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC, WETH) and within the displayed caps.'
     );
+    expect(html).toContain(
+      'Without an explicit expiry, it stays active until you stop it or the strategy hits its own exit or risk limit.'
+    );
     expect(html).not.toContain('using USDC only within the displayed caps');
     expect(html).not.toContain('funding asset');
   });
@@ -345,7 +367,7 @@ describe('goldman strategy proposal summary', () => {
     );
 
     expect(html).toContain(
-      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC).'
+      'Approval lets Goldman trade on polymarket only for the declared asset scope (USDC). Without an explicit expiry, it stays active until you stop it or the strategy hits its own exit or risk limit.'
     );
     expect(html).not.toContain('within the displayed caps');
   });

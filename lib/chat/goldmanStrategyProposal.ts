@@ -151,10 +151,12 @@ export function buildGoldmanStrategyProposalSummary(
     : `Approval lets Goldman trade on ${venueLabel}.`;
   const constraintsSentence =
     constraints.length > 0 ? ` It still cannot exceed ${constraints.join(', ')}.` : '';
-  const expirySentence = expiryLabel ? ` ${expiryLabel} remains the outer stop unless you stop it sooner.` : '';
+  const stopSentence = expiryLabel
+    ? ` ${expiryLabel} remains the outer stop unless you stop it sooner.`
+    : ' Without an explicit expiry, it stays active until you stop it or the strategy hits its own exit or risk limit.';
 
   return {
-    approvalBoundary: `${approvalBoundaryBase}${constraintsSentence}${expirySentence}`,
+    approvalBoundary: `${approvalBoundaryBase}${constraintsSentence}${stopSentence}`,
     metrics,
   };
 }
