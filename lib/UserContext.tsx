@@ -23,6 +23,7 @@ import {
 } from '@/types/privy';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { apiFetch } from '@/lib/api/apiFetch';
+import { isNetworkFetchError } from '@/lib/api/fetchErrors';
 import {
   AI_ONBOARDING_PATH,
   requiresSwopIdCompletion,
@@ -33,6 +34,32 @@ import { markExplicitLogoutRedirect } from '@/lib/authSession';
 
 const userContextDebugEnabled =
   process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true';
+
+async function fetchBackendUserByEmail(
+  normalizedEmail: string,
+  signal: AbortSignal,
+) {
+  const apiPath = `/api/v2/desktop/user/${encodeURIComponent(normalizedEmail)}`;
+
+  try {
+    return await apiFetch(buildSwopApiUrl(apiPath), {
+      headers: { 'Content-Type': 'application/json' },
+      signal,
+    });
+  } catch (error) {
+    if (!isNetworkFetchError(error) || signal.aborted) {
+      throw error;
+    }
+
+    return fetch('/api/auth/backend-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: normalizedEmail }),
+      cache: 'no-store',
+      signal,
+    });
+  }
+}
 
 export interface UserData {
   _id: string;
@@ -490,14 +517,9 @@ export function UserProvider({
           abortControllerRef.current?.abort();
         }, fetchTimeoutMs);
 
-        const response = await apiFetch(
-          buildSwopApiUrl(
-            `/api/v2/desktop/user/${encodeURIComponent(normalizedEmail)}`,
-          ),
-          {
-            headers: { 'Content-Type': 'application/json' },
-            signal: abortControllerRef.current.signal,
-          },
+        const response = await fetchBackendUserByEmail(
+          normalizedEmail,
+          abortControllerRef.current.signal,
         );
 
         if (!response.ok) {

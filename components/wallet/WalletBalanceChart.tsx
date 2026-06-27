@@ -30,6 +30,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { WalletItem } from "@/types/wallet";
 import clsx from "clsx";
 import { useSwapStore } from "@/zustandStore/tokenSwapProps";
+import { apiFetch } from "@/lib/api/apiFetch";
+import { buildSwopApiUrl } from "@/lib/api/apiBaseUrl";
 
 // Types
 interface BalanceHistoryEntry {
@@ -466,8 +468,8 @@ const WalletBalanceChartForWalletPage: React.FC<
       setIsLoading(true);
 
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${user._id}`
+        const response = await apiFetch(
+          buildSwopApiUrl(`/api/v5/wallet/getBalance/${user._id}`)
         );
 
         if (!response.ok) {

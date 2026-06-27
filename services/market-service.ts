@@ -5,9 +5,10 @@
  * to fetch real-time token prices, market data, and historical charts.
  */
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-const MARKET_API_URL = `${API_BASE_URL}/api/v5/market`;
+import { apiFetch } from '@/lib/api/apiFetch';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+
+const MARKET_API_URL = buildSwopApiUrl('/api/v5/market');
 
 const TOP_MARKET_TOKEN_IDS = [
   'bitcoin',
@@ -117,7 +118,7 @@ export class MarketService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(
+      const response = await apiFetch(
         `${MARKET_API_URL}/token/${tokenId}`,
         {
           method: 'GET',
@@ -157,7 +158,7 @@ export class MarketService {
       }
 
       const tokenIds = TOP_MARKET_TOKEN_IDS.slice(0, Math.max(1, limit));
-      const response = await fetch(`${MARKET_API_URL}/batch`, {
+      const response = await apiFetch(`${MARKET_API_URL}/batch`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ tokenIds }),
@@ -195,7 +196,7 @@ export class MarketService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(
+      const response = await apiFetch(
         `${MARKET_API_URL}/history/${tokenId}?days=${days}`,
         {
           method: 'GET',
@@ -234,7 +235,7 @@ export class MarketService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(`${MARKET_API_URL}/prices`, {
+      const response = await apiFetch(`${MARKET_API_URL}/prices`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ tokens }),
@@ -289,7 +290,7 @@ export class MarketService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(`${MARKET_API_URL}/portfolio`, {
+      const response = await apiFetch(`${MARKET_API_URL}/portfolio`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ holdings }),
@@ -327,7 +328,7 @@ export class MarketService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(`${MARKET_API_URL}/resolve`, {
+      const response = await apiFetch(`${MARKET_API_URL}/resolve`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ address, chain }),
@@ -376,7 +377,7 @@ export class MarketService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(
+      const response = await apiFetch(
         `${MARKET_API_URL}/search?q=${encodeURIComponent(query)}`,
         {
           method: 'GET',
@@ -416,7 +417,7 @@ export class MarketService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(
+      const response = await apiFetch(
         `${MARKET_API_URL}/token-by-address`,
         {
           method: 'POST',
@@ -459,7 +460,7 @@ export class MarketService {
         headers.Authorization = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch(`${MARKET_API_URL}/batch`, {
+      const response = await apiFetch(`${MARKET_API_URL}/batch`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ tokenIds }),
@@ -506,7 +507,7 @@ export class MarketService {
       };
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-      const response = await fetch(`${MARKET_API_URL}/chart-by-address`, {
+      const response = await apiFetch(`${MARKET_API_URL}/chart-by-address`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ address, chain, days }),
