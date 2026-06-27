@@ -5,6 +5,9 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import targetHelpers from './astro-card-targets.js';
+
+const { findFreshSwopChatTarget, listMatchingSwopChatTargets, matchesSwopChatUrl } = targetHelpers;
 
 const DEFAULT_SWOP_URL = 'https://www.swopme.app/dashboard/chat';
 const DEFAULT_CHROME_PORT = 9223;
@@ -362,17 +365,9 @@ async function closeTarget(baseUrl, targetId) {
   }
 }
 
-function isSwopChatTarget(target) {
-  return (
-    target?.type === 'page' &&
-    target.webSocketDebuggerUrl &&
-    String(target.url || '').includes('/dashboard/chat')
-  );
-}
-
 async function openFreshSwopTarget(baseUrl, swopUrl) {
   const targets = await listTargets(baseUrl);
-  const staleTargets = targets.filter(isSwopChatTarget);
+  const staleTargets = listMatchingSwopChatTargets(targets, swopUrl);
   for (const target of staleTargets) {
     await closeTarget(baseUrl, target.id);
   }
@@ -387,9 +382,10 @@ async function openFreshSwopTarget(baseUrl, swopUrl) {
   }
 
   const updated = await listTargets(baseUrl);
-  const freshTarget = updated.find(
-    (candidate) =>
-      isSwopChatTarget(candidate) && !staleTargets.some((target) => target.id === candidate.id)
+  const freshTarget = findFreshSwopChatTarget(
+    updated,
+    swopUrl,
+    staleTargets.map((target) => target.id)
   );
   if (freshTarget) {
     return {
@@ -399,7 +395,7 @@ async function openFreshSwopTarget(baseUrl, swopUrl) {
     };
   }
 
-  const fallbackTarget = updated.find(isSwopChatTarget);
+  const fallbackTarget = listMatchingSwopChatTargets(updated, swopUrl)[0];
   if (!fallbackTarget) throw new Error('Could not open a fresh Swop chat tab through Chrome DevTools.');
   return {
     target: fallbackTarget,
@@ -1139,7 +1135,7 @@ async function main() {
   report.targetLifecycle.reusedExistingChatTarget = reusedExisting;
   if (closedTargets.length) {
     report.warnings.push(
-      `Closed ${closedTargets.length} stale /dashboard/chat QA target(s) before opening a fresh review tab.`
+      `Closed ${closedTargets.length} stale ${appOrigin(args.url)} /dashboard/chat QA target(s) before opening a fresh review tab.`
     );
   }
   const client = new CdpClient(target.webSocketDebuggerUrl);
@@ -1166,7 +1162,7 @@ async function main() {
     await client.send('Page.bringToFront');
 
     const currentUrl = target.url || '';
-    if (!currentUrl.includes('/dashboard/chat')) {
+    if (!matchesSwopChatUrl(currentUrl, args.url)) {
       await client.send('Page.navigate', { url: args.url });
       await sleep(3000);
     }
