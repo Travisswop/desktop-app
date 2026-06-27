@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { FeedMainComponentLoading } from "../loading/TabSwitcherLoading";
+import { FeedMainQuietLoading } from "../loading/TabSwitcherLoading";
 import FeedLoading from "../loading/FeedLoading";
 import FeedItem from "./FeedItem";
 import { useModalStore } from "@/zustandStore/modalstore";
@@ -17,11 +17,10 @@ import {
   mergeUniqueFeedItems,
   shouldFetchAnotherFeedPage,
 } from "./feedPagination";
+import { fetchConnectedUserFeed } from "@/lib/feed/feedApi";
 // import logger from "@/utils/logger";
 
 dayjs.extend(relativeTime);
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function Feed({
   accessToken,
@@ -89,16 +88,12 @@ export default function Feed({
       try {
         const currentPage = reset ? 1 : pageRef.current;
 
-        const url = `${API_URL}/api/v2/feed/user/connect/${userId}?page=${currentPage}&limit=${FEED_PAGE_LIMIT}`;
-
-        const response = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            authorization: `Bearer ${accessToken}`,
-          },
-          cache: "no-store",
+        const response = await fetchConnectedUserFeed({
+          accessToken,
+          limit: FEED_PAGE_LIMIT,
+          page: currentPage,
           signal: controller.signal,
+          userId,
         });
 
         if (!response.ok) {
@@ -212,7 +207,7 @@ export default function Feed({
   if (initialLoading) {
     return (
       <div className="w-full sm:w-[520px]">
-        <FeedMainComponentLoading />
+        <FeedMainQuietLoading />
       </div>
     );
   }

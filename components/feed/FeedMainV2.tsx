@@ -11,6 +11,7 @@ import { useModalStore } from "@/zustandStore/modalstore";
 import PerpsFeedBackfill from "./PerpsFeedBackfill";
 import FeedMarketTicker from "./FeedMarketTicker";
 import AaveFeedBackfill from "./AaveFeedBackfill";
+import { FeedMainQuietLoading } from "../loading/TabSwitcherLoading";
 
 const CONTAINER_WIDTH = "w-full sm:w-[520px]";
 
@@ -84,7 +85,7 @@ export default function FeedMainV2({
             />
           </CustomModal>
 
-          <Suspense fallback={<div className="text-black">Loading feed...</div>}>
+          <Suspense fallback={<FeedMainQuietLoading />}>
             <Component
               accessToken={accessToken}
               userId={userId}

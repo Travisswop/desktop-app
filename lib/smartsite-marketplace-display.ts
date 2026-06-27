@@ -1,4 +1,5 @@
 import type {
+  MarketplaceExclusiveContentItem,
   MarketplaceProduct,
   MarketplaceProductType,
   MarketplaceProductVariant,
@@ -34,7 +35,9 @@ export type SmartsiteMarketplaceDisplayItem = MarketplaceProduct & {
     shippingCost?: number;
     fulfillment?: MarketplaceProduct["fulfillment"];
     inventory?: MarketplaceProduct["inventory"];
+    exclusiveContent?: MarketplaceExclusiveContentItem[];
   };
+  exclusiveContent?: MarketplaceExclusiveContentItem[];
 };
 
 const isObject = (value: unknown): value is Record<string, any> =>
@@ -177,6 +180,110 @@ const imageListFor = (
   return images;
 };
 
+const compactText = (value: unknown): string => String(value || "").trim();
+
+const normalizeExclusiveContentItems = (
+  ...sources: unknown[]
+): MarketplaceExclusiveContentItem[] => {
+  const seen = new Set<string>();
+  const items: MarketplaceExclusiveContentItem[] = [];
+
+  const push = (source: unknown) => {
+    if (!isObject(source)) return;
+    const title = compactText(
+      source.title ?? source.name ?? source.label ?? source.fileName,
+    );
+    const description = compactText(
+      source.description ?? source.subtitle ?? source.note ?? source.details,
+    );
+    const fileName = compactText(source.fileName ?? source.originalName);
+    const url = compactText(source.url ?? source.href ?? source.link);
+
+    if (!title && !description && !fileName && !url) return;
+
+    const id =
+      compactText(source.id ?? source._id ?? source.key) ||
+      `${title || fileName || url}-${items.length}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+
+    items.push({
+      id,
+      title: title || fileName || "Exclusive content",
+      description,
+      kind: compactText(source.kind ?? source.type ?? source.contentType) || "file",
+      ctaLabel: compactText(source.ctaLabel ?? source.actionLabel),
+      url,
+      fileName,
+      originalName: compactText(source.originalName),
+      mimeType: compactText(source.mimeType),
+      size:
+        typeof source.size === "number" && Number.isFinite(source.size)
+          ? source.size
+          : undefined,
+      accessPolicy: compactText(source.accessPolicy),
+      lockedBy: compactText(source.lockedBy),
+      expiresAt: compactText(source.expiresAt) || null,
+    });
+  };
+
+  for (const source of sources) {
+    if (Array.isArray(source)) {
+      source.forEach(push);
+    } else {
+      push(source);
+    }
+  }
+
+  return items;
+};
+
+export const getMarketplaceExclusiveContentItems = (
+  item: SmartsiteMarketplaceDisplayItem,
+): MarketplaceExclusiveContentItem[] => {
+  const digitalAsset = item.fulfillment?.digitalAsset;
+  const synthesizedDigitalAsset =
+    digitalAsset?.enabled
+      ? normalizeExclusiveContentItems({
+          id: `digital-asset-${item.marketplaceProductId || item._id}`,
+          title:
+            digitalAsset.originalName ||
+            digitalAsset.fileName ||
+            "Receipt-gated download",
+          description:
+            item.fulfillment?.digitalDeliveryNote ||
+            "Unlock this marketplace file after checkout with the receipt NFT.",
+          kind: "download",
+          ctaLabel: "Download",
+          fileName: digitalAsset.fileName,
+          originalName: digitalAsset.originalName,
+          mimeType: digitalAsset.mimeType,
+          size: digitalAsset.size,
+          accessPolicy: digitalAsset.accessPolicy || "receipt_nft",
+          lockedBy: "receipt_nft",
+        })
+      : [];
+
+  const explicitItems = normalizeExclusiveContentItems(
+    item.exclusiveContent,
+    item.fulfillment?.exclusiveContent,
+    item.templateId?.exclusiveContent,
+    item.templateId?.fulfillment?.exclusiveContent,
+  );
+
+  const seen = new Set<string>();
+  return [...synthesizedDigitalAsset, ...explicitItems].filter((content) => {
+    const key =
+      content.id ||
+      content.fileName ||
+      content.originalName ||
+      `${content.title}-${content.kind}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 export const getMarketplaceProductFromEntry = (
   item: any,
 ): MarketplaceProduct | null => {
@@ -295,6 +402,13 @@ export const normalizeSmartsiteMarketplaceItem = (
       requiresShipping,
       shippingCost,
     },
+    exclusiveContent: normalizeExclusiveContentItems(
+      productRecord?.exclusiveContent,
+      product?.fulfillment?.exclusiveContent,
+      item.exclusiveContent,
+      item.fulfillment?.exclusiveContent,
+      productRecord?.fulfillment?.exclusiveContent,
+    ),
     itemName: item.itemName || title,
     itemImageUrl: item.itemImageUrl || primaryImage,
     itemDescription: item.itemDescription || description,

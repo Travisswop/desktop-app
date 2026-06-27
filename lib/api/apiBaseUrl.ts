@@ -6,11 +6,35 @@ function normalizeBaseUrl(value: string | undefined) {
   return normalized && normalized !== 'undefined' ? normalized : '';
 }
 
+function isPrivateIpv4Hostname(hostname: string) {
+  const parts = hostname.split('.').map((part) => Number(part));
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return false;
+  }
+
+  const [first, second] = parts;
+  return (
+    first === 10 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function isPrivateLanHostname(hostname: string) {
+  const normalized = hostname.toLowerCase();
+  return isPrivateIpv4Hostname(normalized) || normalized.endsWith('.local');
+}
+
 function isLocalHostname(hostname: string) {
   return (
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
     hostname === '::1' ||
+    isPrivateLanHostname(hostname) ||
     hostname === 'marlin-finer-bluegill.ngrok-free.app'
   );
 }
@@ -20,7 +44,9 @@ function isLocalBaseUrl(baseUrl: string) {
     return isLocalHostname(new URL(baseUrl).hostname);
   } catch {
     return (
-      baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')
+      baseUrl.includes('localhost') ||
+      baseUrl.includes('127.0.0.1') ||
+      isPrivateLanHostname(baseUrl)
     );
   }
 }
@@ -30,6 +56,25 @@ function isBrowserOnLocalhost() {
     typeof window !== 'undefined' &&
     isLocalHostname(window.location.hostname)
   );
+}
+
+function getBrowserLocalBaseUrl(baseUrl: string) {
+  if (typeof window === 'undefined') {
+    return baseUrl;
+  }
+
+  const browserHostname = window.location.hostname;
+  if (!isPrivateLanHostname(browserHostname)) {
+    return baseUrl;
+  }
+
+  try {
+    const url = new URL(baseUrl);
+    url.hostname = browserHostname;
+    return normalizeBaseUrl(url.toString());
+  } catch {
+    return baseUrl;
+  }
 }
 
 function isProductionRuntime() {
@@ -48,7 +93,7 @@ export function getSwopApiBaseUrl() {
     if (isLocalBaseUrl(configuredBaseUrl)) {
       if (typeof window !== 'undefined') {
         return isBrowserOnLocalhost()
-          ? configuredBaseUrl
+          ? getBrowserLocalBaseUrl(configuredBaseUrl)
           : PRODUCTION_SWOP_API_BASE_URL;
       }
 
@@ -62,7 +107,7 @@ export function getSwopApiBaseUrl() {
 
   if (typeof window !== 'undefined') {
     return isBrowserOnLocalhost()
-      ? LOCAL_SWOP_API_BASE_URL
+      ? getBrowserLocalBaseUrl(LOCAL_SWOP_API_BASE_URL)
       : PRODUCTION_SWOP_API_BASE_URL;
   }
 

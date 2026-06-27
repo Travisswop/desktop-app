@@ -6,10 +6,8 @@
  */
 
 import { apiFetch } from '@/lib/api/apiFetch';
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-const WALLET_API_URL = `${API_BASE_URL}/api/v5/wallet`;
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import { isNetworkFetchError } from '@/lib/api/fetchErrors';
 
 export interface TokenMarketData {
   id?: string;
@@ -126,6 +124,35 @@ export interface CoinbaseOnrampOrderResponse {
 }
 
 export class WalletService {
+  private static async requestWalletTokens(
+    url: string,
+    wallets: WalletInput[],
+    accessToken?: string
+  ): Promise<WalletTokensResponse> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await apiFetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ wallets }),
+      credentials: url.startsWith('/') ? 'include' : undefined,
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch wallet tokens: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
   /**
    * Fetch all tokens for multiple wallets
    * Backend handles everything: native tokens, ERC-20, SPL, prices, market data
@@ -139,33 +166,27 @@ export class WalletService {
     accessToken?: string
   ): Promise<WalletTokensResponse> {
     try {
-      const url = accessToken
-        ? `${WALLET_API_URL}/tokens`
-        : '/api/wallet/tokens';
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      if (accessToken) {
-        headers.Authorization = `Bearer ${accessToken}`;
+      if (!accessToken) {
+        return await this.requestWalletTokens('/api/wallet/tokens', wallets);
       }
 
-      const response = await apiFetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ wallets }),
-        credentials: accessToken ? undefined : 'include',
-        signal: AbortSignal.timeout(30000),
-      });
+      try {
+        return await this.requestWalletTokens(
+          buildSwopApiUrl('/api/v5/wallet/tokens'),
+          wallets,
+          accessToken
+        );
+      } catch (error) {
+        if (!isNetworkFetchError(error)) {
+          throw error;
+        }
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch wallet tokens: ${response.status}`
+        return await this.requestWalletTokens(
+          '/api/wallet/tokens',
+          wallets,
+          accessToken
         );
       }
-
-      const result = await response.json();
-      return result.data;
     } catch (error) {
       console.warn('Wallet tokens unavailable:', error);
       throw error;
@@ -185,7 +206,7 @@ export class WalletService {
     }
 
     const response = await apiFetch(
-      `${WALLET_API_URL}/onramp/coinbase/session`,
+      buildSwopApiUrl('/api/v5/wallet/onramp/coinbase/session'),
       {
         method: 'POST',
         headers,
@@ -217,7 +238,7 @@ export class WalletService {
     }
 
     const response = await apiFetch(
-      `${WALLET_API_URL}/onramp/coinbase/order`,
+      buildSwopApiUrl('/api/v5/wallet/onramp/coinbase/order'),
       {
         method: 'POST',
         headers,

@@ -31,6 +31,8 @@ import WalletManager from "./wallet-manager";
 import { WalletItem } from "@/types/wallet";
 import WalletAddressPopup from "./wallet-address-popup";
 import { useUser } from "@/lib/UserContext";
+import { apiFetch } from "@/lib/api/apiFetch";
+import { buildSwopApiUrl } from "@/lib/api/apiBaseUrl";
 
 type TimeFrame = "daily" | "weekly" | "monthly" | "6months" | "yearly";
 
@@ -222,8 +224,8 @@ export default function BalanceChart({
 
     const fetchData = async () => {
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/getBalance/${userId}`
+        const response = await apiFetch(
+          buildSwopApiUrl(`/api/v5/wallet/getBalance/${userId}`)
         );
         if (!response.ok) {
           throw new Error("Network response was not ok");

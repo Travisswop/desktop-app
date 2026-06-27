@@ -131,3 +131,7 @@ export const FeedMainComponentLoading = () => {
     </div>
   );
 };
+
+export const FeedMainQuietLoading = () => {
+  return <div className="w-full min-h-[520px]" aria-busy="true" />;
+};

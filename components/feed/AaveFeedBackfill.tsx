@@ -174,6 +174,7 @@ export default function AaveFeedBackfill() {
         userId: user._id,
         smartsiteId,
         content,
+        publishToFeed: false,
       }).catch((error) => {
         syncedSnapshotsRef.current.delete(snapshotKey);
         console.warn('Failed to backfill Aave feed card:', error);

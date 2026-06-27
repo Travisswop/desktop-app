@@ -14,6 +14,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/lib/UserContext";
 import {
+  claimRewardWallet,
+  fetchCopyTradeRewards,
+} from "@/lib/wallet/rewardsApi";
+import {
   useWalletAddresses,
   useWalletData,
 } from "@/components/wallet/hooks/useWalletData";
@@ -301,13 +305,6 @@ export default function RewardsPageContent() {
       return;
     }
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL;
-    if (!apiBase) {
-      setError("Rewards API is not configured.");
-      setLoading(false);
-      return;
-    }
-
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
     const isCurrentRequest = () => requestRef.current === requestId;
@@ -316,16 +313,9 @@ export default function RewardsPageContent() {
     setError(null);
 
     try {
-      const response = await fetch(
-        `${apiBase}/api/v5/wallet/copy-trade-rewards?status=all&limit=100`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const response = await fetchCopyTradeRewards(accessToken, {
+        limit: 100,
+      });
       const data = (await response.json().catch(() => ({}))) as RewardsResponse;
 
       if (!response.ok) {
@@ -382,29 +372,10 @@ export default function RewardsPageContent() {
       return;
     }
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL;
-    if (!apiBase) {
-      toast({
-        variant: "destructive",
-        title: "Rewards unavailable",
-        description: "Rewards API is not configured.",
-      });
-      return;
-    }
-
     setClaiming(true);
 
     try {
-      const response = await fetch(`${apiBase}/api/v5/wallet/reward-wallet/claim`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          destinationWallet,
-        }),
-      });
+      const response = await claimRewardWallet(accessToken, destinationWallet);
       const data = (await response.json().catch(() => ({}))) as {
         claim?: RewardClaimData;
         message?: string;
