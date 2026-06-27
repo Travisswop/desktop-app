@@ -15827,7 +15827,7 @@ export function SwapProposalTicket({
     selectedToKey,
   });
   const shouldShowQuoteError =
-    Boolean(quoteState.error) && (!isValidationQuoteError || !swapActionBlocker);
+    Boolean(quoteState.error) && !swapActionBlocker;
   const handleConfirmSwap = async () => {
     if (primaryActionMode !== 'confirm') {
       setInlineSwapStatus('Refreshing quote...');

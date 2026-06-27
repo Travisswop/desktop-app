@@ -375,12 +375,13 @@ describe('SwapProposalTicket blocker banner', () => {
   });
 
   it('keeps the route-error recovery action usable when the quote route is unavailable', () => {
+    const routeErrorMessage =
+      'This route is unavailable right now. Refresh the quote or change the amount or token pair.';
     const { markup, buttons } = renderSwapProposalTicketDocument({
       initialQuoteState: {
         status: 'error',
         errorKind: 'route',
-        error:
-          'This route is unavailable right now. Refresh the quote or change the amount or token pair.',
+        error: routeErrorMessage,
       },
       proposalParams: {
         fromToken: 'SOL',
@@ -396,6 +397,7 @@ describe('SwapProposalTicket blocker banner', () => {
     expect(markup).toContain('needs route');
     expect(markup).toContain('Refresh quote');
     expect(markup).not.toContain('Sign &amp; approve');
+    expect(markup.match(new RegExp(routeErrorMessage, 'g'))).toHaveLength(1);
     expect(
       buttons.find((button) => button.textContent.includes('Refresh quote'))
         ?.hasAttribute('disabled')
