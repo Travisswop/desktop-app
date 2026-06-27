@@ -208,6 +208,12 @@ function getStringMetadataValue(
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function isClientConnectionBlocked(message?: string | null) {
+  return /client must be connected before running operations/i.test(
+    message || ''
+  );
+}
+
 export function getGoldmanStrategyControlState(
   strategy?: GoldmanStrategyPanelStrategy | null,
   options?: { isStrategyRunning?: boolean; now?: number }
@@ -236,6 +242,9 @@ export function getGoldmanStrategyControlState(
   const resumeBlocked =
     approvalState === 'resume_blocked' || Boolean(resumeBlockedReason);
   const hasRuntimeError = runtimeState === 'error' || Boolean(runtimeError);
+  const clientConnectionBlocked = isClientConnectionBlocked(
+    resumeBlockedReason || runtimeError
+  );
 
   if (!strategy) {
     return {
@@ -267,10 +276,12 @@ export function getGoldmanStrategyControlState(
       heartbeatLabel: heartbeat.label,
       heartbeatToneClass: heartbeat.toneClass,
       heartbeatDetail: heartbeat.detail,
-      boundaryDetail:
-        'Goldman keeps the saved approval boundary, but live automation is blocked until the runtime issue is cleared.',
-      nextAction:
-        'Fix the runtime or vault blocker, then try Run again from this panel.',
+      boundaryDetail: clientConnectionBlocked
+        ? 'Goldman keeps the saved approval boundary, but live automation is blocked until the connected client session is restored.'
+        : 'Goldman keeps the saved approval boundary, but live automation is blocked until the runtime issue is cleared.',
+      nextAction: clientConnectionBlocked
+        ? 'Reconnect the client session, confirm wallet and vault access are back, then press Run again from this panel.'
+        : 'Fix the runtime or vault blocker, then try Run again from this panel.',
       blockerReason:
         resumeBlockedReason ||
         runtimeError ||
@@ -317,9 +328,12 @@ export function getGoldmanStrategyControlState(
       heartbeatLabel: heartbeat.label,
       heartbeatToneClass: heartbeat.toneClass,
       heartbeatDetail: heartbeat.detail,
-      boundaryDetail:
-        'Goldman keeps the same approval boundary, but the runtime needs attention before another autonomous cycle starts.',
-      nextAction: 'Review the runtime error, then restart only after the blocker is understood.',
+      boundaryDetail: clientConnectionBlocked
+        ? 'Goldman keeps the same approval boundary, but the connected client session dropped before another autonomous cycle could start.'
+        : 'Goldman keeps the same approval boundary, but the runtime needs attention before another autonomous cycle starts.',
+      nextAction: clientConnectionBlocked
+        ? 'Reconnect the client session, then restart Goldman only after wallet and vault access are restored.'
+        : 'Review the runtime error, then restart only after the blocker is understood.',
       blockerReason: runtimeError,
       runLabel: 'Blocked',
       runToneClass: 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]',

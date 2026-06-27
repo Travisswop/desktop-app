@@ -189,6 +189,40 @@ describe('GoldmanStrategyStatusPanel', () => {
     );
   });
 
+  test('turns client-connection resume blockers into reconnect guidance', () => {
+    const markup = renderToStaticMarkup(
+      <GoldmanStrategyStatusPanel
+        strategy={{
+          title: 'ETH catalyst trader',
+          status: 'paused',
+          runtime: {
+            state: 'stopped',
+            executionMode: 'execute',
+            lastHeartbeatAt: '2026-06-24T15:58:00Z',
+            lastActivity: 'Runtime resume failed during reconnect',
+          },
+          metadata: {
+            approvalState: 'resume_blocked',
+            runtimeResumeBlockedReason:
+              'Client must be connected before running operations',
+          },
+        }}
+        now={Date.parse('2026-06-24T16:00:00Z')}
+      />
+    );
+
+    expect(markup).toContain('Resume blocked');
+    expect(markup).toContain(
+      'Goldman keeps the saved approval boundary, but live automation is blocked until the connected client session is restored.'
+    );
+    expect(markup).toContain(
+      'Reconnect the client session, confirm wallet and vault access are back, then press Run again from this panel.'
+    );
+    expect(markup).toContain(
+      'Client must be connected before running operations'
+    );
+  });
+
   test('ages the same running strategy across live, delayed, and stale thresholds', () => {
     const strategy = {
       title: 'ETH carry monitor',
