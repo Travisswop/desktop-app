@@ -182,6 +182,7 @@ import {
   AgentApprovalHandoff,
   clearAgentActionHandoff,
   completeAgentActionFromHandoff,
+  ensureApprovedAgentActionHandoff,
   persistAgentActionHandoff,
   type AgentActionCompletion,
 } from '@/lib/chat/agentActionHandoff';
@@ -11711,6 +11712,7 @@ function AgentProposalCard({
         canAct={canAct}
         isOpen={isOpen}
         isPending={isPending}
+        onApproveInline={onApproveInline}
         onInlineActionComplete={onInlineActionComplete}
         onReject={onReject}
         astroConsoleData={astroConsoleData}
@@ -15010,6 +15012,7 @@ function SwapProposalTicket({
   canAct,
   isOpen,
   isPending,
+  onApproveInline,
   onInlineActionComplete,
   onReject,
   astroConsoleData,
@@ -15022,6 +15025,10 @@ function SwapProposalTicket({
   canAct: boolean;
   isOpen: boolean;
   isPending: boolean;
+  onApproveInline: (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>
+  ) => Promise<AgentApprovalHandoff | null>;
   onInlineActionComplete: (completion: AgentActionCompletion) => void;
   onReject: (proposalId: string) => void;
   astroConsoleData: AstroConsoleData;
@@ -15780,8 +15787,38 @@ function SwapProposalTicket({
 
     setSwapError(null);
     setIsConfirmingSwap(true);
+    let executionProposalId = proposalId;
+    let shouldReportCompletion = !isLocalSwapProposalId(proposalId);
 
     try {
+      const approvalParams = {
+        amount: executionPayAmount,
+        inputAmount: executionPayAmount,
+        fromAmount: executionPayAmount,
+        amountType,
+        fromToken,
+        toToken,
+        fromTokenSymbol: fromToken,
+        toTokenSymbol: toToken,
+        inputToken: fromToken,
+        outputToken: toToken,
+        fromChain: selectedFromOption.chainName,
+        toChain: selectedToOption.chainName,
+        inputChain: selectedFromOption.chainName,
+        outputChain: selectedToOption.chainName,
+        inputMint: selectedFromOption.address,
+        outputMint: selectedToOption.address,
+        quoteOnly: false,
+      };
+      const approval = await ensureApprovedAgentActionHandoff({
+        proposalId,
+        existingApprovalResult: proposal?.approvalResult,
+        approvalParams,
+        onApproveInline,
+      });
+      executionProposalId = approval.executionProposalId;
+      shouldReportCompletion = !isLocalSwapProposalId(executionProposalId);
+
       const executionQuote =
         quoteState.status === 'success' && quoteState.rawQuote
           ? quoteState
@@ -16084,7 +16121,7 @@ function SwapProposalTicket({
         | 'action'
         | 'toolType'
       > & { proposalId?: string } = {
-        proposalId,
+        proposalId: executionProposalId,
         status: 'executed',
         provider: 'swop',
         title: `Swapped ${fromToken} to ${toToken}`,
@@ -16114,19 +16151,23 @@ function SwapProposalTicket({
 
       let completion = {
         ...completionDraft,
-        proposalId,
+        proposalId: executionProposalId,
       } as AgentActionCompletion;
-      try {
-        completion =
-          (await completeAgentActionFromHandoff(
-            completionDraft,
-            accessToken
-          )) || completion;
-      } catch (completionError) {
-        console.warn(
-          'Wallet swap executed, but Swop completion reporting failed:',
-          completionError
-        );
+      if (shouldReportCompletion) {
+        try {
+          completion =
+            (await completeAgentActionFromHandoff(
+              completionDraft,
+              accessToken
+            )) || completion;
+        } catch (completionError) {
+          console.warn(
+            'Wallet swap executed, but Swop completion reporting failed:',
+            completionError
+          );
+        }
+      } else {
+        clearAgentActionHandoff();
       }
 
       setLocalReceipt(completion);
@@ -16138,20 +16179,24 @@ function SwapProposalTicket({
       const message =
         error instanceof Error ? error.message : 'Failed to approve swap.';
       try {
-        const failedCompletion = await completeAgentActionFromHandoff(
-          {
-            proposalId,
-            status: 'failed',
-            provider: 'swop',
-            title: `Swap ${fromToken} to ${toToken}`,
-            subtitle: displayRouteLabel,
-            subject: `${fromToken} -> ${toToken}`,
-            error: message,
-          },
-          accessToken
-        );
-        if (failedCompletion) {
-          onInlineActionComplete(failedCompletion);
+        if (shouldReportCompletion) {
+          const failedCompletion = await completeAgentActionFromHandoff(
+            {
+              proposalId: executionProposalId,
+              status: 'failed',
+              provider: 'swop',
+              title: `Swap ${fromToken} to ${toToken}`,
+              subtitle: displayRouteLabel,
+              subject: `${fromToken} -> ${toToken}`,
+              error: message,
+            },
+            accessToken
+          );
+          if (failedCompletion) {
+            onInlineActionComplete(failedCompletion);
+          } else {
+            clearAgentActionHandoff();
+          }
         } else {
           clearAgentActionHandoff();
         }
