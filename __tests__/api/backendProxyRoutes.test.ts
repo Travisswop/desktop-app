@@ -112,7 +112,7 @@ describe('backend proxy routes', () => {
       new NextRequest(
         'https://www.swopme.app/api/backend/api/v5/market/batch?limit=10',
       ),
-      { params: { path: ['api', 'v5', 'market', 'batch'] } },
+      { params: Promise.resolve({ path: ['api', 'v5', 'market', 'batch'] }) },
     );
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -137,7 +137,7 @@ describe('backend proxy routes', () => {
         },
       ),
       {
-        params: {
+        params: Promise.resolve({
           path: [
             'api',
             'v2',
@@ -146,7 +146,7 @@ describe('backend proxy routes', () => {
             'post-123',
             'verified-score',
           ],
-        },
+        }),
       },
     );
 
