@@ -47,6 +47,25 @@ export type SwapQuoteErrorKind = 'route' | 'validation';
 
 export type SwapPrimaryActionMode = 'quote' | 'refresh_quote' | 'confirm';
 
+const DEFAULT_SWAP_ROUTE_BLOCKER_MESSAGE =
+  'This route is unavailable right now. Refresh the quote or change the amount or token pair.';
+
+function getSwapRouteBlockerMessage(quoteStateError?: string) {
+  const normalizedError = String(quoteStateError || '').trim();
+  if (!normalizedError) return DEFAULT_SWAP_ROUTE_BLOCKER_MESSAGE;
+
+  if (
+    /connect the source and receive wallet to quote lifi\./i.test(
+      normalizedError
+    ) ||
+    /wallet.*not connected for signing/i.test(normalizedError)
+  ) {
+    return normalizedError;
+  }
+
+  return DEFAULT_SWAP_ROUTE_BLOCKER_MESSAGE;
+}
+
 export function getSwapPrimaryActionMode(params: {
   quoteOnly: boolean;
   hasRouteBlocker?: boolean;
@@ -176,7 +195,7 @@ export function getSwapActionBlocker(params: {
   if (quoteStateStatus === 'error' && quoteStateErrorKind === 'route') {
     return {
       tone: 'warning',
-      message: 'This route is unavailable right now. Refresh the quote or change the amount or token pair.',
+      message: getSwapRouteBlockerMessage(quoteStateError),
     } satisfies SwapActionBlocker;
   }
 

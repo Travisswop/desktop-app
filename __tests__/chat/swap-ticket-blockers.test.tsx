@@ -259,6 +259,20 @@ describe('getSwapActionBlocker', () => {
     });
   });
 
+  it('preserves wallet-connect route guidance instead of flattening it into the generic route copy', () => {
+    expect(
+      getSwapActionBlocker({
+        ...baseParams,
+        quoteStateStatus: 'error',
+        quoteStateErrorKind: 'route',
+        quoteStateError: 'Connect the source and receive wallet to quote LiFi.',
+      })
+    ).toEqual({
+      tone: 'warning',
+      message: 'Connect the source and receive wallet to quote LiFi.',
+    });
+  });
+
   it('does not show route-retry guidance for validation errors', () => {
     expect(
       getSwapActionBlocker({
@@ -398,6 +412,56 @@ describe('SwapProposalTicket blocker banner', () => {
     expect(markup).toContain('Refresh quote');
     expect(markup).not.toContain('Sign &amp; approve');
     expect(markup.match(new RegExp(routeErrorMessage, 'g'))).toHaveLength(1);
+    expect(
+      buttons.find((button) => button.textContent.includes('Refresh quote'))
+        ?.hasAttribute('disabled')
+    ).toBe(false);
+  });
+
+  it('keeps wallet-connect route guidance visible on the rendered ticket', () => {
+    const routeErrorMessage = 'Connect the source and receive wallet to quote LiFi.';
+    const { markup, buttons } = renderSwapProposalTicketDocument({
+      initialQuoteState: {
+        status: 'error',
+        errorKind: 'route',
+        error: routeErrorMessage,
+      },
+      proposalParams: {
+        fromToken: 'ETH',
+        toToken: 'USDC',
+        amount: '1',
+        fromChain: 'base',
+        toChain: 'arbitrum',
+      },
+      sourceText: 'swap 1 ETH on Base to USDC on Arbitrum',
+      walletPortfolioTokens: [
+        createWalletToken({
+          symbol: 'ETH',
+          chainId: 8453,
+          chain: 'BASE',
+          chainName: 'Base',
+          address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+          decimals: 18,
+          balance: '2',
+        }),
+      ],
+      quoteTokenOptionsOverride: [
+        {
+          symbol: 'USDC',
+          address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+          decimals: 6,
+          chainId: 42161,
+          chainName: 'Arbitrum',
+          key: 'usdc-arbitrum',
+        },
+      ],
+    });
+
+    expect(markup).toContain('needs route');
+    expect(markup).toContain(routeErrorMessage);
+    expect(markup).not.toContain(
+      'This route is unavailable right now. Refresh the quote or change the amount or token pair.'
+    );
     expect(
       buttons.find((button) => button.textContent.includes('Refresh quote'))
         ?.hasAttribute('disabled')
