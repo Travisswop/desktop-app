@@ -57,7 +57,12 @@ export async function fetchTokenLivePrice({
   }
 
   if (cached?.promise) {
-    return (await cached.promise) ?? fallbackPrice;
+    try {
+      return (await cached.promise) ?? fallbackPrice;
+    } catch {
+      if (cacheKey) priceCache.delete(cacheKey);
+      return fallbackPrice;
+    }
   }
 
   const fetchPromise = (async () => {
