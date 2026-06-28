@@ -21,8 +21,8 @@ describe('ApprovedActionBoundaryNotice', () => {
         boundary={{
           reviewStateLabel: 'User signing required',
           maxOrderUsd: '1250',
-          maxDailySpendUsd: '5000',
-          maxDailyLossUsd: '350',
+          maxDailySpendUsd: '5000.00',
+          maxDailyLossUsd: '750.75',
           maxOpenPositions: '3',
           expiry: '2026-06-30T18:15:00.000Z',
           riskControls: [
@@ -38,11 +38,12 @@ describe('ApprovedActionBoundaryNotice', () => {
     expect(markup).toContain('Max order');
     expect(markup).toContain('$1,250');
     expect(markup).toContain('Daily spend cap');
-    expect(markup).toContain('$5,000');
+    expect(markup).toContain('$5,000.00');
     expect(markup).toContain('Daily loss cap');
-    expect(markup).toContain('$350');
+    expect(markup).toContain('$750.75');
     expect(markup).toContain('Open positions');
     expect(markup).toContain('3');
+    expect(markup).toContain('Jun 30, 2026, 6:15 PM UTC');
     expect(markup).toContain('Risk Controls');
     expect(markup).toContain('Keep the stop loss armed.');
   });

@@ -30,13 +30,18 @@ const ACCENT_STYLES = {
 
 function formatUsd(value?: string | null) {
   if (!value) return null;
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return value;
-  return amount.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: amount >= 100 ? 0 : 2,
-  });
+  const trimmed = value.trim().replace(/,/g, '');
+  if (!/^-?\d+(?:\.\d+)?$/.test(trimmed)) return value;
+
+  const [wholePart, fractionalPart] = trimmed.split('.');
+  const isNegative = wholePart.startsWith('-');
+  const wholeDigits = isNegative ? wholePart.slice(1) : wholePart;
+  const groupedWholeDigits = wholeDigits.replace(
+    /\B(?=(\d{3})+(?!\d))/g,
+    ',',
+  );
+
+  return `${isNegative ? '-' : ''}$${groupedWholeDigits}${fractionalPart ? `.${fractionalPart}` : ''}`;
 }
 
 function formatExpiry(value?: string | null) {
@@ -44,10 +49,13 @@ function formatExpiry(value?: string | null) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return value;
   return date.toLocaleString('en-US', {
+    year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: 'UTC',
+    timeZoneName: 'short',
   });
 }
 
