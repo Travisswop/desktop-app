@@ -15,11 +15,14 @@ import {
   type PriceEntry,
 } from '@/lib/polymarket/clob-prices';
 import {
+  buildPredictionVerifiedScoreProxyPath,
+  isPredictionVerifiedScoreRetryableStatus,
+} from '@/lib/feed/predictionVerifiedScore';
+import {
   marketRouteKey,
   useMarketDetailStore,
 } from '@/zustandStore/marketDetailStore';
 import { apiFetch } from '@/lib/api/apiFetch';
-import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1342,6 +1345,9 @@ function useVerifiedFinalScorePersistence({
   onVerifiedFinalScore?: (content: PredictionContent) => void;
 }) {
   const attemptedKeyRef = useRef<string | null>(null);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef<Record<string, number>>({});
+  const [retryNonce, setRetryNonce] = useState(0);
   const snapshot = useMemo(
     () =>
       resolveVerifiedFinalScoreSnapshot({
@@ -1354,6 +1360,11 @@ function useVerifiedFinalScorePersistence({
 
   useEffect(() => {
     if (!snapshot || !feedPostId || !feedUserId) return;
+
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
 
     const existing = content.verifiedFinalScore;
     if (
@@ -1371,9 +1382,7 @@ function useVerifiedFinalScorePersistence({
     const persist = async () => {
       try {
         const response = await apiFetch(
-          buildSwopApiUrl(`/api/v2/feed/prediction/${encodeURIComponent(
-            feedPostId,
-          )}/verified-score`),
+          buildPredictionVerifiedScoreProxyPath(feedPostId),
           {
             method: 'PATCH',
             headers: {
@@ -1390,26 +1399,49 @@ function useVerifiedFinalScorePersistence({
           },
         );
         const data = await response.json().catch(() => null);
-        if (!response.ok) return;
+        if (!response.ok) {
+          if (
+            isPredictionVerifiedScoreRetryableStatus(response.status) &&
+            (retryCountRef.current[key] || 0) < 2 &&
+            !controller.signal.aborted
+          ) {
+            retryCountRef.current[key] = (retryCountRef.current[key] || 0) + 1;
+            attemptedKeyRef.current = null;
+            retryTimeoutRef.current = setTimeout(() => {
+              retryTimeoutRef.current = null;
+              setRetryNonce((value) => value + 1);
+            }, 15000);
+          }
+          return;
+        }
+        delete retryCountRef.current[key];
         const updatedContent = data?.data?.content;
         if (updatedContent) {
           onVerifiedFinalScore?.(updatedContent);
         }
       } catch (error) {
         if ((error as DOMException)?.name !== 'AbortError') {
+          attemptedKeyRef.current = null;
           console.warn('Failed to persist verified prediction score:', error);
         }
       }
     };
 
     persist();
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+    };
   }, [
     accessToken,
     content.verifiedFinalScore,
     feedPostId,
     feedUserId,
     onVerifiedFinalScore,
+    retryNonce,
     snapshot,
   ]);
 }
