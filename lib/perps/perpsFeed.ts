@@ -157,6 +157,12 @@ export interface PerpsActiveLimitOrderSnapshot {
   updatedAt?: string;
 }
 
+export interface PerpsTrackedPositionSnapshot {
+  positionKey: string;
+  coin: string;
+  dex?: string | null;
+}
+
 type IdLike = {
   _id?: unknown;
   id?: unknown;
@@ -240,6 +246,10 @@ function normalizePerpsCoin(value: unknown) {
 
 function normalizePerpsDex(value: unknown) {
   return String(value || '').trim();
+}
+
+function normalizePerpsSnapshotKey(value: unknown) {
+  return String(value || '').trim().toLowerCase();
 }
 
 export function qualifyPerpsPositionCoin({
@@ -376,6 +386,110 @@ export function buildPerpsActiveLimitOrderSnapshot({
       : {}),
     ...(timestamp ? { limitPlacedAt: timestamp, updatedAt: timestamp } : {}),
   };
+}
+
+function snapshotLimitOrderFingerprint(order: PerpsActiveLimitOrderSnapshot) {
+  return [
+    'limit',
+    normalizePerpsSnapshotKey(order.positionKey),
+    order.orderId || '',
+    order.limitPrice,
+    order.limitPlacedAt || order.updatedAt || '',
+  ].join('=');
+}
+
+function snapshotCloseFillFingerprint(
+  fill: PerpsCloseFillSnapshot | PerpsLiquidationFillSnapshot | null | undefined,
+  type: 'close' | 'liquidation',
+) {
+  if (!fill) return '';
+  return [
+    type,
+    normalizePerpsCoin(fill.coin),
+    fill.orderId || '',
+    fill.timestamp || '',
+    fill.px ?? '',
+    'markPx' in fill ? fill.markPx ?? '' : '',
+  ].join('=');
+}
+
+export function buildPerpsReconcileSnapshotKey({
+  masterAddress,
+  hasMarkPrices,
+  observedDexes = [],
+  activePositionKeys = [],
+  activeLimitOrders = [],
+  liquidationsByCoin = {},
+  closedFillsByCoin = {},
+}: {
+  masterAddress?: string | null;
+  hasMarkPrices: boolean;
+  observedDexes?: Array<string | null | undefined>;
+  activePositionKeys?: string[];
+  activeLimitOrders?: PerpsActiveLimitOrderSnapshot[];
+  liquidationsByCoin?: Record<
+    string,
+    PerpsLiquidationFillSnapshot | null | undefined
+  >;
+  closedFillsByCoin?: Record<string, PerpsCloseFillSnapshot | null | undefined>;
+}) {
+  return [
+    masterAddress || 'unknown',
+    hasMarkPrices ? 'marks-ready' : 'marks-pending',
+    `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
+    ...activePositionKeys.map(normalizePerpsSnapshotKey).sort(),
+    ...activeLimitOrders.map(snapshotLimitOrderFingerprint).sort(),
+    ...Object.values(closedFillsByCoin)
+      .map((fill) => snapshotCloseFillFingerprint(fill, 'close'))
+      .filter(Boolean)
+      .sort(),
+    ...Object.values(liquidationsByCoin)
+      .map((fill) => snapshotCloseFillFingerprint(fill, 'liquidation'))
+      .filter(Boolean)
+      .sort(),
+  ].join(':');
+}
+
+export function findMissingPerpsTerminalCandidates({
+  previousPositions = [],
+  activePositionKeys = [],
+  liquidationsByCoin = {},
+  closedFillsByCoin = {},
+}: {
+  previousPositions?: PerpsTrackedPositionSnapshot[];
+  activePositionKeys?: string[];
+  liquidationsByCoin?: Record<
+    string,
+    PerpsLiquidationFillSnapshot | null | undefined
+  >;
+  closedFillsByCoin?: Record<string, PerpsCloseFillSnapshot | null | undefined>;
+}) {
+  const activeKeySet = new Set(
+    activePositionKeys.map((key) => normalizePerpsSnapshotKey(key)).filter(Boolean),
+  );
+  const candidates = new Map<string, PerpsTrackedPositionSnapshot>();
+
+  for (const position of previousPositions) {
+    const normalizedKey = normalizePerpsSnapshotKey(position.positionKey);
+    if (!normalizedKey || activeKeySet.has(normalizedKey)) continue;
+
+    const qualifiedCoin = qualifyPerpsPositionCoin({
+      coin: position.coin,
+      dex: position.dex,
+    });
+    const rawCoin = normalizePerpsCoin(position.coin);
+    const hasTerminalFill = Boolean(
+      liquidationsByCoin[qualifiedCoin] ||
+        liquidationsByCoin[rawCoin] ||
+        closedFillsByCoin[qualifiedCoin] ||
+        closedFillsByCoin[rawCoin],
+    );
+    if (!hasTerminalFill) continue;
+
+    candidates.set(normalizedKey, position);
+  }
+
+  return Array.from(candidates.values());
 }
 
 function isTerminalCloseFill(fill: PerpsFillLike) {

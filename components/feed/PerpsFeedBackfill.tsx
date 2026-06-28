@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
+import { logFeedCardHealth } from '@/lib/feed/feedCardHealth';
 import {
   buildPerpsActiveLimitOrderSnapshot,
+  buildPerpsReconcileSnapshotKey,
   buildPerpsPositionKey,
+  findMissingPerpsTerminalCandidates,
   inferPerpsCloseFillsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
@@ -156,6 +159,9 @@ export default function PerpsFeedBackfill() {
   );
   const syncedSnapshotsRef = useRef<Set<string>>(new Set());
   const reconciledSnapshotsRef = useRef<Set<string>>(new Set());
+  const previousActivePositionsRef = useRef<
+    Array<{ positionKey: string; coin: string; dex?: string | null }>
+  >([]);
   const markPricesByCoin = useMemo(() => {
     return markets.reduce<Record<string, number>>((prices, market) => {
       const price = toPerpsFeedNumber(market.markPrice);
@@ -195,6 +201,16 @@ export default function PerpsFeedBackfill() {
         dex: position.dex,
       }),
     );
+    const trackedActivePositions = positions.map((position) => ({
+      positionKey: buildPerpsPositionKey({
+        userId: user._id,
+        masterAddress,
+        coin: position.coin,
+        dex: position.dex,
+      }),
+      coin: position.coin,
+      dex: position.dex || null,
+    }));
     const activePositionKeySet = new Set(
       activePositionKeys.map((key) => key.toLowerCase()),
     );
@@ -213,24 +229,9 @@ export default function PerpsFeedBackfill() {
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    const reconcileSnapshotKey = [
-      masterAddress,
-      Object.keys(markPricesByCoin).length > 0 ? 'marks-ready' : 'marks-pending',
-      `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
-      ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
-      ...activeLimitOrders
-        .map((order) =>
-          [
-            'limit',
-            order.positionKey.toLowerCase(),
-            order.orderId || '',
-            order.limitPrice,
-          ].join('='),
-        )
-        .sort(),
-    ].join(':');
-
     let cancelled = false;
+    const previousActivePositions = previousActivePositionsRef.current;
+    previousActivePositionsRef.current = trackedActivePositions;
 
     fetchRecentUserFills(masterAddress)
       .catch((error) => {
@@ -239,6 +240,24 @@ export default function PerpsFeedBackfill() {
       })
       .then((recentFills) => {
         if (cancelled) return;
+
+        const liquidationsByCoin = liquidationFillsByCoin(recentFills);
+        const closedFillsByCoin = inferPerpsCloseFillsByCoin(recentFills);
+        const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
+          masterAddress,
+          hasMarkPrices: Object.keys(markPricesByCoin).length > 0,
+          observedDexes,
+          activePositionKeys,
+          activeLimitOrders,
+          liquidationsByCoin,
+          closedFillsByCoin,
+        });
+        const missingTerminalCandidates = findMissingPerpsTerminalCandidates({
+          previousPositions: previousActivePositions,
+          activePositionKeys,
+          liquidationsByCoin,
+          closedFillsByCoin,
+        });
 
         if (!reconciledSnapshotsRef.current.has(reconcileSnapshotKey)) {
           reconciledSnapshotsRef.current.add(reconcileSnapshotKey);
@@ -251,12 +270,38 @@ export default function PerpsFeedBackfill() {
             activeLimitOrders,
             observedDexes,
             markPricesByCoin,
-            liquidationsByCoin: liquidationFillsByCoin(recentFills),
-            closedFillsByCoin: inferPerpsCloseFillsByCoin(recentFills),
-          }).catch((error) => {
-            reconciledSnapshotsRef.current.delete(reconcileSnapshotKey);
-            console.warn('Failed to reconcile perps feed cards:', error);
-          });
+            liquidationsByCoin,
+            closedFillsByCoin,
+          })
+            .then((result) => {
+              const updatedCount = Number(result?.data?.updatedCount || 0);
+              if (
+                updatedCount === 0 &&
+                missingTerminalCandidates.length > 0
+              ) {
+                void logFeedCardHealth({
+                  surface: 'perps',
+                  fingerprint: 'perps-stale-open-after-terminal-fill',
+                  positionKeys: missingTerminalCandidates.map(
+                    (candidate) => candidate.positionKey,
+                  ),
+                  coins: missingTerminalCandidates.map(
+                    (candidate) => candidate.coin,
+                  ),
+                  context: {
+                    masterAddress,
+                    activePositionKeyCount: activePositionKeys.length,
+                    observedDexes,
+                    terminalCloseCoins: Object.keys(closedFillsByCoin).sort(),
+                    liquidationCoins: Object.keys(liquidationsByCoin).sort(),
+                  },
+                });
+              }
+            })
+            .catch((error) => {
+              reconciledSnapshotsRef.current.delete(reconcileSnapshotKey);
+              console.warn('Failed to reconcile perps feed cards:', error);
+            });
         }
 
         positions.forEach((position) => {
