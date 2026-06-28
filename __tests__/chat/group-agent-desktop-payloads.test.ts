@@ -226,6 +226,31 @@ describe('desktop group agent payloads', () => {
     ]);
   });
 
+  test('prefers post-approval next-step labels over stale approval-required flags', () => {
+    const prefill = getHyperliquidOrderPrefill({
+      status: 'approved',
+      nextStep: 'hyperliquid_order_form_required',
+      payload: {
+        proposalId: 'prop_hl_review',
+        proposalNonce: 'nonce_hl_review',
+        provider: 'hyperliquid',
+        panel: 'perps',
+        action: 'perps.place_order',
+        normalizedParams: {
+          coin: 'ETH',
+          side: 'long',
+          sizeUsd: '500',
+          approvalRequired: true,
+          maxOrderUsd: '500',
+        },
+      },
+    });
+
+    expect(prefill?.approvalBoundary?.reviewStateLabel).toBe(
+      'Review trade details',
+    );
+  });
+
   test('uses requested Hyperliquid market aliases over stale coin defaults', () => {
     const prefill = getHyperliquidOrderPrefill({
       status: 'approved',

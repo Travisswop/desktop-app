@@ -14,6 +14,7 @@ import {
   useMarketDetailStore,
   type MarketDetailEntry,
 } from '@/zustandStore/marketDetailStore';
+import { parseApprovedActionBoundary } from '@/lib/chat/approvedActionBoundaryQuery';
 import {
   recoverSportsGameDetailContext,
   type SportsGameDetailContext,
@@ -34,6 +35,18 @@ export default function MarketDetailPage() {
       <MarketDetailPageInner />
     </PolymarketProviders>
   );
+}
+
+export function buildRecoveredMarketDetailEntry(
+  market: PolymarketMarket,
+  shares: Pick<MarketDetailEntry, 'yesShares' | 'noShares'>,
+  approvalBoundary?: MarketDetailEntry['approvalBoundary'],
+): MarketDetailEntry {
+  return {
+    market,
+    ...shares,
+    approvalBoundary,
+  };
 }
 
 function MarketDetailPageInner() {
@@ -67,8 +80,17 @@ function MarketDetailPageInner() {
   const [marketRecoveryFailed, setMarketRecoveryFailed] = useState(false);
   const [sportsRecoveryFailed, setSportsRecoveryFailed] = useState(false);
   useEffect(() => {
-    if (entry) setSnapshot(entry);
-  }, [entry]);
+    if (!entry) return;
+    if (!approvalBoundaryFromUrl || entry.approvalBoundary) {
+      setSnapshot(entry);
+      return;
+    }
+
+    setSnapshot({
+      ...entry,
+      approvalBoundary: approvalBoundaryFromUrl,
+    });
+  }, [approvalBoundaryFromUrl, entry]);
 
   const handleBack = useMemo(
     () => () => {
@@ -95,6 +117,9 @@ function MarketDetailPageInner() {
   const selectedOutcomeFromUrl = normalizeOutcomeParam(
     searchParams?.get('outcome') ?? null,
   );
+  const approvalBoundaryFromUrl = parseApprovedActionBoundary(
+    searchParams?.get('approvalBoundary') ?? null,
+  );
 
   useEffect(() => {
     if (snapshot || !marketId) return;
@@ -115,10 +140,11 @@ function MarketDetailPageInner() {
           return;
         }
 
-        const nextEntry: MarketDetailEntry = {
+        const nextEntry = buildRecoveredMarketDetailEntry(
           market,
-          ...sharesForMarket(market),
-        };
+          sharesForMarket(market),
+          approvalBoundaryFromUrl,
+        );
         const key = marketRouteKey(market) || marketId;
         useMarketDetailStore.getState().set(key, nextEntry);
         setSnapshot(nextEntry);
@@ -135,7 +161,7 @@ function MarketDetailPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [marketId, sharesForMarket, snapshot]);
+  }, [approvalBoundaryFromUrl, marketId, sharesForMarket, snapshot]);
 
   useEffect(() => {
     if (!snapshot || snapshot.game) return;
@@ -188,11 +214,18 @@ function MarketDetailPageInner() {
         game: snapshot.game,
         ...selection,
         ...shares,
+        approvalBoundary: snapshot.approvalBoundary,
       };
       useMarketDetailStore.getState().set(key, nextEntry);
-      router.replace(`/prediction/market/${encodeURIComponent(key)}`);
+      const nextQuery = new URLSearchParams(searchParams?.toString() ?? '');
+      nextQuery.set('outcome', selection.initialOutcome);
+      router.replace(
+        nextQuery.size > 0
+          ? `/prediction/market/${encodeURIComponent(key)}?${nextQuery.toString()}`
+          : `/prediction/market/${encodeURIComponent(key)}`,
+      );
     },
-    [router, sharesForMarket, snapshot?.game],
+    [router, searchParams, sharesForMarket, snapshot?.approvalBoundary, snapshot?.game],
   );
 
   const isRecoveringSportsGame =

@@ -749,6 +749,28 @@ function reviewStateLabelFrom(
   params: UnknownRecord,
   nextStep?: string
 ): string | undefined {
+  const normalizedNextStep = nextStep?.toLowerCase();
+  if (normalizedNextStep) {
+    if (normalizedNextStep.includes('waiting_for_funding')) {
+      return 'Funding required';
+    }
+
+    if (
+      normalizedNextStep.includes('frontend_signing_required') ||
+      normalizedNextStep.includes('inline_signing_required')
+    ) {
+      return 'User signing required';
+    }
+
+    if (normalizedNextStep.includes('order_form_required')) {
+      return 'Review trade details';
+    }
+
+    if (normalizedNextStep.includes('review_required')) {
+      return 'Review required';
+    }
+  }
+
   if (boolValue(params.monitorOnly ?? params.monitoringOnly)) {
     return 'Monitor only';
   }
@@ -767,17 +789,6 @@ function reviewStateLabelFrom(
 
   if (boolValue(params.approvalRequired)) {
     return 'Proposal approval required';
-  }
-
-  const normalizedNextStep = nextStep?.toLowerCase();
-  if (!normalizedNextStep) return undefined;
-
-  if (normalizedNextStep.includes('waiting_for_funding')) {
-    return 'Funding required';
-  }
-
-  if (normalizedNextStep.includes('frontend_signing_required')) {
-    return 'User signing required';
   }
 
   return undefined;

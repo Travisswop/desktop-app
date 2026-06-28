@@ -9,6 +9,7 @@ import {
   readAgentActionHandoff,
   type PolymarketAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
+import { serializeApprovedActionBoundary } from '@/lib/chat/approvedActionBoundaryQuery';
 import type { PolymarketMarket } from '@/hooks/polymarket';
 import {
   marketRouteKey,
@@ -29,6 +30,26 @@ const VALID_VIEWS: PredictionsPanelView[] = [
 ];
 
 const CANVAS = '#ecebe6';
+
+export function buildApprovedPredictionRouteQuery(
+  prefill: PolymarketAgentOrderPrefill,
+) {
+  const query = new URLSearchParams();
+  query.set('agentAction', 'approved');
+  if (prefill.proposalId) query.set('proposalId', prefill.proposalId);
+  if (prefill.outcome) query.set('outcome', prefill.outcome);
+  if (prefill.amount) query.set('amount', prefill.amount);
+  if (prefill.side) query.set('side', prefill.side);
+  if (prefill.orderType) query.set('orderType', prefill.orderType);
+  if (prefill.limitPrice) query.set('limitPrice', prefill.limitPrice);
+  const serializedBoundary = serializeApprovedActionBoundary(
+    prefill.approvalBoundary,
+  );
+  if (serializedBoundary) {
+    query.set('approvalBoundary', serializedBoundary);
+  }
+  return query;
+}
 
 /**
  * Standalone host for the predictions experience at the /prediction
@@ -97,14 +118,10 @@ export default function PredictionPageContent() {
       approvalBoundary: prefill.approvalBoundary,
     });
 
-    const query = new URLSearchParams();
-    query.set('agentAction', 'approved');
-    if (prefill.proposalId) query.set('proposalId', prefill.proposalId);
-    if (outcome) query.set('outcome', outcome);
-    if (prefill.amount) query.set('amount', prefill.amount);
-    if (prefill.side) query.set('side', prefill.side);
-    if (prefill.orderType) query.set('orderType', prefill.orderType);
-    if (prefill.limitPrice) query.set('limitPrice', prefill.limitPrice);
+    const query = buildApprovedPredictionRouteQuery({
+      ...prefill,
+      outcome,
+    });
 
     router.push(`/prediction/market/${encodeURIComponent(key)}?${query.toString()}`);
     toast({
