@@ -99,10 +99,11 @@ npm run dev -- --port 3001
 ```
 
 If the worktree does not have its own `.env*` files, the dev launcher falls
-back to the shared desktop checkout env automatically. Override that source
-with `SWOP_FALLBACK_ENV_DIR=/path/to/desktop-app` when needed. If you set an
-explicit override, it must contain at least one `.env*` file or the launcher
-will stop instead of silently borrowing another checkout's auth config.
+back to another registered `git worktree` for this repo that already has env
+files. Override that source with `SWOP_FALLBACK_ENV_DIR=/path/to/desktop-app`
+when needed. If you set an explicit override, it must contain at least one
+`.env*` file or the launcher will stop instead of silently borrowing another
+checkout's auth config.
 
 The profile is stored at:
 

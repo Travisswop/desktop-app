@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 
 const cwd = process.cwd();
 const fallbackEnvFiles = [
@@ -16,7 +16,30 @@ function hasLocalEnvConfig(dir) {
   return fallbackEnvFiles.some((file) => fs.existsSync(path.join(dir, file)));
 }
 
-function resolveFallbackEnvDir(processEnv = process.env) {
+function listGitWorktreeDirs(currentDir = cwd, execFileSyncFn = execFileSync) {
+  try {
+    const output = execFileSyncFn('git', ['worktree', 'list', '--porcelain'], {
+      cwd: currentDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+
+    return output
+      .split('\n')
+      .filter((line) => line.startsWith('worktree '))
+      .map((line) => line.slice('worktree '.length).trim())
+      .filter(Boolean)
+      .filter((dir) => path.resolve(dir) !== path.resolve(currentDir));
+  } catch {
+    return [];
+  }
+}
+
+function resolveFallbackEnvDir(
+  processEnv = process.env,
+  currentDir = cwd,
+  options = {},
+) {
   const explicit = processEnv.SWOP_FALLBACK_ENV_DIR?.trim();
   if (explicit) {
     if (!hasLocalEnvConfig(explicit)) {
@@ -28,10 +51,8 @@ function resolveFallbackEnvDir(processEnv = process.env) {
     return explicit;
   }
 
-  const candidates = [
-    '/Users/travis/Documents/Swop Desktop Live.nosync/git-checkouts/desktop-app',
-    '/Users/travis/Documents/Swop Desktop Live.nosync/desktop-app-main',
-  ];
+  const execFileSyncFn = options.execFileSync || execFileSync;
+  const candidates = listGitWorktreeDirs(currentDir, execFileSyncFn);
 
   return candidates.find((dir) => hasLocalEnvConfig(dir)) || null;
 }
@@ -85,12 +106,12 @@ function loadFallbackEnv(dir, env, processEnv = process.env) {
   }
 }
 
-function buildRuntimeEnv(currentDir = cwd, processEnv = process.env) {
+function buildRuntimeEnv(currentDir = cwd, processEnv = process.env, options = {}) {
   const env = { ...processEnv };
   let fallbackEnvDir = null;
 
   if (!hasLocalEnvConfig(currentDir)) {
-    fallbackEnvDir = resolveFallbackEnvDir(processEnv);
+    fallbackEnvDir = resolveFallbackEnvDir(processEnv, currentDir, options);
     if (fallbackEnvDir) {
       loadFallbackEnv(fallbackEnvDir, env, processEnv);
     }
@@ -167,6 +188,7 @@ module.exports = {
   fallbackEnvFiles,
   hasLocalEnvConfig,
   loadFallbackEnv,
+  listGitWorktreeDirs,
   parseEnvValue,
   resolveFallbackEnvDir,
 };

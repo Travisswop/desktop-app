@@ -58,4 +58,36 @@ describe('next-dev fallback env loader', () => {
       `SWOP_FALLBACK_ENV_DIR=${path.join(tmpRoot, 'missing-env-dir')} does not contain any of .env, .env.development, .env.local, .env.development.local`,
     );
   });
+
+  it('discovers fallback env files from a sibling git worktree', () => {
+    const sharedCheckout = path.join(tmpRoot, 'somewhere-else', 'desktop-app');
+    const cleanWorktree = path.join(tmpRoot, 'review-worktrees', 'desktop-app-pr522');
+    fs.mkdirSync(sharedCheckout, { recursive: true });
+    fs.mkdirSync(cleanWorktree, { recursive: true });
+    fs.writeFileSync(
+      path.join(sharedCheckout, '.env.local'),
+      'NEXT_PUBLIC_PRIVY_APP_ID=shared\nNEXT_PUBLIC_API_URL=https://shared.example\n',
+    );
+
+    const worktreeList = [
+      `worktree ${sharedCheckout}`,
+      'HEAD 1234567890abcdef',
+      'branch refs/heads/Codex',
+      '',
+      `worktree ${cleanWorktree}`,
+      'HEAD abcdef1234567890',
+      'detached',
+      '',
+    ].join('\n');
+
+    const { env, fallbackEnvDir } = buildRuntimeEnv(
+      cleanWorktree,
+      {},
+      { execFileSync: () => worktreeList },
+    );
+
+    expect(fallbackEnvDir).toBe(sharedCheckout);
+    expect(env.NEXT_PUBLIC_PRIVY_APP_ID).toBe('shared');
+    expect(env.NEXT_PUBLIC_API_URL).toBe('https://shared.example');
+  });
 });
