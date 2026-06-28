@@ -22,3 +22,17 @@ export function shouldShowChatConnectionFallback(
     (!input.isSocketConnected || input.connectionTimeout)
   );
 }
+
+export function shouldAttemptChatReconnect({
+  hasUser,
+  hasAccessToken,
+  hasSocketInstance,
+  isSocketConnected,
+}: {
+  hasUser: boolean;
+  hasAccessToken: boolean;
+  hasSocketInstance: boolean;
+  isSocketConnected: boolean;
+}): boolean {
+  return hasUser && hasAccessToken && (!hasSocketInstance || !isSocketConnected);
+}

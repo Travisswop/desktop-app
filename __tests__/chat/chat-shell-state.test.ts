@@ -1,5 +1,6 @@
 import {
   canRenderAuthenticatedChatShell,
+  shouldAttemptChatReconnect,
   shouldShowChatConnectionFallback,
 } from '@/lib/chat/chatShellState';
 
@@ -28,5 +29,36 @@ describe('chat shell state', () => {
 
     expect(canRenderAuthenticatedChatShell(input)).toBe(false);
     expect(shouldShowChatConnectionFallback(input)).toBe(false);
+  });
+
+  it('retries chat when the socket instance exists but is still disconnected', () => {
+    expect(
+      shouldAttemptChatReconnect({
+        hasUser: true,
+        hasAccessToken: true,
+        hasSocketInstance: true,
+        isSocketConnected: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not retry chat when auth is missing or the socket is already live', () => {
+    expect(
+      shouldAttemptChatReconnect({
+        hasUser: false,
+        hasAccessToken: true,
+        hasSocketInstance: false,
+        isSocketConnected: false,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldAttemptChatReconnect({
+        hasUser: true,
+        hasAccessToken: true,
+        hasSocketInstance: true,
+        isSocketConnected: true,
+      }),
+    ).toBe(false);
   });
 });

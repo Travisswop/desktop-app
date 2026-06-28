@@ -2,6 +2,7 @@
 'use client';
 import {
   canRenderAuthenticatedChatShell,
+  shouldAttemptChatReconnect,
   shouldShowChatConnectionFallback,
 } from '@/lib/chat/chatShellState';
 import { useSocket } from '@/lib/socket';
@@ -118,10 +119,24 @@ export default function ChatPage() {
       return;
     }
 
-    if (!socket) {
+    if (
+      shouldAttemptChatReconnect({
+        hasUser: Boolean(userId),
+        hasAccessToken: Boolean(accessToken),
+        hasSocketInstance: Boolean(socket),
+        isSocketConnected: connectionStatus.connected,
+      })
+    ) {
       connectSocket(accessToken);
     }
-  }, [accessToken, connectSocket, refreshUser, socket, userId]);
+  }, [
+    accessToken,
+    connectSocket,
+    connectionStatus.connected,
+    refreshUser,
+    socket,
+    userId,
+  ]);
 
   const fullscreenShell =
     'fixed inset-0 z-[80] overflow-hidden bg-black text-[#eceef2]';

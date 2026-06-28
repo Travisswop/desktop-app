@@ -860,6 +860,59 @@ async function assertLoggedIn(client) {
   }
 }
 
+function getConsoleDiagnosticText(report) {
+  const errorText = (report.console?.errors || []).map((entry) =>
+    [entry.source, entry.text].filter(Boolean).join(': ')
+  );
+  const exceptionText = (report.console?.exceptions || []).map((entry) =>
+    [
+      entry.text,
+      entry.exception?.description,
+      entry.exception?.value,
+      entry.exceptionDetails?.text,
+    ]
+      .filter(Boolean)
+      .join(': ')
+  );
+  return [...errorText, ...exceptionText].filter(Boolean);
+}
+
+function classifyShellReadinessFailure({ report, pageTextValue, errorMessage }) {
+  const diagnosticText = getConsoleDiagnosticText(report);
+  const socketMatches = diagnosticText.filter((value) =>
+    /socket\.io|websocket|connect-src|content security policy|csp|wss:\/\//i.test(value)
+  );
+  const priceMatches = diagnosticText.filter((value) =>
+    /native price fetch failed|market\/token\/solana|price fetch failed/i.test(value)
+  );
+  const causes = [];
+
+  if (/sign in|log in|login/i.test(pageTextValue) && !/Messages/i.test(pageTextValue)) {
+    causes.push('auth');
+  }
+  if (socketMatches.length) {
+    causes.push('socket-csp');
+  }
+  if (priceMatches.length) {
+    causes.push('price-hydration');
+  }
+  if (!causes.length && /authenticated chat shell/i.test(errorMessage || '')) {
+    causes.push('unknown');
+  }
+
+  return {
+    causes,
+    pageTextExcerpt: String(pageTextValue || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 300),
+    matchedSignals: {
+      socketCsp: socketMatches.slice(0, 5),
+      priceHydration: priceMatches.slice(0, 5),
+    },
+  };
+}
+
 async function selectThread(client, threadText) {
   if (!threadText) return;
   const clicked = await evaluate(
@@ -1077,6 +1130,7 @@ async function main() {
       sent: false,
       error: null,
     },
+    shellReadiness: null,
     console: {
       errors: [],
       exceptions: [],
@@ -1143,6 +1197,14 @@ async function main() {
     report.error = error.stack || error.message;
     const activeStep = report.steps.find((step) => step.status === 'pending');
     if (activeStep) finishStep(activeStep, 'fail', error.message);
+    if (activeStep?.name === 'page-auth') {
+      const text = await pageText(client).catch(() => '');
+      report.shellReadiness = classifyShellReadinessFailure({
+        report,
+        pageTextValue: text,
+        errorMessage: error.message,
+      });
+    }
     process.exitCode = 1;
   } finally {
     report.finishedAt = timestamp();
