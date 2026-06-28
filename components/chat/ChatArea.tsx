@@ -1978,6 +1978,15 @@ function getWalletSendFundingTokens(consoleData: AstroConsoleData) {
     : consoleData.walletPortfolioTokens;
 }
 
+function hasWalletSendMainWalletAddress(consoleData: AstroConsoleData) {
+  return Boolean(
+    consoleData.solWalletAddress ||
+      consoleData.evmWalletAddress ||
+      consoleData.eoaAddress ||
+      (consoleData.evmWalletAddresses || []).some(Boolean)
+  );
+}
+
 function isWalletSendFundingBalanceLoading(consoleData: AstroConsoleData) {
   return Boolean(
     consoleData.isWalletFundingBalanceLoading ??
@@ -2036,6 +2045,10 @@ function parseWalletSendNetworkReply(text?: string | null) {
   if (/\b(polygon|matic|pol)\b/.test(normalizedText)) return 'POLYGON';
   if (/\b(solana|sol)\b/.test(normalizedText)) return 'SOLANA';
   return '';
+}
+
+function hasLocalWalletSendBalanceIntent(text?: string | null) {
+  return isChatWalletSendCommand(text) || hasWalletSendIntent(text);
 }
 
 function findPendingWalletSendNetworkIntent(
@@ -3397,6 +3410,18 @@ export default function ChatArea({
   const isGoldmanConsoleChat = isGoldmanSacksChat(activeConsoleChat, isGroup);
   const shouldLoadAstroConsoleData =
     isAstroConsoleChat || hasAstroConsoleAgent || isGoldmanConsoleChat;
+  const shouldLoadDirectWalletSendBalances = useMemo(() => {
+    if (isGroup) return false;
+    if (hasLocalWalletSendBalanceIntent(newMessage)) return true;
+    return messages.some(
+      (message) =>
+        message.messageType === 'text' &&
+        !message.agentSender &&
+        hasLocalWalletSendBalanceIntent(message.message)
+    );
+  }, [isGroup, messages, newMessage]);
+  const shouldLoadMainWalletBalances =
+    shouldLoadAstroConsoleData || shouldLoadDirectWalletSendBalances;
   const { eoaAddress } = usePolymarketWallet();
   const { accessToken, user } = useUser();
   const queryClient = useQueryClient();
@@ -3644,10 +3669,10 @@ export default function ChatArea({
     tokens: walletPortfolioTokens,
     loading: isWalletPortfolioBalanceLoading,
   } = useMultiChainTokenData(
-    shouldLoadAstroConsoleData && !isGoldmanConsoleChat
+    shouldLoadMainWalletBalances && !isGoldmanConsoleChat
       ? solWalletAddress
       : '',
-    shouldLoadAstroConsoleData
+    shouldLoadMainWalletBalances
       ? isGoldmanConsoleChat
         ? goldmanStrategyVault?.walletAddress || ''
         : portfolioEvmWalletInput
@@ -13607,6 +13632,8 @@ function WalletSendNetworkPromptCard({
     () => getWalletSendFundingTokens(astroConsoleData),
     [astroConsoleData]
   );
+  const hasMainWalletAddress =
+    hasWalletSendMainWalletAddress(astroConsoleData);
   const isFundingBalanceLoading =
     isWalletSendFundingBalanceLoading(astroConsoleData);
   const evmSignerAddresses = useMemo(
@@ -13831,15 +13858,19 @@ function WalletSendNetworkPromptCard({
             ) : (
               <div className="rounded-[10px] border border-[#ffcc66]/25 bg-[#ffcc66]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd17a]">
                 <div>
-                  No {prompt.token} balance was found in your main wallet.
+                  {hasMainWalletAddress
+                    ? `No ${prompt.token} balance was found in your main wallet.`
+                    : `Connect your main wallet to load ${prompt.token} balances.`}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => connectWallet()}
-                  className="dm-btn mt-2 inline-flex h-8 items-center justify-center rounded-[9px] border border-[#ffd17a]/30 bg-[#ffd17a]/10 px-3 text-[11px] font-bold text-[#ffe2a5] hover:bg-[#ffd17a]/15"
-                >
-                  Connect owning wallet
-                </button>
+                {!hasMainWalletAddress && (
+                  <button
+                    type="button"
+                    onClick={() => connectWallet()}
+                    className="dm-btn mt-2 inline-flex h-8 items-center justify-center rounded-[9px] border border-[#ffd17a]/30 bg-[#ffd17a]/10 px-3 text-[11px] font-bold text-[#ffe2a5] hover:bg-[#ffd17a]/15"
+                  >
+                    Connect wallet
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -13939,6 +13970,8 @@ function WalletSendDraftCard({
     () => getWalletSendFundingTokens(astroConsoleData),
     [astroConsoleData]
   );
+  const hasMainWalletAddress =
+    hasWalletSendMainWalletAddress(astroConsoleData);
   const isFundingBalanceLoading =
     isWalletSendFundingBalanceLoading(astroConsoleData);
   const evmSignerAddresses = useMemo(
@@ -14289,15 +14322,19 @@ function WalletSendDraftCard({
           ) : (
             <div className="rounded-[10px] border border-[#ffcc66]/25 bg-[#ffcc66]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd17a]">
               <div>
-                No token balances were found in your main wallet.
+                {hasMainWalletAddress
+                  ? 'No spendable token balances were found in your main wallet.'
+                  : 'Connect your main wallet to load token balances.'}
               </div>
-              <button
-                type="button"
-                onClick={() => connectWallet()}
-                className="dm-btn mt-2 inline-flex h-8 items-center justify-center rounded-[9px] border border-[#ffd17a]/30 bg-[#ffd17a]/10 px-3 text-[11px] font-bold text-[#ffe2a5] hover:bg-[#ffd17a]/15"
-              >
-                Connect wallet
-              </button>
+              {!hasMainWalletAddress && (
+                <button
+                  type="button"
+                  onClick={() => connectWallet()}
+                  className="dm-btn mt-2 inline-flex h-8 items-center justify-center rounded-[9px] border border-[#ffd17a]/30 bg-[#ffd17a]/10 px-3 text-[11px] font-bold text-[#ffe2a5] hover:bg-[#ffd17a]/15"
+                >
+                  Connect wallet
+                </button>
+              )}
             </div>
           )}
           <div className={TICKET_LABEL_CLASS}>amount</div>
