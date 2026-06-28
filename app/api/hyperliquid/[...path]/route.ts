@@ -81,9 +81,9 @@ function getErrorChain(error: unknown) {
 }
 
 function readErrorStringField(error: unknown, field: 'code' | 'message') {
-  if (!error || typeof error !== 'object' || !(field in error)) return null;
+  if (!error || typeof error !== 'object') return null;
 
-  const value = error[field];
+  const value = (error as Partial<Record<'code' | 'message', unknown>>)[field];
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
