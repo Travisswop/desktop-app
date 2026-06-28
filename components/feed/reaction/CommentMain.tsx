@@ -8,9 +8,14 @@ const CommentMain = memo(
     latestCommentCount,
     isCommentInputOpen,
     setIsCommentInputOpen,
+    onCommentClick,
     isFromFeedDetails,
   }: any) => {
     const handleCommentOpen = () => {
+      if (onCommentClick) {
+        onCommentClick();
+        return;
+      }
       // if (isFromFeedDetails) {
       //   setIsCommentInputOpen(true);
       // } else {
@@ -27,6 +32,7 @@ const CommentMain = memo(
         content="Reply"
       >
         <button
+          type="button"
           onClick={handleCommentOpen}
           className="flex items-center gap-1 text-sm font-medium w-12"
         >

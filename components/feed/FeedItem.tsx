@@ -1,7 +1,8 @@
 "use client";
-import React, { memo, useState } from "react";
+import React, { memo, useCallback, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import updateLocale from "dayjs/plugin/updateLocale";
@@ -46,6 +47,14 @@ interface FeedItemProps {
   isFromFeedDetailsPage?: boolean;
 }
 
+const POST_NAVIGATION_IGNORE_SELECTOR =
+  'a, button, input, textarea, select, label, [role="button"], [data-no-post-nav="true"]';
+
+const isInteractiveTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(target.closest(POST_NAVIGATION_IGNORE_SELECTOR));
+};
+
 const FeedItem = memo(
   ({
     feed,
@@ -57,6 +66,7 @@ const FeedItem = memo(
     isFromFeedDetailsPage = false,
   }: FeedItemProps) => {
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+    const router = useRouter();
 
     // const { isOpen, onOpen, onOpenChange } = useDisclosure();
     // const [isModalOpen, setIsModalOpen] = useState(false);
@@ -115,6 +125,31 @@ const FeedItem = memo(
       accessToken,
     );
     const showActionsMenu = canDeletePost || showTradeAlertMenuItem;
+    const canNavigateToDetails = Boolean(feed?._id) && !isFromFeedDetailsPage;
+    const detailHref = feed?._id ? `/feed/${feed._id}` : "#";
+
+    const openDetails = useCallback(() => {
+      if (!canNavigateToDetails) return;
+      router.push(detailHref);
+    }, [canNavigateToDetails, detailHref, router]);
+
+    const handleCardClick = useCallback(
+      (event: React.MouseEvent<HTMLElement>) => {
+        if (!canNavigateToDetails || isInteractiveTarget(event.target)) return;
+        openDetails();
+      },
+      [canNavigateToDetails, openDetails],
+    );
+
+    const handleCardKeyDown = useCallback(
+      (event: React.KeyboardEvent<HTMLElement>) => {
+        if (!canNavigateToDetails || isInteractiveTarget(event.target)) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        openDetails();
+      },
+      [canNavigateToDetails, openDetails],
+    );
 
     // console.log("ensName", ensName);
 
@@ -128,7 +163,22 @@ const FeedItem = memo(
     // const router = useRouter();
 
     return (
-      <div className="flex gap-2 border-b border-gray-200 py-4">
+      <article
+        role={canNavigateToDetails ? "link" : undefined}
+        tabIndex={canNavigateToDetails ? 0 : undefined}
+        aria-label={
+          canNavigateToDetails
+            ? `Open post by ${userName} with comments`
+            : undefined
+        }
+        onClick={handleCardClick}
+        onKeyDown={handleCardKeyDown}
+        className={`flex gap-2 border-b border-gray-200 py-4 ${
+          canNavigateToDetails
+            ? "cursor-pointer transition-colors hover:bg-gray-50"
+            : ""
+        }`}
+      >
         <Link
           href={`/sp/${feed?.smartsiteId?.ens || feed?.smartsiteEnsName}`}
           className="w-10 xl:w-12 h-10 xl:h-12 bg-gray-400 border border-gray-300 rounded-full overflow-hidden flex items-center justify-center"
@@ -272,10 +322,11 @@ const FeedItem = memo(
             onRepostSuccess={onRepostSuccess}
             onPostInteraction={onPostInteraction}
             feed={feed}
-            isFromMainFeed={true}
+            isFromMainFeed={!isFromFeedDetailsPage}
+            isFromFeedDetailsPage={isFromFeedDetailsPage}
           />
         </div>
-      </div>
+      </article>
     );
   },
 );

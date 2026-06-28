@@ -5,9 +5,9 @@ import { getBackendTokenHeader } from '@/lib/api/backendProxy';
 export const dynamic = 'force-dynamic';
 
 type BackendProxyContext = {
-  params: {
+  params: Promise<{
     path?: string[];
-  };
+  }>;
 };
 
 const BODYLESS_METHODS = new Set(['GET', 'HEAD']);
@@ -42,7 +42,8 @@ async function proxySwopBackendRequest(
   { params }: BackendProxyContext,
 ) {
   const method = request.method.toUpperCase();
-  const backendPath = buildBackendPath(request, params.path);
+  const { path } = await params;
+  const backendPath = buildBackendPath(request, path);
 
   if (!backendPath.startsWith('/api/')) {
     return NextResponse.json(

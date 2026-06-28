@@ -26,6 +26,10 @@ import {
   useMarketDetailStore,
   marketRouteKey,
 } from '@/zustandStore/marketDetailStore';
+import {
+  getSportsGameMarketOutcomes,
+  getSportsOutcomeSelection,
+} from '@/lib/polymarket/sports-selection';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
@@ -200,31 +204,25 @@ export default function SportsTableView({
   const router = useRouter();
   const stashMarketDetail = useMarketDetailStore((s) => s.set);
 
-  const handleOutcomeClick = useCallback(
+  const stashMarketSelection = useCallback(
     (
       market: PolymarketMarket,
       outcome: string,
       _price: number,
       tokenId: string,
+      game?: SportsGameGroup,
     ) => {
-      const tokenIds: string[] = market.clobTokenIds
+      const selection = getSportsOutcomeSelection(
+        market,
+        outcome,
+        tokenId,
+        getSportsGameMarketOutcomes(game, market),
+        game,
+      );
+
+      const tIds: string[] = market.clobTokenIds
         ? JSON.parse(market.clobTokenIds)
         : [];
-      const yesTokenId = tokenIds[0] || tokenId;
-      const isFirstOutcome = tokenId === yesTokenId;
-
-      let outcomeLabels: [string, string] | undefined;
-      const isSpreadLine = /^[+-]\d/.test(outcome);
-      if (isSpreadLine) {
-        const other = outcome.startsWith('+')
-          ? '-' + outcome.slice(1)
-          : '+' + outcome.slice(1);
-        outcomeLabels = isFirstOutcome
-          ? [outcome, other]
-          : [other, outcome];
-      }
-
-      const tIds = tokenIds;
       const yesShares =
         positions?.find((p) => p.asset === tIds[0])?.size || 0;
       const noShares =
@@ -234,14 +232,24 @@ export default function SportsTableView({
       if (!key) return;
       stashMarketDetail(key, {
         market,
-        initialOutcome: isFirstOutcome ? 'yes' : 'no',
-        outcomeLabels,
+        game,
+        ...selection,
         yesShares,
         noShares,
       });
       router.push(`/prediction/market/${encodeURIComponent(key)}`);
     },
     [positions, router, stashMarketDetail],
+  );
+
+  const handleFuturesOutcomeClick = useCallback(
+    (
+      market: PolymarketMarket,
+      outcome: string,
+      price: number,
+      tokenId: string,
+    ) => stashMarketSelection(market, outcome, price, tokenId),
+    [stashMarketSelection],
   );
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -295,7 +303,7 @@ export default function SportsTableView({
             group={group}
             firstGroup={groupIndex === 0}
             disabled={isGeoblocked}
-            onOutcomeClick={handleOutcomeClick}
+            onOutcomeClick={handleFuturesOutcomeClick}
           />
         ))}
 
@@ -347,7 +355,9 @@ export default function SportsTableView({
           game={game}
           firstRow={gi === 0}
           disabled={isGeoblocked}
-          onOutcomeClick={handleOutcomeClick}
+          onOutcomeClick={(market, outcome, price, tokenId) =>
+            stashMarketSelection(market, outcome, price, tokenId, game)
+          }
         />
       ))}
 

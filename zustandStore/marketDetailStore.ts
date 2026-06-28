@@ -13,9 +13,11 @@
 
 import { create } from 'zustand';
 import type { PolymarketMarket } from '@/hooks/polymarket';
+import type { SportsGameGroup } from '@/lib/polymarket/sports-grouping';
 
 export type MarketDetailEntry = {
   market: PolymarketMarket;
+  game?: SportsGameGroup;
   initialOutcome?: 'yes' | 'no';
   initialAmount?: string;
   initialSide?: 'BUY' | 'SELL';

@@ -101,6 +101,7 @@ const Reaction = memo(
     repostCount,
     viewsCount,
     isLiked = false,
+    isFromFeedDetailsPage = false,
     onRepostSuccess,
     onPostInteraction,
     feed,
@@ -156,6 +157,15 @@ const Reaction = memo(
       }),
       [likeCount, latestCommentCount, repostCount, viewsCount],
     );
+
+    const handleCommentAction = useCallback(() => {
+      if (!postId) return;
+      if (!isFromFeedDetailsPage) {
+        router.push(`/feed/${postId}#comments`);
+        return;
+      }
+      setIsCommentInputOpen(true);
+    }, [isFromFeedDetailsPage, postId, router]);
 
     // ── Effects ─────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -346,6 +356,7 @@ const Reaction = memo(
             latestCommentCount={latestCommentCount}
             isCommentInputOpen={isCommentInputOpen}
             setIsCommentInputOpen={setIsCommentInputOpen}
+            onCommentClick={handleCommentAction}
           />
 
           {/* ── Repost popover ── */}
@@ -548,12 +559,13 @@ const Reaction = memo(
           <Modal
             isOpen={isCommentInputOpen}
             onOpenChange={setIsCommentInputOpen}
-            placement="top"
+            placement="center"
             backdrop="opaque"
+            scrollBehavior="inside"
             classNames={{
-              base: 'max-w-xl rounded-2xl overflow-visible',
+              base: 'max-w-xl rounded-2xl max-h-[calc(100dvh-7rem)] overflow-hidden',
               backdrop: 'bg-black/70',
-              body: 'px-4 pb-4 pt-2 gap-0 overflow-visible relative',
+              body: 'px-4 pb-4 pt-2 gap-0 overflow-y-auto relative',
               header: 'px-4 pt-4 pb-0 border-none',
             }}
           >
@@ -693,7 +705,9 @@ const Reaction = memo(
     prev.viewsCount === next.viewsCount &&
     prev.isLiked === next.isLiked &&
     prev.commentId === next.commentId &&
-    prev.replyId === next.replyId,
+    prev.replyId === next.replyId &&
+    prev.isFromFeedDetailsPage === next.isFromFeedDetailsPage &&
+    prev.isFromMainFeed === next.isFromMainFeed,
 );
 
 Reaction.displayName = 'Reaction';
