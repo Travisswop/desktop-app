@@ -18,7 +18,7 @@ import { useHyperliquidCandles } from '@/components/wallet/perps/hooks/useHyperl
 import { useAllMids } from '@/components/wallet/perps/hooks/useHyperliquidWebSocket';
 import {
   normalizePerpsCoin,
-  useLivePerpsMarkPrice,
+  useLivePerpsMarkPriceState,
 } from './useLivePerpsMarkPrice';
 import {
   normalizePerpsEntryMarkers,
@@ -455,7 +455,6 @@ export default function PerpsPositionFeedCard({
   const storedStatus = terminalTimestampPredatesOpen(content, rawStoredStatus)
     ? 'open'
     : rawStoredStatus;
-  const isLimitStatus = storedStatus === 'limit';
   const isLimitLifecycleStatus =
     storedStatus === 'limit' || storedStatus === 'cancelled';
   const hasStoredTerminalStatus =
@@ -488,7 +487,10 @@ export default function PerpsPositionFeedCard({
   const normalizedCoin = normalizePerpsCoin(rawCoin);
   const marketCoin = normalizedCoin?.requestCoin || coin;
   const isBuilderDexCoin = Boolean(normalizedCoin?.dex);
-  const liveBuilderMarkPrice = useLivePerpsMarkPrice(
+  const {
+    price: liveBuilderMarkPrice,
+    isStale: builderLivePriceStale,
+  } = useLivePerpsMarkPriceState(
     marketCoin,
     !hasStoredTerminalStatus && isBuilderDexCoin,
   );
@@ -953,6 +955,11 @@ export default function PerpsPositionFeedCard({
                 <div className="mt-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                   {coin} price
                 </div>
+                {builderLivePriceStale ? (
+                  <div className="mt-1 text-[11px] font-medium text-amber-600">
+                    Live quote delayed. Showing last known mark.
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

@@ -69,10 +69,15 @@ function findMarketContext(
   return contexts?.[marketIndex] || null;
 }
 
+type LivePerpsMarkPriceResult = {
+  price: number | null;
+  retryable: boolean;
+};
+
 async function fetchLivePerpsMarkPrice(
   normalized: NormalizedPerpsCoin,
   signal?: AbortSignal,
-) {
+): Promise<LivePerpsMarkPriceResult> {
   const response = await fetch('/api/hyperliquid/mainnet/info', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -83,35 +88,69 @@ async function fetchLivePerpsMarkPrice(
     signal,
   });
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    return {
+      price: null,
+      retryable: Boolean(payload?.retryable) || response.status >= 500,
+    };
+  }
 
   const data = await response.json().catch(() => null);
   const context = findMarketContext(data, normalized);
-  return maybeFiniteNumber(context?.markPx) ?? maybeFiniteNumber(context?.midPx);
+  return {
+    price:
+      maybeFiniteNumber(context?.markPx) ?? maybeFiniteNumber(context?.midPx),
+    retryable: false,
+  };
 }
 
-export function useLivePerpsMarkPrice(
+type LivePerpsMarkPriceState = {
+  isStale: boolean;
+  price: number | null;
+};
+
+export function useLivePerpsMarkPriceState(
   coin: string | null | undefined,
   enabled = true,
 ) {
   const normalized = useMemo(() => normalizePerpsCoin(coin), [coin]);
-  const [price, setPrice] = useState<number | null>(null);
+  const [state, setState] = useState<LivePerpsMarkPriceState>({
+    price: null,
+    isStale: false,
+  });
 
   useEffect(() => {
     if (!enabled || !normalized) {
-      setPrice(null);
+      setState({ price: null, isStale: false });
       return;
     }
 
     let cancelled = false;
-    const controller = new AbortController();
 
     const load = async () => {
-      const nextPrice = await fetchLivePerpsMarkPrice(
+      const controller = new AbortController();
+      const nextState = await fetchLivePerpsMarkPrice(
         normalized,
         controller.signal,
-      ).catch(() => null);
-      if (!cancelled) setPrice(nextPrice);
+      ).catch(() => ({ price: null, retryable: true }));
+
+      if (cancelled) {
+        controller.abort();
+        return;
+      }
+
+      setState((current) => {
+        if (nextState.price !== null) {
+          return { price: nextState.price, isStale: false };
+        }
+
+        if (nextState.retryable && current.price !== null) {
+          return { price: current.price, isStale: true };
+        }
+
+        return { price: null, isStale: false };
+      });
     };
 
     load();
@@ -119,10 +158,16 @@ export function useLivePerpsMarkPrice(
 
     return () => {
       cancelled = true;
-      controller.abort();
       window.clearInterval(interval);
     };
   }, [enabled, normalized]);
 
-  return price;
+  return state;
+}
+
+export function useLivePerpsMarkPrice(
+  coin: string | null | undefined,
+  enabled = true,
+) {
+  return useLivePerpsMarkPriceState(coin, enabled).price;
 }
