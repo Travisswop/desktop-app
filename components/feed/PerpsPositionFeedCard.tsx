@@ -18,7 +18,7 @@ import { useHyperliquidCandles } from '@/components/wallet/perps/hooks/useHyperl
 import { useAllMids } from '@/components/wallet/perps/hooks/useHyperliquidWebSocket';
 import {
   normalizePerpsCoin,
-  useLivePerpsMarkPrice,
+  useLivePerpsMarkPriceState,
 } from './useLivePerpsMarkPrice';
 import {
   normalizePerpsEntryMarkers,
@@ -455,7 +455,6 @@ export default function PerpsPositionFeedCard({
   const storedStatus = terminalTimestampPredatesOpen(content, rawStoredStatus)
     ? 'open'
     : rawStoredStatus;
-  const isLimitStatus = storedStatus === 'limit';
   const isLimitLifecycleStatus =
     storedStatus === 'limit' || storedStatus === 'cancelled';
   const hasStoredTerminalStatus =
@@ -488,10 +487,11 @@ export default function PerpsPositionFeedCard({
   const normalizedCoin = normalizePerpsCoin(rawCoin);
   const marketCoin = normalizedCoin?.requestCoin || coin;
   const isBuilderDexCoin = Boolean(normalizedCoin?.dex);
-  const liveBuilderMarkPrice = useLivePerpsMarkPrice(
+  const liveBuilderMarkPriceState = useLivePerpsMarkPriceState(
     marketCoin,
     !hasStoredTerminalStatus && isBuilderDexCoin,
   );
+  const liveBuilderMarkPrice = liveBuilderMarkPriceState.price;
   const liveMarketCoin = marketCoin;
   const candleCoin =
     !hasStoredTerminalStatus && Boolean(liveMarketCoin)
@@ -950,8 +950,15 @@ export default function PerpsPositionFeedCard({
                 <div className="font-mono text-[28px] font-black leading-none tabular-nums text-gray-950">
                   {formatUsd(displayMarkPrice)}
                 </div>
-                <div className="mt-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                  {coin} price
+                <div className="mt-1 flex flex-col items-end gap-1">
+                  <div className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                    {coin} price
+                  </div>
+                  {liveBuilderMarkPriceState.stale ? (
+                    <div className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">
+                      price refresh delayed
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
