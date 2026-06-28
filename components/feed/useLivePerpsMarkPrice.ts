@@ -25,7 +25,7 @@ export type LivePerpsMarkPriceState = {
   stale: boolean;
 };
 
-const INITIAL_LIVE_PERPS_MARK_PRICE_STATE: LivePerpsMarkPriceState = {
+export const INITIAL_LIVE_PERPS_MARK_PRICE_STATE: LivePerpsMarkPriceState = {
   lastUpdatedAt: null,
   price: null,
   stale: false,
@@ -124,7 +124,7 @@ export function resolveLivePerpsMarkPriceState(
   if (result.degraded) {
     return {
       ...previous,
-      stale: previous.price !== null,
+      stale: true,
     };
   }
 

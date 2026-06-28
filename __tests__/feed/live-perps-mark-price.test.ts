@@ -1,4 +1,5 @@
 import {
+  INITIAL_LIVE_PERPS_MARK_PRICE_STATE,
   resolveLivePerpsMarkPriceState,
   type LivePerpsMarkPriceState,
 } from '@/components/feed/useLivePerpsMarkPrice';
@@ -19,6 +20,22 @@ describe('resolveLivePerpsMarkPriceState', () => {
     ).toEqual({
       lastUpdatedAt: 123,
       price: 4123.45,
+      stale: true,
+    });
+  });
+
+  it('marks cold-start degraded fetches as stale even without a cached live price', () => {
+    expect(
+      resolveLivePerpsMarkPriceState(
+        INITIAL_LIVE_PERPS_MARK_PRICE_STATE,
+        {
+          degraded: true,
+          price: null,
+        },
+      ),
+    ).toEqual({
+      lastUpdatedAt: null,
+      price: null,
       stale: true,
     });
   });

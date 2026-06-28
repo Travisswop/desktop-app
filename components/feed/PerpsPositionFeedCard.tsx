@@ -17,6 +17,10 @@ import isUrl from '@/lib/isUrl';
 import { useHyperliquidCandles } from '@/components/wallet/perps/hooks/useHyperliquidCandles';
 import { useAllMids } from '@/components/wallet/perps/hooks/useHyperliquidWebSocket';
 import {
+  getPerpsFeedBackfillDelayLabel,
+  usePerpsFeedBackfillHealthState,
+} from './perpsBackfillHealth';
+import {
   normalizePerpsCoin,
   useLivePerpsMarkPriceState,
 } from './useLivePerpsMarkPrice';
@@ -491,6 +495,10 @@ export default function PerpsPositionFeedCard({
     marketCoin,
     !hasStoredTerminalStatus && isBuilderDexCoin,
   );
+  const perpsBackfillHealthState = usePerpsFeedBackfillHealthState();
+  const perpsBackfillDelayLabel = hasStoredTerminalStatus
+    ? null
+    : getPerpsFeedBackfillDelayLabel(perpsBackfillHealthState);
   const liveBuilderMarkPrice = liveBuilderMarkPriceState.price;
   const liveMarketCoin = marketCoin;
   const candleCoin =
@@ -957,6 +965,11 @@ export default function PerpsPositionFeedCard({
                   {liveBuilderMarkPriceState.stale ? (
                     <div className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">
                       price refresh delayed
+                    </div>
+                  ) : null}
+                  {perpsBackfillDelayLabel ? (
+                    <div className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">
+                      {perpsBackfillDelayLabel}
                     </div>
                   ) : null}
                 </div>
