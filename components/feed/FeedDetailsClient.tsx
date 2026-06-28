@@ -181,7 +181,10 @@ export default function FeedDetailsClient({
       />
 
       {/* Comments header */}
-      <div className="mt-4 mb-2 flex items-center justify-between">
+      <div
+        id="comments"
+        className="mt-4 mb-2 flex scroll-mt-32 items-center justify-between"
+      >
         <h3 className="font-bold text-base">
           Comments
           {total > 0 && (
