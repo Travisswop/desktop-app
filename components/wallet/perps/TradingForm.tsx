@@ -21,6 +21,10 @@ import {
   type AgentActionCompletion,
   type HyperliquidAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
+import {
+  AgentApprovalBoundaryCard,
+  hasAgentApprovalBoundary,
+} from '@/components/wallet/shared/AgentApprovalBoundaryCard';
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
@@ -703,8 +707,13 @@ export function TradingForm({
     <div className="flex flex-col h-full">
       {/* Long / Short toggle */}
       {agentOrderPrefill && (
-        <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11.5px] font-medium text-blue-700">
-          Agent proposal loaded. Review every field before confirming.
+        <div className="mb-3 space-y-2">
+          <AgentApprovalBoundaryCard boundary={agentOrderPrefill} />
+          {!hasAgentApprovalBoundary(agentOrderPrefill) && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11.5px] font-medium text-blue-700">
+              Agent proposal loaded. Review every field before confirming.
+            </div>
+          )}
         </div>
       )}
 

@@ -89,6 +89,7 @@ export default function PredictionPageContent() {
     const outcome = prefill.outcome || inferOutcomeFromToken(market, prefill.tokenId);
     setMarketDetail(key, {
       market,
+      agentOrderPrefill: prefill,
       initialOutcome: outcome,
       initialAmount: prefill.amount,
       initialSide: prefill.side,

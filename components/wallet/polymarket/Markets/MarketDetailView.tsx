@@ -28,7 +28,12 @@ import { useTrading } from '@/providers/polymarket';
 import {
   completeAgentActionFromHandoff,
   type AgentActionCompletion,
+  type PolymarketAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
+import {
+  AgentApprovalBoundaryCard,
+  hasAgentApprovalBoundary,
+} from '@/components/wallet/shared/AgentApprovalBoundaryCard';
 import {
   CTF_CONTRACT_ADDRESS,
   MIN_ORDER_SIZE,
@@ -4318,6 +4323,7 @@ type MarketDetailViewProps = {
   initialOrderType?: OrderVariant;
   initialLimitPrice?: string;
   agentProposalId?: string;
+  agentOrderPrefill?: PolymarketAgentOrderPrefill | null;
   onAgentActionComplete?: (completion: AgentActionCompletion) => void;
   onAddFunds?: () => void;
   /** Optional display-name overrides for the two outcome buttons.
@@ -4346,6 +4352,7 @@ export default function MarketDetailView({
   initialOrderType,
   initialLimitPrice,
   agentProposalId,
+  agentOrderPrefill,
   onAgentActionComplete,
   onAddFunds,
   outcomeLabels,
@@ -5246,6 +5253,16 @@ export default function MarketDetailView({
             onDismiss={() => setShowEnableModal(false)}
             disabledReason={tradingDisabledReason}
           />
+        )}
+        {agentOrderPrefill && (
+          <div className="mb-3">
+            <AgentApprovalBoundaryCard boundary={agentOrderPrefill} />
+            {!hasAgentApprovalBoundary(agentOrderPrefill) && (
+              <div className="mt-2 rounded-[14px] border border-blue-100 bg-blue-50 px-3 py-2 text-[11.5px] font-medium text-blue-700">
+                Agent proposal loaded. Review every field before signing.
+              </div>
+            )}
+          </div>
         )}
 
         {/* ── Order ticket (A3 / A3L) ──────────────────────────────────────── */}

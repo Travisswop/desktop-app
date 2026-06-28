@@ -193,6 +193,14 @@ describe('desktop group agent payloads', () => {
           price: '3200',
           leverage: '5',
           isCross: 'false',
+          maxOrderUsd: '750',
+          maxDailyLossUsd: '250',
+          maxDailySpendUsd: '1250',
+          maxOpenPositions: '2',
+          cooldownSeconds: '900',
+          expiry: '2026-06-30T18:30:00.000Z',
+          riskControls: ['Never average down', 'Pause after two losses'],
+          executionMode: 'execute',
         },
       },
     });
@@ -207,7 +215,19 @@ describe('desktop group agent payloads', () => {
       price: '3200',
       leverage: 5,
       isCross: false,
+      maxOrderUsd: '750',
+      maxDailyLossUsd: '250',
+      maxDailySpendUsd: '1250',
+      maxOpenPositions: '2',
+      cooldownSeconds: 900,
+      expiry: '2026-06-30T18:30:00.000Z',
+      executionMode: 'execute',
+      reviewRequirement: 'user_signature_required',
     });
+    expect(prefill?.riskControls).toEqual([
+      'Never average down',
+      'Pause after two losses',
+    ]);
   });
 
   test('uses requested Hyperliquid market aliases over stale coin defaults', () => {
@@ -318,6 +338,13 @@ describe('desktop group agent payloads', () => {
           amount: '25',
           orderType: 'limit',
           price: '0.42',
+          maxOrderUsd: '25',
+          maxDailySpendUsd: '100',
+          maxOpenPositions: '3',
+          cooldownSeconds: '600',
+          expiry: '2026-07-01T03:00:00.000Z',
+          riskControls: ['Only trade pregame lines'],
+          executionMode: 'proposal',
         },
       },
     });
@@ -333,6 +360,14 @@ describe('desktop group agent payloads', () => {
       amount: '25',
       orderType: 'limit',
       limitPrice: '42',
+      maxOrderUsd: '25',
+      maxDailySpendUsd: '100',
+      maxOpenPositions: '3',
+      cooldownSeconds: 600,
+      expiry: '2026-07-01T03:00:00.000Z',
+      executionMode: 'proposal',
+      reviewRequirement: 'user_signature_required',
     });
+    expect(prefill?.riskControls).toEqual(['Only trade pregame lines']);
   });
 });

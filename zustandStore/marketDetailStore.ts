@@ -13,10 +13,12 @@
 
 import { create } from 'zustand';
 import type { PolymarketMarket } from '@/hooks/polymarket';
+import type { PolymarketAgentOrderPrefill } from '@/lib/chat/agentActionHandoff';
 import type { SportsGameGroup } from '@/lib/polymarket/sports-grouping';
 
 export type MarketDetailEntry = {
   market: PolymarketMarket;
+  agentOrderPrefill?: PolymarketAgentOrderPrefill;
   game?: SportsGameGroup;
   initialOutcome?: 'yes' | 'no';
   initialAmount?: string;

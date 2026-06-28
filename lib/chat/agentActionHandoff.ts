@@ -136,6 +136,22 @@ export interface AgentActionCompletion {
   error?: UnknownRecord | string | null;
 }
 
+export type AgentActionReviewRequirement =
+  | 'user_signature_required'
+  | 'manual_review_required';
+
+export interface AgentActionRiskBoundary {
+  riskControls?: string[];
+  maxOrderUsd?: string;
+  maxDailySpendUsd?: string;
+  maxDailyLossUsd?: string;
+  maxOpenPositions?: string;
+  cooldownSeconds?: number;
+  expiry?: string;
+  executionMode?: string;
+  reviewRequirement?: AgentActionReviewRequirement;
+}
+
 export function persistAgentActionHandoff(handoff: AgentApprovalHandoff) {
   if (typeof window === 'undefined') return;
 
@@ -465,7 +481,7 @@ export async function completeAgentActionFromHandoff(
 
 export type HyperliquidOrderMode = 'market' | 'limit' | 'tpsl';
 
-export interface HyperliquidAgentOrderPrefill {
+export interface HyperliquidAgentOrderPrefill extends AgentActionRiskBoundary {
   proposalId?: string;
   proposalNonce?: string;
   action?: string;
@@ -487,7 +503,7 @@ export interface HyperliquidAgentOrderPrefill {
   requiredFields?: string[];
 }
 
-export interface PolymarketAgentOrderPrefill {
+export interface PolymarketAgentOrderPrefill extends AgentActionRiskBoundary {
   proposalId?: string;
   proposalNonce?: string;
   action?: string;
@@ -547,6 +563,14 @@ function stringValue(value: unknown): string | undefined {
   return text ? text : undefined;
 }
 
+function stringListValue(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const next = value
+    .map((item) => stringValue(item))
+    .filter((item): item is string => Boolean(item));
+  return next.length ? next : undefined;
+}
+
 function numberValue(value: unknown): number | undefined {
   const number = Number(value);
   return Number.isFinite(number) ? number : undefined;
@@ -567,6 +591,57 @@ function firstString(params: UnknownRecord, names: string[]): string | undefined
     if (value) return value;
   }
   return undefined;
+}
+
+function firstStringList(
+  params: UnknownRecord,
+  names: string[],
+): string[] | undefined {
+  for (const name of names) {
+    const value = stringListValue(params[name]);
+    if (value?.length) return value;
+  }
+  return undefined;
+}
+
+function reviewRequirementFrom(
+  value?:
+    | AgentApprovalHandoff
+    | AgentApprovalHandoffPayload
+    | { payload?: AgentApprovalHandoffPayload }
+    | null,
+): AgentActionReviewRequirement | undefined {
+  if (!value || !('nextStep' in value)) return undefined;
+  const nextStep = stringValue(value.nextStep)?.toLowerCase();
+  if (!nextStep) return undefined;
+  if (
+    nextStep.includes('signing_required') ||
+    nextStep.includes('order_form_required')
+  ) {
+    return 'user_signature_required';
+  }
+  return 'manual_review_required';
+}
+
+function riskBoundaryFrom(
+  params: UnknownRecord,
+  value?:
+    | AgentApprovalHandoff
+    | AgentApprovalHandoffPayload
+    | { payload?: AgentApprovalHandoffPayload }
+    | null,
+): AgentActionRiskBoundary {
+  return {
+    riskControls: firstStringList(params, ['riskControls'])?.slice(0, 4),
+    maxOrderUsd: firstString(params, ['maxOrderUsd']),
+    maxDailySpendUsd: firstString(params, ['maxDailySpendUsd']),
+    maxDailyLossUsd: firstString(params, ['maxDailyLossUsd']),
+    maxOpenPositions: firstString(params, ['maxOpenPositions']),
+    cooldownSeconds: numberValue(params.cooldownSeconds),
+    expiry: firstString(params, ['expiry']),
+    executionMode: firstString(params, ['executionMode']),
+    reviewRequirement: reviewRequirementFrom(value),
+  };
 }
 
 const HYPERLIQUID_MARKET_ALIASES: Record<string, string[]> = {
@@ -735,6 +810,7 @@ export function getHyperliquidOrderPrefill(
   const leverage = numberValue(params.leverage);
 
   return {
+    ...riskBoundaryFrom(params, value),
     proposalId: payload.proposalId,
     proposalNonce: payload.proposalNonce,
     action: payload.action,
@@ -788,6 +864,7 @@ export function getPolymarketOrderPrefill(
   );
 
   return {
+    ...riskBoundaryFrom(params, value),
     proposalId: payload.proposalId,
     proposalNonce: payload.proposalNonce,
     action: payload.action,

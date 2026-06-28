@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { PolymarketProviders, useTrading } from '@/providers/polymarket';
 import {
+  getPolymarketOrderPrefill,
+  readAgentActionHandoff,
+  type PolymarketAgentOrderPrefill,
+} from '@/lib/chat/agentActionHandoff';
+import {
   usePolymarketCollateralBalance,
   useUserPositions,
   type PolymarketMarket,
@@ -95,6 +100,24 @@ function MarketDetailPageInner() {
   const selectedOutcomeFromUrl = normalizeOutcomeParam(
     searchParams?.get('outcome') ?? null,
   );
+  const proposalIdFromUrl = searchParams?.get('proposalId') ?? null;
+  const [approvedPrefill, setApprovedPrefill] =
+    useState<PolymarketAgentOrderPrefill | null>(null);
+
+  useEffect(() => {
+    const handoff = readAgentActionHandoff();
+    const prefill = getPolymarketOrderPrefill(handoff);
+    if (
+      prefill &&
+      (!proposalIdFromUrl ||
+        !prefill.proposalId ||
+        prefill.proposalId === proposalIdFromUrl)
+    ) {
+      setApprovedPrefill(prefill);
+      return;
+    }
+    setApprovedPrefill(null);
+  }, [proposalIdFromUrl]);
 
   useEffect(() => {
     if (snapshot || !marketId) return;
@@ -117,6 +140,7 @@ function MarketDetailPageInner() {
 
         const nextEntry: MarketDetailEntry = {
           market,
+          agentOrderPrefill: approvedPrefill ?? undefined,
           ...sharesForMarket(market),
         };
         const key = marketRouteKey(market) || marketId;
@@ -135,7 +159,7 @@ function MarketDetailPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [marketId, sharesForMarket, snapshot]);
+  }, [approvedPrefill, marketId, sharesForMarket, snapshot]);
 
   useEffect(() => {
     if (!snapshot || snapshot.game) return;
@@ -185,6 +209,7 @@ function MarketDetailPageInner() {
       const shares = sharesForMarket(market);
       const nextEntry: MarketDetailEntry = {
         market,
+        agentOrderPrefill: snapshot.agentOrderPrefill,
         game: snapshot.game,
         ...selection,
         ...shares,
@@ -259,7 +284,8 @@ function MarketDetailPageInner() {
         searchParams?.get('limitPrice') ||
         undefined
       }
-      agentProposalId={searchParams?.get('proposalId') || undefined}
+      agentProposalId={proposalIdFromUrl ?? snapshot.agentOrderPrefill?.proposalId}
+      agentOrderPrefill={snapshot.agentOrderPrefill ?? approvedPrefill}
       onAgentActionComplete={(completion) => {
         if (completion.groupId) {
           router.push(
