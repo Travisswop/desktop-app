@@ -12,6 +12,7 @@ import {
 import { useUser } from '@/lib/UserContext';
 import { apiFetch } from '@/lib/api/apiFetch';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import { isNetworkFetchError } from '@/lib/api/fetchErrors';
 
 const normalizeChain = (chain: string): ChainType =>
   chain.toUpperCase() as ChainType;
@@ -74,15 +75,29 @@ async function fetchBackendAccessToken(email: string) {
     const timeoutId = setTimeout(() => controller.abort(), 25000);
 
     try {
-      const response = await apiFetch(
-        buildSwopApiUrl(
-          `/api/v2/desktop/user/${encodeURIComponent(normalizedEmail)}`
-        ),
-        {
+      const apiPath = `/api/v2/desktop/user/${encodeURIComponent(
+        normalizedEmail
+      )}`;
+      let response: Response;
+
+      try {
+        response = await apiFetch(buildSwopApiUrl(apiPath), {
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
+        });
+      } catch (error) {
+        if (!isNetworkFetchError(error) || controller.signal.aborted) {
+          throw error;
         }
-      );
+
+        response = await fetch('/api/auth/backend-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: normalizedEmail }),
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+      }
 
       if (!response.ok) return null;
 

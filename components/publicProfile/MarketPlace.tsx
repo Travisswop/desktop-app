@@ -10,6 +10,7 @@ import { useCart } from "@/app/(public-profile)/sp/[username]/cart/context/CartC
 import { useUser } from "@/lib/UserContext";
 import ProductDetailsModal from "@/components/publicProfile/ProductDetailsModal";
 import {
+  getMarketplaceExclusiveContentItems,
   getSmartsiteMarketplaceImage,
   getSmartsiteMarketplaceName,
   getSmartsiteMarketplacePrice,
@@ -59,6 +60,8 @@ const MarketPlace: any = ({
   const requiresShipping =
     displayItem.productType === "physical" ||
     Boolean(displayItem.fulfillment?.requiresShipping);
+  const exclusiveContentCount =
+    getMarketplaceExclusiveContentItems(displayItem).length;
   const isSoldOut =
     Boolean(displayItem.inventory?.track) &&
     Number(displayItem.inventory?.available || 0) <= 0;
@@ -178,6 +181,11 @@ const MarketPlace: any = ({
             quality={100}
             className="object-cover group-hover:scale-105 transition-transform duration-200"
           />
+          {exclusiveContentCount > 0 && (
+            <span className="absolute left-2 top-2 rounded-full bg-black/80 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-white backdrop-blur">
+              Exclusive
+            </span>
+          )}
         </div>
 
         <div className="p-3 pt-0">

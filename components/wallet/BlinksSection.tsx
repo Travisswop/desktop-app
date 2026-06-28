@@ -38,6 +38,8 @@ import {
 } from '@/lib/hooks/useCreateRedeemLink';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { useUser } from '@/lib/UserContext';
+import { apiFetch } from '@/lib/api/apiFetch';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -315,8 +317,10 @@ export default function BlinksSection() {
   const fetchPools = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v2/desktop/wallet/getRedeemPoolList/${user.id}`,
+      const response = await apiFetch(
+        buildSwopApiUrl(
+          `/api/v2/desktop/wallet/getRedeemPoolList/${user.id}`,
+        ),
       );
       if (!response.ok) {
         toast.error('Failed to fetch blinks');

@@ -3,7 +3,8 @@
  * Handles API calls related to user wallet balance and balance history
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+import { apiFetch } from '@/lib/api/apiFetch';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 
 export interface BalanceHistoryEntry {
   createdAt: string;
@@ -32,18 +33,14 @@ export interface GetBalanceParams {
 export async function getBalance({
   userId,
 }: GetBalanceParams): Promise<GetBalanceResponse> {
-  if (!API_BASE_URL) {
-    throw new Error('API_BASE_URL is not configured');
-  }
-
   if (!userId) {
     throw new Error('userId is required');
   }
 
   try {
-    const url = `${API_BASE_URL}/api/v5/wallet/getBalance/${userId}`;
+    const url = buildSwopApiUrl(`/api/v5/wallet/getBalance/${userId}`);
 
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -117,18 +114,17 @@ export async function getBalanceHistory({
   period = '30d',
   type = 'daily',
 }: GetBalanceHistoryParams): Promise<GetBalanceHistoryResponse> {
-  if (!API_BASE_URL) {
-    throw new Error('API_BASE_URL is not configured');
-  }
-
   if (!userId) {
     throw new Error('userId is required');
   }
 
   try {
-    const url = `${API_BASE_URL}/api/v5/wallet/balance-history/${userId}?period=${period}&type=${type}`;
+    const params = new URLSearchParams({ period, type });
+    const url = buildSwopApiUrl(
+      `/api/v5/wallet/balance-history/${userId}?${params.toString()}`,
+    );
 
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

@@ -1,3 +1,5 @@
+import { apiFetch } from '@/lib/api/apiFetch';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { useModalStore } from '@/zustandStore/modalstore';
 import type { DefiFeedContent } from './defiFeed';
 
@@ -6,6 +8,7 @@ export interface UpsertAavePositionFeedParams {
   userId: string;
   smartsiteId: string;
   content: DefiFeedContent;
+  publishToFeed?: boolean;
 }
 
 export interface ReconcileAavePositionFeedParams {
@@ -23,6 +26,7 @@ export async function upsertAavePositionFeed({
   userId,
   smartsiteId,
   content,
+  publishToFeed = true,
 }: UpsertAavePositionFeedParams) {
   if (!token || !userId || !smartsiteId || !content.positionKey) {
     const missingFields = [
@@ -36,8 +40,8 @@ export async function upsertAavePositionFeed({
     return null;
   }
 
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/defi-position`,
+  const response = await apiFetch(
+    buildSwopApiUrl('/api/v2/feed/defi-position'),
     {
       method: 'POST',
       headers: {
@@ -60,7 +64,9 @@ export async function upsertAavePositionFeed({
     );
   }
 
-  useModalStore.getState().publishCreatedFeedItem(data?.data || null);
+  if (publishToFeed) {
+    useModalStore.getState().publishCreatedFeedItem(data?.data || null);
+  }
 
   return data;
 }
@@ -89,8 +95,8 @@ export async function reconcileAavePositionFeed({
     return null;
   }
 
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/defi-position/reconcile`,
+  const response = await apiFetch(
+    buildSwopApiUrl('/api/v2/feed/defi-position/reconcile'),
     {
       method: 'POST',
       headers: {

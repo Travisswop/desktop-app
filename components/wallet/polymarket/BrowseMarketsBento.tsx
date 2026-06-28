@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
 import {
+  DEFAULT_SPORT_SUBCATEGORY,
   type CategoryId,
   type SportSubcategoryId,
   getCategoryById,
@@ -75,7 +76,8 @@ const BENTO_CATEGORIES: {
 ];
 
 // Sport tabs shown inside the sports hero card.
-const SPORT_TABS: SportSubcategoryId[] = [
+export const SPORT_TABS: SportSubcategoryId[] = [
+  'all',
   'nba',
   'wnba',
   'nfl',
@@ -234,6 +236,26 @@ function OddsPill({ tone, cents, onClick, disabled }: OddsPillProps) {
   );
 }
 
+interface CompactSportsOutcome {
+  label: string;
+  price: number;
+  tokenId: string;
+}
+
+export function getCompactSportsOutcomeSelection(
+  market: PolymarketMarket | undefined,
+  outcome: CompactSportsOutcome | undefined,
+  eventFinal: boolean,
+) {
+  if (!market || !outcome || eventFinal) return null;
+  return {
+    market,
+    outcome: outcome.label,
+    price: outcome.price,
+    tokenId: outcome.tokenId,
+  };
+}
+
 interface CompactGameCardProps {
   game: SportsGameGroup;
   onOutcomeClick: BrowseMarketsBentoProps['onSportsOutcomeClick'];
@@ -316,13 +338,18 @@ function CompactGameCard({
       | { label: string; price: number; tokenId: string }
       | undefined,
   ) => {
-    if (!market || !outcome) return;
-    if (eventFinal) return;
-    if (onGameClick) {
-      onGameClick(game);
-      return;
-    }
-    onOutcomeClick(market, outcome.label, outcome.price, outcome.tokenId);
+    const selection = getCompactSportsOutcomeSelection(
+      market,
+      outcome,
+      eventFinal,
+    );
+    if (!selection) return;
+    onOutcomeClick(
+      selection.market,
+      selection.outcome,
+      selection.price,
+      selection.tokenId,
+    );
   };
 
   return (
@@ -635,7 +662,7 @@ function SportsHeroCard({
                 color: isActive ? '#fff' : '#0a0a0c',
               }}
             >
-              {sub.label}
+              {sub.label === 'All Sports' ? 'All' : sub.label}
             </button>
           );
         })}
@@ -868,7 +895,7 @@ export default function BrowseMarketsBento({
   onBrowseCategory,
 }: BrowseMarketsBentoProps) {
   const [activeSportSub, setActiveSportSub] =
-    useState<SportSubcategoryId>('nba');
+    useState<SportSubcategoryId>(DEFAULT_SPORT_SUBCATEGORY);
 
   return (
     <section className="space-y-3">

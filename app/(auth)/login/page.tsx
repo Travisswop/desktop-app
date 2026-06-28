@@ -48,6 +48,7 @@ import logger from '@/utils/logger';
 import { buildSwopApiUrl, getSwopApiBaseUrl } from '@/lib/api/apiBaseUrl';
 import { safeLocalStorage, safeSessionStorage } from '@/lib/browserStorage';
 import { apiFetch } from '@/lib/api/apiFetch';
+import { isNetworkFetchError } from '@/lib/api/fetchErrors';
 import {
   AI_ONBOARDING_PATH,
   requiresSwopIdCompletion,
@@ -191,6 +192,43 @@ function formatLoginProcessingError(error: unknown): string {
   }
 
   return message;
+}
+
+async function fetchBackendUserAuth({
+  apiPath,
+  userEmail,
+  privyId,
+}: {
+  apiPath: string;
+  userEmail: string | null;
+  privyId: string | null;
+}) {
+  try {
+    return await apiFetch(buildSwopApiUrl(apiPath));
+  } catch (error) {
+    if (!isNetworkFetchError(error) || typeof window === 'undefined') {
+      throw error;
+    }
+
+    logger.warn(
+      'Direct backend user lookup failed; retrying through same-origin route',
+      {
+        apiBaseUrl: getSwopApiBaseUrl(),
+        message: error instanceof Error ? error.message : String(error),
+      },
+    );
+
+    return fetch('/api/auth/backend-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: userEmail,
+        privyId,
+      }),
+    });
+  }
 }
 
 function getAuthCookieOptions() {
@@ -695,8 +733,10 @@ const Login: React.FC = () => {
           return;
         }
 
-        const response = await apiFetch(buildSwopApiUrl(apiPath), {
-          headers: { 'Content-Type': 'application/json' },
+        const response = await fetchBackendUserAuth({
+          apiPath,
+          userEmail,
+          privyId: user?.id || null,
         });
 
         if (!response.ok) {

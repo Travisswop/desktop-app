@@ -110,6 +110,16 @@ const SMARTSITE_TEMPLATES = [
   },
 ];
 
+const FeedRouteLoadingOverlay = () => (
+  <div
+    aria-live="polite"
+    aria-label="Loading feed"
+    className="fixed inset-x-0 bottom-0 top-[97px] z-40 overflow-hidden bg-white px-6 pt-10"
+  >
+    <div className="mx-auto min-h-[520px] w-full max-w-[520px]" />
+  </div>
+);
+
 const BottomNavContent = () => {
   const params = useParams();
   const pathname = usePathname();
@@ -122,6 +132,7 @@ const BottomNavContent = () => {
   const [isActivateChipModalOpen, setIsActivateChipModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [pendingRoute, setPendingRoute] = useState<string | null>(null);
 
   const tab = useMemo(
     () => searchParams && searchParams.get("tab"),
@@ -133,10 +144,23 @@ const BottomNavContent = () => {
   const isSmartsite = pathname?.startsWith("/smartsite/");
   const isFeedSurface = pathname === "/" || pathname?.startsWith("/feed");
   const showFeedCompose = isFeedSurface && tab !== "map";
+  const isFeedTransitionPending = pendingRoute === "/feed" && !isFeedSurface;
 
   useEffect(() => {
+    router.prefetch("/feed");
     router.prefetch("/wallet");
   }, [router]);
+
+  useEffect(() => {
+    setPendingRoute(null);
+  }, [pathname]);
+
+  const handleFeedNavIntent = () => {
+    router.prefetch("/feed");
+    if (!isFeedSurface) {
+      setPendingRoute("/feed");
+    }
+  };
 
   // Get the dynamic ID from the route
   const pageId =
@@ -476,10 +500,15 @@ const BottomNavContent = () => {
       isActive: Boolean(pathname?.startsWith("/dashboard")),
     },
     {
-      href: "/",
+      href: "/feed",
       label: "Feed",
       Icon: Menu,
       isActive: pathname === "/" || pathname === "/feed",
+      prefetch: true,
+      onPointerEnter: () => router.prefetch("/feed"),
+      onPointerDown: handleFeedNavIntent,
+      onFocus: () => router.prefetch("/feed"),
+      onClick: handleFeedNavIntent,
     },
     {
       href: "/wallet",
@@ -500,6 +529,7 @@ const BottomNavContent = () => {
 
   return (
     <>
+      {isFeedTransitionPending ? <FeedRouteLoadingOverlay /> : null}
       <div
         className={`fixed bottom-5 left-1/2 z-50 w-[calc(100vw_-_32px)] -translate-x-1/2 ${
           isSmartsite || showFeedCompose ? "max-w-[340px]" : "max-w-[272px]"

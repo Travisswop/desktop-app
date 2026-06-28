@@ -40,9 +40,11 @@ export type MarketplaceProduct = {
     shippingCost?: number;
     digitalDeliveryNote?: string;
     digitalAsset?: MarketplaceDigitalAsset;
+    exclusiveContent?: MarketplaceExclusiveContentItem[];
     inPersonInstructions?: string;
     trackingEnabled?: boolean;
   };
+  exclusiveContent?: MarketplaceExclusiveContentItem[];
   tags?: string[];
   createdAt?: string;
   updatedAt?: string;
@@ -195,6 +197,31 @@ export type MarketplaceDigitalAsset = {
   storageKey?: string;
   uploadedAt?: string;
   accessPolicy?: 'receipt_nft';
+};
+
+export type MarketplaceExclusiveContentKind =
+  | 'download'
+  | 'video'
+  | 'community'
+  | 'promo'
+  | 'event'
+  | 'link'
+  | 'file';
+
+export type MarketplaceExclusiveContentItem = {
+  id?: string;
+  title?: string;
+  description?: string;
+  kind?: MarketplaceExclusiveContentKind | string;
+  ctaLabel?: string;
+  url?: string;
+  fileName?: string;
+  originalName?: string;
+  mimeType?: string;
+  size?: number;
+  accessPolicy?: 'receipt_nft' | string;
+  lockedBy?: 'receipt_nft' | 'purchase' | string;
+  expiresAt?: string | null;
 };
 
 export type MarketplaceReceiptState = {
