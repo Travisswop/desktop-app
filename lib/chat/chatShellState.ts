@@ -2,7 +2,7 @@ export type ChatShellStateInput = {
   hasUser: boolean;
   hasAccessToken: boolean;
   isInitializationLoading: boolean;
-  hasSocket: boolean;
+  isSocketConnected: boolean;
   connectionTimeout: boolean;
 };
 
@@ -19,6 +19,6 @@ export function shouldShowChatConnectionFallback(
 ): boolean {
   return (
     canRenderAuthenticatedChatShell(input) &&
-    (!input.hasSocket || input.connectionTimeout)
+    (!input.isSocketConnected || input.connectionTimeout)
   );
 }

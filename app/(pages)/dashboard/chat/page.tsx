@@ -19,7 +19,7 @@ const ChatRuntime = dynamic(
 );
 
 export default function ChatPage() {
-  const [, setConnectionStatus] = useState({
+  const [connectionStatus, setConnectionStatus] = useState({
     connected: false,
     text: 'Disconnected',
   });
@@ -94,14 +94,14 @@ export default function ChatPage() {
     hasUser: Boolean(user),
     hasAccessToken: Boolean(accessToken),
     isInitializationLoading,
-    hasSocket: Boolean(socket),
+    isSocketConnected: connectionStatus.connected,
     connectionTimeout,
   });
   const showChatConnectionFallback = shouldShowChatConnectionFallback({
     hasUser: Boolean(user),
     hasAccessToken: Boolean(accessToken),
     isInitializationLoading,
-    hasSocket: Boolean(socket),
+    isSocketConnected: connectionStatus.connected,
     connectionTimeout,
   });
 
@@ -134,6 +134,7 @@ export default function ChatPage() {
 
     // If user loaded but is null, stop showing skeleton
     if (!userId || !accessToken) {
+      setCurrentUser('');
       setIsInitializationLoading(false);
       if (process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true') {
         console.debug('Chat auth unavailable while initializing');
@@ -141,10 +142,11 @@ export default function ChatPage() {
       return;
     }
 
+    setCurrentUser(userId);
+
     // User is authenticated, connect socket ONLY if not already connected
     if (userId && accessToken && !socket) {
       connectSocket(accessToken);
-      setCurrentUser(userId);
       setIsInitializationLoading(false);
 
       // Set timeout to detect connection failure
@@ -157,9 +159,7 @@ export default function ChatPage() {
       return () => clearTimeout(timeoutId);
     } else if (userId && socket) {
       // Already connected, just update state
-      setCurrentUser(userId);
       setIsInitializationLoading(false);
-      setConnectionTimeout(false); // Reset timeout on successful connection
     }
 
     return undefined;

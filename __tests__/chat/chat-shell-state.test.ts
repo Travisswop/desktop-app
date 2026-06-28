@@ -9,7 +9,7 @@ describe('chat shell state', () => {
       hasUser: true,
       hasAccessToken: true,
       isInitializationLoading: false,
-      hasSocket: false,
+      isSocketConnected: false,
       connectionTimeout: true,
     };
 
@@ -22,7 +22,7 @@ describe('chat shell state', () => {
       hasUser: true,
       hasAccessToken: true,
       isInitializationLoading: true,
-      hasSocket: false,
+      isSocketConnected: false,
       connectionTimeout: false,
     };
 
