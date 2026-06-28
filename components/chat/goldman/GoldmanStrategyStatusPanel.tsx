@@ -370,6 +370,29 @@ export function getGoldmanStrategyControlState(
     };
   }
 
+  if (modeKey === 'proposal') {
+    return {
+      statusLabel: 'Proposal only',
+      statusToneClass: 'border-white/[0.08] bg-black/25 text-[#cfd3dd]',
+      summaryLine: 'proposal only · switch mode to run',
+      modeLabel,
+      heartbeatLabel: heartbeat.label,
+      heartbeatToneClass: heartbeat.toneClass,
+      heartbeatDetail: heartbeat.detail,
+      boundaryDetail:
+        'This strategy is saved as a proposal only. Goldman will not start monitoring or live trading from this mode, even if the rest of the runtime looks healthy.',
+      nextAction:
+        'Switch this strategy to monitor only or live execute, then press Run when the saved rules and funding look correct.',
+      blockerReason:
+        'Proposal mode keeps the reviewed plan available, but it does not authorize a Goldman runtime.',
+      runLabel: 'Switch mode',
+      runToneClass: 'border-white/[0.08] bg-black/25 text-[#cfd3dd]',
+      runDisabled: true,
+      primaryAction: 'none',
+      lastActivity: runtime?.lastActivity || null,
+    };
+  }
+
   return {
     statusLabel: 'Paused',
     statusToneClass: 'border-[#f4c95d]/30 bg-[#f4c95d]/10 text-[#f4c95d]',

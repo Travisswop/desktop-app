@@ -128,6 +128,37 @@ describe('GoldmanStrategyStatusPanel', () => {
     );
   });
 
+  test('keeps approved proposal-only strategies from looking runnable', () => {
+    expect(
+      getGoldmanStrategyControlState(
+        {
+          title: 'Saved NBA catalyst draft',
+          status: 'active',
+          runtime: {
+            executionMode: 'proposal',
+            lastHeartbeatAt: '2026-06-24T15:58:00Z',
+          },
+          metadata: {
+            approvalState: 'approved',
+          },
+        },
+        {
+          now: Date.parse('2026-06-24T16:00:00Z'),
+        }
+      )
+    ).toMatchObject({
+      statusLabel: 'Proposal only',
+      summaryLine: 'proposal only · switch mode to run',
+      runLabel: 'Switch mode',
+      runDisabled: true,
+      primaryAction: 'none',
+      nextAction:
+        'Switch this strategy to monitor only or live execute, then press Run when the saved rules and funding look correct.',
+      blockerReason:
+        'Proposal mode keeps the reviewed plan available, but it does not authorize a Goldman runtime.',
+    });
+  });
+
   test('keeps funding-blocked monitor strategies mode-aware instead of implying live trades', () => {
     const markup = renderToStaticMarkup(
       <GoldmanStrategyStatusPanel
