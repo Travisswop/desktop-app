@@ -73,6 +73,25 @@ export function isLocalConsoleCardHistoryBackedAtMount({
   return !liveSourceMessageIds.has(sourceMessageId);
 }
 
+export function resolveLocalConsoleCardSourceMessageId({
+  fallbackSourceMessageId,
+  invocationId,
+}: {
+  fallbackSourceMessageId?: string | null;
+  invocationId?: string | null;
+}) {
+  const normalizedInvocationId = String(invocationId || '').trim();
+
+  for (const prefix of ['local-pnl-', 'local-portfolio-'] as const) {
+    if (normalizedInvocationId.startsWith(prefix)) {
+      const sourceMessageId = normalizedInvocationId.slice(prefix.length).trim();
+      if (sourceMessageId) return sourceMessageId;
+    }
+  }
+
+  return String(fallbackSourceMessageId || '').trim();
+}
+
 function buildEventKey(event: LocalConsoleCardTelemetryEvent) {
   return [
     event.eventType,

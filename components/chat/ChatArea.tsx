@@ -190,6 +190,7 @@ import {
   buildLocalConsoleCardLifecycleId,
   emitLocalConsoleCardTelemetry,
   isLocalConsoleCardHistoryBackedAtMount,
+  resolveLocalConsoleCardSourceMessageId,
   type LocalConsoleCardType,
 } from '@/lib/chat/localConsoleCardTelemetry';
 import { LocalConsoleCardTelemetryBeacon } from '@/components/chat/LocalConsoleCardTelemetryBeacon';
@@ -737,6 +738,13 @@ function getLocalConsoleCardTypeForAction(
   if (action === 'portfolio.pnl') return 'pnl';
   if (action === 'wallet.portfolio') return 'portfolio';
   return null;
+}
+
+function getLocalConsoleCardSourceMessageId(message?: Partial<Message> | null) {
+  return resolveLocalConsoleCardSourceMessageId({
+    fallbackSourceMessageId: message?.clientMessageId || message?._id,
+    invocationId: message?.agentData?.invocationId,
+  });
 }
 
 function getLocalConsoleCardThreadScope({
@@ -3984,7 +3992,7 @@ export default function ChatArea({
       message.agentData?.action
     );
     if (localConsoleCardType) {
-      markLocalConsoleSourceIdAsLive(message.clientMessageId || message._id);
+      markLocalConsoleSourceIdAsLive(getLocalConsoleCardSourceMessageId(message));
     }
 
     setMessages((prev) => reconcileIncomingMessage(prev, message));
@@ -4490,7 +4498,7 @@ export default function ChatArea({
           msg.agentData?.action
         );
         if (localConsoleCardType) {
-          markLocalConsoleSourceIdAsLive(msg.clientMessageId || msg._id);
+          markLocalConsoleSourceIdAsLive(getLocalConsoleCardSourceMessageId(msg));
         }
         setMessages((prev) => reconcileIncomingMessage(prev, msg));
       }
@@ -5012,12 +5020,13 @@ export default function ChatArea({
           : message.agentData?.action === 'wallet.portfolio'
           ? 'portfolio'
           : null;
+      const sourceMessageId = getLocalConsoleCardSourceMessageId(message);
       if (!cardType) return;
-      markLocalConsoleSourceIdAsLive(message.clientMessageId || message._id);
+      markLocalConsoleSourceIdAsLive(sourceMessageId);
       emitLocalConsoleCardTelemetry({
         eventType: 'generated',
         cardType,
-        sourceMessageId: message.clientMessageId || message._id,
+        sourceMessageId,
         threadType: isGroup ? 'group' : 'direct',
       });
     });
@@ -5047,7 +5056,7 @@ export default function ChatArea({
           if (response.clientGeneratedAgentMessages?.length) {
             response.clientGeneratedAgentMessages.forEach((agentMessage) => {
               markLocalConsoleSourceIdAsLive(
-                agentMessage.clientMessageId || agentMessage._id
+                getLocalConsoleCardSourceMessageId(agentMessage)
               );
             });
             setMessages((prev) =>
@@ -6705,11 +6714,10 @@ export default function ChatArea({
               const persistedLocalConsoleCardType =
                 getLocalConsoleCardTypeForAction(message.agentData?.action);
               const persistedLocalConsoleSourceId =
-                message.clientMessageId || message._id;
+                getLocalConsoleCardSourceMessageId(message);
               const localConsoleReadMessageHistoryBackedAtMount =
                 didLocalConsoleCardMountFromHistory(
-                  localConsoleReadMessage?.clientMessageId ||
-                    localConsoleReadMessage?._id
+                  getLocalConsoleCardSourceMessageId(localConsoleReadMessage)
                 );
 
               return (
@@ -6764,10 +6772,9 @@ export default function ChatArea({
                             ? 'pnl'
                             : 'portfolio'
                         }
-                        sourceMessageId={
-                          localConsoleReadMessage.clientMessageId ||
-                          localConsoleReadMessage._id
-                        }
+                        sourceMessageId={getLocalConsoleCardSourceMessageId(
+                          localConsoleReadMessage
+                        )}
                         isGroup={isGroup}
                         historyBackedAtMount={
                           localConsoleReadMessageHistoryBackedAtMount

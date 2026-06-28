@@ -15,6 +15,7 @@ import {
   LOCAL_CONSOLE_CARD_TELEMETRY_PREFIX,
   normalizeLocalConsoleCardCommand,
   resetLocalConsoleCardTelemetryForTests,
+  resolveLocalConsoleCardSourceMessageId,
   shouldEmitLocalConsoleCardRehydratedOnMount,
 } from '@/lib/chat/localConsoleCardTelemetry';
 
@@ -163,6 +164,29 @@ describe('local console card telemetry', () => {
     ).toBe(true);
   });
 
+  test('reuses the stable local invocation id across optimistic and persisted card replacements', () => {
+    const optimisticSourceMessageId = resolveLocalConsoleCardSourceMessageId({
+      fallbackSourceMessageId:
+        'temp-local-portfolio-local-console-portfolio-abc123-1',
+      invocationId: 'local-portfolio-local-console-portfolio-abc123-1',
+    });
+    const persistedSourceMessageId = resolveLocalConsoleCardSourceMessageId({
+      fallbackSourceMessageId: '686e9c2332a0b7d4f17cc999',
+      invocationId: 'local-portfolio-local-console-portfolio-abc123-1',
+    });
+
+    expect(optimisticSourceMessageId).toBe(
+      'local-console-portfolio-abc123-1'
+    );
+    expect(persistedSourceMessageId).toBe(optimisticSourceMessageId);
+    expect(
+      isLocalConsoleCardHistoryBackedAtMount({
+        sourceMessageId: persistedSourceMessageId,
+        liveSourceMessageIds: new Set([optimisticSourceMessageId]),
+      })
+    ).toBe(false);
+  });
+
   test('emits rehydrated telemetry only from the rendered history-backed beacon path', () => {
     expect(
       LocalConsoleCardTelemetryBeacon({
@@ -208,6 +232,32 @@ describe('local console card telemetry', () => {
         historyBackedAtMount: isLocalConsoleCardHistoryBackedAtMount({
           sourceMessageId: 'live-card-1',
           liveSourceMessageIds: new Set(['live-card-1']),
+        }),
+      })
+    ).toBeNull();
+
+    expect(infoSpy).not.toHaveBeenCalled();
+  });
+
+  test('does not emit rehydrated telemetry when a persisted ack reuses the same local invocation source id', () => {
+    const liveSourceMessageId = resolveLocalConsoleCardSourceMessageId({
+      fallbackSourceMessageId:
+        'temp-local-portfolio-local-console-portfolio-xyz789-1',
+      invocationId: 'local-portfolio-local-console-portfolio-xyz789-1',
+    });
+    const persistedSourceMessageId = resolveLocalConsoleCardSourceMessageId({
+      fallbackSourceMessageId: '686e9c2332a0b7d4f17ccabc',
+      invocationId: 'local-portfolio-local-console-portfolio-xyz789-1',
+    });
+
+    expect(
+      LocalConsoleCardTelemetryBeacon({
+        cardType: 'portfolio',
+        sourceMessageId: persistedSourceMessageId,
+        isGroup: true,
+        historyBackedAtMount: isLocalConsoleCardHistoryBackedAtMount({
+          sourceMessageId: persistedSourceMessageId,
+          liveSourceMessageIds: new Set([liveSourceMessageId]),
         }),
       })
     ).toBeNull();
