@@ -25,6 +25,7 @@ import {
 } from '@/components/wallet/hooks/useWalletData';
 import { useHyperliquidMarkets } from '@/components/wallet/perps/hooks/useHyperliquidMarkets';
 import { useHyperliquidPortfolio } from '@/components/wallet/perps/hooks/useHyperliquidPortfolio';
+import { HYPERLIQUID_USER_FILLS_REQUEST_TIMEOUT_MS } from '@/lib/hyperliquidProxy';
 import {
   resetPerpsFeedBackfillHealth,
   setPerpsFeedBackfillHealth,
@@ -100,8 +101,6 @@ function liquidationFillsByCoin(fills: unknown) {
   );
 }
 
-const USER_FILLS_REQUEST_TIMEOUT_MS = 8_000;
-
 type FetchRecentUserFillsResult = {
   degraded: boolean;
   fills: HyperliquidUserFill[];
@@ -117,7 +116,7 @@ async function fetchRecentUserFills(masterAddress: string) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'userFills', user: masterAddress }),
-      signal: AbortSignal.timeout(USER_FILLS_REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(HYPERLIQUID_USER_FILLS_REQUEST_TIMEOUT_MS),
     });
 
     if (!response.ok) {

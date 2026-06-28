@@ -107,7 +107,74 @@ describe('hyperliquid proxy route', () => {
     expect(response.headers.get('x-hyperliquid-proxy-error')).toBe('timeout');
     await expect(response.json()).resolves.toEqual({
       error: 'Hyperliquid upstream request failed',
+      reason: 'timeout',
       retryable: true,
+      source: 'hyperliquid_proxy',
+    });
+  });
+
+  test('classifies dns failures separately from generic fetch failures', async () => {
+    const dnsError = new TypeError('fetch failed') as TypeError & {
+      cause?: { code: string; message: string };
+    };
+    dnsError.cause = {
+      code: 'ENOTFOUND',
+      message: 'getaddrinfo ENOTFOUND api.hyperliquid.xyz',
+    };
+
+    fetchMock.mockRejectedValueOnce(dnsError).mockRejectedValueOnce(dnsError);
+
+    const response = await proxyHyperliquidPost(
+      new NextRequest('https://www.swopme.app/api/hyperliquid/mainnet/info', {
+        body: JSON.stringify({ type: 'userFills', user: '0xabc' }),
+        method: 'POST',
+      }),
+      { params: Promise.resolve({ path: ['mainnet', 'info'] }) },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(502);
+    expect(response.headers.get('x-hyperliquid-proxy-error')).toBe(
+      'dns_unavailable',
+    );
+    expect(response.headers.get('x-hyperliquid-proxy-error-detail')).toBe(
+      'ENOTFOUND',
+    );
+    await expect(response.json()).resolves.toEqual({
+      error: 'Hyperliquid upstream request failed',
+      reason: 'dns_unavailable',
+      retryable: true,
+      source: 'hyperliquid_proxy',
+    });
+  });
+
+  test('stops retrying and classifies downstream aborts explicitly', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    fetchMock.mockImplementationOnce(async (_input, init) => {
+      expect(init?.signal?.aborted).toBe(true);
+      throw new DOMException('The operation was aborted.', 'AbortError');
+    });
+
+    const response = await proxyHyperliquidPost(
+      new NextRequest('https://www.swopme.app/api/hyperliquid/mainnet/info', {
+        body: JSON.stringify({ type: 'userFills', user: '0xabc' }),
+        method: 'POST',
+        signal: controller.signal,
+      }),
+      { params: Promise.resolve({ path: ['mainnet', 'info'] }) },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(499);
+    expect(response.headers.get('x-hyperliquid-proxy-error')).toBe(
+      'client_abort',
+    );
+    await expect(response.json()).resolves.toEqual({
+      error: 'Hyperliquid upstream request failed',
+      reason: 'client_abort',
+      retryable: false,
       source: 'hyperliquid_proxy',
     });
   });
