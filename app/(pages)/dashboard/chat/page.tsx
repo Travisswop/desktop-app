@@ -1,5 +1,9 @@
 // app/page.js
 'use client';
+import {
+  canRenderAuthenticatedChatShell,
+  shouldShowChatConnectionFallback,
+} from '@/lib/chat/chatShellState';
 import { useSocket } from '@/lib/socket';
 import { useUser } from '@/lib/UserContext';
 import dynamic from 'next/dynamic';
@@ -85,6 +89,20 @@ export default function ChatPage() {
     onConnect: handleSocketConnect,
     onDisconnect: handleSocketDisconnect,
     onConnectError: handleSocketConnectError,
+  });
+  const hasAuthenticatedChatShell = canRenderAuthenticatedChatShell({
+    hasUser: Boolean(user),
+    hasAccessToken: Boolean(accessToken),
+    isInitializationLoading,
+    hasSocket: Boolean(socket),
+    connectionTimeout,
+  });
+  const showChatConnectionFallback = shouldShowChatConnectionFallback({
+    hasUser: Boolean(user),
+    hasAccessToken: Boolean(accessToken),
+    isInitializationLoading,
+    hasSocket: Boolean(socket),
+    connectionTimeout,
   });
 
   const retryChatConnection = useCallback(async () => {
@@ -213,7 +231,7 @@ export default function ChatPage() {
   }
 
   // Show friendly loading state while socket is connecting
-  if (!user || !accessToken || !socket) {
+  if (!hasAuthenticatedChatShell) {
     // Show error state only after timeout
     if (connectionTimeout) {
       return (
@@ -332,6 +350,38 @@ export default function ChatPage() {
 
   return (
     <div className={fullscreenShell}>
+      {showChatConnectionFallback ? (
+        <div className="pointer-events-none absolute left-4 right-4 top-4 z-[90] flex justify-center">
+          <div className="pointer-events-auto w-full max-w-2xl rounded-2xl border border-[#3fe08f]/20 bg-[#0e1014]/95 p-4 shadow-[0_32px_80px_-24px_rgba(0,0,0,0.85)] backdrop-blur">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-[#eceef2]">
+                  Chat is still reconnecting
+                </p>
+                <p className="text-xs text-[#9396a0]">
+                  Messages and Astro stay visible while socket or wallet reads
+                  recover in the background.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => void retryChatConnection()}
+                  disabled={isRetryingChat}
+                  className="rounded-lg bg-[#3fe08f] px-4 py-2 text-xs font-semibold text-[#031008] transition-colors hover:bg-[#64f2aa] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isRetryingChat ? 'Retrying...' : 'Retry chat'}
+                </button>
+                <button
+                  onClick={() => router.push('/wallet')}
+                  className="rounded-lg border border-white/[0.08] bg-[#15171d] px-4 py-2 text-xs font-semibold text-[#eceef2] transition-colors hover:bg-[#1b1e25]"
+                >
+                  Open Wallet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <ChatRuntime
         socket={socket}
         currentUser={currentUser}
