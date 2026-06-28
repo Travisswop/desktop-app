@@ -148,6 +148,49 @@ describe('hyperliquid proxy route', () => {
     });
   });
 
+  test('classifies nested dns failures from fetch cause chains', async () => {
+    const nestedDnsError = new TypeError('fetch failed') as TypeError & {
+      cause?: {
+        message: string;
+        cause: { code: string; message: string };
+      };
+    };
+    nestedDnsError.cause = {
+      message: 'socket connection failed',
+      cause: {
+        code: 'ENOTFOUND',
+        message: 'getaddrinfo ENOTFOUND api.hyperliquid.xyz',
+      },
+    };
+
+    fetchMock
+      .mockRejectedValueOnce(nestedDnsError)
+      .mockRejectedValueOnce(nestedDnsError);
+
+    const response = await proxyHyperliquidPost(
+      new NextRequest('https://www.swopme.app/api/hyperliquid/mainnet/info', {
+        body: JSON.stringify({ type: 'userFills', user: '0xabc' }),
+        method: 'POST',
+      }),
+      { params: Promise.resolve({ path: ['mainnet', 'info'] }) },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(502);
+    expect(response.headers.get('x-hyperliquid-proxy-error')).toBe(
+      'dns_unavailable',
+    );
+    expect(response.headers.get('x-hyperliquid-proxy-error-detail')).toBe(
+      'ENOTFOUND',
+    );
+    await expect(response.json()).resolves.toEqual({
+      error: 'Hyperliquid upstream request failed',
+      reason: 'dns_unavailable',
+      retryable: true,
+      source: 'hyperliquid_proxy',
+    });
+  });
+
   test('stops retrying and classifies downstream aborts explicitly', async () => {
     const controller = new AbortController();
     controller.abort();

@@ -30,6 +30,7 @@ import {
   resetPerpsFeedBackfillHealth,
   setPerpsFeedBackfillHealth,
 } from './perpsBackfillHealth';
+import { shouldSkipPerpsPositionBackfill } from './perpsBackfillHelpers';
 import type { HLPosition } from '@/services/hyperliquid/types';
 
 interface HyperliquidUserFill extends PerpsFillLike {
@@ -334,6 +335,15 @@ export default function PerpsFeedBackfill() {
             position,
             recentFills,
           );
+          if (
+            shouldSkipPerpsPositionBackfill({
+              fillsDegraded: recentFillsResult.degraded,
+              openedFill,
+            })
+          ) {
+            return;
+          }
+
           const eventTimestamp =
             openedFill?.timestamp || new Date().toISOString();
           const snapshotKey = [

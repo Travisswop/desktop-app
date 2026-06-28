@@ -56,43 +56,71 @@ type HyperliquidProxyErrorInfo = {
   detail: string | null;
 };
 
-function getErrorCauseCode(error: unknown) {
-  if (!(error instanceof Error) || !('cause' in error)) return null;
+function getErrorChain(error: unknown) {
+  const chain: unknown[] = [];
+  const seen = new Set<unknown>();
+  let current = error;
 
-  const cause = error.cause;
-  if (!cause || typeof cause !== 'object' || !('code' in cause)) return null;
+  while (
+    current &&
+    !seen.has(current) &&
+    chain.length < 6 &&
+    (typeof current === 'object' || current instanceof Error)
+  ) {
+    chain.push(current);
+    seen.add(current);
 
-  const code = cause.code;
-  return typeof code === 'string' && code.trim() ? code : null;
+    if (!current || typeof current !== 'object' || !('cause' in current)) {
+      break;
+    }
+
+    current = current.cause;
+  }
+
+  return chain;
 }
 
-function getErrorCauseMessage(error: unknown) {
-  if (!(error instanceof Error) || !('cause' in error)) return null;
+function readErrorStringField(error: unknown, field: 'code' | 'message') {
+  if (!error || typeof error !== 'object' || !(field in error)) return null;
 
-  const cause = error.cause;
-  if (!cause || typeof cause !== 'object' || !('message' in cause)) return null;
+  const value = error[field];
+  return typeof value === 'string' && value.trim() ? value : null;
+}
 
-  const message = cause.message;
-  return typeof message === 'string' && message.trim() ? message : null;
+function getErrorCode(error: unknown) {
+  return (
+    getErrorChain(error)
+      .map((entry) => readErrorStringField(entry, 'code'))
+      .find(Boolean) ?? null
+  );
+}
+
+function getErrorMessages(error: unknown) {
+  return getErrorChain(error)
+    .flatMap((entry) => {
+      const message =
+        entry instanceof Error
+          ? entry.message
+          : readErrorStringField(entry, 'message');
+      return typeof message === 'string' && message.trim() ? [message] : [];
+    })
+    .filter(Boolean);
 }
 
 function isDnsResolutionError(error: unknown) {
-  const causeCode = getErrorCauseCode(error);
-  if (causeCode === 'ENOTFOUND' || causeCode === 'EAI_AGAIN') {
+  const errorCode = getErrorCode(error);
+  if (errorCode === 'ENOTFOUND' || errorCode === 'EAI_AGAIN') {
     return {
       matched: true,
-      detail: causeCode,
+      detail: errorCode,
     };
   }
 
-  const message = [
-    error instanceof Error ? error.message : '',
-    getErrorCauseMessage(error) ?? '',
-  ].join(' ');
+  const message = getErrorMessages(error).join(' ');
   if (/getaddrinfo|ENOTFOUND/i.test(message)) {
     return {
       matched: true,
-      detail: causeCode ?? 'ENOTFOUND',
+      detail: errorCode ?? 'ENOTFOUND',
     };
   }
 
@@ -130,7 +158,7 @@ function classifyProxyError(
 
   return {
     code: 'fetch_failed',
-    detail: getErrorCauseCode(error),
+    detail: getErrorCode(error),
   };
 }
 
