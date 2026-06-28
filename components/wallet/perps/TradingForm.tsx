@@ -22,6 +22,7 @@ import {
   type HyperliquidAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
 import { useUser } from '@/lib/UserContext';
+import { ApprovedActionBoundaryNotice } from '@/components/wallet/shared/ApprovedActionBoundaryNotice';
 import {
   buildPerpsPositionKey,
   qualifyPerpsPositionCoin,
@@ -703,9 +704,18 @@ export function TradingForm({
     <div className="flex flex-col h-full">
       {/* Long / Short toggle */}
       {agentOrderPrefill && (
-        <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11.5px] font-medium text-blue-700">
-          Agent proposal loaded. Review every field before confirming.
-        </div>
+        agentOrderPrefill.approvalBoundary ? (
+          <ApprovedActionBoundaryNotice
+            boundary={agentOrderPrefill.approvalBoundary}
+            intro="Goldman loaded this approved order into the ticket. Review the order inside this approved boundary before you sign."
+            accent="blue"
+            className="mb-3"
+          />
+        ) : (
+          <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11.5px] font-medium text-blue-700">
+            Agent proposal loaded. Review every field before confirming.
+          </div>
+        )
       )}
 
       {/* Margin mode selector */}

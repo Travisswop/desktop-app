@@ -94,6 +94,7 @@ export default function PredictionPageContent() {
       initialSide: prefill.side,
       initialOrderType: prefill.orderType,
       initialLimitPrice: prefill.limitPrice,
+      approvalBoundary: prefill.approvalBoundary,
     });
 
     const query = new URLSearchParams();
@@ -108,7 +109,9 @@ export default function PredictionPageContent() {
     router.push(`/prediction/market/${encodeURIComponent(key)}?${query.toString()}`);
     toast({
       title: 'Agent proposal approved',
-      description: 'Review the prediction trade before signing.',
+      description: prefill.approvalBoundary
+        ? 'Review the prediction trade and approved risk boundary before signing.'
+        : 'Review the prediction trade before signing.',
     });
   }, [router, setMarketDetail, toast]);
 

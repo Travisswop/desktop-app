@@ -28,6 +28,7 @@ import { useTrading } from '@/providers/polymarket';
 import {
   completeAgentActionFromHandoff,
   type AgentActionCompletion,
+  type ApprovedActionBoundary,
 } from '@/lib/chat/agentActionHandoff';
 import {
   CTF_CONTRACT_ADDRESS,
@@ -46,6 +47,7 @@ import OrderSuccessNotification, {
   showOrderSuccessToast,
   type OrderSuccessInfo,
 } from '../shared/OrderSuccessNotification';
+import { ApprovedActionBoundaryNotice } from '@/components/wallet/shared/ApprovedActionBoundaryNotice';
 
 import { InfoIcon, Clock, AlertCircle, X } from 'lucide-react';
 
@@ -4317,6 +4319,7 @@ type MarketDetailViewProps = {
   initialSide?: 'BUY' | 'SELL';
   initialOrderType?: OrderVariant;
   initialLimitPrice?: string;
+  approvalBoundary?: ApprovedActionBoundary | null;
   agentProposalId?: string;
   onAgentActionComplete?: (completion: AgentActionCompletion) => void;
   onAddFunds?: () => void;
@@ -4345,6 +4348,7 @@ export default function MarketDetailView({
   initialSide,
   initialOrderType,
   initialLimitPrice,
+  approvalBoundary,
   agentProposalId,
   onAgentActionComplete,
   onAddFunds,
@@ -5247,6 +5251,12 @@ export default function MarketDetailView({
             disabledReason={tradingDisabledReason}
           />
         )}
+
+        <ApprovedActionBoundaryNotice
+          boundary={approvalBoundary}
+          intro="Goldman opened this market from an approved proposal. Confirm the prediction order inside this approved boundary before you sign."
+          accent="emerald"
+        />
 
         {/* ── Order ticket (A3 / A3L) ──────────────────────────────────────── */}
         <OrderTicket

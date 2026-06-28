@@ -193,6 +193,11 @@ describe('desktop group agent payloads', () => {
           price: '3200',
           leverage: '5',
           isCross: 'false',
+          riskControls: ['Use only approved size.', 'Stop after the first fill.'],
+          maxOrderUsd: '750',
+          maxDailyLossUsd: '150',
+          maxOpenPositions: '2',
+          expiry: '2026-06-29T18:30:00.000Z',
         },
       },
     });
@@ -207,7 +212,18 @@ describe('desktop group agent payloads', () => {
       price: '3200',
       leverage: 5,
       isCross: false,
+      approvalBoundary: {
+        maxOrderUsd: '750',
+        maxDailyLossUsd: '150',
+        maxOpenPositions: '2',
+        expiry: '2026-06-29T18:30:00.000Z',
+        reviewStateLabel: 'User signing required',
+      },
     });
+    expect(prefill?.approvalBoundary?.riskControls).toEqual([
+      'Use only approved size.',
+      'Stop after the first fill.',
+    ]);
   });
 
   test('uses requested Hyperliquid market aliases over stale coin defaults', () => {
@@ -318,6 +334,10 @@ describe('desktop group agent payloads', () => {
           amount: '25',
           orderType: 'limit',
           price: '0.42',
+          riskControls: ['No more than one live order.'],
+          maxOrderUsd: '25',
+          maxDailySpendUsd: '80',
+          expiry: '2026-06-30T16:00:00.000Z',
         },
       },
     });
@@ -333,6 +353,15 @@ describe('desktop group agent payloads', () => {
       amount: '25',
       orderType: 'limit',
       limitPrice: '42',
+      approvalBoundary: {
+        maxOrderUsd: '25',
+        maxDailySpendUsd: '80',
+        expiry: '2026-06-30T16:00:00.000Z',
+        reviewStateLabel: 'User signing required',
+      },
     });
+    expect(prefill?.approvalBoundary?.riskControls).toEqual([
+      'No more than one live order.',
+    ]);
   });
 });

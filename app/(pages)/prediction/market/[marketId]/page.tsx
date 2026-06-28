@@ -259,6 +259,7 @@ function MarketDetailPageInner() {
         searchParams?.get('limitPrice') ||
         undefined
       }
+      approvalBoundary={snapshot.approvalBoundary}
       agentProposalId={searchParams?.get('proposalId') || undefined}
       onAgentActionComplete={(completion) => {
         if (completion.groupId) {
