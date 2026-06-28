@@ -1,5 +1,7 @@
 import {
   canRenderAuthenticatedChatShell,
+  getChatConnectionFallbackCause,
+  getChatRetryAction,
   shouldAttemptChatReconnect,
   shouldShowChatConnectionFallback,
 } from '@/lib/chat/chatShellState';
@@ -60,5 +62,53 @@ describe('chat shell state', () => {
         isSocketConnected: true,
       }),
     ).toBe(false);
+  });
+
+  it('classifies timeout-backed fallback separately from a dropped socket', () => {
+    expect(
+      getChatConnectionFallbackCause({
+        hasUser: true,
+        hasAccessToken: true,
+        isInitializationLoading: false,
+        isSocketConnected: false,
+        connectionTimeout: true,
+      }),
+    ).toBe('connection_timeout');
+
+    expect(
+      getChatConnectionFallbackCause({
+        hasUser: true,
+        hasAccessToken: true,
+        isInitializationLoading: false,
+        isSocketConnected: false,
+        connectionTimeout: false,
+      }),
+    ).toBe('socket_disconnected');
+  });
+
+  it('forces a reconnect when auth is present but the stale socket instance remains', () => {
+    expect(
+      getChatRetryAction({
+        hasUserId: true,
+        hasAccessToken: true,
+        hasSocket: true,
+      }),
+    ).toBe('reconnect_socket');
+
+    expect(
+      getChatRetryAction({
+        hasUserId: true,
+        hasAccessToken: true,
+        hasSocket: false,
+      }),
+    ).toBe('connect_socket');
+
+    expect(
+      getChatRetryAction({
+        hasUserId: false,
+        hasAccessToken: false,
+        hasSocket: false,
+      }),
+    ).toBe('refresh_auth');
   });
 });

@@ -2,7 +2,8 @@
 'use client';
 import {
   canRenderAuthenticatedChatShell,
-  shouldAttemptChatReconnect,
+  getChatConnectionFallbackCause,
+  getChatRetryAction,
   shouldShowChatConnectionFallback,
 } from '@/lib/chat/chatShellState';
 import { useSocket } from '@/lib/socket';
@@ -70,11 +71,13 @@ export default function ChatPage() {
   const handleSocketConnect = useCallback(() => {
     setConnectionStatus({ connected: true, text: 'Connected' });
     setConnectionTimeout(false);
+    setIsRetryingChat(false);
   }, []);
 
   const handleSocketDisconnect = useCallback((reason: string) => {
     setConnectionStatus({ connected: false, text: 'Disconnected' });
     setUnreadCount(0);
+    setIsRetryingChat(false);
     void reason;
   }, []);
 
@@ -84,6 +87,7 @@ export default function ChatPage() {
       text: 'Connecting',
     });
     setConnectionTimeout(true);
+    setIsRetryingChat(false);
   }, []);
 
   const { socket, connectSocket } = useSocket({
@@ -105,12 +109,25 @@ export default function ChatPage() {
     isSocketConnected: connectionStatus.connected,
     connectionTimeout,
   });
+  const chatConnectionFallbackCause = getChatConnectionFallbackCause({
+    hasUser: Boolean(user),
+    hasAccessToken: Boolean(accessToken),
+    isInitializationLoading,
+    isSocketConnected: connectionStatus.connected,
+    connectionTimeout,
+  });
 
   const retryChatConnection = useCallback(async () => {
     setConnectionTimeout(false);
+    setIsRetryingChat(true);
 
-    if (!userId || !accessToken) {
-      setIsRetryingChat(true);
+    const retryAction = getChatRetryAction({
+      hasUserId: Boolean(userId),
+      hasAccessToken: Boolean(accessToken),
+      hasSocket: Boolean(socket),
+    });
+
+    if (retryAction === 'refresh_auth') {
       try {
         await refreshUser();
       } finally {
@@ -119,24 +136,10 @@ export default function ChatPage() {
       return;
     }
 
-    if (
-      shouldAttemptChatReconnect({
-        hasUser: Boolean(userId),
-        hasAccessToken: Boolean(accessToken),
-        hasSocketInstance: Boolean(socket),
-        isSocketConnected: connectionStatus.connected,
-      })
-    ) {
-      connectSocket(accessToken);
-    }
-  }, [
-    accessToken,
-    connectSocket,
-    connectionStatus.connected,
-    refreshUser,
-    socket,
-    userId,
-  ]);
+    connectSocket(accessToken!, {
+      forceReconnect: retryAction === 'reconnect_socket',
+    });
+  }, [accessToken, connectSocket, refreshUser, socket, userId]);
 
   const fullscreenShell =
     'fixed inset-0 z-[80] overflow-hidden bg-black text-[#eceef2]';
@@ -260,8 +263,9 @@ export default function ChatPage() {
                 Connecting to chat
               </h2>
               <p className="mb-6 text-sm text-[#9396a0]">
-                We are reconnecting in the background. You can retry now or
-                open Wallet while chat comes back online.
+                {chatConnectionFallbackCause === 'socket_disconnected'
+                  ? 'The shell loaded, but chat disconnected before realtime finished coming back. Retry now or open Wallet while the connection recovers.'
+                  : 'Realtime chat is still reconnecting. Retry now or open Wallet while the connection comes back online.'}
               </p>
               <div className="flex flex-col justify-center gap-2 sm:flex-row">
                 <button
@@ -374,8 +378,9 @@ export default function ChatPage() {
                   Chat is still reconnecting
                 </p>
                 <p className="text-xs text-[#9396a0]">
-                  Messages and Astro stay visible while socket or wallet reads
-                  recover in the background.
+                  {chatConnectionFallbackCause === 'socket_disconnected'
+                    ? 'Messages stay visible while the disconnected chat session reconnects in the background.'
+                    : 'Messages and Astro stay visible while realtime chat reconnects in the background.'}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
