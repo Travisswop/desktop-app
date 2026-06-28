@@ -94,6 +94,10 @@ export interface SportsGameGroup {
   moneyline: GroupedMarket | null;
   spread: GroupedMarket | null;
   total: GroupedMarket | null;
+  /** Additional spread lines for events that expose alternate spreads. */
+  spreadLines?: GroupedMarket[];
+  /** Additional total lines for events that expose alternate totals. */
+  totalLines?: GroupedMarket[];
 }
 
 // ─── Raw Gamma API shapes ─────────────────────────────────────────────────────
@@ -166,6 +170,11 @@ function isBinaryYesNoMarket(outcomes: string[]): boolean {
   );
 }
 
+function extractSignedLine(value: string): string | null {
+  const match = value.match(/(?:^|[\s(])([+-]\d+(?:\.\d+)?)(?=$|[\s),;:])/);
+  return match?.[1] ?? null;
+}
+
 function isCompanionSportsMarket(question = '', eventTitle = ''): boolean {
   return /\b(exact score|first team|first to score|score first|first corner|total corners|corner|cards?|booking|player props?|both teams to score|half|halftime|period|quarter)\b/.test(
     normalizeText(`${eventTitle} ${question}`),
@@ -184,7 +193,7 @@ function isCompanionSportsMarket(question = '', eventTitle = ''): boolean {
 function detectMarketType(outcomes: string[], question = ''): MarketType {
   // ── Outcome-label detection (fast path) ──────────────────────────────────
   if (outcomes.some((o) => /^(over|under)$/i.test(o.trim()))) return 'total';
-  if (outcomes.some((o) => /[+-]\d+\.?\d*$/.test(o.trim()))) return 'spread';
+  if (outcomes.some((o) => Boolean(extractSignedLine(o)))) return 'spread';
 
   // ── Question-text detection (for Yes/No binary markets) ──────────────────
   const q = question.toLowerCase();
@@ -196,7 +205,7 @@ function detectMarketType(outcomes: string[], question = ''): MarketType {
   // Spread signals: "spread", "cover", "ats", or a ±number buried in the question
   if (/\bspread\b|\bcover\b|\bats\b/.test(q)) return 'spread';
   // ±X or ±X.5 appears in the question (but NOT a total question already caught above)
-  if (/[+-]\d+\.?\d*/.test(question)) return 'spread';
+  if (extractSignedLine(question)) return 'spread';
 
   return 'moneyline';
 }
@@ -250,7 +259,7 @@ function formatSpreadLabel(outcome: string, question: string): string {
   const trimmed = outcome.trim();
 
   // 1. Already has a spread value in the label — keep as-is
-  if (/[+-]\d+\.?\d*$/.test(trimmed)) return trimmed;
+  if (extractSignedLine(trimmed)) return trimmed;
 
   // Helpers
   const normalizeLine = (line: string): string =>
@@ -265,12 +274,13 @@ function formatSpreadLabel(outcome: string, question: string): string {
     /([A-Za-z0-9][A-Za-z0-9 .'&/-]*?)\s*\(([+-]?\d+\.?\d*)\)/,
   );
   // Fallback: any signed number in the question ("cover -1.5")
-  const plainLineMatch = !parenMatch
-    ? (question.match(/([+-]\d+\.?\d*)/) ??
-      question.match(/\b(\d+\.?\d*)\s*(?:spread|point|pt)/i))
-    : null;
+  const signedLine = !parenMatch ? extractSignedLine(question) : null;
+  const plainLineMatch =
+    !parenMatch && !signedLine
+      ? question.match(/\b(\d+\.?\d*)\s*(?:spread|point|pt)/i)
+      : null;
 
-  const rawLine = parenMatch?.[2] ?? plainLineMatch?.[1];
+  const rawLine = parenMatch?.[2] ?? signedLine ?? plainLineMatch?.[1];
   if (!rawLine) return trimmed; // nothing to extract
 
   // 3. Yes/No outcomes
@@ -363,11 +373,19 @@ function buildParsedOutcomes(
 export function groupEventMarkets(
   markets: GammaEventMarket[],
   realtimePrices?: RealtimePriceMap,
-): Pick<SportsGameGroup, 'moneyline' | 'spread' | 'total'> {
-  const result: Pick<SportsGameGroup, 'moneyline' | 'spread' | 'total'> = {
+): Pick<
+  SportsGameGroup,
+  'moneyline' | 'spread' | 'total' | 'spreadLines' | 'totalLines'
+> {
+  const result: Pick<
+    SportsGameGroup,
+    'moneyline' | 'spread' | 'total' | 'spreadLines' | 'totalLines'
+  > = {
     moneyline: null,
     spread: null,
     total: null,
+    spreadLines: [],
+    totalLines: [],
   };
 
   for (const raw of markets) {
@@ -376,11 +394,23 @@ export function groupEventMarkets(
     if (outcomes.length < 2) continue;
 
     const type = detectMarketType(outcomes, raw.question);
-    if (result[type]) continue; // already found this bucket
-
     const market = toPolymarketMarket(raw, realtimePrices);
     const parsedOutcomes = buildParsedOutcomes(raw, type, realtimePrices);
-    result[type] = { type, market, outcomes: parsedOutcomes };
+    const group = { type, market, outcomes: parsedOutcomes };
+
+    if (type === 'spread') {
+      result.spreadLines?.push(group);
+      if (!result.spread) result.spread = group;
+      continue;
+    }
+
+    if (type === 'total') {
+      result.totalLines?.push(group);
+      if (!result.total) result.total = group;
+      continue;
+    }
+
+    if (!result.moneyline) result.moneyline = group;
   }
 
   return result;
@@ -561,10 +591,8 @@ function canonicalGameStartKey(market: PolymarketMarket): string {
 function flatMarketGroupKey(market: PolymarketMarket): string {
   const rawTitle = market.eventTitle ?? market.question ?? '';
   const title = stripMoreMarketsSuffix(rawTitle);
-  const hasTeams =
-    Array.isArray(market.eventTeams) && market.eventTeams.length >= 2;
 
-  if (hasTeams && /\bvs\.?\b/i.test(title)) {
+  if (/\bvs\.?\b/i.test(title)) {
     return [
       'sports-game',
       normalizeText(title),
@@ -612,7 +640,10 @@ function buildBinaryMoneylineGroup(
   markets: PolymarketMarket[],
 ): GroupedMarket | null {
   const first = markets[0];
-  const eventTeams = first?.eventTeams as RawEventTeam[] | undefined;
+  const eventTeams = markets.find(
+    (market) =>
+      Array.isArray(market.eventTeams) && market.eventTeams.length >= 2,
+  )?.eventTeams as RawEventTeam[] | undefined;
   if (!eventTeams?.length) return null;
 
   const rows: ParsedOutcome[] = [];
@@ -691,11 +722,19 @@ function buildGroupFromMarket(
  */
 function groupPolymarketMarketsForEvent(
   markets: PolymarketMarket[],
-): Pick<SportsGameGroup, 'moneyline' | 'spread' | 'total'> {
-  const result: Pick<SportsGameGroup, 'moneyline' | 'spread' | 'total'> = {
+): Pick<
+  SportsGameGroup,
+  'moneyline' | 'spread' | 'total' | 'spreadLines' | 'totalLines'
+> {
+  const result: Pick<
+    SportsGameGroup,
+    'moneyline' | 'spread' | 'total' | 'spreadLines' | 'totalLines'
+  > = {
     moneyline: null,
     spread: null,
     total: null,
+    spreadLines: [],
+    totalLines: [],
   };
   const binaryMoneyline = buildBinaryMoneylineGroup(markets);
   if (binaryMoneyline) result.moneyline = binaryMoneyline;
@@ -713,9 +752,21 @@ function groupPolymarketMarketsForEvent(
     if (isCompanionSportsMarket(market.question, market.eventTitle)) continue;
 
     const type = detectMarketType(outcomes, market.question);
-    if (result[type]) continue; // first match wins
+    const group = buildGroupFromMarket(market, type);
 
-    result[type] = buildGroupFromMarket(market, type);
+    if (type === 'spread') {
+      result.spreadLines?.push(group);
+      if (!result.spread) result.spread = group;
+      continue;
+    }
+
+    if (type === 'total') {
+      result.totalLines?.push(group);
+      if (!result.total) result.total = group;
+      continue;
+    }
+
+    if (!result.moneyline) result.moneyline = group;
   }
 
   return result;
@@ -840,14 +891,18 @@ export function groupFlatMarketsIntoGames(
 
     // Align spread outcomes to the same row order as the moneyline so that
     // row A always shows teamA's spread and row B shows teamB's spread.
-    const spread = grouped.spread
-      ? alignSpreadToTeams(grouped.spread, teamA, teamB)
-      : null;
+    const spreadLines = (grouped.spreadLines ?? []).map((spreadLine) =>
+      alignSpreadToTeams(spreadLine, teamA, teamB),
+    );
+    const spread = spreadLines[0] ?? null;
 
     // Per-team metadata from the event-level `teams` array (added by the
     // backend). Works for every Polymarket-covered sport, unlike the static
     // NBA/NFL map.
-    const eventTeams = first.eventTeams as RawEventTeam[] | undefined;
+    const eventTeams = eventMarkets.find(
+      (market) =>
+        Array.isArray(market.eventTeams) && market.eventTeams.length >= 2,
+    )?.eventTeams as RawEventTeam[] | undefined;
     const teamAMeta = toResolvedTeamMeta(
       teamA,
       findEventTeam(teamA, eventTeams),
@@ -876,6 +931,7 @@ export function groupFlatMarketsIntoGames(
       eventScore: first.eventScore ?? null,
       ...grouped,
       spread,
+      spreadLines,
     });
   }
 
@@ -952,9 +1008,10 @@ export function toSportsGameGroup(
   const [teamA, teamB] = resolveTeamNames(title, grouped.moneyline);
 
   // Align spread outcomes to match the moneyline row order
-  const spread = grouped.spread
-    ? alignSpreadToTeams(grouped.spread, teamA, teamB)
-    : null;
+  const spreadLines = (grouped.spreadLines ?? []).map((spreadLine) =>
+    alignSpreadToTeams(spreadLine, teamA, teamB),
+  );
+  const spread = spreadLines[0] ?? null;
 
   const firstMarket = event.markets?.[0];
   const eventLevelIcon =
@@ -992,5 +1049,6 @@ export function toSportsGameGroup(
     eventScore: event.score ?? null,
     ...grouped,
     spread,
+    spreadLines,
   };
 }

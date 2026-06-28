@@ -40,6 +40,10 @@ import {
   isValidGameCard,
   type SportsGameGroup,
 } from '@/lib/polymarket/sports-grouping';
+import {
+  getSportsGameMarketOutcomes,
+  getSportsOutcomeSelection,
+} from '@/lib/polymarket/sports-selection';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
@@ -256,6 +260,7 @@ export default function HighVolumeMarkets({
       opts: {
         initialOutcome?: 'yes' | 'no';
         outcomeLabels?: [string, string];
+        game?: SportsGameGroup;
       } = {},
     ) => {
       const key = marketRouteKey(market);
@@ -263,6 +268,7 @@ export default function HighVolumeMarkets({
       const { yesShares, noShares } = sharesForMarket(market);
       stashMarketDetail(key, {
         market,
+        game: opts.game,
         initialOutcome: opts.initialOutcome,
         outcomeLabels: opts.outcomeLabels,
         yesShares,
@@ -305,31 +311,23 @@ export default function HighVolumeMarkets({
    */
   const handleSportsOutcomeClick = useCallback(
     (
+      game: SportsGameGroup,
       market: PolymarketMarket,
       outcome: string,
       _price: number,
       tokenId: string,
     ) => {
-      const tokenIds: string[] = market.clobTokenIds
-        ? JSON.parse(market.clobTokenIds)
-        : [];
-      const yesTokenId = tokenIds[0] || tokenId;
-      const isFirstOutcome = tokenId === yesTokenId;
-
-      let outcomeLabels: [string, string] | undefined;
-      const isSpreadLine = /^[+-]\d/.test(outcome);
-      if (isSpreadLine) {
-        const other = outcome.startsWith('+')
-          ? '-' + outcome.slice(1)
-          : '+' + outcome.slice(1);
-        outcomeLabels = isFirstOutcome
-          ? [outcome, other]
-          : [other, outcome];
-      }
+      const selection = getSportsOutcomeSelection(
+        market,
+        outcome,
+        tokenId,
+        getSportsGameMarketOutcomes(game, market),
+        game,
+      );
 
       navigateToMarket(market, {
-        initialOutcome: isFirstOutcome ? 'yes' : 'no',
-        outcomeLabels,
+        ...selection,
+        game,
       });
     },
     [navigateToMarket],
@@ -442,7 +440,9 @@ export default function HighVolumeMarkets({
       key={game.eventId}
       game={game}
       disabled={isGeoblocked}
-      onOutcomeClick={handleSportsOutcomeClick}
+      onOutcomeClick={(market, outcome, price, tokenId) =>
+        handleSportsOutcomeClick(game, market, outcome, price, tokenId)
+      }
     />
   );
 

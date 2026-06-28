@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   useClobOrder,
   useTickSize,
@@ -11,6 +11,19 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import { postFeed } from '@/actions/postFeed';
 import type { PolymarketMarket } from '@/hooks/polymarket';
+import type {
+  GroupedMarket,
+  ParsedOutcome,
+  ResolvedTeamMeta,
+  SportsGameGroup,
+} from '@/lib/polymarket/sports-grouping';
+import {
+  getSportsGameMarketOutcomes,
+  getSportsMoneylineDisplayOutcomes,
+  getSportsOutcomeSelection,
+  samePolymarketMarket,
+  type SportsOutcomeSelection,
+} from '@/lib/polymarket/sports-selection';
 import { useTrading } from '@/providers/polymarket';
 import {
   completeAgentActionFromHandoff,
@@ -58,6 +71,9 @@ const D = {
   warnIcon: '#d97706',
   mono: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
 } as const;
+
+const GAME_LINES_GRID =
+  'minmax(0,1fr) minmax(72px,96px) minmax(78px,108px) minmax(78px,108px)';
 
 const ERC1155_BALANCE_OF_ABI = [
   {
@@ -1531,6 +1547,569 @@ function TeamBadgeBlock({
   );
 }
 
+type SportsGameLineClick = (
+  market: PolymarketMarket,
+  outcome: string,
+  tokenId: string,
+) => void;
+
+type SportsGameLinesCardProps = {
+  game: SportsGameGroup;
+  activeMarket: PolymarketMarket;
+  activeTokenId: string;
+  disabled: boolean;
+  onOutcomeClick: SportsGameLineClick;
+};
+
+type SportsGameLineRow = {
+  key: string;
+  name: string;
+  record?: string;
+  logoUrl?: string;
+  meta?: ResolvedTeamMeta;
+  ml?: ParsedOutcome;
+  spread?: ParsedOutcome;
+  total?: ParsedOutcome;
+};
+
+function SportsGameLinesCard({
+  game,
+  activeMarket,
+  activeTokenId,
+  disabled,
+  onOutcomeClick,
+}: SportsGameLinesCardProps) {
+  const moneylineOutcomes = game.moneyline?.outcomes ?? [];
+  const spreadOutcomes = game.spread?.outcomes ?? [];
+  const totalOutcomes = game.total?.outcomes ?? [];
+  const extraSpreadLines = getAdditionalGameLineGroups(
+    game.spread,
+    game.spreadLines,
+  );
+  const extraTotalLines = getAdditionalGameLineGroups(
+    game.total,
+    game.totalLines,
+  );
+  const rows: SportsGameLineRow[] = [
+    {
+      key: 'team-a',
+      name: moneylineOutcomes[0]?.label || game.teamA,
+      record: game.teamAMeta?.record,
+      logoUrl: game.teamAMeta?.logoUrl ?? game.teamALogo,
+      meta: game.teamAMeta,
+      ml: moneylineOutcomes[0],
+      spread: spreadOutcomes[0],
+      total: totalOutcomes[0],
+    },
+    {
+      key: 'team-b',
+      name: moneylineOutcomes[1]?.label || game.teamB,
+      record: game.teamBMeta?.record,
+      logoUrl: game.teamBMeta?.logoUrl ?? game.teamBLogo,
+      meta: game.teamBMeta,
+      ml: moneylineOutcomes[1],
+      spread: spreadOutcomes[1],
+      total: totalOutcomes[1],
+    },
+    ...moneylineOutcomes.slice(2).map((outcome) => ({
+      key: `extra-${outcome.tokenId || outcome.label}`,
+      name: outcome.label,
+      ml: outcome,
+    })),
+  ].filter((row) => row.name);
+
+  const timeLabel = formatGameLineTime(game.startDate);
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: `1px solid ${D.hair}`,
+        borderRadius: 18,
+        overflow: 'hidden',
+        boxShadow:
+          '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+      }}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: GAME_LINES_GRID,
+          columnGap: 10,
+          alignItems: 'end',
+          padding: '16px 18px 12px',
+          borderBottom: `1px solid ${D.hair}`,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: D.mono,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 0.8,
+              color: D.muted,
+              textTransform: 'uppercase',
+            }}
+          >
+            {timeLabel || 'Game lines'}
+          </div>
+          <div
+            style={{
+              marginTop: 3,
+              color: D.ink,
+              fontSize: 15,
+              fontWeight: 700,
+              letterSpacing: -0.25,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {game.title}
+          </div>
+        </div>
+        <GameLineColumnLabel>ML</GameLineColumnLabel>
+        <GameLineColumnLabel>Spread</GameLineColumnLabel>
+        <GameLineColumnLabel>Total</GameLineColumnLabel>
+      </div>
+
+      <div style={{ padding: '14px 18px 16px' }}>
+        {rows.map((row, index) => (
+          <SportsGameLinesRow
+            key={row.key}
+            row={row}
+            moneylineMarket={marketForParsedOutcome(game.moneyline, row.ml)}
+            spreadMarket={marketForParsedOutcome(game.spread, row.spread)}
+            totalMarket={marketForParsedOutcome(game.total, row.total)}
+            activeMarket={activeMarket}
+            activeTokenId={activeTokenId}
+            disabled={disabled}
+            first={index === 0}
+            onOutcomeClick={onOutcomeClick}
+          />
+        ))}
+
+        {(extraSpreadLines.length > 0 || extraTotalLines.length > 0) && (
+          <div
+            style={{
+              marginTop: 14,
+              paddingTop: 14,
+              borderTop: `1px solid ${D.hair2}`,
+            }}
+          >
+            <div
+              style={{
+                fontFamily: D.mono,
+                fontSize: 10.5,
+                fontWeight: 800,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                color: D.muted,
+                marginBottom: 10,
+              }}
+            >
+              More lines
+            </div>
+            {[...extraSpreadLines, ...extraTotalLines].map((group) => (
+              <AdditionalGameLineRow
+                key={`${group.market.conditionId || group.market.id}-${group.type}`}
+                group={group}
+                activeMarket={activeMarket}
+                activeTokenId={activeTokenId}
+                disabled={disabled}
+                onOutcomeClick={onOutcomeClick}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SportsGameLinesRow({
+  row,
+  moneylineMarket,
+  spreadMarket,
+  totalMarket,
+  activeMarket,
+  activeTokenId,
+  disabled,
+  first,
+  onOutcomeClick,
+}: {
+  row: SportsGameLineRow;
+  moneylineMarket: PolymarketMarket | null;
+  spreadMarket: PolymarketMarket | null;
+  totalMarket: PolymarketMarket | null;
+  activeMarket: PolymarketMarket;
+  activeTokenId: string;
+  disabled: boolean;
+  first: boolean;
+  onOutcomeClick: SportsGameLineClick;
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: GAME_LINES_GRID,
+        columnGap: 10,
+        alignItems: 'center',
+        paddingTop: first ? 0 : 10,
+        marginTop: first ? 0 : 10,
+        borderTop: first ? undefined : `1px solid ${D.hair2}`,
+      }}
+    >
+      <GameLineTeamCell row={row} />
+      <GameLineButton
+        kind="moneyline"
+        outcome={row.ml}
+        market={moneylineMarket}
+        activeMarket={activeMarket}
+        activeTokenId={activeTokenId}
+        disabled={disabled}
+        onOutcomeClick={onOutcomeClick}
+      />
+      <GameLineButton
+        kind="spread"
+        outcome={row.spread}
+        market={spreadMarket}
+        activeMarket={activeMarket}
+        activeTokenId={activeTokenId}
+        disabled={disabled}
+        onOutcomeClick={onOutcomeClick}
+      />
+      <GameLineButton
+        kind="total"
+        outcome={row.total}
+        market={totalMarket}
+        activeMarket={activeMarket}
+        activeTokenId={activeTokenId}
+        disabled={disabled}
+        onOutcomeClick={onOutcomeClick}
+      />
+    </div>
+  );
+}
+
+function GameLineTeamCell({ row }: { row: SportsGameLineRow }) {
+  const abbr = row.meta?.abbrev || getAbbr(row.name);
+  const color = row.meta?.color || '#374151';
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 9,
+          background: row.logoUrl ? '#fff' : color,
+          border: row.logoUrl ? `1px solid ${D.hair}` : 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+          flexShrink: 0,
+        }}
+      >
+        {row.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={row.logoUrl}
+            alt={abbr}
+            width={32}
+            height={32}
+            style={{ objectFit: 'contain' }}
+          />
+        ) : (
+          <span
+            style={{
+              color: '#fff',
+              fontSize: 10.5,
+              fontWeight: 800,
+              letterSpacing: 0.5,
+            }}
+          >
+            {abbr.slice(0, 4)}
+          </span>
+        )}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            color: D.ink,
+            fontSize: 15,
+            fontWeight: 700,
+            letterSpacing: -0.3,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {row.name}
+        </div>
+        {(abbr || row.record) && (
+          <div
+            style={{
+              marginTop: 2,
+              color: D.muted,
+              fontFamily: D.mono,
+              fontSize: 10.5,
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+            }}
+          >
+            {abbr}
+            {row.record ? ` · ${row.record}` : ''}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdditionalGameLineRow({
+  group,
+  activeMarket,
+  activeTokenId,
+  disabled,
+  onOutcomeClick,
+}: {
+  group: Exclude<SportsGameGroup['spread'], null>;
+  activeMarket: PolymarketMarket;
+  activeTokenId: string;
+  disabled: boolean;
+  onOutcomeClick: SportsGameLineClick;
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) minmax(78px, 108px) minmax(78px, 108px)',
+        columnGap: 10,
+        alignItems: 'center',
+        marginTop: 10,
+      }}
+    >
+      <div
+        style={{
+          minWidth: 0,
+          color: D.ink,
+          fontSize: 12.5,
+          fontWeight: 700,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {formatAdditionalGameLineTitle(group)}
+      </div>
+      {group.outcomes.slice(0, 2).map((outcome) => (
+        <GameLineButton
+          key={outcome.tokenId || outcome.label}
+          kind={group.type}
+          outcome={outcome}
+          market={marketForParsedOutcome(group, outcome)}
+          activeMarket={activeMarket}
+          activeTokenId={activeTokenId}
+          disabled={disabled}
+          onOutcomeClick={onOutcomeClick}
+        />
+      ))}
+    </div>
+  );
+}
+
+function GameLineButton({
+  kind,
+  outcome,
+  market,
+  activeMarket,
+  activeTokenId,
+  disabled,
+  onOutcomeClick,
+}: {
+  kind: 'moneyline' | 'spread' | 'total';
+  outcome?: ParsedOutcome;
+  market: PolymarketMarket | null;
+  activeMarket: PolymarketMarket;
+  activeTokenId: string;
+  disabled: boolean;
+  onOutcomeClick: SportsGameLineClick;
+}) {
+  if (!outcome || !market || !outcome.tokenId) {
+    return (
+      <div
+        aria-label={`${kind} unavailable`}
+        style={{
+          minHeight: 44,
+          width: '100%',
+          borderRadius: 12,
+          border: `1px solid ${D.hair2}`,
+          background: D.surface2,
+          color: D.muted2,
+          fontFamily: D.mono,
+          fontSize: 15,
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        --
+      </div>
+    );
+  }
+
+  const active =
+    samePolymarketMarket(activeMarket, market) &&
+    activeTokenId === outcome.tokenId;
+  const primary =
+    kind === 'moneyline'
+      ? formatGameLineProbability(outcome.price)
+      : kind === 'spread'
+        ? extractGameLineSpread(outcome.label) || outcome.label
+        : outcome.label;
+  const sub =
+    kind === 'moneyline'
+      ? undefined
+      : formatGameLineProbability(outcome.price);
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onOutcomeClick(market, outcome.label, outcome.tokenId)}
+      aria-label={`${outcome.label} ${formatGameLineProbability(outcome.price)}`}
+      style={{
+        minHeight: 44,
+        width: '100%',
+        borderRadius: 12,
+        border: active ? `2px solid ${D.posGreen}` : `1px solid ${D.hair}`,
+        background: active ? D.posGreenSoft : '#fff',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: active ? '8px 7px' : '9px 8px',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.55 : 1,
+        color: active ? D.posGreen : D.ink,
+        fontFamily: D.mono,
+        fontVariantNumeric: 'tabular-nums',
+      }}
+    >
+      <span
+        style={{
+          maxWidth: '100%',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontSize: 15,
+          fontWeight: 800,
+          lineHeight: 1.05,
+        }}
+      >
+        {primary}
+      </span>
+      {sub && (
+        <span
+          style={{
+            marginTop: 3,
+            color: active ? D.posGreen : D.muted,
+            fontSize: 11,
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          {sub}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function GameLineColumnLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        textAlign: 'center',
+        color: D.muted,
+        fontFamily: D.mono,
+        fontSize: 11,
+        fontWeight: 800,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function marketForParsedOutcome(
+  group: SportsGameGroup['moneyline'],
+  outcome?: ParsedOutcome,
+): PolymarketMarket | null {
+  if (!group || !outcome) return null;
+  return outcome.market ?? group.market;
+}
+
+function getAdditionalGameLineGroups(
+  primary: GroupedMarket | null | undefined,
+  groups: GroupedMarket[] | undefined,
+): GroupedMarket[] {
+  return (groups ?? []).filter((group) => {
+    if (!group.outcomes.some((outcome) => outcome.tokenId)) return false;
+    return !primary || !samePolymarketMarket(primary.market, group.market);
+  });
+}
+
+function formatAdditionalGameLineTitle(group: GroupedMarket): string {
+  const firstLabel = group.outcomes[0]?.label ?? '';
+  if (group.type === 'spread') {
+    const line = extractGameLineSpread(firstLabel);
+    return line ? `Alt spread ${line}` : 'Alt spread';
+  }
+
+  if (group.type === 'total') {
+    const totalLabel = firstLabel.match(/[OU]\s+([\d.]+)/i)?.[1];
+    return totalLabel ? `Alt total ${totalLabel}` : 'Alt total';
+  }
+
+  return 'More';
+}
+
+function formatGameLineProbability(price: number | undefined): string {
+  if (price == null || !Number.isFinite(price) || price <= 0) return '--';
+  return `${Math.round(price * 100)}%`;
+}
+
+function extractGameLineSpread(label: string): string {
+  const match = label.match(/([+-]\d+\.?\d*)$/);
+  return match?.[1] ?? '';
+}
+
+function formatGameLineTime(startDate: string | undefined): string {
+  if (!startDate) return '';
+  const date = new Date(startDate);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  });
+}
+
 // ── Order ticket (A3 / A3L wireframes) ───────────────────────────────────────
 
 type OrderTicketProps = {
@@ -1551,6 +2130,7 @@ type OrderTicketProps = {
   yesAsk?: number;
   noAsk?: number;
   outcomeLabels?: [string, string];
+  hideOutcomePicker?: boolean;
   activePrice: number;
   activeBid: number | undefined;
   activeAsk: number | undefined;
@@ -1656,6 +2236,7 @@ function FieldHint({ children }: { children: React.ReactNode }) {
 function OrderTicket(p: OrderTicketProps) {
   const yesLabel = p.outcomeLabels?.[0] ?? p.yesOutcomeName;
   const noLabel = p.outcomeLabels?.[1] ?? p.noOutcomeName;
+  const hasDisplayOutcomeLabels = Boolean(p.outcomeLabels);
 
   const isLimit = p.orderType === 'limit';
   const inputNum = parseFloat(p.inputValue) || 0;
@@ -1735,9 +2316,13 @@ function OrderTicket(p: OrderTicketProps) {
     p.totalCost > 0 ? (profit / p.totalCost) * 100 : 0;
 
   const outcomeWord =
-    p.selectedOutcome === 'yes' ? p.yesOutcomeName : p.noOutcomeName;
+    p.selectedOutcome === 'yes' ? yesLabel : noLabel;
   const outcomeShort = (
-    p.selectedOutcome === 'yes' ? p.yesAbbr : p.noAbbr
+    hasDisplayOutcomeLabels
+      ? getAbbr(outcomeWord)
+      : p.selectedOutcome === 'yes'
+        ? p.yesAbbr
+        : p.noAbbr
   ).toUpperCase();
 
   const headerTitle = isLimit
@@ -1949,69 +2534,72 @@ function OrderTicket(p: OrderTicketProps) {
         </div>
       </div>
 
-      {/* YES/NO outcome buttons */}
-      <div style={{ padding: '14px 22px 0' }}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 10,
-          }}
-        >
-          {(['yes', 'no'] as const).map((o) => {
-            const active = p.selectedOutcome === o;
-            const label = o === 'yes' ? yesLabel : noLabel;
-            const quote = getOutcomeQuote(o);
-            const cents = Math.round(quote.price * 100);
-            return (
-              <button
-                key={o}
-                type="button"
-                onClick={() => p.setSelectedOutcome(o)}
-                style={{
-                  padding: active ? '13px 15px' : '14px 16px',
-                  borderRadius: 12,
-                  border: active
-                    ? `2px solid ${D.posGreen}`
-                    : `1px solid ${D.hair}`,
-                  background: active ? D.posGreenSoft : '#fff',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  textAlign: 'left',
-                }}
-              >
-                <div
+      {!p.hideOutcomePicker && (
+        <div style={{ padding: '14px 22px 0' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 10,
+            }}
+          >
+            {(['yes', 'no'] as const).map((o) => {
+              const active = p.selectedOutcome === o;
+              const label = o === 'yes' ? yesLabel : noLabel;
+              const quote = getOutcomeQuote(o);
+              const cents = Math.round(quote.price * 100);
+              return (
+                <button
+                  key={o}
+                  type="button"
+                  onClick={() => p.setSelectedOutcome(o)}
                   style={{
-                    fontFamily: D.mono,
-                    fontSize: 10.5,
-                    fontWeight: 700,
-                    letterSpacing: 1,
-                    textTransform: 'uppercase',
-                    color: active ? D.posGreen : D.muted,
+                    padding: active ? '13px 15px' : '14px 16px',
+                    borderRadius: 12,
+                    border: active
+                      ? `2px solid ${D.posGreen}`
+                      : `1px solid ${D.hair}`,
+                    background: active ? D.posGreenSoft : '#fff',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
                   }}
                 >
-                  {o === 'yes' ? 'Yes' : 'No'} · {label}
-                </div>
-                <div
-                  style={{
-                    fontFamily: D.mono,
-                    fontSize: 22,
-                    fontWeight: 700,
-                    letterSpacing: -0.4,
-                    color: active ? D.posGreen : D.ink,
-                    marginTop: 4,
-                  }}
-                >
-                  {/* Even when there's no live ask/bid, fall back to the
-                      share price (cents from option.base) rather than
-                      showing "No ask"/"No bid". */}
-                  {`${cents}¢`}
-                </div>
-              </button>
-            );
-          })}
+                  <div
+                    style={{
+                      fontFamily: D.mono,
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      letterSpacing: 1,
+                      textTransform: 'uppercase',
+                      color: active ? D.posGreen : D.muted,
+                    }}
+                  >
+                    {hasDisplayOutcomeLabels
+                      ? label
+                      : `${o === 'yes' ? 'Yes' : 'No'} · ${label}`}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: D.mono,
+                      fontSize: 22,
+                      fontWeight: 700,
+                      letterSpacing: -0.4,
+                      color: active ? D.posGreen : D.ink,
+                      marginTop: 4,
+                    }}
+                  >
+                    {/* Even when there's no live ask/bid, fall back to the
+                        share price (cents from option.base) rather than
+                        showing "No ask"/"No bid". */}
+                    {`${cents}¢`}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Selection summary (Market only) */}
       {!isLimit && (
@@ -3736,6 +4324,11 @@ type MarketDetailViewProps = {
    *  Used for spread markets so the buttons show "+1.5"/"-1.5" instead of
    *  the raw market outcome names ("Yes"/"No" or team names). */
   outcomeLabels?: [string, string];
+  game?: SportsGameGroup;
+  onGameMarketSelect?: (
+    market: PolymarketMarket,
+    selection: SportsOutcomeSelection,
+  ) => void;
 };
 
 export default function MarketDetailView({
@@ -3756,6 +4349,8 @@ export default function MarketDetailView({
   onAgentActionComplete,
   onAddFunds,
   outcomeLabels,
+  game,
+  onGameMarketSelect,
 }: MarketDetailViewProps) {
   const {
     clobClient,
@@ -3810,9 +4405,34 @@ export default function MarketDetailView({
 
   const yesTokenId = tokenIds[0] || '';
   const noTokenId = tokenIds[1] || '';
+  const moneylineDisplayOutcomes = useMemo(
+    () => getSportsMoneylineDisplayOutcomes(game),
+    [game],
+  );
+  const displayOutcomeLabels = useMemo(() => {
+    if (outcomeLabels) return outcomeLabels;
+    if (!game || !yesTokenId) return undefined;
+
+    return getSportsOutcomeSelection(
+      market,
+      '',
+      yesTokenId,
+      getSportsGameMarketOutcomes(game, market),
+      game,
+    ).outcomeLabels;
+  }, [game, market, outcomeLabels, yesTokenId]);
   const quoteTokenKey = useMemo(
-    () => tokenIds.filter(Boolean).join(','),
-    [tokenIds],
+    () =>
+      Array.from(
+        new Set([
+          ...tokenIds,
+          ...(moneylineDisplayOutcomes?.map((outcome) => outcome.tokenId) ??
+            []),
+        ]),
+      )
+        .filter(Boolean)
+        .join(','),
+    [tokenIds, moneylineDisplayOutcomes],
   );
   const [refreshedPrices, setRefreshedPrices] = useState<PriceMap>({});
 
@@ -3873,6 +4493,7 @@ export default function MarketDetailView({
   // and colors) or when we have a gameStartTime + two distinct team-like
   // outcome labels. Non-sports markets keep the original compact sparkline.
   const isSports = useMemo(() => {
+    if (game) return true;
     if (market.eventTeams && market.eventTeams.length >= 2)
       return true;
     if (!market.gameStartTime) return false;
@@ -3881,7 +4502,7 @@ export default function MarketDetailView({
     const looksBinary =
       /^(yes|no)$/i.test(a) && /^(yes|no)$/i.test(b);
     return !looksBinary;
-  }, [market.eventTeams, market.gameStartTime, outcomes]);
+  }, [game, market.eventTeams, market.gameStartTime, outcomes]);
 
   const yesTeamMeta = useMemo(
     () => matchTeamMeta(yesOutcomeName, market.eventTeams, 0),
@@ -3891,6 +4512,34 @@ export default function MarketDetailView({
     () => matchTeamMeta(noOutcomeName, market.eventTeams, 1),
     [noOutcomeName, market.eventTeams],
   );
+  const moneylineOutcomeA = moneylineDisplayOutcomes?.[0];
+  const moneylineOutcomeB = moneylineDisplayOutcomes?.[1];
+  const moneylineQuoteA = moneylineOutcomeA?.tokenId
+    ? refreshedPrices[moneylineOutcomeA.tokenId] ??
+      moneylineOutcomeA.market?.realtimePrices?.[moneylineOutcomeA.tokenId]
+    : undefined;
+  const moneylineQuoteB = moneylineOutcomeB?.tokenId
+    ? refreshedPrices[moneylineOutcomeB.tokenId] ??
+      moneylineOutcomeB.market?.realtimePrices?.[moneylineOutcomeB.tokenId]
+    : undefined;
+  const scoreboardOutcomeAName = moneylineOutcomeA?.label || yesOutcomeName;
+  const scoreboardOutcomeBName = moneylineOutcomeB?.label || noOutcomeName;
+  const scoreboardOutcomeATokenId = moneylineOutcomeA?.tokenId || yesTokenId;
+  const scoreboardOutcomeBTokenId = moneylineOutcomeB?.tokenId || noTokenId;
+  const scoreboardOutcomeAPrice =
+    moneylineQuoteA?.bidPrice ?? moneylineOutcomeA?.price ?? yesPrice;
+  const scoreboardOutcomeBPrice =
+    moneylineQuoteB?.bidPrice ?? moneylineOutcomeB?.price ?? noPrice;
+  const scoreboardTeamA = useMemo(
+    () => matchTeamMeta(scoreboardOutcomeAName, market.eventTeams, 0),
+    [scoreboardOutcomeAName, market.eventTeams],
+  );
+  const scoreboardTeamB = useMemo(
+    () => matchTeamMeta(scoreboardOutcomeBName, market.eventTeams, 1),
+    [scoreboardOutcomeBName, market.eventTeams],
+  );
+  const scoreboardOutcomeAAbbr = getAbbr(scoreboardOutcomeAName);
+  const scoreboardOutcomeBAbbr = getAbbr(scoreboardOutcomeBName);
 
   const volumeLabel = useMemo(
     () => formatVolumeLabel(market.volume24hr ?? market.volume),
@@ -4099,6 +4748,29 @@ export default function MarketDetailView({
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  const handleGameLineSelect = useCallback(
+    (nextMarket: PolymarketMarket, outcome: string, tokenId: string) => {
+      const selection = getSportsOutcomeSelection(
+        nextMarket,
+        outcome,
+        tokenId,
+        getSportsGameMarketOutcomes(game, nextMarket),
+        game,
+      );
+
+      if (samePolymarketMarket(nextMarket, market)) {
+        setSelectedOutcome(selection.initialOutcome);
+        setInputValue('');
+        setLimitPrice('');
+        setLocalError(null);
+        return;
+      }
+
+      onGameMarketSelect?.(nextMarket, selection);
+    },
+    [game, market, onGameMarketSelect],
+  );
 
   const inputNum = parseFloat(inputValue) || 0;
   // limitPrice is entered by the user in cents (1–99); convert to decimal (0–1) for the API
@@ -4408,23 +5080,23 @@ export default function MarketDetailView({
         {/* ── Context strip — live scoreboard (sports) or thin nav (other) ─── */}
         {isSports ? (
           <LiveScoreboardCard
-            question={market.question || market.eventTitle || ''}
+            question={game?.title || market.eventTitle || market.question || ''}
             category={categoryLabel}
             isLive={isLive}
             liveEvent={liveEvent}
-            yesTeam={yesTeamMeta}
-            noTeam={noTeamMeta}
-            yesName={yesOutcomeName}
-            noName={noOutcomeName}
-            yesAbbr={yesAbbr}
-            noAbbr={noAbbr}
-            yesTokenId={yesTokenId}
-            noTokenId={noTokenId}
-            yesPrice={yesPrice}
-            noPrice={noPrice}
+            yesTeam={scoreboardTeamA}
+            noTeam={scoreboardTeamB}
+            yesName={scoreboardOutcomeAName}
+            noName={scoreboardOutcomeBName}
+            yesAbbr={scoreboardOutcomeAAbbr}
+            noAbbr={scoreboardOutcomeBAbbr}
+            yesTokenId={scoreboardOutcomeATokenId}
+            noTokenId={scoreboardOutcomeBTokenId}
+            yesPrice={scoreboardOutcomeAPrice}
+            noPrice={scoreboardOutcomeBPrice}
             seed={seed}
             enabled={true}
-            gameStartTime={market.gameStartTime}
+            gameStartTime={game?.startDate || market.gameStartTime}
             onBack={onClose}
           />
         ) : (
@@ -4521,6 +5193,16 @@ export default function MarketDetailView({
           </div>
         )}
 
+        {isSports && game && (
+          <SportsGameLinesCard
+            game={game}
+            activeMarket={market}
+            activeTokenId={activeTokenId}
+            disabled={isFinalSportsEvent || isGeoblocked}
+            onOutcomeClick={handleGameLineSelect}
+          />
+        )}
+
         {/* ── Success / Error / Info feedback ──────────────────────────────── */}
         {showSuccess && successInfo && (
           <OrderSuccessNotification
@@ -4597,7 +5279,8 @@ export default function MarketDetailView({
           noBid={noBid}
           yesAsk={yesAsk}
           noAsk={noAsk}
-          outcomeLabels={outcomeLabels}
+          outcomeLabels={displayOutcomeLabels}
+          hideOutcomePicker={Boolean(game)}
           activePrice={activePrice}
           activeBid={activeBid}
           activeAsk={activeAsk}
