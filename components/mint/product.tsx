@@ -3,7 +3,10 @@
 import { sendCloudinaryImage } from '@/lib/SendCloudinaryImage';
 import { useUser } from '@/lib/UserContext';
 import { useDisclosure } from '@nextui-org/react';
-import { usePrivy } from '@privy-io/react-auth';
+import {
+  usePrivy,
+  useWallets as useEvmWallets,
+} from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -85,30 +88,40 @@ const formatFileSize = (bytes?: number) => {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const PAYOUT_TOKEN_OPTIONS: {
-  code: string;
-  label: string;
-  badge: string;
-  color: string;
-}[] = [
-  { code: 'USDC', label: 'USDC', badge: '$', color: '#2775CA' },
-  { code: 'XAUT', label: 'Tether Gold (Solana)', badge: 'Au', color: '#C9A227' },
-  { code: 'ETH', label: 'Ethereum (ETH)', badge: 'Ξ', color: '#627EEA' },
-  { code: 'SOL', label: 'Solana (SOL)', badge: '◎', color: '#14F195' },
-];
+// Payout is always settled in USDC. The seller receives USDC on whichever
+// chain the buyer pays from (EVM or Solana), so we surface both addresses.
+const PAYOUT_TOKEN = {
+  code: 'USDC',
+  label: 'USDC',
+  name: 'USD Coin',
+  color: '#2775CA',
+  logo: '/assets/crypto-icons/USDC.png',
+};
 
-const CreateProduct = ({ productId }: { productId?: string } = {}) => {
+const shortenAddress = (address?: string | null) => {
+  if (!address) return '';
+  return address.length > 14
+    ? `${address.slice(0, 6)}…${address.slice(-6)}`
+    : address;
+};
+
+const CreateProduct = ({
+  productId,
+}: { productId?: string } = {}) => {
   const router = useRouter();
   const { isOpen, onOpenChange } = useDisclosure();
   const { user, accessToken } = useUser();
   const { ready, authenticated } = usePrivy();
   const { wallets } = useSolanaWallets();
+  const { wallets: evmWallets } = useEvmWallets();
 
   const isEditMode = Boolean(productId);
   const [loadingProduct, setLoadingProduct] = useState(isEditMode);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [type, setType] = useState<'Physical' | 'Digital'>('Physical');
+  const [type, setType] = useState<'Physical' | 'Digital'>(
+    'Physical',
+  );
 
   const [shipping, setShipping] = useState<'Yes' | 'No'>('Yes');
   const [shippingCost, setShippingCost] = useState('');
@@ -124,45 +137,56 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
     null,
   ]);
   const [price, setPrice] = useState('');
-  const [payoutToken, setPayoutToken] = useState('USDC');
   const [quantity, setQuantity] = useState<string>('');
   const [variants, setVariants] = useState<Variant[]>([
     { name: '', options: [] },
   ]);
   const [variantDraft, setVariantDraft] = useState<string[]>([]);
 
-  const [selectedImageName, setSelectedImageName] = useState<string | null>(
-    null
-  );
+  const [selectedImageName, setSelectedImageName] = useState<
+    string | null
+  >(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [digitalAsset, setDigitalAsset] =
     useState<MarketplaceDigitalAsset | null>(null);
   const [digitalUploading, setDigitalUploading] = useState(false);
-  const [digitalUploadError, setDigitalUploadError] = useState<string | null>(
-    null
-  );
+  const [digitalUploadError, setDigitalUploadError] = useState<
+    string | null
+  >(null);
   const [digitalDeliveryNote, setDigitalDeliveryNote] = useState('');
 
   const [walletLoaded, setWalletLoaded] = useState(false);
-  const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(
+    null,
+  );
+  const [evmAddress, setEvmAddress] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [formErrors, setFormErrors] = useState<
+    Record<string, string>
+  >({});
   const [modelInfo, setModelInfo] = useState<ModelInfo>({
     success: false,
     nftType: '',
     details: '',
   });
-  const [agentProposalId, setAgentProposalId] = useState<string | null>(null);
+  const [agentProposalId, setAgentProposalId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (ready && authenticated) {
       if (wallets && wallets.length > 0) {
         setSolanaAddress(wallets[0]?.address || null);
       }
+      const embeddedEvm =
+        evmWallets?.find(
+          (wallet) => wallet.walletClientType === 'privy',
+        ) || evmWallets?.[0];
+      setEvmAddress(embeddedEvm?.address || null);
       setWalletLoaded(true);
     }
-  }, [ready, authenticated, wallets]);
+  }, [ready, authenticated, wallets, evmWallets]);
 
   useEffect(() => {
     if (isEditMode) return;
@@ -172,11 +196,15 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
 
     setAgentProposalId(prefill.proposalId);
     if (prefill.category) {
-      setType(prefill.category === 'physical' ? 'Physical' : 'Digital');
+      setType(
+        prefill.category === 'physical' ? 'Physical' : 'Digital',
+      );
     }
     if (prefill.name) setName(prefill.name);
     if (prefill.description) {
-      const limitedDescription = limitProductDescription(prefill.description);
+      const limitedDescription = limitProductDescription(
+        prefill.description,
+      );
       setDescription(limitedDescription);
       setDigitalDeliveryNote(limitedDescription);
     }
@@ -205,14 +233,21 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
     getMarketplaceProduct(accessToken, productId)
       .then((product) => {
         if (cancelled) return;
-        setType(product.productType === 'digital' ? 'Digital' : 'Physical');
+        setType(
+          product.productType === 'digital' ? 'Digital' : 'Physical',
+        );
         setName(product.title || '');
-        setDescription(limitProductDescription(product.description || ''));
-        const primary = product.primaryImage || product.images?.[0]?.url || '';
+        setDescription(
+          limitProductDescription(product.description || ''),
+        );
+        const primary =
+          product.primaryImage || product.images?.[0]?.url || '';
         setImage(primary);
         const extras = (product.images || [])
           .map((img) => img.url)
-          .filter((url): url is string => Boolean(url) && url !== primary);
+          .filter(
+            (url): url is string => Boolean(url) && url !== primary,
+          );
         setExtraImages([
           extras[0] ?? null,
           extras[1] ?? null,
@@ -220,11 +255,10 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
           extras[3] ?? null,
         ]);
         setPrice(
-          product.price?.amount != null ? String(product.price.amount) : ''
+          product.price?.amount != null
+            ? String(product.price.amount)
+            : '',
         );
-        if (product.payoutToken) {
-          setPayoutToken(String(product.payoutToken).toUpperCase());
-        }
         const available = product.inventory?.available;
         setQuantity(available != null ? String(available) : '');
         if (product.variants?.length) {
@@ -234,12 +268,15 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
               options: (variant.options || []).map((option) => ({
                 name: option.name || '',
                 quantity:
-                  option.quantity != null ? String(option.quantity) : '',
+                  option.quantity != null
+                    ? String(option.quantity)
+                    : '',
               })),
-            }))
+            })),
           );
         }
-        const requiresShipping = product.fulfillment?.requiresShipping;
+        const requiresShipping =
+          product.fulfillment?.requiresShipping;
         setShipping(requiresShipping ? 'Yes' : 'No');
         if (product.fulfillment?.shippingCost != null) {
           setShippingCost(String(product.fulfillment.shippingCost));
@@ -248,7 +285,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
           setDigitalAsset(product.fulfillment.digitalAsset);
         }
         if (product.fulfillment?.digitalDeliveryNote) {
-          setDigitalDeliveryNote(product.fulfillment.digitalDeliveryNote);
+          setDigitalDeliveryNote(
+            product.fulfillment.digitalDeliveryNote,
+          );
         }
         // Agreement was accepted at creation — don't re-gate edits on it.
         setAgree(true);
@@ -257,7 +296,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
       .catch((err) => {
         if (cancelled) return;
         setLoadError(
-          err instanceof Error ? err.message : 'Failed to load this product.'
+          err instanceof Error
+            ? err.message
+            : 'Failed to load this product.',
         );
         setLoadingProduct(false);
       });
@@ -269,13 +310,15 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
   const processImage = async (
     file: File,
     setUrl: (url: string) => void,
-    rememberName?: boolean
+    rememberName?: boolean,
   ) => {
     setImageError(null);
 
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
     if (!validTypes.includes(file.type)) {
-      setImageError('Invalid file type. Please upload JPEG, JPG, or PNG.');
+      setImageError(
+        'Invalid file type. Please upload JPEG, JPG, or PNG.',
+      );
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
@@ -313,7 +356,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
     if (file) processImage(file, setImage, true);
   };
 
-  const handleMainImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMainImagePick = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = e.target.files?.[0];
     if (file) processImage(file, setImage, true);
   };
@@ -327,38 +372,45 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
           const next = [...prev];
           next[idx] = url;
           return next;
-        })
+        }),
       );
     };
 
   const handleDigitalAssetPick = async (
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
 
     if (!accessToken) {
-      setDigitalUploadError('Please log in again before uploading a file.');
+      setDigitalUploadError(
+        'Please log in again before uploading a file.',
+      );
       return;
     }
 
     if (file.size > 100 * 1024 * 1024) {
-      setDigitalUploadError('Digital downloads must be 100MB or smaller.');
+      setDigitalUploadError(
+        'Digital downloads must be 100MB or smaller.',
+      );
       return;
     }
 
     setDigitalUploading(true);
     setDigitalUploadError(null);
     try {
-      const uploaded = await uploadMarketplaceDigitalAsset(accessToken, file);
+      const uploaded = await uploadMarketplaceDigitalAsset(
+        accessToken,
+        file,
+      );
       setDigitalAsset(uploaded);
       setFormErrors((prev) => ({ ...prev, digitalAsset: '' }));
     } catch (err) {
       setDigitalUploadError(
         err instanceof Error
           ? err.message
-          : 'Failed to upload digital file. Please try again.'
+          : 'Failed to upload digital file. Please try again.',
       );
     } finally {
       setDigitalUploading(false);
@@ -393,14 +445,14 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
   const updateVariantOptionQuantity = (
     i: number,
     optIdx: number,
-    value: string
+    value: string,
   ) =>
     setVariants((prev) => {
       const next = [...prev];
       next[i] = {
         ...next[i],
         options: next[i].options.map((option, oi) =>
-          oi === optIdx ? { ...option, quantity: value } : option
+          oi === optIdx ? { ...option, quantity: value } : option,
         ),
       };
       return next;
@@ -426,11 +478,13 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
           sum +
           v.options.reduce((inner, option) => {
             const qty = Number(option.quantity);
-            return inner + (Number.isFinite(qty) && qty > 0 ? qty : 0);
+            return (
+              inner + (Number.isFinite(qty) && qty > 0 ? qty : 0)
+            );
           }, 0),
-        0
+        0,
       ),
-    [variants]
+    [variants],
   );
   // The main "Total Available" is driven by variant inventory only once the
   // seller actually enters a quantity on an option. Simply naming an option no
@@ -439,9 +493,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
   const hasVariantInventory = useMemo(
     () =>
       variants.some((v) =>
-        v.options.some((option) => option.quantity.trim() !== '')
+        v.options.some((option) => option.quantity.trim() !== ''),
       ),
-    [variants]
+    [variants],
   );
   const normalizedVariants = useMemo(
     () =>
@@ -451,17 +505,18 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
           options: variant.options
             .map((option) => ({
               name: option.name.trim(),
-              quantity: Math.max(0, Math.floor(Number(option.quantity) || 0)),
+              quantity: Math.max(
+                0,
+                Math.floor(Number(option.quantity) || 0),
+              ),
             }))
             .filter((option) => option.name),
         }))
-        .filter((variant) => variant.name || variant.options.length > 0),
-    [variants]
+        .filter(
+          (variant) => variant.name || variant.options.length > 0,
+        ),
+    [variants],
   );
-
-  const activePayoutToken =
-    PAYOUT_TOKEN_OPTIONS.find((c) => c.code === payoutToken) ??
-    PAYOUT_TOKEN_OPTIONS[0];
 
   const validate = () => {
     const errors: Record<string, string> = {};
@@ -469,30 +524,43 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
     if (!name.trim()) errors.name = 'Name is required';
     if (!trimmedDescription) {
       errors.description = 'Description is required';
-    } else if (trimmedDescription.length > PRODUCT_DESCRIPTION_MAX_LENGTH) {
+    } else if (
+      trimmedDescription.length > PRODUCT_DESCRIPTION_MAX_LENGTH
+    ) {
       errors.description = `Description must be ${PRODUCT_DESCRIPTION_MAX_LENGTH} characters or less`;
     }
     if (!image) errors.image = 'Main image is required';
     if (!price.trim()) errors.price = 'Price is required';
-    if (price && isNaN(Number(price))) errors.price = 'Price must be a number';
+    if (price && isNaN(Number(price)))
+      errors.price = 'Price must be a number';
     if (type === 'Physical' && shipping === 'Yes') {
       if (!shippingCost.trim()) {
-        errors.shippingCost = 'Enter a shipping cost (use 0 for free shipping)';
-      } else if (isNaN(Number(shippingCost)) || Number(shippingCost) < 0) {
-        errors.shippingCost = 'Shipping cost must be 0 or a positive number';
+        errors.shippingCost =
+          'Enter a shipping cost (use 0 for free shipping)';
+      } else if (
+        isNaN(Number(shippingCost)) ||
+        Number(shippingCost) < 0
+      ) {
+        errors.shippingCost =
+          'Shipping cost must be 0 or a positive number';
       }
     }
     if (hasVariantInventory) {
       const invalidVariantQty = variants.some((variant) =>
         variant.options.some((option) => {
           const qty = Number(option.quantity);
-          return !Number.isFinite(qty) || qty < 0 || !option.quantity.trim();
-        })
+          return (
+            !Number.isFinite(qty) ||
+            qty < 0 ||
+            !option.quantity.trim()
+          );
+        }),
       );
       if (invalidVariantQty) {
         errors.quantity = 'Every variant option needs a quantity';
       } else if (variantInventoryTotal <= 0) {
-        errors.quantity = 'Variant quantities must add up to more than 0';
+        errors.quantity =
+          'Variant quantities must add up to more than 0';
       }
     } else if (!quantity.trim()) {
       errors.quantity = 'Total available is required';
@@ -500,7 +568,8 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
       errors.quantity = 'Must be greater than 0';
     }
     if (type === 'Digital' && !digitalAsset?.enabled) {
-      errors.digitalAsset = 'Upload the file buyers will unlock after purchase';
+      errors.digitalAsset =
+        'Upload the file buyers will unlock after purchase';
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -532,8 +601,10 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
 
     setIsSubmitting(true);
     try {
-      const productType = type === 'Physical' ? 'physical' : 'digital';
-      const productDescription = normalizeProductDescription(description);
+      const productType =
+        type === 'Physical' ? 'physical' : 'digital';
+      const productDescription =
+        normalizeProductDescription(description);
       const inventoryAvailable = hasVariantInventory
         ? variantInventoryTotal
         : Number(quantity);
@@ -542,25 +613,30 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
         title: name,
         description: productDescription,
         primaryImage: image,
-        images: [image, ...extraImages.filter(Boolean)].map((url) => ({
-          url,
-          alt: name,
-        })),
+        images: [image, ...extraImages.filter(Boolean)].map(
+          (url) => ({
+            url,
+            alt: name,
+          }),
+        ),
         price: {
           // US dollar pricing; USDC is the dollar settlement token the
           // checkout rails quote against. Buyers can pay with any token.
           amount: Number(price),
           currency: 'USDC',
         },
-        payoutToken,
+        payoutToken: PAYOUT_TOKEN.code,
+        merchantEvmWalletAddress: evmAddress,
         inventory: {
           track: true,
           available: inventoryAvailable,
         },
         variants: normalizedVariants,
         fulfillment: {
-          requiresShipping: productType === 'physical' && shipping === 'Yes',
-          trackingEnabled: productType === 'physical' && shipping === 'Yes',
+          requiresShipping:
+            productType === 'physical' && shipping === 'Yes',
+          trackingEnabled:
+            productType === 'physical' && shipping === 'Yes',
           shippingCost:
             productType === 'physical' && shipping === 'Yes'
               ? Number(shippingCost) || 0
@@ -569,20 +645,25 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
             productType === 'digital'
               ? digitalDeliveryNote.trim() || productDescription
               : '',
-          digitalAsset: productType === 'digital' ? digitalAsset : undefined,
+          digitalAsset:
+            productType === 'digital' ? digitalAsset : undefined,
         },
         merchantWalletAddress: solanaAddress,
         tags: variants
           .flatMap((v) =>
             v.options.map((o) =>
-              v.name ? `${v.name}: ${o.name}` : o.name
-            )
+              v.name ? `${v.name}: ${o.name}` : o.name,
+            ),
           )
           .filter(Boolean),
       };
       const product =
         isEditMode && productId
-          ? await updateMarketplaceProduct(accessToken, productId, payload)
+          ? await updateMarketplaceProduct(
+              accessToken,
+              productId,
+              payload,
+            )
           : await createMarketplaceProduct(accessToken, payload);
 
       let completion = null;
@@ -608,12 +689,12 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                 receiptMinting: 'order_receipt_only',
               },
             },
-            accessToken
+            accessToken,
           );
         } catch (completionError) {
           console.error(
             'Failed to record marketplace agent completion:',
-            completionError
+            completionError,
           );
         }
       }
@@ -627,7 +708,7 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
       setTimeout(() => {
         if (completion?.groupId) {
           router.push(
-            `/dashboard/chat?groupId=${encodeURIComponent(completion.groupId)}`
+            `/dashboard/chat?groupId=${encodeURIComponent(completion.groupId)}`,
           );
         } else {
           router.push('/products');
@@ -638,7 +719,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
       setModelInfo({
         success: false,
         nftType: type === 'Physical' ? 'physical' : 'digital',
-        errorTitle: isEditMode ? 'Failed to update product' : undefined,
+        errorTitle: isEditMode
+          ? 'Failed to update product'
+          : undefined,
         details:
           err instanceof Error
             ? err.message
@@ -674,11 +757,18 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
               }}
             >
               <div
-                style={{ fontSize: 13, color: '#b91c1c', fontWeight: 600 }}
+                style={{
+                  fontSize: 13,
+                  color: '#b91c1c',
+                  fontWeight: 600,
+                }}
               >
                 {loadError}
               </div>
-              <Button variant="ghost" onClick={() => router.push('/products')}>
+              <Button
+                variant="ghost"
+                onClick={() => router.push('/products')}
+              >
                 Back to products
               </Button>
             </div>
@@ -712,7 +802,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
               }}
             >
               <Loader2 size={16} className="animate-spin" />
-              {isEditMode ? 'Loading product…' : 'Loading wallet connection...'}
+              {isEditMode
+                ? 'Loading product…'
+                : 'Loading wallet connection...'}
             </div>
           </Card>
         </div>
@@ -741,7 +833,10 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
             }
             action={
               <div style={{ display: 'flex', gap: 8 }}>
-                <Button variant="ghost" onClick={() => router.push('/products')}>
+                <Button
+                  variant="ghost"
+                  onClick={() => router.push('/products')}
+                >
                   Cancel
                 </Button>
                 {!isEditMode && (
@@ -773,43 +868,57 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
               </div>
             }
           >
-            {!isEditMode && ready && authenticated && !solanaAddress && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '12px 14px',
-                  borderRadius: 12,
-                  background: 'rgba(217,119,6,0.08)',
-                  border: '1px solid rgba(217,119,6,0.18)',
-                  color: '#b45309',
-                  fontSize: 12.5,
-                }}
-              >
-                <strong style={{ fontWeight: 600 }}>
-                  No Solana wallet detected.
-                </strong>{' '}
-                Connect your wallet to publish this item.
-              </div>
-            )}
+            {!isEditMode &&
+              ready &&
+              authenticated &&
+              !solanaAddress && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    background: 'rgba(217,119,6,0.08)',
+                    border: '1px solid rgba(217,119,6,0.18)',
+                    color: '#b45309',
+                    fontSize: 12.5,
+                  }}
+                >
+                  <strong style={{ fontWeight: 600 }}>
+                    No Solana wallet detected.
+                  </strong>{' '}
+                  Connect your wallet to publish this item.
+                </div>
+              )}
 
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1.35fr) minmax(0, 1fr)',
+                gridTemplateColumns:
+                  'minmax(0, 1.35fr) minmax(0, 1fr)',
                 gap: 14,
               }}
             >
               {/* LEFT */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 14,
+                }}
+              >
                 {/* Identity */}
                 <Card pad={20}>
                   <FormSection
                     title="Identity"
                     subtitle="Public details shown on the product page"
                   />
-                  <Field label="Item Name" required error={formErrors.name}>
+                  <Field
+                    label="Item Name"
+                    required
+                    error={formErrors.name}
+                  >
                     <TextInput
                       placeholder="All-Access pass"
                       value={name}
@@ -830,7 +939,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                       invalid={!!formErrors.description}
                       maxLength={PRODUCT_DESCRIPTION_MAX_LENGTH}
                       onChange={(e) =>
-                        setDescription(limitProductDescription(e.target.value))
+                        setDescription(
+                          limitProductDescription(e.target.value),
+                        )
                       }
                     />
                   </Field>
@@ -852,7 +963,8 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                       marginBottom: 8,
                     }}
                   >
-                    Main Image <span style={{ color: '#dc2626' }}>*</span>
+                    Main Image{' '}
+                    <span style={{ color: '#dc2626' }}>*</span>
                   </div>
 
                   <label
@@ -899,7 +1011,12 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                         <div style={{ fontSize: 12.5, color: muted }}>
                           {selectedImageName || 'Main image uploaded'}
                         </div>
-                        <span style={{ ...primaryBtn, padding: '8px 28px' }}>
+                        <span
+                          style={{
+                            ...primaryBtn,
+                            padding: '8px 28px',
+                          }}
+                        >
                           Replace
                         </span>
                       </div>
@@ -916,7 +1033,11 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                             justifyContent: 'center',
                           }}
                         >
-                          <ImagePlus size={28} color="#888" strokeWidth={1.5} />
+                          <ImagePlus
+                            size={28}
+                            color="#888"
+                            strokeWidth={1.5}
+                          />
                         </div>
                         <div style={{ fontSize: 13, color: muted }}>
                           Browse or drag and drop an image here.
@@ -930,7 +1051,12 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                         >
                           JPEG, JPG, PNG · max 8MB
                         </div>
-                        <span style={{ ...primaryBtn, padding: '8px 28px' }}>
+                        <span
+                          style={{
+                            ...primaryBtn,
+                            padding: '8px 28px',
+                          }}
+                        >
                           Browse
                         </span>
                       </>
@@ -960,7 +1086,13 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                     </p>
                   )}
                   {imageError && (
-                    <p style={{ fontSize: 11.5, color: '#dc2626', marginTop: 8 }}>
+                    <p
+                      style={{
+                        fontSize: 11.5,
+                        color: '#dc2626',
+                        marginTop: 8,
+                      }}
+                    >
                       {imageError}
                     </p>
                   )}
@@ -1003,7 +1135,11 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                             }}
                           />
                         ) : (
-                          <ImagePlus size={22} color="#aaa" strokeWidth={1.5} />
+                          <ImagePlus
+                            size={22}
+                            color="#aaa"
+                            strokeWidth={1.5}
+                          />
                         )}
                         <input
                           id={`extra-image-${i}`}
@@ -1044,19 +1180,31 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                       >
                         <div>
                           {i === 0 && (
-                            <div style={{ ...fieldLabel, marginBottom: 6 }}>
+                            <div
+                              style={{
+                                ...fieldLabel,
+                                marginBottom: 6,
+                              }}
+                            >
                               Product Category
                             </div>
                           )}
                           <TextInput
                             placeholder="e.g. Color"
                             value={c.name}
-                            onChange={(e) => updateVariantName(i, e.target.value)}
+                            onChange={(e) =>
+                              updateVariantName(i, e.target.value)
+                            }
                           />
                         </div>
                         <div>
                           {i === 0 && (
-                            <div style={{ ...fieldLabel, marginBottom: 6 }}>
+                            <div
+                              style={{
+                                ...fieldLabel,
+                                marginBottom: 6,
+                              }}
+                            >
                               Options & inventory
                             </div>
                           )}
@@ -1107,7 +1255,7 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                                     updateVariantOptionQuantity(
                                       i,
                                       oi,
-                                      e.target.value
+                                      e.target.value,
                                     )
                                   }
                                   style={{
@@ -1122,7 +1270,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                                 <button
                                   type="button"
                                   aria-label={`Remove ${opt.name}`}
-                                  onClick={() => removeVariantOption(i, oi)}
+                                  onClick={() =>
+                                    removeVariantOption(i, oi)
+                                  }
                                   style={{
                                     width: 26,
                                     height: 26,
@@ -1152,7 +1302,8 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                             <div
                               style={{
                                 display: 'grid',
-                                gridTemplateColumns: 'minmax(0, 1fr) auto',
+                                gridTemplateColumns:
+                                  'minmax(0, 1fr) auto',
                                 gap: 8,
                                 alignItems: 'center',
                               }}
@@ -1170,7 +1321,10 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
                                     e.preventDefault();
-                                    addVariantOption(i, variantDraft[i] ?? '');
+                                    addVariantOption(
+                                      i,
+                                      variantDraft[i] ?? '',
+                                    );
                                   }
                                 }}
                                 style={{
@@ -1183,7 +1337,10 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  addVariantOption(i, variantDraft[i] ?? '')
+                                  addVariantOption(
+                                    i,
+                                    variantDraft[i] ?? '',
+                                  )
                                 }
                                 style={{
                                   ...ghostBtn,
@@ -1251,7 +1408,13 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
               </div>
 
               {/* RIGHT */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 14,
+                }}
+              >
                 {/* Product type + sub-category */}
                 <Card pad={20}>
                   <FormSection
@@ -1299,7 +1462,6 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                       );
                     })}
                   </div>
-
                 </Card>
 
                 {type === 'Digital' && (
@@ -1327,7 +1489,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                             formErrors.digitalAsset ? '#dc2626' : hair
                           }`,
                           background: '#fafafa',
-                          cursor: digitalUploading ? 'wait' : 'pointer',
+                          cursor: digitalUploading
+                            ? 'wait'
+                            : 'pointer',
                         }}
                       >
                         <div
@@ -1344,7 +1508,10 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                           }}
                         >
                           {digitalUploading ? (
-                            <Loader2 size={18} className="animate-spin" />
+                            <Loader2
+                              size={18}
+                              className="animate-spin"
+                            />
                           ) : (
                             <UploadCloud size={18} />
                           )}
@@ -1433,9 +1600,14 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                         marginBottom: 14,
                       }}
                     >
-                      <Lock size={16} style={{ marginTop: 2, color: ink }} />
+                      <Lock
+                        size={16}
+                        style={{ marginTop: 2, color: ink }}
+                      />
                       <div>
-                        <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+                        <div
+                          style={{ fontSize: 12.5, fontWeight: 600 }}
+                        >
                           Receipt-gated download
                         </div>
                         <div
@@ -1446,9 +1618,10 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                             marginTop: 3,
                           }}
                         >
-                          After payment, Swop mints the buyer an order receipt
-                          NFT. The order options download checks that receipt
-                          before streaming this file.
+                          After payment, Swop mints the buyer an order
+                          receipt NFT. The order options download
+                          checks that receipt before streaming this
+                          file.
                         </div>
                       </div>
                     </div>
@@ -1458,7 +1631,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                         rows={3}
                         placeholder="Add install steps, license notes, or a thank-you message"
                         value={digitalDeliveryNote}
-                        onChange={(e) => setDigitalDeliveryNote(e.target.value)}
+                        onChange={(e) =>
+                          setDigitalDeliveryNote(e.target.value)
+                        }
                       />
                     </Field>
                   </Card>
@@ -1491,7 +1666,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                       onChange={(e) => setQuantity(e.target.value)}
                       style={{
                         fontFamily: mono,
-                        background: hasVariantInventory ? '#f5f5f3' : '#fff',
+                        background: hasVariantInventory
+                          ? '#f5f5f3'
+                          : '#fff',
                       }}
                     />
                   </Field>
@@ -1538,78 +1715,143 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
 
                   <Field
                     label="Payout token"
-                    help="The token you receive when this item sells. The buyer is charged in US dollars and can pay with any currency."
+                    help="You're always paid out in USDC."
                   >
                     <div
                       style={{
-                        position: 'relative',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '0 12px',
-                        height: 42,
+                        width: '100%',
+                        minHeight: 42,
                         border: `1px solid ${hair}`,
                         borderRadius: 9,
-                        background: '#fff',
+                        background: '#fafafa',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 12px',
                       }}
                     >
                       <span
                         style={{
-                          width: 20,
-                          height: 20,
-                          minWidth: 20,
-                          borderRadius: 10,
-                          background: activePayoutToken.color,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#fff',
-                          fontSize: 11,
-                          fontWeight: 700,
+                          position: 'relative',
+                          width: 24,
+                          height: 24,
+                          minWidth: 24,
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                          background: PAYOUT_TOKEN.color,
+                          boxShadow: `0 0 0 1px ${hair}`,
                         }}
                       >
-                        {activePayoutToken.badge}
+                        <Image
+                          src={PAYOUT_TOKEN.logo}
+                          alt={`${PAYOUT_TOKEN.label} logo`}
+                          width={24}
+                          height={24}
+                          style={{ objectFit: 'cover' }}
+                        />
                       </span>
-                      <select
-                        value={payoutToken}
-                        onChange={(e) => setPayoutToken(e.target.value)}
-                        aria-label="Payout token"
-                        style={
-                          {
-                            flex: 1,
-                            minWidth: 0,
-                            appearance: 'none',
-                            border: 0,
-                            background: 'transparent',
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: ink,
-                            fontFamily: 'inherit',
-                            cursor: 'pointer',
-                            paddingRight: 16,
-                            outline: 'none',
-                          } as CSSProperties
-                        }
-                      >
-                        {PAYOUT_TOKEN_OPTIONS.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
                       <span
                         style={{
-                          position: 'absolute',
-                          right: 12,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          pointerEvents: 'none',
-                          color: muted,
-                          fontSize: 10,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          minWidth: 0,
+                          lineHeight: 1.1,
                         }}
                       >
-                        ▾
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: ink,
+                          }}
+                        >
+                          {PAYOUT_TOKEN.label}
+                        </span>
+                        <span
+                          style={{
+                            marginTop: 2,
+                            fontSize: 11,
+                            fontWeight: 500,
+                            color: muted,
+                          }}
+                        >
+                          {PAYOUT_TOKEN.name}
+                        </span>
                       </span>
+                      <span
+                        style={{
+                          marginLeft: 'auto',
+                          fontSize: 10.5,
+                          fontWeight: 600,
+                          color: muted2,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                        }}
+                      >
+                        Fixed
+                      </span>
+                    </div>
+                  </Field>
+
+                  <Field
+                    label="Payout addresses"
+                    help="USDC is sent to the wallet that matches the chain the buyer pays on."
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                      }}
+                    >
+                      {(
+                        [
+                          { label: 'EVM', address: evmAddress },
+                          { label: 'Solana', address: solanaAddress },
+                        ] as const
+                      ).map(({ label, address }) => (
+                        <div
+                          key={label}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 10,
+                            border: `1px solid ${hair}`,
+                            borderRadius: 9,
+                            background: '#fff',
+                            padding: '10px 12px',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: muted,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              minWidth: 48,
+                            }}
+                          >
+                            {label}
+                          </span>
+                          <span
+                            title={address || undefined}
+                            style={{
+                              fontFamily: mono,
+                              fontSize: 12,
+                              color: address ? ink : muted2,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {address
+                              ? shortenAddress(address)
+                              : 'Not connected'}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </Field>
 
@@ -1620,7 +1862,9 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                           <select
                             value={shipping}
                             onChange={(e) =>
-                              setShipping(e.target.value as 'Yes' | 'No')
+                              setShipping(
+                                e.target.value as 'Yes' | 'No',
+                              )
                             }
                             style={
                               {
@@ -1635,8 +1879,15 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                           </select>
                         </div>
                       </div>
-                      <div style={{ fontSize: 11, color: muted, marginTop: 6 }}>
-                        Shipped physical items use escrow until the buyer confirms the order was received.
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: muted,
+                          marginTop: 6,
+                        }}
+                      >
+                        Shipped physical items use escrow until the
+                        buyer confirms the order was received.
                       </div>
                     </Field>
                   )}
@@ -1669,8 +1920,13 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
                           placeholder="0"
                           value={shippingCost}
                           invalid={!!formErrors.shippingCost}
-                          onChange={(e) => setShippingCost(e.target.value)}
-                          style={{ paddingLeft: 26, fontFamily: mono }}
+                          onChange={(e) =>
+                            setShippingCost(e.target.value)
+                          }
+                          style={{
+                            paddingLeft: 26,
+                            fontFamily: mono,
+                          }}
                         />
                       </div>
                     </Field>
@@ -1679,64 +1935,67 @@ const CreateProduct = ({ productId }: { productId?: string } = {}) => {
 
                 {/* Agreement */}
                 {!isEditMode && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 10,
-                    padding: '14px 16px',
-                    background: '#fafafa',
-                    borderRadius: 12,
-                    border: `1px solid ${hair}`,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setAgree(!agree)}
-                    aria-pressed={agree}
+                  <div
                     style={{
-                      width: 18,
-                      height: 18,
-                      minWidth: 18,
-                      marginTop: 1,
-                      borderRadius: 5,
-                      border: `1.5px solid ${agree ? ink : muted2}`,
-                      background: agree ? ink : '#fff',
-                      cursor: 'pointer',
-                      padding: 0,
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      padding: '14px 16px',
+                      background: '#fafafa',
+                      borderRadius: 12,
+                      border: `1px solid ${hair}`,
                     }}
                   >
-                    {agree && (
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#fff"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </button>
-                  <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
-                    I agree with Swop&apos;s{' '}
-                    <a
-                      href="https://www.swopme.co/privacy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: ink, textDecoration: 'underline' }}
+                    <button
+                      type="button"
+                      onClick={() => setAgree(!agree)}
+                      aria-pressed={agree}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        minWidth: 18,
+                        marginTop: 1,
+                        borderRadius: 5,
+                        border: `1.5px solid ${agree ? ink : muted2}`,
+                        background: agree ? ink : '#fff',
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
                     >
-                      Minting Privacy &amp; Policy
-                    </a>
-                    .
+                      {agree && (
+                        <svg
+                          width="10"
+                          height="10"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#fff"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </button>
+                    <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+                      I agree with Swop&apos;s{' '}
+                      <a
+                        href="https://www.swopme.co/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          color: ink,
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        Minting Privacy &amp; Policy
+                      </a>
+                      .
+                    </div>
                   </div>
-                </div>
                 )}
               </div>
             </div>
