@@ -14,11 +14,27 @@ import {
   COLLATERAL_ONRAMP_ADDRESS,
 } from '@/constants/polymarket';
 
-type NetDeposits = {
+export type PolymarketCashFlowType = 'deposit' | 'withdrawal';
+
+export type PolymarketCashFlow = {
+  id: string;
+  type: PolymarketCashFlowType;
+  amount: number;
+  timestamp?: number;
+  blockNumber: number;
+  transactionHash?: string;
+  token: 'pUSD' | 'USDC.e';
+  walletAddress: string;
+  counterparty: string;
+};
+
+export type NetDeposits = {
   totalDeposited: number;
   totalWithdrawn: number;
   netDeposited: number;
   latestBlock: number;
+  deposits: PolymarketCashFlow[];
+  withdrawals: PolymarketCashFlow[];
 };
 
 type CacheShape = {
@@ -27,6 +43,7 @@ type CacheShape = {
   lastScannedBlock: number;
   totalIn: string; // bigint string
   totalOut: string; // bigint string
+  cashFlows: PolymarketCashFlow[];
 };
 
 const TRANSFER_EVENT = parseAbiItem(
@@ -52,8 +69,8 @@ const WRAP_CONTRACT = COLLATERAL_ONRAMP_ADDRESS.toLowerCase();
 // before the deployment block to capture pre-deploy deposits without needing
 // to scan the entire chain history.
 const PRE_DEPLOY_LOOKBACK_BLOCKS = BigInt(500_000);
-// Bumped to 3: now scans both pUSD and legacy USDC.e; invalidates old caches.
-const CACHE_VERSION = 3;
+// Bumped to 4: cache row-level deposit/withdrawal history with timestamps.
+const CACHE_VERSION = 4;
 
 function cacheKey(safeAddress: string) {
   return `pm-net-deposits:${safeAddress.toLowerCase()}`;
@@ -69,7 +86,8 @@ function readCache(safeAddress: string): CacheShape | null {
       typeof parsed?.deploymentBlock !== 'number' ||
       typeof parsed?.lastScannedBlock !== 'number' ||
       typeof parsed?.totalIn !== 'string' ||
-      typeof parsed?.totalOut !== 'string'
+      typeof parsed?.totalOut !== 'string' ||
+      !Array.isArray(parsed?.cashFlows)
     ) {
       return null;
     }
@@ -95,6 +113,95 @@ function normalizeAddresses(address: string | string[] | undefined): string[] {
         .filter(Boolean)
         .map((walletAddress) => [walletAddress.toLowerCase(), walletAddress]),
     ).values(),
+  );
+}
+
+function sortCashFlows(rows: PolymarketCashFlow[]): PolymarketCashFlow[] {
+  return [...rows].sort((a, b) => {
+    const timeDelta = (b.timestamp ?? 0) - (a.timestamp ?? 0);
+    if (timeDelta !== 0) return timeDelta;
+    return b.blockNumber - a.blockNumber;
+  });
+}
+
+function splitCashFlows(cashFlows: PolymarketCashFlow[]) {
+  return {
+    deposits: sortCashFlows(
+      cashFlows.filter((row) => row.type === 'deposit'),
+    ),
+    withdrawals: sortCashFlows(
+      cashFlows.filter((row) => row.type === 'withdrawal'),
+    ),
+  };
+}
+
+function cashFlowFromLog(params: {
+  log: any;
+  type: PolymarketCashFlowType;
+  token: PolymarketCashFlow['token'];
+  safeAddress: string;
+  counterparty: string;
+}): PolymarketCashFlow | null {
+  const { log, type, token, safeAddress, counterparty } = params;
+  const value = log.args?.value as bigint | undefined;
+  if (typeof value !== 'bigint') return null;
+
+  const amount = Number(formatUnits(value, USDC_E_DECIMALS));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const blockNumber = Number(log.blockNumber ?? 0);
+  const txHash =
+    typeof log.transactionHash === 'string'
+      ? log.transactionHash
+      : undefined;
+  const logIndex = String(log.logIndex ?? log.transactionIndex ?? '0');
+
+  return {
+    id: `${type}:${token}:${txHash ?? blockNumber}:${logIndex}:${safeAddress.toLowerCase()}`,
+    type,
+    amount,
+    blockNumber,
+    transactionHash: txHash,
+    token,
+    walletAddress: safeAddress,
+    counterparty,
+  };
+}
+
+async function hydrateCashFlowTimestamps(
+  publicClient: any,
+  rows: PolymarketCashFlow[],
+): Promise<PolymarketCashFlow[]> {
+  const missingBlocks = Array.from(
+    new Set(
+      rows
+        .filter((row) => row.timestamp == null && row.blockNumber > 0)
+        .map((row) => row.blockNumber),
+    ),
+  );
+
+  if (missingBlocks.length === 0) return rows;
+
+  const blockEntries = await Promise.allSettled(
+    missingBlocks.map(async (blockNumber) => {
+      const block = await publicClient.getBlock({
+        blockNumber: BigInt(blockNumber),
+      });
+      return [blockNumber, Number(block.timestamp)] as const;
+    }),
+  );
+
+  const timestamps = new Map<number, number>();
+  blockEntries.forEach((entry) => {
+    if (entry.status === 'fulfilled') {
+      timestamps.set(entry.value[0], entry.value[1]);
+    }
+  });
+
+  return rows.map((row) =>
+    row.timestamp == null && timestamps.has(row.blockNumber)
+      ? { ...row, timestamp: timestamps.get(row.blockNumber) }
+      : row,
   );
 }
 
@@ -181,6 +288,7 @@ async function getNetDepositsForAddress(
 
   let totalIn = cached ? BigInt(cached.totalIn) : BigInt(0);
   let totalOut = cached ? BigInt(cached.totalOut) : BigInt(0);
+  let cashFlows = cached?.cashFlows ?? [];
   const startBlock =
     BigInt(deploymentBlock) > PRE_DEPLOY_LOOKBACK_BLOCKS
       ? BigInt(deploymentBlock) - PRE_DEPLOY_LOOKBACK_BLOCKS
@@ -195,11 +303,14 @@ async function getNetDepositsForAddress(
   if (lastScannedBlock >= latestBlock) {
     const deposited = Number(formatUnits(totalIn, USDC_E_DECIMALS));
     const withdrawn = Number(formatUnits(totalOut, USDC_E_DECIMALS));
+    const { deposits, withdrawals } = splitCashFlows(cashFlows);
     return {
       totalDeposited: deposited,
       totalWithdrawn: withdrawn,
       netDeposited: deposited - withdrawn,
       latestBlock: Number(latestBlock),
+      deposits,
+      withdrawals,
     };
   }
 
@@ -222,12 +333,23 @@ async function getNetDepositsForAddress(
     const safeAddr = safe.toLowerCase();
 
     // pUSD incoming: exclude trading contracts + wrap contract (conversion, not deposit)
+    const newCashFlows: PolymarketCashFlow[] = [];
     for (const log of pusdIn) {
       const fromAddr = String(log.args?.from || '').toLowerCase();
       if (!fromAddr || fromAddr === safeAddr) continue;
       if (TRADING_EXCLUDED.has(fromAddr) || fromAddr === WRAP_CONTRACT) continue;
       const v = log.args?.value as bigint | undefined;
-      if (typeof v === 'bigint') totalIn += v;
+      if (typeof v === 'bigint') {
+        totalIn += v;
+        const row = cashFlowFromLog({
+          log,
+          type: 'deposit',
+          token: 'pUSD',
+          safeAddress: safe,
+          counterparty: fromAddr,
+        });
+        if (row) newCashFlows.push(row);
+      }
     }
 
     // pUSD outgoing: exclude trading contracts (bets, not withdrawals)
@@ -236,7 +358,17 @@ async function getNetDepositsForAddress(
       if (!toAddr || toAddr === safeAddr) continue;
       if (TRADING_EXCLUDED.has(toAddr)) continue;
       const v = log.args?.value as bigint | undefined;
-      if (typeof v === 'bigint') totalOut += v;
+      if (typeof v === 'bigint') {
+        totalOut += v;
+        const row = cashFlowFromLog({
+          log,
+          type: 'withdrawal',
+          token: 'pUSD',
+          safeAddress: safe,
+          counterparty: toAddr,
+        });
+        if (row) newCashFlows.push(row);
+      }
     }
 
     // Legacy USDC.e incoming: exclude trading contracts
@@ -245,7 +377,17 @@ async function getNetDepositsForAddress(
       if (!fromAddr || fromAddr === safeAddr) continue;
       if (TRADING_EXCLUDED.has(fromAddr)) continue;
       const v = log.args?.value as bigint | undefined;
-      if (typeof v === 'bigint') totalIn += v;
+      if (typeof v === 'bigint') {
+        totalIn += v;
+        const row = cashFlowFromLog({
+          log,
+          type: 'deposit',
+          token: 'USDC.e',
+          safeAddress: safe,
+          counterparty: fromAddr,
+        });
+        if (row) newCashFlows.push(row);
+      }
     }
 
     // Legacy USDC.e outgoing: exclude trading contracts + wrap contract (conversion, not withdrawal)
@@ -254,7 +396,24 @@ async function getNetDepositsForAddress(
       if (!toAddr || toAddr === safeAddr) continue;
       if (TRADING_EXCLUDED.has(toAddr) || toAddr === WRAP_CONTRACT) continue;
       const v = log.args?.value as bigint | undefined;
-      if (typeof v === 'bigint') totalOut += v;
+      if (typeof v === 'bigint') {
+        totalOut += v;
+        const row = cashFlowFromLog({
+          log,
+          type: 'withdrawal',
+          token: 'USDC.e',
+          safeAddress: safe,
+          counterparty: toAddr,
+        });
+        if (row) newCashFlows.push(row);
+      }
+    }
+
+    if (newCashFlows.length > 0) {
+      cashFlows = await hydrateCashFlowTimestamps(publicClient, [
+        ...cashFlows,
+        ...newCashFlows,
+      ]);
     }
 
     lastScannedBlock = to;
@@ -264,6 +423,7 @@ async function getNetDepositsForAddress(
       lastScannedBlock: Number(lastScannedBlock),
       totalIn: totalIn.toString(),
       totalOut: totalOut.toString(),
+      cashFlows,
     });
 
     from = to + BigInt(1);
@@ -271,12 +431,15 @@ async function getNetDepositsForAddress(
 
   const deposited = Number(formatUnits(totalIn, USDC_E_DECIMALS));
   const withdrawn = Number(formatUnits(totalOut, USDC_E_DECIMALS));
+  const { deposits, withdrawals } = splitCashFlows(cashFlows);
 
   return {
     totalDeposited: deposited,
     totalWithdrawn: withdrawn,
     netDeposited: deposited - withdrawn,
     latestBlock: Number(latestBlock),
+    deposits,
+    withdrawals,
   };
 }
 
@@ -288,7 +451,14 @@ export function useNetDeposits(safeAddress: string | string[] | undefined) {
     queryKey: ['polymarket-net-deposits', safeAddresses],
     queryFn: async (): Promise<NetDeposits> => {
       if (!safeAddresses.length || !publicClient) {
-        return { totalDeposited: 0, totalWithdrawn: 0, netDeposited: 0, latestBlock: 0 };
+        return {
+          totalDeposited: 0,
+          totalWithdrawn: 0,
+          netDeposited: 0,
+          latestBlock: 0,
+          deposits: [],
+          withdrawals: [],
+        };
       }
 
       const deposits = await Promise.all(
@@ -309,12 +479,20 @@ export function useNetDeposits(safeAddress: string | string[] | undefined) {
         (latest, deposit) => Math.max(latest, deposit.latestBlock),
         0,
       );
+      const depositRows = sortCashFlows(
+        deposits.flatMap((deposit) => deposit.deposits),
+      );
+      const withdrawalRows = sortCashFlows(
+        deposits.flatMap((deposit) => deposit.withdrawals),
+      );
 
       return {
         totalDeposited,
         totalWithdrawn,
         netDeposited: totalDeposited - totalWithdrawn,
         latestBlock,
+        deposits: depositRows,
+        withdrawals: withdrawalRows,
       };
     },
     enabled: safeAddresses.length > 0 && !!publicClient,

@@ -81,6 +81,10 @@ import {
   type ParsedOutcome,
   type SportsGameGroup,
 } from '@/lib/polymarket/sports-grouping';
+import type {
+  NetDeposits,
+  PolymarketCashFlow,
+} from '@/hooks/polymarket/useNetDeposits';
 
 import HighVolumeMarkets from './Markets';
 import SportsTableView from './Markets/SportsTableView';
@@ -203,7 +207,11 @@ export default function PredictionsPanel({
   } = useActiveOrders(clobClient, safeAddress);
   const { totalUsdcBalance } =
     usePolymarketCollateralBalance(portfolioAddresses);
-  const { data: netDeposits } = useNetDeposits(portfolioAddresses);
+  const {
+    data: netDeposits,
+    isLoading: isLoadingNetDeposits,
+    isError: netDepositsRefreshError,
+  } = useNetDeposits(portfolioAddresses);
 
   const { redeemPosition, canRedeem } = useRedeemPosition();
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
@@ -1047,6 +1055,9 @@ export default function PredictionsPanel({
               <BetHistoryView
                 safeAddress={portfolioAddresses}
                 teamsMap={teamsData}
+                cashFlowHistory={netDeposits}
+                cashFlowLoading={isLoadingNetDeposits}
+                cashFlowRefreshError={netDepositsRefreshError}
                 onMarketClick={(trade) =>
                   navigateToMarket(tradeToDetailMarket(trade), {
                     initialOutcome:
@@ -2628,6 +2639,7 @@ const PAGE_SIZE_HISTORY = 50;
 
 type HistoryStatusKey = 'won' | 'sold' | 'bought' | 'other';
 type HistoryStatusFilter = HistoryStatusKey | 'all';
+type HistoryLedgerTab = 'bets' | 'deposits' | 'withdrawals';
 
 interface HistoryRow {
   trade: TradeActivity;
@@ -2719,16 +2731,25 @@ const STATUS_TONE: Record<
 };
 
 const HISTORY_GRID = '110px minmax(0,1.6fr) 118px 80px 90px 100px';
+const CASH_FLOW_GRID = '140px 130px 96px minmax(0,1fr) 110px';
+const CASH_FLOW_MIN_WIDTH = 720;
 
 function BetHistoryView({
   safeAddress,
   teamsMap,
+  cashFlowHistory,
+  cashFlowLoading,
+  cashFlowRefreshError,
   onMarketClick,
 }: {
   safeAddress: string | string[];
   teamsMap?: TeamsMap;
+  cashFlowHistory?: NetDeposits;
+  cashFlowLoading: boolean;
+  cashFlowRefreshError: boolean;
   onMarketClick: (trade: TradeActivity) => void;
 }) {
+  const [ledgerTab, setLedgerTab] = useState<HistoryLedgerTab>('bets');
   const [statusFilter, setStatusFilter] =
     useState<HistoryStatusFilter>('all');
   const [offset, setOffset] = useState(0);
@@ -2772,6 +2793,34 @@ function BetHistoryView({
     if (statusFilter === 'all') return rows;
     return rows.filter((r) => r.statusKey === statusFilter);
   }, [rows, statusFilter]);
+  const depositRows = cashFlowHistory?.deposits ?? [];
+  const withdrawalRows = cashFlowHistory?.withdrawals ?? [];
+  const activeCashRows =
+    ledgerTab === 'deposits'
+      ? depositRows
+      : ledgerTab === 'withdrawals'
+        ? withdrawalRows
+        : [];
+  const activeCashTotal = activeCashRows.reduce(
+    (sum, row) => sum + row.amount,
+    0,
+  );
+  const showCashFlowRefreshError =
+    ledgerTab !== 'bets' &&
+    cashFlowRefreshError &&
+    activeCashRows.length > 0;
+  const title =
+    ledgerTab === 'deposits'
+      ? 'Deposits'
+      : ledgerTab === 'withdrawals'
+        ? 'Withdrawals'
+        : 'Bet history';
+  const caption =
+    ledgerTab === 'bets'
+      ? `${summary.total} ${summary.total === 1 ? 'entry' : 'entries'} · last 30 days`
+      : `${activeCashRows.length} ${
+          activeCashRows.length === 1 ? 'entry' : 'entries'
+        } · all time`;
 
   const canGoBack = offset > 0;
   const canLoadMore = trades.length === PAGE_SIZE_HISTORY;
@@ -2780,10 +2829,8 @@ function BetHistoryView({
     <div className="space-y-4">
       <PageTitle
         eyebrow="Predictions"
-        title="Bet history"
-        caption={`${summary.total} ${
-          summary.total === 1 ? 'entry' : 'entries'
-        } · last 30 days`}
+        title={title}
+        caption={caption}
         action={
           <FilterChip>
             <Download className="w-3 h-3" />
@@ -2792,39 +2839,98 @@ function BetHistoryView({
         }
       />
 
-      {showRefreshError && <StaleRefreshNotice />}
+      {(showRefreshError || showCashFlowRefreshError) && (
+        <StaleRefreshNotice />
+      )}
 
-      {/* Summary tiles — 4 across on sm+, 2 across on mobile. */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <HistorySummaryTile
-          label="Net flow"
-          value={`${summary.netFlow >= 0 ? '+' : '−'}$${Math.abs(
-            summary.netFlow,
-          ).toFixed(2)}`}
-          tone={
-            summary.netFlow > 0.005
-              ? 'pos'
-              : summary.netFlow < -0.005
+      {ledgerTab === 'bets' ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <HistorySummaryTile
+            label="Net flow"
+            value={`${summary.netFlow >= 0 ? '+' : '−'}$${Math.abs(
+              summary.netFlow,
+            ).toFixed(2)}`}
+            tone={
+              summary.netFlow > 0.005
+                ? 'pos'
+                : summary.netFlow < -0.005
+                  ? 'neg'
+                  : 'neutral'
+            }
+          />
+          <HistorySummaryTile
+            label="Volume"
+            value={`$${summary.volume.toFixed(0)}`}
+          />
+          <HistorySummaryTile
+            label="Trades"
+            value={String(summary.total)}
+          />
+          <HistorySummaryTile
+            label="Activity"
+            value={`${counts.bought}B · ${counts.sold + counts.won}S`}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <HistorySummaryTile
+            label={
+              ledgerTab === 'deposits'
+                ? 'Deposited'
+                : 'Withdrawn'
+            }
+            value={`$${activeCashTotal.toFixed(2)}`}
+            tone={ledgerTab === 'deposits' ? 'pos' : 'neg'}
+          />
+          <HistorySummaryTile
+            label="Entries"
+            value={String(activeCashRows.length)}
+          />
+          <HistorySummaryTile
+            label="Total deposits"
+            value={`$${(cashFlowHistory?.totalDeposited ?? 0).toFixed(2)}`}
+            tone="pos"
+          />
+          <HistorySummaryTile
+            label="Total withdrawals"
+            value={`$${(cashFlowHistory?.totalWithdrawn ?? 0).toFixed(2)}`}
+            tone={
+              (cashFlowHistory?.totalWithdrawn ?? 0) > 0.005
                 ? 'neg'
                 : 'neutral'
-          }
-        />
-        <HistorySummaryTile
-          label="Volume"
-          value={`$${summary.volume.toFixed(0)}`}
-        />
-        <HistorySummaryTile
-          label="Trades"
-          value={String(summary.total)}
-        />
-        <HistorySummaryTile
-          label="Activity"
-          value={`${counts.bought}B · ${counts.sold + counts.won}S`}
-        />
-      </div>
+            }
+          />
+        </div>
+      )}
 
       {/* Filter chips + sort/range placeholders pushed right. */}
       <div className="flex gap-1.5 flex-wrap items-center">
+        <FilterChip
+          active={ledgerTab === 'bets'}
+          onClick={() => setLedgerTab('bets')}
+        >
+          Bets · {summary.total}
+        </FilterChip>
+        <FilterChip
+          active={ledgerTab === 'deposits'}
+          onClick={() => setLedgerTab('deposits')}
+        >
+          Deposits · {depositRows.length}
+        </FilterChip>
+        <FilterChip
+          active={ledgerTab === 'withdrawals'}
+          onClick={() => setLedgerTab('withdrawals')}
+        >
+          Withdrawals · {withdrawalRows.length}
+        </FilterChip>
+        {ledgerTab === 'bets' && (
+          <span
+            className="mx-1 hidden h-5 w-px sm:inline-block"
+            style={{ background: HAIR }}
+          />
+        )}
+        {ledgerTab === 'bets' && (
+          <>
         <FilterChip
           active={statusFilter === 'all'}
           onClick={() => setStatusFilter('all')}
@@ -2857,84 +2963,94 @@ function BetHistoryView({
             Other · {counts.other}
           </FilterChip>
         )}
+          </>
+        )}
         <span className="flex-1" />
         <FilterChip>
-          30 days
+          {ledgerTab === 'bets' ? '30 days' : 'All time'}
           <ChevronDown className="w-3 h-3" />
         </FilterChip>
       </div>
 
-      {/* History table — header row + body rows on a shared grid. */}
-      <div
-        className="bg-white rounded-2xl border overflow-hidden"
-        style={{
-          borderColor: HAIR,
-          boxShadow:
-            '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
-        }}
-      >
+      {ledgerTab === 'bets' ? (
         <div
-          className="grid gap-3 px-5 py-3 border-b text-[10.5px] font-bold uppercase tracking-[1.2px]"
+          className="bg-white rounded-2xl border overflow-hidden"
           style={{
-            gridTemplateColumns: HISTORY_GRID,
-            borderColor: HAIR2,
-            color: MUTED,
-            fontFamily: MONO,
+            borderColor: HAIR,
+            boxShadow:
+              '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
           }}
         >
-          <div>Date</div>
-          <div>Market</div>
-          <div>Side</div>
-          <div>Shares</div>
-          <div>Price</div>
-          <div className="text-right">Amount</div>
-        </div>
+          <div
+            className="grid gap-3 px-5 py-3 border-b text-[10.5px] font-bold uppercase tracking-[1.2px]"
+            style={{
+              gridTemplateColumns: HISTORY_GRID,
+              borderColor: HAIR2,
+              color: MUTED,
+              fontFamily: MONO,
+            }}
+          >
+            <div>Date</div>
+            <div>Market</div>
+            <div>Side</div>
+            <div>Shares</div>
+            <div>Price</div>
+            <div className="text-right">Amount</div>
+          </div>
 
-        {isLoading ? (
-          <div className="p-5 space-y-2">
-            {[...Array(4)].map((_, i) => (
-              <div
-                key={i}
-                className="h-12 rounded-md bg-gray-50 animate-pulse"
+          {isLoading ? (
+            <div className="p-5 space-y-2">
+              {[...Array(4)].map((_, i) => (
+                <div
+                  key={i}
+                  className="h-12 rounded-md bg-gray-50 animate-pulse"
+                />
+              ))}
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <div className="py-12 px-6 text-center">
+              <div className="text-[15px] font-semibold text-gray-900 mb-1">
+                {statusFilter === 'all'
+                  ? 'No history yet'
+                  : 'Nothing matches that filter'}
+              </div>
+              <div className="text-[12.5px] text-gray-500 max-w-md mx-auto">
+                {statusFilter === 'all'
+                  ? 'Settled bets, fills and cancellations will appear here.'
+                  : 'Try switching back to All to see every trade.'}
+              </div>
+              {statusFilter !== 'all' && (
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className="mt-3 inline-flex items-center gap-1 h-7 px-3 rounded-full border bg-white text-[11.5px] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
+                  style={{ borderColor: HAIR }}
+                >
+                  Show all
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredRows.map((row, i) => (
+              <HistoryTableRow
+                key={`${row.trade.transactionHash}-${row.trade.asset}-${i}`}
+                row={row}
+                isLast={i === filteredRows.length - 1}
+                onClick={() => onMarketClick(row.trade)}
               />
-            ))}
-          </div>
-        ) : filteredRows.length === 0 ? (
-          <div className="py-12 px-6 text-center">
-            <div className="text-[15px] font-semibold text-gray-900 mb-1">
-              {statusFilter === 'all'
-                ? 'No history yet'
-                : 'Nothing matches that filter'}
-            </div>
-            <div className="text-[12.5px] text-gray-500 max-w-md mx-auto">
-              {statusFilter === 'all'
-                ? 'Settled bets, fills and cancellations will appear here.'
-                : 'Try switching back to All to see every trade.'}
-            </div>
-            {statusFilter !== 'all' && (
-              <button
-                onClick={() => setStatusFilter('all')}
-                className="mt-3 inline-flex items-center gap-1 h-7 px-3 rounded-full border bg-white text-[11.5px] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
-                style={{ borderColor: HAIR }}
-              >
-                Show all
-              </button>
-            )}
-          </div>
-        ) : (
-          filteredRows.map((row, i) => (
-            <HistoryTableRow
-              key={`${row.trade.transactionHash}-${row.trade.asset}-${i}`}
-              row={row}
-              isLast={i === filteredRows.length - 1}
-              onClick={() => onMarketClick(row.trade)}
-            />
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <CashFlowHistoryTable
+          rows={activeCashRows}
+          type={ledgerTab}
+          isLoading={cashFlowLoading}
+          hasError={cashFlowRefreshError}
+        />
+      )}
 
       {/* Pagination — Prev/Next around a centered "Load older" chip. */}
-      {(canGoBack || canLoadMore) && (
+      {ledgerTab === 'bets' && (canGoBack || canLoadMore) && (
         <div className="flex justify-center items-center gap-2 pt-1">
           {canGoBack && (
             <FilterChip
@@ -3118,6 +3234,170 @@ function HistoryTableRow({
         style={{ fontFamily: MONO, color: amountColor }}
       >
         {sign}${amount.toFixed(2)}
+      </div>
+    </div>
+  );
+}
+
+function compactAddress(value?: string): string {
+  if (!value) return '—';
+  if (value.length <= 14) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+function CashFlowHistoryTable({
+  rows,
+  type,
+  isLoading,
+  hasError,
+}: {
+  rows: PolymarketCashFlow[];
+  type: Exclude<HistoryLedgerTab, 'bets'>;
+  isLoading: boolean;
+  hasError: boolean;
+}) {
+  const noun = type === 'deposits' ? 'deposits' : 'withdrawals';
+  const emptyTitle = hasError
+    ? `Could not load ${noun}`
+    : `No ${noun} yet`;
+  const emptyMessage =
+    type === 'deposits'
+      ? 'Prediction wallet deposits will appear here with the date and amount.'
+      : 'Prediction wallet withdrawals will appear here with the date and amount.';
+
+  return (
+    <div
+      className="bg-white rounded-2xl border overflow-x-auto"
+      style={{
+        borderColor: HAIR,
+        boxShadow:
+          '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+      }}
+    >
+      <div
+        className="grid gap-3 px-5 py-3 border-b text-[10.5px] font-bold uppercase tracking-[1.2px]"
+        style={{
+          gridTemplateColumns: CASH_FLOW_GRID,
+          minWidth: CASH_FLOW_MIN_WIDTH,
+          borderColor: HAIR2,
+          color: MUTED,
+          fontFamily: MONO,
+        }}
+      >
+        <div>Date</div>
+        <div>Type</div>
+        <div>Token</div>
+        <div>Counterparty</div>
+        <div className="text-right">Amount</div>
+      </div>
+
+      {isLoading ? (
+        <div className="p-5 space-y-2" style={{ minWidth: CASH_FLOW_MIN_WIDTH }}>
+          {[...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="h-12 rounded-md bg-gray-50 animate-pulse"
+            />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="py-12 px-6 text-center">
+          <div className="text-[15px] font-semibold text-gray-900 mb-1">
+            {emptyTitle}
+          </div>
+          <div className="text-[12.5px] text-gray-500 max-w-md mx-auto">
+            {emptyMessage}
+          </div>
+        </div>
+      ) : (
+        rows.map((row, i) => (
+          <CashFlowHistoryRow
+            key={row.id}
+            row={row}
+            isLast={i === rows.length - 1}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+function CashFlowHistoryRow({
+  row,
+  isLast,
+}: {
+  row: PolymarketCashFlow;
+  isLast: boolean;
+}) {
+  const isDeposit = row.type === 'deposit';
+  const amountColor = isDeposit ? POS_GREEN : NEG_RED;
+  const label = isDeposit ? 'Deposit' : 'Withdrawal';
+  const dateLabel = row.timestamp
+    ? formatHistoryDate(row.timestamp)
+    : row.blockNumber > 0
+      ? `Block ${row.blockNumber}`
+      : 'Pending';
+
+  return (
+    <div
+      className={`grid gap-3 px-5 py-3.5 items-center ${
+        isLast ? '' : 'border-b'
+      }`}
+      style={{
+        gridTemplateColumns: CASH_FLOW_GRID,
+        minWidth: CASH_FLOW_MIN_WIDTH,
+        borderColor: HAIR2,
+      }}
+    >
+      <div
+        className="text-[11px] tabular-nums"
+        style={{ fontFamily: MONO, color: MUTED }}
+      >
+        {dateLabel}
+      </div>
+
+      <div>
+        <span
+          className="inline-block text-[10px] font-bold tracking-[0.6px] px-2 py-[3px] rounded-full"
+          style={{
+            background: isDeposit ? POS_GREEN_SOFT : NEG_RED_SOFT,
+            color: amountColor,
+            fontFamily: MONO,
+          }}
+        >
+          {label}
+        </span>
+      </div>
+
+      <div
+        className="text-[12.5px] font-semibold text-gray-900"
+        style={{ fontFamily: MONO }}
+      >
+        {row.token}
+      </div>
+
+      <div className="min-w-0">
+        <div
+          className="truncate text-[12px] font-semibold text-gray-900"
+          style={{ fontFamily: MONO }}
+        >
+          {compactAddress(row.counterparty)}
+        </div>
+        {row.transactionHash && (
+          <div
+            className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.4px]"
+            style={{ color: MUTED, fontFamily: MONO }}
+          >
+            TX {compactAddress(row.transactionHash)}
+          </div>
+        )}
+      </div>
+
+      <div
+        className="text-right text-[12.5px] font-bold tabular-nums"
+        style={{ fontFamily: MONO, color: amountColor }}
+      >
+        {isDeposit ? '+' : '-'}${row.amount.toFixed(2)}
       </div>
     </div>
   );
