@@ -455,7 +455,6 @@ export default function PerpsPositionFeedCard({
   const storedStatus = terminalTimestampPredatesOpen(content, rawStoredStatus)
     ? 'open'
     : rawStoredStatus;
-  const isLimitStatus = storedStatus === 'limit';
   const isLimitLifecycleStatus =
     storedStatus === 'limit' || storedStatus === 'cancelled';
   const hasStoredTerminalStatus =

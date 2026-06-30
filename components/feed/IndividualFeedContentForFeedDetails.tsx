@@ -12,6 +12,7 @@ import { formatEns } from "@/lib/formatEnsName";
 import { makeLinksClickable } from "@/lib/makeLinksClickable";
 import TokenTransferFeedCard from "./TokenTransferFeedCard";
 import PerpsFeedCard from "./PerpsFeedCard";
+import PerpsPositionFeedCard from "./PerpsPositionFeedCard";
 import ProductFeedCard from "./ProductFeedCard";
 import { isProductFeedPost } from "./productFeedUtils";
 
@@ -204,6 +205,9 @@ const IndividualFeedContentForFeedDetails = ({ feed }: any) => {
             )}
             {feed.repostedPostDetails.postType === "transaction" &&
               renderTransactionContent(feed)}
+            {feed.repostedPostDetails.postType === "perpsPosition" && (
+              <PerpsPositionFeedCard feed={feed.repostedPostDetails} />
+            )}
             {feed.repostedPostDetails.postType === "perps" && (
               <PerpsFeedCard
                 content={feed.repostedPostDetails.content}

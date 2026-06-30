@@ -14,6 +14,7 @@ import { formatEns } from "@/lib/formatEnsName";
 import RenderTransactionContent from "./view/feed-variants/RenderTransactions";
 import { IoArrowBack } from "react-icons/io5";
 import PerpsFeedCard from "./PerpsFeedCard";
+import PerpsPositionFeedCard from "./PerpsPositionFeedCard";
 import ProductFeedCard from "./ProductFeedCard";
 import { isProductFeedPost } from "./productFeedUtils";
 
@@ -195,6 +196,10 @@ const FeedDetails = ({ feedData, feedDetails }: any) => {
                     }
                     createdAt={feedData?.createdAt}
                   />
+                )}
+
+                {feedData.postType === "perpsPosition" && (
+                  <PerpsPositionFeedCard feed={feedData} />
                 )}
 
                 {feedData.postType === "swapTransaction" && (

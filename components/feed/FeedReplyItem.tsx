@@ -21,6 +21,7 @@ import SwapTransactionCard from "./SwapTransactionCard";
 import isUrl from "@/lib/isUrl";
 import PollCard from "./PollCard";
 import PerpsFeedCard from "./PerpsFeedCard";
+import PerpsPositionFeedCard from "./PerpsPositionFeedCard";
 import tipImg from "@/public/images/tip.png";
 import TipContentModal from "./TipContent";
 import { formatEns } from "@/lib/formatEnsName";
@@ -335,6 +336,10 @@ const FeedReplyItem = memo(
                     }
                   }}
                 />
+              )}
+
+              {feed.postType === "perpsPosition" && (
+                <PerpsPositionFeedCard feed={feed} />
               )}
 
               {feed.postType === "perps" && (
