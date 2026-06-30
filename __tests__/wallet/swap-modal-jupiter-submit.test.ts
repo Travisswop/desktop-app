@@ -1,4 +1,5 @@
 import { resolveSwapModalJupiterSubmit } from '@/components/wallet/swapModalJupiterSubmit';
+import { resolveSwapBalanceSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';
 
 const SWOP_MINT = 'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1';
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -37,6 +38,42 @@ describe('resolveSwapModalJupiterSubmit', () => {
         solanaReady: true,
         selectedSolanaWalletAddress:
           'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
+        payToken: {
+          symbol: 'SWOP',
+          address: SWOP_MINT,
+          decimals: 9,
+        },
+        receiveToken: {
+          symbol: 'USDC',
+          address: USDC_MINT,
+          decimals: 6,
+        },
+        payAmount: '1.25',
+      }),
+    ).toEqual({
+      ok: true,
+      preflight: {
+        ok: true,
+        inputMint: SWOP_MINT,
+        outputMint: USDC_MINT,
+        amountInSmallestUnit: '1250000000',
+      },
+    });
+  });
+
+  it('keeps the Jupiter path available when wallet selection casing drifts before the modal handoff', () => {
+    const selectedSolanaWalletAddress =
+      resolveSwapBalanceSolanaWalletAddress({
+        selectedWalletAddress:
+          'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+        signableWalletAddress:
+          'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
+      });
+
+    expect(
+      resolveSwapModalJupiterSubmit({
+        solanaReady: true,
+        selectedSolanaWalletAddress,
         payToken: {
           symbol: 'SWOP',
           address: SWOP_MINT,

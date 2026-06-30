@@ -10,6 +10,17 @@ describe('swap wallet selection', () => {
     ).toBe('stored-solana-wallet');
   });
 
+  it('uses the connected signer casing when the stored Solana wallet only differs by case', () => {
+    expect(
+      resolveSwapBalanceSolanaWalletAddress({
+        selectedWalletAddress:
+          'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+        signableWalletAddress:
+          'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
+      }),
+    ).toBe('EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG');
+  });
+
   it('falls back to the signable wallet when no selected wallet is available', () => {
     expect(
       resolveSwapBalanceSolanaWalletAddress({
