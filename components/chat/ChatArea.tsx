@@ -8849,6 +8849,14 @@ function GoldmanAccessStation({
             strategy={activeStrategy}
             isStrategyRunning={isStrategyRunning}
             now={goldmanStrategyNow}
+            fundingGuidance={
+              fundingAddress
+                ? {
+                    assetHint: fundingAddress.assetHint,
+                    networkLabel: fundingAddress.networkLabel,
+                  }
+                : null
+            }
           />
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button

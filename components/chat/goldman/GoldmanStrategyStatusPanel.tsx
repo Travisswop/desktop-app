@@ -44,6 +44,10 @@ type GoldmanStrategyControlState = {
 };
 
 type GoldmanStrategyExecutionMode = 'proposal' | 'monitor' | 'execute';
+type GoldmanFundingGuidance = {
+  assetHint?: string | null;
+  networkLabel?: string | null;
+};
 
 type GoldmanStrategyPendingCopy = Pick<
   GoldmanStrategyControlState,
@@ -64,20 +68,31 @@ function normalizeMode(mode?: string | null) {
   return 'proposal only';
 }
 
+function describeFundingRequirement(guidance?: GoldmanFundingGuidance | null) {
+  const assetHint = guidance?.assetHint?.trim();
+  const networkLabel = guidance?.networkLabel?.trim();
+  if (assetHint && networkLabel) return `${assetHint} on ${networkLabel}`;
+  if (assetHint) return assetHint;
+  if (networkLabel) return `the required asset on ${networkLabel}`;
+  return 'the required asset';
+}
+
 function getPendingAuthorizationCopy(
   mode: GoldmanStrategyExecutionMode,
   fundingBlocked: boolean,
-  approvedWaitingForFunding: boolean
+  approvedWaitingForFunding: boolean,
+  fundingGuidance?: GoldmanFundingGuidance | null
 ): GoldmanStrategyPendingCopy {
+  const fundingRequirement = describeFundingRequirement(fundingGuidance);
   if (mode === 'execute') {
     if (approvedWaitingForFunding) {
       return {
         boundaryDetail:
           'This strategy is already approved for live execution, but Goldman cannot trade until the strategy vault is funded and wallet setup is complete.',
         nextAction:
-          'Fund the strategy vault, then press Run to start Goldman within the saved caps.',
+          `Fund the strategy vault with ${fundingRequirement}, then press Run to start Goldman within the saved caps.`,
         blockerReason:
-          'Vault funding or wallet readiness is still blocking the approved live strategy.',
+          `Vault funding or wallet readiness is still blocking the approved live strategy. Required funding: ${fundingRequirement}.`,
         runLabel: 'Fund first',
       };
     }
@@ -86,10 +101,10 @@ function getPendingAuthorizationCopy(
       boundaryDetail:
         'This strategy is configured for live execution, but Goldman cannot trade until approval and funding are both complete.',
       nextAction: fundingBlocked
-        ? 'Fund the strategy vault, then approve the strategy before pressing Run.'
+        ? `Fund the strategy vault with ${fundingRequirement}, then approve the strategy before pressing Run.`
         : 'Approve this strategy before Goldman can run within the saved caps.',
       blockerReason: fundingBlocked
-        ? 'Vault funding or wallet readiness is still blocking live execution.'
+        ? `Vault funding or wallet readiness is still blocking live execution. Required funding: ${fundingRequirement}.`
         : 'Goldman is still waiting on explicit user approval.',
       runLabel: fundingBlocked ? 'Fund first' : 'Approve first',
     };
@@ -101,9 +116,9 @@ function getPendingAuthorizationCopy(
         boundaryDetail:
           'This strategy is already approved to monitor and report. Goldman stays read-only in this mode, but the remaining setup blocker still has to clear before monitoring can start.',
         nextAction:
-          'Clear the remaining setup blocker, then press Run to start monitoring from the saved rules.',
+          `Fund the strategy vault with ${fundingRequirement}, then press Run to start monitoring from the saved rules.`,
         blockerReason:
-          'A wallet or vault setup blocker is still preventing Goldman from starting the approved monitor-only runtime.',
+          `A wallet or vault setup blocker is still preventing Goldman from starting the approved monitor-only runtime. Required funding: ${fundingRequirement}.`,
         runLabel: 'Setup blocked',
       };
     }
@@ -113,10 +128,10 @@ function getPendingAuthorizationCopy(
         ? 'This strategy is configured to monitor and report. Goldman stays read-only in this mode, but the remaining setup blocker still has to clear before monitoring can start.'
         : 'This strategy is configured to monitor and report. Approval unlocks read-only monitoring, and Goldman will not place live trades in this mode.',
       nextAction: fundingBlocked
-        ? 'Clear the remaining setup blocker, then approve the strategy before pressing Run.'
+        ? `Fund the strategy vault with ${fundingRequirement}, then approve the strategy before pressing Run.`
         : 'Approve this strategy before Goldman starts monitoring from the saved rules.',
       blockerReason: fundingBlocked
-        ? 'A wallet or vault setup blocker is still preventing Goldman from starting monitor-only runtime.'
+        ? `A wallet or vault setup blocker is still preventing Goldman from starting monitor-only runtime. Required funding: ${fundingRequirement}.`
         : 'Goldman is still waiting on explicit user approval before it can start monitoring.',
       runLabel: fundingBlocked ? 'Setup blocked' : 'Approve first',
     };
@@ -127,9 +142,9 @@ function getPendingAuthorizationCopy(
       boundaryDetail:
         'This strategy is already approved, but it is still proposal-only. Goldman will not monitor or place live trades until the mode changes, and the remaining setup blocker still needs to clear before it can move forward.',
       nextAction:
-        'Clear the remaining setup blocker, then switch this strategy to monitor or live execute before pressing Run.',
+        `Fund the strategy vault with ${fundingRequirement}, then switch this strategy to monitor or live execute before pressing Run.`,
       blockerReason:
-        'A setup blocker is still preventing this approved proposal from moving into an active Goldman runtime.',
+        `A setup blocker is still preventing this approved proposal from moving into an active Goldman runtime. Required funding: ${fundingRequirement}.`,
       runLabel: 'Setup blocked',
     };
   }
@@ -139,10 +154,10 @@ function getPendingAuthorizationCopy(
       ? 'This strategy is still proposal-only. Goldman will not monitor or place live trades from this mode, and the remaining setup blocker still needs to clear before it can move forward.'
       : 'This strategy is still proposal-only. Approval keeps the reviewed plan available, but Goldman will not monitor or place live trades until the mode changes.',
     nextAction: fundingBlocked
-      ? 'Clear the remaining setup blocker, then switch this strategy to monitor or live execute before pressing Run.'
+      ? `Fund the strategy vault with ${fundingRequirement}, then switch this strategy to monitor or live execute before pressing Run.`
       : 'Approve this proposal if you want to keep it, then switch to monitor or live execute before expecting Goldman to run.',
     blockerReason: fundingBlocked
-      ? 'A setup blocker is still preventing this proposal from moving into an active Goldman runtime.'
+      ? `A setup blocker is still preventing this proposal from moving into an active Goldman runtime. Required funding: ${fundingRequirement}.`
       : 'Goldman is still waiting on explicit user approval, and proposal mode does not authorize live automation.',
     runLabel: fundingBlocked ? 'Setup blocked' : 'Proposal only',
   };
@@ -216,7 +231,11 @@ function isClientConnectionBlocked(message?: string | null) {
 
 export function getGoldmanStrategyControlState(
   strategy?: GoldmanStrategyPanelStrategy | null,
-  options?: { isStrategyRunning?: boolean; now?: number }
+  options?: {
+    isStrategyRunning?: boolean;
+    now?: number;
+    fundingGuidance?: GoldmanFundingGuidance | null;
+  }
 ): GoldmanStrategyControlState {
   const runtime = strategy?.runtime || null;
   const metadata = strategy?.metadata || null;
@@ -298,7 +317,8 @@ export function getGoldmanStrategyControlState(
     const pendingCopy = getPendingAuthorizationCopy(
       modeKey,
       fundingBlocked,
-      approvedWaitingForFunding
+      approvedWaitingForFunding,
+      options?.fundingGuidance
     );
     return {
       statusLabel: fundingBlocked ? 'Funding blocked' : 'Waiting for approval',
@@ -437,14 +457,17 @@ export function GoldmanStrategyStatusPanel({
   strategy,
   isStrategyRunning = false,
   now,
+  fundingGuidance,
 }: {
   strategy?: GoldmanStrategyPanelStrategy | null;
   isStrategyRunning?: boolean;
   now?: number;
+  fundingGuidance?: GoldmanFundingGuidance | null;
 }) {
   const control = getGoldmanStrategyControlState(strategy, {
     isStrategyRunning,
     now,
+    fundingGuidance,
   });
 
   return (

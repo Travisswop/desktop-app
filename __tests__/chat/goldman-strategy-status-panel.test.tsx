@@ -29,6 +29,10 @@ describe('GoldmanStrategyStatusPanel', () => {
           },
         }}
         now={Date.parse('2026-06-24T16:00:00Z')}
+        fundingGuidance={{
+          assetHint: 'USDC',
+          networkLabel: 'Polygon / EVM',
+        }}
       />
     );
 
@@ -57,13 +61,20 @@ describe('GoldmanStrategyStatusPanel', () => {
           },
         }}
         now={Date.parse('2026-06-24T16:00:00Z')}
+        fundingGuidance={{
+          assetHint: 'USDC',
+          networkLabel: 'Polygon / EVM',
+        }}
       />
     );
 
     expect(markup).toContain('Funding blocked');
     expect(markup).toContain('Fund first');
     expect(markup).toContain(
-      'Fund the strategy vault, then press Run to start Goldman within the saved caps.'
+      'Fund the strategy vault with USDC on Polygon / EVM, then press Run to start Goldman within the saved caps.'
+    );
+    expect(markup).toContain(
+      'Required funding: USDC on Polygon / EVM.'
     );
     expect(markup).not.toContain('approve the strategy before pressing Run');
   });
@@ -82,6 +93,10 @@ describe('GoldmanStrategyStatusPanel', () => {
           },
         }}
         now={Date.parse('2026-06-24T16:00:00Z')}
+        fundingGuidance={{
+          assetHint: 'USDC',
+          networkLabel: 'Polygon / EVM',
+        }}
       />
     );
 
@@ -112,6 +127,10 @@ describe('GoldmanStrategyStatusPanel', () => {
           },
         }}
         now={Date.parse('2026-06-24T16:00:00Z')}
+        fundingGuidance={{
+          assetHint: 'USDC',
+          networkLabel: 'Polygon / EVM',
+        }}
       />
     );
 
@@ -174,6 +193,10 @@ describe('GoldmanStrategyStatusPanel', () => {
           },
         }}
         now={Date.parse('2026-06-24T16:00:00Z')}
+        fundingGuidance={{
+          assetHint: 'USDC',
+          networkLabel: 'Polygon / EVM',
+        }}
       />
     );
 
@@ -183,7 +206,10 @@ describe('GoldmanStrategyStatusPanel', () => {
       'Goldman stays read-only in this mode, but the remaining setup blocker still has to clear before monitoring can start.'
     );
     expect(markup).toContain(
-      'Clear the remaining setup blocker, then press Run to start monitoring from the saved rules.'
+      'Fund the strategy vault with USDC on Polygon / EVM, then press Run to start monitoring from the saved rules.'
+    );
+    expect(markup).toContain(
+      'Required funding: USDC on Polygon / EVM.'
     );
     expect(markup).not.toContain('approve the strategy before pressing Run');
     expect(markup).not.toContain(
