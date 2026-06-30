@@ -9,9 +9,9 @@ export type OpenAgentThread = (
   options?: OpenAgentThreadOptions
 ) => void | Promise<void>;
 
-export async function openAgentThreadWithFeedback(
-  openAgentThread: (agentId: string) => void | Promise<void>,
-  agentId: string,
+export async function openAgentThreadWithFeedback<T extends string>(
+  openAgentThread: (agentId: T) => void | Promise<void>,
+  agentId: T,
   options?: OpenAgentThreadOptions
 ) {
   try {
