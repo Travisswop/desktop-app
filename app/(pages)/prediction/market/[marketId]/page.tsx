@@ -15,6 +15,11 @@ import {
   type MarketDetailEntry,
 } from '@/zustandStore/marketDetailStore';
 import {
+  buildRecoveredMarketDetailEntry,
+  buildRecoveredSportsMarketDetailEntry,
+  buildSiblingSportsMarketDetailEntry,
+} from '@/lib/polymarket/marketDetailEntries';
+import {
   recoverSportsGameDetailContext,
   type SportsGameDetailContext,
 } from '@/lib/polymarket/sports-detail-context';
@@ -115,10 +120,10 @@ function MarketDetailPageInner() {
           return;
         }
 
-        const nextEntry: MarketDetailEntry = {
+        const nextEntry: MarketDetailEntry = buildRecoveredMarketDetailEntry(
           market,
-          ...sharesForMarket(market),
-        };
+          sharesForMarket(market),
+        );
         const key = marketRouteKey(market) || marketId;
         useMarketDetailStore.getState().set(key, nextEntry);
         setSnapshot(nextEntry);
@@ -156,13 +161,11 @@ function MarketDetailPageInner() {
           return;
         }
         const shares = sharesForMarketRef.current(context.market);
-        const nextEntry: MarketDetailEntry = {
-          ...snapshot,
-          market: context.market,
-          game: context.game,
-          ...context.selection,
-          ...shares,
-        };
+        const nextEntry: MarketDetailEntry = buildRecoveredSportsMarketDetailEntry(
+          snapshot,
+          context,
+          shares,
+        );
         const key = marketRouteKey(context.market) || marketId;
         useMarketDetailStore.getState().set(key, nextEntry);
         setSnapshot(nextEntry);
@@ -183,12 +186,12 @@ function MarketDetailPageInner() {
       const key = marketRouteKey(market);
       if (!key || !snapshot?.game) return;
       const shares = sharesForMarket(market);
-      const nextEntry: MarketDetailEntry = {
+      const nextEntry: MarketDetailEntry = buildSiblingSportsMarketDetailEntry(
+        snapshot.game,
         market,
-        game: snapshot.game,
-        ...selection,
-        ...shares,
-      };
+        selection,
+        shares,
+      );
       useMarketDetailStore.getState().set(key, nextEntry);
       router.replace(`/prediction/market/${encodeURIComponent(key)}`);
     },
@@ -259,7 +262,7 @@ function MarketDetailPageInner() {
         searchParams?.get('limitPrice') ||
         undefined
       }
-      agentProposalId={searchParams?.get('proposalId') || undefined}
+      agentOrderPrefill={snapshot.agentOrderPrefill}
       onAgentActionComplete={(completion) => {
         if (completion.groupId) {
           router.push(

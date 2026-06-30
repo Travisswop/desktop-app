@@ -21,6 +21,7 @@ import {
   type AgentActionCompletion,
   type HyperliquidAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
+import { buildPerpsApprovalBoundaryBanner } from '@/lib/chat/approvalBoundary';
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
@@ -333,6 +334,34 @@ export function TradingForm({
     if (!sizeUsdNum) return null;
     return (sizeUsdNum * 0.0007).toFixed(2);
   }, [sizeUsdNum]);
+  const approvalBoundaryBanner = useMemo(
+    () =>
+      buildPerpsApprovalBoundaryBanner(agentOrderPrefill, {
+        coin: market?.coin ?? '',
+        side,
+        orderMode: mode,
+        sizeUsd: size,
+        sizeCoins: sizeInCoins,
+        leverage: safeLeverage,
+        isCross,
+        price: limitPrice,
+        takeProfitPrice: takeProfit,
+        stopLossPrice: stopLoss,
+      }),
+    [
+      agentOrderPrefill,
+      isCross,
+      limitPrice,
+      market?.coin,
+      mode,
+      safeLeverage,
+      side,
+      size,
+      sizeInCoins,
+      stopLoss,
+      takeProfit,
+    ],
+  );
 
   // Step 1: user clicks the CTA → snapshot the order details and open the modal
   const requestConfirm = useCallback(() => {
@@ -378,10 +407,14 @@ export function TradingForm({
       estFees: fee.toFixed(2),
       marginRequired: margin.toFixed(2),
       isLimit: mode !== 'market',
+      approvalBoundaryTitle: approvalBoundaryBanner?.title,
+      approvalBoundaryDetail: approvalBoundaryBanner?.detail,
+      approvalBoundaryTone: approvalBoundaryBanner?.tone,
     });
   }, [
     market, hasInsufficientMargin, mode, isBuy, sizeInCoins, limitPrice, markNum,
     takeProfit, stopLoss, side, safeLeverage, isCross, onClearError,
+    approvalBoundaryBanner,
   ]);
 
   // Step 2: modal confirm → actually fire the order to Hyperliquid
@@ -702,9 +735,20 @@ export function TradingForm({
   return (
     <div className="flex flex-col h-full">
       {/* Long / Short toggle */}
-      {agentOrderPrefill && (
-        <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11.5px] font-medium text-blue-700">
-          Agent proposal loaded. Review every field before confirming.
+      {approvalBoundaryBanner && (
+        <div
+          className={`mb-3 rounded-xl border px-3 py-2 ${
+            approvalBoundaryBanner.tone === 'warning'
+              ? 'border-amber-200 bg-amber-50 text-amber-900'
+              : 'border-blue-100 bg-blue-50 text-blue-700'
+          }`}
+        >
+          <div className="text-[11.5px] font-semibold">
+            {approvalBoundaryBanner.title}
+          </div>
+          <div className="mt-1 text-[11px] leading-snug opacity-90">
+            {approvalBoundaryBanner.detail}
+          </div>
         </div>
       )}
 

@@ -210,6 +210,29 @@ describe('desktop group agent payloads', () => {
     });
   });
 
+  test('keeps operating-mode disclosure when an approved handoff only supplies mode context', () => {
+    const prefill = getHyperliquidOrderPrefill({
+      status: 'approved',
+      nextStep: 'hyperliquid_frontend_signing_required',
+      payload: {
+        proposalId: 'prop_hl_mode',
+        proposalNonce: 'nonce_hl_mode',
+        provider: 'hyperliquid',
+        panel: 'perps',
+        action: 'perps.place_order',
+        normalizedParams: {
+          coin: 'ETH',
+          operatingMode: 'shadow',
+        },
+      },
+    });
+
+    expect(prefill).toMatchObject({
+      proposalId: 'prop_hl_mode',
+      operatingModeLabel: 'Shadow',
+    });
+  });
+
   test('uses requested Hyperliquid market aliases over stale coin defaults', () => {
     const prefill = getHyperliquidOrderPrefill({
       status: 'approved',

@@ -28,7 +28,9 @@ import { useTrading } from '@/providers/polymarket';
 import {
   completeAgentActionFromHandoff,
   type AgentActionCompletion,
+  type PolymarketAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
+import { buildPredictionApprovalBoundaryBanner } from '@/lib/chat/approvalBoundary';
 import {
   CTF_CONTRACT_ADDRESS,
   MIN_ORDER_SIZE,
@@ -4317,7 +4319,7 @@ type MarketDetailViewProps = {
   initialSide?: 'BUY' | 'SELL';
   initialOrderType?: OrderVariant;
   initialLimitPrice?: string;
-  agentProposalId?: string;
+  agentOrderPrefill?: PolymarketAgentOrderPrefill | null;
   onAgentActionComplete?: (completion: AgentActionCompletion) => void;
   onAddFunds?: () => void;
   /** Optional display-name overrides for the two outcome buttons.
@@ -4345,7 +4347,7 @@ export default function MarketDetailView({
   initialSide,
   initialOrderType,
   initialLimitPrice,
-  agentProposalId,
+  agentOrderPrefill,
   onAgentActionComplete,
   onAddFunds,
   outcomeLabels,
@@ -4912,11 +4914,11 @@ export default function MarketDetailView({
         setSuccessInfo(orderSuccessInfo);
         showOrderSuccessToast(orderSuccessInfo);
 
-        if (agentProposalId) {
+        if (agentOrderPrefill?.proposalId) {
           try {
             const completion = await completeAgentActionFromHandoff(
               {
-                proposalId: agentProposalId,
+                proposalId: agentOrderPrefill.proposalId,
                 status: 'executed',
                 provider: 'polymarket',
                 title: market.question,
@@ -5059,6 +5061,28 @@ export default function MarketDetailView({
     shares > 0
       ? { price: limitPriceNum, shares }
       : null;
+  const approvalBoundaryBanner = useMemo(
+    () =>
+      buildPredictionApprovalBoundaryBanner(agentOrderPrefill, {
+        marketRouteKey: market.conditionId || market.id || market.slug || '',
+        outcome: selectedOutcome,
+        side,
+        amount: inputValue,
+        orderType,
+        limitPrice: orderType === 'limit' ? limitPrice : undefined,
+      }),
+    [
+      agentOrderPrefill,
+      inputValue,
+      limitPrice,
+      market.conditionId,
+      market.id,
+      market.slug,
+      orderType,
+      selectedOutcome,
+      side,
+    ],
+  );
 
   return (
     <div
@@ -5246,6 +5270,20 @@ export default function MarketDetailView({
             onDismiss={() => setShowEnableModal(false)}
             disabledReason={tradingDisabledReason}
           />
+        )}
+        {approvalBoundaryBanner && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-[12px] ${
+              approvalBoundaryBanner.tone === 'warning'
+                ? 'border-amber-200 bg-amber-50 text-amber-900'
+                : 'border-blue-100 bg-blue-50 text-blue-800'
+            }`}
+          >
+            <div className="font-semibold">{approvalBoundaryBanner.title}</div>
+            <div className="mt-1 text-[11.5px] leading-snug opacity-90">
+              {approvalBoundaryBanner.detail}
+            </div>
+          </div>
         )}
 
         {/* ── Order ticket (A3 / A3L) ──────────────────────────────────────── */}

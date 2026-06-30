@@ -469,6 +469,7 @@ export interface HyperliquidAgentOrderPrefill {
   proposalId?: string;
   proposalNonce?: string;
   action?: string;
+  operatingModeLabel?: string;
   coin?: string;
   side?: 'long' | 'short';
   sizeUsd?: string;
@@ -491,6 +492,7 @@ export interface PolymarketAgentOrderPrefill {
   proposalId?: string;
   proposalNonce?: string;
   action?: string;
+  operatingModeLabel?: string;
   marketId?: string;
   conditionId?: string;
   slug?: string;
@@ -693,6 +695,26 @@ function toCentsInput(value: unknown): string | undefined {
   return String(Math.round(cents));
 }
 
+function resolveOperatingModeLabel(params: UnknownRecord) {
+  const raw = [
+    params.operatingModeLabel,
+    params.operatingMode,
+    params.executionMode,
+    params.reviewMode,
+    params.modeLabel,
+    params.mode,
+  ]
+    .map((value) => stringValue(value)?.toLowerCase())
+    .find(Boolean);
+
+  if (!raw) return undefined;
+  if (raw.includes('monitor')) return 'Monitor-only';
+  if (raw.includes('shadow')) return 'Shadow';
+  if (raw.includes('paper')) return 'Paper';
+  if (raw.includes('live')) return 'Live-ready';
+  return undefined;
+}
+
 export function getHyperliquidOrderPrefill(
   value?:
     | AgentApprovalHandoff
@@ -738,6 +760,7 @@ export function getHyperliquidOrderPrefill(
     proposalId: payload.proposalId,
     proposalNonce: payload.proposalNonce,
     action: payload.action,
+    operatingModeLabel: resolveOperatingModeLabel(params),
     coin,
     side,
     sizeUsd,
@@ -791,6 +814,7 @@ export function getPolymarketOrderPrefill(
     proposalId: payload.proposalId,
     proposalNonce: payload.proposalNonce,
     action: payload.action,
+    operatingModeLabel: resolveOperatingModeLabel(params),
     marketId,
     conditionId,
     slug,
