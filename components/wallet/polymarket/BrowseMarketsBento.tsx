@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
 import {
@@ -51,6 +51,8 @@ const NEG_RED_SOFT = 'rgba(229,72,77,0.08)';
 const LIVE_RED = '#ff5a5f';
 const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
+const BENTO_PREFETCH_ROOT_MARGIN = '900px 0px';
+const BENTO_REFETCH_INTERVAL_MS = 60_000;
 
 // Categories rendered in the lower bento grid (sports gets the full-width
 // hero above, so it's excluded here). "Trending" is also excluded — it has
@@ -175,6 +177,37 @@ function priceToPct(price: number | undefined): string {
   if (price == null || !Number.isFinite(price) || price <= 0 || price >= 1)
     return '—';
   return `${Math.round(price * 100)}%`;
+}
+
+function useNearViewport<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  const [isNearViewport, setIsNearViewport] = useState(false);
+
+  useEffect(() => {
+    if (isNearViewport) return;
+    const node = ref.current;
+    if (!node) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsNearViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsNearViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: BENTO_PREFETCH_ROOT_MARGIN },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isNearViewport]);
+
+  return [ref, isNearViewport] as const;
 }
 
 /** "+1.5" / "-1.5" style spread label — pulls the line off the outcome. */
@@ -555,6 +588,9 @@ function SportsHeroCard({
   const { data: sportsData, isLoading } = useSportsEvents({
     tagId,
     enabled: true,
+    includeRealtimePrices: false,
+    refetchIntervalMs: BENTO_REFETCH_INTERVAL_MS,
+    refetchOnWindowFocus: false,
   });
 
   const games = useMemo(() => {
@@ -734,14 +770,19 @@ function CategoryBentoCard({
   onOutcomeClick,
   onBrowse,
 }: CategoryBentoCardProps) {
+  const [cardRef, shouldLoad] = useNearViewport<HTMLDivElement>();
   const { data, isLoading } = useMarkets({
     categoryId,
-    enabled: true,
+    enabled: shouldLoad,
+    includeRealtimePrices: false,
+    refetchIntervalMs: BENTO_REFETCH_INTERVAL_MS,
+    refetchOnWindowFocus: false,
   });
 
   const all = useMemo(() => data?.pages.flat() ?? [], [data]);
   const top = all.slice(0, 2);
   const remaining = Math.max(0, all.length - top.length);
+  const isWaitingToLoad = !shouldLoad;
 
   const totalVol = useMemo(
     () =>
@@ -756,6 +797,7 @@ function CategoryBentoCard({
 
   return (
     <div
+      ref={cardRef}
       className="rounded-2xl bg-white border overflow-hidden flex flex-col"
       style={{
         borderColor: HAIR,
@@ -790,7 +832,7 @@ function CategoryBentoCard({
 
       {/* Top markets */}
       <div className="px-2 pt-1 pb-2 flex-1">
-        {isLoading && top.length === 0 ? (
+        {(isWaitingToLoad || isLoading) && top.length === 0 ? (
           <div className="px-2 py-4 space-y-2">
             <div className="h-4 w-full bg-gray-100 animate-pulse rounded" />
             <div className="h-4 w-3/4 bg-gray-100 animate-pulse rounded" />

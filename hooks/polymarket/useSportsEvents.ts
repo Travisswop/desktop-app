@@ -29,6 +29,11 @@ export interface UseSportsEventsOptions {
   dateTo?: string;
   /** Server-side game/market search. */
   searchQuery?: string;
+  /** Set false for overview cards that only need Gamma's embedded odds. */
+  includeRealtimePrices?: boolean;
+  /** Override the polling cadence for lightweight overview surfaces. */
+  refetchIntervalMs?: number | false;
+  refetchOnWindowFocus?: boolean;
 }
 
 /**
@@ -48,6 +53,9 @@ export function useSportsEvents({
   dateFrom,
   dateTo,
   searchQuery = '',
+  includeRealtimePrices = true,
+  refetchIntervalMs = QUERY_REFETCH_INTERVALS.MARKETS,
+  refetchOnWindowFocus = true,
 }: UseSportsEventsOptions = {}) {
   const { isTradingSessionComplete } = useTrading();
   const trimmedSearch = searchQuery.trim();
@@ -64,7 +72,8 @@ export function useSportsEvents({
       effectiveDateFrom ?? null,
       effectiveDateTo ?? null,
       trimmedSearch,
-      !!isTradingSessionComplete,
+      includeRealtimePrices,
+      includeRealtimePrices && !!isTradingSessionComplete,
     ],
     enabled,
     initialPageParam: 0,
@@ -89,7 +98,11 @@ export function useSportsEvents({
       const markets: PolymarketMarket[] = await res.json();
 
       // ── Enrich with real-time CLOB prices ────────────────────────────────
-      if (isTradingSessionComplete && markets.length > 0) {
+      if (
+        includeRealtimePrices &&
+        isTradingSessionComplete &&
+        markets.length > 0
+      ) {
         const allTokenIds: string[] = [];
         for (const market of markets) {
           if (!market.clobTokenIds) continue;
@@ -108,9 +121,13 @@ export function useSportsEvents({
               if (!market.clobTokenIds) continue;
               try {
                 const tokenIds: string[] = JSON.parse(market.clobTokenIds);
-                const priceMap: Record<string, (typeof globalPriceMap)[string]> = {};
+                const priceMap: Record<
+                  string,
+                  (typeof globalPriceMap)[string]
+                > = {};
                 for (const tokenId of tokenIds) {
-                  if (globalPriceMap[tokenId]) priceMap[tokenId] = globalPriceMap[tokenId];
+                  if (globalPriceMap[tokenId])
+                    priceMap[tokenId] = globalPriceMap[tokenId];
                 }
                 market.realtimePrices = priceMap;
               } catch {
@@ -130,8 +147,8 @@ export function useSportsEvents({
       return allPages.reduce((total, page) => total + page.length, 0);
     },
     staleTime: QUERY_STALE_TIMES.MARKETS,
-    refetchInterval: QUERY_REFETCH_INTERVALS.MARKETS,
+    refetchInterval: refetchIntervalMs,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus,
   });
 }
