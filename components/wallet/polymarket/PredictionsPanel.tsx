@@ -1496,6 +1496,7 @@ interface BetRow {
   statusKey: BetStatusKey;
   statusLabel: string;
   side: PredictionSideDisplay;
+  placedAt?: number;
   staked: number;
   value: number;
   pnl: number;
@@ -1523,9 +1524,82 @@ function predictionSideTone(side: PredictionSideDisplay) {
   return { bg: SURFACE2, fg: MUTED };
 }
 
+function normalizePredictionKey(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function finiteTimestamp(value: unknown): number | undefined {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : undefined;
+}
+
+function tradeMatchesPosition(
+  trade: TradeActivity,
+  position: PolymarketPosition,
+): boolean {
+  const tradeAsset = normalizePredictionKey(trade.asset);
+  const positionAsset = normalizePredictionKey(position.asset);
+  if (tradeAsset && positionAsset && tradeAsset === positionAsset) {
+    return true;
+  }
+
+  const sameCondition =
+    normalizePredictionKey(trade.conditionId) ===
+    normalizePredictionKey(position.conditionId);
+  if (!sameCondition) return false;
+
+  if (
+    Number.isFinite(trade.outcomeIndex) &&
+    Number.isFinite(position.outcomeIndex)
+  ) {
+    return Number(trade.outcomeIndex) === Number(position.outcomeIndex);
+  }
+
+  return (
+    normalizePredictionKey(trade.outcome) ===
+    normalizePredictionKey(position.outcome)
+  );
+}
+
+function placedTimestampForPosition(
+  position: PolymarketPosition,
+  trades: TradeActivity[],
+): number | undefined {
+  const buyTimestamps = trades
+    .filter(
+      (trade) =>
+        trade.type === 'TRADE' &&
+        trade.side === 'BUY' &&
+        tradeMatchesPosition(trade, position),
+    )
+    .map((trade) => finiteTimestamp(trade.timestamp))
+    .filter((timestamp): timestamp is number => timestamp != null);
+
+  if (buyTimestamps.length > 0) {
+    return Math.min(...buyTimestamps);
+  }
+
+  const matchingTimestamps = trades
+    .filter((trade) => tradeMatchesPosition(trade, position))
+    .map((trade) => finiteTimestamp(trade.timestamp))
+    .filter((timestamp): timestamp is number => timestamp != null);
+
+  return matchingTimestamps.length > 0
+    ? Math.min(...matchingTimestamps)
+    : undefined;
+}
+
+function compareBetRowsByPlacedAt(a: BetRow, b: BetRow): number {
+  const aTime = a.placedAt ?? 0;
+  const bTime = b.placedAt ?? 0;
+  if (aTime !== bTime) return bTime - aTime;
+  return 0;
+}
+
 function deriveBetRow(
   p: PolymarketPosition,
   teamsMap: TeamsMap | undefined,
+  activityTrades: TradeActivity[] = [],
 ): BetRow {
   const claimable = hasRedeemablePayout(p);
   const redeemValue = getRedeemablePayout(p);
@@ -1561,6 +1635,7 @@ function deriveBetRow(
     statusKey,
     statusLabel,
     side,
+    placedAt: placedTimestampForPosition(p, activityTrades),
     staked,
     value,
     pnl: p.cashPnl,
@@ -1752,7 +1827,9 @@ const BET_STATUS_TONE: Record<
   settled: { bg: SURFACE2, fg: MUTED },
 };
 
-const BETS_GRID = '90px minmax(0,1.4fr) 118px 70px 80px 100px 140px';
+const BETS_GRID =
+  '88px 124px minmax(0,1.45fr) 112px 70px 72px 110px 124px';
+const BETS_MIN_WIDTH = 920;
 const CLAIMED_WINS_GRID = '90px minmax(0,1.5fr) 118px 110px 110px';
 
 function formatRedeemError(error: unknown) {
@@ -1841,10 +1918,12 @@ function MyBetsView({
 
   const rows = useMemo(
     () =>
-      [...actionable, ...redeemable].map((position) =>
-        deriveBetRow(position, teamsMap),
-      ),
-    [actionable, redeemable, teamsMap],
+      [...actionable, ...redeemable]
+        .map((position) =>
+          deriveBetRow(position, teamsMap, activityTrades),
+        )
+        .sort(compareBetRowsByPlacedAt),
+    [actionable, activityTrades, redeemable, teamsMap],
   );
 
   const claimedWinRows = useMemo(
@@ -2027,7 +2106,7 @@ function MyBetsView({
 
       {/* Bets table — header row + body rows on a shared grid. */}
       <div
-        className="bg-white rounded-2xl border overflow-hidden"
+        className="bg-white rounded-2xl border overflow-x-auto"
         style={{
           borderColor: HAIR,
           boxShadow:
@@ -2038,12 +2117,14 @@ function MyBetsView({
           className="grid gap-3 px-5 py-3 border-b text-[10.5px] font-bold uppercase tracking-[1.2px]"
           style={{
             gridTemplateColumns: BETS_GRID,
+            minWidth: BETS_MIN_WIDTH,
             borderColor: HAIR2,
             color: MUTED,
             fontFamily: MONO,
           }}
         >
           <div>Status</div>
+          <div>Placed</div>
           <div>Market</div>
           <div>Side</div>
           <div>Shares</div>
@@ -2420,6 +2501,7 @@ function BetTableRow({
         }`}
         style={{
           gridTemplateColumns: BETS_GRID,
+          minWidth: BETS_MIN_WIDTH,
           borderColor: HAIR2,
         }}
       >
@@ -2434,6 +2516,13 @@ function BetTableRow({
           >
             {statusLabel}
           </span>
+        </div>
+
+        <div
+          className="text-[11px] tabular-nums"
+          style={{ fontFamily: MONO, color: MUTED }}
+        >
+          {row.placedAt ? formatHistoryDate(row.placedAt) : '—'}
         </div>
 
       <div className="min-w-0 flex items-center gap-2.5">
@@ -2601,19 +2690,22 @@ function formatHistoryDate(ts: number): string {
   startOfToday.setHours(0, 0, 0, 0);
   const startOfYesterday = new Date(startOfToday);
   startOfYesterday.setDate(startOfToday.getDate() - 1);
+  const time = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 
-  if (date >= startOfToday) {
-    const time = date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-    return `Today · ${time}`;
-  }
-  if (date >= startOfYesterday) return 'Yesterday';
-  return date.toLocaleDateString('en-US', {
+  if (date >= startOfToday) return `Today · ${time}`;
+  if (date >= startOfYesterday) return `Yesterday · ${time}`;
+
+  const includeYear = date.getFullYear() !== now.getFullYear();
+  const dateLabel = date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
+    ...(includeYear ? { year: 'numeric' as const } : {}),
   });
+
+  return `${dateLabel} · ${time}`;
 }
 
 const STATUS_TONE: Record<
