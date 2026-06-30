@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import {
@@ -17,8 +17,37 @@ import {
   selectPreferredWallet,
   shouldPreferEmbeddedWallets,
 } from '@/components/wallet/hooks/useWalletData';
-import { useAavePositions } from '@/components/wallet/defi/hooks/useAaveData';
+import {
+  useAaveAllPositions,
+  type AaveAllPositionsData,
+} from '@/components/wallet/defi/hooks/useAaveData';
 import type { AaveChain, AavePosition, AavePositionsData } from '@/types/aave';
+
+const ALL_AAVE_CHAINS: AaveChain[] = [
+  'ethereum',
+  'polygon',
+  'base',
+  'arbitrum',
+];
+
+// Keep polling a chain only while it's worth it: chains with live positions, or
+// chains we haven't cleanly read yet (still loading / degraded by an RPC error).
+// Chains that successfully returned zero positions are dropped, so a wallet with
+// no Aave activity stops polling entirely after the first read.
+function chainsWorthPolling(data?: AaveAllPositionsData): AaveChain[] {
+  if (!data) return ALL_AAVE_CHAINS;
+  return ALL_AAVE_CHAINS.filter((chain) => {
+    const entry = data[chain];
+    if (!entry || entry.degraded) return true;
+    return (
+      (entry.supplies || []).length > 0 || (entry.borrows || []).length > 0
+    );
+  });
+}
+
+function sameChains(a: AaveChain[], b: AaveChain[]) {
+  return a.length === b.length && a.every((chain, i) => chain === b[i]);
+}
 
 type PositionSnapshot = {
   action: DefiFeedAction;
@@ -72,79 +101,40 @@ export default function AaveFeedBackfill() {
   const walletAddress =
     storedEvmAddress || selectedWallet?.address || privyUser?.wallet?.address || '';
   const token = accessToken || '';
-  const queryOptions = {
-    enabled: Boolean(walletAddress && token),
-    refetchInterval: 60_000,
-  };
 
-  const ethereumPositions = useAavePositions(
-    'ethereum',
-    walletAddress,
-    token,
-    queryOptions,
-  );
-  const polygonPositions = useAavePositions(
-    'polygon',
-    walletAddress,
-    token,
-    queryOptions,
-  );
-  const basePositions = useAavePositions('base', walletAddress, token, queryOptions);
-  const arbitrumPositions = useAavePositions(
-    'arbitrum',
-    walletAddress,
-    token,
-    queryOptions,
-  );
+  // One multi-chain request instead of four, polled every 5 minutes, and
+  // narrowed to chains actually worth polling after the first read.
+  const [activeChains, setActiveChains] =
+    useState<AaveChain[]>(ALL_AAVE_CHAINS);
+  const allPositions = useAaveAllPositions(activeChains, walletAddress, token, {
+    enabled: Boolean(walletAddress && token),
+    refetchInterval: 300_000,
+  });
+  const positionsData = allPositions.data;
+  const positionsSuccess = allPositions.isSuccess;
+
+  useEffect(() => {
+    if (!positionsSuccess || !positionsData) return;
+    const next = chainsWorthPolling(positionsData);
+    setActiveChains((prev) => (sameChains(prev, next) ? prev : next));
+  }, [positionsData, positionsSuccess]);
 
   const smartsiteId = resolvePerpsFeedSmartsiteId(user, primaryMicrosite);
   const snapshots = useMemo(
-    () => [
-      ...collectPositionSnapshots(ethereumPositions.data),
-      ...collectPositionSnapshots(polygonPositions.data),
-      ...collectPositionSnapshots(basePositions.data),
-      ...collectPositionSnapshots(arbitrumPositions.data),
-    ],
-    [
-      arbitrumPositions.data,
-      basePositions.data,
-      ethereumPositions.data,
-      polygonPositions.data,
-    ],
+    () =>
+      ALL_AAVE_CHAINS.flatMap((chain) =>
+        collectPositionSnapshots(positionsData?.[chain]),
+      ),
+    [positionsData],
   );
   const positionQueryStates = useMemo(
-    () => [
-      {
-        chain: 'ethereum' as const,
-        data: ethereumPositions.data,
-        isSuccess: ethereumPositions.isSuccess,
-      },
-      {
-        chain: 'polygon' as const,
-        data: polygonPositions.data,
-        isSuccess: polygonPositions.isSuccess,
-      },
-      {
-        chain: 'base' as const,
-        data: basePositions.data,
-        isSuccess: basePositions.isSuccess,
-      },
-      {
-        chain: 'arbitrum' as const,
-        data: arbitrumPositions.data,
-        isSuccess: arbitrumPositions.isSuccess,
-      },
-    ],
-    [
-      arbitrumPositions.data,
-      arbitrumPositions.isSuccess,
-      basePositions.data,
-      basePositions.isSuccess,
-      ethereumPositions.data,
-      ethereumPositions.isSuccess,
-      polygonPositions.data,
-      polygonPositions.isSuccess,
-    ],
+    () =>
+      ALL_AAVE_CHAINS.map((chain) => ({
+        chain,
+        data: positionsData?.[chain],
+        isSuccess: positionsSuccess && Boolean(positionsData?.[chain]),
+      })),
+    [positionsData, positionsSuccess],
   );
 
   useEffect(() => {

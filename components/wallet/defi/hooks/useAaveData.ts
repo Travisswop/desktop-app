@@ -72,6 +72,35 @@ export function useAaveMarkets(chain: AaveChain) {
   });
 }
 
+export type AaveAllPositionsData = Partial<Record<AaveChain, AavePositionsData>>;
+
+// One request for several chains (see GET /aave/positions/all). Each chain is
+// fetched independently server-side, so a single chain's RPC failure comes back
+// as a degraded entry rather than failing the batch.
+export function useAaveAllPositions(
+  chains: AaveChain[],
+  address: string | null,
+  accessToken: string,
+  options: UseAavePositionsOptions = {},
+) {
+  const sortedChains = [...chains].sort();
+  const chainsKey = sortedChains.join(',');
+  return useQuery({
+    queryKey: ['aave-positions-all', chainsKey, address],
+    queryFn: () =>
+      fetchAave<AaveAllPositionsData>(
+        `positions/all?address=${address}&chains=${chainsKey}`,
+        accessToken,
+      ),
+    enabled:
+      Boolean(address && accessToken && sortedChains.length) &&
+      options.enabled !== false,
+    refetchInterval: options.refetchInterval ?? 30_000,
+    staleTime: 10_000,
+    retry: 2,
+  });
+}
+
 export function useAavePositions(
   chain: AaveChain,
   address: string | null,
