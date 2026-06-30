@@ -139,6 +139,69 @@ export function resolveLivePerpsMarkPriceState(
   };
 }
 
+type LivePerpsMarkPriceFetcher = (
+  normalized: NormalizedPerpsCoin,
+  signal?: AbortSignal,
+) => Promise<LivePerpsMarkPriceFetchResult>;
+
+interface LivePerpsMarkPricePollingOptions {
+  fetchPrice?: LivePerpsMarkPriceFetcher;
+  intervalMs?: number;
+  setIntervalFn?: typeof globalThis.setInterval;
+  clearIntervalFn?: typeof globalThis.clearInterval;
+}
+
+export function startLivePerpsMarkPricePolling(
+  normalized: NormalizedPerpsCoin,
+  onResult: (result: LivePerpsMarkPriceFetchResult) => void,
+  options: LivePerpsMarkPricePollingOptions = {},
+) {
+  const {
+    fetchPrice = fetchLivePerpsMarkPrice,
+    intervalMs = 15_000,
+    setIntervalFn = globalThis.setInterval.bind(globalThis),
+    clearIntervalFn = globalThis.clearInterval.bind(globalThis),
+  } = options;
+
+  let stopped = false;
+  let inFlightController: AbortController | null = null;
+
+  const load = async () => {
+    if (stopped || inFlightController) return;
+
+    const controller = new AbortController();
+    inFlightController = controller;
+
+    try {
+      const nextResult = await fetchPrice(normalized, controller.signal).catch(
+        (): LivePerpsMarkPriceFetchResult => ({
+          degraded: true,
+          price: null,
+        }),
+      );
+      if (!stopped) onResult(nextResult);
+    } finally {
+      if (inFlightController === controller) {
+        inFlightController = null;
+      }
+    }
+  };
+
+  void load();
+  const interval = setIntervalFn(() => {
+    void load();
+  }, intervalMs);
+
+  return {
+    stop() {
+      stopped = true;
+      clearIntervalFn(interval);
+      inFlightController?.abort();
+      inFlightController = null;
+    },
+  };
+}
+
 export function useLivePerpsMarkPriceState(
   coin: string | null | undefined,
   enabled = true,
@@ -154,32 +217,11 @@ export function useLivePerpsMarkPriceState(
       return;
     }
 
-    let cancelled = false;
+    const poller = startLivePerpsMarkPricePolling(normalized, (result) => {
+      setState((previous) => resolveLivePerpsMarkPriceState(previous, result));
+    });
 
-    const load = async () => {
-      const controller = new AbortController();
-      const nextState = await fetchLivePerpsMarkPrice(
-        normalized,
-        controller.signal,
-      ).catch<LivePerpsMarkPriceFetchResult>(() => ({
-        degraded: true,
-        price: null,
-      }));
-      if (!cancelled) {
-        setState((previous) =>
-          resolveLivePerpsMarkPriceState(previous, nextState),
-        );
-      }
-      controller.abort();
-    };
-
-    load();
-    const interval = window.setInterval(load, 15_000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
+    return () => poller.stop();
   }, [enabled, normalized]);
 
   return state;
