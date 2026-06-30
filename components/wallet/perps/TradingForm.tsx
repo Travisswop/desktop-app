@@ -1010,6 +1010,7 @@ export function TradingForm({
       <OrderConfirmModal
         isOpen={!!pendingOrder}
         details={pendingOrder}
+        approvalBoundary={agentOrderPrefill?.approvalBoundary}
         isSubmitting={isSubmitting || !!isTransferringToDex}
         onConfirm={handleConfirmedSubmit}
         onClose={cancelConfirm}

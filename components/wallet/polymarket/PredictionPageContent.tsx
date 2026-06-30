@@ -9,7 +9,7 @@ import {
   readAgentActionHandoff,
   type PolymarketAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
-import { serializeApprovedActionBoundary } from '@/lib/chat/approvedActionBoundaryQuery';
+import { persistApprovedPredictionBoundary } from '@/lib/chat/approvedActionBoundaryQuery';
 import type { PolymarketMarket } from '@/hooks/polymarket';
 import {
   marketRouteKey,
@@ -42,12 +42,6 @@ export function buildApprovedPredictionRouteQuery(
   if (prefill.side) query.set('side', prefill.side);
   if (prefill.orderType) query.set('orderType', prefill.orderType);
   if (prefill.limitPrice) query.set('limitPrice', prefill.limitPrice);
-  const serializedBoundary = serializeApprovedActionBoundary(
-    prefill.approvalBoundary,
-  );
-  if (serializedBoundary) {
-    query.set('approvalBoundary', serializedBoundary);
-  }
   return query;
 }
 
@@ -117,6 +111,13 @@ export default function PredictionPageContent() {
       initialLimitPrice: prefill.limitPrice,
       approvalBoundary: prefill.approvalBoundary,
     });
+    persistApprovedPredictionBoundary(
+      {
+        marketId: key,
+        proposalId: prefill.proposalId,
+      },
+      prefill.approvalBoundary,
+    );
 
     const query = buildApprovedPredictionRouteQuery({
       ...prefill,

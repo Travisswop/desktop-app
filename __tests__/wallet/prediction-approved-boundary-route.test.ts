@@ -38,12 +38,49 @@ jest.mock('@/components/wallet/polymarket/Markets/MarketDetailView', () => ({
 
 import type { PolymarketMarket } from '@/hooks/polymarket';
 import type { PolymarketAgentOrderPrefill } from '@/lib/chat/agentActionHandoff';
-import { parseApprovedActionBoundary } from '@/lib/chat/approvedActionBoundaryQuery';
+import {
+  persistApprovedPredictionBoundary,
+  readApprovedPredictionBoundary,
+} from '@/lib/chat/approvedActionBoundaryQuery';
 import { buildApprovedPredictionRouteQuery } from '@/components/wallet/polymarket/PredictionPageContent';
 import { buildRecoveredMarketDetailEntry } from '@/app/(pages)/prediction/market/[marketId]/page';
 
+const sessionStorageState = new Map<string, string>();
+
+function installWindowSessionStorage() {
+  const sessionStorage = {
+    getItem: (key: string) => sessionStorageState.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      sessionStorageState.set(key, value);
+    },
+    removeItem: (key: string) => {
+      sessionStorageState.delete(key);
+    },
+    clear: () => {
+      sessionStorageState.clear();
+    },
+    key: (index: number) => Array.from(sessionStorageState.keys())[index] ?? null,
+    get length() {
+      return sessionStorageState.size;
+    },
+  };
+
+  Object.defineProperty(globalThis, 'window', {
+    value: { sessionStorage },
+    configurable: true,
+  });
+}
+
 describe('prediction approved-boundary routing helpers', () => {
-  test('keeps the approved boundary on the prediction review URL', () => {
+  beforeAll(() => {
+    installWindowSessionStorage();
+  });
+
+  beforeEach(() => {
+    sessionStorageState.clear();
+  });
+
+  test('keeps the prediction review URL free of trusted boundary data', () => {
     const prefill: PolymarketAgentOrderPrefill = {
       proposalId: 'prop_poly',
       proposalNonce: 'nonce_poly',
@@ -63,10 +100,31 @@ describe('prediction approved-boundary routing helpers', () => {
     };
 
     const query = buildApprovedPredictionRouteQuery(prefill);
-    const boundary = parseApprovedActionBoundary(query.get('approvalBoundary'));
 
     expect(query.get('agentAction')).toBe('approved');
-    expect(boundary).toMatchObject({
+    expect(query.get('approvalBoundary')).toBeNull();
+  });
+
+  test('recovers the approved boundary from trusted session storage', () => {
+    persistApprovedPredictionBoundary(
+      {
+        marketId: 'condition-1',
+        proposalId: 'prop_poly',
+      },
+      {
+        reviewStateLabel: 'User signing required',
+        maxOrderUsd: '25',
+        maxDailySpendUsd: '80',
+        riskControls: ['No more than one live order.'],
+      },
+    );
+
+    expect(
+      readApprovedPredictionBoundary({
+        marketId: 'condition-1',
+        proposalId: 'prop_poly',
+      }),
+    ).toMatchObject({
       reviewStateLabel: 'User signing required',
       maxOrderUsd: '25',
       maxDailySpendUsd: '80',
@@ -75,14 +133,25 @@ describe('prediction approved-boundary routing helpers', () => {
   });
 
   test('rebuilds the recovered market entry with the approved boundary', () => {
-    const boundary = parseApprovedActionBoundary(
-      JSON.stringify({
+    persistApprovedPredictionBoundary(
+      {
+        marketId: 'condition-1',
+        proposalId: 'prop_poly',
+      },
+      {
         reviewStateLabel: 'Review trade details',
         maxOrderUsd: '25',
         maxDailyLossUsd: '15',
         riskControls: ['Keep the stop loss armed.'],
-      }),
+      },
     );
+
+    const boundary = readApprovedPredictionBoundary({
+      marketId: 'condition-1',
+      proposalId: 'prop_poly',
+    });
+
+    expect(boundary).toBeTruthy();
 
     const entry = buildRecoveredMarketDetailEntry(
       {

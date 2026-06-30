@@ -14,7 +14,7 @@ import {
   useMarketDetailStore,
   type MarketDetailEntry,
 } from '@/zustandStore/marketDetailStore';
-import { parseApprovedActionBoundary } from '@/lib/chat/approvedActionBoundaryQuery';
+import { readApprovedPredictionBoundary } from '@/lib/chat/approvedActionBoundaryQuery';
 import {
   recoverSportsGameDetailContext,
   type SportsGameDetailContext,
@@ -79,18 +79,31 @@ function MarketDetailPageInner() {
   );
   const [marketRecoveryFailed, setMarketRecoveryFailed] = useState(false);
   const [sportsRecoveryFailed, setSportsRecoveryFailed] = useState(false);
+  const proposalIdFromUrl = searchParams?.get('proposalId') ?? null;
+  const selectedOutcomeFromUrl = normalizeOutcomeParam(
+    searchParams?.get('outcome') ?? null,
+  );
+  const approvalBoundaryFromStorage = useMemo(
+    () =>
+      readApprovedPredictionBoundary({
+        marketId,
+        proposalId: proposalIdFromUrl,
+      }),
+    [marketId, proposalIdFromUrl],
+  );
+
   useEffect(() => {
     if (!entry) return;
-    if (!approvalBoundaryFromUrl || entry.approvalBoundary) {
+    if (!approvalBoundaryFromStorage || entry.approvalBoundary) {
       setSnapshot(entry);
       return;
     }
 
     setSnapshot({
       ...entry,
-      approvalBoundary: approvalBoundaryFromUrl,
+      approvalBoundary: approvalBoundaryFromStorage,
     });
-  }, [approvalBoundaryFromUrl, entry]);
+  }, [approvalBoundaryFromStorage, entry]);
 
   const handleBack = useMemo(
     () => () => {
@@ -114,12 +127,6 @@ function MarketDetailPageInner() {
   useEffect(() => {
     sharesForMarketRef.current = sharesForMarket;
   }, [sharesForMarket]);
-  const selectedOutcomeFromUrl = normalizeOutcomeParam(
-    searchParams?.get('outcome') ?? null,
-  );
-  const approvalBoundaryFromUrl = parseApprovedActionBoundary(
-    searchParams?.get('approvalBoundary') ?? null,
-  );
 
   useEffect(() => {
     if (snapshot || !marketId) return;
@@ -143,7 +150,7 @@ function MarketDetailPageInner() {
         const nextEntry = buildRecoveredMarketDetailEntry(
           market,
           sharesForMarket(market),
-          approvalBoundaryFromUrl,
+          approvalBoundaryFromStorage,
         );
         const key = marketRouteKey(market) || marketId;
         useMarketDetailStore.getState().set(key, nextEntry);
@@ -161,7 +168,7 @@ function MarketDetailPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [approvalBoundaryFromUrl, marketId, sharesForMarket, snapshot]);
+  }, [approvalBoundaryFromStorage, marketId, sharesForMarket, snapshot]);
 
   useEffect(() => {
     if (!snapshot || snapshot.game) return;
@@ -293,7 +300,7 @@ function MarketDetailPageInner() {
         undefined
       }
       approvalBoundary={snapshot.approvalBoundary}
-      agentProposalId={searchParams?.get('proposalId') || undefined}
+      agentProposalId={proposalIdFromUrl || undefined}
       onAgentActionComplete={(completion) => {
         if (completion.groupId) {
           router.push(
