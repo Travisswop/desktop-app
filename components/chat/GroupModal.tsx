@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import CustomModal from '../modal/CustomModal';
+import { getGroupModalNoResultsState } from '@/lib/chat/groupModalEmptyState';
 import isUrl from '@/lib/isUrl';
 import {
   ChevronDown,
@@ -44,6 +45,7 @@ interface GroupModalProps {
   socket: any;
   onGroupCreated?: (group: any) => void;
   onDirectSelected?: (user: any) => void;
+  onOpenAstroThread?: () => void | Promise<void>;
 }
 
 type ChatMode = 'direct' | 'group';
@@ -56,6 +58,7 @@ export default function GroupModal({
   socket,
   onGroupCreated,
   onDirectSelected,
+  onOpenAstroThread,
 }: GroupModalProps) {
   const [mode, setMode] = useState<ChatMode>('direct');
   const [groupName, setGroupName] = useState('');
@@ -64,6 +67,8 @@ export default function GroupModal({
   const [selectedMembers, setSelectedMembers] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isOpeningAstroThread, setIsOpeningAstroThread] =
+    useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>(
     []
@@ -297,6 +302,26 @@ export default function GroupModal({
     }
   };
 
+  const handleOpenAstroThread = async () => {
+    if (!onOpenAstroThread) return;
+
+    setFormError(null);
+    setIsOpeningAstroThread(true);
+    try {
+      await onOpenAstroThread();
+      handleClose();
+    } catch (error) {
+      setFormError(
+        getErrorMessage(
+          error,
+          'Could not open Astro Trading Desk right now.'
+        )
+      );
+    } finally {
+      setIsOpeningAstroThread(false);
+    }
+  };
+
   const handleClose = () => {
     setMode('direct');
     setGroupName('');
@@ -305,6 +330,7 @@ export default function GroupModal({
     setSelectedMembers([]);
     setIsSearching(false);
     setIsCreating(false);
+    setIsOpeningAstroThread(false);
     setFormError(null);
     setSelectedAdminIds([]);
     setTokenGated(false);
@@ -474,7 +500,30 @@ export default function GroupModal({
               })}
             </div>
           ) : (
-            <EmptyState title="No matches" detail="Try another name or handle." />
+            (() => {
+              const emptyState = getGroupModalNoResultsState(
+                mode,
+                searchQuery
+              );
+
+              return (
+                <EmptyState
+                  title={emptyState.title}
+                  detail={emptyState.detail}
+                  actionLabel={
+                    emptyState.actionLabel && onOpenAstroThread
+                      ? emptyState.actionLabel
+                      : undefined
+                  }
+                  onAction={
+                    emptyState.actionLabel && onOpenAstroThread
+                      ? handleOpenAstroThread
+                      : undefined
+                  }
+                  actionDisabled={isOpeningAstroThread}
+                />
+              );
+            })()
           )}
         </div>
 
@@ -747,13 +796,35 @@ function Field({
   );
 }
 
-function EmptyState({ title, detail }: { title: string; detail: string }) {
+function EmptyState({
+  title,
+  detail,
+  actionLabel,
+  onAction,
+  actionDisabled = false,
+}: {
+  title: string;
+  detail: string;
+  actionLabel?: string;
+  onAction?: () => void | Promise<void>;
+  actionDisabled?: boolean;
+}) {
   return (
     <div className="flex min-h-[148px] flex-col items-center justify-center px-6 text-center">
       <div className="text-[13px] font-bold text-[#eceef2]">{title}</div>
       <div className="mt-1 max-w-[280px] text-[12px] leading-relaxed text-[#7b808c]">
         {detail}
       </div>
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          onClick={() => void onAction()}
+          disabled={actionDisabled}
+          className="dm-btn mt-4 inline-flex items-center justify-center rounded-[10px] border border-[#3fe08f]/35 bg-[#153425] px-3.5 py-2 text-[12px] font-semibold text-[#3fe08f] transition hover:border-[#3fe08f]/55 hover:bg-[#183d2b] disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {actionDisabled ? 'Opening Astro...' : actionLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
