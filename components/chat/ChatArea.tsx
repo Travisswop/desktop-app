@@ -193,6 +193,7 @@ import {
   resolveLocalConsoleCardSourceMessageId,
   type LocalConsoleCardType,
 } from '@/lib/chat/localConsoleCardTelemetry';
+import { hasFollowingRenderableLocalConsoleCardMessage } from '@/lib/chat/localConsoleCardRender';
 import { LocalConsoleCardTelemetryBeacon } from '@/components/chat/LocalConsoleCardTelemetryBeacon';
 import { postFeed } from '@/actions/postFeed';
 import {
@@ -2998,34 +2999,6 @@ function hasMatchingWalletSwapProposal(
     if (!sourceTime || !currentTime) return true;
     return Math.abs(currentTime - sourceTime) <= 10 * 60 * 1000;
   });
-}
-
-function hasFollowingAgentActionMessage(
-  messages: Message[],
-  sourceIndex: number,
-  action: string
-) {
-  for (let index = sourceIndex + 1; index < messages.length; index += 1) {
-    const candidate = messages[index];
-    if (!candidate) continue;
-
-    if (
-      !isAgentLikeMessage(candidate) &&
-      candidate.messageType === 'text' &&
-      candidate.message?.trim()
-    ) {
-      return false;
-    }
-
-    if (
-      candidate.agentData?.action === action ||
-      candidate.agentData?.metadata?.toolExecution?.action === action
-    ) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 function hasLaterMeaningfulChatMessage(messages: Message[], currentIndex: number) {
@@ -6695,7 +6668,7 @@ export default function ChatArea({
               const localConsoleReadMessage =
                 canRenderLocalConsoleReadCard &&
                 isPnlCommand(renderedMessageText) &&
-                !hasFollowingAgentActionMessage(
+                !hasFollowingRenderableLocalConsoleCardMessage(
                   messages,
                   index,
                   'portfolio.pnl'
@@ -6716,7 +6689,7 @@ export default function ChatArea({
                     })
                   : canRenderLocalConsoleReadCard &&
                     isPortfolioCommand(renderedMessageText) &&
-                    !hasFollowingAgentActionMessage(
+                    !hasFollowingRenderableLocalConsoleCardMessage(
                       messages,
                       index,
                       'wallet.portfolio'
