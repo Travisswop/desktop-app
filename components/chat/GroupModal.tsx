@@ -6,6 +6,7 @@ import Image from 'next/image';
 import CustomModal from '../modal/CustomModal';
 import isUrl from '@/lib/isUrl';
 import { getProtectedAgentSearchHint } from './protectedAgentThreads';
+import type { OpenAgentThread } from './openAgentThread';
 import {
   ChevronDown,
   Loader2,
@@ -45,9 +46,7 @@ interface GroupModalProps {
   socket: any;
   onGroupCreated?: (group: any) => void;
   onDirectSelected?: (user: any) => void;
-  onRequestProtectedAgentThread?: (
-    agentId: string
-  ) => void | Promise<void>;
+  onRequestProtectedAgentThread?: OpenAgentThread;
 }
 
 type ChatMode = 'direct' | 'group';
@@ -168,7 +167,9 @@ export default function GroupModal({
     setOpeningProtectedAgentId(protectedAgentHint.agentId);
 
     try {
-      await onRequestProtectedAgentThread(protectedAgentHint.agentId);
+      await onRequestProtectedAgentThread(protectedAgentHint.agentId, {
+        propagateErrors: true,
+      });
       onClose();
     } catch (error) {
       const reason =

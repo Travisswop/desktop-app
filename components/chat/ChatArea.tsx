@@ -56,6 +56,7 @@ import {
   normalizeFundingOnrampSourceText,
   type FundingOnrampPrefill,
 } from '@/lib/chat/fundingOnrampIntent';
+import type { OpenAgentThread } from './openAgentThread';
 import {
   looksLikePublicEnsName,
   resolvePublicEnsName,
@@ -891,7 +892,7 @@ interface ChatAreaProps {
   onChatUpdate?: () => void; // ADD THIS
   onBackToList?: () => void;
   onLeaveGroup?: () => void;
-  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
+  onOpenAgentThread?: OpenAgentThread;
 }
 
 interface SocketResponse {
@@ -5743,7 +5744,7 @@ export default function ChatArea({
     setIsOpeningAstroDesk(true);
 
     try {
-      await onOpenAgentThread('astro');
+      await onOpenAgentThread('astro', { propagateErrors: true });
     } catch (error) {
       const reason =
         error instanceof Error ? error.message : 'agent_thread_unavailable';
@@ -11020,7 +11021,7 @@ function GroupAgentControls({
   mutationAgentId: string | null;
   onAddAgent: (agent: GroupAgentDescriptor) => void;
   onMentionAgent: (agent: GroupAgent) => void;
-  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
+  onOpenAgentThread?: OpenAgentThread;
   onRemoveAgent: (agentId: string) => void;
 }) {
   const activeIds = new Set(activeAgents.map((agent) => agent.agentId));

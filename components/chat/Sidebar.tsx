@@ -11,6 +11,7 @@ import GroupModal from './GroupModal';
 import isUrl from '@/lib/isUrl';
 import Image from 'next/image';
 import { getProtectedAgentThreadLabel } from './protectedAgentThreads';
+import type { OpenAgentThread } from './openAgentThread';
 import {
   Activity,
   ArrowRight,
@@ -47,7 +48,7 @@ interface SidebarProps {
   isCollapsed?: boolean;
   onToggleCollapsed?: () => void;
   onOpenAstroCommand?: (commandSeed: string) => void | Promise<void>;
-  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
+  onOpenAgentThread?: OpenAgentThread;
   onOpenAgentCommand?: (
     agentId: string,
     commandSeed: string
