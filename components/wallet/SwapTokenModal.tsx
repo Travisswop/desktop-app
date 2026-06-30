@@ -110,6 +110,7 @@ import {
 import { resolveSwapModalJupiterSubmit } from '@/components/wallet/swapModalJupiterSubmit';
 import { resolveSwapSelectedSolanaWallet } from '@/lib/wallet/swapSelectedSolanaWallet';
 import { normalizeSolanaSigningWalletAddress } from '@/lib/wallet/solanaSigningWallet';
+import { resolveSwapModalSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';
 import {
   markWalletSwapFailureReported,
   queueWalletSwapFailureClientEvent,
@@ -1944,7 +1945,10 @@ export default function SwapTokenModal({
     ? getTokenWalletAddress(payToken)
     : '';
   const selectedSolanaSigningWalletAddress =
-    payTokenWalletAddress || preferredSolanaWalletAddress || '';
+    resolveSwapModalSolanaWalletAddress({
+      preferredSolanaWalletAddress,
+      payTokenWalletAddress,
+    });
   const normalizedSelectedSolanaSigningWalletAddress =
     normalizeSolanaSigningWalletAddress(
       selectedSolanaSigningWalletAddress,

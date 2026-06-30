@@ -29,3 +29,16 @@ export function resolveSwapBalanceSolanaWalletAddress({
     normalizeAddress(signableWalletAddress)
   );
 }
+
+export function resolveSwapModalSolanaWalletAddress({
+  preferredSolanaWalletAddress,
+  payTokenWalletAddress,
+}: {
+  preferredSolanaWalletAddress?: string | null;
+  payTokenWalletAddress?: string | null;
+}) {
+  return (
+    normalizeAddress(preferredSolanaWalletAddress) ||
+    normalizeAddress(payTokenWalletAddress)
+  );
+}
