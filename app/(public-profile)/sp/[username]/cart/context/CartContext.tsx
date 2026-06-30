@@ -42,6 +42,24 @@ const getCartStorageKey = (username: string) =>
 const isMarketplaceCartItem = (item: CartItem) =>
   Boolean(item?.marketplaceProductId);
 
+const getAvailableQuantity = (item: CartItem) => {
+  const value = item?.nftTemplate?.mintLimit;
+  if (value == null) return null;
+  const available = Number(value);
+  return Number.isFinite(available) ? available : null;
+};
+
+const isKnownInStockCartItem = (item: CartItem) => {
+  const available = getAvailableQuantity(item);
+  return available == null || available > 0;
+};
+
+const clampCartItemQuantity = (item: CartItem): CartItem => {
+  const available = getAvailableQuantity(item);
+  if (available == null) return item;
+  return { ...item, quantity: Math.min(item.quantity, available) };
+};
+
 // Helper function to save cart to localStorage
 const saveCartToLocalStorage = (
   items: CartItem[],
@@ -69,7 +87,10 @@ const loadCartFromLocalStorage = (
       try {
         const parsedCart = JSON.parse(savedCart);
         if (Array.isArray(parsedCart) && parsedCart.length > 0) {
-          const marketplaceItems = parsedCart.filter(isMarketplaceCartItem);
+          const marketplaceItems = parsedCart
+            .filter(isMarketplaceCartItem)
+            .filter(isKnownInStockCartItem)
+            .map(clampCartItemQuantity);
           if (marketplaceItems.length > 0) {
             return marketplaceItems;
           }
@@ -93,25 +114,54 @@ const createCartReducer =
 
     switch (action.type) {
       case 'SET_CART':
-        newState = { ...state, items: action.payload, error: null };
+        newState = {
+          ...state,
+          items: action.payload
+            .filter(isKnownInStockCartItem)
+            .map(clampCartItemQuantity),
+          error: null,
+        };
         break;
       case 'ADD_ITEM':
         const existingItem = currentItems.find(
           (item) => item._id === action.payload._id
         );
+        const availableQuantity = getAvailableQuantity(action.payload);
+        if (availableQuantity != null && availableQuantity <= 0) {
+          newState = {
+            ...state,
+            error: `${action.payload.nftTemplate?.name || 'Item'} is sold out.`,
+          };
+          break;
+        }
         if (existingItem) {
+          const nextQuantity = Math.min(
+            existingItem.quantity + action.payload.quantity,
+            availableQuantity ?? existingItem.quantity + action.payload.quantity
+          );
           newState = {
             ...state,
             items: currentItems.map((item) =>
               item._id === action.payload._id
-                ? { ...item, quantity: item.quantity + 1 }
+                ? { ...item, quantity: nextQuantity }
                 : item
             ),
           };
         } else {
           newState = {
             ...state,
-            items: [...currentItems, action.payload],
+            items: [
+              ...currentItems,
+              availableQuantity == null
+                ? action.payload
+                : {
+                    ...action.payload,
+                    quantity: Math.min(
+                      action.payload.quantity,
+                      availableQuantity
+                    ),
+                  },
+            ],
           };
         }
         break;
@@ -128,7 +178,13 @@ const createCartReducer =
           ...state,
           items: currentItems.map((item) =>
             item._id === action.payload.id
-              ? { ...item, quantity: action.payload.quantity }
+              ? {
+                  ...item,
+                  quantity: Math.min(
+                    action.payload.quantity,
+                    getAvailableQuantity(item) ?? action.payload.quantity
+                  ),
+                }
               : item
           ),
         };

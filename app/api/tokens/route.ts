@@ -4,6 +4,10 @@ import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
 const DEFAULT_SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
+const SOLANA_USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const SOLANA_USDT_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
+const TOKEN_METADATA_TIMEOUT_MS = 2500;
+const TOKEN_PRICE_TIMEOUT_MS = 2500;
 
 interface TokenMetadata {
   address: string;
@@ -14,11 +18,84 @@ interface TokenMetadata {
   tags?: string[];
 }
 
+const FALLBACK_TOKEN_METADATA: Record<string, TokenMetadata> = {
+  [SOL_MINT]: {
+    address: SOL_MINT,
+    name: 'Solana',
+    symbol: 'SOL',
+    decimals: 9,
+    logoURI: '/assets/crypto-icons/SOL.png',
+    tags: ['native'],
+  },
+  [SOLANA_USDC_MINT]: {
+    address: SOLANA_USDC_MINT,
+    name: 'USD Coin',
+    symbol: 'USDC',
+    decimals: 6,
+    logoURI: '/assets/crypto-icons/USDC.png',
+    tags: ['stablecoin'],
+  },
+  [SOLANA_USDT_MINT]: {
+    address: SOLANA_USDT_MINT,
+    name: 'Tether USD',
+    symbol: 'USDT',
+    decimals: 6,
+    logoURI: '/assets/crypto-icons/USDT.png',
+    tags: ['stablecoin'],
+  },
+  JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN: {
+    address: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',
+    name: 'Jupiter',
+    symbol: 'JUP',
+    decimals: 6,
+    logoURI: '/assets/crypto-icons/JUP.png',
+    tags: [],
+  },
+  DezXAZ8z7PnrnRJjz3CVXBoPBs6JSu4Wf7P91mU9M: {
+    address: 'DezXAZ8z7PnrnRJjz3CVXBoPBs6JSu4Wf7P91mU9M',
+    name: 'Bonk',
+    symbol: 'BONK',
+    decimals: 5,
+    logoURI: '/assets/crypto-icons/BONK.png',
+    tags: [],
+  },
+};
+
 type AggregatedTokenAccount = {
   mint: string;
   amount: number;
   decimals: number;
 };
+
+const loggedTokenWarnings = new Set<string>();
+
+function warnTokenLookupOnce(key: string, message: string) {
+  if (loggedTokenWarnings.has(key)) return;
+  loggedTokenWarnings.add(key);
+  console.warn(message);
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      signal: controller.signal,
+      next: { revalidate: 300 },
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function fallbackPriceForMint(mintAddress: string) {
+  if (mintAddress === SOLANA_USDC_MINT || mintAddress === SOLANA_USDT_MINT) {
+    return '1';
+  }
+
+  return '0';
+}
 
 function getSolanaRpcUrl() {
   return (
@@ -76,9 +153,15 @@ function aggregateTokenAccounts(
 async function fetchTokenMetadata(
   mintAddress: string
 ): Promise<TokenMetadata | null> {
+  const fallbackMetadata = FALLBACK_TOKEN_METADATA[mintAddress];
+  if (fallbackMetadata) {
+    return fallbackMetadata;
+  }
+
   try {
-    const response = await fetch(
-      `https://tokens.jup.ag/token/${mintAddress}`
+    const response = await fetchWithTimeout(
+      `https://tokens.jup.ag/token/${mintAddress}`,
+      TOKEN_METADATA_TIMEOUT_MS
     );
     if (!response.ok) {
       return null;
@@ -92,30 +175,38 @@ async function fetchTokenMetadata(
       logoURI: data.logoURI,
       tags: data.tags,
     };
-  } catch (error) {
-    console.error('Error fetching token metadata:', error);
+  } catch {
+    warnTokenLookupOnce(
+      'jupiter-token-metadata',
+      '[tokens] Jupiter token metadata unavailable; using local token fallbacks where possible.'
+    );
     return null;
   }
 }
 
 async function fetchPrice(tokenAddress: PublicKey): Promise<string> {
+  const mintAddress = tokenAddress.toBase58();
   try {
-    const response = await fetch(
-      `https://api.jup.ag/price/v2?ids=${tokenAddress}`
+    const response = await fetchWithTimeout(
+      `https://api.jup.ag/price/v2?ids=${mintAddress}`,
+      TOKEN_PRICE_TIMEOUT_MS
     );
     if (!response.ok) {
-      throw new Error('Failed to fetch price');
+      return fallbackPriceForMint(mintAddress);
     }
     const data = await response.json();
 
-    const price = data.data[tokenAddress.toBase58()].price;
+    const price = data.data?.[mintAddress]?.price;
     if (!price) {
-      return '0';
+      return fallbackPriceForMint(mintAddress);
     }
     return price;
-  } catch (error: any) {
-    console.error('Error fetching price:', error);
-    return '0';
+  } catch {
+    warnTokenLookupOnce(
+      'jupiter-token-price',
+      '[tokens] Jupiter token prices unavailable; defaulting unknown token prices to $0.'
+    );
+    return fallbackPriceForMint(mintAddress);
   }
 }
 
@@ -160,11 +251,10 @@ export async function GET(request: NextRequest) {
       amount: solBalance / 1e9, // Convert lamports to SOL
       decimals: 9,
       price: solPrice,
-      name: 'Solana',
-      symbol: 'SOL',
-      logoURI:
-        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
-      tags: ['native'],
+      name: FALLBACK_TOKEN_METADATA[SOL_MINT].name,
+      symbol: FALLBACK_TOKEN_METADATA[SOL_MINT].symbol,
+      logoURI: FALLBACK_TOKEN_METADATA[SOL_MINT].logoURI,
+      tags: FALLBACK_TOKEN_METADATA[SOL_MINT].tags,
     };
 
     const tokenAccounts = aggregateTokenAccounts([
