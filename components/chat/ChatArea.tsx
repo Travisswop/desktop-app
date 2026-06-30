@@ -44,6 +44,7 @@ import { resolveActiveChatData } from './chatSelection';
 import { sendCloudinaryFile } from '@/lib/SendCloudinaryAnyFile';
 import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
+import EmptyChatState from '@/components/chat/EmptyChatState';
 import CoinbaseOnrampFunding from '@/components/wallet/CoinbaseOnrampFunding';
 import { useAavePositions } from '@/components/wallet/defi/hooks/useAaveData';
 import {
@@ -3172,6 +3173,10 @@ export default function ChatArea({
   );
   const [agentStatusText, setAgentStatusText] = useState<string | null>(null);
   const [agentMutationId, setAgentMutationId] = useState<string | null>(null);
+  const [isOpeningAstroDesk, setIsOpeningAstroDesk] = useState(false);
+  const [astroDeskOpenError, setAstroDeskOpenError] = useState<string | null>(
+    null
+  );
   const {
     addGroupAgent,
     agentError,
@@ -5731,6 +5736,25 @@ export default function ChatArea({
     });
     return keys;
   }, [messages]);
+  const handleOpenEmptyStateAstroDesk = useCallback(async () => {
+    if (!onOpenAgentThread) return;
+
+    setAstroDeskOpenError(null);
+    setIsOpeningAstroDesk(true);
+
+    try {
+      await onOpenAgentThread('astro');
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : 'agent_thread_unavailable';
+      console.warn('[chat-empty-state] astro_desk_open_failed', { reason });
+      setAstroDeskOpenError(
+        "Couldn't open Astro Trading Desk. Try the Messages rail pin or reload chat."
+      );
+    } finally {
+      setIsOpeningAstroDesk(false);
+    }
+  }, [onOpenAgentThread]);
 
   const handleUpdateGoldmanAccessStation = useCallback(
     async (accessStation: GoldmanAccessStationInput) => {
@@ -5758,17 +5782,11 @@ export default function ChatArea({
   if (!selectedChat) {
     return (
       <div className="flex min-w-0 flex-1 items-center justify-center bg-[#08090b]">
-        <div className="dm-rise max-w-sm text-center">
-          <div className="dm-mono mx-auto mb-5 grid h-16 w-16 place-items-center rounded-[16px] border border-[#3fe08f]/30 bg-black text-xl font-bold text-[#3fe08f] shadow-[inset_0_0_18px_rgba(63,224,143,0.12)]">
-            $_
-          </div>
-          <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#eceef2]">
-            Swop Messages
-          </h2>
-          <p className="mt-2 text-sm text-[#9396a0]">
-            Pick Astro Trading Desk, or create a group and mention @astro.
-          </p>
-        </div>
+        <EmptyChatState
+          astroDeskOpenError={astroDeskOpenError}
+          isOpeningAstroDesk={isOpeningAstroDesk}
+          onOpenAstroDesk={() => void handleOpenEmptyStateAstroDesk()}
+        />
       </div>
     );
   }

@@ -1,10 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import CustomModal from '../modal/CustomModal';
 import isUrl from '@/lib/isUrl';
+import { getProtectedAgentSearchHint } from './protectedAgentThreads';
 import {
   ChevronDown,
   Loader2,
@@ -44,6 +45,9 @@ interface GroupModalProps {
   socket: any;
   onGroupCreated?: (group: any) => void;
   onDirectSelected?: (user: any) => void;
+  onRequestProtectedAgentThread?: (
+    agentId: string
+  ) => void | Promise<void>;
 }
 
 type ChatMode = 'direct' | 'group';
@@ -56,6 +60,7 @@ export default function GroupModal({
   socket,
   onGroupCreated,
   onDirectSelected,
+  onRequestProtectedAgentThread,
 }: GroupModalProps) {
   const [mode, setMode] = useState<ChatMode>('direct');
   const [groupName, setGroupName] = useState('');
@@ -65,6 +70,9 @@ export default function GroupModal({
   const [isSearching, setIsSearching] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [openingProtectedAgentId, setOpeningProtectedAgentId] = useState<
+    string | null
+  >(null);
   const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>(
     []
   );
@@ -118,6 +126,10 @@ export default function GroupModal({
   const selectedGateAsset = tokenOptions.find(
     (option) => option.value === selectedToken
   );
+  const protectedAgentHint = useMemo(
+    () => (mode === 'direct' ? getProtectedAgentSearchHint(searchQuery) : null),
+    [mode, searchQuery]
+  );
 
   useEffect(() => {
     setSelectedToken('');
@@ -148,6 +160,30 @@ export default function GroupModal({
       tokenGated,
     ]
   );
+
+  const handleOpenProtectedAgentThread = useCallback(async () => {
+    if (!protectedAgentHint || !onRequestProtectedAgentThread) return;
+
+    setFormError(null);
+    setOpeningProtectedAgentId(protectedAgentHint.agentId);
+
+    try {
+      await onRequestProtectedAgentThread(protectedAgentHint.agentId);
+      onClose();
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : 'agent_thread_unavailable';
+      console.warn('[chat-group-modal] protected_agent_thread_open_failed', {
+        agentId: protectedAgentHint.agentId,
+        reason,
+      });
+      setFormError(
+        `Couldn't open ${protectedAgentHint.groupName}. Try the Messages rail pin or reload chat.`
+      );
+    } finally {
+      setOpeningProtectedAgentId(null);
+    }
+  }, [onClose, onRequestProtectedAgentThread, protectedAgentHint]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -473,6 +509,28 @@ export default function GroupModal({
                 );
               })}
             </div>
+          ) : protectedAgentHint ? (
+            <EmptyState
+              title={`${protectedAgentHint.label} is available from its desk`}
+              detail={`Direct-recipient search does not list ${protectedAgentHint.label}. Open ${protectedAgentHint.groupName} instead.`}
+            >
+              <button
+                type="button"
+                onClick={() => void handleOpenProtectedAgentThread()}
+                disabled={
+                  !onRequestProtectedAgentThread ||
+                  openingProtectedAgentId === protectedAgentHint.agentId
+                }
+                className="dm-btn mt-4 inline-flex items-center gap-2 rounded-[11px] border border-[#3fe08f]/35 bg-[#10251a] px-3.5 py-2 text-[12px] font-semibold text-[#d7ffe8] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {openingProtectedAgentId === protectedAgentHint.agentId ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <MessageCircle className="h-3.5 w-3.5" />
+                )}
+                Open {protectedAgentHint.groupName}
+              </button>
+            </EmptyState>
           ) : (
             <EmptyState title="No matches" detail="Try another name or handle." />
           )}
@@ -747,13 +805,22 @@ function Field({
   );
 }
 
-function EmptyState({ title, detail }: { title: string; detail: string }) {
+function EmptyState({
+  title,
+  detail,
+  children,
+}: {
+  title: string;
+  detail: string;
+  children?: ReactNode;
+}) {
   return (
     <div className="flex min-h-[148px] flex-col items-center justify-center px-6 text-center">
       <div className="text-[13px] font-bold text-[#eceef2]">{title}</div>
       <div className="mt-1 max-w-[280px] text-[12px] leading-relaxed text-[#7b808c]">
         {detail}
       </div>
+      {children}
     </div>
   );
 }
