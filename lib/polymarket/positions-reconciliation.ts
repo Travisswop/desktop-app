@@ -11,10 +11,15 @@ export type PolymarketPositionLike = {
   cashPnl?: number | null;
   percentPnl?: number | null;
   curPrice?: number | null;
+  currentPrice?: number | null;
   redeemable?: boolean | null;
   eventSlug?: string | null;
+  slug?: string | null;
+  title?: string | null;
   endDate?: string | null;
   outcomeIndex?: number | null;
+  marketClosed?: boolean;
+  marketResolutionPending?: boolean;
 };
 
 export type EventLiveMarket = {
@@ -164,7 +169,10 @@ export function reconcilePositionWithEventLive<
   if (!event) return position;
 
   const market = findMatchingMarket(position, event);
-  if (!market || !isMarketClosed(market)) return position;
+  const eventClosed = Boolean(event.closed || event.ended);
+  if (!market || (!eventClosed && !isMarketClosed(market))) {
+    return position;
+  }
 
   const heldOutcomeIndex = getHeldOutcomeIndex(position, market);
   const winnerIndex = getResolvedWinnerIndex(market);

@@ -99,6 +99,38 @@ describe('Polymarket position reconciliation', () => {
     });
   });
 
+  it('trusts an event-level closed state when a matching nested market lags', () => {
+    const reconciled = reconcilePositionWithEventLive(
+      {
+        ...basePosition,
+        asset: 'winning-token',
+        outcomeIndex: 1,
+      },
+      {
+        closed: true,
+        ended: true,
+        markets: [
+          {
+            conditionId: 'condition-1',
+            closed: false,
+            active: true,
+            outcomePrices: '["0", "1"]',
+            clobTokenIds: '["losing-token", "winning-token"]',
+          },
+        ],
+      },
+    );
+
+    expect(reconciled).toMatchObject({
+      redeemable: true,
+      curPrice: 1,
+      currentValue: 12,
+      marketClosed: true,
+      marketResolutionPending: false,
+      resolvedOutcomeIndex: 1,
+    });
+  });
+
   it('does not alter positions when the matching market is still open', () => {
     const reconciled = reconcilePositionsWithEventLive(
       [basePosition],
