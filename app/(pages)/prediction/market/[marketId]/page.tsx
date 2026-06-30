@@ -51,10 +51,20 @@ export function buildRecoveredMarketDetailEntry(
 
 export function syncRecoveredMarketDetailEntry(
   entry: MarketDetailEntry,
-  approvalBoundary?: MarketDetailEntry['approvalBoundary'],
+  {
+    proposalId,
+    approvalBoundaryFromStorage,
+  }: {
+    proposalId?: string | null;
+    approvalBoundaryFromStorage?: MarketDetailEntry['approvalBoundary'];
+  },
 ): MarketDetailEntry {
-  if (!approvalBoundary) {
-    return entry.approvalBoundary ? { ...entry, approvalBoundary: null } : entry;
+  const approvalBoundary = proposalId
+    ? approvalBoundaryFromStorage ?? entry.approvalBoundary ?? null
+    : null;
+
+  if (entry.approvalBoundary === approvalBoundary) {
+    return entry;
   }
 
   return {
@@ -134,7 +144,10 @@ function MarketDetailPageInner() {
     if (!entry) return;
     const nextEntry = syncRecoveredMarketDetailEntry(
       entry,
-      approvalBoundaryFromStorage,
+      {
+        proposalId: proposalIdFromUrl,
+        approvalBoundaryFromStorage,
+      },
     );
 
     if (nextEntry !== entry) {
@@ -142,7 +155,7 @@ function MarketDetailPageInner() {
     }
 
     setSnapshot(nextEntry);
-  }, [approvalBoundaryFromStorage, entry, marketId, setEntry]);
+  }, [approvalBoundaryFromStorage, entry, marketId, proposalIdFromUrl, setEntry]);
 
   const handleBack = useMemo(
     () => () => {
@@ -270,6 +283,7 @@ function MarketDetailPageInner() {
           : `/prediction/market/${encodeURIComponent(key)}`,
       );
     },
+    [router, sharesForMarket, snapshot],
     [router, sharesForMarket, snapshot],
   );
 

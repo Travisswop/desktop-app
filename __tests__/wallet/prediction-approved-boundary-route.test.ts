@@ -223,7 +223,10 @@ describe('prediction approved-boundary routing helpers', () => {
           maxOrderUsd: '25',
         },
       },
-      null,
+      {
+        proposalId: null,
+        approvalBoundaryFromStorage: null,
+      },
     );
 
     expect(entry.approvalBoundary).toBeNull();
@@ -259,6 +262,10 @@ describe('prediction approved-boundary routing helpers', () => {
     expect(query.get('outcome')).toBe('no');
     expect(query.get('proposalId')).toBeNull();
     expect(query.get('agentAction')).toBeNull();
+    expect(query.get('amount')).toBeNull();
+    expect(query.get('side')).toBeNull();
+    expect(query.get('orderType')).toBeNull();
+    expect(query.get('limitPrice')).toBeNull();
   });
 
   test('clears the stored approved boundary when a later launch has no boundary', () => {
