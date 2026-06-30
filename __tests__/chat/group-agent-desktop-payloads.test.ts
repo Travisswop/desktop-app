@@ -1,6 +1,7 @@
 import { GROUP_AGENT_SOCKET_EVENTS } from '@/hooks/useGroupAgents';
 import {
   AGENT_ACTION_HANDOFF_STORAGE_KEY,
+  getApprovedActionBoundary,
   getHyperliquidOrderPrefill,
   getPolymarketOrderPrefill,
   persistAgentActionHandoff,
@@ -299,6 +300,26 @@ describe('desktop group agent payloads', () => {
       });
     },
   );
+
+  test('preserves mode-only approved boundary disclosure', () => {
+    const boundary = getApprovedActionBoundary({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_mode_only',
+        proposalNonce: 'nonce_mode_only',
+        provider: 'hyperliquid',
+        panel: 'perps',
+        action: 'perps.place_order',
+        normalizedParams: {
+          paperMode: true,
+        },
+      },
+    });
+
+    expect(boundary).toMatchObject({
+      operatingModeLabel: 'Paper mode',
+    });
+  });
 
   test('uses requested Hyperliquid market aliases over stale coin defaults', () => {
     const prefill = getHyperliquidOrderPrefill({

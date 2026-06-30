@@ -707,7 +707,7 @@ export function TradingForm({
         agentOrderPrefill.approvalBoundary ? (
           <ApprovedActionBoundaryNotice
             boundary={agentOrderPrefill.approvalBoundary}
-            intro="Goldman loaded this approved order into the ticket. Review the order inside this approved boundary before you sign."
+            intro="Goldman loaded the originally approved order into this ticket. If you change the side, size, leverage, or margin mode, re-check these caps before you sign."
             accent="blue"
             className="mb-3"
           />

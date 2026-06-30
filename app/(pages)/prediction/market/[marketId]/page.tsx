@@ -49,6 +49,43 @@ export function buildRecoveredMarketDetailEntry(
   };
 }
 
+export function syncRecoveredMarketDetailEntry(
+  entry: MarketDetailEntry,
+  approvalBoundary?: MarketDetailEntry['approvalBoundary'],
+): MarketDetailEntry {
+  if (!approvalBoundary) {
+    return entry.approvalBoundary ? { ...entry, approvalBoundary: null } : entry;
+  }
+
+  return {
+    ...entry,
+    approvalBoundary,
+  };
+}
+
+export function buildSiblingSportsMarketDetailEntry(
+  snapshot: Pick<MarketDetailEntry, 'game'>,
+  market: PolymarketMarket,
+  selection: SportsOutcomeSelection,
+  shares: Pick<MarketDetailEntry, 'yesShares' | 'noShares'>,
+): MarketDetailEntry {
+  return {
+    market,
+    game: snapshot.game,
+    ...selection,
+    ...shares,
+    approvalBoundary: null,
+  };
+}
+
+export function buildSiblingSportsMarketQuery(
+  initialOutcome: SportsOutcomeSelection['initialOutcome'],
+) {
+  const query = new URLSearchParams();
+  query.set('outcome', initialOutcome);
+  return query;
+}
+
 function MarketDetailPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -68,6 +105,7 @@ function MarketDetailPageInner() {
 
   const entry = useMarketDetailStore((s) => s.entries[marketId]);
   const clearEntry = useMarketDetailStore((s) => s.clear);
+  const setEntry = useMarketDetailStore((s) => s.set);
 
   // Snapshot the entry so the page keeps rendering even if the store gets
   // cleared (e.g. if we cleared on unmount in a future iteration).
@@ -94,16 +132,17 @@ function MarketDetailPageInner() {
 
   useEffect(() => {
     if (!entry) return;
-    if (!approvalBoundaryFromStorage || entry.approvalBoundary) {
-      setSnapshot(entry);
-      return;
+    const nextEntry = syncRecoveredMarketDetailEntry(
+      entry,
+      approvalBoundaryFromStorage,
+    );
+
+    if (nextEntry !== entry) {
+      setEntry(marketId, nextEntry);
     }
 
-    setSnapshot({
-      ...entry,
-      approvalBoundary: approvalBoundaryFromStorage,
-    });
-  }, [approvalBoundaryFromStorage, entry]);
+    setSnapshot(nextEntry);
+  }, [approvalBoundaryFromStorage, entry, marketId, setEntry]);
 
   const handleBack = useMemo(
     () => () => {
@@ -195,6 +234,7 @@ function MarketDetailPageInner() {
           game: context.game,
           ...context.selection,
           ...shares,
+          approvalBoundary: approvalBoundaryFromStorage ?? null,
         };
         const key = marketRouteKey(context.market) || marketId;
         useMarketDetailStore.getState().set(key, nextEntry);
@@ -209,30 +249,28 @@ function MarketDetailPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [marketId, selectedOutcomeFromUrl, snapshot]);
+  }, [approvalBoundaryFromStorage, marketId, selectedOutcomeFromUrl, snapshot]);
 
   const handleGameMarketSelect = useCallback(
     (market: PolymarketMarket, selection: SportsOutcomeSelection) => {
       const key = marketRouteKey(market);
       if (!key || !snapshot?.game) return;
       const shares = sharesForMarket(market);
-      const nextEntry: MarketDetailEntry = {
+      const nextEntry = buildSiblingSportsMarketDetailEntry(
+        snapshot,
         market,
-        game: snapshot.game,
-        ...selection,
-        ...shares,
-        approvalBoundary: snapshot.approvalBoundary,
-      };
+        selection,
+        shares,
+      );
       useMarketDetailStore.getState().set(key, nextEntry);
-      const nextQuery = new URLSearchParams(searchParams?.toString() ?? '');
-      nextQuery.set('outcome', selection.initialOutcome);
+      const nextQuery = buildSiblingSportsMarketQuery(selection.initialOutcome);
       router.replace(
         nextQuery.size > 0
           ? `/prediction/market/${encodeURIComponent(key)}?${nextQuery.toString()}`
           : `/prediction/market/${encodeURIComponent(key)}`,
       );
     },
-    [router, searchParams, sharesForMarket, snapshot?.approvalBoundary, snapshot?.game],
+    [router, sharesForMarket, snapshot],
   );
 
   const isRecoveringSportsGame =
@@ -300,7 +338,9 @@ function MarketDetailPageInner() {
         undefined
       }
       approvalBoundary={snapshot.approvalBoundary}
-      agentProposalId={proposalIdFromUrl || undefined}
+      agentProposalId={
+        snapshot.approvalBoundary ? proposalIdFromUrl || undefined : undefined
+      }
       onAgentActionComplete={(completion) => {
         if (completion.groupId) {
           router.push(

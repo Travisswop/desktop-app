@@ -5254,7 +5254,7 @@ export default function MarketDetailView({
 
         <ApprovedActionBoundaryNotice
           boundary={approvalBoundary}
-          intro="Goldman opened this market from an approved proposal. Confirm the prediction order inside this approved boundary before you sign."
+          intro="Goldman opened this market from an approved proposal. These caps describe that original approval, so re-check them if you change the order or switch markets."
           accent="emerald"
         />
 

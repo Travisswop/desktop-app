@@ -44,7 +44,12 @@ import {
   serializeApprovedActionBoundary,
 } from '@/lib/chat/approvedActionBoundaryQuery';
 import { buildApprovedPredictionRouteQuery } from '@/components/wallet/polymarket/PredictionPageContent';
-import { buildRecoveredMarketDetailEntry } from '@/app/(pages)/prediction/market/[marketId]/page';
+import {
+  buildSiblingSportsMarketDetailEntry,
+  buildSiblingSportsMarketQuery,
+  buildRecoveredMarketDetailEntry,
+  syncRecoveredMarketDetailEntry,
+} from '@/app/(pages)/prediction/market/[marketId]/page';
 
 const sessionStorageState = new Map<string, string>();
 
@@ -200,6 +205,60 @@ describe('prediction approved-boundary routing helpers', () => {
         'swop:prediction-approved-boundary:market:condition-1',
       ),
     ).toBe(false);
+  });
+
+  test('clears a stale in-memory boundary on a plain market revisit', () => {
+    const entry = syncRecoveredMarketDetailEntry(
+      {
+        market: {
+          id: 'market-1',
+          conditionId: 'condition-1',
+          slug: 'market-1',
+          question: 'Will Team A win?',
+          eventTitle: 'Will Team A win?',
+          clobTokenIds: JSON.stringify(['token-yes', 'token-no']),
+        } as PolymarketMarket,
+        approvalBoundary: {
+          reviewStateLabel: 'User signing required',
+          maxOrderUsd: '25',
+        },
+      },
+      null,
+    );
+
+    expect(entry.approvalBoundary).toBeNull();
+  });
+
+  test('drops approved boundary context when switching to a sibling market', () => {
+    const entry = buildSiblingSportsMarketDetailEntry(
+      {
+        game: {
+          id: 'game-1',
+        } as any,
+      },
+      {
+        id: 'market-2',
+        conditionId: 'condition-2',
+        slug: 'market-2',
+        question: 'Will Team B win?',
+        eventTitle: 'Will Team B win?',
+        clobTokenIds: JSON.stringify(['token-yes', 'token-no']),
+      } as PolymarketMarket,
+      {
+        initialOutcome: 'no',
+      } as any,
+      {
+        yesShares: 1,
+        noShares: 2,
+      },
+    );
+
+    const query = buildSiblingSportsMarketQuery('no');
+
+    expect(entry.approvalBoundary).toBeNull();
+    expect(query.get('outcome')).toBe('no');
+    expect(query.get('proposalId')).toBeNull();
+    expect(query.get('agentAction')).toBeNull();
   });
 
   test('clears the stored approved boundary when a later launch has no boundary', () => {

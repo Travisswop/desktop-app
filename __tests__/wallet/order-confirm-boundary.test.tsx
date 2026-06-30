@@ -40,7 +40,7 @@ describe('OrderConfirmModal approval boundary', () => {
 
     expect(markup).toContain('Approved Boundary');
     expect(markup).toContain(
-      'still inside Goldman&#x27;s approved trading boundary',
+      'Goldman approved the original trade with these caps and controls',
     );
     expect(markup).toContain('User signing required');
     expect(markup).toContain('$750.75');

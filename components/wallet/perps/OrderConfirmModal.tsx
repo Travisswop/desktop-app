@@ -210,7 +210,7 @@ export function OrderConfirmModal({
         <div className="px-6 pt-3">
           <ApprovedActionBoundaryNotice
             boundary={approvalBoundary}
-            intro="This confirm step is still inside Goldman&apos;s approved trading boundary. Recheck the caps, expiry, and risk controls before you submit."
+            intro="Goldman approved the original trade with these caps and controls. If you changed the ticket, make sure it still matches the approved plan before you submit."
             accent="blue"
           />
         </div>

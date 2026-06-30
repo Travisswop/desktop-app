@@ -828,6 +828,7 @@ export function getApprovedActionBoundary(
 
   if (
     !boundary.reviewStateLabel &&
+    !boundary.operatingModeLabel &&
     !boundary.maxOrderUsd &&
     !boundary.maxDailySpendUsd &&
     !boundary.maxDailyLossUsd &&
