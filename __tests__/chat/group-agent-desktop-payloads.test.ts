@@ -251,6 +251,31 @@ describe('desktop group agent payloads', () => {
     );
   });
 
+  test('preserves operating-mode disclosure alongside generic review-state labels', () => {
+    const prefill = getHyperliquidOrderPrefill({
+      status: 'approved',
+      nextStep: 'hyperliquid_order_form_required',
+      payload: {
+        proposalId: 'prop_hl_paper',
+        proposalNonce: 'nonce_hl_paper',
+        provider: 'hyperliquid',
+        panel: 'perps',
+        action: 'perps.place_order',
+        normalizedParams: {
+          coin: 'ETH',
+          side: 'long',
+          sizeUsd: '500',
+          paperMode: true,
+        },
+      },
+    });
+
+    expect(prefill?.approvalBoundary).toMatchObject({
+      reviewStateLabel: 'Review trade details',
+      operatingModeLabel: 'Paper mode',
+    });
+  });
+
   test('uses requested Hyperliquid market aliases over stale coin defaults', () => {
     const prefill = getHyperliquidOrderPrefill({
       status: 'approved',

@@ -12,6 +12,7 @@ const ACCENT_STYLES = {
     shell:
       'border-blue-100 bg-gradient-to-br from-blue-50 via-white to-sky-50 text-slate-900',
     badge: 'bg-blue-600 text-white',
+    modeBadge: 'border border-blue-200 bg-white/85 text-blue-700',
     chip: 'border-blue-200 bg-blue-50 text-blue-700',
     copy: 'text-slate-600',
     label: 'text-slate-500',
@@ -21,6 +22,7 @@ const ACCENT_STYLES = {
     shell:
       'border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-teal-50 text-slate-900',
     badge: 'bg-emerald-600 text-white',
+    modeBadge: 'border border-emerald-200 bg-white/85 text-emerald-700',
     chip: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     copy: 'text-slate-600',
     label: 'text-slate-500',
@@ -64,6 +66,7 @@ export function hasApprovedActionBoundary(
 ) {
   return Boolean(
     boundary?.reviewStateLabel ||
+      boundary?.operatingModeLabel ||
       boundary?.maxOrderUsd ||
       boundary?.maxDailySpendUsd ||
       boundary?.maxDailyLossUsd ||
@@ -82,6 +85,11 @@ export function ApprovedActionBoundaryNotice({
   if (!hasApprovedActionBoundary(boundary)) return null;
 
   const tone = ACCENT_STYLES[accent];
+  const modeBadgeLabel =
+    boundary?.operatingModeLabel &&
+    boundary.operatingModeLabel !== boundary.reviewStateLabel
+      ? boundary.operatingModeLabel
+      : null;
   const metrics = [
     {
       label: 'Max order',
@@ -118,13 +126,22 @@ export function ApprovedActionBoundaryNotice({
             {intro}
           </p>
         </div>
-        {boundary?.reviewStateLabel && (
-          <span
-            className={`inline-flex rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] ${tone.badge}`}
-          >
-            {boundary.reviewStateLabel}
-          </span>
-        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          {boundary?.reviewStateLabel ? (
+            <span
+              className={`inline-flex rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] ${tone.badge}`}
+            >
+              {boundary.reviewStateLabel}
+            </span>
+          ) : null}
+          {modeBadgeLabel ? (
+            <span
+              className={`inline-flex rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] ${tone.modeBadge}`}
+            >
+              {modeBadgeLabel}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {metrics.length > 0 && (

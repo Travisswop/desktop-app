@@ -42,6 +42,7 @@ export function serializeApprovedActionBoundary(
 
   const normalized: ApprovedActionBoundary = {
     reviewStateLabel: stringOrUndefined(boundary.reviewStateLabel),
+    operatingModeLabel: stringOrUndefined(boundary.operatingModeLabel),
     maxOrderUsd: stringOrUndefined(boundary.maxOrderUsd),
     maxDailySpendUsd: stringOrUndefined(boundary.maxDailySpendUsd),
     maxDailyLossUsd: stringOrUndefined(boundary.maxDailyLossUsd),
@@ -52,6 +53,7 @@ export function serializeApprovedActionBoundary(
 
   if (
     !normalized.reviewStateLabel &&
+    !normalized.operatingModeLabel &&
     !normalized.maxOrderUsd &&
     !normalized.maxDailySpendUsd &&
     !normalized.maxDailyLossUsd &&
@@ -159,6 +161,7 @@ export function parseApprovedActionBoundary(
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const boundary: ApprovedActionBoundary = {
       reviewStateLabel: stringOrUndefined(parsed.reviewStateLabel),
+      operatingModeLabel: stringOrUndefined(parsed.operatingModeLabel),
       maxOrderUsd: stringOrUndefined(parsed.maxOrderUsd),
       maxDailySpendUsd: stringOrUndefined(parsed.maxDailySpendUsd),
       maxDailyLossUsd: stringOrUndefined(parsed.maxDailyLossUsd),

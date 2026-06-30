@@ -20,6 +20,7 @@ describe('ApprovedActionBoundaryNotice', () => {
         intro="Review this order inside the approved Goldman boundary."
         boundary={{
           reviewStateLabel: 'User signing required',
+          operatingModeLabel: 'Paper mode',
           maxOrderUsd: '1250',
           maxDailySpendUsd: '5000.00',
           maxDailyLossUsd: '750.75',
@@ -35,6 +36,7 @@ describe('ApprovedActionBoundaryNotice', () => {
 
     expect(markup).toContain('Approved Boundary');
     expect(markup).toContain('User signing required');
+    expect(markup).toContain('Paper mode');
     expect(markup).toContain('Max order');
     expect(markup).toContain('$1,250');
     expect(markup).toContain('Daily spend cap');
@@ -46,5 +48,19 @@ describe('ApprovedActionBoundaryNotice', () => {
     expect(markup).toContain('Jun 30, 2026, 6:15 PM UTC');
     expect(markup).toContain('Risk Controls');
     expect(markup).toContain('Keep the stop loss armed.');
+  });
+
+  test('avoids duplicating the operating-mode badge when it matches the review label', () => {
+    const markup = renderToStaticMarkup(
+      <ApprovedActionBoundaryNotice
+        intro="Stay inside the approved boundary."
+        boundary={{
+          reviewStateLabel: 'Monitor only',
+          operatingModeLabel: 'Monitor only',
+        }}
+      />,
+    );
+
+    expect(markup.match(/Monitor only/g)).toHaveLength(1);
   });
 });

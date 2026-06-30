@@ -473,6 +473,7 @@ export interface ApprovedActionBoundary {
   maxOpenPositions?: string;
   expiry?: string;
   reviewStateLabel?: string;
+  operatingModeLabel?: string;
 }
 
 export interface HyperliquidAgentOrderPrefill {
@@ -771,6 +772,14 @@ function reviewStateLabelFrom(
     }
   }
 
+  if (boolValue(params.approvalRequired)) {
+    return 'Proposal approval required';
+  }
+
+  return undefined;
+}
+
+function operatingModeLabelFrom(params: UnknownRecord): string | undefined {
   if (boolValue(params.monitorOnly ?? params.monitoringOnly)) {
     return 'Monitor only';
   }
@@ -785,10 +794,6 @@ function reviewStateLabelFrom(
 
   if (boolValue(params.liveExecutionReady ?? params.executionReady)) {
     return 'Live execution ready';
-  }
-
-  if (boolValue(params.approvalRequired)) {
-    return 'Proposal approval required';
   }
 
   return undefined;
@@ -818,6 +823,7 @@ export function getApprovedActionBoundary(
       params,
       firstString(params, ['nextStep']) || meta.nextStep,
     ),
+    operatingModeLabel: operatingModeLabelFrom(params),
   };
 
   if (
