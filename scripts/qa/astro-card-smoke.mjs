@@ -49,6 +49,17 @@ const CARD_COMMAND_CONTRACTS = [
     passCriteria: ['portfolio allocation card renders in chat'],
   },
   {
+    step: 'portfolio-card-reload-persistence',
+    command: 'reload and reopen chat after show my portfolio',
+    cardType: 'portfolio allocation reload persistence',
+    expectedMarkers: ['Portfolio allocation'],
+    safeInteractions: ['reload chat shell', 'navigate to wallet and back', 'reselect configured QA thread'],
+    forbiddenActions: [],
+    routeChecks: ['reload and navigation return preserve the same portfolio card and telemetry identity'],
+    failureSignals: ['portfolio card missing after reload', 'portfolio card missing after leaving and reopening chat', 'rehydrated portfolio telemetry missing or mismatched'],
+    passCriteria: ['portfolio card survives reload and leave/reopen', 'rehydrated telemetry reuses the generated card identity'],
+  },
+  {
     step: 'receive-qr-card',
     command: 'show my receive QR for Solana',
     cardType: 'receive QR',
@@ -91,6 +102,17 @@ const CARD_COMMAND_CONTRACTS = [
     routeChecks: ['portfolio/perps position context available'],
     failureSignals: ['missing PnL card', 'positions fail to embed'],
     passCriteria: ['PnL snapshot card renders with embedded account context'],
+  },
+  {
+    step: 'pnl-card-reload-persistence',
+    command: 'reload and reopen chat after show my pnl',
+    cardType: 'PnL reload persistence',
+    expectedMarkers: ['PNL SNAPSHOT'],
+    safeInteractions: ['reload chat shell', 'navigate to wallet and back', 'reselect configured QA thread'],
+    forbiddenActions: [],
+    routeChecks: ['reload and navigation return preserve the same PnL card and telemetry identity'],
+    failureSignals: ['PnL card missing after reload', 'PnL card missing after leaving and reopening chat', 'rehydrated PnL telemetry missing or mismatched'],
+    passCriteria: ['PnL card survives reload and leave/reopen', 'rehydrated telemetry reuses the generated card identity'],
   },
   {
     step: 'chart-card',
@@ -1012,8 +1034,8 @@ async function runCardChecks({ client, baseUrl, args, report }) {
     ['Portfolio allocation'],
     30000
   );
-  const walletUrl = new URL('/wallet', args.url).toString();
-  await navigatePage(client, walletUrl);
+  const walletPageUrl = new URL('/wallet', args.url).toString();
+  await navigatePage(client, walletPageUrl);
   await waitForText(client, 'wallet page shell', ['Wallet', 'Assets'], 45000);
   await navigatePage(client, args.url);
   await reopenChatThread(client, args);
@@ -1092,9 +1114,60 @@ async function runCardChecks({ client, baseUrl, args, report }) {
   }
 
   step = add('pnl-card');
+  await clearAstroConsoleTelemetryEvents(client);
   await sendPrompt(client, 'show my pnl');
   await waitForText(client, 'PnL overview card', ['PNL SNAPSHOT'], 30000);
-  finishStep(step, 'pass', 'Rendered PnL snapshot and embedded positions.');
+  const generatedPnlTelemetry = await waitForAstroConsoleTelemetryEvent(
+    client,
+    'generated PnL telemetry',
+    (event) => event?.eventType === 'generated' && event?.cardType === 'pnl',
+    30000
+  );
+  finishStep(
+    step,
+    'pass',
+    `Rendered PnL snapshot and embedded positions with telemetry id ${generatedPnlTelemetry.sourceMessageId}.`
+  );
+
+  step = add('pnl-card-reload-persistence');
+  await clearAstroConsoleTelemetryEvents(client);
+  await reloadPage(client);
+  await reopenChatThread(client, args);
+  await waitForText(
+    client,
+    'PnL card after reload',
+    ['PNL SNAPSHOT'],
+    30000
+  );
+  const walletUrl = new URL('/wallet', args.url).toString();
+  await navigatePage(client, walletUrl);
+  await waitForText(client, 'wallet page shell', ['Wallet', 'Assets'], 45000);
+  await navigatePage(client, args.url);
+  await reopenChatThread(client, args);
+  await waitForText(
+    client,
+    'PnL card after navigation return',
+    ['PNL SNAPSHOT'],
+    30000
+  );
+  const rehydratedPnlTelemetry = await waitForAstroConsoleTelemetryEvent(
+    client,
+    'rehydrated PnL telemetry',
+    (event) => event?.eventType === 'rehydrated' && event?.cardType === 'pnl',
+    30000
+  );
+  if (
+    rehydratedPnlTelemetry.sourceMessageId !== generatedPnlTelemetry.sourceMessageId
+  ) {
+    throw new Error(
+      `PnL card telemetry id changed across reload. Generated=${generatedPnlTelemetry.sourceMessageId} Rehydrated=${rehydratedPnlTelemetry.sourceMessageId}`
+    );
+  }
+  finishStep(
+    step,
+    'pass',
+    `PnL snapshot card stayed visible after reload/navigation, and rehydrated telemetry reused ${rehydratedPnlTelemetry.sourceMessageId}.`
+  );
 
   step = add('chart-card');
   await sendPrompt(client, '/chart ETH 1D');
