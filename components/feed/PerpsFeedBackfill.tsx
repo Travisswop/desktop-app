@@ -279,23 +279,26 @@ export default function PerpsFeedBackfill() {
                 updatedCount === 0 &&
                 missingTerminalCandidates.length > 0
               ) {
-                void logFeedCardHealth({
-                  surface: 'perps',
-                  fingerprint: 'perps-stale-open-after-terminal-fill',
-                  positionKeys: missingTerminalCandidates.map(
-                    (candidate) => candidate.positionKey,
-                  ),
-                  coins: missingTerminalCandidates.map(
-                    (candidate) => candidate.coin,
-                  ),
-                  context: {
-                    masterAddress,
-                    activePositionKeyCount: activePositionKeys.length,
-                    observedDexes,
-                    terminalCloseCoins: Object.keys(closedFillsByCoin).sort(),
-                    liquidationCoins: Object.keys(liquidationsByCoin).sort(),
+                void logFeedCardHealth(
+                  {
+                    surface: 'perps',
+                    fingerprint: 'perps-stale-open-after-terminal-fill',
+                    positionKeys: missingTerminalCandidates.map(
+                      (candidate) => candidate.positionKey,
+                    ),
+                    coins: missingTerminalCandidates.map(
+                      (candidate) => candidate.coin,
+                    ),
+                    context: {
+                      masterAddress,
+                      activePositionKeyCount: activePositionKeys.length,
+                      observedDexes,
+                      terminalCloseCoins: Object.keys(closedFillsByCoin).sort(),
+                      liquidationCoins: Object.keys(liquidationsByCoin).sort(),
+                    },
                   },
-                });
+                  accessToken,
+                );
               }
             })
             .catch((error) => {
