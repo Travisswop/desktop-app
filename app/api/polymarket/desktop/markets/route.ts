@@ -45,8 +45,34 @@ const BROAD_SPORTS_GAMELINE_TAG_IDS = [
 ];
 const BROAD_SPORTS_TAG_IDS = new Set(['1', '100639']);
 const MONEYLINE_MARKET_SETS = new Set(['moneyline', 'moneylines', 'ml']);
+const FALLBACK_CACHE_HEADERS = {
+  'Cache-Control': 'no-store',
+};
 
 type PolymarketProxyMarket = Record<string, any>;
+
+function cacheHeadersFor(searchParams: URLSearchParams) {
+  if (searchParams.get('live') === 'true') {
+    return {
+      'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=15',
+    };
+  }
+
+  if (
+    searchParams.get('q') ||
+    searchParams.get('search') ||
+    searchParams.get('event_slug') ||
+    searchParams.get('eventSlug')
+  ) {
+    return {
+      'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=45',
+    };
+  }
+
+  return {
+    'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=90',
+  };
+}
 
 function marketEventKey(market: PolymarketProxyMarket) {
   const eventSlug = String(market?.eventSlug || '')
@@ -314,13 +340,16 @@ export async function GET(request: NextRequest) {
       data = selectSportsMoneylineMarkets(data, limit);
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: cacheHeadersFor(forward) });
   } catch (error) {
     // This endpoint feeds a cosmetic market ticker that already renders
     // fallback content on an empty list. Degrade gracefully with 200 + []
     // instead of a 500 so a transient backend hiccup never surfaces as a
     // browser console error (which the Next.js dev overlay tallies).
     console.warn('Desktop markets ticker upstream unavailable:', error);
-    return NextResponse.json([], { status: 200 });
+    return NextResponse.json([], {
+      status: 200,
+      headers: FALLBACK_CACHE_HEADERS,
+    });
   }
 }

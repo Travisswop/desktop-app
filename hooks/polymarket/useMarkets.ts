@@ -1,5 +1,9 @@
 import type { CategoryId } from "@/constants/polymarket";
-import { getCategoryById, QUERY_REFETCH_INTERVALS, QUERY_STALE_TIMES } from "@/constants/polymarket";
+import {
+  getCategoryById,
+  QUERY_REFETCH_INTERVALS,
+  QUERY_STALE_TIMES,
+} from "@/constants/polymarket";
 import { useTrading } from "@/providers/polymarket";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchChunkedPrices } from "@/lib/polymarket/clob-prices";
@@ -80,6 +84,11 @@ interface UseMarketsOptions {
   overrideTagId?: number | null;
   /** Server-side market search. */
   searchQuery?: string;
+  /** Set false for overview cards that only need Gamma's embedded odds. */
+  includeRealtimePrices?: boolean;
+  /** Override the polling cadence for lightweight overview surfaces. */
+  refetchIntervalMs?: number | false;
+  refetchOnWindowFocus?: boolean;
   /** Set to false to skip fetching (e.g. when the sports events view is active) */
   enabled?: boolean;
 }
@@ -89,6 +98,9 @@ export function useMarkets(options: UseMarketsOptions = {}) {
     categoryId = "trending",
     overrideTagId,
     searchQuery = "",
+    includeRealtimePrices = true,
+    refetchIntervalMs = QUERY_REFETCH_INTERVALS.MARKETS,
+    refetchOnWindowFocus = true,
     enabled = true,
   } = options;
   const { isTradingSessionComplete } = useTrading();
@@ -100,7 +112,8 @@ export function useMarkets(options: UseMarketsOptions = {}) {
       categoryId,
       overrideTagId,
       trimmedSearch,
-      !!isTradingSessionComplete,
+      includeRealtimePrices,
+      includeRealtimePrices && !!isTradingSessionComplete,
     ],
     enabled,
     initialPageParam: 0,
@@ -129,7 +142,11 @@ export function useMarkets(options: UseMarketsOptions = {}) {
       const markets: PolymarketMarket[] = await response.json();
 
       // Fetch realtime prices using batch API — one POST /prices call per side
-      if (isTradingSessionComplete && markets.length > 0) {
+      if (
+        includeRealtimePrices &&
+        isTradingSessionComplete &&
+        markets.length > 0
+      ) {
         try {
           const allTokenIds: string[] = [];
           for (const market of markets) {
@@ -151,9 +168,13 @@ export function useMarkets(options: UseMarketsOptions = {}) {
               if (!market.clobTokenIds) continue;
               try {
                 const tokenIds: string[] = JSON.parse(market.clobTokenIds);
-                const priceMap: Record<string, typeof globalPriceMap[string]> = {};
+                const priceMap: Record<
+                  string,
+                  (typeof globalPriceMap)[string]
+                > = {};
                 for (const tokenId of tokenIds) {
-                  if (globalPriceMap[tokenId]) priceMap[tokenId] = globalPriceMap[tokenId];
+                  if (globalPriceMap[tokenId])
+                    priceMap[tokenId] = globalPriceMap[tokenId];
                 }
                 market.realtimePrices = priceMap;
               } catch {
@@ -174,8 +195,8 @@ export function useMarkets(options: UseMarketsOptions = {}) {
       return allPages.reduce((total, page) => total + page.length, 0);
     },
     staleTime: QUERY_STALE_TIMES.MARKETS,
-    refetchInterval: QUERY_REFETCH_INTERVALS.MARKETS,
+    refetchInterval: refetchIntervalMs,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus,
   });
 }
