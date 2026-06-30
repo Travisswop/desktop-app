@@ -750,7 +750,10 @@ export function DepositForm({
               data: approveData,
               chainId: sourceChainId,
             },
-            { sponsor: false },
+            {
+              sponsor: true,
+              uiOptions: { showWalletUIs: false },
+            },
           );
           approvalHash = result.hash;
         } catch (approvalErr) {
@@ -760,7 +763,7 @@ export function DepositForm({
             to: fromTokenAddress as `0x${string}`,
             data: approveData,
             chainId: sourceChainId,
-          });
+          }, { sponsor: false });
           approvalHash = result.hash;
         }
 
@@ -790,7 +793,10 @@ export function DepositForm({
           value: txValue,
           chainId: sourceChainId,
         },
-        { sponsor: false },
+        {
+          sponsor: true,
+          uiOptions: { showWalletUIs: false },
+        },
       );
       hash = result.hash;
     } catch (swapErr) {
@@ -802,7 +808,7 @@ export function DepositForm({
         data: transactionRequest.data as `0x${string}`,
         value: txValue,
         chainId: sourceChainId,
-      });
+      }, { sponsor: false });
       hash = result.hash;
     }
 

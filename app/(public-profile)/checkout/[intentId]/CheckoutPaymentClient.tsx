@@ -330,6 +330,18 @@ function checkoutErrorMessage(error: unknown) {
   return '';
 }
 
+const isUserRejectionError = (error: unknown) => {
+  const message = checkoutErrorMessage(error).toLowerCase();
+  return (
+    message.includes('user rejected') ||
+    message.includes('user denied') ||
+    message.includes('request rejected') ||
+    message.includes('user cancelled') ||
+    message.includes('user canceled') ||
+    message.includes('rejected the request')
+  );
+};
+
 // Turns raw SDK/network errors (e.g. Privy's
 // `[POST] "/api/v1/wallets/authenticate": <no response> [TimeoutError]: The
 // operation was aborted due to timeout`) into copy a shopper can act on.
@@ -1354,15 +1366,33 @@ export default function CheckoutPaymentClient({
               ),
             ],
           });
-          const approval = await sendTransaction(
-            {
-              from: sourceWalletAddress as `0x${string}`,
-              to: fromTokenAddress as `0x${string}`,
-              data: approveData,
-              chainId: sourceChainId,
-            },
-            { sponsor: false, address: sourceWalletAddress }
-          );
+          let approval: Awaited<ReturnType<typeof sendTransaction>>;
+          try {
+            approval = await sendTransaction(
+              {
+                from: sourceWalletAddress as `0x${string}`,
+                to: fromTokenAddress as `0x${string}`,
+                data: approveData,
+                chainId: sourceChainId,
+              },
+              {
+                sponsor: true,
+                address: sourceWalletAddress,
+                uiOptions: { showWalletUIs: false },
+              }
+            );
+          } catch (approvalError) {
+            if (isUserRejectionError(approvalError)) throw approvalError;
+            approval = await sendTransaction(
+              {
+                from: sourceWalletAddress as `0x${string}`,
+                to: fromTokenAddress as `0x${string}`,
+                data: approveData,
+                chainId: sourceChainId,
+              },
+              { sponsor: false, address: sourceWalletAddress }
+            );
+          }
           await publicClient.waitForTransactionReceipt({
             hash: approval.hash as `0x${string}`,
           });
@@ -1374,16 +1404,35 @@ export default function CheckoutPaymentClient({
     const txValue = transactionRequest.value
       ? BigInt(transactionRequest.value)
       : undefined;
-    const result = await sendTransaction(
-      {
-        from: sourceWalletAddress as `0x${string}`,
-        to: transactionRequest.to as `0x${string}`,
-        data: transactionRequest.data as `0x${string}`,
-        ...(txValue ? { value: txValue } : {}),
-        chainId: transactionRequest.chainId || sourceChainId,
-      },
-      { sponsor: false, address: sourceWalletAddress }
-    );
+    let result: Awaited<ReturnType<typeof sendTransaction>>;
+    try {
+      result = await sendTransaction(
+        {
+          from: sourceWalletAddress as `0x${string}`,
+          to: transactionRequest.to as `0x${string}`,
+          data: transactionRequest.data as `0x${string}`,
+          ...(txValue ? { value: txValue } : {}),
+          chainId: transactionRequest.chainId || sourceChainId,
+        },
+        {
+          sponsor: true,
+          address: sourceWalletAddress,
+          uiOptions: { showWalletUIs: false },
+        }
+      );
+    } catch (sendError) {
+      if (isUserRejectionError(sendError)) throw sendError;
+      result = await sendTransaction(
+        {
+          from: sourceWalletAddress as `0x${string}`,
+          to: transactionRequest.to as `0x${string}`,
+          data: transactionRequest.data as `0x${string}`,
+          ...(txValue ? { value: txValue } : {}),
+          chainId: transactionRequest.chainId || sourceChainId,
+        },
+        { sponsor: false, address: sourceWalletAddress }
+      );
+    }
 
     return result.hash;
   };
