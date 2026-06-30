@@ -36,6 +36,7 @@ import {
 } from '@/constants/polymarket';
 import { getSafePolymarketMaxBuyAmount } from '@/lib/polymarket/validation';
 import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
+import { getPredictionReceiptSubject } from '@/lib/polymarket/formatting';
 import {
   fetchChunkedPrices,
   type PriceMap,
@@ -4914,16 +4915,25 @@ export default function MarketDetailView({
 
         if (agentProposalId) {
           try {
+            const outcomeIndex = selectedOutcome === 'yes' ? 0 : 1;
+            const receiptSubject = getPredictionReceiptSubject(
+              outcomeName,
+              market.question,
+              {
+                displayOutcome: displayOutcomeLabels?.[outcomeIndex],
+                outcomeIndex,
+              },
+            );
             const completion = await completeAgentActionFromHandoff(
               {
                 proposalId: agentProposalId,
                 status: 'executed',
                 provider: 'polymarket',
                 title: market.question,
-                subtitle: `${outcomeName} · ${side.toLowerCase()} ${
+                subtitle: `${receiptSubject} · ${side.toLowerCase()} ${
                   orderType
                 }`,
-                subject: outcomeName,
+                subject: receiptSubject,
                 side,
                 stake: feedExecution.cost,
                 toWin:
@@ -4938,6 +4948,8 @@ export default function MarketDetailView({
                   marketId: market.conditionId || market.id,
                   marketTitle: market.question,
                   outcome: outcomeName,
+                  outcomeDisplay: receiptSubject,
+                  outcomeIndex,
                   side,
                   shares: displayShares,
                   price: feedExecution.price,

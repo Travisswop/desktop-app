@@ -19,6 +19,7 @@ import {
 import type { AgentActionCompletion } from '@/lib/chat/agentActionHandoff';
 import {
   formatReceiptMoney,
+  receiptTitle,
   receiptSubtitle,
   shareReceiptImage,
   shortReceiptHash,
@@ -143,14 +144,7 @@ export function AgentActionReceiptCard({
       (Boolean(receiptExecution.recipient) &&
         !receiptExecution.fromToken &&
         !receiptExecution.toToken));
-  const title =
-    receipt.subject ||
-    receipt.title ||
-    (receipt.provider === 'hyperliquid'
-      ? 'Perps order'
-      : receipt.provider === 'polymarket'
-        ? 'Prediction order'
-        : 'Swap');
+  const title = receiptTitle(receipt);
   const placedAt = receipt.placedAt
     ? new Date(receipt.placedAt)
     : new Date();

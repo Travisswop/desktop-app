@@ -32,6 +32,7 @@ import {
 } from '@/hooks/useGroupAgents';
 import { postFeed } from '@/actions/postFeed';
 import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
+import { getPredictionReceiptSubject } from '@/lib/polymarket/formatting';
 import { useTrading } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
 import { POLYMARKET_BACKEND_PROXY_URL } from '@/constants/polymarket';
@@ -1106,6 +1107,11 @@ function PolymarketMarketCard({
         );
       }
 
+      const receiptSubject = getPredictionReceiptSubject(
+        selectedLabel,
+        question,
+        { outcomeIndex: selectedOutcome === 'yes' ? 0 : 1 }
+      );
       const completionDraft: Omit<
         AgentActionCompletion,
         | 'proposalId'
@@ -1120,8 +1126,8 @@ function PolymarketMarketCard({
         status: 'executed',
         provider: 'polymarket',
         title: question,
-        subtitle: `${selectedLabel} · buy ${orderMode}`,
-        subject: selectedLabel,
+        subtitle: `${receiptSubject} · buy ${orderMode}`,
+        subject: receiptSubject,
         side: 'BUY',
         stake: executedCost,
         toWin: Math.max(0, executedShares - executedCost),
@@ -1133,6 +1139,8 @@ function PolymarketMarketCard({
           marketId: market.conditionId || market.id,
           marketTitle: question,
           outcome: selectedLabel,
+          outcomeDisplay: receiptSubject,
+          outcomeIndex: selectedOutcome === 'yes' ? 0 : 1,
           side: 'BUY',
           shares: executedShares,
           price: executedPrice,

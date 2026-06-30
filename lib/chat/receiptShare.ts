@@ -8,6 +8,7 @@ import {
   formatSwapAmount,
   formatWalletAddress,
 } from '@/lib/chat/ticketFormat';
+import { getPredictionReceiptSubject } from '@/lib/polymarket/formatting';
 
 export function getReceiptId(receipt?: AgentActionCompletion | null) {
   if (!receipt) return '';
@@ -43,6 +44,38 @@ export function receiptSubtitle(receipt: AgentActionCompletion) {
   if (receipt.provider === 'polymarket') return 'prediction · self-custodied';
   if (receipt.provider === 'marketplace') return 'marketplace · published';
   return 'self-custodied · settled';
+}
+
+export function receiptTitle(receipt: AgentActionCompletion) {
+  const execution =
+    receipt.executionResult && typeof receipt.executionResult === 'object'
+      ? receipt.executionResult
+      : {};
+
+  if (receipt.provider === 'polymarket') {
+    const marketTitle = String(execution.marketTitle || receipt.title || '');
+    const outcome = String(execution.outcome || receipt.subject || '');
+    const displayOutcome = String(
+      execution.outcomeDisplay || receipt.subject || ''
+    );
+    const rawOutcomeIndex = Number(execution.outcomeIndex);
+    return getPredictionReceiptSubject(outcome, marketTitle, {
+      displayOutcome,
+      outcomeIndex: Number.isInteger(rawOutcomeIndex)
+        ? rawOutcomeIndex
+        : undefined,
+    });
+  }
+
+  return (
+    receipt.subject ||
+    receipt.title ||
+    (receipt.provider === 'hyperliquid'
+      ? 'Perps order'
+      : receipt.provider === 'polymarket'
+        ? 'Prediction order'
+        : 'Swap')
+  );
 }
 
 export function escapeSvgText(value: unknown) {
@@ -102,14 +135,7 @@ export function buildReceiptShareSvg(receipt: AgentActionCompletion) {
       (Boolean(execution.recipient) &&
         !execution.fromToken &&
         !execution.toToken));
-  const title =
-    receipt.subject ||
-    receipt.title ||
-    (receipt.provider === 'hyperliquid'
-      ? 'Perps order'
-      : receipt.provider === 'polymarket'
-        ? 'Prediction order'
-        : 'Swap');
+  const title = receiptTitle(receipt);
   const placedAt = receipt.placedAt ? new Date(receipt.placedAt) : new Date();
   const placedLabel = placedAt.toLocaleTimeString([], {
     hour: 'numeric',
