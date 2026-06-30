@@ -251,30 +251,54 @@ describe('desktop group agent payloads', () => {
     );
   });
 
-  test('preserves operating-mode disclosure alongside generic review-state labels', () => {
-    const prefill = getHyperliquidOrderPrefill({
-      status: 'approved',
-      nextStep: 'hyperliquid_order_form_required',
-      payload: {
-        proposalId: 'prop_hl_paper',
-        proposalNonce: 'nonce_hl_paper',
-        provider: 'hyperliquid',
-        panel: 'perps',
-        action: 'perps.place_order',
-        normalizedParams: {
-          coin: 'ETH',
-          side: 'long',
-          sizeUsd: '500',
-          paperMode: true,
+  test.each([
+    [
+      'monitor-only',
+      { monitorOnly: true },
+      'Monitor only',
+    ],
+    [
+      'paper',
+      { paperMode: true },
+      'Paper mode',
+    ],
+    [
+      'shadow',
+      { shadowMode: true },
+      'Shadow mode',
+    ],
+    [
+      'live-ready',
+      { liveExecutionReady: true },
+      'Live execution ready',
+    ],
+  ])(
+    'preserves %s operating-mode disclosure alongside generic review-state labels',
+    (_caseName, modeParams, expectedModeLabel) => {
+      const prefill = getHyperliquidOrderPrefill({
+        status: 'approved',
+        nextStep: 'hyperliquid_order_form_required',
+        payload: {
+          proposalId: `prop_hl_${expectedModeLabel}`,
+          proposalNonce: `nonce_hl_${expectedModeLabel}`,
+          provider: 'hyperliquid',
+          panel: 'perps',
+          action: 'perps.place_order',
+          normalizedParams: {
+            coin: 'ETH',
+            side: 'long',
+            sizeUsd: '500',
+            ...modeParams,
+          },
         },
-      },
-    });
+      });
 
-    expect(prefill?.approvalBoundary).toMatchObject({
-      reviewStateLabel: 'Review trade details',
-      operatingModeLabel: 'Paper mode',
-    });
-  });
+      expect(prefill?.approvalBoundary).toMatchObject({
+        reviewStateLabel: 'Review trade details',
+        operatingModeLabel: expectedModeLabel,
+      });
+    },
+  );
 
   test('uses requested Hyperliquid market aliases over stale coin defaults', () => {
     const prefill = getHyperliquidOrderPrefill({

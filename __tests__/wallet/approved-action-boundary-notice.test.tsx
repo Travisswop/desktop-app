@@ -63,4 +63,24 @@ describe('ApprovedActionBoundaryNotice', () => {
 
     expect(markup.match(/Monitor only/g)).toHaveLength(1);
   });
+
+  test.each([
+    'Monitor only',
+    'Paper mode',
+    'Shadow mode',
+    'Live execution ready',
+  ])('renders %s alongside the generic review-state badge', (operatingModeLabel) => {
+    const markup = renderToStaticMarkup(
+      <ApprovedActionBoundaryNotice
+        intro="Stay inside the approved boundary."
+        boundary={{
+          reviewStateLabel: 'Review trade details',
+          operatingModeLabel,
+        }}
+      />,
+    );
+
+    expect(markup).toContain('Review trade details');
+    expect(markup).toContain(operatingModeLabel);
+  });
 });
