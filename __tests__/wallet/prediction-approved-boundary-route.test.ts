@@ -41,6 +41,7 @@ import type { PolymarketAgentOrderPrefill } from '@/lib/chat/agentActionHandoff'
 import {
   persistApprovedPredictionBoundary,
   readApprovedPredictionBoundary,
+  serializeApprovedActionBoundary,
 } from '@/lib/chat/approvedActionBoundaryQuery';
 import { buildApprovedPredictionRouteQuery } from '@/components/wallet/polymarket/PredictionPageContent';
 import { buildRecoveredMarketDetailEntry } from '@/app/(pages)/prediction/market/[marketId]/page';
@@ -175,5 +176,59 @@ describe('prediction approved-boundary routing helpers', () => {
       maxDailyLossUsd: '15',
       riskControls: ['Keep the stop loss armed.'],
     });
+  });
+
+  test('does not restore a stale boundary on a plain market revisit', () => {
+    sessionStorageState.set(
+      'swop:prediction-approved-boundary:market:condition-1',
+      serializeApprovedActionBoundary({
+        reviewStateLabel: 'User signing required',
+        maxOrderUsd: '25',
+        maxDailySpendUsd: '80',
+        riskControls: ['No more than one live order.'],
+      })!,
+    );
+
+    expect(
+      readApprovedPredictionBoundary({
+        marketId: 'condition-1',
+      }),
+    ).toBeNull();
+
+    expect(
+      sessionStorageState.has(
+        'swop:prediction-approved-boundary:market:condition-1',
+      ),
+    ).toBe(false);
+  });
+
+  test('clears the stored approved boundary when a later launch has no boundary', () => {
+    persistApprovedPredictionBoundary(
+      {
+        marketId: 'condition-1',
+        proposalId: 'prop_poly',
+      },
+      {
+        reviewStateLabel: 'User signing required',
+        maxOrderUsd: '25',
+        maxDailySpendUsd: '80',
+        riskControls: ['No more than one live order.'],
+      },
+    );
+
+    persistApprovedPredictionBoundary(
+      {
+        marketId: 'condition-1',
+        proposalId: 'prop_poly',
+      },
+      null,
+    );
+
+    expect(
+      readApprovedPredictionBoundary({
+        marketId: 'condition-1',
+        proposalId: 'prop_poly',
+      }),
+    ).toBeNull();
   });
 });

@@ -4,6 +4,22 @@ import { safeSessionStorage } from '@/lib/browserStorage';
 const APPROVED_PREDICTION_BOUNDARY_STORAGE_PREFIX =
   'swop:prediction-approved-boundary:';
 
+function approvedPredictionBoundaryProposalStorageKey(
+  proposalId?: string | null,
+) {
+  return proposalId
+    ? `${APPROVED_PREDICTION_BOUNDARY_STORAGE_PREFIX}proposal:${proposalId}`
+    : null;
+}
+
+function approvedPredictionBoundaryLegacyMarketStorageKey(
+  marketId?: string | null,
+) {
+  return marketId
+    ? `${APPROVED_PREDICTION_BOUNDARY_STORAGE_PREFIX}market:${marketId}`
+    : null;
+}
+
 function stringOrUndefined(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0
     ? value
@@ -57,13 +73,18 @@ function approvedPredictionBoundaryStorageKeys({
   proposalId?: string | null;
 }) {
   return [
-    proposalId
-      ? `${APPROVED_PREDICTION_BOUNDARY_STORAGE_PREFIX}proposal:${proposalId}`
-      : null,
-    marketId
-      ? `${APPROVED_PREDICTION_BOUNDARY_STORAGE_PREFIX}market:${marketId}`
-      : null,
+    approvedPredictionBoundaryProposalStorageKey(proposalId),
+    approvedPredictionBoundaryLegacyMarketStorageKey(marketId),
   ].filter((value): value is string => Boolean(value));
+}
+
+export function clearApprovedPredictionBoundary(lookup: {
+  marketId?: string | null;
+  proposalId?: string | null;
+}) {
+  approvedPredictionBoundaryStorageKeys(lookup).forEach((key) => {
+    safeSessionStorage.removeItem(key);
+  });
 }
 
 export function persistApprovedPredictionBoundary(
@@ -74,22 +95,56 @@ export function persistApprovedPredictionBoundary(
   boundary?: ApprovedActionBoundary | null,
 ) {
   const serialized = serializeApprovedActionBoundary(boundary);
-  if (!serialized) return;
+  const proposalStorageKey = approvedPredictionBoundaryProposalStorageKey(
+    lookup.proposalId,
+  );
+  const legacyMarketStorageKey =
+    approvedPredictionBoundaryLegacyMarketStorageKey(lookup.marketId);
 
-  approvedPredictionBoundaryStorageKeys(lookup).forEach((key) => {
-    safeSessionStorage.setItem(key, serialized);
-  });
+  if (!serialized || !proposalStorageKey) {
+    clearApprovedPredictionBoundary(lookup);
+    return;
+  }
+
+  safeSessionStorage.setItem(proposalStorageKey, serialized);
+
+  if (legacyMarketStorageKey) {
+    safeSessionStorage.removeItem(legacyMarketStorageKey);
+  }
 }
 
 export function readApprovedPredictionBoundary(lookup: {
   marketId?: string | null;
   proposalId?: string | null;
 }) {
-  for (const key of approvedPredictionBoundaryStorageKeys(lookup)) {
-    const raw = safeSessionStorage.getItem(key);
-    const boundary = parseApprovedActionBoundary(raw);
-    if (boundary) return boundary;
-    if (raw) safeSessionStorage.removeItem(key);
+  const proposalStorageKey = approvedPredictionBoundaryProposalStorageKey(
+    lookup.proposalId,
+  );
+  const legacyMarketStorageKey =
+    approvedPredictionBoundaryLegacyMarketStorageKey(lookup.marketId);
+
+  if (!proposalStorageKey) {
+    if (legacyMarketStorageKey) {
+      safeSessionStorage.removeItem(legacyMarketStorageKey);
+    }
+    return null;
+  }
+
+  const raw = safeSessionStorage.getItem(proposalStorageKey);
+  const boundary = parseApprovedActionBoundary(raw);
+  if (boundary) {
+    if (legacyMarketStorageKey) {
+      safeSessionStorage.removeItem(legacyMarketStorageKey);
+    }
+    return boundary;
+  }
+
+  if (raw) {
+    safeSessionStorage.removeItem(proposalStorageKey);
+  }
+
+  if (legacyMarketStorageKey) {
+    safeSessionStorage.removeItem(legacyMarketStorageKey);
   }
 
   return null;
