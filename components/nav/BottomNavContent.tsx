@@ -6,7 +6,14 @@ import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
 import { Layers, LayoutGrid, Menu, WalletCards } from "lucide-react";
 import { VscChip } from "react-icons/vsc";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
 import { IoAdd, IoClose } from "react-icons/io5";
@@ -133,6 +140,7 @@ const BottomNavContent = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
+  const navigationFallbackTimerRef = useRef<number | null>(null);
 
   const tab = useMemo(
     () => searchParams && searchParams.get("tab"),
@@ -153,14 +161,68 @@ const BottomNavContent = () => {
 
   useEffect(() => {
     setPendingRoute(null);
+    if (navigationFallbackTimerRef.current) {
+      window.clearTimeout(navigationFallbackTimerRef.current);
+      navigationFallbackTimerRef.current = null;
+    }
   }, [pathname]);
 
-  const handleFeedNavIntent = () => {
+  useEffect(() => {
+    return () => {
+      if (navigationFallbackTimerRef.current) {
+        window.clearTimeout(navigationFallbackTimerRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleNavigationFallback = (href: string) => {
+    if (navigationFallbackTimerRef.current) {
+      window.clearTimeout(navigationFallbackTimerRef.current);
+    }
+
+    // Feed is a heavy client surface; fall back if a soft tab transition stalls.
+    navigationFallbackTimerRef.current = window.setTimeout(() => {
+      navigationFallbackTimerRef.current = null;
+      const targetUrl = new URL(href, window.location.origin);
+      const targetPath = `${targetUrl.pathname}${targetUrl.search}`;
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+
+      if (currentPath !== targetPath) {
+        window.location.assign(targetPath);
+      }
+    }, 1800);
+  };
+
+  const warmFeedNavIntent = () => {
     router.prefetch("/feed");
-    if (!isFeedSurface) {
+    if (!isFeedSurface && pendingRoute !== "/feed") {
       setPendingRoute("/feed");
     }
   };
+
+  const handlePrimaryNavClick =
+    (href: string) => (event: MouseEvent<HTMLAnchorElement>) => {
+      if (
+        event.defaultPrevented ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      router.prefetch(href);
+
+      if (href === "/feed" && !isFeedSurface) {
+        setPendingRoute("/feed");
+      }
+
+      if (isFeedSurface || href === "/feed") {
+        scheduleNavigationFallback(href);
+      }
+    };
 
   // Get the dynamic ID from the route
   const pageId =
@@ -498,6 +560,10 @@ const BottomNavContent = () => {
       label: "Dashboard",
       Icon: LayoutGrid,
       isActive: Boolean(pathname?.startsWith("/dashboard")),
+      prefetch: true,
+      onPointerEnter: () => router.prefetch("/dashboard"),
+      onFocus: () => router.prefetch("/dashboard"),
+      onClick: handlePrimaryNavClick("/dashboard"),
     },
     {
       href: "/feed",
@@ -506,9 +572,9 @@ const BottomNavContent = () => {
       isActive: pathname === "/" || pathname === "/feed",
       prefetch: true,
       onPointerEnter: () => router.prefetch("/feed"),
-      onPointerDown: handleFeedNavIntent,
+      onPointerDown: warmFeedNavIntent,
       onFocus: () => router.prefetch("/feed"),
-      onClick: handleFeedNavIntent,
+      onClick: handlePrimaryNavClick("/feed"),
     },
     {
       href: "/wallet",
@@ -518,12 +584,17 @@ const BottomNavContent = () => {
       prefetch: true,
       onPointerEnter: () => router.prefetch("/wallet"),
       onFocus: () => router.prefetch("/wallet"),
+      onClick: handlePrimaryNavClick("/wallet"),
     },
     {
       href: "/smartsite",
       label: "Build",
       Icon: Layers,
       isActive: Boolean(pathname?.startsWith("/smartsite")),
+      prefetch: true,
+      onPointerEnter: () => router.prefetch("/smartsite"),
+      onFocus: () => router.prefetch("/smartsite"),
+      onClick: handlePrimaryNavClick("/smartsite"),
     },
   ];
 
