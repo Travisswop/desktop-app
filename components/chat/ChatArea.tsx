@@ -59,6 +59,7 @@ import {
   looksLikePublicEnsName,
   resolvePublicEnsName,
 } from '@/lib/api/publicEnsResolver';
+import { resolveWalletRecipientViaBackend } from '@/lib/api/walletRecipientResolver';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { apiFetch } from '@/lib/api/apiFetch';
 import toast from 'react-hot-toast';
@@ -12590,6 +12591,13 @@ async function resolveChatWalletSendRecipient({
     return { address: trimmed, isEns: false };
   }
 
+  const backendResolved = await resolveWalletRecipientViaBackend({
+    recipientValue: trimmed,
+    chain: token.chain,
+    accessToken,
+  });
+  if (backendResolved) return backendResolved;
+
   if (tokenChain !== 'SOLANA' && looksLikePublicEnsName(trimmed)) {
     const resolved = await resolvePublicEnsName(trimmed, token.chain);
     if (resolved) {
@@ -14094,7 +14102,7 @@ function WalletSendDraftCard({
                 type="text"
                 value={recipientInput}
                 onChange={(event) => setRecipientInput(event.target.value)}
-                placeholder="search swop.id or paste wallet address"
+                placeholder="search name or paste wallet address"
                 className="dm-mono min-w-0 flex-1 bg-transparent text-[12px] font-semibold text-[#eceef2] outline-none placeholder:text-[#5a5e69]"
               />
               {isSearchingRecipient && (

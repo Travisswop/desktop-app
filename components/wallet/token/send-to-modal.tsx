@@ -28,6 +28,7 @@ import {
   looksLikePublicEnsName,
   resolvePublicEnsName,
 } from '@/lib/api/publicEnsResolver';
+import { resolveWalletRecipientViaBackend } from '@/lib/api/walletRecipientResolver';
 
 type ProcessingStep = {
   status: 'pending' | 'processing' | 'completed' | 'error';
@@ -412,12 +413,8 @@ export default function SendToModal({
 
   useEffect(() => {
     const query = debouncedQuery.trim();
-    if (
-      !open ||
-      isValidAddress ||
-      String(network || '').toUpperCase() === 'SOLANA' ||
-      !looksLikePublicEnsName(query)
-    ) {
+    const isResolvableName = query.includes('.') && !isValidAddress;
+    if (!open || !isResolvableName) {
       setExternalEnsResult(null);
       setExternalEnsResolving(false);
       setExternalEnsError('');
@@ -429,7 +426,27 @@ export default function SendToModal({
     setExternalEnsError('');
 
     (async () => {
-      const resolved = await resolvePublicEnsName(query, network);
+      const backendResolved = await resolveWalletRecipientViaBackend({
+        recipientValue: query,
+        chain: network,
+        accessToken,
+      });
+      if (cancelled) return;
+
+      if (backendResolved) {
+        setExternalEnsResult(backendResolved);
+        setExternalEnsError('');
+        setExternalEnsResolving(false);
+        return;
+      }
+
+      const shouldTryPublicEns =
+        String(network || '').toUpperCase() !== 'SOLANA' &&
+        !query.toLowerCase().endsWith('.sol') &&
+        looksLikePublicEnsName(query);
+      const resolved = shouldTryPublicEns
+        ? await resolvePublicEnsName(query, network)
+        : null;
       if (cancelled) return;
 
       if (resolved) {
@@ -441,7 +458,7 @@ export default function SendToModal({
         setExternalEnsError('');
       } else {
         setExternalEnsResult(null);
-        setExternalEnsError(`No ENS address found for ${query}.`);
+        setExternalEnsError(`No recipient address found for ${query}.`);
       }
       setExternalEnsResolving(false);
     })();
@@ -449,7 +466,7 @@ export default function SendToModal({
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, isValidAddress, network, open]);
+  }, [accessToken, debouncedQuery, isValidAddress, network, open]);
 
   if (!selectedToken) return null;
 
@@ -465,7 +482,7 @@ export default function SendToModal({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search Network"
+              placeholder="Search name or wallet address"
               value={searchQuery}
               onChange={handleSearchChange}
               className="pl-10 pr-4 rounded-xl border border-black/[0.06] hover:border-black/[0.15] transition w-full py-2.5 text-[13px] outline-0 focus:outline-none"
@@ -552,7 +569,7 @@ export default function SendToModal({
                       </div>
                       <div>
                         <span className="text-[12px] text-gray-500">
-                          ENS name
+                          Recipient name
                         </span>
                         <p className="text-[13px] font-medium text-gray-900">
                           {externalEnsResult.ensName}

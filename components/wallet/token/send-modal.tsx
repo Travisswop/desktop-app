@@ -36,6 +36,7 @@ import {
   looksLikePublicEnsName,
   resolvePublicEnsName,
 } from '@/lib/api/publicEnsResolver';
+import { resolveWalletRecipientViaBackend } from '@/lib/api/walletRecipientResolver';
 
 interface SendTokenModalProps {
   open: boolean;
@@ -343,13 +344,8 @@ export default function SendTokenModal({
 
   useEffect(() => {
     const query = debouncedQuery.trim();
-    if (
-      !open ||
-      recipient ||
-      isValidAddress ||
-      network === 'SOLANA' ||
-      !looksLikePublicEnsName(query)
-    ) {
+    const isResolvableName = query.includes('.') && !isValidAddress;
+    if (!open || recipient || !isResolvableName) {
       setExternalEnsResult(null);
       setExternalEnsResolving(false);
       setExternalEnsError('');
@@ -361,7 +357,27 @@ export default function SendTokenModal({
     setExternalEnsError('');
 
     (async () => {
-      const resolved = await resolvePublicEnsName(query, network);
+      const backendResolved = await resolveWalletRecipientViaBackend({
+        recipientValue: query,
+        chain: network,
+        accessToken,
+      });
+      if (cancelled) return;
+
+      if (backendResolved) {
+        setExternalEnsResult(backendResolved);
+        setExternalEnsError('');
+        setExternalEnsResolving(false);
+        return;
+      }
+
+      const shouldTryPublicEns =
+        network !== 'SOLANA' &&
+        !query.toLowerCase().endsWith('.sol') &&
+        looksLikePublicEnsName(query);
+      const resolved = shouldTryPublicEns
+        ? await resolvePublicEnsName(query, network)
+        : null;
       if (cancelled) return;
 
       if (resolved) {
@@ -373,7 +389,7 @@ export default function SendTokenModal({
         setExternalEnsError('');
       } else {
         setExternalEnsResult(null);
-        setExternalEnsError(`No ENS address found for ${query}.`);
+        setExternalEnsError(`No recipient address found for ${query}.`);
       }
       setExternalEnsResolving(false);
     })();
@@ -381,7 +397,7 @@ export default function SendTokenModal({
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, isValidAddress, network, open, recipient]);
+  }, [accessToken, debouncedQuery, isValidAddress, network, open, recipient]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handlePickResult = (result: any) => {
@@ -966,7 +982,7 @@ export default function SendTokenModal({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="ENS, Swop user, or wallet address"
+                  placeholder="Name, Swop user, or wallet address"
                   className="flex-1 bg-transparent outline-none text-[13.5px] text-gray-900 placeholder:text-gray-400"
                 />
                 {(searching || externalEnsResolving) && (
@@ -981,7 +997,7 @@ export default function SendTokenModal({
                       className="inline-flex items-center px-2 py-1 rounded-full text-[10.5px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition flex-shrink-0"
                       style={{ fontFamily: MONO }}
                     >
-                      use ENS
+                      use name
                     </button>
                   )}
                 {isValidAddress && !searching && (
