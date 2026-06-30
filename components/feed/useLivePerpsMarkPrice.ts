@@ -14,6 +14,23 @@ function maybeFiniteNumber(value: unknown) {
   return Number.isFinite(number) ? number : null;
 }
 
+type LivePerpsMarkPriceFetchResult = {
+  degraded: boolean;
+  price: number | null;
+};
+
+export type LivePerpsMarkPriceState = {
+  lastUpdatedAt: number | null;
+  price: number | null;
+  stale: boolean;
+};
+
+export const INITIAL_LIVE_PERPS_MARK_PRICE_STATE: LivePerpsMarkPriceState = {
+  lastUpdatedAt: null,
+  price: null,
+  stale: false,
+};
+
 export function normalizePerpsCoin(value: string | null | undefined) {
   const trimmed = String(value || '').trim();
   if (!trimmed) return null;
@@ -72,7 +89,7 @@ function findMarketContext(
 async function fetchLivePerpsMarkPrice(
   normalized: NormalizedPerpsCoin,
   signal?: AbortSignal,
-) {
+): Promise<LivePerpsMarkPriceFetchResult> {
   const response = await fetch('/api/hyperliquid/mainnet/info', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -83,35 +100,77 @@ async function fetchLivePerpsMarkPrice(
     signal,
   });
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    return {
+      degraded: true,
+      price: maybeFiniteNumber(payload?.price),
+    };
+  }
 
   const data = await response.json().catch(() => null);
   const context = findMarketContext(data, normalized);
-  return maybeFiniteNumber(context?.markPx) ?? maybeFiniteNumber(context?.midPx);
+  return {
+    degraded: false,
+    price:
+      maybeFiniteNumber(context?.markPx) ?? maybeFiniteNumber(context?.midPx),
+  };
 }
 
-export function useLivePerpsMarkPrice(
+export function resolveLivePerpsMarkPriceState(
+  previous: LivePerpsMarkPriceState,
+  result: LivePerpsMarkPriceFetchResult,
+): LivePerpsMarkPriceState {
+  if (result.degraded) {
+    return {
+      ...previous,
+      stale: true,
+    };
+  }
+
+  if (result.price === null) {
+    return INITIAL_LIVE_PERPS_MARK_PRICE_STATE;
+  }
+
+  return {
+    lastUpdatedAt: Date.now(),
+    price: result.price,
+    stale: false,
+  };
+}
+
+export function useLivePerpsMarkPriceState(
   coin: string | null | undefined,
   enabled = true,
 ) {
   const normalized = useMemo(() => normalizePerpsCoin(coin), [coin]);
-  const [price, setPrice] = useState<number | null>(null);
+  const [state, setState] = useState<LivePerpsMarkPriceState>(
+    INITIAL_LIVE_PERPS_MARK_PRICE_STATE,
+  );
 
   useEffect(() => {
     if (!enabled || !normalized) {
-      setPrice(null);
+      setState(INITIAL_LIVE_PERPS_MARK_PRICE_STATE);
       return;
     }
 
     let cancelled = false;
-    const controller = new AbortController();
 
     const load = async () => {
-      const nextPrice = await fetchLivePerpsMarkPrice(
+      const controller = new AbortController();
+      const nextState = await fetchLivePerpsMarkPrice(
         normalized,
         controller.signal,
-      ).catch(() => null);
-      if (!cancelled) setPrice(nextPrice);
+      ).catch<LivePerpsMarkPriceFetchResult>(() => ({
+        degraded: true,
+        price: null,
+      }));
+      if (!cancelled) {
+        setState((previous) =>
+          resolveLivePerpsMarkPriceState(previous, nextState),
+        );
+      }
+      controller.abort();
     };
 
     load();
@@ -119,10 +178,16 @@ export function useLivePerpsMarkPrice(
 
     return () => {
       cancelled = true;
-      controller.abort();
       window.clearInterval(interval);
     };
   }, [enabled, normalized]);
 
-  return price;
+  return state;
+}
+
+export function useLivePerpsMarkPrice(
+  coin: string | null | undefined,
+  enabled = true,
+) {
+  return useLivePerpsMarkPriceState(coin, enabled).price;
 }

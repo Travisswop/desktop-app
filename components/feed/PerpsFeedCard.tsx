@@ -3,7 +3,7 @@
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import Link from 'next/link';
-import { useLivePerpsMarkPrice } from './useLivePerpsMarkPrice';
+import { useLivePerpsMarkPriceState } from './useLivePerpsMarkPrice';
 
 type PerpsContent = {
   platform?: string;
@@ -99,7 +99,8 @@ export default function PerpsFeedCard({
     content.sizeUsd,
   ]);
   const entryPrice = Number(content.entryPrice);
-  const liveMarkPrice = useLivePerpsMarkPrice(content.coin ?? null);
+  const liveMarkPriceState = useLivePerpsMarkPriceState(content.coin ?? null);
+  const liveMarkPrice = liveMarkPriceState.price;
   const snapshotPrice = Number(content.markPrice ?? content.entryPrice);
   const validLiveMarkPrice =
     typeof liveMarkPrice === 'number' &&
@@ -245,9 +246,16 @@ export default function PerpsFeedCard({
                 <p className="text-xl font-semibold text-gray-900 leading-tight">
                   {formatUsd(currentPrice)}
                 </p>
-                <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">
-                  {content.coin ?? ''} PRICE
-                </p>
+                <div className="mt-1 flex flex-col items-end gap-1">
+                  <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">
+                    {content.coin ?? ''} PRICE
+                  </p>
+                  {liveMarkPriceState.stale ? (
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600">
+                      price refresh delayed
+                    </p>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>

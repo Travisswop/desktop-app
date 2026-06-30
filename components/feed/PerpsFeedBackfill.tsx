@@ -25,6 +25,12 @@ import {
 } from '@/components/wallet/hooks/useWalletData';
 import { useHyperliquidMarkets } from '@/components/wallet/perps/hooks/useHyperliquidMarkets';
 import { useHyperliquidPortfolio } from '@/components/wallet/perps/hooks/useHyperliquidPortfolio';
+import { HYPERLIQUID_USER_FILLS_REQUEST_TIMEOUT_MS } from '@/lib/hyperliquidProxy';
+import {
+  resetPerpsFeedBackfillHealth,
+  setPerpsFeedBackfillHealth,
+} from './perpsBackfillHealth';
+import { shouldSkipPerpsPositionBackfill } from './perpsBackfillHelpers';
 import type { HLPosition } from '@/services/hyperliquid/types';
 
 interface HyperliquidUserFill extends PerpsFillLike {
@@ -96,17 +102,48 @@ function liquidationFillsByCoin(fills: unknown) {
   );
 }
 
+type FetchRecentUserFillsResult = {
+  degraded: boolean;
+  fills: HyperliquidUserFill[];
+};
+
+function isTimeoutError(error: unknown) {
+  return error instanceof DOMException && error.name === 'TimeoutError';
+}
+
 async function fetchRecentUserFills(masterAddress: string) {
-  const response = await fetch('/api/hyperliquid/mainnet/info', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'userFills', user: masterAddress }),
-  });
+  try {
+    const response = await fetch('/api/hyperliquid/mainnet/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'userFills', user: masterAddress }),
+      signal: AbortSignal.timeout(HYPERLIQUID_USER_FILLS_REQUEST_TIMEOUT_MS),
+    });
 
-  if (!response.ok) return [];
+    if (!response.ok) {
+      return {
+        degraded: true,
+        fills: [],
+      } satisfies FetchRecentUserFillsResult;
+    }
 
-  const fills = await response.json();
-  return Array.isArray(fills) ? (fills as HyperliquidUserFill[]) : [];
+    const fills = await response.json();
+    return {
+      degraded: false,
+      fills: Array.isArray(fills) ? (fills as HyperliquidUserFill[]) : [],
+    } satisfies FetchRecentUserFillsResult;
+  } catch (error) {
+    if (isTimeoutError(error)) {
+      console.warn('Timed out fetching recent perps fills:', error);
+    } else {
+      console.warn('Failed to fetch recent perps fills:', error);
+    }
+
+    return {
+      degraded: true,
+      fills: [],
+    } satisfies FetchRecentUserFillsResult;
+  }
 }
 
 export default function PerpsFeedBackfill() {
@@ -172,6 +209,12 @@ export default function PerpsFeedBackfill() {
   }, [markets]);
 
   useEffect(() => {
+    return () => {
+      resetPerpsFeedBackfillHealth();
+    };
+  }, []);
+
+  useEffect(() => {
     const smartsiteId = feedSmartsiteId;
     const positions = portfolio?.positions || [];
     const openOrders = portfolio?.openOrders || [];
@@ -233,14 +276,24 @@ export default function PerpsFeedBackfill() {
     let cancelled = false;
 
     fetchRecentUserFills(masterAddress)
-      .catch((error) => {
-        console.warn('Failed to fetch recent perps fills:', error);
-        return [] as HyperliquidUserFill[];
-      })
-      .then((recentFills) => {
+      .then((recentFillsResult) => {
         if (cancelled) return;
 
-        if (!reconciledSnapshotsRef.current.has(reconcileSnapshotKey)) {
+        if (recentFillsResult.degraded) {
+          setPerpsFeedBackfillHealth({
+            stale: true,
+            reason: 'userFills',
+          });
+        } else {
+          setPerpsFeedBackfillHealth({ stale: false });
+        }
+
+        const recentFills = recentFillsResult.fills;
+
+        if (
+          !recentFillsResult.degraded &&
+          !reconciledSnapshotsRef.current.has(reconcileSnapshotKey)
+        ) {
           reconciledSnapshotsRef.current.add(reconcileSnapshotKey);
           reconcilePerpsPositionFeed({
             token: accessToken,
@@ -255,6 +308,10 @@ export default function PerpsFeedBackfill() {
             closedFillsByCoin: inferPerpsCloseFillsByCoin(recentFills),
           }).catch((error) => {
             reconciledSnapshotsRef.current.delete(reconcileSnapshotKey);
+            setPerpsFeedBackfillHealth({
+              stale: true,
+              reason: 'reconcile',
+            });
             console.warn('Failed to reconcile perps feed cards:', error);
           });
         }
@@ -278,6 +335,15 @@ export default function PerpsFeedBackfill() {
             position,
             recentFills,
           );
+          if (
+            shouldSkipPerpsPositionBackfill({
+              fillsDegraded: recentFillsResult.degraded,
+              openedFill,
+            })
+          ) {
+            return;
+          }
+
           const eventTimestamp =
             openedFill?.timestamp || new Date().toISOString();
           const snapshotKey = [
@@ -380,6 +446,10 @@ export default function PerpsFeedBackfill() {
         });
       })
       .catch((error) => {
+        setPerpsFeedBackfillHealth({
+          stale: true,
+          reason: 'userFills',
+        });
         console.warn('Failed to sync perps feed cards:', error);
       });
 
