@@ -171,6 +171,12 @@ import {
   TICKET_REJECT_BUTTON_CLASS,
 } from '@/lib/chat/ticketStyles';
 import {
+  GoldmanStrategyStatusPanel,
+  getGoldmanStrategyControlState,
+  isGoldmanStrategyRunningState,
+  useGoldmanStrategyHeartbeatNow,
+} from '@/components/chat/goldman/GoldmanStrategyStatusPanel';
+import {
   AgentActionProposal,
   AgentActionResultPayload,
   GROUP_AGENT_SOCKET_EVENTS,
@@ -3366,8 +3372,7 @@ export default function ChatArea({
     [goldmanStrategyVault]
   );
   const isGoldmanStrategyRunning =
-    activeGoldmanStrategy?.runtime?.state === 'running' ||
-    activeGoldmanStrategy?.status === 'active';
+    isGoldmanStrategyRunningState(activeGoldmanStrategy);
   const ensureGoldmanStrategyVault = useCallback(async () => {
     if (goldmanStrategyVault?.walletAddress) return goldmanStrategyVault;
     if (!goldmanGroupId || !accessToken) {
@@ -8717,6 +8722,15 @@ function GoldmanAccessStation({
     : strategyVaultError
     ? 'Vault unavailable'
     : 'Vault inactive';
+  const goldmanStrategyNow = useGoldmanStrategyHeartbeatNow(
+    activeStrategy?.runtime?.lastHeartbeatAt
+  );
+  const goldmanStrategyControl = getGoldmanStrategyControlState(activeStrategy, {
+    isStrategyRunning,
+    now: goldmanStrategyNow,
+  });
+  const isGoldmanStopAction = goldmanStrategyControl.primaryAction === 'stop';
+  const isGoldmanRunAction = goldmanStrategyControl.primaryAction === 'run';
   const goldmanWalletCard = (
     <>
       <SectionLabel>strategy vault</SectionLabel>
@@ -8791,11 +8805,7 @@ function GoldmanAccessStation({
                 {activeStrategy?.title || 'No approved strategy'}
               </div>
               <div className="dm-mono mt-0.5 truncate text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#a99761]">
-                {activeStrategy
-                  ? `${activeStrategy.runtime?.state || activeStrategy.status || 'idle'} · ${
-                      activeStrategy.runtime?.executionMode || 'proposal'
-                    }`
-                  : 'approve a strategy to run'}
+                {goldmanStrategyControl.summaryLine}
               </div>
             </div>
             <button
@@ -8805,8 +8815,11 @@ function GoldmanAccessStation({
                 isTogglingStrategy ||
                 isVaultBusy ||
                 (!activeStrategy && !onQuickCommand) ||
-                (!isStrategyRunning && Boolean(activeStrategy) && !onRunStrategy) ||
-                (isStrategyRunning && !onStopStrategy)
+                (Boolean(activeStrategy) &&
+                  !isGoldmanStopAction &&
+                  !isGoldmanRunAction) ||
+                (isGoldmanRunAction && !onRunStrategy) ||
+                (isGoldmanStopAction && !onStopStrategy)
               }
               onClick={() => {
                 if (!activeStrategy) {
@@ -8814,33 +8827,43 @@ function GoldmanAccessStation({
                   handleAskStrategyIdeas();
                   return;
                 }
-                if (isStrategyRunning) {
+                if (isGoldmanStopAction) {
                   onStopStrategy?.();
-                } else {
+                } else if (isGoldmanRunAction) {
                   onRunStrategy?.();
                 }
               }}
-              className={`dm-btn dm-mono flex h-9 min-w-[82px] items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[10px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-50 ${
-                isStrategyRunning
+              className={`dm-btn dm-mono flex h-9 min-w-[92px] items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[10px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-50 ${
+                isGoldmanStopAction
                   ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]'
-                  : 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
+                  : goldmanStrategyControl.runToneClass
               }`}
             >
               {isTogglingStrategy ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : isStrategyRunning ? (
+              ) : isGoldmanStopAction ? (
                 <Square className="h-3.5 w-3.5" />
+              ) : activeStrategy && !isGoldmanRunAction ? (
+                <Ban className="h-3.5 w-3.5" />
               ) : (
                 <Play className="h-3.5 w-3.5" />
               )}
-              {isStrategyRunning ? 'Stop' : 'Run'}
+              {isGoldmanStopAction ? 'Stop' : goldmanStrategyControl.runLabel}
             </button>
           </div>
-          {activeStrategy?.runtime?.lastActivity && (
-            <div className="mt-2 line-clamp-2 text-[10.5px] font-semibold leading-snug text-[#d7c987]">
-              {activeStrategy.runtime.lastActivity}
-            </div>
-          )}
+          <GoldmanStrategyStatusPanel
+            strategy={activeStrategy}
+            isStrategyRunning={isStrategyRunning}
+            now={goldmanStrategyNow}
+            fundingGuidance={
+              fundingAddress
+                ? {
+                    assetHint: fundingAddress.assetHint,
+                    networkLabel: fundingAddress.networkLabel,
+                  }
+                : null
+            }
+          />
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button
               type="button"
