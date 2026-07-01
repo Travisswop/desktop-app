@@ -2,7 +2,8 @@
 
 import React, { FC, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { fetchTokenLivePrice } from "@/lib/utils/marketPriceClient";
+import { fetchTokenLivePriceSnapshot } from "@/lib/utils/marketPriceClient";
+import { MarketPriceDelayNotice } from "./market-price-delay-notice";
 
 type Props = {
   outputToken: {
@@ -31,6 +32,7 @@ const TokenValueChangeFetcher: FC<Props> = ({
 }) => {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [priceDegraded, setPriceDegraded] = useState(false);
 
   const buyPrice = Number(
     outputToken?.price || outputToken?.usdPrice || outputToken?.marketData?.price,
@@ -44,16 +46,22 @@ const TokenValueChangeFetcher: FC<Props> = ({
     const fetchPrice = async () => {
       try {
         if (!cancelled) setIsLoading(true);
-        const price = await fetchTokenLivePrice({
+        const snapshot = await fetchTokenLivePriceSnapshot({
           outputToken,
           apiUrl,
           authToken: token,
         });
 
-        if (!cancelled) setCurrentPrice(price ?? (buyPrice || null));
+        if (!cancelled) {
+          setCurrentPrice(snapshot.price ?? (buyPrice || null));
+          setPriceDegraded(snapshot.degraded);
+        }
       } catch (error) {
         console.error("Error fetching price:", error);
-        if (!cancelled) setCurrentPrice(buyPrice || null);
+        if (!cancelled) {
+          setCurrentPrice(buyPrice || null);
+          setPriceDegraded(false);
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -106,13 +114,16 @@ const TokenValueChangeFetcher: FC<Props> = ({
   }
 
   return (
-    <div
-      className={cn(
-        "inline-flex items-center justify-center text-sm px-4 py-1.5 rounded-full transition-colors",
-        bgColorClass
-      )}
-    >
-      <span className={cn("font-medium", colorClass)}>{text}</span>
+    <div className="inline-flex flex-col items-start gap-1">
+      <div
+        className={cn(
+          "inline-flex items-center justify-center text-sm px-4 py-1.5 rounded-full transition-colors",
+          bgColorClass
+        )}
+      >
+        <span className={cn("font-medium", colorClass)}>{text}</span>
+      </div>
+      <MarketPriceDelayNotice degraded={priceDegraded} />
     </div>
   );
 };
