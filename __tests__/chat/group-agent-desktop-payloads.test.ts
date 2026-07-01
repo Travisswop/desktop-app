@@ -1,10 +1,13 @@
 import { GROUP_AGENT_SOCKET_EVENTS } from '@/hooks/useGroupAgents';
 import {
   AGENT_ACTION_HANDOFF_STORAGE_KEY,
+  buildApprovedWalletSwapQuery,
+  ensureApprovedAgentActionHandoff,
   getHyperliquidOrderPrefill,
   getPolymarketOrderPrefill,
   persistAgentActionHandoff,
   readAgentActionHandoff,
+  readMatchingAgentActionHandoff,
 } from '@/lib/chat/agentActionHandoff';
 import {
   getMessageProposalId,
@@ -173,6 +176,103 @@ describe('desktop group agent payloads', () => {
         panel: 'perps',
       },
     });
+  });
+
+  test('matches only the expected wallet swap handoff payload', () => {
+    persistAgentActionHandoff({
+      status: 'approved',
+      nextStep: 'wallet_frontend_signing_required',
+      payload: {
+        proposalId: 'prop_swap',
+        action: 'wallet.swap',
+        toolType: 'wallet.write',
+        provider: 'swop',
+        route: '/wallet',
+      },
+    });
+
+    expect(
+      readMatchingAgentActionHandoff({
+        action: 'wallet.swap',
+        provider: 'swop',
+        route: '/wallet',
+      }),
+    ).toMatchObject({
+      payload: {
+        proposalId: 'prop_swap',
+      },
+    });
+    expect(
+      readMatchingAgentActionHandoff({
+        action: 'wallet.send',
+        provider: 'swop',
+        route: '/wallet',
+      }),
+    ).toBeNull();
+  });
+
+  test('approves and persists a backend-backed wallet swap handoff', async () => {
+    const onApproveInline = jest.fn().mockResolvedValue({
+      status: 'approved',
+      nextStep: 'swap_frontend_signing_required',
+      payload: {
+        proposalId: 'prop_swap_backend',
+        action: 'wallet.swap',
+        toolType: 'wallet.write',
+        provider: 'swop',
+        route: '/wallet',
+      },
+    });
+
+    const result = await ensureApprovedAgentActionHandoff({
+      proposalId: 'prop_swap_backend',
+      approvalParams: { amount: '25', fromTokenSymbol: 'SWOP' },
+      onApproveInline,
+    });
+
+    expect(onApproveInline).toHaveBeenCalledWith('prop_swap_backend', {
+      amount: '25',
+      fromTokenSymbol: 'SWOP',
+    });
+    expect(result.executionProposalId).toBe('prop_swap_backend');
+    expect(readAgentActionHandoff()).toMatchObject({
+      payload: {
+        proposalId: 'prop_swap_backend',
+        action: 'wallet.swap',
+      },
+    });
+  });
+
+  test('builds the approved wallet swap route with exact proposal identity', () => {
+    expect(
+      buildApprovedWalletSwapQuery({
+        proposalId: 'prop_swap_route',
+        action: 'wallet.swap',
+        provider: 'swop',
+        prefill: {
+          fromToken: 'SWOP',
+          toToken: 'USDC',
+          amount: '25',
+          fromChain: 'Solana',
+          toChain: 'Solana',
+        },
+      }),
+    ).toBe(
+      'agentAction=approved&proposalId=prop_swap_route&inputToken=SWOP&outputToken=USDC&amount=25&inputChain=Solana&outputChain=Solana',
+    );
+  });
+
+  test('keeps proposal identity on wallet swap routes without full prefill', () => {
+    expect(
+      buildApprovedWalletSwapQuery({
+        proposalId: 'prop_swap_route',
+        action: 'wallet.swap',
+        provider: 'swop',
+        prefill: {
+          fromToken: 'SWOP',
+        },
+      }),
+    ).toBe('agentAction=approved&proposalId=prop_swap_route&inputToken=SWOP');
   });
 
   test('extracts Hyperliquid perps ticket defaults from approval handoff', () => {

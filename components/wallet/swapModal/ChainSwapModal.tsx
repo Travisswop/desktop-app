@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useWallets } from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
+import { useSearchParams } from 'next/navigation';
 import SwapModal from './SwapModal';
 import {
     Dialog,
@@ -38,6 +39,11 @@ function EthereumSwapModal({
     onTokenRefresh,
     ethAddress,
 }: Omit<ChainSwapModalProps, 'chain'>) {
+    const searchParams = useSearchParams();
+    const approvedSwapProposalId =
+        searchParams?.get('agentAction') === 'approved'
+            ? searchParams?.get('proposalId')?.trim() || ''
+            : '';
     const { wallets } = useWallets();
 
     // Track if component is mounted to prevent state updates after unmounting
@@ -383,48 +389,79 @@ function EthereumSwapModal({
                             setTxSuccess(true);
                             setTxStatus('Transaction completed successfully!');
                             setError(null);
-                            completeAgentActionFromHandoff(
-                                {
-                                    status: 'executed',
-                                    provider: 'swop',
-                                    title: 'Swap confirmed',
-                                    subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
-                                    subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
-                                    stake: amount,
-                                    txHash,
-                                    txUrl: txHash
-                                        ? `https://etherscan.io/tx/${txHash}`
-                                        : undefined,
-                                    explorerLabel: 'View tx',
-                                    executionResult: {
+                            if (approvedSwapProposalId) {
+                                void completeAgentActionFromHandoff(
+                                    {
+                                        proposalId: approvedSwapProposalId,
+                                        status: 'executed',
+                                        action: 'wallet.swap',
+                                        toolType: 'wallet.write',
+                                        provider: 'swop',
+                                        title: 'Swap confirmed',
+                                        subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
+                                        subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
+                                        stake: amount,
                                         txHash,
-                                        inputToken: selectedInputSymbol,
-                                        outputToken: selectedOutputSymbol,
-                                        amount,
+                                        txUrl: txHash
+                                            ? `https://etherscan.io/tx/${txHash}`
+                                            : undefined,
+                                        explorerLabel: 'View tx',
+                                        executionResult: {
+                                            txHash,
+                                            inputToken: selectedInputSymbol,
+                                            outputToken: selectedOutputSymbol,
+                                            amount,
+                                        },
                                     },
-                                },
-                                accessToken,
-                            )
-                                .then((completion) => {
-                                    if (!completion?.groupId) return;
-                                    window.location.assign(
-                                        `/dashboard/chat?groupId=${encodeURIComponent(
-                                            completion.groupId,
-                                        )}`,
-                                    );
-                                })
-                                .catch((completionError) => {
-                                    console.error(
-                                        'Failed to report EVM swap agent completion:',
-                                        completionError,
-                                    );
-                                });
+                                    accessToken,
+                                )
+                                    .then((completion) => {
+                                        if (!completion?.groupId) return;
+                                        window.location.assign(
+                                            `/dashboard/chat?groupId=${encodeURIComponent(
+                                                completion.groupId,
+                                            )}`,
+                                        );
+                                    })
+                                    .catch((completionError) => {
+                                        console.error(
+                                            'Failed to report EVM swap agent completion:',
+                                            completionError,
+                                        );
+                                    });
+                            }
                             refreshBalances();
                         }}
                         onSwapError={(errorMsg) => {
                             console.log('[DEBUG] Swap error callback:', errorMsg);
                             setError(errorMsg);
                             setTxStatus(null);
+                            if (approvedSwapProposalId) {
+                                void completeAgentActionFromHandoff(
+                                    {
+                                        proposalId: approvedSwapProposalId,
+                                        status: 'failed',
+                                        action: 'wallet.swap',
+                                        toolType: 'wallet.write',
+                                        provider: 'swop',
+                                        title: 'Swap failed',
+                                        subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
+                                        subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
+                                        error: errorMsg,
+                                        executionResult: {
+                                            inputToken: selectedInputSymbol,
+                                            outputToken: selectedOutputSymbol,
+                                            amount,
+                                        },
+                                    },
+                                    accessToken,
+                                ).catch((completionError) => {
+                                    console.error(
+                                        'Failed to report EVM swap agent failure:',
+                                        completionError,
+                                    );
+                                });
+                            }
                         }}
                         onStatusUpdate={(status) => {
                             console.log('[DEBUG] Status update:', status);

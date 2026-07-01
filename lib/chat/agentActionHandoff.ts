@@ -169,6 +169,37 @@ export function persistAgentActionHandoff(handoff: AgentApprovalHandoff) {
   });
 }
 
+export async function ensureApprovedAgentActionHandoff({
+  proposalId,
+  existingApprovalResult,
+  approvalParams,
+  onApproveInline,
+}: {
+  proposalId: string;
+  existingApprovalResult?: AgentApprovalHandoff | null;
+  approvalParams?: Record<string, unknown>;
+  onApproveInline: (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>,
+  ) => Promise<AgentApprovalHandoff | null>;
+}) {
+  const approvalResult =
+    existingApprovalResult?.payload?.proposalId === proposalId
+      ? existingApprovalResult
+      : await onApproveInline(proposalId, approvalParams);
+
+  if (!approvalResult?.payload?.proposalId) {
+    throw new Error('Swop approval was not returned by the backend.');
+  }
+
+  persistAgentActionHandoff(approvalResult);
+
+  return {
+    approvalResult,
+    executionProposalId: String(approvalResult.payload.proposalId),
+  };
+}
+
 export function readAgentActionHandoff():
   | {
       approvalResult?: AgentApprovalHandoff;
@@ -189,6 +220,77 @@ export function readAgentActionHandoff():
     window.sessionStorage.removeItem(AGENT_ACTION_HANDOFF_STORAGE_KEY);
     return null;
   }
+}
+
+export function readMatchingAgentActionHandoff(
+  expected: Partial<
+    Pick<
+      AgentApprovalHandoffPayload,
+      'proposalId' | 'action' | 'toolType' | 'provider' | 'route' | 'panel'
+    >
+  >,
+):
+  | {
+      approvalResult?: AgentApprovalHandoff;
+      payload?: AgentApprovalHandoffPayload;
+      receivedAt?: string;
+    }
+  | null {
+  const handoff = readAgentActionHandoff();
+  const payload = handoff?.payload;
+  if (!handoff || !payload) return null;
+
+  const entries = Object.entries(expected) as Array<
+    [keyof typeof expected, string | undefined]
+  >;
+  for (const [key, value] of entries) {
+    if (!value) continue;
+    if (String(payload[key] || '') !== value) {
+      return null;
+    }
+  }
+
+  return handoff;
+}
+
+function cleanRouteValue(value: unknown) {
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+}
+
+export function buildApprovedWalletSwapQuery(
+  payload?: AgentApprovalHandoffPayload | null,
+) {
+  if (
+    !payload ||
+    payload.action !== 'wallet.swap' ||
+    payload.provider !== 'swop'
+  ) {
+    return null;
+  }
+
+  const proposalId = cleanRouteValue(payload.proposalId);
+  const inputToken = cleanRouteValue(payload.prefill?.fromToken);
+  const outputToken = cleanRouteValue(payload.prefill?.toToken);
+  const amount = cleanRouteValue(payload.prefill?.amount);
+
+  if (!proposalId) {
+    return null;
+  }
+
+  const query = new URLSearchParams();
+  query.set('agentAction', 'approved');
+  query.set('proposalId', proposalId);
+  if (inputToken) query.set('inputToken', inputToken);
+  if (outputToken) query.set('outputToken', outputToken);
+  if (amount) query.set('amount', amount);
+
+  const inputChain = cleanRouteValue(payload.prefill?.fromChain);
+  const outputChain = cleanRouteValue(payload.prefill?.toChain);
+  if (inputChain) query.set('inputChain', inputChain);
+  if (outputChain) query.set('outputChain', outputChain);
+
+  return query.toString();
 }
 
 function readCookie(name: string) {
@@ -392,24 +494,45 @@ export async function completeAgentActionFromHandoff(
     | 'toolType'
   > & {
     proposalId?: string;
+    proposalNonce?: string;
+    invocationId?: string;
+    agentId?: string;
+    groupId?: string;
+    action?: string;
+    toolType?: string;
   },
   accessToken?: string | null,
 ) {
   const handoff = readAgentActionHandoff();
   const payload = handoff?.payload;
   const proposalId = completion.proposalId || payload?.proposalId;
+  const action = completion.action || payload?.action;
+  const toolType = completion.toolType || payload?.toolType;
+  const groupId = completion.groupId || payload?.groupId;
+  const invocationId = completion.invocationId || payload?.invocationId;
+  const agentId = completion.agentId || payload?.agentId;
 
   if (!payload || !proposalId || payload.proposalId !== proposalId) {
     queueAgentActionClientEvent(
       {
         proposalId,
         stage: 'completion_skipped',
+        action,
+        toolType,
         provider: completion.provider,
+        groupId,
+        invocationId,
+        agentId,
         uiSurface: 'agent_action_completion',
         status: 'blocked',
         reason: !payload
           ? 'Missing approved action handoff'
           : 'Approved action handoff did not match proposal',
+        context: {
+          handoffState: payload ? 'mismatched' : 'missing',
+          completionProposalId: proposalId,
+          approvedProposalId: payload?.proposalId,
+        },
       },
       accessToken,
     );

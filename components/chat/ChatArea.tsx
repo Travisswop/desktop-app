@@ -185,12 +185,19 @@ import {
 } from '@/lib/chat/groupAgentPayloads';
 import {
   AgentApprovalHandoff,
+  buildApprovedWalletSwapQuery,
   clearAgentActionHandoff,
   completeAgentActionFromHandoff,
   persistAgentActionHandoff,
   type AgentActionCompletion,
 } from '@/lib/chat/agentActionHandoff';
 import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
+import {
+  finalizeSwapExecutionFailure,
+  finalizeSwapExecutionSuccess,
+  isLocalSwapProposalId,
+  resolveSwapExecutionContext,
+} from '@/lib/chat/swapProposalExecution';
 import { postFeed } from '@/actions/postFeed';
 import {
   usePolymarketWallet,
@@ -2526,12 +2533,6 @@ function isLocalHyperliquidCloseProposalId(proposalId?: string | null) {
   );
 }
 
-function isLocalSwapProposalId(proposalId?: string | null) {
-  return Boolean(
-    proposalId && proposalId.startsWith(LOCAL_SWAP_PROPOSAL_PREFIX)
-  );
-}
-
 function isLocalWalletSendProposalId(proposalId?: string | null) {
   return Boolean(proposalId && proposalId.startsWith('local-wallet-send-'));
 }
@@ -2676,6 +2677,48 @@ function buildWalletSendPromptFromApprovalParams(
   return parts.join(' ');
 }
 
+function buildWalletSwapPromptFromApprovalParams(
+  params?: Record<string, unknown>
+) {
+  const fromToken =
+    firstTicketValue(params, [
+      'fromToken',
+      'inputToken',
+      'fromTokenSymbol',
+      'inputTokenSymbol',
+    ]) || 'TOKEN';
+  const toToken =
+    firstTicketValue(params, [
+      'toToken',
+      'outputToken',
+      'toTokenSymbol',
+      'outputTokenSymbol',
+    ]) || 'TOKEN';
+  const amount =
+    firstTicketValue(params, ['amount', 'inputAmount', 'fromAmount']) || '0';
+  const amountType =
+    firstTicketValue(params, ['amountType']) ||
+    (initialTicketBool(params, ['isUSD'], false) ? 'usd' : 'token');
+  const fromChain = firstTicketValue(params, ['fromChain', 'inputChain']);
+  const toChain = firstTicketValue(params, ['toChain', 'outputChain']);
+  const parts = [
+    '@astro swap',
+    amountType === 'usd' ? `$${amount}` : amount,
+    fromToken,
+    'to',
+    toToken,
+  ];
+
+  if (fromChain) {
+    parts.push('from', normalizeWalletSendChainValue(fromChain));
+  }
+  if (toChain) {
+    parts.push('to', normalizeWalletSendChainValue(toChain));
+  }
+
+  return parts.join(' ');
+}
+
 function buildLocalWalletSendApprovalHandoff(
   proposalId: string,
   params?: Record<string, unknown>
@@ -2690,6 +2733,26 @@ function buildLocalWalletSendApprovalHandoff(
       provider: 'swop',
       route: '/dashboard/chat',
       panel: 'send',
+      normalizedParams: params || {},
+      prefill: params || {},
+    },
+  };
+}
+
+function buildLocalWalletSwapApprovalHandoff(
+  proposalId: string,
+  params?: Record<string, unknown>
+): AgentApprovalHandoff {
+  return {
+    status: 'approved',
+    nextStep: 'wallet_swap_inline_signing_required',
+    payload: {
+      proposalId,
+      action: 'wallet.swap',
+      toolType: 'wallet.write',
+      provider: 'swop',
+      route: '/dashboard/chat',
+      panel: 'swap',
       normalizedParams: params || {},
       prefill: params || {},
     },
@@ -5364,8 +5427,15 @@ export default function ChatArea({
           toast.success('Send approved. Confirm it from the message card.');
           return;
         }
+        const approvedSwapQuery = buildApprovedWalletSwapQuery(
+          approvalResult.payload
+        );
         toast.success('Opening Swap to complete the approved action.');
-        router.push('/wallet?agentAction=approved');
+        router.push(
+          approvedSwapQuery
+            ? `/wallet?${approvedSwapQuery}`
+            : '/wallet?agentAction=approved'
+        );
         return;
       }
 
@@ -5497,6 +5567,34 @@ export default function ChatArea({
           }
         };
 
+        const prepareFreshWalletSwapProposal = async () => {
+          if (!selectedChat || !isGroup) {
+            throw new Error('Open this swap action from the Astro group chat.');
+          }
+
+          setAgentStatusText('Preparing swap ticket');
+          const prepareResponse: any = await invokeGroupAgent({
+            groupId: selectedChat._id,
+            agentId: 'astro',
+            message: buildWalletSwapPromptFromApprovalParams(approvalParams),
+          });
+          const preparedProposal = prepareResponse?.data?.proposal;
+          const responseMessage = prepareResponse?.data?.responseMessage;
+
+          if (preparedProposal?.proposalId) {
+            setProposalsById((prev) => ({
+              ...prev,
+              [preparedProposal.proposalId]: preparedProposal,
+            }));
+            return preparedProposal.proposalId as string;
+          }
+
+          appendMessageIfNew(responseMessage);
+          throw new Error(
+            'Astro did not return a swap approval ticket. Try sending the swap again.'
+          );
+        };
+
         if (isLocalHyperliquidCloseProposalId(proposalId)) {
           const localApprovalResult =
             buildLocalHyperliquidCloseApprovalHandoff(
@@ -5523,6 +5621,26 @@ export default function ChatArea({
             approvalProposalId = await prepareFreshWalletSendProposal();
           } else {
             const localApprovalResult = buildLocalWalletSendApprovalHandoff(
+              proposalId,
+              approvalParams
+            );
+            setActionResultsByProposalId((prev) => ({
+              ...prev,
+              [proposalId]: {
+                proposalId,
+                status: 'approved',
+                result: localApprovalResult,
+              },
+            }));
+            return localApprovalResult;
+          }
+        }
+
+        if (isLocalSwapProposalId(proposalId)) {
+          if (isGroup) {
+            approvalProposalId = await prepareFreshWalletSwapProposal();
+          } else {
+            const localApprovalResult = buildLocalWalletSwapApprovalHandoff(
               proposalId,
               approvalParams
             );
@@ -11741,6 +11859,7 @@ function AgentProposalCard({
         canAct={canAct}
         isOpen={isOpen}
         isPending={isPending}
+        onApproveInline={onApproveInline}
         onInlineActionComplete={onInlineActionComplete}
         onReject={onReject}
         astroConsoleData={astroConsoleData}
@@ -15075,6 +15194,7 @@ function SwapProposalTicket({
   canAct,
   isOpen,
   isPending,
+  onApproveInline,
   onInlineActionComplete,
   onReject,
   astroConsoleData,
@@ -15087,6 +15207,10 @@ function SwapProposalTicket({
   canAct: boolean;
   isOpen: boolean;
   isPending: boolean;
+  onApproveInline: (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>
+  ) => Promise<AgentApprovalHandoff | null>;
   onInlineActionComplete: (completion: AgentActionCompletion) => void;
   onReject: (proposalId: string) => void;
   astroConsoleData: AstroConsoleData;
@@ -15845,6 +15969,7 @@ function SwapProposalTicket({
 
     setSwapError(null);
     setIsConfirmingSwap(true);
+    let executionProposalId = proposalId;
 
     try {
       const executionQuote =
@@ -15876,6 +16001,40 @@ function SwapProposalTicket({
         executionQuote.outputAmount ||
         quotedReceiveAmount ||
         '';
+      const approvalParams = {
+        amount: executionPayAmount,
+        inputAmount: executionPayAmount,
+        fromAmount: executionPayAmount,
+        outputAmount,
+        fromToken: selectedFromOption.symbol,
+        inputToken: selectedFromOption.symbol,
+        inputTokenSymbol: selectedFromOption.symbol,
+        fromTokenSymbol: selectedFromOption.symbol,
+        toToken: selectedToOption.symbol,
+        outputToken: selectedToOption.symbol,
+        outputTokenSymbol: selectedToOption.symbol,
+        toTokenSymbol: selectedToOption.symbol,
+        fromChain: selectedFromOption.chainName,
+        inputChain: selectedFromOption.chainName,
+        fromChainId: selectedFromOption.chainId,
+        inputChainId: selectedFromOption.chainId,
+        toChain: selectedToOption.chainName,
+        outputChain: selectedToOption.chainName,
+        toChainId: selectedToOption.chainId,
+        outputChainId: selectedToOption.chainId,
+        inputMint: selectedFromOption.address,
+        outputMint: selectedToOption.address,
+        provider: executionQuote.provider || displayProvider,
+        quoteOnly: false,
+      };
+      const { shouldReportCompletion, executionProposalId: approvedProposalId } =
+        await resolveSwapExecutionContext({
+          proposalId,
+          proposal,
+          approvalParams,
+          onApproveInline,
+        });
+      executionProposalId = approvedProposalId;
 
       if (isJupiterRoute) {
         const selectedSolanaWallet =
@@ -16157,7 +16316,7 @@ function SwapProposalTicket({
         | 'action'
         | 'toolType'
       > & { proposalId?: string } = {
-        proposalId,
+        proposalId: executionProposalId,
         status: 'executed',
         provider: 'swop',
         title: `Swapped ${fromToken} to ${toToken}`,
@@ -16187,14 +16346,15 @@ function SwapProposalTicket({
 
       let completion = {
         ...completionDraft,
-        proposalId,
+        proposalId: executionProposalId,
       } as AgentActionCompletion;
       try {
-        completion =
-          (await completeAgentActionFromHandoff(
-            completionDraft,
-            accessToken
-          )) || completion;
+        completion = await finalizeSwapExecutionSuccess({
+          executionProposalId,
+          shouldReportCompletion,
+          completionDraft,
+          accessToken,
+        });
       } catch (completionError) {
         console.warn(
           'Wallet swap executed, but Swop completion reporting failed:',
@@ -16210,26 +16370,17 @@ function SwapProposalTicket({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to approve swap.';
-      try {
-        const failedCompletion = await completeAgentActionFromHandoff(
-          {
-            proposalId,
-            status: 'failed',
-            provider: 'swop',
-            title: `Swap ${fromToken} to ${toToken}`,
-            subtitle: displayRouteLabel,
-            subject: `${fromToken} -> ${toToken}`,
-            error: message,
-          },
-          accessToken
-        );
-        if (failedCompletion) {
-          onInlineActionComplete(failedCompletion);
-        } else {
-          clearAgentActionHandoff();
-        }
-      } catch {
-        clearAgentActionHandoff();
+      const failedCompletion = await finalizeSwapExecutionFailure({
+        executionProposalId,
+        shouldReportCompletion: !isLocalSwapProposalId(executionProposalId),
+        failureTitle: `Swap ${fromToken} to ${toToken}`,
+        failureSubtitle: displayRouteLabel,
+        failureSubject: `${fromToken} -> ${toToken}`,
+        error: message,
+        accessToken,
+      });
+      if (failedCompletion) {
+        onInlineActionComplete(failedCompletion);
       }
       setSwapError(message);
       toast.error(message);

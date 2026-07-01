@@ -75,6 +75,8 @@ export default function SwapButton({
     newParams.delete("outputDecimals");
     newParams.delete("copyTrade");
     newParams.delete("copyTradePostId");
+    newParams.delete("agentAction");
+    newParams.delete("proposalId");
 
     const nextQuery = newParams.toString();
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);

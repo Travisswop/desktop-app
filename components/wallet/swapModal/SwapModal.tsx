@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { Connection, PublicKey } from '@solana/web3.js';
+import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import {
@@ -73,6 +74,11 @@ export default function SwapModal({
   onTokenRefresh,
 }: SwapModalProps) {
   const { user, primaryMicrosite } = useUser();
+  const searchParams = useSearchParams();
+  const approvedSwapProposalId =
+    searchParams?.get('agentAction') === 'approved'
+      ? searchParams?.get('proposalId')?.trim() || ''
+      : '';
 
   // State management
   // Initialize state with initial values if provided
@@ -602,43 +608,48 @@ export default function SwapModal({
         setTxSuccess(true);
         setError(null);
 
-        completeAgentActionFromHandoff(
-          {
-            status: 'executed',
-            provider: 'swop',
-            title: 'Swap confirmed',
-            subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
-            subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
-            stake: amount,
-            payout: quote?.outAmount,
-            txHash: signature,
-            txUrl: signature
-              ? `https://solscan.io/tx/${signature}`
-              : undefined,
-            explorerLabel: 'View tx',
-            executionResult: {
-              signature,
-              inputToken: selectedInputSymbol,
-              outputToken: selectedOutputSymbol,
-              amount,
+        if (approvedSwapProposalId) {
+          void completeAgentActionFromHandoff(
+            {
+              proposalId: approvedSwapProposalId,
+              status: 'executed',
+              action: 'wallet.swap',
+              toolType: 'wallet.write',
+              provider: 'swop',
+              title: 'Swap confirmed',
+              subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
+              subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
+              stake: amount,
+              payout: quote?.outAmount,
+              txHash: signature,
+              txUrl: signature
+                ? `https://solscan.io/tx/${signature}`
+                : undefined,
+              explorerLabel: 'View tx',
+              executionResult: {
+                signature,
+                inputToken: selectedInputSymbol,
+                outputToken: selectedOutputSymbol,
+                amount,
+              },
             },
-          },
-          accessToken,
-        )
-          .then((completion) => {
-            if (!completion?.groupId) return;
-            window.location.assign(
-              `/dashboard/chat?groupId=${encodeURIComponent(
-                completion.groupId,
-              )}`,
-            );
-          })
-          .catch((completionError) => {
-            console.error(
+            accessToken,
+          )
+            .then((completion) => {
+              if (!completion?.groupId) return;
+              window.location.assign(
+                `/dashboard/chat?groupId=${encodeURIComponent(
+                  completion.groupId,
+                )}`,
+              );
+            })
+            .catch((completionError) => {
+              console.error(
               'Failed to report swap agent completion:',
               completionError,
             );
           });
+        }
 
         // Show a success notification for the feed
         if (feedData) {
@@ -655,6 +666,32 @@ export default function SwapModal({
       onError: (errorMessage) => {
         setError(errorMessage);
         setTxStatus(null);
+        if (approvedSwapProposalId) {
+          void completeAgentActionFromHandoff(
+            {
+              proposalId: approvedSwapProposalId,
+              status: 'failed',
+              action: 'wallet.swap',
+              toolType: 'wallet.write',
+              provider: 'swop',
+              title: 'Swap failed',
+              subtitle: `${selectedInputSymbol} to ${selectedOutputSymbol}`,
+              subject: `${selectedInputSymbol} → ${selectedOutputSymbol}`,
+              error: errorMessage,
+              executionResult: {
+                inputToken: selectedInputSymbol,
+                outputToken: selectedOutputSymbol,
+                amount,
+              },
+            },
+            accessToken,
+          ).catch((completionError) => {
+            console.error(
+              'Failed to report swap agent failure:',
+              completionError,
+            );
+          });
+        }
       },
       onBalanceRefresh: () => {
         // Implement balance refresh logic if available in your app
@@ -668,8 +705,11 @@ export default function SwapModal({
       },
     });
   }, [
+    amount,
+    approvedSwapProposalId,
     quote,
     selectedInputSymbol,
+    selectedOutputSymbol,
     solanaAddress,
     wallets,
     connection,
@@ -679,6 +719,9 @@ export default function SwapModal({
     outputToken,
     accessToken,
     onTokenRefresh,
+    primaryMicrosite,
+    user?._id,
+    user?.primaryMicrosite,
   ]);
 
   const openTokenList = useCallback((isInput: boolean) => {
