@@ -102,6 +102,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { AgentActionReceiptCard } from '@/components/chat/tickets/AgentActionReceiptCard';
+import { SwapActionBlockerNotice } from '@/components/chat/tickets/SwapActionBlockerNotice';
 import {
   AgentLoadingCard,
   MarketplaceItemCards,
@@ -143,6 +144,8 @@ import {
   formatSignedUsd,
   formatSwapAmount,
   formatWalletAddress,
+  getSwapActionBlocker,
+  getSwapPrimaryActionMode,
   getAgentFeedIdentity,
   getPerpsMarkPrice,
   getPolymarketOutcomeLabels,
@@ -157,6 +160,7 @@ import {
   perpsAliasTargets,
   perpsCoinMatches,
   perpsMarketForCoin,
+  type SwapQuoteErrorKind,
   toAgentFeedNumber,
   toFiniteNumber,
   triggerAgentFeedRefresh,
@@ -14227,6 +14231,7 @@ type ChatSwapPromptIntent = {
 
 type ChatSwapQuoteState = {
   status: 'idle' | 'loading' | 'success' | 'error';
+  errorKind?: SwapQuoteErrorKind;
   receiveAmount?: string;
   price?: string;
   priceImpact?: number | string;
@@ -15068,7 +15073,7 @@ async function ensureChatEvmSwapAllowance({
   });
 }
 
-function SwapProposalTicket({
+export function SwapProposalTicket({
   proposal,
   proposalId,
   status,
@@ -15080,6 +15085,8 @@ function SwapProposalTicket({
   astroConsoleData,
   sourceText,
   autoFetchQuote = true,
+  initialQuoteState,
+  quoteTokenOptionsOverride,
 }: {
   proposal?: AgentActionProposal | null;
   proposalId: string;
@@ -15092,6 +15099,8 @@ function SwapProposalTicket({
   astroConsoleData: AstroConsoleData;
   sourceText?: string;
   autoFetchQuote?: boolean;
+  initialQuoteState?: ChatSwapQuoteState;
+  quoteTokenOptionsOverride?: ChatSwapSelectableToken[];
 }) {
   const { accessToken, user } = useUser();
   const { getAccessToken } = usePrivy();
@@ -15154,10 +15163,12 @@ function SwapProposalTicket({
       solanaSignerAddresses,
     ]
   );
-  const quoteTokenOptions = useMemo(
-    () => getSwapQuoteTokenOptions(astroConsoleData.walletPortfolioTokens),
-    [astroConsoleData.walletPortfolioTokens]
-  );
+  const quoteTokenOptions = useMemo(() => {
+    if (quoteTokenOptionsOverride) {
+      return quoteTokenOptionsOverride;
+    }
+    return getSwapQuoteTokenOptions(astroConsoleData.walletPortfolioTokens);
+  }, [astroConsoleData.walletPortfolioTokens, quoteTokenOptionsOverride]);
   const paramFromToken = firstNestedTicketValue(params, [
       'fromTokenSymbol',
       'inputTokenSymbol',
@@ -15388,9 +15399,9 @@ function SwapProposalTicket({
     const clampedPercent = Math.min(100, Math.max(0, percent));
     setAmountFromTokenAmount(maxSellAmount * (clampedPercent / 100));
   };
-  const [quoteState, setQuoteState] = useState<ChatSwapQuoteState>({
-    status: 'idle',
-  });
+  const [quoteState, setQuoteState] = useState<ChatSwapQuoteState>(
+    () => initialQuoteState || { status: 'idle' }
+  );
   const quoteRequestIdRef = useRef(0);
   const quoteCacheRef = useRef(
     new Map<string, { state: ChatSwapQuoteState; ts: number }>()
@@ -15471,12 +15482,14 @@ function SwapProposalTicket({
     if (!selectedFromOption || !selectedToOption) {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: 'Pick the token you want to swap and the token you want to buy.',
       });
     }
     if (selectedFromOption.key === selectedToOption.key) {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: 'Pick a different quote token.',
       });
     }
@@ -15496,6 +15509,7 @@ function SwapProposalTicket({
       ) {
         return publishQuoteState({
           status: 'error',
+          errorKind: 'validation',
           error: `Enter a ${fromSymbol} amount or pick a token with a live USD price.`,
         });
       }
@@ -15506,6 +15520,7 @@ function SwapProposalTicket({
     if (!inputToken || !outputToken) {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: `No ${dynamicProvider} token metadata for ${fromToken} to ${toToken}.`,
       });
     }
@@ -15514,6 +15529,7 @@ function SwapProposalTicket({
     if (!hasSpendableBalance) {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: `Pick a ${fromSymbol} token with a wallet balance to quote this swap.`,
       });
     }
@@ -15523,6 +15539,7 @@ function SwapProposalTicket({
     ) {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: `Amount is above your ${formatSwapAmount(maxSellAmount)} ${fromSymbol} balance.`,
       });
     }
@@ -15534,6 +15551,7 @@ function SwapProposalTicket({
     if (!amountInSmallestUnit || amountInSmallestUnit === '0') {
       return publishQuoteState({
         status: 'error',
+        errorKind: 'validation',
         error: 'Enter a valid swap amount to quote.',
       });
     }
@@ -15698,6 +15716,7 @@ function SwapProposalTicket({
       if (quoteRequestIdRef.current !== requestId) return null;
       return publishQuoteState({
         status: 'error',
+        errorKind: 'route',
         error:
           error instanceof Error
             ? error.message
@@ -15792,12 +15811,36 @@ function SwapProposalTicket({
   const toSelectorEmptyMessage = 'No quote tokens available.';
   const isQuoteLoading = quoteState.status === 'loading';
   const isQuoteError = quoteState.status === 'error';
+  const isValidationQuoteError =
+    isQuoteError && quoteState.errorKind === 'validation';
   const isSwapBusy = isPending || isConfirmingSwap;
+  const hasInputBlocker =
+    canAct &&
+    (!hasSpendableBalance ||
+      !selectedFromKey ||
+      (!selectedToKey && quoteTokenOptions.length > 0) ||
+      selectedFromKey === selectedToKey ||
+      !payAmount.trim() ||
+      !hasValidSellAmount ||
+      amountExceedsBalance);
+  const hasEmptyAmountBlocker = canAct && !payAmount.trim();
+  const hasRouteBlocker =
+    canAct && !selectedToKey && quoteTokenOptions.length === 0;
+  const primaryActionMode = getSwapPrimaryActionMode({
+    quoteOnly,
+    hasRouteBlocker,
+    quoteStateStatus: quoteState.status,
+    quoteStateErrorKind: quoteState.errorKind,
+  });
   const headerStatusText = isQuoteLoading
     ? 'quoting'
     : inlineSwapStatus
     ? 'signing'
-    : isQuoteError
+    : !canAct
+    ? 'owner only'
+    : isValidationQuoteError || hasInputBlocker
+    ? 'needs input'
+    : isQuoteError || hasRouteBlocker
     ? 'needs route'
     : quoteState.status === 'success'
     ? 'quoted'
@@ -15810,21 +15853,48 @@ function SwapProposalTicket({
     status === 'failed' ||
     status === 'rejected' ||
     status === 'expired';
-  const actionLabel = quoteOnly
-    ? inlineSwapStatus || isQuoteLoading
+  const actionLabel =
+    !canAct
+      ? 'Owner can approve'
+      : hasEmptyAmountBlocker && !isQuoteLoading && !inlineSwapStatus
+      ? 'Get quote'
+      : primaryActionMode === 'confirm'
+      ? inlineSwapStatus || isSwapBusy
+        ? inlineSwapStatus || 'Signing...'
+        : status === 'approved'
+        ? 'Approved'
+        : status === 'executed'
+        ? 'Confirmed'
+        : 'Sign & approve'
+      : inlineSwapStatus || isQuoteLoading
       ? 'Getting quote...'
-      : quoteState.status === 'success'
+      : primaryActionMode === 'refresh_quote' ||
+        quoteState.status === 'success'
       ? 'Refresh quote'
-      : 'Get quote'
-    : inlineSwapStatus || isSwapBusy
-    ? inlineSwapStatus || 'Signing...'
-    : status === 'approved'
-    ? 'Approved'
-    : status === 'executed'
-    ? 'Confirmed'
-    : 'Sign & approve';
+      : 'Get quote';
+  const isPrimaryActionDisabled =
+    !canAct ||
+    isSwapBusy ||
+    isQuoteLoading ||
+    !hasUsableSwapSelection;
+  const swapActionBlocker = getSwapActionBlocker({
+    canAct,
+    fromToken,
+    hasQuoteTokenOptions: quoteTokenOptions.length > 0,
+    hasSpendableBalance,
+    hasValidSellAmount,
+    amountExceedsBalance,
+    payAmount,
+    quoteStateStatus: quoteState.status,
+    quoteStateErrorKind: quoteState.errorKind,
+    quoteStateError: quoteState.error,
+    selectedFromKey,
+    selectedToKey,
+  });
+  const shouldShowQuoteError =
+    Boolean(quoteState.error) && !swapActionBlocker;
   const handleConfirmSwap = async () => {
-    if (quoteOnly) {
+    if (primaryActionMode !== 'confirm') {
       setInlineSwapStatus('Refreshing quote...');
       try {
         await fetchSwapQuote();
@@ -16560,7 +16630,7 @@ function SwapProposalTicket({
         )}
       </div>
 
-      {quoteState.error && (
+      {shouldShowQuoteError && (
         <div className="mt-3 rounded-[10px] border border-[#ffb14a]/25 bg-[#ffb14a]/10 px-3 py-2 text-[11px] font-semibold text-[#ffd08a]">
           {quoteState.error}
         </div>
@@ -16586,16 +16656,14 @@ function SwapProposalTicket({
             onClick={() => {
               void handleConfirmSwap();
             }}
-            disabled={
-              !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection
-            }
+            disabled={isPrimaryActionDisabled}
             className={TICKET_PRIMARY_BUTTON_CLASS}
           >
             {isQuoteLoading || isConfirmingSwap ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : status === 'approved' || status === 'executed' ? (
               <Check className="h-3.5 w-3.5" />
-            ) : quoteOnly ? (
+            ) : primaryActionMode !== 'confirm' ? (
               <RefreshCw className="h-3.5 w-3.5" />
             ) : (
               <ArrowRightLeft className="h-3.5 w-3.5" />
@@ -16614,11 +16682,21 @@ function SwapProposalTicket({
         </div>
       )}
 
-      {!canAct && isOpen && (
-        <p className="mt-2 text-[11px] text-[#ffd08a]">
-          Only the user who asked Astro to prepare this swap can approve it.
-        </p>
-      )}
+      <SwapActionBlockerNotice
+        isVisible={isOpen && Boolean(swapActionBlocker)}
+        canAct={canAct}
+        fromToken={fromToken}
+        hasQuoteTokenOptions={quoteTokenOptions.length > 0}
+        hasSpendableBalance={hasSpendableBalance}
+        hasValidSellAmount={hasValidSellAmount}
+        amountExceedsBalance={amountExceedsBalance}
+        payAmount={payAmount}
+        quoteStateStatus={quoteState.status}
+        quoteStateErrorKind={quoteState.errorKind}
+        quoteStateError={quoteState.error}
+        selectedFromKey={selectedFromKey}
+        selectedToKey={selectedToKey}
+      />
       </div>
     </div>
   );
