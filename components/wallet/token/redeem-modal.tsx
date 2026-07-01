@@ -515,7 +515,7 @@
 //                       Troubleshooting Suggestion:
 //                     </p>
 //                     <p className="text-xs text-yellow-700 mt-1">
-//                       Add more SOL to your wallet to cover the rent for token
+//                       Retry sponsored account setup for token
 //                       accounts.
 //                     </p>
 //                   </div>
@@ -581,11 +581,6 @@ import {
 import { Connection, Transaction } from "@solana/web3.js";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { useUser } from "@/lib/UserContext";
-
-// Rent-exempt minimum for a token account (in SOL)
-const TOKEN_ACCOUNT_RENT_EXEMPT = 0.00203928;
-// Additional buffer for transaction fees
-const TRANSACTION_FEE_BUFFER = 0.001;
 
 // ─── Shared Types ──────────────────────────────────────────────────────────────
 
@@ -797,18 +792,6 @@ export default function RedeemModal(props: RedeemModalProps) {
     SUPPORTED_CHAINS,
   );
 
-  // ── SOL balance derived from tokens ───────────────────────────────────────
-  const solBalanceFromTokens = useMemo(() => {
-    const solToken = tokens.find(
-      (token) => token.isNative && token.chain?.toUpperCase() === "SOLANA",
-    );
-    return solToken ? parseFloat(String(solToken.balance)) || 0 : 0;
-  }, [tokens]);
-
-  const solBalance = isWalletMode
-    ? solBalanceFromTokens
-    : ((props as TokenModeProps).solBalance ?? 0);
-
   // ── UI state ───────────────────────────────────────────────────────────────
   const [showTokenPicker, setShowTokenPicker] = useState(false);
   const [selectedToken, setSelectedToken] = useState<WalletToken | null>(null);
@@ -819,7 +802,6 @@ export default function RedeemModal(props: RedeemModalProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [redeemLink, setRedeemLink] = useState("");
   const [tokensPerWallet, setTokensPerWallet] = useState(0);
-  const [requiredSol, setRequiredSol] = useState(0);
   const [steps, setSteps] = useState<ProcessingStep[]>(INITIAL_STEPS);
 
   // ── Auto-select default token in wallet mode ───────────────────────────────
@@ -853,10 +835,8 @@ export default function RedeemModal(props: RedeemModalProps) {
   const recalcPerWallet = (total: number, wallets: number) => {
     if (wallets > 0 && total > 0) {
       setTokensPerWallet(total / wallets);
-      setRequiredSol(TOKEN_ACCOUNT_RENT_EXEMPT + TRANSACTION_FEE_BUFFER);
     } else {
       setTokensPerWallet(0);
-      setRequiredSol(0);
     }
   };
 
@@ -1028,10 +1008,7 @@ export default function RedeemModal(props: RedeemModalProps) {
       let errorMessage = "Failed to set up token holding account";
       if (error?.logs) {
         const logs = Array.isArray(error.logs) ? error.logs : [];
-        if (logs.some((log: string) => log.includes("insufficient funds"))) {
-          errorMessage =
-            "Insufficient token balance. The amount you entered exceeds your wallet balance.";
-        } else if (logs.some((log: string) => log.includes("insufficient lamports"))) {
+        if (logs.some((log: string) => log.includes("insufficient lamports"))) {
           // Only external (non-embedded) wallets sign here — embedded wallets
           // are funded server-side with sponsored gas and never reach this.
           errorMessage =
@@ -1041,13 +1018,21 @@ export default function RedeemModal(props: RedeemModalProps) {
         ) {
           errorMessage =
             "Gas sponsorship does not cover external wallets, and this wallet has no SOL for the token-account rent. Switch to your Swop wallet or add a small amount of SOL.";
+        } else if (logs.some((log: string) => log.includes("insufficient funds"))) {
+          errorMessage =
+            "Insufficient token balance. The amount you entered exceeds your wallet balance.";
         }
-      } else if (error?.message?.includes("Insufficient token balance") ||
-                 error?.message?.includes("insufficient funds")) {
-        errorMessage = error.message;
-      } else if (error?.message?.includes("insufficient lamports")) {
+      } else if (
+        error?.message?.includes("insufficient lamports") ||
+        error?.message?.includes("insufficient funds for rent")
+      ) {
         errorMessage =
           "Gas sponsorship does not cover external wallets, and this wallet has no SOL for the account rent. Switch to your Swop wallet or add a small amount of SOL.";
+      } else if (
+        error?.message?.includes("Insufficient token balance") ||
+        error?.message?.includes("insufficient funds")
+      ) {
+        errorMessage = error.message;
       } else if (error?.message) {
         errorMessage = error.message;
       }
@@ -1103,7 +1088,6 @@ export default function RedeemModal(props: RedeemModalProps) {
     setIsProcessing(false);
     setRedeemLink("");
     setTokensPerWallet(0);
-    setRequiredSol(0);
     setSteps(INITIAL_STEPS);
     setShowTokenPicker(false);
     onClose();
@@ -1125,8 +1109,6 @@ export default function RedeemModal(props: RedeemModalProps) {
     ? (selectedToken?.logo ?? selectedToken?.logoURI ?? null)
     : (props as TokenModeProps).tokenLogo;
 
-  const hasInsufficientSol = requiredSol > 0 && solBalance < requiredSol;
-
   const depositExceedsBalance =
     isWalletMode &&
     !!selectedToken &&
@@ -1135,7 +1117,6 @@ export default function RedeemModal(props: RedeemModalProps) {
   const canConfirm =
     !!maxWallets &&
     tokensPerWallet > 0 &&
-    !hasInsufficientSol &&
     !depositExceedsBalance &&
     totalToken > 0 &&
     (!isWalletMode || !!selectedToken);
@@ -1244,7 +1225,7 @@ export default function RedeemModal(props: RedeemModalProps) {
             </h2>
             <p className="text-[13px] text-gray-500 mt-1">
               {isLowSol
-                ? "You need a little more SOL in your wallet to cover the transaction fee. Add some SOL and try again."
+                ? "Swop could not complete the sponsored Solana account setup for this redeem link. Try again in a moment."
                 : "We couldn't create your link. Please try again."}
             </p>
           </div>
@@ -1450,21 +1431,6 @@ export default function RedeemModal(props: RedeemModalProps) {
                 <span className="text-[13px] font-semibold text-emerald-800 font-mono tabular-nums">
                   {tokensPerWallet.toFixed(4)} {symbol}
                 </span>
-              </div>
-            )}
-
-            {/* ── Low SOL warning (only show when actually insufficient) ── */}
-            {hasInsufficientSol && (
-              <div className="flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-                <span className="text-amber-600 text-base leading-none mt-0.5">⚠️</span>
-                <p className="text-[13px] text-amber-700">
-                  You need a bit more SOL to process this transaction. Add at
-                  least{" "}
-                  <span className="font-medium font-mono tabular-nums">
-                    {(requiredSol - solBalance).toFixed(4)} SOL
-                  </span>{" "}
-                  to your wallet.
-                </p>
               </div>
             )}
 

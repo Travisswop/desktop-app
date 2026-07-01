@@ -965,38 +965,13 @@ function DepositTab({
         throw sponsorErr;
 
       console.warn(
-        '[Polymarket deposit] Sponsored pUSD transfer failed; retrying user-funded transfer.',
+        '[Polymarket deposit] Sponsored pUSD transfer failed.',
         sponsorErr,
       );
 
-      let gasBalance: bigint | null = null;
-      try {
-        gasBalance = await readWithRetry(
-          () =>
-            publicClient.getBalance({
-              address: sourceEvmAddress as `0x${string}`,
-            }),
-          1,
-          500,
-        );
-      } catch (balanceErr) {
-        console.warn(
-          '[Polymarket deposit] Polygon gas balance check failed before fallback.',
-          balanceErr,
-        );
-      }
-
-      if (gasBalance === BigInt(0)) {
-        throw new Error(
-          'Gas sponsorship was unavailable and this wallet has no POL for the Polygon network fee. Add a small amount of POL, then try the deposit again.',
-        );
-      }
-
-      setDepositStatus('Retrying transfer with wallet gas...');
-      const result = await sendActiveEvmTransaction(tx, {
-        sponsor: false,
-      });
-      return result.hash;
+      throw new Error(
+        'Swop gas sponsorship is temporarily unavailable for this transfer. Please try again in a moment.',
+      );
     }
   };
 
@@ -1078,7 +1053,10 @@ function DepositTab({
               data: approveData,
               chainId: sourceChainId,
             },
-            { sponsor: false },
+            {
+              sponsor: true,
+              uiOptions: { showWalletUIs: false },
+            },
             sourceEvmAddress,
           );
           approvalHash = r.hash;
@@ -1090,7 +1068,7 @@ function DepositTab({
               data: approveData,
               chainId: sourceChainId,
             },
-            undefined,
+            { sponsor: false },
             sourceEvmAddress,
           );
           approvalHash = r.hash;
@@ -1122,7 +1100,10 @@ function DepositTab({
           value: txValue,
           chainId: sourceChainId,
         },
-        { sponsor: false },
+        {
+          sponsor: true,
+          uiOptions: { showWalletUIs: false },
+        },
         sourceEvmAddress,
       );
       hash = r.hash;
@@ -1137,7 +1118,7 @@ function DepositTab({
           value: txValue,
           chainId: sourceChainId,
         },
-        undefined,
+        { sponsor: false },
         sourceEvmAddress,
       );
       hash = r.hash;

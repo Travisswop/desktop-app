@@ -27,7 +27,6 @@ import isUrl from '@/lib/isUrl';
 import { useUser } from '@/lib/UserContext';
 import { getConnectionsUserData } from '@/actions/getEnsData';
 import {
-  RENT_PER_TOKEN_ACCOUNT,
   useCreateRedeemLink,
 } from '@/lib/hooks/useCreateRedeemLink';
 import { toast } from '@/hooks/use-toast';
@@ -43,8 +42,6 @@ interface SendTokenModalProps {
   onOpenChange: (open: boolean) => void;
   token: TokenData;
   setSendFlow: React.Dispatch<React.SetStateAction<SendFlowState>>;
-  // SOL balance used to validate that the user can cover the rent-exempt
-  // deposit when creating a redemption pool. Only consulted in link mode.
   solBalance?: number;
 }
 
@@ -98,7 +95,6 @@ export default function SendTokenModal({
   onOpenChange,
   token,
   setSendFlow,
-  solBalance = 0,
 }: SendTokenModalProps) {
   const hasPrice = parseFloat(token?.marketData?.price || '0') > 0;
   const [isUSD, setIsUSD] = useState(false);
@@ -447,16 +443,7 @@ export default function SendTokenModal({
     maxWalletsNum > 0 && tokenEquivalent > 0
       ? tokenEquivalent / maxWalletsNum
       : 0;
-  // Each unique claimant needs a token account funded with rent — same cost
-  // model used inside <RedeemModal>.
-  const requiredSol =
-    maxWalletsNum > 0 && tokenEquivalent > 0
-      ? maxWalletsNum * RENT_PER_TOKEN_ACCOUNT
-      : 0;
-  const hasInsufficientSol =
-    requiredSol > 0 && solBalance < requiredSol;
-  const linkReady =
-    amountReady && maxWalletsNum > 0 && !hasInsufficientSol;
+  const linkReady = amountReady && maxWalletsNum > 0;
   const isCreatingLink = linkStatus === 'processing';
 
   const canReview =
@@ -540,9 +527,7 @@ export default function SendTokenModal({
         ? 'Creating link…'
         : maxWalletsNum <= 0
           ? 'Set claim count'
-          : hasInsufficientSol
-            ? 'Not enough SOL for rent'
-            : `Create link · ${tokenAmountStr}`
+          : `Create link · ${tokenAmountStr}`
       : !recipientReady
         ? 'Add recipient'
         : `Review send · ${tokenAmountStr}`;
@@ -910,14 +895,7 @@ export default function SendTokenModal({
                       Each claim · {tokensPerWallet.toFixed(4)}{' '}
                       {token.symbol}
                     </span>
-                    <span>SOL rent · {requiredSol.toFixed(5)}</span>
-                  </div>
-                )}
-                {hasInsufficientSol && (
-                  <div className="text-[11.5px] text-red-500 mt-1.5">
-                    Need {requiredSol.toFixed(5)} SOL to cover rent
-                    for {maxWalletsNum} claim accounts (you have{' '}
-                    {solBalance.toFixed(5)}).
+                    <span>Network fee · Sponsored</span>
                   </div>
                 )}
               </div>
