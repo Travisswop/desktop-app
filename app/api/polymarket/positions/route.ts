@@ -13,6 +13,11 @@ import {
   type PositionPriceQuote,
 } from '@/lib/polymarket/positions-refresh';
 
+const PARTIAL_DATA_HEADER = 'x-polymarket-partial-data';
+const RETRY_AFTER_HEADER = 'retry-after';
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, max-age=0',
+};
 const EVENT_LIVE_CACHE_TTL_MS = 60_000;
 const EVENT_LIVE_ERROR_CACHE_TTL_MS = 15_000;
 const EVENT_LIVE_CACHE_MAX_ENTRIES = 250;
@@ -39,6 +44,49 @@ const positionPriceCache = new Map<
 
 function normalizeKey(value: unknown) {
   return String(value ?? '').trim();
+}
+
+function buildResponseHeaders(response?: Response) {
+  const headers = new Headers(NO_STORE_HEADERS);
+  const partialData = response?.headers.get(PARTIAL_DATA_HEADER);
+  const retryAfter = response?.headers.get(RETRY_AFTER_HEADER);
+
+  if (partialData) {
+    headers.set(PARTIAL_DATA_HEADER, partialData);
+  }
+
+  if (retryAfter) {
+    headers.set(RETRY_AFTER_HEADER, retryAfter);
+  }
+
+  return headers;
+}
+
+function buildFailureBody(data: unknown, status: number) {
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const body = { ...data } as Record<string, unknown>;
+    if (typeof body.error !== 'string' || !body.error.trim()) {
+      body.error = 'Failed to fetch positions';
+    }
+    if (typeof body.retryable !== 'boolean') {
+      body.retryable = status >= 500;
+    }
+    return body;
+  }
+
+  return {
+    error: 'Failed to fetch positions',
+    retryable: status >= 500,
+  };
+}
+
+function buildMalformedSuccessBody() {
+  return {
+    error: 'Invalid positions response from backend',
+    code: 'INVALID_UPSTREAM_RESPONSE',
+    dependency: 'polymarket-data',
+    retryable: true,
+  };
 }
 
 function pruneTimedCache<T>(
@@ -248,22 +296,36 @@ export async function GET(request: NextRequest) {
     );
 
     if (!response.ok) {
-      throw new Error('Failed to fetch positions');
+      const data = await response.json().catch(() => null);
+      return NextResponse.json(
+        buildFailureBody(data, response.status),
+        {
+          status: response.status,
+          headers: buildResponseHeaders(response),
+        },
+      );
     }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => undefined);
+    if (typeof data === 'undefined' || data === null) {
+      return NextResponse.json(buildMalformedSuccessBody(), {
+        status: 502,
+        headers: buildResponseHeaders(response),
+      });
+    }
+
     const positions = Array.isArray(data)
       ? await reconcilePositions(await refreshPositionPrices(data))
       : data;
 
     return NextResponse.json(positions, {
-      headers: { 'Cache-Control': 'no-store, max-age=0' },
+      headers: buildResponseHeaders(response),
     });
   } catch (error) {
     console.error('Error fetching positions:', error);
     return NextResponse.json(
       { error: 'Failed to fetch positions' },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }
