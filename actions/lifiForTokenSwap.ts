@@ -74,9 +74,16 @@ export const fetchTokensFromLiFi = async (
         ? (data as { tokens?: Record<string, unknown> }).tokens
         : undefined;
 
-    if (!tokensByChain || typeof tokensByChain !== 'object') {
+    if (!tokensByChain) {
       console.error(
         `Li.Fi tokens payload missing tokens map for chain ${chainId}`
+      );
+      return [];
+    }
+
+    if (typeof tokensByChain !== 'object' || Array.isArray(tokensByChain)) {
+      console.error(
+        `Li.Fi tokens payload has invalid tokens map for chain ${chainId}`
       );
       return [];
     }
