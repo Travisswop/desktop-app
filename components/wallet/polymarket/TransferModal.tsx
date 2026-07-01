@@ -88,6 +88,10 @@ import {
 } from '@solana/spl-token';
 import bs58 from 'bs58';
 import toast from 'react-hot-toast';
+import {
+  GAS_SPONSORSHIP_FALLBACK_NOTICE,
+  runSponsoredFirst,
+} from '@/lib/wallet/gasSponsorship';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -935,13 +939,21 @@ function DepositTab({
     };
 
     try {
-      const result = await sendActiveEvmTransaction(
-        tx,
+      const result = await runSponsoredFirst(
+        ({ sponsor }) =>
+          sendActiveEvmTransaction(
+            tx,
+            {
+              sponsor,
+              uiOptions: { showWalletUIs: false },
+            },
+            sourceEvmAddress,
+          ),
         {
-          sponsor: true,
-          uiOptions: { showWalletUIs: false },
+          // Honest disclosure when Privy definitively refuses sponsorship
+          // and the wallet pays the Polygon fee itself.
+          onFallback: () => setDepositStatus(GAS_SPONSORSHIP_FALLBACK_NOTICE),
         },
-        sourceEvmAddress,
       );
       return result.hash;
     } catch (sponsorErr: any) {

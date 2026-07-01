@@ -56,6 +56,10 @@ import {
   resolveTipRecipient,
   resolveTipRecipientAddress,
 } from "@/lib/feed/tipRecipient";
+import {
+  GAS_SPONSORSHIP_FALLBACK_NOTICE,
+  runSponsoredFirst,
+} from "@/lib/wallet/gasSponsorship";
 interface TipContentModalProps {
   isOpen: boolean;
   onClose?: () => void;
@@ -274,6 +278,16 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
   const { signAndSendTransaction } = useSignAndSendTransaction();
 
+  // Honest disclosure required by the gas-sponsorship operating model: when a
+  // covered flow falls back to user-paid gas, the UI must say sponsorship was
+  // unavailable rather than silently spending the wallet's native balance.
+  const notifySponsorshipFallback = useCallback(() => {
+    toast({
+      title: "Gas sponsorship unavailable",
+      description: GAS_SPONSORSHIP_FALLBACK_NOTICE,
+    });
+  }, [toast]);
+
   const executeTipTransaction = useCallback(
     async (recipientWalletAddress: string) => {
       try {
@@ -362,13 +376,17 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
             });
 
             try {
-              const result = await signAndSendTransaction({
-                transaction: new Uint8Array(serializedTransaction),
-                wallet: solanaWallet!,
-                options: {
-                  sponsor: true,
-                },
-              });
+              const result = await runSponsoredFirst(
+                ({ sponsor }) =>
+                  signAndSendTransaction({
+                    transaction: new Uint8Array(serializedTransaction),
+                    wallet: solanaWallet!,
+                    options: {
+                      sponsor,
+                    },
+                  }),
+                { onFallback: notifySponsorshipFallback },
+              );
 
               hash =
                 typeof result.signature === "string"
@@ -393,17 +411,21 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
           await evmWallet.switchChain(chainId);
           let result: { hash?: string };
           if (!selectedToken.address) {
-            result = await sendPrivyTransaction(
-              {
-                to: recipientWalletAddress as `0x${string}`,
-                value: ethers.parseEther(tipAmount),
-                chainId,
-              },
-              {
-                sponsor: true,
-                address: evmWallet.address,
-                uiOptions: { showWalletUIs: false },
-              },
+            result = await runSponsoredFirst(
+              ({ sponsor }) =>
+                sendPrivyTransaction(
+                  {
+                    to: recipientWalletAddress as `0x${string}`,
+                    value: ethers.parseEther(tipAmount),
+                    chainId,
+                  },
+                  {
+                    sponsor,
+                    address: evmWallet.address,
+                    uiOptions: { showWalletUIs: false },
+                  },
+                ),
+              { onFallback: notifySponsorshipFallback },
             );
           } else {
             const erc20Interface = new ethers.Interface([
@@ -413,17 +435,21 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
               recipientWalletAddress,
               ethers.parseUnits(tipAmount, selectedToken.decimals),
             ]);
-            result = await sendPrivyTransaction(
-              {
-                to: selectedToken.address as `0x${string}`,
-                data: tokenData as `0x${string}`,
-                chainId,
-              },
-              {
-                sponsor: true,
-                address: evmWallet.address,
-                uiOptions: { showWalletUIs: false },
-              },
+            result = await runSponsoredFirst(
+              ({ sponsor }) =>
+                sendPrivyTransaction(
+                  {
+                    to: selectedToken.address as `0x${string}`,
+                    data: tokenData as `0x${string}`,
+                    chainId,
+                  },
+                  {
+                    sponsor,
+                    address: evmWallet.address,
+                    uiOptions: { showWalletUIs: false },
+                  },
+                ),
+              { onFallback: notifySponsorshipFallback },
             );
           }
           hash = result.hash || "";
@@ -453,6 +479,7 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
       PrivyUser,
       sendPrivyTransaction,
       signAndSendTransaction,
+      notifySponsorshipFallback,
       tipRecipient,
     ],
   );

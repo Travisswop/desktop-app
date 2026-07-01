@@ -16,6 +16,7 @@ import { PrivyWalletAdapter } from './PrivyWalletAdapter'; // Import your adapte
 import { PrivyTransactionSignerProvider } from './PrivyTransactionSigner';
 import SwapModal from './swapModal/SwapModal';
 import { useSwapStore } from '@/zustandStore/tokenSwapProps';
+import { runSponsoredFirst } from '@/lib/wallet/gasSponsorship';
 
 // Map numeric chainId → viem Chain object so wallet clients are properly typed.
 // Add chains here whenever new networks are supported.
@@ -209,11 +210,16 @@ export default function LiFiModal({
             sponsoredTx.maxPriorityFeePerGas = maxPriorityFeePerGas;
           }
 
-          const result = await sendPrivyTransaction(sponsoredTx, {
-            sponsor: true,
-            address: String(tx.from || evmWallet.address),
-            uiOptions: { showWalletUIs: false },
-          });
+          // LiFi's widget owns the UI here, so there is no toast/status hook
+          // to surface a fallback notice from — runSponsoredFirst still keeps
+          // the retry safe (definitive pre-broadcast rejections only).
+          const result = await runSponsoredFirst(({ sponsor }) =>
+            sendPrivyTransaction(sponsoredTx, {
+              sponsor,
+              address: String(tx.from || evmWallet.address),
+              uiOptions: { showWalletUIs: false },
+            }),
+          );
           if (!result.hash) {
             throw new Error('Privy did not return a sponsored transaction hash.');
           }

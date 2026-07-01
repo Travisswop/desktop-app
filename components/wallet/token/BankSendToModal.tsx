@@ -26,6 +26,10 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useSignAndSendTransaction } from '@privy-io/react-auth/solana';
 import { useSolanaWalletContext } from '@/lib/context/SolanaWalletContext';
 import { BentoCard } from '@/components/ui/bento';
+import {
+  GAS_SPONSORSHIP_FALLBACK_NOTICE,
+  runSponsoredFirst,
+} from '@/lib/wallet/gasSponsorship';
 type ProcessingStep = {
   status: 'pending' | 'processing' | 'completed' | 'error';
   message: string;
@@ -287,11 +291,20 @@ export default function BankSendToModal({
         requireAllSignatures: false,
         verifySignatures: false,
       });
-      const setupResult = await signAndSendTransaction({
-        transaction: new Uint8Array(serializedSetupTx),
-        wallet: solanaWallet,
-        options: { sponsor: true },
-      });
+      const setupResult = await runSponsoredFirst(
+        ({ sponsor }) =>
+          signAndSendTransaction({
+            transaction: new Uint8Array(serializedSetupTx),
+            wallet: solanaWallet,
+            options: { sponsor },
+          }),
+        {
+          // Honest disclosure when sponsorship is refused and the wallet
+          // pays the network fee itself.
+          onFallback: () =>
+            updateStep(1, 'processing', GAS_SPONSORSHIP_FALLBACK_NOTICE),
+        },
+      );
       const setupSignature =
         typeof setupResult.signature === 'string'
           ? setupResult.signature

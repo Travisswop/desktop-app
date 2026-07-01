@@ -14,6 +14,7 @@ import {
   tradingWalletSelectionOptions,
 } from '@/components/wallet/hooks/useWalletData';
 import { useUser } from '@/lib/UserContext';
+import { runSponsoredFirst } from '@/lib/wallet/gasSponsorship';
 
 const { chainId, bridgeAddress, usdcAddress } = HL_DEPOSIT_CONFIG;
 
@@ -291,33 +292,39 @@ export function useHyperliquidDeposit() {
         throw new Error('Silent deposit signing is not configured.');
       }
 
-      const response = await fetch(
-        `${base}/api/v5/wallet/privy/ethereum/hyperliquid-deposit`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
+      // No toast/status channel in this hook, so the fallback is silent here;
+      // the retry only runs on definitive pre-broadcast sponsorship refusals.
+      // A fresh idempotency key per attempt keeps the unsponsored retry from
+      // being deduped against the refused sponsored request.
+      return runSponsoredFirst(async ({ sponsor }) => {
+        const response = await fetch(
+          `${base}/api/v5/wallet/privy/ethereum/hyperliquid-deposit`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              address,
+              amountUsd,
+              sponsor,
+              idempotencyKey: makeDepositIdempotencyKey(address, amountUsd),
+            }),
           },
-          body: JSON.stringify({
-            address,
-            amountUsd,
-            sponsor: true,
-            idempotencyKey: makeDepositIdempotencyKey(address, amountUsd),
-          }),
-        },
-      );
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || !data?.hash) {
-        throw new Error(
-          data.message ||
-            data.error ||
-            'Silent Hyperliquid deposit failed.',
         );
-      }
+        const data = await response.json().catch(() => ({}));
 
-      return data.hash as string;
+        if (!response.ok || !data?.hash) {
+          throw new Error(
+            data.message ||
+              data.error ||
+              'Silent Hyperliquid deposit failed.',
+          );
+        }
+
+        return data.hash as string;
+      });
     },
     [accessToken],
   );
@@ -402,10 +409,14 @@ export function useHyperliquidDeposit() {
         };
         let result: Awaited<ReturnType<typeof sendTransaction>>;
         try {
-          result = await sendTransaction(txRequest, {
-            address: evmWallet.address,
-            sponsor: true,
-          });
+          // No toast/status channel in this hook, so the sponsored-first
+          // fallback is silent (matching the existing silent retry below).
+          result = await runSponsoredFirst(({ sponsor }) =>
+            sendTransaction(txRequest, {
+              address: evmWallet.address,
+              sponsor,
+            }),
+          );
         } catch (sponsoredErr) {
           if (isUserRejectionError(sponsoredErr)) {
             throw sponsoredErr;

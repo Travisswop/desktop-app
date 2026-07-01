@@ -62,6 +62,10 @@ import {
 import { resolveWalletRecipientViaBackend } from '@/lib/api/walletRecipientResolver';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { apiFetch } from '@/lib/api/apiFetch';
+import {
+  GAS_SPONSORSHIP_FALLBACK_NOTICE,
+  runSponsoredFirst,
+} from '@/lib/wallet/gasSponsorship';
 import toast from 'react-hot-toast';
 import {
   Activity,
@@ -12891,11 +12895,15 @@ function WalletSendProposalTicket({
           requireAllSignatures: false,
           verifySignatures: false,
         });
-        const result = await signAndSendTransaction({
-          transaction: new Uint8Array(serializedTransaction),
-          wallet: selectedSolanaWallet,
-          options: { sponsor: true, uiOptions: { showWalletUIs: false } },
-        });
+        const result = await runSponsoredFirst(
+          ({ sponsor }) =>
+            signAndSendTransaction({
+              transaction: new Uint8Array(serializedTransaction),
+              wallet: selectedSolanaWallet,
+              options: { sponsor, uiOptions: { showWalletUIs: false } },
+            }),
+          { onFallback: () => toast(GAS_SPONSORSHIP_FALLBACK_NOTICE) }
+        );
         hash =
           typeof result.signature === 'string'
             ? result.signature
@@ -12930,17 +12938,21 @@ function WalletSendProposalTicket({
 
         if (!sendToken.address) {
           if (isChatPrivyEmbeddedWalletType(evmWallet.walletClientType)) {
-            const result = await sendPrivyTransaction(
-              {
-                to: recipientData.address as `0x${string}`,
-                value: nativeValueWei,
-                chainId,
-              },
-              {
-                sponsor: true,
-                address: fromAddress,
-                uiOptions: { showWalletUIs: false },
-              }
+            const result = await runSponsoredFirst(
+              ({ sponsor }) =>
+                sendPrivyTransaction(
+                  {
+                    to: recipientData.address as `0x${string}`,
+                    value: nativeValueWei,
+                    chainId,
+                  },
+                  {
+                    sponsor,
+                    address: fromAddress,
+                    uiOptions: { showWalletUIs: false },
+                  }
+                ),
+              { onFallback: () => toast(GAS_SPONSORSHIP_FALLBACK_NOTICE) }
             );
             hash = String(result.hash || '');
           } else {
@@ -12970,17 +12982,21 @@ function WalletSendProposalTicket({
             amountInWei,
           ]);
           if (isChatPrivyEmbeddedWalletType(evmWallet.walletClientType)) {
-            const result = await sendPrivyTransaction(
-              {
-                to: sendToken.address as `0x${string}`,
-                data: tokenData as `0x${string}`,
-                chainId,
-              },
-              {
-                sponsor: true,
-                address: fromAddress,
-                uiOptions: { showWalletUIs: false },
-              }
+            const result = await runSponsoredFirst(
+              ({ sponsor }) =>
+                sendPrivyTransaction(
+                  {
+                    to: sendToken.address as `0x${string}`,
+                    data: tokenData as `0x${string}`,
+                    chainId,
+                  },
+                  {
+                    sponsor,
+                    address: fromAddress,
+                    uiOptions: { showWalletUIs: false },
+                  }
+                ),
+              { onFallback: () => toast(GAS_SPONSORSHIP_FALLBACK_NOTICE) }
             );
             hash = String(result.hash || '');
           } else {
@@ -15020,17 +15036,21 @@ async function ensureChatEvmSwapAllowance({
     sendPrivyTransaction &&
     isChatPrivyEmbeddedWalletType(walletClientType)
   ) {
-    await sendPrivyTransaction(
-      {
-        to: tokenAddress as `0x${string}`,
-        data: approveData,
-        chainId,
-      },
-      {
-        sponsor: true,
-        address: owner,
-        uiOptions: { showWalletUIs: false },
-      }
+    await runSponsoredFirst(
+      ({ sponsor }) =>
+        sendPrivyTransaction(
+          {
+            to: tokenAddress as `0x${string}`,
+            data: approveData,
+            chainId,
+          },
+          {
+            sponsor,
+            address: owner,
+            uiOptions: { showWalletUIs: false },
+          }
+        ),
+      { onFallback: () => toast(GAS_SPONSORSHIP_FALLBACK_NOTICE) }
     );
     return;
   }
@@ -15950,11 +15970,15 @@ function SwapProposalTicket({
         transaction.message.recentBlockhash = blockhash;
 
         setInlineSwapStatus('Sign swap...');
-        const result = await signAndSendTransaction({
-          transaction: new Uint8Array(transaction.serialize()),
-          wallet: selectedSolanaWallet,
-          options: { sponsor: true, uiOptions: { showWalletUIs: false } },
-        });
+        const result = await runSponsoredFirst(
+          ({ sponsor }) =>
+            signAndSendTransaction({
+              transaction: new Uint8Array(transaction.serialize()),
+              wallet: selectedSolanaWallet,
+              options: { sponsor, uiOptions: { showWalletUIs: false } },
+            }),
+          { onFallback: () => toast(GAS_SPONSORSHIP_FALLBACK_NOTICE) }
+        );
         txHash =
           typeof result.signature === 'string'
             ? result.signature
@@ -16077,11 +16101,15 @@ function SwapProposalTicket({
           if (maxPriorityFeePerGas > 0n) {
             privyTxRequest.maxPriorityFeePerGas = maxPriorityFeePerGas;
           }
-          const result = await sendPrivyTransaction(privyTxRequest, {
-            sponsor: true,
-            address: fromAddress,
-            uiOptions: { showWalletUIs: false },
-          });
+          const result = await runSponsoredFirst(
+            ({ sponsor }) =>
+              sendPrivyTransaction(privyTxRequest, {
+                sponsor,
+                address: fromAddress,
+                uiOptions: { showWalletUIs: false },
+              }),
+            { onFallback: () => toast(GAS_SPONSORSHIP_FALLBACK_NOTICE) }
+          );
           txHash = String(result.hash || '');
         } else {
           const hash = await provider.request({

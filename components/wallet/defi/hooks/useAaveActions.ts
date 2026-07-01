@@ -6,6 +6,7 @@ import { ethers } from 'ethers';
 import { CHAIN_ID } from '@/types/wallet-types';
 import type { AaveActionMode, AaveChain, AaveReserve } from '@/types/aave';
 import { ALCHEMY_RPC_URLS } from '@/types/config';
+import { runSponsoredFirst } from '@/lib/wallet/gasSponsorship';
 
 // Read-only RPC endpoints for allowance / balance checks (writes go through Privy)
 const RPC_URLS: Record<AaveChain, string> = {
@@ -94,13 +95,17 @@ export function useAaveActions() {
         poolAddress,
         ethers.MaxUint256,
       ]);
-      await sendTransaction(
-        {
-          to: reserve.asset as `0x${string}`,
-          data: data as `0x${string}`,
-          chainId: CHAIN_ID[chain],
-        },
-        { sponsor: true },
+      // onProgress only accepts fixed step names, so there is no channel here
+      // to surface a fallback notice — the retry stays silent.
+      await runSponsoredFirst(({ sponsor }) =>
+        sendTransaction(
+          {
+            to: reserve.asset as `0x${string}`,
+            data: data as `0x${string}`,
+            chainId: CHAIN_ID[chain],
+          },
+          { sponsor },
+        ),
       );
     },
     [fetchBalanceAndAllowance, sendTransaction],
@@ -158,13 +163,17 @@ export function useAaveActions() {
       }
 
       onProgress?.('confirming');
-      const result = await sendTransaction(
-        {
-          to: poolAddress as `0x${string}`,
-          data: data as `0x${string}`,
-          chainId: CHAIN_ID[chain],
-        },
-        { sponsor: true },
+      // onProgress only accepts fixed step names, so there is no channel here
+      // to surface a fallback notice — the retry stays silent.
+      const result = await runSponsoredFirst(({ sponsor }) =>
+        sendTransaction(
+          {
+            to: poolAddress as `0x${string}`,
+            data: data as `0x${string}`,
+            chainId: CHAIN_ID[chain],
+          },
+          { sponsor },
+        ),
       );
       return { hash: result.hash };
     },

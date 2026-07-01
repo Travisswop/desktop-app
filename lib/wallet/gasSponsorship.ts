@@ -11,19 +11,26 @@ export const GAS_SPONSORSHIP_FALLBACK_NOTICE =
   'Gas sponsorship was unavailable — your wallet covered the network fee for this transaction.';
 
 // True when Privy examined the sponsored request and REFUSED it — e.g. gas
-// sponsorship not enabled for the app/chain, sponsorship policy rejection, or
-// the client-side sponsorship setting being off. These errors happen before
-// anything is broadcast, so retrying the same transaction unsponsored is safe.
-// Ambiguous failures (network drops, timeouts, RPC errors) deliberately do NOT
-// match: the transaction may already be in flight and must not be re-sent.
+// sponsorship not enabled for the app/chain, sponsorship policy rejection,
+// the client-side sponsorship setting being off, or the sponsorship budget /
+// gas credits being exhausted. These errors happen before anything is
+// broadcast, so retrying the same transaction with user-paid gas is safe.
+// Ambiguous failures (network drops, timeouts, RPC errors) deliberately do
+// NOT match: the transaction may already be in flight and must not be
+// re-sent — an unsponsored retry is a DIFFERENT transaction (different fee
+// payer), so both could land.
 export function isSponsorshipRejectionError(error: unknown): boolean {
   const message =
     error instanceof Error ? error.message : String(error ?? '');
   if (!message) return false;
-  if (/timed? ?out|network|fetch failed/i.test(message)) return false;
+  if (/timed? ?out|network error|fetch failed|socket|econn/i.test(message)) {
+    return false;
+  }
   return (
     /sponsor/i.test(message) &&
-    /not enabled|not available|unavailable|not supported|disabled|denied|reject|refus|policy|unsupported/i.test(
+    // Refusals: config/policy ("not enabled", "denied", …) and exhaustion
+    // ("limit reached", "budget exceeded", "insufficient app balance", …).
+    /not enabled|not available|unavailable|not supported|disabled|denied|reject|refus|policy|unsupported|limit|exceed|exhaust|deplet|quota|budget|insufficient|out of|no longer/i.test(
       message,
     )
   );
