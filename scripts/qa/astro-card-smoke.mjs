@@ -5,6 +5,10 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
+import targetHelpers from './astro-card-targets.js';
+
+const { findFreshSwopChatTarget, listMatchingSwopChatTargets } = targetHelpers;
 
 const DEFAULT_SWOP_URL = 'https://www.swopme.app/dashboard/chat';
 const DEFAULT_CHROME_PORT = 9223;
@@ -362,28 +366,54 @@ async function closeTarget(baseUrl, targetId) {
   }
 }
 
-async function getOrOpenSwopTarget(baseUrl, swopUrl) {
-  const targets = await listTargets(baseUrl);
-  const existing = targets.find(
-    (target) =>
-      target.type === 'page' &&
-      target.webSocketDebuggerUrl &&
-      String(target.url || '').includes('/dashboard/chat')
-  );
-  if (existing) return existing;
+async function openFreshSwopTarget(
+  baseUrl,
+  swopUrl,
+  {
+    listTargetsImpl = listTargets,
+    openTargetImpl = openTarget,
+    closeTargetImpl = closeTarget,
+  } = {}
+) {
+  const targets = await listTargetsImpl(baseUrl);
+  const staleTargets = listMatchingSwopChatTargets(targets, swopUrl);
+  for (const target of staleTargets) {
+    await closeTargetImpl(baseUrl, target.id);
+  }
 
-  const opened = await openTarget(baseUrl, swopUrl);
-  if (opened.webSocketDebuggerUrl) return opened;
+  const closedTargets = staleTargets.map(({ id, url }) => ({ id, url }));
+  const opened = await openTargetImpl(baseUrl, swopUrl);
+  if (opened.webSocketDebuggerUrl) {
+    return {
+      target: opened,
+      closedTargets,
+      reusedExisting: false,
+    };
+  }
 
-  const updated = await listTargets(baseUrl);
-  const target = updated.find(
-    (candidate) =>
-      candidate.type === 'page' &&
-      candidate.webSocketDebuggerUrl &&
-      String(candidate.url || '').includes('/dashboard/chat')
+  const updated = await listTargetsImpl(baseUrl);
+  const freshTarget = findFreshSwopChatTarget(
+    updated,
+    swopUrl,
+    staleTargets.map((target) => target.id)
   );
-  if (!target) throw new Error('Could not open a Swop chat tab through Chrome DevTools.');
-  return target;
+  if (freshTarget) {
+    return {
+      target: freshTarget,
+      closedTargets,
+      reusedExisting: false,
+    };
+  }
+
+  const fallbackTarget = listMatchingSwopChatTargets(updated, swopUrl)[0];
+  if (!fallbackTarget) {
+    throw new Error('Could not open a fresh Swop chat tab through Chrome DevTools.');
+  }
+  return {
+    target: fallbackTarget,
+    closedTargets,
+    reusedExisting: true,
+  };
 }
 
 class CdpClient {
@@ -1081,6 +1111,10 @@ async function main() {
       errors: [],
       exceptions: [],
     },
+    targetLifecycle: {
+      closedStaleChatTargets: [],
+      reusedExistingChatTarget: false,
+    },
     status: 'running',
   };
 
@@ -1105,7 +1139,22 @@ async function main() {
     return;
   }
 
-  const target = await getOrOpenSwopTarget(args.chromeUrl, args.url);
+  const { target, closedTargets, reusedExisting } = await openFreshSwopTarget(
+    args.chromeUrl,
+    args.url
+  );
+  report.targetLifecycle.closedStaleChatTargets = closedTargets;
+  report.targetLifecycle.reusedExistingChatTarget = reusedExisting;
+  if (closedTargets.length) {
+    report.warnings.push(
+      `Closed ${closedTargets.length} stale ${appOrigin(args.url)} /dashboard/chat QA target(s) before opening a fresh review tab.`
+    );
+  }
+  if (reusedExisting) {
+    report.warnings.push(
+      'Chrome DevTools did not expose a fresh /dashboard/chat target after cleanup; reusing an existing chat tab.'
+    );
+  }
   const client = new CdpClient(target.webSocketDebuggerUrl);
   await client.connect();
 
@@ -1279,7 +1328,11 @@ async function sendFailureEmail(args, report, reportPath) {
   };
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message);
-  process.exit(1);
-});
+export { openFreshSwopTarget };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error.stack || error.message);
+    process.exit(1);
+  });
+}
