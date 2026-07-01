@@ -354,6 +354,36 @@ describe('desktop group agent payloads', () => {
       outcome: 'yes',
       side: 'BUY',
       amount: '25',
+      amountUnit: 'usd',
+      orderType: 'limit',
+      limitPrice: '42',
+    });
+  });
+
+  test('keeps share-denominated Polymarket approvals typed as shares', () => {
+    const prefill = getPolymarketOrderPrefill({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_poly',
+        proposalNonce: 'nonce_poly',
+        provider: 'polymarket',
+        action: 'prediction.prepare_order',
+        normalizedParams: {
+          conditionId: 'condition-1',
+          tokenId: 'token-yes',
+          outcomeIndex: 0,
+          side: 'buy',
+          shares: '25',
+          orderType: 'limit',
+          price: '0.42',
+        },
+      },
+    });
+
+    expect(prefill).toMatchObject({
+      proposalId: 'prop_poly',
+      amount: '25',
+      amountUnit: 'shares',
       orderType: 'limit',
       limitPrice: '42',
     });

@@ -501,10 +501,13 @@ export interface PolymarketAgentOrderPrefill {
   outcome?: 'yes' | 'no';
   side?: 'BUY' | 'SELL';
   amount?: string;
+  amountUnit?: PredictionOrderAmountUnit;
   orderType?: 'market' | 'limit';
   limitPrice?: string;
   requiredFields?: string[];
 }
+
+export type PredictionOrderAmountUnit = 'usd' | 'shares';
 
 export interface MarketplaceAgentProductPrefill {
   proposalId?: string;
@@ -681,6 +684,30 @@ function normalizePolymarketSide(value: unknown): 'BUY' | 'SELL' | undefined {
   return undefined;
 }
 
+function normalizePredictionAmountUnit(
+  value: unknown,
+): PredictionOrderAmountUnit | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (
+    normalized.includes('usd') ||
+    normalized.includes('usdc') ||
+    normalized.includes('dollar') ||
+    normalized.includes('cost')
+  ) {
+    return 'usd';
+  }
+  if (
+    normalized.includes('share') ||
+    normalized.includes('contract') ||
+    normalized.includes('size')
+  ) {
+    return 'shares';
+  }
+  return undefined;
+}
+
 function normalizePolymarketOrderType(value: unknown): 'market' | 'limit' | undefined {
   const normalized = stringValue(value)?.toLowerCase();
   if (!normalized) return undefined;
@@ -693,6 +720,42 @@ function toCentsInput(value: unknown): string | undefined {
   if (number === undefined || number <= 0) return undefined;
   const cents = number <= 1 ? number * 100 : number;
   return String(Math.round(cents));
+}
+
+function resolvePolymarketPrefillAmount(params: UnknownRecord): {
+  amount?: string;
+  amountUnit?: PredictionOrderAmountUnit;
+} {
+  const explicitUnit = normalizePredictionAmountUnit(
+    params.amountUnit ??
+      params.amountType ??
+      params.quantityUnit ??
+      params.sizeUnit,
+  );
+  const usdAmount = firstString(params, ['amountUsd', 'usdcAmount', 'cost']);
+  if (usdAmount) {
+    return {
+      amount: usdAmount,
+      amountUnit: 'usd',
+    };
+  }
+
+  const shareAmount = firstString(params, ['shares', 'size']);
+  if (shareAmount) {
+    return {
+      amount: shareAmount,
+      amountUnit: explicitUnit ?? 'shares',
+    };
+  }
+
+  const genericAmount = firstString(params, ['amount']);
+  if (!genericAmount) return {};
+
+  const side = normalizePolymarketSide(params.side ?? params.direction);
+  return {
+    amount: genericAmount,
+    amountUnit: explicitUnit ?? (side === 'SELL' ? 'shares' : 'usd'),
+  };
 }
 
 function resolveOperatingModeLabel(params: UnknownRecord) {
@@ -809,6 +872,8 @@ export function getPolymarketOrderPrefill(
   const orderType = normalizePolymarketOrderType(
     params.orderType ?? params.type ?? params.timeInForce
   );
+  const side = normalizePolymarketSide(params.side ?? params.direction);
+  const { amount, amountUnit } = resolvePolymarketPrefillAmount(params);
 
   return {
     proposalId: payload.proposalId,
@@ -821,15 +886,9 @@ export function getPolymarketOrderPrefill(
     marketRouteKey,
     tokenId: firstString(params, ['tokenId', 'token_id', 'asset']),
     outcome: normalizePolymarketOutcome(params.outcome ?? params.outcomeIndex),
-    side: normalizePolymarketSide(params.side ?? params.direction),
-    amount: firstString(params, [
-      'amount',
-      'amountUsd',
-      'usdcAmount',
-      'cost',
-      'size',
-      'shares',
-    ]),
+    side,
+    amount,
+    amountUnit,
     orderType,
     limitPrice:
       orderType === 'limit'

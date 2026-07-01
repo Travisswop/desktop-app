@@ -10,6 +10,34 @@ type MarketShares = {
   noShares?: number;
 };
 
+function formatInputAmount(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  return value.toFixed(6).replace(/\.?0+$/, '');
+}
+
+function resolveApprovedPredictionInitialAmount(
+  prefill: PolymarketAgentOrderPrefill,
+) {
+  if (!prefill.amount) return undefined;
+  if (prefill.side === 'SELL') {
+    return prefill.amountUnit === 'usd' ? undefined : prefill.amount;
+  }
+  if (prefill.amountUnit !== 'shares') {
+    return prefill.amount;
+  }
+  if (prefill.orderType !== 'limit') {
+    return undefined;
+  }
+
+  const shares = Number(prefill.amount);
+  const limitPriceCents = Number(prefill.limitPrice);
+  if (!Number.isFinite(shares) || !Number.isFinite(limitPriceCents)) {
+    return undefined;
+  }
+
+  return formatInputAmount(shares * (limitPriceCents / 100));
+}
+
 export function buildRecoveredMarketDetailEntry(
   market: PolymarketMarket,
   shares: MarketShares,
@@ -56,7 +84,7 @@ export function buildApprovedMarketDetailEntry(
   return {
     market,
     initialOutcome: prefill.outcome,
-    initialAmount: prefill.amount,
+    initialAmount: resolveApprovedPredictionInitialAmount(prefill),
     initialSide: prefill.side,
     initialOrderType: prefill.orderType,
     initialLimitPrice: prefill.limitPrice,

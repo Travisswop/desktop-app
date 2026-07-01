@@ -28,9 +28,13 @@ import { useTrading } from '@/providers/polymarket';
 import {
   completeAgentActionFromHandoff,
   type AgentActionCompletion,
+  type PredictionOrderAmountUnit,
   type PolymarketAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
-import { buildPredictionApprovalBoundaryBanner } from '@/lib/chat/approvalBoundary';
+import {
+  buildPredictionApprovalBoundaryBanner,
+  canCompletePredictionAgentHandoff,
+} from '@/lib/chat/approvalBoundary';
 import {
   CTF_CONTRACT_ADDRESS,
   MIN_ORDER_SIZE,
@@ -4914,7 +4918,7 @@ export default function MarketDetailView({
         setSuccessInfo(orderSuccessInfo);
         showOrderSuccessToast(orderSuccessInfo);
 
-        if (agentOrderPrefill?.proposalId) {
+        if (canReportAgentCompletion && agentOrderPrefill?.proposalId) {
           try {
             const completion = await completeAgentActionFromHandoff(
               {
@@ -5061,27 +5065,50 @@ export default function MarketDetailView({
     shares > 0
       ? { price: limitPriceNum, shares }
       : null;
-  const approvalBoundaryBanner = useMemo(
-    () =>
-      buildPredictionApprovalBoundaryBanner(agentOrderPrefill, {
-        marketRouteKey: market.conditionId || market.id || market.slug || '',
-        outcome: selectedOutcome,
-        side,
-        amount: inputValue,
-        orderType,
-        limitPrice: orderType === 'limit' ? limitPrice : undefined,
-      }),
+  const predictionAmountUnit: PredictionOrderAmountUnit =
+    side === 'SELL' ? 'shares' : 'usd';
+  const predictionTicketState = useMemo(
+    () => ({
+      marketRouteKey: market.conditionId || market.id || market.slug || '',
+      outcome: selectedOutcome,
+      side,
+      amount: inputValue,
+      shareAmount:
+        Number.isFinite(shares) && shares > 0
+          ? shares.toFixed(8).replace(/\.?0+$/, '')
+          : undefined,
+      amountUnit: predictionAmountUnit,
+      orderType,
+      limitPrice: orderType === 'limit' ? limitPrice : undefined,
+    }),
     [
-      agentOrderPrefill,
       inputValue,
       limitPrice,
       market.conditionId,
       market.id,
       market.slug,
       orderType,
+      predictionAmountUnit,
       selectedOutcome,
+      shares,
       side,
     ],
+  );
+  const canReportAgentCompletion = useMemo(
+    () =>
+      canCompletePredictionAgentHandoff(
+        agentOrderPrefill,
+        predictionTicketState,
+      ),
+    [agentOrderPrefill, predictionTicketState],
+  );
+  const approvalBoundaryBanner = useMemo(
+    () =>
+      buildPredictionApprovalBoundaryBanner(
+        agentOrderPrefill,
+        predictionTicketState,
+      ),
+    [agentOrderPrefill, predictionTicketState],
   );
 
   return (

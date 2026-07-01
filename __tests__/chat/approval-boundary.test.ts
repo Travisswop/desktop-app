@@ -1,6 +1,7 @@
 import {
   buildPerpsApprovalBoundaryBanner,
   buildPredictionApprovalBoundaryBanner,
+  canCompletePredictionAgentHandoff,
   canCompletePerpsAgentHandoff,
   isPerpsTicketInsideApprovedBoundary,
 } from '@/lib/chat/approvalBoundary';
@@ -193,5 +194,93 @@ describe('approvalBoundary', () => {
       operatingModeLabel: 'Monitor-only',
     });
     expect(banner?.detail).toContain('no longer matches');
+  });
+
+  test('blocks prediction completion when the edited ticket drifts outside the approved boundary', () => {
+    const prefill = getPolymarketOrderPrefill({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_poly',
+        provider: 'polymarket',
+        normalizedParams: {
+          conditionId: 'condition-1',
+          outcomeIndex: 0,
+          side: 'buy',
+          amountUsd: '25',
+          orderType: 'limit',
+          price: '0.42',
+        },
+      },
+    });
+
+    expect(
+      canCompletePredictionAgentHandoff(prefill, {
+        marketRouteKey: 'condition-1',
+        outcome: 'yes',
+        side: 'BUY',
+        amount: '25',
+        shareAmount: '59.52380952',
+        amountUnit: 'usd',
+        orderType: 'limit',
+        limitPrice: '42',
+      }),
+    ).toBe(true);
+
+    expect(
+      canCompletePredictionAgentHandoff(prefill, {
+        marketRouteKey: 'condition-1',
+        outcome: 'yes',
+        side: 'BUY',
+        amount: '40',
+        shareAmount: '95.23809524',
+        amountUnit: 'usd',
+        orderType: 'limit',
+        limitPrice: '42',
+      }),
+    ).toBe(false);
+  });
+
+  test('treats share-denominated market buys as manual review on reopened prediction tickets', () => {
+    const prefill = getPolymarketOrderPrefill({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_poly',
+        provider: 'polymarket',
+        normalizedParams: {
+          conditionId: 'condition-1',
+          outcomeIndex: 0,
+          side: 'buy',
+          shares: '25',
+          orderType: 'market',
+          executionMode: 'monitor_only',
+        },
+      },
+    });
+
+    const banner = buildPredictionApprovalBoundaryBanner(prefill, {
+      marketRouteKey: 'condition-1',
+      outcome: 'yes',
+      side: 'BUY',
+      amount: '25',
+      shareAmount: '25',
+      amountUnit: 'usd',
+      orderType: 'market',
+    });
+
+    expect(
+      canCompletePredictionAgentHandoff(prefill, {
+        marketRouteKey: 'condition-1',
+        outcome: 'yes',
+        side: 'BUY',
+        amount: '25',
+        shareAmount: '25',
+        amountUnit: 'usd',
+        orderType: 'market',
+      }),
+    ).toBe(false);
+    expect(banner).toMatchObject({
+      tone: 'warning',
+      operatingModeLabel: 'Monitor-only',
+    });
   });
 });

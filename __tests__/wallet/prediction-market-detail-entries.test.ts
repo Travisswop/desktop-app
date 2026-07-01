@@ -21,6 +21,7 @@ describe('prediction market detail entries', () => {
       outcome: 'yes',
       side: 'BUY',
       amount: '25',
+      amountUnit: 'usd',
       orderType: 'limit',
       limitPrice: '42',
       operatingModeLabel: 'Shadow',
@@ -31,6 +32,35 @@ describe('prediction market detail entries', () => {
       operatingModeLabel: 'Shadow',
     });
     expect(entry.initialOutcome).toBe('yes');
+  });
+
+  test('converts approved share-sized limit buys into a dollar ticket input', () => {
+    const entry = buildApprovedMarketDetailEntry(market, {
+      proposalId: 'prop-1',
+      marketRouteKey: 'condition-1',
+      outcome: 'yes',
+      side: 'BUY',
+      amount: '10',
+      amountUnit: 'shares',
+      orderType: 'limit',
+      limitPrice: '42',
+    });
+
+    expect(entry.initialAmount).toBe('4.2');
+  });
+
+  test('clears approved share-sized market buys because the reopened BUY input is dollar-based', () => {
+    const entry = buildApprovedMarketDetailEntry(market, {
+      proposalId: 'prop-1',
+      marketRouteKey: 'condition-1',
+      outcome: 'yes',
+      side: 'BUY',
+      amount: '10',
+      amountUnit: 'shares',
+      orderType: 'market',
+    });
+
+    expect(entry.initialAmount).toBeUndefined();
   });
 
   test('recovered entries clear stale approved action context on plain revisit', () => {

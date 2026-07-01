@@ -1,5 +1,6 @@
 import type {
   HyperliquidAgentOrderPrefill,
+  PredictionOrderAmountUnit,
   PolymarketAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
 
@@ -32,6 +33,8 @@ type PredictionTicketState = {
   outcome?: 'yes' | 'no';
   side?: 'BUY' | 'SELL';
   amount?: string;
+  shareAmount?: string;
+  amountUnit?: PredictionOrderAmountUnit;
   orderType?: 'market' | 'limit';
   limitPrice?: string;
 };
@@ -156,13 +159,10 @@ export function buildPredictionApprovalBoundaryBanner(
 ): ApprovalBoundaryBanner | null {
   if (!prefill?.proposalId) return null;
 
-  const stillInsideBoundary =
-    matchesOptional(prefill.marketRouteKey, current.marketRouteKey) &&
-    matchesOptional(prefill.outcome, current.outcome) &&
-    matchesOptional(prefill.side, current.side) &&
-    matchesOptional(prefill.amount, current.amount) &&
-    matchesOptional(prefill.orderType, current.orderType) &&
-    matchesOptional(prefill.limitPrice, current.limitPrice);
+  const stillInsideBoundary = isPredictionTicketInsideApprovedBoundary(
+    prefill,
+    current,
+  );
 
   const operatingModeLabel = prefill.operatingModeLabel;
   if (stillInsideBoundary) {
@@ -180,4 +180,55 @@ export function buildPredictionApprovalBoundaryBanner(
     detail: `This order no longer matches the original approved trade${operatingModeLabel ? ` (${operatingModeLabel})` : ''}. Treat it as a fresh manual review before signing.`,
     operatingModeLabel,
   };
+}
+
+function resolvePredictionAmountUnit(
+  prefill: PolymarketAgentOrderPrefill | null | undefined,
+  current: PredictionTicketState,
+): PredictionOrderAmountUnit {
+  return (
+    prefill?.amountUnit ??
+    current.amountUnit ??
+    (prefill?.side === 'SELL' ? 'shares' : 'usd')
+  );
+}
+
+function matchesPredictionAmount(
+  prefill: PolymarketAgentOrderPrefill,
+  current: PredictionTicketState,
+) {
+  const amountUnit = resolvePredictionAmountUnit(prefill, current);
+  if (amountUnit === 'shares') {
+    if (current.side === 'BUY' && current.orderType === 'market') {
+      return false;
+    }
+    return matchesOptional(prefill.amount, current.shareAmount);
+  }
+  return matchesOptional(prefill.amount, current.amount);
+}
+
+export function isPredictionTicketInsideApprovedBoundary(
+  prefill: PolymarketAgentOrderPrefill | null | undefined,
+  current: PredictionTicketState,
+) {
+  if (!prefill?.proposalId) return false;
+
+  return (
+    matchesOptional(prefill.marketRouteKey, current.marketRouteKey) &&
+    matchesOptional(prefill.outcome, current.outcome) &&
+    matchesOptional(prefill.side, current.side) &&
+    matchesPredictionAmount(prefill, current) &&
+    matchesOptional(prefill.orderType, current.orderType) &&
+    matchesOptional(prefill.limitPrice, current.limitPrice)
+  );
+}
+
+export function canCompletePredictionAgentHandoff(
+  prefill: PolymarketAgentOrderPrefill | null | undefined,
+  current: PredictionTicketState,
+) {
+  return (
+    Boolean(prefill?.proposalId) &&
+    isPredictionTicketInsideApprovedBoundary(prefill, current)
+  );
 }
