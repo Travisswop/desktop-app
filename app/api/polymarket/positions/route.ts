@@ -80,6 +80,15 @@ function buildFailureBody(data: unknown, status: number) {
   };
 }
 
+function buildMalformedSuccessBody() {
+  return {
+    error: 'Invalid positions response from backend',
+    code: 'INVALID_UPSTREAM_RESPONSE',
+    dependency: 'polymarket-data',
+    retryable: true,
+  };
+}
+
 function pruneTimedCache<T>(
   cache: Map<string, TimedCacheEntry<T>>,
   maxEntries: number,
@@ -285,9 +294,9 @@ export async function GET(request: NextRequest) {
       `${POLYMARKET_BACKEND_URL}/api/prediction-markets/positions?user=${userAddress}`,
       { cache: 'no-store' },
     );
-    const data = await response.json().catch(() => null);
 
     if (!response.ok) {
+      const data = await response.json().catch(() => null);
       return NextResponse.json(
         buildFailureBody(data, response.status),
         {
@@ -295,6 +304,14 @@ export async function GET(request: NextRequest) {
           headers: buildResponseHeaders(response),
         },
       );
+    }
+
+    const data = await response.json().catch(() => undefined);
+    if (typeof data === 'undefined' || data === null) {
+      return NextResponse.json(buildMalformedSuccessBody(), {
+        status: 502,
+        headers: buildResponseHeaders(response),
+      });
     }
 
     const positions = Array.isArray(data)

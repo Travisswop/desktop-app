@@ -86,4 +86,36 @@ describe('polymarket positions route', () => {
     );
     await expect(response.json()).resolves.toEqual([]);
   });
+
+  it('fails closed when a success response body is malformed', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('not json', {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-polymarket-partial-data': 'true',
+          'Retry-After': '5',
+        },
+      }),
+    );
+
+    const response = await getPositions(
+      new NextRequest(
+        'https://www.swopme.app/api/polymarket/positions?user=0x123',
+      ),
+    );
+
+    expect(response.status).toBe(502);
+    expect(response.headers.get('x-polymarket-partial-data')).toBe('true');
+    expect(response.headers.get('retry-after')).toBe('5');
+    expect(response.headers.get('cache-control')).toBe(
+      'no-store, max-age=0',
+    );
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid positions response from backend',
+      code: 'INVALID_UPSTREAM_RESPONSE',
+      dependency: 'polymarket-data',
+      retryable: true,
+    });
+  });
 });
