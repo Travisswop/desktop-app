@@ -59,7 +59,9 @@ export function buildRecoveredSportsMarketDetailEntry(
     game: context.game,
     ...context.selection,
     ...shares,
-    agentOrderPrefill: undefined,
+    // Preserve the original approved handoff when the same sports ticket is
+    // being rehydrated on reopen. Sibling pivots still clear it separately.
+    agentOrderPrefill: snapshot.agentOrderPrefill,
   };
 }
 

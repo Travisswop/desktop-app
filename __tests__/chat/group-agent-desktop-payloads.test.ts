@@ -392,4 +392,31 @@ describe('desktop group agent payloads', () => {
       limitPrice: '42',
     });
   });
+
+  test('keeps generic market-buy size approvals typed as usd', () => {
+    const prefill = getPolymarketOrderPrefill({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_poly',
+        proposalNonce: 'nonce_poly',
+        provider: 'polymarket',
+        action: 'prediction.prepare_order',
+        normalizedParams: {
+          conditionId: 'condition-1',
+          tokenId: 'token-yes',
+          outcomeIndex: 0,
+          side: 'buy',
+          size: '25',
+          orderType: 'market',
+        },
+      },
+    });
+
+    expect(prefill).toMatchObject({
+      proposalId: 'prop_poly',
+      amount: '25',
+      amountUnit: 'usd',
+      orderType: 'market',
+    });
+  });
 });

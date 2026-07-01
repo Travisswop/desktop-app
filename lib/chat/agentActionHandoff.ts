@@ -742,7 +742,12 @@ function resolvePolymarketPrefillAmount(params: UnknownRecord): {
     };
   }
 
-  const shareAmount = firstString(params, ['shares', 'size']);
+  const orderType = normalizePolymarketOrderType(
+    params.orderType ?? params.type ?? params.timeInForce
+  );
+  const side = normalizePolymarketSide(params.side ?? params.direction);
+
+  const shareAmount = firstString(params, ['shares']);
   if (shareAmount) {
     return {
       amount: shareAmount,
@@ -750,10 +755,19 @@ function resolvePolymarketPrefillAmount(params: UnknownRecord): {
     };
   }
 
+  const sizedAmount = firstString(params, ['size']);
+  if (sizedAmount) {
+    return {
+      amount: sizedAmount,
+      amountUnit:
+        explicitUnit ??
+        (side === 'BUY' && orderType === 'market' ? 'usd' : 'shares'),
+    };
+  }
+
   const genericAmount = firstString(params, ['amount']);
   if (!genericAmount) return {};
 
-  const side = normalizePolymarketSide(params.side ?? params.direction);
   return {
     amount: genericAmount,
     amountUnit: explicitUnit ?? (side === 'SELL' ? 'shares' : 'usd'),

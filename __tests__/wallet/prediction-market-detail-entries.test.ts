@@ -72,7 +72,7 @@ describe('prediction market detail entries', () => {
     expect(entry.agentOrderPrefill).toBeUndefined();
   });
 
-  test('sports recovery and sibling pivots drop the previous approved context', () => {
+  test('sports recovery keeps approved context for the same ticket but sibling pivots drop it', () => {
     const snapshot = buildApprovedMarketDetailEntry(market, {
       proposalId: 'prop-1',
       marketRouteKey: 'condition-1',
@@ -98,7 +98,10 @@ describe('prediction market detail entries', () => {
       { yesShares: 0, noShares: 2 },
     );
 
-    expect(recovered.agentOrderPrefill).toBeUndefined();
+    expect(recovered.agentOrderPrefill).toMatchObject({
+      proposalId: 'prop-1',
+      marketRouteKey: 'condition-1',
+    });
     expect(sibling.agentOrderPrefill).toBeUndefined();
   });
 });
