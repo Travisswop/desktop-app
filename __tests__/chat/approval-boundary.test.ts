@@ -240,6 +240,60 @@ describe('approvalBoundary', () => {
     ).toBe(false);
   });
 
+  test('keeps prediction approval invalidated after a drift even if fields are edited back', () => {
+    const prefill = getPolymarketOrderPrefill({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_poly',
+        provider: 'polymarket',
+        normalizedParams: {
+          conditionId: 'condition-1',
+          outcomeIndex: 0,
+          side: 'buy',
+          amountUsd: '25',
+          orderType: 'limit',
+          price: '0.42',
+          executionMode: 'shadow',
+        },
+      },
+    });
+
+    const matchingTicket = {
+      marketRouteKey: 'condition-1',
+      outcome: 'yes' as const,
+      side: 'BUY' as const,
+      amount: '25',
+      shareAmount: '59.52380952',
+      amountUnit: 'usd' as const,
+      orderType: 'limit' as const,
+      limitPrice: '42',
+    };
+
+    expect(
+      canCompletePredictionAgentHandoff(prefill, matchingTicket),
+    ).toBe(true);
+    expect(
+      canCompletePredictionAgentHandoff(prefill, matchingTicket, {
+        approvalPathInvalidated: true,
+      }),
+    ).toBe(false);
+
+    const banner = buildPredictionApprovalBoundaryBanner(
+      prefill,
+      matchingTicket,
+      {
+        approvalPathInvalidated: true,
+      },
+    );
+
+    expect(banner).toMatchObject({
+      tone: 'warning',
+      title: 'Approved prediction draft expired',
+      operatingModeLabel: 'Shadow',
+    });
+    expect(banner?.detail).toContain('approved handoff no longer applies');
+  });
+
   test('treats share-denominated market buys as manual review on reopened prediction tickets', () => {
     const prefill = getPolymarketOrderPrefill({
       status: 'approved',

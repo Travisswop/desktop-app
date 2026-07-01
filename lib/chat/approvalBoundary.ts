@@ -156,6 +156,7 @@ export function buildPerpsApprovalBoundaryBanner(
 export function buildPredictionApprovalBoundaryBanner(
   prefill: PolymarketAgentOrderPrefill | null | undefined,
   current: PredictionTicketState,
+  options?: ApprovalBoundaryOptions,
 ): ApprovalBoundaryBanner | null {
   if (!prefill?.proposalId) return null;
 
@@ -165,11 +166,20 @@ export function buildPredictionApprovalBoundaryBanner(
   );
 
   const operatingModeLabel = prefill.operatingModeLabel;
-  if (stillInsideBoundary) {
+  if (stillInsideBoundary && !options?.approvalPathInvalidated) {
     return {
       tone: 'info',
       title: 'Approved prediction draft loaded',
       detail: `You are still reviewing the original approved ticket${operatingModeLabel ? ` (${operatingModeLabel})` : ''}. Recheck the market, side, and size before signing.`,
+      operatingModeLabel,
+    };
+  }
+
+  if (options?.approvalPathInvalidated) {
+    return {
+      tone: 'warning',
+      title: 'Approved prediction draft expired',
+      detail: `This order drifted outside the original approved trade${operatingModeLabel ? ` (${operatingModeLabel})` : ''}, so Goldman’s approved handoff no longer applies. Treat every submit as a fresh manual review.`,
       operatingModeLabel,
     };
   }
@@ -226,9 +236,11 @@ export function isPredictionTicketInsideApprovedBoundary(
 export function canCompletePredictionAgentHandoff(
   prefill: PolymarketAgentOrderPrefill | null | undefined,
   current: PredictionTicketState,
+  options?: ApprovalBoundaryOptions,
 ) {
   return (
     Boolean(prefill?.proposalId) &&
-    isPredictionTicketInsideApprovedBoundary(prefill, current)
+    isPredictionTicketInsideApprovedBoundary(prefill, current) &&
+    !options?.approvalPathInvalidated
   );
 }

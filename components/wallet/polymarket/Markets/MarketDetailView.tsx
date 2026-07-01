@@ -26,6 +26,7 @@ import {
 } from '@/lib/polymarket/sports-selection';
 import { useTrading } from '@/providers/polymarket';
 import {
+  clearAgentActionHandoff,
   completeAgentActionFromHandoff,
   type AgentActionCompletion,
   type PredictionOrderAmountUnit,
@@ -34,6 +35,7 @@ import {
 import {
   buildPredictionApprovalBoundaryBanner,
   canCompletePredictionAgentHandoff,
+  isPredictionTicketInsideApprovedBoundary,
 } from '@/lib/chat/approvalBoundary';
 import {
   CTF_CONTRACT_ADDRESS,
@@ -52,6 +54,10 @@ import OrderSuccessNotification, {
   showOrderSuccessToast,
   type OrderSuccessInfo,
 } from '../shared/OrderSuccessNotification';
+import {
+  marketRouteKey,
+  useMarketDetailStore,
+} from '@/zustandStore/marketDetailStore';
 
 import { InfoIcon, Clock, AlertCircle, X } from 'lucide-react';
 
@@ -4628,6 +4634,10 @@ export default function MarketDetailView({
   const { getAccessToken } = usePrivy();
   const { user, accessToken }: any = useUser();
   const agentCompletionPendingRef = useRef(false);
+  const clearMarketDetailEntry = useMarketDetailStore((s) => s.clear);
+  const currentMarketRouteKey = marketRouteKey(market);
+  const matchedApprovalBoundaryKey = useRef<string | null>(null);
+  const clearedAgentHandoffKey = useRef<string | null>(null);
 
   const activeTokenId =
     selectedOutcome === 'yes' ? yesTokenId : noTokenId;
@@ -5067,6 +5077,23 @@ export default function MarketDetailView({
       : null;
   const predictionAmountUnit: PredictionOrderAmountUnit =
     side === 'SELL' ? 'shares' : 'usd';
+  const approvalBoundaryKey = useMemo(
+    () =>
+      [
+        agentOrderPrefill?.proposalId,
+        agentOrderPrefill?.proposalNonce,
+        agentOrderPrefill?.marketRouteKey,
+      ]
+        .filter(Boolean)
+        .join(':'),
+    [
+      agentOrderPrefill?.marketRouteKey,
+      agentOrderPrefill?.proposalId,
+      agentOrderPrefill?.proposalNonce,
+    ],
+  );
+  const [approvalPathInvalidated, setApprovalPathInvalidated] =
+    useState(false);
   const predictionTicketState = useMemo(
     () => ({
       marketRouteKey: market.conditionId || market.id || market.slug || '',
@@ -5094,22 +5121,77 @@ export default function MarketDetailView({
       side,
     ],
   );
+  const isInsideApprovalBoundary = useMemo(
+    () =>
+      isPredictionTicketInsideApprovedBoundary(
+        agentOrderPrefill,
+        predictionTicketState,
+      ),
+    [agentOrderPrefill, predictionTicketState],
+  );
   const canReportAgentCompletion = useMemo(
     () =>
       canCompletePredictionAgentHandoff(
         agentOrderPrefill,
         predictionTicketState,
+        { approvalPathInvalidated },
       ),
-    [agentOrderPrefill, predictionTicketState],
+    [agentOrderPrefill, approvalPathInvalidated, predictionTicketState],
   );
   const approvalBoundaryBanner = useMemo(
     () =>
       buildPredictionApprovalBoundaryBanner(
         agentOrderPrefill,
         predictionTicketState,
+        { approvalPathInvalidated },
       ),
-    [agentOrderPrefill, predictionTicketState],
+    [agentOrderPrefill, approvalPathInvalidated, predictionTicketState],
   );
+
+  useEffect(() => {
+    setApprovalPathInvalidated(false);
+    clearedAgentHandoffKey.current = null;
+    matchedApprovalBoundaryKey.current = null;
+  }, [approvalBoundaryKey]);
+
+  useEffect(() => {
+    if (
+      approvalBoundaryKey &&
+      !approvalPathInvalidated &&
+      isInsideApprovalBoundary
+    ) {
+      matchedApprovalBoundaryKey.current = approvalBoundaryKey;
+    }
+  }, [
+    approvalBoundaryKey,
+    approvalPathInvalidated,
+    isInsideApprovalBoundary,
+  ]);
+
+  useEffect(() => {
+    if (
+      !approvalBoundaryKey ||
+      approvalPathInvalidated ||
+      isInsideApprovalBoundary ||
+      matchedApprovalBoundaryKey.current !== approvalBoundaryKey
+    ) {
+      return;
+    }
+
+    setApprovalPathInvalidated(true);
+    if (clearedAgentHandoffKey.current === approvalBoundaryKey) return;
+    clearAgentActionHandoff();
+    if (currentMarketRouteKey) {
+      clearMarketDetailEntry(currentMarketRouteKey);
+    }
+    clearedAgentHandoffKey.current = approvalBoundaryKey;
+  }, [
+    approvalBoundaryKey,
+    approvalPathInvalidated,
+    clearMarketDetailEntry,
+    currentMarketRouteKey,
+    isInsideApprovalBoundary,
+  ]);
 
   return (
     <div
