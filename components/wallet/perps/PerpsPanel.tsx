@@ -50,6 +50,7 @@ import {
   buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
   inferPerpsCloseFillsByCoin,
+  inferPerpsLiquidationFillsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
@@ -655,6 +656,7 @@ export function PerpsPanel({
         activeLimitOrders,
         observedDexes,
         markPricesByCoin: mids,
+        liquidationsByCoin: inferPerpsLiquidationFillsByCoin(fills),
         closedFillsByCoin: inferPerpsCloseFillsByCoin(fills),
       }).catch((feedError) => {
         reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
