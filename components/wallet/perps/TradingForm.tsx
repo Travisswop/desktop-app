@@ -26,6 +26,7 @@ import {
   buildPerpsApprovalBoundaryBanner,
   canCompletePerpsAgentHandoff,
   isPerpsTicketInsideApprovedBoundary,
+  resolvePerpsBoundarySizeCoins,
 } from '@/lib/chat/approvalBoundary';
 import { useUser } from '@/lib/UserContext';
 import {
@@ -132,6 +133,11 @@ export function TradingForm({
   // order the user actually requested even if mark price drifts mid-confirm.
   const [pendingOrder, setPendingOrder] = useState<OrderConfirmDetails | null>(null);
   const appliedAgentPrefillKey = useRef<string | null>(null);
+  const appliedApprovalBoundarySizeRef = useRef<{
+    key: string;
+    sizeUsd: string | null;
+    sizeCoins: string | null;
+  } | null>(null);
   const clearedAgentHandoffKey = useRef<string | null>(null);
   const matchedApprovalBoundaryKey = useRef<string | null>(null);
 
@@ -258,6 +264,7 @@ export function TradingForm({
   useEffect(() => {
     if (!agentOrderPrefill) {
       appliedAgentPrefillKey.current = null;
+      appliedApprovalBoundarySizeRef.current = null;
       return;
     }
 
@@ -305,6 +312,11 @@ export function TradingForm({
     setTakeProfit(agentOrderPrefill.takeProfitPrice || '');
     setStopLoss(agentOrderPrefill.stopLossPrice || '');
     setPendingOrder(null);
+    appliedApprovalBoundarySizeRef.current = {
+      key,
+      sizeUsd: usdSize || null,
+      sizeCoins: agentOrderPrefill.sizeCoins ?? null,
+    };
     appliedAgentPrefillKey.current = key;
   }, [agentOrderPrefill, isCross, markNum, maxLev, onLeverageChange]);
 
@@ -361,6 +373,23 @@ export function TradingForm({
     ],
   );
   const [approvalPathInvalidated, setApprovalPathInvalidated] = useState(false);
+  const approvalBoundarySizeCoins = useMemo(
+    () =>
+      resolvePerpsBoundarySizeCoins({
+        prefill: agentOrderPrefill,
+        currentSizeUsd: size,
+        currentSizeCoins: sizeInCoins,
+        appliedSizeUsd:
+          appliedApprovalBoundarySizeRef.current?.key === approvalBoundaryKey
+            ? appliedApprovalBoundarySizeRef.current.sizeUsd
+            : null,
+        appliedSizeCoins:
+          appliedApprovalBoundarySizeRef.current?.key === approvalBoundaryKey
+            ? appliedApprovalBoundarySizeRef.current.sizeCoins
+            : null,
+      }),
+    [agentOrderPrefill, approvalBoundaryKey, size, sizeInCoins],
+  );
   const currentApprovalBoundaryState = useMemo(
     () => ({
       coin: market?.coin ?? '',
@@ -369,7 +398,7 @@ export function TradingForm({
       side,
       orderMode: mode,
       sizeUsd: size,
-      sizeCoins: sizeInCoins,
+      sizeCoins: approvalBoundarySizeCoins,
       leverage: safeLeverage,
       isCross,
       price: limitPrice,
@@ -386,7 +415,7 @@ export function TradingForm({
       safeLeverage,
       side,
       size,
-      sizeInCoins,
+      approvalBoundarySizeCoins,
       stopLoss,
       takeProfit,
     ],

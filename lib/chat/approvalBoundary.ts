@@ -107,6 +107,34 @@ export function isPerpsTicketInsideApprovedBoundary(
   );
 }
 
+export function resolvePerpsBoundarySizeCoins(options: {
+  prefill: HyperliquidAgentOrderPrefill | null | undefined;
+  currentSizeUsd: string;
+  currentSizeCoins: string;
+  appliedSizeUsd?: string | null;
+  appliedSizeCoins?: string | null;
+}) {
+  const {
+    prefill,
+    currentSizeUsd,
+    currentSizeCoins,
+    appliedSizeUsd,
+    appliedSizeCoins,
+  } = options;
+
+  if (!prefill?.sizeCoins || prefill.sizeUsd) {
+    return currentSizeCoins;
+  }
+
+  if (!appliedSizeUsd || !appliedSizeCoins) {
+    return currentSizeCoins;
+  }
+
+  return matchesOptional(appliedSizeUsd, currentSizeUsd)
+    ? appliedSizeCoins
+    : currentSizeCoins;
+}
+
 export function canCompletePerpsAgentHandoff(
   prefill: HyperliquidAgentOrderPrefill | null | undefined,
   current: PerpsTicketState,

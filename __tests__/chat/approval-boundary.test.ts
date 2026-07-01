@@ -4,6 +4,7 @@ import {
   canCompletePredictionAgentHandoff,
   canCompletePerpsAgentHandoff,
   isPerpsTicketInsideApprovedBoundary,
+  resolvePerpsBoundarySizeCoins,
 } from '@/lib/chat/approvalBoundary';
 import {
   getHyperliquidOrderPrefill,
@@ -204,6 +205,65 @@ describe('approvalBoundary', () => {
         orderMode: 'market',
         sizeUsd: '1000.00',
         sizeCoins: '0.55',
+        leverage: 5,
+        isCross: true,
+      }),
+    ).toBe(false);
+  });
+
+  test('keeps sizeCoins-only perps handoffs inside the approved boundary across a mark move until the user edits size', () => {
+    const prefill = getHyperliquidOrderPrefill({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_hl_coins',
+        provider: 'hyperliquid',
+        panel: 'perps',
+        normalizedParams: {
+          coin: 'ETH',
+          side: 'long',
+          sizeCoins: '0.2500',
+          leverage: '5',
+        },
+      },
+    });
+
+    const untouchedSizeCoins = resolvePerpsBoundarySizeCoins({
+      prefill,
+      currentSizeUsd: '1000.00',
+      currentSizeCoins: '0.2439',
+      appliedSizeUsd: '1000.00',
+      appliedSizeCoins: '0.2500',
+    });
+
+    expect(untouchedSizeCoins).toBe('0.2500');
+    expect(
+      isPerpsTicketInsideApprovedBoundary(prefill, {
+        coin: 'ETH',
+        side: 'long',
+        orderMode: 'market',
+        sizeUsd: '1000.00',
+        sizeCoins: untouchedSizeCoins,
+        leverage: 5,
+        isCross: true,
+      }),
+    ).toBe(true);
+
+    const editedSizeCoins = resolvePerpsBoundarySizeCoins({
+      prefill,
+      currentSizeUsd: '1250.00',
+      currentSizeCoins: '0.3049',
+      appliedSizeUsd: '1000.00',
+      appliedSizeCoins: '0.2500',
+    });
+
+    expect(editedSizeCoins).toBe('0.3049');
+    expect(
+      isPerpsTicketInsideApprovedBoundary(prefill, {
+        coin: 'ETH',
+        side: 'long',
+        orderMode: 'market',
+        sizeUsd: '1250.00',
+        sizeCoins: editedSizeCoins,
         leverage: 5,
         isCross: true,
       }),
