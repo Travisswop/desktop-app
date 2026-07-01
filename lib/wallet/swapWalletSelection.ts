@@ -33,7 +33,7 @@ export function resolveSwapModalSolanaWalletAddress({
   payTokenWalletAddress?: string | null;
 }) {
   return (
-    normalizeAddress(preferredSolanaWalletAddress) ||
-    normalizeAddress(payTokenWalletAddress)
+    normalizeAddress(payTokenWalletAddress) ||
+    normalizeAddress(preferredSolanaWalletAddress)
   );
 }

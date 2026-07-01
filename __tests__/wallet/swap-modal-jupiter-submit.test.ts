@@ -65,7 +65,7 @@ describe('resolveSwapModalJupiterSubmit', () => {
     });
   });
 
-  it('blocks the Jupiter path when a token-driven modal entry keeps only a stale-cased wallet address', () => {
+  it('uses the live pay-token wallet for Jupiter signing after token changes inside the modal', () => {
     const preferredSolanaWalletAddress =
       resolveSwapBalanceSolanaWalletAddress({
         selectedWalletAddress:
@@ -77,7 +77,7 @@ describe('resolveSwapModalJupiterSubmit', () => {
       resolveSwapModalSolanaWalletAddress({
         preferredSolanaWalletAddress,
         payTokenWalletAddress:
-          'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+          'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
       });
     const selectedSolanaWallet = resolveSwapSelectedSolanaWallet({
       preferredAddress: selectedSolanaWalletAddress,
@@ -96,14 +96,12 @@ describe('resolveSwapModalJupiterSubmit', () => {
     });
 
     expect(selectedSolanaWalletAddress).toBe(
-      'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+      'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
     );
     expect(
       resolveSwapModalJupiterSubmit({
         solanaReady: true,
         selectedSolanaWalletAddress: selectedSolanaWallet?.address ?? '',
-        solanaWalletMismatchError:
-          'The Solana wallet with these balances (EADY...HSVwG) is not connected for signing. Connect that wallet or switch accounts, then try again.',
         payToken: {
           symbol: 'SWOP',
           address: SWOP_MINT,
@@ -117,10 +115,13 @@ describe('resolveSwapModalJupiterSubmit', () => {
         payAmount: '1.25',
       }),
     ).toEqual({
-      ok: false,
-      clearSwapStatus: true,
-      error:
-        'The Solana wallet with these balances (EADY...HSVwG) is not connected for signing. Connect that wallet or switch accounts, then try again.',
+      ok: true,
+      preflight: {
+        ok: true,
+        inputMint: SWOP_MINT,
+        outputMint: USDC_MINT,
+        amountInSmallestUnit: '1250000000',
+      },
     });
   });
 });

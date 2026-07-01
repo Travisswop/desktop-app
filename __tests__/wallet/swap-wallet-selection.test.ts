@@ -33,13 +33,23 @@ describe('swap wallet selection', () => {
     ).toBe('signable-solana-wallet');
   });
 
-  it('keeps the stale selected wallet on token-driven modal entries so mismatch handling can block signing', () => {
+  it('prefers the live pay-token wallet on token-driven modal entries', () => {
     expect(
       resolveSwapModalSolanaWalletAddress({
         preferredSolanaWalletAddress:
           'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
         payTokenWalletAddress:
           'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
+      }),
+    ).toBe('EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG');
+  });
+
+  it('falls back to the preferred wallet when the pay token has no Solana wallet context', () => {
+    expect(
+      resolveSwapModalSolanaWalletAddress({
+        preferredSolanaWalletAddress:
+          'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+        payTokenWalletAddress: '',
       }),
     ).toBe('EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG');
   });
