@@ -1,4 +1,5 @@
 import { resolveSwapModalJupiterSubmit } from '@/components/wallet/swapModalJupiterSubmit';
+import { resolveSwapSelectedSolanaWallet } from '@/lib/wallet/swapSelectedSolanaWallet';
 import {
   resolveSwapBalanceSolanaWalletAddress,
   resolveSwapModalSolanaWalletAddress,
@@ -64,7 +65,7 @@ describe('resolveSwapModalJupiterSubmit', () => {
     });
   });
 
-  it('keeps the Jupiter path available when a token-driven modal entry carries a stale-cased wallet address', () => {
+  it('blocks the Jupiter path when a token-driven modal entry keeps only a stale-cased wallet address', () => {
     const preferredSolanaWalletAddress =
       resolveSwapBalanceSolanaWalletAddress({
         selectedWalletAddress:
@@ -78,11 +79,28 @@ describe('resolveSwapModalJupiterSubmit', () => {
         payTokenWalletAddress:
           'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
       });
+    const selectedSolanaWallet = resolveSwapSelectedSolanaWallet({
+      preferredAddress: selectedSolanaWalletAddress,
+      connectedWallets: [],
+      standardWallets: [
+        {
+          name: 'Privy',
+          accounts: [
+            {
+              address:
+                'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
+            },
+          ],
+        },
+      ],
+    });
 
     expect(
       resolveSwapModalJupiterSubmit({
         solanaReady: true,
-        selectedSolanaWalletAddress,
+        selectedSolanaWalletAddress: selectedSolanaWallet?.address ?? '',
+        solanaWalletMismatchError:
+          'The Solana wallet with these balances (EADY...HSVwG) is not connected for signing. Connect that wallet or switch accounts, then try again.',
         payToken: {
           symbol: 'SWOP',
           address: SWOP_MINT,
@@ -96,13 +114,10 @@ describe('resolveSwapModalJupiterSubmit', () => {
         payAmount: '1.25',
       }),
     ).toEqual({
-      ok: true,
-      preflight: {
-        ok: true,
-        inputMint: SWOP_MINT,
-        outputMint: USDC_MINT,
-        amountInSmallestUnit: '1250000000',
-      },
+      ok: false,
+      clearSwapStatus: true,
+      error:
+        'The Solana wallet with these balances (EADY...HSVwG) is not connected for signing. Connect that wallet or switch accounts, then try again.',
     });
   });
 });

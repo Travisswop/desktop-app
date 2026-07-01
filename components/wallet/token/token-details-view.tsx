@@ -513,11 +513,10 @@ export default function TokenDetails({
   const solanaWalletAddress = solanaWallets?.[0]?.address;
   const selectedSolanaWallet = useMemo(() => {
     if (!solWalletAddress) return undefined;
-    const normalizedSelectedAddress =
-      solWalletAddress.toLowerCase();
+    const normalizedSelectedAddress = solWalletAddress.trim();
+    if (!normalizedSelectedAddress) return undefined;
     return solanaWallets.find(
-      (wallet) =>
-        wallet.address?.toLowerCase() === normalizedSelectedAddress,
+      (wallet) => wallet.address?.trim() === normalizedSelectedAddress,
     );
   }, [solWalletAddress, solanaWallets]);
   const preferredSwapSolanaWalletAddress =

@@ -773,10 +773,11 @@ const WalletContentInner = () => {
   // Find the Solana wallet that matches the selected wallet-data address.
   const selectedSolanaWallet = useMemo(() => {
     if (!solanaReady || !directSolanaWallets.length) return undefined;
-    const selectedAddress = solWalletAddress.toLowerCase();
+    const selectedAddress = solWalletAddress.trim();
+    if (!selectedAddress) return undefined;
     return (
       directSolanaWallets.find(
-        (wallet) => wallet.address.toLowerCase() === selectedAddress,
+        (wallet) => wallet.address?.trim() === selectedAddress,
       ) ?? directSolanaWallets[0]
     );
   }, [solanaReady, directSolanaWallets, solWalletAddress]);

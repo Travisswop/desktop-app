@@ -13,7 +13,7 @@ describe('swap wallet selection', () => {
     ).toBe('stored-solana-wallet');
   });
 
-  it('uses the connected signer casing when the stored Solana wallet only differs by case', () => {
+  it('keeps the selected balance wallet when the signer only differs by case', () => {
     expect(
       resolveSwapBalanceSolanaWalletAddress({
         selectedWalletAddress:
@@ -21,7 +21,7 @@ describe('swap wallet selection', () => {
         signableWalletAddress:
           'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
       }),
-    ).toBe('EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG');
+    ).toBe('EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG');
   });
 
   it('falls back to the signable wallet when no selected wallet is available', () => {
@@ -33,24 +33,14 @@ describe('swap wallet selection', () => {
     ).toBe('signable-solana-wallet');
   });
 
-  it('preserves the connected signer casing when the stored selected address only drifted by case', () => {
-    expect(
-      resolveSwapBalanceSolanaWalletAddress({
-        selectedWalletAddress: 'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
-        signableWalletAddress:
-          'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
-      }),
-    ).toBe('EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG');
-  });
-
-  it('keeps the canonical preferred signer ahead of a stale token wallet on token-driven modal entries', () => {
+  it('keeps the stale selected wallet on token-driven modal entries so mismatch handling can block signing', () => {
     expect(
       resolveSwapModalSolanaWalletAddress({
         preferredSolanaWalletAddress:
-          'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
-        payTokenWalletAddress:
           'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+        payTokenWalletAddress:
+          'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
       }),
-    ).toBe('EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG');
+    ).toBe('EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG');
   });
 });
