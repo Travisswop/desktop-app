@@ -825,34 +825,63 @@ async function fillComposer(client, text) {
 async function getButtonPoint(client, options) {
   return evaluate(
     client,
-    ({ text, exact = false, index = -1, selector = 'button', avoidFinal = true }) => {
+    ({
+      text,
+      exact = false,
+      index = -1,
+      selector = 'button',
+      avoidFinal = true,
+      scopeMarkers = [],
+    }) => {
       const isVisible = (el) => {
         const rect = el.getBoundingClientRect();
         const style = window.getComputedStyle(el);
         return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
       };
       const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-      const candidates = Array.from(document.querySelectorAll(selector))
+      const matchesButton = (el) => {
+        const label = normalize(el.innerText || el.getAttribute('title') || el.getAttribute('aria-label'));
+        if (avoidFinal && [
+          /sign\s*&\s*approve/i,
+          /confirm send/i,
+          /close position/i,
+          /deposit to hyperliquid/i,
+          /buy usdc in swop/i,
+          /place order/i,
+          /approve strategy/i,
+        ].some((pattern) => pattern.test(label))) {
+          return false;
+        }
+        return exact ? label === text : label.toLowerCase().includes(String(text).toLowerCase());
+      };
+      const normalizedScopeMarkers = Array.isArray(scopeMarkers)
+        ? scopeMarkers.map((marker) => normalize(marker).toLowerCase()).filter(Boolean)
+        : [];
+      let scopeRoot = document;
+      if (normalizedScopeMarkers.length) {
+        const scopeCandidates = Array.from(document.querySelectorAll('article, section, li, div'))
+          .filter(isVisible)
+          .filter((el) => {
+            const textContent = normalize(el.innerText || '').toLowerCase();
+            if (!normalizedScopeMarkers.every((marker) => textContent.includes(marker))) {
+              return false;
+            }
+            return Array.from(el.querySelectorAll(selector))
+              .filter(isVisible)
+              .some(matchesButton);
+          });
+        if (scopeCandidates.length) {
+          scopeRoot = scopeCandidates[scopeCandidates.length - 1];
+        }
+      }
+      const candidates = Array.from(scopeRoot.querySelectorAll(selector))
         .filter(isVisible)
-        .filter((el) => {
-          const label = normalize(el.innerText || el.getAttribute('title') || el.getAttribute('aria-label'));
-          if (avoidFinal && [
-            /sign\s*&\s*approve/i,
-            /confirm send/i,
-            /close position/i,
-            /deposit to hyperliquid/i,
-            /buy usdc in swop/i,
-            /place order/i,
-            /approve strategy/i,
-          ].some((pattern) => pattern.test(label))) {
-            return false;
-          }
-          return exact ? label === text : label.toLowerCase().includes(String(text).toLowerCase());
-        });
+        .filter(matchesButton);
       const el = index < 0 ? candidates[candidates.length + index] : candidates[index];
       if (!el) {
         return {
           found: false,
+          scopeMatched: scopeRoot !== document,
           labels: Array.from(document.querySelectorAll(selector))
             .filter(isVisible)
             .map((candidate) => normalize(candidate.innerText || candidate.getAttribute('title') || candidate.getAttribute('aria-label')))
@@ -877,7 +906,11 @@ async function getButtonPoint(client, options) {
 async function clickButton(client, text, options = {}) {
   const point = await getButtonPoint(client, { text, ...options });
   if (!point.found) {
-    throw new Error(`Button "${text}" not found. Visible labels: ${point.labels?.join(' | ')}`);
+    const scopeDetail =
+      Array.isArray(options.scopeMarkers) && options.scopeMarkers.length
+        ? ` inside scope [${options.scopeMarkers.join(' | ')}]`
+        : '';
+    throw new Error(`Button "${text}" not found${scopeDetail}. Visible labels: ${point.labels?.join(' | ')}`);
   }
   if (point.disabled) {
     throw new Error(`Button "${point.label}" is disabled.`);
@@ -981,9 +1014,29 @@ async function runCardChecks({ client, baseUrl, args, report, pageAuthStep = nul
   step = add('receive-qr-card');
   noteRunActivity(report, step, 'Sending receive-QR prompt and waiting for the card.');
   await sendPrompt(client, 'show my receive QR for Solana');
-  await waitForText(client, 'receive QR card', ['RECEIVE QR', 'ADDRESS'], 30000);
-  noteRunActivity(report, step, 'Clicking Copy address on the receive-QR card.');
-  await clickButton(client, 'Copy address', { selector: 'button', exact: false, avoidFinal: true });
+  const receiveQrScope = ['Receive QR', 'Address'];
+  await waitFor(
+    client,
+    'receive QR card copy control',
+    async () => {
+      const point = await getButtonPoint(client, {
+        text: 'Copy address',
+        selector: 'button',
+        exact: false,
+        avoidFinal: true,
+        scopeMarkers: receiveQrScope,
+      });
+      return point.found ? point : false;
+    },
+    30000
+  );
+  noteRunActivity(report, step, 'Clicking Copy address on the scoped receive-QR card.');
+  await clickButton(client, 'Copy address', {
+    selector: 'button',
+    exact: false,
+    avoidFinal: true,
+    scopeMarkers: receiveQrScope,
+  });
   const copyText = await pageText(client);
   if (/Could not copy address/i.test(copyText)) throw new Error('Receive QR copy button showed an error.');
   finishStep(step, 'pass', 'Rendered receive QR card and clicked copy address.');
