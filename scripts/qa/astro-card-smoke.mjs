@@ -31,11 +31,23 @@ const CARD_COMMAND_CONTRACTS = [
     command: 'open /dashboard/chat',
     cardType: 'authenticated chat shell',
     expectedMarkers: ['Messages', 'Astro'],
-    safeInteractions: ['select configured QA thread'],
+    safeInteractions: [
+      'select configured QA thread',
+      'use Open Astro Trading Desk recovery CTA when the account has 0 threads',
+    ],
     forbiddenActions: [],
     routeChecks: ['Chrome DevTools target must be /dashboard/chat'],
-    failureSignals: ['login screen instead of chat shell', 'blank page', 'framework error overlay'],
-    passCriteria: ['chat shell is authenticated', 'configured thread can be selected'],
+    failureSignals: [
+      'login screen instead of chat shell',
+      'blank page',
+      'framework error overlay',
+      'zero-thread empty state with no supported Astro recovery CTA',
+      'Astro recovery CTA does not reach a usable composer',
+    ],
+    passCriteria: [
+      'chat shell is authenticated',
+      'configured thread can be selected or a supported Astro recovery path reaches a ready composer',
+    ],
   },
   {
     step: 'portfolio-card',
@@ -861,7 +873,7 @@ async function assertLoggedIn(client) {
 }
 
 async function selectThread(client, threadText) {
-  if (!threadText) return;
+  if (!threadText) return false;
   const clicked = await evaluate(
     client,
     (label) => {
@@ -876,6 +888,108 @@ async function selectThread(client, threadText) {
     threadText
   );
   if (clicked) await sleep(1000);
+  return clicked;
+}
+
+async function hasComposer(client) {
+  return evaluate(client, () =>
+    Boolean(document.querySelector('textarea[name="chatMessage"]'))
+  );
+}
+
+async function inspectChatShellState(client) {
+  return evaluate(client, () => {
+    const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+    const text = document.body?.innerText || '';
+    const visibleButtons = Array.from(document.querySelectorAll('button'))
+      .map((button) =>
+        normalize(button.innerText || button.getAttribute('aria-label') || '')
+      )
+      .filter(Boolean)
+      .slice(0, 80);
+    const hasComposer = Boolean(
+      document.querySelector('textarea[name="chatMessage"]')
+    );
+    const hasZeroThreads = /0\s+threads\b/i.test(text);
+    const hasAstroEmptyStateCopy =
+      /Pick Astro Trading Desk, or create a group and mention @astro\./i.test(
+        text
+      );
+    const hasOpenAstroDeskCta = visibleButtons.includes(
+      'Open Astro Trading Desk'
+    );
+    return {
+      hasComposer,
+      hasZeroThreads,
+      hasAstroEmptyStateCopy,
+      hasOpenAstroDeskCta,
+      visibleButtons,
+      textExcerpt: normalize(text).slice(0, 700),
+    };
+  });
+}
+
+async function ensureChatReady(client, threadText) {
+  if (await hasComposer(client)) {
+    return 'Chat composer was already ready.';
+  }
+
+  const selectedConfiguredThread = await selectThread(client, threadText);
+  if (selectedConfiguredThread) {
+    const composerReady = await waitFor(
+      client,
+      `chat composer after selecting "${threadText}"`,
+      () => hasComposer(client),
+      15000
+    ).catch(() => false);
+    if (composerReady) {
+      return `Selected thread containing "${threadText}" and confirmed the composer is ready.`;
+    }
+  }
+
+  const shellState = await inspectChatShellState(client);
+  if (shellState.hasComposer) {
+    return 'Chat composer became ready after shell load.';
+  }
+
+  if (shellState.hasZeroThreads || shellState.hasAstroEmptyStateCopy) {
+    if (!shellState.hasOpenAstroDeskCta) {
+      throw new Error(
+        `Authenticated chat is stuck in a zero-thread empty state without a supported Astro recovery CTA. Visible buttons: ${
+          shellState.visibleButtons.join(' | ') || 'none'
+        }. Visible text: ${shellState.textExcerpt}`
+      );
+    }
+
+    await clickButton(client, 'Open Astro Trading Desk', {
+      exact: true,
+      selector: 'button',
+      avoidFinal: true,
+    });
+    const recovered = await waitFor(
+      client,
+      'chat composer after empty-state Astro recovery',
+      () => hasComposer(client),
+      15000
+    ).catch(() => false);
+    if (!recovered) {
+      const retryState = await inspectChatShellState(client);
+      throw new Error(
+        `Open Astro Trading Desk CTA did not reach a usable composer. Visible buttons: ${
+          retryState.visibleButtons.join(' | ') || 'none'
+        }. Visible text: ${retryState.textExcerpt}`
+      );
+    }
+    return 'Recovered a zero-thread account via the empty-state Open Astro Trading Desk CTA.';
+  }
+
+  throw new Error(
+    `Authenticated chat shell never reached a ready composer. Configured thread: ${
+      threadText || 'none'
+    }. Visible buttons: ${
+      shellState.visibleButtons.join(' | ') || 'none'
+    }. Visible text: ${shellState.textExcerpt}`
+  );
 }
 
 async function hasConfirmOnlyState(client) {
@@ -903,8 +1017,8 @@ async function runCardChecks({ client, baseUrl, args, report }) {
 
   let step = add('page-auth');
   await assertLoggedIn(client);
-  await selectThread(client, args.threadText);
-  finishStep(step, 'pass', `Authenticated chat loaded; selected thread containing "${args.threadText}".`);
+  const readyDetail = await ensureChatReady(client, args.threadText);
+  finishStep(step, 'pass', readyDetail);
 
   step = add('portfolio-card');
   await sendPrompt(client, 'show my portfolio');
