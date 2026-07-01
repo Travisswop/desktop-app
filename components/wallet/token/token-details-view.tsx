@@ -40,6 +40,7 @@ import {
 import { SUPPORTED_CHAINS } from '../constants';
 import SwapTokenModal from '../SwapTokenModal';
 import { useTokenChartData } from '@/lib/hooks/useTokenChartData';
+import { resolveSwapBalanceSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';
 
 const POS_GREEN = '#19a974';
 const POS_GREEN_SOFT = 'rgba(25,169,116,0.10)';
@@ -510,6 +511,20 @@ export default function TokenDetails({
   };
 
   const solanaWalletAddress = solanaWallets?.[0]?.address;
+  const selectedSolanaWallet = useMemo(() => {
+    if (!solWalletAddress) return undefined;
+    const normalizedSelectedAddress = solWalletAddress.trim();
+    if (!normalizedSelectedAddress) return undefined;
+    return solanaWallets.find(
+      (wallet) => wallet.address?.trim() === normalizedSelectedAddress,
+    );
+  }, [solWalletAddress, solanaWallets]);
+  const preferredSwapSolanaWalletAddress =
+    resolveSwapBalanceSolanaWalletAddress({
+      selectedWalletAddress: solWalletAddress,
+      signableWalletAddress: selectedSolanaWallet?.address,
+    });
+
   const handleWalletOptionsOpen = async () => {
     if (!solanaWalletAddress) {
       console.error('No wallet address available');
@@ -1328,7 +1343,13 @@ export default function TokenDetails({
           isOpen={openWalletSwapOpen}
           onCloseModal={setOpenWalletSwapOpen}
         >
-          <SwapTokenModal tokens={tokens} token={token} />
+          <SwapTokenModal
+            tokens={tokens}
+            token={token}
+            preferredSolanaWalletAddress={
+              preferredSwapSolanaWalletAddress
+            }
+          />
         </CustomModal>
       )}
     </>

@@ -1,4 +1,7 @@
-import { resolveSwapBalanceSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';
+import {
+  resolveSwapBalanceSolanaWalletAddress,
+  resolveSwapModalSolanaWalletAddress,
+} from '@/lib/wallet/swapWalletSelection';
 
 describe('swap wallet selection', () => {
   it('uses the selected wallet for swap balance display when it differs from the signable wallet', () => {
@@ -10,6 +13,17 @@ describe('swap wallet selection', () => {
     ).toBe('stored-solana-wallet');
   });
 
+  it('keeps the selected balance wallet when the signer only differs by case', () => {
+    expect(
+      resolveSwapBalanceSolanaWalletAddress({
+        selectedWalletAddress:
+          'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+        signableWalletAddress:
+          'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
+      }),
+    ).toBe('EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG');
+  });
+
   it('falls back to the signable wallet when no selected wallet is available', () => {
     expect(
       resolveSwapBalanceSolanaWalletAddress({
@@ -17,5 +31,26 @@ describe('swap wallet selection', () => {
         signableWalletAddress: 'signable-solana-wallet',
       }),
     ).toBe('signable-solana-wallet');
+  });
+
+  it('prefers the live pay-token wallet on token-driven modal entries', () => {
+    expect(
+      resolveSwapModalSolanaWalletAddress({
+        preferredSolanaWalletAddress:
+          'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+        payTokenWalletAddress:
+          'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
+      }),
+    ).toBe('EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG');
+  });
+
+  it('falls back to the preferred wallet when the pay token has no Solana wallet context', () => {
+    expect(
+      resolveSwapModalSolanaWalletAddress({
+        preferredSolanaWalletAddress:
+          'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+        payTokenWalletAddress: '',
+      }),
+    ).toBe('EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG');
   });
 });

@@ -66,6 +66,32 @@ describe('resolveSolanaSigningWallet', () => {
     ).toBeUndefined();
   });
 
+  it('does not match a Solana address that only differs by case', () => {
+    expect(
+      resolveSolanaSigningWallet({
+        preferredAddress: 'EADYPsxfWJyRarDYjXrLymm5dQxKEBdoSH3UAP3HSVwG',
+        connectedWallets: [
+          {
+            address: 'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+            source: 'direct:wrong-case',
+          },
+        ],
+        standardWallets: [
+          {
+            id: 'privy-embedded',
+            accounts: [
+              {
+                address:
+                  'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+              },
+            ],
+          },
+        ],
+        makeConnectedStandardWallet: connectStandardWallet,
+      }),
+    ).toBeUndefined();
+  });
+
   it('uses the first direct wallet when no preferred address exists', () => {
     expect(
       resolveSolanaSigningWallet({

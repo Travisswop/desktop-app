@@ -44,7 +44,6 @@ import {
   useSignAndSendTransaction,
   useSignTransaction,
 } from '@privy-io/react-auth/solana';
-import { ConnectedStandardSolanaWallet } from '@privy-io/js-sdk-core';
 import {
   createPublicClient,
   custom,
@@ -104,8 +103,19 @@ import {
   SWOP_TOKEN_MINT,
   reconcileSelectedSwapToken,
 } from '@/lib/wallet/swapTokenSelection';
-import { shouldDisableSwapActionButton } from '@/lib/wallet/swapActionButtonState';
-import { resolveSolanaSigningWallet } from '@/lib/wallet/solanaSigningWallet';
+import {
+  resolveSwapActionButtonMode,
+  shouldBlockSolanaSwapExecution,
+  shouldDisableSwapActionButton,
+} from '@/lib/wallet/swapActionButtonState';
+import {
+  getJupiterSwapPreflight,
+  type JupiterSwapPreflightSuccess,
+} from '@/lib/wallet/jupiterSwapPreflight';
+import { resolveSwapModalJupiterSubmit } from '@/components/wallet/swapModalJupiterSubmit';
+import { resolveSwapSelectedSolanaWallet } from '@/lib/wallet/swapSelectedSolanaWallet';
+import { normalizeSolanaSigningWalletAddress } from '@/lib/wallet/solanaSigningWallet';
+import { resolveSwapModalSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';
 import {
   markWalletSwapFailureReported,
   queueWalletSwapFailureClientEvent,
@@ -664,9 +674,6 @@ const getEvmTokenWalletAddress = (token?: any) => {
   return walletAddress.startsWith('0x') ? walletAddress : '';
 };
 
-const normalizeWalletAddress = (address?: string | null) =>
-  address?.trim().toLowerCase() ?? '';
-
 const getAccountField = (
   account: any,
   camelKey: string,
@@ -691,10 +698,12 @@ const isPrivyEmbeddedSolanaLinkedAccount = (
     return false;
   }
 
-  const normalizedAddress = normalizeWalletAddress(walletAddress);
+  const normalizedAddress =
+    normalizeSolanaSigningWalletAddress(walletAddress);
   if (
     normalizedAddress &&
-    normalizeWalletAddress(linkedAccount?.address) !== normalizedAddress
+    normalizeSolanaSigningWalletAddress(linkedAccount?.address) !==
+      normalizedAddress
   ) {
     return false;
   }
@@ -724,29 +733,12 @@ const hasPrivyEmbeddedSolanaLinkedAccount = (
     isPrivyEmbeddedSolanaLinkedAccount(linkedAccount, walletAddress),
   );
 
-const isPrivyStandardSolanaWallet = (wallet: any) =>
-  Boolean(
-    wallet?.isPrivyWallet ||
-      wallet?.features?.['privy:'] ||
-      String(wallet?.name || '').toLowerCase() === 'privy',
-  );
-
-const createSolanaWalletAccount = (walletAddress: string) => ({
-  address: walletAddress,
-  publicKey: new PublicKey(walletAddress).toBytes(),
-  chains: ['solana:mainnet', 'solana:devnet', 'solana:testnet'],
-  features: [
-    'solana:signAndSendTransaction',
-    'solana:signTransaction',
-    'solana:signMessage',
-  ],
-});
-
 const getPrivyEmbeddedSolanaWalletId = (
   privyUser: any,
   walletAddress?: string | null,
 ) => {
-  const normalizedAddress = normalizeWalletAddress(walletAddress);
+  const normalizedAddress =
+    normalizeSolanaSigningWalletAddress(walletAddress);
   if (!normalizedAddress) return null;
 
   const linkedAccounts = privyUser?.linkedAccounts || [];
@@ -1964,82 +1956,36 @@ export default function SwapTokenModal({
     ? getTokenWalletAddress(payToken)
     : '';
   const selectedSolanaSigningWalletAddress =
-    payTokenWalletAddress || preferredSolanaWalletAddress || '';
+    resolveSwapModalSolanaWalletAddress({
+      preferredSolanaWalletAddress,
+      payTokenWalletAddress,
+    });
   const normalizedSelectedSolanaSigningWalletAddress =
-    normalizeWalletAddress(selectedSolanaSigningWalletAddress);
+    normalizeSolanaSigningWalletAddress(
+      selectedSolanaSigningWalletAddress,
+    );
 
   const selectedSolanaWallet = useMemo(() => {
     if (!solanaReady || !solanaStandardWalletsReady) {
       return undefined;
     }
 
-    const resolvedWallet = resolveSolanaSigningWallet({
+    return resolveSwapSelectedSolanaWallet({
       connectedWallets: directSolanaWallets,
       standardWallets: solanaStandardWallets,
       preferredAddress: normalizedSelectedSolanaSigningWalletAddress,
-      makeConnectedStandardWallet: (wallet, account) =>
-        new ConnectedStandardSolanaWallet({
-          wallet,
-          account: account as any,
-        }),
-    }) as ConnectedStandardSolanaWallet | undefined;
-
-    if (resolvedWallet) {
-      return resolvedWallet;
-    }
-
-    const preferredAddress = selectedSolanaSigningWalletAddress.trim();
-    if (!preferredAddress) return undefined;
-
-    const privyStandardWallet = solanaStandardWallets.find(
-      isPrivyStandardSolanaWallet,
-    );
-    if (!privyStandardWallet) return undefined;
-
-    try {
-      return new ConnectedStandardSolanaWallet({
-        wallet: privyStandardWallet,
-        account: createSolanaWalletAccount(preferredAddress) as any,
-      });
-    } catch (error) {
-      console.warn(
-        '[Swap] Unable to prepare embedded Solana signing wallet',
-        {
-          walletAddress: maskIdentifier(preferredAddress),
-          error:
-            error instanceof Error ? error.message : String(error),
-        },
-      );
-      return undefined;
-    }
+    });
   }, [
     solanaReady,
     solanaStandardWalletsReady,
     directSolanaWallets,
     solanaStandardWallets,
     normalizedSelectedSolanaSigningWalletAddress,
-    selectedSolanaSigningWalletAddress,
   ]);
 
-  const solanaWalletMismatchError = useMemo(() => {
-    if (
-      !normalizedSelectedSolanaSigningWalletAddress ||
-      !selectedSolanaSigningWalletAddress ||
-      !solanaReady ||
-      !solanaStandardWalletsReady ||
-      selectedSolanaWallet
-    ) {
-      return null;
-    }
-
+  const buildSolanaWalletMismatchError = useCallback(() => {
     return `The Solana wallet with these balances (${formatShortWalletAddress(selectedSolanaSigningWalletAddress)}) is not connected for signing. Connect that wallet or switch accounts, then try again.`;
-  }, [
-    normalizedSelectedSolanaSigningWalletAddress,
-    selectedSolanaSigningWalletAddress,
-    selectedSolanaWallet,
-    solanaReady,
-    solanaStandardWalletsReady,
-  ]);
+  }, [selectedSolanaSigningWalletAddress]);
 
   const [fromWalletAddress, setFromWalletAddress] = useState(
     selectedSolanaWallet?.address || '',
@@ -2057,10 +2003,10 @@ export default function SwapTokenModal({
       return false;
     }
 
-    const normalizedFrom = normalizeWalletAddress(fromWalletAddress);
+    const normalizedFrom = normalizeEvmAddress(fromWalletAddress);
     return wallets.some(
       (wallet) =>
-        normalizeWalletAddress(wallet.address) === normalizedFrom &&
+        normalizeEvmAddress(wallet.address) === normalizedFrom &&
         isPrivyEmbeddedWalletType(wallet.walletClientType),
     );
   }, [chainId, fromWalletAddress, payToken, wallets]);
@@ -2474,6 +2420,27 @@ export default function SwapTokenModal({
       isSolanaToken(receiveToken, receiverChainId),
     [chainId, payToken, receiveToken, receiverChainId],
   );
+
+  const shouldBlockSelectedSolanaWalletExecution =
+    shouldBlockSolanaSwapExecution({
+      isJupiterRoute: isSolanaToSolanaSwap(),
+      selectedSolanaSigningWalletAddress:
+        normalizedSelectedSolanaSigningWalletAddress,
+      hasSelectedSolanaWallet: Boolean(selectedSolanaWallet),
+      solanaReady,
+      solanaStandardWalletsReady,
+    });
+
+  const solanaWalletMismatchError = useMemo(() => {
+    if (!shouldBlockSelectedSolanaWalletExecution) {
+      return null;
+    }
+
+    return buildSolanaWalletMismatchError();
+  }, [
+    buildSolanaWalletMismatchError,
+    shouldBlockSelectedSolanaWalletExecution,
+  ]);
 
   const applySubmittedSwapBalanceUpdate = useCallback(() => {
     const payKey = getTokenIdentityKey(payToken);
@@ -4448,7 +4415,9 @@ export default function SwapTokenModal({
   };
 
   // ── Jupiter swap (/order + /execute) ─────────────────────────────────────────
-  const executeJupiterSwap = async () => {
+  const executeJupiterSwap = async (
+    preflightOverride?: JupiterSwapPreflightSuccess,
+  ) => {
     let failureAlreadyReported = false;
     let failureContext: Record<string, unknown> = {
       provider: 'Jupiter',
@@ -4456,42 +4425,40 @@ export default function SwapTokenModal({
 
     try {
       let canRunUserFundedSimulation = true;
-
-      if (!solanaReady) {
+      const selectedSolanaWalletAddress =
+        selectedSolanaWallet?.address ?? null;
+      const preflight =
+        preflightOverride ||
+        getJupiterSwapPreflight({
+          solanaReady,
+          selectedSolanaWalletAddress,
+          solanaWalletMismatchError,
+          payToken,
+          receiveToken,
+          payAmount,
+        });
+      if (
+        !preflight.ok ||
+        !selectedSolanaWallet ||
+        !selectedSolanaWalletAddress
+      ) {
         setSwapError(
-          'Solana wallet is not ready. Please wait and try again.',
+          preflight.ok
+            ? solanaWalletMismatchError || 'No Solana wallet connected'
+            : preflight.error,
         );
+        setSwapStatus(null);
         setIsSwapping(false);
         return;
       }
-      if (!selectedSolanaWallet?.address) {
-        setSwapError(
-          solanaWalletMismatchError || 'No Solana wallet connected',
-        );
-        setIsSwapping(false);
-        return;
-      }
-
-      const getTokenMint = (t: any) =>
-        t.symbol === 'SOL'
-          ? 'So11111111111111111111111111111111111111112'
-          : t.address || t.id;
-
-      const inputMint = getTokenMint(payToken);
-      const outputMint = getTokenMint(receiveToken);
-      if (!inputMint || !outputMint)
-        throw new Error('Invalid token addresses');
-      if (inputMint.toLowerCase() === outputMint.toLowerCase())
-        throw new Error(
-          'Pay token and receive token are the same. Please select different tokens.',
-        );
-      const amountInSmallestUnit = formatTokenAmount(
-        payAmount,
-        payToken.decimals || 6,
-      );
+      const {
+        inputMint,
+        outputMint,
+        amountInSmallestUnit,
+      } = preflight;
       failureContext = {
         ...failureContext,
-        walletAddress: maskIdentifier(selectedSolanaWallet.address),
+        walletAddress: maskIdentifier(selectedSolanaWalletAddress),
         inputToken: {
           symbol: payToken?.symbol,
           mint: inputMint,
@@ -4518,7 +4485,7 @@ export default function SwapTokenModal({
 
       const USER_FEE_PAYER_SIMULATION_BUFFER = 15_000;
       const walletPubkey = new PublicKey(
-        selectedSolanaWallet.address,
+        selectedSolanaWalletAddress,
       );
       const inputMintPubkey = new PublicKey(inputMint);
       const outputMintPubkey = new PublicKey(outputMint);
@@ -4759,8 +4726,8 @@ export default function SwapTokenModal({
           inputMint,
           outputMint,
           amount: amountInSmallestUnit,
-          taker: selectedSolanaWallet.address,
-          payer: selectedSolanaWallet.address,
+          taker: selectedSolanaWalletAddress,
+          payer: selectedSolanaWalletAddress,
           slippageBps,
           mode: 'fast' as const,
           platformFeeBps: effectivePlatformFeeBps,
@@ -4770,7 +4737,7 @@ export default function SwapTokenModal({
             : undefined,
           wrapAndUnwrapSol: isSOLInput || isSOLOutput,
           nativeDestinationAccount: isSOLOutput
-            ? selectedSolanaWallet.address
+            ? selectedSolanaWalletAddress
             : undefined,
         };
         failureContext = {
@@ -4815,7 +4782,7 @@ export default function SwapTokenModal({
             : undefined,
           wrapAndUnwrapSol: isSOLInput || isSOLOutput,
           nativeDestinationAccount: isSOLOutput
-            ? maskIdentifier(selectedSolanaWallet.address)
+            ? maskIdentifier(selectedSolanaWalletAddress)
             : undefined,
         });
 
@@ -4901,7 +4868,7 @@ export default function SwapTokenModal({
           try {
             let simulationResult = await simulateJupiterBuild({
               build,
-              feePayer: selectedSolanaWallet.address,
+              feePayer: selectedSolanaWalletAddress,
               connection,
             });
 
@@ -4941,7 +4908,7 @@ export default function SwapTokenModal({
               setSwapStatus('Simulating refreshed Jupiter swap...');
               simulationResult = await simulateJupiterBuild({
                 build,
-                feePayer: selectedSolanaWallet.address,
+                feePayer: selectedSolanaWalletAddress,
                 connection,
               });
 
@@ -4982,7 +4949,7 @@ export default function SwapTokenModal({
 
         const tx = buildJupiterVersionedTransaction({
           build,
-          feePayer: selectedSolanaWallet.address,
+          feePayer: selectedSolanaWalletAddress,
           computeUnitLimit,
         });
 
@@ -5589,12 +5556,43 @@ export default function SwapTokenModal({
         setIsSwapping(false);
         return;
       }
+      if (
+        shouldBlockSolanaSwapExecution({
+          isJupiterRoute: isSolanaToSolanaSwap(),
+          selectedSolanaSigningWalletAddress:
+            normalizedSelectedSolanaSigningWalletAddress,
+          hasSelectedSolanaWallet: Boolean(selectedSolanaWallet),
+          solanaReady,
+          solanaStandardWalletsReady,
+        })
+      ) {
+        setSwapError(buildSolanaWalletMismatchError());
+        setSwapStatus(null);
+        setIsSwapping(false);
+        return;
+      }
       if (isCopyTrade && copyTradePostId) {
         setSwapStatus('Checking copy trade reward...');
         await fetchCopyTradeRewardPreview();
       }
       if (isSolanaToSolanaSwap()) {
-        await executeJupiterSwap();
+        const jupiterSubmit = resolveSwapModalJupiterSubmit({
+          solanaReady,
+          selectedSolanaWalletAddress: selectedSolanaWallet?.address,
+          solanaWalletMismatchError,
+          payToken,
+          receiveToken,
+          payAmount,
+        });
+        if (!jupiterSubmit.ok) {
+          setSwapError(jupiterSubmit.error);
+          if (jupiterSubmit.clearSwapStatus) {
+            setSwapStatus(null);
+          }
+          setIsSwapping(false);
+          return;
+        }
+        await executeJupiterSwap(jupiterSubmit.preflight);
       } else {
         const existingQuote = quote;
         if (hasExecutableLiFiQuote(existingQuote)) {
@@ -5856,6 +5854,10 @@ export default function SwapTokenModal({
     hasPayAmount: !!payAmount,
     hasReceiveAmount: !!receiveAmount,
     privyReady,
+  });
+  const swapActionButtonMode = resolveSwapActionButtonMode({
+    isSwapDone,
+    hasSolanaWalletMismatch: !!solanaSwapWalletError,
   });
   const routeProviderLabel = isSolanaToSolanaSwap()
     ? 'Jupiter'
@@ -6534,9 +6536,9 @@ export default function SwapTokenModal({
               type="button"
               onClick={(event) => {
                 event.preventDefault();
-                if (solanaSwapWalletError) {
+                if (swapActionButtonMode === 'connect_wallet') {
                   void handleConnectSigningWallet();
-                } else if (isSwapDone) {
+                } else if (swapActionButtonMode === 'reset') {
                   resetSwapForm();
                 } else {
                   void executeCrossChainSwap();
@@ -6545,7 +6547,7 @@ export default function SwapTokenModal({
               className={`py-3.5 rounded-xl ${isSwapDone ? 'bg-green-600 hover:bg-green-700' : 'bg-[#0a0a0c] hover:bg-black/90'} text-white text-sm font-bold -tracking-[0.1px] disabled:opacity-50 transition-colors`}
               disabled={swapActionButtonDisabled}
             >
-              {isSwapDone ? (
+              {swapActionButtonMode === 'reset' ? (
                 'New swap'
               ) : isSwapping ? (
                 'Swapping…'
@@ -6554,7 +6556,7 @@ export default function SwapTokenModal({
                   <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
                   Connecting wallet…
                 </span>
-              ) : solanaSwapWalletError ? (
+              ) : swapActionButtonMode === 'connect_wallet' ? (
                 'Connect wallet'
               ) : !balanceValidation.isValid ? (
                 'Insufficient balance'
