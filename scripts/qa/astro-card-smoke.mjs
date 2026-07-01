@@ -5,6 +5,9 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import authHostHelpers from './astro-card-smoke-hosts.js';
+
+const { classifyAuthHostBlocker } = authHostHelpers;
 
 const DEFAULT_SWOP_URL = 'https://www.swopme.app/dashboard/chat';
 const DEFAULT_CHROME_PORT = 9223;
@@ -250,6 +253,7 @@ Usage:
   node scripts/qa/astro-card-smoke.mjs --launch
   node scripts/qa/astro-card-smoke.mjs --setup-login --launch
   node scripts/qa/astro-card-smoke.mjs --chrome-url=http://127.0.0.1:9222
+  node scripts/qa/astro-card-smoke.mjs --launch --url=http://127.0.0.1:3001/dashboard/chat
   node scripts/qa/astro-card-smoke.mjs --launch --alert-email=you@example.com
   node scripts/qa/astro-card-smoke.mjs --launch --swap-taker=<funded-solana-wallet>
 
@@ -259,6 +263,12 @@ Modes:
 
 Alerts:
   Set SWOP_QA_ALERT_EMAIL or pass --alert-email to email a failure report.
+
+Auth hosts:
+  Signed-in QA is expected to run on an allowed origin such as production or a
+  localhost review host. Ephemeral vercel.app preview hosts can fail at page-auth
+  before any card smoke because Privy blocks the login iframe on non-allowlisted
+  origins.
 
 Swap QA:
   The swap-card lane checks the rendered card plus /api/jupiter/quote.
@@ -471,6 +481,10 @@ async function evaluate(client, fn, arg = undefined) {
 
 async function pageText(client) {
   return evaluate(client, () => document.body?.innerText || '');
+}
+
+async function pageUrl(client) {
+  return evaluate(client, () => window.location.href || '');
 }
 
 async function waitFor(client, description, predicate, timeoutMs = 30000, intervalMs = 750) {
@@ -852,12 +866,33 @@ async function sendPrompt(client, prompt) {
   await scrollAllToBottom(client);
 }
 
-async function assertLoggedIn(client) {
-  await waitForText(client, 'authenticated chat shell', [/Messages/i, /Astro/i], 45000);
+async function assertLoggedIn(client, args, report) {
+  await waitFor(
+    client,
+    'authenticated chat shell or login gate',
+    async () => {
+      const text = await pageText(client);
+      return (
+        (/Messages/i.test(text) && /Astro/i.test(text)) ||
+        /sign in|log in|login|allowed origins/i.test(text)
+      );
+    },
+    45000
+  );
   const text = await pageText(client);
+  if (/Messages/i.test(text) && /Astro/i.test(text)) return;
   if (/sign in|log in|login/i.test(text) && !/Messages/i.test(text)) {
+    const currentUrl = await pageUrl(client);
+    const blocker = classifyAuthHostBlocker({
+      requestedUrl: args.url,
+      currentUrl,
+      pageText: text,
+      consoleErrors: report.console.errors,
+    });
+    if (blocker) throw new Error(blocker.message);
     throw new Error('Swop appears to be on a login screen. Run --setup-login first and sign in.');
   }
+  throw new Error('Swop did not reach the authenticated chat shell or a recognizable login state.');
 }
 
 async function selectThread(client, threadText) {
@@ -902,7 +937,7 @@ async function runCardChecks({ client, baseUrl, args, report }) {
   };
 
   let step = add('page-auth');
-  await assertLoggedIn(client);
+  await assertLoggedIn(client, args, report);
   await selectThread(client, args.threadText);
   finishStep(step, 'pass', `Authenticated chat loaded; selected thread containing "${args.threadText}".`);
 
