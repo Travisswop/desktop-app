@@ -32,8 +32,8 @@ export function resolveSwapModalSolanaWalletAddress({
   preferredSolanaWalletAddress?: string | null;
   payTokenWalletAddress?: string | null;
 }) {
-  return (
-    normalizeAddress(preferredSolanaWalletAddress) ||
-    normalizeAddress(payTokenWalletAddress)
-  );
+  return resolveSwapBalanceSolanaWalletAddress({
+    selectedWalletAddress: payTokenWalletAddress,
+    signableWalletAddress: preferredSolanaWalletAddress,
+  });
 }

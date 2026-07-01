@@ -108,6 +108,7 @@ import {
   type JupiterSwapPreflightSuccess,
 } from '@/lib/wallet/jupiterSwapPreflight';
 import { resolveSwapModalJupiterSubmit } from '@/components/wallet/swapModalJupiterSubmit';
+import { resolveSwapBalanceSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';
 import { resolveSwapSelectedSolanaWallet } from '@/lib/wallet/swapSelectedSolanaWallet';
 import { normalizeSolanaSigningWalletAddress } from '@/lib/wallet/solanaSigningWallet';
 import { resolveSwapModalSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';

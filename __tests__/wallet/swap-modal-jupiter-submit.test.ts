@@ -95,6 +95,9 @@ describe('resolveSwapModalJupiterSubmit', () => {
       ],
     });
 
+    expect(selectedSolanaWalletAddress).toBe(
+      'EADYPSXFWJYRARDYJXRLYMM5DQXKEBDOSH3UAP3HSVWG',
+    );
     expect(
       resolveSwapModalJupiterSubmit({
         solanaReady: true,
