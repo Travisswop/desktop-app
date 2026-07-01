@@ -168,6 +168,7 @@ import {
 import {
   GoldmanStrategyStatusPanel,
   getGoldmanStrategyControlState,
+  isGoldmanStrategyRunningState,
   useGoldmanStrategyHeartbeatNow,
 } from '@/components/chat/goldman/GoldmanStrategyStatusPanel';
 import {
@@ -3366,7 +3367,7 @@ export default function ChatArea({
     [goldmanStrategyVault]
   );
   const isGoldmanStrategyRunning =
-    activeGoldmanStrategy?.runtime?.state === 'running';
+    isGoldmanStrategyRunningState(activeGoldmanStrategy);
   const ensureGoldmanStrategyVault = useCallback(async () => {
     if (goldmanStrategyVault?.walletAddress) return goldmanStrategyVault;
     if (!goldmanGroupId || !accessToken) {

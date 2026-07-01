@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   GoldmanStrategyStatusPanel,
   getGoldmanStrategyControlState,
+  isGoldmanStrategyRunningState,
 } from '@/components/chat/goldman/GoldmanStrategyStatusPanel';
 
 describe('GoldmanStrategyStatusPanel', () => {
@@ -403,6 +404,29 @@ describe('GoldmanStrategyStatusPanel', () => {
     ).toMatchObject({
       primaryAction: 'stop',
       runLabel: 'Stop',
+    });
+  });
+
+  test('treats legacy active strategies without runtime state as still running', () => {
+    const strategy = {
+      title: 'Legacy active strategy',
+      status: 'active',
+      runtime: {
+        executionMode: 'execute',
+        lastHeartbeatAt: '2026-06-24T15:59:00Z',
+      },
+    } as const;
+
+    expect(isGoldmanStrategyRunningState(strategy)).toBe(true);
+    expect(
+      getGoldmanStrategyControlState(strategy, {
+        now: Date.parse('2026-06-24T16:00:00Z'),
+      })
+    ).toMatchObject({
+      statusLabel: 'Running',
+      primaryAction: 'stop',
+      runLabel: 'Stop',
+      summaryLine: 'running · live execute',
     });
   });
 });

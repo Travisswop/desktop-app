@@ -229,6 +229,19 @@ function isClientConnectionBlocked(message?: string | null) {
   );
 }
 
+export function isGoldmanStrategyRunningState(
+  strategy?: GoldmanStrategyPanelStrategy | null
+) {
+  const status = String(strategy?.status || '').toLowerCase();
+  const runtimeState = String(strategy?.runtime?.state || '').toLowerCase();
+  if (runtimeState === 'running') return true;
+  return (
+    status === 'active' &&
+    runtimeState.length === 0 &&
+    normalizeModeKey(strategy?.runtime?.executionMode) !== 'proposal'
+  );
+}
+
 export function getGoldmanStrategyControlState(
   strategy?: GoldmanStrategyPanelStrategy | null,
   options?: {
@@ -241,7 +254,8 @@ export function getGoldmanStrategyControlState(
   const metadata = strategy?.metadata || null;
   const modeKey = normalizeModeKey(runtime?.executionMode);
   const modeLabel = normalizeMode(runtime?.executionMode);
-  const isStrategyRunning = Boolean(options?.isStrategyRunning);
+  const isStrategyRunning =
+    options?.isStrategyRunning ?? isGoldmanStrategyRunningState(strategy);
   const heartbeat = describeHeartbeat(runtime?.lastHeartbeatAt, options?.now);
   const approvalState = getStringMetadataValue(metadata, 'approvalState');
   const walletStatus = getStringMetadataValue(metadata, 'walletStatus');
