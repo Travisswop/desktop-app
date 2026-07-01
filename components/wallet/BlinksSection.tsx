@@ -33,7 +33,6 @@ import {
 import { SUPPORTED_CHAINS } from './constants';
 import {
   useCreateRedeemLink,
-  RENT_PER_TOKEN_ACCOUNT,
   type RedeemLinkToken,
 } from '@/lib/hooks/useCreateRedeemLink';
 import { copyTextToClipboard } from '@/lib/clipboard';
@@ -262,11 +261,6 @@ export default function BlinksSection() {
     [rawTokens],
   );
 
-  const solBalance = useMemo(
-    () => solTokens.find((t) => t.isNative)?.balance ?? 0,
-    [solTokens],
-  );
-
   // ── Create-blink form state ────────────────────────────────────────────────
   const [selectedToken, setSelectedToken] = useState<SolanaToken | null>(
     null,
@@ -453,14 +447,11 @@ export default function BlinksSection() {
   const balanceUsdLabel = formatUsd(tokenBalance * tokenPriceUsd);
   const tokensPerWalletUsdLabel = formatUsd(tokensPerWallet * tokenPriceUsd);
   const exceedsBalance = !!selectedToken && amountNum > tokenBalance;
-  const insufficientSol =
-    !!selectedToken && solBalance < RENT_PER_TOKEN_ACCOUNT;
   const canCreate =
     !!selectedToken &&
     amountNum > 0 &&
     maxWalletsNum > 0 &&
     !exceedsBalance &&
-    !insufficientSol &&
     !isCreating;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -790,16 +781,6 @@ export default function BlinksSection() {
               </span>
             </div>
           )}
-          {insufficientSol && (
-            <div className="flex items-start gap-2 text-[11.5px] text-amber-700 bg-amber-50 border border-amber-100 rounded-[10px] px-2.5 py-2 mb-3">
-              <AlertTriangle className="w-3.5 h-3.5 mt-[2px] shrink-0" />
-              <span>
-                Need at least {RENT_PER_TOKEN_ACCOUNT.toFixed(5)} SOL for
-                rent fees. Current SOL balance: {formatBalance(solBalance)}.
-              </span>
-            </div>
-          )}
-
           <button
             type="button"
             onClick={handleCreate}

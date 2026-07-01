@@ -265,18 +265,18 @@ export default function SendToModal({
           )
         ) {
           errorMessage =
-            'Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.';
+            'Swop could not complete the sponsored Solana account setup for this redeem link. Try again in a moment.';
         } else if (
           logs.some((log: string) =>
             log.includes('insufficient funds for rent'),
           )
         ) {
           errorMessage =
-            'Insufficient SOL balance to cover rent for token account. Please add more SOL.';
+            'Swop could not complete the sponsored Solana account setup for this redeem link. Try again in a moment.';
         }
       } else if (error?.message?.includes('insufficient lamports')) {
         errorMessage =
-          'Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.';
+          'Swop could not complete the sponsored Solana account setup for this redeem link. Try again in a moment.';
       } else if (error?.message) {
         errorMessage = error.message;
       }

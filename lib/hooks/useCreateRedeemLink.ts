@@ -5,6 +5,8 @@ import {
   useWallets as useSolanaWallets,
 } from '@privy-io/react-auth/solana';
 import { Connection, Transaction } from '@solana/web3.js';
+import { sponsorSolanaTransaction } from '@/actions/sponsorSolanaTransaction';
+import { useUser } from '@/lib/UserContext';
 
 export const TOKEN_ACCOUNT_RENT_EXEMPT = 0.00203928;
 export const TRANSACTION_FEE_BUFFER = 0.001;
@@ -44,6 +46,7 @@ interface UseCreateRedeemLinkReturn {
 // is identical to the original handler.
 export function useCreateRedeemLink(): UseCreateRedeemLinkReturn {
   const { user } = usePrivy();
+  const { accessToken } = useUser();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { signTransaction } = useSignTransaction();
 
@@ -137,7 +140,8 @@ export function useCreateRedeemLink(): UseCreateRedeemLinkReturn {
           return;
         }
 
-        // External wallet — sign + broadcast client-side.
+        // Prefer sponsorship for Privy embedded wallets even if an older backend
+        // path returns the setup transaction to the client.
         const combinedTx = Transaction.from(
           Buffer.from(data.serializedTransaction, 'base64'),
         );
@@ -151,7 +155,26 @@ export function useCreateRedeemLink(): UseCreateRedeemLinkReturn {
             verifySignatures: false,
           }),
         );
+        const serializedTxBase64 = Buffer.from(serializedTx).toString('base64');
 
+        if (walletId) {
+          const sponsoredResult = await sponsorSolanaTransaction(
+            serializedTxBase64,
+            walletId,
+            accessToken,
+          );
+          if (sponsoredResult.success) {
+            setRedeemLink(`https://redeem.swopme.app/${data.poolId}`);
+            setStatus('success');
+            return;
+          }
+          console.warn(
+            '[redeem-link] Sponsored setup failed; falling back to wallet signer.',
+            sponsoredResult.error,
+          );
+        }
+
+        // External wallet or sponsorship fallback — sign + broadcast client-side.
         const { signedTransaction: signedTx } = await signTransaction({
           transaction: serializedTx,
           wallet: solanaWallet,
@@ -173,10 +196,7 @@ export function useCreateRedeemLink(): UseCreateRedeemLinkReturn {
 
         let message = 'Failed to set up token holding account';
         const logs: string[] = Array.isArray(e?.logs) ? e.logs : [];
-        if (logs.some((l) => l.includes('insufficient funds'))) {
-          message =
-            'Insufficient token balance. The amount exceeds your wallet balance.';
-        } else if (
+        if (
           logs.some(
             (l) =>
               l.includes('insufficient lamports') ||
@@ -184,10 +204,16 @@ export function useCreateRedeemLink(): UseCreateRedeemLinkReturn {
           )
         ) {
           message =
-            'Insufficient SOL balance to cover rent fees. Please add more SOL.';
-        } else if (e?.message?.includes('insufficient lamports')) {
+            'Swop could not complete the sponsored Solana account setup for this redeem link. Try again in a moment.';
+        } else if (
+          e?.message?.includes('insufficient lamports') ||
+          e?.message?.includes('insufficient funds for rent')
+        ) {
           message =
-            'Insufficient SOL balance to cover rent fees. Please add more SOL.';
+            'Swop could not complete the sponsored Solana account setup for this redeem link. Try again in a moment.';
+        } else if (logs.some((l) => l.includes('insufficient funds'))) {
+          message =
+            'Insufficient token balance. The amount exceeds your wallet balance.';
         } else if (e?.message) {
           message = e.message;
         }
@@ -196,7 +222,7 @@ export function useCreateRedeemLink(): UseCreateRedeemLinkReturn {
         setError(message);
       }
     },
-    [solanaWallets, signTransaction, user?.id],
+    [solanaWallets, signTransaction, user?.id, accessToken],
   );
 
   return { createLink, status, redeemLink, error, reset };
