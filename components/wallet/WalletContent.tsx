@@ -48,6 +48,10 @@ import {
   fetchRewardWalletStatus,
 } from '@/lib/wallet/rewardsApi';
 import { ensureSponsoredSolanaTokenAccount } from '@/lib/solana/sponsoredTokenAccounts';
+import {
+  GAS_SPONSORSHIP_FALLBACK_NOTICE,
+  runSponsoredFirst,
+} from '@/lib/wallet/gasSponsorship';
 import type { HyperliquidAgentOrderPrefill } from '@/lib/chat/agentActionHandoff';
 
 // Custom hooks
@@ -743,6 +747,17 @@ const WalletContentInner = () => {
     useSendTransaction();
 
   const { toast } = useToast();
+
+  // Honest disclosure required by the gas-sponsorship operating model: when a
+  // covered flow falls back to user-paid gas, the UI must say sponsorship was
+  // unavailable rather than silently spending the wallet's native balance.
+  const notifySponsorshipFallback = useCallback(() => {
+    toast({
+      title: 'Gas sponsorship unavailable',
+      description: GAS_SPONSORSHIP_FALLBACK_NOTICE,
+    });
+  }, [toast]);
+
   const queryClient = useQueryClient();
   const { user, accessToken: userAccessToken } = useUser();
   const accessToken = userAccessToken || '';
@@ -1509,11 +1524,15 @@ const WalletContentInner = () => {
           });
 
           try {
-            const result = await signAndSendTransaction({
-              transaction: new Uint8Array(serializedNFTTransaction),
-              wallet: selectedSolanaWallet!,
-              options: { sponsor: true },
-            });
+            const result = await runSponsoredFirst(
+              ({ sponsor }) =>
+                signAndSendTransaction({
+                  transaction: new Uint8Array(serializedNFTTransaction),
+                  wallet: selectedSolanaWallet!,
+                  options: { sponsor },
+                }),
+              { onFallback: notifySponsorshipFallback },
+            );
             hash = bs58.encode(result.signature);
           } catch (privyError) {
             return {
@@ -1561,13 +1580,17 @@ const WalletContentInner = () => {
           }
 
           try {
-            const result = await sendEVMTransaction(
-              {
-                to: sendFlow.nft.contract as `0x${string}`,
-                data: nftData as `0x${string}`,
-                chainId,
-              },
-              { sponsor: true },
+            const result = await runSponsoredFirst(
+              ({ sponsor }) =>
+                sendEVMTransaction(
+                  {
+                    to: sendFlow.nft!.contract as `0x${string}`,
+                    data: nftData as `0x${string}`,
+                    chainId,
+                  },
+                  { sponsor },
+                ),
+              { onFallback: notifySponsorshipFallback },
             );
             hash = result.hash;
           } catch (evmError) {
@@ -1609,13 +1632,15 @@ const WalletContentInner = () => {
           });
 
           try {
-            const result = await signAndSendTransaction({
-              transaction: new Uint8Array(serializedTransaction),
-              wallet: selectedSolanaWallet!,
-              options: {
-                sponsor: true,
-              },
-            });
+            const result = await runSponsoredFirst(
+              ({ sponsor }) =>
+                signAndSendTransaction({
+                  transaction: new Uint8Array(serializedTransaction),
+                  wallet: selectedSolanaWallet!,
+                  options: { sponsor },
+                }),
+              { onFallback: notifySponsorshipFallback },
+            );
 
             hash = bs58.encode(result.signature);
           } catch (privyError) {
@@ -1635,13 +1660,17 @@ const WalletContentInner = () => {
           try {
             if (!sendFlow.token?.address) {
               // Native token transfer (ETH/MATIC/etc.)
-              const result = await sendEVMTransaction(
-                {
-                  to: sendFlow.recipient?.address as `0x${string}`,
-                  value: ethers.parseEther(sendFlow.amount),
-                  chainId,
-                },
-                { sponsor: true },
+              const result = await runSponsoredFirst(
+                ({ sponsor }) =>
+                  sendEVMTransaction(
+                    {
+                      to: sendFlow.recipient?.address as `0x${string}`,
+                      value: ethers.parseEther(sendFlow.amount),
+                      chainId,
+                    },
+                    { sponsor },
+                  ),
+                { onFallback: notifySponsorshipFallback },
               );
               hash = result.hash;
             } else {
@@ -1657,13 +1686,17 @@ const WalletContentInner = () => {
                 'transfer',
                 [sendFlow.recipient?.address, amountInWei],
               );
-              const result = await sendEVMTransaction(
-                {
-                  to: sendFlow.token.address as `0x${string}`,
-                  data: tokenData as `0x${string}`,
-                  chainId,
-                },
-                { sponsor: true },
+              const result = await runSponsoredFirst(
+                ({ sponsor }) =>
+                  sendEVMTransaction(
+                    {
+                      to: sendFlow.token!.address as `0x${string}`,
+                      data: tokenData as `0x${string}`,
+                      chainId,
+                    },
+                    { sponsor },
+                  ),
+                { onFallback: notifySponsorshipFallback },
               );
               hash = result.hash;
             }
@@ -1696,6 +1729,7 @@ const WalletContentInner = () => {
     refetchNFTs,
     signAndSendTransaction,
     sendEVMTransaction,
+    notifySponsorshipFallback,
     selectedSolanaWallet,
     authenticated,
     getAccessToken,

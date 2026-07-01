@@ -28,6 +28,11 @@ import { getJupiterBuild as fetchJupiterBuild } from '@/actions/jupiterSwap';
 import { sponsorSolanaTransaction } from '@/actions/sponsorSolanaTransaction';
 import { notifySwapFee } from '@/actions/notifySwapFee';
 import {
+  GAS_SPONSORSHIP_UNAVAILABLE_MESSAGE,
+  isInsufficientNativeGasError,
+  isSponsorshipRejectionError,
+} from '@/lib/wallet/gasSponsorship';
+import {
   useConnectWallet,
   usePrivy,
   useSendTransaction,
@@ -1165,6 +1170,10 @@ const formatUserFriendlyError = (error: string): string => {
   if (lowerError.includes('temporary wrapped-sol buffer')) {
     return error;
   }
+  // Already sponsorship-aware copy from the sponsored-first fallback path.
+  if (lowerError.includes('gas sponsorship is unavailable')) {
+    return error;
+  }
   if (
     lowerError.includes('gas sponsorship failed') ||
     lowerError.includes('sponsored transaction failed')
@@ -1195,7 +1204,9 @@ const formatUserFriendlyError = (error: string): string => {
     lowerError.includes('gas * price + value') ||
     lowerError.includes('intrinsic gas too low')
   )
-    return 'Insufficient ETH for gas fees. Please add more ETH to your wallet to cover transaction costs.';
+    // Covered flows must never ask the user to add native gas — surface it as
+    // a sponsorship gap instead (external wallets can still add gas or switch).
+    return 'Gas sponsorship did not cover this transaction and this wallet has no ETH for the network fee. Try again later, or switch to your Swop embedded wallet.';
   if (
     lowerError.includes('insufficient funds') ||
     lowerError.includes('insufficient balance')
@@ -2554,19 +2565,44 @@ export default function SwapTokenModal({
       options: any,
       verificationStatus: string,
     ) => {
-      try {
-        return await sendTransaction(input, options);
-      } catch (error) {
-        if (!isMfaRequiredError(error)) throw error;
+      const attempt = async (attemptOptions: any) => {
+        try {
+          return await sendTransaction(input, attemptOptions);
+        } catch (error) {
+          if (!isMfaRequiredError(error)) throw error;
 
-        setSwapStatus(verificationStatus);
-        return sendTransaction(input, {
-          ...options,
-          uiOptions: {
-            ...(options?.uiOptions || {}),
-            showWalletUIs: true,
-          },
-        });
+          setSwapStatus(verificationStatus);
+          return sendTransaction(input, {
+            ...attemptOptions,
+            uiOptions: {
+              ...(attemptOptions?.uiOptions || {}),
+              showWalletUIs: true,
+            },
+          });
+        }
+      };
+
+      try {
+        return await attempt(options);
+      } catch (error) {
+        // Sponsored-first reliability net: only when Privy definitively
+        // refused to sponsor (nothing was broadcast) retry the identical
+        // transaction with user-paid gas, disclosing it honestly. Ambiguous
+        // failures are never re-sent.
+        if (!options?.sponsor || !isSponsorshipRejectionError(error)) {
+          throw error;
+        }
+        setSwapStatus(
+          'Gas sponsorship unavailable — paying the network fee from your wallet...',
+        );
+        try {
+          return await attempt({ ...options, sponsor: false });
+        } catch (fallbackError) {
+          if (isInsufficientNativeGasError(fallbackError)) {
+            throw new Error(GAS_SPONSORSHIP_UNAVAILABLE_MESSAGE);
+          }
+          throw fallbackError;
+        }
       }
     },
     [],
@@ -5458,7 +5494,7 @@ export default function SwapTokenModal({
                 });
               if (receipt.status === 'reverted') {
                 const failureMessage =
-                  'Transaction failed on-chain. Your gas balance may be insufficient - please add more native tokens and try again.';
+                  'Transaction failed on-chain — no tokens were swapped. The route may have expired or slippage was exceeded; get a fresh quote and try again.';
                 setSwapStatus(null);
                 setSwapError(failureMessage);
                 void reportWalletSwapFailure({

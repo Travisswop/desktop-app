@@ -183,11 +183,13 @@ export function useCreateRedeemLink(): UseCreateRedeemLinkReturn {
               l.includes('insufficient funds for rent'),
           )
         ) {
+          // This signing path only runs for external (non-embedded) wallets;
+          // Swop-embedded wallets are funded server-side with sponsored gas.
           message =
-            'Insufficient SOL balance to cover rent fees. Please add more SOL.';
+            'Gas sponsorship does not cover external wallets, and this wallet has no SOL for the account rent. Switch to your Swop wallet or add a small amount of SOL.';
         } else if (e?.message?.includes('insufficient lamports')) {
           message =
-            'Insufficient SOL balance to cover rent fees. Please add more SOL.';
+            'Gas sponsorship does not cover external wallets, and this wallet has no SOL for the account rent. Switch to your Swop wallet or add a small amount of SOL.';
         } else if (e?.message) {
           message = e.message;
         }

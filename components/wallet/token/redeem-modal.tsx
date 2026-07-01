@@ -1032,20 +1032,22 @@ export default function RedeemModal(props: RedeemModalProps) {
           errorMessage =
             "Insufficient token balance. The amount you entered exceeds your wallet balance.";
         } else if (logs.some((log: string) => log.includes("insufficient lamports"))) {
+          // Only external (non-embedded) wallets sign here — embedded wallets
+          // are funded server-side with sponsored gas and never reach this.
           errorMessage =
-            "Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.";
+            "Gas sponsorship does not cover external wallets, and this wallet has no SOL for the account rent. Switch to your Swop wallet or add a small amount of SOL.";
         } else if (
           logs.some((log: string) => log.includes("insufficient funds for rent"))
         ) {
           errorMessage =
-            "Insufficient SOL balance to cover rent for token account. Please add more SOL.";
+            "Gas sponsorship does not cover external wallets, and this wallet has no SOL for the token-account rent. Switch to your Swop wallet or add a small amount of SOL.";
         }
       } else if (error?.message?.includes("Insufficient token balance") ||
                  error?.message?.includes("insufficient funds")) {
         errorMessage = error.message;
       } else if (error?.message?.includes("insufficient lamports")) {
         errorMessage =
-          "Insufficient SOL balance to cover rent fees. Please add more SOL to your wallet.";
+          "Gas sponsorship does not cover external wallets, and this wallet has no SOL for the account rent. Switch to your Swop wallet or add a small amount of SOL.";
       } else if (error?.message) {
         errorMessage = error.message;
       }

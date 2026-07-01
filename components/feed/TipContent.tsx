@@ -499,9 +499,12 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
         let errorDescription = result.error || "Failed to send tip";
 
         if (result.error?.includes("insufficient lamports")) {
+          // Tips are gas-sponsored: insufficient lamports here means the SOL
+          // amount being tipped (principal) is short, or sponsorship has a
+          // gap — never tell the user to add SOL for network fees.
           errorTitle = "Insufficient SOL";
           errorDescription =
-            "You need at least 0.003 SOL in your wallet for transaction fees. Please add SOL and try again.";
+            "Your SOL balance doesn't cover this tip amount. Swop covers the network fee; reduce the tip or add the SOL you want to send.";
         } else if (result.error?.includes("insufficient funds")) {
           errorTitle = "Insufficient Balance";
           errorDescription = `You don't have enough ${selectedToken.symbol} to complete this transaction.`;
