@@ -8,6 +8,10 @@ interface UseSocketOptions {
   onConnectError?: (error: Error) => void;
 }
 
+type ConnectSocketOptions = {
+  forceReconnect?: boolean;
+};
+
 const socketDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true';
 
 const logSocketDebug = (...args: unknown[]) => {
@@ -15,6 +19,25 @@ const logSocketDebug = (...args: unknown[]) => {
     console.debug(...args);
   }
 };
+
+export function shouldReuseSocketConnection({
+  hasSocketInstance,
+  hasMatchingToken,
+  isSocketConnected,
+  forceReconnect = false,
+}: {
+  hasSocketInstance: boolean;
+  hasMatchingToken: boolean;
+  isSocketConnected: boolean;
+  forceReconnect?: boolean;
+}): boolean {
+  return (
+    hasSocketInstance &&
+    hasMatchingToken &&
+    isSocketConnected &&
+    !forceReconnect
+  );
+}
 
 export const useSocket = ({
   onConnect,
@@ -25,17 +48,27 @@ export const useSocket = ({
   const tokenRef = useRef<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
 
-  const connectSocket = useCallback((token: string) => {
+  const connectSocket = useCallback((
+    token: string,
+    { forceReconnect = false }: ConnectSocketOptions = {},
+  ) => {
     if (
-      socketRef.current &&
-      tokenRef.current === token &&
-      socketRef.current.connected
+      shouldReuseSocketConnection({
+        hasSocketInstance: Boolean(socketRef.current),
+        hasMatchingToken: tokenRef.current === token,
+        isSocketConnected: Boolean(socketRef.current?.connected),
+        forceReconnect,
+      })
     ) {
       return socketRef.current;
     }
 
-    if (socketRef.current) {
-      socketRef.current.disconnect();
+    const existingSocket = socketRef.current;
+    if (existingSocket) {
+      existingSocket.removeAllListeners();
+      existingSocket.disconnect();
+      socketRef.current = null;
+      setSocket(null);
     }
     tokenRef.current = token;
 
@@ -85,8 +118,10 @@ export const useSocket = ({
   }, [onConnect, onDisconnect, onConnectError]);
 
   const disconnectSocket = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
+    const existingSocket = socketRef.current;
+    if (existingSocket) {
+      existingSocket.removeAllListeners();
+      existingSocket.disconnect();
       socketRef.current = null;
       tokenRef.current = null;
       setSocket(null);

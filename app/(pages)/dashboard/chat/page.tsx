@@ -1,5 +1,11 @@
 // app/page.js
 'use client';
+import {
+  canRenderAuthenticatedChatShell,
+  getChatConnectionFallbackCause,
+  getChatRetryAction,
+  shouldShowChatConnectionFallback,
+} from '@/lib/chat/chatShellState';
 import { useSocket } from '@/lib/socket';
 import { useUser } from '@/lib/UserContext';
 import dynamic from 'next/dynamic';
@@ -15,7 +21,7 @@ const ChatRuntime = dynamic(
 );
 
 export default function ChatPage() {
-  const [, setConnectionStatus] = useState({
+  const [connectionStatus, setConnectionStatus] = useState({
     connected: false,
     text: 'Disconnected',
   });
@@ -65,11 +71,13 @@ export default function ChatPage() {
   const handleSocketConnect = useCallback(() => {
     setConnectionStatus({ connected: true, text: 'Connected' });
     setConnectionTimeout(false);
+    setIsRetryingChat(false);
   }, []);
 
   const handleSocketDisconnect = useCallback((reason: string) => {
     setConnectionStatus({ connected: false, text: 'Disconnected' });
     setUnreadCount(0);
+    setIsRetryingChat(false);
     void reason;
   }, []);
 
@@ -79,6 +87,7 @@ export default function ChatPage() {
       text: 'Connecting',
     });
     setConnectionTimeout(true);
+    setIsRetryingChat(false);
   }, []);
 
   const { socket, connectSocket } = useSocket({
@@ -86,12 +95,39 @@ export default function ChatPage() {
     onDisconnect: handleSocketDisconnect,
     onConnectError: handleSocketConnectError,
   });
+  const hasAuthenticatedChatShell = canRenderAuthenticatedChatShell({
+    hasUser: Boolean(user),
+    hasAccessToken: Boolean(accessToken),
+    isInitializationLoading,
+    isSocketConnected: connectionStatus.connected,
+    connectionTimeout,
+  });
+  const showChatConnectionFallback = shouldShowChatConnectionFallback({
+    hasUser: Boolean(user),
+    hasAccessToken: Boolean(accessToken),
+    isInitializationLoading,
+    isSocketConnected: connectionStatus.connected,
+    connectionTimeout,
+  });
+  const chatConnectionFallbackCause = getChatConnectionFallbackCause({
+    hasUser: Boolean(user),
+    hasAccessToken: Boolean(accessToken),
+    isInitializationLoading,
+    isSocketConnected: connectionStatus.connected,
+    connectionTimeout,
+  });
 
   const retryChatConnection = useCallback(async () => {
     setConnectionTimeout(false);
+    setIsRetryingChat(true);
 
-    if (!userId || !accessToken) {
-      setIsRetryingChat(true);
+    const retryAction = getChatRetryAction({
+      hasUserId: Boolean(userId),
+      hasAccessToken: Boolean(accessToken),
+      hasSocket: Boolean(socket),
+    });
+
+    if (retryAction === 'refresh_auth') {
       try {
         await refreshUser();
       } finally {
@@ -100,9 +136,9 @@ export default function ChatPage() {
       return;
     }
 
-    if (!socket) {
-      connectSocket(accessToken);
-    }
+    connectSocket(accessToken!, {
+      forceReconnect: retryAction === 'reconnect_socket',
+    });
   }, [accessToken, connectSocket, refreshUser, socket, userId]);
 
   const fullscreenShell =
@@ -116,6 +152,7 @@ export default function ChatPage() {
 
     // If user loaded but is null, stop showing skeleton
     if (!userId || !accessToken) {
+      setCurrentUser('');
       setIsInitializationLoading(false);
       if (process.env.NEXT_PUBLIC_DEBUG_SOCKET === 'true') {
         console.debug('Chat auth unavailable while initializing');
@@ -123,10 +160,11 @@ export default function ChatPage() {
       return;
     }
 
+    setCurrentUser(userId);
+
     // User is authenticated, connect socket ONLY if not already connected
     if (userId && accessToken && !socket) {
       connectSocket(accessToken);
-      setCurrentUser(userId);
       setIsInitializationLoading(false);
 
       // Set timeout to detect connection failure
@@ -139,9 +177,7 @@ export default function ChatPage() {
       return () => clearTimeout(timeoutId);
     } else if (userId && socket) {
       // Already connected, just update state
-      setCurrentUser(userId);
       setIsInitializationLoading(false);
-      setConnectionTimeout(false); // Reset timeout on successful connection
     }
 
     return undefined;
@@ -213,7 +249,7 @@ export default function ChatPage() {
   }
 
   // Show friendly loading state while socket is connecting
-  if (!user || !accessToken || !socket) {
+  if (!hasAuthenticatedChatShell) {
     // Show error state only after timeout
     if (connectionTimeout) {
       return (
@@ -227,8 +263,9 @@ export default function ChatPage() {
                 Connecting to chat
               </h2>
               <p className="mb-6 text-sm text-[#9396a0]">
-                We are reconnecting in the background. You can retry now or
-                open Wallet while chat comes back online.
+                {chatConnectionFallbackCause === 'socket_disconnected'
+                  ? 'The shell loaded, but chat disconnected before realtime finished coming back. Retry now or open Wallet while the connection recovers.'
+                  : 'Realtime chat is still reconnecting. Retry now or open Wallet while the connection comes back online.'}
               </p>
               <div className="flex flex-col justify-center gap-2 sm:flex-row">
                 <button
@@ -332,6 +369,39 @@ export default function ChatPage() {
 
   return (
     <div className={fullscreenShell}>
+      {showChatConnectionFallback ? (
+        <div className="pointer-events-none absolute left-4 right-4 top-4 z-[90] flex justify-center">
+          <div className="pointer-events-auto w-full max-w-2xl rounded-2xl border border-[#3fe08f]/20 bg-[#0e1014]/95 p-4 shadow-[0_32px_80px_-24px_rgba(0,0,0,0.85)] backdrop-blur">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-[#eceef2]">
+                  Chat is still reconnecting
+                </p>
+                <p className="text-xs text-[#9396a0]">
+                  {chatConnectionFallbackCause === 'socket_disconnected'
+                    ? 'Messages stay visible while the disconnected chat session reconnects in the background.'
+                    : 'Messages and Astro stay visible while realtime chat reconnects in the background.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => void retryChatConnection()}
+                  disabled={isRetryingChat}
+                  className="rounded-lg bg-[#3fe08f] px-4 py-2 text-xs font-semibold text-[#031008] transition-colors hover:bg-[#64f2aa] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isRetryingChat ? 'Retrying...' : 'Retry chat'}
+                </button>
+                <button
+                  onClick={() => router.push('/wallet')}
+                  className="rounded-lg border border-white/[0.08] bg-[#15171d] px-4 py-2 text-xs font-semibold text-[#eceef2] transition-colors hover:bg-[#1b1e25]"
+                >
+                  Open Wallet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <ChatRuntime
         socket={socket}
         currentUser={currentUser}

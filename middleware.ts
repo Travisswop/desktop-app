@@ -1,5 +1,6 @@
 import { PrivyClient as NewPrivyClient } from "@privy-io/node";
 import { NextRequest, NextResponse } from "next/server";
+import { getSocketConnectSources } from "@/lib/security/csp";
 
 type AuthCacheEntry = {
   timestamp: number;
@@ -79,7 +80,7 @@ const allowLocalConnect = [localApiOrigin, localPolymarketOrigin].some(
 );
 const localConnectSrc = allowLocalConnect
   ? uniqueSources([
-      localApiOrigin,
+      ...getSocketConnectSources(localApiOrigin),
       localPolymarketOrigin,
       "http://localhost:3000",
       "http://127.0.0.1:3000",
@@ -134,6 +135,7 @@ const cspConfig = {
     "'self'",
     ...localConnectSrc,
     "https://app.apiswop.co",
+    "wss://app.apiswop.co",
     "https://swopme.app",
     "https://privy.swopme.app",
     "https://auth.privy.io",
