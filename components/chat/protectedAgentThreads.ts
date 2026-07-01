@@ -1,6 +1,7 @@
 type ThreadKind = 'private' | 'direct' | 'group' | null | undefined;
 
 type ProtectedAgentIdentity = {
+  agentId: string;
   label: string;
   groupName: string;
   agentIds: string[];
@@ -10,6 +11,7 @@ type ProtectedAgentIdentity = {
 
 const PROTECTED_AGENT_IDENTITIES: ProtectedAgentIdentity[] = [
   {
+    agentId: 'astro',
     label: 'Astro',
     groupName: 'Astro Trading Desk',
     agentIds: ['astro'],
@@ -17,6 +19,7 @@ const PROTECTED_AGENT_IDENTITIES: ProtectedAgentIdentity[] = [
     directHandles: ['astro', 'astro.swop.id', 'astroswop', 'astroswop.swop.id'],
   },
   {
+    agentId: 'goldman-sacks',
     label: 'Goldman Sacks',
     groupName: 'Goldman Sacks',
     agentIds: ['goldman', 'goldman-sacks'],
@@ -146,4 +149,23 @@ export function getProtectedAgentThreadLabel(
     isProtectedDirectAgentThread(thread, agent)
   );
   return identity?.label || null;
+}
+
+export function getProtectedAgentSearchHint(query?: string | null) {
+  const normalizedQuery = normalizeIdentity(query);
+  if (!normalizedQuery) return null;
+
+  return (
+    PROTECTED_AGENT_IDENTITIES.find((identity) => {
+      if (normalizeIdentity(identity.label) === normalizedQuery) return true;
+      if (normalizeIdentity(identity.groupName) === normalizedQuery) return true;
+
+      const candidateQuery = compactIdentity(query);
+      return (
+        normalizedSet(identity.agentIds).has(normalizedQuery) ||
+        normalizedSet(identity.directNames).has(normalizedQuery) ||
+        compactSet(identity.directHandles).has(candidateQuery)
+      );
+    }) || null
+  );
 }
