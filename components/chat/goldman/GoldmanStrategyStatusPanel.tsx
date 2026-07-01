@@ -266,6 +266,8 @@ export function getGoldmanStrategyControlState(
   const runtimeError = runtime?.lastError?.trim() || null;
   const status = String(strategy?.status || '').toLowerCase();
   const runtimeState = String(runtime?.state || '').toLowerCase();
+  const revoked = status === 'revoked';
+  const expired = status === 'expired';
   const pendingAuthorization = status === 'pending_authorization';
   const approvedWaitingForFunding =
     approvalState === 'approved_waiting_for_funding';
@@ -274,9 +276,9 @@ export function getGoldmanStrategyControlState(
     (pendingAuthorization && Boolean(walletStatus) && walletStatus !== 'active');
   const resumeBlocked =
     approvalState === 'resume_blocked' || Boolean(resumeBlockedReason);
-  const hasRuntimeError = runtimeState === 'error' || Boolean(runtimeError);
+  const hasRuntimeError = runtimeState === 'error';
   const clientConnectionBlocked = isClientConnectionBlocked(
-    resumeBlockedReason || runtimeError
+    resumeBlockedReason || (hasRuntimeError ? runtimeError : null)
   );
 
   if (!strategy) {
@@ -297,6 +299,33 @@ export function getGoldmanStrategyControlState(
       runDisabled: false,
       primaryAction: 'none',
       lastActivity: null,
+    };
+  }
+
+  if (revoked || expired) {
+    const terminalLabel = revoked ? 'Revoked' : 'Expired';
+    return {
+      statusLabel: terminalLabel,
+      statusToneClass: 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]',
+      summaryLine: `${terminalLabel.toLowerCase()} · ${modeLabel}`,
+      modeLabel,
+      heartbeatLabel: heartbeat.label,
+      heartbeatToneClass: heartbeat.toneClass,
+      heartbeatDetail: heartbeat.detail,
+      boundaryDetail: revoked
+        ? 'This Goldman strategy approval was revoked. Goldman cannot restart monitoring or live trading from this saved strategy.'
+        : 'This Goldman strategy has expired. Goldman cannot restart monitoring or live trading until the strategy is refreshed.',
+      nextAction: revoked
+        ? 'Review the strategy, publish a new approval if you still want Goldman active, and only then press Run from the refreshed panel.'
+        : 'Refresh or republish this strategy before expecting Goldman to run again from this panel.',
+      blockerReason: revoked
+        ? 'This Goldman strategy is revoked and cannot be restarted.'
+        : 'This Goldman strategy expired and must be refreshed before it can run again.',
+      runLabel: terminalLabel,
+      runToneClass: 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]',
+      runDisabled: true,
+      primaryAction: 'none',
+      lastActivity: runtime?.lastActivity || null,
     };
   }
 

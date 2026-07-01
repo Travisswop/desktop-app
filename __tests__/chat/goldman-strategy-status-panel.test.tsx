@@ -281,6 +281,103 @@ describe('GoldmanStrategyStatusPanel', () => {
     );
   });
 
+  test('keeps revoked and expired strategies visibly non-runnable', () => {
+    expect(
+      getGoldmanStrategyControlState(
+        {
+          title: 'Revoked BTC carry',
+          status: 'revoked',
+          runtime: {
+            state: 'stopped',
+            executionMode: 'execute',
+          },
+        },
+        {
+          now: Date.parse('2026-06-24T16:00:00Z'),
+        }
+      )
+    ).toMatchObject({
+      statusLabel: 'Revoked',
+      summaryLine: 'revoked · live execute',
+      primaryAction: 'none',
+      runLabel: 'Revoked',
+      runDisabled: true,
+      blockerReason: 'This Goldman strategy is revoked and cannot be restarted.',
+    });
+
+    expect(
+      getGoldmanStrategyControlState(
+        {
+          title: 'Expired SOL monitor',
+          status: 'expired',
+          runtime: {
+            state: 'stopped',
+            executionMode: 'monitor',
+          },
+        },
+        {
+          now: Date.parse('2026-06-24T16:00:00Z'),
+        }
+      )
+    ).toMatchObject({
+      statusLabel: 'Expired',
+      summaryLine: 'expired · monitor only',
+      primaryAction: 'none',
+      runLabel: 'Expired',
+      runDisabled: true,
+      blockerReason:
+        'This Goldman strategy expired and must be refreshed before it can run again.',
+    });
+  });
+
+  test('does not treat historical runtime errors as active blockers once the runtime recovers', () => {
+    expect(
+      getGoldmanStrategyControlState(
+        {
+          title: 'Recovered ETH carry',
+          status: 'active',
+          runtime: {
+            state: 'stopped',
+            executionMode: 'execute',
+            lastError: 'Client must be connected before running operations',
+          },
+        },
+        {
+          now: Date.parse('2026-06-24T16:00:00Z'),
+        }
+      )
+    ).toMatchObject({
+      statusLabel: 'Paused',
+      primaryAction: 'run',
+      runLabel: 'Run',
+      blockerReason: null,
+    });
+
+    expect(
+      getGoldmanStrategyControlState(
+        {
+          title: 'Recovered BTC monitor',
+          status: 'active',
+          runtime: {
+            state: 'running',
+            executionMode: 'monitor',
+            lastHeartbeatAt: '2026-06-24T15:59:00Z',
+            lastError: 'Runtime reconnect recovered',
+          },
+        },
+        {
+          isStrategyRunning: true,
+          now: Date.parse('2026-06-24T16:00:00Z'),
+        }
+      )
+    ).toMatchObject({
+      statusLabel: 'Running',
+      primaryAction: 'stop',
+      runLabel: 'Stop',
+      blockerReason: null,
+    });
+  });
+
   test('ages the same running strategy across live, delayed, and stale thresholds', () => {
     const strategy = {
       title: 'ETH carry monitor',
