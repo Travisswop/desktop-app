@@ -17,11 +17,16 @@ import type {
 } from './hooks/useHyperliquidTrading';
 import { OrderConfirmModal, type OrderConfirmDetails } from './OrderConfirmModal';
 import {
+  clearAgentActionHandoff,
   completeAgentActionFromHandoff,
   type AgentActionCompletion,
   type HyperliquidAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
-import { buildPerpsApprovalBoundaryBanner } from '@/lib/chat/approvalBoundary';
+import {
+  buildPerpsApprovalBoundaryBanner,
+  canCompletePerpsAgentHandoff,
+  isPerpsTicketInsideApprovedBoundary,
+} from '@/lib/chat/approvalBoundary';
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
@@ -127,6 +132,8 @@ export function TradingForm({
   // order the user actually requested even if mark price drifts mid-confirm.
   const [pendingOrder, setPendingOrder] = useState<OrderConfirmDetails | null>(null);
   const appliedAgentPrefillKey = useRef<string | null>(null);
+  const clearedAgentHandoffKey = useRef<string | null>(null);
+  const matchedApprovalBoundaryKey = useRef<string | null>(null);
 
   const isBuy = side === 'long';
   const markNum = parseFloat(markPrice) || 0;
@@ -334,22 +341,36 @@ export function TradingForm({
     if (!sizeUsdNum) return null;
     return (sizeUsdNum * 0.0007).toFixed(2);
   }, [sizeUsdNum]);
-  const approvalBoundaryBanner = useMemo(
+  const approvalBoundaryKey = useMemo(
     () =>
-      buildPerpsApprovalBoundaryBanner(agentOrderPrefill, {
-        coin: market?.coin ?? '',
-        side,
-        orderMode: mode,
-        sizeUsd: size,
-        sizeCoins: sizeInCoins,
-        leverage: safeLeverage,
-        isCross,
-        price: limitPrice,
-        takeProfitPrice: takeProfit,
-        stopLossPrice: stopLoss,
-      }),
+      [
+        agentOrderPrefill?.proposalId,
+        agentOrderPrefill?.proposalNonce,
+        agentOrderPrefill?.coin,
+      ]
+        .filter(Boolean)
+        .join(':'),
     [
-      agentOrderPrefill,
+      agentOrderPrefill?.coin,
+      agentOrderPrefill?.proposalId,
+      agentOrderPrefill?.proposalNonce,
+    ],
+  );
+  const [approvalPathInvalidated, setApprovalPathInvalidated] = useState(false);
+  const currentApprovalBoundaryState = useMemo(
+    () => ({
+      coin: market?.coin ?? '',
+      side,
+      orderMode: mode,
+      sizeUsd: size,
+      sizeCoins: sizeInCoins,
+      leverage: safeLeverage,
+      isCross,
+      price: limitPrice,
+      takeProfitPrice: takeProfit,
+      stopLossPrice: stopLoss,
+    }),
+    [
       isCross,
       limitPrice,
       market?.coin,
@@ -362,6 +383,70 @@ export function TradingForm({
       takeProfit,
     ],
   );
+  const isInsideApprovalBoundary = useMemo(
+    () =>
+      isPerpsTicketInsideApprovedBoundary(
+        agentOrderPrefill,
+        currentApprovalBoundaryState,
+      ),
+    [agentOrderPrefill, currentApprovalBoundaryState],
+  );
+  const canReportAgentCompletion = useMemo(
+    () =>
+      canCompletePerpsAgentHandoff(agentOrderPrefill, currentApprovalBoundaryState, {
+        approvalPathInvalidated,
+      }),
+    [agentOrderPrefill, approvalPathInvalidated, currentApprovalBoundaryState],
+  );
+  const approvalBoundaryBanner = useMemo(
+    () =>
+      buildPerpsApprovalBoundaryBanner(
+        agentOrderPrefill,
+        currentApprovalBoundaryState,
+        { approvalPathInvalidated },
+      ),
+    [agentOrderPrefill, approvalPathInvalidated, currentApprovalBoundaryState],
+  );
+
+  useEffect(() => {
+    setApprovalPathInvalidated(false);
+    clearedAgentHandoffKey.current = null;
+    matchedApprovalBoundaryKey.current = null;
+  }, [approvalBoundaryKey]);
+
+  useEffect(() => {
+    if (
+      approvalBoundaryKey &&
+      !approvalPathInvalidated &&
+      isInsideApprovalBoundary
+    ) {
+      matchedApprovalBoundaryKey.current = approvalBoundaryKey;
+    }
+  }, [
+    approvalBoundaryKey,
+    approvalPathInvalidated,
+    isInsideApprovalBoundary,
+  ]);
+
+  useEffect(() => {
+    if (
+      !approvalBoundaryKey ||
+      approvalPathInvalidated ||
+      isInsideApprovalBoundary ||
+      matchedApprovalBoundaryKey.current !== approvalBoundaryKey
+    ) {
+      return;
+    }
+
+    setApprovalPathInvalidated(true);
+    if (clearedAgentHandoffKey.current === approvalBoundaryKey) return;
+    clearAgentActionHandoff();
+    clearedAgentHandoffKey.current = approvalBoundaryKey;
+  }, [
+    approvalBoundaryKey,
+    approvalPathInvalidated,
+    isInsideApprovalBoundary,
+  ]);
 
   // Step 1: user clicks the CTA → snapshot the order details and open the modal
   const requestConfirm = useCallback(() => {
@@ -601,7 +686,7 @@ export function TradingForm({
         console.warn('Failed to update perps feed card:', feedError);
       });
 
-      if (agentOrderPrefill?.proposalId) {
+      if (canReportAgentCompletion && agentOrderPrefill?.proposalId) {
         try {
           const completion = await completeAgentActionFromHandoff({
             proposalId: agentOrderPrefill.proposalId,
@@ -651,8 +736,9 @@ export function TradingForm({
       // surfaced via parent error prop — leave modal open so the user can retry
     }
   }, [
-    agentOrderPrefill?.proposalId, isCross, safeLeverage, market, mode, isBuy,
-    sizeInCoins, limitPrice, markPrice, takeProfit, stopLoss, markNum,
+    agentOrderPrefill?.proposalId, canReportAgentCompletion, isCross,
+    safeLeverage, market, mode, isBuy, sizeInCoins, limitPrice, markPrice,
+    takeProfit, stopLoss, markNum,
     onAgentActionComplete, onPlaceMarket, onPlaceLimit, onPlaceTpSl,
     onUpdateLeverage,
     pendingOrder?.entryPrice, pendingOrder?.marginRequired, pendingOrder?.sizeUsd,

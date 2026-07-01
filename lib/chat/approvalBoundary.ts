@@ -10,6 +10,10 @@ export type ApprovalBoundaryBanner = {
   operatingModeLabel?: string;
 };
 
+type ApprovalBoundaryOptions = {
+  approvalPathInvalidated?: boolean;
+};
+
 type PerpsTicketState = {
   coin: string;
   side: 'long' | 'short';
@@ -75,13 +79,13 @@ export function resolveOperatingModeLabel(source: Record<string, unknown>) {
   return undefined;
 }
 
-export function buildPerpsApprovalBoundaryBanner(
+export function isPerpsTicketInsideApprovedBoundary(
   prefill: HyperliquidAgentOrderPrefill | null | undefined,
   current: PerpsTicketState,
-): ApprovalBoundaryBanner | null {
-  if (!prefill?.proposalId) return null;
+) {
+  if (!prefill?.proposalId) return false;
 
-  const stillInsideBoundary =
+  return (
     matchesOptional(prefill.coin, current.coin) &&
     matchesOptional(prefill.side, current.side) &&
     matchesOptional(prefill.orderMode, current.orderMode) &&
@@ -92,14 +96,48 @@ export function buildPerpsApprovalBoundaryBanner(
     matchesOptional(prefill.isCross, current.isCross) &&
     matchesOptional(prefill.price, current.price) &&
     matchesOptional(prefill.takeProfitPrice, current.takeProfitPrice) &&
-    matchesOptional(prefill.stopLossPrice, current.stopLossPrice);
+    matchesOptional(prefill.stopLossPrice, current.stopLossPrice)
+  );
+}
 
+export function canCompletePerpsAgentHandoff(
+  prefill: HyperliquidAgentOrderPrefill | null | undefined,
+  current: PerpsTicketState,
+  options?: ApprovalBoundaryOptions,
+) {
+  return (
+    Boolean(prefill?.proposalId) &&
+    isPerpsTicketInsideApprovedBoundary(prefill, current) &&
+    !options?.approvalPathInvalidated
+  );
+}
+
+export function buildPerpsApprovalBoundaryBanner(
+  prefill: HyperliquidAgentOrderPrefill | null | undefined,
+  current: PerpsTicketState,
+  options?: ApprovalBoundaryOptions,
+): ApprovalBoundaryBanner | null {
+  if (!prefill?.proposalId) return null;
+
+  const stillInsideBoundary = isPerpsTicketInsideApprovedBoundary(
+    prefill,
+    current,
+  );
   const operatingModeLabel = prefill.operatingModeLabel;
-  if (stillInsideBoundary) {
+  if (stillInsideBoundary && !options?.approvalPathInvalidated) {
     return {
       tone: 'info',
       title: 'Approved trade draft loaded',
       detail: `You are still reviewing the original approved ticket${operatingModeLabel ? ` (${operatingModeLabel})` : ''}. Recheck every field before signing.`,
+      operatingModeLabel,
+    };
+  }
+
+  if (options?.approvalPathInvalidated) {
+    return {
+      tone: 'warning',
+      title: 'Approved trade draft expired',
+      detail: `This ticket drifted outside the original approved trade${operatingModeLabel ? ` (${operatingModeLabel})` : ''}, so Goldman’s approved handoff no longer applies. Treat every submit as a fresh manual review.`,
       operatingModeLabel,
     };
   }
