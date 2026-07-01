@@ -42,35 +42,37 @@ function normalizeProviderFailures(
 ): MarketPriceProviderFailure[] {
   if (!Array.isArray(value)) return [];
 
-  return value
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") return null;
+  const normalized: MarketPriceProviderFailure[] = [];
 
-      const provider =
-        typeof (entry as any).provider === "string"
-          ? (entry as any).provider
-          : undefined;
-      const code =
-        typeof (entry as any).code === "string" ? (entry as any).code : undefined;
-      const reason =
-        typeof (entry as any).reason === "string"
-          ? (entry as any).reason
-          : undefined;
-      const retryable =
-        typeof (entry as any).retryable === "boolean"
-          ? (entry as any).retryable
-          : undefined;
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
 
-      if (!provider && !code && !reason && retryable === undefined) return null;
+    const provider =
+      typeof (entry as any).provider === "string"
+        ? (entry as any).provider
+        : undefined;
+    const code =
+      typeof (entry as any).code === "string" ? (entry as any).code : undefined;
+    const reason =
+      typeof (entry as any).reason === "string"
+        ? (entry as any).reason
+        : undefined;
+    const retryable =
+      typeof (entry as any).retryable === "boolean"
+        ? (entry as any).retryable
+        : undefined;
 
-      return {
-        provider,
-        code,
-        reason,
-        retryable,
-      };
-    })
-    .filter((entry): entry is MarketPriceProviderFailure => Boolean(entry));
+    if (!provider && !code && !reason && retryable === undefined) continue;
+
+    normalized.push({
+      provider,
+      code,
+      reason,
+      retryable,
+    });
+  }
+
+  return normalized;
 }
 
 function getSnapshotMetadata(payload: unknown) {
