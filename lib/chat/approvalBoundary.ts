@@ -37,8 +37,11 @@ function normalizeString(value?: string | null) {
   return next ? next.toLowerCase() : null;
 }
 
-function normalizeOptionalNumber(value?: string | number | null) {
+function normalizeOptionalNumber(value?: string | number | boolean | null) {
   if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'boolean') {
+    return String(value);
+  }
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
     return normalizeString(String(value));
