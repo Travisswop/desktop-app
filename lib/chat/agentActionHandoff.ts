@@ -471,6 +471,8 @@ export interface HyperliquidAgentOrderPrefill {
   action?: string;
   operatingModeLabel?: string;
   coin?: string;
+  assetIndex?: number;
+  dex?: string;
   side?: 'long' | 'short';
   sizeUsd?: string;
   sizeCoins?: string;
@@ -825,6 +827,8 @@ export function getHyperliquidOrderPrefill(
     action: payload.action,
     operatingModeLabel: resolveOperatingModeLabel(params),
     coin,
+    assetIndex: numberValue(params.assetIndex ?? params.assetId ?? params.a),
+    dex: firstString(params, ['dex', 'marketDex']),
     side,
     sizeUsd,
     sizeCoins,

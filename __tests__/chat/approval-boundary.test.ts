@@ -163,6 +163,53 @@ describe('approvalBoundary', () => {
     ).toBe(false);
   });
 
+  test('blocks perps handoff completion after a same-symbol venue pivot changes the asset identity', () => {
+    const prefill = getHyperliquidOrderPrefill({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_hl_builder',
+        provider: 'hyperliquid',
+        panel: 'perps',
+        normalizedParams: {
+          coin: 'ETH',
+          side: 'long',
+          sizeUsd: '1000',
+          leverage: '5',
+          assetIndex: 110000,
+          dex: 'builder-dex',
+        },
+      },
+    });
+
+    expect(
+      isPerpsTicketInsideApprovedBoundary(prefill, {
+        coin: 'ETH',
+        assetIndex: 110000,
+        dex: 'builder-dex',
+        side: 'long',
+        orderMode: 'market',
+        sizeUsd: '1000.00',
+        sizeCoins: '0.55',
+        leverage: 5,
+        isCross: true,
+      }),
+    ).toBe(true);
+
+    expect(
+      canCompletePerpsAgentHandoff(prefill, {
+        coin: 'ETH',
+        assetIndex: 0,
+        dex: null,
+        side: 'long',
+        orderMode: 'market',
+        sizeUsd: '1000.00',
+        sizeCoins: '0.55',
+        leverage: 5,
+        isCross: true,
+      }),
+    ).toBe(false);
+  });
+
   test('downgrades prediction boundary copy after the market or order fields drift', () => {
     const prefill = getPolymarketOrderPrefill({
       status: 'approved',

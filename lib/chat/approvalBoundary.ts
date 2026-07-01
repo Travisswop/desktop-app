@@ -17,6 +17,8 @@ type ApprovalBoundaryOptions = {
 
 type PerpsTicketState = {
   coin: string;
+  assetIndex?: number | null;
+  dex?: string | null;
   side: 'long' | 'short';
   orderMode: 'market' | 'limit' | 'tpsl';
   sizeUsd: string;
@@ -90,6 +92,8 @@ export function isPerpsTicketInsideApprovedBoundary(
 
   return (
     matchesOptional(prefill.coin, current.coin) &&
+    matchesOptional(prefill.assetIndex, current.assetIndex) &&
+    matchesOptional(prefill.dex, current.dex) &&
     matchesOptional(prefill.side, current.side) &&
     matchesOptional(prefill.orderMode, current.orderMode) &&
     (prefill.sizeUsd

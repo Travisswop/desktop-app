@@ -347,11 +347,15 @@ export function TradingForm({
         agentOrderPrefill?.proposalId,
         agentOrderPrefill?.proposalNonce,
         agentOrderPrefill?.coin,
+        agentOrderPrefill?.assetIndex,
+        agentOrderPrefill?.dex,
       ]
         .filter(Boolean)
         .join(':'),
     [
+      agentOrderPrefill?.assetIndex,
       agentOrderPrefill?.coin,
+      agentOrderPrefill?.dex,
       agentOrderPrefill?.proposalId,
       agentOrderPrefill?.proposalNonce,
     ],
@@ -360,6 +364,8 @@ export function TradingForm({
   const currentApprovalBoundaryState = useMemo(
     () => ({
       coin: market?.coin ?? '',
+      assetIndex: market?.index ?? null,
+      dex: market?.dex ?? null,
       side,
       orderMode: mode,
       sizeUsd: size,
@@ -371,9 +377,11 @@ export function TradingForm({
       stopLossPrice: stopLoss,
     }),
     [
+      market?.dex,
       isCross,
       limitPrice,
       market?.coin,
+      market?.index,
       mode,
       safeLeverage,
       side,
