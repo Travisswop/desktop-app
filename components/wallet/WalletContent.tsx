@@ -708,6 +708,7 @@ const WalletContentInner = () => {
   // UI state
   const [selectedToken, setSelectedToken] =
     useState<TokenData | null>(null);
+  const chartTokenRouteRef = useRef('');
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
   const [rewardWallet, setRewardWallet] =
@@ -1096,7 +1097,15 @@ const WalletContentInner = () => {
     if (!searchParams) return;
 
     const symbol = getChartTokenSymbol(searchParams);
-    if (!symbol) return;
+    if (!symbol) {
+      if (chartTokenRouteRef.current) {
+        chartTokenRouteRef.current = '';
+        setSelectedToken(null);
+      }
+      return;
+    }
+
+    chartTokenRouteRef.current = searchParams.toString();
 
     const preferredChain = normalizeChartTokenChain(
       searchParams?.get('chartTokenChain'),
