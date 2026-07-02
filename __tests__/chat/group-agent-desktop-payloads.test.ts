@@ -1,6 +1,7 @@
 import { GROUP_AGENT_SOCKET_EVENTS } from '@/hooks/useGroupAgents';
 import {
   AGENT_ACTION_HANDOFF_STORAGE_KEY,
+  ensureApprovedAgentActionHandoff,
   getHyperliquidOrderPrefill,
   getPolymarketOrderPrefill,
   persistAgentActionHandoff,
@@ -171,6 +172,53 @@ describe('desktop group agent payloads', () => {
         proposalNonce: 'nonce-1',
         provider: 'hyperliquid',
         panel: 'perps',
+      },
+    });
+  });
+
+  test('approves and persists backend swap handoff before wallet execution', async () => {
+    const approvalResult = {
+      status: 'approved',
+      proposalNonce: 'nonce-swap',
+      payload: {
+        proposalId: 'prop_swap_backend',
+        proposalNonce: 'nonce-swap',
+        action: 'wallet.swap',
+        toolType: 'wallet.write',
+        provider: 'swop',
+        route: '/chat',
+        panel: 'wallet',
+      },
+    };
+    const onApproveInline = jest.fn().mockResolvedValue(approvalResult);
+
+    await expect(
+      ensureApprovedAgentActionHandoff({
+        proposalId: 'prop_swap_local',
+        approvalParams: {
+          fromToken: 'SWOP',
+          toToken: 'USDC',
+          quoteOnly: false,
+        },
+        onApproveInline,
+      })
+    ).resolves.toMatchObject({
+      executionProposalId: 'prop_swap_backend',
+      approvalResult,
+    });
+
+    expect(onApproveInline).toHaveBeenCalledWith('prop_swap_local', {
+      fromToken: 'SWOP',
+      toToken: 'USDC',
+      quoteOnly: false,
+    });
+    expect(readAgentActionHandoff()).toMatchObject({
+      approvalResult: {
+        proposalNonce: 'nonce-swap',
+      },
+      payload: {
+        proposalId: 'prop_swap_backend',
+        action: 'wallet.swap',
       },
     });
   });

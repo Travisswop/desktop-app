@@ -169,6 +169,37 @@ export function persistAgentActionHandoff(handoff: AgentApprovalHandoff) {
   });
 }
 
+export async function ensureApprovedAgentActionHandoff({
+  proposalId,
+  existingApprovalResult,
+  approvalParams,
+  onApproveInline,
+}: {
+  proposalId: string;
+  existingApprovalResult?: AgentApprovalHandoff | null;
+  approvalParams?: Record<string, unknown>;
+  onApproveInline: (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>,
+  ) => Promise<AgentApprovalHandoff | null>;
+}) {
+  const approvalResult =
+    existingApprovalResult?.payload?.proposalId === proposalId
+      ? existingApprovalResult
+      : await onApproveInline(proposalId, approvalParams);
+
+  if (!approvalResult?.payload?.proposalId) {
+    throw new Error('Swop approval was not returned by the backend.');
+  }
+
+  persistAgentActionHandoff(approvalResult);
+
+  return {
+    approvalResult,
+    executionProposalId: String(approvalResult.payload.proposalId),
+  };
+}
+
 export function readAgentActionHandoff():
   | {
       approvalResult?: AgentApprovalHandoff;
