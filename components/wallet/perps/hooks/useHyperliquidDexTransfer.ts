@@ -4,6 +4,10 @@ import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as hl from '@nktkas/hyperliquid';
 import { HL_IS_TESTNET, getHLApiUrl } from '@/services/hyperliquid/config';
+import {
+  getHyperliquidSignerMismatchMessage,
+  hasHyperliquidAccountSignerMismatch,
+} from '../hyperliquidAccountSigner';
 
 const transport = new hl.HttpTransport({
   isTestnet: HL_IS_TESTNET,
@@ -43,6 +47,7 @@ interface UseHyperliquidDexTransferArgs {
    *  funds and must be signed by the master wallet — the agent cannot. */
   masterClient: hl.ExchangeClient | null;
   masterAddress: string | null;
+  signerAddress?: string | null;
   ensureMasterClient?: () => Promise<hl.ExchangeClient | null>;
 }
 
@@ -56,6 +61,7 @@ interface UseHyperliquidDexTransferArgs {
 export function useHyperliquidDexTransfer({
   masterClient,
   masterAddress,
+  signerAddress,
   ensureMasterClient,
 }: UseHyperliquidDexTransferArgs) {
   const queryClient = useQueryClient();
@@ -69,6 +75,11 @@ export function useHyperliquidDexTransfer({
       const signingClient = masterClient ?? (await ensureMasterClient?.()) ?? null;
       if (!signingClient || !masterAddress) {
         throw new Error('Wallet not ready. Enable trading first.');
+      }
+      if (hasHyperliquidAccountSignerMismatch(masterAddress, signerAddress)) {
+        throw new Error(
+          getHyperliquidSignerMismatchMessage(masterAddress, signerAddress),
+        );
       }
       if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
         throw new Error('Enter an amount greater than 0');
@@ -103,7 +114,7 @@ export function useHyperliquidDexTransfer({
         setIsTransferring(false);
       }
     },
-    [ensureMasterClient, masterAddress, masterClient, queryClient],
+    [ensureMasterClient, masterAddress, masterClient, queryClient, signerAddress],
   );
 
   // Main perp account → builder DEX (fund a trade).

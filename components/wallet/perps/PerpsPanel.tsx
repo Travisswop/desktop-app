@@ -74,6 +74,7 @@ interface PerpsPanelProps {
   agentClient: hl.ExchangeClient | null;
   masterClient: hl.ExchangeClient | null;
   masterAddress: string | null;
+  accountSignerAddress?: string | null;
   isInitialized: boolean;
   isInitializing: boolean;
   isReconnecting: boolean;
@@ -166,6 +167,7 @@ export function PerpsPanel({
   agentClient,
   masterClient,
   masterAddress,
+  accountSignerAddress,
   isInitialized,
   isInitializing,
   isReconnecting,
@@ -1365,6 +1367,7 @@ export function PerpsPanel({
         onClose={() => setWithdrawActionsOpen(false)}
         masterAddress={masterAddress}
         masterClient={masterClient}
+        accountSignerAddress={accountSignerAddress}
         ensureMasterClient={ensureMasterClient}
         withdrawable={aggregateWithdrawable}
         dexWithdrawables={dexWithdrawables}

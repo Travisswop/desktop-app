@@ -3,12 +3,17 @@
 import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as hl from '@nktkas/hyperliquid';
+import {
+  getHyperliquidSignerMismatchMessage,
+  hasHyperliquidAccountSignerMismatch,
+} from '../hyperliquidAccountSigner';
 
 interface UseHyperliquidWithdrawArgs {
   /** Master-signed exchange client. Hyperliquid withdrawals cannot be signed by
    *  the local agent key. */
   masterClient: hl.ExchangeClient | null;
   masterAddress: string | null;
+  signerAddress?: string | null;
   ensureMasterClient?: () => Promise<hl.ExchangeClient | null>;
 }
 
@@ -26,6 +31,7 @@ function toAmountString(amount: number): string {
 export function useHyperliquidWithdraw({
   masterClient,
   masterAddress,
+  signerAddress,
   ensureMasterClient,
 }: UseHyperliquidWithdrawArgs) {
   const queryClient = useQueryClient();
@@ -39,6 +45,12 @@ export function useHyperliquidWithdraw({
       const signingClient = masterClient ?? (await ensureMasterClient?.()) ?? null;
       if (!signingClient || !masterAddress) {
         throw new Error('Perps wallet is not ready. Enable trading first.');
+      }
+
+      if (hasHyperliquidAccountSignerMismatch(masterAddress, signerAddress)) {
+        throw new Error(
+          getHyperliquidSignerMismatchMessage(masterAddress, signerAddress),
+        );
       }
 
       if (!EVM_ADDRESS_RE.test(destination)) {
@@ -84,7 +96,7 @@ export function useHyperliquidWithdraw({
         setIsWithdrawing(false);
       }
     },
-    [ensureMasterClient, masterAddress, masterClient, queryClient],
+    [ensureMasterClient, masterAddress, masterClient, queryClient, signerAddress],
   );
 
   return {

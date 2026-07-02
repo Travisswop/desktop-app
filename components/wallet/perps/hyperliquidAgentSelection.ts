@@ -19,6 +19,9 @@ type SelectHyperliquidMasterWalletArgs<T extends WalletLike> = {
   hasSavedAgentKey?: (address: string) => boolean;
 };
 
+const normalizeAddress = (address?: string | null) =>
+  address?.trim().toLowerCase() ?? '';
+
 export function selectHyperliquidMasterWallet<T extends WalletLike>({
   wallets,
   preferredAddresses = [],
@@ -29,7 +32,23 @@ export function selectHyperliquidMasterWallet<T extends WalletLike>({
     ...options,
     preferredAddresses,
   };
-  const primaryAddress = preferredAddresses[0];
+  const primaryAddress = preferredAddresses.find((address) =>
+    Boolean(address?.trim()),
+  );
+  const primaryPreferredWallet = primaryAddress
+    ? selectPreferredWallet(wallets, primaryAddress, {
+        ...options,
+        preferredAddresses: [primaryAddress],
+      })
+    : undefined;
+  if (
+    primaryPreferredWallet?.address &&
+    normalizeAddress(primaryPreferredWallet.address) ===
+      normalizeAddress(primaryAddress)
+  ) {
+    return primaryPreferredWallet;
+  }
+
   const walletsWithSavedAgent = (wallets ?? []).filter((wallet) =>
     wallet.address ? hasSavedAgentKey(wallet.address) : false,
   );

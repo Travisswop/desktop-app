@@ -5,6 +5,10 @@ import {
   shouldPreferEmbeddedWallets,
   tradingWalletSelectionOptions,
 } from '@/components/wallet/hooks/useWalletData';
+import {
+  getHyperliquidSignerMismatchMessage,
+  hasHyperliquidAccountSignerMismatch,
+} from '@/components/wallet/perps/hyperliquidAccountSigner';
 import { selectHyperliquidMasterWallet } from '@/components/wallet/perps/hyperliquidAgentSelection';
 import { resolveHyperliquidAccountAddress } from '@/components/wallet/perps/hyperliquidAccountAddress';
 
@@ -151,7 +155,7 @@ describe('trading wallet selection', () => {
     ]);
   });
 
-  it('rehydrates the Hyperliquid wallet that already has a saved agent key', () => {
+  it('keeps the canonical Hyperliquid wallet ahead of a stale saved agent key', () => {
     delete process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS;
 
     const multipleEmbeddedWallets = [
@@ -171,6 +175,33 @@ describe('trading wallet selection', () => {
       selectHyperliquidMasterWallet({
         wallets: multipleEmbeddedWallets,
         preferredAddresses: ['0xFreshEmbedded'],
+        options: tradingWalletSelectionOptions(),
+        hasSavedAgentKey: (address) =>
+          address.toLowerCase() === '0xsavedagentembedded',
+      })?.address,
+    ).toBe('0xFreshEmbedded');
+  });
+
+  it('rehydrates a saved Hyperliquid key for the selected canonical wallet', () => {
+    delete process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS;
+
+    const multipleEmbeddedWallets = [
+      {
+        address: '0xFreshEmbedded',
+        walletClientType: 'privy',
+        connectorType: 'embedded',
+      },
+      {
+        address: '0xSavedAgentEmbedded',
+        walletClientType: 'privy-v2',
+        connectorType: 'embedded',
+      },
+    ];
+
+    expect(
+      selectHyperliquidMasterWallet({
+        wallets: multipleEmbeddedWallets,
+        preferredAddresses: ['0xSavedAgentEmbedded'],
         options: tradingWalletSelectionOptions(),
         hasSavedAgentKey: (address) =>
           address.toLowerCase() === '0xsavedagentembedded',
@@ -217,5 +248,28 @@ describe('trading wallet selection', () => {
         candidateMasterAddress: '0xLocalEmbeddedWallet',
       }),
     ).toBe('0xLocalEmbeddedWallet');
+  });
+
+  it('detects when a perps account-level action would sign with the wrong wallet', () => {
+    expect(
+      hasHyperliquidAccountSignerMismatch(
+        '0xABCDEFabcdefABCDEFabcdefABCDEFabcdefABCD',
+        '0xabcdefABCDEFabcdefABCDEFabcdefABCDEFabcd',
+      ),
+    ).toBe(false);
+
+    expect(
+      hasHyperliquidAccountSignerMismatch(
+        '0x1111111111111111111111111111111111111111',
+        '0x2222222222222222222222222222222222222222',
+      ),
+    ).toBe(true);
+
+    expect(
+      getHyperliquidSignerMismatchMessage(
+        '0x1111111111111111111111111111111111111111',
+        '0x2222222222222222222222222222222222222222',
+      ),
+    ).toContain('does not match Hyperliquid account');
   });
 });
