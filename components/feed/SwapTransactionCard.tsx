@@ -5,9 +5,10 @@ import Link from "next/link";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import TokenValueChangeFetcher from "../wallet/TokenValueChangeFetched";
+import { MarketPriceDelayNotice } from "../wallet/market-price-delay-notice";
 import { useUser } from "@/lib/UserContext";
 import SwapTransactionShowGraph from "./SwapTransactionShowGraph";
-import { fetchTokenLivePrice } from "@/lib/utils/marketPriceClient";
+import { fetchTokenLivePriceSnapshot } from "@/lib/utils/marketPriceClient";
 import { getTokenFallbackPrice } from "@/lib/utils/tokenMarketData";
 import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 dayjs.extend(relativeTime);
@@ -201,6 +202,7 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
   const { accessToken } = useUser();
 
   const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [livePriceDegraded, setLivePriceDegraded] = useState(false);
   const [, setGrowth] = useState(0);
   const [cardWidth, setCardWidth] = useState(0);
 
@@ -233,13 +235,14 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
   // Live price fetch
   // ---------------------------------------------------------------------------
   const fetchPrice = useCallback(async () => {
-    setLivePrice(
-      await fetchTokenLivePrice({
-        outputToken,
-        apiUrl: marketApiBase,
-        authToken: accessToken,
-      }),
-    );
+    const snapshot = await fetchTokenLivePriceSnapshot({
+      outputToken,
+      apiUrl: marketApiBase,
+      authToken: accessToken,
+    });
+
+    setLivePrice(snapshot.price);
+    setLivePriceDegraded(snapshot.degraded);
   }, [outputToken, accessToken, marketApiBase]);
 
   // Keep the header live while the card is on screen.
@@ -318,6 +321,10 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
                 <span className="mt-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                   {outputToken?.symbol} PRICE
                 </span>
+                <MarketPriceDelayNotice
+                  degraded={livePriceDegraded}
+                  className="mt-1"
+                />
               </div>
             </div>
 
