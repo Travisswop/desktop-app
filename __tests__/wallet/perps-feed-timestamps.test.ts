@@ -1,6 +1,8 @@
 import {
+  buildPerpsReconcileSnapshotKey,
   buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
+  findMissingPerpsTerminalCandidates,
   inferPerpsCloseFillsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
@@ -308,5 +310,62 @@ describe('perps feed timestamps', () => {
       limitPlacedAt: '2026-06-15T11:40:00.000Z',
       updatedAt: '2026-06-15T11:40:00.000Z',
     });
+  });
+
+  it('changes the reconcile snapshot fingerprint when terminal fills arrive', () => {
+    const base = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      hasMarkPrices: true,
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      closedFillsByCoin: {},
+    });
+    const withCloseFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      hasMarkPrices: true,
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      closedFillsByCoin: {
+        ETH: {
+          coin: 'ETH',
+          px: 1735,
+          orderId: '555',
+          timestamp: '2026-06-15T11:45:00.000Z',
+        },
+      },
+    });
+
+    expect(withCloseFill).not.toBe(base);
+  });
+
+  it('flags a disappeared position key when a matching terminal fill exists', () => {
+    expect(
+      findMissingPerpsTerminalCandidates({
+        previousPositions: [
+          {
+            positionKey: 'hyperliquid:0xabc:ETH',
+            coin: 'ETH',
+            dex: null,
+          },
+        ],
+        activePositionKeys: [],
+        closedFillsByCoin: {
+          ETH: {
+            coin: 'ETH',
+            px: 1735,
+            orderId: '555',
+            timestamp: '2026-06-15T11:45:00.000Z',
+          },
+        },
+      }),
+    ).toEqual([
+      {
+        positionKey: 'hyperliquid:0xabc:ETH',
+        coin: 'ETH',
+        dex: null,
+      },
+    ]);
   });
 });
