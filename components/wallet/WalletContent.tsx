@@ -915,6 +915,16 @@ const WalletContentInner = () => {
       ) ?? directSolanaWallets[0]
     );
   }, [solanaReady, directSolanaWallets, solWalletAddress]);
+  const linkedSolanaWallets = useMemo(() => {
+    const linkedAccounts = (PrivyUser?.linkedAccounts ||
+      []) as PrivyLinkedAccount[];
+    return linkedAccounts.filter(isSolanaWalletAccount).filter(
+      (account) =>
+        account.walletClientType === 'privy' ||
+        account.walletClientType === 'privy-v2' ||
+        account.connectorType === 'embedded',
+    );
+  }, [PrivyUser]);
   const evmSendWallets = useMemo(() => {
     const linkedAccounts = (PrivyUser?.linkedAccounts ||
       []) as PrivyLinkedAccount[];
@@ -924,14 +934,13 @@ const WalletContentInner = () => {
     ];
   }, [directEvmWallets, PrivyUser]);
   const sendableSolWalletAddress = useMemo(() => {
-    if (!solanaReady) return '';
     return (
       getSolanaWalletAddressesForSend(
-        directSolanaWallets,
+        [...directSolanaWallets, ...linkedSolanaWallets],
         solWalletAddress,
       )[0] || ''
     );
-  }, [solanaReady, directSolanaWallets, solWalletAddress]);
+  }, [directSolanaWallets, linkedSolanaWallets, solWalletAddress]);
   const sendableEvmWalletAddresses = useMemo(
     () =>
       getEmbeddedEvmWalletAddressesForSend(
