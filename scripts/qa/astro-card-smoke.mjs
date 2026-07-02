@@ -381,11 +381,15 @@ async function openFreshSwopTarget(
     await closeTargetImpl(baseUrl, target.id);
   }
 
-  const closedTargets = staleTargets.map(({ id, url }) => ({ id, url }));
+  const attemptedTargets = staleTargets.map(({ id, url }) => ({ id, url }));
+  const remainingTargets = await listTargetsImpl(baseUrl);
+  const remainingTargetIds = new Set(remainingTargets.map((target) => target.id));
+  const closedTargets = attemptedTargets.filter(({ id }) => !remainingTargetIds.has(id));
   const opened = await openTargetImpl(baseUrl, swopUrl);
   if (opened.webSocketDebuggerUrl) {
     return {
       target: opened,
+      attemptedTargets,
       closedTargets,
       reusedExisting: false,
     };
@@ -400,6 +404,7 @@ async function openFreshSwopTarget(
   if (freshTarget) {
     return {
       target: freshTarget,
+      attemptedTargets,
       closedTargets,
       reusedExisting: false,
     };
@@ -411,6 +416,7 @@ async function openFreshSwopTarget(
   }
   return {
     target: fallbackTarget,
+    attemptedTargets,
     closedTargets,
     reusedExisting: true,
   };
@@ -931,12 +937,7 @@ async function runCardChecks({ client, baseUrl, args, report }) {
     return step;
   };
 
-  let step = add('page-auth');
-  await assertLoggedIn(client);
-  await selectThread(client, args.threadText);
-  finishStep(step, 'pass', `Authenticated chat loaded; selected thread containing "${args.threadText}".`);
-
-  step = add('portfolio-card');
+  let step = add('portfolio-card');
   await sendPrompt(client, 'show my portfolio');
   await waitForText(client, 'portfolio allocation card', ['Portfolio allocation'], 30000);
   finishStep(step, 'pass', 'Rendered wallet portfolio allocation card.');
@@ -1112,6 +1113,7 @@ async function main() {
       exceptions: [],
     },
     targetLifecycle: {
+      attemptedStaleChatTargets: [],
       closedStaleChatTargets: [],
       reusedExistingChatTarget: false,
     },
@@ -1139,33 +1141,43 @@ async function main() {
     return;
   }
 
-  const { target, closedTargets, reusedExisting } = await openFreshSwopTarget(
-    args.chromeUrl,
-    args.url
-  );
-  report.targetLifecycle.closedStaleChatTargets = closedTargets;
-  report.targetLifecycle.reusedExistingChatTarget = reusedExisting;
-  if (closedTargets.length) {
-    report.warnings.push(
-      `Closed ${closedTargets.length} stale ${appOrigin(args.url)} /dashboard/chat QA target(s) before opening a fresh review tab.`
-    );
-  }
-  if (reusedExisting) {
-    report.warnings.push(
-      'Chrome DevTools did not expose a fresh /dashboard/chat target after cleanup; reusing an existing chat tab.'
-    );
-  }
-  const client = new CdpClient(target.webSocketDebuggerUrl);
-  await client.connect();
-
-  client.on('Log.entryAdded', (params) => {
-    if (params.entry?.level === 'error') report.console.errors.push(params.entry);
-  });
-  client.on('Runtime.exceptionThrown', (params) => {
-    report.console.exceptions.push(params.exceptionDetails);
-  });
-
+  let client = null;
   try {
+    const {
+      target,
+      attemptedTargets,
+      closedTargets,
+      reusedExisting,
+    } = await openFreshSwopTarget(args.chromeUrl, args.url);
+    report.targetLifecycle.attemptedStaleChatTargets = attemptedTargets;
+    report.targetLifecycle.closedStaleChatTargets = closedTargets;
+    report.targetLifecycle.reusedExistingChatTarget = reusedExisting;
+    if (closedTargets.length) {
+      report.warnings.push(
+        `Closed ${closedTargets.length} stale ${appOrigin(args.url)} /dashboard/chat QA target(s) before opening a fresh review tab.`
+      );
+    }
+    if (attemptedTargets.length > closedTargets.length) {
+      report.warnings.push(
+        `Chrome still exposed ${attemptedTargets.length - closedTargets.length} stale chat target(s) after cleanup; only confirmed closures are counted in targetLifecycle.closedStaleChatTargets.`
+      );
+    }
+    if (reusedExisting) {
+      report.warnings.push(
+        'Chrome DevTools did not expose a fresh /dashboard/chat target after cleanup; reusing an existing chat tab.'
+      );
+    }
+
+    client = new CdpClient(target.webSocketDebuggerUrl);
+    await client.connect();
+
+    client.on('Log.entryAdded', (params) => {
+      if (params.entry?.level === 'error') report.console.errors.push(params.entry);
+    });
+    client.on('Runtime.exceptionThrown', (params) => {
+      report.console.exceptions.push(params.exceptionDetails);
+    });
+
     await client.send('Page.enable');
     await client.send('Runtime.enable');
     await client.send('Log.enable');
@@ -1184,7 +1196,20 @@ async function main() {
       await sleep(3000);
     }
 
+    const pageAuthStep = createStep(
+      'page-auth',
+      report.cardContracts.find((contract) => contract.step === 'page-auth') || null
+    );
+    report.steps.push(pageAuthStep);
     await waitForText(client, 'Swop page content', ['Swop', 'Messages'], args.timeoutMs);
+    await assertLoggedIn(client);
+    await selectThread(client, args.threadText);
+    finishStep(
+      pageAuthStep,
+      'pass',
+      `Authenticated chat loaded; selected thread containing "${args.threadText}".`
+    );
+
     await runCardChecks({ client, baseUrl: args.chromeUrl, args, report });
     report.status = report.steps.some((step) => step.status === 'fail') ? 'fail' : 'pass';
   } catch (error) {
@@ -1210,7 +1235,7 @@ async function main() {
         writeReport(args, report);
       }
     }
-    await client.close();
+    if (client) await client.close();
   }
 
   const summary = {

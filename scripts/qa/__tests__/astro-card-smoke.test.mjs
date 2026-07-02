@@ -88,24 +88,38 @@ test('finds a fresh same-host chat tab instead of falling back to another review
 
 test('closes stale same-origin chat targets before opening a fresh review tab', async () => {
   const closed = [];
+  let listCall = 0;
   const result = await openFreshSwopTarget(
     'http://127.0.0.1:9223',
     'http://localhost:3001/dashboard/chat',
     {
-      listTargetsImpl: async () => [
-        {
-          id: 'preview-chat',
-          type: 'page',
-          url: 'https://desktop-app-git-pr-512-travisswops-projects.vercel.app/dashboard/chat',
-          webSocketDebuggerUrl: 'ws://preview',
-        },
-        {
-          id: 'stale-localhost-chat',
-          type: 'page',
-          url: 'http://localhost:3001/dashboard/chat?thread=astro',
-          webSocketDebuggerUrl: 'ws://stale-localhost',
-        },
-      ],
+      listTargetsImpl: async () => {
+        listCall += 1;
+        if (listCall === 1) {
+          return [
+            {
+              id: 'preview-chat',
+              type: 'page',
+              url: 'https://desktop-app-git-pr-512-travisswops-projects.vercel.app/dashboard/chat',
+              webSocketDebuggerUrl: 'ws://preview',
+            },
+            {
+              id: 'stale-localhost-chat',
+              type: 'page',
+              url: 'http://localhost:3001/dashboard/chat?thread=astro',
+              webSocketDebuggerUrl: 'ws://stale-localhost',
+            },
+          ];
+        }
+        return [
+          {
+            id: 'preview-chat',
+            type: 'page',
+            url: 'https://desktop-app-git-pr-512-travisswops-projects.vercel.app/dashboard/chat',
+            webSocketDebuggerUrl: 'ws://preview',
+          },
+        ];
+      },
       openTargetImpl: async () => ({
         id: 'fresh-localhost-chat',
         type: 'page',
@@ -119,6 +133,12 @@ test('closes stale same-origin chat targets before opening a fresh review tab', 
   );
 
   assert.deepEqual(closed, ['stale-localhost-chat']);
+  assert.deepEqual(result.attemptedTargets, [
+    {
+      id: 'stale-localhost-chat',
+      url: 'http://localhost:3001/dashboard/chat?thread=astro',
+    },
+  ]);
   assert.deepEqual(result.closedTargets, [
     {
       id: 'stale-localhost-chat',
@@ -165,6 +185,13 @@ test('records fallback when Chrome only exposes an existing same-origin chat tar
   );
 
   assert.deepEqual(closed, ['stale-localhost-chat']);
+  assert.deepEqual(result.attemptedTargets, [
+    {
+      id: 'stale-localhost-chat',
+      url: 'http://localhost:3001/dashboard/chat?thread=astro',
+    },
+  ]);
+  assert.deepEqual(result.closedTargets, []);
   assert.equal(result.reusedExisting, true);
   assert.equal(result.target.id, 'stale-localhost-chat');
 });
