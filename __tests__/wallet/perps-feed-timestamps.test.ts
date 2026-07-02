@@ -1,7 +1,9 @@
 import {
   buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
+  buildPerpsReconcileSnapshotKey,
   inferPerpsCloseFillsByCoin,
+  inferPerpsLiquidationsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   isPerpsEntryLimitOrder,
@@ -185,6 +187,79 @@ describe('perps feed timestamps', () => {
     ]);
 
     expect(closeFills.BTC?.px).toBe(104500);
+  });
+
+  it('changes the reconcile snapshot when a terminal close fill arrives later', () => {
+    const beforeFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      priceMapState: 'mids-ready',
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      closedFillsByCoin: {},
+    });
+    const afterFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      priceMapState: 'mids-ready',
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      closedFillsByCoin: inferPerpsCloseFillsByCoin([
+        {
+          coin: 'ETH',
+          side: 'A',
+          sz: '0.3171',
+          startPosition: '0.3171',
+          px: '1735',
+          closedPnl: '9.19',
+          fee: '0.38',
+          time: Date.parse('2026-06-15T11:45:00Z'),
+          oid: 555,
+        },
+      ]),
+    });
+
+    expect(afterFill).not.toBe(beforeFill);
+    expect(afterFill).toContain('close=ETH=555=2026-06-15T11:45:00.000Z');
+  });
+
+  it('changes the reconcile snapshot when a liquidation fill arrives later', () => {
+    const beforeFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      priceMapState: 'mids-ready',
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      liquidationsByCoin: {},
+    });
+    const afterFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      priceMapState: 'mids-ready',
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      liquidationsByCoin: inferPerpsLiquidationsByCoin([
+        {
+          coin: 'ETH',
+          side: 'A',
+          sz: '0.3171',
+          startPosition: '0.3171',
+          px: '1675',
+          closedPnl: '-12.5',
+          fee: '0.41',
+          time: Date.parse('2026-06-15T11:46:00Z'),
+          oid: 556,
+          liquidation: {
+            markPx: '1674.5',
+          },
+        },
+      ]),
+    });
+
+    expect(afterFill).not.toBe(beforeFill);
+    expect(afterFill).toContain(
+      'liquidation=ETH=556=2026-06-15T11:46:00.000Z=1675=1674.5',
+    );
   });
 
   it('maps long reduce-only triggers to take-profit and stop-loss prices', () => {

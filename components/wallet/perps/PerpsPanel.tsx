@@ -49,7 +49,9 @@ import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
+  buildPerpsReconcileSnapshotKey,
   inferPerpsCloseFillsByCoin,
+  inferPerpsLiquidationsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
@@ -627,22 +629,18 @@ export function PerpsPanel({
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    const reconcileSnapshotKey = [
+    const closedFillsByCoin = inferPerpsCloseFillsByCoin(fills);
+    const liquidationsByCoin = inferPerpsLiquidationsByCoin(fills);
+    const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
       masterAddress,
-      Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
-      `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
-      ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
-      ...activeLimitOrders
-        .map((order) =>
-          [
-            'limit',
-            order.positionKey.toLowerCase(),
-            order.orderId || '',
-            order.limitPrice,
-          ].join('='),
-        )
-        .sort(),
-    ].join(':');
+      priceMapState:
+        Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
+      observedDexes,
+      activePositionKeys,
+      activeLimitOrders,
+      liquidationsByCoin,
+      closedFillsByCoin,
+    });
 
     if (!reconciledPositionSnapshotsRef.current.has(reconcileSnapshotKey)) {
       reconciledPositionSnapshotsRef.current.add(reconcileSnapshotKey);
@@ -655,7 +653,8 @@ export function PerpsPanel({
         activeLimitOrders,
         observedDexes,
         markPricesByCoin: mids,
-        closedFillsByCoin: inferPerpsCloseFillsByCoin(fills),
+        liquidationsByCoin,
+        closedFillsByCoin,
       }).catch((feedError) => {
         reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
         console.warn('Failed to reconcile perps feed cards:', feedError);
