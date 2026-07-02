@@ -124,7 +124,8 @@ const delegatedPolicyIds = (
   .map((id) => id.trim())
   .filter(Boolean);
 const DEBUG_ORDER_SIGNING = true;
-const MARKET_ORDER_PRICE_PROTECTION = 0.03;
+const MARKET_BUY_MAX_PRICE = 0.999;
+const MARKET_SELL_MIN_PRICE = 0.001;
 type DelegatedSignerConfig = {
   signerId: string;
   policyIds: string[];
@@ -156,10 +157,6 @@ function parseProbabilityPrice(value: unknown) {
   return Number.isFinite(price) && price > 0 && price < 1 ? price : null;
 }
 
-function formatProbabilityCents(value: number) {
-  return `${Math.round(value * 100)}¢`;
-}
-
 async function fetchFreshExecutionQuote(
   tokenId: string,
   headers: HeadersInit,
@@ -186,56 +183,36 @@ function resolveProtectedMarketPrice(
   params: OrderParams,
   quote: { bid: number | null; ask: number | null },
 ) {
-  const acceptedPrice = parseProbabilityPrice(params.acceptedPrice);
-
-  if (acceptedPrice == null) {
-    throw new Error(
-      'This order needs a fresh market quote. Refresh the market and try again.',
-    );
-  }
+  const acceptedPrice =
+    parseProbabilityPrice(params.acceptedPrice) ??
+    parseProbabilityPrice(params.price);
 
   if (params.side === 'BUY') {
     const liveAsk = quote.ask;
-    if (liveAsk == null) {
+    const referencePrice = acceptedPrice ?? liveAsk;
+    if (liveAsk == null || referencePrice == null) {
       throw new Error('No live ask is available for this market.');
     }
 
-    const protectedPrice = Math.min(
-      0.99,
-      acceptedPrice + MARKET_ORDER_PRICE_PROTECTION,
-    );
-    if (liveAsk > protectedPrice + 1e-9) {
-      throw new Error(
-        `Market price moved from ${formatProbabilityCents(acceptedPrice)} to ${formatProbabilityCents(liveAsk)}. Refresh before placing the order.`,
-      );
-    }
-
     return {
-      protectedPrice,
+      protectedPrice: MARKET_BUY_MAX_PRICE,
       liveQuotePrice: liveAsk,
-      acceptedPrice,
+      acceptedPrice: referencePrice,
     };
   }
 
   const liveBid = quote.bid;
-  if (liveBid == null) {
-    throw new Error('No live bid is available for this market.');
-  }
-
-  const protectedPrice = Math.max(
-    0.01,
-    acceptedPrice - MARKET_ORDER_PRICE_PROTECTION,
-  );
-  if (liveBid < protectedPrice - 1e-9) {
+  const referencePrice = acceptedPrice ?? liveBid;
+  if (liveBid == null || referencePrice == null) {
     throw new Error(
-      `Market price moved from ${formatProbabilityCents(acceptedPrice)} to ${formatProbabilityCents(liveBid)}. Refresh before placing the order.`,
+      'No live bid is available for this market.',
     );
   }
 
   return {
-    protectedPrice,
+    protectedPrice: MARKET_SELL_MIN_PRICE,
     liveQuotePrice: liveBid,
-    acceptedPrice,
+    acceptedPrice: referencePrice,
   };
 }
 
