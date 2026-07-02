@@ -58,6 +58,56 @@ export function isEmbeddedEvmSendWallet(wallet: EvmWalletLike) {
   );
 }
 
+function uniqueWalletAddresses(addresses: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  addresses.forEach((address) => {
+    const cleanAddress = cleanSendWalletAddress(address);
+    if (!cleanAddress) return;
+    const key = isEvmWalletAddress(cleanAddress)
+      ? cleanAddress.toLowerCase()
+      : cleanAddress;
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(cleanAddress);
+  });
+  return result;
+}
+
+export function getSolanaWalletAddressesForSend<T extends AddressLike>(
+  wallets: T[] | undefined | null,
+  preferredAddress?: string | null,
+) {
+  const available = (wallets ?? []).filter((wallet) =>
+    cleanSendWalletAddress(wallet.address),
+  );
+  const preferredWallet = available.find((wallet) =>
+    walletAddressesMatch(wallet.address, preferredAddress),
+  );
+  return uniqueWalletAddresses([
+    preferredWallet?.address,
+    ...available.map((wallet) => wallet.address),
+  ]);
+}
+
+export function getEmbeddedEvmWalletAddressesForSend<T extends EvmWalletLike>(
+  wallets: T[] | undefined | null,
+  preferredAddress?: string | null,
+) {
+  const embeddedWallets = (wallets ?? []).filter(
+    (wallet) =>
+      isEmbeddedEvmSendWallet(wallet) &&
+      isEvmWalletAddress(wallet.address),
+  );
+  const preferredWallet = embeddedWallets.find((wallet) =>
+    walletAddressesMatch(wallet.address, preferredAddress),
+  );
+  return uniqueWalletAddresses([
+    preferredWallet?.address,
+    ...embeddedWallets.map((wallet) => wallet.address),
+  ]);
+}
+
 export function resolveEvmEmbeddedSenderForSend<T extends EvmWalletLike>(
   wallets: T[] | undefined | null,
   flow: SendFlowState,

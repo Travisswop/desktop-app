@@ -1,5 +1,7 @@
 import {
+  getEmbeddedEvmWalletAddressesForSend,
   getEvmSenderAddressForSend,
+  getSolanaWalletAddressesForSend,
   resolveEvmEmbeddedSenderForSend,
   selectSolanaWalletForSend,
   walletAddressesMatch,
@@ -156,6 +158,35 @@ describe('send wallet owner selection', () => {
       tokenOwnerAddress: '',
       tokenOwnerUnavailable: false,
     });
+  });
+
+  it('builds Solana token queries from signable Solana wallets instead of stale stored addresses', () => {
+    expect(
+      getSolanaWalletAddressesForSend(
+        [{ address: 'signable-sol-wallet' }],
+        'stored-sol-wallet',
+      ),
+    ).toEqual(['signable-sol-wallet']);
+  });
+
+  it('builds EVM token queries from embedded wallets instead of stale stored addresses', () => {
+    expect(
+      getEmbeddedEvmWalletAddressesForSend(
+        [
+          {
+            address: '0x1111111111111111111111111111111111111111',
+            walletClientType: 'metamask',
+            connectorType: 'injected',
+          },
+          {
+            address: '0x2222222222222222222222222222222222222222',
+            walletClientType: 'privy',
+            connectorType: 'embedded',
+          },
+        ],
+        '0x3333333333333333333333333333333333333333',
+      ),
+    ).toEqual(['0x2222222222222222222222222222222222222222']);
   });
 
   it('matches EVM addresses case-insensitively and Solana addresses exactly', () => {
