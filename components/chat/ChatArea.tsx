@@ -40,6 +40,7 @@ import GroupMenu from './GroupMenu';
 import ChatAttachmentMenu, {
   type ChatAttachmentGif,
 } from './ChatAttachmentMenu';
+import ChatThreadEmptyState from './ChatThreadEmptyState';
 import { resolveActiveChatData } from './chatSelection';
 import { sendCloudinaryFile } from '@/lib/SendCloudinaryAnyFile';
 import Image from 'next/image';
@@ -3192,6 +3193,11 @@ export default function ChatArea({
   const [pendingPolymarketBetKey, setPendingPolymarketBetKey] = useState<
     string | null
   >(null);
+  const [emptyStateError, setEmptyStateError] = useState<string | null>(
+    null
+  );
+  const [isOpeningAstroThread, setIsOpeningAstroThread] =
+    useState(false);
   const [inlinePolymarketProposalsByBetKey, setInlinePolymarketProposalsByBetKey] =
     useState<Record<string, AgentActionProposal>>({});
   const [inlineProposalIds, setInlineProposalIds] = useState<Set<string>>(
@@ -5761,21 +5767,34 @@ export default function ChatArea({
     ]
   );
 
+  const handleOpenEmptyStateAstroThread = useCallback(async () => {
+    if (!onOpenAgentThread) return;
+
+    setEmptyStateError(null);
+    setIsOpeningAstroThread(true);
+    try {
+      await onOpenAgentThread('astro');
+    } catch (error) {
+      console.error('Failed to open Astro Trading Desk', error);
+      setEmptyStateError(
+        error instanceof Error
+          ? error.message
+          : 'Could not open Astro Trading Desk right now.'
+      );
+    } finally {
+      setIsOpeningAstroThread(false);
+    }
+  }, [onOpenAgentThread]);
+
   if (!selectedChat) {
     return (
-      <div className="flex min-w-0 flex-1 items-center justify-center bg-[#08090b]">
-        <div className="dm-rise max-w-sm text-center">
-          <div className="dm-mono mx-auto mb-5 grid h-16 w-16 place-items-center rounded-[16px] border border-[#3fe08f]/30 bg-black text-xl font-bold text-[#3fe08f] shadow-[inset_0_0_18px_rgba(63,224,143,0.12)]">
-            $_
-          </div>
-          <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#eceef2]">
-            Swop Messages
-          </h2>
-          <p className="mt-2 text-sm text-[#9396a0]">
-            Pick Astro Trading Desk, or create a group and mention @astro.
-          </p>
-        </div>
-      </div>
+      <ChatThreadEmptyState
+        onOpenAstroThread={
+          onOpenAgentThread ? handleOpenEmptyStateAstroThread : undefined
+        }
+        isOpeningAstroThread={isOpeningAstroThread}
+        errorMessage={emptyStateError}
+      />
     );
   }
 
