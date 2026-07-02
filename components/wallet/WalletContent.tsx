@@ -7,6 +7,7 @@ import {
   useCallback,
   useRef,
   Component,
+  Fragment,
   ReactNode,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -69,6 +70,7 @@ import { SUPPORTED_CHAINS, ERROR_MESSAGES } from './constants';
 // UI Components
 import TokenList from './token/token-list';
 import TokenDetails from './token/token-details-view';
+import TokenSearchExplorer from './token/TokenSearchExplorer';
 import ManageTokenModal from './token/ManageTokenModal';
 import RedeemModal from './token/redeem-modal';
 import NFTSlider from './nft/nft-list';
@@ -118,6 +120,7 @@ import {
   ImageIcon,
   MoreHorizontal,
   RefreshCw,
+  Search,
   Sparkles,
 } from 'lucide-react';
 
@@ -698,6 +701,7 @@ const WalletContentInner = () => {
 
   // Section management state (lifted from the old AssetsTab)
   const [tokenChain, setTokenChain] = useState<string>('all');
+  const [tokenExplorerOpen, setTokenExplorerOpen] = useState(false);
   const [manageTokensOpen, setManageTokensOpen] = useState(false);
   const [manageNFTModalOpen, setManageNFTModalOpen] = useState(false);
   const [redeemModalOpen, setRedeemModalOpen] = useState(false);
@@ -1849,6 +1853,16 @@ const WalletContentInner = () => {
     [],
   );
 
+  const handleChainFilterSelect = useCallback((chain: string) => {
+    setTokenExplorerOpen(false);
+    setTokenChain(chain);
+  }, []);
+
+  const handleTokenExplorerSelect = useCallback((token: TokenData) => {
+    setTokenExplorerOpen(false);
+    setSelectedToken(token);
+  }, []);
+
   const handleSelectNFT = useCallback((nft: NFT) => {
     setSelectedNFT(nft);
     setIsNFTModalOpen(true);
@@ -1997,13 +2011,31 @@ const WalletContentInner = () => {
               <>
                 <div className="hidden sm:flex items-center gap-1.5">
                   {TOKEN_CHAIN_FILTERS.slice(0, 4).map((c) => (
-                    <Chip
-                      key={c.value}
-                      active={tokenChain === c.value}
-                      onClick={() => setTokenChain(c.value)}
-                    >
-                      {c.label}
-                    </Chip>
+                    <Fragment key={c.value}>
+                      <Chip
+                        active={
+                          !tokenExplorerOpen && tokenChain === c.value
+                        }
+                        onClick={() => handleChainFilterSelect(c.value)}
+                      >
+                        {c.label}
+                      </Chip>
+                      {c.value === 'all' && (
+                        <button
+                          type="button"
+                          onClick={() => setTokenExplorerOpen((v) => !v)}
+                          aria-label="Search all tokens"
+                          aria-pressed={tokenExplorerOpen}
+                          className={`inline-flex items-center justify-center w-7 h-7 rounded-full border transition ${
+                            tokenExplorerOpen
+                              ? 'border-gray-950 bg-gray-950 text-white'
+                              : 'border-black/[0.06] bg-white text-gray-700 hover:border-black/[0.15]'
+                          }`}
+                        >
+                          <Search className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </Fragment>
                   ))}
                 </div>
                 <div className="relative" ref={assetsMenuRef}>
@@ -2037,22 +2069,48 @@ const WalletContentInner = () => {
           />
           <div className="sm:hidden flex items-center gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1">
             {TOKEN_CHAIN_FILTERS.map((c) => (
-              <Chip
-                key={c.value}
-                active={tokenChain === c.value}
-                onClick={() => setTokenChain(c.value)}
-              >
-                {c.label}
-              </Chip>
+              <Fragment key={c.value}>
+                <Chip
+                  active={!tokenExplorerOpen && tokenChain === c.value}
+                  onClick={() => handleChainFilterSelect(c.value)}
+                >
+                  {c.label}
+                </Chip>
+                {c.value === 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setTokenExplorerOpen((v) => !v)}
+                    aria-label="Search all tokens"
+                    aria-pressed={tokenExplorerOpen}
+                    className={`inline-flex flex-shrink-0 items-center justify-center w-7 h-7 rounded-full border transition ${
+                      tokenExplorerOpen
+                        ? 'border-gray-950 bg-gray-950 text-white'
+                        : 'border-black/[0.06] bg-white text-gray-700 hover:border-black/[0.15]'
+                    }`}
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </Fragment>
             ))}
           </div>
           <BentoCard>
-            <TokenList
-              tokens={filteredTokens as unknown as TokenData[]}
-              loading={tokenLoading}
-              error={tokenError as Error}
-              onSelectToken={handleTokenSelect}
-            />
+            {tokenExplorerOpen ? (
+              <TokenSearchExplorer
+                tokens={tokens as unknown as TokenData[]}
+                loading={tokenLoading}
+                error={tokenError as Error}
+                onSelectToken={handleTokenExplorerSelect}
+                onClose={() => setTokenExplorerOpen(false)}
+              />
+            ) : (
+              <TokenList
+                tokens={filteredTokens as unknown as TokenData[]}
+                loading={tokenLoading}
+                error={tokenError as Error}
+                onSelectToken={handleTokenSelect}
+              />
+            )}
           </BentoCard>
         </section>
 
