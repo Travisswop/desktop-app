@@ -29,7 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 
 import { TokenData } from '@/types/token';
 import { NFT } from '@/types/nft';
-import { CHAIN_ID } from '@/types/wallet-types';
+import { CHAIN_ID, type SendFlowState } from '@/types/wallet-types';
 import {
   PrivyLinkedAccount,
   isSolanaWalletAccount,
@@ -77,6 +77,10 @@ import NFTSlider from './nft/nft-list';
 import NFTDetailView from './nft/nft-details-view';
 import ManageNFTModal from './nft/ManageNFTModal';
 import WalletModals from './WalletModals';
+import {
+  showTransactionProcessingToast,
+  showTransactionSuccessToast,
+} from './transaction-processing-toast';
 import { Toaster } from '../ui/toaster';
 import { BentoCard, Chip, SectionHead } from '../ui/bento';
 import BalanceChart from '../dashboard/BalanceChart';
@@ -142,6 +146,52 @@ const TOKEN_COLORS: Record<string, string> = {
 
 const getTokenColor = (symbol: string): string => {
   return TOKEN_COLORS[symbol] || TOKEN_COLORS.default;
+};
+
+const shortTransactionAddress = (address?: string | null) =>
+  address && address.length > 12
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : address || 'recipient';
+
+const getWalletTransactionExplorerUrl = (
+  flow: SendFlowState,
+  hash?: string,
+) => {
+  if (!hash) return null;
+  const chain = String(flow.token?.chain || flow.network || '')
+    .trim()
+    .toUpperCase();
+  switch (chain) {
+    case 'ETHEREUM':
+      return `https://etherscan.io/tx/${hash}`;
+    case 'SOLANA':
+      return `https://solscan.io/tx/${hash}`;
+    case 'POLYGON':
+      return `https://polygonscan.com/tx/${hash}`;
+    case 'BASE':
+      return `https://basescan.org/tx/${hash}`;
+    case 'ARBITRUM':
+      return `https://arbiscan.io/tx/${hash}`;
+    case 'SEPOLIA':
+      return `https://sepolia.etherscan.io/tx/${hash}`;
+    default:
+      return null;
+  }
+};
+
+const getWalletTransactionToastMessage = (flow: SendFlowState) => {
+  const recipient =
+    flow.recipient?.ensName ||
+    shortTransactionAddress(flow.recipient?.address);
+
+  if (flow.nft) {
+    return `${flow.nft.name || 'NFT'} is being sent to ${recipient}. You can keep using Swop.`;
+  }
+
+  const amount = flow.isUSD
+    ? `$${flow.amount}`
+    : `${flow.amount} ${flow.token?.symbol || 'token'}`;
+  return `${amount} is being sent to ${recipient}. You can keep using Swop.`;
 };
 
 const HIDDEN_NFTS_KEY = 'hiddenNfts';
@@ -1830,41 +1880,84 @@ const WalletContentInner = () => {
         );
       }
 
-      await Promise.allSettled([
-        handlePointsUpdate(sendFlow.recipient),
-        result.hash && accessToken
-          ? handleFeedPost(
-              result.hash,
-              sendFlow,
-              Number(calculateTransactionAmount(sendFlow)),
-              currentWalletAddress,
-              payload,
-              accessToken,
-            )
-          : Promise.resolve(),
-      ]);
+      const submittedFlow = sendFlow;
+      const submittedHash = result.hash || '';
 
-      if (result.hash) {
-        handleSocketNotification(
-          result.hash,
-          sendFlow,
-          calculateTransactionAmount,
+      if (submittedHash) {
+        const explorerUrl = getWalletTransactionExplorerUrl(
+          submittedFlow,
+          submittedHash,
         );
+        const toastId = showTransactionProcessingToast({
+          title: 'Transaction processing',
+          message: getWalletTransactionToastMessage(submittedFlow),
+          explorerUrl,
+        });
+
+        resetSendFlow();
+        setSendLoading(false);
+
+        void (async () => {
+          try {
+            await Promise.allSettled([
+              handlePointsUpdate(submittedFlow.recipient!),
+              accessToken
+                ? handleFeedPost(
+                    submittedHash,
+                    submittedFlow,
+                    Number(calculateTransactionAmount(submittedFlow)),
+                    currentWalletAddress,
+                    payload,
+                    accessToken,
+                  )
+                : Promise.resolve(),
+            ]);
+
+            handleSocketNotification(
+              submittedHash,
+              submittedFlow,
+              calculateTransactionAmount,
+            );
+
+            queryClient.invalidateQueries({
+              queryKey: ['transactions'],
+            });
+            setTimeout(() => {
+              queryClient.invalidateQueries({
+                queryKey: ['transactions'],
+              });
+            }, 5000);
+
+            showTransactionSuccessToast({
+              id: toastId,
+              title: 'Transaction submitted',
+              message:
+                'Your transaction is on-chain. Balances may take a moment to refresh.',
+              explorerUrl,
+            });
+          } catch (postSubmitError) {
+            console.warn(
+              'Post-transaction background work failed:',
+              postSubmitError,
+            );
+            showTransactionSuccessToast({
+              id: toastId,
+              title: 'Transaction submitted',
+              message:
+                'Your transaction is on-chain. Some app updates may refresh shortly.',
+              explorerUrl,
+            });
+          }
+        })();
+
+        return;
       }
 
       setSendFlow((prev) => ({
         ...prev,
-        hash: result.hash || '',
+        hash: '',
         step: 'success',
       }));
-
-      // Invalidate the transaction cache so the new outgoing tx appears
-      // immediately without requiring a page reload.
-      // Solana confirms in ~1s; EVM chains take longer so we refetch twice.
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      }, 5000);
     } catch (error) {
       toast({
         variant: 'destructive',
