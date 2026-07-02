@@ -50,11 +50,12 @@ const SURFACE_2 = '#fafafa';
 const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
 
-const PERIODS = ['1D', '1W', '1M', '1Y'] as const;
+const PERIODS = ['1D', '1W', '1M', '1Y', 'ALL'] as const;
 type Period = (typeof PERIODS)[number];
+type TimeSeriesPeriod = Exclude<Period, 'ALL'>;
 type ChartPoint = { timestamp: number; value: number };
 
-const PERIOD_MS: Record<Period, number> = {
+const PERIOD_MS: Record<TimeSeriesPeriod, number> = {
   '1D': 24 * 60 * 60 * 1000,
   '1W': 7 * 24 * 60 * 60 * 1000,
   '1M': 30 * 24 * 60 * 60 * 1000,
@@ -186,7 +187,7 @@ const normalizeChartPoints = (
 
 const sparklineToChartPoints = (
   values: unknown,
-  period: Period,
+  period: TimeSeriesPeriod,
 ): ChartPoint[] => {
   if (!Array.isArray(values) || values.length < 2) return [];
 
@@ -210,11 +211,17 @@ const sparklineToChartPoints = (
   }));
 };
 
+const fallbackTimeSeriesPeriod = (period: Period): TimeSeriesPeriod =>
+  period === 'ALL' ? '1Y' : period;
+
 const fallbackChartDataForToken = (
   token: TokenData,
   period: Period,
 ): ChartPoint[] => {
-  const periodData = normalizeChartPoints(token.timeSeriesData?.[period]);
+  const fallbackPeriod = fallbackTimeSeriesPeriod(period);
+  const periodData = normalizeChartPoints(
+    token.timeSeriesData?.[fallbackPeriod],
+  );
   if (periodData.length >= 2) return periodData;
 
   if (period !== '1D') return [];
@@ -224,7 +231,7 @@ const fallbackChartDataForToken = (
 
   return sparklineToChartPoints(
     (token.marketData as { sparkline?: unknown } | null)?.sparkline,
-    period,
+    fallbackPeriod,
   );
 };
 
@@ -367,6 +374,14 @@ export default function TokenDetails({
     accessToken,
     marketId,
   );
+  const all = useTokenChartData(
+    token.address,
+    token.chain,
+    'ALL',
+    selectedPeriod === 'ALL',
+    accessToken,
+    marketId,
+  );
 
   const periodChangeNumeric = parseFloat(changePercentage || '0');
   const strokeColor = periodChangeNumeric >= 0 ? POS_GREEN : NEG_RED;
@@ -379,18 +394,21 @@ export default function TokenDetails({
       '1W': week.data?.sparklineData || [],
       '1M': month.data?.sparklineData || [],
       '1Y': year.data?.sparklineData || [],
+      ALL: all.data?.sparklineData || [],
     };
     const changeMap = {
       '1D': (day.data?.change as string) || '0',
       '1W': (week.data?.change as string) || '0',
       '1M': (month.data?.change as string) || '0',
       '1Y': (year.data?.change as string) || '0',
+      ALL: (all.data?.change as string) || '0',
     };
     const loadingMap = {
       '1D': day.isLoading,
       '1W': week.isLoading,
       '1M': month.isLoading,
       '1Y': year.isLoading,
+      ALL: all.isLoading,
     };
 
     setIsLoading(loadingMap[selectedPeriod] || false);
@@ -426,6 +444,8 @@ export default function TokenDetails({
     month.isLoading,
     year.data,
     year.isLoading,
+    all.data,
+    all.isLoading,
   ]);
 
   const { authenticated, ready, user: PrivyUser } = usePrivy();

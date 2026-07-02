@@ -11,13 +11,15 @@ interface ChartData {
   sparklineData: ChartDataPoint[];
 }
 
+type ChartDays = number | 'max';
+
 /**
  * Map native tokens (no contract address) to CoinGecko IDs
  */
 const NATIVE_TOKEN_MAP: Record<string, string> = {
   SOLANA: 'solana',
   ETHEREUM: 'ethereum',
-  POLYGON: 'matic-network',
+  POLYGON: 'polygon-ecosystem-token',
   BASE: 'ethereum', // Base chain uses ETH as native token
   ARBITRUM: 'ethereum', // Arbitrum uses ETH as native token
   SEPOLIA: 'ethereum', // Testnet uses ETH
@@ -26,12 +28,13 @@ const NATIVE_TOKEN_MAP: Record<string, string> = {
 /**
  * Map period to days for the backend API
  */
-function periodToDays(period: string): number {
-  const periodMap: Record<string, number> = {
+function periodToDays(period: string): ChartDays {
+  const periodMap: Record<string, ChartDays> = {
     '1D': 1,
     '1W': 7,
     '1M': 30,
     '1Y': 365,
+    ALL: 'max',
   };
   return periodMap[period] || 1;
 }
@@ -50,10 +53,59 @@ function isNativeToken(address: string | null): boolean {
   );
 }
 
+function looksLikeAddress(value: string): boolean {
+  return (
+    value.startsWith('0x') ||
+    /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)
+  );
+}
+
+function looksLikeProviderSpecificMarketId(
+  marketId: string,
+  tokenAddress?: string | null
+): boolean {
+  const normalizedId = marketId.toLowerCase();
+  const normalizedAddress = String(tokenAddress || '').toLowerCase();
+
+  return (
+    looksLikeAddress(marketId) ||
+    normalizedId.includes(':') ||
+    normalizedId.startsWith('jupiter') ||
+    normalizedId.includes('://') ||
+    normalizedId.includes('0x') ||
+    (!!normalizedAddress && normalizedId.includes(normalizedAddress))
+  );
+}
+
+function normalizeCoinGeckoMarketId(
+  marketId?: string | null,
+  tokenAddress?: string | null
+): string | null {
+  const normalized = String(marketId || '').trim();
+  if (!normalized) return null;
+  return looksLikeProviderSpecificMarketId(normalized, tokenAddress)
+    ? null
+    : normalized;
+}
+
+function hasUsablePrices(
+  historical:
+    | { prices?: Array<{ timestamp: number; price: number }> }
+    | null
+    | undefined
+): historical is { prices: Array<{ timestamp: number; price: number }> } {
+  const validPrices = historical?.prices?.filter(
+    (point) =>
+      Number.isFinite(Number(point.timestamp)) &&
+      Number.isFinite(Number(point.price))
+  );
+  return Boolean(validPrices && validPrices.length >= 2);
+}
+
 /**
  * Fetch chart data from backend. Uses the unified chart-by-address endpoint
- * for contract tokens so the backend can transparently fall back to Jupiter
- * + GeckoTerminal when a Solana token isn't listed on CoinGecko.
+ * for contract tokens first, then falls back to a clean CoinGecko market id
+ * when the address-based/free providers cannot return a usable history.
  */
 async function fetchChartData(
   tokenAddress: string | null,
@@ -65,47 +117,81 @@ async function fetchChartData(
   const days = periodToDays(period);
   let prices: Array<{ timestamp: number; price: number }> = [];
   let chartLabel = `${chain}:${tokenAddress || 'native'}`;
+  const normalizedMarketId = normalizeCoinGeckoMarketId(
+    marketId,
+    tokenAddress
+  );
+  const nativeTokenId = isNativeToken(tokenAddress)
+    ? NATIVE_TOKEN_MAP[chain.toUpperCase()]
+    : null;
+  const coinGeckoTokenId = nativeTokenId || normalizedMarketId;
+  let lastError: unknown = null;
 
-  if (marketId) {
-    chartLabel = marketId;
+  if (nativeTokenId) {
+    chartLabel = nativeTokenId;
     const historical = await MarketService.getHistoricalPrices(
-      marketId,
+      nativeTokenId,
       days,
       accessToken
     );
     prices = historical.prices;
   } else if (isNativeToken(tokenAddress)) {
-    const tokenId = NATIVE_TOKEN_MAP[chain.toUpperCase()];
-    if (!tokenId) {
+    if (!nativeTokenId) {
       throw new Error(`Native token mapping not found for chain: ${chain}`);
     }
-    chartLabel = tokenId;
-    const historical = await MarketService.getHistoricalPrices(
-      tokenId,
-      days,
-      accessToken
-    );
-    prices = historical.prices;
   } else {
-    const result = await MarketService.getChartByAddress(
-      tokenAddress || '',
-      chain.toLowerCase(),
-      days,
-      accessToken || ''
-    );
+    if (tokenAddress) {
+      try {
+        const result = await MarketService.getChartByAddress(
+          tokenAddress,
+          chain.toLowerCase(),
+          days,
+          accessToken || ''
+        );
 
-    if (!result || !result.historical) {
+        if (hasUsablePrices(result?.historical)) {
+          prices = result.historical.prices;
+          chartLabel = result.tokenId || chartLabel;
+        }
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (!hasUsablePrices({ prices }) && coinGeckoTokenId) {
+      try {
+        chartLabel = coinGeckoTokenId;
+        const historical = await MarketService.getHistoricalPrices(
+          coinGeckoTokenId,
+          days,
+          accessToken
+        );
+        if (hasUsablePrices(historical)) {
+          prices = historical.prices;
+        }
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (!hasUsablePrices({ prices })) {
       throw new Error(
-        `Could not load chart for ${tokenAddress} on ${chain}`
+        lastError instanceof Error
+          ? lastError.message
+          : `Could not load chart for ${tokenAddress || marketId} on ${chain}`
       );
     }
-    prices = result.historical.prices;
   }
 
-  const sparklineData: ChartDataPoint[] = prices.map((p) => ({
-    timestamp: p.timestamp,
-    value: p.price,
-  }));
+  const sparklineData: ChartDataPoint[] = prices
+    .map((p) => ({
+      timestamp: Number(p.timestamp),
+      value: Number(p.price),
+    }))
+    .filter(
+      (point) =>
+        Number.isFinite(point.timestamp) && Number.isFinite(point.value)
+    );
 
   // Debug: Check for flat data (all same values)
   const uniqueValues = new Set(sparklineData.map((d) => d.value));
@@ -146,7 +232,14 @@ export function useTokenChartData(
 ): UseQueryResult<ChartData, unknown> {
   // Create a unique query key that works for both native and contract tokens
   const queryKey = marketId
-    ? ['tokenChartData', 'market', marketId, period]
+    ? [
+        'tokenChartData',
+        'market',
+        normalizeCoinGeckoMarketId(marketId, tokenAddress) || marketId,
+        tokenAddress,
+        chain,
+        period,
+      ]
     : isNativeToken(tokenAddress)
     ? ['tokenChartData', 'native', chain, period]
     : ['tokenChartData', tokenAddress, chain, period];
