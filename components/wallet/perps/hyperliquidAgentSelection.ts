@@ -22,6 +22,22 @@ type SelectHyperliquidMasterWalletArgs<T extends WalletLike> = {
 const normalizeAddress = (address?: string | null) =>
   address?.trim().toLowerCase() ?? '';
 
+const getPreferredAddressMatch = <T extends WalletLike>(
+  wallets: T[] | undefined | null,
+  preferredAddresses: string[],
+) => {
+  const available = wallets ?? [];
+  for (const preferredAddress of preferredAddresses) {
+    const normalizedPreferredAddress = normalizeAddress(preferredAddress);
+    if (!normalizedPreferredAddress) continue;
+    const wallet = available.find(
+      (item) => normalizeAddress(item.address) === normalizedPreferredAddress,
+    );
+    if (wallet) return wallet;
+  }
+  return undefined;
+};
+
 export function selectHyperliquidMasterWallet<T extends WalletLike>({
   wallets,
   preferredAddresses = [],
@@ -35,6 +51,14 @@ export function selectHyperliquidMasterWallet<T extends WalletLike>({
   const primaryAddress = preferredAddresses.find((address) =>
     Boolean(address?.trim()),
   );
+  const connectedPreferredWallet = getPreferredAddressMatch(
+    wallets,
+    preferredAddresses,
+  );
+  if (connectedPreferredWallet?.address) {
+    return connectedPreferredWallet;
+  }
+
   const primaryPreferredWallet = primaryAddress
     ? selectPreferredWallet(wallets, primaryAddress, {
         ...options,

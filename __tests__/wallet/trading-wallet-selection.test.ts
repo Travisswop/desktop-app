@@ -115,6 +115,20 @@ describe('trading wallet selection', () => {
     ).toBe('0xEmbedded');
   });
 
+  it('uses a connected canonical external wallet for Hyperliquid account signing', () => {
+    delete process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS;
+
+    expect(
+      selectHyperliquidMasterWallet({
+        wallets,
+        preferredAddresses: ['0xExternal'],
+        options: tradingWalletSelectionOptions(),
+        hasSavedAgentKey: (address) =>
+          address.toLowerCase() === '0xembedded',
+      })?.address,
+    ).toBe('0xExternal');
+  });
+
   it('allows explicit external wallet testing', () => {
     process.env.NEXT_PUBLIC_PRIVY_ENABLE_EXTERNAL_WALLETS = 'true';
 
