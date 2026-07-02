@@ -18,12 +18,14 @@ import {
   CheckCircle2,
   ExternalLink,
   ArrowRight,
+  BarChart3,
 } from 'lucide-react';
 import Image from 'next/image';
 import {
   fetchTokensFromLiFi,
   getLifiQuote as fetchLifiQuote,
 } from '@/actions/lifiForTokenSwap';
+import { fetchOndoGlobalMarketsTokens } from '@/actions/ondoGlobalMarketsTokens';
 import { getJupiterBuild as fetchJupiterBuild } from '@/actions/jupiterSwap';
 import { sponsorSolanaTransaction } from '@/actions/sponsorSolanaTransaction';
 import { notifySwapFee } from '@/actions/notifySwapFee';
@@ -115,6 +117,7 @@ import {
   ensureSponsoredSolanaTokenAccount,
   isNativeSolMint,
 } from '@/lib/solana/sponsoredTokenAccounts';
+import { buildOndoGlobalMarketsStockAddressSet } from '@/lib/wallet/ondoGlobalMarkets';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Module-level LiFi token cache
@@ -1448,9 +1451,14 @@ const tokenCategoryAddressesLower: Record<
   ]),
 ) as Record<TokenCategory, Set<string>>;
 
+type TokenCategoryAddressOverrides = Partial<
+  Record<TokenCategory, Set<string>>
+>;
+
 /** Bucket a flat token array into the 4 categories – mirrors RN filterTokensByCategory */
 function filterTokensByCategory(
   tokenArray: any[],
+  addressOverrides: TokenCategoryAddressOverrides = {},
 ): Record<TokenCategory, any[]> {
   const result: Record<TokenCategory, any[]> = {
     stock: [],
@@ -1475,7 +1483,10 @@ function filterTokensByCategory(
 
     let matched = false;
     for (const cat of TOKEN_CATEGORIES) {
-      if (tokenCategoryAddressesLower[cat].has(identifier)) {
+      if (
+        tokenCategoryAddressesLower[cat].has(identifier) ||
+        addressOverrides[cat]?.has(identifier)
+      ) {
         result[cat].push({ ...token, network, isVerified: true });
         matched = true;
         break;
@@ -1627,12 +1638,99 @@ function formatTokenChange(change: number | null): string {
   return `24h ${sign}${change.toFixed(2)}%`;
 }
 
+const CHART_CHAIN_BY_CHAIN_ID: Record<string, string> = {
+  [SOLANA_CHAIN_ID]: 'SOLANA',
+  '1': 'ETHEREUM',
+  '137': 'POLYGON',
+  '8453': 'BASE',
+  '42161': 'ARBITRUM',
+};
+
+const SUPPORTED_CHART_CHAINS = new Set(
+  Object.values(CHART_CHAIN_BY_CHAIN_ID),
+);
+
+function getTokenChartChain(token: any) {
+  const explicitChain = String(token?.chain || token?.network || '')
+    .trim()
+    .toUpperCase();
+  if (SUPPORTED_CHART_CHAINS.has(explicitChain)) {
+    return explicitChain;
+  }
+
+  return CHART_CHAIN_BY_CHAIN_ID[getTokenChainId(token)] || '';
+}
+
+function getTokenChartAddress(token: any) {
+  const value = String(token?.address || token?.id || token?.mint || '')
+    .trim();
+  if (!value || value.toLowerCase() === 'null') return '';
+  return value;
+}
+
+function isAddressLikeChartId(value: string) {
+  return (
+    value.startsWith('0x') ||
+    /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)
+  );
+}
+
+function getTokenChartMarketId(token: any, address: string) {
+  const marketId = String(
+    token?.marketData?.id || token?.marketData?.uuid || '',
+  ).trim();
+  if (!marketId) return '';
+  if (address && marketId.toLowerCase() === address.toLowerCase()) {
+    return '';
+  }
+  return isAddressLikeChartId(marketId) ? '' : marketId;
+}
+
+function buildWalletTokenChartHref(token: any) {
+  const symbol = String(token?.symbol || '').trim();
+  if (!symbol) return null;
+
+  const chain = getTokenChartChain(token);
+  const address = getTokenChartAddress(token);
+  const price = readTokenPrice(token);
+  const change = readTokenChange24h(token);
+  const image =
+    token?.logoURI ||
+    token?.icon ||
+    token?.logo ||
+    token?.image ||
+    token?.marketData?.image ||
+    token?.marketData?.iconUrl ||
+    '';
+  const params = new URLSearchParams({
+    chartToken: symbol.toUpperCase(),
+    chartTokenName: String(token?.name || symbol),
+    source: 'swapTokenDropdown',
+  });
+
+  if (chain) params.set('chartTokenChain', chain);
+  if (address) params.set('chartTokenAddress', address);
+  if (image) params.set('chartTokenImage', String(image));
+  if (token?.decimals !== undefined && token?.decimals !== null) {
+    params.set('chartTokenDecimals', String(token.decimals));
+  }
+  if (price !== null) params.set('chartTokenPrice', String(price));
+  if (change !== null) params.set('chartTokenChange', String(change));
+
+  const marketId = getTokenChartMarketId(token, address);
+  if (marketId) params.set('chartTokenId', marketId);
+
+  return `/wallet?${params.toString()}`;
+}
+
 function TokenRow({
   token,
   onClick,
+  onChartClick,
 }: {
   token: any;
   onClick: () => void;
+  onChartClick?: () => void;
 }) {
   const toBase64 = (str: string) => {
     if (typeof window === 'undefined') {
@@ -1689,67 +1787,85 @@ function TokenRow({
         : 'text-red-500';
 
   return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
-    >
-      {/* Token icon + chain badge */}
-      <div className="relative flex-shrink-0 w-9 h-9">
-        <Image
-          src={imgSrc}
-          alt={token.symbol || 'token'}
-          width={36}
-          height={36}
-          className="w-9 h-9 rounded-full object-cover"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = getInitialSVG(token);
-          }}
-        />
-        {chainIconSrc && (
-          <div className="absolute -bottom-0.5 -right-0.5 rounded-full w-4 h-4 flex items-center justify-center">
-            <Image
-              src={sanitizeNextImageSrc(chainIconSrc)}
-              alt="chain"
-              width={12}
-              height={12}
-              className="w-3 h-3 rounded-full"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Name + symbol */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-gray-900 text-sm truncate">
-            {token.symbol}
-          </span>
-          {token.isVerified && (
-            <CheckCircle2 className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+    <div className="group flex w-full items-center rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 pr-2 text-left"
+      >
+        {/* Token icon + chain badge */}
+        <div className="relative flex-shrink-0 w-9 h-9">
+          <Image
+            src={imgSrc}
+            alt={token.symbol || 'token'}
+            width={36}
+            height={36}
+            className="w-9 h-9 rounded-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = getInitialSVG(token);
+            }}
+          />
+          {chainIconSrc && (
+            <div className="absolute -bottom-0.5 -right-0.5 rounded-full w-4 h-4 flex items-center justify-center">
+              <Image
+                src={sanitizeNextImageSrc(chainIconSrc)}
+                alt="chain"
+                width={12}
+                height={12}
+                className="w-3 h-3 rounded-full"
+              />
+            </div>
           )}
         </div>
-        <p className="text-xs text-gray-400 truncate">
-          {token.name}
-          {networkLabel ? ` · ${networkLabel}` : ''}
-        </p>
-      </div>
 
-      <div className="flex min-w-[78px] flex-shrink-0 flex-col items-end gap-0.5">
-        <span className="text-sm font-semibold text-gray-900">
-          {formatTokenPrice(tokenPrice)}
-        </span>
-        <span className={`text-[11px] font-semibold ${changeTone}`}>
-          {formatTokenChange(tokenChange24h)}
-        </span>
-        {hasBalance && (
-          <span className="text-[10.5px] font-medium text-gray-400">
-            {tokenValue !== null
-              ? `${formatTokenPrice(tokenValue)} value`
-              : `${balanceNumber.toFixed(4)} bal`}
+        {/* Name + symbol */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-gray-900 text-sm truncate">
+              {token.symbol}
+            </span>
+            {token.isVerified && (
+              <CheckCircle2 className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+            )}
+          </div>
+          <p className="text-xs text-gray-400 truncate">
+            {token.name}
+            {networkLabel ? ` · ${networkLabel}` : ''}
+          </p>
+        </div>
+
+        <div className="flex min-w-[78px] flex-shrink-0 flex-col items-end gap-0.5">
+          <span className="text-sm font-semibold text-gray-900">
+            {formatTokenPrice(tokenPrice)}
           </span>
-        )}
-      </div>
-    </button>
+          <span className={`text-[11px] font-semibold ${changeTone}`}>
+            {formatTokenChange(tokenChange24h)}
+          </span>
+          {hasBalance && (
+            <span className="text-[10.5px] font-medium text-gray-400">
+              {tokenValue !== null
+                ? `${formatTokenPrice(tokenValue)} value`
+                : `${balanceNumber.toFixed(4)} bal`}
+            </span>
+          )}
+        </div>
+      </button>
+
+      {onChartClick && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onChartClick();
+          }}
+          aria-label={`View ${token.symbol || 'token'} chart`}
+          title="View chart"
+          className="mr-3 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/10"
+        >
+          <BarChart3 className="h-4 w-4" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -2725,13 +2841,19 @@ export default function SwapTokenModal({
           baseTokens,
           solanaTokens,
           arbitrumTokens,
+          ondoGlobalMarketsTokens,
         ] = await Promise.all([
           fetchLiFiTokensCached('1'),
           fetchLiFiTokensCached('137'),
           fetchLiFiTokensCached('8453'),
           fetchLiFiTokensCached('1151111081099710'),
           fetchLiFiTokensCached('42161'),
+          fetchOndoGlobalMarketsTokens().catch(() => []),
         ]);
+        const ondoStockAddresses =
+          buildOndoGlobalMarketsStockAddressSet(
+            ondoGlobalMarketsTokens,
+          );
 
         // FIX: Merge user tokens (which have balance) + fetched tokens.
         // Deduplicate by chain + identifier so native ETH variants from
@@ -2742,6 +2864,7 @@ export default function SwapTokenModal({
         const merged = [
           PUSD_CURATED_TOKEN,
           ...tokens,
+          ...ondoGlobalMarketsTokens,
           ...ethTokens,
           ...polygonTokens,
           ...baseTokens,
@@ -2757,7 +2880,11 @@ export default function SwapTokenModal({
         });
 
         setTempTokens(deduped);
-        setTargetList(filterTokensByCategory(deduped));
+        setTargetList(
+          filterTokensByCategory(deduped, {
+            stock: ondoStockAddresses,
+          }),
+        );
       } catch (err) {
         console.error('Failed to load receive tokens:', err);
         setTempTokens(tokens);
@@ -5903,6 +6030,21 @@ export default function SwapTokenModal({
       setShowSwapSuccess(true);
     }
   }, [txHash, isSwapDone]);
+
+  const handleTokenChartOpen = useCallback(
+    (selectedToken: any) => {
+      const href = buildWalletTokenChartHref(selectedToken);
+      if (!href) return;
+
+      setOpenDrawer(false);
+      setSelecting(null);
+      setSearchQuery('');
+      setFilteredList([]);
+      router.push(href, { scroll: false });
+    },
+    [router],
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   // Maximum tokens to render per view / per network group.
@@ -5930,6 +6072,7 @@ export default function SwapTokenModal({
               key={`${getTokenIdentityKey(t)}-${i}`}
               token={t}
               onClick={() => handleTokenSelect(t, 'receive')}
+              onChartClick={() => handleTokenChartOpen(t)}
             />
           ))}
           {overflow > 0 && (
@@ -5957,6 +6100,7 @@ export default function SwapTokenModal({
               key={`${getTokenIdentityKey(t)}-${i}`}
               token={t}
               onClick={() => handleTokenSelect(t, 'receive')}
+              onChartClick={() => handleTokenChartOpen(t)}
             />
           ))}
           {overflow > 0 && (
@@ -6688,6 +6832,7 @@ export default function SwapTokenModal({
                           key={`${getTokenIdentityKey(t)}-${i}`}
                           token={t}
                           onClick={() => handleTokenSelect(t, 'pay')}
+                          onChartClick={() => handleTokenChartOpen(t)}
                         />
                       ))
                   )}

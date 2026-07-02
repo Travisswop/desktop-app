@@ -188,6 +188,8 @@ type SearchParamReader = {
 const CHART_TOKEN_PARAM_KEYS = [
   'chartToken',
   'chartTokenId',
+  'chartTokenAddress',
+  'chartTokenDecimals',
   'chartTokenName',
   'chartTokenImage',
   'chartTokenPrice',
@@ -219,6 +221,12 @@ function parseChartNumber(value?: string | null) {
   if (value == null || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseChartDecimals(value?: string | null) {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function parsePerpsPanelSide(
@@ -303,6 +311,8 @@ function chartTokenMetadataFromParams(
 ): {
   name: string;
   image: string;
+  address: string | null;
+  decimals: number | null;
   chain: TokenData['chain'];
   marketId?: string;
   priceText: string;
@@ -310,6 +320,8 @@ function chartTokenMetadataFromParams(
 } {
   const name = params.get('chartTokenName')?.trim() || symbol;
   const image = params.get('chartTokenImage')?.trim() || '';
+  const address = params.get('chartTokenAddress')?.trim() || null;
+  const decimals = parseChartDecimals(params.get('chartTokenDecimals'));
   const price = parseChartNumber(params.get('chartTokenPrice'));
   const change = parseChartNumber(params.get('chartTokenChange'));
   const chain =
@@ -323,6 +335,8 @@ function chartTokenMetadataFromParams(
   return {
     name,
     image,
+    address,
+    decimals,
     chain,
     marketId,
     priceText,
@@ -340,6 +354,8 @@ function withChartTokenMarketData(
   return {
     ...token,
     name: token.name || metadata.name,
+    address: token.address || metadata.address,
+    decimals: token.decimals ?? metadata.decimals ?? 0,
     logoURI:
       token.logoURI ||
       metadata.image ||
@@ -369,8 +385,8 @@ function buildMarketOnlyChartToken(
     name: metadata.name,
     symbol,
     balance: '0',
-    decimals: 0,
-    address: null,
+    decimals: metadata.decimals ?? 0,
+    address: metadata.address,
     logoURI: metadata.image || `/assets/crypto-icons/${symbol}.png`,
     chain: metadata.chain,
     marketData: {
@@ -410,7 +426,9 @@ function isSameChartToken(a: TokenData, b: TokenData) {
 function removeChartTokenParams(params: URLSearchParams) {
   const source = params.get('source');
   CHART_TOKEN_PARAM_KEYS.forEach((key) => params.delete(key));
-  if (source === 'feedTicker') params.delete('source');
+  if (source === 'feedTicker' || source === 'swapTokenDropdown') {
+    params.delete('source');
+  }
 }
 
 function rewardNumber(value?: number | string | null) {

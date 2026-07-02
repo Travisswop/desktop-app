@@ -72,6 +72,17 @@ const CHAIN_TAGS: Record<string, string> = {
   SOLANA: 'SPL',
 };
 
+const SWAP_CHAIN_ID_BY_CHAIN: Partial<Record<ChainType, string>> = {
+  ETHEREUM: '1',
+  POLYGON: '137',
+  BASE: '8453',
+  SOLANA: '1151111081099710',
+  ARBITRUM: '42161',
+};
+
+const getSwapChainIdForToken = (token: TokenData) =>
+  token.chainId ? String(token.chainId) : SWAP_CHAIN_ID_BY_CHAIN[token.chain];
+
 const normalizeChain = (chain: string): ChainType =>
   chain.toUpperCase() as ChainType;
 
@@ -576,6 +587,8 @@ export default function TokenDetails({
   const avatarBg =
     TOKEN_AVATAR_BG[chainLabelCode] ||
     'linear-gradient(135deg,#dfe6ef,#a3aab2)';
+  const shouldUseTokenAsSwapReceive = isMarketOnly || balanceNum <= 0;
+  const swapDefaultReceiveChainId = getSwapChainIdForToken(token);
 
   const periodChangeText = `${
     periodChangeNumeric >= 0 ? '+' : ''
@@ -604,7 +617,7 @@ export default function TokenDetails({
       key: 'swap',
       label: 'Swap',
       icon: <Repeat2 className="w-4 h-4" strokeWidth={1.75} />,
-      disabled: isMarketOnly,
+      disabled: false,
       onClick: () => setOpenWalletSwapOpen(true),
     },
     {
@@ -1328,7 +1341,18 @@ export default function TokenDetails({
           isOpen={openWalletSwapOpen}
           onCloseModal={setOpenWalletSwapOpen}
         >
-          <SwapTokenModal tokens={tokens} token={token} />
+          <SwapTokenModal
+            tokens={tokens}
+            token={shouldUseTokenAsSwapReceive ? undefined : token}
+            defaultReceiveToken={
+              shouldUseTokenAsSwapReceive ? token : undefined
+            }
+            defaultReceiveChainId={
+              shouldUseTokenAsSwapReceive
+                ? swapDefaultReceiveChainId
+                : undefined
+            }
+          />
         </CustomModal>
       )}
     </>
