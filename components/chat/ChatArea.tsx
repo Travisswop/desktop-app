@@ -143,6 +143,7 @@ import {
   formatSignedUsd,
   formatSwapAmount,
   formatWalletAddress,
+  getSwapActionBlocker,
   getAgentFeedIdentity,
   getPerpsMarkPrice,
   getPolymarketOutcomeLabels,
@@ -15823,6 +15824,20 @@ function SwapProposalTicket({
     : status === 'executed'
     ? 'Confirmed'
     : 'Sign & approve';
+  const isPrimaryActionDisabled =
+    !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection;
+  const swapActionBlocker = getSwapActionBlocker({
+    canAct,
+    fromToken,
+    hasQuoteTokenOptions: quoteTokenOptions.length > 0,
+    hasSpendableBalance,
+    hasValidSellAmount,
+    amountExceedsBalance,
+    payAmount,
+    quoteStateStatus: quoteState.status,
+    selectedFromKey,
+    selectedToKey,
+  });
   const handleConfirmSwap = async () => {
     if (quoteOnly) {
       setInlineSwapStatus('Refreshing quote...');
@@ -16586,9 +16601,7 @@ function SwapProposalTicket({
             onClick={() => {
               void handleConfirmSwap();
             }}
-            disabled={
-              !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection
-            }
+            disabled={isPrimaryActionDisabled}
             className={TICKET_PRIMARY_BUTTON_CLASS}
           >
             {isQuoteLoading || isConfirmingSwap ? (
@@ -16614,11 +16627,19 @@ function SwapProposalTicket({
         </div>
       )}
 
-      {!canAct && isOpen && (
-        <p className="mt-2 text-[11px] text-[#ffd08a]">
-          Only the user who asked Astro to prepare this swap can approve it.
-        </p>
-      )}
+      {isOpen &&
+        swapActionBlocker &&
+        (isPrimaryActionDisabled || quoteState.status === 'error') && (
+          <p
+            className={`mt-2 rounded-[10px] border px-3 py-2 text-[11px] font-semibold ${
+              swapActionBlocker.tone === 'info'
+                ? 'border-[#3fe08f]/20 bg-[#3fe08f]/10 text-[#9ef7c8]'
+                : 'border-[#ffb14a]/25 bg-[#ffb14a]/10 text-[#ffd08a]'
+            }`}
+          >
+            {swapActionBlocker.message}
+          </p>
+        )}
       </div>
     </div>
   );
