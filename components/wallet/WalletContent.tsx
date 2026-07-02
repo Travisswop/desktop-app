@@ -7,7 +7,6 @@ import {
   useCallback,
   useRef,
   Component,
-  Fragment,
   ReactNode,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -737,6 +736,7 @@ const WalletContentInner = () => {
   // Section management state (lifted from the old AssetsTab)
   const [tokenChain, setTokenChain] = useState<string>('all');
   const [tokenExplorerOpen, setTokenExplorerOpen] = useState(false);
+  const [tokenRefreshing, setTokenRefreshing] = useState(false);
   const [manageTokensOpen, setManageTokensOpen] = useState(false);
   const [manageNFTModalOpen, setManageNFTModalOpen] = useState(false);
   const [redeemModalOpen, setRedeemModalOpen] = useState(false);
@@ -1071,6 +1071,16 @@ const WalletContentInner = () => {
   const refetchMarketSwapTokens = useCallback(() => {
     void refetchTokens();
   }, [refetchTokens]);
+  const handleTokenRefresh = useCallback(async () => {
+    if (tokenRefreshing) return;
+
+    setTokenRefreshing(true);
+    try {
+      await refetchTokens();
+    } finally {
+      setTokenRefreshing(false);
+    }
+  }, [refetchTokens, tokenRefreshing]);
 
   const {
     nfts,
@@ -2014,6 +2024,39 @@ const WalletContentInner = () => {
       },
     },
   ];
+  const tokenRefreshBusy = tokenLoading || tokenRefreshing;
+  const renderTokenRefreshButton = (className = '') => (
+    <button
+      type="button"
+      onClick={() => void handleTokenRefresh()}
+      aria-label="Refresh token balances"
+      title="Refresh token balances"
+      disabled={tokenRefreshBusy}
+      className={`inline-flex items-center justify-center w-7 h-7 rounded-full border border-black/[0.06] bg-white text-gray-700 hover:border-black/[0.15] disabled:cursor-not-allowed disabled:opacity-60 transition ${className}`}
+    >
+      <RefreshCw
+        className={`w-3.5 h-3.5 ${
+          tokenRefreshBusy ? 'animate-spin' : ''
+        }`}
+      />
+    </button>
+  );
+  const renderTokenSearchButton = (className = '') => (
+    <button
+      type="button"
+      onClick={() => setTokenExplorerOpen((v) => !v)}
+      aria-label="Search all tokens"
+      aria-pressed={tokenExplorerOpen}
+      title="Search all tokens"
+      className={`inline-flex items-center justify-center w-7 h-7 rounded-full border transition ${
+        tokenExplorerOpen
+          ? 'border-gray-950 bg-gray-950 text-white'
+          : 'border-black/[0.06] bg-white text-gray-700 hover:border-black/[0.15]'
+      } ${className}`}
+    >
+      <Search className="w-3.5 h-3.5" />
+    </button>
+  );
 
   return (
     <div className="w-full">
@@ -2057,32 +2100,18 @@ const WalletContentInner = () => {
             action={
               <>
                 <div className="hidden sm:flex items-center gap-1.5">
+                  {renderTokenRefreshButton()}
+                  {renderTokenSearchButton()}
                   {TOKEN_CHAIN_FILTERS.slice(0, 4).map((c) => (
-                    <Fragment key={c.value}>
-                      <Chip
-                        active={
-                          !tokenExplorerOpen && tokenChain === c.value
-                        }
-                        onClick={() => handleChainFilterSelect(c.value)}
-                      >
-                        {c.label}
-                      </Chip>
-                      {c.value === 'all' && (
-                        <button
-                          type="button"
-                          onClick={() => setTokenExplorerOpen((v) => !v)}
-                          aria-label="Search all tokens"
-                          aria-pressed={tokenExplorerOpen}
-                          className={`inline-flex items-center justify-center w-7 h-7 rounded-full border transition ${
-                            tokenExplorerOpen
-                              ? 'border-gray-950 bg-gray-950 text-white'
-                              : 'border-black/[0.06] bg-white text-gray-700 hover:border-black/[0.15]'
-                          }`}
-                        >
-                          <Search className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </Fragment>
+                    <Chip
+                      key={c.value}
+                      active={
+                        !tokenExplorerOpen && tokenChain === c.value
+                      }
+                      onClick={() => handleChainFilterSelect(c.value)}
+                    >
+                      {c.label}
+                    </Chip>
                   ))}
                 </div>
                 <div className="relative" ref={assetsMenuRef}>
@@ -2115,30 +2144,16 @@ const WalletContentInner = () => {
             }
           />
           <div className="sm:hidden flex items-center gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1">
+            {renderTokenRefreshButton('flex-shrink-0')}
+            {renderTokenSearchButton('flex-shrink-0')}
             {TOKEN_CHAIN_FILTERS.map((c) => (
-              <Fragment key={c.value}>
-                <Chip
-                  active={!tokenExplorerOpen && tokenChain === c.value}
-                  onClick={() => handleChainFilterSelect(c.value)}
-                >
-                  {c.label}
-                </Chip>
-                {c.value === 'all' && (
-                  <button
-                    type="button"
-                    onClick={() => setTokenExplorerOpen((v) => !v)}
-                    aria-label="Search all tokens"
-                    aria-pressed={tokenExplorerOpen}
-                    className={`inline-flex flex-shrink-0 items-center justify-center w-7 h-7 rounded-full border transition ${
-                      tokenExplorerOpen
-                        ? 'border-gray-950 bg-gray-950 text-white'
-                        : 'border-black/[0.06] bg-white text-gray-700 hover:border-black/[0.15]'
-                    }`}
-                  >
-                    <Search className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </Fragment>
+              <Chip
+                key={c.value}
+                active={!tokenExplorerOpen && tokenChain === c.value}
+                onClick={() => handleChainFilterSelect(c.value)}
+              >
+                {c.label}
+              </Chip>
             ))}
           </div>
           <BentoCard>
