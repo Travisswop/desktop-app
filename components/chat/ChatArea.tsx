@@ -40,6 +40,7 @@ import GroupMenu from './GroupMenu';
 import ChatAttachmentMenu, {
   type ChatAttachmentGif,
 } from './ChatAttachmentMenu';
+import { GoldmanStrategyPanelStatus } from './GoldmanStrategyPanelStatus';
 import { resolveActiveChatData } from './chatSelection';
 import { sendCloudinaryFile } from '@/lib/SendCloudinaryAnyFile';
 import Image from 'next/image';
@@ -55,6 +56,10 @@ import {
   normalizeFundingOnrampSourceText,
   type FundingOnrampPrefill,
 } from '@/lib/chat/fundingOnrampIntent';
+import {
+  summarizeGoldmanStrategyPanel,
+  type GoldmanPanelTone,
+} from '@/lib/chat/goldmanStrategyRuntime';
 import {
   looksLikePublicEnsName,
   resolvePublicEnsName,
@@ -8492,6 +8497,10 @@ function GoldmanAccessStation({
   const [isSavingStrategyFile, setIsSavingStrategyFile] = useState(false);
   const fundingAddress = getGoldmanFundingAddress(strategyVault);
   const isVaultBusy = isStrategyVaultLoading || isActivatingStrategyVault;
+  const strategyPanel = useMemo(
+    () => summarizeGoldmanStrategyPanel(activeStrategy),
+    [activeStrategy]
+  );
 
   useEffect(() => {
     setStationState(normalizeGoldmanAccessStationState(accessStation));
@@ -8792,9 +8801,7 @@ function GoldmanAccessStation({
               </div>
               <div className="dm-mono mt-0.5 truncate text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#a99761]">
                 {activeStrategy
-                  ? `${activeStrategy.runtime?.state || activeStrategy.status || 'idle'} · ${
-                      activeStrategy.runtime?.executionMode || 'proposal'
-                    }`
+                  ? strategyPanel.statusLine
                   : 'approve a strategy to run'}
               </div>
             </div>
@@ -8805,9 +8812,16 @@ function GoldmanAccessStation({
                 isTogglingStrategy ||
                 isVaultBusy ||
                 (!activeStrategy && !onQuickCommand) ||
-                (!isStrategyRunning && Boolean(activeStrategy) && !onRunStrategy) ||
+                (Boolean(activeStrategy) &&
+                  strategyPanel.actionDisabled &&
+                  !isStrategyRunning) ||
+                (!isStrategyRunning &&
+                  strategyPanel.actionKind === 'run' &&
+                  Boolean(activeStrategy) &&
+                  !onRunStrategy) ||
                 (isStrategyRunning && !onStopStrategy)
               }
+              title={activeStrategy ? strategyPanel.actionDetail : undefined}
               onClick={() => {
                 if (!activeStrategy) {
                   toast.error('Ask Goldman for ideas or approve a strategy before running.');
@@ -8816,13 +8830,13 @@ function GoldmanAccessStation({
                 }
                 if (isStrategyRunning) {
                   onStopStrategy?.();
-                } else {
+                } else if (strategyPanel.actionKind === 'run') {
                   onRunStrategy?.();
                 }
               }}
-              className={`dm-btn dm-mono flex h-9 min-w-[82px] items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[10px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-50 ${
-                isStrategyRunning
-                  ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]'
+              className={`dm-btn dm-mono flex h-9 min-w-[108px] items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[10px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-50 ${
+                activeStrategy
+                  ? goldmanPanelToneClass(strategyPanel.actionTone)
                   : 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
               }`}
             >
@@ -8830,12 +8844,15 @@ function GoldmanAccessStation({
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : isStrategyRunning ? (
                 <Square className="h-3.5 w-3.5" />
+              ) : activeStrategy && strategyPanel.actionKind !== 'run' ? (
+                <ShieldCheck className="h-3.5 w-3.5" />
               ) : (
                 <Play className="h-3.5 w-3.5" />
               )}
-              {isStrategyRunning ? 'Stop' : 'Run'}
+              {activeStrategy ? strategyPanel.actionLabel : 'Run'}
             </button>
           </div>
+          {activeStrategy && <GoldmanStrategyPanelStatus summary={strategyPanel} />}
           {activeStrategy?.runtime?.lastActivity && (
             <div className="mt-2 line-clamp-2 text-[10.5px] font-semibold leading-snug text-[#d7c987]">
               {activeStrategy.runtime.lastActivity}
@@ -10081,6 +10098,19 @@ function strategyRuntimeTone(status?: string | null) {
   }
   if (['stopped', 'paused', 'hold', 'empty'].includes(normalized)) {
     return 'border-[#f4c95d]/30 bg-[#f4c95d]/10 text-[#f4c95d]';
+  }
+  return 'border-white/[0.08] bg-black/25 text-[#cfd3dd]';
+}
+
+function goldmanPanelToneClass(tone: GoldmanPanelTone) {
+  if (tone === 'positive') {
+    return 'border-[#3fe08f]/25 bg-[#3fe08f]/10 text-[#9af7c4]';
+  }
+  if (tone === 'warning') {
+    return 'border-[#f4c95d]/30 bg-[#f4c95d]/10 text-[#f4c95d]';
+  }
+  if (tone === 'danger') {
+    return 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]';
   }
   return 'border-white/[0.08] bg-black/25 text-[#cfd3dd]';
 }
