@@ -2,10 +2,12 @@
 
 import Cookies from 'js-cookie';
 import React, { useMemo, useState } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { TokenData } from '@/types/token';
 import { AlertCircle } from 'lucide-react';
 import TokenImage from './token-image';
 import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilityStore';
+import { MarketService } from '@/services/market-service';
 
 interface TokenListProps {
   tokens: TokenData[];
@@ -27,6 +29,28 @@ const CHAIN_LABELS: Record<string, string> = {
   BASE: 'Base',
   POLYGON: 'Polygon',
   ARBITRUM: 'Arbitrum',
+};
+
+const NATIVE_MARKET_IDS: Partial<Record<TokenData['chain'], string>> = {
+  SOLANA: 'solana',
+  ETHEREUM: 'ethereum',
+  BASE: 'ethereum',
+  ARBITRUM: 'ethereum',
+  POLYGON: 'matic-network',
+};
+
+const MARKET_IDS_BY_ADDRESS: Record<string, string> = {
+  gaehkgn1zdnvavx81fmzccwrnzekkmksyunq8wkmsjx1: 'swop-2',
+};
+
+const MARKET_IDS_BY_SYMBOL: Record<string, string> = {
+  SWOP: 'swop-2',
+};
+
+type TokenMiniMarketData = {
+  sparkline: number[];
+  price: number | null;
+  change24h: number | null;
 };
 
 const formatUsd = (n: number, frac = 2) =>
@@ -61,6 +85,204 @@ const tokenValue = (t: TokenData): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const parseMarketNumber = (value: unknown): number | null => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const isNativeTokenAddress = (address?: string | null) => {
+  const normalized = String(address || '').trim().toLowerCase();
+  return (
+    !normalized ||
+    normalized === 'native' ||
+    normalized === 'null' ||
+    normalized === '0x0' ||
+    normalized === '0x0000000000000000000000000000000000000000'
+  );
+};
+
+const looksLikeProviderSpecificMarketId = (
+  id: string,
+  address?: string | null,
+) => {
+  const normalizedId = id.toLowerCase();
+  const normalizedAddress = String(address || '').toLowerCase();
+  return (
+    normalizedId.includes(':') ||
+    normalizedId.startsWith('jupiter') ||
+    normalizedId.includes('://') ||
+    normalizedId.includes('0x') ||
+    (!!normalizedAddress && normalizedId.includes(normalizedAddress))
+  );
+};
+
+const getCoinGeckoMarketId = (token: TokenData) => {
+  const addressMarketId =
+    MARKET_IDS_BY_ADDRESS[String(token.address || '').toLowerCase()];
+  if (addressMarketId) return addressMarketId;
+
+  const symbolMarketId =
+    MARKET_IDS_BY_SYMBOL[String(token.symbol || '').toUpperCase()];
+  if (symbolMarketId) return symbolMarketId;
+
+  const explicitId = String(
+    token.marketData?.id || token.marketData?.uuid || '',
+  ).trim();
+  if (
+    explicitId &&
+    !looksLikeProviderSpecificMarketId(explicitId, token.address)
+  ) {
+    return explicitId;
+  }
+
+  if (token.isNative || isNativeTokenAddress(token.address)) {
+    return NATIVE_MARKET_IDS[token.chain] || null;
+  }
+
+  return null;
+};
+
+const tokenMiniChartKey = (token: TokenData) => [
+  'wallet-token-mini-market',
+  token.chain,
+  getCoinGeckoMarketId(token) || token.address || 'native',
+];
+
+const canFetchMiniMarketData = (token: TokenData) =>
+  Boolean(
+    getCoinGeckoMarketId(token) ||
+      (!isNativeTokenAddress(token.address) && token.address),
+  );
+
+const buildMiniMarketData = (
+  prices?: Array<{ timestamp: number; price: number }>,
+  marketData?: Record<string, unknown> | null,
+): TokenMiniMarketData | null => {
+  const sparkline = (prices || [])
+    .map((point) => Number(point.price))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  const change24h =
+    parseMarketNumber(marketData?.priceChangePercentage24h) ??
+    parseMarketNumber(marketData?.priceChange24h) ??
+    (sparkline.length >= 2 && sparkline[0] > 0
+      ? ((sparkline[sparkline.length - 1] - sparkline[0]) /
+          sparkline[0]) *
+        100
+      : null);
+
+  const price =
+    parseMarketNumber(marketData?.currentPrice) ??
+    parseMarketNumber(marketData?.price) ??
+    (sparkline.length ? sparkline[sparkline.length - 1] : null);
+
+  if (!sparkline.length && price == null && change24h == null) {
+    return null;
+  }
+
+  return {
+    sparkline,
+    price,
+    change24h,
+  };
+};
+
+const fetchTokenMiniMarketData = async (
+  token: TokenData,
+): Promise<TokenMiniMarketData | null> => {
+  const marketId = getCoinGeckoMarketId(token);
+
+  if (marketId) {
+    const [historyResult, marketResult] = await Promise.allSettled([
+      MarketService.getHistoricalPrices(marketId, 1),
+      MarketService.getTokenMarketData(marketId),
+    ]);
+
+    const history =
+      historyResult.status === 'fulfilled' ? historyResult.value : null;
+    const marketData =
+      marketResult.status === 'fulfilled' ? marketResult.value : null;
+
+    return buildMiniMarketData(
+      history?.prices,
+      marketData as unknown as Record<string, unknown> | null,
+    );
+  }
+
+  if (!token.address || isNativeTokenAddress(token.address)) {
+    return null;
+  }
+
+  const result = await MarketService.getChartByAddress(
+    token.address,
+    token.chain.toLowerCase(),
+    1,
+  );
+
+  return buildMiniMarketData(
+    result?.historical?.prices,
+    result?.marketData as unknown as Record<string, unknown> | null,
+  );
+};
+
+const readTokenChange24h = (token: TokenData) =>
+  parseMarketNumber(token.marketData?.priceChangePercentage24h) ??
+  parseMarketNumber(token.marketData?.change) ??
+  parseMarketNumber(
+    (token.marketData as { priceChange24h?: unknown } | null)
+      ?.priceChange24h,
+  );
+
+const clearStaleZeroMiniMarketData = (token: TokenData): TokenData => {
+  if (readTokenChange24h(token) !== 0 || !token.marketData) {
+    return token;
+  }
+
+  return {
+    ...token,
+    marketData: {
+      ...token.marketData,
+      change: undefined,
+      priceChangePercentage24h: undefined,
+      sparkline: [],
+    },
+  };
+};
+
+const withMiniMarketData = (
+  token: TokenData,
+  miniMarketData?: TokenMiniMarketData | null,
+  hasMiniMarketQuery = false,
+): TokenData => {
+  if (!miniMarketData) {
+    return hasMiniMarketQuery ? clearStaleZeroMiniMarketData(token) : token;
+  }
+
+  const marketData = token.marketData || { price: '0' };
+  const nextPrice =
+    miniMarketData.price != null
+      ? String(miniMarketData.price)
+      : marketData.price;
+  const nextChange =
+    miniMarketData.change24h != null
+      ? String(miniMarketData.change24h)
+      : undefined;
+
+  return {
+    ...token,
+    marketData: {
+      ...marketData,
+      price: nextPrice,
+      change: nextChange,
+      priceChangePercentage24h: nextChange,
+      sparkline:
+        miniMarketData.sparkline.length >= 2
+          ? miniMarketData.sparkline
+          : [],
+    },
+  };
+};
+
 const ErrorAlert = ({ message }: { message: string }) => (
   <div className="m-4 p-3 bg-red-50 rounded-xl flex items-center gap-2 border border-red-100">
     <AlertCircle className="w-4 h-4 text-red-500" />
@@ -79,13 +301,8 @@ function MiniSparkline({
   const w = 56;
   const h = 22;
 
-  // Fallback line when no series is available — shape signals direction.
+  // Do not invent a trend when no real CoinGecko-capable series is available.
   if (!values || values.length < 2) {
-    const fallback = positive
-      ? `M0,${h - 4} C${w * 0.3},${h - 6} ${w * 0.6},${h * 0.5} ${w},2`
-      : `M0,2 C${w * 0.3},${h * 0.4} ${w * 0.6},${h - 6} ${w},${
-          h - 2
-        }`;
     return (
       <svg
         viewBox={`0 0 ${w} ${h}`}
@@ -94,8 +311,8 @@ function MiniSparkline({
         aria-hidden
       >
         <path
-          d={fallback}
-          stroke={color}
+          d={`M0,${h / 2} L${w},${h / 2}`}
+          stroke="#cbd5e1"
           strokeWidth="1.5"
           fill="none"
           strokeLinecap="round"
@@ -159,10 +376,8 @@ function TokenRow({
   isFirst: boolean;
 }) {
   const { showBalance } = useBalanceVisibilityStore();
-  const change = parseFloat(
-    token.marketData?.priceChangePercentage24h || '0',
-  );
-  const positive = change >= 0;
+  const change = readTokenChange24h(token);
+  const positive = change == null || change >= 0;
   const value = tokenValue(token);
   const sparkValues = token.marketData?.sparkline ?? [];
   const chainLabel =
@@ -204,9 +419,12 @@ function TokenRow({
         <MiniSparkline values={sparkValues} positive={positive} />
         <span
           className="text-[12px] font-semibold font-mono tabular-nums min-w-[52px] text-right"
-          style={{ color: positive ? POS_GREEN : NEG_RED }}
+          style={{
+            color:
+              change == null ? '#94a3b8' : positive ? POS_GREEN : NEG_RED,
+          }}
         >
-          {Number.isFinite(change)
+          {change != null
             ? `${positive ? '+' : ''}${change.toFixed(2)}%`
             : '—'}
         </span>
@@ -281,6 +499,25 @@ const TokenList = ({
     ? visibleTokens
     : visibleTokens.slice(0, INITIAL_VISIBLE);
 
+  const miniMarketQueries = useQueries({
+    queries: shown.map((token) => ({
+      queryKey: tokenMiniChartKey(token),
+      queryFn: () => fetchTokenMiniMarketData(token),
+      enabled: canFetchMiniMarketData(token),
+      staleTime: 5 * 60 * 1000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    })),
+  }) as Array<{ data?: TokenMiniMarketData | null }>;
+
+  const shownWithMiniMarketData = shown.map((token, index) =>
+    withMiniMarketData(
+      token,
+      miniMarketQueries[index]?.data,
+      canFetchMiniMarketData(token),
+    ),
+  );
+
   const overflow = visibleTokens.slice(INITIAL_VISIBLE);
   const remainingValue = useMemo(
     () => overflow.reduce((sum, t) => sum + tokenValue(t), 0),
@@ -328,7 +565,7 @@ const TokenList = ({
         <span />
       </div>
 
-      {shown.map((token, i) => (
+      {shownWithMiniMarketData.map((token, i) => (
         <TokenRow
           key={`${token.chain}-${token.symbol}-${
             token.address || i
