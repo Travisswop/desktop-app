@@ -53,6 +53,7 @@ export interface PerpsPositionFeedContent {
 
 export interface PerpsLiquidationFillSnapshot {
   coin: string;
+  dex?: string | null;
   px?: number;
   markPx?: number;
   closedPnl?: number;
@@ -63,12 +64,29 @@ export interface PerpsLiquidationFillSnapshot {
 
 export interface PerpsCloseFillSnapshot {
   coin: string;
+  dex?: string | null;
   px?: number;
   closedPnl?: number;
   feeUsd?: number;
   orderId?: string;
   timestamp?: string;
 }
+
+export interface PerpsTerminalIdentitySnapshot {
+  positionKey: string;
+  coin: string;
+  displayCoin: string;
+  dex?: string | null;
+  side?: 'long' | 'short';
+  sizeCoins?: number;
+  entryPrice?: number;
+  lastSeenAt: string;
+}
+
+export type PerpsTerminalIdentityMemory = Record<
+  string,
+  Record<string, PerpsTerminalIdentitySnapshot>
+>;
 
 export interface PerpsFillLike {
   coin?: string | null;
@@ -242,6 +260,12 @@ function normalizePerpsDex(value: unknown) {
   return String(value || '').trim();
 }
 
+function perpsDisplayCoin(value: unknown) {
+  const coin = normalizePerpsCoin(value);
+  if (!coin) return '';
+  return coin.includes(':') ? coin.split(':').pop() || coin : coin;
+}
+
 export function qualifyPerpsPositionCoin({
   coin,
   dex,
@@ -257,6 +281,99 @@ export function qualifyPerpsPositionCoin({
   }
 
   return `${normalizedDex}:${normalizedCoin}`.toUpperCase();
+}
+
+const PERPS_TERMINAL_IDENTITY_TTL_MS = 24 * 60 * 60 * 1000;
+
+function inferPerpsPositionSide(value: unknown) {
+  const size = maybePerpsFeedNumber(value);
+  if (size === undefined || size === 0) return null;
+  return size < 0 ? 'short' : 'long';
+}
+
+function absolutePerpsSize(value: unknown) {
+  const size = maybePerpsFeedNumber(value);
+  return size === undefined ? undefined : Math.abs(size);
+}
+
+function perpsNumbersRoughlyEqual(left: number, right: number) {
+  const tolerance = Math.max(Math.abs(left), Math.abs(right), 1) * 0.000001;
+  return Math.abs(left - right) <= tolerance;
+}
+
+function prunePerpsTerminalIdentityMemory(
+  current: PerpsTerminalIdentityMemory = {},
+  nowMs: number,
+) {
+  return Object.fromEntries(
+    Object.entries(current)
+      .map(([displayCoin, snapshots]) => {
+        const keptSnapshots = Object.fromEntries(
+          Object.entries(snapshots || {}).filter(([, snapshot]) => {
+            const lastSeenMs = Date.parse(snapshot?.lastSeenAt || '');
+            return (
+              Number.isFinite(lastSeenMs) &&
+              lastSeenMs >= nowMs - PERPS_TERMINAL_IDENTITY_TTL_MS
+            );
+          }),
+        );
+        return [displayCoin, keptSnapshots];
+      })
+      .filter(([, snapshots]) => Object.keys(snapshots).length > 0),
+  );
+}
+
+export function updatePerpsTerminalIdentityMemory({
+  current = {},
+  userId,
+  masterAddress,
+  positions = [],
+}: {
+  current?: PerpsTerminalIdentityMemory;
+  userId?: string | null;
+  masterAddress?: string | null;
+  positions?: Array<PerpsPositionLike | null | undefined>;
+}) {
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+  const next = prunePerpsTerminalIdentityMemory(current, nowMs);
+
+  positions.forEach((position) => {
+    const normalizedCoin = normalizePerpsCoin(position?.coin);
+    const qualifiedCoin = qualifyPerpsPositionCoin({
+      coin: normalizedCoin,
+      dex: position?.dex,
+    });
+    const displayCoin = perpsDisplayCoin(normalizedCoin);
+    const positionKey = buildPerpsPositionKey({
+      userId,
+      masterAddress,
+      coin: normalizedCoin,
+      dex: position?.dex,
+    });
+    if (!normalizedCoin || !qualifiedCoin || !displayCoin || !positionKey) {
+      return;
+    }
+
+    const side = inferPerpsPositionSide(position?.szi);
+    const sizeCoins = absolutePerpsSize(position?.szi);
+    const entryPrice = maybePerpsFeedNumber(position?.entryPx);
+    const bucket = next[displayCoin] || {};
+
+    bucket[positionKey] = {
+      positionKey,
+      coin: qualifiedCoin,
+      displayCoin,
+      dex: normalizePerpsDex(position?.dex) || null,
+      ...(side ? { side } : {}),
+      ...(sizeCoins !== undefined ? { sizeCoins } : {}),
+      ...(entryPrice !== undefined ? { entryPrice } : {}),
+      lastSeenAt: nowIso,
+    };
+    next[displayCoin] = bucket;
+  });
+
+  return next;
 }
 
 function fillTimeMs(fill: PerpsFillLike) {
@@ -378,6 +495,227 @@ export function buildPerpsActiveLimitOrderSnapshot({
   };
 }
 
+function realizedPerpsPnlForIdentity(
+  snapshot: PerpsTerminalIdentitySnapshot,
+  exitPrice?: number,
+) {
+  if (
+    exitPrice === undefined ||
+    snapshot.entryPrice === undefined ||
+    snapshot.sizeCoins === undefined ||
+    !snapshot.side
+  ) {
+    return undefined;
+  }
+
+  return snapshot.side === 'long'
+    ? (exitPrice - snapshot.entryPrice) * snapshot.sizeCoins
+    : (snapshot.entryPrice - exitPrice) * snapshot.sizeCoins;
+}
+
+function pickDeterministicPerpsTerminalIdentity({
+  candidates,
+  startPosition,
+  exitPrice,
+  closedPnl,
+}: {
+  candidates: PerpsTerminalIdentitySnapshot[];
+  startPosition?: number;
+  exitPrice?: number;
+  closedPnl?: number;
+}) {
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  const desiredSide =
+    startPosition === undefined || startPosition === 0
+      ? null
+      : startPosition < 0
+        ? 'short'
+        : 'long';
+  const desiredSize =
+    startPosition === undefined ? undefined : Math.abs(startPosition);
+  const sizeMatched = candidates.filter((candidate) => {
+    if (
+      desiredSide &&
+      candidate.side &&
+      candidate.side !== desiredSide
+    ) {
+      return false;
+    }
+
+    if (
+      desiredSize !== undefined &&
+      candidate.sizeCoins !== undefined &&
+      !perpsNumbersRoughlyEqual(candidate.sizeCoins, desiredSize)
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+  const narrowedCandidates = sizeMatched.length > 0 ? sizeMatched : candidates;
+  if (narrowedCandidates.length === 1) return narrowedCandidates[0];
+
+  if (exitPrice === undefined || closedPnl === undefined) {
+    return null;
+  }
+
+  const scored = narrowedCandidates
+    .map((candidate) => {
+      const expectedPnl = realizedPerpsPnlForIdentity(candidate, exitPrice);
+      if (expectedPnl === undefined) return null;
+      return {
+        candidate,
+        error: Math.abs(expectedPnl - closedPnl),
+      };
+    })
+    .filter(
+      (
+        score,
+      ): score is { candidate: PerpsTerminalIdentitySnapshot; error: number } =>
+        Boolean(score),
+    )
+    .sort((left, right) => left.error - right.error);
+
+  if (scored.length === 0) return null;
+  if (scored.length === 1) return scored[0].candidate;
+
+  const [best, second] = scored;
+  const tolerance = Math.max(Math.abs(closedPnl) * 0.1, 0.25);
+  if (best.error > tolerance) return null;
+  if (second && best.error + 0.01 >= second.error) return null;
+  return best.candidate;
+}
+
+function resolvePerpsTerminalSnapshotIdentity(
+  fill: PerpsFillLike,
+  identityMemory: PerpsTerminalIdentityMemory = {},
+) {
+  const normalizedCoin = normalizePerpsCoin(fill.coin);
+  const displayCoin = perpsDisplayCoin(normalizedCoin);
+  const explicitDex = normalizedCoin.includes(':')
+    ? normalizePerpsDex(normalizedCoin.split(':')[0])
+    : '';
+  if (explicitDex) {
+    return {
+      coin: normalizedCoin,
+      displayCoin,
+      dex: explicitDex || null,
+    };
+  }
+
+  const candidates = Object.values(identityMemory[displayCoin] || {});
+  const matchedCandidate = pickDeterministicPerpsTerminalIdentity({
+    candidates,
+    startPosition: maybePerpsFeedNumber(fill.startPosition),
+    exitPrice: maybePerpsFeedNumber(fill.px),
+    closedPnl: maybePerpsFeedNumber(fill.closedPnl),
+  });
+  if (matchedCandidate) {
+    return {
+      coin: matchedCandidate.coin,
+      displayCoin,
+      dex: matchedCandidate.dex || null,
+    };
+  }
+
+  if (candidates.length > 1) {
+    return {
+      coin: '',
+      displayCoin,
+      dex: null,
+    };
+  }
+
+  const qualifiedCoin = normalizedCoin.includes(':')
+    ? normalizedCoin
+    : qualifyPerpsPositionCoin({
+        coin: displayCoin || normalizedCoin,
+        dex: null,
+      });
+
+  return {
+    coin: qualifiedCoin || normalizedCoin,
+    displayCoin,
+    dex: null,
+  };
+}
+
+export function buildPerpsReconcileSnapshotKey({
+  masterAddress,
+  priceMapState,
+  observedDexes = [],
+  activePositionKeys,
+  activeLimitOrders = [],
+  liquidationsByCoin = {},
+  closedFillsByCoin = {},
+}: {
+  masterAddress: string;
+  priceMapState: string;
+  observedDexes?: Array<string | null | undefined>;
+  activePositionKeys: string[];
+  activeLimitOrders?: PerpsActiveLimitOrderSnapshot[];
+  liquidationsByCoin?: Record<
+    string,
+    PerpsLiquidationFillSnapshot | null | undefined
+  >;
+  closedFillsByCoin?: Record<string, PerpsCloseFillSnapshot | null | undefined>;
+}) {
+  const liquidations = Object.values(liquidationsByCoin)
+    .filter(
+      (fill): fill is PerpsLiquidationFillSnapshot =>
+        Boolean(fill?.coin || fill?.orderId || fill?.timestamp),
+    )
+    .map((fill) =>
+      [
+        'liquidation',
+        normalizePerpsCoin(fill.coin),
+        fill.orderId || '',
+        fill.timestamp || '',
+        fill.px ?? '',
+        fill.markPx ?? '',
+      ].join('='),
+    )
+    .sort();
+
+  const closes = Object.values(closedFillsByCoin)
+    .filter(
+      (fill): fill is PerpsCloseFillSnapshot =>
+        Boolean(fill?.coin || fill?.orderId || fill?.timestamp),
+    )
+    .map((fill) =>
+      [
+        'close',
+        normalizePerpsCoin(fill.coin),
+        fill.orderId || '',
+        fill.timestamp || '',
+        fill.px ?? '',
+        fill.closedPnl ?? '',
+      ].join('='),
+    )
+    .sort();
+
+  return [
+    masterAddress,
+    priceMapState,
+    `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
+    ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
+    ...activeLimitOrders
+      .map((order) =>
+        [
+          'limit',
+          order.positionKey.toLowerCase(),
+          order.orderId || '',
+          order.limitPrice,
+        ].join('='),
+      )
+      .sort(),
+    ...liquidations,
+    ...closes,
+  ].join(':');
+}
+
 function isTerminalCloseFill(fill: PerpsFillLike) {
   const startPosition = maybePerpsFeedNumber(fill.startPosition);
   const signedSize = fillSignedSize(fill);
@@ -402,19 +740,22 @@ function isTerminalCloseFill(fill: PerpsFillLike) {
 
 export function inferPerpsCloseFillsByCoin(
   fills: PerpsFillLike[] = [],
+  identityMemory: PerpsTerminalIdentityMemory = {},
 ): Record<string, PerpsCloseFillSnapshot> {
   return fills.reduce<Record<string, PerpsCloseFillSnapshot>>(
     (closedFills, fill) => {
       if (fill?.liquidation || !isTerminalCloseFill(fill)) return closedFills;
 
-      const coin = normalizePerpsCoin(fill.coin);
+      const identity = resolvePerpsTerminalSnapshotIdentity(fill, identityMemory);
       const timeMs = fillTimeMs(fill);
-      if (!coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
+      if (!identity.coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
         return closedFills;
       }
 
       const timestamp = new Date(timeMs).toISOString();
-      const existingTime = Date.parse(closedFills[coin]?.timestamp || '');
+      const existingTime = Date.parse(
+        closedFills[identity.coin]?.timestamp || '',
+      );
       if (Number.isFinite(existingTime) && existingTime >= timeMs) {
         return closedFills;
       }
@@ -424,8 +765,9 @@ export function inferPerpsCloseFillsByCoin(
       const feeUsd = maybePerpsFeedNumber(fill.fee);
       const orderId = fillOrderId(fill);
 
-      closedFills[coin] = {
-        coin,
+      closedFills[identity.coin] = {
+        coin: identity.coin,
+        ...(identity.dex ? { dex: identity.dex } : {}),
         ...(price !== undefined ? { px: price } : {}),
         ...(closedPnl !== undefined ? { closedPnl } : {}),
         ...(feeUsd !== undefined ? { feeUsd } : {}),
@@ -437,6 +779,198 @@ export function inferPerpsCloseFillsByCoin(
     },
     {},
   );
+}
+
+export function inferPerpsLiquidationsByCoin(
+  fills: PerpsFillLike[] = [],
+  identityMemory: PerpsTerminalIdentityMemory = {},
+): Record<string, PerpsLiquidationFillSnapshot> {
+  return fills.reduce<Record<string, PerpsLiquidationFillSnapshot>>(
+    (liquidations, fill) => {
+      if (!fill?.liquidation) return liquidations;
+
+      const identity = resolvePerpsTerminalSnapshotIdentity(fill, identityMemory);
+      const timeMs = fillTimeMs(fill);
+      if (!identity.coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
+        return liquidations;
+      }
+
+      const existingTime = Date.parse(liquidations[identity.coin]?.timestamp || '');
+      if (Number.isFinite(existingTime) && existingTime >= timeMs) {
+        return liquidations;
+      }
+
+      const price = maybePerpsFeedNumber(fill.px);
+      const markPrice = maybePerpsFeedNumber(
+        (fill.liquidation as { markPx?: string | number | null } | null)
+          ?.markPx ?? fill.px,
+      );
+      const closedPnl = maybePerpsFeedNumber(fill.closedPnl);
+      const feeUsd = maybePerpsFeedNumber(fill.fee);
+      const orderId = fillOrderId(fill);
+
+      liquidations[identity.coin] = {
+        coin: identity.coin,
+        ...(identity.dex ? { dex: identity.dex } : {}),
+        ...(price !== undefined ? { px: price } : {}),
+        ...(markPrice !== undefined ? { markPx: markPrice } : {}),
+        ...(closedPnl !== undefined ? { closedPnl } : {}),
+        ...(feeUsd !== undefined ? { feeUsd } : {}),
+        ...(orderId ? { orderId } : {}),
+        timestamp: new Date(timeMs).toISOString(),
+      };
+
+      return liquidations;
+    },
+    {},
+  );
+}
+
+export interface PerpsFeedHealthEvent {
+  type:
+    | 'feed_card_accuracy_perps_terminal_candidate'
+    | 'feed_card_accuracy_perps_terminal_mismatch';
+  provider: 'hyperliquid';
+  terminalEvent: 'close' | 'liquidate';
+  fingerprint: string;
+  masterAddress: string;
+  userId?: string | null;
+  smartsiteId?: string | null;
+  positionKey: string;
+  coin: string;
+  displayCoin: string;
+  dex?: string | null;
+  orderId?: string;
+  fillTimestamp?: string;
+  updatedAt: string;
+  observedDexes: string[];
+}
+
+export function buildPerpsTerminalFeedHealthEvents({
+  userId,
+  smartsiteId,
+  masterAddress,
+  activePositionKeys,
+  observedDexes = [],
+  liquidationsByCoin = {},
+  closedFillsByCoin = {},
+  updatedAt,
+}: {
+  userId?: string | null;
+  smartsiteId?: string | null;
+  masterAddress: string;
+  activePositionKeys: string[];
+  observedDexes?: Array<string | null | undefined>;
+  liquidationsByCoin?: Record<
+    string,
+    PerpsLiquidationFillSnapshot | null | undefined
+  >;
+  closedFillsByCoin?: Record<string, PerpsCloseFillSnapshot | null | undefined>;
+  updatedAt: string;
+}) {
+  const activeKeys = new Set(
+    activePositionKeys.map((positionKey) => positionKey.toLowerCase()),
+  );
+  const seenFingerprints = new Set<string>();
+  const normalizedDexes = observedDexes
+    .map((dex) => normalizePerpsDex(dex) || 'main')
+    .filter(Boolean);
+  const events: PerpsFeedHealthEvent[] = [];
+
+  const appendEvents = (
+    terminalEvent: 'close' | 'liquidate',
+    snapshots: Array<
+      PerpsCloseFillSnapshot | PerpsLiquidationFillSnapshot | null | undefined
+    >,
+  ) => {
+    snapshots.forEach((snapshot) => {
+      const qualifiedCoin = normalizePerpsCoin(snapshot?.coin);
+      const displayCoin = perpsDisplayCoin(qualifiedCoin);
+      if (!qualifiedCoin || !displayCoin) return;
+
+      const dex =
+        normalizePerpsDex(snapshot?.dex) ||
+        (qualifiedCoin.includes(':')
+          ? normalizePerpsDex(qualifiedCoin.split(':')[0])
+          : '');
+      const positionKey = buildPerpsPositionKey({
+        userId,
+        masterAddress,
+        coin: displayCoin,
+        dex,
+      });
+      const fingerprint = [
+        terminalEvent,
+        positionKey.toLowerCase(),
+        snapshot?.orderId || '',
+        snapshot?.timestamp || '',
+      ].join(':');
+
+      if (
+        !positionKey ||
+        activeKeys.has(positionKey.toLowerCase()) ||
+        seenFingerprints.has(fingerprint)
+      ) {
+        return;
+      }
+
+      seenFingerprints.add(fingerprint);
+      events.push({
+        type: 'feed_card_accuracy_perps_terminal_candidate',
+        provider: 'hyperliquid',
+        terminalEvent,
+        fingerprint,
+        masterAddress,
+        userId: userId || null,
+        smartsiteId: smartsiteId || null,
+        positionKey,
+        coin: qualifiedCoin,
+        displayCoin,
+        dex: dex || null,
+        ...(snapshot?.orderId ? { orderId: snapshot.orderId } : {}),
+        ...(snapshot?.timestamp ? { fillTimestamp: snapshot.timestamp } : {}),
+        updatedAt,
+        observedDexes: normalizedDexes,
+      });
+    });
+  };
+
+  appendEvents('liquidate', Object.values(liquidationsByCoin));
+  appendEvents('close', Object.values(closedFillsByCoin));
+
+  return events;
+}
+
+export function confirmPerpsTerminalFeedHealthEvents(
+  events: PerpsFeedHealthEvent[] = [],
+  updatedPosts: Array<{ content?: { positionKey?: unknown } } | null | undefined> = [],
+) {
+  const updatedPositionKeys = new Set(
+    updatedPosts
+      .map((post) => String(post?.content?.positionKey || '').trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  return events
+    .filter((event) => updatedPositionKeys.has(event.positionKey.toLowerCase()))
+    .map((event) => ({
+      ...event,
+      type: 'feed_card_accuracy_perps_terminal_mismatch' as const,
+    }));
+}
+
+async function logPerpsFeedCardHealthEvents(events: PerpsFeedHealthEvent[]) {
+  if (events.length === 0) return;
+
+  const response = await fetch('/api/feed/card-health', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ events }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to log perps feed health (${response.status})`);
+  }
 }
 
 export function inferPerpsPositionRiskPrices(
@@ -625,6 +1159,17 @@ export async function reconcilePerpsPositionFeed({
     return null;
   }
 
+  const updatedAt = new Date().toISOString();
+  const healthEvents = buildPerpsTerminalFeedHealthEvents({
+    userId,
+    smartsiteId,
+    masterAddress,
+    activePositionKeys,
+    observedDexes,
+    liquidationsByCoin,
+    closedFillsByCoin,
+    updatedAt,
+  });
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/perps-position/reconcile`,
     {
@@ -643,7 +1188,7 @@ export async function reconcilePerpsPositionFeed({
         markPricesByCoin,
         liquidationsByCoin,
         closedFillsByCoin,
-        updatedAt: new Date().toISOString(),
+        updatedAt,
       }),
     },
   );
@@ -654,6 +1199,16 @@ export async function reconcilePerpsPositionFeed({
       data?.message ||
         `Failed to reconcile perps feed cards (${response.status})`,
     );
+  }
+
+  const confirmedHealthEvents = confirmPerpsTerminalFeedHealthEvents(
+    healthEvents,
+    Array.isArray(data?.data?.updatedPosts) ? data.data.updatedPosts : [],
+  );
+  if (confirmedHealthEvents.length > 0) {
+    void logPerpsFeedCardHealthEvents(confirmedHealthEvents).catch((error) => {
+      console.warn('Failed to log perps feed health events:', error);
+    });
   }
 
   if (data?.data?.updatedCount > 0) {
