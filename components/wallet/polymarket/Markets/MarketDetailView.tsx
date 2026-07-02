@@ -26,9 +26,17 @@ import {
 } from '@/lib/polymarket/sports-selection';
 import { useTrading } from '@/providers/polymarket';
 import {
+  clearAgentActionHandoff,
   completeAgentActionFromHandoff,
   type AgentActionCompletion,
+  type PredictionOrderAmountUnit,
+  type PolymarketAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
+import {
+  buildPredictionApprovalBoundaryBanner,
+  canCompletePredictionAgentHandoff,
+  isPredictionTicketInsideApprovedBoundary,
+} from '@/lib/chat/approvalBoundary';
 import {
   CTF_CONTRACT_ADDRESS,
   MIN_ORDER_SIZE,
@@ -46,6 +54,10 @@ import OrderSuccessNotification, {
   showOrderSuccessToast,
   type OrderSuccessInfo,
 } from '../shared/OrderSuccessNotification';
+import {
+  marketRouteKey,
+  useMarketDetailStore,
+} from '@/zustandStore/marketDetailStore';
 
 import { InfoIcon, Clock, AlertCircle, X } from 'lucide-react';
 
@@ -4317,7 +4329,7 @@ type MarketDetailViewProps = {
   initialSide?: 'BUY' | 'SELL';
   initialOrderType?: OrderVariant;
   initialLimitPrice?: string;
-  agentProposalId?: string;
+  agentOrderPrefill?: PolymarketAgentOrderPrefill | null;
   onAgentActionComplete?: (completion: AgentActionCompletion) => void;
   onAddFunds?: () => void;
   /** Optional display-name overrides for the two outcome buttons.
@@ -4345,7 +4357,7 @@ export default function MarketDetailView({
   initialSide,
   initialOrderType,
   initialLimitPrice,
-  agentProposalId,
+  agentOrderPrefill,
   onAgentActionComplete,
   onAddFunds,
   outcomeLabels,
@@ -4622,6 +4634,10 @@ export default function MarketDetailView({
   const { getAccessToken } = usePrivy();
   const { user, accessToken }: any = useUser();
   const agentCompletionPendingRef = useRef(false);
+  const clearMarketDetailEntry = useMarketDetailStore((s) => s.clear);
+  const currentMarketRouteKey = marketRouteKey(market);
+  const matchedApprovalBoundaryKey = useRef<string | null>(null);
+  const clearedAgentHandoffKey = useRef<string | null>(null);
 
   const activeTokenId =
     selectedOutcome === 'yes' ? yesTokenId : noTokenId;
@@ -4912,11 +4928,11 @@ export default function MarketDetailView({
         setSuccessInfo(orderSuccessInfo);
         showOrderSuccessToast(orderSuccessInfo);
 
-        if (agentProposalId) {
+        if (canReportAgentCompletion && agentOrderPrefill?.proposalId) {
           try {
             const completion = await completeAgentActionFromHandoff(
               {
-                proposalId: agentProposalId,
+                proposalId: agentOrderPrefill.proposalId,
                 status: 'executed',
                 provider: 'polymarket',
                 title: market.question,
@@ -5059,6 +5075,123 @@ export default function MarketDetailView({
     shares > 0
       ? { price: limitPriceNum, shares }
       : null;
+  const predictionAmountUnit: PredictionOrderAmountUnit =
+    side === 'SELL' ? 'shares' : 'usd';
+  const approvalBoundaryKey = useMemo(
+    () =>
+      [
+        agentOrderPrefill?.proposalId,
+        agentOrderPrefill?.proposalNonce,
+        agentOrderPrefill?.marketRouteKey,
+      ]
+        .filter(Boolean)
+        .join(':'),
+    [
+      agentOrderPrefill?.marketRouteKey,
+      agentOrderPrefill?.proposalId,
+      agentOrderPrefill?.proposalNonce,
+    ],
+  );
+  const [approvalPathInvalidated, setApprovalPathInvalidated] =
+    useState(false);
+  const predictionTicketState = useMemo(
+    () => ({
+      marketRouteKey: market.conditionId || market.id || market.slug || '',
+      outcome: selectedOutcome,
+      side,
+      amount: inputValue,
+      shareAmount:
+        Number.isFinite(shares) && shares > 0
+          ? shares.toFixed(8).replace(/\.?0+$/, '')
+          : undefined,
+      amountUnit: predictionAmountUnit,
+      orderType,
+      limitPrice: orderType === 'limit' ? limitPrice : undefined,
+    }),
+    [
+      inputValue,
+      limitPrice,
+      market.conditionId,
+      market.id,
+      market.slug,
+      orderType,
+      predictionAmountUnit,
+      selectedOutcome,
+      shares,
+      side,
+    ],
+  );
+  const isInsideApprovalBoundary = useMemo(
+    () =>
+      isPredictionTicketInsideApprovedBoundary(
+        agentOrderPrefill,
+        predictionTicketState,
+      ),
+    [agentOrderPrefill, predictionTicketState],
+  );
+  const canReportAgentCompletion = useMemo(
+    () =>
+      canCompletePredictionAgentHandoff(
+        agentOrderPrefill,
+        predictionTicketState,
+        { approvalPathInvalidated },
+      ),
+    [agentOrderPrefill, approvalPathInvalidated, predictionTicketState],
+  );
+  const approvalBoundaryBanner = useMemo(
+    () =>
+      buildPredictionApprovalBoundaryBanner(
+        agentOrderPrefill,
+        predictionTicketState,
+        { approvalPathInvalidated },
+      ),
+    [agentOrderPrefill, approvalPathInvalidated, predictionTicketState],
+  );
+
+  useEffect(() => {
+    setApprovalPathInvalidated(false);
+    clearedAgentHandoffKey.current = null;
+    matchedApprovalBoundaryKey.current = null;
+  }, [approvalBoundaryKey]);
+
+  useEffect(() => {
+    if (
+      approvalBoundaryKey &&
+      !approvalPathInvalidated &&
+      isInsideApprovalBoundary
+    ) {
+      matchedApprovalBoundaryKey.current = approvalBoundaryKey;
+    }
+  }, [
+    approvalBoundaryKey,
+    approvalPathInvalidated,
+    isInsideApprovalBoundary,
+  ]);
+
+  useEffect(() => {
+    if (
+      !approvalBoundaryKey ||
+      approvalPathInvalidated ||
+      isInsideApprovalBoundary ||
+      matchedApprovalBoundaryKey.current !== approvalBoundaryKey
+    ) {
+      return;
+    }
+
+    setApprovalPathInvalidated(true);
+    if (clearedAgentHandoffKey.current === approvalBoundaryKey) return;
+    clearAgentActionHandoff();
+    if (currentMarketRouteKey) {
+      clearMarketDetailEntry(currentMarketRouteKey);
+    }
+    clearedAgentHandoffKey.current = approvalBoundaryKey;
+  }, [
+    approvalBoundaryKey,
+    approvalPathInvalidated,
+    clearMarketDetailEntry,
+    currentMarketRouteKey,
+    isInsideApprovalBoundary,
+  ]);
 
   return (
     <div
@@ -5246,6 +5379,20 @@ export default function MarketDetailView({
             onDismiss={() => setShowEnableModal(false)}
             disabledReason={tradingDisabledReason}
           />
+        )}
+        {approvalBoundaryBanner && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-[12px] ${
+              approvalBoundaryBanner.tone === 'warning'
+                ? 'border-amber-200 bg-amber-50 text-amber-900'
+                : 'border-blue-100 bg-blue-50 text-blue-800'
+            }`}
+          >
+            <div className="font-semibold">{approvalBoundaryBanner.title}</div>
+            <div className="mt-1 text-[11.5px] leading-snug opacity-90">
+              {approvalBoundaryBanner.detail}
+            </div>
+          </div>
         )}
 
         {/* ── Order ticket (A3 / A3L) ──────────────────────────────────────── */}

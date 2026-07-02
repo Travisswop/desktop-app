@@ -17,10 +17,18 @@ import type {
 } from './hooks/useHyperliquidTrading';
 import { OrderConfirmModal, type OrderConfirmDetails } from './OrderConfirmModal';
 import {
+  clearAgentActionHandoff,
   completeAgentActionFromHandoff,
   type AgentActionCompletion,
   type HyperliquidAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
+import {
+  buildPerpsApprovalBoundaryKey,
+  buildPerpsApprovalBoundaryBanner,
+  canCompletePerpsAgentHandoff,
+  isPerpsTicketInsideApprovedBoundary,
+  resolvePerpsBoundarySizeCoins,
+} from '@/lib/chat/approvalBoundary';
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
@@ -126,6 +134,13 @@ export function TradingForm({
   // order the user actually requested even if mark price drifts mid-confirm.
   const [pendingOrder, setPendingOrder] = useState<OrderConfirmDetails | null>(null);
   const appliedAgentPrefillKey = useRef<string | null>(null);
+  const appliedApprovalBoundarySizeRef = useRef<{
+    key: string;
+    sizeUsd: string | null;
+    sizeCoins: string | null;
+  } | null>(null);
+  const clearedAgentHandoffKey = useRef<string | null>(null);
+  const matchedApprovalBoundaryKey = useRef<string | null>(null);
 
   const isBuy = side === 'long';
   const markNum = parseFloat(markPrice) || 0;
@@ -250,16 +265,11 @@ export function TradingForm({
   useEffect(() => {
     if (!agentOrderPrefill) {
       appliedAgentPrefillKey.current = null;
+      appliedApprovalBoundarySizeRef.current = null;
       return;
     }
 
-    const key = [
-      agentOrderPrefill.proposalId,
-      agentOrderPrefill.proposalNonce,
-      agentOrderPrefill.coin,
-    ]
-      .filter(Boolean)
-      .join(':');
+    const key = buildPerpsApprovalBoundaryKey(agentOrderPrefill);
 
     const usdSize =
       agentOrderPrefill.sizeUsd ||
@@ -297,6 +307,11 @@ export function TradingForm({
     setTakeProfit(agentOrderPrefill.takeProfitPrice || '');
     setStopLoss(agentOrderPrefill.stopLossPrice || '');
     setPendingOrder(null);
+    appliedApprovalBoundarySizeRef.current = {
+      key,
+      sizeUsd: usdSize || null,
+      sizeCoins: agentOrderPrefill.sizeCoins ?? null,
+    };
     appliedAgentPrefillKey.current = key;
   }, [agentOrderPrefill, isCross, markNum, maxLev, onLeverageChange]);
 
@@ -333,6 +348,122 @@ export function TradingForm({
     if (!sizeUsdNum) return null;
     return (sizeUsdNum * 0.0007).toFixed(2);
   }, [sizeUsdNum]);
+  const approvalBoundaryKey = useMemo(
+    () => buildPerpsApprovalBoundaryKey(agentOrderPrefill),
+    [agentOrderPrefill],
+  );
+  const [approvalPathInvalidated, setApprovalPathInvalidated] = useState(false);
+  const approvalBoundarySizeCoins = useMemo(
+    () =>
+      resolvePerpsBoundarySizeCoins({
+        prefill: agentOrderPrefill,
+        currentSizeUsd: size,
+        currentSizeCoins: sizeInCoins,
+        appliedSizeUsd:
+          appliedApprovalBoundarySizeRef.current?.key === approvalBoundaryKey
+            ? appliedApprovalBoundarySizeRef.current.sizeUsd
+            : null,
+        appliedSizeCoins:
+          appliedApprovalBoundarySizeRef.current?.key === approvalBoundaryKey
+            ? appliedApprovalBoundarySizeRef.current.sizeCoins
+            : null,
+      }),
+    [agentOrderPrefill, approvalBoundaryKey, size, sizeInCoins],
+  );
+  const currentApprovalBoundaryState = useMemo(
+    () => ({
+      coin: market?.coin ?? '',
+      assetIndex: market?.index ?? null,
+      dex: market?.dex ?? null,
+      side,
+      orderMode: mode,
+      sizeUsd: size,
+      sizeCoins: approvalBoundarySizeCoins,
+      leverage: safeLeverage,
+      isCross,
+      price: limitPrice,
+      takeProfitPrice: takeProfit,
+      stopLossPrice: stopLoss,
+    }),
+    [
+      market?.dex,
+      isCross,
+      limitPrice,
+      market?.coin,
+      market?.index,
+      mode,
+      safeLeverage,
+      side,
+      size,
+      approvalBoundarySizeCoins,
+      stopLoss,
+      takeProfit,
+    ],
+  );
+  const isInsideApprovalBoundary = useMemo(
+    () =>
+      isPerpsTicketInsideApprovedBoundary(
+        agentOrderPrefill,
+        currentApprovalBoundaryState,
+      ),
+    [agentOrderPrefill, currentApprovalBoundaryState],
+  );
+  const canReportAgentCompletion = useMemo(
+    () =>
+      canCompletePerpsAgentHandoff(agentOrderPrefill, currentApprovalBoundaryState, {
+        approvalPathInvalidated,
+      }),
+    [agentOrderPrefill, approvalPathInvalidated, currentApprovalBoundaryState],
+  );
+  const approvalBoundaryBanner = useMemo(
+    () =>
+      buildPerpsApprovalBoundaryBanner(
+        agentOrderPrefill,
+        currentApprovalBoundaryState,
+        { approvalPathInvalidated },
+      ),
+    [agentOrderPrefill, approvalPathInvalidated, currentApprovalBoundaryState],
+  );
+
+  useEffect(() => {
+    setApprovalPathInvalidated(false);
+    clearedAgentHandoffKey.current = null;
+    matchedApprovalBoundaryKey.current = null;
+  }, [approvalBoundaryKey]);
+
+  useEffect(() => {
+    if (
+      approvalBoundaryKey &&
+      !approvalPathInvalidated &&
+      isInsideApprovalBoundary
+    ) {
+      matchedApprovalBoundaryKey.current = approvalBoundaryKey;
+    }
+  }, [
+    approvalBoundaryKey,
+    approvalPathInvalidated,
+    isInsideApprovalBoundary,
+  ]);
+
+  useEffect(() => {
+    if (
+      !approvalBoundaryKey ||
+      approvalPathInvalidated ||
+      isInsideApprovalBoundary ||
+      matchedApprovalBoundaryKey.current !== approvalBoundaryKey
+    ) {
+      return;
+    }
+
+    setApprovalPathInvalidated(true);
+    if (clearedAgentHandoffKey.current === approvalBoundaryKey) return;
+    clearAgentActionHandoff();
+    clearedAgentHandoffKey.current = approvalBoundaryKey;
+  }, [
+    approvalBoundaryKey,
+    approvalPathInvalidated,
+    isInsideApprovalBoundary,
+  ]);
 
   // Step 1: user clicks the CTA → snapshot the order details and open the modal
   const requestConfirm = useCallback(() => {
@@ -378,10 +509,14 @@ export function TradingForm({
       estFees: fee.toFixed(2),
       marginRequired: margin.toFixed(2),
       isLimit: mode !== 'market',
+      approvalBoundaryTitle: approvalBoundaryBanner?.title,
+      approvalBoundaryDetail: approvalBoundaryBanner?.detail,
+      approvalBoundaryTone: approvalBoundaryBanner?.tone,
     });
   }, [
     market, hasInsufficientMargin, mode, isBuy, sizeInCoins, limitPrice, markNum,
     takeProfit, stopLoss, side, safeLeverage, isCross, onClearError,
+    approvalBoundaryBanner,
   ]);
 
   // Step 2: modal confirm → actually fire the order to Hyperliquid
@@ -568,7 +703,7 @@ export function TradingForm({
         console.warn('Failed to update perps feed card:', feedError);
       });
 
-      if (agentOrderPrefill?.proposalId) {
+      if (canReportAgentCompletion && agentOrderPrefill?.proposalId) {
         try {
           const completion = await completeAgentActionFromHandoff({
             proposalId: agentOrderPrefill.proposalId,
@@ -618,8 +753,9 @@ export function TradingForm({
       // surfaced via parent error prop — leave modal open so the user can retry
     }
   }, [
-    agentOrderPrefill?.proposalId, isCross, safeLeverage, market, mode, isBuy,
-    sizeInCoins, limitPrice, markPrice, takeProfit, stopLoss, markNum,
+    agentOrderPrefill?.proposalId, canReportAgentCompletion, isCross,
+    safeLeverage, market, mode, isBuy, sizeInCoins, limitPrice, markPrice,
+    takeProfit, stopLoss, markNum,
     onAgentActionComplete, onPlaceMarket, onPlaceLimit, onPlaceTpSl,
     onUpdateLeverage,
     pendingOrder?.entryPrice, pendingOrder?.marginRequired, pendingOrder?.sizeUsd,
@@ -702,9 +838,20 @@ export function TradingForm({
   return (
     <div className="flex flex-col h-full">
       {/* Long / Short toggle */}
-      {agentOrderPrefill && (
-        <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11.5px] font-medium text-blue-700">
-          Agent proposal loaded. Review every field before confirming.
+      {approvalBoundaryBanner && (
+        <div
+          className={`mb-3 rounded-xl border px-3 py-2 ${
+            approvalBoundaryBanner.tone === 'warning'
+              ? 'border-amber-200 bg-amber-50 text-amber-900'
+              : 'border-blue-100 bg-blue-50 text-blue-700'
+          }`}
+        >
+          <div className="text-[11.5px] font-semibold">
+            {approvalBoundaryBanner.title}
+          </div>
+          <div className="mt-1 text-[11px] leading-snug opacity-90">
+            {approvalBoundaryBanner.detail}
+          </div>
         </div>
       )}
 

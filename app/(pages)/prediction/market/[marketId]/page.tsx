@@ -15,6 +15,12 @@ import {
   type MarketDetailEntry,
 } from '@/zustandStore/marketDetailStore';
 import {
+  buildRecoveredMarketDetailEntry,
+  buildRecoveredSportsMarketDetailEntry,
+  buildSiblingSportsMarketDetailEntry,
+  resolvePredictionInitialTicketState,
+} from '@/lib/polymarket/marketDetailEntries';
+import {
   recoverSportsGameDetailContext,
   type SportsGameDetailContext,
 } from '@/lib/polymarket/sports-detail-context';
@@ -115,10 +121,10 @@ function MarketDetailPageInner() {
           return;
         }
 
-        const nextEntry: MarketDetailEntry = {
+        const nextEntry: MarketDetailEntry = buildRecoveredMarketDetailEntry(
           market,
-          ...sharesForMarket(market),
-        };
+          sharesForMarket(market),
+        );
         const key = marketRouteKey(market) || marketId;
         useMarketDetailStore.getState().set(key, nextEntry);
         setSnapshot(nextEntry);
@@ -156,13 +162,11 @@ function MarketDetailPageInner() {
           return;
         }
         const shares = sharesForMarketRef.current(context.market);
-        const nextEntry: MarketDetailEntry = {
-          ...snapshot,
-          market: context.market,
-          game: context.game,
-          ...context.selection,
-          ...shares,
-        };
+        const nextEntry: MarketDetailEntry = buildRecoveredSportsMarketDetailEntry(
+          snapshot,
+          context,
+          shares,
+        );
         const key = marketRouteKey(context.market) || marketId;
         useMarketDetailStore.getState().set(key, nextEntry);
         setSnapshot(nextEntry);
@@ -183,12 +187,12 @@ function MarketDetailPageInner() {
       const key = marketRouteKey(market);
       if (!key || !snapshot?.game) return;
       const shares = sharesForMarket(market);
-      const nextEntry: MarketDetailEntry = {
+      const nextEntry: MarketDetailEntry = buildSiblingSportsMarketDetailEntry(
+        snapshot.game,
         market,
-        game: snapshot.game,
-        ...selection,
-        ...shares,
-      };
+        selection,
+        shares,
+      );
       useMarketDetailStore.getState().set(key, nextEntry);
       router.replace(`/prediction/market/${encodeURIComponent(key)}`);
     },
@@ -199,6 +203,21 @@ function MarketDetailPageInner() {
     Boolean(snapshot && !snapshot.game) &&
     !sportsRecoveryFailed &&
     Boolean(snapshot && isSportsDetailRecoveryCandidate(snapshot.market));
+  const initialTicketState = useMemo(
+    () =>
+      snapshot
+        ? resolvePredictionInitialTicketState(snapshot, {
+            outcome: selectedOutcomeFromUrl,
+            amount: searchParams?.get('amount') ?? undefined,
+            side: normalizeSideParam(searchParams?.get('side') ?? null),
+            orderType: normalizeOrderTypeParam(
+              searchParams?.get('orderType') ?? null,
+            ),
+            limitPrice: searchParams?.get('limitPrice') ?? undefined,
+          })
+        : null,
+    [searchParams, selectedOutcomeFromUrl, snapshot],
+  );
 
   if (!snapshot) {
     return (
@@ -242,24 +261,12 @@ function MarketDetailPageInner() {
       isConvertingBalance={isNormalizingCollateral}
       yesShares={snapshot.yesShares}
       noShares={snapshot.noShares}
-      initialOutcome={
-        snapshot.initialOutcome ||
-        selectedOutcomeFromUrl
-      }
-      initialAmount={snapshot.initialAmount || searchParams?.get('amount') || undefined}
-      initialSide={
-        snapshot.initialSide || normalizeSideParam(searchParams?.get('side') ?? null)
-      }
-      initialOrderType={
-        snapshot.initialOrderType ||
-        normalizeOrderTypeParam(searchParams?.get('orderType') ?? null)
-      }
-      initialLimitPrice={
-        snapshot.initialLimitPrice ||
-        searchParams?.get('limitPrice') ||
-        undefined
-      }
-      agentProposalId={searchParams?.get('proposalId') || undefined}
+      initialOutcome={initialTicketState?.initialOutcome}
+      initialAmount={initialTicketState?.initialAmount}
+      initialSide={initialTicketState?.initialSide}
+      initialOrderType={initialTicketState?.initialOrderType}
+      initialLimitPrice={initialTicketState?.initialLimitPrice}
+      agentOrderPrefill={snapshot.agentOrderPrefill}
       onAgentActionComplete={(completion) => {
         if (completion.groupId) {
           router.push(

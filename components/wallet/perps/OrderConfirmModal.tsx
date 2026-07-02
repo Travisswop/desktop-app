@@ -33,6 +33,9 @@ export interface OrderConfirmDetails {
   marginRequired: string;
   /** Optional limit price label override — used in limit/TP-SL modes. */
   isLimit?: boolean;
+  approvalBoundaryTitle?: string;
+  approvalBoundaryDetail?: string;
+  approvalBoundaryTone?: 'info' | 'warning';
 }
 
 interface OrderConfirmModalProps {
@@ -202,6 +205,22 @@ export function OrderConfirmModal({
             </div>
           ))}
         </div>
+        {details.approvalBoundaryTitle && details.approvalBoundaryDetail && (
+          <div
+            className={`mx-6 mt-3 rounded-xl border px-3.5 py-3 ${
+              details.approvalBoundaryTone === 'warning'
+                ? 'border-amber-200 bg-amber-50 text-amber-900'
+                : 'border-blue-100 bg-blue-50 text-blue-800'
+            }`}
+          >
+            <div className="text-[11.5px] font-semibold">
+              {details.approvalBoundaryTitle}
+            </div>
+            <div className="mt-1 text-[11px] leading-snug opacity-90">
+              {details.approvalBoundaryDetail}
+            </div>
+          </div>
+        )}
 
         {/* Risk acknowledgement */}
         <label className="mx-6 mt-2 flex items-start gap-2.5 px-3.5 py-3 rounded-xl border border-black/[0.04] bg-[#fff8ed] cursor-pointer">
