@@ -116,6 +116,7 @@ import {
   PolymarketMarketCards,
   PolymarketPositionsCard,
 } from '@/components/chat/cards/PolymarketCards';
+import { SwapProposalActionFooter } from '@/components/chat/tickets/SwapProposalActionFooter';
 import type {
   AstroConsoleData,
   ChartCommandIntent,
@@ -161,6 +162,7 @@ import {
   toFiniteNumber,
   triggerAgentFeedRefresh,
 } from '@/lib/chat/ticketFormat';
+import { getSwapActionBlockerNotice } from '@/lib/chat/swapTicketBlockers';
 import {
   AGENT_PANEL_CLASS,
   TICKET_FIELD_CLASS,
@@ -15793,6 +15795,25 @@ function SwapProposalTicket({
   const isQuoteLoading = quoteState.status === 'loading';
   const isQuoteError = quoteState.status === 'error';
   const isSwapBusy = isPending || isConfirmingSwap;
+  const swapActionBlocker = getSwapActionBlockerNotice({
+    canAct,
+    isOpen,
+    hasSpendableBalance,
+    hasSelectedFromOption: Boolean(selectedFromOption),
+    hasSelectedToOption: Boolean(selectedToOption),
+    hasEnteredAmount: Boolean(payAmount),
+    hasValidSellAmount,
+    amountExceedsBalance,
+    isSameAssetSwap: Boolean(
+      selectedFromOption &&
+        selectedToOption &&
+        selectedFromOption.key === selectedToOption.key
+    ),
+    isQuoteLoading,
+    isQuoteError,
+    isSwapBusy,
+    hasUsableSwapSelection,
+  });
   const headerStatusText = isQuoteLoading
     ? 'quoting'
     : inlineSwapStatus
@@ -16579,46 +16600,24 @@ function SwapProposalTicket({
         </div>
       )}
 
-      {isOpen && (
-        <div className="mt-3 flex gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              void handleConfirmSwap();
-            }}
-            disabled={
-              !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection
-            }
-            className={TICKET_PRIMARY_BUTTON_CLASS}
-          >
-            {isQuoteLoading || isConfirmingSwap ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : status === 'approved' || status === 'executed' ? (
-              <Check className="h-3.5 w-3.5" />
-            ) : quoteOnly ? (
-              <RefreshCw className="h-3.5 w-3.5" />
-            ) : (
-              <ArrowRightLeft className="h-3.5 w-3.5" />
-            )}
-            {actionLabel}
-          </button>
-          <button
-            type="button"
-            onClick={() => onReject(proposalId)}
-            disabled={!canAct || isPending}
-            className={TICKET_REJECT_BUTTON_CLASS}
-          >
-            <Ban className="h-3.5 w-3.5" />
-            Reject
-          </button>
-        </div>
-      )}
-
-      {!canAct && isOpen && (
-        <p className="mt-2 text-[11px] text-[#ffd08a]">
-          Only the user who asked Astro to prepare this swap can approve it.
-        </p>
-      )}
+      <SwapProposalActionFooter
+        actionLabel={actionLabel}
+        canAct={canAct}
+        isConfirmingSwap={isConfirmingSwap}
+        isOpen={isOpen}
+        isPending={isPending}
+        isPrimaryActionDisabled={
+          !canAct || isSwapBusy || isQuoteLoading || !hasUsableSwapSelection
+        }
+        isQuoteLoading={isQuoteLoading}
+        onConfirm={() => {
+          void handleConfirmSwap();
+        }}
+        onReject={() => onReject(proposalId)}
+        quoteOnly={quoteOnly}
+        status={status}
+        swapActionBlocker={swapActionBlocker}
+      />
       </div>
     </div>
   );
