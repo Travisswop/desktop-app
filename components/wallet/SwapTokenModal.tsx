@@ -1911,6 +1911,7 @@ export default function SwapTokenModal({
   preferredSolanaWalletAddress,
   onSwapComplete,
   onSwapReceiptDismiss,
+  onTokenChartOpen,
 }: {
   tokens: any[];
   token?: any;
@@ -1930,6 +1931,8 @@ export default function SwapTokenModal({
   onSwapComplete?: (txHash: string) => void;
   /** Called when the submitted-swap receipt is dismissed */
   onSwapReceiptDismiss?: () => void;
+  /** Called before navigating from the token picker to a token chart */
+  onTokenChartOpen?: () => void;
 }) {
   // ── Core swap state ──────────────────────────────────────────────────────────
   const [payToken, setPayToken] = useState<any>(
@@ -6040,9 +6043,10 @@ export default function SwapTokenModal({
       setSelecting(null);
       setSearchQuery('');
       setFilteredList([]);
+      onTokenChartOpen?.();
       router.push(href, { scroll: false });
     },
-    [router],
+    [onTokenChartOpen, router],
   );
 
   // ── Render ────────────────────────────────────────────────────────────────────

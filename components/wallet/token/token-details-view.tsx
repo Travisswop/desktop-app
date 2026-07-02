@@ -539,11 +539,29 @@ export default function TokenDetails({
     }
   };
 
+  const latestChartPrice = useMemo(() => {
+    if (!chartData?.length) return null;
+
+    for (let index = chartData.length - 1; index >= 0; index -= 1) {
+      const value =
+        typeof chartData[index].value === 'number'
+          ? chartData[index].value
+          : parseFloat(String(chartData[index].value ?? 'NaN'));
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+
+    return null;
+  }, [chartData]);
+
   // Derived values
   const balanceNum = parseFloat(token.balance || '0');
-  const priceNum = token.marketData?.price
+  const marketPriceNum = token.marketData?.price
     ? parseFloat(token.marketData.price.toString())
     : 0;
+  const priceNum =
+    Number.isFinite(marketPriceNum) && marketPriceNum > 0
+      ? marketPriceNum
+      : latestChartPrice ?? 0;
   const usdValue = balanceNum * priceNum;
   const change24h = parseFloat(
     token.marketData?.priceChangePercentage24h || '0',
@@ -741,7 +759,7 @@ export default function TokenDetails({
                         className="text-[36px] font-semibold tracking-[-1.4px] text-gray-900 leading-none"
                         style={{ fontFamily: MONO }}
                       >
-                        {formatPriceLabel(token.marketData?.price)}
+                        {formatPriceLabel(priceNum > 0 ? priceNum : null)}
                       </span>
                       <Delta value={periodChangeText} big />
                     </div>
@@ -1352,6 +1370,7 @@ export default function TokenDetails({
                 ? swapDefaultReceiveChainId
                 : undefined
             }
+            onTokenChartOpen={() => setOpenWalletSwapOpen(false)}
           />
         </CustomModal>
       )}

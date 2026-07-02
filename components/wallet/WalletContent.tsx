@@ -347,12 +347,26 @@ function chartTokenMetadataFromParams(
   };
 }
 
+function chartQuoteNumber(value?: string | number | null) {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function withChartTokenMarketData(
   token: TokenData,
   params: SearchParamReader,
   symbol: string,
 ): TokenData {
   const metadata = chartTokenMetadataFromParams(params, symbol);
+  const currentPrice = chartQuoteNumber(token.marketData?.price);
+  const metadataPrice = chartQuoteNumber(metadata.priceText);
+  const shouldUseMetadataPrice =
+    metadataPrice !== null && (!currentPrice || currentPrice <= 0);
+  const currentChange =
+    token.marketData?.priceChangePercentage24h ?? token.marketData?.change;
+  const shouldUseMetadataChange =
+    shouldUseMetadataPrice || currentChange == null || currentChange === '';
 
   return {
     ...token,
@@ -365,15 +379,21 @@ function withChartTokenMarketData(
       `/assets/crypto-icons/${symbol}.png`,
     marketData: {
       ...(token.marketData || {}),
-      id: metadata.marketId,
+      id: metadata.marketId || token.marketData?.id,
       symbol,
       name: token.marketData?.name || metadata.name,
       image: token.marketData?.image || metadata.image || undefined,
-      price: token.marketData?.price || metadata.priceText,
-      change: token.marketData?.change || metadata.changeText,
+      price: shouldUseMetadataPrice
+        ? metadata.priceText
+        : token.marketData?.price || metadata.priceText,
+      change: shouldUseMetadataChange
+        ? metadata.changeText
+        : token.marketData?.change || metadata.changeText,
       priceChangePercentage24h:
-        token.marketData?.priceChangePercentage24h ||
-        metadata.changeText,
+        shouldUseMetadataChange
+          ? metadata.changeText
+          : token.marketData?.priceChangePercentage24h ||
+            metadata.changeText,
     },
   };
 }
@@ -423,6 +443,20 @@ function isSameChartToken(a: TokenData, b: TokenData) {
     a.symbol?.toUpperCase() === b.symbol?.toUpperCase() &&
     a.chain === b.chain &&
     a.marketData?.id === b.marketData?.id
+  );
+}
+
+function isSameChartTokenDisplayData(a: TokenData, b: TokenData) {
+  const aChange = a.marketData?.priceChangePercentage24h ?? a.marketData?.change;
+  const bChange = b.marketData?.priceChangePercentage24h ?? b.marketData?.change;
+
+  return (
+    a.name === b.name &&
+    a.logoURI === b.logoURI &&
+    (a.marketData?.id || '') === (b.marketData?.id || '') &&
+    chartQuoteNumber(a.marketData?.price) ===
+      chartQuoteNumber(b.marketData?.price) &&
+    chartQuoteNumber(aChange) === chartQuoteNumber(bChange)
   );
 }
 
@@ -1088,7 +1122,11 @@ const WalletContentInner = () => {
     }
 
     setSelectedToken((current) => {
-      if (current && isSameChartToken(current, tokenForDetail)) {
+      if (
+        current &&
+        isSameChartToken(current, tokenForDetail) &&
+        isSameChartTokenDisplayData(current, tokenForDetail)
+      ) {
         return current;
       }
       return tokenForDetail;
@@ -2364,6 +2402,7 @@ const WalletContentInner = () => {
                   setArbitrumBridgeOpen(false);
                   setPerpsDepositOpen(true);
                 }}
+                onTokenChartOpen={() => setArbitrumBridgeOpen(false)}
               />
             </div>
           </div>
