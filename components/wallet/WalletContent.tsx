@@ -118,6 +118,10 @@ import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilitySt
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
 import { resolveSwapBalanceSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';
 import {
+  getEvmSenderAddressForSend,
+  selectSolanaWalletForSend,
+} from '@/lib/wallet/sendWalletOwner';
+import {
   ArrowRight,
   Coins,
   Eye,
@@ -978,6 +982,15 @@ const WalletContentInner = () => {
     handleNFTNext,
     resetSendFlow,
   } = useSendFlow();
+  const sendSolanaWallet = useMemo(
+    () =>
+      selectSolanaWalletForSend(
+        directSolanaWallets,
+        sendFlow,
+        selectedSolanaWallet,
+      ),
+    [directSolanaWallets, sendFlow, selectedSolanaWallet],
+  );
 
   useEffect(() => {
     if (!searchParams) return;
@@ -1593,7 +1606,7 @@ const WalletContentInner = () => {
           );
         }
 
-        if (!selectedSolanaWallet) {
+        if (!sendSolanaWallet) {
           const linkedAccounts = (PrivyUser?.linkedAccounts ||
             []) as PrivyLinkedAccount[];
           const hasSolanaAccount = linkedAccounts.some(
@@ -1611,7 +1624,7 @@ const WalletContentInner = () => {
           }
         }
 
-        if (!selectedSolanaWallet.address) {
+        if (!sendSolanaWallet.address) {
           throw new Error(
             'Solana wallet address is not available. Please refresh the page and try again.',
           );
@@ -1624,12 +1637,18 @@ const WalletContentInner = () => {
             'Unable to connect to Solana network. Please check your connection and try again.',
           );
         }
-      } else if (!selectedSolanaWallet) {
+      } else if (!sendSolanaWallet) {
         // Non-Solana transaction but still log for debugging
         console.log('=== Non-Solana Transaction ===');
       }
 
       let hash = '';
+      let senderAddress =
+        sendFlow.token?.chain?.toUpperCase() === 'SOLANA' ||
+        sendFlow.network.toUpperCase() === 'SOLANA'
+          ? sendSolanaWallet?.address || solWalletAddress
+          : getEvmSenderAddressForSend(sendFlow, evmWalletAddress) ||
+            evmWalletAddress;
 
       if (sendFlow.nft) {
         // Handle NFT transfer
@@ -1644,7 +1663,7 @@ const WalletContentInner = () => {
           // Build Solana NFT transaction and send via Privy with gas sponsorship
           const nftTransaction =
             await TransactionService.buildSolanaNFTTransfer(
-              selectedSolanaWallet,
+              sendSolanaWallet,
               sendFlow,
               connection,
               { createRecipientTokenAccount: false },
@@ -1662,7 +1681,7 @@ const WalletContentInner = () => {
                   ({ sponsor }) =>
                     signAndSendTransaction({
                       transaction: new Uint8Array(serializedNFTTransaction),
-                      wallet: selectedSolanaWallet!,
+                      wallet: sendSolanaWallet!,
                       options: { sponsor },
                     }),
                   { onFallback: notifySponsorshipFallback },
@@ -1683,6 +1702,11 @@ const WalletContentInner = () => {
           // EVM NFT transfer via Privy with gas sponsorship
           const chainId =
             CHAIN_ID[sendFlow.network as keyof typeof CHAIN_ID];
+          const evmSenderAddress = getEvmSenderAddressForSend(
+            sendFlow,
+            evmWalletAddress,
+          );
+          if (evmSenderAddress) senderAddress = evmSenderAddress;
 
           let nftData: string;
           if (sendFlow.nft?.tokenType === 'ERC721') {
@@ -1692,7 +1716,7 @@ const WalletContentInner = () => {
             nftData = erc721Interface.encodeFunctionData(
               'transferFrom',
               [
-                evmWalletAddress,
+                senderAddress,
                 sendFlow.recipient?.address,
                 sendFlow.nft.tokenId,
               ],
@@ -1704,7 +1728,7 @@ const WalletContentInner = () => {
             nftData = erc1155Interface.encodeFunctionData(
               'safeTransferFrom',
               [
-                evmWalletAddress,
+                senderAddress,
                 sendFlow.recipient?.address,
                 sendFlow.nft.tokenId,
                 1,
@@ -1724,7 +1748,12 @@ const WalletContentInner = () => {
                     data: nftData as `0x${string}`,
                     chainId,
                   },
-                  { sponsor },
+                  {
+                    sponsor,
+                    ...(evmSenderAddress
+                      ? { address: evmSenderAddress as `0x${string}` }
+                      : {}),
+                  },
                 ),
               { onFallback: notifySponsorshipFallback },
             );
@@ -1754,7 +1783,7 @@ const WalletContentInner = () => {
           // Build the transaction without sending
           const transaction =
             await TransactionService.buildSolanaTokenTransfer(
-              selectedSolanaWallet,
+              sendSolanaWallet,
               sendFlow,
               connection,
               { createRecipientTokenAccount: false },
@@ -1774,7 +1803,7 @@ const WalletContentInner = () => {
                   ({ sponsor }) =>
                     signAndSendTransaction({
                       transaction: new Uint8Array(serializedTransaction),
-                      wallet: selectedSolanaWallet!,
+                      wallet: sendSolanaWallet!,
                       options: { sponsor },
                     }),
                   { onFallback: notifySponsorshipFallback },
@@ -1799,6 +1828,11 @@ const WalletContentInner = () => {
           const chainId =
             CHAIN_ID[sendFlow.network as keyof typeof CHAIN_ID];
           const transactionAmount = calculateTransactionAmount(sendFlow);
+          const evmSenderAddress = getEvmSenderAddressForSend(
+            sendFlow,
+            evmWalletAddress,
+          );
+          if (evmSenderAddress) senderAddress = evmSenderAddress;
 
           try {
             if (!sendFlow.token?.address) {
@@ -1811,7 +1845,12 @@ const WalletContentInner = () => {
                       value: ethers.parseEther(transactionAmount),
                       chainId,
                     },
-                    { sponsor },
+                    {
+                      sponsor,
+                      ...(evmSenderAddress
+                        ? { address: evmSenderAddress as `0x${string}` }
+                        : {}),
+                    },
                   ),
                 { onFallback: notifySponsorshipFallback },
               );
@@ -1837,7 +1876,12 @@ const WalletContentInner = () => {
                       data: tokenData as `0x${string}`,
                       chainId,
                     },
-                    { sponsor },
+                    {
+                      sponsor,
+                      ...(evmSenderAddress
+                        ? { address: evmSenderAddress as `0x${string}` }
+                        : {}),
+                    },
                   ),
                 { onFallback: notifySponsorshipFallback },
               );
@@ -1855,7 +1899,7 @@ const WalletContentInner = () => {
         }
       }
 
-      return { success: true, hash };
+      return { success: true, hash, senderAddress };
     } catch (error) {
       return {
         success: false,
@@ -1869,11 +1913,12 @@ const WalletContentInner = () => {
     sendFlow,
     PrivyUser,
     evmWalletAddress,
+    solWalletAddress,
     refetchNFTs,
     signAndSendTransaction,
     sendEVMTransaction,
     notifySponsorshipFallback,
-    selectedSolanaWallet,
+    sendSolanaWallet,
     authenticated,
     getAccessToken,
   ]);
@@ -1906,6 +1951,8 @@ const WalletContentInner = () => {
 
       const submittedFlow = sendFlow;
       const submittedHash = result.hash || '';
+      const submittedSenderAddress =
+        result.senderAddress || currentWalletAddress;
 
       if (submittedHash) {
         const explorerUrl = getWalletTransactionExplorerUrl(
@@ -1930,7 +1977,7 @@ const WalletContentInner = () => {
                     submittedHash,
                     submittedFlow,
                     Number(calculateTransactionAmount(submittedFlow)),
-                    currentWalletAddress,
+                    submittedSenderAddress,
                     payload,
                     accessToken,
                   )
