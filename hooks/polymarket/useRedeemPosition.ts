@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
-import { hexToBytes } from "viem";
+import { encodeFunctionData, erc20Abi, hexToBytes } from "viem";
+import { polygon } from "viem/chains";
 import { usePrivy, useSignTypedData } from "@privy-io/react-auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePolymarketWallet, useTrading } from "@/providers/polymarket";
@@ -7,9 +8,15 @@ import { useUser } from "@/lib/UserContext";
 import {
   getDepositWalletWrapTypedData,
   getRedeemTypedData,
+  relayWrapExecTransaction,
   submitDepositWalletWrap,
   submitRedeem,
 } from "@/lib/polymarket/backend-session";
+import {
+  COLLATERAL_ONRAMP_ADDRESS,
+  LEGACY_USDC_E_ADDRESS,
+  USDC_E_DECIMALS,
+} from "@/constants/polymarket";
 
 export interface RedeemParams {
   conditionId: string;
@@ -42,6 +49,80 @@ type FeedClaimUser = {
   _id?: string;
   primaryMicrosite?: string;
 };
+
+type PolymarketWalletType = "safe" | "deposit";
+
+type NormalizeLegacyUsdcParams = {
+  safeAddress?: string;
+  depositWalletAddress?: string;
+  walletType?: PolymarketWalletType;
+  destinationAddress?: string;
+  amount: number;
+  silentOnly?: boolean;
+};
+
+const ZERO_ADDRESS =
+  "0x0000000000000000000000000000000000000000" as const;
+
+const WRAP_ABI = [
+  {
+    name: "wrap",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "_asset", type: "address" },
+      { name: "_to", type: "address" },
+      { name: "_amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+const SAFE_NONCE_ABI = [
+  {
+    name: "nonce",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+const GNOSIS_SAFE_EXEC_ABI = [
+  {
+    name: "execTransaction",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "data", type: "bytes" },
+      { name: "operation", type: "uint8" },
+      { name: "safeTxGas", type: "uint256" },
+      { name: "baseGas", type: "uint256" },
+      { name: "gasPrice", type: "uint256" },
+      { name: "gasToken", type: "address" },
+      { name: "refundReceiver", type: "address" },
+      { name: "signatures", type: "bytes" },
+    ],
+    outputs: [{ name: "success", type: "bool" }],
+  },
+] as const;
+
+const SAFE_TX_TYPES = {
+  SafeTx: [
+    { name: "to", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "data", type: "bytes" },
+    { name: "operation", type: "uint8" },
+    { name: "safeTxGas", type: "uint256" },
+    { name: "baseGas", type: "uint256" },
+    { name: "gasPrice", type: "uint256" },
+    { name: "gasToken", type: "address" },
+    { name: "refundReceiver", type: "address" },
+    { name: "nonce", type: "uint256" },
+  ],
+} as const;
 
 const swopApiBase = () => (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 const delegatedSignerId =
@@ -119,7 +200,7 @@ export function useRedeemPosition() {
   const [delegatedSignerConfig, setDelegatedSignerConfig] =
     useState<DelegatedSignerConfig | null>(null);
 
-  const { eoaAddress, walletClient } = usePolymarketWallet();
+  const { eoaAddress, walletClient, publicClient } = usePolymarketWallet();
   const { walletType, depositWalletAddress } = useTrading();
   const { accessToken, user } = useUser();
   const { user: privyUser } = usePrivy();
@@ -314,7 +395,7 @@ export function useRedeemPosition() {
       silentOnly = false,
     }: {
       domain: Record<string, unknown>;
-      types: Record<string, unknown[]>;
+      types: Record<string, readonly unknown[]>;
       primaryType: string;
       message: Record<string, unknown>;
       silentOnly?: boolean;
@@ -364,18 +445,155 @@ export function useRedeemPosition() {
     ]
   );
 
+  const executeLegacySafeTx = useCallback(
+    async ({
+      safeAddress,
+      to,
+      data,
+      nonce,
+      silentOnly,
+    }: {
+      safeAddress: string;
+      to: `0x${string}`;
+      data: `0x${string}`;
+      nonce: bigint;
+      silentOnly: boolean;
+    }) => {
+      if (!accessToken) {
+        throw new Error("Not authenticated.");
+      }
+
+      const signature = await signRedeemTypedData({
+        domain: {
+          chainId: polygon.id,
+          verifyingContract: safeAddress,
+        },
+        types: SAFE_TX_TYPES,
+        primaryType: "SafeTx",
+        message: {
+          to,
+          value: BigInt(0),
+          data,
+          operation: 0,
+          safeTxGas: BigInt(0),
+          baseGas: BigInt(0),
+          gasPrice: BigInt(0),
+          gasToken: ZERO_ADDRESS,
+          refundReceiver: ZERO_ADDRESS,
+          nonce,
+        },
+        silentOnly,
+      });
+
+      const execCalldata = encodeFunctionData({
+        abi: GNOSIS_SAFE_EXEC_ABI,
+        functionName: "execTransaction",
+        args: [
+          to,
+          BigInt(0),
+          data,
+          0,
+          BigInt(0),
+          BigInt(0),
+          BigInt(0),
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          signature as `0x${string}`,
+        ],
+      });
+
+      const { txHash } = await relayWrapExecTransaction(
+        safeAddress,
+        execCalldata,
+        accessToken
+      );
+
+      return txHash;
+    },
+    [accessToken, signRedeemTypedData]
+  );
+
+  const normalizeLegacyUsdcFromSafe = useCallback(
+    async ({
+      sourceSafeAddress,
+      destinationAddress,
+      amount,
+      silentOnly,
+    }: {
+      sourceSafeAddress: string;
+      destinationAddress: string;
+      amount: number;
+      silentOnly: boolean;
+    }) => {
+      if (!publicClient) {
+        throw new Error("Polygon client not ready.");
+      }
+
+      const amountInUnits = BigInt(
+        Math.floor(amount * 10 ** USDC_E_DECIMALS)
+      );
+      if (amountInUnits <= BigInt(0)) {
+        throw new Error("Conversion amount must be positive.");
+      }
+
+      const nonce = (await publicClient.readContract({
+        address: sourceSafeAddress as `0x${string}`,
+        abi: SAFE_NONCE_ABI,
+        functionName: "nonce",
+      })) as bigint;
+
+      const approveCalldata = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [COLLATERAL_ONRAMP_ADDRESS, amountInUnits],
+      });
+      const approveTxHash = await executeLegacySafeTx({
+        safeAddress: sourceSafeAddress,
+        to: LEGACY_USDC_E_ADDRESS,
+        data: approveCalldata,
+        nonce,
+        silentOnly,
+      });
+      await publicClient.waitForTransactionReceipt({ hash: approveTxHash });
+
+      const nextNonce = (await publicClient.readContract({
+        address: sourceSafeAddress as `0x${string}`,
+        abi: SAFE_NONCE_ABI,
+        functionName: "nonce",
+      })) as bigint;
+
+      const wrapCalldata = encodeFunctionData({
+        abi: WRAP_ABI,
+        functionName: "wrap",
+        args: [
+          LEGACY_USDC_E_ADDRESS,
+          destinationAddress as `0x${string}`,
+          amountInUnits,
+        ],
+      });
+      const wrapTxHash = await executeLegacySafeTx({
+        safeAddress: sourceSafeAddress,
+        to: COLLATERAL_ONRAMP_ADDRESS,
+        data: wrapCalldata,
+        nonce: nextNonce,
+        silentOnly,
+      });
+      await publicClient.waitForTransactionReceipt({ hash: wrapTxHash });
+
+      return { success: true, txHash: wrapTxHash };
+    },
+    [executeLegacySafeTx, publicClient]
+  );
+
   const normalizeLegacyUsdcBalance = useCallback(
     async ({
+      safeAddress: sourceSafeAddress,
       depositWalletAddress: sourceDepositWalletAddress,
+      walletType: requestedWalletType,
       destinationAddress,
       amount,
       silentOnly = false,
-    }: {
-      depositWalletAddress: string;
-      destinationAddress?: string;
-      amount: number;
-      silentOnly?: boolean;
-    }) => {
+    }: NormalizeLegacyUsdcParams) => {
       if (!eoaAddress || !walletClient || !accessToken) {
         throw new Error("Wallet not connected or not authenticated");
       }
@@ -387,6 +605,25 @@ export function useRedeemPosition() {
 
       setIsNormalizingCollateral(true);
       try {
+        const normalizationWalletType: PolymarketWalletType =
+          requestedWalletType ?? (sourceDepositWalletAddress ? "deposit" : "safe");
+
+        if (normalizationWalletType === "safe") {
+          if (!sourceSafeAddress) {
+            throw new Error("Safe wallet address is required for conversion.");
+          }
+          return await normalizeLegacyUsdcFromSafe({
+            sourceSafeAddress,
+            destinationAddress: destinationAddress ?? sourceSafeAddress,
+            amount: wrapAmount,
+            silentOnly,
+          });
+        }
+
+        if (!sourceDepositWalletAddress) {
+          throw new Error("Deposit wallet address is required for conversion.");
+        }
+
         const wrapData = await getDepositWalletWrapTypedData(
           {
             depositWalletAddress: sourceDepositWalletAddress,
@@ -441,6 +678,7 @@ export function useRedeemPosition() {
     [
       accessToken,
       eoaAddress,
+      normalizeLegacyUsdcFromSafe,
       queryClient,
       signRedeemTypedData,
       walletClient,
@@ -579,14 +817,17 @@ export function useRedeemPosition() {
         );
         if (
           result.shouldWrapCollateral &&
-          redeemWalletType === "deposit" &&
-          redeemDepositWalletAddress &&
           wrapAmount > 0
         ) {
           try {
             await normalizeLegacyUsdcBalance({
+              safeAddress: params.safeAddress,
               depositWalletAddress: redeemDepositWalletAddress,
-              destinationAddress: redeemDepositWalletAddress,
+              walletType: redeemWalletType,
+              destinationAddress:
+                redeemWalletType === "deposit"
+                  ? redeemDepositWalletAddress
+                  : params.safeAddress,
               amount: wrapAmount,
               silentOnly: params.silentOnly,
             });

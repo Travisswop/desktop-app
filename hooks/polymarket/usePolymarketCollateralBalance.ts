@@ -27,14 +27,13 @@ export function usePolymarketCollateralBalance(
   const normalizationAddress =
     walletType === 'deposit'
       ? depositWalletAddress ?? firstAddress(address) ?? safeAddress
-      : undefined;
+      : safeAddress ?? firstAddress(address);
   const hasLegacyCollateral =
     balances.legacyUsdcBalance > LEGACY_COLLATERAL_DUST;
 
   useEffect(() => {
     if (
       balances.isLoading ||
-      walletType !== 'deposit' ||
       !normalizationAddress ||
       !hasLegacyCollateral
     ) {
@@ -46,14 +45,19 @@ export function usePolymarketCollateralBalance(
     attemptedNormalizations.add(key);
 
     void normalizeLegacyUsdcBalance({
-      depositWalletAddress: normalizationAddress,
+      safeAddress: walletType === 'safe' ? normalizationAddress : undefined,
+      depositWalletAddress:
+        walletType === 'deposit' ? normalizationAddress : undefined,
+      walletType,
       destinationAddress: normalizationAddress,
       amount: balances.legacyUsdcBalance,
-      silentOnly: true,
+      silentOnly: walletType === 'deposit',
     }).catch((error) => {
+      attemptedNormalizations.delete(key);
       console.warn('[Polymarket] legacy USDC.e normalization failed', {
         message: error instanceof Error ? error.message : String(error),
         normalizationAddress,
+        walletType,
         legacyUsdcBalance: balances.legacyUsdcBalance,
       });
     });
