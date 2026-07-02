@@ -4,6 +4,17 @@ type AddressLike = {
   address?: string | null;
 };
 
+type EvmWalletLike = AddressLike & {
+  walletClientType?: string | null;
+  connectorType?: string | null;
+};
+
+export type EvmEmbeddedSenderResolution = {
+  address: string;
+  tokenOwnerAddress: string;
+  tokenOwnerUnavailable: boolean;
+};
+
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
 export const cleanSendWalletAddress = (address?: string | null) =>
@@ -37,6 +48,52 @@ export function getEvmSenderAddressForSend(
   if (isEvmWalletAddress(tokenOwner)) return tokenOwner;
   const fallback = cleanSendWalletAddress(fallbackAddress);
   return isEvmWalletAddress(fallback) ? fallback : '';
+}
+
+export function isEmbeddedEvmSendWallet(wallet: EvmWalletLike) {
+  return (
+    wallet.walletClientType === 'privy' ||
+    wallet.walletClientType === 'privy-v2' ||
+    wallet.connectorType === 'embedded'
+  );
+}
+
+export function resolveEvmEmbeddedSenderForSend<T extends EvmWalletLike>(
+  wallets: T[] | undefined | null,
+  flow: SendFlowState,
+  fallbackAddress?: string | null,
+): EvmEmbeddedSenderResolution {
+  const embeddedWallets = (wallets ?? []).filter(
+    (wallet) =>
+      isEmbeddedEvmSendWallet(wallet) &&
+      isEvmWalletAddress(wallet.address),
+  );
+  const findEmbeddedWallet = (address?: string | null) =>
+    embeddedWallets.find((wallet) =>
+      walletAddressesMatch(wallet.address, address),
+    );
+
+  const tokenOwner = getSendTokenOwnerAddress(flow);
+  if (isEvmWalletAddress(tokenOwner)) {
+    const ownerWallet = findEmbeddedWallet(tokenOwner);
+    return {
+      address: cleanSendWalletAddress(ownerWallet?.address),
+      tokenOwnerAddress: tokenOwner,
+      tokenOwnerUnavailable: !ownerWallet,
+    };
+  }
+
+  const fallback = cleanSendWalletAddress(fallbackAddress);
+  const fallbackWallet = isEvmWalletAddress(fallback)
+    ? findEmbeddedWallet(fallback)
+    : undefined;
+  return {
+    address: cleanSendWalletAddress(
+      fallbackWallet?.address ?? embeddedWallets[0]?.address,
+    ),
+    tokenOwnerAddress: '',
+    tokenOwnerUnavailable: false,
+  };
 }
 
 export function selectSolanaWalletForSend<T extends AddressLike>(

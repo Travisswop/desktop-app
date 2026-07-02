@@ -1,5 +1,6 @@
 import {
   getEvmSenderAddressForSend,
+  resolveEvmEmbeddedSenderForSend,
   selectSolanaWalletForSend,
   walletAddressesMatch,
 } from '@/lib/wallet/sendWalletOwner';
@@ -74,6 +75,87 @@ describe('send wallet owner selection', () => {
         fallback,
       ),
     ).toBe(owner);
+  });
+
+  it('uses the canonical embedded EVM wallet address for token-owner sends', () => {
+    const tokenOwner = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
+    const embeddedWallet = {
+      address: '0xABCDEFabcdefABCDEFabcdefABCDEFabcdefABCD',
+      walletClientType: 'privy',
+    };
+
+    expect(
+      resolveEvmEmbeddedSenderForSend(
+        [embeddedWallet],
+        {
+          ...baseFlow,
+          token: {
+            ...baseFlow.token!,
+            chain: 'POLYGON',
+            walletAddress: tokenOwner,
+          },
+          network: 'POLYGON',
+        },
+      ),
+    ).toEqual({
+      address: embeddedWallet.address,
+      tokenOwnerAddress: tokenOwner,
+      tokenOwnerUnavailable: false,
+    });
+  });
+
+  it('does not pass a token-owner address that is not an embedded wallet', () => {
+    const tokenOwner = '0x1111111111111111111111111111111111111111';
+    const embeddedWallet = {
+      address: '0x2222222222222222222222222222222222222222',
+      walletClientType: 'privy',
+    };
+
+    expect(
+      resolveEvmEmbeddedSenderForSend(
+        [embeddedWallet],
+        {
+          ...baseFlow,
+          token: {
+            ...baseFlow.token!,
+            chain: 'POLYGON',
+            walletAddress: tokenOwner,
+          },
+          network: 'POLYGON',
+        },
+      ),
+    ).toEqual({
+      address: '',
+      tokenOwnerAddress: tokenOwner,
+      tokenOwnerUnavailable: true,
+    });
+  });
+
+  it('falls back to the embedded EVM wallet when there is no token owner', () => {
+    const embeddedWallet = {
+      address: '0x2222222222222222222222222222222222222222',
+      connectorType: 'embedded',
+    };
+
+    expect(
+      resolveEvmEmbeddedSenderForSend(
+        [embeddedWallet],
+        {
+          ...baseFlow,
+          token: {
+            ...baseFlow.token!,
+            chain: 'POLYGON',
+            walletAddress: undefined,
+          },
+          network: 'POLYGON',
+        },
+        '0x3333333333333333333333333333333333333333',
+      ),
+    ).toEqual({
+      address: embeddedWallet.address,
+      tokenOwnerAddress: '',
+      tokenOwnerUnavailable: false,
+    });
   });
 
   it('matches EVM addresses case-insensitively and Solana addresses exactly', () => {

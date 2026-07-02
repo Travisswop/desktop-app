@@ -15,7 +15,11 @@ import {
   useRouter,
   useSearchParams,
 } from 'next/navigation';
-import { usePrivy, useSendTransaction } from '@privy-io/react-auth';
+import {
+  usePrivy,
+  useSendTransaction,
+  useWallets as useEvmWallets,
+} from '@privy-io/react-auth';
 import {
   useWallets as useSolanaWallets,
   useSignAndSendTransaction,
@@ -31,6 +35,7 @@ import { NFT } from '@/types/nft';
 import { CHAIN_ID, type SendFlowState } from '@/types/wallet-types';
 import {
   PrivyLinkedAccount,
+  isEthereumWalletAccount,
   isSolanaWalletAccount,
   isPrivyEmbeddedWallet,
 } from '@/types/privy';
@@ -118,7 +123,7 @@ import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilitySt
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
 import { resolveSwapBalanceSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';
 import {
-  getEvmSenderAddressForSend,
+  resolveEvmEmbeddedSenderForSend,
   selectSolanaWalletForSend,
 } from '@/lib/wallet/sendWalletOwner';
 import {
@@ -849,6 +854,7 @@ const WalletContentInner = () => {
     user: PrivyUser,
     getAccessToken,
   } = usePrivy();
+  const { wallets: directEvmWallets } = useEvmWallets();
 
   const { ready: solanaReady, wallets: directSolanaWallets } =
     useSolanaWallets();
@@ -915,6 +921,14 @@ const WalletContentInner = () => {
       ) ?? directSolanaWallets[0]
     );
   }, [solanaReady, directSolanaWallets, solWalletAddress]);
+  const evmSendWallets = useMemo(() => {
+    const linkedAccounts = (PrivyUser?.linkedAccounts ||
+      []) as PrivyLinkedAccount[];
+    return [
+      ...linkedAccounts.filter(isEthereumWalletAccount),
+      ...(directEvmWallets ?? []),
+    ];
+  }, [directEvmWallets, PrivyUser]);
   // Market swap balances must follow the selected wallet shown in the wallet
   // portfolio. If that wallet is not currently signable, SwapTokenModal already
   // surfaces the mismatch before submitting a Solana swap.
@@ -1647,8 +1661,28 @@ const WalletContentInner = () => {
         sendFlow.token?.chain?.toUpperCase() === 'SOLANA' ||
         sendFlow.network.toUpperCase() === 'SOLANA'
           ? sendSolanaWallet?.address || solWalletAddress
-          : getEvmSenderAddressForSend(sendFlow, evmWalletAddress) ||
-            evmWalletAddress;
+          : evmWalletAddress;
+      const requireEvmSenderAddress = () => {
+        const resolution = resolveEvmEmbeddedSenderForSend(
+          evmSendWallets,
+          sendFlow,
+          evmWalletAddress,
+        );
+        if (resolution.address) return resolution.address;
+
+        const networkLabel =
+          sendFlow.token?.chain || sendFlow.network || 'EVM';
+        const assetLabel =
+          sendFlow.token?.symbol || sendFlow.nft?.name || 'This asset';
+        if (resolution.tokenOwnerUnavailable) {
+          throw new Error(
+            `${assetLabel} is not available in your gas-sponsored ${networkLabel} wallet. Refresh your wallet and try again.`,
+          );
+        }
+        throw new Error(
+          `No gas-sponsored ${networkLabel} wallet is available. Refresh your wallet and try again.`,
+        );
+      };
 
       if (sendFlow.nft) {
         // Handle NFT transfer
@@ -1702,11 +1736,8 @@ const WalletContentInner = () => {
           // EVM NFT transfer via Privy with gas sponsorship
           const chainId =
             CHAIN_ID[sendFlow.network as keyof typeof CHAIN_ID];
-          const evmSenderAddress = getEvmSenderAddressForSend(
-            sendFlow,
-            evmWalletAddress,
-          );
-          if (evmSenderAddress) senderAddress = evmSenderAddress;
+          const evmSenderAddress = requireEvmSenderAddress();
+          senderAddress = evmSenderAddress;
 
           let nftData: string;
           if (sendFlow.nft?.tokenType === 'ERC721') {
@@ -1828,11 +1859,8 @@ const WalletContentInner = () => {
           const chainId =
             CHAIN_ID[sendFlow.network as keyof typeof CHAIN_ID];
           const transactionAmount = calculateTransactionAmount(sendFlow);
-          const evmSenderAddress = getEvmSenderAddressForSend(
-            sendFlow,
-            evmWalletAddress,
-          );
-          if (evmSenderAddress) senderAddress = evmSenderAddress;
+          const evmSenderAddress = requireEvmSenderAddress();
+          senderAddress = evmSenderAddress;
 
           try {
             if (!sendFlow.token?.address) {
@@ -1913,6 +1941,7 @@ const WalletContentInner = () => {
     sendFlow,
     PrivyUser,
     evmWalletAddress,
+    evmSendWallets,
     solWalletAddress,
     refetchNFTs,
     signAndSendTransaction,
