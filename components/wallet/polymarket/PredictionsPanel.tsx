@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft,
+  ArrowRight,
   ArrowUpFromLine,
   Plus,
   ListOrdered,
@@ -97,6 +98,7 @@ import PositionShareModal, {
   type PredictionShareStatus,
 } from './Positions/PositionShareModal';
 import BrowseMarketsBento from './BrowseMarketsBento';
+import PositionCard from './Positions/PositionCard';
 
 /**
  * Top-level views inside the predictions panel. The panel has no tab nav —
@@ -126,6 +128,8 @@ const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
 const CTF_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
 const AUTO_CLAIM_STORAGE_KEY = 'swop:prediction:auto-claim-wins';
+// How many open bets to preview in the dashboard "Open positions" section.
+const OPEN_POSITIONS_PREVIEW_COUNT = 4;
 const ERC1155_BALANCE_OF_ABI = [
   {
     type: 'function',
@@ -433,6 +437,15 @@ export default function PredictionsPanel({
   const autoClaimablePositions = useMemo(
     () => redeemablePositions.filter((p) => hasRedeemablePayout(p)),
     [redeemablePositions],
+  );
+  // Highest-value open bets to preview on the dashboard, above Browse markets.
+  // The full list lives on the My bets view via the "View all" affordance.
+  const openPositionsPreview = useMemo(
+    () =>
+      [...activePositions]
+        .sort((a, b) => (b.currentValue ?? 0) - (a.currentValue ?? 0))
+        .slice(0, OPEN_POSITIONS_PREVIEW_COUNT),
+    [activePositions],
   );
 
   useEffect(() => {
@@ -986,6 +999,48 @@ export default function PredictionsPanel({
                     navigateToMarket(market, { initialOutcome: 'yes' })
                   }
                 />
+                {activePositions.length > 0 && (
+                  <section className="space-y-3">
+                    {/* Section heading — mirrors BrowseMarketsBento's header */}
+                    <div className="flex items-end justify-between px-1">
+                      <div>
+                        <div className="text-[22px] font-semibold tracking-[-0.6px] text-gray-900">
+                          Open positions
+                        </div>
+                        <div className="text-[13px] text-gray-500 mt-0.5">
+                          Your active bets · tap a title to open the market
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setView('bets')}
+                        className="inline-flex items-center gap-1 text-[13px] font-semibold text-gray-900 hover:underline"
+                      >
+                        View all {activePositions.length}
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {openPositionsPreview.map((position) => (
+                        <PositionCard
+                          key={`${position.conditionId}-${position.outcomeIndex}`}
+                          position={position}
+                          onRedeem={handleRedeem}
+                          onSell={handleMarketSell}
+                          onBuyMore={() => navigateToPosition(position)}
+                          isSelling={sellingAsset === position.asset}
+                          isRedeeming={redeemingAsset === position.asset}
+                          isPendingVerification={pendingVerification.has(
+                            position.asset,
+                          )}
+                          isSubmitting={isSubmitting}
+                          canSell={!!clobClient}
+                          canRedeem={canRedeem}
+                          onTitleClick={() => navigateToPosition(position)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
                 <BrowseMarketsBento
                   onMarketClick={(m) =>
                     navigateToMarket(m, { initialOutcome: 'yes' })
