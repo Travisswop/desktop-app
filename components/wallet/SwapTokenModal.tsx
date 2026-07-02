@@ -118,6 +118,11 @@ import {
   isNativeSolMint,
 } from '@/lib/solana/sponsoredTokenAccounts';
 import { buildOndoGlobalMarketsStockAddressSet } from '@/lib/wallet/ondoGlobalMarkets';
+import {
+  showTransactionErrorToast,
+  showTransactionProcessingToast,
+  showTransactionSuccessToast,
+} from '@/components/wallet/transaction-processing-toast';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Module-level LiFi token cache
@@ -2027,6 +2032,7 @@ export default function SwapTokenModal({
   const searchDebounceTimer = useRef<NodeJS.Timeout | null>(null);
   const urlAmountHydrationKeyRef = useRef('');
   const quoteRequestIdRef = useRef(0);
+  const activeSwapToastId = useRef<string | undefined>();
 
   useEffect(() => {
     if (defaultPayToken) {
@@ -2593,6 +2599,106 @@ export default function SwapTokenModal({
       isSolanaToken(receiveToken, receiverChainId),
     [chainId, payToken, receiveToken, receiverChainId],
   );
+
+  const getSwapToastTitle = useCallback(
+    (state: 'processing' | 'success' | 'error' = 'processing') => {
+      const provider = isSolanaToSolanaSwap() ? 'Jupiter' : 'Li.Fi';
+      if (state === 'success') return `Swap confirmed · ${provider}`;
+      if (state === 'error') return `Swap needs attention · ${provider}`;
+      return `Swap processing · ${provider}`;
+    },
+    [isSolanaToSolanaSwap],
+  );
+
+  const getSwapToastMessage = useCallback(
+    (status?: string | null) => {
+      const fromLabel = `${payAmount || 'Selected amount'} ${
+        payToken?.symbol || 'token'
+      }`;
+      const toLabel = `${receiveAmount || 'estimated output'} ${
+        receiveToken?.symbol || 'token'
+      }`;
+      const base = `${fromLabel} -> ${toLabel}. You can keep using Swop.`;
+      return status ? `${status}. ${base}` : base;
+    },
+    [
+      payAmount,
+      payToken?.symbol,
+      receiveAmount,
+      receiveToken?.symbol,
+    ],
+  );
+
+  const showSwapProcessingToast = useCallback(
+    (status?: string | null, hash?: string | null) => {
+      const id = showTransactionProcessingToast({
+        id: activeSwapToastId.current,
+        title: getSwapToastTitle('processing'),
+        message: getSwapToastMessage(status),
+        explorerUrl: hash ? getExplorerUrl(chainId, hash) : null,
+      });
+      activeSwapToastId.current = id;
+      return id;
+    },
+    [chainId, getSwapToastMessage, getSwapToastTitle],
+  );
+
+  const showSwapSubmittedToast = useCallback(
+    (hash: string) => {
+      showSwapProcessingToast(
+        'Transaction submitted and confirming in the background',
+        hash,
+      );
+    },
+    [showSwapProcessingToast],
+  );
+
+  const showSwapSuccessToast = useCallback(
+    (
+      hash: string,
+      status = 'Transaction confirmed. Balances may take a moment to refresh',
+    ) => {
+      const isConfirmed = /confirmed/i.test(status);
+      const id = showTransactionSuccessToast({
+        id: activeSwapToastId.current,
+        title: isConfirmed
+          ? getSwapToastTitle('success')
+          : `Swap submitted · ${isSolanaToSolanaSwap() ? 'Jupiter' : 'Li.Fi'}`,
+        message: getSwapToastMessage(status),
+        explorerUrl: getExplorerUrl(chainId, hash),
+      });
+      activeSwapToastId.current = id;
+    },
+    [
+      chainId,
+      getSwapToastMessage,
+      getSwapToastTitle,
+      isSolanaToSolanaSwap,
+    ],
+  );
+
+  const showSwapErrorToast = useCallback(
+    (message: string, hash?: string | null) => {
+      const id = showTransactionErrorToast({
+        id: activeSwapToastId.current,
+        title: getSwapToastTitle('error'),
+        message,
+        explorerUrl: hash ? getExplorerUrl(chainId, hash) : null,
+      });
+      activeSwapToastId.current = id;
+    },
+    [chainId, getSwapToastTitle],
+  );
+
+  useEffect(() => {
+    if (!isSwapping || !swapStatus) return;
+    showSwapProcessingToast(swapStatus, txHash);
+  }, [isSwapping, showSwapProcessingToast, swapStatus, txHash]);
+
+  useEffect(() => {
+    if (isSwapping || !swapError || !activeSwapToastId.current) return;
+    showSwapErrorToast(swapError, txHash);
+  }, [isSwapping, showSwapErrorToast, swapError, txHash]);
 
   const applySubmittedSwapBalanceUpdate = useCallback(() => {
     const payKey = getTokenIdentityKey(payToken);
@@ -5167,6 +5273,7 @@ export default function SwapTokenModal({
         setSwapStatus('Transaction submitted!');
         applySubmittedSwapBalanceUpdate();
         setIsSwapping(false);
+        showSwapSubmittedToast(txId);
         onSwapComplete?.(txId);
 
         void (async () => {
@@ -5205,8 +5312,13 @@ export default function SwapTokenModal({
               await connection.confirmTransaction(txId, 'confirmed');
             }
             setSwapStatus('Transaction confirmed');
+            showSwapSuccessToast(txId);
           } catch {
             setSwapStatus('Transaction submitted successfully');
+            showSwapSuccessToast(
+              txId,
+              'Transaction submitted. Confirmation is still settling in the background',
+            );
           }
         })();
 
@@ -5230,6 +5342,7 @@ export default function SwapTokenModal({
       }
       setSwapError(formatUserFriendlyError(rawMsg));
       setSwapStatus(null);
+      showSwapErrorToast(formatUserFriendlyError(rawMsg));
     } finally {
       setIsSwapping(false);
     }
@@ -5341,30 +5454,37 @@ export default function SwapTokenModal({
         privyAccessToken,
       });
 
-      // setTxHash(signature);
-      // setSwapStatus('Transaction submitted!');
-      // applySubmittedSwapBalanceUpdate();
+      setTxHash(signature);
+      setSwapStatus('Transaction submitted!');
+      applySubmittedSwapBalanceUpdate();
 
-      // // Unfreeze UI immediately — confirmation runs in background
-      // setIsSwapping(false);
+      // Unfreeze UI immediately — confirmation runs in background.
+      setIsSwapping(false);
+      showSwapSubmittedToast(signature);
+      onSwapComplete?.(signature);
 
-      // (async () => {
-      //   try {
-      //     await saveSwapToDatabase(signature, activeQuote);
-      //   } catch (postSwapError) {
-      //     console.warn(
-      //       'Post-swap persistence failed:',
-      //       postSwapError,
-      //     );
-      //   }
+      void (async () => {
+        try {
+          await saveSwapToDatabase(signature, activeQuote);
+        } catch (postSwapError) {
+          console.warn(
+            'Post-swap persistence failed:',
+            postSwapError,
+          );
+        }
 
-      //   try {
-      //     await connection.confirmTransaction(signature, 'confirmed');
-      //     setSwapStatus('Transaction confirmed');
-      //   } catch {
-      //     setSwapStatus('Transaction submitted successfully');
-      //   }
-      // })();
+        try {
+          await connection.confirmTransaction(signature, 'confirmed');
+          setSwapStatus('Transaction confirmed');
+          showSwapSuccessToast(signature);
+        } catch {
+          setSwapStatus('Transaction submitted successfully');
+          showSwapSuccessToast(
+            signature,
+            'Transaction submitted. Confirmation is still settling in the background',
+          );
+        }
+      })();
     } catch (error: any) {
       console.error('[Solana LiFi execute] error:', error);
       const rawMessage =
@@ -5378,6 +5498,7 @@ export default function SwapTokenModal({
         network: 'SOLANA',
       });
       setSwapError(friendlyError);
+      showSwapErrorToast(friendlyError);
     } finally {
       setIsSwapping(false);
     }
@@ -5604,6 +5725,7 @@ export default function SwapTokenModal({
 
         // Unfreeze UI immediately — confirmation and database save run in background
         setIsSwapping(false);
+        showSwapSubmittedToast(txHashResult);
         onSwapComplete?.(txHashResult);
 
         // Background: wait for on-chain confirmation before saving / notifying.
@@ -5627,6 +5749,7 @@ export default function SwapTokenModal({
                   'Transaction failed on-chain — no tokens were swapped. The route may have expired or slippage was exceeded; get a fresh quote and try again.';
                 setSwapStatus(null);
                 setSwapError(failureMessage);
+                showSwapErrorToast(failureMessage, txHashResult);
                 void reportWalletSwapFailure({
                   provider: 'Li.Fi',
                   stage: 'lifi_onchain_reverted',
@@ -5637,11 +5760,20 @@ export default function SwapTokenModal({
                 return;
               }
               setSwapStatus('Transaction confirmed');
+              showSwapSuccessToast(txHashResult);
             } else {
               setSwapStatus('Transaction submitted successfully');
+              showSwapSuccessToast(
+                txHashResult,
+                'Transaction submitted. Confirmation is still settling in the background',
+              );
             }
           } catch {
             setSwapStatus('Transaction submitted successfully');
+            showSwapSuccessToast(
+              txHashResult,
+              'Transaction submitted. Confirmation is still settling in the background',
+            );
           }
           await saveSwapToDatabase(txHashResult, activeQuote);
         })();
@@ -5681,6 +5813,7 @@ export default function SwapTokenModal({
         reason: friendlyError,
         error,
       });
+      showSwapErrorToast(friendlyError);
       const reportedError = new Error(friendlyError);
       markWalletSwapFailureReported(reportedError);
       throw reportedError;
@@ -5696,6 +5829,8 @@ export default function SwapTokenModal({
       setSwapError(null);
       setTxHash(null);
       setSwapStatus('Preparing transaction...');
+      activeSwapToastId.current = undefined;
+      showSwapProcessingToast('Preparing transaction...');
       console.log('[SwapTokenModal] Starting swap submit', {
         route: isSolanaToSolanaSwap() ? 'Jupiter' : 'Li.Fi',
         isCopyTrade,
@@ -5787,6 +5922,7 @@ export default function SwapTokenModal({
       setIsQuoteLoading(false);
       setIsCalculating(false);
       setIsSwapping(false);
+      showSwapErrorToast(friendlyError);
     }
   };
 
@@ -5972,6 +6108,17 @@ export default function SwapTokenModal({
     swapStatus?.includes('confirmed') ||
       swapStatus?.includes('completed'),
   );
+  const hasSwapBlockingError = Boolean(
+    swapError ||
+      !balanceValidation.isValid ||
+      solanaSwapWalletError ||
+      gasBalanceError,
+  );
+  const swapStatusPanelClass = isSwapDone
+    ? 'bg-green-50 border-green-200'
+    : hasSwapBlockingError
+      ? 'bg-red-50 border-red-200'
+      : 'bg-blue-50 border-blue-200';
   const swapButtonLoading = isSwapButtonLoading();
   const swapActionButtonDisabled = shouldDisableSwapActionButton({
     isSwapDone,
@@ -6030,7 +6177,7 @@ export default function SwapTokenModal({
 
   useEffect(() => {
     if (txHash && isSwapDone) {
-      setShowSwapSuccess(true);
+      setShowSwapSuccess(false);
     }
   }, [txHash, isSwapDone]);
 
@@ -6587,7 +6734,7 @@ export default function SwapTokenModal({
             solanaSwapWalletError ||
             gasBalanceError) && (
             <div
-              className={`p-3 rounded-lg border ${isSwapDone ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}
+              className={`p-3 rounded-lg border ${swapStatusPanelClass}`}
             >
               {!balanceValidation.isValid && (
                 <div className="text-red-600 text-sm mb-2 text-center">
@@ -7067,20 +7214,6 @@ export default function SwapTokenModal({
                 Confirm
               </Button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Swap in-progress overlay ── */}
-      {isSwapping && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-sm mx-4 text-center shadow-xl">
-            <div className="flex justify-center mb-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
-            </div>
-            <p className="text-gray-700">
-              {swapStatus || 'Processing swap…'}
-            </p>
           </div>
         </div>
       )}
