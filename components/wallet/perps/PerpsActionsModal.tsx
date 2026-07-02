@@ -16,6 +16,11 @@ import {
 import { useTrading } from '@/providers/polymarket';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { DepositForm } from './DepositForm';
+import {
+  formatHyperliquidAddress,
+  getHyperliquidSignerMismatchMessage,
+  hasHyperliquidAccountSignerMismatch,
+} from './hyperliquidAccountSigner';
 import { useHyperliquidDexTransfer } from './hooks/useHyperliquidDexTransfer';
 import { useHyperliquidWithdraw } from './hooks/useHyperliquidWithdraw';
 
@@ -26,6 +31,7 @@ interface PerpsActionsModalProps {
   onClose: () => void;
   masterAddress: string | null;
   masterClient: hl.ExchangeClient | null;
+  accountSignerAddress?: string | null;
   ensureMasterClient?: () => Promise<hl.ExchangeClient | null>;
   withdrawable: number;
   dexWithdrawables: Record<string, number>;
@@ -40,6 +46,7 @@ export function PerpsActionsModal({
   onClose,
   masterAddress,
   masterClient,
+  accountSignerAddress,
   ensureMasterClient,
   withdrawable,
   dexWithdrawables,
@@ -106,6 +113,7 @@ export function PerpsActionsModal({
           <WithdrawForm
             masterAddress={masterAddress}
             masterClient={masterClient}
+            accountSignerAddress={accountSignerAddress}
             ensureMasterClient={ensureMasterClient}
             withdrawable={withdrawable}
             dexWithdrawables={dexWithdrawables}
@@ -167,6 +175,7 @@ const formatUsd = (amount: number) =>
 function WithdrawForm({
   masterAddress,
   masterClient,
+  accountSignerAddress,
   ensureMasterClient,
   withdrawable,
   dexWithdrawables,
@@ -175,6 +184,7 @@ function WithdrawForm({
 }: {
   masterAddress: string | null;
   masterClient: hl.ExchangeClient | null;
+  accountSignerAddress?: string | null;
   ensureMasterClient?: () => Promise<hl.ExchangeClient | null>;
   withdrawable: number;
   dexWithdrawables: Record<string, number>;
@@ -190,11 +200,13 @@ function WithdrawForm({
   const { withdraw, isWithdrawing } = useHyperliquidWithdraw({
     masterClient,
     masterAddress,
+    signerAddress: accountSignerAddress,
     ensureMasterClient,
   });
   const { sweepDexToMain, isTransferring } = useHyperliquidDexTransfer({
     masterClient,
     masterAddress,
+    signerAddress: accountSignerAddress,
     ensureMasterClient,
   });
   const [step, setStep] = useState<WithdrawStep>('amount');
@@ -263,12 +275,23 @@ function WithdrawForm({
   const destinationAddress = destination?.address ?? null;
   const withdrawAddress = destination?.withdrawAddress ?? null;
   const isPredictionDestination = selectedDestination === 'predictions';
+  const signerMismatch = hasHyperliquidAccountSignerMismatch(
+    masterAddress,
+    accountSignerAddress,
+  );
+  const signerMismatchMessage = signerMismatch
+    ? getHyperliquidSignerMismatchMessage(
+        masterAddress,
+        accountSignerAddress,
+      )
+    : '';
   const hasSignerPath = Boolean(masterClient || ensureMasterClient);
   const canSubmit =
     isAmountValid &&
     Boolean(withdrawAddress) &&
     Boolean(masterAddress) &&
-    hasSignerPath;
+    hasSignerPath &&
+    !signerMismatch;
 
   const resetAndClose = () => {
     if (step === 'processing') return;
@@ -293,6 +316,12 @@ function WithdrawForm({
   };
 
   const executeWithdraw = async () => {
+    if (signerMismatch) {
+      setError(signerMismatchMessage);
+      setStep('error');
+      return;
+    }
+
     if (!withdrawAddress) {
       setError('Choose a withdrawal destination.');
       setStep('error');
@@ -639,6 +668,14 @@ function WithdrawForm({
         <p className="text-xs text-center text-amber-600">
           Enable perps trading before withdrawing.
         </p>
+      )}
+
+      {signerMismatch && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          Connect {formatHyperliquidAddress(masterAddress)} to withdraw this
+          perps balance. Current signer:{' '}
+          {formatHyperliquidAddress(accountSignerAddress)}.
+        </div>
       )}
 
       <button

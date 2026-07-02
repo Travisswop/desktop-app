@@ -197,8 +197,8 @@ export function useHyperliquidAgent({
     () =>
       compactAddresses(
         requestedMasterAddressOverride,
-        lastMasterAddress,
         storedMasterAddress,
+        lastMasterAddress,
         user?.wallet?.address,
       ),
     [

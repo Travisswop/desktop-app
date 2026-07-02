@@ -964,6 +964,8 @@ const WalletContentInner = () => {
     initializedMasterAddress: hlAgent.masterAddress,
     candidateMasterAddress: hlAgent.candidateMasterAddress,
   });
+  const perpsAccountSignerAddress =
+    hlAgent.masterAddress ?? hlAgent.candidateMasterAddress;
 
   const openPredictionDepositFromPerps = useCallback(
     (amountUsd: number) => {
@@ -2435,6 +2437,7 @@ const WalletContentInner = () => {
           <PerpsCard
             masterAddress={perpsMasterAddress ?? undefined}
             masterClient={hlAgent.masterClient}
+            accountSignerAddress={perpsAccountSignerAddress}
             ensureMasterClient={hlAgent.ensureMasterClient}
             isReconnecting={hlAgent.isReconnecting}
             onOpenTrading={openPerpsPanel}
@@ -2557,6 +2560,7 @@ const WalletContentInner = () => {
             agentClient={hlAgent.agentClient}
             masterClient={hlAgent.masterClient}
             masterAddress={perpsMasterAddress}
+            accountSignerAddress={perpsAccountSignerAddress}
             isInitialized={hlAgent.isInitialized}
             isInitializing={hlAgent.isInitializing}
             isReconnecting={hlAgent.isReconnecting}
