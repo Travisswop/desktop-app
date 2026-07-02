@@ -21,6 +21,8 @@ describe('wallet swap failure telemetry', () => {
         provider: 'Jupiter',
         stage: 'jupiter_swap_error',
         reason: 'Simulation failed',
+        reasonCode: 'balance_changed',
+        recoveryState: 'quote_refresh_required',
         inputToken: { symbol: 'SOL' },
         outputToken: { symbol: 'USDC' },
         route: { slippageBps: 300 },
@@ -44,6 +46,8 @@ describe('wallet swap failure telemetry', () => {
         reason: 'Simulation failed',
         context: expect.objectContaining({
           stage: 'jupiter_swap_error',
+          reasonCode: 'balance_changed',
+          recoveryState: 'quote_refresh_required',
           inputToken: { symbol: 'SOL' },
           outputToken: { symbol: 'USDC' },
           route: { slippageBps: 300 },

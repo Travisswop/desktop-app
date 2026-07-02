@@ -111,6 +111,7 @@ import {
   queueWalletSwapFailureClientEvent,
   wasWalletSwapFailureReported,
 } from '@/lib/wallet/swapFailureTelemetry';
+import { parseSwapBalanceRecoveryState } from '@/lib/wallet/swapBalanceRecovery';
 import {
   ensureSponsoredSolanaTokenAccount,
   isNativeSolMint,
@@ -1848,6 +1849,9 @@ export default function SwapTokenModal({
   const [quote, setQuote] = useState<any>(null);
   const [jupiterQuote, setJupiterQuote] = useState<any>(null);
   const [swapError, setSwapError] = useState<string | null>(null);
+  const [swapRecoveryState, setSwapRecoveryState] = useState<ReturnType<
+    typeof parseSwapBalanceRecoveryState
+  >>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [isSwapping, setIsSwapping] = useState(false);
   const [isConnectingSigningWallet, setIsConnectingSigningWallet] =
@@ -3505,6 +3509,7 @@ export default function SwapTokenModal({
           setQuote(nextLifiQuote);
           setJupiterQuote(null);
         }
+        setSwapRecoveryState(null);
         setLastQuoteTime(Date.now());
       } catch (err: any) {
         if (quoteRequestIdRef.current !== requestId) return;
@@ -3688,6 +3693,17 @@ export default function SwapTokenModal({
     setSwapError(null);
     setSwapStatus(null);
   }, [payAmount, payToken, receiveToken]);
+
+  useEffect(() => {
+    setSwapRecoveryState(null);
+  }, [
+    chainId,
+    receiverChainId,
+    payToken?.address,
+    payToken?.symbol,
+    receiveToken?.address,
+    receiveToken?.symbol,
+  ]);
 
   // ── EVM gas balance check ─────────────────────────────────────────────────────
   // Runs whenever the LiFi quote updates. Reads the native token balance on the
@@ -5085,6 +5101,7 @@ export default function SwapTokenModal({
     } catch (error: any) {
       const rawMsg =
         error?.message || error?.toString() || 'Swap failed';
+      const balanceRecovery = parseSwapBalanceRecoveryState(rawMsg);
       console.error(
         '[Jupiter executeJupiterSwap] error:',
         rawMsg,
@@ -5095,8 +5112,15 @@ export default function SwapTokenModal({
           ...failureContext,
           stage: 'jupiter_swap_error',
           reason: rawMsg,
+          reasonCode: balanceRecovery?.reasonCode,
+          recoveryState: balanceRecovery
+            ? 'quote_refresh_required'
+            : undefined,
           error: summarizeSolanaError(error),
         });
+      }
+      if (balanceRecovery) {
+        setSwapRecoveryState(balanceRecovery);
       }
       setSwapError(formatUserFriendlyError(rawMsg));
       setSwapStatus(null);
@@ -5876,6 +5900,7 @@ export default function SwapTokenModal({
     setShowSwapSuccess(false);
     setSwapStatus(null);
     setSwapError(null);
+    setSwapRecoveryState(null);
     setTxHash(null);
     setQuote(null);
     setJupiterQuote(null);
@@ -5897,6 +5922,14 @@ export default function SwapTokenModal({
     resetSwapForm();
     onSwapReceiptDismiss?.();
   }, [resetSwapForm, onSwapReceiptDismiss]);
+
+  const handleRefreshRecoveryQuote = useCallback(() => {
+    setSwapError(null);
+    setSwapStatus('Refreshing quote...');
+    void fetchQuote(false).finally(() => {
+      setSwapStatus(null);
+    });
+  }, [fetchQuote]);
 
   useEffect(() => {
     if (txHash && isSwapDone) {
@@ -6456,7 +6489,56 @@ export default function SwapTokenModal({
                   {solanaSwapWalletError}
                 </div>
               )}
-              {swapError && (
+              {swapRecoveryState && (
+                <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50/90 p-3 text-left">
+                  <div className="flex items-start gap-2.5">
+                    <div className="mt-0.5 rounded-full bg-amber-100 p-1 text-amber-700">
+                      <Info className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12px] font-semibold text-amber-900">
+                        Balance updated before signing
+                      </div>
+                      <div className="mt-1 text-[11.5px] leading-5 text-amber-800">
+                        The old quote no longer fits your spendable{' '}
+                        {swapRecoveryState.tokenSymbol} balance. Swop updated
+                        the sell amount to your current balance and cleared the
+                        stale route.
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="rounded-full border border-amber-200 bg-white px-2 py-1 text-[10.5px] font-mono font-semibold text-amber-900">
+                          Available now · {swapRecoveryState.availableAmount}{' '}
+                          {swapRecoveryState.tokenSymbol}
+                        </span>
+                        <span className="rounded-full border border-amber-200 bg-white px-2 py-1 text-[10.5px] font-mono font-semibold text-amber-900">
+                          Next step · refresh quote
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={handleRefreshRecoveryQuote}
+                          disabled={isQuoteLoading || isSwapping}
+                          className="rounded-lg bg-[#0a0a0c] px-3 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isQuoteLoading ? 'Refreshing quote…' : 'Refresh quote'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSwapRecoveryState(null);
+                            setSwapError(null);
+                          }}
+                          className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-[11px] font-semibold text-amber-900 transition-colors hover:bg-amber-100"
+                        >
+                          Keep editing
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {swapError && !swapRecoveryState && (
                 <div className="text-red-600 text-sm mb-2 text-center flex items-center justify-center gap-2">
                   <svg
                     className="w-4 h-4"
