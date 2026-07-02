@@ -37,13 +37,13 @@ const CLOB_ERROR_MESSAGES: Record<string, string> = {
 
 function isMarketOrderLiquidityError(message: string) {
   const normalized = message.toLowerCase();
+  // Only genuine CLOB fill failures belong here. TypeErrors (e.g. the
+  // clob-client ROUNDING_CONFIG crash on unknown tick sizes) must surface
+  // raw so real bugs aren't misreported as thin order books.
   return (
     normalized.includes('no match') ||
     normalized.includes('not be fully filled') ||
-    normalized.includes('fok_order_not_filled') ||
-    normalized.includes("reading 'price'") ||
-    normalized.includes('reading "price"') ||
-    normalized.includes('cannot read properties of undefined')
+    normalized.includes('fok_order_not_filled')
   );
 }
 
