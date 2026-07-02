@@ -5,6 +5,10 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import targetHelpers from './astro-card-targets.js';
+
+const { findFreshSwopChatTarget, listMatchingSwopChatTargets, matchesSwopChatUrl } =
+  targetHelpers;
 
 const DEFAULT_SWOP_URL = 'https://www.swopme.app/dashboard/chat';
 const DEFAULT_CHROME_PORT = 9223;
@@ -362,28 +366,45 @@ async function closeTarget(baseUrl, targetId) {
   }
 }
 
-async function getOrOpenSwopTarget(baseUrl, swopUrl) {
+async function openFreshSwopTarget(baseUrl, swopUrl) {
   const targets = await listTargets(baseUrl);
-  const existing = targets.find(
-    (target) =>
-      target.type === 'page' &&
-      target.webSocketDebuggerUrl &&
-      String(target.url || '').includes('/dashboard/chat')
-  );
-  if (existing) return existing;
+  const staleTargets = listMatchingSwopChatTargets(targets, swopUrl);
+  for (const target of staleTargets) {
+    await closeTarget(baseUrl, target.id);
+  }
 
   const opened = await openTarget(baseUrl, swopUrl);
-  if (opened.webSocketDebuggerUrl) return opened;
+  if (opened.webSocketDebuggerUrl) {
+    return {
+      target: opened,
+      closedTargets: staleTargets.map(({ id, url }) => ({ id, url })),
+      reusedExisting: false,
+    };
+  }
 
   const updated = await listTargets(baseUrl);
-  const target = updated.find(
-    (candidate) =>
-      candidate.type === 'page' &&
-      candidate.webSocketDebuggerUrl &&
-      String(candidate.url || '').includes('/dashboard/chat')
+  const freshTarget = findFreshSwopChatTarget(
+    updated,
+    swopUrl,
+    staleTargets.map((target) => target.id)
   );
-  if (!target) throw new Error('Could not open a Swop chat tab through Chrome DevTools.');
-  return target;
+  if (freshTarget) {
+    return {
+      target: freshTarget,
+      closedTargets: staleTargets.map(({ id, url }) => ({ id, url })),
+      reusedExisting: false,
+    };
+  }
+
+  const fallbackTarget = listMatchingSwopChatTargets(updated, swopUrl)[0];
+  if (!fallbackTarget) {
+    throw new Error('Could not open a fresh Swop chat tab through Chrome DevTools.');
+  }
+  return {
+    target: fallbackTarget,
+    closedTargets: staleTargets.map(({ id, url }) => ({ id, url })),
+    reusedExisting: true,
+  };
 }
 
 class CdpClient {
@@ -1081,6 +1102,10 @@ async function main() {
       errors: [],
       exceptions: [],
     },
+    targetLifecycle: {
+      closedStaleChatTargets: [],
+      reusedExistingChatTarget: false,
+    },
     status: 'running',
   };
 
@@ -1105,7 +1130,17 @@ async function main() {
     return;
   }
 
-  const target = await getOrOpenSwopTarget(args.chromeUrl, args.url);
+  const { target, closedTargets, reusedExisting } = await openFreshSwopTarget(
+    args.chromeUrl,
+    args.url
+  );
+  report.targetLifecycle.closedStaleChatTargets = closedTargets;
+  report.targetLifecycle.reusedExistingChatTarget = reusedExisting;
+  if (closedTargets.length) {
+    report.warnings.push(
+      `Closed ${closedTargets.length} stale ${appOrigin(args.url)} /dashboard/chat QA target(s) before opening a fresh review tab.`
+    );
+  }
   const client = new CdpClient(target.webSocketDebuggerUrl);
   await client.connect();
 
@@ -1130,7 +1165,7 @@ async function main() {
     await client.send('Page.bringToFront');
 
     const currentUrl = target.url || '';
-    if (!currentUrl.includes('/dashboard/chat')) {
+    if (!matchesSwopChatUrl(currentUrl, args.url)) {
       await client.send('Page.navigate', { url: args.url });
       await sleep(3000);
     }
