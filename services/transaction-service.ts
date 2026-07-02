@@ -55,6 +55,28 @@ function getAssociatedTokenProgramId(
   return ASSOCIATED_TOKEN_PROGRAM_ID;
 }
 
+async function isInitializedTokenAccountFor({
+  connection,
+  tokenAccount,
+  mint,
+  owner,
+  programId,
+}: {
+  connection: Connection;
+  tokenAccount: PublicKey;
+  mint: PublicKey;
+  owner: PublicKey;
+  programId: PublicKey;
+}): Promise<boolean> {
+  const account = await getAccount(
+    connection,
+    tokenAccount,
+    'confirmed',
+    programId,
+  );
+  return account.mint.equals(mint) && account.owner.equals(owner);
+}
+
 export class TransactionService {
   static async submitPrivyNativeSponsoredTransaction(
     _transaction: SolanaTransaction,
@@ -190,31 +212,54 @@ export class TransactionService {
       );
     } else {
       // SPL Token transfer
+      const mint = new PublicKey(sendFlow.token.address);
+      const sender = new PublicKey(solanaWallet.address);
+      const recipient = new PublicKey(sendFlow.recipient?.address || '');
       const programId = await getSolanaTokenProgramId(
         connection,
-        sendFlow.token.address,
+        mint.toString(),
       );
       const associatedTokenProgramId =
         getAssociatedTokenProgramId(programId);
 
       const fromTokenAccount = await getAssociatedTokenAddress(
-        new PublicKey(sendFlow.token.address),
-        new PublicKey(solanaWallet.address),
+        mint,
+        sender,
         false,
         programId,
         associatedTokenProgramId,
       );
 
       const toTokenAccount = await getAssociatedTokenAddress(
-        new PublicKey(sendFlow.token.address),
-        new PublicKey(sendFlow.recipient?.address || ''),
+        mint,
+        recipient,
         false,
         programId,
         associatedTokenProgramId,
       );
 
+      const hasSourceTokenAccount = await isInitializedTokenAccountFor({
+        connection,
+        tokenAccount: fromTokenAccount,
+        mint,
+        owner: sender,
+        programId,
+      }).catch(() => false);
+      if (!hasSourceTokenAccount) {
+        throw new Error(
+          `${sendFlow.token.symbol || 'Token'} is not available in the selected Solana wallet. Refresh your wallet and try again.`,
+        );
+      }
+
       // Create recipient token account if needed
-      if (!(await connection.getAccountInfo(toTokenAccount))) {
+      const hasRecipientTokenAccount = await isInitializedTokenAccountFor({
+        connection,
+        tokenAccount: toTokenAccount,
+        mint,
+        owner: recipient,
+        programId,
+      }).catch(() => false);
+      if (!hasRecipientTokenAccount) {
         if (options.createRecipientTokenAccount === false) {
           throw new Error(
             'Recipient token account is not ready. Please try again.',
@@ -223,10 +268,10 @@ export class TransactionService {
 
         tx.add(
           createAssociatedTokenAccountInstruction(
-            new PublicKey(solanaWallet.address),
+            sender,
             toTokenAccount,
-            new PublicKey(sendFlow.recipient?.address || ''),
-            new PublicKey(sendFlow.token.address),
+            recipient,
+            mint,
             programId,
             associatedTokenProgramId,
           ),
@@ -242,9 +287,9 @@ export class TransactionService {
         tx.add(
           createTransferCheckedInstruction(
             fromTokenAccount,
-            new PublicKey(sendFlow.token.address),
+            mint,
             toTokenAccount,
-            new PublicKey(solanaWallet.address),
+            sender,
             tokenAmount,
             sendFlow.token.decimals,
             [],
@@ -256,7 +301,7 @@ export class TransactionService {
           createTransferInstruction(
             fromTokenAccount,
             toTokenAccount,
-            new PublicKey(solanaWallet.address),
+            sender,
             tokenAmount,
             [],
             programId,

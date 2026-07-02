@@ -60,6 +60,7 @@ import {
   GAS_SPONSORSHIP_FALLBACK_NOTICE,
   runSponsoredFirst,
 } from "@/lib/wallet/gasSponsorship";
+import { ensureSponsoredSolanaTokenAccount } from "@/lib/solana/sponsoredTokenAccounts";
 interface TipContentModalProps {
   isOpen: boolean;
   onClose?: () => void;
@@ -299,6 +300,9 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
         const availableSolanaWallets = directSolanaWallets || [];
         const solanaWallet =
           availableSolanaWallets.find(
+            (w: any) => w.address === selectedToken?.walletAddress,
+          ) ||
+          availableSolanaWallets.find(
             (w: any) =>
               w.walletClientType === "privy" || w.connectorType === "embedded",
           ) || availableSolanaWallets[0];
@@ -361,11 +365,18 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
 
             // hash = result;
             // if (hash) await connection.confirmTransaction(hash);
+            await ensureSponsoredSolanaTokenAccount({
+              ownerAddress: recipientWalletAddress,
+              mint: selectedToken.address,
+              accessToken,
+              label: `recipient ${selectedToken.symbol || "token"}`,
+            });
             const transaction =
               await TransactionService.buildSolanaTokenTransfer(
                 solanaWallet,
                 tipFlow,
                 connection,
+                { createRecipientTokenAccount: false },
               );
 
             // Use Privy's sendTransaction with sponsor: true

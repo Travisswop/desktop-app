@@ -66,6 +66,7 @@ import {
   GAS_SPONSORSHIP_FALLBACK_NOTICE,
   runSponsoredFirst,
 } from '@/lib/wallet/gasSponsorship';
+import { ensureSponsoredSolanaTokenAccount } from '@/lib/solana/sponsoredTokenAccounts';
 import toast from 'react-hot-toast';
 import {
   Activity,
@@ -12877,6 +12878,9 @@ function WalletSendProposalTicket({
       if (network === 'SOLANA') {
         const selectedSolanaWallet =
           solanaWallets.find(
+            (wallet) => wallet.address === sendToken.walletAddress
+          ) ||
+          solanaWallets.find(
             (wallet) => wallet.address === astroConsoleData.solWalletAddress
           ) || solanaWallets[0];
         if (!solanaWalletsReady || !selectedSolanaWallet?.address) {
@@ -12886,10 +12890,17 @@ function WalletSendProposalTicket({
           process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
             'https://api.mainnet-beta.solana.com'
         );
+        await ensureSponsoredSolanaTokenAccount({
+          ownerAddress: recipientData.address,
+          mint: sendToken.address,
+          accessToken,
+          label: `recipient ${sendToken.symbol || token}`,
+        });
         const transaction = await TransactionService.buildSolanaTokenTransfer(
           selectedSolanaWallet,
           sendFlow,
-          connection
+          connection,
+          { createRecipientTokenAccount: false }
         );
         const serializedTransaction = transaction.serialize({
           requireAllSignatures: false,
