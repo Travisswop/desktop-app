@@ -47,7 +47,10 @@ import {
   claimRewardWallet,
   fetchRewardWalletStatus,
 } from '@/lib/wallet/rewardsApi';
-import { ensureSponsoredSolanaTokenAccount } from '@/lib/solana/sponsoredTokenAccounts';
+import {
+  ensureSponsoredSolanaTokenAccount,
+  retrySolanaInvalidAccountData,
+} from '@/lib/solana/sponsoredTokenAccounts';
 import {
   GAS_SPONSORSHIP_FALLBACK_NOTICE,
   runSponsoredFirst,
@@ -1653,14 +1656,18 @@ const WalletContentInner = () => {
           });
 
           try {
-            const result = await runSponsoredFirst(
-              ({ sponsor }) =>
-                signAndSendTransaction({
-                  transaction: new Uint8Array(serializedNFTTransaction),
-                  wallet: selectedSolanaWallet!,
-                  options: { sponsor },
-                }),
-              { onFallback: notifySponsorshipFallback },
+            const result = await retrySolanaInvalidAccountData(
+              () =>
+                runSponsoredFirst(
+                  ({ sponsor }) =>
+                    signAndSendTransaction({
+                      transaction: new Uint8Array(serializedNFTTransaction),
+                      wallet: selectedSolanaWallet!,
+                      options: { sponsor },
+                    }),
+                  { onFallback: notifySponsorshipFallback },
+                ),
+              { label: 'Recipient NFT token account' },
             );
             hash = bs58.encode(result.signature);
           } catch (privyError) {
@@ -1761,14 +1768,20 @@ const WalletContentInner = () => {
           });
 
           try {
-            const result = await runSponsoredFirst(
-              ({ sponsor }) =>
-                signAndSendTransaction({
-                  transaction: new Uint8Array(serializedTransaction),
-                  wallet: selectedSolanaWallet!,
-                  options: { sponsor },
-                }),
-              { onFallback: notifySponsorshipFallback },
+            const result = await retrySolanaInvalidAccountData(
+              () =>
+                runSponsoredFirst(
+                  ({ sponsor }) =>
+                    signAndSendTransaction({
+                      transaction: new Uint8Array(serializedTransaction),
+                      wallet: selectedSolanaWallet!,
+                      options: { sponsor },
+                    }),
+                  { onFallback: notifySponsorshipFallback },
+                ),
+              {
+                label: `Recipient ${sendFlow.token.symbol || 'token'} token account`,
+              },
             );
 
             hash = bs58.encode(result.signature);

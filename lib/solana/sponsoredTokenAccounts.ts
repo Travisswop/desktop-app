@@ -1,8 +1,11 @@
 import { Connection, PublicKey } from '@solana/web3.js';
+import { getAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
-const TOKEN_ACCOUNT_VISIBILITY_ATTEMPTS = 8;
-const TOKEN_ACCOUNT_VISIBILITY_INITIAL_DELAY_MS = 250;
+const TOKEN_ACCOUNT_VISIBILITY_ATTEMPTS = 12;
+const TOKEN_ACCOUNT_VISIBILITY_INITIAL_DELAY_MS = 400;
+const TOKEN_ACCOUNT_VISIBILITY_MAX_DELAY_MS = 2500;
+const TOKEN_ACCOUNT_PROPAGATION_RETRY_DELAY_MS = 2500;
 
 export const isNativeSolMint = (mint?: string | null) =>
   mint === SOL_MINT;
@@ -31,18 +34,33 @@ const wait = (ms: number) =>
 async function waitForTokenAccountVisibility(
   tokenAccount: string,
   label: string,
+  {
+    mint,
+    ownerAddress,
+    tokenProgramId,
+  }: {
+    mint?: string | null;
+    ownerAddress?: string | null;
+    tokenProgramId?: string | null;
+  } = {},
 ) {
   const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
   if (!rpcUrl) return;
 
   let accountPubkey: PublicKey;
+  let mintPubkey: PublicKey | null = null;
+  let ownerPubkey: PublicKey | null = null;
+  let programPubkey: PublicKey = TOKEN_PROGRAM_ID;
   try {
     accountPubkey = new PublicKey(tokenAccount);
+    if (mint) mintPubkey = new PublicKey(mint);
+    if (ownerAddress) ownerPubkey = new PublicKey(ownerAddress);
+    if (tokenProgramId) programPubkey = new PublicKey(tokenProgramId);
   } catch {
     throw new Error(`Prepared ${label} token account was invalid.`);
   }
 
-  const connection = new Connection(rpcUrl, 'confirmed');
+  const connection = new Connection(rpcUrl, 'finalized');
 
   for (
     let attempt = 0;
@@ -50,18 +68,22 @@ async function waitForTokenAccountVisibility(
     attempt += 1
   ) {
     try {
-      const accountInfo = await connection.getAccountInfo(
+      const account = await getAccount(
+        connection,
         accountPubkey,
-        'confirmed',
+        'finalized',
+        programPubkey,
       );
-      if (accountInfo) return;
+      const mintMatches = !mintPubkey || account.mint.equals(mintPubkey);
+      const ownerMatches = !ownerPubkey || account.owner.equals(ownerPubkey);
+      if (mintMatches && ownerMatches) return;
     } catch {
       // Keep polling through transient RPC/indexing errors.
     }
 
     const delay = Math.min(
       TOKEN_ACCOUNT_VISIBILITY_INITIAL_DELAY_MS * 2 ** attempt,
-      1500,
+      TOKEN_ACCOUNT_VISIBILITY_MAX_DELAY_MS,
     );
     await wait(delay);
   }
@@ -111,8 +133,47 @@ export async function ensureSponsoredSolanaTokenAccount({
 
   const result = data as EnsureSponsoredTokenAccountResult;
   if (result.tokenAccount) {
-    await waitForTokenAccountVisibility(result.tokenAccount, label);
+    await waitForTokenAccountVisibility(result.tokenAccount, label, {
+      mint,
+      ownerAddress,
+      tokenProgramId: result.tokenProgramId || tokenProgramId,
+    });
   }
 
   return result;
+}
+
+export function isSolanaInvalidAccountDataError(error: unknown): boolean {
+  const message =
+    error instanceof Error ? error.message : String(error ?? '');
+  return /InvalidAccountData|invalid account data for instruction|Tokenkeg/i.test(
+    message,
+  );
+}
+
+export async function retrySolanaInvalidAccountData<T>(
+  run: () => Promise<T>,
+  {
+    label = 'recipient token account',
+    retryDelayMs = TOKEN_ACCOUNT_PROPAGATION_RETRY_DELAY_MS,
+  }: {
+    label?: string;
+    retryDelayMs?: number;
+  } = {},
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (!isSolanaInvalidAccountDataError(error)) throw error;
+    await wait(retryDelayMs);
+  }
+
+  try {
+    return await run();
+  } catch (error) {
+    if (!isSolanaInvalidAccountDataError(error)) throw error;
+    throw new Error(
+      `${label} is still syncing with Solana. Please try again in a moment.`,
+    );
+  }
 }

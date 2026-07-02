@@ -1,25 +1,44 @@
 jest.mock('@solana/web3.js', () => {
-  const getAccountInfo = jest.fn();
+  const makePublicKey = (value: string) => ({
+    value,
+    equals(other: { value?: string }) {
+      return value === other?.value;
+    },
+    toString() {
+      return value;
+    },
+  });
+
   return {
-    __getAccountInfo: getAccountInfo,
-    Connection: jest.fn().mockImplementation(() => ({
-      getAccountInfo,
-    })),
-    PublicKey: jest.fn().mockImplementation((value: string) => ({
-      value,
-    })),
+    Connection: jest.fn().mockImplementation(() => ({})),
+    PublicKey: jest.fn().mockImplementation(makePublicKey),
+  };
+});
+
+jest.mock('@solana/spl-token', () => {
+  const getAccount = jest.fn();
+  return {
+    __getAccount: getAccount,
+    getAccount,
+    TOKEN_PROGRAM_ID: {
+      value: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    },
   };
 });
 
 import {
   ensureSponsoredSolanaTokenAccount,
   isNativeSolMint,
+  isSolanaInvalidAccountDataError,
+  retrySolanaInvalidAccountData,
 } from '@/lib/solana/sponsoredTokenAccounts';
 
 const web3Mock = jest.requireMock('@solana/web3.js') as {
-  __getAccountInfo: jest.Mock;
   Connection: jest.Mock;
   PublicKey: jest.Mock;
+};
+const splTokenMock = jest.requireMock('@solana/spl-token') as {
+  __getAccount: jest.Mock;
 };
 
 describe('sponsored token accounts', () => {
@@ -61,7 +80,20 @@ describe('sponsored token accounts', () => {
         created: true,
       }),
     });
-    web3Mock.__getAccountInfo.mockResolvedValue({ lamports: 1 });
+    splTokenMock.__getAccount.mockResolvedValue({
+      mint: {
+        value: 'tokenMint',
+        equals(other: { value?: string }) {
+          return this.value === other?.value;
+        },
+      },
+      owner: {
+        value: 'recipientWallet',
+        equals(other: { value?: string }) {
+          return this.value === other?.value;
+        },
+      },
+    });
 
     const result = await ensureSponsoredSolanaTokenAccount({
       ownerAddress: 'recipientWallet',
@@ -82,12 +114,58 @@ describe('sponsored token accounts', () => {
     );
     expect(web3Mock.Connection).toHaveBeenCalledWith(
       'https://rpc.example',
-      'confirmed',
+      'finalized',
     );
     expect(web3Mock.PublicKey).toHaveBeenCalledWith('preparedTokenAccount');
-    expect(web3Mock.__getAccountInfo).toHaveBeenCalledWith(
+    expect(splTokenMock.__getAccount).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ value: 'preparedTokenAccount' }),
-      'confirmed',
+      'finalized',
+      expect.objectContaining({
+        value: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+      }),
     );
+  });
+
+  it('identifies and retries Solana invalid account data races', async () => {
+    const run = jest
+      .fn()
+      .mockRejectedValueOnce(
+        new Error(
+          'Transaction simulation failed: InvalidAccountData: invalid account data for instruction',
+        ),
+      )
+      .mockResolvedValueOnce('signature');
+
+    await expect(
+      retrySolanaInvalidAccountData(run, { retryDelayMs: 0 }),
+    ).resolves.toBe('signature');
+
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(
+      isSolanaInvalidAccountDataError(
+        new Error('Program TokenkegQfe failed: invalid account data for instruction'),
+      ),
+    ).toBe(true);
+  });
+
+  it('returns a short sync error when the Solana invalid account data race persists', async () => {
+    const run = jest
+      .fn()
+      .mockRejectedValue(
+        new Error(
+          'Transaction simulation failed: InvalidAccountData: invalid account data for instruction',
+        ),
+      );
+
+    await expect(
+      retrySolanaInvalidAccountData(run, {
+        label: 'Recipient SWOP token account',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(
+      'Recipient SWOP token account is still syncing with Solana. Please try again in a moment.',
+    );
+    expect(run).toHaveBeenCalledTimes(2);
   });
 });

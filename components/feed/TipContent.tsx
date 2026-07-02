@@ -60,7 +60,10 @@ import {
   GAS_SPONSORSHIP_FALLBACK_NOTICE,
   runSponsoredFirst,
 } from "@/lib/wallet/gasSponsorship";
-import { ensureSponsoredSolanaTokenAccount } from "@/lib/solana/sponsoredTokenAccounts";
+import {
+  ensureSponsoredSolanaTokenAccount,
+  retrySolanaInvalidAccountData,
+} from "@/lib/solana/sponsoredTokenAccounts";
 interface TipContentModalProps {
   isOpen: boolean;
   onClose?: () => void;
@@ -387,16 +390,22 @@ const TipContentModal: React.FC<TipContentModalProps> = ({
             });
 
             try {
-              const result = await runSponsoredFirst(
-                ({ sponsor }) =>
-                  signAndSendTransaction({
-                    transaction: new Uint8Array(serializedTransaction),
-                    wallet: solanaWallet!,
-                    options: {
-                      sponsor,
-                    },
-                  }),
-                { onFallback: notifySponsorshipFallback },
+              const result = await retrySolanaInvalidAccountData(
+                () =>
+                  runSponsoredFirst(
+                    ({ sponsor }) =>
+                      signAndSendTransaction({
+                        transaction: new Uint8Array(serializedTransaction),
+                        wallet: solanaWallet!,
+                        options: {
+                          sponsor,
+                        },
+                      }),
+                    { onFallback: notifySponsorshipFallback },
+                  ),
+                {
+                  label: `Recipient ${selectedToken.symbol || "token"} token account`,
+                },
               );
 
               hash =

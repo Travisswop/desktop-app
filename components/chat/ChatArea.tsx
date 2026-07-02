@@ -66,7 +66,10 @@ import {
   GAS_SPONSORSHIP_FALLBACK_NOTICE,
   runSponsoredFirst,
 } from '@/lib/wallet/gasSponsorship';
-import { ensureSponsoredSolanaTokenAccount } from '@/lib/solana/sponsoredTokenAccounts';
+import {
+  ensureSponsoredSolanaTokenAccount,
+  retrySolanaInvalidAccountData,
+} from '@/lib/solana/sponsoredTokenAccounts';
 import toast from 'react-hot-toast';
 import {
   Activity,
@@ -12906,14 +12909,20 @@ function WalletSendProposalTicket({
           requireAllSignatures: false,
           verifySignatures: false,
         });
-        const result = await runSponsoredFirst(
-          ({ sponsor }) =>
-            signAndSendTransaction({
-              transaction: new Uint8Array(serializedTransaction),
-              wallet: selectedSolanaWallet,
-              options: { sponsor, uiOptions: { showWalletUIs: false } },
-            }),
-          { onFallback: () => toast(GAS_SPONSORSHIP_FALLBACK_NOTICE) }
+        const result = await retrySolanaInvalidAccountData(
+          () =>
+            runSponsoredFirst(
+              ({ sponsor }) =>
+                signAndSendTransaction({
+                  transaction: new Uint8Array(serializedTransaction),
+                  wallet: selectedSolanaWallet,
+                  options: { sponsor, uiOptions: { showWalletUIs: false } },
+                }),
+              { onFallback: () => toast(GAS_SPONSORSHIP_FALLBACK_NOTICE) }
+            ),
+          {
+            label: `Recipient ${sendToken.symbol || token} token account`,
+          }
         );
         hash =
           typeof result.signature === 'string'
