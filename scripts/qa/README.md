@@ -92,6 +92,16 @@ After login, close nothing if you want to verify immediately, or just run:
 npm run qa:astro-cards -- --launch
 ```
 
+For clean branch-review localhost runs, boot the branch on its own port first:
+
+```bash
+npm run dev -- --port 3001
+```
+
+If the worktree does not have its own `.env*` files, the dev launcher now
+falls back to the shared desktop checkout env automatically. Override that
+source with `SWOP_FALLBACK_ENV_DIR=/path/to/desktop-app` when needed.
+
 The profile is stored at:
 
 ```text
