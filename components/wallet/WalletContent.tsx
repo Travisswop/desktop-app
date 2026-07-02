@@ -123,8 +123,6 @@ import { useBalanceVisibilityStore } from '@/zustandStore/useBalanceVisibilitySt
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
 import { resolveSwapBalanceSolanaWalletAddress } from '@/lib/wallet/swapWalletSelection';
 import {
-  getEmbeddedEvmWalletAddressesForSend,
-  getSolanaWalletAddressesForSend,
   resolveEvmEmbeddedSenderForSend,
   selectSolanaWalletForSend,
 } from '@/lib/wallet/sendWalletOwner';
@@ -895,8 +893,16 @@ const WalletContentInner = () => {
     PrivyUser,
     user,
   );
-  const { solWalletAddress, evmWalletAddress } =
+  const { solWalletAddress, evmWalletAddress, evmWalletAddresses } =
     useWalletAddresses(walletData);
+  const portfolioEvmWalletInput = useMemo(
+    () =>
+      getPortfolioEvmWalletInput(
+        evmWalletAddress,
+        evmWalletAddresses,
+      ),
+    [evmWalletAddress, evmWalletAddresses],
+  );
   // Hyperliquid agent — lives here so the ExchangeClient persists across
   // PerpsPanel open/close cycles and never triggers repeated sign messages.
   // NOTE: the hook resolves its own *signable* master wallet from Privy (the
@@ -915,16 +921,6 @@ const WalletContentInner = () => {
       ) ?? directSolanaWallets[0]
     );
   }, [solanaReady, directSolanaWallets, solWalletAddress]);
-  const linkedSolanaWallets = useMemo(() => {
-    const linkedAccounts = (PrivyUser?.linkedAccounts ||
-      []) as PrivyLinkedAccount[];
-    return linkedAccounts.filter(isSolanaWalletAccount).filter(
-      (account) =>
-        account.walletClientType === 'privy' ||
-        account.walletClientType === 'privy-v2' ||
-        account.connectorType === 'embedded',
-    );
-  }, [PrivyUser]);
   const evmSendWallets = useMemo(() => {
     const linkedAccounts = (PrivyUser?.linkedAccounts ||
       []) as PrivyLinkedAccount[];
@@ -933,31 +929,6 @@ const WalletContentInner = () => {
       ...(directEvmWallets ?? []),
     ];
   }, [directEvmWallets, PrivyUser]);
-  const sendableSolWalletAddress = useMemo(() => {
-    return (
-      getSolanaWalletAddressesForSend(
-        [...directSolanaWallets, ...linkedSolanaWallets],
-        solWalletAddress,
-      )[0] || ''
-    );
-  }, [directSolanaWallets, linkedSolanaWallets, solWalletAddress]);
-  const sendableEvmWalletAddresses = useMemo(
-    () =>
-      getEmbeddedEvmWalletAddressesForSend(
-        evmSendWallets,
-        evmWalletAddress,
-      ),
-    [evmSendWallets, evmWalletAddress],
-  );
-  const sendableEvmWalletAddress = sendableEvmWalletAddresses[0] || '';
-  const sendablePortfolioEvmWalletInput = useMemo(
-    () =>
-      getPortfolioEvmWalletInput(
-        sendableEvmWalletAddress,
-        sendableEvmWalletAddresses,
-      ),
-    [sendableEvmWalletAddress, sendableEvmWalletAddresses],
-  );
   // Market swap balances must follow the selected wallet shown in the wallet
   // portfolio. If that wallet is not currently signable, SwapTokenModal already
   // surfaces the mismatch before submitting a Solana swap.
@@ -1131,14 +1102,14 @@ const WalletContentInner = () => {
   useEffect(() => {
     setLoadCollectibles(false);
 
-    if (!sendableSolWalletAddress && !sendableEvmWalletAddress) return;
+    if (!solWalletAddress && !evmWalletAddress) return;
 
     const timeoutId = window.setTimeout(() => {
       setLoadCollectibles(true);
     }, 1200);
 
     return () => window.clearTimeout(timeoutId);
-  }, [sendableSolWalletAddress, sendableEvmWalletAddress]);
+  }, [solWalletAddress, evmWalletAddress]);
 
   const toggleNftVisibility = useCallback((nftId: string) => {
     setHiddenNfts((prev) => {
@@ -1172,8 +1143,8 @@ const WalletContentInner = () => {
     error: tokenError,
     refetch: refetchTokens,
   } = useMultiChainTokenData(
-    sendableSolWalletAddress,
-    sendablePortfolioEvmWalletInput,
+    solWalletAddress,
+    portfolioEvmWalletInput,
     SUPPORTED_CHAINS,
   );
   const marketSwapTokens = tokens;
@@ -1196,17 +1167,12 @@ const WalletContentInner = () => {
     loading: nftLoading,
     error: nftError,
     refetch: refetchNFTs,
-  } = useNFT(
-    sendableSolWalletAddress,
-    sendableEvmWalletAddress,
-    SUPPORTED_CHAINS,
-    {
-      enabled: loadCollectibles,
-    },
-  );
+  } = useNFT(solWalletAddress, evmWalletAddress, SUPPORTED_CHAINS, {
+    enabled: loadCollectibles,
+  });
   const collectiblesPending =
     !loadCollectibles &&
-    Boolean(sendableSolWalletAddress || sendableEvmWalletAddress);
+    Boolean(solWalletAddress || evmWalletAddress);
 
   // Filter tokens by selected chain chip.
   const filteredTokens = useMemo(() => {
