@@ -18,6 +18,7 @@ import {
   buildRecoveredMarketDetailEntry,
   buildRecoveredSportsMarketDetailEntry,
   buildSiblingSportsMarketDetailEntry,
+  resolvePredictionInitialTicketState,
 } from '@/lib/polymarket/marketDetailEntries';
 import {
   recoverSportsGameDetailContext,
@@ -202,6 +203,21 @@ function MarketDetailPageInner() {
     Boolean(snapshot && !snapshot.game) &&
     !sportsRecoveryFailed &&
     Boolean(snapshot && isSportsDetailRecoveryCandidate(snapshot.market));
+  const initialTicketState = useMemo(
+    () =>
+      snapshot
+        ? resolvePredictionInitialTicketState(snapshot, {
+            outcome: selectedOutcomeFromUrl,
+            amount: searchParams?.get('amount') ?? undefined,
+            side: normalizeSideParam(searchParams?.get('side') ?? null),
+            orderType: normalizeOrderTypeParam(
+              searchParams?.get('orderType') ?? null,
+            ),
+            limitPrice: searchParams?.get('limitPrice') ?? undefined,
+          })
+        : null,
+    [searchParams, selectedOutcomeFromUrl, snapshot],
+  );
 
   if (!snapshot) {
     return (
@@ -245,23 +261,11 @@ function MarketDetailPageInner() {
       isConvertingBalance={isNormalizingCollateral}
       yesShares={snapshot.yesShares}
       noShares={snapshot.noShares}
-      initialOutcome={
-        snapshot.initialOutcome ||
-        selectedOutcomeFromUrl
-      }
-      initialAmount={snapshot.initialAmount || searchParams?.get('amount') || undefined}
-      initialSide={
-        snapshot.initialSide || normalizeSideParam(searchParams?.get('side') ?? null)
-      }
-      initialOrderType={
-        snapshot.initialOrderType ||
-        normalizeOrderTypeParam(searchParams?.get('orderType') ?? null)
-      }
-      initialLimitPrice={
-        snapshot.initialLimitPrice ||
-        searchParams?.get('limitPrice') ||
-        undefined
-      }
+      initialOutcome={initialTicketState?.initialOutcome}
+      initialAmount={initialTicketState?.initialAmount}
+      initialSide={initialTicketState?.initialSide}
+      initialOrderType={initialTicketState?.initialOrderType}
+      initialLimitPrice={initialTicketState?.initialLimitPrice}
       agentOrderPrefill={snapshot.agentOrderPrefill}
       onAgentActionComplete={(completion) => {
         if (completion.groupId) {

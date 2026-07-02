@@ -64,6 +64,28 @@ function matchesOptional(expected: string | number | boolean | null | undefined,
   return normalizeOptionalNumber(expected) === normalizeOptionalNumber(actual);
 }
 
+function toBoundaryKeyPart(value: string | number | null | undefined) {
+  if (value === undefined || value === null || value === '') return null;
+  return String(value);
+}
+
+export function buildPerpsApprovalBoundaryKey(
+  prefill: HyperliquidAgentOrderPrefill | null | undefined,
+) {
+  if (!prefill?.proposalId) return '';
+
+  return [
+    prefill.proposalId,
+    prefill.proposalNonce,
+    prefill.coin,
+    prefill.assetIndex,
+    prefill.dex,
+  ]
+    .map(toBoundaryKeyPart)
+    .filter((value): value is string => Boolean(value))
+    .join(':');
+}
+
 export function resolveOperatingModeLabel(source: Record<string, unknown>) {
   const raw = [
     source.operatingModeLabel,

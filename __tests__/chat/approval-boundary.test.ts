@@ -1,4 +1,5 @@
 import {
+  buildPerpsApprovalBoundaryKey,
   buildPerpsApprovalBoundaryBanner,
   buildPredictionApprovalBoundaryBanner,
   canCompletePredictionAgentHandoff,
@@ -268,6 +269,30 @@ describe('approvalBoundary', () => {
         isCross: true,
       }),
     ).toBe(false);
+  });
+
+  test('uses the same approval boundary key for builder-dex tickets', () => {
+    const prefill = getHyperliquidOrderPrefill({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_hl_builder',
+        proposalNonce: 'nonce-1',
+        provider: 'hyperliquid',
+        panel: 'perps',
+        normalizedParams: {
+          coin: 'ETH',
+          side: 'long',
+          sizeCoins: '0.2500',
+          leverage: '5',
+          assetIndex: 110000,
+          dex: 'builder-dex',
+        },
+      },
+    });
+
+    expect(buildPerpsApprovalBoundaryKey(prefill)).toBe(
+      'prop_hl_builder:nonce-1:ETH:110000:builder-dex',
+    );
   });
 
   test('downgrades prediction boundary copy after the market or order fields drift', () => {

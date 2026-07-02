@@ -3,6 +3,7 @@ import {
   buildRecoveredMarketDetailEntry,
   buildRecoveredSportsMarketDetailEntry,
   buildSiblingSportsMarketDetailEntry,
+  resolvePredictionInitialTicketState,
 } from '@/lib/polymarket/marketDetailEntries';
 
 describe('prediction market detail entries', () => {
@@ -70,6 +71,29 @@ describe('prediction market detail entries', () => {
     });
 
     expect(entry.agentOrderPrefill).toBeUndefined();
+  });
+
+  test('recovered revisits ignore legacy prediction ticket query params', () => {
+    const entry = buildRecoveredMarketDetailEntry(market, {
+      yesShares: 1,
+      noShares: 0,
+    });
+
+    expect(
+      resolvePredictionInitialTicketState(entry, {
+        outcome: 'no',
+        amount: '25',
+        side: 'BUY',
+        orderType: 'limit',
+        limitPrice: '42',
+      }),
+    ).toEqual({
+      initialOutcome: undefined,
+      initialAmount: undefined,
+      initialSide: undefined,
+      initialOrderType: undefined,
+      initialLimitPrice: undefined,
+    });
   });
 
   test('sports recovery keeps approved context for the same ticket but sibling pivots drop it', () => {

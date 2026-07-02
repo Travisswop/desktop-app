@@ -23,6 +23,7 @@ import {
   type HyperliquidAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
 import {
+  buildPerpsApprovalBoundaryKey,
   buildPerpsApprovalBoundaryBanner,
   canCompletePerpsAgentHandoff,
   isPerpsTicketInsideApprovedBoundary,
@@ -268,13 +269,7 @@ export function TradingForm({
       return;
     }
 
-    const key = [
-      agentOrderPrefill.proposalId,
-      agentOrderPrefill.proposalNonce,
-      agentOrderPrefill.coin,
-    ]
-      .filter(Boolean)
-      .join(':');
+    const key = buildPerpsApprovalBoundaryKey(agentOrderPrefill);
 
     const usdSize =
       agentOrderPrefill.sizeUsd ||
@@ -354,23 +349,8 @@ export function TradingForm({
     return (sizeUsdNum * 0.0007).toFixed(2);
   }, [sizeUsdNum]);
   const approvalBoundaryKey = useMemo(
-    () =>
-      [
-        agentOrderPrefill?.proposalId,
-        agentOrderPrefill?.proposalNonce,
-        agentOrderPrefill?.coin,
-        agentOrderPrefill?.assetIndex,
-        agentOrderPrefill?.dex,
-      ]
-        .filter(Boolean)
-        .join(':'),
-    [
-      agentOrderPrefill?.assetIndex,
-      agentOrderPrefill?.coin,
-      agentOrderPrefill?.dex,
-      agentOrderPrefill?.proposalId,
-      agentOrderPrefill?.proposalNonce,
-    ],
+    () => buildPerpsApprovalBoundaryKey(agentOrderPrefill),
+    [agentOrderPrefill],
   );
   const [approvalPathInvalidated, setApprovalPathInvalidated] = useState(false);
   const approvalBoundarySizeCoins = useMemo(

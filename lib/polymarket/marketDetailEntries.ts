@@ -10,6 +10,14 @@ type MarketShares = {
   noShares?: number;
 };
 
+type LegacyPredictionUrlPrefill = {
+  outcome?: 'yes' | 'no';
+  amount?: string;
+  side?: 'BUY' | 'SELL';
+  orderType?: 'market' | 'limit';
+  limitPrice?: string;
+};
+
 function formatInputAmount(value: number) {
   if (!Number.isFinite(value) || value <= 0) return undefined;
   return value.toFixed(6).replace(/\.?0+$/, '');
@@ -91,5 +99,23 @@ export function buildApprovedMarketDetailEntry(
     initialOrderType: prefill.orderType,
     initialLimitPrice: prefill.limitPrice,
     agentOrderPrefill: prefill,
+  };
+}
+
+export function resolvePredictionInitialTicketState(
+  entry: MarketDetailEntry,
+  legacyUrlPrefill?: LegacyPredictionUrlPrefill,
+) {
+  // Legacy approved URLs carried ticket fields in the query string. Once the
+  // detail page is rebuilding from store or market recovery, ignore that URL
+  // state so a stale bookmark cannot silently recreate an old Goldman ticket.
+  void legacyUrlPrefill;
+
+  return {
+    initialOutcome: entry.initialOutcome,
+    initialAmount: entry.initialAmount,
+    initialSide: entry.initialSide,
+    initialOrderType: entry.initialOrderType,
+    initialLimitPrice: entry.initialLimitPrice,
   };
 }
