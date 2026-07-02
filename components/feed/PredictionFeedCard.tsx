@@ -19,7 +19,7 @@ import {
   useMarketDetailStore,
 } from '@/zustandStore/marketDetailStore';
 import { apiFetch } from '@/lib/api/apiFetch';
-import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import { buildPredictionVerifiedScoreProxyPath } from '@/lib/feed/predictionVerifiedScore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1371,9 +1371,7 @@ function useVerifiedFinalScorePersistence({
     const persist = async () => {
       try {
         const response = await apiFetch(
-          buildSwopApiUrl(`/api/v2/feed/prediction/${encodeURIComponent(
-            feedPostId,
-          )}/verified-score`),
+          buildPredictionVerifiedScoreProxyPath(feedPostId),
           {
             method: 'PATCH',
             headers: {
