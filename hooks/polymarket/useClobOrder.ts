@@ -35,9 +35,26 @@ const CLOB_ERROR_MESSAGES: Record<string, string> = {
   MARKET_NOT_READY: "This market is not yet accepting orders.",
 };
 
+function isMarketOrderLiquidityError(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('no match') ||
+    normalized.includes('not be fully filled') ||
+    normalized.includes('fok_order_not_filled') ||
+    normalized.includes("reading 'price'") ||
+    normalized.includes('reading "price"') ||
+    normalized.includes('cannot read properties of undefined')
+  );
+}
+
 function extractClobError(err: unknown): Error {
   if (err instanceof Error) {
     const msg = err.message;
+    if (isMarketOrderLiquidityError(msg)) {
+      return new Error(
+        'Not enough live liquidity to fill this market order. Try a smaller amount or use a limit order.',
+      );
+    }
     for (const [code, human] of Object.entries(CLOB_ERROR_MESSAGES)) {
       if (msg.includes(code)) return new Error(human);
     }

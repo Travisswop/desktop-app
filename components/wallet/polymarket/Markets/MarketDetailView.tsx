@@ -302,7 +302,11 @@ function getFriendlyOrderError(
   if (
     msg.includes('not be fully filled') ||
     msg.includes('fok_order_not_filled') ||
-    msg.includes('not enough liquidity')
+    msg.includes('not enough liquidity') ||
+    msg.includes('no match') ||
+    msg.includes("reading 'price'") ||
+    msg.includes('reading "price"') ||
+    msg.includes('cannot read properties of undefined')
   ) {
     return {
       title: "Couldn't fill instantly",
