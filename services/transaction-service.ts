@@ -22,6 +22,7 @@ import { SendFlowState, Network } from '@/types/wallet-types';
 import { Transaction } from '@/types/transaction';
 import erc721Abi from '@/utils/erc721abi';
 import erc1155Abi from '@/utils/erc1155abi';
+import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
 import logger from '../utils/logger';
 
 export const USDC_ADDRESS =
@@ -638,12 +639,13 @@ export class TransactionService {
     }
 
     const provider = await evmWallet.getEthereumProvider();
+    const transactionAmount = calculateTransactionAmount(sendFlow);
 
     if (!sendFlow.token?.address) {
       // Native token transfer (ETH/MATIC)
       const tx = {
         to: sendFlow.recipient?.address,
-        value: ethers.parseEther(sendFlow.amount),
+        value: ethers.parseEther(transactionAmount),
       };
 
       // Add chainId parameter explicitly for Sepolia
@@ -700,7 +702,7 @@ export class TransactionService {
       const decimals =
         sendFlow.token.decimals || (await contract.decimals());
       const amountInWei = ethers.parseUnits(
-        sendFlow.amount,
+        transactionAmount,
         decimals,
       );
 

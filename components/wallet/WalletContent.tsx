@@ -1798,6 +1798,7 @@ const WalletContentInner = () => {
           // EVM token transfer via Privy with gas sponsorship
           const chainId =
             CHAIN_ID[sendFlow.network as keyof typeof CHAIN_ID];
+          const transactionAmount = calculateTransactionAmount(sendFlow);
 
           try {
             if (!sendFlow.token?.address) {
@@ -1807,7 +1808,7 @@ const WalletContentInner = () => {
                   sendEVMTransaction(
                     {
                       to: sendFlow.recipient?.address as `0x${string}`,
-                      value: ethers.parseEther(sendFlow.amount),
+                      value: ethers.parseEther(transactionAmount),
                       chainId,
                     },
                     { sponsor },
@@ -1821,7 +1822,7 @@ const WalletContentInner = () => {
                 'function transfer(address to, uint256 amount) returns (bool)',
               ]);
               const amountInWei = ethers.parseUnits(
-                sendFlow.amount,
+                transactionAmount,
                 sendFlow.token.decimals,
               );
               const tokenData = erc20Interface.encodeFunctionData(
