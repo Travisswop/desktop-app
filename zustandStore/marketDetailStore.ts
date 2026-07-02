@@ -13,6 +13,7 @@
 
 import { create } from 'zustand';
 import type { PolymarketMarket } from '@/hooks/polymarket';
+import type { ApprovedActionBoundary } from '@/lib/chat/agentActionHandoff';
 import type { SportsGameGroup } from '@/lib/polymarket/sports-grouping';
 
 export type MarketDetailEntry = {
@@ -23,6 +24,7 @@ export type MarketDetailEntry = {
   initialSide?: 'BUY' | 'SELL';
   initialOrderType?: 'market' | 'limit';
   initialLimitPrice?: string;
+  approvalBoundary?: ApprovedActionBoundary | null;
   outcomeLabels?: [string, string];
   yesShares?: number;
   noShares?: number;

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
+import type { ApprovedActionBoundary } from '@/lib/chat/agentActionHandoff';
+import { ApprovedActionBoundaryNotice } from '@/components/wallet/shared/ApprovedActionBoundaryNotice';
 import { MarketIcon } from './MarketIcon';
 
 export interface OrderConfirmDetails {
@@ -38,6 +40,7 @@ export interface OrderConfirmDetails {
 interface OrderConfirmModalProps {
   isOpen: boolean;
   details: OrderConfirmDetails | null;
+  approvalBoundary?: ApprovedActionBoundary | null;
   isSubmitting: boolean;
   /** Triggered when the user explicitly confirms the order. */
   onConfirm: () => Promise<void>;
@@ -55,6 +58,7 @@ interface OrderConfirmModalProps {
 export function OrderConfirmModal({
   isOpen,
   details,
+  approvalBoundary,
   isSubmitting,
   onConfirm,
   onClose,
@@ -201,6 +205,14 @@ export function OrderConfirmModal({
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="px-6 pt-3">
+          <ApprovedActionBoundaryNotice
+            boundary={approvalBoundary}
+            intro="Goldman approved the original trade with these caps and controls. If you changed the ticket, make sure it still matches the approved plan before you submit."
+            accent="blue"
+          />
         </div>
 
         {/* Risk acknowledgement */}
