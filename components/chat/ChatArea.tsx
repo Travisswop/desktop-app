@@ -189,6 +189,7 @@ import {
 } from '@/lib/chat/groupAgentPayloads';
 import { StrategyApprovalModal } from '@/components/chat/goldman/StrategyApprovalModal';
 import { GoldmanPerformanceSection } from '@/components/chat/goldman/GoldmanPerformanceSection';
+import { AUTONOMY_GATE_EXPLAINER } from '@/components/chat/goldman/goldmanAutonomy';
 import { GoldmanActivityFeed } from '@/components/chat/goldman/GoldmanActivityFeed';
 import { GoldmanBrainControls } from '@/components/chat/goldman/GoldmanBrainControls';
 import type {
@@ -9208,7 +9209,10 @@ function GoldmanAccessStation({
         </div>
       </ConsoleCard>
 
-      <GoldmanPerformanceSection strategies={strategyVault?.strategies} />
+      <GoldmanPerformanceSection
+        strategies={strategyVault?.strategies}
+        access={access}
+      />
 
       <ConsoleCard padClass="px-4 py-3">
         <div className="flex items-start justify-between gap-3">
@@ -9237,6 +9241,9 @@ function GoldmanAccessStation({
       </ConsoleCard>
 
       <SectionLabel>access controls</SectionLabel>
+      <p className="dm-mono mb-1.5 px-1 text-[10px] font-medium leading-snug text-[#5a5e69]">
+        {AUTONOMY_GATE_EXPLAINER}
+      </p>
       <ConsoleCard padClass="p-0">
         {GOLDMAN_ACCESS_ROWS.map((row) => {
           const control = access[row.key];

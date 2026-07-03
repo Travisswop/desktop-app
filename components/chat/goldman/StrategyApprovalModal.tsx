@@ -16,6 +16,12 @@ import {
 } from '@/lib/chat/ticketStyles';
 import { formatCompactUsd } from '@/lib/chat/ticketFormat';
 import type { GoldmanTakeProfitRung } from './goldmanTypes';
+import {
+  AUTONOMY_GATE_EXPLAINER,
+  deriveVenueAutonomy,
+  venueAutonomyClass,
+  venueAutonomyLabel,
+} from './goldmanAutonomy';
 
 const KNOWN_LIMIT_KEYS = [
   'maxOrderUsd',
@@ -132,57 +138,6 @@ function buildRows(
     }));
 }
 
-// Maps a strategy venue name onto the Access Station access key that gates it.
-function accessKeyForVenue(venue: string): string {
-  const normalized = venue.trim().toLowerCase();
-  if (normalized.includes('polymarket') || normalized.includes('prediction')) {
-    return 'predictions';
-  }
-  if (normalized.includes('hyperliquid') || normalized.includes('perp')) {
-    return 'perps';
-  }
-  if (normalized.includes('aave')) return 'aave';
-  if (
-    normalized.includes('lifi') ||
-    normalized.includes('jupiter') ||
-    normalized.includes('swap')
-  ) {
-    return 'swaps';
-  }
-  return normalized;
-}
-
-type VenueAutonomy = {
-  venue: string;
-  state: 'autonomous' | 'asks_first' | 'off' | 'unknown';
-};
-
-function venueAutonomyLabel(state: VenueAutonomy['state']) {
-  switch (state) {
-    case 'autonomous':
-      return 'trades autonomously';
-    case 'asks_first':
-      return 'asks first';
-    case 'off':
-      return 'access off';
-    default:
-      return 'not configured';
-  }
-}
-
-function venueAutonomyClass(state: VenueAutonomy['state']) {
-  switch (state) {
-    case 'autonomous':
-      return 'border-[#3fe08f]/25 bg-[#3fe08f]/10 text-[#9af7c4]';
-    case 'asks_first':
-      return 'border-[#f4c95d]/30 bg-[#f4c95d]/10 text-[#f4c95d]';
-    case 'off':
-      return 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]';
-    default:
-      return 'border-white/[0.08] bg-black/25 text-[#9396a0]';
-  }
-}
-
 export function StrategyApprovalModal({
   proposal,
   accessStation,
@@ -242,24 +197,10 @@ export function StrategyApprovalModal({
     return buildRows(merged);
   }, [limits, params]);
 
-  const venueAutonomy = useMemo<VenueAutonomy[]>(() => {
-    const access = accessStation?.access;
-    return venues.map((venue) => {
-      const control = access
-        ? access[accessKeyForVenue(venue) as keyof typeof access]
-        : undefined;
-      if (!control || typeof control.enabled !== 'boolean') {
-        return { venue, state: 'unknown' as const };
-      }
-      if (!control.enabled) return { venue, state: 'off' as const };
-      return {
-        venue,
-        state: control.approvalRequired
-          ? ('asks_first' as const)
-          : ('autonomous' as const),
-      };
-    });
-  }, [accessStation?.access, venues]);
+  const venueAutonomy = useMemo(
+    () => deriveVenueAutonomy(venues, accessStation?.access),
+    [accessStation?.access, venues]
+  );
 
   const brainReasoning = asText(
     brain.reasoning,
@@ -362,7 +303,9 @@ export function StrategyApprovalModal({
                 ))}
               </div>
               <p className="mt-2 text-[10.5px] leading-snug text-[#737783]">
-                Change these anytime from the Access Station toggles.
+                Approving activates the strategy, but it stays in proposal mode —
+                {' '}{AUTONOMY_GATE_EXPLAINER} Change these anytime from the Access
+                Station toggles.
               </p>
             </div>
           )}

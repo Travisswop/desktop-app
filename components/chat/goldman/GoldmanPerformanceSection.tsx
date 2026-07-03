@@ -20,6 +20,8 @@ import {
   toFiniteNumber,
 } from '@/lib/chat/ticketFormat';
 import { GoldmanConsoleCard, GoldmanSectionLabel } from './consoleUi';
+import { StrategyAutonomyChip } from './StrategyAutonomyChip';
+import type { AccessLookup } from './goldmanAutonomy';
 import type {
   GoldmanDailyPnlDay,
   GoldmanTradingStrategy,
@@ -95,8 +97,10 @@ function DailyPnlTooltip({
 
 function StrategyPerformanceCard({
   strategy,
+  access,
 }: {
   strategy: GoldmanTradingStrategy;
+  access: AccessLookup | undefined;
 }) {
   const performance = strategy.performance;
   const dailyPoints = useMemo(
@@ -125,7 +129,10 @@ function StrategyPerformanceCard({
           <div className="truncate text-[12.5px] font-semibold text-[#eceef2]">
             {strategy.title || 'Strategy'}
           </div>
-          <div className="dm-mono mt-0.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#5a5e69]">
+          <div className="mt-1.5">
+            <StrategyAutonomyChip strategy={strategy} access={access} />
+          </div>
+          <div className="dm-mono mt-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#5a5e69]">
             realized pnl
           </div>
         </div>
@@ -213,8 +220,10 @@ function StrategyPerformanceCard({
 
 export function GoldmanPerformanceSection({
   strategies,
+  access,
 }: {
   strategies?: GoldmanTradingStrategy[] | null;
+  access?: AccessLookup;
 }) {
   const strategiesWithPerformance = useMemo(
     () =>
@@ -233,6 +242,7 @@ export function GoldmanPerformanceSection({
         <StrategyPerformanceCard
           key={strategy.id || strategy._id || `strategy-${index}`}
           strategy={strategy}
+          access={access}
         />
       ))}
     </div>
