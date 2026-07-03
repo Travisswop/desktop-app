@@ -881,13 +881,29 @@ export function useClobOrder(
             : undefined;
         const availableSellBalance = activeOutcomeBalance ?? 0;
 
+        // The UI shows holdings rounded to 2 decimals, so a "sell max"
+        // request can sit a fraction above the true on-chain balance (or the
+        // balance may have shifted since render). Clamp within one display
+        // cent — the CLOB only accepts 2-decimal sizes anyway — and reject
+        // only genuine overdrafts.
+        let orderSize = params.size;
         if (
           params.side === 'SELL' &&
-          availableSellBalance + 0.000001 < params.size
+          availableSellBalance + 0.000001 < orderSize
         ) {
-          throw new Error(
-            `Insufficient shares to sell. You have ${availableSellBalance.toFixed(6)} shares in the selected wallet, but tried to sell ${params.size.toFixed(6)}.`,
-          );
+          const clamped = Math.floor(availableSellBalance * 100) / 100;
+          if (orderSize - availableSellBalance <= 0.01 + 0.000001 && clamped > 0) {
+            logOrderDebug('clamping sell size to on-chain balance', {
+              requestedSize: params.size,
+              availableSellBalance,
+              clampedSize: clamped,
+            });
+            orderSize = clamped;
+          } else {
+            throw new Error(
+              `Insufficient shares to sell. You have ${availableSellBalance.toFixed(6)} shares in the selected wallet, but tried to sell ${params.size.toFixed(6)}.`,
+            );
+          }
         }
 
         // Step 1: Prepare order (backend builds EIP-712 typed data)
@@ -921,7 +937,7 @@ export function useClobOrder(
           conditionId: params.conditionId,
           side: params.side,
           orderType,
-          amount: params.size,
+          amount: orderSize,
           price: protectedOrderPrice,
           acceptedPrice: marketOrderProtection?.acceptedPrice,
           expiration: params.expiration,
