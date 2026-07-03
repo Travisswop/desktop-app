@@ -306,6 +306,9 @@ export default function UserPositions() {
         side: 'SELL',
         negRisk: position.negativeRisk,
         isMarketOrder: true,
+        // Fund the sell from the wallet that holds this position — merged
+        // portfolios can include legacy-Safe positions.
+        proxyWallet: position.proxyWallet,
       });
       setPendingVerification((prev) =>
         new Map(prev).set(position.asset, position.size),

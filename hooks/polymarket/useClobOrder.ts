@@ -9,6 +9,7 @@ import { useTrading } from '@/providers/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
 import { getDepositWalletAddress } from '@/lib/polymarket/backend-session';
+import { resolveRedeemWallet } from '@/lib/polymarket/redeem-wallet';
 import { safeLocalStorage } from '@/lib/browserStorage';
 import {
   CTF_CONTRACT_ADDRESS,
@@ -80,6 +81,13 @@ export type OrderParams = {
    * fallback flow.
    */
   showWalletUIs?: boolean;
+  /**
+   * For sells of an existing position: the proxy wallet that holds the shares
+   * (position.proxyWallet). Portfolios merge positions from both proxy wallets,
+   * so the holder can be the legacy Safe rather than the session's trading
+   * wallet. Defaults to the session wallet when omitted.
+   */
+  proxyWallet?: string;
 };
 
 export type OrderSubmissionStage =
@@ -846,10 +854,27 @@ export function useClobOrder(
         const canonicalDepositWallet = walletType === 'deposit'
           ? (await getDepositWalletAddress(eoaAddress, accessToken)).depositWalletAddress
           : undefined;
+        // Sells of an existing position must be funded by the wallet that
+        // HOLDS it — the portfolio merges positions from both proxy wallets
+        // (deposit wallet + legacy Safe), so it can differ from the session's.
+        // CLOB creds are EOA-owned, so the same creds cover both. Same
+        // resolution redeems already use.
+        const positionRouting = params.proxyWallet
+          ? resolveRedeemWallet(
+              { proxyWallet: params.proxyWallet },
+              {
+                safeAddress,
+                depositWalletAddress: canonicalDepositWallet,
+                walletType,
+              },
+            )
+          : null;
+        const orderWalletType = positionRouting?.walletType ?? walletType;
         const orderWalletAddress =
-          walletType === 'deposit'
+          positionRouting?.positionWallet ??
+          (walletType === 'deposit'
             ? canonicalDepositWallet
-            : safeAddress;
+            : safeAddress);
         const activeOutcomeBalance =
           params.side === 'SELL'
             ? await readOutcomeTokenBalance(orderWalletAddress, params.tokenId)
@@ -902,10 +927,10 @@ export function useClobOrder(
           expiration: params.expiration,
           negRisk: params.negRisk,
           safeAddress: orderWalletAddress,
-          depositWalletAddress: walletType === 'deposit'
+          depositWalletAddress: orderWalletType === 'deposit'
             ? orderWalletAddress
             : undefined,
-          walletType,
+          walletType: orderWalletType,
           eoaAddress,
           apiCreds: tradingSession.apiCredentials,
         };
