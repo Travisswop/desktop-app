@@ -1591,18 +1591,13 @@ const WalletContentInner = () => {
   // Transaction execution
   const executeTransaction = useCallback(async () => {
     try {
-      const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
-      if (!rpcUrl) {
-        throw new Error(
-          'Solana RPC URL not configured. Please check environment settings.',
-        );
-      }
-
-      const connection = new Connection(rpcUrl, 'confirmed');
-
       const isSolanaTransaction =
         sendFlow.token?.chain?.toUpperCase() === 'SOLANA' ||
         sendFlow.network.toUpperCase() === 'SOLANA';
+      // Only Solana sends need an RPC connection here (to build and preflight
+      // the transaction). EVM sends go through Privy directly and must not
+      // fail on Solana RPC configuration.
+      let connection: Connection | null = null;
       let privyAccessToken: string | null = null;
 
       // The Swop session (backend JWT) outlives the Privy session. Privy can
@@ -1615,6 +1610,13 @@ const WalletContentInner = () => {
       }
 
       if (isSolanaTransaction) {
+        const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+        if (!rpcUrl) {
+          throw new Error(
+            'Solana RPC URL not configured. Please check environment settings.',
+          );
+        }
+        connection = new Connection(rpcUrl, 'confirmed');
 
         try {
           privyAccessToken = await getAccessToken();
@@ -1709,7 +1711,8 @@ const WalletContentInner = () => {
             await TransactionService.buildSolanaNFTTransfer(
               sendSolanaWallet,
               sendFlow,
-              connection,
+              // Non-null: isSolanaTransaction guarantees the connection above.
+              connection!,
               { createRecipientTokenAccount: false },
             );
 
@@ -1826,7 +1829,8 @@ const WalletContentInner = () => {
             await TransactionService.buildSolanaTokenTransfer(
               sendSolanaWallet,
               sendFlow,
-              connection,
+              // Non-null: isSolanaTransaction guarantees the connection above.
+              connection!,
               { createRecipientTokenAccount: false },
             );
 

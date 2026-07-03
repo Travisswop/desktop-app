@@ -9,16 +9,20 @@ const PUBLIC_RPCS: Record<string, string> = {
   ETHEREUM: 'https://rpc.ankr.com/eth',
   POLYGON: 'https://rpc.ankr.com/polygon',
   BASE: 'https://mainnet.base.org',
+  ARBITRUM: 'https://arb1.arbitrum.io/rpc',
   SEPOLIA: 'https://rpc.sepolia.org',
 };
 
 export async function calculateEVMGasFee(chain: string): Promise<string> {
+  // Token/network chain values arrive in mixed casing ("BASE", "base", …);
+  // CHAINS and PUBLIC_RPCS are keyed uppercase.
+  const chainKey = String(chain || '').toUpperCase();
   try {
-    const chainConfig = CHAINS[chain as keyof typeof CHAINS];
-    const rpcUrl = chainConfig?.rpcUrl || PUBLIC_RPCS[chain];
+    const chainConfig = CHAINS[chainKey as keyof typeof CHAINS];
+    const rpcUrl = chainConfig?.rpcUrl || PUBLIC_RPCS[chainKey];
 
     if (!rpcUrl) {
-      return chain === 'ETHEREUM' ? '0.0005' : '0.0001';
+      return chainKey === 'ETHEREUM' ? '0.0005' : '0.0001';
     }
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -34,6 +38,6 @@ export async function calculateEVMGasFee(chain: string): Promise<string> {
     return ethers.formatEther(pricePerGas * GAS_LIMIT_TRANSFER);
   } catch (error) {
     console.error('Error calculating gas fee:', error);
-    return chain === 'ETHEREUM' ? '0.0005' : '0.0001';
+    return chainKey === 'ETHEREUM' ? '0.0005' : '0.0001';
   }
 }
