@@ -191,6 +191,7 @@ import { StrategyApprovalModal } from '@/components/chat/goldman/StrategyApprova
 import { GoldmanPerformanceSection } from '@/components/chat/goldman/GoldmanPerformanceSection';
 import { AUTONOMY_GATE_EXPLAINER } from '@/components/chat/goldman/goldmanAutonomy';
 import { GoldmanActivityFeed } from '@/components/chat/goldman/GoldmanActivityFeed';
+import { GoldmanAutonomyControl } from '@/components/chat/goldman/GoldmanAutonomyControl';
 import { GoldmanBrainControls } from '@/components/chat/goldman/GoldmanBrainControls';
 import type {
   GoldmanActivityEntry,
@@ -8627,6 +8628,26 @@ function GoldmanAccessStation({
     [persistAccessStation]
   );
 
+  // Merge a server-returned config.accessStation into local station state so
+  // the per-strategy autonomy chips flip immediately after the one-shot
+  // autonomy switch. The backend already persisted it, so we do NOT re-POST.
+  const applyAccessStationFromServer = useCallback(
+    (station: unknown) => {
+      setStationState(
+        normalizeGoldmanAccessStationState(
+          station as GoldmanAccessStationInput | null
+        )
+      );
+    },
+    []
+  );
+
+  // Full autonomy == at least one write venue trades without per-action
+  // approval. Mirrors deriveStrategyAutonomy's gate on the console side.
+  const isFullAutonomy = GOLDMAN_WRITE_ACCESS_KEYS.some(
+    (key) => access[key].enabled && !access[key].approvalRequired
+  );
+
   const handleCopyFundingAddress = useCallback(async () => {
     if (!fundingAddress?.address) {
       toast.error('Activate the Goldman vault before copying its address.');
@@ -9317,6 +9338,13 @@ function GoldmanAccessStation({
           );
         })}
       </ConsoleCard>
+
+      <GoldmanAutonomyControl
+        groupId={groupId}
+        accessToken={accessToken}
+        isFullAutonomy={isFullAutonomy}
+        onApplyAccessStation={applyAccessStationFromServer}
+      />
 
       <SectionLabel>risk limits</SectionLabel>
       <ConsoleCard padClass="p-3">

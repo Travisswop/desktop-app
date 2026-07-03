@@ -150,6 +150,28 @@ export type GoldmanBrainState = {
   usage?: GoldmanBrainUsage | null;
 };
 
+export type GoldmanAutonomyLevel = 'full' | 'proposal';
+
+// Result of the one-shot autonomy switch. `agent` carries the updated
+// config.accessStation so callers can merge it into local access state and
+// flip the per-strategy autonomy chips immediately.
+export type GoldmanAutonomyResult = {
+  groupId?: string | null;
+  agent?: {
+    agentId?: string | null;
+    config?: {
+      accessStation?: unknown;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
+  autonomy?: {
+    level?: GoldmanAutonomyLevel | string | null;
+    openedVenues?: string[] | null;
+    liveExecutionEnabled?: boolean | null;
+  } | null;
+};
+
 export type GoldmanActivityEntry = {
   id: string;
   ts?: string | null;

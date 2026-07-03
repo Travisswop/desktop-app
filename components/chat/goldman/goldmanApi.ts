@@ -9,6 +9,8 @@ import { apiFetch } from '@/lib/api/apiFetch';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import type {
   GoldmanActivityEntry,
+  GoldmanAutonomyLevel,
+  GoldmanAutonomyResult,
   GoldmanBrainState,
 } from './goldmanTypes';
 
@@ -115,6 +117,49 @@ export async function resetGoldmanBrainMemory({
         `Goldman memory reset failed (${response.status})`
     );
   }
+}
+
+export type GoldmanAutonomyUpdate = {
+  supported: boolean;
+  result: GoldmanAutonomyResult | null;
+};
+
+// One-shot full-autonomy switch. `level: 'full'` opens the venue gates so
+// strategies can trade without per-action approval; `level: 'proposal'` puts
+// them back to asking first. A 404 means the backend has not shipped this
+// endpoint yet — callers hide the control.
+export async function updateGoldmanAutonomy({
+  groupId,
+  accessToken,
+  level,
+}: {
+  groupId: string;
+  accessToken: string;
+  level: GoldmanAutonomyLevel;
+}): Promise<GoldmanAutonomyUpdate> {
+  const response = await apiFetch(goldmanAgentUrl(groupId, '/autonomy'), {
+    method: 'POST',
+    headers: {
+      ...authHeaders(accessToken),
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ level }),
+  });
+
+  if (response.status === 404) {
+    return { supported: false, result: null };
+  }
+
+  const body = await parseBody(response);
+  if (!response.ok) {
+    throw new Error(
+      (body as { message?: string } | null)?.message ||
+        `Goldman autonomy update failed (${response.status})`
+    );
+  }
+
+  const data = (body as { data?: GoldmanAutonomyResult } | null)?.data;
+  return { supported: true, result: data ?? null };
 }
 
 export type GoldmanActivityPage = {
