@@ -2510,13 +2510,19 @@ function OrderTicket(p: OrderTicketProps) {
       ? Math.round((ask - limitDollars) * 100)
       : 0;
 
+  // Floor (never round up) so a prefilled sell amount can't exceed the
+  // on-chain balance — the pre-flight check in useClobOrder rejects any
+  // order even fractionally above real holdings.
+  const floorShares = (shares: number) =>
+    (Math.floor(shares * 100) / 100).toFixed(2);
+
   const onPickQuickAmount = (val: number) => {
     if (p.side === 'BUY') {
       p.onInputChange(val.toFixed(2));
       return;
     }
     // SELL — quick chips are percentages of holdings
-    p.onInputChange(((p.activeShareBalance * val) / 100).toFixed(2));
+    p.onInputChange(floorShares((p.activeShareBalance * val) / 100));
   };
 
   const onMaxAmount = () => {
@@ -2526,7 +2532,7 @@ function OrderTicket(p: OrderTicketProps) {
       return;
     }
     if (p.activeShareBalance > 0) {
-      p.onInputChange(p.activeShareBalance.toFixed(2));
+      p.onInputChange(floorShares(p.activeShareBalance));
     }
   };
 
@@ -2991,7 +2997,7 @@ function OrderTicket(p: OrderTicketProps) {
           <FieldHint>
             {p.side === 'BUY'
               ? `Balance · ${p.balance.toFixed(2)} pUSD`
-              : `Holdings · ${p.activeShareBalance.toFixed(2)} shares`}
+              : `Holdings · ${floorShares(p.activeShareBalance)} shares`}
           </FieldHint>
         </div>
         <div
