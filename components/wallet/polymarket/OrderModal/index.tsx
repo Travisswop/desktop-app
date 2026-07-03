@@ -52,7 +52,8 @@ type OrderPlacementModalProps = {
   yesTokenId?: string;
   noTokenId?: string;
   balance?: number;
-  displayBalance?: number;
+  /** Legacy USDC.e pending conversion to pUSD — informational only. */
+  legacyBalance?: number;
   balanceHint?: string;
   yesShares?: number;
   noShares?: number;
@@ -79,7 +80,7 @@ export default function OrderPlacementModal({
   yesTokenId = tokenId,
   noTokenId,
   balance = 0,
-  displayBalance = balance,
+  legacyBalance = 0,
   balanceHint,
   yesShares = 0,
   noShares = 0,
@@ -225,7 +226,7 @@ export default function OrderPlacementModal({
 
   const LIMIT_MIN_SHARES = orderMinSize;
   const hasPendingCollateral =
-    side === 'BUY' && displayBalance - balance > EPSILON;
+    side === 'BUY' && legacyBalance > EPSILON;
 
   const handlePlaceOrder = () => {
     if (side === 'BUY') {
@@ -539,7 +540,6 @@ export default function OrderPlacementModal({
                   setLocalError(null);
                 }}
                 balance={balance}
-                displayBalance={displayBalance}
                 balanceHint={balanceHint}
                 onQuickAmount={handleQuickAmount}
                 onMaxAmount={() => {

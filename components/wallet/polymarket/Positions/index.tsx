@@ -37,7 +37,7 @@ import { createPollingInterval } from '@/lib/polymarket/polling';
 import {
   getRedeemablePayout,
   hasRedeemablePayout,
-  isVisiblePortfolioPosition,
+  isOpenOrClaimablePosition,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
 import { resolveRedeemWallet } from '@/lib/polymarket/redeem-wallet';
@@ -140,9 +140,9 @@ export default function UserPositions() {
 
   const {
     orderableBalance,
-    displayBalance,
+    legacyUsdcBalance,
     legacyBalanceHint,
-    totalUsdcBalance,
+    usdcBalance,
   } = usePolymarketCollateralBalance(
     portfolioAddresses.length ? portfolioAddresses : safeAddress,
   );
@@ -411,7 +411,7 @@ export default function UserPositions() {
   const activePositions = useMemo(() => {
     if (!positions) return [];
     return positions.filter((p) =>
-      isVisiblePortfolioPosition(p, DUST_THRESHOLD),
+      isOpenOrClaimablePosition(p, DUST_THRESHOLD),
     );
   }, [positions]);
 
@@ -435,7 +435,7 @@ export default function UserPositions() {
       0,
     );
     const lifetimeEarned =
-      totalUsdcBalance + positionsValue + withdrawn - deposited;
+      usdcBalance + positionsValue + withdrawn - deposited;
     if (!activePositions.length)
       return { portfolioPct: 0, lifetimeEarned, inOrdersValue: 0 };
 
@@ -459,7 +459,7 @@ export default function UserPositions() {
       }, 0);
 
     return { portfolioPct, lifetimeEarned, inOrdersValue };
-  }, [activePositions, activeOrders, netDeposits, totalUsdcBalance]);
+  }, [activePositions, activeOrders, netDeposits, usdcBalance]);
 
   const hasOutcomes = useMemo(() => {
     // Also show the Outcomes section when there are no active positions but the
@@ -579,7 +579,7 @@ export default function UserPositions() {
           </div>
           <p className="text-xl font-bold text-gray-900">
             $
-            {totalUsdcBalance.toLocaleString('en-US', {
+            {usdcBalance.toLocaleString('en-US', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -709,7 +709,7 @@ export default function UserPositions() {
               tokenId={buyMorePosition.asset}
               negRisk={buyMorePosition.negativeRisk}
               balance={orderableBalance}
-              displayBalance={displayBalance}
+              legacyBalance={legacyUsdcBalance}
               balanceHint={legacyBalanceHint}
             />
           );

@@ -13,7 +13,6 @@ interface AmountInputProps {
   amount: string;
   onAmountChange: (value: string) => void;
   balance: number;
-  displayBalance?: number;
   balanceHint?: string;
   onQuickAmount: (amount: number) => void;
   onMaxAmount: () => void;
@@ -32,7 +31,6 @@ export default function AmountInput({
   amount,
   onAmountChange,
   balance,
-  displayBalance = balance,
   balanceHint,
   onQuickAmount,
   onMaxAmount,
@@ -130,7 +128,7 @@ export default function AmountInput({
             <div>
               <span className="text-sm text-gray-600">Shares</span>
               <p className="text-xs text-gray-500">
-                Balance ${displayBalance.toFixed(2)}
+                Balance ${balance.toFixed(2)} pUSD
                 {balanceHint ? ` · ${balanceHint}` : ''} · Max ~{maxShares}{' '}
                 shares
               </p>
@@ -191,7 +189,7 @@ export default function AmountInput({
             <div>
               <span className="text-sm text-gray-600">Amount</span>
               <p className="text-xs text-gray-500">
-                Balance ${displayBalance.toFixed(2)}
+                Balance ${balance.toFixed(2)} pUSD
                 {balanceHint ? ` · ${balanceHint}` : ''} · Min $
                 {minOrderAmount.toFixed(2)}
               </p>

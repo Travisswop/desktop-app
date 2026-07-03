@@ -60,7 +60,9 @@ import { safeLocalStorage } from '@/lib/browserStorage';
 import {
   getRedeemablePayout,
   hasRedeemablePayout,
-  isVisiblePortfolioPosition,
+  isOpenOrClaimablePosition,
+  isMarketUnresolvedRedeemError,
+  isStaleNonceRedeemError,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
 import {
@@ -209,7 +211,7 @@ export default function PredictionsPanel({
     data: activeOrders = [],
     isError: activeOrdersRefreshError,
   } = useActiveOrders(clobClient, safeAddress);
-  const { totalUsdcBalance } =
+  const { usdcBalance } =
     usePolymarketCollateralBalance(portfolioAddresses);
   const {
     data: netDeposits,
@@ -423,7 +425,7 @@ export default function PredictionsPanel({
         );
         return onchainSize == null ? p : { ...p, size: onchainSize };
       })
-      .filter((p) => isVisiblePortfolioPosition(p, DUST_THRESHOLD));
+      .filter((p) => isOpenOrClaimablePosition(p, DUST_THRESHOLD));
   }, [onchainPositionBalances, positionBalanceKey, positions]);
 
   const actionablePositions = useMemo(
@@ -443,7 +445,15 @@ export default function PredictionsPanel({
   const openPositionsPreview = useMemo(
     () =>
       [...activePositions]
-        .sort((a, b) => (b.currentValue ?? 0) - (a.currentValue ?? 0))
+        .sort(
+          (a, b) =>
+            (b.redeemable
+              ? getRedeemablePayout(b)
+              : (b.currentValue ?? 0)) -
+            (a.redeemable
+              ? getRedeemablePayout(a)
+              : (a.currentValue ?? 0)),
+        )
         .slice(0, OPEN_POSITIONS_PREVIEW_COUNT),
     [activePositions],
   );
@@ -502,7 +512,7 @@ export default function PredictionsPanel({
     // minus what you put in. Counts cash in your wallet, mark-to-market
     // value of open positions, and money you've already withdrawn.
     const totalPnl =
-      totalUsdcBalance + openPositionsValue + withdrawn - deposited;
+      usdcBalance + openPositionsValue + withdrawn - deposited;
 
     const portfolioPct =
       deposited > 0 ? (totalPnl / deposited) * 100 : 0;
@@ -511,9 +521,9 @@ export default function PredictionsPanel({
       inOrdersValue,
       totalPnl,
       portfolioPct,
-      portfolioValue: totalUsdcBalance + openPositionsValue,
+      portfolioValue: usdcBalance + openPositionsValue,
     };
-  }, [activePositions, activeOrders, netDeposits, totalUsdcBalance]);
+  }, [activePositions, activeOrders, netDeposits, usdcBalance]);
   const { data: liveGames = [], isLoading: isLoadingLiveGames } =
     useLiveSportsGames();
   const positionsRefreshFailedWithData =
@@ -1903,6 +1913,14 @@ function formatRedeemError(error: unknown) {
 
   if (isZeroPositionBalanceRedeemError(error)) {
     return 'This payout was already redeemed. Refreshing your bets.';
+  }
+
+  if (isMarketUnresolvedRedeemError(error)) {
+    return 'This market has not finished resolving on-chain yet. Your win is safe — try claiming again in a few minutes.';
+  }
+
+  if (isStaleNonceRedeemError(error)) {
+    return 'Your wallet was busy with another transaction. Try claiming again now.';
   }
 
   if (isSilentRedeemUnavailableError(error)) {

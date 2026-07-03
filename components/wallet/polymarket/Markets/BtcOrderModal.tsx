@@ -86,7 +86,8 @@ export interface BtcOrderModalProps {
   negRisk: boolean;
   orderMinSize?: number;
   balance: number;
-  displayBalance?: number;
+  /** Legacy USDC.e pending conversion to pUSD — informational only. */
+  legacyBalance?: number;
   balanceHint?: string;
   upShares?: number;
   downShares?: number;
@@ -107,7 +108,7 @@ export default function BtcOrderModal({
   negRisk,
   orderMinSize = MIN_ORDER_SIZE,
   balance,
-  displayBalance = balance,
+  legacyBalance = 0,
   balanceHint,
   upShares = 0,
   downShares = 0,
@@ -182,7 +183,7 @@ export default function BtcOrderModal({
       ? totalCost - balance > EPSILON
       : inputNum - activeShares > EPSILON;
   const hasPendingCollateral =
-    side === 'BUY' && displayBalance - balance > EPSILON;
+    side === 'BUY' && legacyBalance > EPSILON;
 
   // ── State reset ─────────────────────────────────────────────────────────
   // Called on every close path so the modal is always blank when reopened.
@@ -580,7 +581,6 @@ export default function BtcOrderModal({
                 amount={inputValue}
                 onAmountChange={(v) => { setInputValue(v); setLocalError(null); }}
                 balance={balance}
-                displayBalance={displayBalance}
                 balanceHint={balanceHint}
                 onQuickAmount={(a) => { setInputValue(String(a)); setLocalError(null); }}
                 onMaxAmount={handleMaxAmount}

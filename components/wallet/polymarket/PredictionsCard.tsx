@@ -243,7 +243,7 @@ export default function PredictionsCard({
     ? portfolioAddresses
     : safeAddress;
   const {
-    totalUsdcBalance,
+    usdcBalance,
     legacyUsdcBalance,
     isLoading: balanceLoading,
     isNormalizingCollateral,
@@ -269,7 +269,8 @@ export default function PredictionsCard({
     [activePositions],
   );
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
-  const portfolioValue = totalUsdcBalance + openPositionsValue;
+  // pUSD only — legacy USDC.e is surfaced separately below while it converts.
+  const portfolioValue = usdcBalance + openPositionsValue;
 
   const trend: 'up' | 'down' | 'flat' =
     totalPnl > 0.01 ? 'up' : totalPnl < -0.01 ? 'down' : 'flat';
@@ -349,7 +350,7 @@ export default function PredictionsCard({
             <div className="mt-1 text-[11px] font-medium text-gray-500">
               {isNormalizingCollateral
                 ? `Converting $${legacyUsdcBalance.toFixed(2)} USDC.e to pUSD`
-                : `Includes $${legacyUsdcBalance.toFixed(2)} USDC.e`}
+                : `$${legacyUsdcBalance.toFixed(2)} USDC.e converting to pUSD`}
             </div>
           )}
         </div>

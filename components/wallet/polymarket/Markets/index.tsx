@@ -117,7 +117,7 @@ export default function HighVolumeMarkets({
     : safeAddress;
   const {
     orderableBalance,
-    displayBalance,
+    legacyUsdcBalance,
     legacyBalanceHint,
   } = usePolymarketCollateralBalance(portfolioAddressInput);
   const { data: positions } = useUserPositions(portfolioAddressInput);
@@ -471,7 +471,7 @@ export default function HighVolumeMarkets({
       negRisk={btc5mMarket.market?.negRisk ?? false}
       orderMinSize={btc5mMarket.market?.orderMinSize ?? MIN_ORDER_SIZE}
       balance={orderableBalance}
-      displayBalance={displayBalance}
+      legacyBalance={legacyUsdcBalance}
       balanceHint={legacyBalanceHint}
       upShares={btcShares.upShares}
       downShares={btcShares.downShares}

@@ -72,14 +72,16 @@ export function usePolymarketCollateralBalance(
 
   const legacyBalanceHint = hasLegacyCollateral
     ? isNormalizingCollateral
-      ? `converting $${balances.legacyUsdcBalance.toFixed(2)} USDC.e`
-      : `includes $${balances.legacyUsdcBalance.toFixed(2)} USDC.e`
+      ? `converting $${balances.legacyUsdcBalance.toFixed(2)} USDC.e to pUSD`
+      : `$${balances.legacyUsdcBalance.toFixed(2)} USDC.e converting to pUSD`
     : undefined;
 
+  // Everything on predictions is denominated in pUSD. Legacy USDC.e is never
+  // summed into balances — it is only surfaced separately (legacyUsdcBalance /
+  // legacyBalanceHint) while auto-conversion or withdrawal drains it.
   return {
     ...balances,
     orderableBalance: balances.usdcBalance,
-    displayBalance: balances.totalUsdcBalance,
     hasLegacyCollateral,
     legacyBalanceHint,
     isNormalizingCollateral,

@@ -47,7 +47,7 @@ function MarketDetailPageInner() {
     : safeAddress;
   const {
     orderableBalance,
-    displayBalance,
+    legacyUsdcBalance,
     legacyBalanceHint,
     isNormalizingCollateral,
   } = usePolymarketCollateralBalance(portfolioAddressInput);
@@ -237,7 +237,7 @@ function MarketDetailPageInner() {
       onClose={handleBack}
       market={snapshot.market}
       balance={orderableBalance}
-      displayBalance={displayBalance}
+      legacyBalance={legacyUsdcBalance}
       balanceHint={legacyBalanceHint}
       isConvertingBalance={isNormalizingCollateral}
       yesShares={snapshot.yesShares}

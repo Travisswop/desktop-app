@@ -48,10 +48,42 @@ export function isVisiblePortfolioPosition(
   return !Number.isFinite(endMs) || endMs > Date.now();
 }
 
+export function isOpenOrClaimablePosition(
+  position: PolymarketPosition,
+  dustThreshold: number,
+) {
+  if (position.redeemable) {
+    return hasRedeemablePayout(position);
+  }
+
+  return isVisiblePortfolioPosition(position, dustThreshold);
+}
+
+function redeemErrorMessage(error: unknown) {
+  return (error instanceof Error ? error.message : String(error)).toLowerCase();
+}
+
+/**
+ * True only when the redeem failed because the position tokens are already
+ * gone (redeemed elsewhere) or the outcome pays nothing. These are the ONLY
+ * precheck failures that are safe to present as "already redeemed" — other
+ * PRECHECK_SKIPPED reasons (unresolved market, stale nonce) mean the payout
+ * is still owed and the user must retry.
+ */
 export function isZeroPositionBalanceRedeemError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = redeemErrorMessage(error);
   return (
-    message.includes('PRECHECK_SKIPPED') ||
-    message.toLowerCase().includes('zero position balance')
+    message.includes('zero position balance') ||
+    message.includes('outcome has no payout')
   );
+}
+
+/** The market's oracle has not finalized on-chain yet — payout still owed. */
+export function isMarketUnresolvedRedeemError(error: unknown) {
+  return redeemErrorMessage(error).includes('market is not resolved');
+}
+
+/** The Safe nonce moved between signing and submit — safe to retry. */
+export function isStaleNonceRedeemError(error: unknown) {
+  return redeemErrorMessage(error).includes('stale safe nonce');
 }

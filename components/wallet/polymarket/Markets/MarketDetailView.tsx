@@ -1586,11 +1586,13 @@ function SportsGameLinesCard({
   const moneylineOutcomes = game.moneyline?.outcomes ?? [];
   const spreadOutcomes = game.spread?.outcomes ?? [];
   const totalOutcomes = game.total?.outcomes ?? [];
-  const extraSpreadLines = getAdditionalGameLineGroups(
+  const altSpreadEntries = buildAltLineEntries(
+    'spread',
     game.spread,
     game.spreadLines,
   );
-  const extraTotalLines = getAdditionalGameLineGroups(
+  const altTotalEntries = buildAltLineEntries(
+    'total',
     game.total,
     game.totalLines,
   );
@@ -1694,7 +1696,7 @@ function SportsGameLinesCard({
           />
         ))}
 
-        {(extraSpreadLines.length > 0 || extraTotalLines.length > 0) && (
+        {(altSpreadEntries.length > 0 || altTotalEntries.length > 0) && (
           <div
             style={{
               marginTop: 14,
@@ -1715,16 +1717,28 @@ function SportsGameLinesCard({
             >
               More lines
             </div>
-            {[...extraSpreadLines, ...extraTotalLines].map((group) => (
-              <AdditionalGameLineRow
-                key={`${group.market.conditionId || group.market.id}-${group.type}`}
-                group={group}
+            {altSpreadEntries.length > 0 && (
+              <AltLineDial
+                key={`spread-${game.eventId}`}
+                kind="spread"
+                entries={altSpreadEntries}
                 activeMarket={activeMarket}
                 activeTokenId={activeTokenId}
                 disabled={disabled}
                 onOutcomeClick={onOutcomeClick}
               />
-            ))}
+            )}
+            {altTotalEntries.length > 0 && (
+              <AltLineDial
+                key={`total-${game.eventId}`}
+                kind="total"
+                entries={altTotalEntries}
+                activeMarket={activeMarket}
+                activeTokenId={activeTokenId}
+                disabled={disabled}
+                onOutcomeClick={onOutcomeClick}
+              />
+            )}
           </div>
         )}
       </div>
@@ -1881,19 +1895,78 @@ function GameLineTeamCell({ row }: { row: SportsGameLineRow }) {
   );
 }
 
-function AdditionalGameLineRow({
-  group,
+function AltLineDialArrow({
+  direction,
+  disabled,
+  onClick,
+}: {
+  direction: 'prev' | 'next';
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={direction === 'prev' ? 'Previous line' : 'Next line'}
+      style={{
+        width: 24,
+        height: 24,
+        borderRadius: 8,
+        border: `1px solid ${D.hair}`,
+        background: '#fff',
+        color: disabled ? D.muted2 : D.ink,
+        fontFamily: D.mono,
+        fontSize: 13,
+        fontWeight: 800,
+        lineHeight: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.45 : 1,
+        flexShrink: 0,
+      }}
+    >
+      {direction === 'prev' ? '‹' : '›'}
+    </button>
+  );
+}
+
+/**
+ * Compact selector for alternate spread/total lines. Instead of one stretched
+ * row per line, a single row shows the selected line with ‹ › arrows dialing
+ * through the deduped, sorted set of available lines.
+ */
+function AltLineDial({
+  kind,
+  entries,
   activeMarket,
   activeTokenId,
   disabled,
   onOutcomeClick,
 }: {
-  group: Exclude<SportsGameGroup['spread'], null>;
+  kind: 'spread' | 'total';
+  entries: AltLineEntry[];
   activeMarket: PolymarketMarket;
   activeTokenId: string;
   disabled: boolean;
   onOutcomeClick: SportsGameLineClick;
 }) {
+  // Start in the middle of the range — closest to the main line.
+  const [index, setIndex] = useState(() =>
+    Math.floor((entries.length - 1) / 2),
+  );
+  const clamped = Math.max(0, Math.min(index, entries.length - 1));
+  const entry = entries[clamped];
+  if (!entry) return null;
+
+  const lineLabel =
+    kind === 'spread'
+      ? `${entry.line > 0 ? '+' : ''}${entry.line}`
+      : `${entry.line}`;
+
   return (
     <div
       style={{
@@ -1907,22 +1980,64 @@ function AdditionalGameLineRow({
       <div
         style={{
           minWidth: 0,
-          color: D.ink,
-          fontSize: 12.5,
-          fontWeight: 700,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
         }}
       >
-        {formatAdditionalGameLineTitle(group)}
+        <span
+          style={{
+            color: D.ink,
+            fontSize: 12.5,
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {kind === 'spread' ? 'Alt spread' : 'Alt total'}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <AltLineDialArrow
+            direction="prev"
+            disabled={clamped === 0}
+            onClick={() => setIndex(clamped - 1)}
+          />
+          <span
+            style={{
+              fontFamily: D.mono,
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: 13,
+              fontWeight: 800,
+              color: D.ink,
+              minWidth: 46,
+              textAlign: 'center',
+            }}
+          >
+            {lineLabel}
+          </span>
+          <AltLineDialArrow
+            direction="next"
+            disabled={clamped === entries.length - 1}
+            onClick={() => setIndex(clamped + 1)}
+          />
+        </div>
+        <span
+          style={{
+            fontFamily: D.mono,
+            fontSize: 10,
+            fontWeight: 700,
+            color: D.muted,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {clamped + 1}/{entries.length}
+        </span>
       </div>
-      {group.outcomes.slice(0, 2).map((outcome) => (
+      {entry.group.outcomes.slice(0, 2).map((outcome) => (
         <GameLineButton
           key={outcome.tokenId || outcome.label}
-          kind={group.type}
+          kind={entry.group.type}
           outcome={outcome}
-          market={marketForParsedOutcome(group, outcome)}
+          market={marketForParsedOutcome(entry.group, outcome)}
           activeMarket={activeMarket}
           activeTokenId={activeTokenId}
           disabled={disabled}
@@ -2068,29 +2183,64 @@ function marketForParsedOutcome(
   return outcome.market ?? group.market;
 }
 
-function getAdditionalGameLineGroups(
-  primary: GroupedMarket | null | undefined,
-  groups: GroupedMarket[] | undefined,
-): GroupedMarket[] {
-  return (groups ?? []).filter((group) => {
-    if (!group.outcomes.some((outcome) => outcome.tokenId)) return false;
-    return !primary || !samePolymarketMarket(primary.market, group.market);
-  });
+type AltLineEntry = {
+  /** Numeric line from the first outcome's perspective, e.g. -7.5 or 165.5 */
+  line: number;
+  group: GroupedMarket;
+};
+
+/**
+ * Extracts the numeric line for an alternate spread/total market.
+ * Returns null when no line can be parsed — those markets (generic Yes/No
+ * outcomes with no line in label or question) are unusable as line rows and
+ * are dropped from the dial instead of rendering as bare "Alt total" rows.
+ */
+function parseAltLineValue(
+  kind: 'spread' | 'total',
+  group: GroupedMarket,
+): number | null {
+  const firstLabel = group.outcomes[0]?.label ?? '';
+
+  if (kind === 'spread') {
+    const raw = extractGameLineSpread(firstLabel);
+    if (!raw) return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const raw =
+    firstLabel.match(/^[OU]\s+([\d.]+)/i)?.[1] ??
+    group.market.question?.match(/O\/U\s*([\d.]+)/i)?.[1];
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
 }
 
-function formatAdditionalGameLineTitle(group: GroupedMarket): string {
-  const firstLabel = group.outcomes[0]?.label ?? '';
-  if (group.type === 'spread') {
-    const line = extractGameLineSpread(firstLabel);
-    return line ? `Alt spread ${line}` : 'Alt spread';
+/**
+ * Builds the deduped, sorted list of alternate lines for the dial:
+ * skips the primary market, markets without token IDs, markets whose line
+ * can't be parsed, and repeats of a line already seen.
+ */
+function buildAltLineEntries(
+  kind: 'spread' | 'total',
+  primary: GroupedMarket | null | undefined,
+  groups: GroupedMarket[] | undefined,
+): AltLineEntry[] {
+  const seen = new Set<number>();
+  const entries: AltLineEntry[] = [];
+
+  for (const group of groups ?? []) {
+    if (!group.outcomes.some((outcome) => outcome.tokenId)) continue;
+    if (primary && samePolymarketMarket(primary.market, group.market)) continue;
+
+    const line = parseAltLineValue(kind, group);
+    if (line == null || seen.has(line)) continue;
+
+    seen.add(line);
+    entries.push({ line, group });
   }
 
-  if (group.type === 'total') {
-    const totalLabel = firstLabel.match(/[OU]\s+([\d.]+)/i)?.[1];
-    return totalLabel ? `Alt total ${totalLabel}` : 'Alt total';
-  }
-
-  return 'More';
+  return entries.sort((a, b) => a.line - b.line);
 }
 
 function formatGameLineProbability(price: number | undefined): string {
@@ -2146,7 +2296,9 @@ type OrderTicketProps = {
   tickSize: number;
   isLoadingTickSize: boolean;
   balance: number;
-  displayBalance: number;
+  /** Legacy USDC.e sitting in the wallet, pending conversion to pUSD.
+   *  Never spendable and never summed into balance. */
+  legacyBalance: number;
   balanceHint?: string;
   isConvertingBalance?: boolean;
   activeShareBalance: number;
@@ -2398,9 +2550,9 @@ function OrderTicket(p: OrderTicketProps) {
   const hasBuyShortfall = p.side === 'BUY' && p.hasInsufficientBalance;
   const hasPendingCollateral =
     hasBuyShortfall &&
-    p.displayBalance - p.balance > 0.005 &&
+    p.legacyBalance > 0.005 &&
     p.totalCost - p.balance > 0.01 &&
-    p.totalCost <= p.displayBalance + 0.01;
+    p.totalCost <= p.balance + p.legacyBalance + 0.01;
   const needsBuyFunds = hasBuyShortfall && !hasPendingCollateral;
 
   const placeDisabled =
@@ -2823,7 +2975,7 @@ function OrderTicket(p: OrderTicketProps) {
           <FieldLabel>Amount</FieldLabel>
           <FieldHint>
             {p.side === 'BUY'
-              ? `Balance · ${p.displayBalance.toFixed(2)} USDC`
+              ? `Balance · ${p.balance.toFixed(2)} pUSD`
               : `Holdings · ${p.activeShareBalance.toFixed(2)} shares`}
           </FieldHint>
         </div>
@@ -4311,7 +4463,8 @@ type MarketDetailViewProps = {
   onClose: () => void;
   market: PolymarketMarket;
   balance?: number;
-  displayBalance?: number;
+  /** Legacy USDC.e pending conversion to pUSD — informational only. */
+  legacyBalance?: number;
   balanceHint?: string;
   isConvertingBalance?: boolean;
   yesShares?: number;
@@ -4339,7 +4492,7 @@ export default function MarketDetailView({
   onClose,
   market,
   balance = 0,
-  displayBalance = balance,
+  legacyBalance = 0,
   balanceHint,
   isConvertingBalance,
   yesShares = 0,
@@ -5302,7 +5455,7 @@ export default function MarketDetailView({
           tickSize={tickSize}
           isLoadingTickSize={isLoadingTickSize}
           balance={balance}
-          displayBalance={displayBalance}
+          legacyBalance={legacyBalance}
           balanceHint={balanceHint}
           isConvertingBalance={isConvertingBalance}
           activeShareBalance={activeShareBalance}

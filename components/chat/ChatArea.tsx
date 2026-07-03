@@ -7293,9 +7293,9 @@ function buildPnlOverview(consoleData: AstroConsoleData): PnlOverviewPreview {
     perpsAccountValue: toFiniteNumber(consoleData.perpsAccount?.accountValue),
     perpsUnrealizedPnl: toFiniteNumber(consoleData.perpsAccount?.unrealizedPnl),
     perpsPositionCount: consoleData.perpsAccount?.positions?.length || 0,
+    // pUSD only — legacy USDC.e is pending conversion, never counted as balance.
     predictionPortfolioValue:
       toFiniteNumber(consoleData.predictionPortfolioUsdcBalance) +
-      toFiniteNumber(consoleData.predictionLegacyUsdcBalance) +
       predictionPositionsValue,
     predictionUnrealizedPnl,
     predictionPositionCount: openPredictionPositions.length,
@@ -9583,16 +9583,14 @@ function DmContextPanel({
           predictionLegacyUsdc > 0
             ? `${openPredictionPositions.length} markets · ${formatCompactUsd(
                 predictionAvailableUsdc
-              )} pUSD · ${formatCompactUsd(predictionLegacyUsdc)} USDC.e`
+              )} pUSD · ${formatCompactUsd(predictionLegacyUsdc)} USDC.e converting`
             : `${openPredictionPositions.length} open markets · ${formatCompactUsd(
                 predictionAvailableUsdc
               )} pUSD`,
         value: consoleData?.isPredictionBalanceLoading
           ? 'Loading'
           : formatCompactUsd(
-              predictionPortfolioUsdc +
-                predictionLegacyUsdc +
-                predictionPositionsValue
+              predictionPortfolioUsdc + predictionPositionsValue
             ),
         delta: formatSignedUsd(predictionPnl),
         icon: BarChart3,

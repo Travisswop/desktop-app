@@ -183,7 +183,7 @@ export default function PredictionsPortfolioModal({
     [router, stashMarketDetail, teamsData, onClose],
   );
 
-  const { totalUsdcBalance } = usePolygonBalances(
+  const { usdcBalance } = usePolygonBalances(
     portfolioAddresses.length ? portfolioAddresses : safeAddress,
   );
   const { data: netDeposits, isLoading: isNetDepositsLoading } =
@@ -246,7 +246,7 @@ export default function PredictionsPortfolioModal({
       .reduce((s, p) => s + p.currentValue, 0);
 
     const lifetimeEarned =
-      totalUsdcBalance + openPositionsValue + withdrawn - deposited;
+      usdcBalance + openPositionsValue + withdrawn - deposited;
 
     if (!activePositions.length) {
       return { portfolioPct: 0, lifetimeEarned, inOrdersValue };
@@ -266,7 +266,7 @@ export default function PredictionsPortfolioModal({
       totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
 
     return { portfolioPct, lifetimeEarned, inOrdersValue };
-  }, [activePositions, activeOrders, netDeposits, totalUsdcBalance]);
+  }, [activePositions, activeOrders, netDeposits, usdcBalance]);
 
   const handleMarketSell = async (position: PolymarketPosition) => {
     setSellingAsset(position.asset);
@@ -439,7 +439,7 @@ export default function PredictionsPortfolioModal({
                 </div>
                 <p className="text-xl font-bold text-gray-900">
                   $
-                  {totalUsdcBalance.toLocaleString('en-US', {
+                  {usdcBalance.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}

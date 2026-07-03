@@ -17,6 +17,7 @@ import {
   LEGACY_USDC_E_ADDRESS,
   USDC_E_DECIMALS,
 } from "@/constants/polymarket";
+import { isStaleNonceRedeemError } from "@/lib/polymarket/position-payout";
 
 export interface RedeemParams {
   conditionId: string;
@@ -716,79 +717,97 @@ export function useRedeemPosition() {
 
         console.debug("[Polymarket Redeem] typed-data request", redeemBasePayload);
 
-        // Step 1: Get the SafeTx EIP-712 hash from backend
-        const typedData = await getRedeemTypedData(
-          redeemBasePayload,
-          accessToken
-        );
-        console.debug("[Polymarket Redeem] typed-data response", {
-          walletType: redeemWalletType,
-          hasTypedData: Boolean(typedData.typedData),
-          hasTxHash: Boolean(typedData.txHash),
-          txHash: typedData.txHash,
-          nonce: typedData.nonce,
-          deadline: typedData.deadline,
-          calls: typedData.calls?.map((call) => ({
-            target: call.target,
-            value: call.value,
-            dataLength: call.data?.length,
-          })),
-          to: typedData.to,
-          operation: typedData.operation,
-          dataLength: typedData.data?.length,
-        });
-
-        // Step 2: Sign using the active wallet version's required scheme.
-        let signature: `0x${string}`;
-        if (redeemWalletType === "deposit") {
-          if (!typedData.typedData || !typedData.deadline || !typedData.calls) {
-            throw new Error("Redeem signing data is incomplete.");
-          }
-
-          const depositTypedDataMessage = {
-            ...typedData.typedData.message,
-            nonce: BigInt(typedData.nonce),
-            deadline: BigInt(typedData.deadline),
-            calls: typedData.calls.map((call) => ({
-              ...call,
-              value: BigInt(call.value),
-            })),
-          };
-
-          signature = await signRedeemTypedData({
-            domain: typedData.typedData.domain,
-            types: typedData.typedData.types,
-            primaryType: typedData.typedData.primaryType ?? "Batch",
-            message: depositTypedDataMessage,
-            silentOnly: params.silentOnly,
-          });
-        } else {
-          if (!typedData.txHash) {
-            throw new Error("Redeem signing hash is missing.");
-          }
-
-          signature = await signSafeTxHash(
-            typedData.txHash,
-            params.silentOnly,
+        // Runs the full typed-data → sign → submit sequence once. Extracted so
+        // a stale Safe nonce (another Safe tx landed between signing and
+        // submit — e.g. the USDC.e auto-conversion) can be retried with a
+        // freshly fetched nonce and a new signature.
+        const attemptRedeem = async () => {
+          // Step 1: Get the SafeTx EIP-712 hash from backend
+          const typedData = await getRedeemTypedData(
+            redeemBasePayload,
+            accessToken
           );
-        }
-
-        // Step 3: Submit
-        console.debug("[Polymarket Redeem] submit request", {
-          ...redeemBasePayload,
-          nonce: typedData.nonce,
-          deadline: typedData.deadline,
-          signaturePreview: `${signature.slice(0, 18)}...${signature.slice(-8)}`,
-        });
-        const result = await submitRedeem(
-          {
-            ...redeemBasePayload,
-            signature,
+          console.debug("[Polymarket Redeem] typed-data response", {
+            walletType: redeemWalletType,
+            hasTypedData: Boolean(typedData.typedData),
+            hasTxHash: Boolean(typedData.txHash),
+            txHash: typedData.txHash,
             nonce: typedData.nonce,
             deadline: typedData.deadline,
-          },
-          accessToken
-        );
+            calls: typedData.calls?.map((call) => ({
+              target: call.target,
+              value: call.value,
+              dataLength: call.data?.length,
+            })),
+            to: typedData.to,
+            operation: typedData.operation,
+            dataLength: typedData.data?.length,
+          });
+
+          // Step 2: Sign using the active wallet version's required scheme.
+          let signature: `0x${string}`;
+          if (redeemWalletType === "deposit") {
+            if (!typedData.typedData || !typedData.deadline || !typedData.calls) {
+              throw new Error("Redeem signing data is incomplete.");
+            }
+
+            const depositTypedDataMessage = {
+              ...typedData.typedData.message,
+              nonce: BigInt(typedData.nonce),
+              deadline: BigInt(typedData.deadline),
+              calls: typedData.calls.map((call) => ({
+                ...call,
+                value: BigInt(call.value),
+              })),
+            };
+
+            signature = await signRedeemTypedData({
+              domain: typedData.typedData.domain,
+              types: typedData.typedData.types,
+              primaryType: typedData.typedData.primaryType ?? "Batch",
+              message: depositTypedDataMessage,
+              silentOnly: params.silentOnly,
+            });
+          } else {
+            if (!typedData.txHash) {
+              throw new Error("Redeem signing hash is missing.");
+            }
+
+            signature = await signSafeTxHash(
+              typedData.txHash,
+              params.silentOnly,
+            );
+          }
+
+          // Step 3: Submit
+          console.debug("[Polymarket Redeem] submit request", {
+            ...redeemBasePayload,
+            nonce: typedData.nonce,
+            deadline: typedData.deadline,
+            signaturePreview: `${signature.slice(0, 18)}...${signature.slice(-8)}`,
+          });
+          return submitRedeem(
+            {
+              ...redeemBasePayload,
+              signature,
+              nonce: typedData.nonce,
+              deadline: typedData.deadline,
+            },
+            accessToken
+          );
+        };
+
+        let result: Awaited<ReturnType<typeof attemptRedeem>>;
+        try {
+          result = await attemptRedeem();
+        } catch (attemptError) {
+          if (!isStaleNonceRedeemError(attemptError)) throw attemptError;
+          console.warn(
+            "[Polymarket Redeem] stale Safe nonce — refetching and retrying once",
+            { conditionId: params.conditionId, asset: params.asset },
+          );
+          result = await attemptRedeem();
+        }
         console.debug("[Polymarket Redeem] submit response", result);
 
         try {
