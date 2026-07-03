@@ -164,3 +164,25 @@ Swap quotes are fetched server-side and **degrade silently to slow/free public e
 - The swap modal **auto-refreshes the quote every 10s** while open (`components/wallet/SwapTokenModal.tsx`), so each open modal repeatedly hits the provider — keyless endpoints throttle fast.
 - These keys are **environment-specific**: the local stack's `.env` and each hosted deployment (Vercel/server) have separate env vars. A working production swap does not mean local is configured, and vice-versa.
 - To diagnose a timeout, curl the provider directly (e.g. `https://lite-api.jup.ag/swap/v1/quote?...`). A fast 200 means the provider is healthy and the issue is the missing/wrong key or rate-limiting, not an outage.
+## Git Workflow — Multi-Agent Safety (IMPORTANT)
+
+Multiple agent sessions (Claude Code, Codex, etc.) often work in this checkout at the
+same time. The working tree and git index are SHARED — sessions have collided before
+(one session's commit swallowed files another session had staged).
+
+Rules for any commit or push:
+
+1. **Work in an isolated git worktree — never commit from the shared checkout.**
+   - Claude Code: call `EnterWorktree` at the start of the task (or run subagents
+     with `isolation: "worktree"`).
+   - Any tool: `git fetch origin && git worktree add ../<repo>-wt-<topic> -b wt/<topic> origin/main`,
+     then apply your changes there.
+2. **Validate inside the worktree** (`tsc --noEmit`, lint, tests) so checks run
+   against exactly what ships — not a tree contaminated by other sessions' edits.
+3. **Push fast-forward only** — `git push origin HEAD:main` from the worktree, freshly
+   based on origin/main. Never force-push main.
+4. **Clean up** — `git worktree remove <path>` after pushing, then `git pull --ff-only`
+   in the shared checkout when its tree allows.
+5. In the shared checkout, never use `git add -A`, `git add .`, or `git commit -a` —
+   they swallow other sessions' work. Stage explicit file paths only.
+6. Never commit `.env*` files or credentials.
