@@ -3,6 +3,7 @@
 import PerpsPositionFeedCard, {
   type PerpsEntryMarker,
 } from './PerpsPositionFeedCard';
+import type { AgentBadgeAgent } from './AgentBadge';
 import type {
   PerpsPositionFeedContent,
   PerpsPositionFeedEvent,
@@ -41,6 +42,8 @@ interface PerpsFeedCardProps {
   userName?: string;
   userImage?: string;
   createdAt?: string;
+  agent?: AgentBadgeAgent | null;
+  ownerHandle?: string | null;
 }
 
 function maybeNumber(value: unknown) {
@@ -160,6 +163,8 @@ export default function PerpsFeedCard({
   userName,
   userImage,
   createdAt,
+  agent,
+  ownerHandle,
 }: PerpsFeedCardProps) {
   return (
     <PerpsPositionFeedCard
@@ -171,6 +176,8 @@ export default function PerpsFeedCard({
         },
         smartsiteUserName: userName,
         smartsiteProfilePic: userImage,
+        smartsiteEnsName: ownerHandle,
+        agent,
         createdAt,
       }}
     />

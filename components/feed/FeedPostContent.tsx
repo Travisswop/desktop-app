@@ -15,6 +15,7 @@ import PerpsFeedCard from './PerpsFeedCard';
 import DefiFeedCard from './DefiFeedCard';
 import ProductFeedCard from './ProductFeedCard';
 import AgentTradeFeedCard from './AgentTradeFeedCard';
+import AgentBadge from './AgentBadge';
 import { isProductFeedPost } from './productFeedUtils';
 
 interface FeedItemType {
@@ -67,6 +68,10 @@ const FeedPostContent = ({
       : feed?.userId?._id
         ? String(feed.userId._id)
         : undefined;
+  // Owner handle used by the agent badge on venue cards. The post is authored
+  // AS the user, so the badge reads "🤖 <owner>'s agent".
+  const agentOwnerHandle =
+    feed?.smartsiteEnsName || feed?.smartsiteUserName || undefined;
   const handlePredictionVerifiedFinalScore = useCallback(
     (content: any) => {
       if (!feed?._id) return;
@@ -176,6 +181,14 @@ const FeedPostContent = ({
       {/* Redeem */}
       {feed.postType === 'redeem' && (
         <div className="flex flex-col gap-2 text-gray-600 text-sm">
+          {feed.agent?.isAgentTrade && (
+            <div className="flex justify-start">
+              <AgentBadge
+                agent={feed.agent}
+                ownerHandle={agentOwnerHandle}
+              />
+            </div>
+          )}
           <p>
             Created a new {feed.content.redeemName} Redeemable Link –{' '}
             <button
@@ -250,6 +263,8 @@ const FeedPostContent = ({
             feed.smartsiteUserName ||
             undefined
           }
+          agent={feed.agent}
+          ownerHandle={agentOwnerHandle}
         />
       )}
 
@@ -274,6 +289,8 @@ const FeedPostContent = ({
             undefined
           }
           createdAt={feed.createdAt}
+          agent={feed.agent}
+          ownerHandle={agentOwnerHandle}
         />
       )}
 

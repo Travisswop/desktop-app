@@ -25,6 +25,7 @@ import {
   type PerpsEntryMarker,
 } from './perpsEntryMarkers';
 import type { PerpsPositionFeedContent } from '@/lib/perps/perpsFeed';
+import AgentBadge, { type AgentBadgeAgent } from './AgentBadge';
 
 export type { PerpsEntryMarker } from './perpsEntryMarkers';
 
@@ -37,6 +38,8 @@ interface PerpsPositionFeedCardProps {
     smartsiteId?: { profilePic?: string | null; name?: string | null };
     smartsiteProfilePic?: string | null;
     smartsiteUserName?: string | null;
+    smartsiteEnsName?: string | null;
+    agent?: AgentBadgeAgent | null;
     createdAt?: string;
   };
 }
@@ -1001,6 +1004,17 @@ export default function PerpsPositionFeedCard({
           }}
         >
           <div className="px-4 pt-4">
+            {/* Agent badge — only for trades auto-posted by a user's agent */}
+            {feed?.agent?.isAgentTrade && (
+              <div className="mb-2 flex justify-end">
+                <AgentBadge
+                  agent={feed.agent}
+                  ownerHandle={
+                    feed?.smartsiteEnsName || feed?.smartsiteUserName
+                  }
+                />
+              </div>
+            )}
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div

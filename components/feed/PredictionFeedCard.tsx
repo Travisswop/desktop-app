@@ -20,6 +20,7 @@ import {
 } from '@/zustandStore/marketDetailStore';
 import { apiFetch } from '@/lib/api/apiFetch';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
+import AgentBadge, { type AgentBadgeAgent } from './AgentBadge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -151,6 +152,8 @@ interface PredictionFeedCardProps {
   feedUserId?: string;
   accessToken?: string;
   onVerifiedFinalScore?: (content: PredictionContent) => void;
+  agent?: AgentBadgeAgent | null;
+  ownerHandle?: string | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -2018,6 +2021,8 @@ function SportsMiniPanel({
   tradeState,
   marketHref,
   onMarketClick,
+  agent,
+  ownerHandle,
 }: {
   marketTitle: string;
   eventSlug?: string;
@@ -2044,6 +2049,8 @@ function SportsMiniPanel({
     event: React.MouseEvent<HTMLAnchorElement>,
     initialOutcome?: 'yes' | 'no',
   ) => void;
+  agent?: AgentBadgeAgent | null;
+  ownerHandle?: string | null;
 }) {
   const { yesHistory, noHistory, loading } = usePriceHistory(
     yesTokenId,
@@ -2319,6 +2326,12 @@ function SportsMiniPanel({
 
   return (
     <div className="mt-2 w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#ECECEB] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.10)]">
+      {/* Agent badge — only for trades auto-posted by a user's agent */}
+      {agent?.isAgentTrade && (
+        <div className="mb-3 flex justify-end">
+          <AgentBadge agent={agent} ownerHandle={ownerHandle} />
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="shrink-0 text-[13px] font-black text-gray-950">
@@ -2597,6 +2610,8 @@ function PredictionPositionPanel({
   marketHref,
   onMarketClick,
   userName,
+  agent,
+  ownerHandle,
 }: {
   marketTitle: string;
   outcome: string;
@@ -2617,6 +2632,8 @@ function PredictionPositionPanel({
     initialOutcome?: 'yes' | 'no',
   ) => void;
   userName?: string;
+  agent?: AgentBadgeAgent | null;
+  ownerHandle?: string | null;
 }) {
   const shares =
     positionShares !== undefined && Number.isFinite(positionShares)
@@ -2822,6 +2839,12 @@ function PredictionPositionPanel({
 
   return (
     <div className="mt-2 w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#ECECEB] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.10)]">
+      {/* Agent badge — only for trades auto-posted by a user's agent */}
+      {agent?.isAgentTrade && (
+        <div className="mb-3 flex justify-end">
+          <AgentBadge agent={agent} ownerHandle={ownerHandle} />
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="shrink-0 text-[13px] font-black text-gray-950">
@@ -3067,6 +3090,8 @@ function RegularPredictionFeedCard({
   feedUserId,
   accessToken,
   onVerifiedFinalScore,
+  agent,
+  ownerHandle,
 }: PredictionFeedCardProps) {
   const {
     outcome,
@@ -3209,6 +3234,8 @@ function RegularPredictionFeedCard({
           tradeState={tradeState}
           marketHref={marketHref}
           onMarketClick={onMarketClick}
+          agent={agent}
+          ownerHandle={ownerHandle}
         />
       )}
 
@@ -3230,6 +3257,8 @@ function RegularPredictionFeedCard({
           marketHref={marketHref}
           onMarketClick={onMarketClick}
           userName={userName}
+          agent={agent}
+          ownerHandle={ownerHandle}
         />
       )}
 
@@ -3301,6 +3330,8 @@ function btcEntryPrices(content: PredictionContent) {
 function LiveBtcFiveMinutePredictionFeedCard({
   content,
   userName,
+  agent,
+  ownerHandle,
 }: PredictionFeedCardProps) {
   const { upProbability } = useBtcUpDownMarket();
   const outcome = normalizeBtcOutcome(content.outcome);
@@ -3365,6 +3396,8 @@ function LiveBtcFiveMinutePredictionFeedCard({
         marketHref={marketHref}
         onMarketClick={onMarketClick}
         userName={userName}
+        agent={agent}
+        ownerHandle={ownerHandle}
       />
     </div>
   );
@@ -3374,6 +3407,8 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
   content,
   userName,
   createdAt,
+  agent,
+  ownerHandle,
 }: PredictionFeedCardProps) {
   const windowStart = resolveBtcWindowStart(content, createdAt);
   const { market } = useHistoricalBtcFeedMarket(windowStart, true);
@@ -3495,6 +3530,8 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
         marketHref={marketHref}
         onMarketClick={onMarketClick}
         userName={userName}
+        agent={agent}
+        ownerHandle={ownerHandle}
       />
     </div>
   );

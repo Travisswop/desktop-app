@@ -10,6 +10,7 @@ import SwapTransactionShowGraph from "./SwapTransactionShowGraph";
 import { fetchTokenLivePrice } from "@/lib/utils/marketPriceClient";
 import { getTokenFallbackPrice } from "@/lib/utils/tokenMarketData";
 import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
+import AgentBadge from "./AgentBadge";
 dayjs.extend(relativeTime);
 
 // ---------------------------------------------------------------------------
@@ -287,6 +288,17 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
         >
           {/* ── Top padded section ───────────────────────────────────────── */}
           <div className="px-4 pt-4">
+            {/* Agent badge — only for trades auto-posted by a user's agent */}
+            {feed?.agent?.isAgentTrade && (
+              <div className="mb-2 flex justify-end">
+                <AgentBadge
+                  agent={feed.agent}
+                  ownerHandle={
+                    feed?.smartsiteEnsName || feed?.smartsiteUserName
+                  }
+                />
+              </div>
+            )}
             {/* Header row */}
             <div className="flex items-center justify-between mb-2">
               {/* Overlapping token pair */}

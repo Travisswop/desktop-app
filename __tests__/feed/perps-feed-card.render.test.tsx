@@ -92,4 +92,64 @@ describe('PerpsFeedCard legacy adapter rendering', () => {
       '-',
     );
   });
+
+  it('shows the "🤖 <owner>\'s agent" badge on an agent-authored perps trade', () => {
+    const now = Date.now();
+
+    render(
+      <PerpsFeedCard
+        content={{
+          coin: 'BTC',
+          side: 'LONG',
+          orderType: 'close',
+          leverage: 10,
+          sizeCoins: 0.5,
+          entryPrice: 60000,
+          markPrice: 63000,
+          openedAt: iso(now - 3 * HOUR_MS),
+          updatedAt: iso(now - 1 * HOUR_MS),
+        }}
+        userName="Alice"
+        createdAt={iso(now - 3 * HOUR_MS)}
+        agent={{
+          isAgentTrade: true,
+          agentId: 'goldman-sacks',
+          agentName: 'agent-travis.swop.id',
+        }}
+        ownerHandle="travis.swop.id"
+      />,
+    );
+
+    const badge = screen.getByTestId('agent-badge');
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("travis.swop.id's agent");
+    expect(badge).toHaveAttribute('title', 'agent-travis.swop.id');
+    // The venue card still renders — the badge sits alongside it.
+    expect(screen.getByText('Closed 10x')).toBeInTheDocument();
+  });
+
+  it('renders no agent badge for a normal (non-agent) perps trade', () => {
+    const now = Date.now();
+
+    render(
+      <PerpsFeedCard
+        content={{
+          coin: 'BTC',
+          side: 'LONG',
+          orderType: 'close',
+          leverage: 10,
+          sizeCoins: 0.5,
+          entryPrice: 60000,
+          markPrice: 63000,
+          openedAt: iso(now - 3 * HOUR_MS),
+          updatedAt: iso(now - 1 * HOUR_MS),
+        }}
+        userName="Alice"
+        createdAt={iso(now - 3 * HOUR_MS)}
+      />,
+    );
+
+    expect(screen.queryByTestId('agent-badge')).not.toBeInTheDocument();
+    expect(screen.getByText('Closed 10x')).toBeInTheDocument();
+  });
 });
