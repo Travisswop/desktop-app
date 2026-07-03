@@ -111,7 +111,7 @@ export default function HighVolumeMarkets({
   const [btcModalOpen, setBtcModalOpen] = useState(false);
   const [btcInitialOutcome, setBtcInitialOutcome] = useState<'Up' | 'Down'>('Up');
 
-  const { isGeoblocked, safeAddress, portfolioAddresses } = useTrading();
+  const { isGeoblocked, isCloseOnly, safeAddress, portfolioAddresses } = useTrading();
   const portfolioAddressInput = portfolioAddresses.length
     ? portfolioAddresses
     : safeAddress;
@@ -428,7 +428,7 @@ export default function HighVolumeMarkets({
     <MarketCard
       key={market.id}
       market={market}
-      disabled={isGeoblocked}
+      disabled={isGeoblocked || isCloseOnly}
       isSportsCategory={false}
       onOutcomeClick={handleOutcomeClick}
       onTitleClick={() => navigateToMarket(market)}
@@ -439,7 +439,7 @@ export default function HighVolumeMarkets({
     <SportsGameCard
       key={game.eventId}
       game={game}
-      disabled={isGeoblocked}
+      disabled={isGeoblocked || isCloseOnly}
       onOutcomeClick={(market, outcome, price, tokenId) =>
         handleSportsOutcomeClick(game, market, outcome, price, tokenId)
       }
@@ -451,7 +451,7 @@ export default function HighVolumeMarkets({
     activeCategory === 'crypto' ? (
       <BtcUpDownCard
         key="btc-5min"
-        disabled={isGeoblocked}
+        disabled={isGeoblocked || isCloseOnly}
         noBackingMarket={!btc5mMarket.market && !btc5mMarket.isLoading}
         onOutcomeClick={handleBtcOutcomeClick}
       />

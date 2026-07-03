@@ -32,6 +32,7 @@ interface TradingContextType {
   portfolioAddresses: string[];
   walletType: "safe" | "deposit";
   isGeoblocked: boolean;
+  isCloseOnly: boolean;
   isGeoblockLoading: boolean;
   geoblockStatus: GeoblockStatus | null;
 }
@@ -49,6 +50,7 @@ export function TradingProvider({ children }: { children: ReactNode }) {
 
   const {
     isBlocked: isGeoblocked,
+    isCloseOnly,
     isLoading: isGeoblockLoading,
     geoblockStatus,
   } = useGeoblock();
@@ -135,6 +137,7 @@ export function TradingProvider({ children }: { children: ReactNode }) {
         portfolioAddresses,
         walletType,
         isGeoblocked,
+        isCloseOnly,
         isGeoblockLoading,
         geoblockStatus,
       }}

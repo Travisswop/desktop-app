@@ -2388,6 +2388,12 @@ function FieldHint({ children }: { children: React.ReactNode }) {
 }
 
 function OrderTicket(p: OrderTicketProps) {
+  // Close-only jurisdictions (Polymarket policy): sells allowed, no new buys.
+  const { isCloseOnly } = useTrading();
+  useEffect(() => {
+    if (isCloseOnly && p.side === 'BUY') p.setSide('SELL');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCloseOnly, p.side]);
   const yesLabel = p.outcomeLabels?.[0] ?? p.yesOutcomeName;
   const noLabel = p.outcomeLabels?.[1] ?? p.noOutcomeName;
   const hasDisplayOutcomeLabels = Boolean(p.outcomeLabels);
@@ -2555,6 +2561,7 @@ function OrderTicket(p: OrderTicketProps) {
 
   const placeDisabled =
     p.disabled ||
+    (p.side === 'BUY' && isCloseOnly) ||
     p.isSubmitting ||
     marketQuoteMissing ||
     hasPendingCollateral ||
@@ -2664,10 +2671,20 @@ function OrderTicket(p: OrderTicketProps) {
             <button
               key={s}
               type="button"
-              onClick={() => p.setSide(s)}
+              disabled={s === 'BUY' && isCloseOnly}
+              title={
+                s === 'BUY' && isCloseOnly
+                  ? 'Your region allows closing existing positions only (Polymarket policy).'
+                  : undefined
+              }
+              onClick={() => {
+                if (s === 'BUY' && isCloseOnly) return;
+                p.setSide(s);
+              }}
               style={{
                 flex: 1,
                 border: 'none',
+                opacity: s === 'BUY' && isCloseOnly ? 0.35 : 1,
                 background: p.side === s ? '#fff' : 'transparent',
                 color: p.side === s ? D.ink : D.muted,
                 fontFamily: 'inherit',
@@ -4513,6 +4530,7 @@ export default function MarketDetailView({
     initializeTradingSession,
     currentStep,
     isGeoblocked,
+    isCloseOnly: isCloseOnlyRoot,
     isGeoblockLoading,
     geoblockStatus,
   } = useTrading();
@@ -5353,7 +5371,7 @@ export default function MarketDetailView({
             game={game}
             activeMarket={market}
             activeTokenId={activeTokenId}
-            disabled={isFinalSportsEvent || isGeoblocked}
+            disabled={isFinalSportsEvent || isGeoblocked || isCloseOnlyRoot}
             onOutcomeClick={handleGameLineSelect}
           />
         )}

@@ -6,10 +6,30 @@ export type GeoblockStatus = {
   ip: string;
   country: string;
   region: string;
+  countryCode?: string;
+  closeOnly?: boolean;
 };
+
+// Per Polymarket's settlement terms these jurisdictions are close-only:
+// existing positions may be sold, but no new positions may be opened.
+// Fallback list for when the geoblock service doesn't return closeOnly.
+export const POLYMARKET_CLOSE_ONLY_COUNTRIES = new Set([
+  "PL",
+  "SG",
+  "TH",
+  "TW",
+]);
+
+function deriveCloseOnly(data: GeoblockStatus): boolean {
+  if (data.blocked) return false;
+  if (data.closeOnly === true) return true;
+  const code = (data.countryCode || data.country || "").toUpperCase();
+  return POLYMARKET_CLOSE_ONLY_COUNTRIES.has(code);
+}
 
 type UseGeoblockReturn = {
   isBlocked: boolean;
+  isCloseOnly: boolean;
   isLoading: boolean;
   error: Error | null;
   geoblockStatus: GeoblockStatus | null;
@@ -21,6 +41,7 @@ type UseGeoblockReturn = {
 
 export function useGeoblock(): UseGeoblockReturn {
   const [isBlocked, setIsBlocked] = useState(false);
+  const [isCloseOnly, setIsCloseOnly] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [geoblockStatus, setGeoblockStatus] = useState<GeoblockStatus | null>(
@@ -47,6 +68,7 @@ export function useGeoblock(): UseGeoblockReturn {
 
       setGeoblockStatus(data);
       setIsBlocked(data.blocked);
+      setIsCloseOnly(deriveCloseOnly(data));
     } catch (err) {
       const error =
         err instanceof Error ? err : new Error("Failed to check geoblock");
@@ -56,6 +78,7 @@ export function useGeoblock(): UseGeoblockReturn {
       // On error, default to not blocked to avoid false positives
       // In production, you may want to block by default for safety
       setIsBlocked(false);
+      setIsCloseOnly(false);
     } finally {
       setIsLoading(false);
     }
@@ -68,6 +91,7 @@ export function useGeoblock(): UseGeoblockReturn {
 
   return {
     isBlocked,
+    isCloseOnly,
     isLoading,
     error,
     geoblockStatus,
