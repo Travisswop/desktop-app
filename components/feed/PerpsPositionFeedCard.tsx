@@ -346,6 +346,64 @@ export function inferPerpsRiskPriceHitFromPrices({
   return null;
 }
 
+export interface PerpsRiskDetectionBar {
+  /** Bar open time, seconds since epoch. */
+  time: number;
+  low: number;
+  high: number;
+  close: number;
+}
+
+export function perpsRiskActiveSinceMs(
+  content: Partial<PerpsPositionFeedContent>,
+  feedCreatedAt?: string,
+) {
+  return (
+    dateMs(content.updatedAt) ??
+    dateMs(content.openedAt) ??
+    dateMs(content.limitPlacedAt) ??
+    dateMs(feedCreatedAt)
+  );
+}
+
+export function inferPerpsRiskPriceHitFromBars({
+  side,
+  bars,
+  riskActiveSinceMs,
+  extraPrices = [],
+  takeProfitPrice,
+  stopLossPrice,
+}: {
+  side: 'long' | 'short';
+  bars: PerpsRiskDetectionBar[];
+  riskActiveSinceMs: number | null;
+  extraPrices?: unknown[];
+  takeProfitPrice: unknown;
+  stopLossPrice: unknown;
+}) {
+  // TP/SL levels only exist from the moment they were written into the feed
+  // content (riskActiveSinceMs). Candles from before that — including history
+  // predating the position itself — must not count as hits: an SL placed
+  // below last week's low is not a stop-out.
+  const barPrices =
+    riskActiveSinceMs === null
+      ? []
+      : bars
+          .filter((bar) => bar.time * 1000 >= riskActiveSinceMs)
+          .flatMap((bar) =>
+            side === 'long'
+              ? [bar.low, bar.high, bar.close]
+              : [bar.high, bar.low, bar.close],
+          );
+
+  return inferPerpsRiskPriceHitFromPrices({
+    side,
+    prices: [...barPrices, ...extraPrices],
+    takeProfitPrice,
+    stopLossPrice,
+  });
+}
+
 function formatUsd(value: unknown, digits = 2) {
   const number = finiteNumber(value);
   if (Math.abs(number) >= 1000) {
@@ -577,28 +635,37 @@ export default function PerpsPositionFeedCard({
       markPrice: currentMarkPrice,
       liquidationPrice: content.liquidationPrice,
     });
-  const riskDetectionPrices = useMemo(
-    () => [
-      ...bars.flatMap((bar) =>
-        side === 'long'
-          ? [bar.low, bar.high, bar.close]
-          : [bar.high, bar.low, bar.close],
-      ),
-      content.markPrice,
-      storedMarkPrice,
-      currentMarkPrice,
-    ],
-    [bars, content.markPrice, currentMarkPrice, side, storedMarkPrice],
+  const riskActiveSinceMs = useMemo(
+    () => perpsRiskActiveSinceMs(content, feed.createdAt),
+    [content, feed.createdAt],
   );
-  const inferredRiskPriceHit =
-    storedStatus === 'open' && !hasInferredLiquidation
-      ? inferPerpsRiskPriceHitFromPrices({
-          side,
-          prices: riskDetectionPrices,
-          takeProfitPrice,
-          stopLossPrice,
-        })
-      : null;
+  const inferredRiskPriceHit = useMemo(
+    () =>
+      storedStatus === 'open' && !hasInferredLiquidation
+        ? inferPerpsRiskPriceHitFromBars({
+            side,
+            bars,
+            riskActiveSinceMs,
+            // Snapshot prices are written in the same upsert as the TP/SL
+            // levels, so they are valid hit evidence alongside live prices.
+            extraPrices: [content.markPrice, storedMarkPrice, currentMarkPrice],
+            takeProfitPrice,
+            stopLossPrice,
+          })
+        : null,
+    [
+      bars,
+      content.markPrice,
+      currentMarkPrice,
+      hasInferredLiquidation,
+      riskActiveSinceMs,
+      side,
+      stopLossPrice,
+      storedMarkPrice,
+      storedStatus,
+      takeProfitPrice,
+    ],
+  );
   const inferredRiskExitPrice =
     inferredRiskPriceHit === 'takeProfit'
       ? takeProfitPrice
