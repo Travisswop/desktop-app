@@ -964,3 +964,44 @@ export class TransactionService {
     return { message: errorMessage, logs: errorLogs };
   }
 }
+
+export type SubmittedTxConfirmation = 'confirmed' | 'failed' | 'unknown';
+
+/**
+ * Poll a submitted Solana signature until it lands or the deadline passes.
+ * Solana sends return the raw signature from sendRawTransaction/Privy without
+ * waiting for inclusion, so a blockhash-expired transaction can silently never
+ * execute — callers must not report success (or post to the feed) until this
+ * resolves 'confirmed'.
+ */
+export async function waitForSolanaSignatureConfirmation(
+  connection: Connection,
+  signature: string,
+  timeoutMs = 90_000,
+): Promise<SubmittedTxConfirmation> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      const { value } = await connection.getSignatureStatuses(
+        [signature],
+        { searchTransactionHistory: true },
+      );
+      const status = value?.[0];
+      if (status) {
+        if (status.err) return 'failed';
+        if (
+          status.confirmationStatus === 'confirmed' ||
+          status.confirmationStatus === 'finalized'
+        ) {
+          return 'confirmed';
+        }
+      }
+    } catch {
+      // Transient RPC failure — keep polling until the deadline.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+  }
+
+  return 'unknown';
+}

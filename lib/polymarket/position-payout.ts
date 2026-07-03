@@ -66,18 +66,30 @@ export function getPositionCardValue(position: PolymarketPosition) {
     : Math.max(0, finiteNumber(position.currentValue));
 }
 
+/** The market has finished: closed flag set or its end date has passed. */
+function isMarketFinished(position: PolymarketPosition) {
+  if (position.marketClosed) return true;
+  const endMs = Date.parse(position.endDate || '');
+  return Number.isFinite(endMs) && endMs <= Date.now();
+}
+
 /**
  * True when a position card would render with a $0.00 value — nothing to
  * sell, nothing to claim. These are excluded from card grids (dashboard
  * preview, portfolio modal, positions list) but still appear in the My bets
  * table as settled/final rows. A position that later resolves with a payout
  * comes back as redeemable and shows again.
+ *
+ * A live (unfinished, non-redeemable) position is never worthless here: a
+ * transient curPrice=0 from the positions API must not hide a position the
+ * user may still want to sell.
  */
 export function isWorthlessPositionCard(
   position: PolymarketPosition,
   dustThreshold: number,
 ) {
-  return getPositionCardValue(position) < dustThreshold;
+  if (getPositionCardValue(position) >= dustThreshold) return false;
+  return position.redeemable || isMarketFinished(position);
 }
 
 function redeemErrorMessage(error: unknown) {

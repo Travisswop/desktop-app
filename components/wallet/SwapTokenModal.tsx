@@ -1943,8 +1943,11 @@ export default function SwapTokenModal({
   const [payToken, setPayToken] = useState<any>(
     defaultPayToken || token || null,
   );
+  // Market-only chart tokens carry metadata straight from URL params, which a
+  // crafted link can spoof (a scam mint labeled "USDC"). Never seed them
+  // directly — they are resolved against the trusted receive catalog below.
   const [receiveToken, setReceiveToken] = useState<any>(
-    defaultReceiveToken || null,
+    defaultReceiveToken?.isMarketOnly ? null : defaultReceiveToken || null,
   );
 
   const [payAmount, setPayAmount] = useState(
@@ -2047,7 +2050,7 @@ export default function SwapTokenModal({
       setPayAmount(String(defaultPayAmount));
     }
 
-    if (defaultReceiveToken) {
+    if (defaultReceiveToken && !defaultReceiveToken.isMarketOnly) {
       setReceiveToken(defaultReceiveToken);
       setReceiverChainId(
         defaultReceiveChainId ||
@@ -3019,6 +3022,34 @@ export default function SwapTokenModal({
     if (tokens.length > 0) loadReceiveTokens();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokens.length]);
+
+  // Resolve a market-only defaultReceiveToken against the trusted catalog by
+  // chain + address, and prefill with the catalog's entry (its symbol, name
+  // and decimals — never the URL's). Unknown addresses simply don't prefill;
+  // the user picks a receive token by hand.
+  const marketOnlyReceiveResolvedRef = useRef(false);
+  useEffect(() => {
+    if (marketOnlyReceiveResolvedRef.current) return;
+    if (!defaultReceiveToken?.isMarketOnly) return;
+    if (tempTokens.length === 0) return;
+
+    marketOnlyReceiveResolvedRef.current = true;
+    const wantedAddress = getTokenAddressKey(defaultReceiveToken);
+    if (!wantedAddress) return;
+    const wantedChain = getTokenChainId(
+      defaultReceiveToken,
+      SOLANA_CHAIN_ID,
+    );
+    const canonical = tempTokens.find(
+      (t) =>
+        getTokenAddressKey(t) === wantedAddress &&
+        getTokenChainId(t, SOLANA_CHAIN_ID) === wantedChain,
+    );
+    if (!canonical) return;
+
+    setReceiveToken((current: any) => current || canonical);
+    setReceiverChainId(getTokenChainId(canonical, SOLANA_CHAIN_ID));
+  }, [defaultReceiveToken, tempTokens]);
 
   // ── Debounced search across tempTokens ────────────────────────────────────────
   // useCallback (not useMemo) keeps a stable reference that always closes over

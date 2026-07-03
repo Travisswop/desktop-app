@@ -40,7 +40,10 @@ import {
   isPrivyEmbeddedWallet,
 } from '@/types/privy';
 
-import { TransactionService } from '@/services/transaction-service';
+import {
+  TransactionService,
+  waitForSolanaSignatureConfirmation,
+} from '@/services/transaction-service';
 import { useSendFlow } from '@/lib/hooks/useSendFlow';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
 import { useNFT } from '@/lib/hooks/useNFT';
@@ -85,6 +88,7 @@ import NFTDetailView from './nft/nft-details-view';
 import ManageNFTModal from './nft/ManageNFTModal';
 import WalletModals from './WalletModals';
 import {
+  showTransactionErrorToast,
   showTransactionProcessingToast,
   showTransactionSuccessToast,
 } from './transaction-processing-toast';
@@ -2004,6 +2008,49 @@ const WalletContentInner = () => {
         setSendLoading(false);
 
         void (async () => {
+          // Solana submission only proves broadcast, not inclusion — a send
+          // whose blockhash expires never executes. Confirm before claiming
+          // success or publishing the transfer to the feed. (EVM paths wait
+          // for their receipt inside TransactionService.)
+          const isSolanaSend =
+            submittedFlow.token?.chain?.toUpperCase() === 'SOLANA' ||
+            submittedFlow.network.toUpperCase() === 'SOLANA';
+          if (isSolanaSend) {
+            const confirmRpcUrl =
+              process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+            const confirmation = confirmRpcUrl
+              ? await waitForSolanaSignatureConfirmation(
+                  new Connection(confirmRpcUrl, 'confirmed'),
+                  submittedHash,
+                )
+              : 'unknown';
+
+            if (confirmation === 'failed') {
+              showTransactionErrorToast({
+                id: toastId,
+                title: 'Transaction failed',
+                message:
+                  "The transaction didn't land on-chain — no funds moved. Please try again.",
+                explorerUrl,
+              });
+              return;
+            }
+
+            if (confirmation === 'unknown') {
+              showTransactionSuccessToast({
+                id: toastId,
+                title: 'Transaction submitted',
+                message:
+                  'Confirmation is taking longer than usual. Check the explorer for the final status.',
+                explorerUrl,
+              });
+              queryClient.invalidateQueries({
+                queryKey: ['transactions'],
+              });
+              return;
+            }
+          }
+
           try {
             await Promise.allSettled([
               handlePointsUpdate(submittedFlow.recipient!),

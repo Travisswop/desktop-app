@@ -1008,7 +1008,7 @@ export default function PredictionsPanel({
                     navigateToMarket(market, { initialOutcome: 'yes' })
                   }
                 />
-                {activePositions.length > 0 && (
+                {openPositionsPreview.length > 0 && (
                   <section className="space-y-3">
                     {/* Section heading — mirrors BrowseMarketsBento's header */}
                     <div className="flex items-end justify-between px-1">
