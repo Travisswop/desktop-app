@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { hexToBytes, bytesToHex } from 'viem';
+import { hexToBytes, bytesToHex, encodeFunctionData } from 'viem';
 import { polygon } from 'viem/chains';
 import { useQueryClient } from '@tanstack/react-query';
 import CustomModal from '@/components/modal/CustomModal';
@@ -10,7 +10,10 @@ import {
   usePolymarketWallet,
 } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import { getLegacyWithdrawTypedData } from '@/lib/polymarket/backend-session';
+import {
+  getLegacyWithdrawTypedData,
+  relayWrapExecTransaction,
+} from '@/lib/polymarket/backend-session';
 import { usePolygonBalances } from '@/hooks/polymarket';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import {
@@ -50,6 +53,22 @@ const GNOSIS_SAFE_EXEC_ABI = [
     outputs: [{ name: 'success', type: 'bool' }],
   },
 ] as const;
+
+// EIP-712 SafeTx types — same structure used by useWrapUsdcE/useSafeDeployment.
+const SAFE_TX_TYPES = {
+  SafeTx: [
+    { name: 'to', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'data', type: 'bytes' },
+    { name: 'operation', type: 'uint8' },
+    { name: 'safeTxGas', type: 'uint256' },
+    { name: 'baseGas', type: 'uint256' },
+    { name: 'gasPrice', type: 'uint256' },
+    { name: 'gasToken', type: 'address' },
+    { name: 'refundReceiver', type: 'address' },
+    { name: 'nonce', type: 'uint256' },
+  ],
+} as const;
 
 interface WithdrawModalProps {
   open: boolean;
@@ -168,9 +187,13 @@ export default function WithdrawModal({
     setError(null);
 
     try {
-      // Direct on-chain execTransaction — works for both pUSD and USDC.e.
-      // The Polymarket builder relayer rejects arbitrary ERC20 transfer() calls,
-      // so both tokens use the Safe's on-chain nonce + walletClient.writeContract.
+      // The Polymarket builder relayer rejects arbitrary ERC20 transfer()
+      // calls, so withdrawals execute the Safe tx ourselves. Gasless-first:
+      // sign the SafeTx via EIP-712 and submit through the backend relay
+      // wallet (same relay the wrap/redeem flows use) — embedded wallets
+      // hold no POL, so requiring user-paid gas made withdrawals fail.
+      // Direct on-chain execTransaction remains as a fallback for wallets
+      // that do hold POL when the relay is unavailable.
 
       // Step 1: Get SafeTx EIP-712 data with the Safe's on-chain nonce
       const typedData = await getLegacyWithdrawTypedData(
@@ -183,38 +206,105 @@ export default function WithdrawModal({
         accessToken,
       );
 
-      // Step 2: Sign the pre-prefixed hash as raw bytes (no additional prefix)
-      const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
-      const signature = await walletClient!.signMessage({
-        account: eoaAddress as `0x${string}`,
-        message: { raw: txHashBytes },
-      });
+      let onChainTxHash: string | null = null;
+      try {
+        // Step 2a: Sign the SafeTx via EIP-712 (v stays 27/28 — ECDSA type)
+        const eip712Signature = await walletClient!.signTypedData({
+          account: eoaAddress as `0x${string}`,
+          domain: {
+            chainId: polygon.id,
+            verifyingContract: safeAddress as `0x${string}`,
+          },
+          types: SAFE_TX_TYPES,
+          primaryType: 'SafeTx',
+          message: {
+            to: typedData.to as `0x${string}`,
+            value: BigInt(typedData.value),
+            data: typedData.data as `0x${string}`,
+            operation: typedData.operation,
+            safeTxGas: BigInt(typedData.safeTxGas),
+            baseGas: BigInt(typedData.baseGas),
+            gasPrice: BigInt(typedData.gasPrice),
+            gasToken: typedData.gasToken as `0x${string}`,
+            refundReceiver: typedData.refundReceiver as `0x${string}`,
+            nonce: BigInt(typedData.nonce),
+          },
+        });
 
-      // Step 3: Pack signature for Gnosis Safe eth_sign type (v + 4)
-      const sigBytes = hexToBytes(signature as `0x${string}`);
-      sigBytes[64] = sigBytes[64] + 4;
-      const packedSig = bytesToHex(sigBytes);
+        const execCalldata = encodeFunctionData({
+          abi: GNOSIS_SAFE_EXEC_ABI,
+          functionName: 'execTransaction',
+          args: [
+            typedData.to as `0x${string}`,
+            BigInt(typedData.value),
+            typedData.data as `0x${string}`,
+            typedData.operation,
+            BigInt(typedData.safeTxGas),
+            BigInt(typedData.baseGas),
+            BigInt(typedData.gasPrice),
+            typedData.gasToken as `0x${string}`,
+            typedData.refundReceiver as `0x${string}`,
+            eip712Signature as `0x${string}`,
+          ],
+        });
 
-      // Step 4: Call execTransaction directly on the Safe contract on Polygon
-      const onChainTxHash = await walletClient!.writeContract({
-        address: safeAddress as `0x${string}`,
-        abi: GNOSIS_SAFE_EXEC_ABI,
-        functionName: 'execTransaction',
-        args: [
-          typedData.to as `0x${string}`,
-          BigInt(typedData.value),
-          typedData.data as `0x${string}`,
-          typedData.operation,
-          BigInt(typedData.safeTxGas),
-          BigInt(typedData.baseGas),
-          BigInt(typedData.gasPrice),
-          typedData.gasToken as `0x${string}`,
-          typedData.refundReceiver as `0x${string}`,
-          packedSig as `0x${string}`,
-        ],
-        chain: polygon,
-        account: eoaAddress as `0x${string}`,
-      });
+        const relayed = await relayWrapExecTransaction(
+          safeAddress,
+          execCalldata,
+          accessToken,
+        );
+        onChainTxHash = relayed.txHash;
+      } catch (relayError: any) {
+        const relayMsg = String(
+          relayError?.message || relayError || '',
+        ).toLowerCase();
+        // User declined the signature — don't retry with a second prompt.
+        if (
+          relayMsg.includes('rejected') ||
+          relayMsg.includes('denied') ||
+          relayMsg.includes('cancelled')
+        ) {
+          throw relayError;
+        }
+        console.warn(
+          '[Withdraw] Gasless relay failed — falling back to direct execTransaction:',
+          relayError,
+        );
+
+        // Step 2b (fallback): eth_sign-style signature + user-paid gas.
+        // The relay consumed nothing (it never landed), so the Safe nonce
+        // from Step 1 is still valid.
+        const txHashBytes = hexToBytes(typedData.txHash as `0x${string}`);
+        const signature = await walletClient!.signMessage({
+          account: eoaAddress as `0x${string}`,
+          message: { raw: txHashBytes },
+        });
+
+        // Pack signature for Gnosis Safe eth_sign type (v + 4)
+        const sigBytes = hexToBytes(signature as `0x${string}`);
+        sigBytes[64] = sigBytes[64] + 4;
+        const packedSig = bytesToHex(sigBytes);
+
+        onChainTxHash = await walletClient!.writeContract({
+          address: safeAddress as `0x${string}`,
+          abi: GNOSIS_SAFE_EXEC_ABI,
+          functionName: 'execTransaction',
+          args: [
+            typedData.to as `0x${string}`,
+            BigInt(typedData.value),
+            typedData.data as `0x${string}`,
+            typedData.operation,
+            BigInt(typedData.safeTxGas),
+            BigInt(typedData.baseGas),
+            BigInt(typedData.gasPrice),
+            typedData.gasToken as `0x${string}`,
+            typedData.refundReceiver as `0x${string}`,
+            packedSig as `0x${string}`,
+          ],
+          chain: polygon,
+          account: eoaAddress as `0x${string}`,
+        });
+      }
 
       setTxHash(onChainTxHash ?? null);
       setStep('success');
