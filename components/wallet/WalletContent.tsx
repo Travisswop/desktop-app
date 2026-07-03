@@ -853,6 +853,7 @@ const WalletContentInner = () => {
     ready,
     user: PrivyUser,
     getAccessToken,
+    login,
   } = usePrivy();
   const { wallets: directEvmWallets } = useEvmWallets();
 
@@ -1600,13 +1601,16 @@ const WalletContentInner = () => {
         sendFlow.network.toUpperCase() === 'SOLANA';
       let privyAccessToken: string | null = null;
 
+      // The Swop session (backend JWT) outlives the Privy session. Privy can
+      // only sign with a live Privy session, so re-auth must happen before any
+      // send — EVM or Solana — not after a confusing mid-flight failure.
+      if (!authenticated) {
+        throw new Error(
+          'Your wallet session has expired. Please verify your wallet again, then retry the send.',
+        );
+      }
+
       if (isSolanaTransaction) {
-        // Verify authentication before signing
-        if (!authenticated) {
-          throw new Error(
-            'Please log in to send transactions. Your session may have expired.',
-          );
-        }
 
         try {
           privyAccessToken = await getAccessToken();
@@ -2247,6 +2251,26 @@ const WalletContentInner = () => {
     <div className="w-full">
       <div className="max-w-[855px] w-full mx-auto pb-8">
         {/* <TokenTicker /> */}
+
+        {/* ───────── PRIVY SESSION EXPIRED ───────── */}
+        {ready && !authenticated && user && (
+          <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[13px] leading-relaxed text-amber-800">
+              <span className="font-semibold">
+                Wallet session expired.
+              </span>{' '}
+              Your balances are shown, but sends and swaps need a quick
+              re-verification first.
+            </p>
+            <button
+              type="button"
+              onClick={() => login()}
+              className="flex-shrink-0 rounded-full bg-gray-950 px-5 py-2.5 text-[13px] font-semibold text-white transition hover:bg-gray-800"
+            >
+              Verify wallet
+            </button>
+          </div>
+        )}
 
         {/* ───────── BALANCE HERO ───────── */}
         <BentoCard className="my-4">

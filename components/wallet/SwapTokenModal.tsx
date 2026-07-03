@@ -2116,6 +2116,18 @@ export default function SwapTokenModal({
     const preferredAddress = selectedSolanaSigningWalletAddress.trim();
     if (!preferredAddress) return undefined;
 
+    // Only fabricate a signing wallet for an address the current Privy user
+    // can actually sign for (their embedded wallet, e.g. while the standard
+    // wallet list is still hydrating). Wrapping any other address defers the
+    // failure to mid-swap, where Privy throws "Wallet is not a Privy wallet"
+    // after the user has already confirmed. Returning undefined here surfaces
+    // solanaWalletMismatchError before submission instead.
+    if (
+      !hasPrivyEmbeddedSolanaLinkedAccount(PrivyUser, preferredAddress)
+    ) {
+      return undefined;
+    }
+
     const privyStandardWallet = solanaStandardWallets.find(
       isPrivyStandardSolanaWallet,
     );
@@ -2144,6 +2156,7 @@ export default function SwapTokenModal({
     solanaStandardWallets,
     normalizedSelectedSolanaSigningWalletAddress,
     selectedSolanaSigningWalletAddress,
+    PrivyUser,
   ]);
 
   const solanaWalletMismatchError = useMemo(() => {
