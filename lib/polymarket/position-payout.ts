@@ -59,6 +59,27 @@ export function isOpenOrClaimablePosition(
   return isVisiblePortfolioPosition(position, dustThreshold);
 }
 
+/** The dollar value a position card displays: payout when claimable, mark-to-market otherwise. */
+export function getPositionCardValue(position: PolymarketPosition) {
+  return position.redeemable
+    ? getRedeemablePayout(position)
+    : Math.max(0, finiteNumber(position.currentValue));
+}
+
+/**
+ * True when a position card would render with a $0.00 value — nothing to
+ * sell, nothing to claim. These are excluded from card grids (dashboard
+ * preview, portfolio modal, positions list) but still appear in the My bets
+ * table as settled/final rows. A position that later resolves with a payout
+ * comes back as redeemable and shows again.
+ */
+export function isWorthlessPositionCard(
+  position: PolymarketPosition,
+  dustThreshold: number,
+) {
+  return getPositionCardValue(position) < dustThreshold;
+}
+
 function redeemErrorMessage(error: unknown) {
   return (error instanceof Error ? error.message : String(error)).toLowerCase();
 }

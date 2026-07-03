@@ -5,6 +5,7 @@ import {
   isOpenOrClaimablePosition,
   isStaleNonceRedeemError,
   isVisiblePortfolioPosition,
+  isWorthlessPositionCard,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
 
@@ -84,6 +85,43 @@ describe('Polymarket position payout visibility', () => {
         position({
           size: 0.001,
           currentValue: 0.001,
+        }),
+        DUST,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('worthless card filtering', () => {
+  it('flags finished games with $0 value and nothing to claim', () => {
+    const deadGame = position({
+      currentValue: 0,
+      curPrice: 0,
+      cashPnl: -5,
+      marketClosed: true,
+    });
+    expect(isWorthlessPositionCard(deadGame, DUST)).toBe(true);
+  });
+
+  it('flags redeemable positions with no payout', () => {
+    const noPayout = position({
+      redeemable: true,
+      currentValue: 0,
+      cashPnl: -5,
+      curPrice: 0,
+    });
+    expect(isWorthlessPositionCard(noPayout, DUST)).toBe(true);
+  });
+
+  it('keeps live positions and claimable wins', () => {
+    expect(isWorthlessPositionCard(position(), DUST)).toBe(false);
+    expect(
+      isWorthlessPositionCard(
+        position({
+          redeemable: true,
+          currentValue: 17.24,
+          cashPnl: 7.24,
+          curPrice: 1,
         }),
         DUST,
       ),

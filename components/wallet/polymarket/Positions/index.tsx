@@ -38,6 +38,7 @@ import {
   getRedeemablePayout,
   hasRedeemablePayout,
   isOpenOrClaimablePosition,
+  isWorthlessPositionCard,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
 import { resolveRedeemWallet } from '@/lib/polymarket/redeem-wallet';
@@ -654,7 +655,9 @@ export default function UserPositions() {
       </h3>
 
       <div className="space-y-3">
-        {activePositions.map((position) => {
+        {activePositions
+          .filter((p) => !isWorthlessPositionCard(p, DUST_THRESHOLD))
+          .map((position) => {
           // Override title/outcome for BTC 5-min positions so the card shows
           // "BTC 5 Minute Up or Down" instead of the backing market's question.
           const enriched = enrichBtcPosition(position);

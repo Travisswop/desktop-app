@@ -37,6 +37,7 @@ import { createPollingInterval } from '@/lib/polymarket/polling';
 import {
   getRedeemablePayout,
   isVisiblePortfolioPosition,
+  isWorthlessPositionCard,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
 import { resolveRedeemWallet } from '@/lib/polymarket/redeem-wallet';
@@ -219,9 +220,15 @@ export default function PredictionsPortfolioModal({
     );
   }, [positions]);
 
-  // Active Picks: only live/open positions (not yet resolved)
+  // Active Picks: only live/open positions (not yet resolved). Worthless
+  // cards (finished games at $0 with nothing to claim) are excluded — they
+  // remain in activePositions so the P/L stats stay accurate.
   const actionablePositions = useMemo(
-    () => activePositions.filter((p) => !p.redeemable),
+    () =>
+      activePositions.filter(
+        (p) =>
+          !p.redeemable && !isWorthlessPositionCard(p, DUST_THRESHOLD),
+      ),
     [activePositions],
   );
 

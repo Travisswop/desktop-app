@@ -58,11 +58,13 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { safeLocalStorage } from '@/lib/browserStorage';
 import {
+  getPositionCardValue,
   getRedeemablePayout,
   hasRedeemablePayout,
   isOpenOrClaimablePosition,
   isMarketUnresolvedRedeemError,
   isStaleNonceRedeemError,
+  isWorthlessPositionCard,
   isZeroPositionBalanceRedeemError,
 } from '@/lib/polymarket/position-payout';
 import {
@@ -444,14 +446,16 @@ export default function PredictionsPanel({
   // The full list lives on the My bets view via the "View all" affordance.
   // Worthless cards (finished games with $0 value, nothing to claim) are
   // excluded here — they still appear on My bets as settled rows.
-  const openPositionsPreview = useMemo(() => {
-    const previewValue = (p: PolymarketPosition) =>
-      p.redeemable ? getRedeemablePayout(p) : (p.currentValue ?? 0);
-    return [...activePositions]
-      .filter((p) => previewValue(p) >= DUST_THRESHOLD)
-      .sort((a, b) => previewValue(b) - previewValue(a))
-      .slice(0, OPEN_POSITIONS_PREVIEW_COUNT);
-  }, [activePositions]);
+  const openPositionsPreview = useMemo(
+    () =>
+      activePositions
+        .filter((p) => !isWorthlessPositionCard(p, DUST_THRESHOLD))
+        .sort(
+          (a, b) => getPositionCardValue(b) - getPositionCardValue(a),
+        )
+        .slice(0, OPEN_POSITIONS_PREVIEW_COUNT),
+    [activePositions],
+  );
 
   useEffect(() => {
     setAutoClaimEnabled(
