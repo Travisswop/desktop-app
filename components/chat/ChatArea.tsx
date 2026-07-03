@@ -187,6 +187,17 @@ import {
   getObjectId,
   proposalFromMessage,
 } from '@/lib/chat/groupAgentPayloads';
+import { StrategyApprovalModal } from '@/components/chat/goldman/StrategyApprovalModal';
+import { GoldmanPerformanceSection } from '@/components/chat/goldman/GoldmanPerformanceSection';
+import { GoldmanActivityFeed } from '@/components/chat/goldman/GoldmanActivityFeed';
+import { GoldmanBrainControls } from '@/components/chat/goldman/GoldmanBrainControls';
+import type {
+  GoldmanActivityEntry,
+  GoldmanStrategyFile,
+  GoldmanStrategyRuntimeCardPayload,
+  GoldmanStrategyVault,
+  GoldmanTradingStrategy,
+} from '@/components/chat/goldman/goldmanTypes';
 import {
   AgentApprovalHandoff,
   clearAgentActionHandoff,
@@ -3176,6 +3187,8 @@ export default function ChatArea({
   const [pendingProposalId, setPendingProposalId] = useState<string | null>(
     null
   );
+  const [strategyReviewProposal, setStrategyReviewProposal] =
+    useState<AgentActionProposal | null>(null);
   const [dismissedReceiptIds, setDismissedReceiptIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -3372,6 +3385,67 @@ export default function ChatArea({
   const isGoldmanStrategyRunning =
     activeGoldmanStrategy?.runtime?.state === 'running' ||
     activeGoldmanStrategy?.status === 'active';
+  // Rolling client-side activity list assembled from the strategy runtime
+  // cards received this session. The console activity feed falls back to it
+  // while the backend activity ledger endpoint is unavailable (404).
+  const goldmanSessionActivity = useMemo<GoldmanActivityEntry[]>(() => {
+    if (!isGoldmanConsoleChat) return [];
+
+    const entries: GoldmanActivityEntry[] = [];
+    messages.forEach((message, messageIndex) => {
+      const runtime = message.agentData?.metadata?.strategyRuntime;
+      if (!runtime) return;
+
+      const ts = runtime.updatedAt || message.createdAt || null;
+      const strategyId = runtime.strategy?.id || null;
+      const baseId = message._id || `runtime-${messageIndex}`;
+
+      (runtime.actions || []).forEach((action, index) => {
+        if (!action?.label && !action?.detail) return;
+        entries.push({
+          id: `${baseId}-action-${index}`,
+          ts,
+          strategyId,
+          action: 'action',
+          label: action.label || null,
+          outcome: action.status || null,
+          detail: action.detail || null,
+        });
+      });
+      (runtime.checks || []).forEach((check, index) => {
+        if (!check?.label && !check?.detail) return;
+        entries.push({
+          id: `${baseId}-check-${index}`,
+          ts,
+          strategyId,
+          action: 'check',
+          label: check.label || null,
+          outcome: check.status || null,
+          detail: check.detail || null,
+        });
+      });
+      (runtime.swaps || []).forEach((swap, index) => {
+        entries.push({
+          id: `${baseId}-swap-${index}`,
+          ts,
+          strategyId,
+          action: 'swap',
+          label:
+            [swap.fromToken, swap.toToken].filter(Boolean).join(' to ') ||
+            null,
+          outcome: swap.status || null,
+          detail: swap.detail || null,
+        });
+      });
+    });
+
+    return entries
+      .sort(
+        (left, right) =>
+          new Date(right.ts || 0).getTime() - new Date(left.ts || 0).getTime()
+      )
+      .slice(0, 100);
+  }, [isGoldmanConsoleChat, messages]);
   const ensureGoldmanStrategyVault = useCallback(async () => {
     if (goldmanStrategyVault?.walletAddress) return goldmanStrategyVault;
     if (!goldmanGroupId || !accessToken) {
@@ -4133,7 +4207,7 @@ export default function ChatArea({
         (current) => ({
           ...data.vault!,
           strategies: Array.isArray(data.strategies)
-            ? data.strategies
+            ? data.strategies.map(normalizeGoldmanStrategyIdentity)
             : current?.strategies || [],
         })
       );
@@ -5403,7 +5477,7 @@ export default function ChatArea({
     router.push('/wallet?perpsDeposit=1');
   }, [router]);
 
-  const handleApproveProposal = async (
+  const executeApproveProposal = async (
     proposalId: string,
     approvalParams?: Record<string, unknown>
   ) => {
@@ -5425,13 +5499,55 @@ export default function ChatArea({
       }));
       handleApprovalNextStep(approvalResult);
       toast.success('Proposal approved');
+      return true;
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Failed to approve proposal'
       );
+      return false;
     } finally {
       setPendingProposalId(null);
     }
+  };
+
+  const findProposalForReview = (proposalId: string) => {
+    if (proposalsById[proposalId]) return proposalsById[proposalId];
+    for (const message of messages) {
+      if (getMessageProposalId(message) === proposalId) {
+        return proposalFromMessage(message);
+      }
+    }
+    return null;
+  };
+
+  // Goldman strategy proposals get a full review modal before the
+  // approve_agent_action socket event fires; everything else approves
+  // directly as before.
+  const handleApproveProposal = async (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>
+  ) => {
+    const proposal = findProposalForReview(proposalId);
+    if (proposal?.toolType === 'strategy.write') {
+      setStrategyReviewProposal({ ...proposal, proposalId });
+      return;
+    }
+    await executeApproveProposal(proposalId, approvalParams);
+  };
+
+  const handleStrategyReviewApprove = async () => {
+    if (!strategyReviewProposal) return;
+    const approved = await executeApproveProposal(
+      strategyReviewProposal.proposalId
+    );
+    if (approved) setStrategyReviewProposal(null);
+  };
+
+  const handleStrategyReviewReject = async () => {
+    if (!strategyReviewProposal) return;
+    const proposalId = strategyReviewProposal.proposalId;
+    setStrategyReviewProposal(null);
+    await handleRejectProposal(proposalId);
   };
 
   const handleApproveInlineProposal = useCallback(
@@ -6981,7 +7097,24 @@ export default function ChatArea({
         onRunGoldmanStrategy={handleRunGoldmanStrategy}
         onStopGoldmanStrategy={handleStopGoldmanStrategy}
         onPositionClick={handleAstroConsolePositionClick}
+        accessToken={accessToken}
+        goldmanSessionActivity={goldmanSessionActivity}
       />
+
+      {strategyReviewProposal && (
+        <StrategyApprovalModal
+          proposal={strategyReviewProposal}
+          accessStation={
+            activeGroupAgents.find(
+              (agent) => agent.agentId === 'goldman-sacks'
+            )?.config?.accessStation || null
+          }
+          isPending={pendingProposalId === strategyReviewProposal.proposalId}
+          onApprove={() => void handleStrategyReviewApprove()}
+          onReject={() => void handleStrategyReviewReject()}
+          onClose={() => setStrategyReviewProposal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -7983,97 +8116,8 @@ function buildGoldmanStrategyFilesPrompt(files: GoldmanStrategyFile[]) {
 
 type GoldmanFundingMode = 'transfer' | 'qr';
 
-type GoldmanStrategyRuntimeState =
-  | 'idle'
-  | 'running'
-  | 'stopping'
-  | 'stopped'
-  | 'error';
-
-type GoldmanStrategyRuntime = {
-  state?: GoldmanStrategyRuntimeState;
-  runId?: string | null;
-  executionMode?: 'monitor' | 'proposal' | 'execute' | string;
-  startedAt?: string | null;
-  stoppedAt?: string | null;
-  lastHeartbeatAt?: string | null;
-  lastActivity?: string | null;
-  lastError?: string | null;
-  cycleCount?: number | null;
-};
-
-type GoldmanTradingStrategy = {
-  id: string;
-  title?: string | null;
-  prompt?: string | null;
-  venues?: string[];
-  assets?: string[];
-  status?: 'draft' | 'pending_authorization' | 'active' | 'paused' | 'revoked' | 'expired' | string;
-  rules?: Record<string, unknown>;
-  limits?: Record<string, unknown>;
-  runtime?: GoldmanStrategyRuntime;
-  metadata?: Record<string, unknown>;
-  lastEvaluatedAt?: string | null;
-  lastExecutedAt?: string | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-};
-
-type GoldmanStrategyFile = {
-  file: string;
-  detail?: string | null;
-  status?: string | null;
-  content: string;
-  updatedAt?: string | null;
-  updatedBy?: string | null;
-};
-
-type GoldmanStrategyVault = {
-  id: string;
-  userId?: string | null;
-  groupId?: string | null;
-  agentId: string;
-  walletAddress: string;
-  walletChain?: string | null;
-  walletRole?: string | null;
-  privyWalletId?: string | null;
-  status?: string | null;
-  network?: string | null;
-  networkLabel?: string | null;
-  chainType?: string | null;
-  chainId?: number | null;
-  assetHint?: string | null;
-  warning?: string | null;
-  source?: string | null;
-  activatedAt?: string | null;
-  limits?: Record<string, unknown>;
-  strategyFiles?: GoldmanStrategyFile[];
-  strategies?: GoldmanTradingStrategy[];
-};
-
-type GoldmanStrategyRuntimeCardPayload = {
-  runId?: string | null;
-  phase?: string | null;
-  status?: string | null;
-  title?: string | null;
-  detail?: string | null;
-  executionMode?: string | null;
-  executionReady?: boolean | null;
-  walletAddress?: string | null;
-  strategy?: GoldmanTradingStrategy | null;
-  checks?: Array<{ label?: string; status?: string; detail?: string }>;
-  actions?: Array<{ label?: string; status?: string; detail?: string }>;
-  markets?: PolymarketMarketPreview[];
-  positions?: PolymarketPosition[];
-  swaps?: Array<{
-    fromToken?: string;
-    toToken?: string;
-    amount?: string;
-    status?: string;
-    detail?: string;
-  }>;
-  updatedAt?: string | null;
-};
+// Goldman strategy/vault/runtime types now live in
+// components/chat/goldman/goldmanTypes.ts (imported at the top of this file).
 
 async function readGoldmanStrategyVault({
   groupId,
@@ -8114,9 +8158,19 @@ async function readGoldmanStrategyVault({
   return {
     ...vault,
     strategies: Array.isArray(body?.data?.strategies)
-      ? body.data.strategies
+      ? body.data.strategies.map(normalizeGoldmanStrategyIdentity)
       : [],
   };
+}
+
+// Backend branches disagree on the strategy identifier field (`id` vs
+// `_id`); normalize at every ingestion point so the rest of the UI can key
+// off `strategy.id`.
+function normalizeGoldmanStrategyIdentity(
+  strategy: GoldmanTradingStrategy & { _id?: string | null }
+): GoldmanTradingStrategy {
+  if (strategy?.id || !strategy?._id) return strategy;
+  return { ...strategy, id: String(strategy._id) };
 }
 
 async function updateGoldmanStrategyRuntime({
@@ -8253,8 +8307,11 @@ function getRunnableGoldmanStrategy(vault?: GoldmanStrategyVault | null) {
 
 function mergeGoldmanStrategyIntoVault(
   vault: GoldmanStrategyVault | null | undefined,
-  strategy?: GoldmanTradingStrategy | null
+  incomingStrategy?: GoldmanTradingStrategy | null
 ): GoldmanStrategyVault | null {
+  const strategy = incomingStrategy
+    ? normalizeGoldmanStrategyIdentity(incomingStrategy)
+    : incomingStrategy;
   if (!vault || !strategy?.id) return vault || null;
   const existing = vault.strategies || [];
   const nextStrategies = existing.some((item) => item.id === strategy.id)
@@ -8449,6 +8506,8 @@ function GoldmanAccessStation({
   onSaveStrategyFile,
   onRunStrategy,
   onStopStrategy,
+  accessToken,
+  sessionActivity,
 }: {
   panelVisibilityClass: string;
   panelWidthClass: string;
@@ -8474,6 +8533,8 @@ function GoldmanAccessStation({
   ) => Promise<GoldmanStrategyFile | null>;
   onRunStrategy?: () => void;
   onStopStrategy?: () => void;
+  accessToken?: string | null;
+  sessionActivity?: GoldmanActivityEntry[];
 }) {
   const accessStationKey = JSON.stringify(accessStation || {});
   const [{ access, limits }, setStationState] = useState(
@@ -8485,6 +8546,9 @@ function GoldmanAccessStation({
   );
   const [fundingMode, setFundingMode] = useState<GoldmanFundingMode | null>(
     null
+  );
+  const [consoleTab, setConsoleTab] = useState<'console' | 'activity'>(
+    'console'
   );
   const strategyFiles = useMemo(
     () => hydrateGoldmanStrategyFiles(strategyVault?.strategyFiles),
@@ -9061,6 +9125,41 @@ function GoldmanAccessStation({
         </span>
       </div>
 
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        {(
+          [
+            { tab: 'console' as const, label: 'Console' },
+            { tab: 'activity' as const, label: 'Activity' },
+          ]
+        ).map((option) => {
+          const selected = consoleTab === option.tab;
+          return (
+            <button
+              key={option.tab}
+              type="button"
+              aria-pressed={selected}
+              data-testid={`goldman-console-tab-${option.tab}`}
+              onClick={() => setConsoleTab(option.tab)}
+              className={`dm-btn dm-mono flex h-8 items-center justify-center rounded-[8px] border text-[9.5px] font-bold uppercase tracking-[0.08em] ${
+                selected
+                  ? 'border-[#f4c95d]/35 bg-[#f4c95d]/15 text-[#f4c95d]'
+                  : 'border-white/[0.07] bg-black/20 text-[#9396a0]'
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {consoleTab === 'activity' ? (
+        <GoldmanActivityFeed
+          groupId={groupId}
+          accessToken={accessToken}
+          sessionEntries={sessionActivity || []}
+        />
+      ) : (
+        <>
       {goldmanWalletCard}
 
       <SectionLabel>metrics</SectionLabel>
@@ -9108,6 +9207,8 @@ function GoldmanAccessStation({
           })}
         </div>
       </ConsoleCard>
+
+      <GoldmanPerformanceSection strategies={strategyVault?.strategies} />
 
       <ConsoleCard padClass="px-4 py-3">
         <div className="flex items-start justify-between gap-3">
@@ -9248,6 +9349,8 @@ function GoldmanAccessStation({
         </div>
       </ConsoleCard>
 
+      <GoldmanBrainControls groupId={groupId} accessToken={accessToken} />
+
       <SectionLabel>strategy md files</SectionLabel>
       <ConsoleCard padClass="p-0">
         {strategyFiles.map((file) => (
@@ -9356,6 +9459,8 @@ function GoldmanAccessStation({
           </div>
         ))}
       </ConsoleCard>
+        </>
+      )}
 
       {editingStrategyFile && (
         <div
@@ -9463,6 +9568,8 @@ function DmContextPanel({
   onRunGoldmanStrategy,
   onStopGoldmanStrategy,
   onPositionClick,
+  accessToken,
+  goldmanSessionActivity,
 }: {
   mode: 'astro' | 'goldman' | 'group' | 'contact';
   displayChat?: SelectedChat | null;
@@ -9491,6 +9598,8 @@ function DmContextPanel({
   onRunGoldmanStrategy?: () => void;
   onStopGoldmanStrategy?: () => void;
   onPositionClick?: (selection: AstroConsolePositionSelection) => void;
+  accessToken?: string | null;
+  goldmanSessionActivity?: GoldmanActivityEntry[];
 }) {
   const shouldShowAgentPanelOnDesktop =
     showOnTablet || mode === 'astro' || mode === 'goldman';
@@ -9526,6 +9635,8 @@ function DmContextPanel({
         onSaveStrategyFile={onSaveGoldmanStrategyFile}
         onRunStrategy={onRunGoldmanStrategy}
         onStopStrategy={onStopGoldmanStrategy}
+        accessToken={accessToken}
+        sessionActivity={goldmanSessionActivity}
       />
     );
   }
