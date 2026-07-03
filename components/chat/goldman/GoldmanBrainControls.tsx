@@ -6,7 +6,7 @@
 // (brain controls shipping from a parallel branch).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BrainCircuit, Loader2, RotateCcw } from 'lucide-react';
+import { BrainCircuit, Loader2, RotateCcw, Share2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { toFiniteNumber } from '@/lib/chat/ticketFormat';
 import {
@@ -72,19 +72,28 @@ export function GoldmanBrainControls({
   }, [accessToken, groupId]);
 
   const applyPatch = useCallback(
-    (patch: { tier?: 'fast' | 'deep'; memoryEnabled?: boolean }) => {
+    (patch: {
+      tier?: 'fast' | 'deep';
+      memoryEnabled?: boolean;
+      feedSharingEnabled?: boolean;
+    }) => {
       if (!groupId || !accessToken || isSaving) return;
+
+      // Optimistically apply the patch, keeping the prior snapshot so we can
+      // revert if the request fails.
+      const previous = brain;
+      setBrain((current) => ({ ...current, ...patch }));
 
       setIsSaving(true);
       updateGoldmanBrain({ groupId, accessToken, patch })
         .then((state) => {
           if (state) {
             setBrain(state);
-          } else {
-            setBrain((current) => ({ ...current, ...patch }));
           }
+          // Null response = no payload echoed back; keep the optimistic value.
         })
         .catch((error) => {
+          setBrain(previous);
           toast.error(
             error instanceof Error
               ? error.message
@@ -95,7 +104,7 @@ export function GoldmanBrainControls({
           setIsSaving(false);
         });
     },
-    [accessToken, groupId, isSaving]
+    [accessToken, brain, groupId, isSaving]
   );
 
   const handleResetMemory = useCallback(() => {
@@ -123,6 +132,9 @@ export function GoldmanBrainControls({
 
   const tier = brain.tier === 'deep' ? 'deep' : 'fast';
   const memoryEnabled = Boolean(brain.memoryEnabled);
+  // Feed sharing defaults to on: treat only an explicit `false` as disabled so
+  // the toggle reads "on" before the backend echoes the field.
+  const feedSharingEnabled = brain.feedSharingEnabled !== false;
   const usage = brain.usage || null;
   const calls = toFiniteNumber(usage?.calls);
   const callCap = toFiniteNumber(usage?.callCap);
@@ -209,6 +221,43 @@ export function GoldmanBrainControls({
             <span
               className={`absolute top-0.5 h-5 w-5 rounded-full transition ${
                 memoryEnabled
+                  ? 'left-[19px] bg-[#b893ff]'
+                  : 'left-0.5 bg-[#5a5e69]'
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Share2 className="h-3.5 w-3.5 flex-shrink-0 text-[#b893ff]" />
+            <div className="min-w-0">
+              <div className="text-[11.5px] font-semibold text-[#eceef2]">
+                Share agent trades
+              </div>
+              <div className="dm-mono mt-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-[#5a5e69]">
+                post this agent&apos;s trades to your feed
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-pressed={feedSharingEnabled}
+            aria-label="Share agent trades"
+            data-testid="goldman-brain-feed-sharing-toggle"
+            disabled={isSaving}
+            onClick={() =>
+              applyPatch({ feedSharingEnabled: !feedSharingEnabled })
+            }
+            className={`dm-btn relative h-6 w-11 flex-shrink-0 rounded-full border transition ${
+              feedSharingEnabled
+                ? 'border-[#b893ff]/40 bg-[#b893ff]/25'
+                : 'border-white/[0.08] bg-black/45'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full transition ${
+                feedSharingEnabled
                   ? 'left-[19px] bg-[#b893ff]'
                   : 'left-0.5 bg-[#5a5e69]'
               }`}

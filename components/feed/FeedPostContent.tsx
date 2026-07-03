@@ -14,6 +14,7 @@ import PerpsPositionFeedCard from './PerpsPositionFeedCard';
 import PerpsFeedCard from './PerpsFeedCard';
 import DefiFeedCard from './DefiFeedCard';
 import ProductFeedCard from './ProductFeedCard';
+import AgentTradeFeedCard from './AgentTradeFeedCard';
 import { isProductFeedPost } from './productFeedUtils';
 
 interface FeedItemType {
@@ -274,6 +275,11 @@ const FeedPostContent = ({
           }
           createdAt={feed.createdAt}
         />
+      )}
+
+      {/* Agent trade — trade auto-posted by the user's autonomous agent */}
+      {feed.postType === 'agentTrade' && (
+        <AgentTradeFeedCard feed={feed} />
       )}
 
       {/* Aave DeFi supply / borrow */}

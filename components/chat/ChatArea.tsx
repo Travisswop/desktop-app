@@ -8268,6 +8268,7 @@ function goldmanVaultToFundingDetails(
 
   return {
     address: vault.walletAddress,
+    ensName: vault.ensName || null,
     network: vault.network || vault.walletChain || 'polygon',
     networkLabel: vault.networkLabel || 'Polygon / EVM',
     chainType: vault.chainType || 'evm',
@@ -8662,6 +8663,20 @@ function GoldmanAccessStation({
     }
   }, [fundingAddress?.address]);
 
+  const handleCopyFundingHandle = useCallback(async () => {
+    if (!fundingAddress?.ensName) {
+      toast.error('No funding handle registered yet.');
+      return;
+    }
+
+    const didCopy = await copyTextToClipboard(fundingAddress.ensName);
+    if (didCopy) {
+      toast.success('Goldman funding handle copied.');
+    } else {
+      toast.error('Could not copy funding handle.');
+    }
+  }, [fundingAddress?.ensName]);
+
   const handleActivateFunding = useCallback(
     async (mode: GoldmanFundingMode = 'transfer') => {
       setFundingMode(mode);
@@ -8843,27 +8858,69 @@ function GoldmanAccessStation({
         </div>
 
         <div className="mt-3 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
-          <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
-            vault address
-          </div>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="dm-mono min-w-0 flex-1 truncate text-[11px] font-semibold text-[#eceef2]">
-              {vaultAddressLabel}
-            </span>
-            {isVaultBusy && !fundingAddress?.address && (
-              <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin text-[#f4c95d]" />
-            )}
-            {fundingAddress?.address && (
-              <button
-                type="button"
-                title="Copy Goldman vault"
-                onClick={handleCopyFundingAddress}
-                className="dm-btn grid h-7 w-7 flex-shrink-0 place-items-center rounded-[7px] border border-white/[0.07] bg-black/20 text-[#eceef2]"
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
+          {fundingAddress?.ensName ? (
+            // ENS funding handle registered — show the swop.id as the primary
+            // "Fund:" line (with copy), keep the raw 0x as secondary.
+            <>
+              <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                fund
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <span
+                  data-testid="goldman-funding-ens"
+                  className="dm-mono min-w-0 flex-1 truncate text-[12px] font-semibold text-[#f4c95d]"
+                  title={fundingAddress.ensName}
+                >
+                  {fundingAddress.ensName}
+                </span>
+                <button
+                  type="button"
+                  title="Copy Goldman funding handle"
+                  onClick={handleCopyFundingHandle}
+                  className="dm-btn grid h-7 w-7 flex-shrink-0 place-items-center rounded-[7px] border border-[#f4c95d]/25 bg-[#f4c95d]/10 text-[#f4c95d]"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="dm-mono min-w-0 flex-1 truncate text-[10px] font-semibold text-[#737783]">
+                  {vaultAddressLabel}
+                </span>
+                <button
+                  type="button"
+                  title="Copy Goldman vault address"
+                  onClick={handleCopyFundingAddress}
+                  className="dm-btn grid h-6 w-6 flex-shrink-0 place-items-center rounded-[6px] border border-white/[0.07] bg-black/20 text-[#9396a0]"
+                >
+                  <Copy className="h-3 w-3" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                vault address
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="dm-mono min-w-0 flex-1 truncate text-[11px] font-semibold text-[#eceef2]">
+                  {vaultAddressLabel}
+                </span>
+                {isVaultBusy && !fundingAddress?.address && (
+                  <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin text-[#f4c95d]" />
+                )}
+                {fundingAddress?.address && (
+                  <button
+                    type="button"
+                    title="Copy Goldman vault"
+                    onClick={handleCopyFundingAddress}
+                    className="dm-btn grid h-7 w-7 flex-shrink-0 place-items-center rounded-[7px] border border-white/[0.07] bg-black/20 text-[#eceef2]"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </>
+          )}
           {strategyVaultError && !fundingAddress?.address && (
             <div className="mt-1 text-[10px] font-semibold leading-snug text-[#ff8585]">
               {strategyVaultError}
@@ -9072,6 +9129,11 @@ function GoldmanAccessStation({
                   <div className="dm-mono mb-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
                     {fundingAddress.networkLabel}
                   </div>
+                  {fundingAddress.ensName && (
+                    <div className="dm-mono mb-1 break-all text-[11px] font-semibold leading-relaxed text-[#f4c95d]">
+                      {fundingAddress.ensName}
+                    </div>
+                  )}
                   <div className="dm-mono break-all text-[10.5px] font-semibold leading-relaxed text-[#eceef2]">
                     {fundingAddress.address}
                   </div>

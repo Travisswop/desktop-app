@@ -73,7 +73,11 @@ export async function updateGoldmanBrain({
 }: {
   groupId: string;
   accessToken: string;
-  patch: { tier?: 'fast' | 'deep'; memoryEnabled?: boolean };
+  patch: {
+    tier?: 'fast' | 'deep';
+    memoryEnabled?: boolean;
+    feedSharingEnabled?: boolean;
+  };
 }): Promise<GoldmanBrainState | null> {
   const response = await apiFetch(goldmanAgentUrl(groupId, '/brain'), {
     method: 'PATCH',

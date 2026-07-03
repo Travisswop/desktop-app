@@ -93,6 +93,10 @@ export type GoldmanStrategyVault = {
   groupId?: string | null;
   agentId: string;
   walletAddress: string;
+  // Human-readable swop.id funding handle for the vault (e.g.
+  // "agent.travis.swop.id"). Null/absent = not yet registered; callers fall
+  // back to the raw 0x walletAddress. Additive — backend ships it tolerantly.
+  ensName?: string | null;
   walletChain?: string | null;
   walletRole?: string | null;
   privyWalletId?: string | null;
@@ -147,6 +151,9 @@ export type GoldmanBrainState = {
   enabled?: boolean | null;
   tier?: 'fast' | 'deep' | string | null;
   memoryEnabled?: boolean | null;
+  // When true, the agent's trades are posted to the user's feed. Additive —
+  // defaults to true on the backend; absent until that endpoint ships it.
+  feedSharingEnabled?: boolean | null;
   usage?: GoldmanBrainUsage | null;
 };
 

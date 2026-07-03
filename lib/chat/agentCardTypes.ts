@@ -24,6 +24,9 @@ export interface User {
 
 export interface WalletReceiveQrDetails {
   address: string;
+  // Optional human-readable funding handle (e.g. a swop.id like
+  // "agent.travis.swop.id") to show in front of the raw 0x address.
+  ensName?: string | null;
   network?: string | null;
   networkLabel?: string | null;
   chainType?: string | null;
