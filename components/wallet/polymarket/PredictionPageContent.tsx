@@ -136,7 +136,12 @@ export default function PredictionPageContent() {
     };
   }, [authenticated, hasWallet, isReady, openApprovedPredictionAction]);
 
-  if (!authenticated || isInitializing || !hasWallet) {
+  // While the wallet is still initializing, render the page anyway — market
+  // browsing needs no wallet (lists + CLOB prices are public), and blocking
+  // on session init made every navigation feel like a cold load. Balances,
+  // positions, and order placement hydrate when the session completes.
+  // Only block once initialization has FINISHED and auth/wallet is missing.
+  if (!isInitializing && (!authenticated || !hasWallet)) {
     return (
       <div
         className="relative -m-6 min-h-[calc(100vh-6rem)] flex items-center justify-center"
@@ -152,7 +157,7 @@ export default function PredictionPageContent() {
     );
   }
 
-  if (!isReady) {
+  if (!isInitializing && !isReady) {
     return (
       <div
         className="relative -m-6 min-h-[calc(100vh-6rem)] flex items-center justify-center"

@@ -52,7 +52,7 @@ const LIVE_RED = '#ff5a5f';
 const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
 const BENTO_PREFETCH_ROOT_MARGIN = '900px 0px';
-const BENTO_REFETCH_INTERVAL_MS = 60_000;
+const BENTO_REFETCH_INTERVAL_MS = 30_000;
 
 // Categories rendered in the lower bento grid (sports gets the full-width
 // hero above, so it's excluded here). "Trending" is also excluded — it has
@@ -588,7 +588,7 @@ function SportsHeroCard({
   const { data: sportsData, isLoading } = useSportsEvents({
     tagId,
     enabled: true,
-    includeRealtimePrices: false,
+    includeRealtimePrices: true,
     refetchIntervalMs: BENTO_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: false,
   });
@@ -774,7 +774,7 @@ function CategoryBentoCard({
   const { data, isLoading } = useMarkets({
     categoryId,
     enabled: shouldLoad,
-    includeRealtimePrices: false,
+    includeRealtimePrices: true,
     refetchIntervalMs: BENTO_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: false,
   });

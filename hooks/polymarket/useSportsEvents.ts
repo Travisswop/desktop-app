@@ -1,5 +1,4 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useTrading } from '@/providers/polymarket';
 import {
   QUERY_REFETCH_INTERVALS,
   QUERY_STALE_TIMES,
@@ -57,7 +56,6 @@ export function useSportsEvents({
   refetchIntervalMs = QUERY_REFETCH_INTERVALS.MARKETS,
   refetchOnWindowFocus = true,
 }: UseSportsEventsOptions = {}) {
-  const { isTradingSessionComplete } = useTrading();
   const trimmedSearch = searchQuery.trim();
   const shouldApplyDateWindow = kind !== 'futures' && !live;
   const effectiveDateFrom = shouldApplyDateWindow ? dateFrom : undefined;
@@ -73,7 +71,6 @@ export function useSportsEvents({
       effectiveDateTo ?? null,
       trimmedSearch,
       includeRealtimePrices,
-      includeRealtimePrices && !!isTradingSessionComplete,
     ],
     enabled,
     initialPageParam: 0,
@@ -98,11 +95,10 @@ export function useSportsEvents({
       const markets: PolymarketMarket[] = await res.json();
 
       // ── Enrich with real-time CLOB prices ────────────────────────────────
-      if (
-        includeRealtimePrices &&
-        isTradingSessionComplete &&
-        markets.length > 0
-      ) {
+      // The /prices endpoint is public — no trading session required. Gating
+      // this on session init used to leave lists showing stale Gamma odds
+      // until the wallet finished initializing.
+      if (includeRealtimePrices && markets.length > 0) {
         const allTokenIds: string[] = [];
         for (const market of markets) {
           if (!market.clobTokenIds) continue;

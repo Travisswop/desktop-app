@@ -4,7 +4,6 @@ import {
   QUERY_REFETCH_INTERVALS,
   QUERY_STALE_TIMES,
 } from "@/constants/polymarket";
-import { useTrading } from "@/providers/polymarket";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchChunkedPrices } from "@/lib/polymarket/clob-prices";
 
@@ -103,7 +102,6 @@ export function useMarkets(options: UseMarketsOptions = {}) {
     refetchOnWindowFocus = true,
     enabled = true,
   } = options;
-  const { isTradingSessionComplete } = useTrading();
   const trimmedSearch = searchQuery.trim();
 
   return useInfiniteQuery({
@@ -113,7 +111,6 @@ export function useMarkets(options: UseMarketsOptions = {}) {
       overrideTagId,
       trimmedSearch,
       includeRealtimePrices,
-      includeRealtimePrices && !!isTradingSessionComplete,
     ],
     enabled,
     initialPageParam: 0,
@@ -141,12 +138,11 @@ export function useMarkets(options: UseMarketsOptions = {}) {
 
       const markets: PolymarketMarket[] = await response.json();
 
-      // Fetch realtime prices using batch API — one POST /prices call per side
-      if (
-        includeRealtimePrices &&
-        isTradingSessionComplete &&
-        markets.length > 0
-      ) {
+      // Fetch realtime prices using batch API — one POST /prices call per side.
+      // The /prices endpoint is public — no trading session required. Gating
+      // this on session init used to leave lists showing stale Gamma odds
+      // until the wallet finished initializing.
+      if (includeRealtimePrices && markets.length > 0) {
         try {
           const allTokenIds: string[] = [];
           for (const market of markets) {

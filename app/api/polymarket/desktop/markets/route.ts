@@ -51,26 +51,19 @@ const FALLBACK_CACHE_HEADERS = {
 
 type PolymarketProxyMarket = Record<string, any>;
 
+// Odds ride on these payloads, so CDN lifetimes are short. The client
+// overlays live CLOB prices on top (fetchChunkedPrices), but Gamma's
+// embedded outcomePrices are the first paint — the previous 30/90s caching
+// could show minutes-old odds on lists that then jumped on the detail view.
 function cacheHeadersFor(searchParams: URLSearchParams) {
   if (searchParams.get('live') === 'true') {
     return {
-      'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=15',
-    };
-  }
-
-  if (
-    searchParams.get('q') ||
-    searchParams.get('search') ||
-    searchParams.get('event_slug') ||
-    searchParams.get('eventSlug')
-  ) {
-    return {
-      'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=45',
+      'Cache-Control': 'public, s-maxage=3, stale-while-revalidate=10',
     };
   }
 
   return {
-    'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=90',
+    'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30',
   };
 }
 
