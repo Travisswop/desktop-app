@@ -274,7 +274,7 @@ function getFriendlyOrderError(
     msg.includes('allowance')
   ) {
     return {
-      title: 'USDC approval or balance issue',
+      title: 'pUSD approval or balance issue',
       detail:
         'Refresh trading approvals or try a slightly smaller amount to leave room for fees.',
     };
@@ -282,19 +282,20 @@ function getFriendlyOrderError(
   if (
     (msg.includes('insufficient') || msg.includes('not enough')) &&
     (msg.includes('usdc') ||
+      msg.includes('pusd') ||
       msg.includes('balance') ||
       msg.includes('funds'))
   ) {
     return {
-      title: 'Not enough USDC',
+      title: 'Not enough pUSD',
       detail:
-        'Try a slightly smaller amount or add USDC to cover the order and fees.',
+        'Try a slightly smaller amount or add funds to cover the order and fees.',
     };
   }
   if (msg.includes('allowance') || msg.includes('approval')) {
     return {
       title: 'Approval needed',
-      detail: 'Approve USDC for trading, then place the order again.',
+      detail: 'Approve pUSD for trading, then place the order again.',
     };
   }
 

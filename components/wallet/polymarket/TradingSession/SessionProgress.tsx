@@ -8,7 +8,7 @@ const steps: { id: SessionStep; label: string; hint?: string }[] = [
   { id: 'checking', label: 'Checking session...' },
   { id: 'deploying', label: 'Deploying Smart Wallet...', hint: 'Sign in your wallet when prompted' },
   { id: 'credentials', label: 'Creating trading credentials...', hint: 'Sign the message in your wallet to continue' },
-  { id: 'approvals', label: 'Approving USDC for trading...', hint: 'Sign in your wallet when prompted' },
+  { id: 'approvals', label: 'Approving pUSD for trading...', hint: 'Sign in your wallet when prompted' },
   { id: 'complete', label: 'Trading account ready!' },
 ];
 

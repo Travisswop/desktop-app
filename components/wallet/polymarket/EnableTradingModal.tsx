@@ -84,7 +84,7 @@ export default function EnableTradingModal({
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-900">
-                  Approve USDC for trading
+                  Approve pUSD for trading
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Allows the exchange to settle your trades
