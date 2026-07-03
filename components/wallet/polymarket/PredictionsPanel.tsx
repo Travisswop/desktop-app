@@ -442,21 +442,16 @@ export default function PredictionsPanel({
   );
   // Highest-value open bets to preview on the dashboard, above Browse markets.
   // The full list lives on the My bets view via the "View all" affordance.
-  const openPositionsPreview = useMemo(
-    () =>
-      [...activePositions]
-        .sort(
-          (a, b) =>
-            (b.redeemable
-              ? getRedeemablePayout(b)
-              : (b.currentValue ?? 0)) -
-            (a.redeemable
-              ? getRedeemablePayout(a)
-              : (a.currentValue ?? 0)),
-        )
-        .slice(0, OPEN_POSITIONS_PREVIEW_COUNT),
-    [activePositions],
-  );
+  // Worthless cards (finished games with $0 value, nothing to claim) are
+  // excluded here — they still appear on My bets as settled rows.
+  const openPositionsPreview = useMemo(() => {
+    const previewValue = (p: PolymarketPosition) =>
+      p.redeemable ? getRedeemablePayout(p) : (p.currentValue ?? 0);
+    return [...activePositions]
+      .filter((p) => previewValue(p) >= DUST_THRESHOLD)
+      .sort((a, b) => previewValue(b) - previewValue(a))
+      .slice(0, OPEN_POSITIONS_PREVIEW_COUNT);
+  }, [activePositions]);
 
   useEffect(() => {
     setAutoClaimEnabled(
