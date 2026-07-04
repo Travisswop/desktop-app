@@ -202,6 +202,8 @@ const WalletModals: React.FC<WalletModalsProps> = ({
         token={sendFlow.token}
         isUSD={sendFlow.isUSD}
         hash={sendFlow.hash || ""}
+        recipient={sendFlow.recipient}
+        network={sendFlow.network}
       />
 
       {/* QR code related modals */}

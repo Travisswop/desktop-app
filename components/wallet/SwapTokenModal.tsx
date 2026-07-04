@@ -9,6 +9,9 @@ import {
 } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import TransactionSuccessCelebration, {
+  type TransactionSuccessCelebrationProps,
+} from '@/components/wallet/token/transaction-success-celebration';
 import {
   ArrowUpDown,
   Info,
@@ -1993,6 +1996,10 @@ export default function SwapTokenModal({
   const [showSlippageModal, setShowSlippageModal] = useState(false);
 
   const [showSwapSuccess, setShowSwapSuccess] = useState(false);
+  // Celebration success screen (confetti + value bloom + fee card). Snapshotted
+  // once per swap when the tx hash lands, so it survives the form reset.
+  const [swapCelebration, setSwapCelebration] =
+    useState<Omit<TransactionSuccessCelebrationProps, 'open' | 'onClose'> | null>(null);
   // Confirm-review modal (screen 16 — G8 Confirm transaction)
   const [showConfirmReview, setShowConfirmReview] = useState(false);
 
@@ -6225,6 +6232,68 @@ export default function SwapTokenModal({
     }
   }, [txHash, isSwapDone]);
 
+  // When a swap's tx hash lands, snapshot the trade and open the celebration
+  // success screen. Snapshot once per swap so the later form reset (which clears
+  // the amounts) doesn't blank out the modal that's still on screen.
+  useEffect(() => {
+    if (!txHash) {
+      setSwapCelebration(null);
+      return;
+    }
+    setSwapCelebration((prev) => {
+      if (prev) return prev;
+      if (!payToken || !receiveToken) return prev;
+      const inSym = String(payToken.symbol || '').toUpperCase();
+      const outSym = String(receiveToken.symbol || '').toUpperCase();
+      const inPrice = Number(payToken?.marketData?.price) || 0;
+      const outPrice = Number(receiveToken?.marketData?.price) || 0;
+      const inAmt = Number(payAmount) || 0;
+      const outAmt = Number(receiveAmount) || 0;
+      const inUsd = inPrice * inAmt;
+      const outUsd = outPrice * outAmt;
+      return {
+        type: 'swap',
+        eyebrow: 'Swap complete',
+        heroLabel: 'You got',
+        heroAmount: outAmt,
+        heroSymbol: outSym,
+        heroCoin: {
+          label: outSym.slice(0, 1) || '?',
+          uri: getSwapTokenImage(receiveToken, receiverChainId),
+        },
+        heroSub: `${outUsd ? `≈ $${outUsd.toFixed(2)} · ` : ''}from ${payAmount} ${inSym}`,
+        recap: [
+          {
+            label: 'Traded',
+            value: `${payAmount} ${inSym}`,
+            coin: { label: inSym.slice(0, 1) || '?', uri: getSwapTokenImage(payToken, chainId) },
+            sign: '−',
+          },
+          {
+            label: 'Received',
+            value: `${receiveAmount} ${outSym}`,
+            coin: { label: outSym.slice(0, 1) || '?', uri: getSwapTokenImage(receiveToken, receiverChainId) },
+            sign: '+',
+            positive: true,
+          },
+        ],
+        conf: 'Confirmed',
+        hashLabel: `${txHash.slice(0, 6)}…${txHash.slice(-4)}`,
+        explorerUrl: getExplorerUrl(chainId, txHash),
+        notionalUsd: inUsd > 0 ? inUsd : outUsd,
+        shareText: 'I just swapped on Swop',
+      };
+    });
+  }, [
+    txHash,
+    payToken,
+    receiveToken,
+    payAmount,
+    receiveAmount,
+    chainId,
+    receiverChainId,
+  ]);
+
   const handleTokenChartOpen = useCallback(
     (selectedToken: any) => {
       const href = buildWalletTokenChartHref(selectedToken);
@@ -7260,6 +7329,17 @@ export default function SwapTokenModal({
             </div>
           </div>
         </div>
+      )}
+
+      {swapCelebration && (
+        <TransactionSuccessCelebration
+          {...swapCelebration}
+          open={!!swapCelebration}
+          onClose={() => {
+            setSwapCelebration(null);
+            dismissSwapReceipt();
+          }}
+        />
       )}
 
       {showSwapSuccess && txHash && (

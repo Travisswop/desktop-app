@@ -87,11 +87,7 @@ import NFTSlider from './nft/nft-list';
 import NFTDetailView from './nft/nft-details-view';
 import ManageNFTModal from './nft/ManageNFTModal';
 import WalletModals from './WalletModals';
-import {
-  showTransactionErrorToast,
-  showTransactionProcessingToast,
-  showTransactionSuccessToast,
-} from './transaction-processing-toast';
+import { showTransactionErrorToast } from './transaction-processing-toast';
 import { Toaster } from '../ui/toaster';
 import { BentoCard, Chip, SectionHead } from '../ui/bento';
 import BalanceChart from '../dashboard/BalanceChart';
@@ -163,10 +159,6 @@ const getTokenColor = (symbol: string): string => {
   return TOKEN_COLORS[symbol] || TOKEN_COLORS.default;
 };
 
-const shortTransactionAddress = (address?: string | null) =>
-  address && address.length > 12
-    ? `${address.slice(0, 6)}...${address.slice(-4)}`
-    : address || 'recipient';
 
 const getWalletTransactionExplorerUrl = (
   flow: SendFlowState,
@@ -192,21 +184,6 @@ const getWalletTransactionExplorerUrl = (
     default:
       return null;
   }
-};
-
-const getWalletTransactionToastMessage = (flow: SendFlowState) => {
-  const recipient =
-    flow.recipient?.ensName ||
-    shortTransactionAddress(flow.recipient?.address);
-
-  if (flow.nft) {
-    return `${flow.nft.name || 'NFT'} is being sent to ${recipient}. You can keep using Swop.`;
-  }
-
-  const amount = flow.isUSD
-    ? `$${flow.amount}`
-    : `${flow.amount} ${flow.token?.symbol || 'token'}`;
-  return `${amount} is being sent to ${recipient}. You can keep using Swop.`;
 };
 
 const HIDDEN_NFTS_KEY = 'hiddenNfts';
@@ -1997,25 +1974,28 @@ const WalletContentInner = () => {
       const submittedSenderAddress =
         result.senderAddress || currentWalletAddress;
 
+      // Show the celebration success screen immediately — EVM already waited
+      // for its receipt inside TransactionService, and Solana is broadcast. The
+      // modal is now the success surface (no processing/success toasts); keep
+      // confirming Solana + running feed/points/socket work in the background.
+      setSendFlow((prev) => ({
+        ...prev,
+        hash: submittedHash,
+        step: 'success',
+      }));
+      setSendLoading(false);
+
       if (submittedHash) {
         const explorerUrl = getWalletTransactionExplorerUrl(
           submittedFlow,
           submittedHash,
         );
-        const toastId = showTransactionProcessingToast({
-          title: 'Transaction processing',
-          message: getWalletTransactionToastMessage(submittedFlow),
-          explorerUrl,
-        });
-
-        resetSendFlow();
-        setSendLoading(false);
 
         void (async () => {
           // Solana submission only proves broadcast, not inclusion — a send
-          // whose blockhash expires never executes. Confirm before claiming
-          // success or publishing the transfer to the feed. (EVM paths wait
-          // for their receipt inside TransactionService.)
+          // whose blockhash expires never executes. Confirm before publishing
+          // the transfer to the feed. (EVM paths wait for their receipt inside
+          // TransactionService.)
           const isSolanaSend =
             submittedFlow.token?.chain?.toUpperCase() === 'SOLANA' ||
             submittedFlow.network.toUpperCase() === 'SOLANA';
@@ -2030,8 +2010,8 @@ const WalletContentInner = () => {
               : 'unknown';
 
             if (confirmation === 'failed') {
+              // The optimistic celebration was wrong — surface the failure.
               showTransactionErrorToast({
-                id: toastId,
                 title: 'Transaction failed',
                 message:
                   "The transaction didn't land on-chain — no funds moved. Please try again.",
@@ -2041,13 +2021,6 @@ const WalletContentInner = () => {
             }
 
             if (confirmation === 'unknown') {
-              showTransactionSuccessToast({
-                id: toastId,
-                title: 'Transaction submitted',
-                message:
-                  'Confirmation is taking longer than usual. Check the explorer for the final status.',
-                explorerUrl,
-              });
               queryClient.invalidateQueries({
                 queryKey: ['transactions'],
               });
@@ -2084,37 +2057,14 @@ const WalletContentInner = () => {
                 queryKey: ['transactions'],
               });
             }, 5000);
-
-            showTransactionSuccessToast({
-              id: toastId,
-              title: 'Transaction submitted',
-              message:
-                'Your transaction is on-chain. Balances may take a moment to refresh.',
-              explorerUrl,
-            });
           } catch (postSubmitError) {
             console.warn(
               'Post-transaction background work failed:',
               postSubmitError,
             );
-            showTransactionSuccessToast({
-              id: toastId,
-              title: 'Transaction submitted',
-              message:
-                'Your transaction is on-chain. Some app updates may refresh shortly.',
-              explorerUrl,
-            });
           }
         })();
-
-        return;
       }
-
-      setSendFlow((prev) => ({
-        ...prev,
-        hash: '',
-        step: 'success',
-      }));
     } catch (error) {
       toast({
         variant: 'destructive',
