@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { useDebounce } from 'use-debounce';
 import { Transaction } from '@solana/web3.js';
 import { Connection } from '@solana/web3.js';
-import { ReceiverData } from '@/types/wallet';
+import { ReceiverData, SearchRecipient } from '@/types/wallet';
 import { truncateAddress } from '@/lib/utils';
 import RedeemModal, { RedeemConfig } from './redeem-modal';
 import { TokenData } from '@/types/token';
@@ -23,7 +23,7 @@ import { useUser } from '@/lib/UserContext';
 import CustomModal from '@/components/modal/CustomModal';
 import { getConnectionsUserData } from '@/actions/getEnsData';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { BentoCard } from '@/components/ui/bento';
+import { BentoCard, AgentBadge } from '@/components/ui/bento';
 import {
   looksLikePublicEnsName,
   resolvePublicEnsName,
@@ -73,8 +73,12 @@ export default function SendToModal({
   const [addressError, setAddressError] = useState(false);
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false);
   //store connection data
-  const [connectionList, setConnectionList] = useState([]);
-  const [searchResults, setSearchResults] = useState<any>([]);
+  const [connectionList, setConnectionList] = useState<
+    SearchRecipient[]
+  >([]);
+  const [searchResults, setSearchResults] = useState<SearchRecipient[]>(
+    [],
+  );
   const [externalEnsResult, setExternalEnsResult] =
     useState<ReceiverData | null>(null);
   const [externalEnsResolving, setExternalEnsResolving] =
@@ -605,16 +609,19 @@ export default function SendToModal({
                 (searchResults.length > 0
                   ? searchResults
                   : connectionList
-                ).map((data: any) => (
+                ).map((data: SearchRecipient) => (
                   <div
                     key={data._id}
                     className="w-full p-4 border-b border-black/[0.06] cursor-pointer bg-white hover:bg-gray-50 transition-colors"
                     onClick={() =>
                       handleSelectReceiver({
                         address:
-                          network?.toUpperCase() === 'SOLANA'
-                            ? data.ensData.solanaAddress
-                            : data.ensData.evmAddress,
+                          (network?.toUpperCase() === 'SOLANA'
+                            ? data.ensData?.solanaAddress
+                            : data.ensData?.evmAddress) ||
+                          // Agent-vault entries carry the vault address directly.
+                          data.address ||
+                          '',
                         ensName: data.ens,
                         isEns: true,
                         avatar: data.profilePic,
@@ -637,8 +644,11 @@ export default function SendToModal({
                           />
                         )}
                         <div>
-                          <span className="text-[13px] font-medium text-gray-900">
-                            {data.name}
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-[13px] font-medium text-gray-900">
+                              {data.name}
+                            </span>
+                            {data.isAgent && <AgentBadge />}
                           </span>
                           <p className="text-[12px] text-gray-500">
                             {data.ens}

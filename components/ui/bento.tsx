@@ -79,6 +79,22 @@ const Chip = React.forwardRef<
 );
 Chip.displayName = 'Chip';
 
+// Small non-interactive pill that marks a recipient as an agent vault (not a
+// person) in lists like the Send recipient search. Reuses the pill tokens.
+function AgentBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 h-5 px-2 rounded-full text-[10.5px] font-semibold whitespace-nowrap border border-black/[0.06] bg-gray-50 text-gray-600 flex-shrink-0',
+        className,
+      )}
+    >
+      <span aria-hidden>🤖</span>
+      Agent
+    </span>
+  );
+}
+
 // Section header — title + caption + optional action, matching the wallet layout.
 function SectionHead({
   title,
@@ -112,4 +128,4 @@ function SectionHead({
   );
 }
 
-export { BentoCard, Chip, SectionHead };
+export { BentoCard, Chip, AgentBadge, SectionHead };

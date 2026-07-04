@@ -17,10 +17,10 @@ import Image from 'next/image';
 import { useDebounce } from 'use-debounce';
 
 import CustomModal from '@/components/modal/CustomModal';
-import { Chip } from '@/components/ui/bento';
+import { Chip, AgentBadge } from '@/components/ui/bento';
 import TokenImage from './token-image';
 import { TokenData } from '@/types/token';
-import { ReceiverData } from '@/types/wallet';
+import { ReceiverData, SearchRecipient } from '@/types/wallet';
 import { SendFlowState } from '@/types/wallet-types';
 import { truncateAddress } from '@/lib/utils';
 import isUrl from '@/lib/isUrl';
@@ -104,10 +104,10 @@ export default function SendTokenModal({
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery] = useDebounce(searchQuery, 350);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [connections, setConnections] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchRecipient[]>(
+    [],
+  );
+  const [connections, setConnections] = useState<SearchRecipient[]>([]);
   const [searching, setSearching] = useState(false);
   const [externalEnsResult, setExternalEnsResult] =
     useState<ReceiverData | null>(null);
@@ -395,12 +395,13 @@ export default function SendTokenModal({
     };
   }, [accessToken, debouncedQuery, isValidAddress, network, open, recipient]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handlePickResult = (result: any) => {
+  const handlePickResult = (result: SearchRecipient) => {
     const addr =
-      network === 'SOLANA'
+      (network === 'SOLANA'
         ? result.ensData?.solanaAddress
-        : result.ensData?.evmAddress;
+        : result.ensData?.evmAddress) ||
+      // Agent-vault entries carry the vault address directly.
+      result.address;
     if (!addr) return;
     setRecipient({
       address: addr,
@@ -1028,8 +1029,11 @@ export default function SendTokenModal({
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="text-[13.5px] font-semibold truncate">
-                        {r.name}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[13.5px] font-semibold truncate">
+                          {r.name}
+                        </span>
+                        {r.isAgent && <AgentBadge />}
                       </div>
                       <div className="text-[11px] text-gray-500 mt-0.5 truncate">
                         {r.ens}
@@ -1080,12 +1084,16 @@ export default function SendTokenModal({
                     <div className="text-[11.5px] font-semibold truncate w-full text-center">
                       {c.name || c.ens}
                     </div>
-                    <div
-                      className="text-[9.5px] text-gray-500 truncate w-full text-center"
-                      style={{ fontFamily: MONO }}
-                    >
-                      {c.ens || ''}
-                    </div>
+                    {c.isAgent ? (
+                      <AgentBadge />
+                    ) : (
+                      <div
+                        className="text-[9.5px] text-gray-500 truncate w-full text-center"
+                        style={{ fontFamily: MONO }}
+                      >
+                        {c.ens || ''}
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
