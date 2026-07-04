@@ -88,6 +88,7 @@ import {
   FileText,
   Grid2X2,
   Loader2,
+  Lock,
   Menu,
   Plus,
   Play,
@@ -208,6 +209,13 @@ import {
   type AgentActionCompletion,
 } from '@/lib/chat/agentActionHandoff';
 import { queueAgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
+import {
+  buildSwopAccessNotice,
+  isSwopAccessError,
+  swopAccessValue,
+  type AgentGroupError,
+  type SwopAccessNotice,
+} from '@/lib/chat/swopAccessNotice';
 import { postFeed } from '@/actions/postFeed';
 import {
   usePolymarketWallet,
@@ -3195,6 +3203,9 @@ export default function ChatArea({
     () => new Set()
   );
   const [agentStatusText, setAgentStatusText] = useState<string | null>(null);
+  const [swopGateNotice, setSwopGateNotice] = useState<
+    (SwopAccessNotice & { key: number }) | null
+  >(null);
   const [agentMutationId, setAgentMutationId] = useState<string | null>(null);
   const {
     addGroupAgent,
@@ -4382,6 +4393,7 @@ export default function ChatArea({
     setIsTyping(false);
     setTypingUsers(new Map());
     setAgentStatusText(null);
+    setSwopGateNotice(null);
     pendingPolymarketBetKeyRef.current = null;
     setPendingPolymarketBetKey(null);
     isInitialLoadRef.current = true;
@@ -4504,16 +4516,26 @@ export default function ChatArea({
       if (!isGroup || data.groupId !== activeChat._id) return;
       setAgentStatusText(null);
 
-      if (data.error?.message) {
+      if (data.error?.message || isSwopAccessError(data.error)) {
         pendingPolymarketBetKeyRef.current = null;
         setPendingPolymarketBetKey(null);
         if (isSwopAccessError(data.error)) {
-          showSwopAccessToast(data.error, () => {
+          const gateError = data.error as AgentGroupError;
+          const fallbackAgentName =
+            (typeof gateError.details?.agentId === 'string'
+              ? currentGroupDataRef.current?.botUsers?.find(
+                  (agent) => agent.agentId === gateError.details?.agentId
+                )?.displayName
+              : undefined) || 'This agent';
+          const notice = buildSwopAccessNotice(gateError, fallbackAgentName);
+          // In-thread notice (persistent, unmistakable) + toast (immediate).
+          setSwopGateNotice({ ...notice, key: Date.now() });
+          showSwopAccessToast(gateError, () => {
             router.push('/wallet?outputToken=SWOP');
           });
           return;
         }
-        toast.error(data.error.message);
+        toast.error(data.error?.message || 'Agent request failed.');
         return;
       }
 
@@ -6949,6 +6971,99 @@ export default function ChatArea({
               </div>
             )}
 
+            {swopGateNotice && (
+              <div
+                role="status"
+                aria-live="polite"
+                className={`overflow-hidden rounded-[12px] border ${
+                  swopGateNotice.variant === 'locked'
+                    ? 'border-[#3fe08f]/25 bg-[#0b120e]'
+                    : 'border-[#ffcc66]/25 bg-[#12100a]'
+                } text-[#f4f6f8] shadow-[0_10px_30px_rgba(0,0,0,0.25)]`}
+              >
+                <div className="flex items-start gap-3 p-3.5">
+                  <div
+                    className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border ${
+                      swopGateNotice.variant === 'locked'
+                        ? 'border-[#3fe08f]/25 bg-[#3fe08f]/10 text-[#3fe08f]'
+                        : 'border-[#ffcc66]/25 bg-[#ffcc66]/10 text-[#ffde8a]'
+                    }`}
+                  >
+                    {swopGateNotice.variant === 'locked' ? (
+                      <Lock className="h-4 w-4" />
+                    ) : (
+                      <ShieldCheck className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <p
+                        className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${
+                          swopGateNotice.variant === 'locked'
+                            ? 'text-[#3fe08f]'
+                            : 'text-[#ffde8a]'
+                        }`}
+                      >
+                        {swopGateNotice.variant === 'locked'
+                          ? `${swopGateNotice.agentName} is locked`
+                          : "Couldn't verify SWOP balance"}
+                      </p>
+                      <button
+                        type="button"
+                        aria-label="Dismiss notice"
+                        onClick={() => setSwopGateNotice(null)}
+                        className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[#8e939e] transition hover:bg-white/[0.06] hover:text-white"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[13px] leading-snug text-white">
+                      {swopGateNotice.message}
+                    </p>
+                    {swopGateNotice.variant === 'locked' && (
+                      <div className="mt-2.5 grid grid-cols-2 gap-2">
+                        <div className="rounded-md border border-white/[0.08] bg-white/[0.035] px-2.5 py-1.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8e939e]">
+                            You have
+                          </p>
+                          <p className="mt-0.5 font-mono text-[13px] font-semibold text-white">
+                            {swopGateNotice.currentSwop} SWOP
+                          </p>
+                        </div>
+                        <div className="rounded-md border border-[#ffcc66]/20 bg-[#ffcc66]/[0.08] px-2.5 py-1.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#b8a16a]">
+                            Need
+                          </p>
+                          <p className="mt-0.5 font-mono text-[13px] font-semibold text-[#ffde8a]">
+                            {swopGateNotice.deficitSwop} more
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-2.5 flex items-center gap-2">
+                      {swopGateNotice.canBuySwop && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSwopGateNotice(null);
+                            router.push('/wallet?outputToken=SWOP');
+                          }}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#3fe08f] px-2.5 text-[12px] font-semibold text-[#06110b] transition hover:bg-[#55efa2]"
+                        >
+                          <ShoppingBag className="h-3.5 w-3.5" />
+                          Buy SWOP
+                        </button>
+                      )}
+                      <p className="text-[11px] leading-relaxed text-[#9396a0]">
+                        Only you can see this — the group doesn&apos;t see your
+                        SWOP balance.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {typingText && (
               <div className="flex items-center gap-2 text-sm text-[#9396a0]">
                 <div className="typing-dots flex gap-1">
@@ -7716,31 +7831,6 @@ function formatUsdCents(value: unknown) {
   return `.${Math.round((number % 1) * 100)
     .toString()
     .padStart(2, '0')}`;
-}
-
-type AgentGroupError = {
-  code?: string;
-  message?: string;
-  details?: {
-    requiredSwop?: unknown;
-    currentSwop?: unknown;
-    deficitSwop?: unknown;
-    buyMoreSwop?: unknown;
-  };
-};
-
-function isSwopAccessError(error?: AgentGroupError | null) {
-  return (
-    error?.code === 'AGENT_SWOP_BALANCE_REQUIRED' ||
-    error?.code === 'AGENT_SWOP_BALANCE_CHECK_TIMEOUT' ||
-    error?.code === 'AGENT_SWOP_BALANCE_CHECK_FAILED' ||
-    Boolean(error?.details?.buyMoreSwop)
-  );
-}
-
-function swopAccessValue(value: unknown, fallback: string) {
-  if (value === null || value === undefined || value === '') return fallback;
-  return String(value);
 }
 
 function showSwopAccessToast(
