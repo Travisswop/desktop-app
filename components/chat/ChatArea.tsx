@@ -2673,7 +2673,8 @@ function hasWalletSendApprovalParams(params?: Record<string, unknown>) {
 }
 
 function buildWalletSendPromptFromApprovalParams(
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
+  agentMention = '@astro'
 ) {
   const token =
     firstTicketValue(params, ['token', 'tokenSymbol', 'asset', 'currency']) ||
@@ -2694,7 +2695,7 @@ function buildWalletSendPromptFromApprovalParams(
   const network = rawNetwork ? normalizeWalletSendChainValue(rawNetwork) : '';
   const amountLabel =
     amountType === 'usd' ? `$${amount} in ${token}` : `${amount} ${token}`;
-  const parts = ['@astro send', amountLabel, 'to', recipient];
+  const parts = [`${agentMention} send`, amountLabel, 'to', recipient];
 
   if (network) parts.push('on', network);
 
@@ -5615,14 +5616,29 @@ export default function ChatArea({
 
         const prepareFreshWalletSendProposal = async () => {
           if (!selectedChat || !isGroup) {
-            throw new Error('Open this send action from the Astro group chat.');
+            throw new Error('Open this send action from an agent group chat.');
           }
+
+          // Send tickets were hardcoded to Astro, which 404s in chats where
+          // Astro isn't an active bot member (e.g. the Goldman Sacks console
+          // group — funding the vault). Prefer Astro when present, else fall
+          // back to the chat's active agent (Goldman handles wallet.send
+          // behind its Sending access module).
+          const activeAgents = (selectedChat.botUsers || []).filter(
+            (agent) => agent?.agentId && agent.isActive !== false
+          );
+          const ticketAgentId = activeAgents.some(isActiveAstroAgent)
+            ? 'astro'
+            : activeAgents[0]?.agentId || 'astro';
 
           setAgentStatusText('Preparing send ticket');
           const prepareResponse: any = await invokeGroupAgent({
             groupId: selectedChat._id,
-            agentId: 'astro',
-            message: buildWalletSendPromptFromApprovalParams(approvalParams),
+            agentId: ticketAgentId,
+            message: buildWalletSendPromptFromApprovalParams(
+              approvalParams,
+              `@${ticketAgentId}`
+            ),
           });
           const preparedProposal = prepareResponse?.data?.proposal;
           const responseMessage = prepareResponse?.data?.responseMessage;
