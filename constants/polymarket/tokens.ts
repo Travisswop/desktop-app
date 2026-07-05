@@ -31,3 +31,8 @@ export const NEG_RISK_ADAPTER_ADDRESS =
 // Transfers TO this address from the Safe are conversions, not withdrawals.
 export const COLLATERAL_ONRAMP_ADDRESS =
   "0x93070a847efEf7F70739046A929D47a521F5B8ee" as const;
+
+// CollateralOfframp — unwraps pUSD back into legacy USDC.e 1:1.
+// Native USDC is paused on both ramps; legacy USDC.e is the only viable leg.
+export const COLLATERAL_OFFRAMP_ADDRESS =
+  "0x2957922Eb93258b93368531d39fAcCA3B4dC5854" as const;

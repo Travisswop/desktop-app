@@ -122,6 +122,25 @@ import {
 } from '@/lib/solana/sponsoredTokenAccounts';
 import { buildOndoGlobalMarketsStockAddressSet } from '@/lib/wallet/ondoGlobalMarkets';
 import {
+  POLYGON_CHAIN_ID as PUSD_POLYGON_CHAIN_ID,
+  POLYGON_USDCE_ADDRESS,
+  PUSD_DECIMALS,
+  PUSD_TOKEN_ADDRESS,
+  buildRampUnwrapCall,
+  buildRampWrapCall,
+  isPolygonUsdceToken,
+  isPusdSwapToken,
+  readPolygonErc20Balance,
+  requirePolygonTxSuccess,
+  waitForPolygonAllowance,
+  waitForUsdceArrival,
+  type PusdSwapQuote,
+} from '@/lib/wallet/pusdSwap';
+import {
+  COLLATERAL_OFFRAMP_ADDRESS,
+  COLLATERAL_ONRAMP_ADDRESS,
+} from '@/constants/polymarket';
+import {
   showTransactionErrorToast,
   showTransactionProcessingToast,
   showTransactionSuccessToast,
@@ -1181,6 +1200,12 @@ const formatUserFriendlyError = (error: string): string => {
   if (lowerError.includes('temporary wrapped-sol buffer')) {
     return error;
   }
+  // pUSD ramp-flow errors embed precise fund-location guidance (where the
+  // user's funds sit and which swap to retry) — pass them through untouched
+  // so a trigger word inside the detail can't replace the whole message.
+  if (lowerError.includes('usdc.e')) {
+    return error;
+  }
   // Already sponsorship-aware copy from the sponsored-first fallback path.
   if (lowerError.includes('gas sponsorship is unavailable')) {
     return error;
@@ -1977,6 +2002,12 @@ export default function SwapTokenModal({
   );
   const [quote, setQuote] = useState<any>(null);
   const [jupiterQuote, setJupiterQuote] = useState<any>(null);
+  // pUSD ramp quote — set instead of `quote` when one side of the pair is
+  // pUSD and the route goes through Polymarket's 1:1 USDC.e ramps (pure peg
+  // hop, or composed with a Li.Fi leg when Li.Fi has no direct pUSD lane).
+  const [pusdQuote, setPusdQuote] = useState<PusdSwapQuote | null>(
+    null,
+  );
   const [swapError, setSwapError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [isSwapping, setIsSwapping] = useState(false);
@@ -2625,12 +2656,16 @@ export default function SwapTokenModal({
 
   const getSwapToastTitle = useCallback(
     (state: 'processing' | 'success' | 'error' = 'processing') => {
-      const provider = isSolanaToSolanaSwap() ? 'Jupiter' : 'Li.Fi';
+      const provider = pusdQuote
+        ? 'Polymarket'
+        : isSolanaToSolanaSwap()
+          ? 'Jupiter'
+          : 'Li.Fi';
       if (state === 'success') return `Swap confirmed · ${provider}`;
       if (state === 'error') return `Swap needs attention · ${provider}`;
       return `Swap processing · ${provider}`;
     },
-    [isSolanaToSolanaSwap],
+    [isSolanaToSolanaSwap, pusdQuote],
   );
 
   const getSwapToastMessage = useCallback(
@@ -3688,6 +3723,41 @@ export default function SwapTokenModal({
     };
   };
 
+  // Li.Fi route address for the pay-side token (Solana native SOL and EVM
+  // native tokens use sentinel addresses).
+  const resolvePayRouteAddress = (): string => {
+    if (chainId === '1151111081099710') {
+      if (payToken?.symbol === 'SOL')
+        return 'So11111111111111111111111111111111111111112';
+      if (payToken?.address) return payToken.address;
+      throw new Error('Invalid Solana token');
+    }
+    if (
+      payToken?.symbol === 'ETH' ||
+      payToken?.symbol === 'POL' ||
+      payToken?.symbol === 'MATIC'
+    )
+      return '0x0000000000000000000000000000000000000000';
+    if (payToken?.address) return payToken.address;
+    throw new Error('Invalid EVM token');
+  };
+
+  const resolveReceiveRouteAddress = (): string => {
+    if (receiverChainId === '1151111081099710') {
+      if (receiveToken?.symbol === 'SOL')
+        return 'So11111111111111111111111111111111111111112';
+      if (receiveToken?.address) return receiveToken.address;
+      throw new Error('Invalid Solana receive token');
+    }
+    if (
+      receiveToken?.symbol === 'ETH' ||
+      receiveToken?.symbol === 'POL'
+    )
+      return '0x0000000000000000000000000000000000000000';
+    if (receiveToken?.address) return receiveToken.address;
+    throw new Error('Invalid EVM receive token');
+  };
+
   const getLifiQuote = async () => {
     const fromAmount = formatTokenAmount(
       payAmount,
@@ -3696,43 +3766,8 @@ export default function SwapTokenModal({
     if (fromAmount === '0' || !fromAmount)
       throw new Error('Invalid amount');
 
-    let fromTokenAddress: string;
-    if (chainId === '1151111081099710') {
-      if (payToken?.symbol === 'SOL')
-        fromTokenAddress =
-          'So11111111111111111111111111111111111111112';
-      else if (payToken?.address) fromTokenAddress = payToken.address;
-      else throw new Error('Invalid Solana token');
-    } else {
-      if (
-        payToken?.symbol === 'ETH' ||
-        payToken?.symbol === 'POL' ||
-        payToken?.symbol === 'MATIC'
-      )
-        fromTokenAddress =
-          '0x0000000000000000000000000000000000000000';
-      else if (payToken?.address) fromTokenAddress = payToken.address;
-      else throw new Error('Invalid EVM token');
-    }
-
-    let toTokenAddress: string;
-    if (receiverChainId === '1151111081099710') {
-      if (receiveToken?.symbol === 'SOL')
-        toTokenAddress =
-          'So11111111111111111111111111111111111111112';
-      else if (receiveToken?.address)
-        toTokenAddress = receiveToken.address;
-      else throw new Error('Invalid Solana receive token');
-    } else {
-      if (
-        receiveToken?.symbol === 'ETH' ||
-        receiveToken?.symbol === 'POL'
-      )
-        toTokenAddress = '0x0000000000000000000000000000000000000000';
-      else if (receiveToken?.address)
-        toTokenAddress = receiveToken.address;
-      else throw new Error('Invalid EVM receive token');
-    }
+    const fromTokenAddress = resolvePayRouteAddress();
+    const toTokenAddress = resolveReceiveRouteAddress();
 
     if (!fromWalletAddress || !toWalletAddress)
       throw new Error('Wallet addresses not available');
@@ -3757,6 +3792,135 @@ export default function SwapTokenModal({
     };
   };
 
+  // ── pUSD ramp quoting (Polymarket CollateralOnramp/Offramp) ─────────────────
+  const isPusdPairSwap = () =>
+    isPusdSwapToken(payToken) || isPusdSwapToken(receiveToken);
+
+  // Polygon USDC.e ↔ pUSD is a pure 1:1 peg hop through the ramps — never
+  // worth paying Li.Fi's integrator fee for.
+  const isPusdRampOnlySwap = () =>
+    isPusdPairSwap() &&
+    (isPolygonUsdceToken(payToken) ||
+      isPolygonUsdceToken(receiveToken));
+
+  // Quote a swap where one side is pUSD and the route goes through the ramps.
+  // The wrap/unwrap leg is always 1:1 with USDC.e, so the only pricing comes
+  // from the optional Li.Fi leg into/out of USDC.e.
+  const getPusdQuote = async (): Promise<PusdSwapQuote> => {
+    // The pay amount in the ramp's 6-decimal base units — only meaningful
+    // when the pay token itself enters the ramp (USDC.e or pUSD).
+    const payRampAmountRaw = () => {
+      const raw = formatTokenAmount(payAmount, PUSD_DECIMALS);
+      if (raw === '0' || !raw) throw new Error('Invalid amount');
+      return raw;
+    };
+
+    if (isPusdSwapToken(receiveToken)) {
+      // any token → pUSD; the wrap executes from the receiving EVM wallet.
+      if (!toWalletAddress)
+        throw new Error(
+          'An EVM wallet is required to convert to pUSD.',
+        );
+      if (isPolygonUsdceToken(payToken)) {
+        const raw = payRampAmountRaw();
+        const out = Number(raw) / Math.pow(10, PUSD_DECIMALS);
+        return {
+          direction: 'to-pusd',
+          rampAmountRaw: raw,
+          toAmount: out,
+          toAmountUsd: out,
+          swopPlatformFeeBps: 0,
+        };
+      }
+      if (!fromWalletAddress)
+        throw new Error('Wallet addresses not available');
+      const fromAmount = formatTokenAmount(
+        payAmount,
+        payToken.decimals || 6,
+      );
+      const result = await fetchLifiQuote({
+        fromChain: chainId.toString(),
+        toChain: String(PUSD_POLYGON_CHAIN_ID),
+        fromToken: resolvePayRouteAddress(),
+        toToken: POLYGON_USDCE_ADDRESS,
+        fromAddress: fromWalletAddress,
+        toAddress: toWalletAddress,
+        fromAmount,
+        slippage: slippage / 100,
+        fee: (PLATFORM_FEE_BPS / 10000).toString(),
+      });
+      if (!result || !result.success)
+        throw new Error(result?.error || 'Failed to get LiFi quote');
+      const lifi = {
+        ...result.data,
+        swopPlatformFeeBps: PLATFORM_FEE_BPS,
+      };
+      const usdceOutRaw = String(lifi?.estimate?.toAmount ?? '0');
+      const out = Number(usdceOutRaw) / Math.pow(10, PUSD_DECIMALS);
+      return {
+        direction: 'to-pusd',
+        rampAmountRaw: usdceOutRaw,
+        toAmount: out, // wrap is 1:1
+        toAmountUsd: Number(lifi?.estimate?.toAmountUSD) || out,
+        lifi,
+        swopPlatformFeeBps: PLATFORM_FEE_BPS,
+      };
+    }
+
+    // pUSD → any token; the unwrap executes from the paying EVM wallet.
+    if (!fromWalletAddress)
+      throw new Error(
+        'An EVM wallet is required to convert from pUSD.',
+      );
+    const unwrapAmountRaw = payRampAmountRaw();
+    if (isPolygonUsdceToken(receiveToken)) {
+      const out =
+        Number(unwrapAmountRaw) / Math.pow(10, PUSD_DECIMALS);
+      return {
+        direction: 'from-pusd',
+        rampAmountRaw: unwrapAmountRaw,
+        toAmount: out,
+        toAmountUsd: out,
+        swopPlatformFeeBps: 0,
+      };
+    }
+    if (!toWalletAddress)
+      throw new Error('Wallet addresses not available');
+    const result = await fetchLifiQuote({
+      fromChain: String(PUSD_POLYGON_CHAIN_ID),
+      toChain: receiverChainId.toString(),
+      fromToken: POLYGON_USDCE_ADDRESS,
+      toToken: resolveReceiveRouteAddress(),
+      fromAddress: fromWalletAddress,
+      toAddress: toWalletAddress,
+      fromAmount: unwrapAmountRaw,
+      slippage: slippage / 100,
+      fee: (PLATFORM_FEE_BPS / 10000).toString(),
+    });
+    if (!result || !result.success)
+      throw new Error(result?.error || 'Failed to get LiFi quote');
+    const lifi = {
+      ...result.data,
+      swopPlatformFeeBps: PLATFORM_FEE_BPS,
+    };
+    const recvDecimals = Number(
+      normalizeTokenDecimals(receiveToken?.decimals, 6),
+    );
+    const out =
+      Number(lifi?.estimate?.toAmount ?? 0) /
+      Math.pow(10, recvDecimals);
+    return {
+      direction: 'from-pusd',
+      rampAmountRaw: unwrapAmountRaw,
+      toAmount: out,
+      toAmountUsd:
+        Number(lifi?.estimate?.toAmountUSD) ||
+        out * (Number(readTokenPrice(receiveToken)) || 0),
+      lifi,
+      swopPlatformFeeBps: PLATFORM_FEE_BPS,
+    };
+  };
+
   // ── Main fetchQuote ──────────────────────────────────────────────────────────
   const fetchQuote = useCallback(
     async (isAutoRefresh = false) => {
@@ -3772,6 +3936,7 @@ export default function SwapTokenModal({
       ) {
         setQuote(null);
         setJupiterQuote(null);
+        setPusdQuote(null);
         setLastQuoteTime(null);
         setIsQuoteLoading(false);
         setIsCalculating(false);
@@ -3786,11 +3951,38 @@ export default function SwapTokenModal({
           if (quoteRequestIdRef.current !== requestId) return;
           setJupiterQuote(nextJupiterQuote);
           setQuote(null);
-        } else {
-          const nextLifiQuote = await getLifiQuote();
+          setPusdQuote(null);
+        } else if (isPusdRampOnlySwap()) {
+          const nextPusdQuote = await getPusdQuote();
           if (quoteRequestIdRef.current !== requestId) return;
-          setQuote(nextLifiQuote);
+          setPusdQuote(nextPusdQuote);
+          setQuote(null);
           setJupiterQuote(null);
+        } else {
+          try {
+            const nextLifiQuote = await getLifiQuote();
+            if (quoteRequestIdRef.current !== requestId) return;
+            setQuote(nextLifiQuote);
+            setJupiterQuote(null);
+            setPusdQuote(null);
+          } catch (lifiErr) {
+            // Li.Fi routes pUSD on EVM lanes but has none from Solana — when
+            // the direct quote fails for a pUSD pair, fall back to the
+            // composed route (Li.Fi leg to Polygon USDC.e + Polymarket's 1:1
+            // wrap/unwrap).
+            if (!isPusdPairSwap()) throw lifiErr;
+            let nextPusdQuote: PusdSwapQuote;
+            try {
+              nextPusdQuote = await getPusdQuote();
+            } catch {
+              // Surface the original route failure below.
+              throw lifiErr;
+            }
+            if (quoteRequestIdRef.current !== requestId) return;
+            setPusdQuote(nextPusdQuote);
+            setQuote(null);
+            setJupiterQuote(null);
+          }
         }
         setLastQuoteTime(Date.now());
       } catch (err: any) {
@@ -3801,6 +3993,7 @@ export default function SwapTokenModal({
         }
         setQuote(null);
         setJupiterQuote(null);
+        setPusdQuote(null);
         setSwapError(
           formatUserFriendlyError(
             err.message || err.toString() || 'Failed to get quote',
@@ -3892,6 +4085,7 @@ export default function SwapTokenModal({
     quoteRequestIdRef.current += 1;
     setQuote(null);
     setJupiterQuote(null);
+    setPusdQuote(null);
     setReceiveAmount('');
     setLastQuoteTime(null);
     setGasBalanceError(null);
@@ -3927,7 +4121,13 @@ export default function SwapTokenModal({
 
   // Derive receive amount from quote
   useEffect(() => {
-    if ((quote || jupiterQuote) && receiveToken) {
+    if (pusdQuote && receiveToken) {
+      setReceiveAmount(
+        pusdQuote.toAmount > 0
+          ? pusdQuote.toAmount.toFixed(8).replace(/\.?0+$/, '')
+          : '0',
+      );
+    } else if ((quote || jupiterQuote) && receiveToken) {
       const toAmount = jupiterQuote
         ? jupiterQuote.outAmount
         : (quote?.estimate?.toAmount ?? quote?.toAmount);
@@ -3941,7 +4141,7 @@ export default function SwapTokenModal({
     } else {
       setReceiveAmount('');
     }
-  }, [quote, jupiterQuote, receiveToken]);
+  }, [quote, jupiterQuote, pusdQuote, receiveToken]);
 
   // Guard: if pay and receive resolve to the same on-chain mint, clear the
   // receive token so the user is forced to pick a different one.  This
@@ -5400,6 +5600,102 @@ export default function SwapTokenModal({
   };
 
   // ── Solana LiFi swap ──────────────────────────────────────────────────────────
+  // Submit the Solana transaction from a Li.Fi quote and return its
+  // signature. Shared by the plain Solana Li.Fi swap and the composed pUSD
+  // route (whose Solana leg swaps into Polygon USDC.e before wrapping).
+  // Throws on any failure — callers own UI state and error reporting.
+  const submitSolanaLiFiQuote = async (
+    activeQuote: any,
+  ): Promise<string> => {
+    if (!solanaReady) {
+      throw new Error('Solana wallet is not ready.');
+    }
+    if (!selectedSolanaWallet?.address) {
+      throw new Error(
+        solanaWalletMismatchError || 'No Solana wallet connected',
+      );
+    }
+
+    const { transactionRequest } = activeQuote;
+    const rawTx =
+      transactionRequest?.transaction || transactionRequest?.data;
+    if (!rawTx)
+      throw new Error('No transactionRequest found in LiFi quote');
+
+    setSwapStatus('Submitting transaction...');
+    const solanaRpcUrl = getSolanaRpcUrl();
+
+    const connection = new Connection(solanaRpcUrl, {
+      commitment: 'confirmed',
+      confirmTransactionInitialTimeout: 60000,
+    });
+    const swapTransactionBuffer = Buffer.from(rawTx, 'base64');
+    const transaction = VersionedTransaction.deserialize(
+      swapTransactionBuffer,
+    );
+    const { blockhash } = await connection.getLatestBlockhash();
+    transaction.message.recentBlockhash = blockhash;
+
+    const walletPubkey = new PublicKey(selectedSolanaWallet.address);
+    const solLamports = await connection.getBalance(walletPubkey);
+    const inputMint = payToken?.address || payToken?.id;
+    const isSOLInput =
+      payToken?.symbol === 'SOL' || isNativeSolMint(inputMint);
+    const swapLamports = isSOLInput
+      ? Number(formatTokenAmount(payAmount, payToken?.decimals ?? 9))
+      : 0;
+    const nativeSolInputReserveLamports = isSOLInput
+      ? SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS_NUM
+      : 0;
+    const requiredSolInputLamports =
+      swapLamports + nativeSolInputReserveLamports;
+    const canUseUserFundedFallback =
+      solLamports >= 15_000 + requiredSolInputLamports;
+
+    if (solLamports < requiredSolInputLamports) {
+      throw new Error(
+        formatNativeSolSwapShortfallError(
+          requiredSolInputLamports - solLamports,
+        ),
+      );
+    }
+
+    setSwapStatus('Signing and sending transaction...');
+    const privyAccessToken = await safeRefreshSession();
+    const serializedTransaction = new Uint8Array(
+      transaction.serialize(),
+    );
+    const userPrivySolanaWalletId = getPrivyEmbeddedSolanaWalletId(
+      PrivyUser,
+      selectedSolanaWallet.address,
+    );
+    const linkedAccountSupportsSponsorship =
+      hasPrivyEmbeddedSolanaLinkedAccount(
+        PrivyUser,
+        selectedSolanaWallet.address,
+      );
+    const walletSupportsSponsorship =
+      Boolean(userPrivySolanaWalletId) ||
+      linkedAccountSupportsSponsorship ||
+      isPrivyEmbeddedSolanaWallet(selectedSolanaWallet);
+
+    return submitSolanaTransactionWithFallback({
+      serializedTransaction,
+      wallet: selectedSolanaWallet,
+      connection,
+      canUseUserFundedFallback,
+      sponsoredStatus: 'Submitting sponsored Solana swap...',
+      userFundedStatus:
+        'Gas sponsorship unavailable; signing Solana swap...',
+      context: 'Solana swap',
+      walletSupportsSponsorshipOverride: walletSupportsSponsorship
+        ? true
+        : undefined,
+      privyWalletId: userPrivySolanaWalletId,
+      privyAccessToken,
+    });
+  };
+
   const executeSolanaSwap = async (quoteOverride?: any) => {
     try {
       const activeQuote = quoteOverride || quote;
@@ -5422,88 +5718,7 @@ export default function SwapTokenModal({
         return;
       }
 
-      const { transactionRequest } = activeQuote;
-      const rawTx =
-        transactionRequest?.transaction || transactionRequest?.data;
-      if (!rawTx)
-        throw new Error('No transactionRequest found in LiFi quote');
-
-      setSwapStatus('Submitting transaction...');
-      const solanaRpcUrl = getSolanaRpcUrl();
-
-      const connection = new Connection(solanaRpcUrl, {
-        commitment: 'confirmed',
-        confirmTransactionInitialTimeout: 60000,
-      });
-      const swapTransactionBuffer = Buffer.from(rawTx, 'base64');
-      const transaction = VersionedTransaction.deserialize(
-        swapTransactionBuffer,
-      );
-      const { blockhash } = await connection.getLatestBlockhash();
-      transaction.message.recentBlockhash = blockhash;
-
-      const walletPubkey = new PublicKey(
-        selectedSolanaWallet.address,
-      );
-      const solLamports = await connection.getBalance(walletPubkey);
-      const inputMint = payToken?.address || payToken?.id;
-      const isSOLInput =
-        payToken?.symbol === 'SOL' || isNativeSolMint(inputMint);
-      const swapLamports = isSOLInput
-        ? Number(
-            formatTokenAmount(payAmount, payToken?.decimals ?? 9),
-          )
-        : 0;
-      const nativeSolInputReserveLamports = isSOLInput
-        ? SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS_NUM
-        : 0;
-      const requiredSolInputLamports =
-        swapLamports + nativeSolInputReserveLamports;
-      const canUseUserFundedFallback =
-        solLamports >= 15_000 + requiredSolInputLamports;
-
-      if (solLamports < requiredSolInputLamports) {
-        throw new Error(
-          formatNativeSolSwapShortfallError(
-            requiredSolInputLamports - solLamports,
-          ),
-        );
-      }
-
-      setSwapStatus('Signing and sending transaction...');
-      const privyAccessToken = await safeRefreshSession();
-      const serializedTransaction = new Uint8Array(
-        transaction.serialize(),
-      );
-      const userPrivySolanaWalletId = getPrivyEmbeddedSolanaWalletId(
-        PrivyUser,
-        selectedSolanaWallet.address,
-      );
-      const linkedAccountSupportsSponsorship =
-        hasPrivyEmbeddedSolanaLinkedAccount(
-          PrivyUser,
-          selectedSolanaWallet.address,
-        );
-      const walletSupportsSponsorship =
-        Boolean(userPrivySolanaWalletId) ||
-        linkedAccountSupportsSponsorship ||
-        isPrivyEmbeddedSolanaWallet(selectedSolanaWallet);
-
-      const signature = await submitSolanaTransactionWithFallback({
-        serializedTransaction,
-        wallet: selectedSolanaWallet,
-        connection,
-        canUseUserFundedFallback,
-        sponsoredStatus: 'Submitting sponsored Solana swap...',
-        userFundedStatus:
-          'Gas sponsorship unavailable; signing Solana swap...',
-        context: 'Solana swap',
-        walletSupportsSponsorshipOverride: walletSupportsSponsorship
-          ? true
-          : undefined,
-        privyWalletId: userPrivySolanaWalletId,
-        privyAccessToken,
-      });
+      const signature = await submitSolanaLiFiQuote(activeQuote);
 
       setTxHash(signature);
       setSwapStatus('Transaction submitted!');
@@ -5525,7 +5740,17 @@ export default function SwapTokenModal({
         }
 
         try {
-          await connection.confirmTransaction(signature, 'confirmed');
+          const confirmConnection = new Connection(
+            getSolanaRpcUrl(),
+            {
+              commitment: 'confirmed',
+              confirmTransactionInitialTimeout: 60000,
+            },
+          );
+          await confirmConnection.confirmTransaction(
+            signature,
+            'confirmed',
+          );
           setSwapStatus('Transaction confirmed');
           showSwapSuccessToast(signature);
         } catch {
@@ -5552,6 +5777,96 @@ export default function SwapTokenModal({
       showSwapErrorToast(friendlyError);
     } finally {
       setIsSwapping(false);
+    }
+  };
+
+  // Send the EVM transaction from a Li.Fi quote's transactionRequest and
+  // return its hash. Shared by the plain EVM Li.Fi swap and the composed pUSD
+  // route (whose Li.Fi leg swaps Polygon USDC.e into the receive token after
+  // unwrapping). Throws on any failure — callers own UI state and reporting.
+  const sendEvmLiFiTransactionRequest = async (params: {
+    activeQuote: any;
+    wallet: any;
+    provider: any;
+    fromChainId: number;
+  }): Promise<string> => {
+    const { activeQuote, wallet, provider, fromChainId } = params;
+    setSwapStatus('Waiting for confirmation...');
+    // LiFi can return an inflated gas limit that exceeds the chain's block
+    // gas cap (Polygon cap: ~30M). Clamp it to a safe ceiling.
+    const EVM_MAX_GAS = 20_000_000;
+    const rawTxReq = sanitizeEvmTxRequest(
+      { ...activeQuote.transactionRequest },
+      wallet.address,
+    );
+    rawTxReq.from = wallet.address;
+    const gasField = rawTxReq.gasLimit ?? rawTxReq.gas;
+    if (gasField !== undefined) {
+      const gasNum =
+        typeof gasField === 'string'
+          ? parseInt(gasField, gasField.startsWith('0x') ? 16 : 10)
+          : Number(gasField);
+      if (gasNum > EVM_MAX_GAS) {
+        const capped = '0x' + EVM_MAX_GAS.toString(16);
+        if (rawTxReq.gasLimit !== undefined)
+          rawTxReq.gasLimit = capped;
+        if (rawTxReq.gas !== undefined) rawTxReq.gas = capped;
+      }
+    }
+    if (isPrivyEmbeddedWalletType(wallet.walletClientType)) {
+      const privyTxRequest: any = {
+        to: rawTxReq.to as `0x${string}`,
+        data: rawTxReq.data as `0x${string}`,
+        chainId: rawTxReq.chainId
+          ? Number(rawTxReq.chainId)
+          : fromChainId,
+      };
+      const value = parseOptionalBigInt(rawTxReq.value);
+      if (value !== undefined) privyTxRequest.value = value;
+      const gas = parseOptionalBigInt(
+        rawTxReq.gas ?? rawTxReq.gasLimit,
+      );
+      if (gas !== undefined) privyTxRequest.gas = gas;
+      const gasPrice = parseOptionalBigInt(rawTxReq.gasPrice);
+      if (gasPrice !== undefined) privyTxRequest.gasPrice = gasPrice;
+      const maxFeePerGas = parseOptionalBigInt(
+        rawTxReq.maxFeePerGas,
+      );
+      if (maxFeePerGas !== undefined)
+        privyTxRequest.maxFeePerGas = maxFeePerGas;
+      const maxPriorityFeePerGas = parseOptionalBigInt(
+        rawTxReq.maxPriorityFeePerGas,
+      );
+      if (maxPriorityFeePerGas !== undefined)
+        privyTxRequest.maxPriorityFeePerGas = maxPriorityFeePerGas;
+
+      const result = await sendPrivyEvmTransactionWithVerificationRetry(
+        sendPrivyTransaction,
+        privyTxRequest,
+        {
+          sponsor: true,
+          address: wallet.address,
+          uiOptions: { showWalletUIs: false },
+        },
+        'Complete Privy verification to submit swap...',
+      );
+      return result.hash;
+    }
+    try {
+      return await provider.request({
+        method: 'eth_sendTransaction',
+        params: [rawTxReq],
+      });
+    } catch (sendError) {
+      if (!isLikelyInvalidParamsError(sendError)) throw sendError;
+      const retryTxReq = sanitizeEvmTxRequest(
+        activeQuote.transactionRequest,
+        wallet.address,
+      );
+      return provider.request({
+        method: 'eth_sendTransaction',
+        params: [retryTxReq],
+      });
     }
   };
 
@@ -5685,91 +6000,12 @@ export default function SwapTokenModal({
           }
         }
 
-        setSwapStatus('Waiting for confirmation...');
-        // LiFi can return an inflated gas limit that exceeds the chain's block
-        // gas cap (Polygon cap: ~30M). Clamp it to a safe ceiling.
-        const EVM_MAX_GAS = 20_000_000;
-        const rawTxReq = sanitizeEvmTxRequest(
-          { ...activeQuote.transactionRequest },
-          wallet.address,
-        );
-        rawTxReq.from = wallet.address;
-        const gasField = rawTxReq.gasLimit ?? rawTxReq.gas;
-        if (gasField !== undefined) {
-          const gasNum =
-            typeof gasField === 'string'
-              ? parseInt(
-                  gasField,
-                  gasField.startsWith('0x') ? 16 : 10,
-                )
-              : Number(gasField);
-          if (gasNum > EVM_MAX_GAS) {
-            const capped = '0x' + EVM_MAX_GAS.toString(16);
-            if (rawTxReq.gasLimit !== undefined)
-              rawTxReq.gasLimit = capped;
-            if (rawTxReq.gas !== undefined) rawTxReq.gas = capped;
-          }
-        }
-        let txHashResult: string;
-        if (isPrivyEmbeddedWalletType(wallet.walletClientType)) {
-          const privyTxRequest: any = {
-            to: rawTxReq.to as `0x${string}`,
-            data: rawTxReq.data as `0x${string}`,
-            chainId: rawTxReq.chainId
-              ? Number(rawTxReq.chainId)
-              : fromChainId,
-          };
-          const value = parseOptionalBigInt(rawTxReq.value);
-          if (value !== undefined) privyTxRequest.value = value;
-          const gas = parseOptionalBigInt(
-            rawTxReq.gas ?? rawTxReq.gasLimit,
-          );
-          if (gas !== undefined) privyTxRequest.gas = gas;
-          const gasPrice = parseOptionalBigInt(rawTxReq.gasPrice);
-          if (gasPrice !== undefined)
-            privyTxRequest.gasPrice = gasPrice;
-          const maxFeePerGas = parseOptionalBigInt(
-            rawTxReq.maxFeePerGas,
-          );
-          if (maxFeePerGas !== undefined)
-            privyTxRequest.maxFeePerGas = maxFeePerGas;
-          const maxPriorityFeePerGas = parseOptionalBigInt(
-            rawTxReq.maxPriorityFeePerGas,
-          );
-          if (maxPriorityFeePerGas !== undefined)
-            privyTxRequest.maxPriorityFeePerGas =
-              maxPriorityFeePerGas;
-
-          const result = await sendPrivyEvmTransactionWithVerificationRetry(
-            sendPrivyTransaction,
-            privyTxRequest,
-            {
-              sponsor: true,
-              address: wallet.address,
-              uiOptions: { showWalletUIs: false },
-            },
-            'Complete Privy verification to submit swap...',
-          );
-          txHashResult = result.hash;
-        } else {
-          try {
-            txHashResult = await provider.request({
-              method: 'eth_sendTransaction',
-              params: [rawTxReq],
-            });
-          } catch (sendError) {
-            if (!isLikelyInvalidParamsError(sendError))
-              throw sendError;
-            const retryTxReq = sanitizeEvmTxRequest(
-              activeQuote.transactionRequest,
-              wallet.address,
-            );
-            txHashResult = await provider.request({
-              method: 'eth_sendTransaction',
-              params: [retryTxReq],
-            });
-          }
-        }
+        const txHashResult = await sendEvmLiFiTransactionRequest({
+          activeQuote,
+          wallet,
+          provider,
+          fromChainId,
+        });
         setTxHash(txHashResult);
         setSwapStatus('Transaction submitted!');
         applySubmittedSwapBalanceUpdate();
@@ -5873,6 +6109,417 @@ export default function SwapTokenModal({
     }
   };
 
+  // ── pUSD ramp swap (Polymarket CollateralOnramp/Offramp) ─────────────────────
+  // Resolve the connected EVM wallet for `address` and switch it to the given
+  // chain upfront so approvals and the main call land on the right network.
+  const resolveEvmWalletForAddress = async (
+    address: string,
+    switchToChainId: number,
+  ) => {
+    const wallet = wallets.find(
+      (w) =>
+        normalizeEvmAddress(w.address) ===
+        normalizeEvmAddress(address),
+    );
+    if (!wallet)
+      throw new Error(
+        'The EVM wallet for this conversion is not connected.',
+      );
+    const provider = await wallet.getEthereumProvider();
+    if (!provider) throw new Error('Failed to get wallet provider');
+    try {
+      if (wallet.switchChain) {
+        await wallet.switchChain(switchToChainId);
+      }
+    } catch (switchErr) {
+      console.warn(
+        'Pre-swap chain switch failed, proceeding:',
+        switchErr,
+      );
+    }
+    return { wallet, provider };
+  };
+
+  // Send a ramp contract call (wrap/unwrap) on Polygon from the user's
+  // wallet — sponsored via Privy for embedded wallets, plain
+  // eth_sendTransaction otherwise.
+  const sendPolygonRampTransaction = async (params: {
+    wallet: any;
+    provider: any;
+    to: string;
+    data: string;
+  }): Promise<string> => {
+    const { wallet, provider, to, data } = params;
+    if (isPrivyEmbeddedWalletType(wallet.walletClientType)) {
+      const result = await sendPrivyEvmTransactionWithVerificationRetry(
+        sendPrivyTransaction,
+        {
+          to: to as `0x${string}`,
+          data: data as `0x${string}`,
+          chainId: PUSD_POLYGON_CHAIN_ID,
+        },
+        {
+          sponsor: true,
+          address: wallet.address,
+          uiOptions: { showWalletUIs: false },
+        },
+        'Complete Privy verification to continue the conversion...',
+      );
+      return result.hash;
+    }
+    return provider.request({
+      method: 'eth_sendTransaction',
+      params: [
+        {
+          from: wallet.address,
+          to,
+          data,
+          chainId: `0x${PUSD_POLYGON_CHAIN_ID.toString(16)}`,
+        },
+      ],
+    });
+  };
+
+  // Approve `spender` for `amountRaw` of `tokenAddress` on Polygon, then wait
+  // until the allowance is live on-chain — the follow-up ramp call's gas
+  // estimation fails against pre-approval state otherwise.
+  const ensurePolygonRampAllowance = async (params: {
+    wallet: any;
+    provider: any;
+    tokenAddress: string;
+    spender: string;
+    amountRaw: bigint;
+  }) => {
+    setSwapStatus('Approving token...');
+    await ensureEvmAllowance({
+      tokenAddress: params.tokenAddress,
+      owner: params.wallet.address as string,
+      spender: params.spender,
+      amountWei: params.amountRaw.toString(),
+      chainId: PUSD_POLYGON_CHAIN_ID,
+      provider: params.provider,
+      walletClientType: params.wallet.walletClientType,
+      switchChain: params.wallet.switchChain?.bind(params.wallet),
+      sendPrivyTransaction,
+    });
+    await waitForPolygonAllowance({
+      tokenAddress: params.tokenAddress,
+      owner: params.wallet.address as string,
+      spender: params.spender,
+      minAllowance: params.amountRaw,
+    });
+  };
+
+  // Success side effects shared by every pUSD route endpoint. Unlike the
+  // plain Li.Fi path this runs only after the final leg's receipt has been
+  // verified on-chain, so "confirmed" here is honest.
+  const finishPusdSwap = (
+    hash: string,
+    activeQuote: PusdSwapQuote,
+  ) => {
+    setTxHash(hash);
+    setSwapStatus('Transaction confirmed');
+    applySubmittedSwapBalanceUpdate();
+    setIsSwapping(false);
+    showSwapSuccessToast(hash);
+    onSwapComplete?.(hash);
+    void saveSwapToDatabase(hash, {
+      ...(activeQuote.lifi || {}),
+      swopPlatformFeeBps: activeQuote.swopPlatformFeeBps,
+    }).catch((postSwapError) =>
+      console.warn('Post-swap persistence failed:', postSwapError),
+    );
+  };
+
+  // Execute a pUSD ramp swap. Every Polygon step verifies its receipt before
+  // the next one runs — a reverted unwrap must never let a follow-up leg
+  // spend USDC.e the user already held for other purposes.
+  const executePusdSwap = async (activeQuote: PusdSwapQuote) => {
+    try {
+      const rampStatus = (message: string) => {
+        setSwapStatus(message);
+        showSwapProcessingToast(message);
+      };
+
+      if (activeQuote.direction === 'to-pusd') {
+        // The wrap spends msg.sender's USDC.e, so it must execute from the
+        // wallet that holds it: the pay wallet for a direct USDC.e → pUSD
+        // hop, or the receive wallet once a Li.Fi leg has delivered there.
+        // The minted pUSD always goes to the receive wallet.
+        const rampAddress = activeQuote.lifi
+          ? toWalletAddress
+          : fromWalletAddress;
+        const pusdRecipient = toWalletAddress;
+        if (!rampAddress || !pusdRecipient)
+          throw new Error(
+            'An EVM wallet is required to convert to pUSD.',
+          );
+
+        let wrapAmountRaw = BigInt(activeQuote.rampAmountRaw || '0');
+
+        if (activeQuote.lifi) {
+          const expected = BigInt(
+            activeQuote.lifi?.estimate?.toAmount ?? '0',
+          );
+          if (expected <= 0n) {
+            // Never spend the source funds against a quote whose output we
+            // can't verify arriving — a zero floor would let any dust inflow
+            // pass as "arrival" and become the wrap amount.
+            throw new Error(
+              'The quote is missing an expected output — refresh and try again.',
+            );
+          }
+          const baseline = await readPolygonErc20Balance(
+            POLYGON_USDCE_ADDRESS,
+            rampAddress,
+          );
+          rampStatus('Swapping into USDC.e...');
+          const legChainId = parseInt(chainId);
+          if (legChainId === 1151111081099710) {
+            await submitSolanaLiFiQuote(activeQuote.lifi);
+          } else {
+            const { wallet: legWallet, provider: legProvider } =
+              await resolveEvmWalletForAddress(
+                fromWalletAddress,
+                legChainId,
+              );
+            const legSpender =
+              activeQuote.lifi?.estimate?.approvalAddress ||
+              activeQuote.lifi?.approvalAddress;
+            const legAmountRaw =
+              activeQuote.lifi?.estimate?.fromAmount ||
+              activeQuote.lifi?.fromAmount;
+            if (
+              !isNativeEvmToken(payToken) &&
+              legSpender &&
+              payToken?.address &&
+              legAmountRaw
+            ) {
+              await ensureEvmAllowance({
+                tokenAddress: payToken.address,
+                owner: legWallet.address as string,
+                spender: legSpender,
+                amountWei: legAmountRaw.toString(),
+                chainId: legChainId,
+                provider: legProvider,
+                walletClientType: legWallet.walletClientType,
+                switchChain: legWallet.switchChain?.bind(legWallet),
+                sendPrivyTransaction,
+              });
+            }
+            await sendEvmLiFiTransactionRequest({
+              activeQuote: activeQuote.lifi,
+              wallet: legWallet,
+              provider: legProvider,
+              fromChainId: legChainId,
+            });
+          }
+          const minExpected = BigInt(
+            activeQuote.lifi?.estimate?.toAmountMin ??
+              String((expected * 95n) / 100n),
+          );
+          const crossChain =
+            String(chainId) !== String(PUSD_POLYGON_CHAIN_ID);
+          const delta = await waitForUsdceArrival({
+            owner: rampAddress,
+            baseline,
+            minDelta: minExpected > 0n ? minExpected : 1n,
+            timeoutMs: crossChain ? 15 * 60_000 : 4 * 60_000,
+            onStatus: rampStatus,
+          });
+          // Wrap what actually arrived, capped at the quoted output so a
+          // concurrent unrelated USDC.e inflow isn't swept into pUSD.
+          wrapAmountRaw = delta > expected ? expected : delta;
+        }
+
+        if (wrapAmountRaw <= 0n)
+          throw new Error('Nothing to convert to pUSD.');
+        try {
+          const { wallet, provider } =
+            await resolveEvmWalletForAddress(
+              rampAddress,
+              PUSD_POLYGON_CHAIN_ID,
+            );
+          await ensurePolygonRampAllowance({
+            wallet,
+            provider,
+            tokenAddress: POLYGON_USDCE_ADDRESS,
+            spender: COLLATERAL_ONRAMP_ADDRESS,
+            amountRaw: wrapAmountRaw,
+          });
+          rampStatus('Converting USDC.e to pUSD...');
+          const wrapCall = buildRampWrapCall(
+            pusdRecipient,
+            wrapAmountRaw,
+          );
+          const wrapHash = await sendPolygonRampTransaction({
+            wallet,
+            provider,
+            to: wrapCall.to,
+            data: wrapCall.data,
+          });
+          await requirePolygonTxSuccess(
+            wrapHash,
+            'The USDC.e → pUSD conversion',
+          );
+          finishPusdSwap(wrapHash, activeQuote);
+          return;
+        } catch (error) {
+          // Be precise about where the funds sit: after a completed Li.Fi
+          // leg they are USDC.e in the user's wallet, not lost and not the
+          // original token — "try again" must mean a USDC.e → pUSD swap.
+          const detail =
+            error instanceof Error ? error.message : String(error);
+          throw new Error(
+            activeQuote.lifi
+              ? `Your funds arrived as USDC.e on Polygon, but converting to pUSD failed: ${detail} Your USDC.e is safe — retry with a USDC.e → pUSD swap.`
+              : `Converting USDC.e to pUSD failed: ${detail}`,
+          );
+        }
+      }
+
+      // from-pusd: unwrap first (synchronous 1:1), then the optional Li.Fi
+      // leg. The unwrap executes from the wallet holding the pUSD; the
+      // USDC.e goes straight to the receive wallet on a direct hop, but must
+      // stay with the sender when a Li.Fi leg still has to spend it.
+      const rampAddress = fromWalletAddress;
+      const usdceRecipient = activeQuote.lifi
+        ? fromWalletAddress
+        : toWalletAddress || fromWalletAddress;
+      if (!rampAddress)
+        throw new Error(
+          'An EVM wallet is required to convert from pUSD.',
+        );
+      const unwrapAmountRaw = BigInt(activeQuote.rampAmountRaw || '0');
+      if (unwrapAmountRaw <= 0n)
+        throw new Error('Nothing to convert from pUSD.');
+      const { wallet, provider } = await resolveEvmWalletForAddress(
+        rampAddress,
+        PUSD_POLYGON_CHAIN_ID,
+      );
+      await ensurePolygonRampAllowance({
+        wallet,
+        provider,
+        tokenAddress: PUSD_TOKEN_ADDRESS,
+        spender: COLLATERAL_OFFRAMP_ADDRESS,
+        amountRaw: unwrapAmountRaw,
+      });
+      rampStatus('Converting pUSD to USDC.e...');
+      const unwrapCall = buildRampUnwrapCall(
+        usdceRecipient,
+        unwrapAmountRaw,
+      );
+      const unwrapHash = await sendPolygonRampTransaction({
+        wallet,
+        provider,
+        to: unwrapCall.to,
+        data: unwrapCall.data,
+      });
+      // A reverted unwrap MUST stop the flow here: continuing would let the
+      // Li.Fi leg spend USDC.e the user already held for other purposes —
+      // moving funds the user never authorized for this swap.
+      await requirePolygonTxSuccess(
+        unwrapHash,
+        'The pUSD → USDC.e conversion',
+      );
+
+      if (!activeQuote.lifi) {
+        finishPusdSwap(unwrapHash, activeQuote);
+        return;
+      }
+
+      // Past this point the user's pUSD IS USDC.e — every failure message
+      // must say so, and never suggest re-running the pUSD swap (its quote
+      // would now be backed by a stale pUSD balance).
+      try {
+        // Re-quote the Li.Fi leg — the pre-trade quote's transactionRequest
+        // can be stale (deadlines, rates) after the approval + unwrap waits.
+        rampStatus('Swapping USDC.e...');
+        if (!toWalletAddress)
+          throw new Error(
+            'A wallet address is missing for this route.',
+          );
+        const freshResult = await fetchLifiQuote({
+          fromChain: String(PUSD_POLYGON_CHAIN_ID),
+          toChain: receiverChainId.toString(),
+          fromToken: POLYGON_USDCE_ADDRESS,
+          toToken: resolveReceiveRouteAddress(),
+          fromAddress: rampAddress,
+          toAddress: toWalletAddress,
+          fromAmount: activeQuote.rampAmountRaw,
+          slippage: slippage / 100,
+          fee: (PLATFORM_FEE_BPS / 10000).toString(),
+        });
+        if (!freshResult || !freshResult.success)
+          throw new Error(
+            freshResult?.error || 'Failed to get LiFi quote',
+          );
+        const freshLifi = {
+          ...freshResult.data,
+          swopPlatformFeeBps: PLATFORM_FEE_BPS,
+        };
+        const legSpender =
+          freshLifi?.estimate?.approvalAddress ||
+          freshLifi?.approvalAddress;
+        if (legSpender) {
+          await ensureEvmAllowance({
+            tokenAddress: POLYGON_USDCE_ADDRESS,
+            owner: wallet.address as string,
+            spender: legSpender,
+            amountWei: activeQuote.rampAmountRaw,
+            chainId: PUSD_POLYGON_CHAIN_ID,
+            provider,
+            walletClientType: wallet.walletClientType,
+            switchChain: wallet.switchChain?.bind(wallet),
+            sendPrivyTransaction,
+          });
+          await waitForPolygonAllowance({
+            tokenAddress: POLYGON_USDCE_ADDRESS,
+            owner: wallet.address as string,
+            spender: legSpender,
+            minAllowance: unwrapAmountRaw,
+          });
+        }
+        const legHash = await sendEvmLiFiTransactionRequest({
+          activeQuote: freshLifi,
+          wallet,
+          provider,
+          fromChainId: PUSD_POLYGON_CHAIN_ID,
+        });
+        await requirePolygonTxSuccess(legHash, 'The USDC.e swap');
+        finishPusdSwap(legHash, { ...activeQuote, lifi: freshLifi });
+        return;
+      } catch (error) {
+        const detail =
+          error instanceof Error ? error.message : String(error);
+        const targetSymbol = receiveToken?.symbol || 'the new token';
+        throw new Error(
+          `Your pUSD was converted to USDC.e on Polygon, but the swap into ${targetSymbol} failed: ${detail} Your funds are safe as USDC.e — swap USDC.e → ${targetSymbol} directly.`,
+        );
+      }
+    } catch (error: any) {
+      const friendlyError = formatUserFriendlyError(
+        error?.message ||
+          error?.toString() ||
+          'pUSD conversion failed',
+      );
+      setSwapError(friendlyError);
+      await reportWalletSwapFailure({
+        provider: 'Polymarket ramp',
+        stage: 'pusd_ramp_swap_error',
+        reason: friendlyError,
+        error,
+        network: 'POLYGON',
+      });
+      showSwapErrorToast(friendlyError);
+      const reportedError = new Error(friendlyError);
+      markWalletSwapFailureReported(reportedError);
+      throw reportedError;
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+
   // ── Top-level swap entry point ────────────────────────────────────────────────
   const executeCrossChainSwap = async () => {
     try {
@@ -5908,6 +6555,21 @@ export default function SwapTokenModal({
       if (isCopyTrade && copyTradePostId) {
         setSwapStatus('Checking copy trade reward...');
         await fetchCopyTradeRewardPreview();
+      }
+      if (pusdQuote || isPusdRampOnlySwap()) {
+        if (quoteRefreshInterval.current) {
+          clearInterval(quoteRefreshInterval.current);
+        }
+        let activePusdQuote = pusdQuote;
+        if (!activePusdQuote) {
+          // The USDC.e ↔ pUSD peg hop never routes through Li.Fi — build the
+          // ramp quote fresh if it wasn't ready when the user submitted.
+          setSwapStatus('Getting quote...');
+          activePusdQuote = await getPusdQuote();
+          setPusdQuote(activePusdQuote);
+        }
+        await executePusdSwap(activePusdQuote);
+        return;
       }
       if (isSolanaToSolanaSwap()) {
         await executeJupiterSwap();
@@ -6080,6 +6742,12 @@ export default function SwapTokenModal({
 
   // ── Quote info ────────────────────────────────────────────────────────────────
   const calculateExchangeRate = () => {
+    if (pusdQuote && payToken && receiveToken) {
+      const from = Number(payAmount);
+      return from > 0 && pusdQuote.toAmount > 0
+        ? pusdQuote.toAmount / from
+        : null;
+    }
     const q = jupiterQuote || quote;
     if (!q || !payToken || !receiveToken) return null;
     const fromAmount = jupiterQuote
@@ -6111,6 +6779,24 @@ export default function SwapTokenModal({
   };
 
   const getQuoteInfo = () => {
+    if (pusdQuote && payToken && receiveToken) {
+      // The ramp leg is a 1:1 peg hop; USD figures come from the Li.Fi leg
+      // when there is one, otherwise the pegged amount itself.
+      const fromUsd = pusdQuote.lifi
+        ? Number(
+            pusdQuote.lifi?.estimate?.fromAmountUSD ??
+              pusdQuote.lifi?.fromAmountUSD,
+          ) || null
+        : Number(payAmount) || null;
+      const toUsd = pusdQuote.toAmountUsd || null;
+      return {
+        exchangeRate: calculateExchangeRate(),
+        fromAmountUSD: fromUsd,
+        toAmountUSD: toUsd,
+        priceImpact:
+          fromUsd && toUsd ? ((toUsd - fromUsd) / fromUsd) * 100 : null,
+      };
+    }
     const q = jupiterQuote || quote;
     if (!q || !payToken || !receiveToken) return null;
     const fromAmountUSD = quote
@@ -6150,6 +6836,7 @@ export default function SwapTokenModal({
       receiveToken &&
       !quote &&
       !jupiterQuote &&
+      !pusdQuote &&
       !swapError &&
       !solanaSwapWalletError
     );
@@ -6185,9 +6872,13 @@ export default function SwapTokenModal({
     hasReceiveAmount: !!receiveAmount,
     privyReady,
   });
-  const routeProviderLabel = isSolanaToSolanaSwap()
-    ? 'Jupiter'
-    : 'Li.Fi';
+  const routeProviderLabel = pusdQuote
+    ? pusdQuote.lifi
+      ? 'Li.Fi + Polymarket'
+      : 'Polymarket'
+    : isSolanaToSolanaSwap()
+      ? 'Jupiter'
+      : 'Li.Fi';
   const swapExplorerUrl = txHash
     ? getExplorerUrl(chainId, txHash)
     : '';
@@ -6207,6 +6898,7 @@ export default function SwapTokenModal({
     setTxHash(null);
     setQuote(null);
     setJupiterQuote(null);
+    setPusdQuote(null);
     setIsQuoteLoading(false);
     setIsCalculating(false);
     setIsSwapping(false);
@@ -6694,7 +7386,7 @@ export default function SwapTokenModal({
           {/* Route summary card */}
           {payToken &&
             receiveToken &&
-            (quote || jupiterQuote) &&
+            (quote || jupiterQuote || pusdQuote) &&
             (() => {
               const info = getQuoteInfo();
               const rate = info?.exchangeRate;
@@ -6725,6 +7417,7 @@ export default function SwapTokenModal({
               );
               const quotedPlatformFeeBps = Number(
                 jupiterQuote?.swopPlatformFeeBps ??
+                  pusdQuote?.swopPlatformFeeBps ??
                   quote?.swopPlatformFeeBps,
               );
               const baseSwopFeeBps = Number.isFinite(
@@ -6802,9 +7495,13 @@ export default function SwapTokenModal({
                           Route
                         </span>
                         <span className="text-[11.5px] font-semibold">
-                          {isSolanaToSolanaSwap()
-                            ? 'Jupiter · best'
-                            : 'Li.Fi · best'}
+                          {pusdQuote
+                            ? pusdQuote.lifi
+                              ? 'Li.Fi + Polymarket ramp'
+                              : 'Polymarket ramp · 1:1'
+                            : isSolanaToSolanaSwap()
+                              ? 'Jupiter · best'
+                              : 'Li.Fi · best'}
                         </span>
                       </div>
                       {info?.toAmountUSD &&
