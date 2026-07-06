@@ -1,6 +1,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { CartItem as CartItemType, LoadingOperations } from './types';
+import { formatUsdAmount } from '@/lib/marketplace-api';
 import {
   AlertCircle,
   Box,
@@ -240,7 +241,7 @@ export const CartItem: React.FC<CartItemProps> = ({
                         fontWeight: 600,
                       }}
                     >
-                      ${shippingPerUnit.toFixed(2)}
+                      ${formatUsdAmount(shippingPerUnit)}
                     </span>{' '}
                     flat — added once per order
                   </>
@@ -364,7 +365,7 @@ export const CartItem: React.FC<CartItemProps> = ({
                 letterSpacing: -0.2,
               }}
             >
-              ${lineTotal.toFixed(2)}
+              ${formatUsdAmount(lineTotal)}
             </div>
             {quantity > 1 && (
               <div
@@ -375,7 +376,7 @@ export const CartItem: React.FC<CartItemProps> = ({
                   marginTop: 2,
                 }}
               >
-                ${unitPrice.toFixed(2)} each
+                ${formatUsdAmount(unitPrice)} each
               </div>
             )}
           </div>

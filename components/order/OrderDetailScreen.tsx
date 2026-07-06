@@ -27,6 +27,7 @@ import {
 } from '@/components/mint/design-system';
 import {
   chainDisplayName,
+  formatUsdAmount,
   marketplaceReceiptImageUrl,
 } from '@/lib/marketplace-api';
 import Image from 'next/image';
@@ -209,20 +210,6 @@ const receiptNftUrl = (mintAddress?: string | null) => {
   const mint = String(mintAddress || '').trim();
   if (!mint || mint.toLowerCase().startsWith('mock')) return null;
   return `https://solscan.io/token/${mint}`;
-};
-
-// USDC is a 6-decimal token, so rounding to 2 dp misreports sub-cent amounts
-// (e.g. a 0.025 total renders as "0.03"). Show at least 2 decimals and up to 6,
-// trimming trailing zeros beyond the second so normal amounts stay "12.00".
-const formatUsdAmount = (value?: number) => {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return '0.00';
-  let text = amount.toFixed(6).replace(/0+$/, '');
-  if (text.endsWith('.')) text = text.slice(0, -1);
-  const dot = text.indexOf('.');
-  if (dot === -1) return `${text}.00`;
-  const decimals = text.length - dot - 1;
-  return decimals < 2 ? text + '0'.repeat(2 - decimals) : text;
 };
 
 const money = (value?: number, currency = 'USDC') =>
@@ -721,7 +708,7 @@ export default function OrderDetailScreen({
             </div>
             <div style={{ textAlign: 'right' }}>
               <Mono size={13} weight={500}>
-                ${line.price.toFixed(2)}
+                ${formatUsdAmount(line.price)}
               </Mono>
             </div>
           </div>
@@ -1210,10 +1197,12 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
     : humanize(receipt?.provider);
   // The backend renders the same PNG the receipt NFT metadata points at,
   // keyed by the order's public reference (mapped into orderId here). Hide
-  // the block if the image can't load (e.g. legacy orders with no reference).
+  // the image if it can't load (e.g. legacy orders with no reference) but
+  // keep the View NFT link visible either way.
   const [receiptImageFailed, setReceiptImageFailed] = useState(false);
   const receiptImageSrc =
     order.orderId && receipt ? marketplaceReceiptImageUrl(order.orderId) : '';
+  const nftUrl = receiptNftUrl(receipt?.mintAddress);
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -1224,32 +1213,54 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
             Test receipt only. No wallet NFT was minted.
           </div>
         ) : null}
-        {receiptImageSrc && !receiptImageFailed ? (
-          <a
-            href={receiptImageSrc}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open receipt image"
-            style={{ display: 'block', marginBottom: 16 }}
-          >
-            {/* Plain <img>: the API host isn't in next/image's remotePatterns. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={receiptImageSrc}
-              alt={`Receipt for order ${order.orderId}`}
-              onError={() => setReceiptImageFailed(true)}
-              style={{
-                display: 'block',
-                width: '100%',
-                maxWidth: 320,
-                aspectRatio: '1 / 1',
-                objectFit: 'cover',
-                borderRadius: 14,
-                border: `1px solid ${hair2}`,
-                background: '#f0f0ee',
-              }}
-            />
-          </a>
+        {receiptImageSrc || nftUrl ? (
+          <div style={{ marginBottom: 16 }}>
+            {receiptImageSrc && !receiptImageFailed ? (
+              <a
+                href={receiptImageSrc}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open receipt image"
+                style={{ display: 'block' }}
+              >
+                {/* Plain <img>: the API host isn't in next/image's remotePatterns. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={receiptImageSrc}
+                  alt={`Receipt for order ${order.orderId}`}
+                  onError={() => setReceiptImageFailed(true)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    maxWidth: 320,
+                    aspectRatio: '1 / 1',
+                    objectFit: 'cover',
+                    borderRadius: 14,
+                    border: `1px solid ${hair2}`,
+                    background: '#f0f0ee',
+                  }}
+                />
+              </a>
+            ) : null}
+            {nftUrl ? (
+              <a
+                href={nftUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-block',
+                  marginTop: 10,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: ink,
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 2,
+                }}
+              >
+                View NFT
+              </a>
+            ) : null}
+          </div>
         ) : null}
         <div style={stateGridStyle}>
           <StateRow label="Status" value={humanize(receipt?.status)} />
@@ -1260,11 +1271,6 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
             value={shortHash(receipt?.txHash)}
             mono
             href={explorerTxUrl(receipt?.txHash, 'solana')}
-          />
-          <StateRow
-            label="Receipt NFT"
-            value={receiptNftUrl(receipt?.mintAddress) ? 'View NFT' : '—'}
-            href={receiptNftUrl(receipt?.mintAddress)}
           />
           <StateRow label="Minted" value={formatTime(receipt?.mintedAt || '') || '—'} />
         </div>

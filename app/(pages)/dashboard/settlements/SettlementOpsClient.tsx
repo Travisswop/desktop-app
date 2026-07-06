@@ -28,6 +28,7 @@ import toast from 'react-hot-toast';
 
 import { useUser } from '@/lib/UserContext';
 import {
+  formatUsdAmount,
   listMarketplaceOrders,
   retryMarketplaceReceipt,
   type MarketplaceOrder,
@@ -639,9 +640,7 @@ function shortReference(order: MarketplaceOrder) {
 }
 
 function money(value?: number, currency = 'USDC') {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return `0.00 ${currency || 'USDC'}`;
-  return `${numeric.toFixed(2)} ${(currency || 'USDC').toUpperCase()}`;
+  return `${formatUsdAmount(value)} ${(currency || 'USDC').toUpperCase()}`;
 }
 
 function humanize(value?: string) {

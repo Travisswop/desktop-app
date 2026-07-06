@@ -20,6 +20,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useCart } from './context/CartContext';
 import { CartItem } from './components/types';
 import { clearUserCart } from '@/actions/addToCartActions';
+import { formatUsdAmount } from '@/lib/marketplace-api';
 
 const TRANSACTION_STAGES = {
   IDLE: 'idle',
@@ -58,7 +59,7 @@ const cardShadow =
 const mono = 'var(--font-jetbrains-mono), ui-monospace, monospace';
 
 const formatCurrency = (value: number) =>
-  `${Number(value || 0).toFixed(2)} USDC`;
+  `${formatUsdAmount(Number(value || 0))} USDC`;
 
 const formatNetwork = (chain?: string) =>
   chain ? chain.replace(/_/g, ' ').toUpperCase() : 'SOLANA';

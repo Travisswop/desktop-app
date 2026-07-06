@@ -63,6 +63,7 @@ import {
   SOLANA_USDC_MINT,
 } from '@/lib/checkout-payment-amounts';
 import { copyTextToClipboard } from '@/lib/clipboard';
+import { formatUsdAmount } from '@/lib/marketplace-api';
 import {
   getPhantomCheckoutUrl,
   normalizeCheckoutUrl,
@@ -190,11 +191,7 @@ function decimalToRawTokenAmount(value: string, decimals: number) {
 }
 
 function formatCurrency(value?: number, currency = 'USDC') {
-  const amount = Number(value || 0);
-  return `${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ${currency}`;
+  return `${formatUsdAmount(Number(value || 0))} ${currency}`;
 }
 
 type CheckoutAmountBreakdown = ReturnType<typeof getCheckoutAmounts>;
@@ -221,10 +218,7 @@ function formatCheckoutTotal(value?: number, currency = 'USDC') {
   const amount = Number(value || 0);
   const normalizedCurrency = currency.toUpperCase();
   if (['USD', 'USDC', 'USDT'].includes(normalizedCurrency)) {
-    return `$${amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+    return `$${formatUsdAmount(amount)}`;
   }
 
   return formatCurrency(value, currency);

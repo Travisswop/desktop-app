@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { CheckoutCardProps } from './types';
+import { formatUsdAmount } from '@/lib/marketplace-api';
 
 const ink = '#0a0a0c';
 const muted = '#6e6e76';
@@ -174,7 +175,7 @@ const CheckoutCard: React.FC<CheckoutCardProps> = ({
     0
   );
 
-  const fmt = (n: number) => `$${Number(n).toFixed(2)}`;
+  const fmt = (n: number) => `$${formatUsdAmount(Number(n))}`;
 
   return (
     <div

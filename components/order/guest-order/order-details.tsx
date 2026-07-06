@@ -34,6 +34,7 @@ import {
   useRefreshOrder,
 } from '@/lib/hooks/useOrderQueries';
 import { Badge } from '@/components/ui/badge';
+import { formatUsdAmount } from '@/lib/marketplace-api';
 import {
   GuestOrderDispute,
   type GuestDisputeData,
@@ -279,9 +280,7 @@ export default function GuestOrderInfos() {
   };
 
   const formatTokenAmount = (amount: number, currency = 'USDC') => {
-    const numeric = Number(amount);
-    const value = Number.isFinite(numeric) ? numeric : 0;
-    return `${value.toFixed(2)} ${String(currency || 'USDC').toUpperCase()}`;
+    return `${formatUsdAmount(amount)} ${String(currency || 'USDC').toUpperCase()}`;
   };
 
   const isMarketplaceOrder =

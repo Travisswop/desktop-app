@@ -41,6 +41,7 @@ import {
   reconcileCheckoutIntent,
 } from '@/lib/checkout-api';
 import {
+  formatUsdAmount,
   listMarketplaceProducts,
   type MarketplaceProduct,
 } from '@/lib/marketplace-api';
@@ -85,10 +86,7 @@ type CartLine = {
 };
 
 function toMoney(value: number, currency = 'USDC') {
-  return `${Number(value || 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ${currency}`;
+  return `${formatUsdAmount(Number(value || 0))} ${currency}`;
 }
 
 function formatAmount(intent: CheckoutIntent) {
@@ -1524,7 +1522,7 @@ export default function CheckoutCreateClient() {
           </div>
         </div>
 
-        <div className="grid gap-3 p-5">
+        <div className="grid max-h-[520px] gap-3 overflow-y-auto p-5">
           {recentIntents.length === 0 ? (
             <div className="flex min-h-[128px] flex-col items-center justify-center rounded-lg border border-dashed border-[#d4dae3] bg-[#fbfcfd] p-8 text-center">
               <ReceiptText className="h-5 w-5 text-[#8b93a3]" />

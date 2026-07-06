@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useUser } from "@/lib/UserContext";
 import { useOrderList, OrderListFilters } from "@/lib/hooks/useOrderQueries";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatUsdAmount } from "@/lib/marketplace-api";
 
 interface StatItemProps {
   label: string;
@@ -86,7 +87,7 @@ const OrdersStats: React.FC<OrdersStatsProps> = ({
 
   // Format currency helper
   const formatCurrency = (amount: number) => {
-    return `$${amount.toFixed(2)}`;
+    return `$${formatUsdAmount(amount)}`;
   };
 
   // Compute stats from API data

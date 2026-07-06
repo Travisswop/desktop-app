@@ -15,6 +15,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { updateOrderPayment } from '@/actions/orderActions';
 import toast from 'react-hot-toast';
 import { useCart } from '../context/CartContext';
+import { formatUsdAmount } from '@/lib/marketplace-api';
 import { clearUserCart } from '@/actions/addToCartActions';
 
 import { StripePaymentFormProps } from './types';
@@ -249,7 +250,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           <p className="text-xs text-gray-600 mb-1">
             You are about to complete your purchase of{' '}
             {memoizedValues.itemCount} item(s) for a total of $
-            {memoizedValues.subtotal.toFixed(2)}.
+            {formatUsdAmount(memoizedValues.subtotal)}.
           </p>
           <p className="text-xs text-gray-600">
             This charge will appear on your statement as SWOP.
@@ -287,7 +288,7 @@ const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
               Processing...
             </>
           ) : (
-            `Pay $${memoizedValues.subtotal.toFixed(2)}`
+            `Pay $${formatUsdAmount(memoizedValues.subtotal)}`
           )}
         </button>
 

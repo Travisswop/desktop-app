@@ -17,6 +17,7 @@ import {
 } from '@/components/mint/design-system';
 import { Download } from 'lucide-react';
 import { isInPersonCheckoutMode } from '@/lib/marketplace-display';
+import { formatUsdAmount } from '@/lib/marketplace-api';
 
 export type OrderTab = 'Payments' | 'Sold' | 'Purchases';
 
@@ -105,22 +106,22 @@ export default function OrdersScreen({
     const refunded = rows.filter((r) =>
       ['Refunded', 'Cancel'].includes(r.delivery)
     ).length;
-    const avg = orders > 0 ? Math.round(revenue / orders) : 0;
+    const avg = orders > 0 ? revenue / orders : 0;
 
     if (tab === 'Payments') {
       return [
-        { l: 'Volume · 30d', v: `$${revenue.toLocaleString()}`, em: true, mono: true },
+        { l: 'Volume · 30d', v: `$${formatUsdAmount(revenue)}`, em: true, mono: true },
         { l: 'Settled', v: settled.toString(), em: true, mono: true },
         { l: 'Pending', v: pending.toString(), mono: true },
         { l: 'Refunded', v: refunded.toString(), mono: true },
-        { l: 'Avg payment', v: `$${avg}` },
+        { l: 'Avg payment', v: `$${formatUsdAmount(avg)}` },
         { l: 'Disputes', v: '0' },
       ];
     }
     if (tab === 'Sold') {
       return [
         { l: 'Units sold', v: (totals?.units ?? 0).toLocaleString(), em: true, mono: true },
-        { l: 'Gross Sales', v: `$${revenue.toLocaleString()}`, em: true, mono: true },
+        { l: 'Gross Sales', v: `$${formatUsdAmount(revenue)}`, em: true, mono: true },
         { l: '$ in Escrow', v: '$0', mono: true },
         { l: 'Open Orders', v: pending.toString() },
         { l: 'Closed Orders', v: settled.toString() },
@@ -128,7 +129,7 @@ export default function OrdersScreen({
       ];
     }
     return [
-      { l: 'Spend · 30d', v: `$${revenue.toLocaleString()}`, em: true, mono: true },
+      { l: 'Spend · 30d', v: `$${formatUsdAmount(revenue)}`, em: true, mono: true },
       {
         l: 'Active vendors',
         v: new Set(rows.map((r) => r.counterparty)).size.toString(),
@@ -411,7 +412,7 @@ export default function OrdersScreen({
                 </span>
                 {isInPersonCheckoutMode(o.checkoutMode) && <CheckoutModePill />}
               </div>
-              <Mono size={13}>${o.price.toFixed(2)}</Mono>
+              <Mono size={13}>${formatUsdAmount(o.price)}</Mono>
               <div style={{ fontSize: 12.5, color: muted }}>{o.date}</div>
               <div>
                 <DeliveryPill status={o.delivery} />

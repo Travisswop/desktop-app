@@ -634,6 +634,19 @@ export async function confirmMarketplaceReceipt(
   return parseMarketplaceResponse<MarketplaceOrder>(response);
 }
 
+// USDC is a 6-decimal token, so rounding to 2 dp misreports sub-cent amounts
+// (e.g. a 0.025 total renders as "0.03"). Show at least 2 decimals and up to 6,
+// trimming trailing zeros beyond the second so normal amounts stay "12.00".
+// The whole part gets thousands grouping ("1,234.56").
+export function formatUsdAmount(value?: number) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '0.00';
+  const text = amount.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+  const [whole, fraction = ''] = text.split('.');
+  const groupedWhole = Number(whole).toLocaleString('en-US');
+  return `${groupedWhole}.${fraction.padEnd(2, '0')}`;
+}
+
 // Public receipt image rendered by the backend — the same PNG the receipt
 // NFT metadata points at. Available for any order with a public reference.
 export function marketplaceReceiptImageUrl(publicReference: string) {
