@@ -7,6 +7,7 @@ import { useUser } from '@/lib/UserContext';
 import {
   deliveryFullyConfirmed,
   listMarketplaceOrders,
+  orderChainLabel,
   orderRequiresShippingFlow,
   type MarketplaceOrder,
   type MarketplaceParty,
@@ -148,11 +149,7 @@ function mapMarketplaceOrderRow(
     price: Number(order.financial?.totalCost) || 0,
     date: formatDate(order.createdAt || order.updatedAt || ''),
     delivery: deliveryLabel(order, tab, role),
-    chain:
-      String(order.financial?.currency || order.payment?.currency || 'USDC')
-        .toUpperCase() === 'SOL'
-        ? 'SOL'
-        : 'USDC',
+    chain: orderChainLabel(order),
     role,
     _id: order._id || orderId,
     checkoutMode: order.checkoutMode,

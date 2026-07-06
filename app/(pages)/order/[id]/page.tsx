@@ -13,6 +13,7 @@ import {
   downloadMarketplaceDigitalAsset,
   getMarketplaceOrder,
   getMarketplaceReceipt,
+  orderChainLabel,
   orderRequiresShippingFlow,
   updateMarketplaceShipping,
   type MarketplaceDigitalAsset,
@@ -277,11 +278,7 @@ function mapMarketplaceOrderDetail(
     orderDate: order.createdAt || order.updatedAt || '',
     delivery: deliveryLabel(order, role),
     payment: order.payment?.status || 'pending',
-    chain:
-      String(order.financial?.currency || order.payment?.currency || 'USDC')
-        .toUpperCase() === 'SOL'
-        ? 'SOL'
-        : 'USDC',
+    chain: orderChainLabel(order),
     financial: order.financial,
     counterparty: mapCounterparty(counterparty),
     lines: (order.lineItems || []).map((item) => ({

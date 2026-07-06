@@ -82,6 +82,15 @@ export type MarketplaceOrder = {
     amount?: number;
     currency?: string;
     paidAt?: string | null;
+    validation?: {
+      source?: string;
+      trusted?: boolean;
+      details?: {
+        rail?: string | null;
+        sourceChain?: string | number | null;
+        [key: string]: unknown;
+      } | null;
+    };
   };
   settlement?: {
     policy?: 'direct' | 'escrow_on_receipt';
@@ -170,6 +179,40 @@ export function buyerConfirmedReceipt(order: MarketplaceOrder) {
 // stays pending, regardless of settlement release or auto-completion.
 export function deliveryFullyConfirmed(order: MarketplaceOrder) {
   return sellerConfirmedDelivery(order) && buyerConfirmedReceipt(order);
+}
+
+const EVM_CHAIN_NAMES: Record<string, string> = {
+  '1': 'Ethereum',
+  '10': 'Optimism',
+  '56': 'BNB Chain',
+  '137': 'Polygon',
+  '8453': 'Base',
+  '42161': 'Arbitrum',
+};
+
+export function chainDisplayName(chainId: string | number | null | undefined) {
+  const id = String(chainId ?? '').trim();
+  if (!id) return '';
+  if (id.toLowerCase() === 'solana') return 'Solana';
+  return EVM_CHAIN_NAMES[id] || `Chain ${id}`;
+}
+
+// Human-readable name of the blockchain the buyer paid on. Orders created from
+// checkout intents record the payment source chain in payment.validation.details;
+// older orders fall back to the settlement rail, and legacy orders (pre-intent)
+// were all paid via Solana Pay.
+export function orderChainLabel(order: MarketplaceOrder): string {
+  const sourceChain = chainDisplayName(
+    order.payment?.validation?.details?.sourceChain
+  );
+  if (sourceChain) return sourceChain;
+
+  const settlement = order.settlement;
+  if (settlement?.payoutRail === 'evm') {
+    return chainDisplayName(settlement.destinationChain) || 'EVM';
+  }
+
+  return 'Solana';
 }
 
 export type MarketplaceOrderLine = {

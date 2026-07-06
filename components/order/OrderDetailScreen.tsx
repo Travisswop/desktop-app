@@ -25,6 +25,7 @@ import {
   posGreen,
   primaryBtn,
 } from '@/components/mint/design-system';
+import { chainDisplayName } from '@/lib/marketplace-api';
 import Image from 'next/image';
 
 export interface OrderLine {
@@ -69,7 +70,7 @@ export interface OrderDetail {
   orderDate: string;
   delivery: string;
   payment?: string;
-  chain: 'USDC' | 'SOL';
+  chain: string;
   status?: string;
   orderType?: string;
   checkoutMode?: string;
@@ -180,9 +181,50 @@ const shortHash = (value?: string | null) => {
   return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
 };
 
+const EVM_EXPLORERS: Record<string, string> = {
+  '1': 'https://etherscan.io',
+  '10': 'https://optimistic.etherscan.io',
+  '56': 'https://bscscan.com',
+  '137': 'https://polygonscan.com',
+  '8453': 'https://basescan.org',
+  '42161': 'https://arbiscan.io',
+};
+
+// Explorer link for a tx hash. chain is 'solana' (or empty, the default rail)
+// or an EVM chain id; mock/test hashes never link anywhere.
+const explorerTxUrl = (txHash?: string | null, chain?: string | null) => {
+  const hash = String(txHash || '').trim();
+  if (!hash || hash.toLowerCase().startsWith('mock')) return null;
+  const chainId = String(chain ?? '').trim().toLowerCase();
+  if (!chainId || chainId === 'solana') return `https://solscan.io/tx/${hash}`;
+  const base = EVM_EXPLORERS[chainId];
+  return base ? `${base}/tx/${hash}` : null;
+};
+
+// Receipt NFTs are minted on Solana, so the NFT itself lives on Solscan.
+const receiptNftUrl = (mintAddress?: string | null) => {
+  const mint = String(mintAddress || '').trim();
+  if (!mint || mint.toLowerCase().startsWith('mock')) return null;
+  return `https://solscan.io/token/${mint}`;
+};
+
+// USDC is a 6-decimal token, so rounding to 2 dp misreports sub-cent amounts
+// (e.g. a 0.025 total renders as "0.03"). Show at least 2 decimals and up to 6,
+// trimming trailing zeros beyond the second so normal amounts stay "12.00".
+const formatUsdAmount = (value?: number) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '0.00';
+  let text = amount.toFixed(6).replace(/0+$/, '');
+  if (text.endsWith('.')) text = text.slice(0, -1);
+  const dot = text.indexOf('.');
+  if (dot === -1) return `${text}.00`;
+  const decimals = text.length - dot - 1;
+  return decimals < 2 ? text + '0'.repeat(2 - decimals) : text;
+};
+
 const money = (value?: number, currency = 'USDC') =>
   typeof value === 'number' && Number.isFinite(value)
-    ? `${value.toFixed(2)} ${currency}`
+    ? `${formatUsdAmount(value)} ${currency}`
     : '—';
 
 const fileSize = (bytes?: number) => {
@@ -348,7 +390,16 @@ export default function OrderDetailScreen({
     () => order.lines.reduce((acc, l) => acc + l.price * l.quantity, 0),
     [order.lines]
   );
+  const subtotalAmount = order.financial?.subtotal ?? lineSubtotal;
+  const shippingAmount = order.financial?.shippingCost ?? 0;
   const total = order.financial?.totalCost ?? lineSubtotal;
+  // Swop platform fee: prefer the recorded settlement fee, else derive it from
+  // the buyer total minus what the seller is owed (subtotal + shipping).
+  const platformFeeAmount =
+    order.settlement?.platformFeeAmount ??
+    Math.max(0, total - subtotalAmount - shippingAmount);
+  const merchantReceivesAmount =
+    order.settlement?.merchantReceivesAmount ?? subtotalAmount;
   const paymentComplete = order.payment === 'completed';
   const requiresShipping = Boolean(order.fulfillment?.requiresShipping);
   const deliveryConfirmed = sellerConfirmedDelivery(order);
@@ -492,17 +543,34 @@ export default function OrderDetailScreen({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 0,
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              rowGap: 14,
+              columnGap: 0,
             }}
           >
-            <Cell label="Subtotal" value={`$${(order.financial?.subtotal ?? lineSubtotal).toFixed(2)}`} mono em />
+            <Cell label="Subtotal" value={`$${formatUsdAmount(subtotalAmount)}`} mono em />
             <Cell
               label="Shipping"
-              value={`$${(order.financial?.shippingCost ?? 0).toFixed(2)}`}
+              value={`$${formatUsdAmount(shippingAmount)}`}
               mono
             />
-            <Cell label="Total" value={`$${total.toFixed(2)}`} mono em />
+            <Cell
+              label="Swop fee"
+              value={`$${formatUsdAmount(platformFeeAmount)}`}
+              mono
+            />
+            <Cell
+              label={isBuyerCtx ? 'Total paid' : 'Buyer paid'}
+              value={`$${formatUsdAmount(total)}`}
+              mono
+              em
+            />
+            <Cell
+              label="Seller receives"
+              value={`$${formatUsdAmount(merchantReceivesAmount)}`}
+              mono
+              em
+            />
             <Cell label="Chain" value={order.chain} />
           </div>
         </Card>
@@ -1151,11 +1219,27 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
           <StateRow label="Status" value={humanize(receipt?.status)} />
           <StateRow label="Provider" value={providerLabel} />
           <StateRow label="Mint" value={shortHash(receipt?.mintAddress)} mono />
-          <StateRow label="Tx" value={shortHash(receipt?.txHash)} mono />
-          <StateRow label="Metadata" value={shortHash(receipt?.metadataUri)} mono />
+          <StateRow
+            label="Tx"
+            value={shortHash(receipt?.txHash)}
+            mono
+            href={explorerTxUrl(receipt?.txHash, 'solana')}
+          />
+          <StateRow
+            label="Receipt NFT"
+            value={receiptNftUrl(receipt?.mintAddress) ? 'View NFT' : '—'}
+            href={receiptNftUrl(receipt?.mintAddress)}
+          />
           <StateRow label="Minted" value={formatTime(receipt?.mintedAt || '') || '—'} />
-          <StateRow label="Error" value={receipt?.error || '—'} />
         </div>
+        {/* Raw mint errors (Solana simulation logs, RPC dumps) mean nothing to
+            buyers — show a short reassurance instead of the programmatic error. */}
+        {receipt?.error && !hasMockReceipt ? (
+          <div style={receiptErrorNoticeStyle}>
+            The receipt NFT could not be minted yet. Your order and payment are
+            not affected — the receipt will be reissued.
+          </div>
+        ) : null}
       </Card>
       <Card pad={20}>
         <div style={stateTitleStyle}>Settlement & Tracking</div>
@@ -1172,16 +1256,20 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
           />
           <StateRow label="Escrow rail" value={humanize(settlement?.payoutRail)} />
           <StateRow
-            label="Escrow wallet"
-            value={shortHash(settlement?.escrowAddress)}
-            mono
+            label="Payout chain"
+            value={chainDisplayName(settlement?.destinationChain) || '—'}
           />
           <StateRow
-            label="Payout chain"
-            value={settlement?.destinationChain || '—'}
+            label="Release tx"
+            value={shortHash(settlement?.txHash)}
             mono
+            href={explorerTxUrl(
+              settlement?.txHash,
+              settlement?.payoutRail === 'evm'
+                ? settlement?.destinationChain
+                : 'solana'
+            )}
           />
-          <StateRow label="Release tx" value={shortHash(settlement?.txHash)} mono />
           <StateRow
             label="Auto release"
             value={formatTime(settlement?.autoReleaseAt || '') || '—'}
@@ -1207,27 +1295,37 @@ function StateRow({
   label,
   value,
   mono: isMono,
+  href,
 }: {
   label: string;
   value: string;
   mono?: boolean;
+  href?: string | null;
 }) {
+  const valueStyle: CSSProperties = {
+    fontSize: 12.5,
+    color: ink,
+    fontWeight: 600,
+    fontFamily: isMono ? mono : 'inherit',
+    wordBreak: 'break-word',
+  };
   return (
     <div>
       <div style={{ fontSize: 11, color: muted, marginBottom: 4, fontWeight: 500 }}>
         {label}
       </div>
-      <div
-        style={{
-          fontSize: 12.5,
-          color: ink,
-          fontWeight: 600,
-          fontFamily: isMono ? mono : 'inherit',
-          wordBreak: 'break-word',
-        }}
-      >
-        {value}
-      </div>
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ ...valueStyle, textDecoration: 'underline', textUnderlineOffset: 2 }}
+        >
+          {value}
+        </a>
+      ) : (
+        <div style={valueStyle}>{value}</div>
+      )}
     </div>
   );
 }
@@ -1294,6 +1392,19 @@ const mockReceiptNoticeStyle: CSSProperties = {
   marginBottom: 14,
 };
 
+// Calmer than the mock-receipt warning: a failed receipt mint is a platform
+// hiccup, not a problem with the buyer's order.
+const receiptErrorNoticeStyle: CSSProperties = {
+  border: '1px solid rgba(0,0,0,0.08)',
+  background: 'rgba(0,0,0,0.03)',
+  color: '#525252',
+  borderRadius: 8,
+  padding: '9px 10px',
+  fontSize: 12,
+  fontWeight: 500,
+  marginTop: 14,
+};
+
 const stateGridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
@@ -1346,12 +1457,15 @@ function OrderHistory({
   order: OrderDetail;
   isBuyer: boolean;
 }) {
-  const actualEvents = (order.processingStages || []).map((stage) => ({
-    label: humanize(stage.stage),
-    status: humanize(stage.status),
-    when: formatTime(stage.timestamp),
-    done: stage.status === 'completed',
-  }));
+  const actualEvents = (order.processingStages || [])
+    // Receipt minting is platform plumbing, not an order milestone.
+    .filter((stage) => stage.stage !== 'receipt_minting_started')
+    .map((stage) => ({
+      label: humanize(stage.stage),
+      status: humanize(stage.status),
+      when: formatTime(stage.timestamp),
+      done: stage.status === 'completed',
+    }));
 
   const events = actualEvents.length
     ? actualEvents

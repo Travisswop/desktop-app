@@ -29,7 +29,7 @@ export interface OrderRow {
   price: number;
   date: string;
   delivery: string;
-  chain: 'USDC' | 'SOL';
+  chain: string;
   role: 'buyer' | 'seller';
   _id: string;
   checkoutMode?: string;
