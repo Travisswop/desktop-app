@@ -25,7 +25,10 @@ import {
   posGreen,
   primaryBtn,
 } from '@/components/mint/design-system';
-import { chainDisplayName } from '@/lib/marketplace-api';
+import {
+  chainDisplayName,
+  marketplaceReceiptImageUrl,
+} from '@/lib/marketplace-api';
 import Image from 'next/image';
 
 export interface OrderLine {
@@ -1205,6 +1208,12 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
   const providerLabel = hasMockReceipt
     ? 'Mock test receipt'
     : humanize(receipt?.provider);
+  // The backend renders the same PNG the receipt NFT metadata points at,
+  // keyed by the order's public reference (mapped into orderId here). Hide
+  // the block if the image can't load (e.g. legacy orders with no reference).
+  const [receiptImageFailed, setReceiptImageFailed] = useState(false);
+  const receiptImageSrc =
+    order.orderId && receipt ? marketplaceReceiptImageUrl(order.orderId) : '';
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -1214,6 +1223,33 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
           <div style={mockReceiptNoticeStyle}>
             Test receipt only. No wallet NFT was minted.
           </div>
+        ) : null}
+        {receiptImageSrc && !receiptImageFailed ? (
+          <a
+            href={receiptImageSrc}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open receipt image"
+            style={{ display: 'block', marginBottom: 16 }}
+          >
+            {/* Plain <img>: the API host isn't in next/image's remotePatterns. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={receiptImageSrc}
+              alt={`Receipt for order ${order.orderId}`}
+              onError={() => setReceiptImageFailed(true)}
+              style={{
+                display: 'block',
+                width: '100%',
+                maxWidth: 320,
+                aspectRatio: '1 / 1',
+                objectFit: 'cover',
+                borderRadius: 14,
+                border: `1px solid ${hair2}`,
+                background: '#f0f0ee',
+              }}
+            />
+          </a>
         ) : null}
         <div style={stateGridStyle}>
           <StateRow label="Status" value={humanize(receipt?.status)} />

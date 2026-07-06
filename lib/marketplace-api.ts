@@ -634,6 +634,14 @@ export async function confirmMarketplaceReceipt(
   return parseMarketplaceResponse<MarketplaceOrder>(response);
 }
 
+// Public receipt image rendered by the backend — the same PNG the receipt
+// NFT metadata points at. Available for any order with a public reference.
+export function marketplaceReceiptImageUrl(publicReference: string) {
+  return `${API_URL}/api/v2/desktop/marketplace/public/receipts/${encodeURIComponent(
+    publicReference
+  )}/image.png`;
+}
+
 export async function getMarketplaceReceipt(
   accessToken: string,
   orderId: string
