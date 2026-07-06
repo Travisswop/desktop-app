@@ -69,7 +69,39 @@ export const fetchTokensFromLiFi = async (
       return [];
     }
     const data = await response.json().catch(() => null);
-    return data?.tokens?.[chainId] || [];
+    const tokensByChain =
+      data && typeof data === 'object' && !Array.isArray(data)
+        ? (data as { tokens?: Record<string, unknown> }).tokens
+        : undefined;
+
+    if (!tokensByChain) {
+      console.error(
+        `Li.Fi tokens payload missing tokens map for chain ${chainId}`
+      );
+      return [];
+    }
+
+    if (typeof tokensByChain !== 'object' || Array.isArray(tokensByChain)) {
+      console.error(
+        `Li.Fi tokens payload has invalid tokens map for chain ${chainId}`
+      );
+      return [];
+    }
+
+    const chainTokens = tokensByChain[chainId];
+
+    if (chainTokens === undefined) {
+      return [];
+    }
+
+    if (!Array.isArray(chainTokens)) {
+      console.error(
+        `Li.Fi tokens payload has invalid token list for chain ${chainId}`
+      );
+      return [];
+    }
+
+    return chainTokens;
   } catch (error) {
     console.error('Error fetching tokens from Li.Fi:', error);
     return [];
