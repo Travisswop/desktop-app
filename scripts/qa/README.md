@@ -27,6 +27,31 @@ https://www.swopme.app/dashboard/chat
 That means the daily task is aimed at the live `main` surface, not a dirty local
 feature branch.
 
+## Authenticated Review Hosts
+
+Signed-in branch review should not assume every PR preview is a valid Privy auth
+surface.
+
+- Production `https://www.swopme.app/dashboard/chat` remains the default daily
+  smoke target for `origin/main`.
+- Current-branch signed-in proof should normally use an allowed localhost review
+  host such as `http://127.0.0.1:3001/dashboard/chat` after booting the branch
+  locally.
+- Ephemeral `*.vercel.app` preview hosts can redirect to `/login` and then fail
+  `page-auth` before any Astro or Goldman card is exercised because the Privy
+  iframe is blocked by `frame-ancestors` / allowed-origin policy on that host.
+
+Example current-branch review flow:
+
+```bash
+npm run dev -- --port 3001
+npm run qa:astro-cards -- --launch --url=http://127.0.0.1:3001/dashboard/chat
+```
+
+If Privy is later configured to allow a stable preview host, pass that host with
+`--url=`. Until then, treat a `vercel.app` login + `frame-ancestors` failure as
+an auth-host blocker, not a card regression.
+
 ## What It Tests
 
 The harness opens Swop chat in a dedicated Chrome profile, then generates and
