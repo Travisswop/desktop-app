@@ -46,9 +46,12 @@ import type {
   HyperliquidAgentOrderPrefill,
 } from '@/lib/chat/agentActionHandoff';
 import { useUser } from '@/lib/UserContext';
+import { logFeedCardHealth } from '@/lib/feed/feedCardHealth';
 import {
   buildPerpsActiveLimitOrderSnapshot,
+  buildPerpsReconcileSnapshotKey,
   buildPerpsPositionKey,
+  findMissingPerpsTerminalCandidates,
   inferPerpsCloseFillsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
@@ -193,6 +196,9 @@ export function PerpsPanel({
   const syncedPositionSnapshotsRef = useRef<Set<string>>(new Set());
   const syncedLiquidationFillsRef = useRef<Set<string>>(new Set());
   const reconciledPositionSnapshotsRef = useRef<Set<string>>(new Set());
+  const previousActivePositionsRef = useRef<
+    Array<{ positionKey: string; coin: string; dex?: string | null }>
+  >([]);
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showMarketSearch, setShowMarketSearch] = useState(false);
@@ -611,6 +617,16 @@ export function PerpsPanel({
         dex: position.dex,
       }),
     );
+    const trackedActivePositions = positions.map((position) => ({
+      positionKey: buildPerpsPositionKey({
+        userId: user._id,
+        masterAddress,
+        coin: position.coin,
+        dex: position.dex,
+      }),
+      coin: position.coin,
+      dex: position.dex || null,
+    }));
     const activePositionKeySet = new Set(
       activePositionKeys.map((key) => key.toLowerCase()),
     );
@@ -629,22 +645,22 @@ export function PerpsPanel({
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    const reconcileSnapshotKey = [
+    const closedFillsByCoin = inferPerpsCloseFillsByCoin(fills);
+    const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
       masterAddress,
-      Object.keys(mids).length > 0 ? 'mids-ready' : 'mids-pending',
-      `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
-      ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
-      ...activeLimitOrders
-        .map((order) =>
-          [
-            'limit',
-            order.positionKey.toLowerCase(),
-            order.orderId || '',
-            order.limitPrice,
-          ].join('='),
-        )
-        .sort(),
-    ].join(':');
+      hasMarkPrices: Object.keys(mids).length > 0,
+      observedDexes,
+      activePositionKeys,
+      activeLimitOrders,
+      closedFillsByCoin,
+    });
+    const previousActivePositions = previousActivePositionsRef.current;
+    previousActivePositionsRef.current = trackedActivePositions;
+    const missingTerminalCandidates = findMissingPerpsTerminalCandidates({
+      previousPositions: previousActivePositions,
+      activePositionKeys,
+      closedFillsByCoin,
+    });
 
     if (!reconciledPositionSnapshotsRef.current.has(reconcileSnapshotKey)) {
       reconciledPositionSnapshotsRef.current.add(reconcileSnapshotKey);
@@ -657,11 +673,36 @@ export function PerpsPanel({
         activeLimitOrders,
         observedDexes,
         markPricesByCoin: mids,
-        closedFillsByCoin: inferPerpsCloseFillsByCoin(fills),
-      }).catch((feedError) => {
-        reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
-        console.warn('Failed to reconcile perps feed cards:', feedError);
-      });
+        closedFillsByCoin,
+      })
+        .then((result) => {
+          const updatedCount = Number(result?.data?.updatedCount || 0);
+          if (updatedCount === 0 && missingTerminalCandidates.length > 0) {
+            void logFeedCardHealth(
+              {
+                surface: 'perps',
+                fingerprint: 'perps-stale-open-after-terminal-fill',
+                positionKeys: missingTerminalCandidates.map(
+                  (candidate) => candidate.positionKey,
+                ),
+                coins: missingTerminalCandidates.map(
+                  (candidate) => candidate.coin,
+                ),
+                context: {
+                  masterAddress,
+                  activePositionKeyCount: activePositionKeys.length,
+                  observedDexes,
+                  terminalCloseCoins: Object.keys(closedFillsByCoin).sort(),
+                },
+              },
+              accessToken,
+            );
+          }
+        })
+        .catch((feedError) => {
+          reconciledPositionSnapshotsRef.current.delete(reconcileSnapshotKey);
+          console.warn('Failed to reconcile perps feed cards:', feedError);
+        });
     }
 
     positions.forEach((position) => {
