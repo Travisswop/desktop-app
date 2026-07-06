@@ -262,6 +262,19 @@ export type StablecoinMerchantStatus = {
   };
 };
 
+export type CheckoutNfcTerminal = {
+  terminalId: string;
+  label: string;
+  status: 'active' | 'disabled';
+  terminalUrl: string;
+  activeIntentId?: string | null;
+  activeCheckoutUrl?: string;
+  lastActivatedAt?: string | null;
+  lastProgrammedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 type ApiResponse<T> = {
   success: boolean;
   data?: T;
@@ -372,6 +385,38 @@ export async function createCheckoutIntent(
   });
   const data = await parseResponse<CheckoutIntent>(response);
   if (!data.data) throw new Error('Checkout intent was not created');
+  return data.data;
+}
+
+export async function listCheckoutNfcTerminals(accessToken: string) {
+  const response = await apiFetch(`${API_URL}/api/v5/checkout-nfc-terminals`, {
+    headers: authHeaders(accessToken),
+    cache: 'no-store',
+  });
+  const data = await parseResponse<CheckoutNfcTerminal[] | CheckoutNfcTerminal>(response);
+  const terminals = data.data;
+  if (!terminals) return [];
+  return Array.isArray(terminals) ? terminals : [terminals];
+}
+
+export async function activateCheckoutNfcTerminal(
+  terminalId: string,
+  params: {
+    intentId: string;
+    checkoutBaseUrl?: string;
+  },
+  accessToken: string
+) {
+  const response = await apiFetch(
+    `${API_URL}/api/v5/checkout-nfc-terminals/${encodeURIComponent(terminalId)}/activate`,
+    {
+      method: 'POST',
+      headers: authHeaders(accessToken),
+      body: JSON.stringify(params),
+    }
+  );
+  const data = await parseResponse<CheckoutNfcTerminal>(response);
+  if (!data.data) throw new Error('NFC chip was not updated');
   return data.data;
 }
 

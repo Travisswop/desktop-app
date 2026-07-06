@@ -9,6 +9,7 @@ import {
   Check,
   Clock3,
   Copy,
+  CreditCard,
   Download,
   Loader2,
   Minus,
@@ -28,12 +29,15 @@ import {
 import toast from 'react-hot-toast';
 
 import {
+  CheckoutNfcTerminal,
   CheckoutIntent,
   StablecoinMerchantStatus,
+  activateCheckoutNfcTerminal,
   createCheckoutRefundRequest,
   createCheckoutIntent,
   getStablecoinMerchantStatus,
   listCheckoutIntents,
+  listCheckoutNfcTerminals,
   reconcileCheckoutIntent,
 } from '@/lib/checkout-api';
 import {
@@ -190,6 +194,10 @@ function canReconcileStatus(status: CheckoutIntent['status']) {
   ].includes(status);
 }
 
+function isActiveCheckoutStatus(status: CheckoutIntent['status']) {
+  return status === 'active' || status === 'pending_payment';
+}
+
 function reconcileActionLabel(status: CheckoutIntent['status']) {
   if (status === 'settlement_failed') return 'Retry settlement';
   if (status === 'conversion_failed') return 'Retry conversion';
@@ -212,6 +220,14 @@ function mapProduct(item: MarketplaceProduct): ProductRow {
   };
 }
 
+function terminalDisplayName(terminal?: CheckoutNfcTerminal | null) {
+  return (terminal?.label || '').trim() || 'Unnamed chip';
+}
+
+function terminalProgrammedLabel(terminal: CheckoutNfcTerminal) {
+  return terminal.lastProgrammedAt ? 'Programmed' : 'Not programmed';
+}
+
 export default function CheckoutCreateClient() {
   const router = useRouter();
   const { user, accessToken } = useUser();
@@ -227,9 +243,13 @@ export default function CheckoutCreateClient() {
   const [recentIntents, setRecentIntents] = useState<CheckoutIntent[]>([]);
   const [merchantStatus, setMerchantStatus] =
     useState<StablecoinMerchantStatus | null>(null);
+  const [nfcTerminals, setNfcTerminals] = useState<CheckoutNfcTerminal[]>([]);
+  const [selectedTerminalId, setSelectedTerminalId] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [loadingRecent, setLoadingRecent] = useState(false);
+  const [loadingTerminals, setLoadingTerminals] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [pushingTerminalId, setPushingTerminalId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copyFallback, setCopyFallback] = useState('');
   const copyFallbackInputRef = useRef<HTMLInputElement | null>(null);
@@ -301,7 +321,7 @@ export default function CheckoutCreateClient() {
     () => Number((saleSubtotal + estimatedFee).toFixed(6)),
     [estimatedFee, saleSubtotal]
   );
-  const isRefreshing = loadingProducts || loadingRecent;
+  const isRefreshing = loadingProducts || loadingRecent || loadingTerminals;
   const canCreateSale =
     Boolean(accessToken) &&
     Boolean(merchantWalletAddress) &&
@@ -328,6 +348,23 @@ export default function CheckoutCreateClient() {
     }
     return swopLinkForIntent(createdIntent) || createdIntent.paymentRequest?.url || '';
   }, [createdIntent, createdPhantomCheckoutUrl, paymentType, swopLinkForIntent]);
+  const selectedTerminal = useMemo(
+    () =>
+      nfcTerminals.find((terminal) => terminal.terminalId === selectedTerminalId) ||
+      null,
+    [nfcTerminals, selectedTerminalId]
+  );
+  const selectedTerminalBoundToCurrent = Boolean(
+    createdIntent &&
+      selectedTerminal?.activeIntentId === createdIntent.intentId
+  );
+  const canPushToSelectedTerminal = Boolean(
+    accessToken &&
+      selectedTerminal &&
+      selectedTerminal.status !== 'disabled' &&
+      !selectedTerminalBoundToCurrent &&
+      ((createdIntent && isActiveCheckoutStatus(createdIntent.status)) || canCreateSale)
+  );
 
   const salesSummary = useMemo(() => {
     const todayKey = new Date().toDateString();
@@ -411,6 +448,29 @@ export default function CheckoutCreateClient() {
     }
   }, [accessToken]);
 
+  const loadTerminals = useCallback(async () => {
+    if (!accessToken) return;
+    setLoadingTerminals(true);
+    try {
+      const terminals = await listCheckoutNfcTerminals(accessToken);
+      setNfcTerminals(terminals);
+      setSelectedTerminalId((current) => {
+        if (current && terminals.some((terminal) => terminal.terminalId === current)) {
+          return current;
+        }
+        return terminals[0]?.terminalId || '';
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load NFC chips'
+      );
+    } finally {
+      setLoadingTerminals(false);
+    }
+  }, [accessToken]);
+
   const loadMerchantStatus = useCallback(async () => {
     if (!accessToken) return;
     try {
@@ -428,8 +488,9 @@ export default function CheckoutCreateClient() {
   useEffect(() => {
     loadProducts();
     loadRecent();
+    loadTerminals();
     loadMerchantStatus();
-  }, [loadProducts, loadRecent, loadMerchantStatus]);
+  }, [loadProducts, loadRecent, loadTerminals, loadMerchantStatus]);
 
   useEffect(() => {
     if (!copyFallback) return;
@@ -471,41 +532,108 @@ export default function CheckoutCreateClient() {
     });
   };
 
+  const createCurrentSale = useCallback(async () => {
+    if (!accessToken || !canCreateSale) return null;
+
+    const intent = await createCheckoutIntent(
+      {
+        ...(cartItems.length > 0
+          ? {
+              lineItems: cartItems.map((item) => ({
+                productId: item.product.id,
+                quantity: item.quantity,
+              })),
+            }
+          : {
+              amount: manualAmountValue,
+              description:
+                saleDescription.trim() || 'QR checkout',
+            }),
+        merchantWalletAddress,
+        merchantCurrency: 'USDC',
+        checkoutMode: 'in_person',
+        checkoutBaseUrl,
+      },
+      accessToken
+    );
+    setCreatedIntent(intent);
+    setRecentIntents((current) => [
+      intent,
+      ...current.filter((item) => item.intentId !== intent.intentId),
+    ]);
+    return intent;
+  }, [
+    accessToken,
+    canCreateSale,
+    cartItems,
+    checkoutBaseUrl,
+    manualAmountValue,
+    merchantWalletAddress,
+    saleDescription,
+  ]);
+
   const handleCreate = async () => {
     if (!accessToken || !canCreateSale) return;
 
     setCreating(true);
     try {
-      const intent = await createCheckoutIntent(
-        {
-          ...(cartItems.length > 0
-            ? {
-                lineItems: cartItems.map((item) => ({
-                  productId: item.product.id,
-                  quantity: item.quantity,
-                })),
-              }
-            : {
-                amount: manualAmountValue,
-                description:
-                  saleDescription.trim() || 'QR checkout',
-              }),
-          merchantWalletAddress,
-          merchantCurrency: 'USDC',
-          checkoutMode: 'in_person',
-          checkoutBaseUrl,
-        },
-        accessToken
-      );
-      setCreatedIntent(intent);
-      setRecentIntents((current) => [intent, ...current]);
-      toast.success('Checkout QR ready');
+      const intent = await createCurrentSale();
+      if (intent) toast.success('Checkout QR ready');
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Unable to create checkout'
       );
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handlePushToTerminal = async (terminalId: string) => {
+    if (!accessToken || !terminalId) return;
+
+    const terminal = nfcTerminals.find((item) => item.terminalId === terminalId);
+    const activeIntent =
+      createdIntent && isActiveCheckoutStatus(createdIntent.status)
+        ? createdIntent
+        : null;
+
+    if (!activeIntent && !canCreateSale) {
+      toast.error('Add an amount before sending to an NFC chip');
+      return;
+    }
+
+    setPushingTerminalId(terminalId);
+    setCreating(!activeIntent);
+    try {
+      const intent = activeIntent || (await createCurrentSale());
+      if (!intent) throw new Error('Checkout intent was not created');
+      const updatedTerminal = await activateCheckoutNfcTerminal(
+        terminalId,
+        {
+          intentId: intent.intentId,
+          checkoutBaseUrl,
+        },
+        accessToken
+      );
+      setNfcTerminals((current) =>
+        current.some((item) => item.terminalId === updatedTerminal.terminalId)
+          ? current.map((item) =>
+              item.terminalId === updatedTerminal.terminalId
+                ? updatedTerminal
+                : item
+            )
+          : [updatedTerminal, ...current]
+      );
+      toast.success(
+        `${terminalDisplayName(updatedTerminal || terminal)} is ready for this sale`
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to send sale to NFC chip'
+      );
+    } finally {
+      setCreating(false);
+      setPushingTerminalId(null);
     }
   };
 
@@ -683,7 +811,7 @@ export default function CheckoutCreateClient() {
               </div>
               <p className="mt-1 max-w-2xl text-sm text-[#646b78]">
                 Enter an amount or add products, choose Swop wallet or Phantom,
-                and show the payer the QR.
+                then show a QR or push the sale to a programmed NFC chip.
               </p>
             </div>
           </div>
@@ -694,6 +822,7 @@ export default function CheckoutCreateClient() {
               onClick={() => {
                 loadProducts();
                 loadRecent();
+                loadTerminals();
               }}
               disabled={isRefreshing}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#dfe4eb] bg-white px-3 text-sm font-semibold text-[#303642] shadow-sm transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa] disabled:cursor-not-allowed disabled:opacity-60"
@@ -1137,10 +1266,106 @@ export default function CheckoutCreateClient() {
             </div>
           </div>
 
+          <div className="mt-4 rounded-lg border border-[#edf0f3] bg-[#fbfcfd] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+                  NFC chip destination
+                </p>
+                <p className="mt-1 text-xs font-medium text-[#737b8c]">
+                  {nfcTerminals.length}{' '}
+                  {nfcTerminals.length === 1 ? 'chip' : 'chips'} available
+                </p>
+              </div>
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-[#4f5b6b] ring-1 ring-[#e6e9ef]">
+                <CreditCard className="h-4 w-4" />
+              </span>
+            </div>
+
+            {loadingTerminals ? (
+              <div className="mt-3 flex items-center gap-2 rounded-md border border-[#e8ebf0] bg-white px-3 py-3 text-xs font-semibold text-[#646b78]">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading NFC chips
+              </div>
+            ) : nfcTerminals.length === 0 ? (
+              <button
+                type="button"
+                onClick={loadTerminals}
+                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-dashed border-[#d4dae3] bg-white px-3 text-sm font-semibold text-[#303642] transition hover:border-[#c8d0dc] hover:bg-[#f7f8fa]"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh chips
+              </button>
+            ) : (
+              <div className="mt-3 space-y-3">
+                <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#737b8c]">
+                  Select chip
+                  <select
+                    value={selectedTerminalId}
+                    onChange={(event) => setSelectedTerminalId(event.target.value)}
+                    className="h-10 rounded-md border border-[#dfe4eb] bg-white px-3 text-sm font-semibold normal-case tracking-normal text-[#101114] outline-none transition focus:border-[#101114] focus:ring-2 focus:ring-[#101114]/10"
+                  >
+                    {nfcTerminals.map((terminal) => (
+                      <option key={terminal.terminalId} value={terminal.terminalId}>
+                        {terminalDisplayName(terminal)} - {terminalProgrammedLabel(terminal)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {selectedTerminal ? (
+                  <div className="rounded-md border border-[#e8ebf0] bg-white p-3 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold text-[#303642]">
+                        {terminalDisplayName(selectedTerminal)}
+                      </span>
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          selectedTerminalBoundToCurrent
+                            ? 'bg-[#effaf3] text-[#166534]'
+                            : 'bg-[#f1f4f8] text-[#626b7a]'
+                        }`}
+                      >
+                        {selectedTerminalBoundToCurrent
+                          ? 'Current sale'
+                          : terminalProgrammedLabel(selectedTerminal)}
+                      </span>
+                    </div>
+                    <p className="mt-2 truncate font-mono text-[11px] text-[#737b8c]">
+                      {selectedTerminal.terminalUrl}
+                    </p>
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => handlePushToTerminal(selectedTerminalId)}
+                  disabled={
+                    !canPushToSelectedTerminal ||
+                    creating ||
+                    Boolean(pushingTerminalId)
+                  }
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#101114] px-3 text-sm font-semibold text-white transition hover:bg-[#24262b] disabled:cursor-not-allowed disabled:bg-[#8b8b8d] disabled:opacity-80"
+                >
+                  {pushingTerminalId ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CreditCard className="h-4 w-4" />
+                  )}
+                  {selectedTerminalBoundToCurrent
+                    ? 'Sent to chip'
+                    : createdIntent && isActiveCheckoutStatus(createdIntent.status)
+                      ? 'Send sale to chip'
+                      : 'Create & send to chip'}
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={handleCreate}
-            disabled={creating || !canCreateSale}
+            disabled={creating || Boolean(pushingTerminalId) || !canCreateSale}
             className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#101114] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#24262b] disabled:cursor-not-allowed disabled:bg-[#8b8b8d] disabled:opacity-80"
           >
             {creating ? (
