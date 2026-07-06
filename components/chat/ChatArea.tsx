@@ -41,6 +41,7 @@ import ChatAttachmentMenu, {
   type ChatAttachmentGif,
 } from './ChatAttachmentMenu';
 import { resolveActiveChatData } from './chatSelection';
+import EmptyChatState from '@/components/chat/EmptyChatState';
 import { sendCloudinaryFile } from '@/lib/SendCloudinaryAnyFile';
 import Image from 'next/image';
 import isUrl from '@/lib/isUrl';
@@ -276,6 +277,7 @@ import { TransactionService } from '@/services/transaction-service';
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
 import { getConnectionsUserData } from '@/actions/getEnsData';
 import { copyTextToClipboard } from '@/lib/clipboard';
+import type { OpenAgentThread } from '@/components/chat/openAgentThread';
 // ==================== FEATURE FLAGS ====================
 
 // Socket event names (V1 or V2 based on feature flag)
@@ -920,7 +922,7 @@ interface ChatAreaProps {
   onChatUpdate?: () => void; // ADD THIS
   onBackToList?: () => void;
   onLeaveGroup?: () => void;
-  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
+  onOpenAgentThread?: OpenAgentThread;
 }
 
 interface SocketResponse {
@@ -3208,6 +3210,10 @@ export default function ChatArea({
     (SwopAccessNotice & { key: number }) | null
   >(null);
   const [agentMutationId, setAgentMutationId] = useState<string | null>(null);
+  const [isOpeningAstroDesk, setIsOpeningAstroDesk] = useState(false);
+  const [astroDeskOpenError, setAstroDeskOpenError] = useState<string | null>(
+    null
+  );
   const {
     addGroupAgent,
     agentError,
@@ -5896,6 +5902,25 @@ export default function ChatArea({
     });
     return keys;
   }, [messages]);
+  const handleOpenEmptyStateAstroDesk = useCallback(async () => {
+    if (!onOpenAgentThread) return;
+
+    setAstroDeskOpenError(null);
+    setIsOpeningAstroDesk(true);
+
+    try {
+      await onOpenAgentThread('astro', { propagateErrors: true });
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : 'agent_thread_unavailable';
+      console.warn('[chat-empty-state] astro_desk_open_failed', { reason });
+      setAstroDeskOpenError(
+        "Couldn't open Astro Trading Desk. Try the Messages rail pin or reload chat."
+      );
+    } finally {
+      setIsOpeningAstroDesk(false);
+    }
+  }, [onOpenAgentThread]);
 
   const handleUpdateGoldmanAccessStation = useCallback(
     async (accessStation: GoldmanAccessStationInput) => {
@@ -5923,17 +5948,11 @@ export default function ChatArea({
   if (!selectedChat) {
     return (
       <div className="flex min-w-0 flex-1 items-center justify-center bg-[#08090b]">
-        <div className="dm-rise max-w-sm text-center">
-          <div className="dm-mono mx-auto mb-5 grid h-16 w-16 place-items-center rounded-[16px] border border-[#3fe08f]/30 bg-black text-xl font-bold text-[#3fe08f] shadow-[inset_0_0_18px_rgba(63,224,143,0.12)]">
-            $_
-          </div>
-          <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#eceef2]">
-            Swop Messages
-          </h2>
-          <p className="mt-2 text-sm text-[#9396a0]">
-            Pick Astro Trading Desk, or create a group and mention @astro.
-          </p>
-        </div>
+        <EmptyChatState
+          astroDeskOpenError={astroDeskOpenError}
+          isOpeningAstroDesk={isOpeningAstroDesk}
+          onOpenAstroDesk={() => void handleOpenEmptyStateAstroDesk()}
+        />
       </div>
     );
   }
@@ -11323,7 +11342,7 @@ function GroupAgentControls({
   mutationAgentId: string | null;
   onAddAgent: (agent: GroupAgentDescriptor) => void;
   onMentionAgent: (agent: GroupAgent) => void;
-  onOpenAgentThread?: (agentId: string) => void | Promise<void>;
+  onOpenAgentThread?: OpenAgentThread;
   onRemoveAgent: (agentId: string) => void;
 }) {
   const activeIds = new Set(activeAgents.map((agent) => agent.agentId));
