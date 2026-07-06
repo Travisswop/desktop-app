@@ -1200,9 +1200,34 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
   // the image if it can't load (e.g. legacy orders with no reference) but
   // keep the View NFT link visible either way.
   const [receiptImageFailed, setReceiptImageFailed] = useState(false);
+  const [downloadingImage, setDownloadingImage] = useState(false);
   const receiptImageSrc =
     order.orderId && receipt ? marketplaceReceiptImageUrl(order.orderId) : '';
   const nftUrl = receiptNftUrl(receipt?.mintAddress);
+
+  // Fetch-as-blob so the browser saves the file instead of navigating —
+  // the download attribute alone is ignored for cross-origin URLs.
+  const downloadReceiptImage = async () => {
+    if (!receiptImageSrc || downloadingImage) return;
+    setDownloadingImage(true);
+    try {
+      const response = await fetch(receiptImageSrc);
+      if (!response.ok) throw new Error('Receipt image unavailable');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `swop-receipt-${order.orderId}.png`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch {
+      window.open(receiptImageSrc, '_blank', 'noopener');
+    } finally {
+      setDownloadingImage(false);
+    }
+  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -1216,31 +1241,58 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
         {receiptImageSrc || nftUrl ? (
           <div style={{ marginBottom: 16 }}>
             {receiptImageSrc && !receiptImageFailed ? (
-              <a
-                href={receiptImageSrc}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Open receipt image"
-                style={{ display: 'block' }}
-              >
-                {/* Plain <img>: the API host isn't in next/image's remotePatterns. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={receiptImageSrc}
-                  alt={`Receipt for order ${order.orderId}`}
-                  onError={() => setReceiptImageFailed(true)}
+              <div style={{ position: 'relative', width: '100%', maxWidth: 320 }}>
+                <a
+                  href={receiptImageSrc}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open receipt image"
+                  style={{ display: 'block' }}
+                >
+                  {/* Plain <img>: the API host isn't in next/image's remotePatterns. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={receiptImageSrc}
+                    alt={`Receipt for order ${order.orderId}`}
+                    onError={() => setReceiptImageFailed(true)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      aspectRatio: '1 / 1',
+                      objectFit: 'cover',
+                      borderRadius: 14,
+                      border: `1px solid ${hair2}`,
+                      background: '#f0f0ee',
+                    }}
+                  />
+                </a>
+                <button
+                  type="button"
+                  onClick={downloadReceiptImage}
+                  disabled={downloadingImage}
+                  title="Download receipt image"
+                  aria-label="Download receipt image"
                   style={{
-                    display: 'block',
-                    width: '100%',
-                    maxWidth: 320,
-                    aspectRatio: '1 / 1',
-                    objectFit: 'cover',
-                    borderRadius: 14,
-                    border: `1px solid ${hair2}`,
-                    background: '#f0f0ee',
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 9,
+                    background: 'rgba(255,255,255,0.94)',
+                    border: `1px solid ${hair}`,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.14)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: ink,
+                    cursor: downloadingImage ? 'wait' : 'pointer',
+                    opacity: downloadingImage ? 0.6 : 1,
                   }}
-                />
-              </a>
+                >
+                  <Download size={15} />
+                </button>
+              </div>
             ) : null}
             {nftUrl ? (
               <a
