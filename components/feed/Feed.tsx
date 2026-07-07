@@ -103,12 +103,17 @@ export default function Feed({
         const data = await response.json();
         if (requestId !== requestIdRef.current) return;
 
+        const rawCount = Array.isArray(data?.data) ? data.data.length : 0;
         const feedItems = Array.isArray(data?.data)
           ? filterDuplicateLegacyPerpsItems(data.data)
           : [];
         const nextHasMore = shouldFetchAnotherFeedPage({
           requestedPage: currentPage,
-          returnedCount: feedItems.length,
+          // Use the raw server page size, not the post-dedup count: when
+          // totalPages is absent the fallback heuristic is "was this page
+          // full?", and client-side dedup shrinking the array must not be
+          // mistaken for reaching the last page.
+          returnedCount: rawCount,
           pageSize: FEED_PAGE_LIMIT,
           totalPages: data?.pagination?.totalPages,
         });
