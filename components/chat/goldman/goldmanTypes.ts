@@ -110,6 +110,11 @@ export type GoldmanStrategyVault = {
   source?: string | null;
   activatedAt?: string | null;
   limits?: Record<string, unknown>;
+  // Authoritative Access Station config for the agent, as returned by the
+  // strategy-vault fetch on open. Used to seed the toggles from a fresh source
+  // instead of stale chat-list data. Shape matches GoldmanAccessStationInput;
+  // typed loosely here to avoid a cross-module import.
+  accessStation?: unknown;
   strategyFiles?: GoldmanStrategyFile[];
   strategies?: GoldmanTradingStrategy[];
 };

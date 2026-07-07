@@ -8265,6 +8265,10 @@ async function readGoldmanStrategyVault({
 
   return {
     ...vault,
+    // Fresh, authoritative Access Station config from the agent this endpoint
+    // returns. Seeds the toggles on open so they reflect the server state
+    // instead of stale chat-list data (which flipped saved stations off).
+    accessStation: body?.data?.agent?.config?.accessStation ?? null,
     strategies: Array.isArray(body?.data?.strategies)
       ? body.data.strategies.map(normalizeGoldmanStrategyIdentity)
       : [],
@@ -8645,9 +8649,18 @@ function GoldmanAccessStation({
   accessToken?: string | null;
   sessionActivity?: GoldmanActivityEntry[];
 }) {
-  const accessStationKey = JSON.stringify(accessStation || {});
+  // Prefer the authoritative Access Station from the strategy-vault fetch
+  // (loaded fresh on open) over the chat-list agent config, which can be
+  // stale/empty on reopen and would otherwise flip saved toggles off. Both
+  // operands are stable refs, so this selection is render-stable.
+  const effectiveAccessStation =
+    (strategyVault?.accessStation as
+      | GoldmanAccessStationInput
+      | null
+      | undefined) ?? accessStation;
+  const accessStationKey = JSON.stringify(effectiveAccessStation || {});
   const [{ access, limits }, setStationState] = useState(
-    () => normalizeGoldmanAccessStationState(accessStation)
+    () => normalizeGoldmanAccessStationState(effectiveAccessStation)
   );
   const [isSavingAccessStation, setIsSavingAccessStation] = useState(false);
   const [accessStationError, setAccessStationError] = useState<string | null>(
@@ -8671,20 +8684,22 @@ function GoldmanAccessStation({
   const isVaultBusy = isStrategyVaultLoading || isActivatingStrategyVault;
 
   useEffect(() => {
-    // While the Goldman agent config is still hydrating on (re)open, the
-    // accessStation prop arrives null/empty for a beat. Syncing then would run
-    // normalize(null), which fills every venue with its OFF default and flips
-    // the user's saved stations (perps, predictions, …) back off on each open.
-    // Only sync once the prop actually carries an access payload; the initial
-    // useState already covers the empty-first-render fallback.
+    // While the Goldman config is still hydrating on (re)open, the source can
+    // arrive null/empty for a beat. Syncing then would run normalize(null),
+    // which fills every venue with its OFF default and flips the user's saved
+    // stations (perps, predictions, …) back off on each open. Only sync once
+    // we have a real access payload; the initial useState covers the
+    // empty-first-render fallback.
     const hasAccessPayload =
-      !!accessStation?.access &&
-      Object.keys(accessStation.access).length > 0;
+      !!effectiveAccessStation?.access &&
+      Object.keys(effectiveAccessStation.access).length > 0;
     if (!hasAccessPayload) {
       return;
     }
-    setStationState(normalizeGoldmanAccessStationState(accessStation));
-  }, [accessStationKey, accessStation]);
+    setStationState(
+      normalizeGoldmanAccessStationState(effectiveAccessStation)
+    );
+  }, [accessStationKey, effectiveAccessStation]);
 
   const persistAccessStation = useCallback(
     (nextState: { access: GoldmanAccessState; limits: GoldmanLimits }) => {
