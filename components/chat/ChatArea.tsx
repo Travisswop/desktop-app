@@ -105,6 +105,7 @@ import {
   Wallet,
   X,
   Zap,
+  Info,
 } from 'lucide-react';
 import { AgentActionReceiptCard } from '@/components/chat/tickets/AgentActionReceiptCard';
 import {
@@ -7982,8 +7983,44 @@ const DEFAULT_GOLDMAN_LIMITS: GoldmanLimits = {
   dailyCapUsd: '750',
   maxLeverage: '2',
   predictionExposureUsd: '500',
-  reserveUsd: '100',
+  reserveUsd: '0',
 };
+
+// Plain-language explanations shown by the console's info (i) button.
+const GOLDMAN_CONSOLE_HELP: ReadonlyArray<readonly [string, string]> = [
+  [
+    'Available',
+    'Total funds in the vault — wallet tokens across every EVM chain, plus predictions (pUSD) and Hyperliquid perps balances.',
+  ],
+  [
+    'Reserve',
+    'Dollars Goldman keeps untouched. It only trades with Available minus Reserve, so set it to 0 to let it use everything.',
+  ],
+  [
+    'Fund',
+    'Send USDC or any supported token to this address to fund the vault. Goldman auto-converts it to whatever a venue needs.',
+  ],
+  [
+    'Stations',
+    'Switch a venue on or off — Perps, Predictions, Swaps, Sends, Aave. Off means Goldman cannot use that venue at all.',
+  ],
+  [
+    'Approval',
+    'A station set to require approval proposes each trade for you to confirm. Turn approval off and Goldman places that venue’s trades on its own.',
+  ],
+  [
+    'Limits',
+    'Daily cap = max spend per day. Leverage = max perps leverage. Prediction exposure = max held in predictions. The daily loss cap lives on the strategy (uncapped unless you set one).',
+  ],
+  [
+    'Full Autonomy',
+    'One switch that flips every enabled station to trade without approval, always within your limits.',
+  ],
+  [
+    'Run / Stop',
+    'Starts or stops the active strategy’s trading loop. Explain shows its current reasoning; Publish shares its trades to your feed.',
+  ],
+];
 
 const GOLDMAN_ACCESS_ROWS: Array<{
   key: GoldmanAccessKey;
@@ -8672,6 +8709,7 @@ function GoldmanAccessStation({
   const [consoleTab, setConsoleTab] = useState<'console' | 'activity'>(
     'console'
   );
+  const [showHelp, setShowHelp] = useState(false);
   const strategyFiles = useMemo(
     () => hydrateGoldmanStrategyFiles(strategyVault?.strategyFiles),
     [strategyVault?.strategyFiles]
@@ -9403,12 +9441,57 @@ function GoldmanAccessStation({
             Goldman Sacks
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowHelp((prev) => !prev)}
+          aria-label="What do these controls do?"
+          aria-expanded={showHelp}
+          className={`grid h-7 w-7 flex-shrink-0 place-items-center rounded-[7px] border transition-colors ${
+            showHelp
+              ? 'border-[#f4c95d]/45 bg-[#f4c95d]/15 text-[#f4c95d]'
+              : 'border-white/[0.07] bg-black/20 text-[#9396a0] hover:text-[#eceef2]'
+          }`}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
         <span
           className={`dm-mono rounded-[6px] border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] ${statusClassName}`}
         >
           {stationStatus}
         </span>
       </div>
+
+      {showHelp && (
+        <div className="mb-3">
+          <ConsoleCard padClass="px-4 py-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="dm-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#f4c95d]">
+                how the console works
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowHelp(false)}
+                aria-label="Close help"
+                className="text-[#737783] transition-colors hover:text-[#eceef2]"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-2.5">
+              {GOLDMAN_CONSOLE_HELP.map(([term, desc]) => (
+                <div key={term}>
+                  <div className="dm-mono text-[11px] font-bold text-[#eceef2]">
+                    {term}
+                  </div>
+                  <div className="mt-0.5 text-[11px] leading-snug text-[#9396a0]">
+                    {desc}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ConsoleCard>
+        </div>
+      )}
 
       <div className="mb-3 grid grid-cols-2 gap-2">
         {(
