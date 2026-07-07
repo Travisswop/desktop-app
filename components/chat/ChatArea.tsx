@@ -8948,6 +8948,26 @@ function GoldmanAccessStation({
       .map((row) => row.shortLabel)
       .join(', ') || 'none';
   const goldmanMetrics = buildGoldmanConsoleMetrics(consoleData);
+  // Full vault balance = liquid wallet tokens (multi-chain) + predictions
+  // collateral (pUSD, which has no price feed so it's absent from the token
+  // sum) + Hyperliquid perps account value. Broken out below so the card shows
+  // the whole picture, not just the priced wallet tokens.
+  const vaultWalletUsd = toFiniteNumber(consoleData?.walletPortfolioBalance);
+  const vaultPredictionsUsd = toFiniteNumber(
+    consoleData?.predictionPortfolioUsdcBalance
+  );
+  const vaultPerpsUsd = toFiniteNumber(consoleData?.perpsAccount?.accountValue);
+  const vaultTotalUsd = vaultWalletUsd + vaultPredictionsUsd + vaultPerpsUsd;
+  const vaultTokenRows = (consoleData?.walletPortfolioTokens || [])
+    .map((token) => ({
+      key: `${token.symbol}-${token.chain}-${token.address || 'native'}`,
+      symbol: String(token.symbol || 'TOKEN').toUpperCase(),
+      chain: String(token.chain || ''),
+      usd: getTokenDataUsdValue(token),
+    }))
+    .filter((row) => row.usd > 0)
+    .sort((a, b) => b.usd - a.usd)
+    .slice(0, 8);
   const vaultAddressLabel = fundingAddress?.address
     ? formatWalletAddress(fundingAddress.address)
     : isVaultBusy
@@ -8965,7 +8985,7 @@ function GoldmanAccessStation({
               available
             </div>
             <div className="dm-mono mt-2 text-[24px] font-semibold leading-none tracking-[-0.04em] text-[#eceef2]">
-              {formatCompactUsd(consoleData?.walletPortfolioBalance || 0)}
+              {formatCompactUsd(vaultTotalUsd)}
             </div>
           </div>
           <div className="text-right">
@@ -8989,6 +9009,54 @@ function GoldmanAccessStation({
             </span>
           </div>
         </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {[
+            { label: 'wallet', usd: vaultWalletUsd },
+            { label: 'predictions', usd: vaultPredictionsUsd },
+            { label: 'perps', usd: vaultPerpsUsd },
+          ].map((row) => (
+            <div
+              key={row.label}
+              className="rounded-[9px] border border-white/[0.06] bg-black/20 px-2.5 py-2"
+            >
+              <div className="dm-mono text-[8px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                {row.label}
+              </div>
+              <div className="dm-mono mt-1 text-[13px] font-semibold text-[#eceef2]">
+                {formatCompactUsd(row.usd)}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {vaultTokenRows.length > 0 && (
+          <div className="mt-2 max-h-[128px] overflow-y-auto rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
+            <div className="dm-mono text-[8px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+              tokens
+            </div>
+            <div className="mt-1.5 space-y-1">
+              {vaultTokenRows.map((row) => (
+                <div
+                  key={row.key}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="dm-mono min-w-0 truncate text-[11px] font-semibold text-[#cdd0d7]">
+                    {row.symbol}
+                    {row.chain ? (
+                      <span className="ml-1 text-[9px] font-medium uppercase text-[#5a5e69]">
+                        {row.chain}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="dm-mono shrink-0 text-[11px] font-semibold text-[#eceef2]">
+                    {formatCompactUsd(row.usd)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-3 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
           {fundingAddress?.ensName ? (
