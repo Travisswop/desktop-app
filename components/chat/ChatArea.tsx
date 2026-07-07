@@ -8671,6 +8671,18 @@ function GoldmanAccessStation({
   const isVaultBusy = isStrategyVaultLoading || isActivatingStrategyVault;
 
   useEffect(() => {
+    // While the Goldman agent config is still hydrating on (re)open, the
+    // accessStation prop arrives null/empty for a beat. Syncing then would run
+    // normalize(null), which fills every venue with its OFF default and flips
+    // the user's saved stations (perps, predictions, …) back off on each open.
+    // Only sync once the prop actually carries an access payload; the initial
+    // useState already covers the empty-first-render fallback.
+    const hasAccessPayload =
+      !!accessStation?.access &&
+      Object.keys(accessStation.access).length > 0;
+    if (!hasAccessPayload) {
+      return;
+    }
     setStationState(normalizeGoldmanAccessStationState(accessStation));
   }, [accessStationKey, accessStation]);
 
