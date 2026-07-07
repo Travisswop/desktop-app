@@ -14,6 +14,7 @@ import {
   marketRouteKey,
   useMarketDetailStore,
 } from '@/zustandStore/marketDetailStore';
+import { buildApprovedMarketDetailEntry } from '@/lib/polymarket/marketDetailEntries';
 import TransferModal from './TransferModal';
 import PredictionsPanel, {
   type PredictionsPanelView,
@@ -87,25 +88,15 @@ export default function PredictionPageContent() {
 
     const key = marketRouteKey(market);
     const outcome = prefill.outcome || inferOutcomeFromToken(market, prefill.tokenId);
-    setMarketDetail(key, {
-      market,
-      initialOutcome: outcome,
-      initialAmount: prefill.amount,
-      initialSide: prefill.side,
-      initialOrderType: prefill.orderType,
-      initialLimitPrice: prefill.limitPrice,
-    });
+    setMarketDetail(
+      key,
+      buildApprovedMarketDetailEntry(market, {
+        ...prefill,
+        outcome,
+      }),
+    );
 
-    const query = new URLSearchParams();
-    query.set('agentAction', 'approved');
-    if (prefill.proposalId) query.set('proposalId', prefill.proposalId);
-    if (outcome) query.set('outcome', outcome);
-    if (prefill.amount) query.set('amount', prefill.amount);
-    if (prefill.side) query.set('side', prefill.side);
-    if (prefill.orderType) query.set('orderType', prefill.orderType);
-    if (prefill.limitPrice) query.set('limitPrice', prefill.limitPrice);
-
-    router.push(`/prediction/market/${encodeURIComponent(key)}?${query.toString()}`);
+    router.push(`/prediction/market/${encodeURIComponent(key)}`);
     toast({
       title: 'Agent proposal approved',
       description: 'Review the prediction trade before signing.',

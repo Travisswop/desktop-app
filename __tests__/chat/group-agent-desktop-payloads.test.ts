@@ -189,6 +189,8 @@ describe('desktop group agent payloads', () => {
           coin: 'ETH',
           isBuy: false,
           sz: '0.25',
+          assetIndex: 110000,
+          dex: 'builder-dex',
           orderType: 'limit',
           price: '3200',
           leverage: '5',
@@ -201,12 +203,37 @@ describe('desktop group agent payloads', () => {
       proposalId: 'prop_hl',
       proposalNonce: 'nonce_hl',
       coin: 'ETH',
+      assetIndex: 110000,
+      dex: 'builder-dex',
       side: 'short',
       sizeCoins: '0.25',
       orderMode: 'limit',
       price: '3200',
       leverage: 5,
       isCross: false,
+    });
+  });
+
+  test('keeps operating-mode disclosure when an approved handoff only supplies mode context', () => {
+    const prefill = getHyperliquidOrderPrefill({
+      status: 'approved',
+      nextStep: 'hyperliquid_frontend_signing_required',
+      payload: {
+        proposalId: 'prop_hl_mode',
+        proposalNonce: 'nonce_hl_mode',
+        provider: 'hyperliquid',
+        panel: 'perps',
+        action: 'perps.place_order',
+        normalizedParams: {
+          coin: 'ETH',
+          operatingMode: 'shadow',
+        },
+      },
+    });
+
+    expect(prefill).toMatchObject({
+      proposalId: 'prop_hl_mode',
+      operatingModeLabel: 'Shadow',
     });
   });
 
@@ -331,8 +358,65 @@ describe('desktop group agent payloads', () => {
       outcome: 'yes',
       side: 'BUY',
       amount: '25',
+      amountUnit: 'usd',
       orderType: 'limit',
       limitPrice: '42',
+    });
+  });
+
+  test('keeps share-denominated Polymarket approvals typed as shares', () => {
+    const prefill = getPolymarketOrderPrefill({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_poly',
+        proposalNonce: 'nonce_poly',
+        provider: 'polymarket',
+        action: 'prediction.prepare_order',
+        normalizedParams: {
+          conditionId: 'condition-1',
+          tokenId: 'token-yes',
+          outcomeIndex: 0,
+          side: 'buy',
+          shares: '25',
+          orderType: 'limit',
+          price: '0.42',
+        },
+      },
+    });
+
+    expect(prefill).toMatchObject({
+      proposalId: 'prop_poly',
+      amount: '25',
+      amountUnit: 'shares',
+      orderType: 'limit',
+      limitPrice: '42',
+    });
+  });
+
+  test('keeps generic market-buy size approvals typed as usd', () => {
+    const prefill = getPolymarketOrderPrefill({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_poly',
+        proposalNonce: 'nonce_poly',
+        provider: 'polymarket',
+        action: 'prediction.prepare_order',
+        normalizedParams: {
+          conditionId: 'condition-1',
+          tokenId: 'token-yes',
+          outcomeIndex: 0,
+          side: 'buy',
+          size: '25',
+          orderType: 'market',
+        },
+      },
+    });
+
+    expect(prefill).toMatchObject({
+      proposalId: 'prop_poly',
+      amount: '25',
+      amountUnit: 'usd',
+      orderType: 'market',
     });
   });
 });
