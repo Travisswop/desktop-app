@@ -8144,10 +8144,10 @@ const GOLDMAN_LIMIT_ROWS: Array<{
   },
   {
     key: 'maxLeverage',
-    label: 'Perps max',
+    label: 'Perps leverage',
     suffix: 'x',
     min: '1',
-    step: '0.5',
+    step: '1',
   },
   {
     key: 'predictionExposureUsd',
