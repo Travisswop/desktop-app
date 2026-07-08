@@ -5912,11 +5912,25 @@ export default function ChatArea({
         accessStation,
       });
       upsertGroupAgent(agent);
+      // Keep the strategy-vault cache — which seeds the Access Station toggles
+      // on reopen — in sync with this save. Without it, leaving and returning
+      // re-seeds the pre-toggle snapshot (the cache is 30s-stale and wasn't
+      // updated here), so saved stations appear to switch back off.
+      const savedAccessStation =
+        (agent as { config?: { accessStation?: unknown } } | null)?.config
+          ?.accessStation ?? accessStation;
+      queryClient.setQueryData(
+        goldmanStrategyVaultQueryKey,
+        (prev: GoldmanStrategyVault | null | undefined) =>
+          prev ? { ...prev, accessStation: savedAccessStation } : prev
+      );
       onChatUpdate?.();
     },
     [
       activeChatData,
+      goldmanStrategyVaultQueryKey,
       onChatUpdate,
+      queryClient,
       updateGroupAgentAccessStation,
       upsertGroupAgent,
     ]
@@ -8749,6 +8763,9 @@ function GoldmanAccessStation({
       setIsSavingAccessStation(true);
       setAccessStationError(null);
       onUpdateAccessStation(nextState)
+        .then(() => {
+          toast.success('Access station saved');
+        })
         .catch((error) => {
           const message =
             error instanceof Error
