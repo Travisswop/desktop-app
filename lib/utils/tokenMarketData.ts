@@ -71,6 +71,7 @@ const STABLECOIN_SYMBOLS = new Set([
   "PYUSD",
   "USDE",
   "USD",
+  "PUSD",
 ]);
 
 function normalizeAliasKey(value: string): string {

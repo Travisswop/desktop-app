@@ -275,6 +275,7 @@ import type { ReceiverData } from '@/types/wallet';
 import { CHAIN_ID } from '@/types/wallet-types';
 import { TransactionService } from '@/services/transaction-service';
 import { calculateTransactionAmount } from '@/lib/utils/transactionUtils';
+import { isStablecoinSymbol } from '@/lib/utils/tokenMarketData';
 import { getConnectionsUserData } from '@/actions/getEnsData';
 import { copyTextToClipboard } from '@/lib/clipboard';
 // ==================== FEATURE FLAGS ====================
@@ -8986,14 +8987,14 @@ function GoldmanAccessStation({
       .map((row) => row.shortLabel)
       .join(', ') || 'none';
   const goldmanMetrics = buildGoldmanConsoleMetrics(consoleData);
-  // Full vault balance = liquid wallet tokens (multi-chain) + predictions
-  // collateral (pUSD, which has no price feed so it's absent from the token
-  // sum) + Hyperliquid perps account value. Broken out below so the card shows
-  // the whole picture, not just the priced wallet tokens.
+  // Full vault balance = liquid wallet tokens (incl. pUSD, now valued at $1) +
+  // deployed prediction positions + Hyperliquid perps account value. Idle pUSD
+  // is counted once, as a wallet token; the predictions bucket is the value of
+  // OPEN Polymarket positions so the same pUSD isn't double-counted.
   const vaultWalletUsd = toFiniteNumber(consoleData?.walletPortfolioBalance);
-  const vaultPredictionsUsd = toFiniteNumber(
-    consoleData?.predictionPortfolioUsdcBalance
-  );
+  const vaultPredictionsUsd = (consoleData?.predictionPositions || [])
+    .filter(isOpenPredictionConsolePosition)
+    .reduce((sum, position) => sum + toFiniteNumber(position.currentValue), 0);
   const vaultPerpsUsd = toFiniteNumber(consoleData?.perpsAccount?.accountValue);
   const vaultTotalUsd = vaultWalletUsd + vaultPredictionsUsd + vaultPerpsUsd;
   const vaultTokenRows = (consoleData?.walletPortfolioTokens || [])
@@ -15091,10 +15092,15 @@ function getTokenDataUsdValue(token: TokenData) {
     return explicitValue;
   }
   const balance = Number(token.balance || 0);
+  if (!Number.isFinite(balance) || balance <= 0) return 0;
   const price = Number(token.marketData?.price || token.nativeTokenPrice || 0);
-  return Number.isFinite(balance) && Number.isFinite(price)
-    ? balance * price
-    : 0;
+  // Stablecoins (pUSD, USDC, USDT, …) often have no price feed and would
+  // otherwise read $0 and vanish from the wallet. They're pegged to $1, so
+  // value them at par when no market price is available.
+  if ((!Number.isFinite(price) || price <= 0) && isStablecoinSymbol(token.symbol)) {
+    return balance;
+  }
+  return Number.isFinite(price) ? balance * price : 0;
 }
 
 function getTokenDataPriceUsd(token: TokenData) {
