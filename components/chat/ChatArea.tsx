@@ -9594,6 +9594,91 @@ function GoldmanAccessStation({
         </div>
       </ConsoleCard>
 
+      <SectionLabel>open positions</SectionLabel>
+      <ConsoleCard padClass="px-4 py-3">
+        {(() => {
+          const perpsPositions = consoleData?.perpsAccount?.positions || [];
+          const openPredictionPositions = (
+            consoleData?.predictionPositions || []
+          ).filter(isOpenPredictionConsolePosition);
+          if (perpsPositions.length + openPredictionPositions.length === 0) {
+            return (
+              <div className="dm-mono text-[11px] text-[#5a5e69]">
+                No open positions right now.
+              </div>
+            );
+          }
+          return (
+            <div className="space-y-2">
+              {perpsPositions.map((position, index) => {
+                const size = toFiniteNumber(position.szi);
+                const pnl = toFiniteNumber(position.unrealizedPnl);
+                const leverage = toFiniteNumber(
+                  (position.leverage as { value?: number } | null | undefined)
+                    ?.value
+                );
+                return (
+                  <div
+                    key={`perp-${position.coin}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="dm-mono text-[12px] font-bold text-[#eceef2]">
+                        {displayPerpsCoin(position.coin)}{' '}
+                        <span
+                          className={
+                            size < 0 ? 'text-[#ff8585]' : 'text-[#3fe08f]'
+                          }
+                        >
+                          {size < 0 ? 'SHORT' : 'LONG'}
+                          {leverage ? ` ${leverage}x` : ''}
+                        </span>
+                      </div>
+                      <div className="dm-mono mt-0.5 text-[10px] text-[#5a5e69]">
+                        perps · {Math.abs(size)} @ {position.entryPx}
+                      </div>
+                    </div>
+                    <div
+                      className={`dm-mono shrink-0 text-[12px] font-bold ${
+                        pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff8585]'
+                      }`}
+                    >
+                      {formatSignedUsd(pnl)}
+                    </div>
+                  </div>
+                );
+              })}
+              {openPredictionPositions.map((position, index) => {
+                const pnl = toFiniteNumber(position.cashPnl);
+                return (
+                  <div
+                    key={`pred-${position.slug || position.title || index}`}
+                    className="flex items-center justify-between gap-3 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="dm-mono truncate text-[12px] font-bold text-[#eceef2]">
+                        {position.title || 'Prediction market'}
+                      </div>
+                      <div className="dm-mono mt-0.5 truncate text-[10px] text-[#5a5e69]">
+                        predictions · {position.outcome} ·{' '}
+                        {formatCompactUsd(toFiniteNumber(position.currentValue))}
+                      </div>
+                    </div>
+                    <div
+                      className={`dm-mono shrink-0 text-[12px] font-bold ${
+                        pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff8585]'
+                      }`}
+                    >
+                      {formatSignedUsd(pnl)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </ConsoleCard>
+
       <GoldmanPerformanceSection
         strategies={strategyVault?.strategies}
         access={access}
