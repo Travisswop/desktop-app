@@ -8,6 +8,10 @@ import useUpdateSmartIcon from "@/zustandStore/UpdateSmartIcon";
 import useSmallIconToggleStore from "@/zustandStore/SmallIconModalToggle";
 // import useSideBarToggleStore from "@/zustandStore/SideBarToggleStore";
 import {
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
   Modal,
   ModalBody,
   ModalContent,
@@ -67,12 +71,28 @@ import {
   getDefaultSmartsiteTemplateBlockOrder,
   getSmartsiteTemplateItemKey,
   getSmartsiteTemplateSectionKeyFromOrderKey,
+  moveKeyBetweenSmartsiteTabs,
   normalizeSmartsiteTabs,
   normalizeSmartsiteTemplateBlockOrder,
   SmartsiteTemplateSectionKey,
 } from "@/lib/smartsite-template-order";
-import { handleV5SmartSiteTabDelete } from "@/actions/update";
-import { GripVertical, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  handleV5SmartSiteTabDelete,
+  handleV5SmartSiteTabRestore,
+} from "@/actions/update";
+import {
+  FolderInput,
+  GripVertical,
+  Loader2,
+  Lock,
+  LockOpen,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import TipJarCard from "../publicProfile/widgets/TipJarCard";
+import PredictionMarketCard from "../publicProfile/widgets/PredictionMarketCard";
+import VaultCard from "../publicProfile/widgets/VaultCard";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -163,6 +183,8 @@ const SortablePreviewSection = ({
   isSaving,
   hidden = false,
   className = "w-full",
+  moveTargets,
+  onMoveToTab,
   onDragStart,
   onDragMove,
   onDragEnd,
@@ -176,6 +198,9 @@ const SortablePreviewSection = ({
   isSaving: boolean;
   hidden?: boolean;
   className?: string;
+  /** Other tabs this block can move to (tabbed sites with >1 tab, edit mode). */
+  moveTargets?: Array<{ id: string; name: string }>;
+  onMoveToTab?: (orderKey: string, targetTabId: string) => void;
   onDragStart: (orderKey: string) => void;
   onDragMove: (orderKey: string, pointerY: number) => void;
   onDragEnd: () => void;
@@ -238,8 +263,8 @@ const SortablePreviewSection = ({
       }}
     >
       <div
-        className={`relative z-20 flex justify-center ${
-          isCompactRow ? "h-full items-center" : "min-h-[72px] pt-4"
+        className={`relative z-20 flex flex-col items-center gap-1.5 ${
+          isCompactRow ? "h-full justify-center" : "min-h-[72px] pt-4"
         }`}
       >
         <button
@@ -262,6 +287,47 @@ const SortablePreviewSection = ({
             <GripVertical className="h-4 w-4" />
           )}
         </button>
+        {/* move-to-tab affordance (tabbed sites with >1 tab, edit mode) */}
+        {moveTargets && moveTargets.length > 0 && onMoveToTab && (
+          <Dropdown className="w-max rounded-lg" placement="bottom-start">
+            <DropdownTrigger>
+              <button
+                type="button"
+                aria-label={`Move ${label} to another tab`}
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                className={`flex ${
+                  isCompactRow ? "h-7 w-10" : "h-7 w-8"
+                } items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-400 shadow-[0_4px_14px_rgba(15,23,42,0.10)] transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-950`}
+              >
+                <FolderInput className="h-3.5 w-3.5" />
+              </button>
+            </DropdownTrigger>
+            <DropdownMenu
+              aria-label={`Move ${label} to tab`}
+              disabledKeys={["move-title"]}
+              className="p-2"
+            >
+              <DropdownItem
+                key="move-title"
+                className="hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
+              >
+                <p className="text-xs font-semibold text-gray-400">Move to</p>
+              </DropdownItem>
+              {
+                moveTargets.map((target) => (
+                  <DropdownItem
+                    key={target.id}
+                    onClick={() => onMoveToTab(orderKey, target.id)}
+                    className="border-b rounded-none last:border-b-0 hover:rounded-md"
+                  >
+                    <span className="text-sm font-semibold">{target.name}</span>
+                  </DropdownItem>
+                )) as any
+              }
+            </DropdownMenu>
+          </Dropdown>
+        )}
       </div>
       <div className={`${className} ${isCompactRow ? "[&_.my-2]:my-0" : ""}`}>
         {isFeedRow && isDragging ? (
@@ -791,6 +857,61 @@ const SmartsiteIconLivePreview = ({
     void persistTabs(nextTabs, previousTabs);
   };
 
+  // Move a block from the active tab to the end of another tab
+  const handleMoveToTab = (orderKey: string, targetTabId: string) => {
+    const currentActiveTabId = activeTabIdRef.current;
+    if (!currentActiveTabId) {
+      return;
+    }
+
+    const previousTabs = tabsRef.current;
+    const nextTabs = moveKeyBetweenSmartsiteTabs(
+      previousTabs,
+      orderKey,
+      currentActiveTabId,
+      targetTabId,
+    );
+
+    if (nextTabs === previousTabs) {
+      return;
+    }
+
+    const targetName =
+      previousTabs.find((tab) => tab.id === targetTabId)?.name || "tab";
+    void persistTabs(nextTabs, previousTabs).then((saved) => {
+      if (saved) {
+        toast.success(`Moved to ${targetName}`);
+      }
+    });
+  };
+
+  // Toggle the active tab's token gate. Allowed even when the site has no
+  // token gate configured (the flag is inert then) — but warn the user.
+  const handleToggleTabGate = () => {
+    const currentActiveTabId = activeTabIdRef.current;
+    if (!currentActiveTabId || !isTabEditable) {
+      return;
+    }
+
+    const previousTabs = tabsRef.current;
+    const currentTab = previousTabs.find(
+      (tab) => tab.id === currentActiveTabId,
+    );
+    if (!currentTab) {
+      return;
+    }
+
+    const enabling = !currentTab.gated;
+    if (enabling && !data?.gatedInfo?.isOn) {
+      toast("Set up Token Gate first from the Add menu", { icon: "🔒" });
+    }
+
+    const nextTabs = previousTabs.map((tab) =>
+      tab.id === currentActiveTabId ? { ...tab, gated: enabling } : tab,
+    );
+    void persistTabs(nextTabs, previousTabs);
+  };
+
   const describeTabContent = (tab: SmartsiteTab) => {
     const counts = new Map<string, number>();
     tab.order.forEach((orderKey) => {
@@ -802,6 +923,30 @@ const SmartsiteIconLivePreview = ({
     return Array.from(counts.entries()).map(([label, count]) =>
       count > 1 ? `${count}× ${label}` : label,
     );
+  };
+
+  const restoreDeletedTab = async (trashId?: string) => {
+    if (!token || !data?._id) {
+      return;
+    }
+
+    try {
+      const result = await handleV5SmartSiteTabRestore(
+        data._id,
+        trashId,
+        token,
+      );
+
+      if (!result || result.state !== "success") {
+        throw new Error("Tab restore failed");
+      }
+
+      toast.success("Tab restored");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      toast.error("Couldn't restore tab");
+    }
   };
 
   const confirmDeleteTab = async () => {
@@ -834,7 +979,31 @@ const SmartsiteIconLivePreview = ({
       applyTabsState(remaining);
       setActiveTabId(neighbor?.id ?? null);
       setTabDeleteTarget(null);
-      toast.success("Tab deleted");
+
+      // Undo toast — the DELETE response carries a trashId the backend can
+      // restore from (POST …/tab-restore).
+      const trashId: string | undefined =
+        result?.data?.trashId ?? result?.trashId ?? undefined;
+      toast(
+        (t) => (
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-950">
+              Tab deleted
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                toast.dismiss(t.id);
+                void restoreDeletedTab(trashId);
+              }}
+              className="rounded-full bg-gray-950 px-3 py-1 text-xs font-semibold text-white transition hover:bg-gray-800"
+            >
+              Undo
+            </button>
+          </div>
+        ),
+        { duration: 8000 },
+      );
       router.refresh();
     } catch (error) {
       console.error(error);
@@ -1026,12 +1195,21 @@ const SmartsiteIconLivePreview = ({
     void saveTemplateOrder(nextOrder, previousOrder);
   };
 
+  const tabMoveTargets =
+    isTabEditable && isTabbed && tabs.length > 1 && activeTab
+      ? tabs
+          .filter((tab) => tab.id !== activeTab.id)
+          .map((tab) => ({ id: tab.id, name: tab.name }))
+      : undefined;
+
   const getSortablePreviewProps = (orderKey: string) => ({
     order: getTemplateBlockOrder(orderKey),
     isDragging: draggingOrderKey === orderKey,
     isDragOver: dragOverOrderKey === orderKey,
     isSaving: orderSaveState === "saving" && draggingOrderKey === orderKey,
     hidden: Boolean(activeTabKeySet && !activeTabKeySet.has(orderKey)),
+    moveTargets: tabMoveTargets,
+    onMoveToTab: handleMoveToTab,
     onDragStart: handleTemplateDragStart,
     onDragMove: handleTemplateDragMove,
     onDragEnd: handleTemplateDragEnd,
@@ -1125,6 +1303,9 @@ const SmartsiteIconLivePreview = ({
                                 : "bg-black/[0.04] text-gray-500 hover:text-gray-950"
                             }`}
                           >
+                            {tab.gated && (
+                              <Lock className="h-3 w-3 opacity-70" />
+                            )}
                             {tab.name || `Tab ${index + 1}`}
                             {isActive && isTabEditable && (
                               <Pencil className="h-3 w-3 opacity-70" />
@@ -1146,9 +1327,37 @@ const SmartsiteIconLivePreview = ({
                       {isTabEditable && activeTab && (
                         <button
                           type="button"
+                          aria-label={
+                            activeTab.gated
+                              ? `Remove token gate from ${activeTab.name} tab`
+                              : `Token-gate ${activeTab.name} tab`
+                          }
+                          title={
+                            activeTab.gated
+                              ? "Tab is token-gated — click to unlock"
+                              : "Token-gate this tab"
+                          }
+                          onClick={handleToggleTabGate}
+                          className={`ml-auto flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition ${
+                            activeTab.gated
+                              ? "bg-gray-950 text-white hover:bg-gray-800"
+                              : "bg-black/[0.04] text-gray-400 hover:bg-black/[0.08] hover:text-gray-950"
+                          }`}
+                        >
+                          {activeTab.gated ? (
+                            <Lock className="h-3.5 w-3.5" />
+                          ) : (
+                            <LockOpen className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
+
+                      {isTabEditable && activeTab && (
+                        <button
+                          type="button"
                           aria-label={`Delete ${activeTab.name} tab`}
                           onClick={() => setTabDeleteTarget(activeTab)}
-                          className="ml-auto flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-black/[0.04] text-gray-400 transition hover:bg-red-50 hover:text-red-500"
+                          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-black/[0.04] text-gray-400 transition hover:bg-red-50 hover:text-red-500"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -1859,6 +2068,57 @@ const SmartsiteIconLivePreview = ({
                   </>
                 )}
                 {/* embed link display here end */}
+
+                {/* widgets (tip jar / prediction market / agent vault) start */}
+                {Array.isArray(data.info?.widget) &&
+                  data.info.widget.length > 0 && (
+                    <>
+                      {data.info.widget.map((item: any, index: number) => (
+                        <SortablePreviewSection
+                          key={smartsitePreviewItemKey("widget", item, index)}
+                          orderKey={getSmartsiteTemplateItemKey(
+                            "widget",
+                            item,
+                            index,
+                          )}
+                          sectionKey="widget"
+                          {...getSortablePreviewProps(
+                            getSmartsiteTemplateItemKey("widget", item, index),
+                          )}
+                        >
+                          <div
+                            className="cursor-pointer"
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data: { ...item, micrositeId: data._id },
+                                categoryForTrigger: "widget",
+                              })
+                            }
+                          >
+                            {item.widgetType === "tipJar" ? (
+                              <TipJarCard
+                                widgetId={item._id}
+                                config={item.config || {}}
+                                mode="builder"
+                              />
+                            ) : item.widgetType === "predictionMarket" ? (
+                              <PredictionMarketCard
+                                config={item.config || {}}
+                                mode="builder"
+                              />
+                            ) : item.widgetType === "vaultCard" ? (
+                              <VaultCard
+                                config={item.config || {}}
+                                mode="builder"
+                              />
+                            ) : null}
+                          </div>
+                        </SortablePreviewSection>
+                      ))}
+                    </>
+                  )}
+                {/* widgets end */}
+
                 {data?.showFeed && accessToken && user && (
                   <SortablePreviewSection
                     orderKey="feed"

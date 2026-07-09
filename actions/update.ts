@@ -81,6 +81,37 @@ export async function handleV5SmartSiteTabDelete(
   }
 }
 
+// Restores the most recently deleted tab (and its cascaded content).
+// `trashId` comes from the DELETE tab response; omitted, the backend
+// restores the caller's last deletion.
+export async function handleV5SmartSiteTabRestore(
+  micrositeId: string,
+  trashId: string | undefined,
+  token: string
+) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/microsite/${micrositeId}/tab-restore`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(trashId ? { trashId } : {}),
+      }
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
+
+    revalidatePath(`/smartsite/icons/${micrositeId}`);
+    revalidatePath(`/smartsite/profile/${micrositeId}`);
+    return data;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
+
 export async function handleV5SmartSiteUpdate(
   smartSiteInfo: any,
   token: string

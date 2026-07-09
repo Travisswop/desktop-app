@@ -24,11 +24,20 @@ interface GatedInfo {
 interface TokenGateVerificationProps {
   gatedInfo: GatedInfo;
   micrositeName: string;
+  /**
+   * Inline mode: renders as an in-flow card (used to gate a single tab's
+   * panel) instead of the full-screen overlay, and signals success through
+   * `onVerified` instead of redirecting to gatedInfo.forwardLink.
+   */
+  inline?: boolean;
+  onVerified?: () => void;
 }
 
 export default function TokenGateVerification({
   gatedInfo,
   micrositeName,
+  inline = false,
+  onVerified,
 }: TokenGateVerificationProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -216,6 +225,19 @@ export default function TokenGateVerification({
 
         // Access granted
         setIsGranted(true);
+
+        // Inline (tab-scoped) mode: no redirect — tell the parent so it can
+        // reveal the gated content in place.
+        if (inline) {
+          toast({
+            title: 'Access Granted!',
+            description: 'Unlocking content...',
+          });
+          onVerified?.();
+          setIsVerifying(false);
+          return;
+        }
+
         toast({
           title: 'Access Granted!',
           description: 'Redirecting you now...',
@@ -325,6 +347,71 @@ export default function TokenGateVerification({
   // If access is granted, don't show the gate
   if (isGranted) {
     return null;
+  }
+
+  // Inline (tab-scoped) card — no full-screen overlay
+  if (inline) {
+    return (
+      <div className="w-full my-2 overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)]">
+        {gatedInfo.coverImage && (
+          <div className="relative h-28 w-full">
+            <Image
+              src={gatedInfo.coverImage}
+              alt="Token gated content"
+              fill
+              className="object-cover"
+            />
+          </div>
+        )}
+        <div className="flex flex-col items-center px-5 py-6 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/[0.04]">
+            <Lock className="h-5 w-5 text-gray-950" />
+          </div>
+          <p className="mt-3 text-[15px] font-semibold tracking-tight text-gray-950">
+            This tab is token-gated
+          </p>
+          <p className="mt-1.5 text-[13px] text-gray-500">
+            Requires{' '}
+            {gatedInfo.tokenType === 'NFT' ? (
+              <span className="font-semibold">a specific NFT</span>
+            ) : (
+              <span className="font-semibold">
+                at least {gatedInfo.minRequired} {gatedInfo.selectedToken}{' '}
+                tokens
+              </span>
+            )}{' '}
+            on {gatedInfo.network.toUpperCase()}.
+          </p>
+          <div className="mt-4 w-full">
+            <Button
+              onClick={handleEnter}
+              disabled={isVerifying || tokensLoading || nftsLoading}
+              className="w-full"
+            >
+              {isVerifying || tokensLoading || nftsLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {tokensLoading || nftsLoading
+                    ? 'Loading Wallet...'
+                    : 'Verifying...'}
+                </>
+              ) : authenticated ? (
+                'Verify Access'
+              ) : (
+                'Connect Wallet to Enter'
+              )}
+            </Button>
+          </div>
+          {authenticated && !tokensLoading && !nftsLoading && (
+            <p className="mt-3 text-[12px] text-gray-400">
+              {verifyAccess
+                ? 'You have the required tokens. Click to verify and unlock.'
+                : "You don't have the required tokens in your connected wallet."}
+            </p>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (

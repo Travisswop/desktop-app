@@ -46,6 +46,10 @@ import {
   normalizeSmartsiteTabs,
   normalizeSmartsiteTemplateBlockOrder,
 } from "@/lib/smartsite-template-order";
+import { Lock } from "lucide-react";
+import TipJarCard from "@/components/publicProfile/widgets/TipJarCard";
+import PredictionMarketCard from "@/components/publicProfile/widgets/PredictionMarketCard";
+import VaultCard from "@/components/publicProfile/widgets/VaultCard";
 
 interface ClientProfileProps {
   userName: string;
@@ -71,6 +75,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     [micrositeData],
   );
   const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
+  // Gated tabs the visitor unlocked this page-view (session-local)
+  const [verifiedTabIds, setVerifiedTabIds] = useState<string[]>([]);
 
   if (!micrositeData) {
     return <div>Loading...</div>;
@@ -116,6 +122,16 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     : null;
   const activeTabKeySet = activeTab ? new Set(activeTab.order) : null;
 
+  // Token-gated tab: only meaningful when the site actually has a token gate
+  // configured (gatedInfo.isOn) — otherwise the flag is inert and the tab's
+  // content renders normally.
+  const hasSiteTokenGate = Boolean(gatedInfo?.isOn);
+  const isActiveTabLocked = Boolean(
+    activeTab?.gated &&
+      hasSiteTokenGate &&
+      !verifiedTabIds.includes(activeTab.id),
+  );
+
   const templateOrder = isTabbed
     ? flattenSmartsiteTabs(tabs)
     : normalizeSmartsiteTemplateBlockOrder(
@@ -129,7 +145,9 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
   const getTemplateBlockStyle = (orderKey: string) => ({
     order: getTemplateBlockOrder(orderKey),
     display:
-      activeTabKeySet && !activeTabKeySet.has(orderKey)
+      (activeTabKeySet && !activeTabKeySet.has(orderKey)) ||
+      // Locked gated tab: hide its blocks and show the verification panel
+      (isActiveTabLocked && activeTabKeySet?.has(orderKey))
         ? ("none" as const)
         : undefined,
   });
@@ -199,11 +217,37 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                             }
                       }
                     >
-                      {tab.name}
+                      <span className="flex items-center gap-1.5">
+                        {tab.gated && hasSiteTokenGate && (
+                          <Lock className="h-3 w-3 opacity-70" />
+                        )}
+                        {tab.name}
+                      </span>
                     </button>
                   );
                 })}
               </nav>
+            )}
+
+            {/* Token-gate panel for a locked gated tab — scoped to the tab
+                panel area; the tab's blocks stay hidden until verified */}
+            {isActiveTabLocked && gatedInfo && (
+              <div className="w-full" style={{ order: 6 }}>
+                <TokenGateVerification
+                  inline
+                  gatedInfo={gatedInfo}
+                  micrositeName={name}
+                  onVerified={() => {
+                    if (activeTab) {
+                      setVerifiedTabIds((prev) =>
+                        prev.includes(activeTab.id)
+                          ? prev
+                          : [...prev, activeTab.id],
+                      );
+                    }
+                  }}
+                />
+              </div>
             )}
 
             {/* Social Media Small */}
@@ -585,6 +629,43 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                     }}
                   >
                     <EmbedVideo data={social} />
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Widgets (tip jar / prediction market / agent vault) */}
+            {info?.widget && info.widget.length > 0 && (
+              <>
+                {info.widget.map((item: any, index: number) => (
+                  <div
+                    key={item._id}
+                    className="w-full"
+                    style={{
+                      ...getTemplateBlockStyle(
+                        getSmartsiteTemplateItemKey("widget", item, index),
+                      ),
+                    }}
+                  >
+                    {item.widgetType === "tipJar" ? (
+                      <TipJarCard
+                        widgetId={item._id}
+                        config={item.config || {}}
+                        mode="public"
+                        parentId={parentId}
+                        micrositeId={_id}
+                        fallbackPaymentUrl={
+                          info?.product?.[0]?.paymentUrl || null
+                        }
+                      />
+                    ) : item.widgetType === "predictionMarket" ? (
+                      <PredictionMarketCard
+                        config={item.config || {}}
+                        mode="public"
+                      />
+                    ) : item.widgetType === "vaultCard" ? (
+                      <VaultCard config={item.config || {}} mode="public" />
+                    ) : null}
                   </div>
                 ))}
               </>

@@ -3,8 +3,11 @@ import {
   appendKeyToSmartsiteTab,
   buildDefaultSmartsiteTabs,
   flattenSmartsiteTabs,
+  getDefaultSmartsiteTemplateBlockOrder,
   getSmartsiteTemplateItemKey,
+  hasSmartsiteTemplateSectionContent,
   isTabbedSmartsite,
+  moveKeyBetweenSmartsiteTabs,
   normalizeSmartsiteTabs,
 } from "@/lib/smartsite-template-order";
 
@@ -171,5 +174,126 @@ describe("appendKeyToSmartsiteTab (Add-template flow)", () => {
   it("falls back to the first tab when the target id is unknown", () => {
     const next = appendKeyToSmartsiteTab(tabs, "missing", blogKey1);
     expect(next[0].order).toContain(blogKey1);
+  });
+});
+
+describe("moveKeyBetweenSmartsiteTabs (builder move-to-tab)", () => {
+  const tabs: SmartsiteTab[] = [
+    { id: "a", name: "A", order: ["marketPlace", blogKey0] },
+    { id: "b", name: "B", order: ["feed", "video"] },
+  ];
+
+  it("moves the key from the source tab to the END of the target tab", () => {
+    const next = moveKeyBetweenSmartsiteTabs(tabs, blogKey0, "a", "b");
+    expect(next[0].order).toEqual(["marketPlace"]);
+    expect(next[1].order).toEqual(["feed", "video", blogKey0]);
+  });
+
+  it("is a no-op when source and target are the same tab", () => {
+    expect(moveKeyBetweenSmartsiteTabs(tabs, blogKey0, "a", "a")).toBe(tabs);
+  });
+
+  it("is a no-op when the key isn't on the source tab", () => {
+    expect(moveKeyBetweenSmartsiteTabs(tabs, "feed", "a", "b")).toBe(tabs);
+  });
+
+  it("is a no-op when either tab id is unknown", () => {
+    expect(moveKeyBetweenSmartsiteTabs(tabs, blogKey0, "a", "missing")).toBe(
+      tabs,
+    );
+    expect(moveKeyBetweenSmartsiteTabs(tabs, blogKey0, "missing", "b")).toBe(
+      tabs,
+    );
+  });
+
+  it("does not mutate the input tabs", () => {
+    const before = JSON.parse(JSON.stringify(tabs));
+    moveKeyBetweenSmartsiteTabs(tabs, blogKey0, "a", "b");
+    expect(tabs).toEqual(before);
+  });
+
+  it("preserves the gated flag on moved-through tabs", () => {
+    const gatedTabs: SmartsiteTab[] = [
+      { id: "a", name: "A", order: ["marketPlace"], gated: true },
+      { id: "b", name: "B", order: [], gated: false },
+    ];
+    const next = moveKeyBetweenSmartsiteTabs(gatedTabs, "marketPlace", "a", "b");
+    expect(next[0].gated).toBe(true);
+    expect(next[1].gated).toBe(false);
+    expect(next[1].order).toEqual(["marketPlace"]);
+  });
+});
+
+describe("gated tab flag", () => {
+  it("normalizeSmartsiteTabs preserves gated and defaults it to false", () => {
+    const tabs = [
+      { id: "a", name: "A", order: [], gated: true },
+      { id: "b", name: "B", order: [] },
+      { id: "c", name: "C", order: [], gated: "yes" }, // non-boolean → false
+    ];
+    const normalized = normalizeSmartsiteTabs(site, tabs as any);
+    expect(normalized[0].gated).toBe(true);
+    expect(normalized[1].gated).toBe(false);
+    expect(normalized[2].gated).toBe(false);
+  });
+});
+
+describe("widget section", () => {
+  const widgetItems = [
+    { _id: "w1", widgetType: "tipJar", config: {} },
+    { _id: "w2", widgetType: "vaultCard", config: {} },
+  ];
+  const siteWithWidgets = {
+    ...site,
+    info: { ...site.info, widget: widgetItems },
+  };
+  const widgetKey0 = getSmartsiteTemplateItemKey("widget", widgetItems[0], 0);
+  const widgetKey1 = getSmartsiteTemplateItemKey("widget", widgetItems[1], 1);
+
+  it("hasSmartsiteTemplateSectionContent reflects info.widget", () => {
+    expect(hasSmartsiteTemplateSectionContent(site, "widget")).toBe(false);
+    expect(
+      hasSmartsiteTemplateSectionContent(
+        { info: { widget: [] } },
+        "widget",
+      ),
+    ).toBe(false);
+    expect(hasSmartsiteTemplateSectionContent(siteWithWidgets, "widget")).toBe(
+      true,
+    );
+  });
+
+  it("produces item-level order keys (section:id:index)", () => {
+    expect(widgetKey0).toBe("widget:w1:0");
+    expect(widgetKey1).toBe("widget:w2:1");
+  });
+
+  it("default block order places widgets before feed", () => {
+    const order = getDefaultSmartsiteTemplateBlockOrder(siteWithWidgets);
+    expect(order).toEqual(expect.arrayContaining([widgetKey0, widgetKey1]));
+    expect(order.indexOf(widgetKey0)).toBeLessThan(order.indexOf("feed"));
+    expect(order.indexOf(widgetKey1)).toBeLessThan(order.indexOf("feed"));
+  });
+
+  it("widget keys participate in tab normalization like any other block", () => {
+    const tabs: SmartsiteTab[] = [
+      { id: "a", name: "A", order: ["video"] },
+      { id: "b", name: "B", order: [widgetKey1] },
+    ];
+    const normalized = normalizeSmartsiteTabs(siteWithWidgets, tabs);
+    // assigned widget stays on tab B; unassigned widget falls to first tab
+    expect(normalized[1].order).toEqual([widgetKey1]);
+    expect(normalized[0].order).toContain(widgetKey0);
+  });
+
+  it("a bare 'widget' section key expands to its item keys", () => {
+    const tabs: SmartsiteTab[] = [
+      { id: "a", name: "A", order: ["widget"] },
+      { id: "b", name: "B", order: ["feed"] },
+    ];
+    const normalized = normalizeSmartsiteTabs(siteWithWidgets, tabs);
+    expect(normalized[0].order).toEqual(
+      expect.arrayContaining([widgetKey0, widgetKey1]),
+    );
   });
 });

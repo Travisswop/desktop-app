@@ -12,6 +12,7 @@ import UpdateSwopPay from "./SwopPay/UpdateSwopPay";
 import UpdateReferral from "./referral/UpdateReferral";
 import UpdateENS from "./message/UpdateMessage";
 import UpdateRedeemLink from "./redeemLink/UpdateRedeemLink";
+import UpdateWidget from "./widget/UpdateWidget";
 
 // Define the type for the iconData object
 interface IconData {
@@ -110,6 +111,12 @@ const UpdateModalComponents: React.FC<UpdateModalComponentsProps> = ({
         <UpdateRedeemLink iconDataObj={iconData} isOn={isOn} setOff={setOff} />
       )}
       {/* update redeemLink modal end   */}
+
+      {/* update widget (tip jar / prediction market / agent vault) start */}
+      {isOn && iconData?.categoryForTrigger === "widget" && (
+        <UpdateWidget iconDataObj={iconData} isOn={isOn} setOff={setOff} />
+      )}
+      {/* update widget end   */}
     </div>
   );
 };

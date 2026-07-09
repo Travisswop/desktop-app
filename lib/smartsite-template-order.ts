@@ -13,6 +13,7 @@ export const SMARTSITE_TEMPLATE_SECTION_ORDER = [
   "audio",
   "video",
   "videoUrl",
+  "widget",
   "feed",
 ] as const;
 
@@ -37,6 +38,7 @@ export const SMARTSITE_TEMPLATE_SECTION_META: Record<
   audio: { label: "MP3" },
   video: { label: "Photo/Video" },
   videoUrl: { label: "Embed" },
+  widget: { label: "Widget" },
   feed: { label: "Feed" },
 };
 
@@ -82,6 +84,7 @@ const ITEM_LEVEL_TEMPLATE_SECTIONS = new Set<SmartsiteTemplateSectionKey>([
   "product",
   "audio",
   "videoUrl",
+  "widget",
 ]);
 
 const getStableItemId = (item: any, index: number) =>
@@ -157,6 +160,8 @@ export const hasSmartsiteTemplateSectionContent = (
       return hasItems(info.video);
     case "videoUrl":
       return hasItems(info.videoUrl);
+    case "widget":
+      return hasItems(info.widget);
     case "feed":
       return Boolean(micrositeData?.showFeed);
     default:
@@ -206,6 +211,7 @@ export const getDefaultSmartsiteTemplateBlockOrder = (micrositeData: any) => {
   pushItems("audio", info.audio);
   pushSection("video");
   pushItems("videoUrl", info.videoUrl);
+  pushItems("widget", info.widget);
   pushSection("feed");
 
   return order;
@@ -222,6 +228,11 @@ export interface SmartsiteTab {
   id: string;
   name: string;
   order: string[];
+  /**
+   * Token-gated tab. Only meaningful when the site's gatedInfo.isOn is true —
+   * with no token gate configured the flag is inert and content renders.
+   */
+  gated?: boolean;
 }
 
 export const SMARTSITE_MAX_TABS = 10;
@@ -327,6 +338,7 @@ export const normalizeSmartsiteTabs = (
           ? rawName.slice(0, SMARTSITE_TAB_NAME_MAX_LENGTH)
           : `Tab ${index + 1}`,
         order,
+        gated: tab?.gated === true,
       };
     },
   );
@@ -359,6 +371,42 @@ export const appendKeyToSmartsiteTab = (
   return tabs.map((tab, index) => {
     const isTarget = targetExists ? tab.id === tabId : index === 0;
     return isTarget ? { ...tab, order: [...tab.order, orderKey] } : tab;
+  });
+};
+
+/**
+ * Move a single order key from one tab to the END of another (the builder's
+ * "move to tab" affordance). Pure; returns the input array unchanged when the
+ * move is a no-op (same tab, unknown key/tabs, or key not on the source tab).
+ */
+export const moveKeyBetweenSmartsiteTabs = (
+  tabs: SmartsiteTab[],
+  orderKey: string,
+  fromTabId: string,
+  toTabId: string,
+): SmartsiteTab[] => {
+  if (fromTabId === toTabId) {
+    return tabs;
+  }
+
+  const fromTab = tabs.find((tab) => tab.id === fromTabId);
+  const toTab = tabs.find((tab) => tab.id === toTabId);
+
+  if (!fromTab || !toTab || !fromTab.order.includes(orderKey)) {
+    return tabs;
+  }
+
+  return tabs.map((tab) => {
+    if (tab.id === fromTabId) {
+      return { ...tab, order: tab.order.filter((key) => key !== orderKey) };
+    }
+    if (tab.id === toTabId) {
+      return {
+        ...tab,
+        order: [...tab.order.filter((key) => key !== orderKey), orderKey],
+      };
+    }
+    return tab;
   });
 };
 

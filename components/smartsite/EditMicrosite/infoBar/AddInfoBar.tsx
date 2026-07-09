@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dropdown,
   DropdownItem,
@@ -17,6 +17,7 @@ import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import { toast } from "react-toastify";
 // import AnimateButton from "../../Button/AnimateButton";
 import { postInfoBar } from "@/actions/infoBar";
+import { fetchLinkPreview, LinkPreviewData } from "@/actions/linkPreview";
 import { FaAngleDown } from "react-icons/fa";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 
@@ -66,6 +67,81 @@ const AddInfoBar = ({ onCloseModal }: any) => {
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
   const [customImgSelectError, setCustomImgSelectError] = useState<string>("");
+
+  // ── Open Graph prefill ──
+  // When a valid http(s) link is entered, fetch its OG metadata and fill
+  // ONLY fields the user hasn't typed into (empty description / button
+  // name). The icon / custom-image selection is never touched — the OG
+  // image is shown as a suggestion only. Failures are silent.
+  const [linkValue, setLinkValue] = useState("");
+  const [ogPreview, setOgPreview] = useState<LinkPreviewData | null>(null);
+  const ogDebounceRef = useRef<number | null>(null);
+  const ogLastFetchedUrlRef = useRef<string | null>(null);
+  const descriptionRef = useRef("");
+  const buttonNameRef = useRef("");
+
+  useEffect(() => {
+    descriptionRef.current = description;
+  }, [description]);
+  useEffect(() => {
+    buttonNameRef.current = buttonName;
+  }, [buttonName]);
+
+  const getValidHttpUrl = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!/^https?:\/\//i.test(trimmed)) return null;
+    try {
+      const url = new URL(trimmed);
+      return url.protocol === "http:" || url.protocol === "https:"
+        ? url.toString()
+        : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const runLinkPreview = async (value: string) => {
+    const url = getValidHttpUrl(value);
+    if (!url || !accessToken || ogLastFetchedUrlRef.current === url) {
+      return;
+    }
+    ogLastFetchedUrlRef.current = url;
+
+    try {
+      const preview = await fetchLinkPreview(url, accessToken);
+      if (!preview) return;
+
+      setOgPreview(preview);
+      // Prefill blanks only — never overwrite what the user typed
+      if (!descriptionRef.current.trim() && preview.description) {
+        setDescription(preview.description);
+      }
+      if (!buttonNameRef.current.trim() && preview.title) {
+        setButtonName(preview.title);
+      }
+    } catch {
+      // silent — preview is best-effort
+    }
+  };
+
+  const scheduleLinkPreview = (value: string) => {
+    if (ogDebounceRef.current) {
+      window.clearTimeout(ogDebounceRef.current);
+    }
+    ogDebounceRef.current = window.setTimeout(() => {
+      ogDebounceRef.current = null;
+      void runLinkPreview(value);
+    }, 600);
+  };
+
+  useEffect(
+    () => () => {
+      if (ogDebounceRef.current) {
+        window.clearTimeout(ogDebounceRef.current);
+      }
+    },
+    [],
+  );
   // console.log("selected icon name", selectedIcon);
   // console.log("selected icon data", selectedIconData);
   // console.log("selected icon", selectedIcon);
@@ -506,11 +582,35 @@ const AddInfoBar = ({ onCloseModal }: any) => {
                 <input
                   type="text"
                   name="url"
+                  value={linkValue}
+                  onChange={(e) => {
+                    setLinkValue(e.target.value);
+                    scheduleLinkPreview(e.target.value);
+                  }}
+                  onBlur={() => void runLinkPreview(linkValue)}
                   className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
                   placeholder={selectedIcon.placeHolder}
                   required
                 />
               </div>
+              {ogPreview?.image && (
+                <div className="mt-2 flex items-center gap-2 rounded-xl bg-gray-100 p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={ogPreview.image}
+                    alt="Link preview"
+                    className="h-10 w-10 rounded-lg object-cover"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-gray-700">
+                      {ogPreview.title || ogPreview.siteName || "Link preview"}
+                    </p>
+                    <p className="text-[11px] text-gray-400">
+                      Suggested preview from link
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <p className="font-medium mb-1">Description</p>
@@ -518,6 +618,7 @@ const AddInfoBar = ({ onCloseModal }: any) => {
               <textarea
                 name="description"
                 required
+                value={description}
                 className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
                 placeholder="Enter description"
                 onChange={(e) => setDescription(e.target.value)}
