@@ -56,13 +56,23 @@ import {
   normalizeSmartsiteMarketplaceItems,
 } from "@/lib/smartsite-marketplace-display";
 import {
+  SMARTSITE_MAX_TABS,
+  SMARTSITE_TAB_NAME_MAX_LENGTH,
   SMARTSITE_TEMPLATE_SECTION_META,
+  SmartsiteTab,
+  areSmartsiteTabsEqual,
+  buildDefaultSmartsiteTabs,
+  flattenSmartsiteTabs,
+  generateSmartsiteTabId,
+  getDefaultSmartsiteTemplateBlockOrder,
   getSmartsiteTemplateItemKey,
   getSmartsiteTemplateSectionKeyFromOrderKey,
+  normalizeSmartsiteTabs,
   normalizeSmartsiteTemplateBlockOrder,
   SmartsiteTemplateSectionKey,
 } from "@/lib/smartsite-template-order";
-import { GripVertical, Loader2 } from "lucide-react";
+import { handleV5SmartSiteTabDelete } from "@/actions/update";
+import { GripVertical, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -151,6 +161,7 @@ const SortablePreviewSection = ({
   isDragging,
   isDragOver,
   isSaving,
+  hidden = false,
   className = "w-full",
   onDragStart,
   onDragMove,
@@ -163,6 +174,7 @@ const SortablePreviewSection = ({
   isDragging: boolean;
   isDragOver: boolean;
   isSaving: boolean;
+  hidden?: boolean;
   className?: string;
   onDragStart: (orderKey: string) => void;
   onDragMove: (orderKey: string, pointerY: number) => void;
@@ -220,6 +232,9 @@ const SortablePreviewSection = ({
       style={{
         order,
         contain: isFeedRow ? "layout paint" : undefined,
+        // Tabs: blocks on inactive tabs stay mounted but hidden so drag
+        // targeting and feed state survive tab switches.
+        display: hidden ? "none" : undefined,
       }}
     >
       <div
@@ -300,6 +315,38 @@ const SmartsiteIconLivePreview = ({
   const pendingDragMoveRef = useRef<PendingDragMove | null>(null);
   const dragMoveFrameRef = useRef<number | null>(null);
   const lastDragOverOrderKeyRef = useRef<string | null>(null);
+
+  // ── Named tabs ──
+  const normalizedTabsFromData = useMemo(
+    () => normalizeSmartsiteTabs(data),
+    [data],
+  );
+  const [tabs, setTabs] = useState<SmartsiteTab[]>(normalizedTabsFromData);
+  const tabsRef = useRef<SmartsiteTab[]>(normalizedTabsFromData);
+  const [activeTabId, setActiveTabId] = useState<string | null>(
+    normalizedTabsFromData[0]?.id ?? null,
+  );
+  const activeTabIdRef = useRef<string | null>(activeTabId);
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [tabDeleteTarget, setTabDeleteTarget] = useState<SmartsiteTab | null>(
+    null,
+  );
+  const [isTabDeleting, setIsTabDeleting] = useState(false);
+  const knownContentKeysRef = useRef<Set<string> | null>(null);
+
+  const isTabbed = tabs.length > 0;
+  const isTabEditable = Boolean(token);
+  const activeTab = isTabbed
+    ? tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
+    : null;
+  const activeTabKeySet = useMemo(
+    () => (activeTab ? new Set(activeTab.order) : null),
+    [activeTab],
+  );
+
+  useEffect(() => {
+    activeTabIdRef.current = activeTab?.id ?? null;
+  }, [activeTab]);
 
   // console.log("state iconData", iconData);
   // const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState<boolean>(false);
@@ -487,13 +534,128 @@ const SmartsiteIconLivePreview = ({
       return;
     }
 
+    // Tabbed sites derive the flat order from the tabs (see tabs sync below)
+    if (normalizedTabsFromData.length > 0) {
+      return;
+    }
+
     if (areTemplateOrdersEqual(templateOrderRef.current, normalizedTemplateOrder)) {
       return;
     }
 
     templateOrderRef.current = normalizedTemplateOrder;
     setTemplateOrder(normalizedTemplateOrder);
-  }, [normalizedTemplateOrder]);
+  }, [normalizedTemplateOrder, normalizedTabsFromData]);
+
+  const applyTabsState = (nextTabs: SmartsiteTab[]) => {
+    tabsRef.current = nextTabs;
+    setTabs(nextTabs);
+    const flatOrder = flattenSmartsiteTabs(nextTabs);
+    templateOrderRef.current = flatOrder;
+    setTemplateOrder(flatOrder);
+    onTemplateOrderChange?.(flatOrder);
+  };
+
+  const persistTabs = async (
+    nextTabs: SmartsiteTab[],
+    previousTabs: SmartsiteTab[],
+  ) => {
+    applyTabsState(nextTabs);
+
+    if (!token || !data?._id) {
+      return true;
+    }
+
+    setOrderSaveState("saving");
+
+    try {
+      const result = await handleV5SmartSiteUpdate(
+        {
+          _id: data._id,
+          tabs: nextTabs,
+          templateOrder: flattenSmartsiteTabs(nextTabs),
+        },
+        token,
+      );
+
+      if (!result || result.state !== "success") {
+        throw new Error("Tabs update failed");
+      }
+
+      setOrderSaveState("saved");
+      window.setTimeout(() => setOrderSaveState("idle"), 1200);
+      return true;
+    } catch (error) {
+      console.error(error);
+      applyTabsState(previousTabs);
+      setOrderSaveState("error");
+      toast.error("Couldn't save tabs");
+      return false;
+    }
+  };
+
+  // Sync tabs from fetched data (skipped mid-drag). When new content appears
+  // (a template was just added via the Add flows), reassign it from the
+  // normalizer's default (first tab) to the tab the user is actually on —
+  // one central hook instead of patching every Add* component.
+  useEffect(() => {
+    if (dragStartOrderRef.current) {
+      return;
+    }
+
+    const contentKeys = new Set(getDefaultSmartsiteTemplateBlockOrder(data));
+    const previousKnown = knownContentKeysRef.current;
+    knownContentKeysRef.current = contentKeys;
+
+    let nextTabs = normalizedTabsFromData;
+
+    if (previousKnown && normalizedTabsFromData.length > 0) {
+      const newKeys = Array.from(contentKeys).filter(
+        (key) => !previousKnown.has(key),
+      );
+      const targetTabId = activeTabIdRef.current;
+      const targetExists = normalizedTabsFromData.some(
+        (tab) => tab.id === targetTabId,
+      );
+
+      if (
+        newKeys.length > 0 &&
+        targetTabId &&
+        targetExists &&
+        normalizedTabsFromData[0]?.id !== targetTabId
+      ) {
+        nextTabs = normalizedTabsFromData.map((tab) => {
+          if (tab.id === targetTabId) {
+            const missing = newKeys.filter((key) => !tab.order.includes(key));
+            return { ...tab, order: [...tab.order, ...missing] };
+          }
+          return {
+            ...tab,
+            order: tab.order.filter((key) => !newKeys.includes(key)),
+          };
+        });
+        void persistTabs(nextTabs, normalizedTabsFromData);
+        return;
+      }
+    }
+
+    if (!areSmartsiteTabsEqual(tabsRef.current, nextTabs)) {
+      applyTabsState(nextTabs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalizedTabsFromData, data]);
+
+  // Keep the active tab id pointing at a real tab
+  useEffect(() => {
+    if (!isTabbed) {
+      if (activeTabId !== null) setActiveTabId(null);
+      return;
+    }
+    if (!tabs.some((tab) => tab.id === activeTabId)) {
+      setActiveTabId(tabs[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs, isTabbed]);
 
   useEffect(
     () => () => {
@@ -534,6 +696,19 @@ const SmartsiteIconLivePreview = ({
     nextOrder: string[],
     previousOrder: string[],
   ) => {
+    // Tabbed: a drag reorders within the active tab — rebuild that tab's
+    // order from the flat result and save tabs + dual-written templateOrder.
+    if (isTabbed && activeTab) {
+      const activeKeys = new Set(activeTab.order);
+      const nextActiveOrder = nextOrder.filter((key) => activeKeys.has(key));
+      const previousTabs = tabsRef.current;
+      const nextTabs = previousTabs.map((tab) =>
+        tab.id === activeTab.id ? { ...tab, order: nextActiveOrder } : tab,
+      );
+      await persistTabs(nextTabs, previousTabs);
+      return;
+    }
+
     templateOrderRef.current = nextOrder;
     setTemplateOrder(nextOrder);
     onTemplateOrderChange?.(nextOrder);
@@ -568,6 +743,107 @@ const SmartsiteIconLivePreview = ({
     }
   };
 
+  // ── Tab operations ──
+  const handleAddTab = () => {
+    if (!isTabEditable || tabs.length >= SMARTSITE_MAX_TABS) {
+      return;
+    }
+
+    const previousTabs = tabsRef.current;
+    let nextTabs: SmartsiteTab[];
+    let newTabId: string;
+
+    if (!isTabbed) {
+      // First tab inherits every existing template so nothing moves
+      nextTabs = buildDefaultSmartsiteTabs(data, "Home");
+      newTabId = nextTabs[0].id;
+    } else {
+      newTabId = generateSmartsiteTabId();
+      nextTabs = [
+        ...previousTabs,
+        { id: newTabId, name: `Tab ${previousTabs.length + 1}`, order: [] },
+      ];
+    }
+
+    setActiveTabId(newTabId);
+    setRenamingTabId(newTabId);
+    void persistTabs(nextTabs, previousTabs);
+  };
+
+  const handleTabNameInput = (tabId: string, name: string) => {
+    const nextTabs = tabsRef.current.map((tab) =>
+      tab.id === tabId
+        ? { ...tab, name: name.slice(0, SMARTSITE_TAB_NAME_MAX_LENGTH) }
+        : tab,
+    );
+    tabsRef.current = nextTabs;
+    setTabs(nextTabs);
+  };
+
+  const commitTabRename = (tabId: string) => {
+    setRenamingTabId(null);
+    const previousTabs = normalizeSmartsiteTabs(data);
+    const nextTabs = tabsRef.current.map((tab, index) =>
+      tab.id === tabId
+        ? { ...tab, name: tab.name.trim() || `Tab ${index + 1}` }
+        : tab,
+    );
+    void persistTabs(nextTabs, previousTabs);
+  };
+
+  const describeTabContent = (tab: SmartsiteTab) => {
+    const counts = new Map<string, number>();
+    tab.order.forEach((orderKey) => {
+      const sectionKey = getSmartsiteTemplateSectionKeyFromOrderKey(orderKey);
+      if (!sectionKey) return;
+      const label = SMARTSITE_TEMPLATE_SECTION_META[sectionKey].label;
+      counts.set(label, (counts.get(label) || 0) + 1);
+    });
+    return Array.from(counts.entries()).map(([label, count]) =>
+      count > 1 ? `${count}× ${label}` : label,
+    );
+  };
+
+  const confirmDeleteTab = async () => {
+    if (!tabDeleteTarget || !token || !data?._id) {
+      return;
+    }
+
+    setIsTabDeleting(true);
+    try {
+      const result = await handleV5SmartSiteTabDelete(
+        data._id,
+        tabDeleteTarget.id,
+        token,
+      );
+
+      if (!result || result.state !== "success") {
+        throw new Error("Tab delete failed");
+      }
+
+      const previousTabs = tabsRef.current;
+      const deletedIndex = previousTabs.findIndex(
+        (tab) => tab.id === tabDeleteTarget.id,
+      );
+      const remaining = previousTabs.filter(
+        (tab) => tab.id !== tabDeleteTarget.id,
+      );
+      const neighbor =
+        remaining[Math.min(Math.max(deletedIndex, 0), remaining.length - 1)];
+
+      applyTabsState(remaining);
+      setActiveTabId(neighbor?.id ?? null);
+      setTabDeleteTarget(null);
+      toast.success("Tab deleted");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      toast.error("Couldn't delete tab");
+    } finally {
+      setIsTabDeleting(false);
+    }
+  };
+
   const findTemplateDragTarget = (sourceKey: string, pointerY: number) => {
     const currentOrder = templateOrderRef.current;
     const sourceIndex = currentOrder.indexOf(sourceKey);
@@ -591,7 +867,15 @@ const SmartsiteIconLivePreview = ({
           height: rect.height,
         };
       })
-      .filter((row) => row.key && row.key !== sourceKey);
+      .filter(
+        (row) =>
+          row.key &&
+          row.key !== sourceKey &&
+          // Tabs: hidden blocks (inactive tabs) report zero-height rects and
+          // must never become drop targets
+          row.height > 0 &&
+          (!activeTabKeySet || activeTabKeySet.has(row.key)),
+      );
 
     if (!rows.length) {
       return null;
@@ -747,6 +1031,7 @@ const SmartsiteIconLivePreview = ({
     isDragging: draggingOrderKey === orderKey,
     isDragOver: dragOverOrderKey === orderKey,
     isSaving: orderSaveState === "saving" && draggingOrderKey === orderKey,
+    hidden: Boolean(activeTabKeySet && !activeTabKeySet.has(orderKey)),
     onDragStart: handleTemplateDragStart,
     onDragMove: handleTemplateDragMove,
     onDragEnd: handleTemplateDragEnd,
@@ -789,6 +1074,107 @@ const SmartsiteIconLivePreview = ({
                   primaryFontColor={previewFontColor}
                   secondaryFontColor={previewSecondaryFontColor}
                 />
+
+                {/* ── tab bar ── */}
+                {(isTabEditable || tabs.length > 1) &&
+                  (isTabbed || isTabEditable) && (
+                    <div className="flex items-center gap-2 overflow-x-auto px-3 pb-1 pt-2 hide-scrollbar">
+                      {tabs.map((tab, index) => {
+                        const isActive = activeTab?.id === tab.id;
+
+                        if (
+                          isActive &&
+                          isTabEditable &&
+                          renamingTabId === tab.id
+                        ) {
+                          return (
+                            <input
+                              key={tab.id}
+                              autoFocus
+                              value={tab.name}
+                              maxLength={SMARTSITE_TAB_NAME_MAX_LENGTH}
+                              onChange={(event) =>
+                                handleTabNameInput(tab.id, event.target.value)
+                              }
+                              onBlur={() => commitTabRename(tab.id)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  commitTabRename(tab.id);
+                                }
+                              }}
+                              className="w-28 flex-shrink-0 rounded-full border-2 border-gray-950 bg-white px-4 py-1.5 text-[13px] font-semibold text-gray-950 outline-none"
+                            />
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => {
+                              if (isActive && isTabEditable) {
+                                setRenamingTabId(tab.id);
+                                return;
+                              }
+                              setActiveTabId(tab.id);
+                              setRenamingTabId(null);
+                            }}
+                            className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
+                              isActive
+                                ? "bg-gray-950 text-white"
+                                : "bg-black/[0.04] text-gray-500 hover:text-gray-950"
+                            }`}
+                          >
+                            {tab.name || `Tab ${index + 1}`}
+                            {isActive && isTabEditable && (
+                              <Pencil className="h-3 w-3 opacity-70" />
+                            )}
+                          </button>
+                        );
+                      })}
+
+                      {isTabEditable && tabs.length < SMARTSITE_MAX_TABS && (
+                        <button
+                          type="button"
+                          onClick={handleAddTab}
+                          className="flex flex-shrink-0 items-center gap-1 rounded-full border-[1.5px] border-dashed border-gray-400 px-3.5 py-1.5 text-[13px] font-semibold text-gray-500 transition hover:border-gray-950 hover:text-gray-950"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Tab
+                        </button>
+                      )}
+
+                      {isTabEditable && activeTab && (
+                        <button
+                          type="button"
+                          aria-label={`Delete ${activeTab.name} tab`}
+                          onClick={() => setTabDeleteTarget(activeTab)}
+                          className="ml-auto flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-black/[0.04] text-gray-400 transition hover:bg-red-50 hover:text-red-500"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                {/* empty tab placeholder */}
+                {isTabbed && activeTab && activeTab.order.length === 0 && (
+                  <div className="mx-3 rounded-2xl border border-dashed border-gray-300 px-5 py-10 text-center">
+                    <p
+                      className="text-[15px] font-semibold"
+                      style={{ color: previewFontColor }}
+                    >
+                      Nothing here yet
+                    </p>
+                    <p
+                      className="mt-1.5 text-[13px]"
+                      style={{ color: previewSecondaryFontColor }}
+                    >
+                      {isTabEditable
+                        ? "Add a template to this tab from the Add menu."
+                        : "This tab is empty."}
+                    </p>
+                  </div>
+                )}
 
                 {/* small icon display here start */}
                 <SortablePreviewSection
@@ -1505,6 +1891,61 @@ const SmartsiteIconLivePreview = ({
       </div>
 
       <UpdateModalComponents isOn={isOn} iconData={iconData} setOff={setOff} />
+
+      {/* delete tab confirmation — destructive, enumerates what's removed */}
+      <Modal
+        isOpen={Boolean(tabDeleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && !isTabDeleting) {
+            setTabDeleteTarget(null);
+          }
+        }}
+        className="overflow-y-auto hide-scrollbar"
+      >
+        <ModalContent>
+          <div className="mx-auto w-[91%] py-6">
+            <ModalBody className="text-center">
+              <div className="flex flex-col items-center text-center">
+                <p className="text-lg font-bold">
+                  Delete “{tabDeleteTarget?.name}” tab?
+                </p>
+                {tabDeleteTarget && tabDeleteTarget.order.length > 0 ? (
+                  <>
+                    <p className="mt-2 text-sm text-gray-500">
+                      This permanently deletes everything on this tab:
+                    </p>
+                    <div className="mt-3 flex flex-wrap justify-center gap-2">
+                      {describeTabContent(tabDeleteTarget).map((entry) => (
+                        <span
+                          key={entry}
+                          className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600"
+                        >
+                          {entry}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm text-gray-500">
+                    This tab is empty — nothing else will be deleted.
+                  </p>
+                )}
+                <RiDeleteBinFill size={40} className="my-3" />
+                <AnimateButton
+                  whiteLoading={true}
+                  type="button"
+                  onClick={confirmDeleteTab}
+                  isLoading={isTabDeleting}
+                  width={"w-32"}
+                  className="bg-black text-white py-2 !border-0"
+                >
+                  <MdDelete size={20} /> Delete Tab
+                </AnimateButton>
+              </div>
+            </ModalBody>
+          </div>
+        </ModalContent>
+      </Modal>
 
       <Modal
         // size="4xl"

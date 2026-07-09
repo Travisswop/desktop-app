@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Header from "@/components/publicProfile/header";
 import Bio from "@/components/publicProfile/bio";
 import Blog from "@/components/publicProfile/blog";
@@ -40,7 +41,9 @@ import {
   normalizeSmartsiteMarketplaceItems,
 } from "@/lib/smartsite-marketplace-display";
 import {
+  flattenSmartsiteTabs,
   getSmartsiteTemplateItemKey,
+  normalizeSmartsiteTabs,
   normalizeSmartsiteTemplateBlockOrder,
 } from "@/lib/smartsite-template-order";
 
@@ -60,6 +63,14 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     () => groupSmartsiteMarketplaceItems(marketplaceItems),
     [marketplaceItems],
   );
+
+  // Named tabs: [] = legacy flat rendering (all pre-tabs smartsites)
+  const searchParams = useSearchParams();
+  const tabs = useMemo(
+    () => normalizeSmartsiteTabs(micrositeData),
+    [micrositeData],
+  );
+  const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
   if (!micrositeData) {
     return <div>Loading...</div>;
@@ -89,12 +100,39 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
   } = micrositeData;
 
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
-  const templateOrder = normalizeSmartsiteTemplateBlockOrder(
-    micrositeData,
-    micrositeData.templateOrder,
-  );
+
+  const isTabbed = tabs.length > 0;
+  const requestedTab = searchParams?.get("tab") || null;
+  const activeTab = isTabbed
+    ? tabs.find((tab) => tab.id === selectedTabId) ??
+      (requestedTab
+        ? tabs.find(
+            (tab) =>
+              tab.id === requestedTab ||
+              tab.name.toLowerCase() === requestedTab.toLowerCase(),
+          )
+        : undefined) ??
+      tabs[0]
+    : null;
+  const activeTabKeySet = activeTab ? new Set(activeTab.order) : null;
+
+  const templateOrder = isTabbed
+    ? flattenSmartsiteTabs(tabs)
+    : normalizeSmartsiteTemplateBlockOrder(
+        micrositeData,
+        micrositeData.templateOrder,
+      );
   const getTemplateBlockOrder = (orderKey: string) =>
     templateOrder.indexOf(orderKey) + 10;
+  // Blocks on inactive tabs stay mounted but hidden — the whole page is one
+  // flex column ordered by these values, panels are just visibility.
+  const getTemplateBlockStyle = (orderKey: string) => ({
+    order: getTemplateBlockOrder(orderKey),
+    display:
+      activeTabKeySet && !activeTabKeySet.has(orderKey)
+        ? ("none" as const)
+        : undefined,
+  });
 
   return (
     <>
@@ -134,11 +172,45 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               secondaryFontColor={secondaryFontColor}
             />
 
+            {/* ── named tabs bar (only when the site has >1 tab) ── */}
+            {tabs.length > 1 && (
+              <nav
+                aria-label="Site sections"
+                className="w-full flex items-center gap-2 overflow-x-auto scrollbar-hide px-1 pb-1 pt-2"
+                style={{ order: 5 }}
+              >
+                {tabs.map((tab) => {
+                  const isActive = activeTab?.id === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setSelectedTabId(tab.id)}
+                      className="flex-shrink-0 rounded-full px-4 py-1.5 text-[13px] font-semibold transition"
+                      style={
+                        isActive
+                          ? {
+                              backgroundColor: fontColor || "#0a0a0c",
+                              color: backgroundColor || "#ffffff",
+                            }
+                          : {
+                              backgroundColor: "rgba(0,0,0,0.05)",
+                              color: secondaryFontColor || "#8a8a8f",
+                            }
+                      }
+                    >
+                      {tab.name}
+                    </button>
+                  );
+                })}
+              </nav>
+            )}
+
             {/* Social Media Small */}
             {info?.socialTop && info.socialTop.length > 0 && (
               <div
                 className="space-y-4"
-                style={{ order: getTemplateBlockOrder("socialTop") }}
+                style={{ ...getTemplateBlockStyle("socialTop") }}
               >
                 {distributeSmallIcons(info.socialTop).map((row, rowIndex) => (
                   <div
@@ -165,7 +237,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
             {marketplaceItems.length > 0 && (
               <div
                 className="w-full space-y-1 mb-4"
-                style={{ order: getTemplateBlockOrder("marketPlace") }}
+                style={{ ...getTemplateBlockStyle("marketPlace") }}
               >
                 {Object.entries(groupedMarketplaceItems).map(
                   ([sectionTitle, items]) => (
@@ -239,7 +311,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                     key={social._id}
                     className="w-full"
                     style={{
-                      order: getTemplateBlockOrder(
+                      ...getTemplateBlockStyle(
                         getSmartsiteTemplateItemKey("blog", social, index),
                       ),
                     }}
@@ -260,7 +332,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
             {info?.socialLarge && info.socialLarge.length > 0 && (
               <div
                 className="w-full flex flex-wrap items-center justify-center gap-y-6 my-4"
-                style={{ order: getTemplateBlockOrder("socialLarge") }}
+                style={{ ...getTemplateBlockStyle("socialLarge") }}
               >
                 {info.socialLarge.map((social: any, index: number) => (
                   <SocialLarge
@@ -286,7 +358,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               {info?.ensDomain && info.ensDomain.length > 0 && (
                 <div
                   className="w-full"
-                  style={{ order: getTemplateBlockOrder("message") }}
+                  style={{ ...getTemplateBlockStyle("message") }}
                 >
                   <Message
                     number={0}
@@ -307,7 +379,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       key={social._id}
                       className="w-full"
                       style={{
-                        order: getTemplateBlockOrder(
+                        ...getTemplateBlockStyle(
                           getSmartsiteTemplateItemKey(
                             "redeemLink",
                             social,
@@ -338,7 +410,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       key={social._id}
                       className="w-full"
                       style={{
-                        order: getTemplateBlockOrder(
+                        ...getTemplateBlockStyle(
                           getSmartsiteTemplateItemKey("referral", social, index),
                         ),
                       }}
@@ -361,7 +433,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               {info?.ensDomain && info.ensDomain.length > 0 && (
                 <div
                   className="w-full"
-                  style={{ order: getTemplateBlockOrder("ens") }}
+                  style={{ ...getTemplateBlockStyle("ens") }}
                 >
                   <Ens
                     number={0}
@@ -384,7 +456,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       key={social._id}
                       className="w-full"
                       style={{
-                        order: getTemplateBlockOrder(
+                        ...getTemplateBlockStyle(
                           getSmartsiteTemplateItemKey("contact", social, index),
                         ),
                       }}
@@ -411,7 +483,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       key={social._id}
                       className="w-full"
                       style={{
-                        order: getTemplateBlockOrder(
+                        ...getTemplateBlockStyle(
                           getSmartsiteTemplateItemKey("infoBar", social, index),
                         ),
                       }}
@@ -438,7 +510,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       key={social._id}
                       className="w-full"
                       style={{
-                        order: getTemplateBlockOrder(
+                        ...getTemplateBlockStyle(
                           getSmartsiteTemplateItemKey("product", social, index),
                         ),
                       }}
@@ -465,7 +537,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       key={social._id}
                       className="w-full mt-1"
                       style={{
-                        order: getTemplateBlockOrder(
+                        ...getTemplateBlockStyle(
                           getSmartsiteTemplateItemKey("audio", social, index),
                         ),
                       }}
@@ -489,7 +561,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
             {info?.video && info.video.length > 0 && (
               <div
                 className="w-full"
-                style={{ order: getTemplateBlockOrder("video") }}
+                style={{ ...getTemplateBlockStyle("video") }}
               >
                 <MediaList
                   items={info.video}
@@ -507,7 +579,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                     key={social._id}
                     className="w-full"
                     style={{
-                      order: getTemplateBlockOrder(
+                      ...getTemplateBlockStyle(
                         getSmartsiteTemplateItemKey("videoUrl", social, index),
                       ),
                     }}
@@ -531,7 +603,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               // />
               <div
                 className="w-full"
-                style={{ order: getTemplateBlockOrder("feed") }}
+                style={{ ...getTemplateBlockStyle("feed") }}
               >
                 <EmbeddedFeed
                   accessToken={accessToken || ""}

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, ReactNode } from "react";
+import type { SmartsiteTab } from "@/lib/smartsite-template-order";
 
 interface MicrositeData {
   _id: string;
@@ -21,6 +22,7 @@ interface MicrositeData {
   ens: string;
   showFeed?: boolean;
   templateOrder?: string[];
+  tabs?: SmartsiteTab[];
   redirect?: string;
   username?: string;
 }

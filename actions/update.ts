@@ -51,6 +51,36 @@ export async function handleSmartSiteUpdate(smartSiteInfo: any, token: string) {
   }
 }
 
+// Destructive: deletes the tab AND every template item assigned to it
+// (server-side cascade). Callers must confirm with the user first,
+// enumerating the content that will be removed.
+export async function handleV5SmartSiteTabDelete(
+  micrositeId: string,
+  tabId: string,
+  token: string
+) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/microsite/${micrositeId}/tab/${encodeURIComponent(tabId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
+
+    revalidatePath(`/smartsite/icons/${micrositeId}`);
+    revalidatePath(`/smartsite/profile/${micrositeId}`);
+    return data;
+  } catch (error) {
+    console.error("Error from action:", error);
+  }
+}
+
 export async function handleV5SmartSiteUpdate(
   smartSiteInfo: any,
   token: string

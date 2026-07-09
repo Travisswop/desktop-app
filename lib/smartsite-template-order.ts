@@ -211,6 +211,157 @@ export const getDefaultSmartsiteTemplateBlockOrder = (micrositeData: any) => {
   return order;
 };
 
+// ── Named tabs ─────────────────────────────────────────────────────────────
+// Templates can be grouped under named tabs. Each tab holds an ordered list
+// of the same order keys used by templateOrder. tabs.length === 0 (or the
+// field missing) means the legacy flat rendering path — every pre-tabs
+// smartsite. Whenever tabs are saved, a flattened templateOrder is saved
+// alongside so older clients keep rendering all content as one column.
+
+export interface SmartsiteTab {
+  id: string;
+  name: string;
+  order: string[];
+}
+
+export const SMARTSITE_MAX_TABS = 10;
+export const SMARTSITE_TAB_NAME_MAX_LENGTH = 30;
+
+export const isTabbedSmartsite = (micrositeData: any): boolean =>
+  Array.isArray(micrositeData?.tabs) && micrositeData.tabs.length > 0;
+
+export const generateSmartsiteTabId = () =>
+  `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+export const flattenSmartsiteTabs = (tabs?: SmartsiteTab[] | null): string[] =>
+  (tabs || []).flatMap((tab) => (Array.isArray(tab?.order) ? tab.order : []));
+
+export const areSmartsiteTabsEqual = (
+  a?: SmartsiteTab[] | null,
+  b?: SmartsiteTab[] | null,
+) => JSON.stringify(a ?? []) === JSON.stringify(b ?? []);
+
+/**
+ * First-tab conversion: the first tab a user creates inherits the site's
+ * entire normalized flat order (so nothing moves or disappears).
+ */
+export const buildDefaultSmartsiteTabs = (
+  micrositeData: any,
+  name = "Home",
+): SmartsiteTab[] => [
+  {
+    id: generateSmartsiteTabId(),
+    name,
+    order: normalizeSmartsiteTemplateBlockOrder(
+      micrositeData,
+      micrositeData?.templateOrder,
+    ),
+  },
+];
+
+/**
+ * Reconcile stored tabs against the content that actually exists. Rules
+ * (identical on desktop and mobile so both renderers agree without a save):
+ *  - keys pointing at deleted content are dropped
+ *  - a key lives in exactly one tab (first occurrence wins)
+ *  - a bare item-level section key expands to that section's blocks
+ *  - content assigned to no tab appends to the FIRST tab in default order
+ *  - blank tab names get a placeholder
+ * Returns [] when the site is not tabbed (legacy flat rendering).
+ */
+export const normalizeSmartsiteTabs = (
+  micrositeData: any,
+  tabs?: unknown,
+): SmartsiteTab[] => {
+  const requestedTabs = Array.isArray(tabs) ? tabs : micrositeData?.tabs;
+
+  if (!Array.isArray(requestedTabs) || requestedTabs.length === 0) {
+    return [];
+  }
+
+  const defaultOrder = getDefaultSmartsiteTemplateBlockOrder(micrositeData);
+  const defaultOrderSet = new Set(defaultOrder);
+  const defaultBlocksBySection = new Map<SmartsiteTemplateSectionKey, string[]>();
+
+  defaultOrder.forEach((orderKey) => {
+    const sectionKey = getSmartsiteTemplateSectionKeyFromOrderKey(orderKey);
+    if (!sectionKey) {
+      return;
+    }
+    const sectionOrder = defaultBlocksBySection.get(sectionKey) || [];
+    sectionOrder.push(orderKey);
+    defaultBlocksBySection.set(sectionKey, sectionOrder);
+  });
+
+  const claimed = new Set<string>();
+  const normalizedTabs: SmartsiteTab[] = requestedTabs.map(
+    (tab: any, index: number) => {
+      const rawName = typeof tab?.name === "string" ? tab.name.trim() : "";
+      const order: string[] = [];
+
+      const addOrderKey = (orderKey: string) => {
+        if (defaultOrderSet.has(orderKey) && !claimed.has(orderKey)) {
+          claimed.add(orderKey);
+          order.push(orderKey);
+        }
+      };
+
+      (Array.isArray(tab?.order) ? tab.order : []).forEach(
+        (rawOrderKey: unknown) => {
+          if (typeof rawOrderKey !== "string") {
+            return;
+          }
+          if (defaultOrderSet.has(rawOrderKey)) {
+            addOrderKey(rawOrderKey);
+            return;
+          }
+          if (isSmartsiteTemplateSectionKey(rawOrderKey)) {
+            defaultBlocksBySection.get(rawOrderKey)?.forEach(addOrderKey);
+          }
+        },
+      );
+
+      return {
+        id: typeof tab?.id === "string" && tab.id ? tab.id : `tab-${index}`,
+        name: rawName
+          ? rawName.slice(0, SMARTSITE_TAB_NAME_MAX_LENGTH)
+          : `Tab ${index + 1}`,
+        order,
+      };
+    },
+  );
+
+  // Content in no tab lands on the first tab, in default order
+  defaultOrder.forEach((orderKey) => {
+    if (!claimed.has(orderKey)) {
+      claimed.add(orderKey);
+      normalizedTabs[0].order.push(orderKey);
+    }
+  });
+
+  return normalizedTabs;
+};
+
+/**
+ * Append a newly created template's key to a tab (used by the Add flows so
+ * a template added while a tab is active lands on that tab).
+ */
+export const appendKeyToSmartsiteTab = (
+  tabs: SmartsiteTab[],
+  tabId: string,
+  orderKey: string,
+): SmartsiteTab[] => {
+  const alreadyAssigned = tabs.some((tab) => tab.order.includes(orderKey));
+  if (alreadyAssigned) {
+    return tabs;
+  }
+  const targetExists = tabs.some((tab) => tab.id === tabId);
+  return tabs.map((tab, index) => {
+    const isTarget = targetExists ? tab.id === tabId : index === 0;
+    return isTarget ? { ...tab, order: [...tab.order, orderKey] } : tab;
+  });
+};
+
 export const normalizeSmartsiteTemplateBlockOrder = (
   micrositeData: any,
   order?: unknown,
