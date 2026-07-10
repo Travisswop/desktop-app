@@ -32,6 +32,7 @@ const GAMES_PARENT_TAG_ID = 100639;
 
 const PREFERRED_TAG_BY_SPORT: Record<string, number> = {
   nba: 745,
+  nbasl: 105577,
   wnba: 100254,
   nfl: 450,
   cfb: 100351,
