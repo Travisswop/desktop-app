@@ -251,11 +251,18 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               </div>
             )}
 
-            {/* Social Media Small */}
+            {/* Social Media Small — on tabbed sites the icons are pinned in
+                the header: fixed between the Bio and the tab bar (order 5),
+                visible on every tab and even while a gated tab is locked
+                (never display:none). Legacy sites keep the ordered block. */}
             {info?.socialTop && info.socialTop.length > 0 && (
               <div
                 className="space-y-4"
-                style={{ ...getTemplateBlockStyle("socialTop") }}
+                style={
+                  isTabbed
+                    ? { order: 4 }
+                    : { ...getTemplateBlockStyle("socialTop") }
+                }
               >
                 {distributeSmallIcons(info.socialTop).map((row, rowIndex) => (
                   <div

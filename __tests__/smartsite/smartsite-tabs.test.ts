@@ -2,6 +2,7 @@ import {
   SmartsiteTab,
   appendKeyToSmartsiteTab,
   buildDefaultSmartsiteTabs,
+  buildFlatTemplateOrderForTabs,
   flattenSmartsiteTabs,
   getDefaultSmartsiteTemplateBlockOrder,
   getSmartsiteTemplateItemKey,
@@ -50,10 +51,9 @@ describe("buildDefaultSmartsiteTabs (first-tab conversion)", () => {
     const tabs = buildDefaultSmartsiteTabs(site, "Home");
     expect(tabs).toHaveLength(1);
     expect(tabs[0].name).toBe("Home");
-    // every piece of content is in the tab
+    // every piece of content is in the tab…
     expect(tabs[0].order).toEqual(
       expect.arrayContaining([
-        "socialTop",
         "marketPlace",
         blogKey0,
         blogKey1,
@@ -62,6 +62,8 @@ describe("buildDefaultSmartsiteTabs (first-tab conversion)", () => {
         "feed",
       ]),
     );
+    // …except socialTop, which is pinned in the header on tabbed sites
+    expect(tabs[0].order).not.toContain("socialTop");
   });
 
   it("respects an existing saved flat order", () => {
@@ -142,23 +144,24 @@ describe("normalizeSmartsiteTabs", () => {
     expect(normalized[1].order).toContain("video");
   });
 
-  it("appends unassigned content to the FIRST tab", () => {
+  it("appends unassigned content to the FIRST tab (but never socialTop)", () => {
     const tabs: SmartsiteTab[] = [
       { id: "a", name: "A", order: ["video"] },
       { id: "b", name: "B", order: ["feed"] },
     ];
     const normalized = normalizeSmartsiteTabs(site, tabs);
-    // marketPlace, socialTop, blogs, infoBar were unassigned → tab A
+    // marketPlace, blogs, infoBar were unassigned → tab A
     expect(normalized[0].order).toEqual(
       expect.arrayContaining([
         "video",
-        "socialTop",
         "marketPlace",
         blogKey0,
         blogKey1,
         infoBarKey,
       ]),
     );
+    // socialTop is pinned in the header — never re-homed to a tab
+    expect(normalized[0].order).not.toContain("socialTop");
     expect(normalized[1].order).toEqual(["feed"]);
   });
 
@@ -267,6 +270,66 @@ describe("moveKeyBetweenSmartsiteTabs (builder move-to-tab)", () => {
     expect(next[0].gated).toBe(true);
     expect(next[1].gated).toBe(false);
     expect(next[1].order).toEqual(["marketPlace"]);
+  });
+});
+
+describe("socialTop pinned on tabbed sites", () => {
+  it("normalizeSmartsiteTabs strips socialTop from every tab's order", () => {
+    const tabs: SmartsiteTab[] = [
+      { id: "a", name: "A", order: ["socialTop", "marketPlace"] },
+      { id: "b", name: "B", order: ["feed", "socialTop"] },
+    ];
+    const normalized = normalizeSmartsiteTabs(site, tabs);
+    expect(normalized[0].order).toEqual(
+      expect.arrayContaining(["marketPlace"]),
+    );
+    normalized.forEach((tab) => {
+      expect(tab.order).not.toContain("socialTop");
+    });
+  });
+
+  it("buildFlatTemplateOrderForTabs leads with socialTop when the site has icons", () => {
+    const tabs: SmartsiteTab[] = [
+      { id: "a", name: "A", order: ["marketPlace", blogKey0] },
+      { id: "b", name: "B", order: ["feed"] },
+    ];
+    expect(buildFlatTemplateOrderForTabs(site, tabs)).toEqual([
+      "socialTop",
+      "marketPlace",
+      blogKey0,
+      "feed",
+    ]);
+  });
+
+  it("buildFlatTemplateOrderForTabs omits socialTop when the site has no icons", () => {
+    const siteWithoutIcons = {
+      ...site,
+      info: { ...site.info, socialTop: [] },
+    };
+    const tabs: SmartsiteTab[] = [
+      { id: "a", name: "A", order: ["marketPlace"] },
+    ];
+    expect(buildFlatTemplateOrderForTabs(siteWithoutIcons, tabs)).toEqual([
+      "marketPlace",
+    ]);
+  });
+
+  it("buildFlatTemplateOrderForTabs never duplicates a stray socialTop from tabs", () => {
+    // Defensive: un-normalized tabs (e.g. a stale save) may still carry it
+    const tabs: SmartsiteTab[] = [
+      { id: "a", name: "A", order: ["marketPlace", "socialTop"] },
+    ];
+    expect(buildFlatTemplateOrderForTabs(site, tabs)).toEqual([
+      "socialTop",
+      "marketPlace",
+    ]);
+  });
+
+  it("legacy sites keep socialTop as an ordered flat block", () => {
+    // tabs=[] → the normalizer leaves the flat path alone; socialTop stays
+    // in the default block order like today
+    expect(normalizeSmartsiteTabs(site)).toEqual([]);
+    expect(getDefaultSmartsiteTemplateBlockOrder(site)).toContain("socialTop");
   });
 });
 

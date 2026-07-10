@@ -66,7 +66,7 @@ import {
   SmartsiteTab,
   areSmartsiteTabsEqual,
   buildDefaultSmartsiteTabs,
-  flattenSmartsiteTabs,
+  buildFlatTemplateOrderForTabs,
   generateSmartsiteTabId,
   getDefaultSmartsiteTemplateBlockOrder,
   getSmartsiteTemplateItemKey,
@@ -628,7 +628,8 @@ const SmartsiteIconLivePreview = ({
   const applyTabsState = (nextTabs: SmartsiteTab[]) => {
     tabsRef.current = nextTabs;
     setTabs(nextTabs);
-    const flatOrder = flattenSmartsiteTabs(nextTabs);
+    // Dual-write flat order leads with the pinned 'socialTop' (see helper)
+    const flatOrder = buildFlatTemplateOrderForTabs(data, nextTabs);
     templateOrderRef.current = flatOrder;
     setTemplateOrder(flatOrder);
     onTemplateOrderChange?.(flatOrder);
@@ -651,7 +652,7 @@ const SmartsiteIconLivePreview = ({
         {
           _id: data._id,
           tabs: nextTabs,
-          templateOrder: flattenSmartsiteTabs(nextTabs),
+          templateOrder: buildFlatTemplateOrderForTabs(data, nextTabs),
         },
         token,
       );
@@ -1302,6 +1303,43 @@ const SmartsiteIconLivePreview = ({
                   secondaryFontColor={previewSecondaryFontColor}
                 />
 
+                {/* Tabbed: Small Icons are pinned in the header (under the
+                    Bio, above the tab bar) and visible on every tab. Plain
+                    row — no drag grip, no move-to-tab, and deliberately no
+                    data-smartsite-order-key so the drag machinery never
+                    targets it. Icons still open their editor on click. */}
+                {isTabbed && socialRows.length > 0 && (
+                  <div className="space-y-4">
+                    {socialRows.map((row: any[], rowIndex: number) => (
+                      <div
+                        key={rowIndex}
+                        className="flex justify-center gap-x-6 gap-y-4 flex-wrap"
+                      >
+                        {row.map((item: any, index: number) => (
+                          <SocialSmall
+                            key={smartsitePreviewItemKey(
+                              "socialTop",
+                              item,
+                              index,
+                              String(rowIndex),
+                            )}
+                            number={index}
+                            data={item}
+                            socialType="socialTop"
+                            fontColor={previewFontColor}
+                            onClick={() =>
+                              handleTriggerUpdate({
+                                data: item,
+                                categoryForTrigger: "socialTop",
+                              })
+                            }
+                          />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* ── tab bar ── */}
                 {(isTabEditable || tabs.length > 1) &&
                   (isTabbed || isTabEditable) && (
@@ -1434,7 +1472,10 @@ const SmartsiteIconLivePreview = ({
                   </div>
                 )}
 
-                {/* small icon display here start */}
+                {/* small icon display here start — legacy (untabbed) sites
+                    only: an ordered, draggable block. Tabbed sites render
+                    the pinned header row above instead. */}
+                {!isTabbed && (
                 <SortablePreviewSection
                   orderKey="socialTop"
                   sectionKey="socialTop"
@@ -1469,6 +1510,7 @@ const SmartsiteIconLivePreview = ({
                     </div>
                   ))}
                 </SortablePreviewSection>
+                )}
                 {/* small icon display here end */}
 
                 {/* marketPlace display here start */}

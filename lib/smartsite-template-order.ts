@@ -258,6 +258,26 @@ export const generateSmartsiteTabId = () =>
 export const flattenSmartsiteTabs = (tabs?: SmartsiteTab[] | null): string[] =>
   (tabs || []).flatMap((tab) => (Array.isArray(tab?.order) ? tab.order : []));
 
+/**
+ * The flat templateOrder dual-written alongside tabs on every save. On tabbed
+ * sites 'socialTop' (Small Icons) is pinned in the header — it lives in no
+ * tab — but pre-tabs clients render only the flat order, so it must LEAD the
+ * flattened payload whenever the site has socialTop content (icons stay at
+ * the top for them, matching the pinned header position).
+ */
+export const buildFlatTemplateOrderForTabs = (
+  micrositeData: any,
+  tabs?: SmartsiteTab[] | null,
+): string[] => {
+  const flatOrder = flattenSmartsiteTabs(tabs).filter(
+    (orderKey) => orderKey !== "socialTop",
+  );
+
+  return hasSmartsiteTemplateSectionContent(micrositeData, "socialTop")
+    ? ["socialTop", ...flatOrder]
+    : flatOrder;
+};
+
 export const areSmartsiteTabsEqual = (
   a?: SmartsiteTab[] | null,
   b?: SmartsiteTab[] | null,
@@ -277,10 +297,11 @@ export const buildDefaultSmartsiteTabs = (
   {
     id: generateSmartsiteTabId(),
     name,
+    // 'socialTop' is pinned in the header on tabbed sites — never tab content
     order: normalizeSmartsiteTemplateBlockOrder(
       micrositeData,
       order ?? micrositeData?.templateOrder,
-    ),
+    ).filter((orderKey) => orderKey !== "socialTop"),
   },
 ];
 
@@ -288,6 +309,9 @@ export const buildDefaultSmartsiteTabs = (
  * Reconcile stored tabs against the content that actually exists. Rules
  * (identical on desktop and mobile so both renderers agree without a save):
  *  - keys pointing at deleted content are dropped
+ *  - 'socialTop' is stripped from every tab — on tabbed sites the Small
+ *    Icons are pinned in the header (under the Bio, above the tab bar), not
+ *    tab content, and must never be re-homed to a tab
  *  - a key lives in exactly one tab (first occurrence wins)
  *  - a bare item-level section key expands to that section's blocks
  *  - content assigned to no tab appends to the FIRST tab in default order
@@ -318,7 +342,9 @@ export const normalizeSmartsiteTabs = (
     defaultBlocksBySection.set(sectionKey, sectionOrder);
   });
 
-  const claimed = new Set<string>();
+  // Pre-claiming 'socialTop' both strips it from stored tab orders and
+  // excludes it from the unassigned-content re-home below.
+  const claimed = new Set<string>(["socialTop"]);
   const normalizedTabs: SmartsiteTab[] = requestedTabs.map(
     (tab: any, index: number) => {
       const rawName = typeof tab?.name === "string" ? tab.name.trim() : "";
