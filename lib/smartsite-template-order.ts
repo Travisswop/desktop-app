@@ -124,6 +124,17 @@ export const getSmartsiteTemplateSectionKeyFromOrderKey = (
   return isSmartsiteTemplateSectionKey(sectionKey) ? sectionKey : null;
 };
 
+/**
+ * The identity-stable part of an order key. Item-level keys are
+ * `section:encodeURIComponent(id):index` — the trailing index shifts whenever
+ * an earlier item in the same section is deleted, so "is this content new?"
+ * checks must compare on `section:id` only. Section-level keys pass through.
+ */
+export const getStableSmartsiteOrderKeyPrefix = (orderKey: string) => {
+  const separatorIndex = orderKey.lastIndexOf(":");
+  return separatorIndex === -1 ? orderKey : orderKey.slice(0, separatorIndex);
+};
+
 const hasItems = (items: unknown) => Array.isArray(items) && items.length > 0;
 
 export const hasSmartsiteTemplateSectionContent = (
@@ -254,18 +265,21 @@ export const areSmartsiteTabsEqual = (
 
 /**
  * First-tab conversion: the first tab a user creates inherits the site's
- * entire normalized flat order (so nothing moves or disappears).
+ * entire normalized flat order (so nothing moves or disappears). Callers
+ * holding a fresher local order than `micrositeData.templateOrder` (e.g. an
+ * optimistic reorder whose refetch hasn't landed) can pass it as `order`.
  */
 export const buildDefaultSmartsiteTabs = (
   micrositeData: any,
   name = "Home",
+  order?: unknown,
 ): SmartsiteTab[] => [
   {
     id: generateSmartsiteTabId(),
     name,
     order: normalizeSmartsiteTemplateBlockOrder(
       micrositeData,
-      micrositeData?.templateOrder,
+      order ?? micrositeData?.templateOrder,
     ),
   },
 ];

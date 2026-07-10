@@ -318,6 +318,13 @@ export default function TokenGateVerification({
 
   // Auto-verify on authentication if user was already trying to enter
   useEffect(() => {
+    // Inline (tab-scoped) mode: the card itself shows the requirement and
+    // the "you don't have the required tokens" helper text — firing an
+    // unsolicited "Access Denied" toast on every mount/tab-switch for any
+    // authenticated visitor without the token would be noise.
+    if (inline) {
+      return;
+    }
     if (
       authenticated &&
       !verifyAccess &&
@@ -336,6 +343,7 @@ export default function TokenGateVerification({
       });
     }
   }, [
+    inline,
     authenticated,
     verifyAccess,
     tokensLoading,

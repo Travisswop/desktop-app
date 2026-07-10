@@ -5,6 +5,7 @@ import {
   flattenSmartsiteTabs,
   getDefaultSmartsiteTemplateBlockOrder,
   getSmartsiteTemplateItemKey,
+  getStableSmartsiteOrderKeyPrefix,
   hasSmartsiteTemplateSectionContent,
   isTabbedSmartsite,
   moveKeyBetweenSmartsiteTabs,
@@ -67,6 +68,51 @@ describe("buildDefaultSmartsiteTabs (first-tab conversion)", () => {
     const saved = ["feed", "marketPlace", blogKey1, blogKey0];
     const tabs = buildDefaultSmartsiteTabs({ ...site, templateOrder: saved });
     expect(tabs[0].order.slice(0, 4)).toEqual(saved);
+  });
+
+  it("prefers an explicitly passed order over the stored templateOrder", () => {
+    // Regression: the builder passes its CURRENT (possibly optimistic) flat
+    // order — a reorder followed immediately by "+ Tab" must not snap back
+    // to the stale data.templateOrder.
+    const stale = ["marketPlace", "feed"];
+    const local = ["feed", "marketPlace", blogKey1, blogKey0];
+    const tabs = buildDefaultSmartsiteTabs(
+      { ...site, templateOrder: stale },
+      "Home",
+      local,
+    );
+    expect(tabs[0].order.slice(0, 4)).toEqual(local);
+  });
+});
+
+describe("getStableSmartsiteOrderKeyPrefix", () => {
+  it("strips the shifting index suffix from item-level keys", () => {
+    // Regression: deleting an item shifts later items' index suffix — the
+    // builder's "new content" diff must treat those as the SAME content,
+    // not yank them onto the active tab.
+    expect(getStableSmartsiteOrderKeyPrefix("infoBar:i2:1")).toBe(
+      "infoBar:i2",
+    );
+    expect(getStableSmartsiteOrderKeyPrefix("infoBar:i2:0")).toBe(
+      "infoBar:i2",
+    );
+    expect(
+      getStableSmartsiteOrderKeyPrefix(getSmartsiteTemplateItemKey("blog", { _id: "b1" }, 3)),
+    ).toBe(getStableSmartsiteOrderKeyPrefix(getSmartsiteTemplateItemKey("blog", { _id: "b1" }, 0)));
+  });
+
+  it("keeps section-level keys unchanged", () => {
+    expect(getStableSmartsiteOrderKeyPrefix("marketPlace")).toBe("marketPlace");
+    expect(getStableSmartsiteOrderKeyPrefix("feed")).toBe("feed");
+  });
+
+  it("is safe for ids containing ':' (encodeURIComponent in item keys)", () => {
+    const key = getSmartsiteTemplateItemKey("videoUrl", { link: "https://x.com/a" }, 2);
+    const keyShifted = getSmartsiteTemplateItemKey("videoUrl", { link: "https://x.com/a" }, 1);
+    expect(getStableSmartsiteOrderKeyPrefix(key)).toBe(
+      getStableSmartsiteOrderKeyPrefix(keyShifted),
+    );
+    expect(getStableSmartsiteOrderKeyPrefix(key)).not.toBe(key);
   });
 });
 

@@ -71,6 +71,7 @@ import {
   getDefaultSmartsiteTemplateBlockOrder,
   getSmartsiteTemplateItemKey,
   getSmartsiteTemplateSectionKeyFromOrderKey,
+  getStableSmartsiteOrderKeyPrefix,
   moveKeyBetweenSmartsiteTabs,
   normalizeSmartsiteTabs,
   normalizeSmartsiteTemplateBlockOrder,
@@ -400,6 +401,12 @@ const SmartsiteIconLivePreview = ({
   );
   const [isTabDeleting, setIsTabDeleting] = useState(false);
   const knownContentKeysRef = useRef<Set<string> | null>(null);
+  // Last tabs state derived FROM data. Optimistic tab updates round-trip
+  // through the parent (onTemplateOrderChange → new `data` identity) and
+  // re-run the sync effect while data.tabs is still stale — the sync must
+  // only apply when the data-derived tabs actually changed, or it would
+  // revert the optimistic state mid-save.
+  const lastSyncedTabsRef = useRef<SmartsiteTab[]>(normalizedTabsFromData);
 
   const isTabbed = tabs.length > 0;
   const isTabEditable = Boolean(token);
@@ -674,11 +681,28 @@ const SmartsiteIconLivePreview = ({
     const previousKnown = knownContentKeysRef.current;
     knownContentKeysRef.current = contentKeys;
 
+    // Only sync when the DATA-derived tabs changed. Re-runs caused by local
+    // optimistic updates (parent feedback loop) still see the stale
+    // data.tabs and must not clobber tabsRef with them.
+    if (areSmartsiteTabsEqual(lastSyncedTabsRef.current, normalizedTabsFromData)) {
+      return;
+    }
+    lastSyncedTabsRef.current = normalizedTabsFromData;
+
     let nextTabs = normalizedTabsFromData;
 
     if (previousKnown && normalizedTabsFromData.length > 0) {
+      // "New" means genuinely new content. An existing item's key changes
+      // when an earlier item in its section is deleted (the trailing index
+      // shifts) — compare on the stable `section:id` prefix so those items
+      // are not yanked onto the active tab.
+      const previousKnownPrefixes = new Set(
+        Array.from(previousKnown, getStableSmartsiteOrderKeyPrefix),
+      );
       const newKeys = Array.from(contentKeys).filter(
-        (key) => !previousKnown.has(key),
+        (key) =>
+          !previousKnown.has(key) &&
+          !previousKnownPrefixes.has(getStableSmartsiteOrderKeyPrefix(key)),
       );
       const targetTabId = activeTabIdRef.current;
       const targetExists = normalizedTabsFromData.some(
@@ -707,7 +731,17 @@ const SmartsiteIconLivePreview = ({
     }
 
     if (!areSmartsiteTabsEqual(tabsRef.current, nextTabs)) {
-      applyTabsState(nextTabs);
+      if (nextTabs.length === 0) {
+        // Tabs were removed (e.g. from another client): untabbed sites take
+        // their flat order from templateOrder — flatten([]) would wipe it.
+        tabsRef.current = nextTabs;
+        setTabs(nextTabs);
+        templateOrderRef.current = normalizedTemplateOrder;
+        setTemplateOrder(normalizedTemplateOrder);
+        onTemplateOrderChange?.(normalizedTemplateOrder);
+      } else {
+        applyTabsState(nextTabs);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalizedTabsFromData, data]);
@@ -821,8 +855,10 @@ const SmartsiteIconLivePreview = ({
     let newTabId: string;
 
     if (!isTabbed) {
-      // First tab inherits every existing template so nothing moves
-      nextTabs = buildDefaultSmartsiteTabs(data, "Home");
+      // First tab inherits every existing template so nothing moves. Use the
+      // CURRENT local flat order — data.templateOrder can lag behind an
+      // optimistic reorder whose refetch hasn't landed yet.
+      nextTabs = buildDefaultSmartsiteTabs(data, "Home", templateOrderRef.current);
       newTabId = nextTabs[0].id;
     } else {
       newTabId = generateSmartsiteTabId();
