@@ -515,6 +515,76 @@ export const normalizeSmartsiteTabs = (
   return normalizedTabs;
 };
 
+export const SMARTSITE_FEED_TAB_NAME = "Feed";
+
+/**
+ * A tab whose entire content is the feed block. The embedded feed renders
+ * "plain" on such a tab — no card chrome, full-width scrolling posts.
+ */
+export const isFeedOnlySmartsiteTab = (
+  tab?: Pick<SmartsiteTab, "order"> | null,
+): boolean =>
+  Boolean(
+    tab &&
+      Array.isArray(tab.order) &&
+      tab.order.length === 1 &&
+      tab.order[0] === "feed",
+  );
+
+/**
+ * Feed auto-tab: enabling the Feed template on a TABBED site gives the feed
+ * a dedicated "Feed" tab instead of landing inside another tab.
+ *
+ * `tabs` is the NORMALIZED tab list (where the normalizer re-homes
+ * unassigned content — including a freshly enabled 'feed' — onto the first
+ * tab). `rawStoredTabs` (the unnormalized micrositeData.tabs) tells the two
+ * cases apart:
+ *  - a stored tab already claims 'feed' (an earlier auto-tab, or the user
+ *    moved it): reuse that tab — never create a duplicate
+ *  - no stored tab claims it: the key only sits on the first tab via the
+ *    normalizer's re-home — strip it and append a new feed-only tab
+ * Pure; `changed` is false when the inputs are returned unchanged.
+ */
+export const ensureFeedTabInSmartsiteTabs = (
+  tabs: SmartsiteTab[],
+  rawStoredTabs?: unknown,
+): { tabs: SmartsiteTab[]; feedTabId: string | null; changed: boolean } => {
+  if (tabs.length === 0) {
+    return { tabs, feedTabId: null, changed: false };
+  }
+
+  const currentFeedTab = tabs.find((tab) => tab.order.includes("feed")) ?? null;
+  const storedTabHoldsFeed = (
+    Array.isArray(rawStoredTabs) ? rawStoredTabs : []
+  ).some(
+    (tab: any) => Array.isArray(tab?.order) && tab.order.includes("feed"),
+  );
+
+  if (storedTabHoldsFeed || tabs.length >= SMARTSITE_MAX_TABS) {
+    return { tabs, feedTabId: currentFeedTab?.id ?? null, changed: false };
+  }
+
+  const feedTab: SmartsiteTab = {
+    id: generateSmartsiteTabId(),
+    name: SMARTSITE_FEED_TAB_NAME,
+    order: ["feed"],
+    gated: false,
+  };
+
+  return {
+    tabs: [
+      ...tabs.map((tab) =>
+        tab.order.includes("feed")
+          ? { ...tab, order: tab.order.filter((key) => key !== "feed") }
+          : tab,
+      ),
+      feedTab,
+    ],
+    feedTabId: feedTab.id,
+    changed: true,
+  };
+};
+
 /**
  * Append a newly created template's key to a tab (used by the Add flows so
  * a template added while a tab is active lands on that tab).

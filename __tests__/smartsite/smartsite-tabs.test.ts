@@ -1,13 +1,16 @@
 import {
+  SMARTSITE_FEED_TAB_NAME,
   SmartsiteTab,
   appendKeyToSmartsiteTab,
   buildDefaultSmartsiteTabs,
   buildFlatTemplateOrderForTabs,
+  ensureFeedTabInSmartsiteTabs,
   flattenSmartsiteTabs,
   getDefaultSmartsiteTemplateBlockOrder,
   getSmartsiteTemplateItemKey,
   getStableSmartsiteOrderKeyPrefix,
   hasSmartsiteTemplateSectionContent,
+  isFeedOnlySmartsiteTab,
   isTabbedSmartsite,
   moveKeyBetweenSmartsiteTabs,
   normalizeSmartsitePinnedOrder,
@@ -612,5 +615,107 @@ describe("widget section", () => {
     expect(normalized[0].order).toEqual(
       expect.arrayContaining([widgetKey0, widgetKey1]),
     );
+  });
+});
+
+describe("isFeedOnlySmartsiteTab", () => {
+  it("is true only when the tab's order is exactly ['feed']", () => {
+    expect(isFeedOnlySmartsiteTab({ order: ["feed"] })).toBe(true);
+    expect(isFeedOnlySmartsiteTab({ order: ["feed", "video"] })).toBe(false);
+    expect(isFeedOnlySmartsiteTab({ order: ["video"] })).toBe(false);
+    expect(isFeedOnlySmartsiteTab({ order: [] })).toBe(false);
+    expect(isFeedOnlySmartsiteTab(null)).toBe(false);
+    expect(isFeedOnlySmartsiteTab(undefined)).toBe(false);
+  });
+});
+
+describe("ensureFeedTabInSmartsiteTabs (Feed auto-tab)", () => {
+  const normalizedWithRehomedFeed: SmartsiteTab[] = [
+    { id: "home", name: "Home", order: ["marketPlace", "feed"], gated: false },
+    { id: "b", name: "B", order: ["video"], gated: false },
+  ];
+
+  it("moves a normalizer-re-homed 'feed' to a new dedicated Feed tab", () => {
+    // Stored tabs never claimed 'feed' — it only sits on Home via re-home
+    const storedTabs = [
+      { id: "home", name: "Home", order: ["marketPlace"] },
+      { id: "b", name: "B", order: ["video"] },
+    ];
+    const result = ensureFeedTabInSmartsiteTabs(
+      normalizedWithRehomedFeed,
+      storedTabs,
+    );
+
+    expect(result.changed).toBe(true);
+    expect(result.tabs).toHaveLength(3);
+    const feedTab = result.tabs[2];
+    expect(feedTab.name).toBe(SMARTSITE_FEED_TAB_NAME);
+    expect(feedTab.order).toEqual(["feed"]);
+    expect(feedTab.gated).toBe(false);
+    expect(result.feedTabId).toBe(feedTab.id);
+    // stripped from every other tab — a key lives in exactly one tab
+    expect(result.tabs[0].order).toEqual(["marketPlace"]);
+    expect(result.tabs[1].order).toEqual(["video"]);
+    // pure feed-only tab
+    expect(isFeedOnlySmartsiteTab(feedTab)).toBe(true);
+  });
+
+  it("creates the Feed tab when stored tabs are missing entirely", () => {
+    const result = ensureFeedTabInSmartsiteTabs(
+      normalizedWithRehomedFeed,
+      undefined,
+    );
+    expect(result.changed).toBe(true);
+    expect(result.tabs[2].order).toEqual(["feed"]);
+  });
+
+  it("reuses a stored tab that already holds 'feed' — never duplicates", () => {
+    const normalized: SmartsiteTab[] = [
+      { id: "home", name: "Home", order: ["marketPlace"], gated: false },
+      { id: "feed-tab", name: "Feed", order: ["feed"], gated: false },
+    ];
+    const storedTabs = [
+      { id: "home", name: "Home", order: ["marketPlace"] },
+      { id: "feed-tab", name: "Feed", order: ["feed"] },
+    ];
+    const result = ensureFeedTabInSmartsiteTabs(normalized, storedTabs);
+
+    expect(result.changed).toBe(false);
+    expect(result.tabs).toBe(normalized);
+    expect(result.feedTabId).toBe("feed-tab");
+  });
+
+  it("reuses a stored MIXED tab holding 'feed' (user placed it there)", () => {
+    const normalized: SmartsiteTab[] = [
+      { id: "home", name: "Home", order: ["marketPlace", "feed"], gated: false },
+    ];
+    const storedTabs = [
+      { id: "home", name: "Home", order: ["marketPlace", "feed"] },
+    ];
+    const result = ensureFeedTabInSmartsiteTabs(normalized, storedTabs);
+
+    expect(result.changed).toBe(false);
+    expect(result.feedTabId).toBe("home");
+  });
+
+  it("is a no-op on untabbed sites", () => {
+    const result = ensureFeedTabInSmartsiteTabs([], []);
+    expect(result.changed).toBe(false);
+    expect(result.tabs).toEqual([]);
+    expect(result.feedTabId).toBeNull();
+  });
+
+  it("does not exceed the max tab count", () => {
+    const manyTabs: SmartsiteTab[] = Array.from({ length: 10 }, (_, i) => ({
+      id: `t${i}`,
+      name: `Tab ${i}`,
+      order: i === 0 ? ["feed"] : [],
+      gated: false,
+    }));
+    const result = ensureFeedTabInSmartsiteTabs(manyTabs, []);
+    expect(result.changed).toBe(false);
+    expect(result.tabs).toHaveLength(10);
+    // still points at the tab currently holding the feed
+    expect(result.feedTabId).toBe("t0");
   });
 });

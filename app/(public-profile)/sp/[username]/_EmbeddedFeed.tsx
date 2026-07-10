@@ -26,12 +26,19 @@ export default function EmbeddedFeed({
   userId,
   micrositeId,
   isOrderPreview = false,
+  plain = false,
 }: {
   accessToken: string;
   userId: string;
   initialFeedData?: any;
   micrositeId: string;
   isOrderPreview?: boolean;
+  /**
+   * Feed-only tab rendering: suppresses the card chrome (white background,
+   * rounded corners, padding) so posts render plain and full-width like the
+   * feed module. Scrolling/pagination behavior is unchanged.
+   */
+  plain?: boolean;
 }) {
   const feedRefetchTrigger = useModalStore((s) => s.feedRefetchTrigger);
   // logger.info("Feed feedRefetchTrigger", feedRefetchTrigger);
@@ -150,7 +157,9 @@ export default function EmbeddedFeed({
 
   return (
     <div
-      className={`w-full flex flex-col gap-4 bg-white rounded-lg p-4 ${
+      className={`w-full flex flex-col gap-4 ${
+        plain ? "" : "bg-white rounded-lg p-4"
+      } ${
         isOrderPreview
           ? "max-h-[34rem] overflow-hidden"
           : "h-[40rem] overflow-auto hide-scrollbar"

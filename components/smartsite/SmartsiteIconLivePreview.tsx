@@ -67,7 +67,9 @@ import {
   areSmartsiteTabsEqual,
   buildDefaultSmartsiteTabs,
   buildFlatTemplateOrderForTabs,
+  ensureFeedTabInSmartsiteTabs,
   generateSmartsiteTabId,
+  isFeedOnlySmartsiteTab,
   getDefaultSmartsiteTemplateBlockOrder,
   getSmartsiteTemplateItemKey,
   getSmartsiteTemplateSectionKeyFromOrderKey,
@@ -500,6 +502,18 @@ const SmartsiteIconLivePreview = ({
     () => (isTabbed ? new Set(pinnedOrder) : new Set<string>()),
     [isTabbed, pinnedOrder],
   );
+  // Feed-only tab: when the tab HOLDING 'feed' contains nothing else, the
+  // embedded feed renders plain (no card chrome). Keyed off the owning tab —
+  // not the active one — since blocks stay mounted (hidden) across tab
+  // switches. Mixed-content tabs and legacy flat sites keep the card look.
+  const isFeedPlain = useMemo(
+    () =>
+      isTabbed &&
+      isFeedOnlySmartsiteTab(
+        tabs.find((tab) => tab.order.includes("feed")) ?? null,
+      ),
+    [isTabbed, tabs],
+  );
 
   useEffect(() => {
     activeTabIdRef.current = activeTab?.id ?? null;
@@ -852,27 +866,53 @@ const SmartsiteIconLivePreview = ({
           !previousKnown.has(key) &&
           !previousKnownPrefixes.has(getStableSmartsiteOrderKeyPrefix(key)),
       );
+
+      // Feed auto-tab: on a tabbed site a newly enabled Feed template gets a
+      // dedicated "Feed" tab (created here, or an existing tab already
+      // holding 'feed' is reused) and that tab is activated — the feed never
+      // lands inside another tab. Every other new key keeps the existing
+      // "append to the active tab" behavior below.
+      let feedTabIdToActivate: string | null = null;
+      let feedTabsChanged = false;
+      const otherNewKeys = newKeys.filter((key) => key !== "feed");
+
+      if (newKeys.includes("feed")) {
+        const feedResult = ensureFeedTabInSmartsiteTabs(nextTabs, data?.tabs);
+        nextTabs = feedResult.tabs;
+        feedTabIdToActivate = feedResult.feedTabId;
+        feedTabsChanged = feedResult.changed;
+      }
+
       const targetTabId = activeTabIdRef.current;
-      const targetExists = normalizedTabsFromData.some(
-        (tab) => tab.id === targetTabId,
-      );
+      const targetExists = nextTabs.some((tab) => tab.id === targetTabId);
+      let otherTabsChanged = false;
 
       if (
-        newKeys.length > 0 &&
+        otherNewKeys.length > 0 &&
         targetTabId &&
         targetExists &&
-        normalizedTabsFromData[0]?.id !== targetTabId
+        nextTabs[0]?.id !== targetTabId
       ) {
-        nextTabs = normalizedTabsFromData.map((tab) => {
+        nextTabs = nextTabs.map((tab) => {
           if (tab.id === targetTabId) {
-            const missing = newKeys.filter((key) => !tab.order.includes(key));
+            const missing = otherNewKeys.filter(
+              (key) => !tab.order.includes(key),
+            );
             return { ...tab, order: [...tab.order, ...missing] };
           }
           return {
             ...tab,
-            order: tab.order.filter((key) => !newKeys.includes(key)),
+            order: tab.order.filter((key) => !otherNewKeys.includes(key)),
           };
         });
+        otherTabsChanged = true;
+      }
+
+      if (feedTabIdToActivate) {
+        setActiveTabId(feedTabIdToActivate);
+      }
+
+      if (feedTabsChanged || otherTabsChanged) {
         void persistTabs(nextTabs, normalizedTabsFromData);
         return;
       }
@@ -2508,6 +2548,7 @@ const SmartsiteIconLivePreview = ({
                       userId={user?._id || ""}
                       micrositeId={user?.primaryMicrosite || ""}
                       isOrderPreview
+                      plain={isFeedPlain}
                     />
                   </SortablePreviewSection>
                 )}

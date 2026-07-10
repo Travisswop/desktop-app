@@ -43,6 +43,7 @@ import {
 import {
   flattenSmartsiteTabs,
   getSmartsiteTemplateItemKey,
+  isFeedOnlySmartsiteTab,
   isTabbedSmartsite,
   normalizeSmartsitePinnedOrder,
   normalizeSmartsiteTabs,
@@ -120,6 +121,16 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
   const ensDomain = info.ensDomain[info.ensDomain.length - 1];
 
   const isTabbed = tabs.length > 0;
+  // Feed-only tab: when the tab holding 'feed' contains nothing else, the
+  // embedded feed renders plain (no card chrome, full-width posts). Keyed
+  // off the owning tab — not the active one — since blocks stay mounted
+  // (hidden) across tab switches. Mixed-content tabs and legacy flat sites
+  // keep the card look.
+  const isFeedPlain =
+    isTabbed &&
+    isFeedOnlySmartsiteTab(
+      tabs.find((tab) => tab.order.includes("feed")) ?? null,
+    );
   const requestedTab = searchParams?.get("tab") || null;
   const activeTab = isTabbed
     ? tabs.find((tab) => tab.id === selectedTabId) ??
@@ -733,6 +744,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                   accessToken={accessToken || ""}
                   userId={user?._id || accessUserIdFromCookie || ""}
                   micrositeId={micrositeData._id}
+                  plain={isFeedPlain}
                 />
               </div>
             )}
