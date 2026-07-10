@@ -18,7 +18,7 @@ import { MdDelete, MdInfoOutline } from "react-icons/md";
 // import AnimateButton from "@/components/Button/AnimateButton";
 // import { handleDeleteAppIcon, handleUpdateAppIcon } from "@/actions/appIcon";
 import { deleteInfoBar, updateInfoBar } from "@/actions/infoBar";
-import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
+import { fetchLinkPreview, LinkPreviewData } from "@/actions/linkPreview";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
@@ -32,8 +32,6 @@ import CustomFileInput from "@/components/CustomFileInput";
 import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 
 const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
-  const state: any = useSmartSiteApiDataStore((state) => state); //get small icon store value
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
   const [selectedIconType, setSelectedIconType] = useState<string>("Link");
   const [selectedIcon, setSelectedIcon] = useState({
     name: "Amazon Music",
@@ -53,14 +51,22 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
   const iconData: any = newIcons[1];
-  console.log("selectedIconData", selectedIconData);
-
-  console.log("iconDataObjsss", iconDataObj);
-  console.log("selectedIconType", selectedIconType);
-  console.log("iconData", iconData);
-  console.log("selectedIcon", selectedIcon);
 
   const [token, setToken] = useState("");
+
+  // ── Open Graph prefill (parity with AddInfoBar) ──
+  // When a valid http(s) link is entered, fetch its OG metadata and fill
+  // ONLY fields the user has cleared (empty description / button name).
+  // The icon / custom-image selection is never touched — the OG image is
+  // shown as a suggestion only. Failures are silent.
+  const [linkValue, setLinkValue] = useState<string>(
+    iconDataObj?.data?.title || "",
+  );
+  const [ogPreview, setOgPreview] = useState<LinkPreviewData | null>(null);
+  const ogDebounceRef = useRef<number | null>(null);
+  const ogLastFetchedUrlRef = useRef<string | null>(null);
+  const descriptionRef = useRef("");
+  const buttonNameRef = useRef("");
 
   const handleFileChange = (event: any) => {
     const file = event.target.files[0];
@@ -87,6 +93,69 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     };
     getAccessToken();
   }, []);
+
+  useEffect(() => {
+    descriptionRef.current = description;
+  }, [description]);
+  useEffect(() => {
+    buttonNameRef.current = buttonName;
+  }, [buttonName]);
+
+  const getValidHttpUrl = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!/^https?:\/\//i.test(trimmed)) return null;
+    try {
+      const url = new URL(trimmed);
+      return url.protocol === "http:" || url.protocol === "https:"
+        ? url.toString()
+        : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const runLinkPreview = async (value: string) => {
+    const url = getValidHttpUrl(value);
+    if (!url || !token || ogLastFetchedUrlRef.current === url) {
+      return;
+    }
+    ogLastFetchedUrlRef.current = url;
+
+    try {
+      const preview = await fetchLinkPreview(url, token);
+      if (!preview) return;
+
+      setOgPreview(preview);
+      // Prefill blanks only — never overwrite what the user typed
+      if (!descriptionRef.current.trim() && preview.description) {
+        setDescription(preview.description);
+      }
+      if (!buttonNameRef.current.trim() && preview.title) {
+        setButtonName(preview.title);
+      }
+    } catch {
+      // silent — preview is best-effort
+    }
+  };
+
+  const scheduleLinkPreview = (value: string) => {
+    if (ogDebounceRef.current) {
+      window.clearTimeout(ogDebounceRef.current);
+    }
+    ogDebounceRef.current = window.setTimeout(() => {
+      ogDebounceRef.current = null;
+      void runLinkPreview(value);
+    }, 600);
+  };
+
+  useEffect(
+    () => () => {
+      if (ogDebounceRef.current) {
+        window.clearTimeout(ogDebounceRef.current);
+      }
+    },
+    [],
+  );
 
   // Function to close the modal
   const closeModal = () => {
@@ -164,9 +233,13 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     setIsLoading(true);
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    // micrositeId comes from the item being edited — the shared store's
+    // shape differs between the builder and the edit page, so it is not a
+    // reliable source here.
+    const micrositeId = iconDataObj.data.micrositeId;
     const infobarInfo = {
       _id: iconDataObj.data._id,
-      micrositeId: state._id,
+      micrositeId,
       title: formData.get("url"),
       link: selectedIcon.url,
       buttonName: buttonName,
@@ -177,7 +250,7 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
     };
     const updateInfobarInfo = {
       _id: iconDataObj.data._id,
-      micrositeId: state.data._id,
+      micrositeId,
       title: formData.get("url"),
       link: "custom",
       buttonName: buttonName,
@@ -190,15 +263,13 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
       const imgUrl = await sendCloudinaryImage(imageFile);
       updateInfobarInfo.iconName = imgUrl;
     }
-    // console.log("smallIconInfo", infobarInfo);
     try {
       const data = await updateInfoBar(
         selectedIconType === "custom" ? updateInfobarInfo : infobarInfo,
         token,
       );
-      // console.log("data", data);
 
-      if ((data.state = "success")) {
+      if (data?.state === "success") {
         setOff();
         toast.success("Info bar updated successfully");
       } else {
@@ -362,7 +433,8 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                           className="bg-white w-48 2xl:w-64 flex justify-between items-center rounded px-2 py-2 text-sm font-medium shadow-small"
                         >
                           <span className="flex items-center gap-2">
-                            {selectedIconType && (
+                            {/* guard: legacy items can carry a group with no icon */}
+                            {selectedIconType && iconMap[selectedIconType] && (
                               <Image
                                 alt="app-icon"
                                 src={iconMap[selectedIconType]}
@@ -432,7 +504,12 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                     Select Icon
                   </h3>
                   {selectedIconType === "custom" ? (
-                    <CustomFileInput handleFileChange={handleFileChange} />
+                    <div className="flex items-center gap-1">
+                      <CustomFileInput handleFileChange={handleFileChange} />
+                      {fileError && (
+                        <p className="text-xs text-red-600">*{fileError}</p>
+                      )}
+                    </div>
                   ) : (
                     <Dropdown
                       className="rounded-lg w-max"
@@ -548,12 +625,37 @@ const UpdateInfoBar = ({ iconDataObj, isOn, setOff }: any) => {
                         <input
                           type="text"
                           name="url"
-                          defaultValue={iconDataObj.data.title}
+                          value={linkValue}
+                          onChange={(e) => {
+                            setLinkValue(e.target.value);
+                            scheduleLinkPreview(e.target.value);
+                          }}
+                          onBlur={() => void runLinkPreview(linkValue)}
                           className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none pl-11 py-2 text-gray-700 bg-gray-100"
                           placeholder={selectedIcon?.placeHolder}
                           required
                         />
                       </div>
+                      {ogPreview?.image && (
+                        <div className="mt-2 flex items-center gap-2 rounded-xl bg-gray-100 p-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={ogPreview.image}
+                            alt="Link preview"
+                            className="h-10 w-10 rounded-lg object-cover"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-gray-700">
+                              {ogPreview.title ||
+                                ogPreview.siteName ||
+                                "Link preview"}
+                            </p>
+                            <p className="text-[11px] text-gray-400">
+                              Suggested preview from link
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <p className="font-semibold text-gray-700 mb-1">

@@ -63,9 +63,9 @@ const AddReferral = ({ handleRemoveIcon }: any) => {
 
       try {
         const data = await postReferral(submitInfo, token);
-        if ((data.state = "success")) {
+        if (data?.state === "success") {
           toast({
-            title: "Error",
+            title: "Success",
             description: "Referral created successfully",
           });
         } else {

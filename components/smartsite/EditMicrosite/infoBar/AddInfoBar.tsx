@@ -9,7 +9,6 @@ import {
   Tooltip,
 } from "@nextui-org/react";
 import { IoLinkOutline } from "react-icons/io5";
-import { LiaFileMedicalSolid } from "react-icons/lia";
 // import { icon, newIcons } from "@/util/data/smartsiteIconData";
 // import { isEmptyObject } from "@/util/checkIsEmptyObject";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
@@ -22,7 +21,6 @@ import { FaAngleDown } from "react-icons/fa";
 import { icon, newIcons } from "@/components/util/data/smartsiteIconData";
 
 import { isEmptyObject } from "@/components/util/checkIsEmptyObject";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { MdInfoOutline } from "react-icons/md";
 import { InfoBarIconMap, InfoBarSelectedIconType } from "@/types/smallIcon";
 import contactCardImg from "@/public/images/IconShop/appIconContactCard.png";
@@ -229,8 +227,6 @@ const AddInfoBar = ({ onCloseModal }: any) => {
       iconPath: "",
       group: "custom",
     };
-    console.log("customInfobarInfo", customInfobarInfo);
-
     if (selectedIconType === "Upload Custom Image" && imageFile) {
       const imgUrl = await sendCloudinaryImage(imageFile);
       customInfobarInfo.iconName = imgUrl;
@@ -239,7 +235,6 @@ const AddInfoBar = ({ onCloseModal }: any) => {
       return setCustomImgSelectError("Choose custom image");
       //  toast.error("Choose custom image");
     }
-    console.log("customInfobarInfo", customInfobarInfo);
     try {
       const data = await postInfoBar(
         selectedIconType === "Upload Custom Image"
@@ -247,10 +242,9 @@ const AddInfoBar = ({ onCloseModal }: any) => {
           : infobarInfo,
         accessToken,
       );
-      console.log("data", data);
 
-      if ((data.state = "success")) {
-        toast.success("Info bar crated successfully");
+      if (data?.state === "success") {
+        toast.success("Info bar created successfully");
         onCloseModal();
       } else {
         toast.error("Something went wrong");
@@ -468,7 +462,8 @@ const AddInfoBar = ({ onCloseModal }: any) => {
           {selectedIconType === "Upload Custom Image" ? (
             <div className="flex items-center gap-1">
               <CustomFileInput handleFileChange={handleFileChange} />{" "}
-              {customImgSelectError && !imageFile && (
+              {fileError && <p className="text-xs text-red-600">*{fileError}</p>}
+              {customImgSelectError && !imageFile && !fileError && (
                 <p className="text-xs text-red-600">*{customImgSelectError}</p>
               )}
             </div>

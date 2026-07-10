@@ -42,6 +42,96 @@ export const SMARTSITE_TEMPLATE_SECTION_META: Record<
   feed: { label: "Feed" },
 };
 
+// ── Template picker catalog ────────────────────────────────────────────────
+// The single source of truth for the "Add Template" picker (BottomNav).
+// Titles for 1:1 sections derive from SMARTSITE_TEMPLATE_SECTION_META so the
+// picker and the section labels can never drift; widget-backed entries (Tip
+// Jar, Leads Form) share the 'widget' section and carry their own titles.
+// Visual assets (preview images/icons) stay in the picker component — this
+// module is imported by server code and must stay asset-free.
+export interface SmartsiteTemplateCatalogEntry {
+  /** Stable picker id — also the Add-form switch key in BottomNavContent. */
+  id: string;
+  sectionKey: SmartsiteTemplateSectionKey;
+  title: string;
+  description: string;
+}
+
+export const SMARTSITE_TEMPLATE_CATALOG: SmartsiteTemplateCatalogEntry[] = [
+  {
+    id: "small-icons",
+    sectionKey: "socialTop",
+    title: SMARTSITE_TEMPLATE_SECTION_META.socialTop.label,
+    description: "Miniature Icons For Header Area",
+  },
+  {
+    id: "infobar",
+    sectionKey: "infoBar",
+    title: SMARTSITE_TEMPLATE_SECTION_META.infoBar.label,
+    description: "Display Bar for your links or CTAs",
+  },
+  {
+    id: "embed",
+    sectionKey: "videoUrl",
+    title: SMARTSITE_TEMPLATE_SECTION_META.videoUrl.label,
+    description: "Embed Youtube videos, Spotify list and more",
+  },
+  {
+    id: "app-icon",
+    sectionKey: "socialLarge",
+    title: SMARTSITE_TEMPLATE_SECTION_META.socialLarge.label,
+    description: "Displays your links like a App",
+  },
+  {
+    id: "redeem-link",
+    sectionKey: "redeemLink",
+    title: SMARTSITE_TEMPLATE_SECTION_META.redeemLink.label,
+    description: "Incentivize your following",
+  },
+  {
+    id: "blog",
+    sectionKey: "blog",
+    title: SMARTSITE_TEMPLATE_SECTION_META.blog.label,
+    description: "Write a blog and host on your page",
+  },
+  {
+    id: "photo-video",
+    sectionKey: "video",
+    title: SMARTSITE_TEMPLATE_SECTION_META.video.label,
+    description: "Upload videos or photos to display",
+  },
+  {
+    id: "mp3",
+    sectionKey: "audio",
+    title: SMARTSITE_TEMPLATE_SECTION_META.audio.label,
+    description: "Upload MP3 files and host your album",
+  },
+  {
+    id: "marketplace",
+    sectionKey: "marketPlace",
+    title: SMARTSITE_TEMPLATE_SECTION_META.marketPlace.label,
+    description: "Sell Products, Subscriptions and more",
+  },
+  {
+    id: "feed",
+    sectionKey: "feed",
+    title: SMARTSITE_TEMPLATE_SECTION_META.feed.label,
+    description: "Display your Swop Feed",
+  },
+  {
+    id: "tip-jar",
+    sectionKey: "widget",
+    title: "Tip Jar",
+    description: "Accept quick tips",
+  },
+  {
+    id: "leads-form",
+    sectionKey: "widget",
+    title: "Leads Form",
+    description: "Collect leads right on your page",
+  },
+];
+
 const SMARTSITE_TEMPLATE_SECTION_KEY_SET = new Set<string>(
   SMARTSITE_TEMPLATE_SECTION_ORDER,
 );

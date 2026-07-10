@@ -2142,10 +2142,8 @@ const SmartsiteIconLivePreview = ({
                         number={0}
                         onClick={() =>
                           handleTriggerUpdate({
-                            // data,
-                            data: data.info.ensDomain[
-                              data.info.ensDomain.length - 1
-                            ],
+                            // edit the item this block renders
+                            data: data.info.ensDomain[0],
                             categoryForTrigger: "ens",
                           })
                         }
@@ -2271,8 +2269,9 @@ const SmartsiteIconLivePreview = ({
                         secondaryFontColor={previewSecondaryFontColor}
                         onClick={() =>
                           handleTriggerUpdate({
-                            data,
-                            // data.info.ensDomain[data.info.ensDomain.length -1],
+                            // edit the item this block renders (UpdateENS
+                            // needs the ensDomain item, not the microsite)
+                            data: data.info.ensDomain[0],
                             categoryForTrigger: "ens",
                           })
                         }
@@ -2315,10 +2314,7 @@ const SmartsiteIconLivePreview = ({
                             onClick={() =>
                               handleTriggerUpdate({
                                 data: item,
-                                categoryForTrigger:
-                                  item.group === "reviewReward"
-                                    ? "reviewReward"
-                                    : "infoBar",
+                                categoryForTrigger: "infoBar",
                               })
                             }
                           />

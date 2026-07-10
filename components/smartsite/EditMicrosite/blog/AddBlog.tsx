@@ -117,7 +117,7 @@ const AddBlog = ({ onCloseModal }: any) => {
 
       try {
         const data = await postBlog(info, accessToken);
-        if ((data.state = "success")) {
+        if (data?.state === "success") {
           toast.success("Blog created successfully");
           onCloseModal();
         } else {

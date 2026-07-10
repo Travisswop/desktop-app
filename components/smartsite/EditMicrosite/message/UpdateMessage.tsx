@@ -80,10 +80,10 @@ const UpdateENS = ({ iconDataObj, isOn, setOff }: any) => {
         }
 
         const data = await updateMessage(submitInfo, token);
-        if ((data.state = "success")) {
+        if (data?.state === "success") {
           setOff();
           toast({
-            title: "Error",
+            title: "Success",
             description: "Successfully updated",
           });
         } else {

@@ -63,7 +63,7 @@ const UpdateReferral = ({ iconDataObj, isOn, setOff }: any) => {
 
       try {
         const data = await updateReferral(submitInfo, token);
-        if ((data.state = "success")) {
+        if (data?.state === "success") {
           setOff();
           toast({
             title: "Success",

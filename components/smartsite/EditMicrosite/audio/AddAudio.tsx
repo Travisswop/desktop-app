@@ -120,7 +120,7 @@ const AddAudio = ({ handleRemoveIcon }: any) => {
         if (imageUrl) {
           const data = await postAudio(info, token);
 
-          if ((data.state = "success")) {
+          if (data?.state === "success") {
             toast.success("Music created successfully");
             handleRemoveIcon("Mp3");
           } else {

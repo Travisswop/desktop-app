@@ -116,7 +116,7 @@ const AddAppIcon = ({ onCloseModal }: any) => {
       );
       console.log("data", data);
 
-      if ((data.state = "success")) {
+      if (data?.state === "success") {
         toast.success("App icon created successfully");
         onCloseModal();
       } else {

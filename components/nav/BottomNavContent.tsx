@@ -60,84 +60,36 @@ import AddLeadForm from "../smartsite/EditMicrosite/widget/AddLeadForm";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { FiEdit } from "react-icons/fi";
 import { AiOutlineFileAdd } from "react-icons/ai";
+import { SMARTSITE_TEMPLATE_CATALOG } from "@/lib/smartsite-template-order";
 
 const baseNavItemClass =
   "flex h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[14px] px-1 text-[10px] font-semibold leading-none tracking-[0] transition-colors duration-150 sm:max-w-16";
 
-const SMARTSITE_TEMPLATES = [
-  {
-    id: "small-icons",
-    title: "Small Icons",
-    description: "Miniature Icons For Header Area",
-    image: smallIconImg,
-  },
-  {
-    id: "infobar",
-    title: "Infobar",
-    description: "Display Bar for your links or CTAs",
-    image: infobarImg,
-  },
-  {
-    id: "embed",
-    title: "Embed",
-    description: "Embed Youtube videos, Spotify list and more",
-    image: embedImg,
-  },
-  {
-    id: "app-icon",
-    title: "App Icon",
-    description: "Displays your links like a App",
-    image: appIconImg,
-  },
-  {
-    id: "redeem-link",
-    title: "Redeem Link",
-    description: "Incentivize your following",
-    image: redeemLinkImg,
-  },
-  {
-    id: "blog",
-    title: "Blog",
-    description: "Write a blog and host on your page",
-    image: blogImg,
-  },
-  {
-    id: "photo-video",
-    title: "Photo/Video",
-    description: "Upload videos or photos to display",
-    image: photoVideoImg,
-  },
-  {
-    id: "mp3",
-    title: "MP3",
-    description: "Upload MP3 files and host your album",
-    image: mp3Img,
-  },
-  {
-    id: "marketplace",
-    title: "Marketplace",
-    description: "Sell Products, Subscriptions and more",
-    image: marketplaceImg,
-  },
-  {
-    id: "feed",
-    title: "Feed",
-    description: "Display your Swop Feed",
-    image: feedImg,
-  },
-  {
-    id: "tip-jar",
-    title: "Tip Jar",
-    description: "Accept quick tips",
-    icon: HandCoins,
-  },
-  {
-    id: "leads-form",
-    title: "Leads Form",
-    description: "Collect leads right on your page",
-    icon: ClipboardList,
-  },
-] as Array<{
+// Titles/descriptions come from the shared catalog in
+// lib/smartsite-template-order.ts (single source of truth — see
+// SMARTSITE_TEMPLATE_CATALOG). Only the visual assets live here.
+const TEMPLATE_VISUALS: Record<
+  string,
+  { image?: any; icon?: ComponentType<{ className?: string }> }
+> = {
+  "small-icons": { image: smallIconImg },
+  infobar: { image: infobarImg },
+  embed: { image: embedImg },
+  "app-icon": { image: appIconImg },
+  "redeem-link": { image: redeemLinkImg },
+  blog: { image: blogImg },
+  "photo-video": { image: photoVideoImg },
+  mp3: { image: mp3Img },
+  marketplace: { image: marketplaceImg },
+  feed: { image: feedImg },
+  "tip-jar": { icon: HandCoins },
+  "leads-form": { icon: ClipboardList },
+};
+
+const SMARTSITE_TEMPLATES = SMARTSITE_TEMPLATE_CATALOG.map((entry) => ({
+  ...entry,
+  ...(TEMPLATE_VISUALS[entry.id] || {}),
+})) as Array<{
   id: string;
   title: string;
   description: string;

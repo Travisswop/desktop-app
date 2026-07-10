@@ -66,7 +66,7 @@ const AddContactCard = ({ onCloseModal }: any) => {
 
       try {
         const data = await postContactCard(contactCardInfo, token);
-        if ((data.state = "success")) {
+        if (data?.state === "success") {
           toast.success("Contact card created successfully");
           onCloseModal();
         } else {

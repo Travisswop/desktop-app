@@ -135,7 +135,7 @@ const UpdateAudio = ({ iconDataObj, isOn, setOff }: any) => {
         const data = await updateAudio(info, token);
         // console.log("data", data);
 
-        if ((data.state = "success")) {
+        if (data?.state === "success") {
           setOff();
           toast.success("Audio updated successfully");
         } else {

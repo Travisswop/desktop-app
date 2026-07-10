@@ -127,7 +127,7 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
           const data = await updateBlog(info, accessToken);
           // console.log("data for update blog", data);
 
-          if ((data.state = "success")) {
+          if (data?.state === "success") {
             setOff();
             toast.success("Blog updated successfully");
           } else {

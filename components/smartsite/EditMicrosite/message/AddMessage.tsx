@@ -58,7 +58,7 @@ const AddMessage = ({ handleRemoveIcon }: any) => {
         }
 
         const data = await postMessage(submitInfo, token);
-        if ((data.state = "success")) {
+        if (data?.state === "success") {
           toast({
             title: "Success",
             description: "Successfully created",

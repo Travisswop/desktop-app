@@ -163,7 +163,7 @@ const AddRedeemLink = ({
       const data = await postRedeem(redeemInfo, accessToken);
       // console.log("datassdg", data);
 
-      if ((data.state = 'success')) {
+      if (data?.state === 'success') {
         if (isSelected) {
           const id = smartsiteid?.split('/')?.pop();
           const smartsite = userInfo?.microsites?.find(

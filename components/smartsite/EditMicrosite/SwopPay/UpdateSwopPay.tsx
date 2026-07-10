@@ -136,7 +136,7 @@ const UpdateSwopPay = ({ iconDataObj, isOn, setOff }: any) => {
         }
         const data = await updateSwopPay(info, token);
 
-        if ((data.state = 'success')) {
+        if (data?.state === 'success') {
           setOff();
           toast.success('Product updated successfully');
         } else {

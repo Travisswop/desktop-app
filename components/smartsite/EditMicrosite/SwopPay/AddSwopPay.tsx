@@ -141,7 +141,7 @@ const AddSwopPay = ({ onCloseModal }: any) => {
         const data = await postSwopPay(info, token);
         // console.log("data", data);
 
-        if ((data.state = "success")) {
+        if (data?.state === "success") {
           toast.success("Product created successfully");
           onCloseModal();
         } else {
