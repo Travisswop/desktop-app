@@ -259,6 +259,24 @@ export const flattenSmartsiteTabs = (tabs?: SmartsiteTab[] | null): string[] =>
   (tabs || []).flatMap((tab) => (Array.isArray(tab?.order) ? tab.order : []));
 
 /**
+ * Pin 'socialTop' (Small Icons) at the head of a flat templateOrder: strips
+ * every occurrence, then prepends the key when the site actually has icons.
+ * The builder renders the icons as a fixed header row (under the Bio) on
+ * every site, so any flat order it saves must lead with 'socialTop' — that's
+ * what pre-tabs/public flat renderers use to place the icons at the top.
+ */
+export const pinSocialTopFirstInFlatOrder = (
+  micrositeData: any,
+  order: string[],
+): string[] => {
+  const flatOrder = order.filter((orderKey) => orderKey !== "socialTop");
+
+  return hasSmartsiteTemplateSectionContent(micrositeData, "socialTop")
+    ? ["socialTop", ...flatOrder]
+    : flatOrder;
+};
+
+/**
  * The flat templateOrder dual-written alongside tabs on every save. On tabbed
  * sites 'socialTop' (Small Icons) is pinned in the header — it lives in no
  * tab — but pre-tabs clients render only the flat order, so it must LEAD the
@@ -268,15 +286,8 @@ export const flattenSmartsiteTabs = (tabs?: SmartsiteTab[] | null): string[] =>
 export const buildFlatTemplateOrderForTabs = (
   micrositeData: any,
   tabs?: SmartsiteTab[] | null,
-): string[] => {
-  const flatOrder = flattenSmartsiteTabs(tabs).filter(
-    (orderKey) => orderKey !== "socialTop",
-  );
-
-  return hasSmartsiteTemplateSectionContent(micrositeData, "socialTop")
-    ? ["socialTop", ...flatOrder]
-    : flatOrder;
-};
+): string[] =>
+  pinSocialTopFirstInFlatOrder(micrositeData, flattenSmartsiteTabs(tabs));
 
 export const areSmartsiteTabsEqual = (
   a?: SmartsiteTab[] | null,

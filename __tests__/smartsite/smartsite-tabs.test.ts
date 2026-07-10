@@ -11,6 +11,7 @@ import {
   isTabbedSmartsite,
   moveKeyBetweenSmartsiteTabs,
   normalizeSmartsiteTabs,
+  pinSocialTopFirstInFlatOrder,
 } from "@/lib/smartsite-template-order";
 
 // A microsite with content across several sections. Item-level sections
@@ -325,11 +326,45 @@ describe("socialTop pinned on tabbed sites", () => {
     ]);
   });
 
-  it("legacy sites keep socialTop as an ordered flat block", () => {
-    // tabs=[] → the normalizer leaves the flat path alone; socialTop stays
-    // in the default block order like today
+  it("legacy sites keep socialTop in the default block order", () => {
+    // tabs=[] → the normalizer leaves the flat path alone. socialTop stays
+    // in the default block order (public flat renderers still place it by
+    // templateOrder) — the BUILDER pins it in the header and re-pins the
+    // flat order on save via pinSocialTopFirstInFlatOrder.
     expect(normalizeSmartsiteTabs(site)).toEqual([]);
     expect(getDefaultSmartsiteTemplateBlockOrder(site)).toContain("socialTop");
+  });
+});
+
+describe("pinSocialTopFirstInFlatOrder (legacy flat saves)", () => {
+  it("prepends socialTop when the site has icons and the order lacks it", () => {
+    expect(
+      pinSocialTopFirstInFlatOrder(site, ["marketPlace", blogKey0]),
+    ).toEqual(["socialTop", "marketPlace", blogKey0]);
+  });
+
+  it("moves a mid-list socialTop to the front (dedupes every occurrence)", () => {
+    expect(
+      pinSocialTopFirstInFlatOrder(site, [
+        "marketPlace",
+        "socialTop",
+        blogKey0,
+        "socialTop",
+      ]),
+    ).toEqual(["socialTop", "marketPlace", blogKey0]);
+  });
+
+  it("strips socialTop entirely when the site has no icons", () => {
+    const siteWithoutIcons = {
+      ...site,
+      info: { ...site.info, socialTop: [] },
+    };
+    expect(
+      pinSocialTopFirstInFlatOrder(siteWithoutIcons, [
+        "marketPlace",
+        "socialTop",
+      ]),
+    ).toEqual(["marketPlace"]);
   });
 });
 
