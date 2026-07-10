@@ -28,6 +28,8 @@ export type MarketplaceProduct = {
   };
   /** Token the merchant is paid out in. Price is always USD. */
   payoutToken?: string;
+  royaltyPercentage?: number;
+  royaltyRecipient?: MarketplaceRoyaltyRecipient | null;
   inventory?: {
     track?: boolean;
     available?: number | null;
@@ -48,6 +50,16 @@ export type MarketplaceProduct = {
   tags?: string[];
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type MarketplaceRoyaltyRecipient = {
+  userId?: string | null;
+  micrositeId?: string | null;
+  ens?: string;
+  name?: string;
+  profilePic?: string;
+  solanaAddress?: string;
+  evmAddress?: string;
 };
 
 export type MarketplaceProductVariant = {

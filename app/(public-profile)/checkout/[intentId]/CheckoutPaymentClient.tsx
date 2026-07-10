@@ -1605,6 +1605,18 @@ export default function CheckoutPaymentClient({
       ? `${formatTokenQuantity(tokenAmount)} ${selectedToken.symbol}`
       : '--';
   const checkoutFeeText = checkoutFeeLabel(checkoutAmounts);
+  const royaltyRecipientNames = Array.from(
+    new Set(
+      (intent?.lineItems || [])
+        .filter((item) => Number(item.royalty?.amount || 0) > 0)
+        .map((item) => item.royalty?.name || item.royalty?.ens || '')
+        .filter(Boolean)
+    )
+  );
+  const royaltyRowLabel =
+    royaltyRecipientNames.length === 1
+      ? `Creator royalty · ${royaltyRecipientNames[0]}`
+      : 'Creator royalty';
   const tokenBalanceText = selectedToken
     ? formatTokenQuantity(selectedToken.balance)
     : '--';
@@ -1860,6 +1872,17 @@ export default function CheckoutPaymentClient({
                     <dd className="text-right font-bold">
                       {formatCurrency(
                         checkoutAmounts.platformFeeAmount,
+                        amountDueCurrency
+                      )}
+                    </dd>
+                  </div>
+                ) : null}
+                {checkoutAmounts && checkoutAmounts.royaltyAmount > 0 ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-[#7b8491]">{royaltyRowLabel}</dt>
+                    <dd className="text-right font-bold">
+                      {formatCurrency(
+                        checkoutAmounts.royaltyAmount,
                         amountDueCurrency
                       )}
                     </dd>
@@ -2719,6 +2742,17 @@ export default function CheckoutPaymentClient({
                     )}
                   </dd>
                 </div>
+                {checkoutAmounts && checkoutAmounts.royaltyAmount > 0 ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-[#737b8c]">{royaltyRowLabel}</dt>
+                    <dd className="font-semibold">
+                      {formatCurrency(
+                        checkoutAmounts.royaltyAmount,
+                        intent.merchantCurrency.symbol
+                      )}
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-3 border-t border-[#edf0f3] pt-3">
                   <dt className="font-semibold text-[#303642]">Total due</dt>
                   <dd className="font-semibold">

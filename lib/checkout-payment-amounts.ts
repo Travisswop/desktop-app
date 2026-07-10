@@ -23,15 +23,17 @@ const EVM_LIFI_OUTPUT_DUST_BUFFER =
 export function getCheckoutAmounts(intent: CheckoutIntent) {
   const merchantReceivesAmount =
     intent.fees?.merchantReceivesAmount ?? intent.amount.value;
+  const royaltyAmount = intent.fees?.royaltyAmount ?? 0;
   const platformFeeAmount = intent.fees?.platformFeeAmount ?? 0;
   const totalDueAmount =
     intent.fees?.totalDueAmount ??
-    merchantReceivesAmount + platformFeeAmount;
+    merchantReceivesAmount + royaltyAmount + platformFeeAmount;
   const slippageBps = intent.fees?.slippageBps ?? 50;
   const platformFeeBps = intent.fees?.platformFeeBps ?? 50;
 
   return {
     merchantReceivesAmount,
+    royaltyAmount,
     platformFeeAmount,
     totalDueAmount,
     slippageBps,

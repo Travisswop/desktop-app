@@ -105,6 +105,15 @@ export interface OrderDetail {
     grossAmount?: number;
     platformFeeBps?: number;
     platformFeeAmount?: number;
+    royaltyAmount?: number;
+    royalty?: {
+      ens?: string;
+      name?: string;
+      profilePic?: string;
+      percentage?: number;
+      amount?: number;
+      status?: 'none' | 'pending' | 'paid' | 'failed';
+    } | null;
     merchantReceivesAmount?: number;
     recipientAddress?: string;
     payoutRail?: string;
@@ -390,6 +399,9 @@ export default function OrderDetailScreen({
     Math.max(0, total - subtotalAmount - shippingAmount);
   const merchantReceivesAmount =
     order.settlement?.merchantReceivesAmount ?? subtotalAmount;
+  const royaltyAmount = order.settlement?.royaltyAmount ?? 0;
+  const royaltyName =
+    order.settlement?.royalty?.name || order.settlement?.royalty?.ens || '';
   const paymentComplete = order.payment === 'completed';
   const requiresShipping = Boolean(order.fulfillment?.requiresShipping);
   const deliveryConfirmed = sellerConfirmedDelivery(order);
@@ -549,6 +561,15 @@ export default function OrderDetailScreen({
               value={`$${formatUsdAmount(platformFeeAmount)}`}
               mono
             />
+            {royaltyAmount > 0 ? (
+              <Cell
+                label={
+                  royaltyName ? `Creator royalty · ${royaltyName}` : 'Creator royalty'
+                }
+                value={`$${formatUsdAmount(royaltyAmount)}`}
+                mono
+              />
+            ) : null}
             <Cell
               label={isBuyerCtx ? 'Total paid' : 'Buyer paid'}
               value={`$${formatUsdAmount(total)}`}
@@ -1348,6 +1369,28 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
             )}
             mono
           />
+          {Number(settlement?.royaltyAmount || 0) > 0 ? (
+            <>
+              <StateRow
+                label={
+                  settlement?.royalty?.name || settlement?.royalty?.ens
+                    ? `Royalty · ${
+                        settlement.royalty.name || settlement.royalty.ens
+                      }`
+                    : 'Creator royalty'
+                }
+                value={money(
+                  settlement?.royaltyAmount,
+                  settlement?.currency || order.financial?.currency || 'USDC'
+                )}
+                mono
+              />
+              <StateRow
+                label="Royalty payout"
+                value={humanize(settlement?.royalty?.status || 'pending')}
+              />
+            </>
+          ) : null}
           <StateRow label="Escrow rail" value={humanize(settlement?.payoutRail)} />
           <StateRow
             label="Payout chain"

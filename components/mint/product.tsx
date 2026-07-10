@@ -56,6 +56,7 @@ import {
   updateMarketplaceProduct,
   uploadMarketplaceDigitalAsset,
   type MarketplaceDigitalAsset,
+  type MarketplaceRoyaltyRecipient,
 } from '@/lib/marketplace-api';
 import {
   PRODUCT_DESCRIPTION_MAX_LENGTH,
@@ -80,6 +81,57 @@ interface Variant {
   name: string;
   options: VariantOption[];
 }
+
+interface RoyaltySearchResult {
+  _id?: string;
+  parentId?: string | { _id?: string };
+  isAgent?: boolean;
+  ens?: string;
+  name?: string;
+  profilePic?: string;
+  ensData?: {
+    solanaAddress?: string;
+    evmAddress?: string;
+  };
+}
+
+interface RoyaltySearchResponse {
+  state?: string;
+  data?: {
+    results?: RoyaltySearchResult[];
+  };
+}
+
+const objectId = (value: unknown): string | null => {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && '_id' in value) {
+    const id = (value as { _id?: unknown })._id;
+    return typeof id === 'string' ? id : null;
+  }
+  return null;
+};
+
+const royaltyRecipientFromResult = (
+  result: RoyaltySearchResult,
+): MarketplaceRoyaltyRecipient => ({
+  userId: objectId(result.parentId),
+  micrositeId: result._id || null,
+  ens: result.ens || '',
+  name: result.name || '',
+  profilePic: result.profilePic || '',
+  solanaAddress: result.ensData?.solanaAddress || '',
+  evmAddress: result.ensData?.evmAddress || '',
+});
+
+const royaltyRecipientLabel = (
+  recipient?: MarketplaceRoyaltyRecipient | null,
+) =>
+  recipient?.ens ||
+  recipient?.name ||
+  recipient?.solanaAddress ||
+  recipient?.evmAddress ||
+  '';
 
 const formatFileSize = (bytes?: number) => {
   const value = Number(bytes || 0);
@@ -155,6 +207,14 @@ const CreateProduct = ({
     string | null
   >(null);
   const [digitalDeliveryNote, setDigitalDeliveryNote] = useState('');
+  const [royaltyPercentage, setRoyaltyPercentage] = useState('');
+  const [royaltyRecipient, setRoyaltyRecipient] =
+    useState<MarketplaceRoyaltyRecipient | null>(null);
+  const [royaltyQuery, setRoyaltyQuery] = useState('');
+  const [royaltyResults, setRoyaltyResults] = useState<
+    RoyaltySearchResult[]
+  >([]);
+  const [royaltySearching, setRoyaltySearching] = useState(false);
 
   const [walletLoaded, setWalletLoaded] = useState(false);
   const [solanaAddress, setSolanaAddress] = useState<string | null>(
@@ -289,6 +349,14 @@ const CreateProduct = ({
             product.fulfillment.digitalDeliveryNote,
           );
         }
+        const loadedRoyaltyRecipient = product.royaltyRecipient || null;
+        setRoyaltyRecipient(loadedRoyaltyRecipient);
+        setRoyaltyQuery(royaltyRecipientLabel(loadedRoyaltyRecipient));
+        setRoyaltyPercentage(
+          product.royaltyPercentage
+            ? String(product.royaltyPercentage)
+            : '',
+        );
         // Agreement was accepted at creation — don't re-gate edits on it.
         setAgree(true);
         setLoadingProduct(false);
@@ -306,6 +374,64 @@ const CreateProduct = ({
       cancelled = true;
     };
   }, [productId, accessToken]);
+
+  useEffect(() => {
+    const query = royaltyQuery.trim();
+    if (
+      !accessToken ||
+      !user?._id ||
+      royaltyRecipient ||
+      query.length < 2
+    ) {
+      setRoyaltyResults([]);
+      setRoyaltySearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setRoyaltySearching(true);
+      try {
+        const params = new URLSearchParams({
+          q: query,
+          userId: user._id,
+          filter: 'all',
+          page: '1',
+          limit: '8',
+        });
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/search?${params}`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        );
+        const data = (await response.json()) as RoyaltySearchResponse;
+        if (!cancelled && response.ok && data.state === 'success') {
+          // Agent-vault hits share this endpoint but carry no microsite, so the
+          // backend can't resolve them to a royalty recipient.
+          setRoyaltyResults(
+            (data.data?.results || []).filter(
+              (result) => !result.isAgent && result._id,
+            ),
+          );
+        } else if (!cancelled) {
+          setRoyaltyResults([]);
+        }
+      } catch {
+        if (!cancelled) setRoyaltyResults([]);
+      } finally {
+        if (!cancelled) setRoyaltySearching(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [accessToken, royaltyQuery, royaltyRecipient, user?._id]);
 
   const processImage = async (
     file: File,
@@ -571,6 +697,17 @@ const CreateProduct = ({
       errors.digitalAsset =
         'Upload the file buyers will unlock after purchase';
     }
+    const royalty = Number(royaltyPercentage || 0);
+    if (
+      royaltyPercentage.trim() &&
+      (!Number.isFinite(royalty) || royalty < 0 || royalty > 100)
+    ) {
+      errors.royaltyPercentage = 'Royalty must be between 0 and 100';
+    } else if (royalty > 0 && !royaltyRecipient) {
+      errors.royaltyRecipient = 'Select a swop.id royalty recipient';
+    } else if (royaltyRecipient && royalty <= 0) {
+      errors.royaltyPercentage = 'Enter a royalty percentage above 0';
+    }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -608,6 +745,7 @@ const CreateProduct = ({
       const inventoryAvailable = hasVariantInventory
         ? variantInventoryTotal
         : Number(quantity);
+      const royalty = Number(royaltyPercentage || 0);
       const payload = {
         productType,
         title: name,
@@ -627,6 +765,10 @@ const CreateProduct = ({
         },
         payoutToken: PAYOUT_TOKEN.code,
         merchantEvmWalletAddress: evmAddress,
+        royaltyPercentage:
+          royaltyRecipient && royalty > 0 ? royalty : 0,
+        royaltyRecipient:
+          royaltyRecipient && royalty > 0 ? royaltyRecipient : null,
         inventory: {
           track: true,
           available: inventoryAvailable,
@@ -1672,6 +1814,178 @@ const CreateProduct = ({
                       }}
                     />
                   </Field>
+                </Card>
+
+                {/* Royalty */}
+                <Card pad={20}>
+                  <FormSection
+                    title="Royalty"
+                    subtitle="Send a percentage of each transaction to another swop.id user."
+                  />
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) 92px',
+                      gap: 10,
+                      alignItems: 'start',
+                    }}
+                  >
+                    <Field
+                      label="Royalty Recipient"
+                      error={formErrors.royaltyRecipient}
+                    >
+                      <div style={{ position: 'relative' }}>
+                        <TextInput
+                          placeholder="Search swop.id"
+                          value={royaltyQuery}
+                          invalid={!!formErrors.royaltyRecipient}
+                          onChange={(e) => {
+                            setRoyaltyRecipient(null);
+                            setRoyaltyQuery(e.target.value);
+                          }}
+                        />
+                        {royaltyRecipient ? (
+                          <button
+                            type="button"
+                            aria-label="Clear royalty recipient"
+                            onClick={() => {
+                              setRoyaltyRecipient(null);
+                              setRoyaltyQuery('');
+                            }}
+                            style={{
+                              position: 'absolute',
+                              right: 9,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: 24,
+                              height: 24,
+                              borderRadius: 7,
+                              border: 0,
+                              background: '#f1f1ee',
+                              color: muted,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <X size={13} />
+                          </button>
+                        ) : null}
+                        {!royaltyRecipient &&
+                          (royaltySearching ||
+                            royaltyResults.length > 0) && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                zIndex: 5,
+                                left: 0,
+                                right: 0,
+                                top: 'calc(100% + 6px)',
+                                border: `1px solid ${hair}`,
+                                borderRadius: 12,
+                                background: '#fff',
+                                boxShadow:
+                                  '0 16px 34px -22px rgba(10,10,12,0.35)',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              {royaltySearching ? (
+                                <div
+                                  style={{
+                                    padding: '10px 12px',
+                                    fontSize: 12,
+                                    color: muted,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                  }}
+                                >
+                                  <Loader2
+                                    size={12}
+                                    className="animate-spin"
+                                  />
+                                  Searching
+                                </div>
+                              ) : (
+                                royaltyResults.map((result) => {
+                                  const recipient =
+                                    royaltyRecipientFromResult(result);
+                                  const label =
+                                    royaltyRecipientLabel(recipient);
+                                  return (
+                                    <button
+                                      key={result._id || label}
+                                      type="button"
+                                      onClick={() => {
+                                        setRoyaltyRecipient(recipient);
+                                        setRoyaltyQuery(label);
+                                        setRoyaltyResults([]);
+                                        setFormErrors((prev) => ({
+                                          ...prev,
+                                          royaltyRecipient: '',
+                                        }));
+                                      }}
+                                      style={{
+                                        width: '100%',
+                                        border: 0,
+                                        background: '#fff',
+                                        padding: '10px 12px',
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 2,
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          fontSize: 13,
+                                          fontWeight: 700,
+                                          color: ink,
+                                        }}
+                                      >
+                                        {result.name || label}
+                                      </span>
+                                      <span
+                                        style={{
+                                          fontSize: 11.5,
+                                          color: muted,
+                                          fontFamily: mono,
+                                        }}
+                                      >
+                                        {label}
+                                      </span>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          )}
+                      </div>
+                    </Field>
+                    <Field
+                      label="%"
+                      error={formErrors.royaltyPercentage}
+                    >
+                      <TextInput
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="0.01"
+                        placeholder="0%"
+                        value={royaltyPercentage}
+                        invalid={!!formErrors.royaltyPercentage}
+                        onChange={(e) =>
+                          setRoyaltyPercentage(e.target.value)
+                        }
+                        style={{
+                          textAlign: 'center',
+                          fontFamily: mono,
+                        }}
+                      />
+                    </Field>
+                  </div>
                 </Card>
 
                 {/* Pricing */}

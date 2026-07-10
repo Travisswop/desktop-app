@@ -16,6 +16,16 @@ export type CheckoutCustomerInfo = {
   };
 };
 
+// Redacted royalty view returned to the buyer — display fields only; the
+// recipient's wallets and internal ids are stripped server-side.
+export type CheckoutRoyalty = {
+  ens?: string;
+  name?: string;
+  profilePic?: string;
+  percentage?: number;
+  amount?: number;
+};
+
 export type CheckoutIntent = {
   intentId: string;
   status:
@@ -35,7 +45,9 @@ export type CheckoutIntent = {
   };
   fees?: {
     currency: string;
+    subtotalAmount?: number;
     merchantReceivesAmount: number;
+    royaltyAmount?: number;
     platformFeeBps: number;
     platformFeeAmount: number;
     slippageBps: number;
@@ -53,6 +65,7 @@ export type CheckoutIntent = {
     totalAmount: number;
     currency: string;
     productType?: string;
+    royalty?: CheckoutRoyalty | null;
   }>;
   merchantCurrency: {
     symbol: string;
