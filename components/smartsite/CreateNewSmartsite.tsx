@@ -25,6 +25,13 @@ import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import { useUser } from "@/lib/UserContext";
 import { HexColorPicker } from "react-colorful";
 import { useDesktopUserData } from "../tanstackQueryApi/getUserData";
+import {
+  CalendarDays,
+  LayoutTemplate,
+  Music,
+  Sparkles,
+  Store,
+} from "lucide-react";
 
 import {
   Select,
@@ -35,6 +42,49 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+type StarterLayoutKey = "blank" | "creator" | "merchant" | "musician" | "event";
+
+// Starter layouts seeded server-side by POST /api/v4/microsite. "blank" is the
+// default and is omitted from the payload so the backend creates an empty site
+// exactly as before.
+const STARTER_LAYOUTS: {
+  key: StarterLayoutKey;
+  label: string;
+  description: string;
+  icon: React.ElementType;
+}[] = [
+  {
+    key: "blank",
+    label: "Blank",
+    description: "Start from scratch",
+    icon: LayoutTemplate,
+  },
+  {
+    key: "creator",
+    label: "Creator",
+    description: "Links, lead form & content tabs",
+    icon: Sparkles,
+  },
+  {
+    key: "merchant",
+    label: "Merchant",
+    description: "Store-front & updates",
+    icon: Store,
+  },
+  {
+    key: "musician",
+    label: "Musician",
+    description: "Releases, tips & media",
+    icon: Music,
+  },
+  {
+    key: "event",
+    label: "Event",
+    description: "Tickets, RSVP & details",
+    icon: CalendarDays,
+  },
+];
 
 const CreateSmartSite = ({ token }: { token: string }) => {
   const { formData, setFormData } = useSmartsiteFormStore();
@@ -54,6 +104,7 @@ const CreateSmartSite = ({ token }: { token: string }) => {
     network: "",
   });
   const [isPrimaryMicrosite, setIsPrimaryMicrosite] = useState(false);
+  const [starterLayout, setStarterLayout] = useState<StarterLayoutKey>("blank");
   const [brandImage, setBrandImage] = useState(""); //need to set brand image
 
   const [isTemplateColorPickerOpen, setIsTemplateColorPickerOpen] =
@@ -233,6 +284,8 @@ const CreateSmartSite = ({ token }: { token: string }) => {
       fontColor: formData.fontColor,
       fontFamily: formData.fontType,
       themeColor: formData.templateColor,
+      // Blank = omit the field so the backend creates an empty site as before.
+      ...(starterLayout !== "blank" && { starterLayout }),
     };
 
     console.log("smartsite info", smartSiteInfo);
@@ -396,6 +449,49 @@ const CreateSmartSite = ({ token }: { token: string }) => {
                   />
                 </div>
               </div>
+            </div>
+          </div>
+          <div>
+            <p className="font-medium text-gray-700">Start with a layout</p>
+            <p className="text-[13px] text-gray-500 mt-0.5 tracking-tight">
+              Optionally seed your site with ready-made tabs and placeholders.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mt-3">
+              {STARTER_LAYOUTS.map((layout) => {
+                const LayoutIcon = layout.icon;
+                const isSelected = starterLayout === layout.key;
+                return (
+                  <button
+                    key={layout.key}
+                    type="button"
+                    onClick={() => setStarterLayout(layout.key)}
+                    aria-pressed={isSelected}
+                    className={`flex flex-col items-start gap-2 p-3 rounded-2xl border text-left transition bg-white shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)] ${
+                      isSelected
+                        ? "border-gray-900 ring-1 ring-gray-900"
+                        : "border-black/[0.06] hover:border-black/[0.15]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-flex items-center justify-center w-7 h-7 rounded-full border ${
+                        isSelected
+                          ? "bg-gray-900 text-white border-gray-900"
+                          : "bg-white text-gray-900 border-black/[0.06]"
+                      }`}
+                    >
+                      <LayoutIcon size={14} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-semibold tracking-tight text-gray-900">
+                        {layout.label}
+                      </span>
+                      <span className="block text-[11px] leading-snug text-gray-500 tracking-tight mt-0.5">
+                        {layout.description}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="flex flex-wrap flex-col sm:flex-row items-start justify-between gap-x-5 gap-y-2">
