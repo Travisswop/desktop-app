@@ -99,8 +99,6 @@ import {
   Trash2,
 } from "lucide-react";
 import TipJarCard from "../publicProfile/widgets/TipJarCard";
-import PredictionMarketCard from "../publicProfile/widgets/PredictionMarketCard";
-import VaultCard from "../publicProfile/widgets/VaultCard";
 import LeadFormCard from "../publicProfile/widgets/LeadFormCard";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -2480,7 +2478,7 @@ const SmartsiteIconLivePreview = ({
                 )}
                 {/* embed link display here end */}
 
-                {/* widgets (tip jar / prediction market / agent vault) start */}
+                {/* widgets (tip jar / leads form) start */}
                 {Array.isArray(data.info?.widget) &&
                   data.info.widget.length > 0 && (
                     <>
@@ -2509,16 +2507,6 @@ const SmartsiteIconLivePreview = ({
                             {item.widgetType === "tipJar" ? (
                               <TipJarCard
                                 widgetId={item._id}
-                                config={item.config || {}}
-                                mode="builder"
-                              />
-                            ) : item.widgetType === "predictionMarket" ? (
-                              <PredictionMarketCard
-                                config={item.config || {}}
-                                mode="builder"
-                              />
-                            ) : item.widgetType === "vaultCard" ? (
-                              <VaultCard
                                 config={item.config || {}}
                                 mode="builder"
                               />

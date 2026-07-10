@@ -561,7 +561,7 @@ describe("gated tab flag", () => {
 describe("widget section", () => {
   const widgetItems = [
     { _id: "w1", widgetType: "tipJar", config: {} },
-    { _id: "w2", widgetType: "vaultCard", config: {} },
+    { _id: "w2", widgetType: "leadForm", config: {} },
   ];
   const siteWithWidgets = {
     ...site,

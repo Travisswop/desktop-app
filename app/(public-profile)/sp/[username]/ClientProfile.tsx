@@ -51,8 +51,6 @@ import {
 } from "@/lib/smartsite-template-order";
 import { Lock } from "lucide-react";
 import TipJarCard from "@/components/publicProfile/widgets/TipJarCard";
-import PredictionMarketCard from "@/components/publicProfile/widgets/PredictionMarketCard";
-import VaultCard from "@/components/publicProfile/widgets/VaultCard";
 import LeadFormCard from "@/components/publicProfile/widgets/LeadFormCard";
 
 interface ClientProfileProps {
@@ -680,7 +678,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               </>
             )}
 
-            {/* Widgets (tip jar / prediction market / agent vault) */}
+            {/* Widgets (tip jar / leads form) */}
             {info?.widget && info.widget.length > 0 && (
               <>
                 {info.widget.map((item: any, index: number) => (
@@ -704,13 +702,6 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                           info?.product?.[0]?.paymentUrl || null
                         }
                       />
-                    ) : item.widgetType === "predictionMarket" ? (
-                      <PredictionMarketCard
-                        config={item.config || {}}
-                        mode="public"
-                      />
-                    ) : item.widgetType === "vaultCard" ? (
-                      <VaultCard config={item.config || {}} mode="public" />
                     ) : item.widgetType === "leadForm" ? (
                       <LeadFormCard
                         widgetId={item._id}

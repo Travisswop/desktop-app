@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import { handleDeleteWidget, handleUpdateWidget } from "@/actions/widget";
-import { parsePolymarketRef } from "./AddPredictionMarket";
 import {
   LEAD_FORM_FIELD_ORDER,
   LEAD_FORM_FIELD_META,
@@ -21,8 +20,6 @@ const MAX_PRESETS = 6;
 
 const WIDGET_TITLES: Record<string, string> = {
   tipJar: "Tip Jar",
-  predictionMarket: "Prediction Market",
-  vaultCard: "Agent Vault",
   leadForm: "Leads Form",
 };
 
@@ -30,10 +27,9 @@ const inputClass =
   "w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100";
 
 /**
- * Edit/delete modal for smartsite widgets (tipJar / predictionMarket /
- * vaultCard). Opened from the builder preview via categoryForTrigger
- * "widget" — follows the same self-rendered overlay pattern as the other
- * Update* components.
+ * Edit/delete modal for smartsite widgets (tipJar / leadForm). Opened from
+ * the builder preview via categoryForTrigger "widget" — follows the same
+ * self-rendered overlay pattern as the other Update* components.
  */
 const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
   const router = useRouter();
@@ -54,14 +50,6 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
   const [presetsInput, setPresetsInput] = useState("");
   const [allowCustom, setAllowCustom] = useState(true);
   const [currency, setCurrency] = useState<string>("USDC");
-
-  // predictionMarket fields
-  const [marketInput, setMarketInput] = useState("");
-  const [question, setQuestion] = useState("");
-
-  // vaultCard fields
-  const [ensName, setEnsName] = useState("");
-  const [headline, setHeadline] = useState("");
 
   // leadForm fields
   const [description, setDescription] = useState("");
@@ -89,10 +77,6 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
     );
     setAllowCustom(config.allowCustom !== false);
     setCurrency(config.currency || "USDC");
-    setMarketInput(config.conditionId || config.slug || config.marketId || "");
-    setQuestion(config.question || "");
-    setEnsName(config.ensName || "");
-    setHeadline(config.headline || "");
     setDescription(config.description || "");
     setSuccessMessage(config.successMessage || "");
     setLeadFields({
@@ -140,26 +124,6 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
         presets,
         allowCustom,
         currency,
-      };
-    }
-
-    if (widgetType === "predictionMarket") {
-      const parsed = parsePolymarketRef(marketInput);
-      if (!parsed) {
-        toast.error("Paste a Polymarket link, slug, or condition id");
-        return null;
-      }
-      return { ...parsed, question: question.trim() || undefined };
-    }
-
-    if (widgetType === "vaultCard") {
-      if (!ensName.trim()) {
-        toast.error("Enter your vault's ENS name");
-        return null;
-      }
-      return {
-        ensName: ensName.trim(),
-        headline: headline.trim() || undefined,
       };
     }
 
@@ -322,66 +286,6 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
                       </option>
                     ))}
                   </select>
-                </div>
-              </>
-            )}
-
-            {widgetType === "predictionMarket" && (
-              <>
-                <div>
-                  <p className="font-medium mb-1">Market Link or ID</p>
-                  <input
-                    type="text"
-                    value={marketInput}
-                    onChange={(e) => setMarketInput(e.target.value)}
-                    className={inputClass}
-                    placeholder="https://polymarket.com/event/…"
-                    required
-                  />
-                </div>
-                <div>
-                  <p className="font-medium mb-1">
-                    Question Override{" "}
-                    <span className="text-xs font-normal text-gray-400">
-                      (optional)
-                    </span>
-                  </p>
-                  <input
-                    type="text"
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
-              </>
-            )}
-
-            {widgetType === "vaultCard" && (
-              <>
-                <div>
-                  <p className="font-medium mb-1">Vault ENS Name</p>
-                  <input
-                    type="text"
-                    value={ensName}
-                    onChange={(e) => setEnsName(e.target.value)}
-                    className={inputClass}
-                    placeholder="agent-yourname.swop.id"
-                    required
-                  />
-                </div>
-                <div>
-                  <p className="font-medium mb-1">
-                    Headline{" "}
-                    <span className="text-xs font-normal text-gray-400">
-                      (optional)
-                    </span>
-                  </p>
-                  <input
-                    type="text"
-                    value={headline}
-                    onChange={(e) => setHeadline(e.target.value)}
-                    className={inputClass}
-                  />
                 </div>
               </>
             )}

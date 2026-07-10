@@ -112,7 +112,7 @@ const UpdateModalComponents: React.FC<UpdateModalComponentsProps> = ({
       )}
       {/* update redeemLink modal end   */}
 
-      {/* update widget (tip jar / prediction market / agent vault) start */}
+      {/* update widget (tip jar / leads form) start */}
       {isOn && iconData?.categoryForTrigger === "widget" && (
         <UpdateWidget iconDataObj={iconData} isOn={isOn} setOff={setOff} />
       )}

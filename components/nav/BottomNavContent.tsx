@@ -5,13 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
 import {
-  Bot,
   ClipboardList,
   HandCoins,
   Layers,
   LayoutGrid,
   Menu,
-  TrendingUp,
   WalletCards,
 } from "lucide-react";
 import { VscChip } from "react-icons/vsc";
@@ -58,8 +56,6 @@ import AddAudio from "../smartsite/EditMicrosite/audio/AddAudio";
 import AddMarketplace from "../smartsite/EditMicrosite/marketplace/AddMarketplace";
 import AddFeed from "../smartsite/EditMicrosite/feed/AddFeed";
 import AddTipJar from "../smartsite/EditMicrosite/widget/AddTipJar";
-import AddPredictionMarket from "../smartsite/EditMicrosite/widget/AddPredictionMarket";
-import AddVaultCard from "../smartsite/EditMicrosite/widget/AddVaultCard";
 import AddLeadForm from "../smartsite/EditMicrosite/widget/AddLeadForm";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { FiEdit } from "react-icons/fi";
@@ -134,18 +130,6 @@ const SMARTSITE_TEMPLATES = [
     title: "Tip Jar",
     description: "Accept quick tips",
     icon: HandCoins,
-  },
-  {
-    id: "prediction-market",
-    title: "Prediction Market",
-    description: "Pin a live market",
-    icon: TrendingUp,
-  },
-  {
-    id: "agent-vault",
-    title: "Agent Vault",
-    description: "Show your trading agent",
-    icon: Bot,
   },
   {
     id: "leads-form",
@@ -617,58 +601,6 @@ const BottomNavContent = () => {
               Back to Templates
             </button>
             <AddTipJar onCloseModal={handleCloseIconsModal} />
-          </div>
-        );
-
-      case "prediction-market":
-        return (
-          <div className="p-6">
-            <button
-              onClick={handleBackToTemplates}
-              className="mb-4 text-sm text-gray-600 hover:text-gray-900 flex items-center gap-2"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Back to Templates
-            </button>
-            <AddPredictionMarket onCloseModal={handleCloseIconsModal} />
-          </div>
-        );
-
-      case "agent-vault":
-        return (
-          <div className="p-6">
-            <button
-              onClick={handleBackToTemplates}
-              className="mb-4 text-sm text-gray-600 hover:text-gray-900 flex items-center gap-2"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Back to Templates
-            </button>
-            <AddVaultCard onCloseModal={handleCloseIconsModal} />
           </div>
         );
 
